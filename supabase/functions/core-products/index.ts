@@ -419,7 +419,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      // ===== HARD DELETE: Physically removes product, marks order_items as deleted =====
+      // ===== SOFT DELETE: Marks product as archived, preserves all related data =====
       case 'delete': {
         if (!product_id) {
           return new Response(
@@ -433,6 +433,7 @@ Deno.serve(async (req) => {
           .select('*')
           .eq('id', product_id)
           .eq('tenant_id', tenantId)
+          .is('deleted_at', null)
           .single();
 
         if (!product) {
@@ -442,91 +443,40 @@ Deno.serve(async (req) => {
           );
         }
 
-        // ===== UPDATE ORDER_ITEMS to mark product as deleted (keep historical data) =====
+        // Count affected order items for audit purposes
         const { count: affectedOrderItems } = await supabase
           .from('order_items')
           .select('id', { count: 'exact', head: true })
           .eq('product_id', product_id);
 
-        // Update order_items: set product_id to null and mark product_name
-        await supabase
-          .from('order_items')
-          .update({ 
-            product_id: null, 
-            product_name: `[Excluído] ${product.name}`,
-            product_sku: product.sku,
-          })
-          .eq('product_id', product_id);
-
-        // ===== DELETE RELATED DATA =====
-
-        // 1. Delete product_images
-        await supabase
-          .from('product_images')
-          .delete()
-          .eq('product_id', product_id);
-
-        // 2. Delete product_variants
-        await supabase
-          .from('product_variants')
-          .delete()
-          .eq('product_id', product_id);
-
-        // 3. Delete product_components (where this is parent)
-        await supabase
-          .from('product_components')
-          .delete()
-          .eq('parent_product_id', product_id);
-
-        // 4. Delete product_components (where this is component - remove from kits)
-        await supabase
-          .from('product_components')
-          .delete()
-          .eq('component_product_id', product_id);
-
-        // 5. Delete related_products
-        await supabase
-          .from('related_products')
-          .delete()
-          .or(`product_id.eq.${product_id},related_product_id.eq.${product_id}`);
-
-        // 6. Delete buy_together_rules
-        await supabase
-          .from('buy_together_rules')
-          .delete()
-          .or(`trigger_product_id.eq.${product_id},suggested_product_id.eq.${product_id}`);
-
-        // 7. Delete product_categories
-        await supabase
-          .from('product_categories')
-          .delete()
-          .eq('product_id', product_id);
-
-        // 8. Delete cart_items
+        // Remove cart_items referencing this product (no point keeping deleted product in carts)
         await supabase
           .from('cart_items')
           .delete()
           .eq('product_id', product_id);
 
-        // 9. Finally, delete the product
-        const { error: deleteError } = await supabase
+        // Soft delete: mark as archived with deleted_at timestamp
+        const { error: softDeleteError } = await supabase
           .from('products')
-          .delete()
+          .update({ 
+            deleted_at: new Date().toISOString(), 
+            status: 'archived' 
+          })
           .eq('id', product_id)
           .eq('tenant_id', tenantId);
 
-        if (deleteError) {
-          return errorResponse(deleteError, corsHeaders, { module: 'products', action: 'delete' });
+        if (softDeleteError) {
+          return errorResponse(softDeleteError, corsHeaders, { module: 'products', action: 'delete' });
         }
 
         await createAuditLog(supabase, {
           tenant_id: tenantId,
           entity_type: 'product',
           entity_id: product_id,
-          action: 'hard_delete',
+          action: 'soft_delete',
           before_json: product,
-          after_json: { deleted: true, affected_order_items: affectedOrderItems || 0 },
-          changed_fields: ['deleted'],
+          after_json: { deleted_at: new Date().toISOString(), status: 'archived', affected_order_items: affectedOrderItems || 0 },
+          changed_fields: ['deleted_at', 'status'],
           actor_user_id: userId,
           source: 'core-products',
           correlation_id: correlationId,
