@@ -87,7 +87,7 @@ interface Order {
   installment_value: number | null;
   
   // === Primeira Compra ===
-  is_first_sale: boolean;        // Imutável. true = email novo no tenant na criação
+  is_first_sale: boolean;        // Imutável. true = email novo no tenant + pagamento aprovado
   
   // === Envio ===
   shipping_carrier: string | null;
