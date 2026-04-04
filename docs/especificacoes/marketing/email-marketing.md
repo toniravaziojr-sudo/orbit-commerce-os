@@ -54,6 +54,29 @@ Customers ← customer_tag_assignments → Sync automático -------+
 
 ---
 
+## Listas Padrão do Sistema
+
+Todo tenant recebe automaticamente 3 listas padrão ao ser criado. Essas listas são provisionadas via trigger de banco de dados (`AFTER INSERT ON tenants`) e função idempotente `ensure_default_email_marketing_lists`.
+
+| # | Tag (singular) | Cor | Lista (plural) | Descrição |
+|---|----------------|-----|-----------------|-----------|
+| 1 | Cliente | Verde `#10B981` | Clientes | Clientes com pedido aprovado |
+| 2 | Newsletter PopUp | Ciano `#06b6d4` | Newsletter PopUp | Leads capturados via popup newsletter |
+| 3 | Cliente Potencial | Laranja `#f97316` | Clientes Potenciais | Clientes que abandonaram o checkout |
+
+### Regras
+
+- **Criação automática**: as 3 listas são criadas junto com o tenant, sem ação manual.
+- **Idempotente**: a função pode ser executada múltiplas vezes sem duplicar dados.
+- **Marcação `is_system = true`**: listas padrão são marcadas como listas do sistema.
+- **Preenchimento automático**: cada lista é populada por triggers específicos:
+  - **Clientes**: preenchida pelo trigger `trg_recalc_customer_on_order` quando um pedido é aprovado.
+  - **Newsletter PopUp**: preenchida pelo edge function `marketing-form-submit` quando um lead se cadastra.
+  - **Clientes Potenciais**: preenchida pelo `scheduler-tick` (abandon-sweep) quando um checkout é abandonado.
+- **Nome legado**: a tag/lista "PoupUp" foi oficialmente renomeada para "Newsletter PopUp" (migração aplicada).
+
+---
+
 ## Tabelas do Banco
 
 ### email_marketing_lists
