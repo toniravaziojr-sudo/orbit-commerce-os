@@ -9,6 +9,7 @@ import { DayTasksDialog } from "./DayTasksDialog";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { AgendaPhoneConfig } from "./AgendaPhoneConfig";
 import { AgendaDiagnosticPanel } from "./AgendaDiagnosticPanel";
+import { AgendaTemplateStatus } from "./AgendaTemplateStatus";
 import { StatCard } from "@/components/ui/stat-card";
 import { Link } from "react-router-dom";
 
@@ -142,6 +143,9 @@ export function AgendaCalendarView() {
 
       {/* Diagnostic Panel */}
       <AgendaDiagnosticPanel />
+
+      {/* Template Status */}
+      <AgendaTemplateStatus />
 
       {/* Authorized Phones Config */}
       <AgendaPhoneConfig />
