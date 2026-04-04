@@ -327,7 +327,7 @@ export function useCategories() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
       toast.success('Categoria excluída com sucesso!');
-      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_deleted');
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'category_deleted');
     },
     onError: (error: Error) => {
       console.error('Error deleting category:', error);
