@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import type { Json } from '@/integrations/supabase/types';
-import { cachePurge } from '@/lib/storefrontCachePurge';
+import { storefrontAutoUpdate } from '@/lib/storefrontCachePurge';
 import { useEffect, useRef } from 'react';
 import { 
   backfillStorefrontAssets,
