@@ -307,7 +307,7 @@ export function useCategories() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
       toast.success('Categoria atualizada com sucesso!');
-      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_updated');
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'category_updated');
     },
     onError: (error: Error) => {
       console.error('Error updating category:', error);
