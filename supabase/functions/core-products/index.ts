@@ -506,6 +506,8 @@ Deno.serve(async (req) => {
           affected_order_items: affectedOrderItems || 0,
         }, `product_deleted_${product_id}`);
 
+        fireRevalidation(supabase, tenantId, 'product_deleted');
+
         return new Response(
           JSON.stringify({ 
             success: true, 
