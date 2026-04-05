@@ -986,15 +986,8 @@ function parseDate(value: string): string | null {
   return null;
 }
 
-function slugify(text: string): string {
-  if (!text) return '';
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
+
+
 
 /**
  * Parse price string, supporting Brazilian format (R$ 49,90) and international (49.90)
