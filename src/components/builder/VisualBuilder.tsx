@@ -95,7 +95,7 @@ function VisualIsolationUI({ mode, message }: { mode: string; message: string })
 }
 
 // Wrapper component to access draft theme context and combine with store isDirty
-function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof BuilderToolbar>, 'isDirty'> & { storeIsDirty: boolean; onPageChangeCheck?: (targetUrl: string) => boolean }) {
+function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof BuilderToolbar>, 'isDirty' | 'hasPendingPublish'> & { storeIsDirty: boolean; onPageChangeCheck?: (targetUrl: string) => boolean }) {
   const draftTheme = useBuilderDraftTheme();
   const draftPageSettings = getGlobalDraftPageSettingsRef();
   const headerDraft = getGlobalHeaderDraftRef();
@@ -107,6 +107,26 @@ function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof Bu
   // Observe ALL draft changes to trigger re-render when any draft changes
   useHeaderFooterDraftObserver();
   useDraftPageSettingsObserver(); // CRITICAL: Also observe page settings changes
+
+  // Detect saved-but-unpublished changes: compare draft_content vs published_content
+  const templateSetId = props.templateSetId;
+  const { data: hasPendingPublish = false } = useQuery({
+    queryKey: ['has-pending-publish', templateSetId],
+    queryFn: async () => {
+      if (!templateSetId) return false;
+      const { data, error } = await supabase
+        .from('storefront_template_sets')
+        .select('draft_content, published_content')
+        .eq('id', templateSetId)
+        .single();
+      if (error || !data) return false;
+      // Compare stringified content - if different, there are pending changes
+      return JSON.stringify(data.draft_content) !== JSON.stringify(data.published_content);
+    },
+    enabled: !!templateSetId,
+    staleTime: 0, // Always fresh after save/publish
+    gcTime: 1000 * 60 * 5,
+  });
   
   const { storeIsDirty, onPageChangeCheck, ...toolbarProps } = props;
   // Combine store dirty state with ALL draft sources
@@ -118,7 +138,7 @@ function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof Bu
     (miniCartDraft?.hasDraftChanges ?? false) ||
     (popupDraft?.hasDraftChanges ?? false) ||
     (supportWidgetDraft?.hasDraftChanges ?? false);
-  return <BuilderToolbar {...toolbarProps} isDirty={isDirty} onPageChangeCheck={onPageChangeCheck} />;
+  return <BuilderToolbar {...toolbarProps} isDirty={isDirty} hasPendingPublish={hasPendingPublish} onPageChangeCheck={onPageChangeCheck} />;
 }
 
 // Component that injects theme CSS - MUST be inside BuilderDraftThemeProvider
@@ -920,6 +940,7 @@ export function VisualBuilder({
         });
         pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
         store.markClean();
+        queryClient.invalidateQueries({ queryKey: ['has-pending-publish', templateSetId] });
         toast.success('Rascunho salvo!');
         return;
       }
@@ -986,6 +1007,7 @@ export function VisualBuilder({
         await publishTemplateSet.mutateAsync({ templateSetId });
         pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
         store.markClean();
+        queryClient.invalidateQueries({ queryKey: ['has-pending-publish', templateSetId] });
         return;
       }
 

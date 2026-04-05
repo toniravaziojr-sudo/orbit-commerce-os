@@ -64,6 +64,7 @@ interface BuilderToolbarProps {
   pageSlug?: string; // For institutional/landing pages
   templateSetId?: string; // For multi-template system - preserve across page changes
   isDirty: boolean;
+  hasPendingPublish?: boolean; // Whether draft differs from published (saved but not published)
   isPublished?: boolean; // Whether the store is already published
   canUndo: boolean;
   canRedo: boolean;
@@ -93,6 +94,7 @@ export function BuilderToolbar({
   pageSlug,
   templateSetId,
   isDirty,
+  hasPendingPublish = false,
   isPublished = false,
   canUndo,
   canRedo,
@@ -442,8 +444,9 @@ export function BuilderToolbar({
           <AlertDialogTrigger asChild>
             <Button 
               size="sm" 
-              disabled={isPublishing} 
+              disabled={isPublishing || (!isDirty && !hasPendingPublish)} 
               className="gap-1 h-7 px-2 text-xs"
+              title={(!isDirty && !hasPendingPublish) ? 'Nenhuma alteração pendente para publicar' : 'Publicar alterações na loja'}
             >
               {isPublishing ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
