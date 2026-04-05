@@ -134,6 +134,7 @@ serve(async (req) => {
         nome_fantasia,
         endereco_complemento,
         cnae,
+        origem_fiscal_padrao,
       } = body;
 
       // Check existing certificate data for is_configured validation
@@ -204,6 +205,7 @@ serve(async (req) => {
         ambiente: ambiente || 'homologacao',
         emissao_automatica: emissao_automatica || false,
         emitir_apos_status: emitir_apos_status || 'paid',
+        origem_fiscal_padrao: origem_fiscal_padrao ?? 0,
         is_configured,
       };
 
