@@ -4927,3 +4927,38 @@ Migração de CSS Grid para **Flexbox** com `flex-wrap` + `justify-center`, gara
 |---------|-----------|
 | `src/components/builder/blocks/FeaturedCategoriesBlock.tsx` | Grid substituído por `flex flex-wrap justify-center` (grid real e demo) |
 | `supabase/functions/_shared/block-compiler/blocks/featured-categories.ts` | Grid inline substituído por `display:flex;flex-wrap:wrap;justify-content:center` |
+
+---
+
+## v8.14.0 — Botão Publicar: Desabilitado sem Alterações Pendentes (2026-04-05)
+
+### Problema
+O botão "Publicar" ficava sempre habilitado, mesmo quando não havia nenhuma alteração pendente (nem no editor, nem salva como rascunho). Isso diverge do padrão de qualquer ambiente de personalização de loja.
+
+### Solução
+Implementação completa com duas camadas de detecção:
+
+1. **`isDirty`** — Alterações não salvas no editor (blocos, tema, header/footer, configurações de página)
+2. **`hasPendingPublish`** — Rascunho salvo mas não publicado (`draft_content ≠ published_content` no template set)
+
+O botão "Publicar" agora fica desabilitado quando `!isDirty && !hasPendingPublish`, com tooltip informativo.
+
+### Fluxo
+| Estado | Botão Salvar | Botão Publicar |
+|--------|-------------|----------------|
+| Sem alterações, draft = published | Desabilitado | Desabilitado |
+| Com alterações não salvas | Habilitado | Habilitado |
+| Alterações salvas, draft ≠ published | Desabilitado | Habilitado |
+| Publicando | Desabilitado | Spinner + desabilitado |
+
+### Invalidação de Cache
+A query `has-pending-publish` é invalidada automaticamente após:
+- **Save** (draft muda → pode divergir de published)
+- **Publish** (draft = published → botão desabilita)
+
+### Arquivos Alterados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/builder/BuilderToolbar.tsx` | Nova prop `hasPendingPublish`, lógica `disabled={isPublishing \|\| (!isDirty && !hasPendingPublish)}`, tooltip contextual |
+| `src/components/builder/VisualBuilder.tsx` | Query `has-pending-publish` no wrapper `BuilderToolbarWithDraftCheck`, invalidação após save e publish |
