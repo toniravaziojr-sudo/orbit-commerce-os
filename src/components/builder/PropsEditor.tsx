@@ -612,7 +612,7 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
       }
       // ImageGallery images - use carousel editor when layout=carousel for desktop/mobile support
       if (blockType === 'ImageGallery' && name === 'images') {
-        const currentLayout = (block as any)?.props?.layout;
+        const currentLayout = allProps?.layout;
         if (currentLayout === 'carousel') {
           return (
             <ImageCarouselEditor
