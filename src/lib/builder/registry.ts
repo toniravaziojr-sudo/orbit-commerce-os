@@ -2139,6 +2139,7 @@ const blockDefinitions: BlockDefinition[] = [
       aspectRatio: '16:9',
       maxWidth: 'full',
       layout: 'carousel',
+      itemsPerSlide: 1,
       itemsPerRow: 3,
       itemsPerPage: 6,
     },
@@ -2153,7 +2154,7 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Layout',
         defaultValue: 'carousel',
         options: [
-          { label: 'Carrossel (1 por vez)', value: 'carousel' },
+          { label: 'Carrossel (deslizante)', value: 'carousel' },
           { label: 'Grade (múltiplos)', value: 'grid' },
         ],
       },
@@ -2168,6 +2169,25 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Tela cheia', value: 'full' },
         ],
         helpText: 'Controla a largura máxima do bloco. Ideal usar "Médio" ou "Grande" para vídeos verticais (9:16)',
+      },
+      itemsPerSlide: {
+        type: 'select',
+        label: 'Itens por Slide',
+        defaultValue: '1',
+        options: [
+          { label: '1 vídeo', value: '1' },
+          { label: '2 vídeos', value: '2' },
+          { label: '3 vídeos', value: '3' },
+          { label: '4 vídeos', value: '4' },
+        ],
+        showWhen: { layout: 'carousel' },
+        helpText: 'Quantos vídeos visíveis ao mesmo tempo no carrossel',
+      },
+      showControls: {
+        type: 'boolean',
+        label: 'Mostrar setas de navegação',
+        defaultValue: true,
+        showWhen: { layout: 'carousel' },
       },
       itemsPerRow: {
         type: 'select',
@@ -2203,12 +2223,6 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'URLs dos Vídeos (alternativo)',
         placeholder: 'https://youtube.com/watch?v=abc123\nhttps://youtu.be/xyz456',
         helpText: 'Cole URLs do YouTube (uma por linha) ou JSON de vídeos',
-      },
-      showControls: {
-        type: 'boolean',
-        label: 'Mostrar setas de navegação',
-        defaultValue: true,
-        showWhen: { layout: 'carousel' },
       },
       aspectRatio: {
         type: 'select',

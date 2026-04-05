@@ -1,8 +1,9 @@
 // =============================================
 // VIDEO CAROUSEL BLOCK COMPILER
-// Mirrors: src/components/builder/blocks/VideoCarouselBlock.tsx
-// Supports: carousel + grid layouts, maxWidth, pagination
+// Mirrors: src/components/builder/blocks/video-carousel/
+// Supports: carousel (embla multi-item) + grid layouts
 // Hydration: data-sf-video-carousel
+// v2.0.0: Added itemsPerSlide for carousel mode
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
@@ -23,7 +24,7 @@ interface VideoItem {
 }
 
 // =============================================
-// HELPERS
+// HELPERS (pure functions)
 // =============================================
 
 function extractYouTubeId(url: string): string | null {
@@ -37,6 +38,15 @@ function isUploadedVideo(url: string): boolean {
   const lower = url.toLowerCase();
   return ['.mp4', '.webm', '.ogg', '.mov'].some(ext => lower.includes(ext)) ||
     lower.includes('/storage/') || lower.includes('supabase');
+}
+
+function toSafeNumber(value: unknown, fallback: number): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const n = parseInt(value, 10);
+    return isNaN(n) ? fallback : n;
+  }
+  return fallback;
 }
 
 const ASPECT_PADDING: Record<string, string> = {
@@ -67,48 +77,26 @@ function normalizeVideos(rawVideos: VideoItem[] | undefined): (VideoItem & { url
 // RENDERERS (pure functions)
 // =============================================
 
-function renderVideoEmbed(video: { url: string; type: string }, padding: string): string {
+function renderThumbnailCard(video: VideoItem & { url: string; type: string }, padding: string): string {
   const ytId = video.type === 'youtube' ? extractYouTubeId(video.url) : null;
+  const thumb = video.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg` : '');
+  const playBg = video.type === 'youtube' ? '#dc2626' : 'var(--theme-button-primary-bg,#1a1a1a)';
+  const badge = video.type === 'youtube'
+    ? `<div style="position:absolute;top:0.5rem;left:0.5rem;display:flex;align-items:center;gap:0.25rem;background:#dc2626;color:#fff;font-size:0.7rem;padding:0.125rem 0.5rem;border-radius:0.25rem;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0C.488 3.45.029 5.804 0 12c.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0C23.512 20.55 23.971 18.196 24 12c-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 4-8 4z"/></svg>
+        YouTube
+      </div>`
+    : `<div style="position:absolute;top:0.5rem;left:0.5rem;display:flex;align-items:center;gap:0.25rem;background:var(--theme-button-primary-bg,#1a1a1a);color:#fff;font-size:0.7rem;padding:0.125rem 0.5rem;border-radius:0.25rem;">Vídeo</div>`;
 
-  if (video.type === 'upload') {
-    return `<div style="position:relative;width:100%;padding-bottom:${padding};border-radius:0.5rem;overflow:hidden;background:#000;">
-  <video src="${video.url}" controls playsinline style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;"></video>
-</div>`;
-  }
-
-  if (ytId) {
-    return `<div style="position:relative;width:100%;padding-bottom:${padding};border-radius:0.5rem;overflow:hidden;background:#000;">
-  <iframe src="https://www.youtube.com/embed/${ytId}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>
-</div>`;
-  }
-
-  return '';
-}
-
-function renderThumbnail(video: VideoItem & { url: string; type: string }, index: number, isActive: boolean): string {
-  const ytId = video.type === 'youtube' ? extractYouTubeId(video.url) : null;
-  const thumb = video.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg` : '');
-  const border = isActive
-    ? 'border:2px solid var(--theme-button-primary-bg,#1a1a1a);opacity:1;'
-    : 'border:2px solid transparent;opacity:0.7;';
-
-  return `<button data-sf-video-idx="${index}" style="flex-shrink:0;width:8rem;height:4.5rem;border-radius:0.375rem;overflow:hidden;${border}cursor:pointer;background:#333;">
-  ${thumb ? `<img src="${thumb}" alt="${escapeHtml(video.title || `Video ${index + 1}`)}" style="width:100%;height:100%;object-fit:cover;">` : ''}
-</button>`;
-}
-
-function renderGridCard(video: VideoItem & { url: string; type: string }, padding: string): string {
-  const ytId = video.type === 'youtube' ? extractYouTubeId(video.url) : null;
-  const thumb = video.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg` : '');
-
-  return `<div style="position:relative;width:100%;padding-bottom:${padding};border-radius:0.5rem;overflow:hidden;background:#000;cursor:pointer;" data-sf-video-grid-item data-sf-video-url="${escapeHtml(video.url)}" data-sf-video-type="${video.type}">
-  ${thumb ? `<img src="${thumb}" alt="${escapeHtml(video.title || 'Video')}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">` : ''}
+  return `<div style="position:relative;width:100%;padding-bottom:${padding};border-radius:0.5rem;overflow:hidden;background:#000;cursor:pointer;" data-sf-video-item data-sf-video-url="${escapeHtml(video.url)}" data-sf-video-type="${video.type}">
+  ${thumb ? `<img src="${thumb}" alt="${escapeHtml(video.title || 'Video')}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
   <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);">
-    <div style="width:3rem;height:3rem;border-radius:50%;background:${video.type === 'youtube' ? '#dc2626' : 'var(--theme-button-primary-bg,#1a1a1a)'};display:flex;align-items:center;justify-content:center;">
+    <div style="width:3.5rem;height:3.5rem;border-radius:50%;background:${playBg};display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
     </div>
   </div>
-  ${video.title ? `<div style="position:absolute;bottom:0;left:0;right:0;padding:0.5rem;background:linear-gradient(transparent,rgba(0,0,0,0.8));"><span style="color:#fff;font-size:0.75rem;font-weight:500;">${escapeHtml(video.title)}</span></div>` : ''}
+  ${badge}
+  ${video.title ? `<div style="position:absolute;bottom:0;left:0;right:0;padding:0.5rem 0.75rem;background:linear-gradient(transparent,rgba(0,0,0,0.8));"><span style="color:#fff;font-size:0.8rem;font-weight:500;">${escapeHtml(video.title)}</span></div>` : ''}
 </div>`;
 }
 
@@ -134,8 +122,9 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
   const aspectRatio = (props.aspectRatio as string) || '16:9';
   const maxWidth = (props.maxWidth as string) || 'full';
   const layout = (props.layout as string) || 'carousel';
-  const itemsPerRow = (props.itemsPerRow as number) || 3;
-  const itemsPerPage = (props.itemsPerPage as number) || 6;
+  const itemsPerRow = toSafeNumber(props.itemsPerRow, 3);
+  const itemsPerPage = toSafeNumber(props.itemsPerPage, 6);
+  const itemsPerSlide = toSafeNumber(props.itemsPerSlide, 1);
 
   const videos = normalizeVideos(rawVideos);
   if (videos.length === 0) return '';
@@ -152,13 +141,13 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
   if (layout === 'grid') {
     const pageVideos = videos.slice(0, itemsPerPage);
     const cols = getGridTemplateColumns(itemsPerRow);
-    const cardsHtml = pageVideos.map(v => renderGridCard(v, padding)).join('\n');
+    const cardsHtml = pageVideos.map(v => renderThumbnailCard(v, padding)).join('\n');
 
     const paginationHtml = videos.length > itemsPerPage
       ? `<div style="margin-top:1rem;text-align:center;font-size:0.875rem;color:var(--theme-text-secondary,#888);">1 / ${Math.ceil(videos.length / itemsPerPage)}</div>`
       : '';
 
-    return `<div class="sf-video-carousel" data-sf-video-carousel data-sf-layout="grid" data-sf-items-per-page="${itemsPerPage}" data-sf-total="${videos.length}" style="${containerStyle}">
+    return `<div class="sf-video-carousel" data-sf-video-carousel data-sf-layout="grid" data-sf-items-per-row="${itemsPerRow}" data-sf-items-per-page="${itemsPerPage}" data-sf-total="${videos.length}" style="${containerStyle}">
   ${titleHtml}
   <div style="display:grid;grid-template-columns:${cols};gap:1rem;">
     ${cardsHtml}
@@ -167,22 +156,41 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
 </div>`;
   }
 
-  // ── CAROUSEL LAYOUT (default) ──
-  const first = videos[0];
-  const mainVideoHtml = renderVideoEmbed(first, padding);
+  // ── CAROUSEL LAYOUT ──
+  // Renders all items in a horizontal strip; hydration script handles sliding
+  const slidePct = 100 / itemsPerSlide;
+  const gap = itemsPerSlide > 1 ? '1rem' : '0';
+  const slideWidth = itemsPerSlide > 1
+    ? `calc(${slidePct.toFixed(2)}% - ${((itemsPerSlide - 1) * 16) / itemsPerSlide}px)`
+    : '100%';
 
-  const thumbsHtml = videos.length > 1
-    ? videos.map((v, i) => renderThumbnail(v, i, i === 0)).join('\n')
+  const slidesHtml = videos.map(v =>
+    `<div style="flex:0 0 ${slideWidth};min-width:0;">${renderThumbnailCard(v, padding)}</div>`
+  ).join('\n');
+
+  const dotsHtml = videos.length > itemsPerSlide
+    ? `<div style="margin-top:0.75rem;display:flex;justify-content:center;gap:0.375rem;" data-sf-carousel-dots>
+  ${Array.from({ length: Math.ceil(videos.length / itemsPerSlide) }).map((_, i) =>
+    `<button data-sf-dot="${i}" style="width:${i === 0 ? '1rem' : '0.5rem'};height:0.5rem;border-radius:9999px;background:${i === 0 ? 'var(--theme-button-primary-bg,#1a1a1a)' : 'rgba(0,0,0,0.2)'};border:none;cursor:pointer;transition:all 0.2s;"></button>`
+  ).join('')}
+</div>`
     : '';
 
-  const counterHtml = videos.length > 1
-    ? `<div style="margin-top:0.5rem;text-align:center;font-size:0.875rem;color:var(--theme-text-secondary, #888);">1 / ${videos.length}</div>`
-    : '';
-
-  return `<div class="sf-video-carousel" data-sf-video-carousel data-sf-layout="carousel" style="${containerStyle}">
+  return `<div class="sf-video-carousel" data-sf-video-carousel data-sf-layout="carousel" data-sf-items-per-slide="${itemsPerSlide}" data-sf-total="${videos.length}" style="${containerStyle}">
   ${titleHtml}
-  ${mainVideoHtml}
-  ${thumbsHtml ? `<div style="margin-top:1rem;display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;">${thumbsHtml}</div>` : ''}
-  ${counterHtml}
+  <div style="overflow:hidden;border-radius:0.5rem;" data-sf-carousel-viewport>
+    <div style="display:flex;gap:${gap};transition:transform 0.3s ease;" data-sf-carousel-track>
+      ${slidesHtml}
+    </div>
+  </div>
+  ${videos.length > itemsPerSlide ? `
+  <button data-sf-carousel-prev style="position:absolute;left:0.5rem;top:50%;transform:translateY(-50%);width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(255,255,255,0.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <button data-sf-carousel-next style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(255,255,255,0.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+  </button>
+  ` : ''}
+  ${dotsHtml}
 </div>`;
 };
