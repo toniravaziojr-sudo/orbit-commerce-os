@@ -55,10 +55,12 @@ export default function CreateStore() {
     }
   }, [tenants.length, wasInvited, inviteLoading, navigate]);
 
-  // Auto-generate slug from name using centralized policy
+  // Auto-generate slug from name using centralized hook
+  const autoSlug = useAutoSlug();
+
   const handleNameChange = (name: string) => {
-    const slug = generateSlug(name);
-    form.setValue('slug', slug);
+    const generated = autoSlug.handleNameChange(name);
+    form.setValue('slug', generated);
   };
 
   const handleSubmit = async (data: CreateStoreFormData) => {
