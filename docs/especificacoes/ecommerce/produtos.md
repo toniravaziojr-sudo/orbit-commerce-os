@@ -241,10 +241,13 @@ graph TD
 
 ### 5.4 Slugs
 
-- Gerados automaticamente do nome
+- Gerados automaticamente do nome via hook `useAutoSlug` (responsabilidade única)
 - Validados via `src/lib/slugPolicy.ts`
 - Únicos por tenant (não globalmente)
 - Slugs reservados proibidos (cart, checkout, admin, etc.)
+- **Auto-geração contínua**: enquanto o usuário não editar manualmente o campo slug, ele é regenerado a cada keystroke no campo nome
+- **Detecção de edição manual**: se o usuário digitar diretamente no campo slug, a auto-geração para automaticamente
+- Em modo edição, a auto-geração é desabilitada por padrão (slug existente é preservado)
 
 ---
 
