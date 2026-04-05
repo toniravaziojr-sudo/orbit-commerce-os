@@ -30,12 +30,16 @@ export interface InvoiceData {
   natureza_operacao: string;
   cfop: string;
   observacoes?: string;
+  // SEFAZ IDE
+  indicador_presenca: number;
+  informacoes_fisco?: string;
   // Destinatário
   dest_nome: string;
   dest_cpf_cnpj: string;
   dest_ie?: string;
   dest_tipo_pessoa: 'fisica' | 'juridica';
   dest_consumidor_final: boolean;
+  indicador_ie_dest: number;
   dest_endereco_logradouro: string;
   dest_endereco_numero: string;
   dest_endereco_complemento?: string;
@@ -53,6 +57,11 @@ export interface InvoiceData {
   valor_outras_despesas: number;
   valor_desconto: number;
   valor_total: number;
+  // Totais de impostos
+  valor_bc_icms: number;
+  valor_icms: number;
+  valor_pis: number;
+  valor_cofins: number;
   // Items
   items: InvoiceItemData[];
   // Transporte
@@ -63,6 +72,10 @@ export interface InvoiceData {
   peso_liquido?: number;
   quantidade_volumes?: number;
   especie_volumes?: string;
+  // Pagamento
+  pagamento_indicador: number;
+  pagamento_meio: string;
+  pagamento_valor: number;
 }
 
 export interface InvoiceItemData {
