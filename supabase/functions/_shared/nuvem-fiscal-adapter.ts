@@ -206,15 +206,8 @@ export function buildNFePayload(
     valor: number;
   }
 ): NuvemFiscalNFePayload {
-  // Determinar indicador de IE do destinatário
-  let indIEDest = 9; // Não contribuinte (padrão para PF)
-  if (destinatario.cnpj) {
-    if (destinatario.inscricao_estadual) {
-      indIEDest = 1; // Contribuinte ICMS
-    } else {
-      indIEDest = 2; // Isento
-    }
-  }
+  // Usar indicador_ie_dest do banco ou derivar
+  const indIEDest = invoice.indicador_ie_dest ?? (destinatario.cnpj ? (destinatario.inscricao_estadual ? 1 : 2) : 9);
 
   // Determinar idDest (destino da operação)
   let idDest = 1; // Interna
@@ -229,6 +222,9 @@ export function buildNFePayload(
     descricao: item.descricao.toUpperCase().substring(0, 120),
     cfop: item.cfop,
     ncm: item.ncm,
+    cEAN: item.gtin || 'SEM GTIN',
+    cEANTrib: item.gtin_tributavel || item.gtin || 'SEM GTIN',
+    CEST: item.cest || undefined,
     unidade_comercial: item.unidade || 'UN',
     quantidade_comercial: item.quantidade,
     valor_unitario_comercial: item.valor_unitario,
@@ -240,12 +236,21 @@ export function buildNFePayload(
     icms: {
       situacao_tributaria: item.csosn || item.cst_icms || '102',
       origem: parseInt(item.origem || '0'),
+      valor_base_calculo: item.icms_base || undefined,
+      aliquota: item.icms_aliquota || undefined,
+      valor: item.icms_valor || undefined,
     },
     pis: {
       situacao_tributaria: item.cst_pis || '49',
+      valor_base_calculo: item.pis_base || undefined,
+      aliquota: item.pis_aliquota || undefined,
+      valor: item.pis_valor || undefined,
     },
     cofins: {
       situacao_tributaria: item.cst_cofins || '49',
+      valor_base_calculo: item.cofins_base || undefined,
+      aliquota: item.cofins_aliquota || undefined,
+      valor: item.cofins_valor || undefined,
     },
   }));
 
