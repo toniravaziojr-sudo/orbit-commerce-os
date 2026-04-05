@@ -91,6 +91,7 @@ export function FiscalSettingsContent() {
     email_nfe_subject: '',
     email_nfe_body: '',
     desmembrar_estrutura: false,
+    origem_fiscal_padrao: 0,
   });
 
   const [certPassword, setCertPassword] = useState('');
@@ -456,6 +457,34 @@ export function FiscalSettingsContent() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="origem_fiscal_padrao">Origem Fiscal Padrão *</Label>
+              <Select
+                value={String(formData.origem_fiscal_padrao ?? 0)}
+                onValueChange={(v) => handleChange('origem_fiscal_padrao', parseInt(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">0 - Nacional</SelectItem>
+                  <SelectItem value="1">1 - Estrangeira (importação direta)</SelectItem>
+                  <SelectItem value="2">2 - Estrangeira (adquirida no mercado interno)</SelectItem>
+                  <SelectItem value="3">3 - Nacional com conteúdo importado &gt; 40%</SelectItem>
+                  <SelectItem value="4">4 - Nacional (processos produtivos básicos)</SelectItem>
+                  <SelectItem value="5">5 - Nacional com conteúdo importado ≤ 40%</SelectItem>
+                  <SelectItem value="6">6 - Estrangeira (importação direta, sem similar nacional)</SelectItem>
+                  <SelectItem value="7">7 - Estrangeira (adquirida internamente, sem similar nacional)</SelectItem>
+                  <SelectItem value="8">8 - Nacional com conteúdo importado &gt; 70%</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Define a origem padrão dos produtos na NF-e (tabela SEFAZ). Pode ser sobrescrita por produto.
+              </p>
             </div>
 
             <Separator />

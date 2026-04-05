@@ -6858,6 +6858,7 @@ export type Database = {
           is_configured: boolean | null
           nome_fantasia: string | null
           numero_nfe_atual: number | null
+          origem_fiscal_padrao: number
           provider: string | null
           provider_token: string | null
           razao_social: string | null
@@ -6909,6 +6910,7 @@ export type Database = {
           is_configured?: boolean | null
           nome_fantasia?: string | null
           numero_nfe_atual?: number | null
+          origem_fiscal_padrao?: number
           provider?: string | null
           provider_token?: string | null
           razao_social?: string | null
@@ -6960,6 +6962,7 @@ export type Database = {
           is_configured?: boolean | null
           nome_fantasia?: string | null
           numero_nfe_atual?: number | null
+          origem_fiscal_padrao?: number
           provider?: string | null
           provider_token?: string | null
           razao_social?: string | null

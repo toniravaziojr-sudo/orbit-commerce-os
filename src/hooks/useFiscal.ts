@@ -58,6 +58,8 @@ export interface FiscalSettings {
   email_nfe_body: string | null;
   // Kit unbundling
   desmembrar_estrutura: boolean;
+  // Default fiscal origin
+  origem_fiscal_padrao: number;
 }
 
 export interface CertificateInfo {
