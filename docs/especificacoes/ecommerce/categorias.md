@@ -253,10 +253,13 @@ Layout de duas colunas (`xl:grid-cols-2`) que empilham em telas menores.
 
 ### 7.1 Política de Slugs
 
-- Gerados automaticamente a partir do nome
+- Gerados automaticamente a partir do nome via hook `useAutoSlug` (responsabilidade única)
 - Formato: lowercase, sem acentos, hífens entre palavras
 - Validados via `src/lib/slugPolicy.ts`
 - Únicos por tenant (não globalmente)
+- **Auto-geração contínua**: enquanto o usuário não editar manualmente o campo slug, ele é regenerado a cada keystroke no campo nome
+- **Detecção de edição manual**: se o usuário digitar diretamente no campo slug, a auto-geração para automaticamente
+- Em modo edição, a auto-geração é desabilitada por padrão (slug existente é preservado)
 
 ### 7.2 Slugs Reservados
 

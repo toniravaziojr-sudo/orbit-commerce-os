@@ -18,6 +18,22 @@
  *    - /category/:slug or /c/:slug - categories
  *    - /page/:slug or /p/:slug - institutional pages
  *    - /lp/:slug - landing pages
+ * 
+ * 5. Slug generation architecture:
+ *    - generateSlug(): Pure function that converts text to slug format (this file)
+ *    - useAutoSlug(): React hook for forms — auto-generates from name, stops on manual edit
+ *    - All forms MUST use useAutoSlug for interactive slug fields
+ *    - Server-side/submit fallbacks may use generateSlug() directly
+ * 
+ * CONSUMERS:
+ *    - CategoryForm.tsx (useAutoSlug)
+ *    - ProductForm.tsx (useAutoSlug)
+ *    - QuizDialog.tsx (useAutoSlug)
+ *    - CreateStore.tsx (useAutoSlug)
+ *    - Categories.tsx (generateSlug — submit fallback)
+ *    - usePageTemplates.ts (generateSlug — submit fallback)
+ *    - StartInfo.tsx (generateSlug — submit fallback)
+ *    - import-helpers.ts (slugify — edge function)
  */
 
 // Slug format regex: lowercase letters, numbers, hyphens, no start/end with hyphen

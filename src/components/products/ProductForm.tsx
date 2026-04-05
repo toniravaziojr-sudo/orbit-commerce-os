@@ -40,7 +40,8 @@ import { RelatedProductsPicker } from './RelatedProductsPicker';
 import { ProductStructureEditor } from './ProductStructureEditor';
 import { ProductComponentsPicker, type PendingComponent } from './ProductComponentsPicker';
 import { ProductVariantPicker, type PendingVariant } from './ProductVariantPicker';
-import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SLUGS } from '@/lib/slugPolicy';
+import { validateSlugFormat } from '@/lib/slugPolicy';
+import { useAutoSlug } from '@/hooks/useAutoSlug';
 import { useToast } from '@/hooks/use-toast';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { AIDescriptionButton } from './AIDescriptionButton';
@@ -312,13 +313,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
   const isLoading = createProduct.isPending || updateProduct.isPending || isSaving;
 
-  // Use centralized slug generation from slugPolicy
-  const generateSlug = generateSlugFromPolicy;
+  // Centralized auto-slug generation with manual edit detection
+  const autoSlug = useAutoSlug({
+    initialSlug: product?.slug,
+    isEditing,
+  });
 
   const handleNameChange = (name: string) => {
     form.setValue('name', name);
-    if (!isEditing && !form.getValues('slug')) {
-      form.setValue('slug', generateSlug(name));
+    const generated = autoSlug.handleNameChange(name);
+    if (autoSlug.isAutoGenerating) {
+      form.setValue('slug', generated);
     }
   };
 
@@ -773,7 +778,14 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       <FormItem>
                         <FormLabel>Slug *</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="camiseta-basica" />
+                          <Input 
+                            {...field} 
+                            placeholder="camiseta-basica"
+                            onChange={(e) => {
+                              autoSlug.setSlug(e.target.value);
+                              field.onChange(e.target.value.toLowerCase().replace(/\s+/g, '-'));
+                            }}
+                          />
                         </FormControl>
                         <FormDescription>
                           URL amigável do produto (gerado automaticamente)

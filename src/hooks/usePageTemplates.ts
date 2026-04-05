@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
 import { showErrorToast } from '@/lib/error-toast';
+import { generateSlug } from '@/lib/slugPolicy';
 
 export interface PageTemplate {
   id: string;
@@ -52,11 +53,7 @@ export function usePageTemplates() {
     mutationFn: async (formData: PageTemplateFormData) => {
       if (!currentTenant?.id) throw new Error('Tenant não encontrado');
 
-      const slug = formData.slug || formData.name.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
+      const slug = formData.slug || generateSlug(formData.name);
 
       // Default content for new institutional pages
       // Uses same structure as home template - direct editable content, no PageContent placeholder
