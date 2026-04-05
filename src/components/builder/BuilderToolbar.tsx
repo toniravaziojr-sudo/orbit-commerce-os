@@ -444,8 +444,9 @@ export function BuilderToolbar({
           <AlertDialogTrigger asChild>
             <Button 
               size="sm" 
-              disabled={isPublishing} 
+              disabled={isPublishing || (!isDirty && !hasPendingPublish)} 
               className="gap-1 h-7 px-2 text-xs"
+              title={(!isDirty && !hasPendingPublish) ? 'Nenhuma alteração pendente para publicar' : 'Publicar alterações na loja'}
             >
               {isPublishing ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
