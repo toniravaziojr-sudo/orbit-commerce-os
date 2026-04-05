@@ -86,8 +86,11 @@ const productSchema = z.object({
   low_stock_threshold: z.coerce.number().int().min(0).default(5),
   manage_stock: z.boolean().default(true),
   allow_backorder: z.boolean().default(false),
-  gtin: z.string().max(50).nullable().optional()
-    .transform(val => val ? val.replace(/[^\d]/g, '') : val),
+  gtin: z.string().min(8, 'GTIN deve ter entre 8 e 14 dígitos').max(14, 'GTIN deve ter entre 8 e 14 dígitos')
+    .transform(val => val ? val.replace(/[^\d]/g, '') : val)
+    .refine(val => !val || [8, 12, 13, 14].includes(val.length), {
+      message: 'GTIN deve ter 8 (EAN-8), 12 (UPC), 13 (EAN-13) ou 14 dígitos (ITF-14)',
+    }),
   seo_title: z.string().max(70).nullable().optional(),
   seo_description: z.string().max(160).nullable().optional(),
   status: z.enum(['draft', 'active', 'inactive', 'archived']).default('draft'),
@@ -1052,22 +1055,22 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="gtin"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>GTIN/EAN (Código de Barras)</FormLabel>
+                          <FormLabel>GTIN/EAN (Código de Barras) *</FormLabel>
                           <FormControl>
                             <Input 
                               {...field} 
                               value={field.value ?? ''} 
-                              placeholder="Apenas números"
+                              placeholder="Ex: 7891234567890"
                               inputMode="numeric"
+                              maxLength={14}
                               onChange={(e) => {
-                                // Allow only numbers
                                 const cleaned = e.target.value.replace(/[^\d]/g, '');
                                 field.onChange(cleaned);
                               }}
                             />
                           </FormControl>
                           <FormDescription>
-                            Código de barras internacional do produto (apenas números)
+                            Obrigatório — EAN-8 (8), UPC (12), EAN-13 (13) ou ITF-14 (14 dígitos)
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
