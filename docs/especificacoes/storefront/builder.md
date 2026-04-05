@@ -2816,23 +2816,50 @@ Para adicionar novos presets no futuro:
 |-------|-------|
 | **Tipo** | Componente de Mídia |
 | **Status** | 🟢 Ativo |
-| **Localização** | `src/lib/builder/registry.ts` |
+| **Localização** | `src/components/builder/blocks/video-carousel/` (modular) |
+| **Registry** | `src/lib/builder/registry.ts` |
 | **Contexto** | Carrossel ou grade de múltiplos vídeos (YouTube ou upload) |
-| **Descrição** | Dois modos de layout: **carousel** (1 vídeo por vez com thumbnails e navegação) e **grid** (múltiplos vídeos em grade com paginação). Controle de largura máxima para evitar layout desproporcional em vídeos verticais. |
-| **Props** | `title` (string), `layout` (select: carousel/grid), `maxWidth` (select: small-448px/medium-576px/large-768px/full), `itemsPerRow` (select: 1-4, visível em grid), `itemsPerPage` (select: 3/6/9/12, visível em grid), `videos` (array), `videosJson` (textarea, alternativo), `showControls` (boolean, visível em carousel), `aspectRatio` (select: 16:9/4:3/1:1/9:16) |
-| **Compilador** | `video-carousel.ts` (Fase 3) — hidratação via `data-sf-video-carousel`, atributos `data-sf-layout`, `data-sf-items-per-page`, `data-sf-total` |
-| **Versão** | v8.11.0 — Adicionados `layout`, `maxWidth`, `itemsPerRow`, `itemsPerPage` |
+| **Descrição** | Dois modos de layout: **carousel** (multi-item deslizante via embla-carousel com `itemsPerSlide` configurável) e **grid** (múltiplos vídeos em grade com paginação). Controle de largura máxima para evitar layout desproporcional em vídeos verticais. |
+| **Props** | `title` (string), `layout` (select: carousel/grid), `maxWidth` (select: small/medium/large/full), `itemsPerSlide` (select: 1-4, visível em carousel), `showControls` (boolean, visível em carousel), `itemsPerRow` (select: 1-4, visível em grid), `itemsPerPage` (select: 3/6/9/12, visível em grid), `videos` (array), `videosJson` (textarea), `aspectRatio` (select: 16:9/4:3/1:1/9:16) |
+| **Compilador** | `video-carousel.ts` (Fase 3) — hidratação via `data-sf-video-carousel`, atributos `data-sf-layout`, `data-sf-items-per-slide`, `data-sf-items-per-row`, `data-sf-items-per-page`, `data-sf-total` |
+| **Versão** | v2.0.0 — Carrossel real via embla-carousel, `itemsPerSlide`, arquitetura modular |
 
-##### Props detalhadas (v8.11.0)
+##### Arquitetura Modular (v2.0.0)
 
-| Prop | Tipo | Default | Descrição |
-|------|------|---------|-----------|
-| `layout` | select | `carousel` | `carousel` = 1 vídeo por vez + thumbnails; `grid` = múltiplos em grade |
-| `maxWidth` | select | `full` | Largura máxima: `small` (448px), `medium` (576px), `large` (768px), `full` (100%) |
-| `itemsPerRow` | select | `3` | Colunas na grade (1-4). Só aparece quando `layout=grid`. Responsivo: mobile=1col, sm=2col, lg=valor configurado |
-| `itemsPerPage` | select | `6` | Limite de vídeos visíveis por página. Só aparece quando `layout=grid`. Pagina com botões Anterior/Próximo |
-| `showControls` | boolean | `true` | Setas de navegação. Só aparece quando `layout=carousel` |
-| `aspectRatio` | select | `16:9` | Proporção do player: 16:9, 4:3, 1:1, 9:16 |
+O bloco VideoCarousel segue o princípio de responsabilidade única com a seguinte estrutura:
+
+| Arquivo | Responsabilidade |
+|---------|-----------------|
+| `video-carousel/types.ts` | Interfaces e tipos (`VideoItem`, `VideoCarouselBlockProps`) |
+| `video-carousel/helpers.ts` | Funções puras: `extractYouTubeId`, `parseVideos`, `getAspectRatioClass`, `getGridColsClass`, `toSafeNumber` |
+| `video-carousel/VideoCard.tsx` | Componente de card individual (thumbnail + play overlay + badge) |
+| `video-carousel/CarouselLayout.tsx` | Layout carrossel usando embla-carousel (multi-item, dots, setas) |
+| `video-carousel/GridLayout.tsx` | Layout grade com paginação |
+| `video-carousel/VideoCarouselBlock.tsx` | Orquestrador: empty state + delegação para CarouselLayout ou GridLayout |
+| `video-carousel/index.tsx` | Re-export público |
+
+##### Props detalhadas (v2.0.0)
+
+| Prop | Tipo | Default | Layout | Descrição |
+|------|------|---------|--------|-----------|
+| `title` | string | `''` | ambos | Título exibido acima do bloco |
+| `layout` | select | `carousel` | — | `carousel` = carrossel deslizante via embla; `grid` = grade com paginação |
+| `maxWidth` | select | `full` | ambos | Largura máxima: `small` (448px), `medium` (576px), `large` (768px), `full` (100%) |
+| `itemsPerSlide` | select | `1` | carousel | Quantos vídeos visíveis ao mesmo tempo no carrossel (1-4). Visível apenas quando `layout=carousel` |
+| `showControls` | boolean | `true` | carousel | Setas de navegação. Visível apenas quando `layout=carousel` |
+| `itemsPerRow` | select | `3` | grid | Colunas na grade (1-4). Responsivo: mobile=1col, sm=2col, lg=valor configurado. Visível apenas quando `layout=grid` |
+| `itemsPerPage` | select | `6` | grid | Limite de vídeos visíveis por página (3/6/9/12). Pagina com botões Anterior/Próximo. Visível apenas quando `layout=grid` |
+| `aspectRatio` | select | `16:9` | ambos | Proporção do player: 16:9, 4:3, 1:1, 9:16 |
+| `videos` | array | `[]` | ambos | Lista de vídeos com `id`, `url`, `type`, `title`, `thumbnail`, `videoDesktop`, `videoMobile` |
+| `videosJson` | textarea | `''` | ambos | Alternativa: URLs do YouTube (uma por linha) ou JSON |
+
+##### Bug fix importante (v2.0.0)
+
+O registry envia valores de select como **strings** (`'3'`), mas o componente e o compilador esperam **números**. A função utilitária `toSafeNumber(value, fallback)` centraliza a coerção segura e deve ser usada em ambos os lados (React e Edge compiler). Isso corrige o bug onde `itemsPerRow` e `itemsPerPage` não funcionavam.
+
+##### Visibilidade condicional (showWhen)
+
+As props condicionais usam `showWhen: { layout: 'carousel' }` ou `showWhen: { layout: 'grid' }` no registry. O `PropsEditor.tsx` compara `props[propKey] === expectedValue` com igualdade estrita, por isso os valores devem ser strings consistentes.
 
 #### 4.5 Vídeo Upload (`VideoUpload`)
 
