@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
 import { showErrorToast } from '@/lib/error-toast';
+import { generateSlug } from '@/lib/slugPolicy';
 
 export interface PageTemplate {
   id: string;

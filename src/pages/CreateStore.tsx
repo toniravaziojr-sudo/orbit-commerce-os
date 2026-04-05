@@ -13,7 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { toast } from 'sonner';
 import { Loader2, Sparkles } from 'lucide-react';
-import { validateSlugFormat, generateSlug } from '@/lib/slugPolicy';
+import { validateSlugFormat } from '@/lib/slugPolicy';
+import { useAutoSlug } from '@/hooks/useAutoSlug';
 import { showErrorToast } from '@/lib/error-toast';
 
 const createStoreSchema = z.object({
