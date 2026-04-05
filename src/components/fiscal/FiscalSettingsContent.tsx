@@ -91,6 +91,7 @@ export function FiscalSettingsContent() {
     email_nfe_subject: '',
     email_nfe_body: '',
     desmembrar_estrutura: false,
+    origem_fiscal_padrao: 0,
   });
 
   const [certPassword, setCertPassword] = useState('');
