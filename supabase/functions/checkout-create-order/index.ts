@@ -435,6 +435,7 @@ serve(async (req) => {
         customer_name: payload.customer.name,
         customer_email: normalizedEmail,
         customer_phone: payload.customer.phone,
+        customer_cpf: payload.customer.cpf || null,
         status: 'pending',
         payment_status: 'pending',
         payment_method: payload.payment_method,

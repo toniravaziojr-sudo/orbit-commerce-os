@@ -391,7 +391,7 @@ Após a criação do pedido, triggers do banco propagam dados para outros módul
 
 ---
 
-## 13. Validação de Produtos no Checkout (REGRA CRÍTICA)
+## 14. Validação de Produtos no Checkout (REGRA CRÍTICA)
 
 | Cenário | Comportamento |
 |---------|---------------|
@@ -411,7 +411,7 @@ Após a criação do pedido, triggers do banco propagam dados para outros módul
 
 ---
 
-## 14. Validações Obrigatórias
+## 15. Validações Obrigatórias
 
 | Campo | Validação |
 |-------|-----------|
@@ -432,7 +432,7 @@ Após a criação do pedido, triggers do banco propagam dados para outros módul
 
 ---
 
-## 15. Busca Automática de Endereço por CEP
+## 16. Busca Automática de Endereço por CEP
 
 | Campo | Valor |
 |-------|-------|
@@ -445,7 +445,7 @@ Após a criação do pedido, triggers do banco propagam dados para outros módul
 
 ---
 
-## 16. Regra de Ofertas por Local (REGRA FIXA)
+## 17. Regra de Ofertas por Local (REGRA FIXA)
 
 | Tipo de Oferta | Local Correto |
 |----------------|---------------|
@@ -456,7 +456,7 @@ Após a criação do pedido, triggers do banco propagam dados para outros módul
 
 ---
 
-## 17. Descontos por Forma de Pagamento (por Gateway)
+## 18. Descontos por Forma de Pagamento (por Gateway)
 
 ### Tabela `payment_method_discounts`
 
@@ -498,7 +498,7 @@ Abas por gateway ativo. Se nenhum gateway ativo, exibe alerta com link para Inte
 
 ---
 
-## 18. Tracking Comercial
+## 19. Tracking Comercial
 
 ### Attribution (UTM / GCLID / FBCLID / TTCLID)
 
@@ -526,7 +526,7 @@ Abas por gateway ativo. Se nenhum gateway ativo, exibe alerta com link para Inte
 
 ---
 
-## 19. Classificação de Falhas de Pagamento
+## 20. Classificação de Falhas de Pagamento
 
 | Cenário | Pedido? | Cobrança? | Comportamento | Campo no resultado |
 |---------|---------|-----------|---------------|-------------------|
@@ -561,9 +561,9 @@ Cron: `expire-stale-orders` a cada 15min. Status: `payment_status='cancelled'`, 
 
 ---
 
-## 20. Retry de Pagamento
+## 21. Retry de Pagamento
 
-### 20.1 Retry Token
+### 22.1 Retry Token
 
 | Campo | Valor |
 |-------|-------|
@@ -574,12 +574,12 @@ Cron: `expire-stale-orders` a cada 15min. Status: `payment_status='cancelled'`, 
 | Invalidação | Após pagamento aprovado (set null) |
 | Dados protegidos | CPF, endereço, dados do pedido — NUNCA expostos ao frontend |
 
-### 20.2 Retry Cartão (mesmo pedido)
+### 22.2 Retry Cartão (mesmo pedido)
 
 - `retry-card-payment` valida token e processa nova cobrança server-side
 - Dados sensíveis resolvidos no servidor (não vêm do frontend)
 
-### 20.3 Retry com Outra Forma de Pagamento
+### 22.3 Retry com Outra Forma de Pagamento
 
 | Campo | Valor |
 |-------|-------|
@@ -602,9 +602,9 @@ Cron: `expire-stale-orders` a cada 15min. Status: `payment_status='cancelled'`, 
 
 ---
 
-## 21. Segurança
+## 22. Segurança
 
-### 21.1 Validação de Preço Canônico (Phase 2B)
+### 22.1 Validação de Preço Canônico (Phase 2B)
 
 | Campo | Valor |
 |-------|-------|
@@ -617,7 +617,7 @@ Cron: `expire-stale-orders` a cada 15min. Status: `payment_status='cancelled'`, 
 | Modo atual | **SIMULAÇÃO** — divergências registradas, não bloqueiam pedido |
 | Risco residual | `payment_method_discount` ainda vem do frontend |
 
-### 21.2 RLS Hardening (Phase 3)
+### 22.2 RLS Hardening (Phase 3)
 
 Zero policies anônimas em: `orders`, `order_items`, `customers`, `payment_transactions`, `order_attribution`.
 
@@ -633,7 +633,7 @@ Toda leitura/escrita via Edge Functions com `service_role`.
 - `order-lookup` — lista/busca para clientes logados (JWT)
 - `get-review-data` — itens do pedido para avaliação (token seguro)
 
-### 21.3 Segurança ao Trocar Forma de Pagamento
+### 22.3 Segurança ao Trocar Forma de Pagamento
 
 - CVV usa `type="password"` (mascarado)
 - Ao trocar forma: limpeza automática de dados do cartão, erro anterior e status de pagamento
@@ -641,7 +641,7 @@ Toda leitura/escrita via Edge Functions com `service_role`.
 
 ---
 
-## 22. Idempotência e Snapshot Canônico
+## 23. Idempotência e Snapshot Canônico
 
 ### Conceito
 
@@ -679,7 +679,7 @@ Toda leitura/escrita via Edge Functions com `service_role`.
 
 ---
 
-## 23. Regra de Busca de Pedido (get-order)
+## 24. Regra de Busca de Pedido (get-order)
 
 | Regra | Descrição |
 |-------|-----------|
@@ -690,13 +690,13 @@ Toda leitura/escrita via Edge Functions com `service_role`.
 
 ---
 
-## 24. Navegação Checkout → Loja
+## 25. Navegação Checkout → Loja
 
 **PROIBIDO** usar `<Link>` do React Router para rotas de conteúdo. Toda navegação checkout→loja via `window.location.href` (hard refresh), devolvendo controle ao Edge Function.
 
 ---
 
-## 25. Layout
+## 26. Layout
 
 ### Sidebar Sticky
 
@@ -711,7 +711,7 @@ No admin, nomes continuam visíveis.
 
 ---
 
-## 26. Visibilidade de Declined e Retry no Admin
+## 27. Visibilidade de Declined e Retry no Admin
 
 1. Pedidos recusados aparecem na lista com badge "Recusado" (vermelho)
 2. Pedidos com retentativa mostram ícone `Link2` ao lado do número
@@ -722,7 +722,7 @@ No admin, nomes continuam visíveis.
 
 ---
 
-## 27. Arquivos Relacionados
+## 28. Arquivos Relacionados
 
 | Se for editar... | Leia este doc primeiro |
 |------------------|------------------------|
@@ -744,7 +744,7 @@ No admin, nomes continuam visíveis.
 
 ---
 
-## 28. Pendências
+## 29. Pendências
 
 | Item | Status |
 |------|--------|
