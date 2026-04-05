@@ -103,6 +103,10 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
   const [destCep, setDestCep] = useState('');
   const [naturezaOperacao, setNaturezaOperacao] = useState('VENDA DE MERCADORIA');
   const [observacoes, setObservacoes] = useState('');
+  const [indicadorPresenca, setIndicadorPresenca] = useState(2);
+  const [indicadorIeDest, setIndicadorIeDest] = useState(9);
+  const [pagamentoIndicador, setPagamentoIndicador] = useState(0);
+  const [pagamentoMeio, setPagamentoMeio] = useState('99');
   const [items, setItems] = useState<ManualInvoiceItem[]>([
     { codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0, origem: '0', csosn: '102' }
   ]);
