@@ -138,6 +138,66 @@ const CSOSN_OPTIONS = [
   { value: '900', label: '900 - Outros' },
 ];
 
+// Opções SEFAZ: Indicador de Presença
+const INDICADOR_PRESENCA_OPTIONS = [
+  { value: 0, label: '0 - Não se aplica' },
+  { value: 1, label: '1 - Presencial' },
+  { value: 2, label: '2 - Internet' },
+  { value: 3, label: '3 - Teleatendimento' },
+  { value: 4, label: '4 - NFC-e em domicílio' },
+  { value: 5, label: '5 - Presencial fora do estabelecimento' },
+  { value: 9, label: '9 - Outros' },
+];
+
+// Opções SEFAZ: Indicador IE Destinatário
+const INDICADOR_IE_DEST_OPTIONS = [
+  { value: 1, label: '1 - Contribuinte ICMS' },
+  { value: 2, label: '2 - Contribuinte isento' },
+  { value: 9, label: '9 - Não Contribuinte' },
+];
+
+// Opções SEFAZ: Indicador de Pagamento
+const PAGAMENTO_INDICADOR_OPTIONS = [
+  { value: 0, label: '0 - À Vista' },
+  { value: 1, label: '1 - A Prazo' },
+  { value: 2, label: '2 - Outros' },
+];
+
+// Opções SEFAZ: Meio de Pagamento (tPag)
+const PAGAMENTO_MEIO_OPTIONS = [
+  { value: '01', label: '01 - Dinheiro' },
+  { value: '02', label: '02 - Cheque' },
+  { value: '03', label: '03 - Cartão de Crédito' },
+  { value: '04', label: '04 - Cartão de Débito' },
+  { value: '05', label: '05 - Crédito Loja' },
+  { value: '10', label: '10 - Vale Alimentação' },
+  { value: '11', label: '11 - Vale Refeição' },
+  { value: '12', label: '12 - Vale Presente' },
+  { value: '13', label: '13 - Vale Combustível' },
+  { value: '14', label: '14 - Duplicata Mercantil' },
+  { value: '15', label: '15 - Boleto Bancário' },
+  { value: '16', label: '16 - Depósito Bancário' },
+  { value: '17', label: '17 - PIX' },
+  { value: '18', label: '18 - Transferência Bancária' },
+  { value: '19', label: '19 - Programa de Fidelidade' },
+  { value: '90', label: '90 - Sem Pagamento' },
+  { value: '99', label: '99 - Outros' },
+];
+
+// Opções PIS/COFINS CST
+const PIS_COFINS_CST_OPTIONS = [
+  { value: '01', label: '01 - Tributável (alíq. básica)' },
+  { value: '02', label: '02 - Tributável (alíq. diferenciada)' },
+  { value: '04', label: '04 - Tributável monofásica (alíq. zero)' },
+  { value: '05', label: '05 - Tributável (ST)' },
+  { value: '06', label: '06 - Tributável (alíq. zero)' },
+  { value: '07', label: '07 - Isenta' },
+  { value: '08', label: '08 - Sem incidência' },
+  { value: '09', label: '09 - Com suspensão' },
+  { value: '49', label: '49 - Outras operações de saída' },
+  { value: '99', label: '99 - Outras operações' },
+];
+
 // Funções de validação
 function isValidCpfCnpj(value: string): boolean {
   const numbers = value.replace(/\D/g, '');
