@@ -360,6 +360,10 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
           order_id: selectedOrderId !== 'manual' ? selectedOrderId : null,
           natureza_operacao: naturezaOperacao,
           observacoes,
+          indicador_presenca: indicadorPresenca,
+          indicador_ie_dest: indicadorIeDest,
+          pagamento_indicador: pagamentoIndicador,
+          pagamento_meio: pagamentoMeio,
           destinatario: {
             nome: destNome,
             cpf_cnpj: destCpfCnpj.replace(/\D/g, ''),
