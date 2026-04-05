@@ -94,6 +94,7 @@ export function BuilderToolbar({
   pageSlug,
   templateSetId,
   isDirty,
+  hasPendingPublish = false,
   isPublished = false,
   canUndo,
   canRedo,
