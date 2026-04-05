@@ -2,8 +2,22 @@
 // IMAGE GALLERY BLOCK COMPILER (UNIFIED)
 // Mirrors: src/components/builder/blocks/image-gallery/ImageGalleryBlock.tsx
 // Supports both grid and carousel layouts
-// Hydration: data-sf-ig-carousel + inline vanilla JS
-// v2.1.0: Added navigation arrows, showArrows/showDots props, hydration attrs
+// =============================================
+// Hydration contract (vanilla JS in storefront-html):
+//   CAROUSEL navigation:
+//     data-sf-ig-carousel              — section container (carousel mode)
+//     data-sf-slides-per-view="N"      — items visible simultaneously
+//     data-sf-carousel-track           — flex track (translateX)
+//     data-sf-carousel-prev/next       — arrow buttons
+//     data-sf-carousel-dots            — dot container
+//     data-sf-dot="N"                  — individual dot
+//   LIGHTBOX (both grid + carousel):
+//     data-sf-gallery-idx="N"          — clickable image trigger (opens lightbox)
+//     data-sf-enable-lightbox          — present when enableLightbox=true
+//     cursor:pointer                   — visual affordance on clickable images
+//   The storefront hydration collects all [data-sf-gallery-idx] img srcs
+//   inside each section and feeds them into the global lightbox.
+// v2.2.0: Added data-sf-gallery-idx + cursor to carousel slides, enableLightbox attr
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
@@ -56,7 +70,7 @@ function buildHeaderHtml(title: string, subtitle: string): string {
 
 // ── Image card HTML ──
 
-function buildImageHtml(img: GalleryImage, index: number, aspect: string, borderRadius: number, isCarousel: boolean): string {
+function buildImageHtml(img: GalleryImage, index: number, aspect: string, borderRadius: number, isCarousel: boolean, enableLightbox: boolean): string {
   const n = normalizeImage(img);
   const src = optimizeImageUrl(n.src, isCarousel ? 1200 : 600);
   if (!src) return '';
@@ -76,15 +90,18 @@ function buildImageHtml(img: GalleryImage, index: number, aspect: string, border
 
   const wrapperTag = n.linkUrl ? 'a' : 'div';
   const hrefAttr = n.linkUrl ? ` href="${escapeHtml(n.linkUrl)}" target="_blank" rel="noopener noreferrer"` : '';
+  // Lightbox trigger: data-sf-gallery-idx + cursor on BOTH grid and carousel
+  const lightboxAttr = enableLightbox && !n.linkUrl ? ` data-sf-gallery-idx="${index}"` : '';
+  const cursorStyle = enableLightbox && !n.linkUrl ? 'cursor:pointer;' : '';
 
   if (isCarousel) {
-    return `<${wrapperTag}${hrefAttr} class="sf-ig-slide" style="flex-shrink:0;min-width:0;overflow:hidden;border-radius:${borderRadius}px;background:#f5f5f5;${aspect}">
+    return `<${wrapperTag}${hrefAttr}${lightboxAttr} class="sf-ig-slide" style="flex-shrink:0;min-width:0;overflow:hidden;border-radius:${borderRadius}px;background:#f5f5f5;${cursorStyle}${aspect}">
       ${pictureHtml}
     </${wrapperTag}>
     ${captionHtml}`;
   }
 
-  return `<${wrapperTag}${hrefAttr} style="position:relative;overflow:hidden;border-radius:${borderRadius}px;cursor:pointer;" class="sf-ig-item" data-sf-gallery-idx="${index}">
+  return `<${wrapperTag}${hrefAttr}${lightboxAttr} style="position:relative;overflow:hidden;border-radius:${borderRadius}px;${cursorStyle}" class="sf-ig-item">
   ${pictureHtml}
   ${captionHtml}
 </${wrapperTag}>`;
@@ -92,8 +109,8 @@ function buildImageHtml(img: GalleryImage, index: number, aspect: string, border
 
 // ── Grid layout HTML ──
 
-function buildGridHtml(images: GalleryImage[], columns: number, gapVal: string, aspect: string, borderRadius: number): string {
-  const imagesHtml = images.map((img, i) => buildImageHtml(img, i, aspect, borderRadius, false)).filter(Boolean).join('\n');
+function buildGridHtml(images: GalleryImage[], columns: number, gapVal: string, aspect: string, borderRadius: number, enableLightbox: boolean): string {
+  const imagesHtml = images.map((img, i) => buildImageHtml(img, i, aspect, borderRadius, false, enableLightbox)).filter(Boolean).join('\n');
 
   return `<div style="display:grid;grid-template-columns:repeat(${Math.min(columns, 2)},1fr);gap:${gapVal};" class="sf-ig-grid">
       ${imagesHtml}
@@ -115,9 +132,10 @@ function buildCarouselHtml(
   borderRadius: number,
   showArrows: boolean,
   showDots: boolean,
+  enableLightbox: boolean,
 ): string {
   const slideWidth = slidesPerView > 1 ? `${100 / slidesPerView}%` : '100%';
-  const imagesHtml = images.map((img, i) => buildImageHtml(img, i, aspect, borderRadius, true)).filter(Boolean).join('');
+  const imagesHtml = images.map((img, i) => buildImageHtml(img, i, aspect, borderRadius, true, enableLightbox)).filter(Boolean).join('');
   const needsNav = images.length > slidesPerView;
 
   // Arrows
@@ -178,6 +196,7 @@ export const imageGalleryToStaticHTML: BlockCompilerFn = (
   const slidesPerView = (props.slidesPerView as number) || 1;
   const showArrows = (props.showArrows as boolean) ?? true;
   const showDots = (props.showDots as boolean) ?? true;
+  const enableLightbox = (props.enableLightbox as boolean) ?? true;
 
   if (images.length === 0) return '';
 
@@ -185,14 +204,15 @@ export const imageGalleryToStaticHTML: BlockCompilerFn = (
   const aspect = ASPECT_CSS[aspectRatio] || ASPECT_CSS.square;
   const headerHtml = buildHeaderHtml(title, subtitle);
 
-  const dataAttr = layout === 'carousel' ? ' data-sf-ig-carousel' : '';
+  const dataAttr = layout === 'carousel' ? ' data-sf-ig-carousel' : ' data-sf-ig-grid';
   const slidesAttr = layout === 'carousel' ? ` data-sf-slides-per-view="${slidesPerView}"` : '';
+  const lightboxAttr = enableLightbox ? ' data-sf-enable-lightbox' : '';
 
   const contentHtml = layout === 'carousel'
-    ? buildCarouselHtml(images, slidesPerView, gapVal, aspect, borderRadius, showArrows, showDots)
-    : buildGridHtml(images, columns, gapVal, aspect, borderRadius);
+    ? buildCarouselHtml(images, slidesPerView, gapVal, aspect, borderRadius, showArrows, showDots, enableLightbox)
+    : buildGridHtml(images, columns, gapVal, aspect, borderRadius, enableLightbox);
 
-  return `<section${dataAttr}${slidesAttr} style="padding:2.5rem 1rem;background:${backgroundColor};">
+  return `<section${dataAttr}${slidesAttr}${lightboxAttr} style="padding:2.5rem 1rem;background:${backgroundColor};">
   <div style="max-width:72rem;margin:0 auto;">
     ${headerHtml}
     ${contentHtml}

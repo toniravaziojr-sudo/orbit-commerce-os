@@ -2034,9 +2034,150 @@ function buildFullPage(opts: {
       updateArrows();
     }
 
-    // ── Bootstrap ──
+    // ── Bootstrap carousel navigation ──
     document.querySelectorAll('[data-sf-video-carousel][data-sf-layout="carousel"]').forEach(hydrateCarousel);
     document.querySelectorAll("[data-sf-ig-carousel]").forEach(hydrateCarousel);
+  })();
+
+  // =============================================
+  // VIDEO PLAY HYDRATION — Click thumbnail → start player
+  // =============================================
+  // Mirrors: src/components/builder/blocks/video-carousel/VideoCard.tsx
+  // Each [data-sf-video-item] carries:
+  //   data-sf-video-url  — full video URL
+  //   data-sf-video-type — "youtube" or "upload"
+  // On click, the thumbnail content is replaced with the actual player.
+  // YouTube → iframe with autoplay; Upload → <video> with controls + autoplay.
+  // =============================================
+  (function(){
+    function extractYouTubeId(url){
+      if(!url)return null;
+      var m=url.match(/(?:youtube\\.com\\/(?:watch\\?v=|embed\\/|shorts\\/)|youtu\\.be\\/)([a-zA-Z0-9_-]{11})/i);
+      return m?m[1]:null;
+    }
+
+    document.addEventListener("click",function(e){
+      var card=e.target.closest("[data-sf-video-item]");
+      if(!card)return;
+      // Prevent re-triggering if already playing
+      if(card.dataset.sfPlaying)return;
+      card.dataset.sfPlaying="1";
+
+      var url=card.getAttribute("data-sf-video-url")||"";
+      var type=card.getAttribute("data-sf-video-type")||"youtube";
+
+      if(type==="youtube"){
+        var ytId=extractYouTubeId(url);
+        if(!ytId)return;
+        var iframe=document.createElement("iframe");
+        iframe.src="https://www.youtube.com/embed/"+ytId+"?autoplay=1&rel=0";
+        iframe.style.cssText="position:absolute;top:0;left:0;width:100%;height:100%;border:0;";
+        iframe.allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture";
+        iframe.allowFullscreen=true;
+        // Clear card content and insert iframe
+        card.innerHTML="";
+        card.appendChild(iframe);
+      }else{
+        // Upload: <video> element
+        var video=document.createElement("video");
+        video.src=url;
+        video.controls=true;
+        video.autoplay=true;
+        video.playsInline=true;
+        video.style.cssText="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;background:#000;";
+        card.innerHTML="";
+        card.appendChild(video);
+      }
+    });
+  })();
+
+  // =============================================
+  // IMAGE GALLERY LIGHTBOX HYDRATION
+  // =============================================
+  // Mirrors: src/components/builder/blocks/image-gallery/Lightbox.tsx
+  // For sections with [data-sf-enable-lightbox], clicking any
+  // [data-sf-gallery-idx] element opens the existing global lightbox
+  // (data-sf-lightbox) populated with images from that gallery section.
+  //
+  // Behaviour:
+  //   • Collects all img srcs from [data-sf-gallery-idx] within the section
+  //   • Opens the global lightbox (zoom, prev/next, keyboard, pinch)
+  //   • Uses the clicked index as the starting position
+  // =============================================
+  (function(){
+    var lightbox=document.querySelector("[data-sf-lightbox]");
+    if(!lightbox)return;
+    var lbImg=lightbox.querySelector("[data-sf-lightbox-img]");
+    var lbCounter=lightbox.querySelector("[data-sf-lightbox-counter]");
+    var lbClose=lightbox.querySelector("[data-sf-lightbox-close]");
+    var lbPrev=lightbox.querySelector("[data-sf-lightbox-prev]");
+    var lbNext=lightbox.querySelector("[data-sf-lightbox-next]");
+    var lbZoomIn=lightbox.querySelector("[data-sf-lightbox-zoom-in]");
+    var lbZoomOut=lightbox.querySelector("[data-sf-lightbox-zoom-out]");
+    if(!lbImg)return;
+
+    var galSrcs=[],galAlts=[],galCurrent=0,galZoom=1;
+
+    function galShow(idx){
+      if(galSrcs.length===0)return;
+      galCurrent=Math.max(0,Math.min(idx,galSrcs.length-1));
+      lbImg.src=galSrcs[galCurrent];
+      lbImg.alt=galAlts[galCurrent]||"";
+      galZoom=1;
+      lbImg.style.transform="scale(1)";
+      if(lbCounter)lbCounter.textContent=(galCurrent+1)+" / "+galSrcs.length;
+      lightbox.classList.add("open");
+      document.body.style.overflow="hidden";
+    }
+    function galHide(){
+      lightbox.classList.remove("open");
+      document.body.style.overflow="";
+      galZoom=1;
+      lbImg.style.transform="scale(1)";
+      galSrcs=[];galAlts=[];
+    }
+    function galSetZoom(z){
+      galZoom=Math.max(0.5,Math.min(z,4));
+      lbImg.style.transform="scale("+galZoom+")";
+    }
+
+    // Delegated click on gallery items
+    document.addEventListener("click",function(e){
+      var trigger=e.target.closest("[data-sf-gallery-idx]");
+      if(!trigger)return;
+      // Find the parent section with lightbox enabled
+      var section=trigger.closest("[data-sf-enable-lightbox]");
+      if(!section)return;
+      // Collect all images from this section
+      galSrcs=[];galAlts=[];
+      var items=section.querySelectorAll("[data-sf-gallery-idx]");
+      items.forEach(function(el){
+        var img=el.querySelector("img");
+        if(img){
+          // Use full-size src (remove optimization params for lightbox)
+          galSrcs.push(img.src);
+          galAlts.push(img.alt||"");
+        }
+      });
+      var idx=parseInt(trigger.getAttribute("data-sf-gallery-idx"),10)||0;
+      galShow(idx);
+    });
+
+    // Lightbox controls
+    if(lbClose)lbClose.addEventListener("click",galHide);
+    lightbox.addEventListener("click",function(e){if(e.target===lightbox)galHide();});
+    if(lbPrev)lbPrev.addEventListener("click",function(){galShow(galCurrent-1);});
+    if(lbNext)lbNext.addEventListener("click",function(){galShow(galCurrent+1);});
+    if(lbZoomIn)lbZoomIn.addEventListener("click",function(){galSetZoom(galZoom+0.25);});
+    if(lbZoomOut)lbZoomOut.addEventListener("click",function(){galSetZoom(galZoom-0.25);});
+    document.addEventListener("keydown",function(e){
+      if(!lightbox.classList.contains("open"))return;
+      if(e.key==="Escape")galHide();
+      if(e.key==="ArrowLeft"&&galSrcs.length>1)galShow(galCurrent-1);
+      if(e.key==="ArrowRight"&&galSrcs.length>1)galShow(galCurrent+1);
+      if(e.key==="+"||e.key==="=")galSetZoom(galZoom+0.25);
+      if(e.key==="-")galSetZoom(galZoom-0.25);
+    });
   })();
   </script>
 </body>
