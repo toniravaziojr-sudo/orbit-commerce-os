@@ -4,7 +4,7 @@
 
 > **Camada:** Layer 3 — Especificações / Erp  
 > **Migrado de:** `docs/regras/erp.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-04-05
 
 
 ## Visão Geral
@@ -56,19 +56,25 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | `fiscal-auto-create-drafts` | Criação automática de rascunhos (cron 5min + manual) |
 | `fiscal-validate-order` | Validação pré-emissão |
 
-### Trigger: Criação Instantânea de NF (v8.7.0)
+### Automação: Fila + Cron (v2026-04-04)
+
+> **Padrão:** Fila + Cron (Padrão 2 — ver `docs/especificacoes/sistema/automacao-patterns.md`)
+>
+> **Histórico:** Substituiu o antigo trigger `pg_net` (`trg_fiscal_draft_on_payment_approved`) que falhava silenciosamente devido ao limite fixo de 5 segundos e cold starts.
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Database Trigger (pg_net) |
-| **Trigger** | `trg_fiscal_draft_on_payment_approved` em `orders` |
-| **Descrição** | Cria rascunho de NF-e **instantaneamente** quando `payment_status` muda para `approved` |
-| **Mecanismo** | Chama a edge function `fiscal-auto-create-drafts` em modo TRIGGER via `net.http_post` |
+| **Tipo** | Pure SQL Trigger → Fila → Cron |
+| **Trigger** | `trg_enqueue_fiscal_draft` em `orders` |
+| **Descrição** | Enfileira pedido para criação de rascunho fiscal quando `payment_status` muda para `approved` |
+| **Mecanismo** | O trigger insere um registro em `fiscal_draft_queue` (INSERT atômico, 100% confiável). O `scheduler-tick` processa a fila chamando `fiscal-auto-create-drafts` em modo TRIGGER. |
 | **Data da NF** | Usa `paid_at` do pedido (não `now()`) para refletir a data real da venda |
 | **Condições** | Dispara somente quando `OLD.payment_status IS DISTINCT FROM 'approved'` AND `NEW.payment_status = 'approved'` |
-| **Fallback** | O cron continua ativo como rede de segurança |
+| **Retry** | Até 5 tentativas com registro de erro em `fiscal_draft_queue.error_message` |
+| **Latência** | Até ~1 minuto (próximo tick do scheduler) |
+| **Confiabilidade** | 100% na captura (INSERT atômico) + retry automático no processamento |
 
-### Cron: fiscal-auto-create-drafts (fallback)
+### Cron: fiscal-auto-create-drafts (processamento da fila + reconciliação)
 
 | Campo | Valor |
 |-------|-------|
@@ -275,13 +281,13 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 | Webhook de pagamento aprovado | `awaiting_confirmation` → `ready_to_invoice` |
 | PIX/Boleto expirado | `awaiting_confirmation` → `payment_expired` |
 | fiscal-auto-create-drafts (auto-emissão ativa) | `ready_to_invoice` → `invoice_pending_sefaz` |
-| Webhook de pagamento (trigger fiscal) | `ready_to_invoice` → cria rascunho NF-e automaticamente |
-| scheduler-tick (fallback/reconciliação) | Cria rascunhos para pedidos `ready_to_invoice` sem NF-e |
+| Trigger `trg_enqueue_fiscal_draft` | Pagamento aprovado → enfileira na `fiscal_draft_queue` |
+| scheduler-tick (processa fila + reconciliação) | Consome `fiscal_draft_queue` e cria rascunhos pendentes |
 
 #### Regras
 1. **Separação de colunas**: `status` = etapa operacional interna. `shipping_status` = status de entrega. `payment_status` = status de pagamento.
 2. **Automação**: Transição para `ready_to_invoice` é automática via webhook de pagamento.
-3. **Criação de rascunho fiscal**: O rascunho é criado automaticamente no momento da aprovação do pagamento (caminho primário via webhook). O scheduler-tick serve como fallback periódico para reconciliação de rascunhos não criados.
+3. **Criação de rascunho fiscal**: O trigger `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico na `fiscal_draft_queue`. O `scheduler-tick` processa a fila a cada minuto e também reconcilia pedidos órfãos. (Padrão Fila + Cron — ver `automacao-patterns.md`)
 4. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
 5. **Terminal**: `completed` é o estado final após confirmação de entrega.
 
