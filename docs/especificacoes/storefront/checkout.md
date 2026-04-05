@@ -730,10 +730,10 @@ No admin, nomes continuam visíveis.
 | `src/pages/storefront/StorefrontCheckout.tsx` | Herança header/footer (seção 3) |
 | `src/hooks/useGlobalLayoutIntegration.ts` | Herança no Builder (seção 3) |
 | `src/hooks/useCheckoutPayment.ts` | Seleção de gateway (seção 6) |
-| `supabase/functions/checkout-create-order/*` | Criação de pedido (seção 12, 21, 22) |
+| `supabase/functions/checkout-create-order/*` | Criação de pedido (seção 12, 13, 22, 23) |
 | `supabase/functions/pagarme-create-charge/*` | Pagamento (seção 6) |
-| `supabase/functions/retry-card-payment/*` | Retry (seção 20) |
-| `supabase/functions/get-retry-checkout-data/*` | Retry outra forma (seção 20) |
+| `supabase/functions/retry-card-payment/*` | Retry (seção 21) |
+| `supabase/functions/get-retry-checkout-data/*` | Retry outra forma (seção 21) |
 
 ### Arquivos de Sincronização (CRÍTICOS)
 
