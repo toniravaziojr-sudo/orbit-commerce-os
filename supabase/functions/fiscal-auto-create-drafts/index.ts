@@ -379,7 +379,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     const authHeader = req.headers.get('Authorization');
-    const isCronMode = !authHeader || authHeader === `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`;
+    const isSystemCall = !authHeader 
+      || authHeader === `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`
+      || authHeader === `Bearer ${supabaseServiceKey}`;
+    const isCronMode = isSystemCall;
 
     // ========== TRIGGER MODE: single order from DB trigger ==========
     // Detected by presence of order_id + tenant_id in body with cron-like auth
