@@ -103,19 +103,19 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
     }
   }, [quiz, form, open]);
 
-  // Auto-generate slug from name
+  // Centralized auto-slug generation with manual edit detection
+  const autoSlug = useAutoSlug({
+    initialSlug: quiz?.slug,
+    isEditing: !!quiz,
+  });
+
   const nameValue = form.watch("name");
   useEffect(() => {
-    if (!quiz && nameValue) {
-      const slug = nameValue
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
-      form.setValue("slug", slug);
+    if (autoSlug.isAutoGenerating && nameValue) {
+      const generated = autoSlug.handleNameChange(nameValue);
+      form.setValue("slug", generated);
     }
-  }, [nameValue, quiz, form]);
+  }, [nameValue, autoSlug.isAutoGenerating]);
 
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
