@@ -286,7 +286,7 @@ async function processTenanDrafts(
         valor_frete: order.shipping_total || 0,
         valor_desconto: order.discount_total || 0,
         dest_nome: customerData?.full_name || order.customer_name || 'Cliente',
-        dest_cpf_cnpj: customerData?.cpf || '',
+        dest_cpf_cnpj: customerData?.cpf || order.customer_cpf || order.customer_cnpj || '',
         dest_inscricao_estadual: null,
         dest_endereco_logradouro: order.shipping_street,
         dest_endereco_numero: order.shipping_number || 'S/N',
