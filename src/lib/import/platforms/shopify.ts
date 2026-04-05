@@ -13,7 +13,7 @@ import type {
   NormalizedOrderItem,
 } from '../types';
 
-import { stripHtmlToText, cleanSku, extractNumericOnly } from '../utils';
+import { stripHtmlToText, cleanSku, extractNumericOnly, slugify } from '../utils';
 
 // Campos do Shopify (como vêm da API/CSV) - MAPEAMENTO COMPLETO
 export interface ShopifyProduct {
@@ -986,15 +986,8 @@ function parseDate(value: string): string | null {
   return null;
 }
 
-function slugify(text: string): string {
-  if (!text) return '';
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
+
+
 
 /**
  * Parse price string, supporting Brazilian format (R$ 49,90) and international (49.90)

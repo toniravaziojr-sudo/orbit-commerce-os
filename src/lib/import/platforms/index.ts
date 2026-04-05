@@ -10,6 +10,7 @@ import type {
   NormalizedOrder,
   NormalizedCoupon,
 } from '../types';
+import { slugify } from '../utils';
 
 // Shopify
 import {
@@ -263,14 +264,8 @@ function genericNormalizeCategory(raw: any): NormalizedCategory {
   };
 }
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
+
+
 
 // Re-exportar funções individuais (não re-exportar types para evitar conflitos)
 export {

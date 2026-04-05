@@ -12,6 +12,7 @@ import type {
   NormalizedAddress,
   NormalizedOrderItem,
 } from '../types';
+import { slugify } from '../utils';
 
 // Campos da Tray (como vêm da API/CSV)
 export interface TrayProduct {
@@ -459,14 +460,8 @@ export function normalizeTrayOrder(raw: TrayOrder): NormalizedOrder {
 }
 
 // Helpers
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
+
+
 
 function normalizePhone(phone: string | null): string | null {
   if (!phone) return null;

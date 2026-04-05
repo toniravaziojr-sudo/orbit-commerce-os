@@ -392,14 +392,11 @@ export function useAffiliatePayouts(affiliateId?: string) {
   return { payouts, isLoading, createPayout, updatePayout };
 }
 
-// Utility to generate affiliate code
+// Utility to generate affiliate code — uses centralized slug generation
+import { generateSlug } from '@/lib/slugPolicy';
+
 export function generateAffiliateCode(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .slice(0, 8);
+  const slug = generateSlug(name).replace(/-/g, '').slice(0, 8);
   const random = Math.random().toString(36).substring(2, 6);
   return `${slug}${random}`;
 }

@@ -12,6 +12,7 @@ import type {
   NormalizedAddress,
   NormalizedOrderItem,
 } from '../types';
+import { slugify } from '../utils';
 
 // Campos do WooCommerce (como vêm da API/CSV)
 export interface WooCommerceProduct {
@@ -409,14 +410,8 @@ function normalizeWooCommerceAddress(raw: WooCommerceAddress, isDefault: boolean
 }
 
 // Helpers
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
+
+
 
 function normalizePhone(phone: string | null): string | null {
   if (!phone) return null;

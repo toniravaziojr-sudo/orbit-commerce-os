@@ -18,7 +18,8 @@ import {
   extractNumericOnly, 
   normalizePhone, 
   normalizeCpfCnpj, 
-  normalizeGender 
+  normalizeGender,
+  slugify,
 } from '../utils';
 
 // Campos da Yampi (como vêm da API/CSV)
@@ -454,14 +455,8 @@ export function normalizeYampiOrder(raw: YampiOrder): NormalizedOrder {
 }
 
 // Helpers
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
+
+
 
 
 function mapYampiStatus(status: string): NormalizedOrder['status'] {
