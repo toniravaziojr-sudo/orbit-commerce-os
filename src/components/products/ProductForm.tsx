@@ -778,7 +778,14 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       <FormItem>
                         <FormLabel>Slug *</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="camiseta-basica" />
+                          <Input 
+                            {...field} 
+                            placeholder="camiseta-basica"
+                            onChange={(e) => {
+                              autoSlug.setSlug(e.target.value);
+                              field.onChange(e.target.value.toLowerCase().replace(/\s+/g, '-'));
+                            }}
+                          />
                         </FormControl>
                         <FormDescription>
                           URL amigável do produto (gerado automaticamente)
