@@ -696,13 +696,38 @@ export function InvoiceEditor({
                     5102 (dentro do estado) ou 6102 (fora do estado)
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label>Indicador de Presença <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={String(data.indicador_presenca ?? 2)}
+                    onValueChange={(value) => updateField('indicador_presenca', parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDICADOR_PRESENCA_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Observações / Informações Complementares</Label>
                   <Textarea
                     value={data.observacoes || ''}
                     onChange={(e) => updateField('observacoes', e.target.value)}
-                    rows={3}
+                    rows={2}
                     placeholder="Informações adicionais que aparecerão na NF-e..."
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Informações ao Fisco</Label>
+                  <Textarea
+                    value={data.informacoes_fisco || ''}
+                    onChange={(e) => updateField('informacoes_fisco', e.target.value)}
+                    rows={2}
+                    placeholder="Informações de interesse do fisco (opcional)..."
                   />
                 </div>
               </CardContent>
