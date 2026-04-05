@@ -513,12 +513,12 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 
 ---
 
-### Sincronização automática Pedido → Fiscal (v2026-04-03)
+### Sincronização automática Pedido → Fiscal (v2026-04-04)
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Melhoria Estrutural |
-| **Localização** | `supabase/functions/_shared/fiscal-trigger.ts`, `pagarme-webhook`, `mercadopago-storefront-webhook`, `pagbank-webhook`, `scheduler-tick` |
+| **Localização** | Trigger `trg_enqueue_fiscal_draft`, `fiscal_draft_queue`, `scheduler-tick` |
 | **Contexto** | Rascunhos fiscais eram criados somente quando o usuário acessava o módulo Fiscal (chamada lazy na abertura da tela) |
-| **Correção** | (1) Caminho primário: cada webhook de pagamento (Pagar.me, Mercado Pago, PagBank), ao aprovar pagamento e setar `ready_to_invoice`, dispara `fiscal-auto-create-drafts` em modo TRIGGER (non-blocking). (2) Fallback: `scheduler-tick` chama `fiscal-auto-create-drafts` em modo CRON a cada tick para reconciliar rascunhos faltantes. |
+| **Correção** | (1) Caminho primário: trigger SQL `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico em `fiscal_draft_queue`. (2) Processamento: `scheduler-tick` consome a fila a cada minuto chamando `fiscal-auto-create-drafts`. (3) Reconciliação: o mesmo tick também verifica pedidos `ready_to_invoice` sem NF-e como fallback. Padrão Fila + Cron conforme `automacao-patterns.md`. |
 | **Afeta** | Módulo Fiscal → "Prontas para Emitir" já reflete pedidos aprovados sem depender de acesso à tela |
