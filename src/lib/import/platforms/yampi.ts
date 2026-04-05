@@ -18,7 +18,8 @@ import {
   extractNumericOnly, 
   normalizePhone, 
   normalizeCpfCnpj, 
-  normalizeGender 
+  normalizeGender,
+  slugify,
 } from '../utils';
 
 // Campos da Yampi (como vêm da API/CSV)
@@ -457,7 +458,7 @@ export function normalizeYampiOrder(raw: YampiOrder): NormalizedOrder {
 
 
 
-import { slugify } from '../utils';
+
 function mapYampiStatus(status: string): NormalizedOrder['status'] {
   const s = status.toLowerCase();
   if (s.includes('cancelado') || s.includes('cancel')) return 'cancelled';
