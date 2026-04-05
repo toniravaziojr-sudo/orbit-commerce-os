@@ -1007,6 +1007,7 @@ export function VisualBuilder({
         await publishTemplateSet.mutateAsync({ templateSetId });
         pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
         store.markClean();
+        queryClient.invalidateQueries({ queryKey: ['has-pending-publish', templateSetId] });
         return;
       }
 
