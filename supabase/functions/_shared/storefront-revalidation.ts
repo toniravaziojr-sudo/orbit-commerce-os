@@ -16,86 +16,117 @@ interface RevalidationParams {
   reason: string;
 }
 
-/**
- * Revalida imediatamente a loja publicada após mudanças que afetam o HTML público.
- * Pipeline:
- * 1. Marca snapshots ativos como stale (garante live render imediato no próximo hit)
- * 2. Purga cache CDN do host público
- * 3. Dispara re-prerender completo em background
- */
-export async function revalidateStorefrontAfterTrackingChange(
-  params: RevalidationParams,
-): Promise<StorefrontRevalidationResult> {
-  const { supabase, supabaseUrl, supabaseServiceKey, tenantId, reason } = params;
+// ── Step 1: Mark prerendered pages as stale ──
 
-  console.log(`[storefront-revalidation] Starting for tenant ${tenantId} (${reason})`);
-
-  const { data: staleRows, error: staleError } = await supabase
+async function markPagesStale(
+  supabase: SupabaseClient,
+  tenantId: string,
+): Promise<number> {
+  const { data, error } = await supabase
     .from("storefront_prerendered_pages")
     .update({ status: "stale" })
     .eq("tenant_id", tenantId)
     .eq("status", "active")
     .select("id");
 
-  if (staleError) {
-    console.error(`[storefront-revalidation] Failed to mark pages stale for ${tenantId}:`, staleError.message);
-    throw staleError;
+  if (error) {
+    console.error(`[revalidation] Failed to mark stale for ${tenantId}:`, error.message);
+    throw error;
   }
 
-  const staleCount = staleRows?.length || 0;
-  console.log(`[storefront-revalidation] ${staleCount} active pages marked stale for ${tenantId}`);
+  return data?.length || 0;
+}
 
+// ── Step 2: Purge CDN cache (with confirmation) ──
+
+async function purgeCdnCache(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  tenantId: string,
+): Promise<{ purged: boolean; status: number }> {
+  const res = await fetch(`${supabaseUrl}/functions/v1/storefront-cache-purge`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${supabaseServiceKey}`,
+    },
+    body: JSON.stringify({
+      tenant_id: tenantId,
+      resource_type: "full",
+    }),
+  });
+
+  const body = await res.text();
+  console.log(`[revalidation] CDN purge status=${res.status} tenant=${tenantId} body=${body}`);
+  return { purged: res.ok, status: res.status };
+}
+
+// ── Step 3: Trigger re-prerender ──
+
+async function triggerPrerender(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  tenantId: string,
+): Promise<{ triggered: boolean; status: number }> {
+  const res = await fetch(`${supabaseUrl}/functions/v1/storefront-prerender`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${supabaseServiceKey}`,
+    },
+    body: JSON.stringify({
+      tenant_id: tenantId,
+      trigger_type: "manual",
+    }),
+  });
+
+  const body = await res.text();
+  console.log(`[revalidation] Prerender status=${res.status} tenant=${tenantId} body=${body}`);
+  return { triggered: res.ok, status: res.status };
+}
+
+// ── Orchestrator: Sequential pipeline ──
+
+/**
+ * Revalidates the published storefront after changes that affect public HTML.
+ *
+ * SEQUENTIAL pipeline (each step waits for the previous):
+ * 1. Mark snapshots as stale → forces live-render on next CDN miss
+ * 2. Purge CDN hostname cache → confirmed before proceeding
+ * 3. Trigger re-prerender → generates fresh HTML snapshots
+ */
+export async function revalidateStorefrontAfterTrackingChange(
+  params: RevalidationParams,
+): Promise<StorefrontRevalidationResult> {
+  const { supabase, supabaseUrl, supabaseServiceKey, tenantId, reason } = params;
+
+  console.log(`[revalidation] Starting for tenant ${tenantId} (${reason})`);
+
+  // Step 1: Mark stale FIRST (guarantees live-render even if purge/prerender fail)
+  const staleCount = await markPagesStale(supabase, tenantId);
+  console.log(`[revalidation] ${staleCount} pages marked stale`);
+
+  // Step 2: Purge CDN — wait for confirmation
   let cachePurged = false;
   let purgeStatus: number | null = null;
   try {
-    const purgeRes = await fetch(`${supabaseUrl}/functions/v1/storefront-cache-purge`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${supabaseServiceKey}`,
-      },
-      body: JSON.stringify({
-        tenant_id: tenantId,
-        resource_type: "full",
-      }),
-    });
-
-    purgeStatus = purgeRes.status;
-    const purgeBody = await purgeRes.text();
-    cachePurged = purgeRes.ok;
-    console.log(`[storefront-revalidation] Cache purge status=${purgeStatus} tenant=${tenantId} body=${purgeBody}`);
+    const purgeResult = await purgeCdnCache(supabaseUrl, supabaseServiceKey, tenantId);
+    cachePurged = purgeResult.purged;
+    purgeStatus = purgeResult.status;
   } catch (error) {
-    console.warn(`[storefront-revalidation] Cache purge failed for ${tenantId}:`, (error as Error).message);
+    console.warn(`[revalidation] CDN purge failed for ${tenantId}:`, (error as Error).message);
   }
 
+  // Step 3: Re-prerender ONLY after purge is confirmed/attempted
   let prerenderTriggered = false;
   let prerenderStatus: number | null = null;
   try {
-    const prerenderRes = await fetch(`${supabaseUrl}/functions/v1/storefront-prerender`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${supabaseServiceKey}`,
-      },
-      body: JSON.stringify({
-        tenant_id: tenantId,
-        trigger_type: "manual",
-      }),
-    });
-
-    prerenderStatus = prerenderRes.status;
-    const prerenderBody = await prerenderRes.text();
-    prerenderTriggered = prerenderRes.ok;
-    console.log(`[storefront-revalidation] Prerender status=${prerenderStatus} tenant=${tenantId} body=${prerenderBody}`);
+    const prerenderResult = await triggerPrerender(supabaseUrl, supabaseServiceKey, tenantId);
+    prerenderTriggered = prerenderResult.triggered;
+    prerenderStatus = prerenderResult.status;
   } catch (error) {
-    console.warn(`[storefront-revalidation] Prerender trigger failed for ${tenantId}:`, (error as Error).message);
+    console.warn(`[revalidation] Prerender failed for ${tenantId}:`, (error as Error).message);
   }
 
-  return {
-    staleCount,
-    cachePurged,
-    prerenderTriggered,
-    purgeStatus,
-    prerenderStatus,
-  };
+  return { staleCount, cachePurged, prerenderTriggered, purgeStatus, prerenderStatus };
 }
