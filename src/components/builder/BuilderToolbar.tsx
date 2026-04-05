@@ -64,6 +64,7 @@ interface BuilderToolbarProps {
   pageSlug?: string; // For institutional/landing pages
   templateSetId?: string; // For multi-template system - preserve across page changes
   isDirty: boolean;
+  hasPendingPublish?: boolean; // Whether draft differs from published (saved but not published)
   isPublished?: boolean; // Whether the store is already published
   canUndo: boolean;
   canRedo: boolean;
