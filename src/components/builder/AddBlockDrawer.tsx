@@ -63,7 +63,6 @@ const blockCategoryMapping: Record<string, BlockCategoryType> = {
   
   // Galerias (coleções de mídia)
   'VideoCarousel': 'galleries',
-  'ImageCarousel': 'galleries',
   'ImageGallery': 'galleries',
   'LogosCarousel': 'galleries',
   
@@ -112,7 +111,7 @@ const visibleBlockTypes = new Set([
   // Categorias
   'CategoryList', 'FeaturedCategories',
   // Galerias
-  'VideoCarousel', 'ImageCarousel', 'ImageGallery', 'LogosCarousel',
+  'VideoCarousel', 'ImageGallery', 'LogosCarousel',
   // Conteúdo
   'RichText', 'Button', 'Image', 'YouTubeVideo', 'VideoUpload', 'TextBanners',
   'StepsTimeline', 'CountdownTimer', 'StatsNumbers', 'FAQ', 'InfoHighlights',

@@ -66,14 +66,14 @@ import { BlogPostDetailBlock as BlogPostDetailBlockComponent } from './blocks/Bl
 import { PageContentBlock as PageContentBlockComponent } from './blocks/PageContentBlock';
 import { CustomBlockRenderer as CustomBlockRendererComponent } from './blocks/CustomBlockRenderer';
 import { VideoCarouselBlock as VideoCarouselBlockComponent } from './blocks/VideoCarouselBlock';
-import { ImageCarouselBlock as ImageCarouselBlockComponent } from './blocks/ImageCarouselBlock';
+import { ImageGalleryBlock as UnifiedImageGalleryComponent } from './blocks/image-gallery';
 import { FeatureListBlock as FeatureListBlockComponent } from './blocks/FeatureListBlock';
 import { ContentColumnsBlock as ContentColumnsBlockComponent } from './blocks/ContentColumnsBlock';
 import { StepsTimelineBlock as StepsTimelineBlockComponent } from './blocks/StepsTimelineBlock';
 import { CountdownTimerBlock as CountdownTimerBlockComponent } from './blocks/CountdownTimerBlock';
 import { LogosCarouselBlock as LogosCarouselBlockComponent } from './blocks/LogosCarouselBlock';
 import { StatsNumbersBlock as StatsNumbersBlockComponent } from './blocks/StatsNumbersBlock';
-import { ImageGalleryBlock as ImageGalleryBlockComponent } from './blocks/ImageGalleryBlock';
+import { ImageGalleryBlock as ImageGalleryBlockComponent } from './blocks/image-gallery';
 import { AccordionBlock as AccordionBlockComponent } from './blocks/AccordionBlock';
 import { CartDemoBlock } from './blocks/CartDemoBlock';
 import { CheckoutDemoBlock } from './blocks/CheckoutDemoBlock';
@@ -1737,7 +1737,8 @@ function VideoCarouselBlockWrapper({ context, ...props }: any) {
 }
 
 function ImageCarouselBlockWrapper({ context, ...props }: any) {
-  return <ImageCarouselBlockComponent {...props} context={context} />;
+  // Retrocompatibility: alias ImageCarousel -> unified ImageGallery with layout='carousel'
+  return <UnifiedImageGalleryComponent {...props} layout="carousel" slidesPerView={props.slidesPerView} context={context} />;
 }
 
 function TrackingLookupBlockWrapper({ context, isEditing, ...props }: any) {
@@ -1799,8 +1800,8 @@ function StatsNumbersBlockWrapper(props: any) {
   return <StatsNumbersBlockComponent {...props} />;
 }
 
-function ImageGalleryBlockWrapper(props: any) {
-  return <ImageGalleryBlockComponent {...props} />;
+function ImageGalleryBlockWrapper({ context, ...props }: any) {
+  return <ImageGalleryBlockComponent {...props} context={context} />;
 }
 
 function AccordionBlockBlockWrapper(props: any) {

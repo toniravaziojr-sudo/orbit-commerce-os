@@ -601,7 +601,7 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
           />
         );
       }
-      // ImageCarousel images
+      // ImageCarousel images (legacy alias)
       if (blockType === 'ImageCarousel' && name === 'images') {
         return (
           <ImageCarouselEditor
@@ -610,8 +610,17 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
           />
         );
       }
-      // ImageGallery images
+      // ImageGallery images - use carousel editor when layout=carousel for desktop/mobile support
       if (blockType === 'ImageGallery' && name === 'images') {
+        const currentLayout = allProps?.layout;
+        if (currentLayout === 'carousel') {
+          return (
+            <ImageCarouselEditor
+              items={(value as { id?: string; srcDesktop?: string; srcMobile?: string; alt?: string; caption?: string; linkUrl?: string }[]) || []}
+              onChange={onChange}
+            />
+          );
+        }
         return (
           <ImageGalleryEditor
             items={(value as { id?: string; src: string; alt?: string; caption?: string }[]) || []}
