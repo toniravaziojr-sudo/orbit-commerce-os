@@ -12,7 +12,7 @@ export { toSafeNumber };
 
 export function parseImages(images?: GalleryImage[], imagesJson?: string): GalleryImage[] {
   if (images && Array.isArray(images) && images.length > 0) {
-    return images.map((img, index) => normalizeImage(img, index)).filter(img => img.src);
+    return images.map((img, index) => normalizeImage(img as unknown as Record<string, unknown>, index)).filter(img => img.src);
   }
 
   if (imagesJson) {
