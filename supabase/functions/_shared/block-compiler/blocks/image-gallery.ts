@@ -130,14 +130,15 @@ function buildCarouselHtml(
   </button>`
     : '';
 
-  // Dots
+  // Dots — one per valid snap position (total - perSlide + 1), matching Embla behaviour
   let dotsHtml = '';
   if (showDots && needsNav) {
-    const dots = images.map((_, idx) => {
+    const dotCount = Math.max(0, images.length - slidesPerView) + 1;
+    const dots = Array.from({ length: dotCount }).map((_, idx) => {
       const isActive = idx === 0;
       const w = isActive ? '24px' : '10px';
       const bg = isActive ? 'var(--theme-accent-color, var(--theme-button-primary-bg, #1a1a1a))' : 'rgba(0,0,0,0.2)';
-      return `<button data-sf-dot="${idx}" style="width:${w};height:10px;border-radius:9999px;border:none;background:${bg};cursor:pointer;transition:all 0.2s;" aria-label="Ir para imagem ${idx + 1}"></button>`;
+      return `<button data-sf-dot="${idx}" style="width:${w};height:10px;border-radius:9999px;border:none;background:${bg};cursor:pointer;transition:all 0.2s;" aria-label="Ir para posição ${idx + 1}"></button>`;
     }).join('');
     dotsHtml = `<div style="display:flex;justify-content:center;gap:8px;margin-top:16px;" data-sf-carousel-dots>${dots}</div>`;
   }

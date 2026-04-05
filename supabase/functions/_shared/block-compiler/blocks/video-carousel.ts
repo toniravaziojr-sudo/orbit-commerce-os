@@ -172,10 +172,11 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
   </button>`
     : '';
 
-  // Dots
+  // Dots — one per valid snap position (total - perSlide + 1), matching Embla behaviour
+  const dotCount = Math.max(0, videos.length - itemsPerSlide) + 1;
   const dotsHtml = needsNav
     ? `<div style="margin-top:0.75rem;display:flex;justify-content:center;gap:0.375rem;" data-sf-carousel-dots>
-  ${Array.from({ length: Math.ceil(videos.length / itemsPerSlide) }).map((_, i) =>
+  ${Array.from({ length: dotCount }).map((_, i) =>
     `<button data-sf-dot="${i}" style="width:${i === 0 ? '1rem' : '0.5rem'};height:0.5rem;border-radius:9999px;background:${i === 0 ? 'var(--theme-button-primary-bg,#1a1a1a)' : 'rgba(0,0,0,0.2)'};border:none;cursor:pointer;transition:all 0.2s;"></button>`
   ).join('')}
 </div>`
