@@ -40,7 +40,7 @@ import { RelatedProductsPicker } from './RelatedProductsPicker';
 import { ProductStructureEditor } from './ProductStructureEditor';
 import { ProductComponentsPicker, type PendingComponent } from './ProductComponentsPicker';
 import { ProductVariantPicker, type PendingVariant } from './ProductVariantPicker';
-import { validateSlugFormat, RESERVED_SLUGS } from '@/lib/slugPolicy';
+import { validateSlugFormat } from '@/lib/slugPolicy';
 import { useAutoSlug } from '@/hooks/useAutoSlug';
 import { useToast } from '@/hooks/use-toast';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
