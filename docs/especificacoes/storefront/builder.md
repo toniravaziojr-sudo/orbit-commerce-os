@@ -2145,7 +2145,7 @@ Para adicionar novos presets no futuro:
 | Divider | `divider.ts` | Base |
 | HeroBanner | `hero-banner.ts` | Base |
 | Banner | `banner.ts` | Base |
-| ImageCarousel | `image-carousel.ts` | Base |
+| ImageCarousel | `image-carousel.ts` (alias → `image-gallery.ts`) | Base |
 | InfoHighlights | `info-highlights.ts` | Base |
 | FeaturedCategories | `featured-categories.ts` | Base |
 | FeaturedProducts | `featured-products.ts` | Base |
@@ -2187,7 +2187,7 @@ Para adicionar novos presets no futuro:
 - **VideoCarousel** (`video-carousel.ts`): Primeiro vídeo embed + thumbnails dos demais. Hidratação via `data-sf-video-carousel`.
 - **VideoUpload** (`video-upload.ts`): Tag `<video>` nativa com fontes desktop/mobile via media query. Suporta autoplay, loop, muted, controls. Aspect ratio e object-fit configuráveis.
 - **HTMLSection** (`html-section.ts`): HTML sanitizado inline (remove `<script>`, event handlers, `javascript:` URLs). CSS scoped via `<style>`.
-- **ImageGallery** (`image-gallery.ts`): Grid responsivo (2→3→4 cols). Imagens otimizadas. Hover effects CSS.
+- **ImageGallery** (`image-gallery.ts`): Bloco unificado com `layout: grid | carousel`. Grid: responsivo (2→3→4 cols) com hover effects. Carousel: scroll horizontal com CSS snap, dots, responsivo (mobile 1 slide). `ImageCarousel` é alias retrocompatível que redireciona para este compilador com `layout: 'carousel'`. Imagens otimizadas. Suporta `<picture>` com srcMobile.
 
 ### Detalhes dos Compiladores Fase 4 (Marketing)
 
