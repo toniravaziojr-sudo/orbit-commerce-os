@@ -196,6 +196,7 @@ export const imageGalleryToStaticHTML: BlockCompilerFn = (
   const slidesPerView = (props.slidesPerView as number) || 1;
   const showArrows = (props.showArrows as boolean) ?? true;
   const showDots = (props.showDots as boolean) ?? true;
+  const enableLightbox = (props.enableLightbox as boolean) ?? true;
 
   if (images.length === 0) return '';
 
@@ -203,14 +204,15 @@ export const imageGalleryToStaticHTML: BlockCompilerFn = (
   const aspect = ASPECT_CSS[aspectRatio] || ASPECT_CSS.square;
   const headerHtml = buildHeaderHtml(title, subtitle);
 
-  const dataAttr = layout === 'carousel' ? ' data-sf-ig-carousel' : '';
+  const dataAttr = layout === 'carousel' ? ' data-sf-ig-carousel' : ' data-sf-ig-grid';
   const slidesAttr = layout === 'carousel' ? ` data-sf-slides-per-view="${slidesPerView}"` : '';
+  const lightboxAttr = enableLightbox ? ' data-sf-enable-lightbox' : '';
 
   const contentHtml = layout === 'carousel'
-    ? buildCarouselHtml(images, slidesPerView, gapVal, aspect, borderRadius, showArrows, showDots)
-    : buildGridHtml(images, columns, gapVal, aspect, borderRadius);
+    ? buildCarouselHtml(images, slidesPerView, gapVal, aspect, borderRadius, showArrows, showDots, enableLightbox)
+    : buildGridHtml(images, columns, gapVal, aspect, borderRadius, enableLightbox);
 
-  return `<section${dataAttr}${slidesAttr} style="padding:2.5rem 1rem;background:${backgroundColor};">
+  return `<section${dataAttr}${slidesAttr}${lightboxAttr} style="padding:2.5rem 1rem;background:${backgroundColor};">
   <div style="max-width:72rem;margin:0 auto;">
     ${headerHtml}
     ${contentHtml}
