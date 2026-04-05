@@ -791,6 +791,22 @@ export function InvoiceEditor({
                   />
                   <Label>Consumidor Final</Label>
                 </div>
+                <div className="space-y-2">
+                  <Label>Indicador IE Dest. <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={String(data.indicador_ie_dest ?? 9)}
+                    onValueChange={(value) => updateField('indicador_ie_dest', parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDICADOR_IE_DEST_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardContent>
             </Card>
 
