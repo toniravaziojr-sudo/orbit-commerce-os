@@ -275,10 +275,29 @@ Lead → Subscriber → Cliente Potencial → Customer
 
 ### 4.6 Triggers Ativos na Tabela `orders`
 
-| Trigger | Função | Quando dispara | O que faz |
-|---------|--------|----------------|-----------|
-| `trg_auto_tag_cliente_on_payment` | `auto_tag_cliente_on_payment_approved()` | INSERT/UPDATE de payment_status | Se `approved`: atribui tag "Cliente" via customer_id |
-| `trg_recalc_customer_metrics_on_order` | `trg_recalc_customer_on_order()` | INSERT/UPDATE | Se `approved`: recalcula métricas + sincroniza subscriber (sem criar customer) |
+O ciclo de vida do cliente é gerenciado por **dois triggers complementares** na tabela `orders`, separados em fases BEFORE e AFTER para garantir integridade transacional:
+
+#### Fase 1 — BEFORE UPDATE (preparação dos dados)
+
+| Trigger | Função | Tipo | O que faz |
+|---------|--------|------|-----------|
+| `trg_recalc_customer_metrics_on_order` | `trg_recalc_customer_on_order()` | BEFORE UPDATE | Quando `payment_status` muda para `approved`: 1) Busca cliente por email; 2) Se **não existe**, cria o registro e marca `is_first_sale = true`; 3) Se **já existe**, marca `is_first_sale = false`; 4) Vincula `customer_id` ao pedido |
+
+> **Por que BEFORE:** Precisa modificar colunas do próprio registro (`customer_id`, `is_first_sale`) antes do commit.
+
+#### Fase 2 — AFTER UPDATE (efeitos colaterais)
+
+| Trigger | Função | Tipo | O que faz |
+|---------|--------|------|-----------|
+| `trg_after_order_approved_sync` | `after_order_approved_sync()` | AFTER UPDATE | Quando `payment_status` muda para `approved`: 1) Garante tag "Cliente" via `ensure_customer_tag`; 2) Recalcula métricas via `recalc_customer_metrics` (com o pedido já commitado); 3) Sincroniza subscriber na lista "Clientes" via `upsert_subscriber_only` |
+
+> **Por que AFTER:** O `recalc_customer_metrics` precisa enxergar o pedido com status `approved` já persistido. No padrão anterior (BEFORE), a query de métricas não via o pedido corrente, resultando em `total_orders = 0`.
+
+#### Trigger legado (mantido por compatibilidade)
+
+| Trigger | Função | Tipo | O que faz |
+|---------|--------|------|-----------|
+| `trg_auto_tag_cliente_on_payment` | `auto_tag_cliente_on_payment_approved()` | AFTER UPDATE | Se `approved`: atribui tag "Cliente" via customer_id (redundância segura com `trg_after_order_approved_sync`) |
 
 ### 4.7 Nomes Canônicos
 

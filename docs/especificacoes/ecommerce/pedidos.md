@@ -433,14 +433,19 @@ graph TD
 
 ### 6.1.1 Flag "1ª Venda"
 
-- `orders.is_first_sale` (boolean, imutável) — definido quando o email é novo no tenant **e** o pagamento é aprovado
-- Um pedido só é considerado "1ª Venda" se for o primeiro pedido **pago** (payment_status = approved) daquele email no tenant
-- Gravado por: `checkout-create-order`, `core-orders`, `import-orders`, `admin-create-test-order`
+- `orders.is_first_sale` (boolean, imutável) — definido no momento em que o pagamento é aprovado
+- **Regra de negócio:** Um pedido é marcado como "1ª Venda" **somente se** o cliente **não existia** no módulo de Clientes do tenant **antes** desse pedido ser aprovado. É o primeiro pedido aprovado de um cliente **inexistente** na base.
+- **Critérios cumulativos:**
+  1. O email do pedido **não** possui registro ativo na tabela de clientes do tenant
+  2. O pagamento foi aprovado (`payment_status = approved`)
+  3. Não existe outro pedido aprovado com o mesmo email no tenant
+- Clientes importados de outras plataformas **já existem** na base → seus pedidos nunca são "1ª Venda"
+- Pedidos importados: `is_first_sale = false` por padrão
+- Gravado por: trigger `trg_recalc_customer_on_order` (BEFORE UPDATE) — fonte primária e autoritativa
 - Consumido diretamente do banco (sem cálculo no frontend)
 - Badge verde "1ª" em `OrderList.tsx` ao lado do valor
 - Filtro toggle em `Orders.tsx`
 - Desacoplado de `customers.total_orders`
-- Pedidos importados: `is_first_sale = false` por padrão
 
 ### 6.2 Detalhes do Pedido
 
@@ -542,24 +547,32 @@ Quando um pedido é criado, o sistema inicia verificação ativa do status de pa
    - Chargeback perdido → `payment_status = refunded`
 5. Se nenhuma resolução em 15 dias → `payment_status = refunded`
 
-### 7.3 Sistema de Identificação de Clientes (v2026-04-04)
+### 7.3 Sistema de Identificação de Clientes (v2026-04-05)
 
-> **Mecanismo:** Trigger em `orders` (primário) + cron de reconciliação (fallback).
+> **Mecanismo:** Dois triggers em `orders` (BEFORE + AFTER) + cron de reconciliação (fallback).
 
-Quando um pedido tem `payment_status` mudado para `approved`:
+Quando um pedido tem `payment_status` mudado para `approved`, o sistema executa dois estágios sequenciais:
+
+#### Estágio 1 — BEFORE UPDATE (`trg_recalc_customer_on_order`)
 
 1. **Busca cliente por email** no módulo de Clientes
 2. **Se NÃO existe:**
-   - Cria cadastro do cliente
+   - Cria cadastro do cliente (email, nome, telefone, CPF)
    - Marca pedido com `is_first_sale = true`
-   - Atribui tag "Cliente"
-   - Adiciona na lista "Clientes" do email marketing
-   - Recalcula métricas
+   - Vincula `customer_id` ao pedido
 3. **Se JÁ existe:**
-   - Recalcula métricas e atualiza dados
+   - Vincula `customer_id` ao pedido (se não vinculado)
    - `is_first_sale` permanece `false`
 
+#### Estágio 2 — AFTER UPDATE (`after_order_approved_sync`)
+
+4. **Garante tag "Cliente"** via `ensure_customer_tag`
+5. **Recalcula métricas** via `recalc_customer_metrics` (com pedido já commitado — resolve race condition do padrão BEFORE anterior)
+6. **Sincroniza** subscriber na lista "Clientes" do email marketing via `upsert_subscriber_only`
+
 **REGRA:** Cliente NUNCA é criado antes do pagamento ser aprovado. O checkout armazena dados do cliente na `checkout_session`, mas o registro no módulo de Clientes só ocorre após confirmação de pagamento.
+
+> **Histórico:** Até 2026-04-04, as etapas 1-6 eram executadas em um único trigger BEFORE, o que causava métricas zeradas porque `recalc_customer_metrics` não enxergava o pedido corrente.
 
 ### 7.4 Registro em `order_history`
 
