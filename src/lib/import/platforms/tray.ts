@@ -12,6 +12,7 @@ import type {
   NormalizedAddress,
   NormalizedOrderItem,
 } from '../types';
+import { slugify } from '../utils';
 
 // Campos da Tray (como vêm da API/CSV)
 export interface TrayProduct {

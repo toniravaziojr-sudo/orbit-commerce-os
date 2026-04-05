@@ -13,7 +13,7 @@ import type {
   NormalizedOrderItem,
 } from '../types';
 
-import { stripHtmlToText, cleanSku, extractNumericOnly } from '../utils';
+import { stripHtmlToText, cleanSku, extractNumericOnly, slugify } from '../utils';
 
 // Campos do Shopify (como vêm da API/CSV) - MAPEAMENTO COMPLETO
 export interface ShopifyProduct {
