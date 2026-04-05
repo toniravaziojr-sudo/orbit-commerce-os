@@ -199,7 +199,6 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
                       }}
                     />
                   </FormControl>
-                  </FormControl>
                   <FormDescription>
                     Usado na URL: /quiz/{field.value || "slug"}
                   </FormDescription>

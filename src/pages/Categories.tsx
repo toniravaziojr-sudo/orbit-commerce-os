@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { generateSlug } from '@/lib/slugPolicy';
 import { useCategories, Category } from '@/hooks/useProducts';
 import { QueryErrorState } from '@/components/ui/query-error-state';
 import { useAuth } from '@/hooks/useAuth';
@@ -71,11 +72,7 @@ export default function Categories() {
     const data = {
       ...formData,
       parent_id: null, // Categories are flat - hierarchy is managed in menus
-      slug: formData.slug || formData.name.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, ''),
+      slug: formData.slug || generateSlug(formData.name),
     };
 
     try {
