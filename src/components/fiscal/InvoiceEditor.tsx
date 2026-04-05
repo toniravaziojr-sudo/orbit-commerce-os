@@ -93,6 +93,22 @@ export interface InvoiceItemData {
   origem: string;
   csosn?: string;
   cst?: string;
+  // Campos SEFAZ novos
+  gtin: string;
+  gtin_tributavel: string;
+  cest: string;
+  valor_desconto: number;
+  icms_base: number;
+  icms_aliquota: number;
+  icms_valor: number;
+  pis_cst: string;
+  pis_base: number;
+  pis_aliquota: number;
+  pis_valor: number;
+  cofins_cst: string;
+  cofins_base: number;
+  cofins_aliquota: number;
+  cofins_valor: number;
 }
 
 // Opções de Origem do produto
