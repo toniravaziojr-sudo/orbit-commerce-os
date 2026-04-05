@@ -63,7 +63,6 @@ const blockCategoryMapping: Record<string, BlockCategoryType> = {
   
   // Galerias (coleções de mídia)
   'VideoCarousel': 'galleries',
-  'ImageCarousel': 'galleries',
   'ImageGallery': 'galleries',
   'LogosCarousel': 'galleries',
   
