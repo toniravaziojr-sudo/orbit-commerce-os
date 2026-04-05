@@ -1,98 +1,118 @@
 
 
-# Plano: Ciclo de Vida de Exclusão de Produtos — Doc + Sistema + Correção AMAZGAN
+## Plano: Unificar ImageGallery + ImageCarousel em bloco modular único
 
-## Contexto do problema
+### Situacao Atual
 
-Hoje existem 3 falhas simultâneas no fluxo de exclusão de produtos:
+**Dois blocos separados com 70% de sobreposicao:**
 
-1. **A Edge Function faz hard delete** (apaga o registro), mas 10+ módulos no sistema filtram por `deleted_at IS NULL` — ou seja, o sistema foi construído esperando soft delete
-2. **O painel admin não filtra `deleted_at`**, então produtos "fantasma" aparecem como se estivessem ativos
-3. **Os índices únicos de SKU e slug não consideram `deleted_at`**, então se um produto é excluído via soft delete por qualquer caminho, é impossível recadastrar com o mesmo SKU/slug
+- `ImageGalleryBlock.tsx` — monolitico (200 linhas), layout grid, lightbox inline
+- `ImageCarouselBlock.tsx` — monolitico (454 linhas), carousel embla, lightbox inline, autoplay
+- Dois compiladores Edge separados (`image-gallery.ts`, `image-carousel.ts`)
+- Duas entradas no `registry.ts`
+- Duas entradas no `BlockRenderer.tsx`
+- Documentacao trata como blocos independentes (4.6 e 4.7)
 
-Resultado: os 7 kits da AMAZGAN estão marcados com `deleted_at` (por mecanismo desconhecido), invisíveis na loja, visíveis no admin, e bloqueando recadastro.
+**Problemas:**
+- Lightbox duplicado (logica identica em ambos)
+- Helpers duplicados (aspect ratio, gap classes repetidos)
+- Schema de imagem incompativel (`src` vs `srcDesktop/srcMobile`)
+- Nao segue o padrao modular ja estabelecido pelo VideoCarousel
 
----
+### Plano de Execucao
 
-## Etapa 1 — Atualizar documentação (Layer 3)
+**Etapa 1 — Criar diretorio modular `src/components/builder/blocks/image-gallery/`**
 
-**Arquivo:** `docs/especificacoes/ecommerce/produtos.md` — Seção 9 (Exclusão)
+Seguindo exatamente o padrao do VideoCarousel:
 
-Reescrever a seção para documentar o modelo **Soft Delete universal**:
+| Arquivo | Responsabilidade |
+|---------|-----------------|
+| `types.ts` | Interface `GalleryImage` unificada (com `src`, `srcMobile`, `linkUrl`), props do bloco, tipos de layout |
+| `helpers.ts` | Funcoes puras: `parseImages()`, `getAspectRatioClass()`, `getGapClass()`, `getGridColsClass()` — reutilizando `toSafeNumber` do video-carousel/helpers |
+| `ImageCard.tsx` | Card individual com `<picture>` (desktop/mobile), hover effect, zoom overlay |
+| `CarouselLayout.tsx` | Layout carousel usando `embla-carousel-react` com `itemsPerSlide`, autoplay, setas, dots |
+| `GridLayout.tsx` | Layout grid com colunas configuraveis, gap, paginacao opcional |
+| `Lightbox.tsx` | Componente extraido — navegacao, keyboard, contador (responsabilidade unica) |
+| `ImageGalleryBlock.tsx` | Orquestrador: recebe `layout` prop, delega para CarouselLayout ou GridLayout |
+| `index.tsx` | Re-export publico |
 
-- Exclusão **sempre** marca `deleted_at = NOW()` — nunca apaga o registro
-- Status muda para `archived`
-- Dados relacionados (imagens, variantes, componentes, categorias) permanecem intactos
-- Itens de pedido mantêm referência ao `product_id` original (sem marcar `[Excluído]`)
-- Admin filtra `deleted_at IS NULL` em todas as listagens
-- Storefront já filtra corretamente (sem mudança)
-- Recadastro com mesmo SKU/slug é permitido graças a índices parciais
-- Auditoria registra `soft_delete` em vez de `hard_delete`
+**Etapa 2 — Reutilizar helpers existentes**
 
----
+- `toSafeNumber` de `video-carousel/helpers.ts` sera importado (ou movido para `src/lib/utils.ts` para compartilhamento real)
+- `getGridColsClass` e `getAspectRatioClass` ja existem no video-carousel — avaliar extrair para utils compartilhado ou reimplementar com assinatura especifica para imagens (aspectos diferentes: `square`, `21:9`)
+- `cn` de `@/lib/utils` ja existe
 
-## Etapa 2 — Aplicar no sistema
+**Etapa 3 — Registry unificada**
 
-### 2.1 Migração SQL — Índices parciais
+- Manter entrada `ImageGallery` com novo campo `layout` (select: `grid` | `carousel`)
+- Props condicionais com `showWhen`:
+  - Grid: `columns`, `borderRadius`
+  - Carousel: `slidesPerView`, `autoplay`, `autoplayInterval`, `showArrows`, `showDots`
+- Props compartilhadas: `title`, `subtitle`, `images`, `gap`, `aspectRatio`, `enableLightbox`, `backgroundColor`
+- Remover entrada separada `ImageCarousel` do registry
 
-Substituir os 3 índices únicos atuais por versões que ignoram registros com `deleted_at`:
+**Etapa 4 — Retrocompatibilidade no BlockRenderer**
 
-- `products_tenant_id_sku_key` → partial unique `WHERE deleted_at IS NULL`
-- `products_tenant_id_slug_key` → partial unique `WHERE deleted_at IS NULL`
-- `idx_products_slug_lower` → partial unique `WHERE deleted_at IS NULL`
+- `ImageGallery` aponta para novo componente unificado
+- `ImageCarousel` mantido como alias no mapa do BlockRenderer, redirecionando para o mesmo componente (paginas ja salvas com `ImageCarousel` continuam funcionando)
+- O alias converte `slidesPerView` para `itemsPerSlide` e seta `layout: 'carousel'` automaticamente
 
-Isso permite que dois registros com o mesmo SKU/slug coexistam desde que apenas um esteja ativo.
+**Etapa 5 — Compilador Edge unificado**
 
-### 2.2 Edge Function `core-products` — ação `delete`
+- `image-gallery.ts` absorve a logica do carousel (scroll horizontal com CSS snap para storefront estatico)
+- `image-carousel.ts` vira alias que chama `imageGalleryToStaticHTML` com `layout: 'carousel'`
+- Mapa no `index.ts` mantido para ambos os tipos
 
-Substituir o bloco de hard delete (linhas ~440-550) por:
+**Etapa 6 — Mover `toSafeNumber` para `src/lib/utils.ts`**
 
-- `UPDATE products SET deleted_at = NOW(), status = 'archived' WHERE id = ? AND tenant_id = ?`
-- **Remover** toda a cascata de deleção (imagens, variantes, componentes, categorias, cart_items, related_products, buy_together_rules)
-- **Remover** a atualização de `order_items` que marca `[Excluído]`
-- Registrar auditoria como `soft_delete`
-- Emitir evento `product.deleted` normalmente
+- Utilitario compartilhado entre video-carousel e image-gallery
+- Video-carousel passa a importar de `@/lib/utils` em vez de local
 
-### 2.3 Hook `useProducts` — listagem do admin
+**Etapa 7 — Atualizar documentacao**
 
-Adicionar `.is('deleted_at', null)` na query principal (linha ~147), alinhando o admin com o comportamento da vitrine.
+- `builder.md`: Unificar secoes 4.6 e 4.7 em uma unica secao "Galeria de Imagens (ImageGallery)" com subsecoes Grid e Carousel
+- `paridade-builder-publico.md`: Atualizar mapa de arquivos
+- `loja-virtual.md`: Atualizar referencia
 
-### 2.4 Componente `DeleteProductDialog`
+**Etapa 8 — Testes e validacao**
 
-Atualizar a mensagem de confirmação — remover referência a "excluir permanentemente" e trocar por "arquivar/desativar", já que o registro será preservado.
+- Verificar build sem erros
+- Testar que blocos `ImageCarousel` ja existentes em paginas salvas continuam renderizando (alias)
+- Testar ambos layouts (grid e carousel) no Builder
+- Verificar compilador Edge gera HTML correto para ambos modos
+- Validar lightbox funciona em ambos layouts
 
----
+### Detalhe Tecnico — Schema Unificado de Imagem
 
-## Etapa 3 — Correção AMAZGAN
+```text
+GalleryImage {
+  id?: string
+  src: string          // obrigatorio (desktop principal)
+  srcMobile?: string   // opcional, para <picture>
+  alt?: string
+  caption?: string
+  linkUrl?: string     // opcional, wrap em <a>
+}
+```
 
-Após as etapas 1 e 2, executar uma verificação automática:
+Retrocompatibilidade: imagens salvas como `{ srcDesktop }` serao normalizadas no `parseImages()` para `{ src: srcDesktop }`.
 
-- Consultar os 7 produtos com `deleted_at` preenchido no tenant AMAZGAN
-- Se o usuário confirmar que devem ser restaurados: limpar `deleted_at` e restaurar `status = 'active'`
-- Se o usuário preferir mantê-los excluídos: nenhuma ação (o novo fluxo já os trata corretamente)
+### Detalhe Tecnico — Registry Unificada
 
----
+```text
+ImageGallery
+  layout: select [grid, carousel]  (default: grid)
+  — Grid: columns (2/3/4), borderRadius
+  — Carousel: slidesPerView (1/2/3/4), autoplay, autoplayInterval, showArrows, showDots
+  — Compartilhado: title, subtitle, images, gap, aspectRatio, enableLightbox, backgroundColor
+```
 
-## Etapa 4 — Validação técnica
+### Riscos e Mitigacao
 
-Antes da validação do usuário, executar:
-
-1. **Banco:** Confirmar que os índices parciais estão criados e os antigos removidos
-2. **Edge Function:** Chamar `core-products` com `action: delete` em um produto de teste e verificar que o registro permanece com `deleted_at` preenchido (não é apagado)
-3. **Admin:** Verificar que a query do `useProducts` inclui o filtro `deleted_at IS NULL`
-4. **Storefront:** Confirmar que as queries existentes continuam filtrando corretamente
-5. **Recadastro:** Verificar que é possível criar um produto com o mesmo SKU de um produto excluído (soft deleted)
-6. **AMAZGAN:** Consultar estado final dos 7 produtos
-
----
-
-## Arquivos impactados
-
-| Arquivo | Mudança |
-|---------|---------|
-| `docs/especificacoes/ecommerce/produtos.md` | Reescrita da Seção 9 |
-| `supabase/functions/core-products/index.ts` | Ação `delete` → soft delete |
-| `src/hooks/useProducts.ts` | Filtro `deleted_at IS NULL` |
-| `src/components/products/DeleteProductDialog.tsx` | Texto atualizado |
-| Migração SQL | Índices parciais |
+| Risco | Mitigacao |
+|-------|-----------|
+| Paginas salvas com tipo `ImageCarousel` | Alias no BlockRenderer + alias no compilador Edge |
+| Props incompativeis (`srcDesktop` vs `src`) | `parseImages()` normaliza ambos formatos |
+| Regressao no lightbox | Componente extraido testavel isoladamente |
+| Build quebrado | Validacao de TypeScript + build antes de fechar |
 
