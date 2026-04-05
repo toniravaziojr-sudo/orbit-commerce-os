@@ -66,14 +66,14 @@ import { BlogPostDetailBlock as BlogPostDetailBlockComponent } from './blocks/Bl
 import { PageContentBlock as PageContentBlockComponent } from './blocks/PageContentBlock';
 import { CustomBlockRenderer as CustomBlockRendererComponent } from './blocks/CustomBlockRenderer';
 import { VideoCarouselBlock as VideoCarouselBlockComponent } from './blocks/VideoCarouselBlock';
-import { ImageCarouselBlock as ImageCarouselBlockComponent } from './blocks/ImageCarouselBlock';
+import { ImageGalleryBlock as UnifiedImageGalleryComponent } from './blocks/image-gallery';
 import { FeatureListBlock as FeatureListBlockComponent } from './blocks/FeatureListBlock';
 import { ContentColumnsBlock as ContentColumnsBlockComponent } from './blocks/ContentColumnsBlock';
 import { StepsTimelineBlock as StepsTimelineBlockComponent } from './blocks/StepsTimelineBlock';
 import { CountdownTimerBlock as CountdownTimerBlockComponent } from './blocks/CountdownTimerBlock';
 import { LogosCarouselBlock as LogosCarouselBlockComponent } from './blocks/LogosCarouselBlock';
 import { StatsNumbersBlock as StatsNumbersBlockComponent } from './blocks/StatsNumbersBlock';
-import { ImageGalleryBlock as ImageGalleryBlockComponent } from './blocks/ImageGalleryBlock';
+import { ImageGalleryBlock as ImageGalleryBlockComponent } from './blocks/image-gallery';
 import { AccordionBlock as AccordionBlockComponent } from './blocks/AccordionBlock';
 import { CartDemoBlock } from './blocks/CartDemoBlock';
 import { CheckoutDemoBlock } from './blocks/CheckoutDemoBlock';
