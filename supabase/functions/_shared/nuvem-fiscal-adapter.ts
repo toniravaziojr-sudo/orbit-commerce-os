@@ -277,7 +277,7 @@ export function buildNFePayload(
         tpEmis: 1, // Normal
         finNFe: parseInt(invoice.finalidade || '1'),
         indFinal: destinatario.cnpj ? 0 : 1, // Consumidor final se PF
-        indPres: 2, // Não presencial (internet)
+        indPres: invoice.indicador_presenca ?? 2,
       },
       emit: {
         CNPJ: onlyNumbers(emitente.cnpj),
@@ -323,13 +323,13 @@ export function buildNFePayload(
       det,
       total: {
         ICMSTot: {
-          vBC: 0,
-          vICMS: 0,
+          vBC: invoice.valor_bc_icms || 0,
+          vICMS: invoice.valor_icms || 0,
           vProd,
           vFrete: invoice.valor_frete || 0,
           vDesc,
-          vPIS: 0,
-          vCOFINS: 0,
+          vPIS: invoice.valor_pis || 0,
+          vCOFINS: invoice.valor_cofins || 0,
           vNF: invoice.valor_total,
         },
       },
@@ -338,8 +338,8 @@ export function buildNFePayload(
       },
       pag: {
         detPag: [{
-          tPag: PAYMENT_METHOD_MAP[pagamento?.forma || 'other'] || '99',
-          vPag: pagamento?.valor || invoice.valor_total,
+          tPag: invoice.pagamento_meio || PAYMENT_METHOD_MAP[pagamento?.forma || 'other'] || '99',
+          vPag: invoice.pagamento_valor || pagamento?.valor || invoice.valor_total,
         }],
       },
       infAdic: invoice.informacoes_complementares ? {
