@@ -300,7 +300,98 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
 
 ---
 
-## 13. Validação de Produtos no Checkout (REGRA CRÍTICA)
+## 13. Mapeamento de Coleta e Persistência de Dados
+
+> **REGRA CRÍTICA:** Todo dado coletado no checkout deve ser persistido no pedido pela Edge Function `checkout-create-order`. O INSERT no banco é a única operação que grava esses dados — se um campo não constar no INSERT, ele será perdido independentemente de ter sido coletado e validado no frontend.
+
+### 13.1 Dados do Cliente (Step 1 — Dados Pessoais)
+
+| Campo coletado | Validação frontend | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Nome completo | Obrigatório, min 3 chars | `customer_name` | `payload.customer.name` |
+| Email | Obrigatório, formato válido | `customer_email` | Normalizado via `normalizeEmail()` (lowercase + trim) |
+| Telefone | Obrigatório, min 10 dígitos | `customer_phone` | `payload.customer.phone` |
+| CPF | Obrigatório, 11 dígitos, algoritmo módulo 11, rejeita sequências | `customer_cpf` | `payload.customer.cpf` |
+
+> **REGRA:** O CPF é obrigatório para pessoa física. O campo `customer_cnpj` existe na tabela `orders` mas não é coletado no checkout atual (reservado para futura implementação de checkout PJ).
+
+### 13.2 Endereço de Entrega (Step 2 — Endereço)
+
+| Campo coletado | Validação frontend | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| CEP | 8 dígitos, validação ViaCEP | `shipping_postal_code` | `payload.shipping.postal_code` |
+| Rua/Logradouro | Obrigatório, preenchido via CEP | `shipping_street` | `payload.shipping.street` |
+| Número | Obrigatório | `shipping_number` | `payload.shipping.number` |
+| Complemento | Opcional | `shipping_complement` | `payload.shipping.complement \|\| null` |
+| Bairro | Obrigatório, preenchido via CEP | `shipping_neighborhood` | `payload.shipping.neighborhood` |
+| Cidade | Obrigatório, preenchido via CEP | `shipping_city` | `payload.shipping.city` |
+| Estado (UF) | Obrigatório, preenchido via CEP | `shipping_state` | `payload.shipping.state` |
+
+### 13.3 Frete (Step 2 — seleção de modalidade)
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Transportadora | Seleção do cliente | `shipping_carrier` | `payload.shipping.carrier \|\| null` |
+| Código do serviço | Retorno da cotação | `shipping_service_code` | `payload.shipping.service_code \|\| null` |
+| Nome do serviço | Retorno da cotação | `shipping_service_name` | `payload.shipping.service_name \|\| null` |
+| Prazo estimado (dias) | Retorno da cotação | `shipping_estimated_days` | `payload.shipping.estimated_days \|\| null` |
+| Valor do frete | Recalculado no servidor | `shipping_total` | `canonicalShipping` (servidor, não frontend) |
+| ID da cotação | Rastreabilidade | `shipping_quote_id` | `validatedQuoteId \|\| null` |
+
+### 13.4 Pagamento (Step 3 — Forma de Pagamento)
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Forma de pagamento | Seleção do cliente | `payment_method` | `payload.payment_method` |
+| Desconto por forma | Cálculo servidor | `payment_method_discount` | `payload.payment_method_discount \|\| 0` |
+| Parcelas | Seleção do cliente (cartão) | `installments` | `payload.installments \|\| 1` |
+| Valor da parcela | Cálculo servidor | `installment_value` | Calculado: `canonicalTotal / installments` |
+
+### 13.5 Valores Financeiros (Snapshot Canônico)
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Subtotal | **Recalculado no servidor** | `subtotal` | `canonicalSubtotal` |
+| Frete | **Recalculado no servidor** | `shipping_total` | `canonicalShipping` |
+| Desconto (cupom) | **Recalculado no servidor** | `discount_total` | `canonicalDiscount` |
+| Total | **Recalculado no servidor** | `total` | `canonicalTotal` |
+| Total canônico | **Recalculado no servidor** | `canonical_total` | `canonicalTotal` |
+
+> Valores financeiros NUNCA usam dados enviados pelo frontend. São recalculados do banco (preços dos produtos, cotação de frete validada, desconto revalidado).
+
+### 13.6 Desconto/Cupom
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Código do cupom | Input do cliente | `discount_code` | `payload.discount?.discount_code \|\| null` |
+| Nome do desconto | DB lookup | `discount_name` | `payload.discount?.discount_name \|\| null` |
+| Tipo do desconto | DB lookup | `discount_type` | `payload.discount?.discount_type \|\| null` |
+| Frete grátis | DB lookup | `free_shipping` | `payload.discount?.free_shipping \|\| false` |
+
+### 13.7 Tracking e Rastreabilidade
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Attribution (UTM/GCLID/etc) | `sessionStorage` | `attribution` | `payload.attribution` |
+| Affiliate ID | `?ref=` param | `affiliate_id` | `payload.affiliate_id` |
+| Checkout attempt ID | UUID por clique | `checkout_attempt_id` | `payload.checkout_attempt_id \|\| null` |
+| Retry from order ID | Token de retry | `retry_from_order_id` | `payload.retry_from_order_id \|\| null` |
+
+### 13.8 Cascata de Dados pós-INSERT
+
+Após a criação do pedido, triggers do banco propagam dados para outros módulos:
+
+| Trigger | Quando | O que faz |
+|---|---|---|
+| `trg_recalc_customer_on_order` | BEFORE UPDATE (payment_status → approved) | Cria/vincula registro em `customers` usando `customer_email`, `customer_cpf`, `customer_phone` do pedido |
+| `after_order_approved_sync` | AFTER UPDATE (payment_status → approved) | Recalcula métricas do cliente (`total_orders`, `total_spent`), atribui tag "Cliente", sincroniza listas de marketing |
+| `trg_enqueue_fiscal_draft` | AFTER UPDATE (payment_status → approved) | Enfileira criação de rascunho fiscal. O rascunho usa `customer_cpf` do pedido como CPF do destinatário |
+
+> **CONSEQUÊNCIA:** Se um campo não for persistido no INSERT do pedido, nenhum trigger conseguirá propagá-lo. O CPF ausente no pedido resulta em CPF ausente no cliente E no rascunho fiscal.
+
+---
+
+## 14. Validação de Produtos no Checkout (REGRA CRÍTICA)
 
 | Cenário | Comportamento |
 |---------|---------------|
@@ -320,7 +411,7 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
 
 ---
 
-## 14. Validações Obrigatórias
+## 15. Validações Obrigatórias
 
 | Campo | Validação |
 |-------|-----------|
@@ -341,7 +432,7 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
 
 ---
 
-## 15. Busca Automática de Endereço por CEP
+## 16. Busca Automática de Endereço por CEP
 
 | Campo | Valor |
 |-------|-------|
@@ -354,7 +445,7 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
 
 ---
 
-## 16. Regra de Ofertas por Local (REGRA FIXA)
+## 17. Regra de Ofertas por Local (REGRA FIXA)
 
 | Tipo de Oferta | Local Correto |
 |----------------|---------------|
@@ -365,7 +456,7 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
 
 ---
 
-## 17. Descontos por Forma de Pagamento (por Gateway)
+## 18. Descontos por Forma de Pagamento (por Gateway)
 
 ### Tabela `payment_method_discounts`
 
@@ -407,7 +498,7 @@ Abas por gateway ativo. Se nenhum gateway ativo, exibe alerta com link para Inte
 
 ---
 
-## 18. Tracking Comercial
+## 19. Tracking Comercial
 
 ### Attribution (UTM / GCLID / FBCLID / TTCLID)
 
@@ -435,7 +526,7 @@ Abas por gateway ativo. Se nenhum gateway ativo, exibe alerta com link para Inte
 
 ---
 
-## 19. Classificação de Falhas de Pagamento
+## 20. Classificação de Falhas de Pagamento
 
 | Cenário | Pedido? | Cobrança? | Comportamento | Campo no resultado |
 |---------|---------|-----------|---------------|-------------------|
@@ -470,9 +561,9 @@ Cron: `expire-stale-orders` a cada 15min. Status: `payment_status='cancelled'`, 
 
 ---
 
-## 20. Retry de Pagamento
+## 21. Retry de Pagamento
 
-### 20.1 Retry Token
+### 22.1 Retry Token
 
 | Campo | Valor |
 |-------|-------|
@@ -483,12 +574,12 @@ Cron: `expire-stale-orders` a cada 15min. Status: `payment_status='cancelled'`, 
 | Invalidação | Após pagamento aprovado (set null) |
 | Dados protegidos | CPF, endereço, dados do pedido — NUNCA expostos ao frontend |
 
-### 20.2 Retry Cartão (mesmo pedido)
+### 22.2 Retry Cartão (mesmo pedido)
 
 - `retry-card-payment` valida token e processa nova cobrança server-side
 - Dados sensíveis resolvidos no servidor (não vêm do frontend)
 
-### 20.3 Retry com Outra Forma de Pagamento
+### 22.3 Retry com Outra Forma de Pagamento
 
 | Campo | Valor |
 |-------|-------|
@@ -511,9 +602,9 @@ Cron: `expire-stale-orders` a cada 15min. Status: `payment_status='cancelled'`, 
 
 ---
 
-## 21. Segurança
+## 22. Segurança
 
-### 21.1 Validação de Preço Canônico (Phase 2B)
+### 22.1 Validação de Preço Canônico (Phase 2B)
 
 | Campo | Valor |
 |-------|-------|
@@ -526,7 +617,7 @@ Cron: `expire-stale-orders` a cada 15min. Status: `payment_status='cancelled'`, 
 | Modo atual | **SIMULAÇÃO** — divergências registradas, não bloqueiam pedido |
 | Risco residual | `payment_method_discount` ainda vem do frontend |
 
-### 21.2 RLS Hardening (Phase 3)
+### 22.2 RLS Hardening (Phase 3)
 
 Zero policies anônimas em: `orders`, `order_items`, `customers`, `payment_transactions`, `order_attribution`.
 
@@ -542,7 +633,7 @@ Toda leitura/escrita via Edge Functions com `service_role`.
 - `order-lookup` — lista/busca para clientes logados (JWT)
 - `get-review-data` — itens do pedido para avaliação (token seguro)
 
-### 21.3 Segurança ao Trocar Forma de Pagamento
+### 22.3 Segurança ao Trocar Forma de Pagamento
 
 - CVV usa `type="password"` (mascarado)
 - Ao trocar forma: limpeza automática de dados do cartão, erro anterior e status de pagamento
@@ -550,7 +641,7 @@ Toda leitura/escrita via Edge Functions com `service_role`.
 
 ---
 
-## 22. Idempotência e Snapshot Canônico
+## 23. Idempotência e Snapshot Canônico
 
 ### Conceito
 
@@ -588,7 +679,7 @@ Toda leitura/escrita via Edge Functions com `service_role`.
 
 ---
 
-## 23. Regra de Busca de Pedido (get-order)
+## 24. Regra de Busca de Pedido (get-order)
 
 | Regra | Descrição |
 |-------|-----------|
@@ -599,13 +690,13 @@ Toda leitura/escrita via Edge Functions com `service_role`.
 
 ---
 
-## 24. Navegação Checkout → Loja
+## 25. Navegação Checkout → Loja
 
 **PROIBIDO** usar `<Link>` do React Router para rotas de conteúdo. Toda navegação checkout→loja via `window.location.href` (hard refresh), devolvendo controle ao Edge Function.
 
 ---
 
-## 25. Layout
+## 26. Layout
 
 ### Sidebar Sticky
 
@@ -620,7 +711,7 @@ No admin, nomes continuam visíveis.
 
 ---
 
-## 26. Visibilidade de Declined e Retry no Admin
+## 27. Visibilidade de Declined e Retry no Admin
 
 1. Pedidos recusados aparecem na lista com badge "Recusado" (vermelho)
 2. Pedidos com retentativa mostram ícone `Link2` ao lado do número
@@ -631,7 +722,7 @@ No admin, nomes continuam visíveis.
 
 ---
 
-## 27. Arquivos Relacionados
+## 28. Arquivos Relacionados
 
 | Se for editar... | Leia este doc primeiro |
 |------------------|------------------------|
@@ -639,10 +730,10 @@ No admin, nomes continuam visíveis.
 | `src/pages/storefront/StorefrontCheckout.tsx` | Herança header/footer (seção 3) |
 | `src/hooks/useGlobalLayoutIntegration.ts` | Herança no Builder (seção 3) |
 | `src/hooks/useCheckoutPayment.ts` | Seleção de gateway (seção 6) |
-| `supabase/functions/checkout-create-order/*` | Criação de pedido (seção 12, 21, 22) |
+| `supabase/functions/checkout-create-order/*` | Criação de pedido (seção 12, 13, 22, 23) |
 | `supabase/functions/pagarme-create-charge/*` | Pagamento (seção 6) |
-| `supabase/functions/retry-card-payment/*` | Retry (seção 20) |
-| `supabase/functions/get-retry-checkout-data/*` | Retry outra forma (seção 20) |
+| `supabase/functions/retry-card-payment/*` | Retry (seção 21) |
+| `supabase/functions/get-retry-checkout-data/*` | Retry outra forma (seção 21) |
 
 ### Arquivos de Sincronização (CRÍTICOS)
 
@@ -653,7 +744,7 @@ No admin, nomes continuam visíveis.
 
 ---
 
-## 28. Pendências
+## 29. Pendências
 
 | Item | Status |
 |------|--------|
