@@ -251,26 +251,22 @@ Layout de duas colunas (`xl:grid-cols-2`) que empilham em telas menores.
 
 ## 7. Slugs
 
-### 7.1 Política de Slugs
+> 📖 **Documentação completa:** [`docs/especificacoes/sistema/slugs.md`](../sistema/slugs.md)
+
+### 7.1 Resumo para Categorias
 
 - Gerados automaticamente a partir do nome via hook `useAutoSlug` (responsabilidade única)
 - Formato: lowercase, sem acentos, hífens entre palavras
 - Validados via `src/lib/slugPolicy.ts`
-- Únicos por tenant (não globalmente)
+- Únicos por `(tenant_id, slug)` — não globalmente
 - **Auto-geração contínua**: enquanto o usuário não editar manualmente o campo slug, ele é regenerado a cada keystroke no campo nome
 - **Detecção de edição manual**: se o usuário digitar diretamente no campo slug, a auto-geração para automaticamente
 - Em modo edição, a auto-geração é desabilitada por padrão (slug existente é preservado)
+- Rota pública: `/c/:slug`
 
 ### 7.2 Slugs Reservados
 
-```typescript
-const RESERVED_SLUGS = [
-  'admin', 'api', 'auth', 'cart', 'checkout',
-  'store', 'login', 'logout', 'register', 'signup',
-  'settings', 'profile', 'dashboard', 'null', 'undefined',
-  'new', 'edit', 'delete', 'create', 'minhas-compras', 'my-orders'
-];
-```
+Veja lista completa em [`docs/especificacoes/sistema/slugs.md` § 4](../sistema/slugs.md#4-slugs-reservados).
 
 ---
 
