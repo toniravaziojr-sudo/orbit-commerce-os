@@ -326,6 +326,13 @@ export function InvoiceEditor({
       valor_unitario: 0,
       valor_total: 0,
       origem: '0',
+      gtin: '',
+      gtin_tributavel: '',
+      cest: '',
+      valor_desconto: 0,
+      icms_base: 0, icms_aliquota: 0, icms_valor: 0,
+      pis_cst: '49', pis_base: 0, pis_aliquota: 0, pis_valor: 0,
+      cofins_cst: '49', cofins_base: 0, cofins_aliquota: 0, cofins_valor: 0,
     };
     setData({ ...data, items: [...data.items, newItem] });
   };
