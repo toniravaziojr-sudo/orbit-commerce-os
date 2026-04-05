@@ -1901,6 +1901,93 @@ function buildFullPage(opts: {
       fetch(SU+"/rest/v1/storefront_visits",{method:"POST",headers:{"Content-Type":"application/json","apikey":SK,"Authorization":"Bearer "+SK,"Prefer":"return=minimal"},body:body,keepalive:true}).catch(function(){});
     }catch(e){}
   })();
+
+  // =============================================
+  // CAROUSEL HYDRATION — Vanilla JS (no dependencies)
+  // Handles: data-sf-video-carousel[data-sf-layout="carousel"]
+  //          data-sf-ig-carousel (image gallery carousel)
+  // Controls: data-sf-carousel-prev, data-sf-carousel-next, data-sf-dot
+  // =============================================
+  (function(){
+    function hydrateCarousel(container){
+      var track=container.querySelector("[data-sf-carousel-track]");
+      if(!track)return;
+      var prevBtn=container.querySelector("[data-sf-carousel-prev]");
+      var nextBtn=container.querySelector("[data-sf-carousel-next]");
+      var dotsWrap=container.querySelector("[data-sf-carousel-dots]");
+      var slides=track.children;
+      if(!slides.length)return;
+
+      var current=0;
+      var perSlide=parseInt(container.getAttribute("data-sf-items-per-slide")||container.getAttribute("data-sf-slides-per-view")||"1",10)||1;
+      var total=slides.length;
+      var maxSnap=Math.max(0,Math.ceil(total/perSlide)-1);
+
+      function getSlideWidth(){
+        if(!slides[0])return 0;
+        var style=window.getComputedStyle(track);
+        var gap=parseFloat(style.gap)||0;
+        return slides[0].offsetWidth+gap;
+      }
+
+      function goTo(idx){
+        current=Math.max(0,Math.min(idx,maxSnap));
+        var offset=current*perSlide*getSlideWidth();
+        track.style.transform="translateX(-"+offset+"px)";
+        updateDots();
+        updateArrows();
+      }
+
+      function updateDots(){
+        if(!dotsWrap)return;
+        var dots=dotsWrap.querySelectorAll("[data-sf-dot]");
+        for(var i=0;i<dots.length;i++){
+          var isActive=i===current;
+          dots[i].style.width=isActive?"1.5rem":"0.625rem";
+          dots[i].style.background=isActive?"var(--theme-accent-color, var(--theme-button-primary-bg, #1a1a1a))":"rgba(0,0,0,0.2)";
+        }
+      }
+
+      function updateArrows(){
+        if(prevBtn)prevBtn.style.opacity=current<=0?"0.4":"1";
+        if(nextBtn)nextBtn.style.opacity=current>=maxSnap?"0.4":"1";
+      }
+
+      if(prevBtn)prevBtn.addEventListener("click",function(e){e.preventDefault();goTo(current-1);});
+      if(nextBtn)nextBtn.addEventListener("click",function(e){e.preventDefault();goTo(current+1);});
+      if(dotsWrap){
+        dotsWrap.addEventListener("click",function(e){
+          var dot=e.target.closest("[data-sf-dot]");
+          if(!dot)return;
+          goTo(parseInt(dot.getAttribute("data-sf-dot"),10));
+        });
+      }
+
+      // Touch/swipe support
+      var startX=0,startY=0,isDragging=false;
+      var viewport=container.querySelector("[data-sf-carousel-viewport]")||track.parentElement;
+      viewport.addEventListener("touchstart",function(e){startX=e.touches[0].clientX;startY=e.touches[0].clientY;isDragging=true;},{passive:true});
+      viewport.addEventListener("touchend",function(e){
+        if(!isDragging)return;isDragging=false;
+        var dx=e.changedTouches[0].clientX-startX;
+        var dy=e.changedTouches[0].clientY-startY;
+        if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>40){
+          if(dx<0)goTo(current+1);else goTo(current-1);
+        }
+      },{passive:true});
+
+      // Recalc on resize
+      var resizeTimer;
+      window.addEventListener("resize",function(){clearTimeout(resizeTimer);resizeTimer=setTimeout(function(){goTo(current);},150);});
+
+      updateArrows();
+    }
+
+    // Hydrate all video carousels (carousel mode only)
+    document.querySelectorAll('[data-sf-video-carousel][data-sf-layout="carousel"]').forEach(hydrateCarousel);
+    // Hydrate all image gallery carousels
+    document.querySelectorAll("[data-sf-ig-carousel]").forEach(hydrateCarousel);
+  })();
   </script>
 </body>
 </html>`;

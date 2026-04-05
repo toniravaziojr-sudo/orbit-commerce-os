@@ -2,16 +2,14 @@
 // VIDEO CAROUSEL BLOCK COMPILER
 // Mirrors: src/components/builder/blocks/video-carousel/
 // Supports: carousel (embla multi-item) + grid layouts
-// Hydration: data-sf-video-carousel
-// v2.0.0: Added itemsPerSlide for carousel mode
+// Hydration: data-sf-video-carousel + inline vanilla JS
+// v2.1.0: Fixed position:relative, showControls prop, hydration attrs
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
 import { escapeHtml } from '../utils.ts';
 
-// =============================================
-// TYPES
-// =============================================
+// ── Types ──
 
 interface VideoItem {
   id?: string;
@@ -23,9 +21,7 @@ interface VideoItem {
   thumbnail?: string;
 }
 
-// =============================================
-// HELPERS (pure functions)
-// =============================================
+// ── Helpers (pure functions) ──
 
 function extractYouTubeId(url: string): string | null {
   if (!url) return null;
@@ -73,9 +69,7 @@ function normalizeVideos(rawVideos: VideoItem[] | undefined): (VideoItem & { url
     .filter(v => v.url && (v.type === 'upload' || extractYouTubeId(v.url)));
 }
 
-// =============================================
-// RENDERERS (pure functions)
-// =============================================
+// ── Renderers (pure functions) ──
 
 function renderThumbnailCard(video: VideoItem & { url: string; type: string }, padding: string): string {
   const ytId = video.type === 'youtube' ? extractYouTubeId(video.url) : null;
@@ -109,9 +103,7 @@ function getGridTemplateColumns(itemsPerRow: number): string {
   }
 }
 
-// =============================================
-// MAIN COMPILER
-// =============================================
+// ── Main Compiler ──
 
 export const videoCarouselToStaticHTML: BlockCompilerFn = (
   props: Record<string, unknown>,
@@ -122,6 +114,7 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
   const aspectRatio = (props.aspectRatio as string) || '16:9';
   const maxWidth = (props.maxWidth as string) || 'full';
   const layout = (props.layout as string) || 'carousel';
+  const showControls = (props.showControls as boolean) ?? true;
   const itemsPerRow = toSafeNumber(props.itemsPerRow, 3);
   const itemsPerPage = toSafeNumber(props.itemsPerPage, 6);
   const itemsPerSlide = toSafeNumber(props.itemsPerSlide, 1);
@@ -157,7 +150,6 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
   }
 
   // ── CAROUSEL LAYOUT ──
-  // Renders all items in a horizontal strip; hydration script handles sliding
   const slidePct = 100 / itemsPerSlide;
   const gap = itemsPerSlide > 1 ? '1rem' : '0';
   const slideWidth = itemsPerSlide > 1
@@ -168,7 +160,20 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
     `<div style="flex:0 0 ${slideWidth};min-width:0;">${renderThumbnailCard(v, padding)}</div>`
   ).join('\n');
 
-  const dotsHtml = videos.length > itemsPerSlide
+  const needsNav = videos.length > itemsPerSlide;
+
+  // Arrows (conditional on showControls)
+  const arrowsHtml = needsNav && showControls
+    ? `<button data-sf-carousel-prev style="position:absolute;left:0.5rem;top:50%;transform:translateY(-50%);width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(255,255,255,0.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <button data-sf-carousel-next style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(255,255,255,0.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+  </button>`
+    : '';
+
+  // Dots
+  const dotsHtml = needsNav
     ? `<div style="margin-top:0.75rem;display:flex;justify-content:center;gap:0.375rem;" data-sf-carousel-dots>
   ${Array.from({ length: Math.ceil(videos.length / itemsPerSlide) }).map((_, i) =>
     `<button data-sf-dot="${i}" style="width:${i === 0 ? '1rem' : '0.5rem'};height:0.5rem;border-radius:9999px;background:${i === 0 ? 'var(--theme-button-primary-bg,#1a1a1a)' : 'rgba(0,0,0,0.2)'};border:none;cursor:pointer;transition:all 0.2s;"></button>`
@@ -176,21 +181,16 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
 </div>`
     : '';
 
-  return `<div class="sf-video-carousel" data-sf-video-carousel data-sf-layout="carousel" data-sf-items-per-slide="${itemsPerSlide}" data-sf-total="${videos.length}" style="${containerStyle}">
+  return `<div class="sf-video-carousel" data-sf-video-carousel data-sf-layout="carousel" data-sf-items-per-slide="${itemsPerSlide}" data-sf-total="${videos.length}" style="${containerStyle};position:relative;">
   ${titleHtml}
-  <div style="overflow:hidden;border-radius:0.5rem;" data-sf-carousel-viewport>
-    <div style="display:flex;gap:${gap};transition:transform 0.3s ease;" data-sf-carousel-track>
-      ${slidesHtml}
+  <div style="position:relative;">
+    <div style="overflow:hidden;border-radius:0.5rem;" data-sf-carousel-viewport>
+      <div style="display:flex;gap:${gap};transition:transform 0.3s ease;" data-sf-carousel-track>
+        ${slidesHtml}
+      </div>
     </div>
+    ${arrowsHtml}
   </div>
-  ${videos.length > itemsPerSlide ? `
-  <button data-sf-carousel-prev style="position:absolute;left:0.5rem;top:50%;transform:translateY(-50%);width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(255,255,255,0.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10;">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-  </button>
-  <button data-sf-carousel-next style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(255,255,255,0.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10;">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-  </button>
-  ` : ''}
   ${dotsHtml}
 </div>`;
 };
