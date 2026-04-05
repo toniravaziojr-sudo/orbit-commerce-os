@@ -300,6 +300,97 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
 
 ---
 
+## 13. Mapeamento de Coleta e Persistência de Dados
+
+> **REGRA CRÍTICA:** Todo dado coletado no checkout deve ser persistido no pedido pela Edge Function `checkout-create-order`. O INSERT no banco é a única operação que grava esses dados — se um campo não constar no INSERT, ele será perdido independentemente de ter sido coletado e validado no frontend.
+
+### 13.1 Dados do Cliente (Step 1 — Dados Pessoais)
+
+| Campo coletado | Validação frontend | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Nome completo | Obrigatório, min 3 chars | `customer_name` | `payload.customer.name` |
+| Email | Obrigatório, formato válido | `customer_email` | Normalizado via `normalizeEmail()` (lowercase + trim) |
+| Telefone | Obrigatório, min 10 dígitos | `customer_phone` | `payload.customer.phone` |
+| CPF | Obrigatório, 11 dígitos, algoritmo módulo 11, rejeita sequências | `customer_cpf` | `payload.customer.cpf` |
+
+> **REGRA:** O CPF é obrigatório para pessoa física. O campo `customer_cnpj` existe na tabela `orders` mas não é coletado no checkout atual (reservado para futura implementação de checkout PJ).
+
+### 13.2 Endereço de Entrega (Step 2 — Endereço)
+
+| Campo coletado | Validação frontend | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| CEP | 8 dígitos, validação ViaCEP | `shipping_postal_code` | `payload.shipping.postal_code` |
+| Rua/Logradouro | Obrigatório, preenchido via CEP | `shipping_street` | `payload.shipping.street` |
+| Número | Obrigatório | `shipping_number` | `payload.shipping.number` |
+| Complemento | Opcional | `shipping_complement` | `payload.shipping.complement \|\| null` |
+| Bairro | Obrigatório, preenchido via CEP | `shipping_neighborhood` | `payload.shipping.neighborhood` |
+| Cidade | Obrigatório, preenchido via CEP | `shipping_city` | `payload.shipping.city` |
+| Estado (UF) | Obrigatório, preenchido via CEP | `shipping_state` | `payload.shipping.state` |
+
+### 13.3 Frete (Step 2 — seleção de modalidade)
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Transportadora | Seleção do cliente | `shipping_carrier` | `payload.shipping.carrier \|\| null` |
+| Código do serviço | Retorno da cotação | `shipping_service_code` | `payload.shipping.service_code \|\| null` |
+| Nome do serviço | Retorno da cotação | `shipping_service_name` | `payload.shipping.service_name \|\| null` |
+| Prazo estimado (dias) | Retorno da cotação | `shipping_estimated_days` | `payload.shipping.estimated_days \|\| null` |
+| Valor do frete | Recalculado no servidor | `shipping_total` | `canonicalShipping` (servidor, não frontend) |
+| ID da cotação | Rastreabilidade | `shipping_quote_id` | `validatedQuoteId \|\| null` |
+
+### 13.4 Pagamento (Step 3 — Forma de Pagamento)
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Forma de pagamento | Seleção do cliente | `payment_method` | `payload.payment_method` |
+| Desconto por forma | Cálculo servidor | `payment_method_discount` | `payload.payment_method_discount \|\| 0` |
+| Parcelas | Seleção do cliente (cartão) | `installments` | `payload.installments \|\| 1` |
+| Valor da parcela | Cálculo servidor | `installment_value` | Calculado: `canonicalTotal / installments` |
+
+### 13.5 Valores Financeiros (Snapshot Canônico)
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Subtotal | **Recalculado no servidor** | `subtotal` | `canonicalSubtotal` |
+| Frete | **Recalculado no servidor** | `shipping_total` | `canonicalShipping` |
+| Desconto (cupom) | **Recalculado no servidor** | `discount_total` | `canonicalDiscount` |
+| Total | **Recalculado no servidor** | `total` | `canonicalTotal` |
+| Total canônico | **Recalculado no servidor** | `canonical_total` | `canonicalTotal` |
+
+> Valores financeiros NUNCA usam dados enviados pelo frontend. São recalculados do banco (preços dos produtos, cotação de frete validada, desconto revalidado).
+
+### 13.6 Desconto/Cupom
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Código do cupom | Input do cliente | `discount_code` | `payload.discount?.discount_code \|\| null` |
+| Nome do desconto | DB lookup | `discount_name` | `payload.discount?.discount_name \|\| null` |
+| Tipo do desconto | DB lookup | `discount_type` | `payload.discount?.discount_type \|\| null` |
+| Frete grátis | DB lookup | `free_shipping` | `payload.discount?.free_shipping \|\| false` |
+
+### 13.7 Tracking e Rastreabilidade
+
+| Campo | Origem | Campo no `orders` | Mapeamento no INSERT |
+|---|---|---|---|
+| Attribution (UTM/GCLID/etc) | `sessionStorage` | `attribution` | `payload.attribution` |
+| Affiliate ID | `?ref=` param | `affiliate_id` | `payload.affiliate_id` |
+| Checkout attempt ID | UUID por clique | `checkout_attempt_id` | `payload.checkout_attempt_id \|\| null` |
+| Retry from order ID | Token de retry | `retry_from_order_id` | `payload.retry_from_order_id \|\| null` |
+
+### 13.8 Cascata de Dados pós-INSERT
+
+Após a criação do pedido, triggers do banco propagam dados para outros módulos:
+
+| Trigger | Quando | O que faz |
+|---|---|---|
+| `trg_recalc_customer_on_order` | BEFORE UPDATE (payment_status → approved) | Cria/vincula registro em `customers` usando `customer_email`, `customer_cpf`, `customer_phone` do pedido |
+| `after_order_approved_sync` | AFTER UPDATE (payment_status → approved) | Recalcula métricas do cliente (`total_orders`, `total_spent`), atribui tag "Cliente", sincroniza listas de marketing |
+| `trg_enqueue_fiscal_draft` | AFTER UPDATE (payment_status → approved) | Enfileira criação de rascunho fiscal. O rascunho usa `customer_cpf` do pedido como CPF do destinatário |
+
+> **CONSEQUÊNCIA:** Se um campo não for persistido no INSERT do pedido, nenhum trigger conseguirá propagá-lo. O CPF ausente no pedido resulta em CPF ausente no cliente E no rascunho fiscal.
+
+---
+
 ## 13. Validação de Produtos no Checkout (REGRA CRÍTICA)
 
 | Cenário | Comportamento |
