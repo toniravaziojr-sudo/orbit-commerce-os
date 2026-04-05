@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { generateSlug } from '@/lib/slugPolicy';
 
 interface PlanInfo {
   plan_key: string;
@@ -169,13 +170,7 @@ export default function StartInfo() {
           console.log('[StartInfo] OAuth user detected - creating tenant only');
           
           // Gerar slug a partir do nome da loja
-          const slug = data.store_name
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .substring(0, 50);
+          const slug = generateSlug(data.store_name).substring(0, 50);
           
           // Usar RPC para criar tenant (já corrigida para usar pending_payment_method)
           const { data: newTenant, error: createError } = await supabase
