@@ -1191,6 +1191,30 @@ export function InvoiceEditor({
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Totais de Impostos</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Base de Cálculo ICMS</Label>
+                  <Input value={formatCurrency(data.valor_bc_icms || 0)} disabled className="bg-muted font-mono" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total ICMS</Label>
+                  <Input value={formatCurrency(data.valor_icms || 0)} disabled className="bg-muted font-mono" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total PIS</Label>
+                  <Input value={formatCurrency(data.valor_pis || 0)} disabled className="bg-muted font-mono" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total COFINS</Label>
+                  <Input value={formatCurrency(data.valor_cofins || 0)} disabled className="bg-muted font-mono" />
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Tab: Transporte */}
