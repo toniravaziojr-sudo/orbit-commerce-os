@@ -20,8 +20,8 @@ Fluxo de finalização de compra com múltiplas formas de pagamento, order bumps
 | Área | Descrição |
 |------|-----------|
 | Header/Footer | **Exclusivos do checkout** — configuração separada via `checkout_header_config` / `checkout_footer_config` |
-| Dados do cliente | Nome, email, telefone, CPF |
-| Endereço de entrega | Formulário com busca de CEP |
+| Dados do cliente | Nome, email, telefone, CPF/CNPJ (**obrigatório** — alimenta destinatário da NF-e) |
+| Endereço de entrega | Formulário com busca de CEP (**todos os campos obrigatórios**: logradouro, número, bairro, cidade, estado, CEP — alimenta endereço do destinatário na NF-e) |
 | Forma de pagamento | PIX, Boleto, Cartão de Crédito |
 | Order Bumps | Ofertas 1-click baseadas em regras |
 | Resumo do pedido | Itens, subtotal, frete, descontos, total |

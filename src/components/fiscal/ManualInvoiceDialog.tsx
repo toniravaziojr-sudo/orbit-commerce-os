@@ -103,6 +103,10 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
   const [destCep, setDestCep] = useState('');
   const [naturezaOperacao, setNaturezaOperacao] = useState('VENDA DE MERCADORIA');
   const [observacoes, setObservacoes] = useState('');
+  const [indicadorPresenca, setIndicadorPresenca] = useState(2);
+  const [indicadorIeDest, setIndicadorIeDest] = useState(9);
+  const [pagamentoIndicador, setPagamentoIndicador] = useState(0);
+  const [pagamentoMeio, setPagamentoMeio] = useState('99');
   const [items, setItems] = useState<ManualInvoiceItem[]>([
     { codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0, origem: '0', csosn: '102' }
   ]);
@@ -356,6 +360,10 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
           order_id: selectedOrderId !== 'manual' ? selectedOrderId : null,
           natureza_operacao: naturezaOperacao,
           observacoes,
+          indicador_presenca: indicadorPresenca,
+          indicador_ie_dest: indicadorIeDest,
+          pagamento_indicador: pagamentoIndicador,
+          pagamento_meio: pagamentoMeio,
           destinatario: {
             nome: destNome,
             cpf_cnpj: destCpfCnpj.replace(/\D/g, ''),
@@ -678,10 +686,10 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
             </CardContent>
           </Card>
 
-          {/* Informações Adicionais */}
+          {/* Informações Adicionais + SEFAZ */}
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-base">Informações Adicionais</CardTitle>
+              <CardTitle className="text-base">Dados Fiscais e Informações Adicionais</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -710,6 +718,69 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
                     onChange={e => setNaturezaOperacao(e.target.value)}
                     placeholder="Ex: VENDA DE MERCADORIA"
                   />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Indicador de Presença *</Label>
+                  <Select value={String(indicadorPresenca)} onValueChange={v => setIndicadorPresenca(parseInt(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0 - Não se aplica</SelectItem>
+                      <SelectItem value="1">1 - Presencial</SelectItem>
+                      <SelectItem value="2">2 - Internet</SelectItem>
+                      <SelectItem value="3">3 - Teleatendimento</SelectItem>
+                      <SelectItem value="4">4 - NFC-e em domicílio</SelectItem>
+                      <SelectItem value="5">5 - Presencial fora do estab.</SelectItem>
+                      <SelectItem value="9">9 - Outros</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Indicador IE Dest. *</Label>
+                  <Select value={String(indicadorIeDest)} onValueChange={v => setIndicadorIeDest(parseInt(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 - Contribuinte ICMS</SelectItem>
+                      <SelectItem value="2">2 - Contribuinte isento</SelectItem>
+                      <SelectItem value="9">9 - Não Contribuinte</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Indicador de Pagamento *</Label>
+                  <Select value={String(pagamentoIndicador)} onValueChange={v => setPagamentoIndicador(parseInt(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0 - À Vista</SelectItem>
+                      <SelectItem value="1">1 - A Prazo</SelectItem>
+                      <SelectItem value="2">2 - Outros</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Meio de Pagamento *</Label>
+                  <Select value={pagamentoMeio} onValueChange={setPagamentoMeio}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="01">01 - Dinheiro</SelectItem>
+                      <SelectItem value="03">03 - Cartão de Crédito</SelectItem>
+                      <SelectItem value="04">04 - Cartão de Débito</SelectItem>
+                      <SelectItem value="15">15 - Boleto Bancário</SelectItem>
+                      <SelectItem value="17">17 - PIX</SelectItem>
+                      <SelectItem value="99">99 - Outros</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="space-y-2">

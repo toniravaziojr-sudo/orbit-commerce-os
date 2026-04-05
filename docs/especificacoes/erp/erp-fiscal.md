@@ -523,3 +523,47 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 | **Contexto** | Rascunhos fiscais eram criados somente quando o usuário acessava o módulo Fiscal (chamada lazy na abertura da tela) |
 | **Correção** | (1) Caminho primário: trigger SQL `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico em `fiscal_draft_queue`. (2) Processamento: `scheduler-tick` consome a fila a cada minuto chamando `fiscal-auto-create-drafts`. (3) Reconciliação: o mesmo tick também verifica pedidos `ready_to_invoice` sem NF-e como fallback. Padrão Fila + Cron conforme `automacao-patterns.md`. |
 | **Afeta** | Módulo Fiscal → "Prontas para Emitir" já reflete pedidos aprovados sem depender de acesso à tela |
+
+---
+
+## Mapeamento de Campos da NF-e
+
+> Documento de referência completo: [`campos-nfe-referencia.md`](./campos-nfe-referencia.md)
+
+### Campos Obrigatórios e Suas Origens
+
+| Campo | Obrig. SEFAZ | Origem no Sistema | Local de Coleta |
+|-------|:---:|-------------------|-----------------|
+| GTIN/EAN | S | `products.gtin` | Cadastro de Produto (campo obrigatório) |
+| NCM | S | `products.ncm` | Cadastro de Produto / Config Fiscal por Produto |
+| CFOP | S | `fiscal_settings.cfop_*` | Configurações Fiscais |
+| Origem Fiscal | S | `fiscal_settings.origem_fiscal_padrao` | Configurações Fiscais (select 0-8) |
+| CPF/CNPJ Dest. | S | `customers.cpf` / `orders.customer_cpf` | Checkout (campo obrigatório) |
+| Endereço Dest. | S | `orders.shipping_address_*` | Checkout (todos campos obrigatórios) |
+| Ind. Presença | S | `fiscal_invoices.indicador_presenca` | Editor NF-e (default: 2 = Internet) |
+| Ind. IE Dest. | S | `fiscal_invoices.indicador_ie_dest` | Editor NF-e (default: 9 = Não Contribuinte) |
+| Pagamento Meio | S | `fiscal_invoices.pagamento_meio` | Derivado do pedido / Editor NF-e |
+| CSOSN | S | `fiscal_invoice_items.csosn` | Config Fiscal (default: 102) |
+| PIS CST | S | `fiscal_invoice_items.pis_cst` | Config Fiscal (default: 49) |
+| COFINS CST | S | `fiscal_invoice_items.cofins_cst` | Config Fiscal (default: 49) |
+
+### Fluxo de Alimentação Automática (Rascunho)
+
+```
+Pedido com pagamento aprovado
+  ↓ trigger: trg_enqueue_fiscal_draft
+  ↓ fila: fiscal_draft_queue
+  ↓ processamento: fiscal-auto-create-drafts
+  ↓
+fiscal_invoices (cabeçalho)
+  ├─ Dados do cliente → destinatário
+  ├─ Dados do pedido → valores, frete, desconto
+  ├─ Config fiscal → serie, ambiente, natureza, cfop
+  └─ Defaults → indicador_presenca=2, indicador_ie_dest=9
+  ↓
+fiscal_invoice_items (itens)
+  ├─ Produto → gtin, ncm, cest, descricao
+  ├─ Pedido → quantidade, valor_unitario
+  ├─ Config fiscal → cfop, origem, csosn
+  └─ Defaults → pis_cst=49, cofins_cst=49
+```

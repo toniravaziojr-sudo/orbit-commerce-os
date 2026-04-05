@@ -6389,56 +6389,104 @@ export type Database = {
       }
       fiscal_invoice_items: {
         Row: {
+          cest: string | null
           cfop: string
           codigo_produto: string
+          cofins_aliquota: number
+          cofins_base: number
+          cofins_cst: string
+          cofins_valor: number
           created_at: string | null
           csosn: string | null
           cst: string | null
           descricao: string
+          gtin: string | null
+          gtin_tributavel: string | null
+          icms_aliquota: number
+          icms_base: number
+          icms_valor: number
           id: string
           invoice_id: string
           ncm: string
           numero_item: number
           order_item_id: string | null
           origem: number | null
+          pis_aliquota: number
+          pis_base: number
+          pis_cst: string
+          pis_valor: number
           quantidade: number
           unidade: string | null
+          valor_desconto: number
+          valor_frete: number
           valor_total: number
           valor_unitario: number
         }
         Insert: {
+          cest?: string | null
           cfop: string
           codigo_produto: string
+          cofins_aliquota?: number
+          cofins_base?: number
+          cofins_cst?: string
+          cofins_valor?: number
           created_at?: string | null
           csosn?: string | null
           cst?: string | null
           descricao: string
+          gtin?: string | null
+          gtin_tributavel?: string | null
+          icms_aliquota?: number
+          icms_base?: number
+          icms_valor?: number
           id?: string
           invoice_id: string
           ncm: string
           numero_item: number
           order_item_id?: string | null
           origem?: number | null
+          pis_aliquota?: number
+          pis_base?: number
+          pis_cst?: string
+          pis_valor?: number
           quantidade: number
           unidade?: string | null
+          valor_desconto?: number
+          valor_frete?: number
           valor_total: number
           valor_unitario: number
         }
         Update: {
+          cest?: string | null
           cfop?: string
           codigo_produto?: string
+          cofins_aliquota?: number
+          cofins_base?: number
+          cofins_cst?: string
+          cofins_valor?: number
           created_at?: string | null
           csosn?: string | null
           cst?: string | null
           descricao?: string
+          gtin?: string | null
+          gtin_tributavel?: string | null
+          icms_aliquota?: number
+          icms_base?: number
+          icms_valor?: number
           id?: string
           invoice_id?: string
           ncm?: string
           numero_item?: number
           order_item_id?: string | null
           origem?: number | null
+          pis_aliquota?: number
+          pis_base?: number
+          pis_cst?: string
+          pis_valor?: number
           quantidade?: number
           unidade?: string | null
+          valor_desconto?: number
+          valor_frete?: number
           valor_total?: number
           valor_unitario?: number
         }
@@ -6488,13 +6536,21 @@ export type Database = {
           especie_volumes: string | null
           finalidade_emissao: number | null
           focus_ref: string | null
+          hora_emissao: string | null
+          hora_saida: string | null
           id: string
+          indicador_ie_dest: number
+          indicador_presenca: number
+          informacoes_fisco: string | null
           modalidade_frete: string | null
           natureza_operacao: string | null
           nfe_referenciada: string | null
           numero: number
           observacoes: string | null
           order_id: string | null
+          pagamento_indicador: number
+          pagamento_meio: string
+          pagamento_valor: number
           peso_bruto: number | null
           peso_liquido: number | null
           printed_at: string | null
@@ -6510,9 +6566,13 @@ export type Database = {
           transportadora_cnpj: string | null
           transportadora_nome: string | null
           updated_at: string | null
+          valor_bc_icms: number
+          valor_cofins: number
           valor_desconto: number | null
           valor_frete: number | null
+          valor_icms: number
           valor_outras_despesas: number | null
+          valor_pis: number
           valor_produtos: number
           valor_seguro: number | null
           valor_total: number
@@ -6547,13 +6607,21 @@ export type Database = {
           especie_volumes?: string | null
           finalidade_emissao?: number | null
           focus_ref?: string | null
+          hora_emissao?: string | null
+          hora_saida?: string | null
           id?: string
+          indicador_ie_dest?: number
+          indicador_presenca?: number
+          informacoes_fisco?: string | null
           modalidade_frete?: string | null
           natureza_operacao?: string | null
           nfe_referenciada?: string | null
           numero: number
           observacoes?: string | null
           order_id?: string | null
+          pagamento_indicador?: number
+          pagamento_meio?: string
+          pagamento_valor?: number
           peso_bruto?: number | null
           peso_liquido?: number | null
           printed_at?: string | null
@@ -6569,9 +6637,13 @@ export type Database = {
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
           updated_at?: string | null
+          valor_bc_icms?: number
+          valor_cofins?: number
           valor_desconto?: number | null
           valor_frete?: number | null
+          valor_icms?: number
           valor_outras_despesas?: number | null
+          valor_pis?: number
           valor_produtos: number
           valor_seguro?: number | null
           valor_total: number
@@ -6606,13 +6678,21 @@ export type Database = {
           especie_volumes?: string | null
           finalidade_emissao?: number | null
           focus_ref?: string | null
+          hora_emissao?: string | null
+          hora_saida?: string | null
           id?: string
+          indicador_ie_dest?: number
+          indicador_presenca?: number
+          informacoes_fisco?: string | null
           modalidade_frete?: string | null
           natureza_operacao?: string | null
           nfe_referenciada?: string | null
           numero?: number
           observacoes?: string | null
           order_id?: string | null
+          pagamento_indicador?: number
+          pagamento_meio?: string
+          pagamento_valor?: number
           peso_bruto?: number | null
           peso_liquido?: number | null
           printed_at?: string | null
@@ -6628,9 +6708,13 @@ export type Database = {
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
           updated_at?: string | null
+          valor_bc_icms?: number
+          valor_cofins?: number
           valor_desconto?: number | null
           valor_frete?: number | null
+          valor_icms?: number
           valor_outras_despesas?: number | null
+          valor_pis?: number
           valor_produtos?: number
           valor_seguro?: number | null
           valor_total?: number

@@ -98,6 +98,10 @@ serve(async (req) => {
       observacoes,
       destinatario,
       itens,
+      indicador_presenca,
+      indicador_ie_dest,
+      pagamento_indicador,
+      pagamento_meio,
     } = body;
 
     console.log(`[fiscal-create-manual][${VERSION}] Creating manual invoice for tenant:`, tenantId);
@@ -164,6 +168,12 @@ serve(async (req) => {
       dest_endereco_cep: destinatario.endereco.cep,
       observacoes: observacoes || null,
       ambiente: settings.ambiente,
+      // Campos SEFAZ
+      indicador_presenca: indicador_presenca ?? 2,
+      indicador_ie_dest: indicador_ie_dest ?? 9,
+      pagamento_indicador: pagamento_indicador ?? 0,
+      pagamento_meio: pagamento_meio || '99',
+      pagamento_valor: valorProdutos,
     };
 
     const { invoice, numero } = await insertFiscalInvoiceWithRetry({

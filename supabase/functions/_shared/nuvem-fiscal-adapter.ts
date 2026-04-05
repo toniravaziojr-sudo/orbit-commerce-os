@@ -128,6 +128,16 @@ export function buildNFePayload(
     valor_desconto?: number | null;
     valor_total: number;
     informacoes_complementares?: string | null;
+    informacoes_fisco?: string | null;
+    indicador_presenca?: number | null;
+    indicador_ie_dest?: number | null;
+    valor_bc_icms?: number | null;
+    valor_icms?: number | null;
+    valor_pis?: number | null;
+    valor_cofins?: number | null;
+    pagamento_indicador?: number | null;
+    pagamento_meio?: string | null;
+    pagamento_valor?: number | null;
   },
   emitente: {
     cnpj: string;
@@ -167,6 +177,9 @@ export function buildNFePayload(
     descricao: string;
     cfop: string;
     ncm: string;
+    gtin?: string | null;
+    gtin_tributavel?: string | null;
+    cest?: string | null;
     unidade: string;
     quantidade: number;
     valor_unitario: number;
@@ -175,8 +188,17 @@ export function buildNFePayload(
     origem?: string | null;
     cst_icms?: string | null;
     csosn?: string | null;
+    icms_base?: number | null;
+    icms_aliquota?: number | null;
+    icms_valor?: number | null;
     cst_pis?: string | null;
+    pis_base?: number | null;
+    pis_aliquota?: number | null;
+    pis_valor?: number | null;
     cst_cofins?: string | null;
+    cofins_base?: number | null;
+    cofins_aliquota?: number | null;
+    cofins_valor?: number | null;
   }>,
   ambiente: 'homologacao' | 'producao',
   pagamento?: {
@@ -184,15 +206,8 @@ export function buildNFePayload(
     valor: number;
   }
 ): NuvemFiscalNFePayload {
-  // Determinar indicador de IE do destinatário
-  let indIEDest = 9; // Não contribuinte (padrão para PF)
-  if (destinatario.cnpj) {
-    if (destinatario.inscricao_estadual) {
-      indIEDest = 1; // Contribuinte ICMS
-    } else {
-      indIEDest = 2; // Isento
-    }
-  }
+  // Usar indicador_ie_dest do banco ou derivar
+  const indIEDest = invoice.indicador_ie_dest ?? (destinatario.cnpj ? (destinatario.inscricao_estadual ? 1 : 2) : 9);
 
   // Determinar idDest (destino da operação)
   let idDest = 1; // Interna
@@ -207,6 +222,9 @@ export function buildNFePayload(
     descricao: item.descricao.toUpperCase().substring(0, 120),
     cfop: item.cfop,
     ncm: item.ncm,
+    cEAN: item.gtin || 'SEM GTIN',
+    cEANTrib: item.gtin_tributavel || item.gtin || 'SEM GTIN',
+    CEST: item.cest || undefined,
     unidade_comercial: item.unidade || 'UN',
     quantidade_comercial: item.quantidade,
     valor_unitario_comercial: item.valor_unitario,
@@ -218,12 +236,21 @@ export function buildNFePayload(
     icms: {
       situacao_tributaria: item.csosn || item.cst_icms || '102',
       origem: parseInt(item.origem || '0'),
+      valor_base_calculo: item.icms_base || undefined,
+      aliquota: item.icms_aliquota || undefined,
+      valor: item.icms_valor || undefined,
     },
     pis: {
       situacao_tributaria: item.cst_pis || '49',
+      valor_base_calculo: item.pis_base || undefined,
+      aliquota: item.pis_aliquota || undefined,
+      valor: item.pis_valor || undefined,
     },
     cofins: {
       situacao_tributaria: item.cst_cofins || '49',
+      valor_base_calculo: item.cofins_base || undefined,
+      aliquota: item.cofins_aliquota || undefined,
+      valor: item.cofins_valor || undefined,
     },
   }));
 
@@ -250,7 +277,7 @@ export function buildNFePayload(
         tpEmis: 1, // Normal
         finNFe: parseInt(invoice.finalidade || '1'),
         indFinal: destinatario.cnpj ? 0 : 1, // Consumidor final se PF
-        indPres: 2, // Não presencial (internet)
+        indPres: invoice.indicador_presenca ?? 2,
       },
       emit: {
         CNPJ: onlyNumbers(emitente.cnpj),
@@ -296,13 +323,13 @@ export function buildNFePayload(
       det,
       total: {
         ICMSTot: {
-          vBC: 0,
-          vICMS: 0,
+          vBC: invoice.valor_bc_icms || 0,
+          vICMS: invoice.valor_icms || 0,
           vProd,
           vFrete: invoice.valor_frete || 0,
           vDesc,
-          vPIS: 0,
-          vCOFINS: 0,
+          vPIS: invoice.valor_pis || 0,
+          vCOFINS: invoice.valor_cofins || 0,
           vNF: invoice.valor_total,
         },
       },
@@ -311,8 +338,8 @@ export function buildNFePayload(
       },
       pag: {
         detPag: [{
-          tPag: PAYMENT_METHOD_MAP[pagamento?.forma || 'other'] || '99',
-          vPag: pagamento?.valor || invoice.valor_total,
+          tPag: invoice.pagamento_meio || PAYMENT_METHOD_MAP[pagamento?.forma || 'other'] || '99',
+          vPag: invoice.pagamento_valor || pagamento?.valor || invoice.valor_total,
         }],
       },
       infAdic: invoice.informacoes_complementares ? {

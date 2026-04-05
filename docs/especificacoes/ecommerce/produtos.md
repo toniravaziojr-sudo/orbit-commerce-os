@@ -82,7 +82,7 @@ interface Product {
   height: number | null;
   depth: number | null;
   barcode: string | null;
-  gtin: string | null;
+  gtin: string;                 // ⚠️ OBRIGATÓRIO — Código de barras EAN (8, 12, 13 ou 14 dígitos). Alimenta o campo GTIN da NF-e.
   ncm: string | null;            // Código fiscal
   regulatory_info: {
     anvisa?: string;

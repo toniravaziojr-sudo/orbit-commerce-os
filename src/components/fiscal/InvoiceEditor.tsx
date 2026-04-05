@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { format, parse } from 'date-fns';
 import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
-import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search } from 'lucide-react';
+import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,12 +30,16 @@ export interface InvoiceData {
   natureza_operacao: string;
   cfop: string;
   observacoes?: string;
+  // SEFAZ IDE
+  indicador_presenca: number;
+  informacoes_fisco?: string;
   // Destinatário
   dest_nome: string;
   dest_cpf_cnpj: string;
   dest_ie?: string;
   dest_tipo_pessoa: 'fisica' | 'juridica';
   dest_consumidor_final: boolean;
+  indicador_ie_dest: number;
   dest_endereco_logradouro: string;
   dest_endereco_numero: string;
   dest_endereco_complemento?: string;
@@ -53,6 +57,11 @@ export interface InvoiceData {
   valor_outras_despesas: number;
   valor_desconto: number;
   valor_total: number;
+  // Totais de impostos
+  valor_bc_icms: number;
+  valor_icms: number;
+  valor_pis: number;
+  valor_cofins: number;
   // Items
   items: InvoiceItemData[];
   // Transporte
@@ -63,6 +72,10 @@ export interface InvoiceData {
   peso_liquido?: number;
   quantidade_volumes?: number;
   especie_volumes?: string;
+  // Pagamento
+  pagamento_indicador: number;
+  pagamento_meio: string;
+  pagamento_valor: number;
 }
 
 export interface InvoiceItemData {
@@ -80,6 +93,22 @@ export interface InvoiceItemData {
   origem: string;
   csosn?: string;
   cst?: string;
+  // Campos SEFAZ novos
+  gtin: string;
+  gtin_tributavel: string;
+  cest: string;
+  valor_desconto: number;
+  icms_base: number;
+  icms_aliquota: number;
+  icms_valor: number;
+  pis_cst: string;
+  pis_base: number;
+  pis_aliquota: number;
+  pis_valor: number;
+  cofins_cst: string;
+  cofins_base: number;
+  cofins_aliquota: number;
+  cofins_valor: number;
 }
 
 // Opções de Origem do produto
@@ -107,6 +136,66 @@ const CSOSN_OPTIONS = [
   { value: '400', label: '400 - Não tributada' },
   { value: '500', label: '500 - ICMS cobrado anteriormente por ST' },
   { value: '900', label: '900 - Outros' },
+];
+
+// Opções SEFAZ: Indicador de Presença
+const INDICADOR_PRESENCA_OPTIONS = [
+  { value: 0, label: '0 - Não se aplica' },
+  { value: 1, label: '1 - Presencial' },
+  { value: 2, label: '2 - Internet' },
+  { value: 3, label: '3 - Teleatendimento' },
+  { value: 4, label: '4 - NFC-e em domicílio' },
+  { value: 5, label: '5 - Presencial fora do estabelecimento' },
+  { value: 9, label: '9 - Outros' },
+];
+
+// Opções SEFAZ: Indicador IE Destinatário
+const INDICADOR_IE_DEST_OPTIONS = [
+  { value: 1, label: '1 - Contribuinte ICMS' },
+  { value: 2, label: '2 - Contribuinte isento' },
+  { value: 9, label: '9 - Não Contribuinte' },
+];
+
+// Opções SEFAZ: Indicador de Pagamento
+const PAGAMENTO_INDICADOR_OPTIONS = [
+  { value: 0, label: '0 - À Vista' },
+  { value: 1, label: '1 - A Prazo' },
+  { value: 2, label: '2 - Outros' },
+];
+
+// Opções SEFAZ: Meio de Pagamento (tPag)
+const PAGAMENTO_MEIO_OPTIONS = [
+  { value: '01', label: '01 - Dinheiro' },
+  { value: '02', label: '02 - Cheque' },
+  { value: '03', label: '03 - Cartão de Crédito' },
+  { value: '04', label: '04 - Cartão de Débito' },
+  { value: '05', label: '05 - Crédito Loja' },
+  { value: '10', label: '10 - Vale Alimentação' },
+  { value: '11', label: '11 - Vale Refeição' },
+  { value: '12', label: '12 - Vale Presente' },
+  { value: '13', label: '13 - Vale Combustível' },
+  { value: '14', label: '14 - Duplicata Mercantil' },
+  { value: '15', label: '15 - Boleto Bancário' },
+  { value: '16', label: '16 - Depósito Bancário' },
+  { value: '17', label: '17 - PIX' },
+  { value: '18', label: '18 - Transferência Bancária' },
+  { value: '19', label: '19 - Programa de Fidelidade' },
+  { value: '90', label: '90 - Sem Pagamento' },
+  { value: '99', label: '99 - Outros' },
+];
+
+// Opções PIS/COFINS CST
+const PIS_COFINS_CST_OPTIONS = [
+  { value: '01', label: '01 - Tributável (alíq. básica)' },
+  { value: '02', label: '02 - Tributável (alíq. diferenciada)' },
+  { value: '04', label: '04 - Tributável monofásica (alíq. zero)' },
+  { value: '05', label: '05 - Tributável (ST)' },
+  { value: '06', label: '06 - Tributável (alíq. zero)' },
+  { value: '07', label: '07 - Isenta' },
+  { value: '08', label: '08 - Sem incidência' },
+  { value: '09', label: '09 - Com suspensão' },
+  { value: '49', label: '49 - Outras operações de saída' },
+  { value: '99', label: '99 - Outras operações' },
 ];
 
 // Funções de validação
@@ -237,6 +326,13 @@ export function InvoiceEditor({
       valor_unitario: 0,
       valor_total: 0,
       origem: '0',
+      gtin: '',
+      gtin_tributavel: '',
+      cest: '',
+      valor_desconto: 0,
+      icms_base: 0, icms_aliquota: 0, icms_valor: 0,
+      pis_cst: '49', pis_base: 0, pis_aliquota: 0, pis_valor: 0,
+      cofins_cst: '49', cofins_base: 0, cofins_aliquota: 0, cofins_valor: 0,
     };
     setData({ ...data, items: [...data.items, newItem] });
   };
@@ -255,6 +351,13 @@ export function InvoiceEditor({
       valor_unitario: product.price,
       valor_total: product.price,
       origem: String(product.origem ?? 0),
+      gtin: (product as any).gtin || '',
+      gtin_tributavel: (product as any).gtin || '',
+      cest: (product as any).cest || '',
+      valor_desconto: 0,
+      icms_base: 0, icms_aliquota: 0, icms_valor: 0,
+      pis_cst: '49', pis_base: 0, pis_aliquota: 0, pis_valor: 0,
+      cofins_cst: '49', cofins_base: 0, cofins_aliquota: 0, cofins_valor: 0,
     };
     setData({ ...data, items: [...data.items, newItem] });
     recalculateTotals([...data.items, newItem]);
@@ -501,17 +604,17 @@ export function InvoiceEditor({
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="geral" className="gap-1">
-              <FileText className="h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="geral" className="gap-1 text-xs">
+              <FileText className="h-3 w-3" />
               Geral
             </TabsTrigger>
-            <TabsTrigger value="destinatario" className="gap-1">
-              <User className="h-4 w-4" />
-              Destinatário
+            <TabsTrigger value="destinatario" className="gap-1 text-xs">
+              <User className="h-3 w-3" />
+              Dest.
             </TabsTrigger>
-            <TabsTrigger value="itens" className="gap-1 relative">
-              <Package className="h-4 w-4" />
+            <TabsTrigger value="itens" className="gap-1 relative text-xs">
+              <Package className="h-3 w-3" />
               Itens
               {itemsWithoutNcm.length > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
@@ -519,13 +622,17 @@ export function InvoiceEditor({
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="valores" className="gap-1">
-              <Calculator className="h-4 w-4" />
+            <TabsTrigger value="valores" className="gap-1 text-xs">
+              <Calculator className="h-3 w-3" />
               Valores
             </TabsTrigger>
-            <TabsTrigger value="transporte" className="gap-1">
-              <Truck className="h-4 w-4" />
-              Transporte
+            <TabsTrigger value="transporte" className="gap-1 text-xs">
+              <Truck className="h-3 w-3" />
+              Transp.
+            </TabsTrigger>
+            <TabsTrigger value="pagamento" className="gap-1 text-xs">
+              <CreditCard className="h-3 w-3" />
+              Pagto.
             </TabsTrigger>
           </TabsList>
 
@@ -589,13 +696,38 @@ export function InvoiceEditor({
                     5102 (dentro do estado) ou 6102 (fora do estado)
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label>Indicador de Presença <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={String(data.indicador_presenca ?? 2)}
+                    onValueChange={(value) => updateField('indicador_presenca', parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDICADOR_PRESENCA_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Observações / Informações Complementares</Label>
                   <Textarea
                     value={data.observacoes || ''}
                     onChange={(e) => updateField('observacoes', e.target.value)}
-                    rows={3}
+                    rows={2}
                     placeholder="Informações adicionais que aparecerão na NF-e..."
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Informações ao Fisco</Label>
+                  <Textarea
+                    value={data.informacoes_fisco || ''}
+                    onChange={(e) => updateField('informacoes_fisco', e.target.value)}
+                    rows={2}
+                    placeholder="Informações de interesse do fisco (opcional)..."
                   />
                 </div>
               </CardContent>
@@ -658,6 +790,22 @@ export function InvoiceEditor({
                     onCheckedChange={(checked) => updateField('dest_consumidor_final', checked)}
                   />
                   <Label>Consumidor Final</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label>Indicador IE Dest. <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={String(data.indicador_ie_dest ?? 9)}
+                    onValueChange={(value) => updateField('indicador_ie_dest', parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDICADOR_IE_DEST_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>
@@ -1043,6 +1191,30 @@ export function InvoiceEditor({
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Totais de Impostos</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Base de Cálculo ICMS</Label>
+                  <Input value={formatCurrency(data.valor_bc_icms || 0)} disabled className="bg-muted font-mono" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total ICMS</Label>
+                  <Input value={formatCurrency(data.valor_icms || 0)} disabled className="bg-muted font-mono" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total PIS</Label>
+                  <Input value={formatCurrency(data.valor_pis || 0)} disabled className="bg-muted font-mono" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total COFINS</Label>
+                  <Input value={formatCurrency(data.valor_cofins || 0)} disabled className="bg-muted font-mono" />
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Tab: Transporte */}
@@ -1119,6 +1291,62 @@ export function InvoiceEditor({
                     onChange={(e) => updateField('especie_volumes', e.target.value)}
                     placeholder="Ex: Caixa, Volume, Pacote"
                   />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Pagamento */}
+          <TabsContent value="pagamento" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Dados de Pagamento</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Indicador de Pagamento <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={String(data.pagamento_indicador ?? 0)}
+                    onValueChange={(value) => updateField('pagamento_indicador', parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGAMENTO_INDICADOR_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Meio de Pagamento <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={data.pagamento_meio || '99'}
+                    onValueChange={(value) => updateField('pagamento_meio', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGAMENTO_MEIO_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Valor do Pagamento <span className="text-destructive">*</span></Label>
+                  <Input
+                    type="number"
+                    value={data.pagamento_valor || data.valor_total || 0}
+                    onChange={(e) => updateField('pagamento_valor', parseFloat(e.target.value) || 0)}
+                    min={0}
+                    step="0.01"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Normalmente igual ao valor total da nota
+                  </p>
                 </div>
               </CardContent>
             </Card>
