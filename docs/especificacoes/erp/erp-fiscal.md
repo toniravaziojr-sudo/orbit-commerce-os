@@ -290,6 +290,7 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 3. **Criação de rascunho fiscal**: O trigger `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico na `fiscal_draft_queue`. O `scheduler-tick` processa a fila a cada minuto e também reconcilia pedidos órfãos. (Padrão Fila + Cron — ver `automacao-patterns.md`)
 4. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
 5. **Terminal**: `completed` é o estado final após confirmação de entrega.
+6. **Fallback de CPF/CNPJ no rascunho fiscal (v2026-04-05)**: Na criação do rascunho, o sistema busca o CPF/CNPJ do cliente na seguinte ordem de prioridade: 1) `customers.cpf`; 2) `orders.customer_cpf`; 3) `orders.customer_cnpj`. Se nenhum estiver disponível, o campo é enviado vazio. Esse fallback garante que pedidos cujos clientes foram importados sem documento fiscal ainda tenham o dado preenchido quando informado diretamente no checkout.
 
 ---
 
