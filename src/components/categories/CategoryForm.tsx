@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { X, Save, AlertCircle } from 'lucide-react';
-import { validateSlugFormat, generateSlug as generateSlugUtil } from '@/lib/slugPolicy';
+import { validateSlugFormat } from '@/lib/slugPolicy';
+import { useAutoSlug } from '@/hooks/useAutoSlug';
 import { ImageUploaderWithLibrary } from '@/components/builder/ImageUploaderWithLibrary';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 
@@ -42,9 +43,12 @@ export function CategoryForm({
   isLoading,
   hideActions = false,
 }: CategoryFormProps) {
-  // Use centralized slug generation utility
-  const handleGenerateSlug = (name: string) => generateSlugUtil(name);
-  
+  // Centralized auto-slug generation with manual edit detection
+  const autoSlug = useAutoSlug({
+    initialSlug: formData.slug,
+    isEditing,
+  });
+
   // Validate slug in real-time
   const slugValidation = validateSlugFormat(formData.slug);
   const isSlugValid = slugValidation.isValid;
@@ -60,10 +64,11 @@ export function CategoryForm({
           value={formData.name}
           onChange={(e) => {
             const name = e.target.value;
+            const generatedSlug = autoSlug.handleNameChange(name);
             onChange({
               ...formData,
               name,
-              slug: formData.slug || handleGenerateSlug(name),
+              ...(autoSlug.isAutoGenerating ? { slug: generatedSlug } : {}),
             });
           }}
           placeholder="Nome da categoria"
@@ -75,7 +80,10 @@ export function CategoryForm({
         <Input
           id="slug"
           value={formData.slug}
-          onChange={(e) => onChange({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
+          onChange={(e) => {
+            autoSlug.setSlug(e.target.value);
+            onChange({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') });
+          }}
           placeholder="slug-da-categoria"
           className={!isSlugValid && formData.slug ? 'border-destructive' : ''}
         />
