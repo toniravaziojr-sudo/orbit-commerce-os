@@ -1904,58 +1904,97 @@ function buildFullPage(opts: {
 
   // =============================================
   // CAROUSEL HYDRATION — Vanilla JS (no dependencies)
-  // Handles: data-sf-video-carousel[data-sf-layout="carousel"]
-  //          data-sf-ig-carousel (image gallery carousel)
-  // Controls: data-sf-carousel-prev, data-sf-carousel-next, data-sf-dot
+  // =============================================
+  // Replicates Embla-carousel behaviour for Edge-rendered HTML:
+  //   • Advances 1 slide per click (not perSlide at a time)
+  //   • maxSnap = total - perSlide  → last slide aligns flush-right,
+  //     no empty space is ever shown
+  //   • Dots count = maxSnap + 1 (one per valid snap position)
+  //   • Touch/swipe moves 1 slide per gesture
+  //   • Debounced resize recalculates offset
+  //
+  // Selectors handled:
+  //   data-sf-video-carousel[data-sf-layout="carousel"]
+  //   data-sf-ig-carousel
+  //
+  // Child selectors:
+  //   data-sf-carousel-track   — flex container that gets translateX
+  //   data-sf-carousel-viewport — overflow:hidden wrapper
+  //   data-sf-carousel-prev/next — navigation arrows
+  //   data-sf-carousel-dots    — dot container
+  //   data-sf-dot="N"          — individual dot buttons
+  //
+  // Config read from container attributes:
+  //   data-sf-items-per-slide | data-sf-slides-per-view → perSlide
   // =============================================
   (function(){
+
+    /**
+     * Hydrate a single carousel container.
+     * @param {HTMLElement} container — element with data-sf-video-carousel or data-sf-ig-carousel
+     */
     function hydrateCarousel(container){
       var track=container.querySelector("[data-sf-carousel-track]");
       if(!track)return;
+
       var prevBtn=container.querySelector("[data-sf-carousel-prev]");
       var nextBtn=container.querySelector("[data-sf-carousel-next]");
       var dotsWrap=container.querySelector("[data-sf-carousel-dots]");
       var slides=track.children;
       if(!slides.length)return;
 
-      var current=0;
+      // ── State ──
+      var current=0; // current snap index (0-based, advances 1 per click)
       var perSlide=parseInt(container.getAttribute("data-sf-items-per-slide")||container.getAttribute("data-sf-slides-per-view")||"1",10)||1;
       var total=slides.length;
-      var maxSnap=Math.max(0,Math.ceil(total/perSlide)-1);
+      // maxSnap ensures the last slide sits flush-right with no empty space
+      var maxSnap=Math.max(0,total-perSlide);
 
+      // ── Measurement ──
+
+      /** Returns width of one slide including its share of the gap */
       function getSlideWidth(){
         if(!slides[0])return 0;
-        var style=window.getComputedStyle(track);
-        var gap=parseFloat(style.gap)||0;
+        var gap=parseFloat(window.getComputedStyle(track).gap)||0;
         return slides[0].offsetWidth+gap;
       }
 
+      // ── Navigation ──
+
+      /** Move to snap position idx (clamped to [0, maxSnap]) */
       function goTo(idx){
         current=Math.max(0,Math.min(idx,maxSnap));
-        var offset=current*perSlide*getSlideWidth();
-        track.style.transform="translateX(-"+offset+"px)";
+        track.style.transform="translateX(-"+(current*getSlideWidth())+"px)";
         updateDots();
         updateArrows();
       }
 
+      /** Dim arrows at boundaries */
+      function updateArrows(){
+        if(prevBtn){prevBtn.style.opacity=current<=0?"0.4":"1";prevBtn.style.pointerEvents=current<=0?"none":"auto";}
+        if(nextBtn){nextBtn.style.opacity=current>=maxSnap?"0.4":"1";nextBtn.style.pointerEvents=current>=maxSnap?"none":"auto";}
+      }
+
+      /** Highlight the active dot */
       function updateDots(){
         if(!dotsWrap)return;
         var dots=dotsWrap.querySelectorAll("[data-sf-dot]");
         for(var i=0;i<dots.length;i++){
           var isActive=i===current;
           dots[i].style.width=isActive?"1.5rem":"0.625rem";
-          dots[i].style.background=isActive?"var(--theme-accent-color, var(--theme-button-primary-bg, #1a1a1a))":"rgba(0,0,0,0.2)";
+          dots[i].style.background=isActive
+            ?"var(--theme-accent-color, var(--theme-button-primary-bg, #1a1a1a))"
+            :"rgba(0,0,0,0.2)";
         }
       }
 
-      function updateArrows(){
-        if(prevBtn)prevBtn.style.opacity=current<=0?"0.4":"1";
-        if(nextBtn)nextBtn.style.opacity=current>=maxSnap?"0.4":"1";
-      }
+      // ── Event listeners ──
 
       if(prevBtn)prevBtn.addEventListener("click",function(e){e.preventDefault();goTo(current-1);});
       if(nextBtn)nextBtn.addEventListener("click",function(e){e.preventDefault();goTo(current+1);});
+
       if(dotsWrap){
+        // Single delegated listener on the dots wrapper
         dotsWrap.addEventListener("click",function(e){
           var dot=e.target.closest("[data-sf-dot]");
           if(!dot)return;
@@ -1963,29 +2002,40 @@ function buildFullPage(opts: {
         });
       }
 
-      // Touch/swipe support
+      // ── Touch / swipe ──
       var startX=0,startY=0,isDragging=false;
       var viewport=container.querySelector("[data-sf-carousel-viewport]")||track.parentElement;
-      viewport.addEventListener("touchstart",function(e){startX=e.touches[0].clientX;startY=e.touches[0].clientY;isDragging=true;},{passive:true});
+
+      viewport.addEventListener("touchstart",function(e){
+        startX=e.touches[0].clientX;
+        startY=e.touches[0].clientY;
+        isDragging=true;
+      },{passive:true});
+
       viewport.addEventListener("touchend",function(e){
-        if(!isDragging)return;isDragging=false;
+        if(!isDragging)return;
+        isDragging=false;
         var dx=e.changedTouches[0].clientX-startX;
         var dy=e.changedTouches[0].clientY-startY;
+        // Only trigger if horizontal swipe > 40px and more horizontal than vertical
         if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>40){
-          if(dx<0)goTo(current+1);else goTo(current-1);
+          goTo(dx<0?current+1:current-1);
         }
       },{passive:true});
 
-      // Recalc on resize
+      // ── Resize ──
       var resizeTimer;
-      window.addEventListener("resize",function(){clearTimeout(resizeTimer);resizeTimer=setTimeout(function(){goTo(current);},150);});
+      window.addEventListener("resize",function(){
+        clearTimeout(resizeTimer);
+        resizeTimer=setTimeout(function(){goTo(current);},150);
+      });
 
+      // Initial state
       updateArrows();
     }
 
-    // Hydrate all video carousels (carousel mode only)
+    // ── Bootstrap ──
     document.querySelectorAll('[data-sf-video-carousel][data-sf-layout="carousel"]').forEach(hydrateCarousel);
-    // Hydrate all image gallery carousels
     document.querySelectorAll("[data-sf-ig-carousel]").forEach(hydrateCarousel);
   })();
   </script>
