@@ -2828,8 +2828,8 @@ const blockDefinitions: BlockDefinition[] = [
       },
       autoplay: { type: 'boolean', label: 'Autoplay', showWhen: { layout: 'carousel' } },
       autoplayInterval: { type: 'number', label: 'Intervalo de Autoplay (s)', defaultValue: 5, min: 1, max: 30, showWhen: { layout: 'carousel' } },
-      showArrows: { type: 'boolean', label: 'Mostrar Setas', showWhen: { layout: 'carousel' } },
-      showDots: { type: 'boolean', label: 'Mostrar Indicadores', showWhen: { layout: 'carousel' } },
+      showArrows: { type: 'boolean', label: 'Mostrar Setas', defaultValue: true, showWhen: { layout: 'carousel' } },
+      showDots: { type: 'boolean', label: 'Mostrar Indicadores', defaultValue: true, showWhen: { layout: 'carousel' } },
       gap: { type: 'select', label: 'Espaçamento', options: [{ label: 'Pequeno', value: 'sm' }, { label: 'Médio', value: 'md' }, { label: 'Grande', value: 'lg' }] },
       enableLightbox: { type: 'boolean', label: 'Habilitar Lightbox' },
       aspectRatio: {

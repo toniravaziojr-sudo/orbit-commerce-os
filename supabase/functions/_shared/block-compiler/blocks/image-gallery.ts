@@ -2,6 +2,8 @@
 // IMAGE GALLERY BLOCK COMPILER (UNIFIED)
 // Mirrors: src/components/builder/blocks/image-gallery/ImageGalleryBlock.tsx
 // Supports both grid and carousel layouts
+// Hydration: data-sf-ig-carousel + inline vanilla JS
+// v2.1.0: Added navigation arrows, showArrows/showDots props, hydration attrs
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
@@ -105,33 +107,54 @@ function buildGridHtml(images: GalleryImage[], columns: number, gapVal: string, 
 
 // ── Carousel layout HTML ──
 
-function buildCarouselHtml(images: GalleryImage[], slidesPerView: number, gapVal: string, aspect: string, borderRadius: number, showDots: boolean): string {
+function buildCarouselHtml(
+  images: GalleryImage[],
+  slidesPerView: number,
+  gapVal: string,
+  aspect: string,
+  borderRadius: number,
+  showArrows: boolean,
+  showDots: boolean,
+): string {
   const slideWidth = slidesPerView > 1 ? `${100 / slidesPerView}%` : '100%';
   const imagesHtml = images.map((img, i) => buildImageHtml(img, i, aspect, borderRadius, true)).filter(Boolean).join('');
+  const needsNav = images.length > slidesPerView;
 
+  // Arrows
+  const arrowsHtml = needsNav && showArrows
+    ? `<button data-sf-carousel-prev style="position:absolute;left:0.5rem;top:50%;transform:translateY(-50%);width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(255,255,255,0.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <button data-sf-carousel-next style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(255,255,255,0.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+  </button>`
+    : '';
+
+  // Dots
   let dotsHtml = '';
-  if (showDots && images.length > 1) {
+  if (showDots && needsNav) {
     const dots = images.map((_, idx) => {
       const isActive = idx === 0;
       const w = isActive ? '24px' : '10px';
       const bg = isActive ? 'var(--theme-accent-color, var(--theme-button-primary-bg, #1a1a1a))' : 'rgba(0,0,0,0.2)';
-      return `<button style="width:${w};height:10px;border-radius:9999px;border:none;background:${bg};cursor:pointer;transition:all 0.2s;" aria-label="Ir para imagem ${idx + 1}"></button>`;
+      return `<button data-sf-dot="${idx}" style="width:${w};height:10px;border-radius:9999px;border:none;background:${bg};cursor:pointer;transition:all 0.2s;" aria-label="Ir para imagem ${idx + 1}"></button>`;
     }).join('');
-    dotsHtml = `<div style="display:flex;justify-content:center;gap:8px;margin-top:16px;">${dots}</div>`;
+    dotsHtml = `<div style="display:flex;justify-content:center;gap:8px;margin-top:16px;" data-sf-carousel-dots>${dots}</div>`;
   }
 
-  return `<div style="overflow:hidden;border-radius:8px;">
-      <div class="sf-ig-track" style="display:flex;gap:${gapVal};scroll-snap-type:x mandatory;overflow-x:auto;">
-        ${imagesHtml}
+  return `<div style="position:relative;">
+      <div style="overflow:hidden;border-radius:8px;" data-sf-carousel-viewport>
+        <div class="sf-ig-track" data-sf-carousel-track style="display:flex;gap:${gapVal};transition:transform 0.3s ease;">
+          ${imagesHtml}
+        </div>
       </div>
+      ${arrowsHtml}
     </div>
     ${dotsHtml}
     <style>
       .sf-ig-slide{width:${slideWidth};scroll-snap-align:start;}
       @media(max-width:639px){.sf-ig-slide{width:100% !important;}}
       @media(min-width:640px) and (max-width:1023px){.sf-ig-slide{width:${slidesPerView > 2 ? '50%' : slideWidth} !important;}}
-      .sf-ig-track{scrollbar-width:none;-ms-overflow-style:none;}
-      .sf-ig-track::-webkit-scrollbar{display:none;}
     </style>`;
 }
 
@@ -152,6 +175,7 @@ export const imageGalleryToStaticHTML: BlockCompilerFn = (
   const borderRadius = (props.borderRadius as number) ?? 8;
   const backgroundColor = (props.backgroundColor as string) || 'transparent';
   const slidesPerView = (props.slidesPerView as number) || 1;
+  const showArrows = (props.showArrows as boolean) ?? true;
   const showDots = (props.showDots as boolean) ?? true;
 
   if (images.length === 0) return '';
@@ -160,11 +184,14 @@ export const imageGalleryToStaticHTML: BlockCompilerFn = (
   const aspect = ASPECT_CSS[aspectRatio] || ASPECT_CSS.square;
   const headerHtml = buildHeaderHtml(title, subtitle);
 
+  const dataAttr = layout === 'carousel' ? ' data-sf-ig-carousel' : '';
+  const slidesAttr = layout === 'carousel' ? ` data-sf-slides-per-view="${slidesPerView}"` : '';
+
   const contentHtml = layout === 'carousel'
-    ? buildCarouselHtml(images, slidesPerView, gapVal, aspect, borderRadius, showDots)
+    ? buildCarouselHtml(images, slidesPerView, gapVal, aspect, borderRadius, showArrows, showDots)
     : buildGridHtml(images, columns, gapVal, aspect, borderRadius);
 
-  return `<section style="padding:2.5rem 1rem;background:${backgroundColor};">
+  return `<section${dataAttr}${slidesAttr} style="padding:2.5rem 1rem;background:${backgroundColor};">
   <div style="max-width:72rem;margin:0 auto;">
     ${headerHtml}
     ${contentHtml}
