@@ -1295,6 +1295,62 @@ export function InvoiceEditor({
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Tab: Pagamento */}
+          <TabsContent value="pagamento" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Dados de Pagamento</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Indicador de Pagamento <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={String(data.pagamento_indicador ?? 0)}
+                    onValueChange={(value) => updateField('pagamento_indicador', parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGAMENTO_INDICADOR_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Meio de Pagamento <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={data.pagamento_meio || '99'}
+                    onValueChange={(value) => updateField('pagamento_meio', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGAMENTO_MEIO_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Valor do Pagamento <span className="text-destructive">*</span></Label>
+                  <Input
+                    type="number"
+                    value={data.pagamento_valor || data.valor_total || 0}
+                    onChange={(e) => updateField('pagamento_valor', parseFloat(e.target.value) || 0)}
+                    min={0}
+                    step="0.01"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Normalmente igual ao valor total da nota
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
