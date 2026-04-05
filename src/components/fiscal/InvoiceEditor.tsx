@@ -604,17 +604,17 @@ export function InvoiceEditor({
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="geral" className="gap-1">
-              <FileText className="h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="geral" className="gap-1 text-xs">
+              <FileText className="h-3 w-3" />
               Geral
             </TabsTrigger>
-            <TabsTrigger value="destinatario" className="gap-1">
-              <User className="h-4 w-4" />
-              Destinatário
+            <TabsTrigger value="destinatario" className="gap-1 text-xs">
+              <User className="h-3 w-3" />
+              Dest.
             </TabsTrigger>
-            <TabsTrigger value="itens" className="gap-1 relative">
-              <Package className="h-4 w-4" />
+            <TabsTrigger value="itens" className="gap-1 relative text-xs">
+              <Package className="h-3 w-3" />
               Itens
               {itemsWithoutNcm.length > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
@@ -622,13 +622,17 @@ export function InvoiceEditor({
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="valores" className="gap-1">
-              <Calculator className="h-4 w-4" />
+            <TabsTrigger value="valores" className="gap-1 text-xs">
+              <Calculator className="h-3 w-3" />
               Valores
             </TabsTrigger>
-            <TabsTrigger value="transporte" className="gap-1">
-              <Truck className="h-4 w-4" />
-              Transporte
+            <TabsTrigger value="transporte" className="gap-1 text-xs">
+              <Truck className="h-3 w-3" />
+              Transp.
+            </TabsTrigger>
+            <TabsTrigger value="pagamento" className="gap-1 text-xs">
+              <CreditCard className="h-3 w-3" />
+              Pagto.
             </TabsTrigger>
           </TabsList>
 
