@@ -241,13 +241,16 @@ graph TD
 
 ### 5.4 Slugs
 
+> 📖 **Documentação completa:** [`docs/especificacoes/sistema/slugs.md`](../sistema/slugs.md)
+
 - Gerados automaticamente do nome via hook `useAutoSlug` (responsabilidade única)
 - Validados via `src/lib/slugPolicy.ts`
-- Únicos por tenant (não globalmente)
-- Slugs reservados proibidos (cart, checkout, admin, etc.)
+- Únicos por `(tenant_id, slug)` — não globalmente
+- Slugs reservados proibidos (veja [lista completa](../sistema/slugs.md#4-slugs-reservados))
 - **Auto-geração contínua**: enquanto o usuário não editar manualmente o campo slug, ele é regenerado a cada keystroke no campo nome
 - **Detecção de edição manual**: se o usuário digitar diretamente no campo slug, a auto-geração para automaticamente
 - Em modo edição, a auto-geração é desabilitada por padrão (slug existente é preservado)
+- Rota pública: `/product/:slug`
 
 ---
 
