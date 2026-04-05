@@ -1737,7 +1737,8 @@ function VideoCarouselBlockWrapper({ context, ...props }: any) {
 }
 
 function ImageCarouselBlockWrapper({ context, ...props }: any) {
-  return <ImageCarouselBlockComponent {...props} context={context} />;
+  // Retrocompatibility: alias ImageCarousel -> unified ImageGallery with layout='carousel'
+  return <UnifiedImageGalleryComponent {...props} layout="carousel" slidesPerView={props.slidesPerView} context={context} />;
 }
 
 function TrackingLookupBlockWrapper({ context, isEditing, ...props }: any) {
@@ -1799,8 +1800,8 @@ function StatsNumbersBlockWrapper(props: any) {
   return <StatsNumbersBlockComponent {...props} />;
 }
 
-function ImageGalleryBlockWrapper(props: any) {
-  return <ImageGalleryBlockComponent {...props} />;
+function ImageGalleryBlockWrapper({ context, ...props }: any) {
+  return <ImageGalleryBlockComponent {...props} context={context} />;
 }
 
 function AccordionBlockBlockWrapper(props: any) {
