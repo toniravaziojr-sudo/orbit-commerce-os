@@ -190,7 +190,15 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
                 <FormItem>
                   <FormLabel>Slug (URL)</FormLabel>
                   <FormControl>
-                    <Input placeholder="descubra-seu-tipo-de-pele" {...field} />
+                    <Input 
+                      placeholder="descubra-seu-tipo-de-pele" 
+                      {...field}
+                      onChange={(e) => {
+                        autoSlug.setSlug(e.target.value);
+                        field.onChange(e.target.value.toLowerCase().replace(/\s+/g, '-'));
+                      }}
+                    />
+                  </FormControl>
                   </FormControl>
                   <FormDescription>
                     Usado na URL: /quiz/{field.value || "slug"}
