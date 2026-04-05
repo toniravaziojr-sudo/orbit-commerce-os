@@ -192,9 +192,7 @@ export default function Pages() {
   };
 
   const handleSubmit = async () => {
-    const slug = formData.slug || formData.title.toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const slug = formData.slug || generateSlug(formData.title);
     const slugValidation = validateSlug(slug);
     if (!slugValidation.isValid) {
       showErrorToast(new Error(slugValidation.error || 'Slug inválido'), { module: 'páginas', action: 'processar' });

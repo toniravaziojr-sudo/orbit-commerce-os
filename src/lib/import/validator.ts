@@ -373,15 +373,11 @@ function getNestedValue(obj: any, path: (string | number)[]): any {
   return current;
 }
 
-// Utilitários de sanitização
+// Utilitários de sanitização — delegates to centralized slugify
+import { slugify } from './utils';
+
 export function sanitizeSlug(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-    .substring(0, 255);
+  return slugify(text).substring(0, 255);
 }
 
 export function sanitizeEmail(email: string): string {
