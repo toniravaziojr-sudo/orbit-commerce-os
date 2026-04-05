@@ -940,6 +940,7 @@ export function VisualBuilder({
         });
         pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
         store.markClean();
+        queryClient.invalidateQueries({ queryKey: ['has-pending-publish', templateSetId] });
         toast.success('Rascunho salvo!');
         return;
       }
