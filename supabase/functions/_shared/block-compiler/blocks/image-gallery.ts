@@ -11,13 +11,8 @@
 //     data-sf-carousel-prev/next       — arrow buttons
 //     data-sf-carousel-dots            — dot container
 //     data-sf-dot="N"                  — individual dot
-//   LIGHTBOX (both grid + carousel):
-//     data-sf-gallery-idx="N"          — clickable image trigger (opens lightbox)
-//     data-sf-enable-lightbox          — present when enableLightbox=true
-//     cursor:pointer                   — visual affordance on clickable images
-//   The storefront hydration collects all [data-sf-gallery-idx] img srcs
-//   inside each section and feeds them into the global lightbox.
-// v2.2.0: Added data-sf-gallery-idx + cursor to carousel slides, enableLightbox attr
+//   LIGHTBOX: DISABLED — images are display-only (no click-to-open behaviour)
+// v2.3.0: Removed lightbox triggers (data-sf-gallery-idx, cursor:pointer, data-sf-enable-lightbox)
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
@@ -90,9 +85,9 @@ function buildImageHtml(img: GalleryImage, index: number, aspect: string, border
 
   const wrapperTag = n.linkUrl ? 'a' : 'div';
   const hrefAttr = n.linkUrl ? ` href="${escapeHtml(n.linkUrl)}" target="_blank" rel="noopener noreferrer"` : '';
-  // Lightbox trigger: data-sf-gallery-idx + cursor on BOTH grid and carousel
-  const lightboxAttr = enableLightbox && !n.linkUrl ? ` data-sf-gallery-idx="${index}"` : '';
-  const cursorStyle = enableLightbox && !n.linkUrl ? 'cursor:pointer;' : '';
+  // Lightbox DISABLED — images are display-only (no interactive click)
+  const lightboxAttr = '';
+  const cursorStyle = '';
 
   if (isCarousel) {
     return `<${wrapperTag}${hrefAttr}${lightboxAttr} class="sf-ig-slide" style="flex-shrink:0;min-width:0;overflow:hidden;border-radius:${borderRadius}px;background:#f5f5f5;${cursorStyle}${aspect}">
@@ -206,7 +201,8 @@ export const imageGalleryToStaticHTML: BlockCompilerFn = (
 
   const dataAttr = layout === 'carousel' ? ' data-sf-ig-carousel' : ' data-sf-ig-grid';
   const slidesAttr = layout === 'carousel' ? ` data-sf-slides-per-view="${slidesPerView}"` : '';
-  const lightboxAttr = enableLightbox ? ' data-sf-enable-lightbox' : '';
+  // Lightbox DISABLED — no section-level lightbox attribute
+  const lightboxAttr = '';
 
   const contentHtml = layout === 'carousel'
     ? buildCarouselHtml(images, slidesPerView, gapVal, aspect, borderRadius, showArrows, showDots, enableLightbox)
