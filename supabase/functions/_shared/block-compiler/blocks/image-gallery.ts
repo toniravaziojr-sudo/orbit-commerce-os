@@ -109,8 +109,8 @@ function buildImageHtml(img: GalleryImage, index: number, aspect: string, border
 
 // ── Grid layout HTML ──
 
-function buildGridHtml(images: GalleryImage[], columns: number, gapVal: string, aspect: string, borderRadius: number): string {
-  const imagesHtml = images.map((img, i) => buildImageHtml(img, i, aspect, borderRadius, false)).filter(Boolean).join('\n');
+function buildGridHtml(images: GalleryImage[], columns: number, gapVal: string, aspect: string, borderRadius: number, enableLightbox: boolean): string {
+  const imagesHtml = images.map((img, i) => buildImageHtml(img, i, aspect, borderRadius, false, enableLightbox)).filter(Boolean).join('\n');
 
   return `<div style="display:grid;grid-template-columns:repeat(${Math.min(columns, 2)},1fr);gap:${gapVal};" class="sf-ig-grid">
       ${imagesHtml}
@@ -132,9 +132,10 @@ function buildCarouselHtml(
   borderRadius: number,
   showArrows: boolean,
   showDots: boolean,
+  enableLightbox: boolean,
 ): string {
   const slideWidth = slidesPerView > 1 ? `${100 / slidesPerView}%` : '100%';
-  const imagesHtml = images.map((img, i) => buildImageHtml(img, i, aspect, borderRadius, true)).filter(Boolean).join('');
+  const imagesHtml = images.map((img, i) => buildImageHtml(img, i, aspect, borderRadius, true, enableLightbox)).filter(Boolean).join('');
   const needsNav = images.length > slidesPerView;
 
   // Arrows
