@@ -2,8 +2,23 @@
 // VIDEO CAROUSEL BLOCK COMPILER
 // Mirrors: src/components/builder/blocks/video-carousel/
 // Supports: carousel (embla multi-item) + grid layouts
-// Hydration: data-sf-video-carousel + inline vanilla JS
-// v2.1.0: Fixed position:relative, showControls prop, hydration attrs
+// =============================================
+// Hydration contract (vanilla JS in storefront-html):
+//   CAROUSEL navigation:
+//     data-sf-video-carousel              — outer container
+//     data-sf-layout="carousel"|"grid"    — layout mode
+//     data-sf-items-per-slide="N"         — items visible simultaneously
+//     data-sf-carousel-track              — flex track (translateX)
+//     data-sf-carousel-prev/next          — arrow buttons
+//     data-sf-carousel-dots               — dot container
+//     data-sf-dot="N"                     — individual dot
+//   VIDEO PLAY (both grid + carousel):
+//     data-sf-video-item                  — clickable thumbnail card
+//     data-sf-video-url="..."             — video URL (YouTube or upload)
+//     data-sf-video-type="youtube|upload"  — determines player type
+//     On click the hydration replaces the thumbnail with the actual player
+//     (YouTube iframe or <video> element), mirroring VideoCard.tsx behaviour.
+// v2.2.0: Documented hydration contract for video play
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
