@@ -1,23 +1,257 @@
 // ============================================
 // STOREFRONT CACHE PURGE
-// v1.1.0: allow service-role/internal calls for automatic storefront revalidation
+// v2.0.0: Hostname-based purge (works on all Cloudflare plans)
+//         + purge_everything fallback + sequential confirmation
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "v1.1.0";
+const VERSION = "v2.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+type ResourceType = 'product' | 'category' | 'template' | 'settings' | 'menu' | 'full';
+
 interface PurgeRequest {
   tenant_id: string;
-  resource_type: 'product' | 'category' | 'template' | 'settings' | 'menu' | 'full';
+  resource_type: ResourceType;
   resource_slug?: string;
 }
+
+// ── Auth helpers ──
+
+async function authenticateCaller(
+  req: Request,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+): Promise<{ isServiceRole: boolean; userId: string | null; error?: Response }> {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader) {
+    return {
+      isServiceRole: false,
+      userId: null,
+      error: jsonResponse({ error: 'Unauthorized' }, 401),
+    };
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  if (token === supabaseServiceKey) {
+    return { isServiceRole: true, userId: null };
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+  if (authError || !user) {
+    return {
+      isServiceRole: false,
+      userId: null,
+      error: jsonResponse({ error: 'Invalid token' }, 401),
+    };
+  }
+
+  return { isServiceRole: false, userId: user.id };
+}
+
+async function authorizeTenant(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  userId: string,
+  tenantId: string,
+): Promise<boolean> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const { data: role } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('tenant_id', tenantId)
+    .single();
+  return !!role;
+}
+
+// ── Domain resolution ──
+
+async function resolveHostsForTenant(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  tenantId: string,
+): Promise<string[]> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const [domainsResult, tenantResult] = await Promise.all([
+    supabase
+      .from('tenant_domains')
+      .select('domain')
+      .eq('tenant_id', tenantId)
+      .in('status', ['verified', 'active'])
+      .eq('ssl_status', 'active'),
+    supabase
+      .from('tenants')
+      .select('slug')
+      .eq('id', tenantId)
+      .single(),
+  ]);
+
+  const hosts: string[] = [];
+  if (domainsResult.data) {
+    domainsResult.data.forEach((d: any) => hosts.push(d.domain));
+  }
+  if (tenantResult.data?.slug) {
+    hosts.push(`${tenantResult.data.slug}.shops.comandocentral.com.br`);
+  }
+  return hosts;
+}
+
+// ── Cloudflare purge strategies ──
+
+interface CloudflarePurgeResult {
+  success: boolean;
+  method: 'hostname' | 'purge_everything' | 'files' | 'skipped';
+  errors?: unknown;
+}
+
+/**
+ * Purges CDN cache by hostname (all pages for those hosts).
+ * Works on all Cloudflare plans.
+ * Falls back to purge_everything if hostname purge fails.
+ */
+async function purgeByHostname(
+  apiToken: string,
+  zoneId: string,
+  hosts: string[],
+): Promise<CloudflarePurgeResult> {
+  // Strategy 1: Purge by hostname (available on all plans)
+  const result = await cloudflarePurgeRequest(apiToken, zoneId, { hosts });
+
+  if (result.success) {
+    console.log(`[cache-purge] Hostname purge succeeded for: ${hosts.join(', ')}`);
+    return { success: true, method: 'hostname' };
+  }
+
+  console.warn(`[cache-purge] Hostname purge failed, falling back to purge_everything`);
+
+  // Strategy 2: Purge everything (nuclear fallback)
+  const fallback = await cloudflarePurgeRequest(apiToken, zoneId, { purge_everything: true });
+
+  if (fallback.success) {
+    console.log(`[cache-purge] purge_everything succeeded`);
+    return { success: true, method: 'purge_everything' };
+  }
+
+  console.error(`[cache-purge] All purge strategies failed:`, fallback.errors);
+  return { success: false, method: 'purge_everything', errors: fallback.errors };
+}
+
+/**
+ * Purges specific URLs from CDN cache.
+ * Used for granular purges (single product, single category).
+ */
+async function purgeByFiles(
+  apiToken: string,
+  zoneId: string,
+  urls: string[],
+): Promise<CloudflarePurgeResult> {
+  const result = await cloudflarePurgeRequest(apiToken, zoneId, { files: urls });
+
+  if (result.success) {
+    console.log(`[cache-purge] File purge succeeded for ${urls.length} URLs`);
+    return { success: true, method: 'files' };
+  }
+
+  console.error(`[cache-purge] File purge failed:`, result.errors);
+  return { success: false, method: 'files', errors: result.errors };
+}
+
+/**
+ * Low-level Cloudflare API call.
+ */
+async function cloudflarePurgeRequest(
+  apiToken: string,
+  zoneId: string,
+  body: Record<string, unknown>,
+): Promise<{ success: boolean; errors?: unknown }> {
+  const res = await fetch(
+    `https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    },
+  );
+  const data = await res.json();
+  return { success: data.success, errors: data.errors };
+}
+
+// ── URL builder for granular purge ──
+
+function buildUrlsToPurge(hosts: string[], resourceType: ResourceType, resourceSlug?: string): string[] {
+  const urls: string[] = [];
+
+  for (const host of hosts) {
+    const base = `https://${host}`;
+
+    switch (resourceType) {
+      case 'product':
+        if (resourceSlug) urls.push(`${base}/produto/${resourceSlug}`);
+        urls.push(`${base}/`);
+        break;
+
+      case 'category':
+        if (resourceSlug) urls.push(`${base}/categoria/${resourceSlug}`);
+        urls.push(`${base}/`);
+        break;
+
+      default:
+        // template, settings, menu, full → handled by hostname purge
+        break;
+    }
+  }
+
+  return [...new Set(urls)];
+}
+
+// ── Purge orchestrator ──
+
+function shouldUseHostnamePurge(resourceType: ResourceType): boolean {
+  return ['template', 'settings', 'menu', 'full'].includes(resourceType);
+}
+
+async function executePurge(
+  apiToken: string,
+  zoneId: string,
+  hosts: string[],
+  resourceType: ResourceType,
+  resourceSlug?: string,
+): Promise<CloudflarePurgeResult> {
+  if (shouldUseHostnamePurge(resourceType)) {
+    return purgeByHostname(apiToken, zoneId, hosts);
+  }
+
+  const urls = buildUrlsToPurge(hosts, resourceType, resourceSlug);
+  if (urls.length === 0) {
+    return { success: true, method: 'skipped' };
+  }
+
+  return purgeByFiles(apiToken, zoneId, urls);
+}
+
+// ── Response helper ──
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+// ── Main handler ──
 
 serve(async (req) => {
   console.log(`[storefront-cache-purge][${VERSION}] Request received`);
@@ -32,227 +266,63 @@ serve(async (req) => {
     const cloudflareApiToken = Deno.env.get('CLOUDFLARE_API_TOKEN');
     const cloudflareZoneId = Deno.env.get('CLOUDFLARE_ZONE_ID');
 
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // 1. Authenticate
+    const auth = await authenticateCaller(req, supabaseUrl, supabaseServiceKey);
+    if (auth.error) return auth.error;
 
-    const token = authHeader.replace('Bearer ', '');
-    const isServiceRole = token === supabaseServiceKey;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    let userId: string | null = null;
-    if (!isServiceRole) {
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-      if (authError || !user) {
-        return new Response(JSON.stringify({ error: 'Invalid token' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      userId = user.id;
-    }
-
+    // 2. Parse & validate input
     const body: PurgeRequest = await req.json();
     const { tenant_id, resource_type, resource_slug } = body;
 
     if (!tenant_id || !resource_type) {
-      return new Response(JSON.stringify({ error: 'tenant_id and resource_type required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'tenant_id and resource_type required' }, 400);
     }
 
-    if (!isServiceRole && userId) {
-      const { data: role } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('tenant_id', tenant_id)
-        .single();
-
-      if (!role) {
-        return new Response(JSON.stringify({ error: 'No access to tenant' }), {
-          status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+    // 3. Authorize tenant access (skip for service role)
+    if (!auth.isServiceRole && auth.userId) {
+      const authorized = await authorizeTenant(supabaseUrl, supabaseServiceKey, auth.userId, tenant_id);
+      if (!authorized) {
+        return jsonResponse({ error: 'No access to tenant' }, 403);
       }
     }
 
-    const { data: domains } = await supabase
-      .from('tenant_domains')
-      .select('domain')
-      .eq('tenant_id', tenant_id)
-      .in('status', ['verified', 'active'])
-      .eq('ssl_status', 'active');
-
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('slug')
-      .eq('id', tenant_id)
-      .single();
-
-    const hosts: string[] = [];
-    if (domains) {
-      domains.forEach((d: any) => hosts.push(d.domain));
-    }
-    if (tenant?.slug) {
-      hosts.push(`${tenant.slug}.shops.comandocentral.com.br`);
-    }
+    // 4. Resolve hosts
+    const hosts = await resolveHostsForTenant(supabaseUrl, supabaseServiceKey, tenant_id);
 
     if (hosts.length === 0) {
-      return new Response(JSON.stringify({
+      return jsonResponse({
         success: true,
         message: 'No active domains to purge',
-        purged_urls: 0,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        purged_hosts: 0,
       });
     }
 
-    const urlsToPurge: string[] = [];
-
-    for (const host of hosts) {
-      const base = `https://${host}`;
-
-      switch (resource_type) {
-        case 'product':
-          if (resource_slug) {
-            urlsToPurge.push(`${base}/produto/${resource_slug}`);
-          }
-          urlsToPurge.push(`${base}/`);
-          break;
-
-        case 'category':
-          if (resource_slug) {
-            urlsToPurge.push(`${base}/categoria/${resource_slug}`);
-          }
-          urlsToPurge.push(`${base}/`);
-          break;
-
-        case 'template':
-        case 'settings':
-        case 'menu':
-        case 'full':
-          urlsToPurge.push(`${base}/`);
-          break;
-      }
-    }
-
-    const uniqueUrls = [...new Set(urlsToPurge)];
-
+    // 5. Execute purge
     if (!cloudflareApiToken || !cloudflareZoneId) {
-      console.log(`[storefront-cache-purge] No Cloudflare credentials. Would purge: ${uniqueUrls.join(', ')}`);
-      return new Response(JSON.stringify({
+      console.log(`[storefront-cache-purge] No Cloudflare credentials. Hosts: ${hosts.join(', ')}`);
+      return jsonResponse({
         success: true,
         message: 'Cache purge skipped (no Cloudflare credentials)',
-        would_purge: uniqueUrls,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        hosts,
       });
     }
 
-    const shouldPurgeAll = ['template', 'settings', 'menu', 'full'].includes(resource_type);
+    const result = await executePurge(cloudflareApiToken, cloudflareZoneId, hosts, resource_type, resource_slug);
 
-    let purgeResult;
-    if (shouldPurgeAll) {
-      const prefixes = hosts.map(h => `${h}/`);
-      console.log(`[storefront-cache-purge] Purging by prefix (no scheme): ${prefixes.join(', ')}`);
+    console.log(`[storefront-cache-purge] Done: method=${result.method} success=${result.success} hosts=${hosts.join(',')}`);
 
-      purgeResult = await fetch(
-        `https://api.cloudflare.com/client/v4/zones/${cloudflareZoneId}/purge_cache`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${cloudflareApiToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ prefixes }),
-        }
-      );
-    } else {
-      purgeResult = await fetch(
-        `https://api.cloudflare.com/client/v4/zones/${cloudflareZoneId}/purge_cache`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${cloudflareApiToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ files: uniqueUrls }),
-        }
-      );
-    }
-
-    const purgeData = await purgeResult.json();
-
-    if (!purgeData.success) {
-      console.error('[storefront-cache-purge] Cloudflare purge failed:', purgeData.errors);
-
-      if (shouldPurgeAll && uniqueUrls.length > 0) {
-        const fallbackResult = await fetch(
-          `https://api.cloudflare.com/client/v4/zones/${cloudflareZoneId}/purge_cache`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${cloudflareApiToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ files: uniqueUrls }),
-          }
-        );
-        const fallbackData = await fallbackResult.json();
-
-        return new Response(JSON.stringify({
-          success: fallbackData.success,
-          message: fallbackData.success ? 'Cache purged (fallback to file-based)' : 'Purge failed',
-          purged_urls: uniqueUrls.length,
-          resource_type,
-          hosts,
-          errors: fallbackData.success ? undefined : fallbackData.errors,
-        }), {
-          status: fallbackData.success ? 200 : 502,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      return new Response(JSON.stringify({
-        success: false,
-        message: 'Cloudflare purge failed',
-        errors: purgeData.errors,
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    console.log(`[storefront-cache-purge] Purged ${shouldPurgeAll ? 'all pages for ' + hosts.join(', ') : uniqueUrls.length + ' URLs'}`);
-
-    return new Response(JSON.stringify({
-      success: true,
-      message: `Cache purged for ${resource_type}`,
-      purged_urls: uniqueUrls.length,
+    return jsonResponse({
+      success: result.success,
+      message: result.success ? `Cache purged for ${resource_type}` : 'Purge failed',
+      method: result.method,
       resource_type,
       hosts,
-      method: shouldPurgeAll ? 'prefix' : 'files',
-      caller: isServiceRole ? 'service_role' : 'user',
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+      caller: auth.isServiceRole ? 'service_role' : 'user',
+      errors: result.success ? undefined : result.errors,
+    }, result.success ? 200 : 502);
 
   } catch (error) {
     console.error('[storefront-cache-purge] Error:', error);
-    return new Response(JSON.stringify({ error: 'Internal error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Internal error' }, 500);
   }
 });
