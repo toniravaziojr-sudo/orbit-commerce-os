@@ -98,6 +98,10 @@ serve(async (req) => {
       observacoes,
       destinatario,
       itens,
+      indicador_presenca,
+      indicador_ie_dest,
+      pagamento_indicador,
+      pagamento_meio,
     } = body;
 
     console.log(`[fiscal-create-manual][${VERSION}] Creating manual invoice for tenant:`, tenantId);

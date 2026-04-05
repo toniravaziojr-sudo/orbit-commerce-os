@@ -128,6 +128,16 @@ export function buildNFePayload(
     valor_desconto?: number | null;
     valor_total: number;
     informacoes_complementares?: string | null;
+    informacoes_fisco?: string | null;
+    indicador_presenca?: number | null;
+    indicador_ie_dest?: number | null;
+    valor_bc_icms?: number | null;
+    valor_icms?: number | null;
+    valor_pis?: number | null;
+    valor_cofins?: number | null;
+    pagamento_indicador?: number | null;
+    pagamento_meio?: string | null;
+    pagamento_valor?: number | null;
   },
   emitente: {
     cnpj: string;
@@ -167,6 +177,9 @@ export function buildNFePayload(
     descricao: string;
     cfop: string;
     ncm: string;
+    gtin?: string | null;
+    gtin_tributavel?: string | null;
+    cest?: string | null;
     unidade: string;
     quantidade: number;
     valor_unitario: number;
@@ -175,8 +188,17 @@ export function buildNFePayload(
     origem?: string | null;
     cst_icms?: string | null;
     csosn?: string | null;
+    icms_base?: number | null;
+    icms_aliquota?: number | null;
+    icms_valor?: number | null;
     cst_pis?: string | null;
+    pis_base?: number | null;
+    pis_aliquota?: number | null;
+    pis_valor?: number | null;
     cst_cofins?: string | null;
+    cofins_base?: number | null;
+    cofins_aliquota?: number | null;
+    cofins_valor?: number | null;
   }>,
   ambiente: 'homologacao' | 'producao',
   pagamento?: {
