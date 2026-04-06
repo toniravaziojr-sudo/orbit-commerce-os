@@ -3,6 +3,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { emitirNFe, type NuvemFiscalConfig } from "../_shared/nuvem-fiscal-client.ts";
 import { buildNFePayload, parseNFeResponse } from "../_shared/nuvem-fiscal-adapter.ts";
+import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -366,49 +367,17 @@ serve(async (req) => {
         .update({ numero_nfe_atual: (parsed.numero || 0) + 1 })
         .eq('tenant_id', tenantId);
 
-      // Verificar auto-create shipment
-      if (invoice.order_id && settings.auto_create_shipment) {
-        console.log(`[fiscal-emit] Auto-creating shipment for order ${invoice.order_id}`);
-        
-        try {
-          const shipResponse = await fetch(`${supabaseUrl}/functions/v1/shipping-create-shipment`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({ order_id: invoice.order_id }),
-          });
-          
-          const shipResult = await shipResponse.json();
-          console.log(`[fiscal-emit] Shipment result:`, JSON.stringify(shipResult));
-          
-          if (shipResult.success && shipResult.tracking_code) {
-            await supabaseClient
-              .from('orders')
-              .update({ 
-                status: 'shipped',
-                shipped_at: new Date().toISOString()
-              })
-              .eq('id', invoice.order_id);
-          } else {
-            await supabaseClient
-              .from('orders')
-              .update({ status: 'processing' })
-              .eq('id', invoice.order_id);
-          }
-        } catch (shipError) {
-          console.error(`[fiscal-emit] Shipment error:`, shipError);
-          await supabaseClient
-            .from('orders')
-            .update({ status: 'processing' })
-            .eq('id', invoice.order_id);
-        }
-      } else if (invoice.order_id) {
-        await supabaseClient
-          .from('orders')
-          .update({ status: 'processing' })
-          .eq('id', invoice.order_id);
+      // Vincular NF-e ao rascunho logístico e gerenciar remessa
+      if (invoice.order_id) {
+        await linkNFeToShipment({
+          supabaseClient,
+          orderId: invoice.order_id,
+          invoiceId: invoice_id,
+          tenantId,
+          chaveAcesso: parsed.chave,
+          autoCreateShipment: !!settings.auto_create_shipment,
+          callerModule: 'fiscal-emit',
+        });
       }
       
       // Enviar email se habilitado

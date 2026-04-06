@@ -564,21 +564,58 @@ serve(async (req) => {
       );
     }
 
-    // Get order items
+    // REGRA: NF-e obrigatória para emitir remessa
+    const { data: invoiceData } = await supabase
+      .from('fiscal_invoices')
+      .select('id, chave_acesso, status, danfe_url')
+      .eq('order_id', order_id)
+      .eq('tenant_id', tenantId)
+      .eq('status', 'authorized')
+      .maybeSingle();
+
+    if (!invoiceData) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'NF-e autorizada não encontrada para este pedido. Emita a NF-e antes de criar a remessa.' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[shipping-create-shipment] NF-e found: ${invoiceData.id} (chave: ${invoiceData.chave_acesso?.substring(0, 10)}...)`);
+
+    // Get order items with product data for real weights/dimensions
     const { data: orderItems } = await supabase
       .from('order_items')
-      .select('product_name, quantity, unit_price')
+      .select('product_name, quantity, unit_price, product_id')
       .eq('order_id', order_id);
+
+    // Fetch product physical data
+    const productIds = (orderItems || []).map(i => i.product_id).filter(Boolean);
+    let productsMap: Record<string, any> = {};
+    if (productIds.length > 0) {
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, weight, height, width, depth')
+        .in('id', productIds);
+      if (products) {
+        productsMap = Object.fromEntries(products.map(p => [p.id, p]));
+      }
+    }
 
     const orderData: OrderData = {
       ...order,
-      items: (orderItems || []).map(item => ({
-        ...item,
-        weight: 0.3, // Default weight
-        height: 10,
-        width: 15,
-        length: 20,
-      })),
+      items: (orderItems || []).map(item => {
+        const product = item.product_id ? productsMap[item.product_id] : null;
+        return {
+          ...item,
+          weight: product?.weight || 300, // grams
+          height: product?.height || 10,
+          width: product?.width || 15,
+          length: product?.depth || 20,
+        };
+      }),
     };
 
     // Get fiscal settings for default provider
@@ -638,12 +675,10 @@ serve(async (req) => {
     console.log(`[shipping-create-shipment] Result:`, JSON.stringify(result));
 
     if (result.success && result.tracking_code) {
-      // Update order with tracking code, status and shipped_at
+      // Update order with tracking code — status stays 'processing' until user dispatches
       const orderUpdate: Record<string, unknown> = {
         tracking_code: result.tracking_code,
         shipping_carrier: result.carrier,
-        status: 'shipped',
-        shipped_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
@@ -657,9 +692,9 @@ serve(async (req) => {
         .update(orderUpdate)
         .eq('id', order_id);
       
-      console.log(`[shipping-create-shipment] Order ${order_id} updated to shipped with tracking: ${result.tracking_code}`);
+      console.log(`[shipping-create-shipment] Order ${order_id} tracking updated: ${result.tracking_code} (status stays processing)`);
 
-      // Create/update shipment record via shipment-ingest
+      // Update existing shipment draft (created by scheduler-tick) or create new
       await supabase
         .from('shipments')
         .upsert({
@@ -670,12 +705,32 @@ serve(async (req) => {
           delivery_status: 'label_created',
           label_url: result.label_url,
           provider_shipment_id: result.provider_shipment_id,
+          invoice_id: invoiceData.id,
+          nfe_key: invoiceData.chave_acesso,
           last_status_at: new Date().toISOString(),
-          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 min
+          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           poll_error_count: 0,
         }, {
           onConflict: 'tenant_id,order_id,tracking_code',
         });
+
+      // Also update by order_id if draft exists without tracking_code
+      await supabase
+        .from('shipments')
+        .update({
+          tracking_code: result.tracking_code,
+          delivery_status: 'label_created',
+          label_url: result.label_url,
+          provider_shipment_id: result.provider_shipment_id,
+          invoice_id: invoiceData.id,
+          nfe_key: invoiceData.chave_acesso,
+          carrier: result.carrier || provider,
+          last_status_at: new Date().toISOString(),
+          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        })
+        .eq('order_id', order_id)
+        .eq('tenant_id', tenantId)
+        .eq('delivery_status', 'draft');
 
       // Log in order history
       await supabase
@@ -686,7 +741,18 @@ serve(async (req) => {
           notes: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
         });
 
-      console.log(`[shipping-create-shipment] Order ${order_id} updated with tracking: ${result.tracking_code}`);
+      console.log(`[shipping-create-shipment] Shipment record updated for order ${order_id}`);
+    } else if (!result.success) {
+      // Marcar shipment draft como failed se existir
+      await supabase
+        .from('shipments')
+        .update({
+          delivery_status: 'failed',
+          last_status_at: new Date().toISOString(),
+        })
+        .eq('order_id', order_id)
+        .eq('tenant_id', tenantId)
+        .eq('delivery_status', 'draft');
     }
 
     return new Response(

@@ -14,6 +14,87 @@ O sistema cria **rascunhos logísticos** automaticamente no mesmo momento em que
 
 ---
 
+## Fluxo Completo: NF-e → Remessa → Despacho
+
+```text
+Pagamento Aprovado (trigger em orders)
+    │
+    ├── fiscal_draft_queue    → Rascunho NF-e (draft)
+    └── shipping_draft_queue  → Rascunho Logístico (draft)
+    │
+    ▼
+Emissão da NF-e (manual pelo usuário)
+    │
+    ├── NF-e autorizada → status 'authorized'
+    │   ├── shipments.nfe_key e invoice_id preenchidos (helper nfe-shipment-link.ts)
+    │   └── Pedido muda para 'processing'
+    │
+    ▼
+Emissão da Remessa (depende de NF-e autorizada — OBRIGATÓRIA)
+    │
+    ├── auto_create_shipment = true → envia automaticamente à transportadora
+    │   └── Sucesso → shipment: 'label_created', tracking_code preenchido
+    │   └── Falha → shipment: 'failed' (aba "Remessas pendentes")
+    │
+    ├── auto_create_shipment = false → fica em 'draft' (aba "Prontos para emitir")
+    │   └── Usuário seleciona e clica "Emitir Remessa" → envia à transportadora
+    │
+    ▼
+Impressão (Etiqueta + DANFE)
+    │
+    ├── Botões individuais: "Imprimir Etiqueta" / "Imprimir DANFE"
+    ├── Ação "Despachar": modal com preview + confirma despacho
+    └── Impressão em lote: seleciona múltiplos na aba "Remessas emitidas"
+    │
+    ▼
+Despacho → Pedido muda para 'dispatched' (shipped_at preenchido)
+    │
+    ▼
+Rastreamento (polling automático — PENDENTE)
+    │
+    ├── Primeira movimentação ("coletado"/"a caminho") → Pedido: 'shipped'
+    ├── Em trânsito → Pedido: 'in_transit'
+    └── Entregue → Pedido: 'delivered'
+```
+
+### Regra de Status do Pedido (CRÍTICA)
+
+| Status | Gatilho | Quem muda |
+|--------|---------|-----------|
+| `processing` | NF-e autorizada | Edge function (fiscal-*) |
+| `dispatched` | Usuário confirma despacho (imprime etiqueta) | Frontend (ShipmentGenerator) |
+| `shipped` | Primeira movimentação do rastreio | Polling automático (futuro) |
+
+**NUNCA** mudar pedido para `shipped` diretamente na emissão da remessa ou NF-e.
+
+---
+
+## Dependência NF-e → Remessa
+
+| Aspecto | Regra |
+|---------|-------|
+| **NF-e obrigatória** | Remessa só pode ser emitida se existir NF-e com status `authorized` vinculada ao pedido |
+| **Validação** | `shipping-create-shipment` verifica `fiscal_invoices` WHERE `order_id = X AND status = 'authorized'` |
+| **Bloqueio** | Se não houver NF-e autorizada, retorna erro: "Emita a NF-e antes de criar a remessa" |
+
+---
+
+## Helper Compartilhado: nfe-shipment-link.ts
+
+Módulo `_shared/nfe-shipment-link.ts` centraliza o vínculo NF-e → Remessa. Chamado por:
+- `fiscal-submit` (Focus NFe)
+- `fiscal-emit` (Nuvem Fiscal)
+- `fiscal-webhook` (callback assíncrono)
+- `fiscal-check-status` (polling manual)
+- `fiscal-get-status` (consulta Focus)
+
+**Responsabilidades:**
+1. Preencher `shipments.nfe_key` e `shipments.invoice_id` no draft existente
+2. Se `auto_create_shipment = true`, chamar `shipping-create-shipment`
+3. Atualizar `orders.status` para `processing`
+
+---
+
 ## Gatilho de Criação
 
 | Campo | Valor |
@@ -22,14 +103,6 @@ O sistema cria **rascunhos logísticos** automaticamente no mesmo momento em que
 | **Mecanismo** | Trigger SQL `enqueue_fiscal_draft()` — insere simultaneamente em `fiscal_draft_queue` e `shipping_draft_queue` |
 | **Atomicidade** | 100% — INSERT atômico dentro da mesma transação do UPDATE do pedido |
 | **Deduplicação** | `ON CONFLICT (order_id) DO NOTHING` — impede duplicatas |
-
-```text
-Pagamento Aprovado (trigger em orders)
-    │
-    ├── fiscal_draft_queue    → rascunho da NF-e
-    │
-    └── shipping_draft_queue  → rascunho logístico
-```
 
 ---
 
@@ -53,13 +126,6 @@ pending → processing → done
                     └→ failed (após 5 tentativas)
 ```
 
-| Status | Descrição |
-|--------|-----------|
-| `pending` | Aguardando processamento pelo scheduler-tick |
-| `processing` | Sendo processado (lock temporário) |
-| `done` | Rascunho criado com sucesso em `shipments` |
-| `failed` | Falha após todas as tentativas |
-
 ---
 
 ## Processamento da Fila (scheduler-tick — Fase 1.6)
@@ -77,33 +143,15 @@ O `scheduler-tick` processa a `shipping_draft_queue` logo após a fila fiscal:
 
 ---
 
-## Dados Necessários por Transportadora
+## Dados Físicos dos Produtos
 
 > **IMPORTANTE:** O campo `products.weight` armazena peso em **gramas** (g). O campo de dimensões de comprimento no banco é `products.depth` (não `length`). Não é necessária conversão de unidade ao enviar para transportadoras — o valor já está em gramas.
 
-### Correios (Pré-postagem PLP)
-
-| Dado | Origem | Coluna/Campo | Obrigatório |
-|------|--------|-------------|-------------|
-| Remetente (nome, CNPJ, endereço) | Configuração do provider | `shipping_providers.settings` | Sim |
-| Destinatário (nome, endereço, CEP) | Pedido | `orders.shipping_*` | Sim |
-| Código de serviço (PAC/SEDEX) | Pedido | `orders.shipping_service_code` | Sim |
-| Peso (g) | Produtos × quantidade | `products.weight` | Sim |
-| Dimensões (cm) | Produtos | `products.height/width/depth` | Sim |
-| Valor declarado | Pedido | `orders.total` | Condicional |
-| Cartão de postagem | Credenciais | `shipping_providers.credentials` | Sim |
-| Chave NF-e | NF-e (preenchido após emissão) | `fiscal_invoices.chave_acesso` | Recomendado |
-
-### Loggi (Async Shipments)
-
-| Dado | Origem | Coluna/Campo | Obrigatório |
-|------|--------|-------------|-------------|
-| shipFrom (endereço origem) | Configuração do provider | `shipping_providers.credentials/settings` | Sim |
-| shipTo (endereço destino) | Pedido | `orders.shipping_*` | Sim |
-| Peso (kg) | Produtos × quantidade | `products.weight` | Sim |
-| Dimensões (cm) | Produtos | `products.height/width/depth` | Sim |
-| Valor declarado | Pedido | `orders.total` | Sim |
-| Company ID | Credenciais | `shipping_providers.credentials.company_id` | Sim |
+`shipping-create-shipment` busca pesos e dimensões reais dos produtos vinculados ao pedido (via `order_items.product_id → products`), com fallbacks:
+- Peso: 300g
+- Altura: 10cm
+- Largura: 15cm
+- Profundidade: 20cm
 
 ---
 
@@ -113,61 +161,8 @@ Configurável via `fiscal_settings.auto_create_shipment`:
 
 | Modo | Flag | Comportamento |
 |------|------|--------------|
-| **Automático** | `true` | Ao emitir NF-e, o sistema envia a remessa automaticamente à transportadora e retorna tracking + etiqueta |
-| **Manual** | `false` | Ao emitir NF-e, o rascunho logístico permanece com status `draft` para revisão e envio manual pelo módulo logístico |
-
----
-
-## Independência NF-e ↔ Remessa
-
-| Aspecto | Regra |
-|---------|-------|
-| **Criação** | Independentes — ambos os rascunhos são criados simultaneamente pelo mesmo trigger |
-| **Envio** | Dependente — a remessa só é enviada à transportadora após a NF-e estar autorizada |
-| **Chave NF-e** | Opcional na criação do rascunho, preenchida automaticamente quando a NF-e é autorizada |
-| **Rastreio na NF-e** | O código de rastreio **não é campo da NF-e** (grupo Transporte é informativo) |
-
----
-
-## Estrutura de Dados
-
-### Tabela `shipping_draft_queue`
-
-| Coluna | Tipo | Default | Descrição |
-|--------|------|---------|-----------|
-| id | uuid PK | gen_random_uuid() | |
-| tenant_id | uuid FK tenants | — | |
-| order_id | uuid FK orders (UNIQUE) | — | |
-| provider | text | — | correios, loggi, frenet, manual |
-| status | text | 'pending' | pending, processing, done, failed |
-| attempts | integer | 0 | Contador de tentativas |
-| error_message | text | NULL | Último erro |
-| created_at | timestamptz | now() | |
-| processed_at | timestamptz | NULL | |
-
-### Colunas Adicionais em `shipments`
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| label_url | text | URL/base64 da etiqueta |
-| provider_shipment_id | text | ID da remessa na transportadora |
-| invoice_id | uuid FK fiscal_invoices | NF-e vinculada |
-| service_code | text | Código do serviço (03220, 03298) |
-| nfe_key | text | Chave de acesso da NF-e |
-
-### Status `draft` em `delivery_status`
-
-Novo valor no enum para representar rascunhos logísticos que aguardam envio manual.
-
----
-
-## Retry e Limpeza
-
-| Regra | Valor |
-|-------|-------|
-| Máximo de tentativas | 5 |
-| Status após exaustão | `failed` |
-| Limpeza de itens `done` | 7 dias (scheduler-tick) |
+| **Automático** | `true` | Ao autorizar NF-e, o sistema envia a remessa automaticamente à transportadora |
+| **Manual** | `false` | O rascunho permanece com status `draft` para envio manual pelo módulo logístico |
 
 ---
 
@@ -175,11 +170,25 @@ Novo valor no enum para representar rascunhos logísticos que aguardam envio man
 
 A tela de Logística > Remessas é dividida em 3 abas:
 
-| Aba | Conteúdo | Fonte |
-|-----|----------|-------|
-| **Prontos para emitir remessa** | Pedidos com rascunho logístico (`shipments.delivery_status = 'draft'`) aguardando emissão | `shipments` WHERE `delivery_status = 'draft'` |
-| **Remessas emitidas** | Remessas enviadas com sucesso à transportadora (qualquer status exceto `draft` e `failed`) | `shipments` WHERE `delivery_status NOT IN ('draft', 'failed')` |
-| **Remessas pendentes** | Remessas com erro que precisam de correção manual e reenvio | `shipments` WHERE `delivery_status = 'failed'` |
+| Aba | Conteúdo | Ações disponíveis |
+|-----|----------|-------------------|
+| **Prontos para emitir** | Shipments com `delivery_status = 'draft'` | Selecionar + "Emitir Remessa" (em lote) |
+| **Remessas emitidas** | Shipments com status excluindo `draft` e `failed` | Imprimir Etiqueta, Imprimir DANFE, Despachar, Impressão em lote |
+| **Remessas pendentes** | Shipments com `delivery_status = 'failed'` | Reenviar |
+
+### Ação "Despachar"
+
+Modal que exibe dados do pedido + botões de impressão + botão "Confirmar Despacho":
+- Muda `orders.status` → `dispatched`
+- Preenche `orders.shipped_at`
+- Registra em `order_history`
+
+### Impressão em Lote
+
+Na aba "Remessas emitidas", checkboxes permitem selecionar múltiplas remessas e imprimir:
+- Apenas etiquetas
+- Apenas DANFEs
+- Ambos
 
 ---
 
@@ -187,15 +196,16 @@ A tela de Logística > Remessas é dividida em 3 abas:
 
 | Data | Versão | Correção |
 |------|--------|----------|
-| 2026-04-06 | v2.3.1 | Nomes de colunas de endereço corrigidos (shipping_street, shipping_postal_code, etc.) |
-| 2026-04-06 | v2.3.2 | Coluna de profundidade corrigida de `length` para `depth` (nome real no schema `products`) |
-| 2026-04-06 | v2.3.3 | Campo `products.weight` padronizado para gramas (g). Removidas conversões `*1000` de todas as edge functions. Dados existentes migrados. |
+| 2026-04-06 | v2.3.1 | Nomes de colunas de endereço corrigidos |
+| 2026-04-06 | v2.3.2 | Coluna de profundidade corrigida de `length` para `depth` |
+| 2026-04-06 | v2.3.3 | Campo `products.weight` padronizado para gramas (g) |
+| 2026-04-06 | v2.4.0 | Fluxo integrado NF-e → Remessa → Despacho. Helper nfe-shipment-link.ts. NF-e obrigatória. Status dispatched. UI de impressão e despacho. |
 
 ---
 
 ## Pendências Futuras
 
-- [ ] UI de etiquetas para impressão (aba "Etiquetas")
+- [ ] Polling automático de rastreio com transição de status (dispatched → shipped → in_transit → delivered)
+- [ ] Mapeamento de eventos de rastreio por transportadora (Correios SRO, Loggi, Frenet)
 - [ ] Envio em lote de remessas
-- [ ] Integração de status remessa ↔ NF-e na lista fiscal
 - [ ] Notificações automáticas de rastreio ao cliente

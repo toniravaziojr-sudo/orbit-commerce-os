@@ -3,6 +3,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
+import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -187,7 +188,7 @@ serve(async (req) => {
 
       console.log(`[fiscal-check-status] Status atualizado: ${invoice.status} -> ${internalStatus}`);
 
-      // Se autorizado, verificar se deve criar remessa automaticamente
+      // Se autorizado, vincular NF-e ao rascunho logístico
       if (focusStatus === 'autorizado' && invoice.order_id) {
         const { data: fiscalSettingsShip } = await supabaseClient
           .from('fiscal_settings')
@@ -195,52 +196,15 @@ serve(async (req) => {
           .eq('tenant_id', tenantId)
           .single();
 
-        if (fiscalSettingsShip?.auto_create_shipment) {
-          console.log(`[fiscal-check-status] Auto-creating shipment for order ${invoice.order_id}`);
-          
-          // Call shipping-create-shipment and update order status
-          try {
-            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-            const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-            
-            const shipResponse = await fetch(`${supabaseUrl}/functions/v1/shipping-create-shipment`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({ order_id: invoice.order_id }),
-            });
-            
-            const shipResult = await shipResponse.json();
-            console.log(`[fiscal-check-status] Shipment creation result:`, JSON.stringify(shipResult));
-            
-            // Se remessa criada com sucesso, atualizar pedido para shipped
-            if (shipResult.success && shipResult.tracking_code) {
-              await supabaseClient
-                .from('orders')
-                .update({ 
-                  status: 'shipped',
-                  shipped_at: new Date().toISOString()
-                })
-                .eq('id', invoice.order_id);
-              
-              console.log(`[fiscal-check-status] Order ${invoice.order_id} updated to shipped`);
-            } else {
-              // Se não criou remessa, marcar como processing (aguardando remessa manual)
-              await supabaseClient
-                .from('orders')
-                .update({ status: 'processing' })
-                .eq('id', invoice.order_id);
-            }
-          } catch (shipError) {
-            console.error(`[fiscal-check-status] Failed to create shipment:`, shipError);
-            // Fallback: marcar como processing (aguardando remessa manual)
-          await supabaseClient
-            .from('orders')
-            .update({ status: 'processing' })
-            .eq('id', invoice.order_id);
-        }
+        await linkNFeToShipment({
+          supabaseClient,
+          orderId: invoice.order_id,
+          invoiceId: invoiceId,
+          tenantId,
+          chaveAcesso: result.data?.chave_nfe || '',
+          autoCreateShipment: !!fiscalSettingsShip?.auto_create_shipment,
+          callerModule: 'fiscal-check-status',
+        });
       }
       
       // Send NF-e email to customer if enabled
@@ -263,7 +227,6 @@ serve(async (req) => {
         }).catch(err => console.error('[fiscal-check-status] Email send error:', err));
       }
     }
-  }
 
     return new Response(
       JSON.stringify({

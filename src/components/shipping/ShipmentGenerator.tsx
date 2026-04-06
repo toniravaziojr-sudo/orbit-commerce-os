@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -30,17 +37,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCreateShipment } from '@/hooks/useShipments';
 import { toast } from 'sonner';
 
-interface PendingOrder {
-  id: string;
-  order_number: string;
-  customer_name: string;
-  shipping_carrier: string | null;
-  shipping_city: string | null;
-  shipping_state: string | null;
-  created_at: string;
-  total: number;
-}
-
 interface ShipmentRecord {
   id: string;
   order_id: string;
@@ -50,10 +46,25 @@ interface ShipmentRecord {
   created_at: string;
   source: string | null;
   metadata: any;
+  label_url: string | null;
+  nfe_key: string | null;
+  invoice_id: string | null;
   order?: {
+    id?: string;
     order_number: string;
     customer_name: string;
+    shipping_carrier?: string;
+    shipping_city?: string;
+    shipping_state?: string;
+    total?: number;
+    created_at?: string;
+    status?: string;
   };
+  invoice?: {
+    danfe_url: string | null;
+    chave_acesso: string | null;
+    numero: number | null;
+  } | null;
 }
 
 const CARRIERS = [
@@ -72,23 +83,30 @@ export function ShipmentGenerator() {
   const [activeTab, setActiveTab] = useState('prontos');
   const [selectedCarrier, setSelectedCarrier] = useState('all');
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [selectedIssued, setSelectedIssued] = useState<Set<string>>(new Set());
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [dispatchDialog, setDispatchDialog] = useState<ShipmentRecord | null>(null);
+  const [isDispatching, setIsDispatching] = useState(false);
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
+    queryClient.invalidateQueries({ queryKey: ['shipments-issued'] });
+    queryClient.invalidateQueries({ queryKey: ['shipments-failed'] });
+  };
 
   // === TAB 1: Prontos para emitir remessa ===
-  // Orders with draft shipments (auto-created by scheduler) OR paid orders without shipment
   const { data: readyOrders, isLoading: loadingReady } = useQuery({
     queryKey: ['orders-ready-shipment', currentTenant?.id, selectedCarrier, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
 
-      // Get draft shipments with order data
       let query = supabase
         .from('shipments')
         .select<string, any>(`
-          id, order_id, carrier, delivery_status, created_at, source, metadata,
-          order:orders!inner(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at)
+          id, order_id, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          order:orders!inner(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status)
         `)
         .eq('tenant_id', currentTenant.id)
         .eq('delivery_status', 'draft' as any)
@@ -97,7 +115,6 @@ export function ShipmentGenerator() {
       if (selectedCarrier !== 'all' && selectedCarrier !== 'outros') {
         query = query.ilike('carrier', `%${selectedCarrier}%`);
       }
-
       if (startDate) {
         const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
         query = query.gte('created_at', toSaoPauloStartIso(startDate));
@@ -114,7 +131,7 @@ export function ShipmentGenerator() {
     enabled: !!currentTenant?.id,
   });
 
-  // === TAB 2: Remessas emitidas (success - has tracking, not draft/failed) ===
+  // === TAB 2: Remessas emitidas (has tracking, not draft/failed) ===
   const { data: issuedShipments, isLoading: loadingIssued } = useQuery({
     queryKey: ['shipments-issued', currentTenant?.id, selectedCarrier, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
@@ -123,8 +140,8 @@ export function ShipmentGenerator() {
       let query = supabase
         .from('shipments')
         .select(`
-          id, order_id, tracking_code, carrier, delivery_status, created_at, source, metadata,
-          order:orders!inner(order_number, customer_name)
+          id, order_id, tracking_code, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          order:orders!inner(order_number, customer_name, status)
         `)
         .eq('tenant_id', currentTenant.id)
         .not('delivery_status', 'in', '("draft","failed")')
@@ -134,7 +151,6 @@ export function ShipmentGenerator() {
       if (selectedCarrier !== 'all' && selectedCarrier !== 'outros') {
         query = query.ilike('carrier', `%${selectedCarrier}%`);
       }
-
       if (startDate) {
         const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
         query = query.gte('created_at', toSaoPauloStartIso(startDate));
@@ -144,14 +160,36 @@ export function ShipmentGenerator() {
         query = query.lte('created_at', toSaoPauloEndIso(endDate));
       }
 
+      // Fetch DANFE URLs for invoices
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as ShipmentRecord[];
+      
+      const shipments = (data || []) as ShipmentRecord[];
+      
+      // Fetch invoice data for shipments that have invoice_id
+      const invoiceIds = shipments.map(s => s.invoice_id).filter(Boolean);
+      if (invoiceIds.length > 0) {
+        const { data: invoices } = await supabase
+          .from('fiscal_invoices')
+          .select('id, danfe_url, chave_acesso, numero')
+          .in('id', invoiceIds as string[]);
+        
+        if (invoices) {
+          const invoiceMap = Object.fromEntries(invoices.map(i => [i.id, i]));
+          shipments.forEach(s => {
+            if (s.invoice_id && invoiceMap[s.invoice_id]) {
+              s.invoice = invoiceMap[s.invoice_id];
+            }
+          });
+        }
+      }
+      
+      return shipments;
     },
     enabled: !!currentTenant?.id,
   });
 
-  // === TAB 3: Remessas pendentes (failed/error) ===
+  // === TAB 3: Remessas pendentes (failed) ===
   const { data: failedShipments, isLoading: loadingFailed } = useQuery({
     queryKey: ['shipments-failed', currentTenant?.id, selectedCarrier],
     queryFn: async () => {
@@ -160,7 +198,7 @@ export function ShipmentGenerator() {
       const { data, error } = await supabase
         .from('shipments')
         .select(`
-          id, order_id, tracking_code, carrier, delivery_status, created_at, source, metadata,
+          id, order_id, tracking_code, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
           order:orders!inner(order_number, customer_name)
         `)
         .eq('tenant_id', currentTenant.id)
@@ -174,13 +212,12 @@ export function ShipmentGenerator() {
     enabled: !!currentTenant?.id,
   });
 
+  // === ACTIONS ===
+
   const toggleOrder = (orderId: string) => {
     const newSelected = new Set(selectedOrders);
-    if (newSelected.has(orderId)) {
-      newSelected.delete(orderId);
-    } else {
-      newSelected.add(orderId);
-    }
+    if (newSelected.has(orderId)) newSelected.delete(orderId);
+    else newSelected.add(orderId);
     setSelectedOrders(newSelected);
   };
 
@@ -190,6 +227,22 @@ export function ShipmentGenerator() {
       setSelectedOrders(new Set());
     } else {
       setSelectedOrders(new Set(readyOrders.map(s => s.order_id)));
+    }
+  };
+
+  const toggleIssued = (id: string) => {
+    const newSelected = new Set(selectedIssued);
+    if (newSelected.has(id)) newSelected.delete(id);
+    else newSelected.add(id);
+    setSelectedIssued(newSelected);
+  };
+
+  const toggleAllIssued = () => {
+    if (!issuedShipments) return;
+    if (selectedIssued.size === issuedShipments.length) {
+      setSelectedIssued(new Set());
+    } else {
+      setSelectedIssued(new Set(issuedShipments.map(s => s.id)));
     }
   };
 
@@ -216,22 +269,132 @@ export function ShipmentGenerator() {
     setIsGenerating(false);
     setSelectedOrders(new Set());
     
-    if (successCount > 0) {
-      toast.success(`${successCount} remessa(s) emitida(s) com sucesso`);
+    if (successCount > 0) toast.success(`${successCount} remessa(s) emitida(s) com sucesso`);
+    if (errorCount > 0) toast.error(`${errorCount} remessa(s) falharam`);
+    invalidateAll();
+  };
+
+  const handleRetryShipment = async (orderId: string) => {
+    try {
+      // Reset shipment to draft before retrying
+      await supabase
+        .from('shipments')
+        .update({ delivery_status: 'draft' as any })
+        .eq('order_id', orderId)
+        .eq('tenant_id', currentTenant?.id!)
+        .eq('delivery_status', 'failed' as any);
+      
+      await createShipment.mutateAsync({ order_id: orderId });
+      toast.success('Remessa reenviada com sucesso');
+      invalidateAll();
+    } catch (error) {
+      toast.error('Falha ao reenviar remessa');
     }
-    if (errorCount > 0) {
-      toast.error(`${errorCount} remessa(s) falharam`);
+  };
+
+  // Print label
+  const handlePrintLabel = (shipment: ShipmentRecord) => {
+    if (shipment.label_url) {
+      window.open(shipment.label_url, '_blank');
+    } else {
+      toast.error('Etiqueta não disponível');
+    }
+  };
+
+  // Print DANFE
+  const handlePrintDanfe = async (shipment: ShipmentRecord) => {
+    if (shipment.invoice?.danfe_url) {
+      window.open(shipment.invoice.danfe_url, '_blank');
+      return;
+    }
+    // Fallback: fetch from DB
+    if (shipment.invoice_id) {
+      const { data } = await supabase
+        .from('fiscal_invoices')
+        .select('danfe_url')
+        .eq('id', shipment.invoice_id)
+        .single();
+      if (data?.danfe_url) {
+        window.open(data.danfe_url, '_blank');
+      } else {
+        toast.error('DANFE não disponível');
+      }
+    } else {
+      toast.error('NF-e não vinculada à remessa');
+    }
+  };
+
+  // Dispatch action: open dialog with print options + confirm
+  const handleDispatchClick = (shipment: ShipmentRecord) => {
+    setDispatchDialog(shipment);
+  };
+
+  const handleConfirmDispatch = async () => {
+    if (!dispatchDialog || !currentTenant?.id) return;
+    setIsDispatching(true);
+
+    try {
+      // Update order status to dispatched
+      await supabase
+        .from('orders')
+        .update({ 
+          status: 'dispatched' as any,
+          shipped_at: new Date().toISOString(),
+        })
+        .eq('id', dispatchDialog.order_id);
+
+      // Log in order history
+      await supabase
+        .from('order_history')
+        .insert({
+          order_id: dispatchDialog.order_id,
+          action: 'dispatched',
+          description: `Despacho confirmado. Etiqueta: ${dispatchDialog.tracking_code || 'N/A'}`,
+        });
+
+      toast.success('Pedido marcado como despachado');
+      setDispatchDialog(null);
+      invalidateAll();
+    } catch (error) {
+      toast.error('Erro ao confirmar despacho');
+    } finally {
+      setIsDispatching(false);
+    }
+  };
+
+  // Batch print
+  const handleBatchPrint = async (type: 'labels' | 'danfes' | 'both') => {
+    if (!issuedShipments) return;
+    const selected = issuedShipments.filter(s => selectedIssued.has(s.id));
+    
+    if (selected.length === 0) {
+      toast.error('Selecione ao menos uma remessa');
+      return;
     }
 
-    queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
-    queryClient.invalidateQueries({ queryKey: ['shipments-issued'] });
-    queryClient.invalidateQueries({ queryKey: ['shipments-failed'] });
+    let opened = 0;
+    for (const s of selected) {
+      if ((type === 'labels' || type === 'both') && s.label_url) {
+        window.open(s.label_url, '_blank');
+        opened++;
+      }
+      if ((type === 'danfes' || type === 'both') && s.invoice?.danfe_url) {
+        window.open(s.invoice.danfe_url, '_blank');
+        opened++;
+      }
+    }
+
+    if (opened === 0) {
+      toast.error('Nenhum documento disponível para impressão');
+    } else {
+      toast.success(`${opened} documento(s) aberto(s) para impressão`);
+    }
   };
 
   const getStatusBadge = (status: string) => {
     const config: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
       draft: { label: 'Rascunho', variant: 'outline' },
-      label_created: { label: 'Etiqueta', variant: 'outline' },
+      label_created: { label: 'Etiqueta criada', variant: 'outline' },
       posted: { label: 'Postado', variant: 'secondary' },
       in_transit: { label: 'Em trânsito', variant: 'secondary' },
       out_for_delivery: { label: 'Saiu p/ entrega', variant: 'secondary' },
@@ -278,7 +441,7 @@ export function ShipmentGenerator() {
         <TabsList>
           <TabsTrigger value="prontos" className="gap-2">
             <Package className="h-4 w-4" />
-            Prontos para emitir remessa
+            Prontos para emitir
             {readyCount > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
                 {readyCount}
@@ -296,7 +459,7 @@ export function ShipmentGenerator() {
           </TabsTrigger>
           <TabsTrigger value="pendentes" className="gap-2">
             <AlertTriangle className="h-4 w-4" />
-            Remessas pendentes
+            Pendentes
             {failedCount > 0 && (
               <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
                 {failedCount}
@@ -348,12 +511,14 @@ export function ShipmentGenerator() {
                           <TableHead>Frete</TableHead>
                           <TableHead>Destino</TableHead>
                           <TableHead>Peso</TableHead>
+                          <TableHead>NF-e</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {readyOrders!.map(shipment => {
                           const order = shipment.order as any;
                           const meta = shipment.metadata as any;
+                          const hasNFe = !!shipment.nfe_key;
                           return (
                             <TableRow 
                               key={shipment.id}
@@ -383,6 +548,18 @@ export function ShipmentGenerator() {
                               <TableCell className="text-muted-foreground text-sm">
                                 {meta?.weight_grams ? `${meta.weight_grams}g` : '-'}
                               </TableCell>
+                              <TableCell>
+                                {hasNFe ? (
+                                  <Badge variant="default" className="text-xs">
+                                    <FileText className="h-3 w-3 mr-1" />
+                                    Vinculada
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                                    Sem NF-e
+                                  </Badge>
+                                )}
+                              </TableCell>
                             </TableRow>
                           );
                         })}
@@ -404,7 +581,7 @@ export function ShipmentGenerator() {
                       ) : (
                         <>
                           <Truck className="h-4 w-4" />
-                          Emitir Remessa
+                          Emitir Remessa ({selectedOrders.size})
                         </>
                       )}
                     </Button>
@@ -424,9 +601,27 @@ export function ShipmentGenerator() {
                   <CheckCircle className="h-4 w-4" />
                   Remessas emitidas
                 </CardTitle>
-                <span className="text-sm text-muted-foreground">
-                  {issuedCount} remessa(s)
-                </span>
+                <div className="flex items-center gap-2">
+                  {selectedIssued.size > 0 && (
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" onClick={() => handleBatchPrint('labels')} className="gap-1">
+                        <Printer className="h-3 w-3" />
+                        Etiquetas ({selectedIssued.size})
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleBatchPrint('danfes')} className="gap-1">
+                        <FileText className="h-3 w-3" />
+                        DANFEs ({selectedIssued.size})
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleBatchPrint('both')} className="gap-1">
+                        <Printer className="h-3 w-3" />
+                        Tudo ({selectedIssued.size})
+                      </Button>
+                    </div>
+                  )}
+                  <span className="text-sm text-muted-foreground">
+                    {issuedCount} remessa(s)
+                  </span>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -443,49 +638,84 @@ export function ShipmentGenerator() {
                 </div>
               ) : (
                 <ScrollArea className="h-[500px]">
-                  <div className="space-y-3">
-                    {issuedShipments!.map(shipment => (
-                      <div
-                        key={shipment.id}
-                        className="p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-sm">
-                                #{shipment.order?.order_number}
-                              </span>
-                              {getStatusBadge(shipment.delivery_status)}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[40px]">
+                          <Checkbox
+                            checked={selectedIssued.size === issuedCount && issuedCount > 0}
+                            onCheckedChange={toggleAllIssued}
+                          />
+                        </TableHead>
+                        <TableHead>Pedido</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Rastreio</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Transportadora</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {issuedShipments!.map(shipment => (
+                        <TableRow key={shipment.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedIssued.has(shipment.id)}
+                              onCheckedChange={() => toggleIssued(shipment.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            #{shipment.order?.order_number}
+                          </TableCell>
+                          <TableCell className="max-w-[100px] truncate">
+                            {shipment.order?.customer_name}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs font-mono">{shipment.tracking_code || '-'}</span>
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(shipment.delivery_status)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{shipment.carrier}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {format(new Date(shipment.created_at), 'dd/MM HH:mm', { locale: ptBR })}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 justify-end">
+                              <Button 
+                                variant="ghost" size="icon" className="h-7 w-7" 
+                                title="Imprimir etiqueta"
+                                onClick={() => handlePrintLabel(shipment)}
+                                disabled={!shipment.label_url}
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button 
+                                variant="ghost" size="icon" className="h-7 w-7" 
+                                title="Imprimir DANFE"
+                                onClick={() => handlePrintDanfe(shipment)}
+                                disabled={!shipment.invoice_id}
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                              </Button>
+                              {shipment.order?.status !== 'dispatched' && shipment.order?.status !== 'shipped' && (
+                                <Button 
+                                  variant="outline" size="sm" className="h-7 gap-1 text-xs"
+                                  onClick={() => handleDispatchClick(shipment)}
+                                >
+                                  <Send className="h-3 w-3" />
+                                  Despachar
+                                </Button>
+                              )}
                             </div>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {shipment.order?.customer_name}
-                            </p>
-                            {shipment.tracking_code && (
-                              <p className="text-xs text-muted-foreground font-mono mt-1">
-                                {shipment.tracking_code}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Imprimir etiqueta">
-                              <Printer className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Rastrear">
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between mt-2 pt-2 border-t">
-                          <Badge variant="outline" className="text-xs">
-                            {shipment.carrier}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {format(new Date(shipment.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </ScrollArea>
               )}
             </CardContent>
@@ -543,7 +773,10 @@ export function ShipmentGenerator() {
                               </p>
                             )}
                           </div>
-                          <Button variant="outline" size="sm" className="gap-1">
+                          <Button 
+                            variant="outline" size="sm" className="gap-1"
+                            onClick={() => handleRetryShipment(shipment.order_id)}
+                          >
                             <Truck className="h-3 w-3" />
                             Reenviar
                           </Button>
@@ -565,6 +798,77 @@ export function ShipmentGenerator() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dispatch Confirmation Dialog */}
+      <Dialog open={!!dispatchDialog} onOpenChange={(open) => !open && setDispatchDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Confirmar Despacho
+            </DialogTitle>
+          </DialogHeader>
+          
+          {dispatchDialog && (
+            <div className="space-y-4">
+              <div className="rounded-lg border p-3 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Pedido</span>
+                  <span className="font-medium">#{dispatchDialog.order?.order_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Cliente</span>
+                  <span className="text-sm">{dispatchDialog.order?.customer_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Rastreio</span>
+                  <span className="text-sm font-mono">{dispatchDialog.tracking_code || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Transportadora</span>
+                  <span className="text-sm">{dispatchDialog.carrier}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Imprimir documentos:</p>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" size="sm" className="gap-1 flex-1"
+                    onClick={() => handlePrintLabel(dispatchDialog)}
+                    disabled={!dispatchDialog.label_url}
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    Etiqueta
+                  </Button>
+                  <Button 
+                    variant="outline" size="sm" className="gap-1 flex-1"
+                    onClick={() => handlePrintDanfe(dispatchDialog)}
+                    disabled={!dispatchDialog.invoice_id}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    DANFE
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDispatchDialog(null)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleConfirmDispatch} 
+              disabled={isDispatching}
+              className="gap-2"
+            >
+              <Send className="h-4 w-4" />
+              {isDispatching ? 'Despachando...' : 'Confirmar Despacho'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
