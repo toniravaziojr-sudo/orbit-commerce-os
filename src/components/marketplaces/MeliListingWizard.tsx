@@ -45,6 +45,9 @@ interface MeliListingWizardProps {
   initialData?: any;
 }
 
+// Fields that cannot be changed after publication on ML
+const IMMUTABLE_AFTER_PUBLISH = new Set(["category_id", "condition", "buying_mode", "listing_type"]);
+
 type WizardStep = "select" | "auto" | "review";
 
 const STEP_INFO: Record<WizardStep, { title: string; description: string; number: number }> = {
@@ -65,6 +68,7 @@ export function MeliListingWizard({
   initialData,
 }: MeliListingWizardProps) {
   const { currentTenant } = useAuth();
+  const isPostPublication = mode === "edit" && initialData && ['published', 'paused'].includes(initialData.status);
   const [step, setStep] = useState<WizardStep>(mode === "edit" ? "review" : "select");
   const [productSearch, setProductSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<ProductWithImage | null>(null);
@@ -134,8 +138,10 @@ export function MeliListingWizard({
     }
   }, [open, mode]);
 
-  const availableProducts = products.filter(p => !listedProductIds.has(p.id));
-  const filteredProducts = availableProducts.filter(p =>
+  // Allow all products — multi-listing is permitted with differentiation
+  const listingCountByProduct = new Map<string, number>();
+  // listedProductIds is used as a "has listing" check — we show all products but with a badge
+  const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.sku.toLowerCase().includes(productSearch.toLowerCase())
   );
@@ -274,6 +280,10 @@ export function MeliListingWizard({
 
     if (mode === "edit" && initialData?.id) {
       data.id = initialData.id;
+      // For published/paused listings, flag as update action
+      if (isPostPublication) {
+        data.action = "update";
+      }
     }
 
     onSubmit(data);
@@ -338,16 +348,8 @@ export function MeliListingWizard({
             ) : filteredProducts.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
                 <Package className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p className="font-medium text-sm">
-                  {availableProducts.length === 0
-                    ? "Todos os produtos já possuem anúncio"
-                    : "Nenhum produto encontrado"}
-                </p>
-                <p className="text-xs mt-1">
-                  {availableProducts.length === 0
-                    ? "Cada produto pode ter apenas um anúncio no ML."
-                    : "Tente buscar com outro termo."}
-                </p>
+                <p className="font-medium text-sm">Nenhum produto encontrado</p>
+                <p className="text-xs mt-1">Tente buscar com outro termo.</p>
               </div>
             ) : (
               <div className="space-y-1 max-h-[400px] overflow-y-auto">
@@ -369,7 +371,14 @@ export function MeliListingWizard({
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{product.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate">{product.name}</p>
+                        {listedProductIds.has(product.id) && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                            Já anunciado
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">SKU: {product.sku} • Estoque: {product.stock_quantity}</p>
                     </div>
                     <div className="text-right shrink-0">
@@ -427,6 +436,19 @@ export function MeliListingWizard({
         {/* STEP 3: Review & Edit */}
         {step === "review" && (
           <div className="space-y-4">
+            {/* Post-publication info banner */}
+            {isPostPublication && (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-700 dark:text-amber-400">Edição pós-publicação</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Você pode alterar título, preço, estoque, descrição e imagens. Categoria, condição e tipo de anúncio não podem ser alterados após a publicação no Mercado Livre.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Product card (create mode) */}
             {selectedProduct && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
@@ -567,9 +589,12 @@ export function MeliListingWizard({
             {/* Listing Type + Condition */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tipo de Anúncio</Label>
-                <Select value={listingType} onValueChange={setListingType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label className="flex items-center gap-1.5">
+                  Tipo de Anúncio
+                  {isPostPublication && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Bloqueado</Badge>}
+                </Label>
+                <Select value={listingType} onValueChange={setListingType} disabled={isPostPublication}>
+                  <SelectTrigger className={isPostPublication ? "opacity-60" : ""}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="gold_special">Clássico (Gold Special)</SelectItem>
                     <SelectItem value="gold_pro">Premium (Gold Pro)</SelectItem>
@@ -578,9 +603,12 @@ export function MeliListingWizard({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Condição</Label>
-                <Select value={condition} onValueChange={setCondition}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label className="flex items-center gap-1.5">
+                  Condição
+                  {isPostPublication && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Bloqueado</Badge>}
+                </Label>
+                <Select value={condition} onValueChange={setCondition} disabled={isPostPublication}>
+                  <SelectTrigger className={isPostPublication ? "opacity-60" : ""}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="new">Novo</SelectItem>
                     <SelectItem value="used">Usado</SelectItem>
@@ -594,14 +622,21 @@ export function MeliListingWizard({
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 Categoria do Mercado Livre <span className="text-destructive">*</span>
+                {isPostPublication && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Bloqueado</Badge>}
               </Label>
-              <MeliCategoryPicker
-                value={categoryId}
-                onChange={(id, name) => { setCategoryId(id); if (name) setCategoryName(name); }}
-                selectedName={categoryName}
-                productName={selectedProduct?.name || initialData?.product?.name || title}
-                productDescription={selectedProduct?.description || selectedProduct?.short_description || initialData?.product?.description || ""}
-              />
+              {isPostPublication ? (
+                <div className="p-2.5 rounded-md border bg-muted/50 text-sm text-muted-foreground opacity-60">
+                  {categoryName || categoryId || "Sem categoria"}
+                </div>
+              ) : (
+                <MeliCategoryPicker
+                  value={categoryId}
+                  onChange={(id, name) => { setCategoryId(id); if (name) setCategoryName(name); }}
+                  selectedName={categoryName}
+                  productName={selectedProduct?.name || initialData?.product?.name || title}
+                  productDescription={selectedProduct?.description || selectedProduct?.short_description || initialData?.product?.description || ""}
+                />
+              )}
               {!categoryId && (
                 <p className="text-xs text-destructive flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />

@@ -95,9 +95,16 @@ export function MeliListingsTab() {
   // Removed: handleCreateSubmit (now handled by MeliListingCreator)
 
   const handleEditSubmit = (data: any) => {
-    const { id, ...rest } = data;
+    const { id, action, ...rest } = data;
+    // First save to DB
     updateListing.mutate({ id, ...rest }, {
-      onSuccess: () => setEditingListing(null),
+      onSuccess: () => {
+        setEditingListing(null);
+        // If post-publication edit, also push changes to ML via edge function
+        if (action === "update") {
+          publishListing.mutate({ id, action: "update" });
+        }
+      },
     });
   };
 
@@ -582,14 +589,16 @@ export function MeliListingsTab() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {['draft', 'ready', 'approved', 'error'].includes(listing.status) && (
+                          {['draft', 'ready', 'approved', 'error', 'published', 'paused'].includes(listing.status) && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button variant="ghost" size="icon" onClick={() => handleEditListing(listing)}>
                                   <Edit className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Editar</TooltipContent>
+                              <TooltipContent>
+                                {['published', 'paused'].includes(listing.status) ? 'Editar (título, preço, estoque, descrição, imagens)' : 'Editar'}
+                              </TooltipContent>
                             </Tooltip>
                           )}
                           {['draft', 'ready'].includes(listing.status) && (
