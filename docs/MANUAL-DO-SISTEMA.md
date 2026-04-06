@@ -524,15 +524,26 @@ Upload (CSV/JSON/plataforma) → import-jobs
       → import_items com status por item
 ```
 
-### 11.4 Ads Autopilot (IA de Tráfego)
+### 11.4 Ads Autopilot (IA de Tráfego — Motor Duplo)
 
 ```
-Trigger (scheduled/manual) → ads-autopilot-analyze
-  → Coleta de métricas + contexto
-    → ads-autopilot-strategist (decisão IA)
-      → Ações propostas (orçamento, pausa, criativo)
-        → Aprovação (auto/manual conforme config)
-          → ads-autopilot-execute-approved
+Motor Guardião (diário 4x: 12h/13h/16h/00h01 BRT)
+  → Coleta métricas recentes por conta
+    → Pause/adjust_budget/reativação (proteção de orçamento)
+
+Motor Estrategista (trigger: start/weekly/monthly)
+  → Fase 0: Planejamento (IA analisa orçamento + configs + produtos + histórico)
+  → Fase 1: Criativos (gera imagens + copys via ads-autopilot-creative)
+  → Fase 2: Públicos (Lookalike, Custom, Interesses)
+  → Fase 3: Montagem (Campanha → Ad Set → Ad, tudo PAUSED)
+  → Fase 4: Publicação (agenda ativação 00:01 BRT)
+    → Aprovação (auto/manual conforme config)
+      → ads-autopilot-execute-approved (execução direta nas APIs)
+
+Complementares (semanais):
+  → ads-autopilot-weekly-insights (seg) → insights semanais
+  → ads-autopilot-experiments-run (ter) → avaliação A/B
+  → ads-autopilot-creative (qua) → curadoria de criativos
 ```
 
 ### 11.5 Checkout Abandonado
