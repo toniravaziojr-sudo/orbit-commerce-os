@@ -675,12 +675,10 @@ serve(async (req) => {
     console.log(`[shipping-create-shipment] Result:`, JSON.stringify(result));
 
     if (result.success && result.tracking_code) {
-      // Update order with tracking code, status and shipped_at
+      // Update order with tracking code — status stays 'processing' until user dispatches
       const orderUpdate: Record<string, unknown> = {
         tracking_code: result.tracking_code,
         shipping_carrier: result.carrier,
-        status: 'shipped',
-        shipped_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
@@ -694,9 +692,9 @@ serve(async (req) => {
         .update(orderUpdate)
         .eq('id', order_id);
       
-      console.log(`[shipping-create-shipment] Order ${order_id} updated to shipped with tracking: ${result.tracking_code}`);
+      console.log(`[shipping-create-shipment] Order ${order_id} tracking updated: ${result.tracking_code} (status stays processing)`);
 
-      // Create/update shipment record via shipment-ingest
+      // Update existing shipment draft (created by scheduler-tick) or create new
       await supabase
         .from('shipments')
         .upsert({
@@ -707,12 +705,32 @@ serve(async (req) => {
           delivery_status: 'label_created',
           label_url: result.label_url,
           provider_shipment_id: result.provider_shipment_id,
+          invoice_id: invoiceData.id,
+          nfe_key: invoiceData.chave_acesso,
           last_status_at: new Date().toISOString(),
-          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 min
+          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           poll_error_count: 0,
         }, {
           onConflict: 'tenant_id,order_id,tracking_code',
         });
+
+      // Also update by order_id if draft exists without tracking_code
+      await supabase
+        .from('shipments')
+        .update({
+          tracking_code: result.tracking_code,
+          delivery_status: 'label_created',
+          label_url: result.label_url,
+          provider_shipment_id: result.provider_shipment_id,
+          invoice_id: invoiceData.id,
+          nfe_key: invoiceData.chave_acesso,
+          carrier: result.carrier || provider,
+          last_status_at: new Date().toISOString(),
+          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        })
+        .eq('order_id', order_id)
+        .eq('tenant_id', tenantId)
+        .eq('delivery_status', 'draft');
 
       // Log in order history
       await supabase
@@ -723,7 +741,18 @@ serve(async (req) => {
           notes: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
         });
 
-      console.log(`[shipping-create-shipment] Order ${order_id} updated with tracking: ${result.tracking_code}`);
+      console.log(`[shipping-create-shipment] Shipment record updated for order ${order_id}`);
+    } else if (!result.success) {
+      // Marcar shipment draft como failed se existir
+      await supabase
+        .from('shipments')
+        .update({
+          delivery_status: 'failed',
+          last_status_at: new Date().toISOString(),
+        })
+        .eq('order_id', order_id)
+        .eq('tenant_id', tenantId)
+        .eq('delivery_status', 'draft');
     }
 
     return new Response(
