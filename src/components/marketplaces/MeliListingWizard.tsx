@@ -68,6 +68,7 @@ export function MeliListingWizard({
   initialData,
 }: MeliListingWizardProps) {
   const { currentTenant } = useAuth();
+  const isPostPublication = mode === "edit" && initialData && ['published', 'paused'].includes(initialData.status);
   const [step, setStep] = useState<WizardStep>(mode === "edit" ? "review" : "select");
   const [productSearch, setProductSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<ProductWithImage | null>(null);
