@@ -615,9 +615,9 @@ serve(async (req) => {
               const { data: order, error: orderError } = await supabaseShipping
                 .from('orders')
                 .select(`
-                  id, tenant_id, total, shipping_address_street, shipping_address_number,
-                  shipping_address_complement, shipping_address_neighborhood, shipping_address_city,
-                  shipping_address_state, shipping_address_zip, shipping_carrier, shipping_method,
+                  id, tenant_id, total, shipping_street, shipping_number,
+                  shipping_complement, shipping_neighborhood, shipping_city,
+                  shipping_state, shipping_postal_code, shipping_carrier, shipping_method_name,
                   shipping_service_code, customer_name, customer_email, customer_phone
                 `)
                 .eq('id', item.order_id)
