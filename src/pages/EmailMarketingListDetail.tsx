@@ -170,7 +170,10 @@ export default function EmailMarketingListDetail() {
       
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      
+      // Preserve the order from junction table (created_at DESC = most recent first)
+      const orderMap = new Map(subscriberIds.map((id: string, idx: number) => [id, idx]));
+      return (data || []).sort((a: any, b: any) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999));
     },
     enabled: !!listId,
   });
