@@ -1,11 +1,12 @@
-# Marketing — Regras e Especificações
+# Marketing — Integrações, Atribuição e Criativos
 
-> **STATUS:** 🟧 Pending (parcialmente implementado)  
-> **Última atualização:** 2026-01-28
-
+> **Status:** 🟧 Parcial  
+> **Versão:** 1.1.0  
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Migrado de:** `docs/regras/marketing-integracoes.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-04-06
+>
+> **Nota:** A seção "Gestor de Tráfego IA" foi extraída para doc dedicado: `marketing/gestor-trafego.md`
 
 
 ---
@@ -32,7 +33,7 @@ Ferramentas de engajamento, automação e geração de criativos com IA.
 | Email Marketing | `/email-marketing` | 🟧 Pending (ver email-marketing.md) |
 | Quizzes | `/quizzes` | 🟧 Pending (ver quizzes.md) |
 | Gestor de Mídias IA | `/media` | ✅ Ready |
-| Gestor de Tráfego IA | `/campaigns` | 🟧 Pending |
+| Gestor de Tráfego IA | `/ads` | ✅ Ready (ver `marketing/gestor-trafego.md`) |
 | Gestão de Criativos | `/creatives` | ✅ Ready (ver seção 6) |
 
 ---

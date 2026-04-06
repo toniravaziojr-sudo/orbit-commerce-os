@@ -133,7 +133,7 @@ O sistema integra com provedores de pagamento, fiscal, logística, marketplaces,
 
 | Tipo | Exemplos | Papel |
 |------|----------|-------|
-| **Agentes** (3) | Assistente IA, Auxiliar de Comando, Gestor de Tráfego | Entidades autônomas com escopo e permissões próprias |
+| **Agentes** (4) | Assistente IA (ChatGPT), Auxiliar de Comando, Gestor de Tráfego IA, Agenda | Entidades autônomas com escopo e permissões próprias |
 | **Funções embutidas** | Descrições de produto, criativos, landing pages, blocos, SEO, suporte | Capacidades de IA dentro de módulos existentes |
 
 Regras completas dos agentes → Layer 2, Seção 9.
