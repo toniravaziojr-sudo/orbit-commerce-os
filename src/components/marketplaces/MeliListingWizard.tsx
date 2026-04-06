@@ -45,6 +45,9 @@ interface MeliListingWizardProps {
   initialData?: any;
 }
 
+// Fields that cannot be changed after publication on ML
+const IMMUTABLE_AFTER_PUBLISH = new Set(["category_id", "condition", "buying_mode", "listing_type"]);
+
 type WizardStep = "select" | "auto" | "review";
 
 const STEP_INFO: Record<WizardStep, { title: string; description: string; number: number }> = {
