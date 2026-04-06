@@ -3,6 +3,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
+import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
