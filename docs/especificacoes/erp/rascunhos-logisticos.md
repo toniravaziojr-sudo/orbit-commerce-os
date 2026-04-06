@@ -4,7 +4,7 @@
 > **Camada:** Layer 3 — Especificações / ERP  
 > **Criado em:** 2026-04-06  
 > **Última atualização:** 2026-04-06  
-> **Versão scheduler-tick:** v2.3.2
+> **Versão scheduler-tick:** v2.3.3
 
 ---
 
@@ -79,7 +79,7 @@ O `scheduler-tick` processa a `shipping_draft_queue` logo após a fila fiscal:
 
 ## Dados Necessários por Transportadora
 
-> **IMPORTANTE:** O campo de dimensões no banco é `products.depth` (não `length`). O scheduler-tick usa `depth` para calcular o comprimento do pacote.
+> **IMPORTANTE:** O campo `products.weight` armazena peso em **gramas** (g). O campo de dimensões de comprimento no banco é `products.depth` (não `length`). Não é necessária conversão de unidade ao enviar para transportadoras — o valor já está em gramas.
 
 ### Correios (Pré-postagem PLP)
 
@@ -88,7 +88,7 @@ O `scheduler-tick` processa a `shipping_draft_queue` logo após a fila fiscal:
 | Remetente (nome, CNPJ, endereço) | Configuração do provider | `shipping_providers.settings` | Sim |
 | Destinatário (nome, endereço, CEP) | Pedido | `orders.shipping_*` | Sim |
 | Código de serviço (PAC/SEDEX) | Pedido | `orders.shipping_service_code` | Sim |
-| Peso (kg) | Produtos × quantidade | `products.weight` | Sim |
+| Peso (g) | Produtos × quantidade | `products.weight` | Sim |
 | Dimensões (cm) | Produtos | `products.height/width/depth` | Sim |
 | Valor declarado | Pedido | `orders.total` | Condicional |
 | Cartão de postagem | Credenciais | `shipping_providers.credentials` | Sim |
