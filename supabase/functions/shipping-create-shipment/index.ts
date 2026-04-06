@@ -564,21 +564,58 @@ serve(async (req) => {
       );
     }
 
-    // Get order items
+    // REGRA: NF-e obrigatória para emitir remessa
+    const { data: invoiceData } = await supabase
+      .from('fiscal_invoices')
+      .select('id, chave_acesso, status, danfe_url')
+      .eq('order_id', order_id)
+      .eq('tenant_id', tenantId)
+      .eq('status', 'authorized')
+      .maybeSingle();
+
+    if (!invoiceData) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'NF-e autorizada não encontrada para este pedido. Emita a NF-e antes de criar a remessa.' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[shipping-create-shipment] NF-e found: ${invoiceData.id} (chave: ${invoiceData.chave_acesso?.substring(0, 10)}...)`);
+
+    // Get order items with product data for real weights/dimensions
     const { data: orderItems } = await supabase
       .from('order_items')
-      .select('product_name, quantity, unit_price')
+      .select('product_name, quantity, unit_price, product_id')
       .eq('order_id', order_id);
+
+    // Fetch product physical data
+    const productIds = (orderItems || []).map(i => i.product_id).filter(Boolean);
+    let productsMap: Record<string, any> = {};
+    if (productIds.length > 0) {
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, weight, height, width, depth')
+        .in('id', productIds);
+      if (products) {
+        productsMap = Object.fromEntries(products.map(p => [p.id, p]));
+      }
+    }
 
     const orderData: OrderData = {
       ...order,
-      items: (orderItems || []).map(item => ({
-        ...item,
-        weight: 0.3, // Default weight
-        height: 10,
-        width: 15,
-        length: 20,
-      })),
+      items: (orderItems || []).map(item => {
+        const product = item.product_id ? productsMap[item.product_id] : null;
+        return {
+          ...item,
+          weight: product?.weight || 300, // grams
+          height: product?.height || 10,
+          width: product?.width || 15,
+          length: product?.depth || 20,
+        };
+      }),
     };
 
     // Get fiscal settings for default provider
