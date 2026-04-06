@@ -14655,17 +14655,22 @@ export type Database = {
           delivery_status: Database["public"]["Enums"]["delivery_status"]
           estimated_delivery_at: string | null
           id: string
+          invoice_id: string | null
+          label_url: string | null
           last_poll_error: string | null
           last_polled_at: string | null
           last_status_at: string
           metadata: Json | null
           next_poll_at: string | null
+          nfe_key: string | null
           order_id: string
           poll_error_count: number | null
+          provider_shipment_id: string | null
+          service_code: string | null
           source: string | null
           source_id: string | null
           tenant_id: string
-          tracking_code: string
+          tracking_code: string | null
           updated_at: string
         }
         Insert: {
@@ -14675,17 +14680,22 @@ export type Database = {
           delivery_status?: Database["public"]["Enums"]["delivery_status"]
           estimated_delivery_at?: string | null
           id?: string
+          invoice_id?: string | null
+          label_url?: string | null
           last_poll_error?: string | null
           last_polled_at?: string | null
           last_status_at?: string
           metadata?: Json | null
           next_poll_at?: string | null
+          nfe_key?: string | null
           order_id: string
           poll_error_count?: number | null
+          provider_shipment_id?: string | null
+          service_code?: string | null
           source?: string | null
           source_id?: string | null
           tenant_id: string
-          tracking_code: string
+          tracking_code?: string | null
           updated_at?: string
         }
         Update: {
@@ -14695,20 +14705,32 @@ export type Database = {
           delivery_status?: Database["public"]["Enums"]["delivery_status"]
           estimated_delivery_at?: string | null
           id?: string
+          invoice_id?: string | null
+          label_url?: string | null
           last_poll_error?: string | null
           last_polled_at?: string | null
           last_status_at?: string
           metadata?: Json | null
           next_poll_at?: string | null
+          nfe_key?: string | null
           order_id?: string
           poll_error_count?: number | null
+          provider_shipment_id?: string | null
+          service_code?: string | null
           source?: string | null
           source_id?: string | null
           tenant_id?: string
-          tracking_code?: string
+          tracking_code?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "shipments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "shipments_order_id_fkey"
             columns: ["order_id"]
@@ -14780,6 +14802,57 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "shipping_custom_rules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipping_draft_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          id: string
+          order_id: string
+          processed_at: string | null
+          provider: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          order_id: string
+          processed_at?: string | null
+          provider?: string
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          order_id?: string
+          processed_at?: string | null
+          provider?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipping_draft_queue_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipping_draft_queue_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -19829,6 +19902,7 @@ export type Database = {
         | "product_image"
         | "avatar_mascot"
       delivery_status:
+        | "draft"
         | "label_created"
         | "posted"
         | "in_transit"
@@ -20119,6 +20193,7 @@ export const Constants = {
         "avatar_mascot",
       ],
       delivery_status: [
+        "draft",
         "label_created",
         "posted",
         "in_transit",
