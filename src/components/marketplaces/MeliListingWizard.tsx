@@ -138,8 +138,10 @@ export function MeliListingWizard({
     }
   }, [open, mode]);
 
-  const availableProducts = products.filter(p => !listedProductIds.has(p.id));
-  const filteredProducts = availableProducts.filter(p =>
+  // Allow all products — multi-listing is permitted with differentiation
+  const listingCountByProduct = new Map<string, number>();
+  // listedProductIds is used as a "has listing" check — we show all products but with a badge
+  const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.sku.toLowerCase().includes(productSearch.toLowerCase())
   );
