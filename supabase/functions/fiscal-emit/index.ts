@@ -3,6 +3,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { emitirNFe, type NuvemFiscalConfig } from "../_shared/nuvem-fiscal-client.ts";
 import { buildNFePayload, parseNFeResponse } from "../_shared/nuvem-fiscal-adapter.ts";
+import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
