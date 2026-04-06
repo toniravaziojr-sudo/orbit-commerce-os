@@ -75,7 +75,9 @@ export function CrossSellSection({ tenantId }: CrossSellSectionProps) {
 
       if (error) throw error;
 
-      return (data || []).map(p => ({
+      // Preserve order from suggested_product_ids (admin-configured order)
+      const orderMap = new Map(activeRule.suggested_product_ids.map((id: string, idx: number) => [id, idx]));
+      return (data || []).sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999)).map(p => ({
         id: p.id,
         name: p.name,
         slug: p.slug,
