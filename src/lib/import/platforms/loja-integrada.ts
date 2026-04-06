@@ -209,7 +209,8 @@ export function normalizeLojaIntegradaProduct(raw: LojaIntegradaProduct): Normal
   const costPrice = raw.preco_custo !== undefined ? raw.preco_custo : (parseFloat(raw['Preço de Custo']?.replace(',', '.') || '0') || null);
   
   const sku = raw.sku || raw['SKU'] || null;
-  const weight = raw.peso !== undefined ? raw.peso : (parseFloat(raw['Peso']?.replace(',', '.') || '0') || null);
+  const weightKg = raw.peso !== undefined ? raw.peso : (parseFloat(raw['Peso']?.replace(',', '.') || '0') || null);
+  const weight = weightKg ? Math.round(weightKg * 1000) : null; // Convert kg to grams
   const width = raw.largura !== undefined ? raw.largura : (parseFloat(raw['Largura']?.replace(',', '.') || '0') || null);
   const height = raw.altura !== undefined ? raw.altura : (parseFloat(raw['Altura']?.replace(',', '.') || '0') || null);
   const depth = raw.profundidade !== undefined ? raw.profundidade : (parseFloat(raw['Profundidade']?.replace(',', '.') || '0') || null);

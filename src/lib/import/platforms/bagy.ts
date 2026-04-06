@@ -218,7 +218,8 @@ export function normalizeBagyProduct(raw: BagyProduct): NormalizedProduct {
   
   const sku = raw.sku || raw['SKU'] || null;
   const barcode = raw.barcode || raw['Código de Barras'] || null;
-  const weight = raw.weight !== undefined ? raw.weight : (parseFloat(raw['Peso']?.replace(',', '.') || '0') || null);
+  const weightKg = raw.weight !== undefined ? raw.weight : (parseFloat(raw['Peso']?.replace(',', '.') || '0') || null);
+  const weight = weightKg ? Math.round(weightKg * 1000) : null; // Convert kg to grams
   const width = raw.width !== undefined ? raw.width : (parseFloat(raw['Largura']?.replace(',', '.') || '0') || null);
   const height = raw.height !== undefined ? raw.height : (parseFloat(raw['Altura']?.replace(',', '.') || '0') || null);
   const depth = raw.length !== undefined ? raw.length : (parseFloat(raw['Comprimento']?.replace(',', '.') || '0') || null);

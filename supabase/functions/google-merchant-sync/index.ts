@@ -306,7 +306,7 @@ function buildMerchantProduct(product: any, images: any[], storeUrl: string, mer
   if (product.sku) merchantProduct.mpn = merchantProduct.mpn || product.sku;
   if (product.product_type) merchantProduct.productType = product.product_type;
   if (product.weight) {
-    merchantProduct.shippingWeight = { value: (product.weight / 1000).toFixed(3), unit: "kg" };
+    merchantProduct.shippingWeight = { value: product.weight.toFixed(0), unit: "g" };
   }
 
   // identifierExists required if no brand+gtin

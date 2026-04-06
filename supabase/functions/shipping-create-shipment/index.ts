@@ -182,7 +182,7 @@ async function createCorreiosShipment(
     const prepostagemPayload = {
       idCorreios: credentials.cartao_postagem,
       codigoServico: serviceCode,
-      peso: Math.max(100, Math.round(totalWeight * 1000)), // grams, min 100g
+      peso: Math.max(100, Math.round(totalWeight)), // already in grams, min 100g
       alturaEmCentimetro: 10,
       larguraEmCentimetro: 15,
       comprimentoEmCentimetro: 20,
@@ -329,7 +329,7 @@ async function createLoggiShipment(
 
     // Calculate totals
     const totalWeightGrams = order.items.reduce((sum, item) => {
-      const itemWeight = (item.weight || 0.3) * item.quantity * 1000; // Convert kg to grams
+      const itemWeight = (item.weight || 300) * item.quantity; // already in grams
       return sum + itemWeight;
     }, 0);
 

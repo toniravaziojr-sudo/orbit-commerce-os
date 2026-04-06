@@ -641,12 +641,12 @@ serve(async (req) => {
                 for (const oi of orderItems) {
                   const product = (oi as any).products;
                   if (product) {
-                    totalWeightGrams += (product.weight || 300) * (oi.quantity || 1);
+                    totalWeightGrams += (product.weight || 300) * (oi.quantity || 1); // weight already in grams
                     maxHeight = Math.max(maxHeight, product.height || 2);
                     maxWidth = Math.max(maxWidth, product.width || 11);
                     maxLength = Math.max(maxLength, product.depth || 16);
                   } else {
-                    totalWeightGrams += 300 * (oi.quantity || 1); // default 300g
+                    totalWeightGrams += 300 * (oi.quantity || 1); // fallback 300g
                   }
                 }
               }

@@ -379,8 +379,8 @@ async function quoteCorreios(
     const cleanOrigin = originCep.replace(/\D/g, '');
     const cleanDestination = recipientCep.replace(/\D/g, '');
     
-    // Weight in grams, minimum 300g
-    const weightGrams = String(Math.max(300, Math.round(totals.weight * 1000)));
+    // Weight already in grams, minimum 300g
+    const weightGrams = String(Math.max(300, Math.round(totals.weight)));
     
     // Dimensions with minimum values
     const comprimento = String(Math.max(16, Math.round(totals.length)));
@@ -680,8 +680,8 @@ async function quoteLoggi(
               },
             },
           },
-          packages: [{
-            weightG: Math.max(100, Math.round(totals.weight * 1000)),
+           packages: [{
+            weightG: Math.max(100, Math.round(totals.weight)),
             heightCm: Math.max(2, Math.round(totals.height)),
             widthCm: Math.max(11, Math.round(totals.width)),
             lengthCm: Math.max(16, Math.round(totals.length)),
@@ -708,8 +708,8 @@ async function quoteLoggi(
               country: 'BR',
             },
           },
-          packages: [{
-            weightG: Math.max(100, Math.round(totals.weight * 1000)),
+           packages: [{
+            weightG: Math.max(100, Math.round(totals.weight)),
             heightCm: Math.max(2, Math.round(totals.height)),
             widthCm: Math.max(11, Math.round(totals.width)),
             lengthCm: Math.max(16, Math.round(totals.length)),
@@ -1051,7 +1051,7 @@ serve(async (req) => {
     // Calculate totals from items
     const totals = items.reduce(
       (acc, item) => ({
-        weight: acc.weight + (item.weight || 0.3) * item.quantity,
+        weight: acc.weight + (item.weight || 300) * item.quantity,
         height: Math.max(acc.height, item.height || 2),
         width: Math.max(acc.width, item.width || 11),
         length: Math.max(acc.length, item.length || 16),
@@ -1061,7 +1061,7 @@ serve(async (req) => {
     );
 
     // Ensure minimum values
-    totals.weight = Math.max(0.3, totals.weight);
+    totals.weight = Math.max(300, totals.weight);
     totals.height = Math.max(2, totals.height);
     totals.width = Math.max(11, totals.width);
     totals.length = Math.max(16, totals.length);
