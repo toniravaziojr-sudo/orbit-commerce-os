@@ -490,36 +490,46 @@ serve(async (req) => {
       );
     }
 
-    const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get tenant
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('current_tenant_id')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile?.current_tenant_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const tenantId = profile.current_tenant_id;
-
-    // Parse request
+    // Parse request body first (needed for both auth modes)
     const body: ShipmentRequest = await req.json();
+
+    // Detect internal service_role call (from nfe-shipment-link or scheduler-tick)
+    const isServiceRoleCall = authHeader === `Bearer ${supabaseServiceKey}`;
+    let tenantId: string;
+
+    if (isServiceRoleCall && body.tenant_id) {
+      // Internal call: trust tenant_id from body
+      tenantId = body.tenant_id as string;
+      console.log(`[shipping-create-shipment] Internal service_role call for tenant ${tenantId}`);
+    } else {
+      // User call: authenticate via JWT
+      const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('current_tenant_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile?.current_tenant_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      tenantId = profile.current_tenant_id;
+    }
     const { order_id, provider_override } = body;
 
     if (!order_id) {
@@ -732,13 +742,13 @@ serve(async (req) => {
         .eq('tenant_id', tenantId)
         .eq('delivery_status', 'draft');
 
-      // Log in order history
+      // Log in order history (uses action/description columns)
       await supabase
         .from('order_history')
         .insert({
           order_id: order_id,
-          status: 'shipment_created',
-          notes: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
+          action: 'shipment_created',
+          description: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
         });
 
       console.log(`[shipping-create-shipment] Shipment record updated for order ${order_id}`);
