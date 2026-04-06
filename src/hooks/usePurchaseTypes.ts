@@ -30,7 +30,7 @@ export function usePurchaseTypes() {
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
-        .order('name');
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data as PurchaseType[];

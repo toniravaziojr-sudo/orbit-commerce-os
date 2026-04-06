@@ -55,7 +55,7 @@ export function useMailboxes() {
         .from('mailboxes')
         .select('*')
         .eq('tenant_id', currentTenant.id)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as Mailbox[];

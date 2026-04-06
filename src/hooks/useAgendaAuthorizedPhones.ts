@@ -26,7 +26,7 @@ export function useAgendaAuthorizedPhones() {
         .from('agenda_authorized_phones')
         .select('*')
         .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as AuthorizedPhone[];
     },
