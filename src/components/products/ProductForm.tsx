@@ -61,7 +61,7 @@ const productSchema = z.object({
   
   // === CAMPOS OBRIGATÓRIOS PARA FRETE ===
   weight: z.coerce.number({ required_error: 'Peso é obrigatório para cálculo de frete' })
-    .min(0.001, 'Peso deve ser maior que 0 (obrigatório para frete)'),
+    .min(1, 'Peso deve ser pelo menos 1g (obrigatório para frete)'),
   width: z.coerce.number({ required_error: 'Largura é obrigatória para cálculo de frete' })
     .min(0.1, 'Largura deve ser maior que 0 (obrigatória para frete)'),
   height: z.coerce.number({ required_error: 'Altura é obrigatória para cálculo de frete' })
@@ -945,12 +945,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="weight"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Peso (kg) *</FormLabel>
+                          <FormLabel>Peso (g) *</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
-                              step="0.001"
-                              placeholder="Ex: 0.5"
+                              step="1"
+                              placeholder="Ex: 500"
                               value={field.value !== undefined && field.value !== null ? field.value : ''}
                               onChange={(e) =>
                                 field.onChange(
