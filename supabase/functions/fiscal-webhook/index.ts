@@ -227,60 +227,22 @@ serve(async (req) => {
         
         console.log(`[fiscal-webhook] Fiscal alert: order ${invoice.order_id} cancelled but NF-e authorized`);
       } else {
-        // Check if auto_create_shipment is enabled
+        // Vincular NF-e ao rascunho logístico e gerenciar remessa
         const { data: fiscalSettingsShip } = await supabase
           .from("fiscal_settings")
           .select("auto_create_shipment")
           .eq("tenant_id", invoice.tenant_id)
           .single();
 
-        if (fiscalSettingsShip?.auto_create_shipment) {
-          console.log(`[fiscal-webhook] Auto-creating shipment for order ${invoice.order_id}`);
-          
-          // Call shipping-create-shipment and wait for result
-          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-          const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-          
-          try {
-            const shipResponse = await fetch(`${supabaseUrl}/functions/v1/shipping-create-shipment`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({ order_id: invoice.order_id }),
-            });
-            
-            const shipResult = await shipResponse.json();
-            console.log(`[fiscal-webhook] Shipment creation result:`, JSON.stringify(shipResult));
-            
-            // Se remessa criada com sucesso, atualizar pedido para shipped
-            if (shipResult.success && shipResult.tracking_code) {
-              await supabase
-                .from("orders")
-                .update({ 
-                  status: 'shipped',
-                  shipped_at: new Date().toISOString()
-                })
-                .eq("id", invoice.order_id);
-              
-              console.log(`[fiscal-webhook] Order ${invoice.order_id} updated to shipped`);
-            } else {
-              // Se não criou remessa, marcar como processing (aguardando remessa manual)
-              await supabase
-                .from("orders")
-                .update({ status: 'processing' })
-                .eq("id", invoice.order_id);
-            }
-          } catch (shipError) {
-            console.error(`[fiscal-webhook] Failed to create shipment:`, shipError);
-            // Fallback: marcar como processing (aguardando remessa manual)
-            await supabase
-              .from("orders")
-              .update({ status: 'processing' })
-              .eq("id", invoice.order_id);
-          }
-        }
+        await linkNFeToShipment({
+          supabaseClient: supabase,
+          orderId: invoice.order_id,
+          invoiceId: invoice.id,
+          tenantId: invoice.tenant_id,
+          chaveAcesso: updateData.chave_acesso || '',
+          autoCreateShipment: !!fiscalSettingsShip?.auto_create_shipment,
+          callerModule: 'fiscal-webhook',
+        });
       }
       
       // Send NF-e email to customer if enabled
