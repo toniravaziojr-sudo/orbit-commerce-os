@@ -3,9 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.2.0"; // Replace pg_net fiscal trigger with queue processing
+const VERSION = "v2.3.0"; // Add shipping draft queue processing (Phase 1.6)
+// v2.3.0 - Shipping draft queue: creates draft shipments from approved orders
 // v2.2.0 - Added fiscal-auto-create-drafts as parallel fallback
-// ===========================================================
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
