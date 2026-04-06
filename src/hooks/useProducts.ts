@@ -146,7 +146,7 @@ export function useProducts() {
         .select('*')
         .eq('tenant_id', currentTenant.id)
         .is('deleted_at', null)
-        .order('created_at', { ascending: false });
+        .order('sku', { ascending: true, nullsFirst: false });
 
       if (error) throw error;
       return data as Product[];
