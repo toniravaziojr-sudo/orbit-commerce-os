@@ -66,8 +66,8 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 |-------|-------|
 | **Tipo** | Pure SQL Trigger → Fila → Cron |
 | **Trigger** | `trg_enqueue_fiscal_draft` em `orders` |
-| **Descrição** | Enfileira pedido para criação de rascunho fiscal quando `payment_status` muda para `approved` |
-| **Mecanismo** | O trigger insere um registro em `fiscal_draft_queue` (INSERT atômico, 100% confiável). O `scheduler-tick` processa a fila chamando `fiscal-auto-create-drafts` em modo TRIGGER. |
+| **Descrição** | Enfileira pedido para criação de rascunho fiscal **e logístico** quando `payment_status` muda para `approved` |
+| **Mecanismo** | O trigger insere um registro em `fiscal_draft_queue` **e** `shipping_draft_queue` (INSERT atômico, 100% confiável). O `scheduler-tick` processa ambas as filas: fiscal (fase 1.5) e logística (fase 1.6). Ver `docs/especificacoes/erp/rascunhos-logisticos.md`. |
 | **Data da NF** | Usa `paid_at` do pedido (não `now()`) para refletir a data real da venda |
 | **Condições** | Dispara somente quando `OLD.payment_status IS DISTINCT FROM 'approved'` AND `NEW.payment_status = 'approved'` |
 | **Retry** | Até 5 tentativas com registro de erro em `fiscal_draft_queue.error_message` |

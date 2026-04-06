@@ -380,6 +380,21 @@ Todas as Edge Functions de cotação (frenet-quote, shipping-quote) DEVEM usar `
 
 ---
 
+## Rascunhos Logísticos (Automação)
+
+O sistema cria rascunhos logísticos automaticamente quando um pagamento é aprovado — no mesmo gatilho que cria os rascunhos fiscais. Isso garante que as remessas estejam prontas para envio imediato ao emitir a NF-e.
+
+**Especificação completa:** `docs/especificacoes/erp/rascunhos-logisticos.md`
+
+| Aspecto | Descrição |
+|---------|-----------|
+| **Gatilho** | Trigger SQL `enqueue_fiscal_draft()` — insere em `shipping_draft_queue` |
+| **Processamento** | `scheduler-tick` fase 1.6 — cria registro em `shipments` com status `draft` |
+| **Separação** | Por transportadora baseada em `orders.shipping_carrier` |
+| **Modos** | Automático (envia ao emitir NF) ou Manual (rascunho para revisão) |
+
+---
+
 ## Pendências
 
 - [ ] Integração Melhor Envio
@@ -388,3 +403,5 @@ Todas as Edge Functions de cotação (frenet-quote, shipping-quote) DEVEM usar `
 - [ ] Rastreamento Loggi
 - [ ] Etiquetas Loggi
 - [ ] Notificações de status automáticas
+- [ ] UI de rascunhos logísticos no módulo logístico
+- [ ] UI de etiquetas para impressão em lote

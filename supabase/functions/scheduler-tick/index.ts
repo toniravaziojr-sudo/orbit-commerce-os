@@ -3,9 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.2.0"; // Replace pg_net fiscal trigger with queue processing
+const VERSION = "v2.3.0"; // Add shipping draft queue processing (Phase 1.6)
+// v2.3.0 - Shipping draft queue: creates draft shipments from approved orders
 // v2.2.0 - Added fiscal-auto-create-drafts as parallel fallback
-// ===========================================================
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -424,6 +424,7 @@ serve(async (req) => {
       email_lists_synced: 0,
       email_subscribers_synced: 0,
       fiscal_drafts_created: 0,
+      shipping_drafts_created: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
@@ -579,6 +580,157 @@ serve(async (req) => {
 
       } catch (fiscalQueueError) {
         console.error(`[scheduler-tick] fiscal queue fatal error:`, fiscalQueueError);
+      }
+
+      // ====================================================================
+      // PHASE 1.6: Process shipping_draft_queue (create draft shipments)
+      // Creates shipment records with status 'draft' from approved orders
+      // ====================================================================
+      try {
+        console.log(`[scheduler-tick] Processing shipping draft queue...`);
+        const supabaseShipping = createClient(supabaseUrl, supabaseServiceKey);
+        
+        // Fetch pending items (limit 5 per pass)
+        const { data: shippingItems, error: shippingQueueError } = await supabaseShipping
+          .from('shipping_draft_queue')
+          .select('id, tenant_id, order_id, provider, attempts')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true })
+          .limit(5);
+
+        if (shippingQueueError) {
+          console.error(`[scheduler-tick] shipping queue fetch error:`, shippingQueueError);
+        } else if (shippingItems && shippingItems.length > 0) {
+          console.log(`[scheduler-tick] shipping queue: ${shippingItems.length} pending items`);
+          
+          for (const item of shippingItems) {
+            try {
+              // Mark as processing
+              await supabaseShipping
+                .from('shipping_draft_queue')
+                .update({ status: 'processing', attempts: item.attempts + 1 })
+                .eq('id', item.id);
+
+              // Fetch order data
+              const { data: order, error: orderError } = await supabaseShipping
+                .from('orders')
+                .select(`
+                  id, tenant_id, total, shipping_address_street, shipping_address_number,
+                  shipping_address_complement, shipping_address_neighborhood, shipping_address_city,
+                  shipping_address_state, shipping_address_zip, shipping_carrier, shipping_method,
+                  shipping_service_code, customer_name, customer_email, customer_phone
+                `)
+                .eq('id', item.order_id)
+                .single();
+
+              if (orderError || !order) {
+                throw new Error(`Order not found: ${orderError?.message || 'null'}`);
+              }
+
+              // Fetch order items with product dimensions
+              const { data: orderItems } = await supabaseShipping
+                .from('order_items')
+                .select('quantity, product_id, products(weight, height, width, length)')
+                .eq('order_id', item.order_id);
+
+              // Calculate total weight and max dimensions
+              let totalWeightGrams = 0;
+              let maxHeight = 2, maxWidth = 11, maxLength = 16; // Correios minimums
+              
+              if (orderItems) {
+                for (const oi of orderItems) {
+                  const product = (oi as any).products;
+                  if (product) {
+                    totalWeightGrams += (product.weight || 300) * (oi.quantity || 1);
+                    maxHeight = Math.max(maxHeight, product.height || 2);
+                    maxWidth = Math.max(maxWidth, product.width || 11);
+                    maxLength = Math.max(maxLength, product.length || 16);
+                  } else {
+                    totalWeightGrams += 300 * (oi.quantity || 1); // default 300g
+                  }
+                }
+              }
+
+              // Check if shipment already exists for this order
+              const { data: existingShipment } = await supabaseShipping
+                .from('shipments')
+                .select('id')
+                .eq('order_id', item.order_id)
+                .limit(1);
+
+              if (existingShipment && existingShipment.length > 0) {
+                console.log(`[scheduler-tick] shipping queue: shipment already exists for order ${item.order_id}, skipping`);
+                await supabaseShipping
+                  .from('shipping_draft_queue')
+                  .update({ status: 'done', processed_at: new Date().toISOString() })
+                  .eq('id', item.id);
+                continue;
+              }
+
+              // Create draft shipment
+              const { error: insertError } = await supabaseShipping
+                .from('shipments')
+                .insert({
+                  tenant_id: item.tenant_id,
+                  order_id: item.order_id,
+                  carrier: order.shipping_carrier || item.provider || 'manual',
+                  tracking_code: '',
+                  delivery_status: 'draft' as any,
+                  last_status_at: new Date().toISOString(),
+                  service_code: order.shipping_service_code || null,
+                  source: 'auto_draft',
+                  metadata: {
+                    weight_grams: totalWeightGrams,
+                    height_cm: maxHeight,
+                    width_cm: maxWidth,
+                    length_cm: maxLength,
+                    shipping_method: order.shipping_method,
+                    recipient_name: order.customer_name,
+                    recipient_zip: order.shipping_address_zip,
+                    declared_value_cents: order.total,
+                  },
+                });
+
+              if (insertError) {
+                throw new Error(`Insert shipment failed: ${insertError.message}`);
+              }
+
+              await supabaseShipping
+                .from('shipping_draft_queue')
+                .update({ status: 'done', processed_at: new Date().toISOString() })
+                .eq('id', item.id);
+              
+              aggregatedTotals.shipping_drafts_created++;
+              console.log(`[scheduler-tick] shipping queue: draft created for order ${item.order_id} (${item.provider})`);
+
+            } catch (itemError) {
+              const maxAttempts = 5;
+              const newStatus = item.attempts + 1 >= maxAttempts ? 'failed' : 'pending';
+              await supabaseShipping
+                .from('shipping_draft_queue')
+                .update({
+                  status: newStatus,
+                  error_message: String(itemError).substring(0, 500),
+                  processed_at: newStatus === 'failed' ? new Date().toISOString() : null,
+                })
+                .eq('id', item.id);
+              console.error(`[scheduler-tick] shipping queue: error processing ${item.order_id}:`, itemError);
+            }
+          }
+        } else {
+          console.log(`[scheduler-tick] shipping queue: no pending items`);
+        }
+
+        // Cleanup: remove done items older than 7 days
+        const shippingCleanupDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        await supabaseShipping
+          .from('shipping_draft_queue')
+          .delete()
+          .eq('status', 'done')
+          .lt('processed_at', shippingCleanupDate);
+
+      } catch (shippingQueueError) {
+        console.error(`[scheduler-tick] shipping queue fatal error:`, shippingQueueError);
       }
 
       // ====================================================================
