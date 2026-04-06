@@ -348,8 +348,8 @@ export function ShipmentGenerator() {
         .from('order_history')
         .insert({
           order_id: dispatchDialog.order_id,
-          status: 'dispatched',
-          notes: `Despacho confirmado. Etiqueta: ${dispatchDialog.tracking_code || 'N/A'}`,
+          action: 'dispatched',
+          description: `Despacho confirmado. Etiqueta: ${dispatchDialog.tracking_code || 'N/A'}`,
         });
 
       toast.success('Pedido marcado como despachado');
