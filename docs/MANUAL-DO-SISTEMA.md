@@ -133,7 +133,7 @@ O sistema integra com provedores de pagamento, fiscal, logística, marketplaces,
 
 | Tipo | Exemplos | Papel |
 |------|----------|-------|
-| **Agentes** (3) | Assistente IA, Auxiliar de Comando, Gestor de Tráfego | Entidades autônomas com escopo e permissões próprias |
+| **Agentes** (4) | Assistente IA (ChatGPT), Auxiliar de Comando, Gestor de Tráfego IA, Agenda | Entidades autônomas com escopo e permissões próprias |
 | **Funções embutidas** | Descrições de produto, criativos, landing pages, blocos, SEO, suporte | Capacidades de IA dentro de módulos existentes |
 
 Regras completas dos agentes → Layer 2, Seção 9.
@@ -162,21 +162,21 @@ O sistema é organizado em **9 domínios funcionais**:
 
 Referência completa e detalhada → `docs/ESPECIFICACOES-DOS-MODULOS.md` (Layer 3).
 
-### Resumo por Domínio (55 módulos)
+### Resumo por Domínio (56 módulos)
 
 | Domínio | Módulos | ✅ | 🟧 |
 |---------|---------|----|----|
 | Transversais | Padrões UI | 1 | 0 |
 | E-commerce | Pedidos, Produtos, Categorias, Clientes, Descontos | 5 | 0 |
 | Storefront | Builder, Header, Footer, Carrinho, Checkout, Produto, Categoria, Obrigado, Institucionais, Blog, Landing Pages, Cores, Loja Virtual | 13 | 0 |
-| Marketing | Ofertas, Avaliações, Mídias, Imagens IA, Campanhas, Criativos, AI Criativos, Integrações, Email Marketing, Quizzes | 8 | 2 |
+| Marketing | Ofertas, Avaliações, Mídias, Imagens IA, Campanhas, Criativos, AI Criativos, **Gestor Tráfego IA**, Integrações, Email Marketing, Quizzes | 9 | 2 |
 | CRM | Atendimento, Suporte, Pacotes IA, ChatGPT, Checkouts Abandonados | 3 | 2 |
 | ERP | Fiscal, Logística, PagBank | 2 | 1 |
 | Marketplaces | Mercado Livre, Shopee, TikTok Shop, Extrator B2B | 2 | 2 |
 | Sistema | Central, Auxiliar, Usuários, Planos, Configurações, Importação, Integrações, Domínios, Tenants, Edge Functions | 9 | 1 |
 | Plataforma | Admin, Emails | 2 | 0 |
 | Parcerias | Afiliados, Influencers | 0 | 2 |
-| **Total** | | **43** | **12** |
+| **Total** | | **44** | **12** |
 
 ---
 
@@ -397,11 +397,12 @@ O sistema possui ~320 edge functions (snapshot da data), agrupadas por domínio.
 
 | Grupo | Funções Principais |
 |-------|-------------------|
-| Meta Ads | `meta-ads-campaigns`, `meta-ads-adsets`, `meta-ads-ads`, `meta-ads-insights`, `meta-ads-creatives` |
-| Google Ads | `google-ads-campaigns`, `google-ads-insights`, `google-ads-keywords`, `google-ads-audiences` |
+| Meta Ads | `meta-ads-campaigns`, `meta-ads-adsets`, `meta-ads-ads`, `meta-ads-insights`, `meta-ads-creatives`, `meta-ads-audiences` |
+| Google Ads | `google-ads-campaigns`, `google-ads-adgroups`, `google-ads-ads`, `google-ads-keywords`, `google-ads-assets`, `google-ads-insights`, `google-ads-audiences` |
 | TikTok Ads | `tiktok-ads-campaigns`, `tiktok-ads-insights` |
-| Autopilot IA | `ads-autopilot-analyze`, `ads-autopilot-execute-approved`, `ads-autopilot-strategist`, `ads-autopilot-guardian` |
-| Criativos | `creative-generate`, `creative-image-generate`, `creative-video-generate` |
+| Autopilot IA | `ads-autopilot-guardian`, `ads-autopilot-strategist`, `ads-autopilot-execute-approved`, `ads-autopilot-creative`, `ads-autopilot-weekly-insights`, `ads-autopilot-experiments-run`, `ads-autopilot-generate-prompt` |
+| Chat IA Tráfego | `ads-chat-v2`, `ads-chat` |
+| Criativos | `creative-generate`, `creative-process`, `creative-image-generate`, `creative-video-generate` |
 | CAPI/Feed | `marketing-capi-track`, `marketing-feed`, `marketing-send-meta`, `marketing-send-google`, `marketing-send-tiktok` |
 
 ### 9.7 Marketplaces
@@ -523,15 +524,26 @@ Upload (CSV/JSON/plataforma) → import-jobs
       → import_items com status por item
 ```
 
-### 11.4 Ads Autopilot (IA de Tráfego)
+### 11.4 Ads Autopilot (IA de Tráfego — Motor Duplo)
 
 ```
-Trigger (scheduled/manual) → ads-autopilot-analyze
-  → Coleta de métricas + contexto
-    → ads-autopilot-strategist (decisão IA)
-      → Ações propostas (orçamento, pausa, criativo)
-        → Aprovação (auto/manual conforme config)
-          → ads-autopilot-execute-approved
+Motor Guardião (diário 4x: 12h/13h/16h/00h01 BRT)
+  → Coleta métricas recentes por conta
+    → Pause/adjust_budget/reativação (proteção de orçamento)
+
+Motor Estrategista (trigger: start/weekly/monthly)
+  → Fase 0: Planejamento (IA analisa orçamento + configs + produtos + histórico)
+  → Fase 1: Criativos (gera imagens + copys via ads-autopilot-creative)
+  → Fase 2: Públicos (Lookalike, Custom, Interesses)
+  → Fase 3: Montagem (Campanha → Ad Set → Ad, tudo PAUSED)
+  → Fase 4: Publicação (agenda ativação 00:01 BRT)
+    → Aprovação (auto/manual conforme config)
+      → ads-autopilot-execute-approved (execução direta nas APIs)
+
+Complementares (semanais):
+  → ads-autopilot-weekly-insights (seg) → insights semanais
+  → ads-autopilot-experiments-run (ter) → avaliação A/B
+  → ads-autopilot-creative (qua) → curadoria de criativos
 ```
 
 ### 11.5 Checkout Abandonado

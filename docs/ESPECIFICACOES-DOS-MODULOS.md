@@ -133,7 +133,8 @@ Todo doc marcado como 🟧 Stub deve conter no mínimo:
 | `marketing/campanhas.md` | Campanhas de marketing | ✅ Ativo |
 | `marketing/criativos.md` | Criativos de anúncios | ✅ Ativo |
 | `marketing/ai-criativos.md` | Criativos gerados por IA | ✅ Ativo |
-| `marketing/marketing-integracoes.md` | Integrações de marketing | 🟧 Parcial |
+| `marketing/gestor-trafego.md` | Gestor de Tráfego IA (Autopilot) | ✅ Ativo |
+| `marketing/marketing-integracoes.md` | Integrações de marketing (Pixel, CAPI, atribuição) | 🟧 Parcial |
 | `marketing/email-marketing.md` | Email marketing | 🟧 Parcial |
 | `marketing/quizzes.md` | Quizzes interativos | ✅ Ativo |
 
@@ -199,8 +200,8 @@ Todo doc marcado como 🟧 Stub deve conter no mínimo:
 
 | Métrica | Valor |
 |---------|-------|
-| Total de módulos | 55 |
-| ✅ Ativos | 43 |
+| Total de módulos | 56 |
+| ✅ Ativos | 44 |
 | 🟧 Parciais | 10 |
 | 🟧 Stubs | 2 |
 | Grupos temáticos | 9 (+1 transversal) |
