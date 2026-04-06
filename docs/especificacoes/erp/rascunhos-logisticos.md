@@ -3,7 +3,8 @@
 > **STATUS:** 🟧 Em implementação  
 > **Camada:** Layer 3 — Especificações / ERP  
 > **Criado em:** 2026-04-06  
-> **Última atualização:** 2026-04-06
+> **Última atualização:** 2026-04-06  
+> **Versão scheduler-tick:** v2.3.2
 
 ---
 
@@ -78,6 +79,8 @@ O `scheduler-tick` processa a `shipping_draft_queue` logo após a fila fiscal:
 
 ## Dados Necessários por Transportadora
 
+> **IMPORTANTE:** O campo de dimensões no banco é `products.depth` (não `length`). O scheduler-tick usa `depth` para calcular o comprimento do pacote.
+
 ### Correios (Pré-postagem PLP)
 
 | Dado | Origem | Coluna/Campo | Obrigatório |
@@ -85,8 +88,8 @@ O `scheduler-tick` processa a `shipping_draft_queue` logo após a fila fiscal:
 | Remetente (nome, CNPJ, endereço) | Configuração do provider | `shipping_providers.settings` | Sim |
 | Destinatário (nome, endereço, CEP) | Pedido | `orders.shipping_*` | Sim |
 | Código de serviço (PAC/SEDEX) | Pedido | `orders.shipping_service_code` | Sim |
-| Peso (gramas) | Produtos × quantidade | `products.weight` | Sim |
-| Dimensões (cm) | Produtos | `products.height/width/length` | Sim |
+| Peso (kg) | Produtos × quantidade | `products.weight` | Sim |
+| Dimensões (cm) | Produtos | `products.height/width/depth` | Sim |
 | Valor declarado | Pedido | `orders.total` | Condicional |
 | Cartão de postagem | Credenciais | `shipping_providers.credentials` | Sim |
 | Chave NF-e | NF-e (preenchido após emissão) | `fiscal_invoices.chave_acesso` | Recomendado |
@@ -97,8 +100,8 @@ O `scheduler-tick` processa a `shipping_draft_queue` logo após a fila fiscal:
 |------|--------|-------------|-------------|
 | shipFrom (endereço origem) | Configuração do provider | `shipping_providers.credentials/settings` | Sim |
 | shipTo (endereço destino) | Pedido | `orders.shipping_*` | Sim |
-| Peso (gramas) | Produtos × quantidade | `products.weight` | Sim |
-| Dimensões (cm) | Produtos | `products.height/width/length` | Sim |
+| Peso (kg) | Produtos × quantidade | `products.weight` | Sim |
+| Dimensões (cm) | Produtos | `products.height/width/depth` | Sim |
 | Valor declarado | Pedido | `orders.total` | Sim |
 | Company ID | Credenciais | `shipping_providers.credentials.company_id` | Sim |
 
@@ -168,10 +171,31 @@ Novo valor no enum para representar rascunhos logísticos que aguardam envio man
 
 ---
 
+## UI — Abas de Remessas
+
+A tela de Logística > Remessas é dividida em 3 abas:
+
+| Aba | Conteúdo | Fonte |
+|-----|----------|-------|
+| **Prontos para emitir remessa** | Pedidos com rascunho logístico (`shipments.delivery_status = 'draft'`) aguardando emissão | `shipments` WHERE `delivery_status = 'draft'` |
+| **Remessas emitidas** | Remessas enviadas com sucesso à transportadora (qualquer status exceto `draft` e `failed`) | `shipments` WHERE `delivery_status NOT IN ('draft', 'failed')` |
+| **Remessas pendentes** | Remessas com erro que precisam de correção manual e reenvio | `shipments` WHERE `delivery_status = 'failed'` |
+
+---
+
+## Correções Aplicadas
+
+| Data | Versão | Correção |
+|------|--------|----------|
+| 2026-04-06 | v2.3.1 | Nomes de colunas de endereço corrigidos (shipping_street, shipping_postal_code, etc.) |
+| 2026-04-06 | v2.3.2 | Coluna de profundidade corrigida de `length` para `depth` (nome real no schema `products`) |
+
+---
+
 ## Pendências Futuras
 
-- [ ] UI de gestão de rascunhos no módulo logístico (aba "Rascunhos")
 - [ ] UI de etiquetas para impressão (aba "Etiquetas")
 - [ ] Envio em lote de remessas
 - [ ] Integração de status remessa ↔ NF-e na lista fiscal
 - [ ] Notificações automáticas de rastreio ao cliente
+- [ ] Conversão de peso: verificar se transportadoras esperam kg ou gramas
