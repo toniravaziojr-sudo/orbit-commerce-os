@@ -435,6 +435,19 @@ export function MeliListingWizard({
         {/* STEP 3: Review & Edit */}
         {step === "review" && (
           <div className="space-y-4">
+            {/* Post-publication info banner */}
+            {isPostPublication && (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-700 dark:text-amber-400">Edição pós-publicação</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Você pode alterar título, preço, estoque, descrição e imagens. Categoria, condição e tipo de anúncio não podem ser alterados após a publicação no Mercado Livre.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Product card (create mode) */}
             {selectedProduct && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
