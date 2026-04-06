@@ -324,7 +324,7 @@ serve(async (req) => {
       updateData.danfe_url = result.data.caminho_danfe;
       updateData.authorized_at = new Date().toISOString();
       
-      // Verificar se deve criar remessa automaticamente
+      // Vincular NF-e ao rascunho logístico e gerenciar remessa
       if (invoice.order_id) {
         const { data: fiscalSettingsShip } = await supabaseClient
           .from('fiscal_settings')
@@ -332,53 +332,15 @@ serve(async (req) => {
           .eq('tenant_id', tenantId)
           .single();
 
-        if (fiscalSettingsShip?.auto_create_shipment) {
-          console.log(`[fiscal-submit] Auto-creating shipment for order ${invoice.order_id}`);
-          
-          try {
-            const shipResponse = await fetch(`${supabaseUrl}/functions/v1/shipping-create-shipment`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({ order_id: invoice.order_id }),
-            });
-            
-            const shipResult = await shipResponse.json();
-            console.log(`[fiscal-submit] Shipment creation result:`, JSON.stringify(shipResult));
-            
-            // Se remessa criada com sucesso, atualizar pedido para shipped
-            if (shipResult.success && shipResult.tracking_code) {
-              await supabaseClient
-                .from('orders')
-                .update({ 
-                  status: 'shipped',
-                  shipped_at: new Date().toISOString()
-                })
-                .eq('id', invoice.order_id);
-            } else {
-              // Se não criou remessa, marcar como processing (aguardando remessa manual)
-              await supabaseClient
-                .from('orders')
-                .update({ status: 'processing' })
-                .eq('id', invoice.order_id);
-            }
-          } catch (shipError) {
-            console.error(`[fiscal-submit] Failed to create shipment:`, shipError);
-            // Fallback: marcar como processing (aguardando remessa manual)
-            await supabaseClient
-              .from('orders')
-              .update({ status: 'processing' })
-              .eq('id', invoice.order_id);
-          }
-        } else {
-          // Sem auto_create_shipment, marcar como processing (aguardando remessa manual)
-          await supabaseClient
-            .from('orders')
-            .update({ status: 'processing' })
-            .eq('id', invoice.order_id);
-        }
+        await linkNFeToShipment({
+          supabaseClient,
+          orderId: invoice.order_id,
+          invoiceId: invoice_id,
+          tenantId,
+          chaveAcesso: result.data.chave_nfe,
+          autoCreateShipment: !!fiscalSettingsShip?.auto_create_shipment,
+          callerModule: 'fiscal-submit',
+        });
       }
       
       // Send NF-e email to customer if enabled
