@@ -348,16 +348,8 @@ export function MeliListingWizard({
             ) : filteredProducts.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
                 <Package className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p className="font-medium text-sm">
-                  {availableProducts.length === 0
-                    ? "Todos os produtos já possuem anúncio"
-                    : "Nenhum produto encontrado"}
-                </p>
-                <p className="text-xs mt-1">
-                  {availableProducts.length === 0
-                    ? "Cada produto pode ter apenas um anúncio no ML."
-                    : "Tente buscar com outro termo."}
-                </p>
+                <p className="font-medium text-sm">Nenhum produto encontrado</p>
+                <p className="text-xs mt-1">Tente buscar com outro termo.</p>
               </div>
             ) : (
               <div className="space-y-1 max-h-[400px] overflow-y-auto">
