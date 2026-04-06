@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.3.1"; // Fix shipping draft column names to match real schema
+const VERSION = "v2.3.2"; // Fix products.depth column name (was 'length')
 // v2.3.0 - Shipping draft queue: creates draft shipments from approved orders
 // v2.2.0 - Added fiscal-auto-create-drafts as parallel fallback
 
@@ -630,7 +630,7 @@ serve(async (req) => {
               // Fetch order items with product dimensions
               const { data: orderItems } = await supabaseShipping
                 .from('order_items')
-                .select('quantity, product_id, products(weight, height, width, length)')
+                .select('quantity, product_id, products(weight, height, width, depth)')
                 .eq('order_id', item.order_id);
 
               // Calculate total weight and max dimensions
@@ -644,7 +644,7 @@ serve(async (req) => {
                     totalWeightGrams += (product.weight || 300) * (oi.quantity || 1);
                     maxHeight = Math.max(maxHeight, product.height || 2);
                     maxWidth = Math.max(maxWidth, product.width || 11);
-                    maxLength = Math.max(maxLength, product.length || 16);
+                    maxLength = Math.max(maxLength, product.depth || 16);
                   } else {
                     totalWeightGrams += 300 * (oi.quantity || 1); // default 300g
                   }
