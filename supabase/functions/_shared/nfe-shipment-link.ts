@@ -73,6 +73,7 @@ export async function linkNFeToShipment({
         body: JSON.stringify({ 
           order_id: orderId,
           invoice_id: invoiceId,
+          tenant_id: tenantId,
         }),
       });
 

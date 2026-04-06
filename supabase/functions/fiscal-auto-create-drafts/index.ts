@@ -104,8 +104,9 @@ async function processTenanDrafts(
     .single();
 
   if (settingsError || !fiscalSettings || !fiscalSettings.is_configured) {
-    console.log('[fiscal-auto-create-drafts] Fiscal not configured, skipping');
-    return { created: 0, errors: [] };
+    console.log('[fiscal-auto-create-drafts] Fiscal not configured for tenant', tenantId);
+    // Throw so queue item stays pending and will be retried when settings exist
+    throw new Error('FISCAL_NOT_CONFIGURED');
   }
 
   const serieNfe = fiscalSettings.serie_nfe || 1;
