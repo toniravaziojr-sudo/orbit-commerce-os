@@ -86,7 +86,7 @@ export function ShipmentGenerator() {
       // Get draft shipments with order data
       let query = supabase
         .from('shipments')
-        .select(`
+        .select<string, any>(`
           id, order_id, carrier, delivery_status, created_at, source, metadata,
           order:orders!inner(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at)
         `)
