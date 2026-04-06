@@ -95,9 +95,16 @@ export function MeliListingsTab() {
   // Removed: handleCreateSubmit (now handled by MeliListingCreator)
 
   const handleEditSubmit = (data: any) => {
-    const { id, ...rest } = data;
+    const { id, action, ...rest } = data;
+    // First save to DB
     updateListing.mutate({ id, ...rest }, {
-      onSuccess: () => setEditingListing(null),
+      onSuccess: () => {
+        setEditingListing(null);
+        // If post-publication edit, also push changes to ML via edge function
+        if (action === "update") {
+          publishListing.mutate({ id, action: "update" });
+        }
+      },
     });
   };
 
