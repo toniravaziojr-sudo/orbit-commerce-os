@@ -200,8 +200,8 @@ Todo doc marcado como 🟧 Stub deve conter no mínimo:
 
 | Métrica | Valor |
 |---------|-------|
-| Total de módulos | 55 |
-| ✅ Ativos | 43 |
+| Total de módulos | 56 |
+| ✅ Ativos | 44 |
 | 🟧 Parciais | 10 |
 | 🟧 Stubs | 2 |
 | Grupos temáticos | 9 (+1 transversal) |

@@ -397,11 +397,12 @@ O sistema possui ~320 edge functions (snapshot da data), agrupadas por domínio.
 
 | Grupo | Funções Principais |
 |-------|-------------------|
-| Meta Ads | `meta-ads-campaigns`, `meta-ads-adsets`, `meta-ads-ads`, `meta-ads-insights`, `meta-ads-creatives` |
-| Google Ads | `google-ads-campaigns`, `google-ads-insights`, `google-ads-keywords`, `google-ads-audiences` |
+| Meta Ads | `meta-ads-campaigns`, `meta-ads-adsets`, `meta-ads-ads`, `meta-ads-insights`, `meta-ads-creatives`, `meta-ads-audiences` |
+| Google Ads | `google-ads-campaigns`, `google-ads-adgroups`, `google-ads-ads`, `google-ads-keywords`, `google-ads-assets`, `google-ads-insights`, `google-ads-audiences` |
 | TikTok Ads | `tiktok-ads-campaigns`, `tiktok-ads-insights` |
-| Autopilot IA | `ads-autopilot-analyze`, `ads-autopilot-execute-approved`, `ads-autopilot-strategist`, `ads-autopilot-guardian` |
-| Criativos | `creative-generate`, `creative-image-generate`, `creative-video-generate` |
+| Autopilot IA | `ads-autopilot-guardian`, `ads-autopilot-strategist`, `ads-autopilot-execute-approved`, `ads-autopilot-creative`, `ads-autopilot-weekly-insights`, `ads-autopilot-experiments-run`, `ads-autopilot-generate-prompt` |
+| Chat IA Tráfego | `ads-chat-v2`, `ads-chat` |
+| Criativos | `creative-generate`, `creative-process`, `creative-image-generate`, `creative-video-generate` |
 | CAPI/Feed | `marketing-capi-track`, `marketing-feed`, `marketing-send-meta`, `marketing-send-google`, `marketing-send-tiktok` |
 
 ### 9.7 Marketplaces
