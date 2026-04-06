@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.3.0"; // Add shipping draft queue processing (Phase 1.6)
+const VERSION = "v2.3.1"; // Fix shipping draft column names to match real schema
 // v2.3.0 - Shipping draft queue: creates draft shipments from approved orders
 // v2.2.0 - Added fiscal-auto-create-drafts as parallel fallback
 
@@ -684,9 +684,9 @@ serve(async (req) => {
                     height_cm: maxHeight,
                     width_cm: maxWidth,
                     length_cm: maxLength,
-                    shipping_method: order.shipping_method,
+                    shipping_method: order.shipping_method_name,
                     recipient_name: order.customer_name,
-                    recipient_zip: order.shipping_address_zip,
+                    recipient_zip: order.shipping_postal_code,
                     declared_value_cents: order.total,
                   },
                 });
