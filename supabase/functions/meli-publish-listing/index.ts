@@ -417,6 +417,7 @@ async function updateListing(accessToken: string, listing: any, productImages: a
   }
 
   const updatePayload: any = {
+    title: listing.title,
     price: Number(listing.price),
     available_quantity: listing.available_quantity,
   };
