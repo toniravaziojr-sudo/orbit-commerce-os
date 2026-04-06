@@ -87,6 +87,9 @@ Pipeline autônomo de gestão de tráfego pago cross-channel (Meta, Google, TikT
 | `creative-image-generate` | Geração de imagens IA | Sob demanda |
 | `creative-generate` | Pipeline de criativos | Sob demanda |
 | `creative-process` | Processamento de criativos | Sob demanda |
+| `ads-autopilot-analyze` | Análise profunda de conta (coleta + diagnóstico) | Sob demanda |
+| `ads-autopilot-creative-generate` | Geração de criativos via IA (copy + imagem) | Sob demanda |
+| `creative-video-generate` | Geração de vídeos de produto via IA | Sob demanda |
 
 ### Tabelas
 
