@@ -424,7 +424,7 @@ serve(async (req) => {
       email_lists_synced: 0,
       email_subscribers_synced: 0,
       fiscal_drafts_created: 0,
-    };
+      shipping_drafts_created: 0,
 
     for (let pass = 1; pass <= passes; pass++) {
       console.log(`[scheduler-tick] Pass ${pass}/${passes}`);
