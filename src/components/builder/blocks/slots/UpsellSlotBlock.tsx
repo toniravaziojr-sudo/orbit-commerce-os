@@ -84,10 +84,14 @@ export function UpsellSlotBlock({
 
       const imageMap = new Map(images?.map(img => [img.product_id, img.url]) || []);
 
-      return data.map(p => ({
-        ...p,
-        image_url: imageMap.get(p.id) || null,
-      })) as UpsellProduct[];
+      // Preserve order from suggested_product_ids (admin-configured order)
+      const orderMap = new Map(activeRule.suggested_product_ids.map((id: string, idx: number) => [id, idx]));
+      return data
+        .sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999))
+        .map(p => ({
+          ...p,
+          image_url: imageMap.get(p.id) || null,
+        })) as UpsellProduct[];
     },
     enabled: !!activeRule?.suggested_product_ids?.length && !!tenantSlug,
   });

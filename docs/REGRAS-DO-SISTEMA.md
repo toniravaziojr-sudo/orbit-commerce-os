@@ -669,4 +669,19 @@ Detalhes de cada plano (features, limites, preços, créditos) ficam no doc de e
 
 ---
 
+## 29. REGRA UNIVERSAL DE PARIDADE BACKEND-FRONTEND
+
+Toda alteração que afete dados, comportamento, formatação ou apresentação do sistema **deve ser aplicada de forma conjunta no backend e no frontend**. É proibido considerar um ajuste como concluído se ele foi aplicado apenas em uma das camadas.
+
+| Princípio | Descrição |
+|-----------|-----------|
+| **Simultaneidade** | Ajustes no backend (queries, edge functions, triggers, schemas) e no frontend (hooks, componentes, formatação) devem ser implementados e validados juntos, na mesma entrega. |
+| **Consistência ponta a ponta** | O comportamento deve ser idêntico da origem do dado (banco/API) até a tela do usuário. Se a query define uma ordem, filtro ou transformação, o frontend deve preservá-la integralmente. |
+| **Queries em múltiplas etapas** | Quando uma listagem usa busca encadeada (ex: junction table → tabela principal via `.in()`), a ordem da primeira query deve ser preservada no resultado final exibido, pois `.in()` não garante ordem. |
+| **Exemplos de violação** | Ordenação definida no banco mas perdida na renderização; filtro aplicado na query mas não refletido na UI; status atualizado no backend mas não propagado ao componente; formatação de moeda/data diferente entre API e tela. |
+| **Validação obrigatória** | Antes de declarar "ajuste aplicado", verificar que o comportamento é consistente da origem do dado até a tela. Testar o fluxo completo, não apenas a camada alterada. |
+| **Anti-regressão** | Ao criar novo hook, componente ou query, aplicar esta regra desde o início. Revisões de código devem checar paridade entre as camadas. |
+
+---
+
 *Fim do documento.*
