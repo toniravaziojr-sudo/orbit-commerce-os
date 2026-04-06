@@ -227,7 +227,6 @@ serve(async (req) => {
         }).catch(err => console.error('[fiscal-check-status] Email send error:', err));
       }
     }
-  }
 
     return new Response(
       JSON.stringify({
