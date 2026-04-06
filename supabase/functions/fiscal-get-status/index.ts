@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
+import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 
 const corsHeaders = {
@@ -173,12 +174,23 @@ serve(async (req) => {
         updateData.authorized_at = new Date().toISOString();
       }
       
-      // Atualizar status do pedido para processing (aguardando remessa manual)
+      // Vincular NF-e ao rascunho logístico
       if (invoice.order_id) {
-        await supabaseClient
-          .from('orders')
-          .update({ status: 'processing' })
-          .eq('id', invoice.order_id);
+        const { data: fiscalSettingsShip } = await supabaseClient
+          .from('fiscal_settings')
+          .select('auto_create_shipment')
+          .eq('tenant_id', tenantId)
+          .single();
+
+        await linkNFeToShipment({
+          supabaseClient,
+          orderId: invoice.order_id,
+          invoiceId: invoice_id,
+          tenantId,
+          chaveAcesso: result.data.chave_nfe,
+          autoCreateShipment: !!fiscalSettingsShip?.auto_create_shipment,
+          callerModule: 'fiscal-get-status',
+        });
       }
     }
 
