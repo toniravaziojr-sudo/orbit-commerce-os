@@ -278,6 +278,10 @@ export function MeliListingWizard({
 
     if (mode === "edit" && initialData?.id) {
       data.id = initialData.id;
+      // For published/paused listings, flag as update action
+      if (isPostPublication) {
+        data.action = "update";
+      }
     }
 
     onSubmit(data);
