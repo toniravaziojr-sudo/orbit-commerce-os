@@ -588,9 +588,12 @@ export function MeliListingWizard({
             {/* Listing Type + Condition */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tipo de Anúncio</Label>
-                <Select value={listingType} onValueChange={setListingType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label className="flex items-center gap-1.5">
+                  Tipo de Anúncio
+                  {isPostPublication && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Bloqueado</Badge>}
+                </Label>
+                <Select value={listingType} onValueChange={setListingType} disabled={isPostPublication}>
+                  <SelectTrigger className={isPostPublication ? "opacity-60" : ""}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="gold_special">Clássico (Gold Special)</SelectItem>
                     <SelectItem value="gold_pro">Premium (Gold Pro)</SelectItem>
@@ -599,9 +602,12 @@ export function MeliListingWizard({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Condição</Label>
-                <Select value={condition} onValueChange={setCondition}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label className="flex items-center gap-1.5">
+                  Condição
+                  {isPostPublication && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Bloqueado</Badge>}
+                </Label>
+                <Select value={condition} onValueChange={setCondition} disabled={isPostPublication}>
+                  <SelectTrigger className={isPostPublication ? "opacity-60" : ""}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="new">Novo</SelectItem>
                     <SelectItem value="used">Usado</SelectItem>
@@ -615,14 +621,21 @@ export function MeliListingWizard({
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 Categoria do Mercado Livre <span className="text-destructive">*</span>
+                {isPostPublication && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Bloqueado</Badge>}
               </Label>
-              <MeliCategoryPicker
-                value={categoryId}
-                onChange={(id, name) => { setCategoryId(id); if (name) setCategoryName(name); }}
-                selectedName={categoryName}
-                productName={selectedProduct?.name || initialData?.product?.name || title}
-                productDescription={selectedProduct?.description || selectedProduct?.short_description || initialData?.product?.description || ""}
-              />
+              {isPostPublication ? (
+                <div className="p-2.5 rounded-md border bg-muted/50 text-sm text-muted-foreground opacity-60">
+                  {categoryName || categoryId || "Sem categoria"}
+                </div>
+              ) : (
+                <MeliCategoryPicker
+                  value={categoryId}
+                  onChange={(id, name) => { setCategoryId(id); if (name) setCategoryName(name); }}
+                  selectedName={categoryName}
+                  productName={selectedProduct?.name || initialData?.product?.name || title}
+                  productDescription={selectedProduct?.description || selectedProduct?.short_description || initialData?.product?.description || ""}
+                />
+              )}
               {!categoryId && (
                 <p className="text-xs text-destructive flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
