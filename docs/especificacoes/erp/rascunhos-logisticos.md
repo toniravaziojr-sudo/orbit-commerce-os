@@ -189,6 +189,7 @@ A tela de Logística > Remessas é dividida em 3 abas:
 |------|--------|----------|
 | 2026-04-06 | v2.3.1 | Nomes de colunas de endereço corrigidos (shipping_street, shipping_postal_code, etc.) |
 | 2026-04-06 | v2.3.2 | Coluna de profundidade corrigida de `length` para `depth` (nome real no schema `products`) |
+| 2026-04-06 | v2.3.3 | Campo `products.weight` padronizado para gramas (g). Removidas conversões `*1000` de todas as edge functions. Dados existentes migrados. |
 
 ---
 
@@ -198,4 +199,3 @@ A tela de Logística > Remessas é dividida em 3 abas:
 - [ ] Envio em lote de remessas
 - [ ] Integração de status remessa ↔ NF-e na lista fiscal
 - [ ] Notificações automáticas de rastreio ao cliente
-- [ ] Conversão de peso: verificar se transportadoras esperam kg ou gramas
