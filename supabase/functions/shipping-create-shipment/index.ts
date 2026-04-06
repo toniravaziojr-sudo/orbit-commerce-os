@@ -19,7 +19,8 @@ const corsHeaders = {
 interface ShipmentRequest {
   order_id: string;
   invoice_id?: string;
-  provider_override?: string; // correios, loggi, frenet
+  provider_override?: string;
+  tenant_id?: string; // Used by internal service_role calls
 }
 
 interface ShipmentResult {
