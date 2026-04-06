@@ -196,7 +196,8 @@ export function normalizeWooCommerceProduct(raw: WooCommerceProduct): Normalized
   const compareAtPrice = salePrice > 0 && regularPrice > salePrice ? regularPrice : null;
   
   const sku = raw.sku || raw['SKU'] || null;
-  const weight = parseFloat(raw.weight || raw['Weight (kg)'] || '0') || null;
+  const weightKg = parseFloat(raw.weight || raw['Weight (kg)'] || '0') || null;
+  const weight = weightKg ? Math.round(weightKg * 1000) : null; // Convert kg to grams
   const dimensions = raw.dimensions || {};
   const length = parseFloat(dimensions.length || raw['Length (cm)'] || '0') || null;
   const width = parseFloat(dimensions.width || raw['Width (cm)'] || '0') || null;
