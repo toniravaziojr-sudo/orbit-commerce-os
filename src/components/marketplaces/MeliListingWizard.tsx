@@ -371,7 +371,14 @@ export function MeliListingWizard({
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{product.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate">{product.name}</p>
+                        {listedProductIds.has(product.id) && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                            Já anunciado
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">SKU: {product.sku} • Estoque: {product.stock_quantity}</p>
                     </div>
                     <div className="text-right shrink-0">
