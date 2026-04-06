@@ -162,21 +162,21 @@ O sistema é organizado em **9 domínios funcionais**:
 
 Referência completa e detalhada → `docs/ESPECIFICACOES-DOS-MODULOS.md` (Layer 3).
 
-### Resumo por Domínio (55 módulos)
+### Resumo por Domínio (56 módulos)
 
 | Domínio | Módulos | ✅ | 🟧 |
 |---------|---------|----|----|
 | Transversais | Padrões UI | 1 | 0 |
 | E-commerce | Pedidos, Produtos, Categorias, Clientes, Descontos | 5 | 0 |
 | Storefront | Builder, Header, Footer, Carrinho, Checkout, Produto, Categoria, Obrigado, Institucionais, Blog, Landing Pages, Cores, Loja Virtual | 13 | 0 |
-| Marketing | Ofertas, Avaliações, Mídias, Imagens IA, Campanhas, Criativos, AI Criativos, Integrações, Email Marketing, Quizzes | 8 | 2 |
+| Marketing | Ofertas, Avaliações, Mídias, Imagens IA, Campanhas, Criativos, AI Criativos, **Gestor Tráfego IA**, Integrações, Email Marketing, Quizzes | 9 | 2 |
 | CRM | Atendimento, Suporte, Pacotes IA, ChatGPT, Checkouts Abandonados | 3 | 2 |
 | ERP | Fiscal, Logística, PagBank | 2 | 1 |
 | Marketplaces | Mercado Livre, Shopee, TikTok Shop, Extrator B2B | 2 | 2 |
 | Sistema | Central, Auxiliar, Usuários, Planos, Configurações, Importação, Integrações, Domínios, Tenants, Edge Functions | 9 | 1 |
 | Plataforma | Admin, Emails | 2 | 0 |
 | Parcerias | Afiliados, Influencers | 0 | 2 |
-| **Total** | | **43** | **12** |
+| **Total** | | **44** | **12** |
 
 ---
 
