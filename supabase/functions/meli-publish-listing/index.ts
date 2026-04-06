@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "3.1.0"; // Fix warranty via attributes (WARRANTY_TYPE/WARRANTY_TIME), remove deprecated warranty field and non-modifiable package dimensions
+const VERSION = "3.2.0"; // Add title to updateListing payload for post-publication editing
 // ===================
 
 const corsHeaders = {
@@ -417,6 +417,7 @@ async function updateListing(accessToken: string, listing: any, productImages: a
   }
 
   const updatePayload: any = {
+    title: listing.title,
     price: Number(listing.price),
     available_quantity: listing.available_quantity,
   };

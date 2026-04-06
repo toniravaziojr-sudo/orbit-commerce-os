@@ -552,6 +552,144 @@ POST /meli-sync-listings
 | Chamar `mutation.mutate()` em loop (for/forEach) | Usar mutation batch ou chamada direta ao Supabase com `.in('id', ids)` |
 | Não sincronizar status com ML | Usar `meli-sync-listings` para detectar excluídos/encerrados |
 
+## Edição Pós-Publicação (OBRIGATÓRIO)
+
+### Campos Editáveis (PUT /items/{id})
+
+Anúncios com status `published` ou `paused` podem ser editados nos seguintes campos:
+
+| Campo | Endpoint | Implementado |
+|-------|----------|-------------|
+| Preço (`price`) | PUT /items/{id} | ✅ v3.1.0 |
+| Estoque (`available_quantity`) | PUT /items/{id} | ✅ v3.1.0 |
+| Título (`title`) | PUT /items/{id} | ✅ v3.2.0 |
+| Imagens (`pictures`) | PUT /items/{id} | ✅ v3.1.0 |
+| Descrição (`plain_text`) | PUT /items/{id}/description | ✅ v3.1.0 |
+
+### Campos Imutáveis (Restrição ML)
+
+| Campo | Motivo |
+|-------|--------|
+| `category_id` | Categoria é imutável após publicação |
+| `condition` | Novo/usado é imutável |
+| `buying_mode` | Modo de compra é imutável |
+| `listing_type_id` | Tipo de anúncio é imutável |
+
+### UI de Edição Pós-Publicação
+
+> O `MeliListingWizard` DEVE permitir abertura para anúncios `published` e `paused`, mas:
+> - Campos imutáveis (categoria, condição, tipo de listagem) ficam **desabilitados com tooltip explicativo**
+> - Ao salvar, a action `update` na `meli-publish-listing` envia apenas os campos permitidos via PUT
+> - Validação de título: respeitar `max_title_length` da categoria (mesmo na edição)
+> - Após salvar, exibir toast de sucesso e invalidar cache de listings
+
+---
+
+## Gestão de Imagens nos Anúncios (OBRIGATÓRIO)
+
+### Comportamento Padrão: Herdar + Customizar
+
+> Na **criação** do anúncio, o sistema herda automaticamente todas as imagens do cadastro do produto (até 10).
+> As imagens são salvas no campo `images` (JSONB) da `meli_listings` como **cópia editável**.
+> A partir daí, o usuário pode customizar as imagens do anúncio independentemente do cadastro do produto.
+
+### Customização por Anúncio
+
+| Ação | Descrição |
+|------|-----------|
+| Reordenar | Drag-and-drop para alterar a ordem (primeira = principal no ML) |
+| Adicionar | Upload ou URL de imagens extras |
+| Remover | Remover imagens específicas daquele anúncio |
+| Resetar | Botão para restaurar imagens do produto original |
+
+### Regras
+
+- **Mínimo 1 imagem** para publicar (já validado na edge function)
+- **Máximo 10 imagens** (limite ML, aplicado em `buildImagesList`)
+- **Merge inteligente:** `buildImagesList` evita duplicatas via `Set<URL>`
+- **Edição pós-publicação:** PUT /items/{id} com `pictures` atualiza imagens no ML
+- **Primeira imagem = imagem principal** do anúncio no ML
+
+### Anti-Patterns de Imagens
+
+| Proibido | Correto |
+|----------|---------|
+| Não mostrar preview das imagens no Wizard | Exibir galeria com thumbnails e ordem |
+| Perder imagens ao editar anúncio | Carregar `images` do JSONB ao abrir edição |
+| Permitir publicar sem imagem | Validar mínimo de 1 antes de aprovar |
+
+---
+
+## Multi-Anúncio por Produto
+
+### Regra de Diferenciação (OBRIGATÓRIO)
+
+> O sistema permite múltiplos anúncios para o mesmo produto (sem limite de quantidade).
+> Porém, ao **aprovar/publicar** um anúncio para um produto que já possui anúncio ativo (`published` ou `paused`),
+> é **obrigatório** que pelo menos o **título OU o preço** sejam diferentes dos anúncios existentes.
+>
+> **Validação:** Executada no momento da aprovação (transição para status `approved`), não na criação do rascunho.
+> **Rascunhos:** Podem existir livremente sem restrição de diferenciação.
+> **Demais campos:** Livres para edição sem restrição.
+
+### UI de Multi-Anúncio
+
+- **Badge na lista:** Exibir "X anúncios" quando o produto possui mais de 1 anúncio (qualquer status)
+- **Alerta informativo:** Ao criar anúncio para produto com anúncio ativo, exibir alerta não-bloqueante: _"Este produto já possui X anúncio(s) ativo(s) no Mercado Livre"_
+- **Validação na aprovação:** Se título E preço forem idênticos a um anúncio ativo existente, bloquear com mensagem explicativa
+
+---
+
+## Variações / SKUs (PLANEJADO — Não implementado)
+
+### Visão Geral
+
+Suporte completo a multi-variação (cor + tamanho, etc.) com estoque e fotos por variação.
+
+### Modelo de Dados (Proposta)
+
+```
+Tabela: meli_listing_variations
+- id: UUID PK
+- listing_id: UUID FK → meli_listings
+- tenant_id: UUID FK → tenants
+- attribute_combinations: JSONB  -- ex: [{ id: "COLOR", value_name: "Azul" }, { id: "SIZE", value_name: "M" }]
+- price: NUMERIC
+- available_quantity: INT
+- picture_ids: TEXT[]  -- IDs das imagens do anúncio associadas a essa variação
+- seller_custom_field: TEXT  -- SKU da variação
+- meli_variation_id: BIGINT  -- ID da variação no ML (após publicação)
+- status: TEXT  -- active/inactive
+- created_at / updated_at
+```
+
+### API ML para Variações
+
+| Operação | Endpoint | Notas |
+|----------|----------|-------|
+| Criar com variações | POST /items (incluir array `variations`) | Cada variação: `attribute_combinations`, `price`, `available_quantity`, `picture_ids` |
+| Atualizar variação | PUT /items/{id}/variations/{variation_id} | Preço, estoque, fotos |
+| Adicionar variação | POST /items/{id}/variations | Nova combinação |
+| Remover variação | DELETE /items/{id}/variations/{variation_id} | Não pode remover a última |
+
+### Impacto Cruzado
+
+| Módulo | Impacto |
+|--------|---------|
+| **Estoque** | Cada variação tem estoque próprio; soma = `available_quantity` total do anúncio |
+| **Pedidos** | Pedido ML indica `variation_id`; precisa mapear para SKU interno |
+| **Imagens** | Variações referenciam `picture_ids` (IDs das imagens do anúncio, não URLs) |
+| **Sincronização** | `meli-sync-listings` precisa trazer dados de variações |
+
+### Fases de Implementação
+
+1. **Fase 1:** Modelo de dados + UI de criação de variações no Wizard
+2. **Fase 2:** Publicação com variações via API ML (POST /items com `variations`)
+3. **Fase 3:** Sincronização de estoque por variação (bidirecional)
+4. **Fase 4:** Mapeamento variação→SKU nos pedidos recebidos do ML
+
+---
+
 ## Checklist
 
 - [x] OAuth com popup + postMessage
@@ -571,3 +709,7 @@ POST /meli-sync-listings
 - [x] Auto-suggest de categoria via category_predictor no formulário individual
 - [x] Sincronização de status de anúncios com ML (detecta excluídos/pausados/encerrados)
 - [ ] Webhook de notificações de pedidos (real-time)
+- [ ] Edição pós-publicação (título no update) — edge function ajustada, UI pendente
+- [ ] UI de gestão de imagens por anúncio (drag-and-drop, adicionar, remover)
+- [ ] Validação de diferenciação em multi-anúncio (título OU preço diferente)
+- [ ] Variações / SKUs (multi-variação completa — planejado)

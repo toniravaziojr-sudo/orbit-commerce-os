@@ -1,161 +1,119 @@
 
-# Plano: Fluxo Integrado NF-e → Remessa → Despacho
+# Plano: Documentação de Lacunas — Anúncios Mercado Livre
 
-## Ciclo de Vida Completo do Pedido (pós-pagamento)
-
-```text
-Pagamento Aprovado
-    │
-    ├── fiscal_draft_queue → Rascunho NF-e (draft)
-    └── shipping_draft_queue → Rascunho Logístico (draft)
-    │
-    ▼
-Emissão da NF-e (manual ou futuramente em lote)
-    │
-    ├── NF-e autorizada → status 'authorized'
-    │   └── Pedido muda para 'processing'
-    │
-    ▼
-Emissão da Remessa (depende de NF-e autorizada)
-    │
-    ├── auto_create_shipment = true → envia automaticamente
-    │   └── Sucesso → shipment status: 'shipped', tracking_code preenchido
-    │   └── Falha → shipment status: 'failed' (aba "Remessas pendentes")
-    │
-    ├── auto_create_shipment = false → fica em 'draft' na aba "Prontos para emitir"
-    │   └── Usuário clica "Emitir Remessa" → envia direto à transportadora
-    │   └── Sucesso → shipment status: 'shipped'
-    │   └── Falha → shipment status: 'failed' (aba "Remessas pendentes")
-    │
-    ▼
-Impressão (Etiqueta + DANFE)
-    │
-    ├── Botões individuais: "Imprimir Etiqueta" / "Imprimir DANFE"
-    ├── Ação "Despachar": modal com preview etiqueta + DANFE, imprime ambos
-    └── Impressão em lote: seleciona múltiplos, gera PDF consolidado
-    │
-    ▼
-Despacho → Pedido muda para 'dispatched'
-    │
-    ▼
-Rastreamento (polling automático por transportadora)
-    │
-    ├── Primeira movimentação ("coletado"/"a caminho") → Pedido: 'shipped'
-    ├── Em trânsito → Pedido: 'in_transit'
-    ├── Saiu para entrega → Pedido: 'out_for_delivery'
-    └── Entregue → Pedido: 'delivered'
-```
+## Contexto
+A documentação atual (v2.1.0) cobre bem o fluxo de criação, publicação em massa e edição pré-publicação. Porém, existem 4 lacunas que precisam ser documentadas e implementadas.
 
 ---
 
-## Etapa 1 — Status do Pedido (Ajuste)
+## 1. Edição Pós-Publicação (Campos Editáveis)
 
-Adicionar status `dispatched` ao ciclo de vida do pedido:
+### Situação Atual
+- A action `update` na `meli-publish-listing` já envia: preço, estoque, imagens e descrição
+- **NÃO envia título** na edição (falta no payload do `updateListing`)
+- O frontend (`MeliListingWizard`) bloqueia edição para status `published`/`paused`
 
-| Status Atual | Novo Status | Gatilho |
-|---|---|---|
-| `processing` | `dispatched` | Etiqueta impressa (ação "Despachar") |
-| `dispatched` | `shipped` | Primeira movimentação do rastreio na transportadora |
+### O que documentar e implementar
+- **Campos editáveis pós-publicação via API ML (PUT /items/{id}):**
+  - ✅ Preço (`price`) — já implementado
+  - ✅ Estoque (`available_quantity`) — já implementado
+  - ✅ Imagens (`pictures`) — já implementado
+  - ✅ Descrição (`plain_text` via endpoint separado) — já implementado
+  - ❌ **Título (`title`) — FALTA adicionar ao payload do `updateListing`**
+- **Campos NÃO editáveis pós-publicação (restrição ML):**
+  - `category_id` (categoria é imutável após publicação)
+  - `condition` (novo/usado é imutável)
+  - `buying_mode`
+- **UI:** Permitir edição no Wizard para anúncios `published`/`paused`, mas apenas dos campos permitidos pela API ML
 
-O status `shipped` passa a significar "em posse da transportadora" (não mais "etiqueta emitida").
-
----
-
-## Etapa 2 — Dependência NF-e → Remessa
-
-**Regra:** Remessa só pode ser emitida se existir NF-e com status `authorized` vinculada ao pedido.
-
-Implementação:
-- Na aba "Prontos para emitir remessa": só exibir pedidos que tenham NF-e autorizada
-- No `shipping-create-shipment`: validar existência de NF-e autorizada antes de enviar
-- No `auto_create_shipment`: só disparar se a NF-e retornou `authorized`
-
----
-
-## Etapa 3 — Vínculo NF-e ↔ Remessa
-
-Ao autorizar NF-e:
-1. Preencher `shipments.nfe_key` com `fiscal_invoices.chave_acesso`
-2. Preencher `shipments.invoice_id` com o ID da NF-e
-3. Se `auto_create_shipment = true` → chamar `shipping-create-shipment` automaticamente
+### Ajustes necessários
+1. Adicionar `title` ao payload de `updateListing` na edge function
+2. Abrir o `MeliListingWizard` para status `published`/`paused` com campos restritos
+3. Documentar quais campos são editáveis e quais são bloqueados
 
 ---
 
-## Etapa 4 — UI de Impressão e Despacho
+## 2. Variações (Multi-variação Completa)
 
-### 4.1 Botões Individuais
-Em cada remessa emitida (aba "Remessas emitidas"):
-- **Imprimir Etiqueta**: abre `label_url` em nova aba (PDF)
-- **Imprimir DANFE**: abre `danfe_url` da NF-e vinculada em nova aba (PDF)
+### Situação Atual
+- Zero suporte a variações — cada anúncio = 1 SKU fixo
+- Tabela `meli_listings` não tem campo para variações
 
-### 4.2 Ação "Despachar"
-Na aba "Prontos para emitir remessa" (após emissão):
-- Botão "Despachar" → modal com:
-  - Preview/link da etiqueta
-  - Preview/link do DANFE
-  - Botão "Imprimir Tudo" (abre ambos)
-  - Botão "Confirmar Despacho" → muda pedido para `dispatched`
+### O que documentar (para implementação futura)
 
-### 4.3 Impressão em Lote
-- Checkboxes para selecionar múltiplas remessas
-- Botão "Imprimir Selecionadas" → gera/abre todas as etiquetas + DANFEs
+**Modelo de dados:**
+- Nova tabela `meli_listing_variations` (ou campo JSONB `variations` na `meli_listings`)
+- Cada variação: `attribute_combinations` (ex: cor=Azul + tamanho=M), `price`, `available_quantity`, `picture_ids`, `seller_custom_field` (SKU)
 
----
+**API ML para variações:**
+- Criar com variações: incluir array `variations` no POST /items
+- Cada variação referencia `picture_ids` (IDs das imagens do anúncio)
+- `attribute_combinations`: array de `{ id: "COLOR", value_name: "Azul" }`
 
-## Etapa 5 — Aba "Remessas Pendentes" (Erros)
+**Impacto cruzado:**
+- Estoque: cada variação tem estoque próprio, soma = `available_quantity` do anúncio
+- Pedidos: pedido ML indica `variation_id`, precisa mapear para SKU interno
+- Imagens: variações referenciam imagens específicas do anúncio
 
-Quando uma remessa falha (automática ou manual):
-- Exibe na aba "Remessas pendentes" com mensagem de erro
-- Botão "Tentar Novamente" → reenvia à transportadora
-- Permite edição de dados antes do reenvio (endereço, peso, etc.)
-
----
-
-## Etapa 6 — Rastreamento e Transição Automática de Status
-
-Pesquisar e mapear eventos de cada transportadora:
-
-| Transportadora | Evento "Coletado" | Endpoint |
-|---|---|---|
-| Correios | Evento SRO tipo "coleta" ou "postagem" | `GET /rastro/v1/objetos/{codigo}` |
-| Loggi | Status "collected" ou "in_transit" | API Loggi tracking |
-| Frenet | Via webhook/polling do gateway | API Frenet |
-
-O `scheduler-tick` (nova fase ou existente) faz polling periódico e atualiza:
-- `shipments.delivery_status` conforme evento
-- `orders.status` conforme mapeamento acima
+**Fases sugeridas:**
+- Fase 1: Modelo de dados + UI de criação de variações no Wizard
+- Fase 2: Publicação com variações via API ML
+- Fase 3: Sincronização de estoque por variação
+- Fase 4: Mapeamento variação→SKU nos pedidos
 
 ---
 
-## Etapa 7 — Documentação
+## 3. Gestão de Imagens (Herdar + Customizar)
 
-Atualizar:
-- `erp-fiscal.md`: fluxo pós-autorização com vínculo remessa
-- `rascunhos-logisticos.md`: dependência NF-e, fluxo de despacho
-- `logistica.md`: status `dispatched`, mapeamento de eventos por transportadora
+### Situação Atual
+- `buildImagesList` já faz merge: imagens do anúncio + imagens do produto
+- Não há UI para gerenciar imagens por anúncio (reordenar, adicionar, remover)
+- Campo `images` (JSONB) existe na `meli_listings`
+
+### O que documentar e implementar
+
+**Comportamento padrão:**
+- Na criação, herdar automaticamente todas as imagens do produto (até 10)
+- Salvar no campo `images` da `meli_listings` como cópia editável
+
+**Customização por anúncio:**
+- UI no Wizard: galeria com drag-and-drop para reordenar
+- Botão para adicionar imagens extras (upload ou URL)
+- Botão para remover imagens específicas daquele anúncio
+- Primeira imagem = imagem principal no ML
+
+**Regras:**
+- Mínimo 1 imagem para publicar (já validado)
+- Máximo 10 imagens (limite ML, já aplicado no `buildImagesList`)
+- Edição pós-publicação: PUT /items/{id} com `pictures` atualiza imagens
 
 ---
 
-## Resumo de Entregas
+## 4. Multi-Anúncio com Diferenciação
 
-| Entrega | Tipo |
-|---|---|
-| Status `dispatched` no ciclo do pedido | Migração DB |
-| Validação NF-e obrigatória na remessa | Edge function |
-| Vínculo automático NF-e → shipment | Edge function |
-| UI: botões imprimir etiqueta/DANFE | Frontend |
-| UI: modal "Despachar" | Frontend |
-| UI: impressão em lote | Frontend |
-| UI: aba remessas pendentes (reenvio) | Frontend |
-| Polling de rastreio com transição de status | Edge function + scheduler |
-| Documentação completa | Docs |
+### Situação Atual
+- Sem restrição de unicidade (permite múltiplos anúncios por produto)
+- Sem alerta ou validação de duplicata
 
-## Ordem de Execução
+### O que documentar e implementar
 
-```
-1. Migração DB (status dispatched)
-2. Edge functions (vínculo NF-e, validação, auto-create)
-3. UI de impressão e despacho
-4. Polling de rastreio (pode ser fase posterior)
-5. Documentação
-```
+**Regra de diferenciação:**
+- Ao criar anúncio para produto que já possui anúncio ativo (`published`/`paused`), exigir que **pelo menos título OU preço** sejam diferentes
+- Validação no momento da aprovação/publicação (não bloqueia rascunho)
+- Outros campos podem ser livremente editados
+
+**UI:**
+- Badge indicando "2 anúncios ativos" na lista de produtos/anúncios
+- Alerta informativo (não bloqueante) ao criar: "Este produto já possui X anúncio(s) ativo(s)"
+- Na lista de anúncios, agrupar visualmente anúncios do mesmo produto
+
+---
+
+## Resumo de Prioridades
+
+| Item | Complexidade | Prioridade |
+|------|-------------|-----------|
+| Edição pós-publicação (título) | Baixa | Alta — fix simples na edge function |
+| Gestão de imagens | Média | Alta — UX essencial |
+| Multi-anúncio diferenciação | Baixa | Média — validação + UI |
+| Variações completas | Alta | Futura — requer modelo de dados novo |
