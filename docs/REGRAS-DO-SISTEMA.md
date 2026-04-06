@@ -657,4 +657,16 @@ Detalhes de cada plano (features, limites, preços, créditos) ficam no doc de e
 
 ---
 
+## 28. REGRA DE ORDENAÇÃO PADRÃO DE LISTAGENS
+
+| Regra | Descrição |
+|-------|-----------|
+| **Padrão geral** | Todas as listagens/cadastros do sistema devem ser ordenadas por `created_at DESC` (o registro mais recente aparece primeiro). |
+| **Exceção: Produtos** | A listagem de produtos é ordenada por `sku ASC` (menor SKU primeiro, nulos por último). |
+| **Exceções técnicas permitidas** | Listas ordenadas por `sort_order`, `position`, `priority` ou `due_at` mantêm sua ordenação funcional (ex: blocos do builder, variantes, regras de frete, tarefas da agenda). Mensagens de chat usam `created_at ASC` (ordem cronológica de conversa). |
+| **Aplicação** | Esta regra se aplica a todas as queries de listagem principal dos hooks (`useOrders`, `useCustomers`, `useProducts`, `useFiscal`, `useInfluencerLeads`, `useEmailMarketing`, `usePurchases`, `usePurchaseSuppliers`, `useShippingProviders`, `useMailboxes`, `useFinanceEntryTypes`, `usePurchaseTypes`, `useAgendaAuthorizedPhones`, etc.). |
+| **Anti-regressão** | Ao criar novo hook de listagem, aplicar esta regra automaticamente. Não usar `order('name')` como padrão em listagens de cadastro. |
+
+---
+
 *Fim do documento.*
