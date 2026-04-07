@@ -183,6 +183,7 @@ export default function Integrations() {
 
         <TabsContent value="google" className="space-y-6">
           <GoogleUnifiedSettings />
+          <GoogleMerchantTab />
         </TabsContent>
 
         <TabsContent value="tiktok" className="space-y-6">
