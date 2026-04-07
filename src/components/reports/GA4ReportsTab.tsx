@@ -99,13 +99,13 @@ export function GA4ReportsTab() {
     <div className="space-y-6">
       {/* Realtime Banner */}
       {realtime && !realtimeLoading && (
-        <Alert className="border-green-500/30 bg-green-500/5">
-          <Zap className="h-4 w-4 text-green-600" />
+        <Alert className="border-primary/30 bg-primary/5">
+          <Zap className="h-4 w-4 text-primary" />
           <AlertDescription className="flex items-center gap-4">
-            <span className="font-medium text-green-700">
+            <span className="font-medium text-primary">
               Tempo Real:
             </span>
-            <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/30">
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
               {realtime.activeUsers} usuários ativos agora
             </Badge>
             <span className="text-sm text-muted-foreground">
