@@ -20,6 +20,7 @@ import { MarketplacesIntegrationTab } from "@/components/integrations/Marketplac
 import { DomainAndEmailSettings } from "@/components/integrations/DomainAndEmailSettings";
 import { TikTokUnifiedSettings } from "@/components/integrations/TikTokUnifiedSettings";
 import { GoogleUnifiedSettings } from "@/components/integrations/GoogleUnifiedSettings";
+import { GoogleMerchantTab } from "@/components/integrations/GoogleMerchantTab";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
