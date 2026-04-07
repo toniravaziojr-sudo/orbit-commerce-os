@@ -4,6 +4,7 @@
 // =============================================
 
 import { useState } from 'react';
+import { GA4AttributionPanel } from '@/components/marketing/GA4AttributionPanel';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
