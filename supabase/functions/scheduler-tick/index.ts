@@ -439,6 +439,9 @@ serve(async (req) => {
       email_subscribers_synced: 0,
       fiscal_drafts_created: 0,
       shipping_drafts_created: 0,
+      chargebacks_detected: 0,
+      chargebacks_recovered: 0,
+      chargebacks_lost: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
@@ -455,6 +458,7 @@ serve(async (req) => {
         scheduled_emails: { processed: 0, sent: 0, failed: 0, skipped: 0 },
         creative_poll: { resumed: 0, errors: 0 },
         email_list_sync: { lists_synced: 0, subscribers_synced: 0, skipped_not_due: false, errors: 0 },
+        monitor_chargebacks: { approved_checked: 0, disputed_checked: 0, chargebacks_detected: 0, chargebacks_recovered: 0, chargebacks_lost: 0, errors: 0 },
       };
 
       // ====================================================================
