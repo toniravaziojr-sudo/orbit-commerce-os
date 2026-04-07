@@ -1,136 +1,211 @@
 
 
-# Plano de Correção Definitiva — Meta Pixel/CAPI v8.26.0
+# Plano de Implementação Total — Ecossistema Google v1.0
 
-## Diagnóstico Completo por Evento
+## Visão Geral da Navegação
 
-Investiguei todo o código de rastreamento (Edge HTML + SPA + Edge Function CAPI). A tabela abaixo mapeia TODOS os eventos e seus problemas de identidade:
-
-| Evento | Contexto | external_id | fbp | fbc | IP | Problema |
-|--------|----------|-------------|-----|-----|----|----------|
-| PageView | Edge HTML | ❌ `_sf_vid` criado DEPOIS | ⚠️ retry 3.5s, sem polling | ✅ | ⚠️ Proxy IP | `gv()` na linha 1881, `_sfCapi` na linha 130 — cookie não existe no 1o carregamento |
-| ViewContent | Edge HTML | ❌ Mesmo problema | ❌ Sem wait | ✅ | ⚠️ | Dispara inline, sem qualquer espera por `_fbp` |
-| ViewCategory | Edge HTML | ❌ Mesmo problema | ❌ Sem wait | ✅ | ⚠️ | Idem |
-| AddToCart | Edge HTML | ❌ Mesmo problema | ❌ Sem wait | ✅ | ⚠️ | `_sfCapi` chamado no click handler, fbp 3.1% |
-| InitiateCheckout | Edge HTML (buy-now) | ❌ Mesmo problema | ❌ Sem wait | ✅ | ⚠️ | Dispara no click e redireciona imediatamente |
-| InitiateCheckout | SPA | ✅ | ✅ waitForFbp 1.5s | ✅ | ⚠️ | OK exceto IP |
-| Lead | SPA | ✅ | ✅ waitForFbp 1.5s | ✅ | ⚠️ | OK exceto IP |
-| AddShippingInfo | SPA | ✅ | ✅ waitForFbp 1.5s | ✅ | ⚠️ | OK exceto IP |
-| AddPaymentInfo | SPA | ✅ | ✅ waitForFbp 1.5s | ✅ | ⚠️ | OK exceto IP |
-| Purchase | SPA + Server | ✅ | ✅ | ✅ | ⚠️ | OK exceto IP |
-
-### Causas Raiz Confirmadas
-
-**1. `external_id` baixo no Edge HTML (afeta PageView, ViewContent, ViewCategory, AddToCart, InitiateCheckout)**
-- A função `gv()` que cria o cookie `_sf_vid` está no script de visit tracking, na **linha 1881** (fim da página).
-- A função `_sfGetVid()` (linha 128) que lê o cookie é definida no **topo**, mas no primeiro carregamento o cookie simplesmente não existe ainda.
-- Resultado: todos os eventos CAPI disparados no Edge HTML para novos visitantes vão sem `external_id`.
-
-**2. `fbp` praticamente zero no Edge HTML**
-- O `_sfCapi` (linha 130-141) lê `_fbp` de forma síncrona e imediata.
-- O Meta Pixel é carregado via `requestIdleCallback` (timeout 3s) — o cookie `_fbp` só existe após o Pixel inicializar.
-- No SPA existe `waitForFbp()` com polling. No Edge HTML **não existe nenhum mecanismo equivalente**.
-- O único retry é para PageView (linha 155, setTimeout 3.5s), mas é um retry fixo, não polling, e **não cobre ViewContent, AddToCart, etc.**
-
-**3. IP compartilhado (79% dos PageView)**
-- O Edge Function recebe o IP do gateway Supabase, não do visitante real.
-- Headers como `cf-connecting-ip` podem não ser propagados pela infraestrutura Supabase.
-- O IP real do visitante só é acessível no navegador, mas não é enviado no payload CAPI.
-
-**4. `fbc` abaixo do esperado**
-- `fbc` só existe para tráfego pago Meta (presença de `fbclid`). O nível atual é parcialmente esperado.
-- Porém, a captura no Edge HTML (linha 126) persiste corretamente em cookie + localStorage. No SPA, `captureClickIds()` faz o mesmo. **Não há bug real aqui** — a cobertura reflete o mix de tráfego pago vs orgânico.
-
----
-
-## Plano de Implementação (4 Frentes)
-
-### Frente 1 — Criar `_sf_vid` no topo do Edge HTML (antes de qualquer CAPI)
-
-**Arquivo:** `supabase/functions/storefront-html/index.ts`
-
-Mover a lógica `gv()` (criar/ler `_sf_vid`) do script de visit tracking (linha ~1881) para o bloco de inicialização (linha ~125), **antes** da definição de `_sfCapi`. A função `_sfGetVid` passará a usar o valor já criado.
-
-Ordem final do script de inicialização:
 ```text
-1. _sfEvtId (gerador de event_id)
-2. Captura fbclid → _fbc cookie  
-3. _sfGetOrCreateVid (NOVO — cria _sf_vid AQUI)
-4. _sfGetFbc, _sfGetVid (agora lê o cookie que acabou de ser criado)
-5. _sfGetAM
-6. _sfCapi (já com vid garantido)
+┌─────────────────────────────────────────────────────────────┐
+│ INTEGRAÇÃO ATUAL (onde ficam)                                │
+│                                                             │
+│ /integrations?tab=google  ← Hub de conexão OAuth unificado │
+│   (GoogleUnifiedSettings — já existe com scope packs)       │
+│                                                             │
+│ ONDE CADA MÓDULO APARECE NO SISTEMA:                        │
+│                                                             │
+│ 1. Google Analytics GA4                                     │
+│    ├─ /reports (aba "Google Analytics")                     │
+│    └─ /marketing/atribuicao (dados GA4 no painel)           │
+│                                                             │
+│ 2. Google Ads                                               │
+│    └─ /ads (Gestor de Tráfego IA — aba "Google Ads")       │
+│                                                             │
+│ 3. Google Merchant Center                                   │
+│    └─ /integrations?tab=google (seção catálogo, similar Meta)│
+│                                                             │
+│ 4. Google Meu Negócio                                       │
+│    ├─ /reviews (aba "Google Meu Negócio")                   │
+│    └─ /support (canal "Google Meu Negócio" no inbox)        │
+│                                                             │
+│ 5. Google Search Console                                    │
+│    ├─ /settings (card "SEO" com dados do Search Console)    │
+│    └─ /command-center (aba "SEO")                           │
+│                                                             │
+│ 6. Google Tag Manager                                       │
+│    └─ /apps-externos (novo módulo "Aplicativos Externos")   │
+│                                                             │
+│ 7. Gmail                                                    │
+│    └─ /emails (canal "Gmail" no inbox de emails)            │
+│                                                             │
+│ 8. Google Calendar                                          │
+│    └─ /apps-externos (app externo, sincroniza com agenda)   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Impacto:** `external_id` sobe de ~32-40% para ~95%+ em todos os eventos Edge HTML.
+---
 
-### Frente 2 — Adicionar `waitForFbp` no Edge HTML para TODOS os eventos CAPI
+## Fases de Implementação
 
-**Arquivo:** `supabase/functions/storefront-html/index.ts`
+### Fase 1 — Documentação Completa (Doc First)
 
-Refatorar `_sfCapi` para incluir polling assíncrono do cookie `_fbp`:
-- Verifica `_fbp` imediatamente
-- Se ausente, faz polling a cada 250ms (até 6 tentativas = 1.5s)
-- Após timeout, envia com o que tem (graceful degradation)
-- Não bloqueia a UI — a chamada CAPI é assíncrona
+Criar especificação dedicada `docs/especificacoes/marketing/google-integracoes.md` cobrindo todos os 8 módulos com:
 
-Isso cobre: PageView, ViewContent, ViewCategory, AddToCart, InitiateCheckout.
+- Escopo funcional de cada módulo
+- Tabelas necessárias (existentes e novas)
+- Edge Functions envolvidas (existentes e novas)
+- Hooks e componentes de UI
+- Mapeamento de navegação
+- Fluxos de dados e dependências cruzadas
 
-O retry fixo de 3.5s para PageView (linha 155) será removido pois o polling dentro do `_sfCapi` já resolve.
+Atualizar `docs/especificacoes/marketing/marketing-integracoes.md` com referência ao novo doc.
+Atualizar memória `integrations-roadmap-status`.
 
-**Impacto:** `fbp` sobe de ~3-20% para ~70-85% nos eventos Edge HTML.
+### Fase 2 — Google Analytics GA4 (Relatórios + Atribuição)
 
-### Frente 3 — Enviar IP real do visitante no payload CAPI
+**Objetivo:** Alimentar os relatórios do sistema e o módulo de atribuição com dados reais do GA4.
 
-**Arquivos:**
-- `supabase/functions/storefront-html/index.ts` — O `_sfCapi` passará a enviar `client_ip_from_browser` no payload, obtido via uma chamada leve ao próprio endpoint CAPI que retorna o IP detectado
-- `supabase/functions/marketing-capi-track/index.ts` — Aceitar campo opcional `user_data.client_ip_from_browser` e usá-lo como valor preferencial para `client_ip_address`
-- `src/lib/marketingTracker.ts` — O `sendServerEvent` do SPA também enviará o IP capturado, se disponível
+**Backend (já existe parcialmente):**
+- Edge Function `google-analytics-report` já suporta summary, realtime, list, sync
+- Hook `useGoogleAnalytics` já existe
+- Validar e completar: funis de conversão, receita por canal, dados de e-commerce
 
-Estratégia: Na primeira chamada CAPI (PageView), o response do Edge Function retornará o IP detectado. O script armazena em `window._sfClientIp` e o inclui em todas as chamadas subsequentes.
+**Frontend:**
+- Adicionar aba "Google Analytics" na página `/reports`
+- Cards: sessões, usuários, pageviews, conversões, receita
+- Gráfico de tendência diária
+- Integrar dados GA4 no painel de atribuição (`/marketing/atribuicao`)
 
-**Impacto:** Reduz "IPs associados a vários usuários" de 79% para ~10-20%.
+### Fase 3 — Google Ads (Gestor de Tráfego IA)
 
-### Frente 4 — Aumentar timeout do `waitForFbp` no SPA de 1.5s para 3s
+**Objetivo:** Integrar Google Ads como segunda plataforma no Gestor de Tráfego IA.
 
-**Arquivo:** `src/lib/marketingTracker.ts`
+**Backend (parcialmente existente):**
+- Edge Functions já existem: `google-ads-campaigns`, `google-ads-adgroups`, `google-ads-ads`, `google-ads-keywords`, `google-ads-audiences`, `google-ads-insights`, `google-ads-assets`
+- Falta: conversões server-side (`google-ads-conversions`), cron de refresh de token (expiração 1h)
 
-Na linha 405, o `waitForFbp(1500)` está usando 1.5s, mas a própria função suporta até 5s (linha 294). Aumentar para 3s para maximizar captura sem impactar UX.
+**Frontend:**
+- Adicionar aba "Google Ads" no `/ads` (AdsManager)
+- Paridade de funcionalidades com Meta: listar campanhas, métricas, criar/pausar
+- Integrar no Chat IA do Gestor de Tráfego (tools para Google Ads)
+- Integrar com Strategist e Guardian (análise dual-platform)
 
-**Impacto:** Melhora marginal no `fbp` dos eventos SPA (InitiateCheckout, AddShippingInfo, AddPaymentInfo).
+### Fase 4 — Google Merchant Center (Catálogo de Produtos)
+
+**Objetivo:** Sincronizar catálogo de produtos para Google Shopping, similar ao Meta Catalog.
+
+**Backend (parcialmente existente):**
+- Edge Functions `google-merchant-sync` e `google-merchant-status` existem
+- Completar: sync incremental, feed de produtos, status de aprovação por produto
+
+**Frontend:**
+- Seção "Catálogo Google Shopping" dentro do Hub Google (`/integrations?tab=google`)
+- Cards: produtos sincronizados, aprovados, reprovados, pendentes
+- Botão de sync manual + indicador de última sincronização
+- Tabela com status de cada produto no Merchant Center
+
+### Fase 5 — Google Meu Negócio (Avaliações + Atendimento)
+
+**Objetivo:** Integrar avaliações do Google e canal de mensagens do GMB.
+
+**Backend (existente):**
+- Edge Functions `google-business-reviews` e `google-business-posts` existem
+- Hook `useGoogleBusiness` existe com locations, reviews, posts, reply
+
+**Frontend — Avaliações:**
+- Adicionar aba "Google Meu Negócio" na página `/reviews`
+- Listar avaliações do Google com nota, texto, data
+- Botão de responder direto do painel
+- Sync automático periódico
+
+**Frontend — Atendimento:**
+- Adicionar canal "Google Meu Negócio" no módulo `/support`
+- Mensagens do GMB aparecem no inbox unificado
+- Respostas enviadas via API do Google Business
+
+### Fase 6 — Google Search Console (SEO)
+
+**Objetivo:** Dados de SEO acessíveis em Configurações e na Central de Comando.
+
+**Backend (existente):**
+- Edge Function `google-search-console` já suporta summary, list, sites, sync
+- Hook `useGoogleSearchConsole` existe
+
+**Frontend:**
+- Adicionar card "SEO" na página `/settings` com link para dados do Search Console
+- Adicionar aba "SEO" na Central de Comando (`/command-center`)
+- Métricas: queries top, CTR médio, posição média, impressões
+- Alertas: páginas com erro de indexação, cobertura
+
+### Fase 7 — Google Tag Manager (Aplicativos Externos)
+
+**Objetivo:** Permitir injeção de tags via GTM com visibilidade dos scripts ativos.
+
+**Backend (existente):**
+- Edge Function `google-tag-manager` existe
+- Hook `useGoogleTagManager` existe com containers, sync, scripts
+
+**Frontend — Novo módulo "Aplicativos Externos":**
+- Nova rota `/apps-externos`
+- Nova entrada no menu de navegação (sidebar)
+- Card do Google Tag Manager com:
+  - Container ativo e Public ID
+  - Lista de tags/scripts injetados (obtidos via API GTM)
+  - Toggle para ativar/desativar injeção do GTM no storefront
+  - Snippet de instalação (head + body)
+
+### Fase 8 — Gmail (Inbox de Emails)
+
+**Objetivo:** Conectar Gmail do usuário ao inbox de emails do sistema.
+
+**Backend (novo):**
+- Adicionar scope pack `gmail` no OAuth do Google
+- Nova Edge Function `google-gmail-sync` para ler/enviar emails via Gmail API
+- Novo hook `useGmail`
+
+**Frontend:**
+- Adicionar canal "Gmail" no módulo `/emails`
+- Emails recebidos aparecem no inbox
+- Possibilidade de responder via Gmail conectado
+
+### Fase 9 — Google Calendar (Aplicativo Externo)
+
+**Objetivo:** Sincronizar agenda do sistema com Google Calendar.
+
+**Backend (novo):**
+- Adicionar scope pack `calendar` no OAuth do Google
+- Nova Edge Function `google-calendar-sync` para criar/ler eventos
+- Novo hook `useGoogleCalendar`
+
+**Frontend:**
+- Card "Google Calendar" no módulo `/apps-externos`
+- Toggle de sincronização: ao ativar, eventos da agenda do sistema (agendamentos, lembretes) são espelhados no Google Calendar do usuário
+- Status: conectado/desconectado, último sync
 
 ---
 
-## Documentação
+## Ordem de Execução
 
-### Atualização do `docs/meta-tracking-changelog.md`
-
-Adicionar **Registro #4** com:
-- Notas ANTES (capturar dos prints atuais do usuário)
-- Detalhamento das 4 frentes aplicadas
-- Template para acompanhamento APÓS (48-72h)
-
-### Atualização da memória `meta-tracking-standard`
-
-Registrar a versão v8.26.0 com as mudanças de identidade no Edge HTML.
-
----
-
-## Resultado Esperado
-
-| Parâmetro | Antes (Edge HTML) | Depois | Antes (SPA) | Depois |
-|-----------|-------------------|--------|-------------|--------|
-| external_id | 32-40% | ~95%+ | 72-87% | ~98%+ |
-| fbp | 3-20% | ~70-85% | 52-87% | ~85-90% |
-| fbc | 18-62% | Sem mudança (limitado ao tráfego pago) | 40-62% | Idem |
-| IP único | ~21% | ~80-90% | Idem | Idem |
+| Fase | O que | Estimativa |
+|------|-------|------------|
+| 1 | Documentação completa | 1 sessão |
+| 2 | Google Analytics GA4 | 1-2 sessões |
+| 3 | Google Ads no Gestor de Tráfego | 2-3 sessões |
+| 4 | Google Merchant Center | 1-2 sessões |
+| 5 | Google Meu Negócio | 1-2 sessões |
+| 6 | Search Console (SEO) | 1 sessão |
+| 7 | Tag Manager + módulo Apps Externos | 1 sessão |
+| 8 | Gmail | 1-2 sessões |
+| 9 | Google Calendar | 1 sessão |
 
 ---
 
-## Arquivos Impactados
+## Detalhes Técnicos
 
-1. `supabase/functions/storefront-html/index.ts` — Frentes 1, 2 e 3
-2. `supabase/functions/marketing-capi-track/index.ts` — Frente 3 (aceitar IP do browser)
-3. `src/lib/marketingTracker.ts` — Frentes 3 e 4
-4. `docs/meta-tracking-changelog.md` — Registro #4
-5. `.lovable/memory/infrastructure/marketing/meta-tracking-standard` — Atualização v8.26.0
+**Autenticação:** Todos os módulos compartilham o OAuth unificado do Google (`GoogleUnifiedSettings` com scope packs). Cada módulo ativa seu scope pack. O token refresh é gerenciado por `google-token-refresh`.
+
+**Tabelas existentes** que já suportam: `google_ads_accounts`, `google_analytics_properties`, `google_merchant_products`, `google_business_locations`, `google_business_reviews`, `google_business_posts`, `google_search_console_data`, `google_tag_manager_containers`, `google_connections`.
+
+**Tabelas novas necessárias:** `google_gmail_accounts`, `google_calendar_syncs`, `external_apps` (tabela genérica para o módulo Aplicativos Externos).
+
+**Validação técnica:** Cada fase será validada com: chamada real à Edge Function, verificação de dados no banco, teste do componente de UI, e verificação de logs.
 
