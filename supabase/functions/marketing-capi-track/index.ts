@@ -52,6 +52,7 @@ interface TrackRequest {
     fbc?: string;
     gender?: string;
     date_of_birth?: string;
+    client_ip_from_browser?: string;
   };
   // Custom data (event-specific)
   custom_data?: {
@@ -125,17 +126,17 @@ serve(async (req) => {
       });
     }
 
-    // Get client IP - use first available IP without format preference
-    // v8.25.0: Removed IPv4 prioritization. Meta Pixel now reports IPv6 in many cases,
-    // so CAPI must send the same format the browser sees to avoid "IP mismatch" diagnostics.
-    // Strategy: use the most specific header first (closest to client), then x-forwarded-for first entry
-    const clientIp = 
+    // v8.26.0: Prefer client-reported IP (browser knows real IP), fall back to headers
+    const clientIpFromBrowser = payload.user_data?.client_ip_from_browser || null;
+    const headerIp = 
       req.headers.get('cf-connecting-ip')?.trim() ||
       req.headers.get('true-client-ip')?.trim() ||
       req.headers.get('x-real-ip')?.trim() ||
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('x-envoy-external-address')?.trim() ||
       null;
+    // Use browser-reported IP if available (solves shared proxy IP issue)
+    const clientIp = clientIpFromBrowser || headerIp;
     const clientUserAgent = req.headers.get('user-agent') || null;
 
     // Diagnostic log for IP tracking
@@ -197,7 +198,8 @@ serve(async (req) => {
 
     console.log(`[marketing-capi-track] ${payload.event_name} (event_id: ${payload.event_id}) → ${result.success ? 'OK' : 'FAIL'}`);
 
-    return new Response(JSON.stringify(result), {
+    // v8.26.0: Return detected IP so browser can use it for subsequent events
+    return new Response(JSON.stringify({ ...result, detected_ip: headerIp }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 

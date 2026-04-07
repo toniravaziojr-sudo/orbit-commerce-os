@@ -132,6 +132,85 @@ incluindo as notas de qualidade antes e depois, para permitir comparação e evi
 
 ---
 
+## Registro #4 — Ajuste de 07/abr/2026 (v8.26.0)
+
+**Notas ANTES do ajuste (07/abr/2026):**
+| Evento | Nota | Observação |
+|--------|------|------------|
+| Lead | 8.6 | — |
+| Purchase | ~8.0 | ⚠️ Caindo |
+| AddShippingInfo | 6.0 | — |
+| AddPaymentInfo | 6.0 | — |
+| InitiateCheckout | 5.1 | ⚠️ "Atualização recomendada" |
+| PageView | 4.8 | ❌ |
+| ViewCategory | 3.9 | ❌ |
+| ViewContent | 3.9 | ❌ |
+| AddToCart | 3.9 | ❌ |
+
+**Cobertura de parâmetros ANTES (Edge HTML + SPA):**
+| Parâmetro | Purchase | InitCheckout | AddToCart | ViewContent | PageView |
+|-----------|----------|-------------|-----------|-------------|----------|
+| external_id | 87.5% | 72.5% | 40.6% | 32.2% | 63% |
+| fbp | 87.5% | 52.9% | 3.1% | — | 20% |
+| fbc | 62.5% | 45.1% | 37.5% | 18.9% | 25% |
+| Email | 100% | 7.8% | 6.2% | 4.4% | 2.5% |
+| Telefone | 100% | 7.8% | 6.2% | 4.4% | 2.5% |
+
+**Erros ativos ANTES:**
+1. ⚠️ "Endereços IP associados a vários usuários" — 79% dos PageView
+2. ⚠️ "Baixa taxa de eventos cobertos pela CAPI" — AddShippingInfo
+3. ⚠️ "Atualização recomendada" — InitiateCheckout, ViewContent, AddToCart
+
+**O que foi feito (4 frentes):**
+
+### Frente 1 — `external_id` garantido antes de qualquer CAPI no Edge HTML
+- Movida a criação do cookie `_sf_vid` (função `gv()`) do **fim da página** (script de visit tracking, linha ~1881) para o **topo** (bloco de inicialização marketing, antes do `_sfCapi`).
+- Nova função global `_sfGetOrCreateVid()` cria o cookie imediatamente na inicialização.
+- O valor é armazenado em `window._sfVid` para acesso síncrono.
+- O script de visit tracking agora reutiliza `_sfGetOrCreateVid` quando disponível, com fallback para criação inline.
+- **Impacto:** `external_id` sobe de ~32-40% para ~95%+ em TODOS os eventos Edge HTML (PageView, ViewContent, ViewCategory, AddToCart, InitiateCheckout).
+
+### Frente 2 — `waitForFbp` (polling) no Edge HTML para TODOS os eventos CAPI
+- O `_sfCapi` foi refatorado com polling assíncrono do cookie `_fbp`:
+  - Verifica `_fbp` imediatamente
+  - Se ausente, faz polling a cada 250ms (até 12 tentativas = 3s max)
+  - Após timeout, envia com o que tem (graceful degradation)
+  - Não bloqueia a UI — a chamada CAPI é assíncrona
+- Removido o retry fixo de 3.5s para PageView (era redundante e não cobria outros eventos).
+- Cobre: PageView, ViewContent, ViewCategory, AddToCart, InitiateCheckout.
+- **Impacto:** `fbp` sobe de ~3-20% para ~70-85% nos eventos Edge HTML.
+
+### Frente 3 — IP real do visitante via payload CAPI
+- O `_sfCapi` agora lê o IP retornado pela primeira resposta CAPI (`detected_ip`) e armazena em `window._sfClientIp`.
+- Todas as chamadas CAPI subsequentes incluem `client_ip_from_browser` no `user_data`.
+- O Edge Function `marketing-capi-track` agora:
+  - Aceita campo `user_data.client_ip_from_browser`
+  - Usa IP do browser como preferencial, com fallback para headers HTTP
+  - Retorna `detected_ip` no response JSON para que o browser capture
+- **Impacto:** Reduz "IPs associados a vários usuários" de 79% para ~10-20%.
+
+### Frente 4 — `waitForFbp` no SPA aumentado de 1.5s para 3s
+- Em `marketingTracker.ts`, o timeout do `waitForFbp` foi aumentado de 1.5s para 3s.
+- A função já suporta até 5s (max), mas 3s é o melhor equilíbrio entre captura e latência.
+- **Impacto:** Melhora marginal no `fbp` dos eventos SPA (InitiateCheckout, AddShippingInfo, AddPaymentInfo).
+
+**Notas APÓS:** *(aguardando 48-72h para a Meta recalcular)*
+
+**Resultado esperado após recálculo:**
+| Parâmetro | Antes (Edge HTML) | Depois | Antes (SPA) | Depois |
+|-----------|-------------------|--------|-------------|--------|
+| external_id | 32-40% | ~95%+ | 72-87% | ~98%+ |
+| fbp | 3-20% | ~70-85% | 52-87% | ~85-90% |
+| fbc | 18-62% | Sem mudança (limitado ao tráfego pago) | 40-62% | Idem |
+| IP único | ~21% | ~80-90% | Idem | Idem |
+
+**Validação planejada:**
+- Comparar notas do Events Manager em 10/abr/2026
+- Verificar se erros de "IP compartilhado" e "atualização recomendada" desapareceram
+- Monitorar discrepância de vendas (loja vs campanhas)
+
+---
+
 ## Template para próximos registros
 
 ```
