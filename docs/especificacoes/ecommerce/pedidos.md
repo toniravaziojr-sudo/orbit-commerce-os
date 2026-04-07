@@ -338,15 +338,16 @@ stateDiagram-v2
 
 ### 4.4 Transições Automáticas
 
-| Evento | De | Para | Mecanismo |
-|--------|----|------|-----------|
-| Webhook pagamento aprovado | `awaiting_confirmation` | `ready_to_invoice` | `pagarme-webhook` / webhook da operadora |
-| Verificação ativa: pagamento aprovado | `awaiting_confirmation` | `ready_to_invoice` | `verify-payment-status` (cron) |
-| Verificação ativa: expirado/cancelado | `awaiting_confirmation` | `payment_expired` | `verify-payment-status` (cron) |
-| Verificação ativa: recusado | `awaiting_confirmation` | `payment_expired` | `verify-payment-status` (cron) |
-| Chargeback detectado | `paid` | `chargeback_requested` | `monitor-chargebacks` (cron) |
-| Chargeback recuperado | `chargeback_requested` | `paid` | `monitor-chargebacks` (cron) |
-| Chargeback perdido | `chargeback_requested` | `refunded` | `monitor-chargebacks` (cron) |
+| Evento | De (status) | Para (status) | De (payment) | Para (payment) | Mecanismo |
+|--------|-------------|---------------|--------------|-----------------|-----------|
+| Webhook pagamento aprovado | `awaiting_confirmation` | `ready_to_invoice` | `awaiting_payment` | `paid` | `pagarme-webhook` / webhook da operadora |
+| Verificação ativa: pagamento aprovado | `awaiting_confirmation` | `ready_to_invoice` | `awaiting_payment` | `paid` | `verify-payment-status` (cron) |
+| Verificação ativa: expirado/cancelado | `awaiting_confirmation` | `payment_expired` | — | `cancelled` | `verify-payment-status` (cron) |
+| Chargeback detectado | `*` (qualquer) | `chargeback_detected` | `paid`/`approved` | `under_review` | `monitor-chargebacks` (cron) |
+| Chargeback recuperado | `chargeback_detected` | (restaura status anterior) | `under_review` | `paid` | `monitor-chargebacks` (cron) |
+| Chargeback perdido | `chargeback_detected` | `chargeback_lost` | `under_review` | `refunded` | `monitor-chargebacks` (cron) |
+| Chargeback prazo excedido | `chargeback_detected` | `chargeback_lost` | `under_review` | `refunded` | `monitor-chargebacks` (cron) |
+| Estorno direto (sem disputa) | — | — | `paid`/`approved` | `refunded` | `monitor-chargebacks` (cron) |
 
 ### 4.5 Normalização de Status (ANTI-REGRESSÃO)
 
