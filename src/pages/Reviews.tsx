@@ -368,14 +368,28 @@ export default function Reviews() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Avaliações"
-        description="Modere as avaliações de produtos da sua loja"
+        description="Modere avaliações da loja e do Google Meu Negócio"
         actions={
-          <div className="flex gap-2">
-            <AddReviewDialog />
-            <GenerateReviewsDialog />
-          </div>
+          mainTab === 'store' ? (
+            <div className="flex gap-2">
+              <AddReviewDialog />
+              <GenerateReviewsDialog />
+            </div>
+          ) : undefined
         }
       />
+
+      <Tabs value={mainTab} onValueChange={setMainTab}>
+        <TabsList>
+          <TabsTrigger value="store"><Star className="h-4 w-4 mr-1.5" /> Loja</TabsTrigger>
+          <TabsTrigger value="google"><MapPin className="h-4 w-4 mr-1.5" /> Google Meu Negócio</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="google" className="mt-6">
+          <GoogleBusinessReviewsTab />
+        </TabsContent>
+
+        <TabsContent value="store" className="mt-6">
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
