@@ -35,7 +35,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare, Plus, Sparkles, Play, Image as ImageIcon, CheckCheck } from 'lucide-react';
+import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare, Plus, Sparkles, Play, Image as ImageIcon, CheckCheck, MapPin } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
@@ -44,6 +44,7 @@ import { ptBR } from 'date-fns/locale';
 import { AddReviewDialog } from '@/components/reviews/AddReviewDialog';
 import { GenerateReviewsDialog } from '@/components/reviews/GenerateReviewsDialog';
 import { registerReviewMediaToDrive, ensureReviewFolderAndGetId } from '@/lib/registerReviewMediaToDrive';
+import { GoogleBusinessReviewsTab } from '@/components/reviews/GoogleBusinessReviewsTab';
 
 interface ProductReview {
   id: string;
@@ -64,6 +65,7 @@ export default function Reviews() {
   const { currentTenant, user } = useAuth();
   const currentTenantId = currentTenant?.id;
   const queryClient = useQueryClient();
+  const [mainTab, setMainTab] = useState<string>('store');
   const [activeTab, setActiveTab] = useState<string>('pending');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -366,14 +368,28 @@ export default function Reviews() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Avaliações"
-        description="Modere as avaliações de produtos da sua loja"
+        description="Modere avaliações da loja e do Google Meu Negócio"
         actions={
-          <div className="flex gap-2">
-            <AddReviewDialog />
-            <GenerateReviewsDialog />
-          </div>
+          mainTab === 'store' ? (
+            <div className="flex gap-2">
+              <AddReviewDialog />
+              <GenerateReviewsDialog />
+            </div>
+          ) : undefined
         }
       />
+
+      <Tabs value={mainTab} onValueChange={setMainTab}>
+        <TabsList>
+          <TabsTrigger value="store"><Star className="h-4 w-4 mr-1.5" /> Loja</TabsTrigger>
+          <TabsTrigger value="google"><MapPin className="h-4 w-4 mr-1.5" /> Google Meu Negócio</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="google" className="mt-6">
+          <GoogleBusinessReviewsTab />
+        </TabsContent>
+
+        <TabsContent value="store" className="mt-6">
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -692,6 +708,8 @@ export default function Reviews() {
         </DialogContent>
       </Dialog>
       {ReviewConfirmDialog}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
