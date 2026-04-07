@@ -58,7 +58,7 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, {
   payment_expired: { label: 'Pagamento expirado', variant: 'destructive' },
   invoice_rejected: { label: 'NF Rejeitada', variant: 'destructive' },
   invoice_cancelled: { label: 'NF Cancelada', variant: 'destructive' },
-  chargeback_detected: { label: 'Chargeback detectado', variant: 'destructive', color: 'text-orange-700' },
+  chargeback_detected: { label: 'Chargeback detectado', variant: 'outline', color: 'text-yellow-700' },
   chargeback_lost: { label: 'Chargeback perdido', variant: 'destructive' },
   chargeback_recovered: { label: 'Chargeback recuperado', variant: 'default', color: 'text-green-700' },
 };
@@ -77,13 +77,14 @@ export type PaymentStatus =
 export const PAYMENT_STATUS_CONFIG: Record<PaymentStatus, { 
   label: string; 
   variant: 'default' | 'secondary' | 'destructive' | 'outline';
+  color?: string;
 }> = {
   awaiting_payment: { label: 'Aguardando pagamento', variant: 'outline' },
   paid: { label: 'Pago', variant: 'default' },
   declined: { label: 'Recusado', variant: 'destructive' },
   cancelled: { label: 'Cancelado', variant: 'destructive' },
   refunded: { label: 'Estornado', variant: 'destructive' },
-  under_review: { label: 'Em análise', variant: 'destructive' },
+  under_review: { label: 'Em análise', variant: 'outline', color: 'text-yellow-700' },
 };
 
 // ==========================================

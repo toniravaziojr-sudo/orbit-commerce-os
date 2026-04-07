@@ -197,6 +197,18 @@ export function getOrderStatusInfo(status: string) {
   const normalized = normalizeOrderStatus(status);
   const cfg = ORDER_STATUS_CONFIG[normalized];
   
+  // Use custom color if defined (e.g. yellow for chargeback_detected)
+  if (cfg?.color) {
+    const bgMap: Record<string, string> = {
+      'text-yellow-700': 'bg-yellow-100 text-yellow-800',
+      'text-green-700': 'bg-green-100 text-green-800',
+    };
+    return {
+      label: cfg.label,
+      color: bgMap[cfg.color] || 'bg-gray-100 text-gray-800',
+    };
+  }
+  
   const colorMap: Record<string, string> = {
     outline: 'bg-yellow-100 text-yellow-800',
     secondary: 'bg-blue-100 text-blue-800',

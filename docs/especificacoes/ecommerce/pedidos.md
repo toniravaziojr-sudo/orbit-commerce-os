@@ -553,20 +553,26 @@ Quando um pedido é criado, o sistema inicia verificação ativa do status de pa
 - Credenciais cacheadas por tenant para evitar consultas repetidas ao banco
 
 **Fluxo de chargeback (v2026-04-07 — ATUALIZADO):**
+
+**Cores visuais dos status de chargeback:**
+- `chargeback_detected` / `under_review` → **Amarelo** (em análise, atenção)
+- `chargeback_lost` / `refunded` → **Vermelho** (perdido/estornado)
+- `chargeback_recovered` → **Verde** (resolvido a favor da loja)
+
 1. `monitor-chargebacks` detecta chargeback:
-   - `payment_status` → `under_review` (Em análise)
-   - `status` → `chargeback_detected` (Chargeback detectado)
+   - `payment_status` → `under_review` (Em análise — amarelo)
+   - `status` → `chargeback_detected` (Chargeback detectado — amarelo)
    - `status_before_chargeback` salvo para restauração futura
    - `chargeback_detected_at` é preenchido
    - `chargeback_deadline_at` = detecção + 15 dias
 2. Verificação contínua por 15 dias:
    - **Chargeback recuperado:**
      - `payment_status` → `paid`
-     - `status` → restaura `status_before_chargeback` (ex: `ready_to_invoice`)
-     - Limpa `chargeback_detected_at` e `chargeback_deadline_at`
+     - `status` → `chargeback_recovered` (verde)
+     - Preserva `status_before_chargeback` e `chargeback_detected_at` para histórico
    - **Chargeback perdido:**
      - `payment_status` → `refunded`
-     - `status` → `chargeback_lost`
+     - `status` → `chargeback_lost` (vermelho)
 3. Se nenhuma resolução em 15 dias → mesma ação de "chargeback perdido"
 4. Estornos diretos (sem chargeback) → `payment_status = refunded` (status do pedido não muda)
 

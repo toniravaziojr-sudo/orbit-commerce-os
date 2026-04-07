@@ -244,7 +244,7 @@ export function OrderList({
                     <p className="text-xs text-muted-foreground truncate max-w-[200px]">{order.customer_email}</p>
                   </TableCell>
                   <TableCell className="py-3">
-                    <Badge variant={orderStatusCfg.variant} className="gap-1 text-xs whitespace-nowrap">
+                    <Badge variant={orderStatusCfg.variant} className={`gap-1 text-xs whitespace-nowrap ${orderStatusCfg.color ? `${orderStatusCfg.color} border-yellow-400/50 bg-yellow-50` : ''}`}>
                       <StatusIcon className="h-3 w-3 shrink-0" />
                       {orderStatusCfg.label}
                     </Badge>
@@ -271,7 +271,7 @@ export function OrderList({
                     </span>
                   </TableCell>
                   <TableCell className="py-3">
-                    <Badge variant={paymentStatusCfg.variant} className="text-xs whitespace-nowrap">
+                    <Badge variant={paymentStatusCfg.variant} className={`text-xs whitespace-nowrap ${paymentStatusCfg.color ? `${paymentStatusCfg.color} border-yellow-400/50 bg-yellow-50` : ''}`}>
                       {paymentStatusCfg.label}
                     </Badge>
                   </TableCell>
