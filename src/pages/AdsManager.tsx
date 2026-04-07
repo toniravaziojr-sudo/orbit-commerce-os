@@ -117,7 +117,7 @@ export default function AdsManager() {
     if (activeChannel === "meta" && meta.campaigns.length === 0) {
       meta.syncCampaigns.mutate();
     } else if (activeChannel === "google" && google.campaigns.length === 0) {
-      google.syncCampaigns(undefined);
+      google.syncCampaigns.mutate(undefined);
     } else if (activeChannel === "tiktok" && tiktok.campaigns.length === 0) {
       tiktok.syncCampaigns.mutate();
     }
@@ -127,7 +127,7 @@ export default function AdsManager() {
     if (activeChannel === "meta") {
       meta.updateCampaign.mutate({ meta_campaign_id: campaignId, status });
     } else if (activeChannel === "google") {
-      // Google campaign status updates via edge function (future)
+      google.updateCampaign.mutate({ google_campaign_id: campaignId, status: status === "ACTIVE" ? "ENABLED" : status });
     } else if (activeChannel === "tiktok") {
       tiktok.updateCampaign.mutate({ tiktok_campaign_id: campaignId, status });
     }
@@ -136,6 +136,8 @@ export default function AdsManager() {
   const handleUpdateCampaignBudget = (campaignId: string, dailyBudgetCents: number) => {
     if (activeChannel === "meta") {
       meta.updateCampaign.mutate({ meta_campaign_id: campaignId, daily_budget_cents: dailyBudgetCents });
+    } else if (activeChannel === "google") {
+      google.updateCampaign.mutate({ google_campaign_id: campaignId, daily_budget_cents: dailyBudgetCents });
     }
   };
 
@@ -159,9 +161,11 @@ export default function AdsManager() {
       meta.syncAds.mutate({});
       meta.refreshBalance();
     } else if (activeChannel === "google") {
-      google.syncCampaigns(undefined);
-      google.syncInsights(undefined);
-      google.syncAudiences(undefined);
+      google.syncCampaigns.mutate(undefined);
+      google.syncInsights.mutate(undefined);
+      google.syncAudiences.mutate(undefined);
+      google.syncAdGroups.mutate(undefined);
+      google.syncAds.mutate(undefined);
     } else if (activeChannel === "tiktok") {
       try { await tiktok.syncCampaigns.mutateAsync(); } catch (e) { console.error('Erro ao sincronizar campanhas TikTok:', e); }
       tiktok.syncInsights.mutate({});
@@ -192,10 +196,39 @@ export default function AdsManager() {
             ad_account_id: c.ad_account_id,
           })),
           campaignsLoading: google.campaignsLoading || google.isSyncingCampaigns,
-          insights: [],
-          insightsLoading: false,
-          adsets: [],
-          ads: [],
+          insights: google.insights.map(i => ({
+            google_campaign_id: i.google_campaign_id,
+            date_start: i.date,
+            date_stop: i.date,
+            impressions: i.impressions || 0,
+            clicks: i.clicks || 0,
+            spend_cents: i.cost_micros ? Math.round(i.cost_micros / 10000) : 0,
+            reach: 0,
+            conversions: i.conversions || 0,
+            conversion_value_cents: i.conversions_value ? Math.round(i.conversions_value * 100) : 0,
+            roas: 0,
+            ctr: i.ctr || 0,
+            frequency: 0,
+          })),
+          insightsLoading: google.insightsLoading,
+          adsets: google.adGroups.map(ag => ({
+            id: ag.id,
+            meta_adset_id: ag.google_adgroup_id,
+            meta_campaign_id: ag.google_campaign_id,
+            name: ag.name,
+            status: ag.status,
+            optimization_goal: ag.ad_group_type,
+            daily_budget_cents: null,
+            lifetime_budget_cents: null,
+          })),
+          ads: google.ads.map(ad => ({
+            id: ad.id,
+            meta_ad_id: ad.google_ad_id,
+            meta_adset_id: ad.google_adgroup_id,
+            meta_campaign_id: ad.google_campaign_id,
+            name: ad.name,
+            status: ad.status,
+          })),
           accountBalances: [],
         };
       case "tiktok":
@@ -424,7 +457,7 @@ export default function AdsManager() {
                         adAccounts={integration.adAccounts}
                         isConnected={integration.isConnected}
                         onSync={handleSyncCampaigns}
-                        isSyncing={activeChannel === "meta" ? (meta.syncCampaigns.isPending || meta.syncInsights.isPending || meta.syncAdsets.isPending) : activeChannel === "google" ? (google.isSyncingCampaigns || google.isSyncingInsights) : activeChannel === "tiktok" ? (tiktok.syncCampaigns.isPending || tiktok.syncInsights.isPending) : false}
+                        isSyncing={activeChannel === "meta" ? (meta.syncCampaigns.isPending || meta.syncInsights.isPending || meta.syncAdsets.isPending) : activeChannel === "google" ? (google.isSyncingCampaigns || google.isSyncingInsights || google.isSyncingAdGroups || google.isSyncingAds) : activeChannel === "tiktok" ? (tiktok.syncCampaigns.isPending || tiktok.syncInsights.isPending) : false}
                         insights={channelData.insights}
                         adsets={channelData.adsets}
                         ads={channelData.ads}
