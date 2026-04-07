@@ -4,6 +4,7 @@
 // =============================================
 
 import { useState } from 'react';
+import { GA4AttributionPanel } from '@/components/marketing/GA4AttributionPanel';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -464,6 +465,10 @@ export default function Attribution() {
               <BarChart3 className="h-4 w-4" />
               Estatísticas
             </TabsTrigger>
+            <TabsTrigger value="ga4" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Google Analytics
+            </TabsTrigger>
             <TabsTrigger value="setup" className="flex items-center gap-2">
               <Info className="h-4 w-4" />
               Configuração
@@ -472,6 +477,10 @@ export default function Attribution() {
           
           <TabsContent value="stats">
             <AttributionStatsTable />
+          </TabsContent>
+
+          <TabsContent value="ga4">
+            <GA4AttributionPanel />
           </TabsContent>
           
           <TabsContent value="setup">
