@@ -117,7 +117,7 @@ export default function AdsManager() {
     if (activeChannel === "meta" && meta.campaigns.length === 0) {
       meta.syncCampaigns.mutate();
     } else if (activeChannel === "google" && google.campaigns.length === 0) {
-      google.syncCampaigns(undefined);
+      google.syncCampaigns.mutate(undefined);
     } else if (activeChannel === "tiktok" && tiktok.campaigns.length === 0) {
       tiktok.syncCampaigns.mutate();
     }
@@ -127,7 +127,7 @@ export default function AdsManager() {
     if (activeChannel === "meta") {
       meta.updateCampaign.mutate({ meta_campaign_id: campaignId, status });
     } else if (activeChannel === "google") {
-      // Google campaign status updates via edge function (future)
+      google.updateCampaign.mutate({ google_campaign_id: campaignId, status: status === "ACTIVE" ? "ENABLED" : status });
     } else if (activeChannel === "tiktok") {
       tiktok.updateCampaign.mutate({ tiktok_campaign_id: campaignId, status });
     }
@@ -136,6 +136,8 @@ export default function AdsManager() {
   const handleUpdateCampaignBudget = (campaignId: string, dailyBudgetCents: number) => {
     if (activeChannel === "meta") {
       meta.updateCampaign.mutate({ meta_campaign_id: campaignId, daily_budget_cents: dailyBudgetCents });
+    } else if (activeChannel === "google") {
+      google.updateCampaign.mutate({ google_campaign_id: campaignId, daily_budget_cents: dailyBudgetCents });
     }
   };
 
@@ -159,9 +161,11 @@ export default function AdsManager() {
       meta.syncAds.mutate({});
       meta.refreshBalance();
     } else if (activeChannel === "google") {
-      google.syncCampaigns(undefined);
-      google.syncInsights(undefined);
-      google.syncAudiences(undefined);
+      google.syncCampaigns.mutate(undefined);
+      google.syncInsights.mutate(undefined);
+      google.syncAudiences.mutate(undefined);
+      google.syncAdGroups.mutate(undefined);
+      google.syncAds.mutate(undefined);
     } else if (activeChannel === "tiktok") {
       try { await tiktok.syncCampaigns.mutateAsync(); } catch (e) { console.error('Erro ao sincronizar campanhas TikTok:', e); }
       tiktok.syncInsights.mutate({});
