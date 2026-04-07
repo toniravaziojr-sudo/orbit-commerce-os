@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.3.2"; // Fix products.depth column name (was 'length')
+const VERSION = "v2.4.0"; // Add monitor-chargebacks to parallel phase
+// v2.3.2 - Fix products.depth column name (was 'length')
 // v2.3.0 - Shipping draft queue: creates draft shipments from approved orders
 // v2.2.0 - Added fiscal-auto-create-drafts as parallel fallback
 
@@ -299,6 +300,15 @@ interface EmailListSyncStats {
   errors: number;
 }
 
+interface MonitorChargebacksStats {
+  approved_checked: number;
+  disputed_checked: number;
+  chargebacks_detected: number;
+  chargebacks_recovered: number;
+  chargebacks_lost: number;
+  errors: number;
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
@@ -321,6 +331,7 @@ interface TickStats {
   scheduled_emails: ScheduledEmailsStats;
     creative_poll: CreativePollStats;
     email_list_sync: EmailListSyncStats;
+    monitor_chargebacks: MonitorChargebacksStats;
   }
 
 interface AggregatedStats {
@@ -341,6 +352,9 @@ interface AggregatedStats {
       scheduled_emails_sent: number;
       email_lists_synced: number;
       email_subscribers_synced: number;
+      chargebacks_detected: number;
+      chargebacks_recovered: number;
+      chargebacks_lost: number;
     };
     passes: TickStats[];
 }
