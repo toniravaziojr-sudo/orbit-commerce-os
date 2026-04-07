@@ -529,23 +529,32 @@ Quando um pedido é criado, o sistema inicia verificação ativa do status de pa
 
 **Coexistência com webhooks:** A verificação ativa é **complementar** aos webhooks. Webhooks continuam sendo a fonte primária de atualização. A verificação ativa serve como fallback para casos onde o webhook falha, atrasa ou não chega.
 
-### 7.2 Sistema de Monitoramento Pós-Venda — Chargebacks (v2026-04-04)
+### 7.2 Sistema de Monitoramento Pós-Venda — Chargebacks (v2026-04-07)
 
-> **Mecanismo:** Cron diário (`monitor-chargebacks`) verifica todos os pedidos aprovados nos últimos 60 dias.
+> **Mecanismo:** Cron via `scheduler-tick` (`monitor-chargebacks` v2.0) verifica todos os pedidos aprovados nos últimos 60 dias.
+> **Gateways suportados:** Pagar.me e Mercado Pago (multi-gateway, baseado em `orders.payment_gateway`).
 
 | Fase | Duração | Ação |
 |------|---------|------|
-| Monitoramento regular | 60 dias após aprovação | Verificação diária do status na operadora |
-| Chargeback detectado | +15 dias após detecção | Verificação diária para resolução |
+| Monitoramento regular | 60 dias após aprovação | Verificação a cada ciclo do scheduler-tick (~5 min) |
+| Chargeback detectado | +15 dias após detecção | Verificação a cada ciclo para resolução |
+
+**Paginação e rate limiting:**
+- Processa em lotes de 30 pedidos por página
+- Delay de 200ms entre chamadas individuais ao gateway
+- Delay de 500ms entre páginas
+- Máximo de 30 páginas (900 pedidos) por execução
+- Credenciais cacheadas por tenant para evitar consultas repetidas ao banco
 
 **Fluxo de chargeback:**
 1. `monitor-chargebacks` detecta chargeback → `payment_status = chargeback_requested`
 2. `chargeback_detected_at` é preenchido
 3. `chargeback_deadline_at` = detecção + 15 dias
-4. Verificação diária por 15 dias:
-   - Chargeback recuperado → `payment_status = paid` (volta ao estado aprovado)
+4. Verificação contínua por 15 dias:
+   - Chargeback recuperado → `payment_status = approved` (volta ao estado aprovado)
    - Chargeback perdido → `payment_status = refunded`
 5. Se nenhuma resolução em 15 dias → `payment_status = refunded`
+6. Estornos diretos (sem chargeback) também são detectados → `payment_status = refunded`
 
 ### 7.3 Sistema de Identificação de Clientes (v2026-04-05)
 
