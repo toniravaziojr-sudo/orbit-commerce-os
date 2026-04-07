@@ -314,9 +314,9 @@ stateDiagram-v2
 | De | Para | Válido | Descrição |
 |----|------|--------|-----------|
 | `awaiting_payment` | `paid`, `declined`, `cancelled` | ✅ | Resposta inicial do gateway |
-| `paid` | `refunded`, `chargeback_requested` | ✅ | Estorno ou disputa |
-| `chargeback_requested` | `paid` | ✅ | Chargeback recuperado |
-| `chargeback_requested` | `refunded` | ✅ | Chargeback perdido |
+| `paid` | `refunded`, `under_review` | ✅ | Estorno ou chargeback detectado |
+| `under_review` | `paid` | ✅ | Chargeback recuperado |
+| `under_review` | `refunded` | ✅ | Chargeback perdido |
 | `declined` | `awaiting_payment`, `cancelled` | ✅ | Retry ou cancelamento |
 | `cancelled` | - | ❌ (final) | - |
 | `refunded` | - | ❌ (final) | - |
