@@ -4,9 +4,10 @@
 > **Versão:** 1.1.0  
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Migrado de:** `docs/regras/marketing-integracoes.md`  
-> **Última atualização:** 2026-04-06
+> **Última atualização:** 2026-04-07
 >
-> **Nota:** A seção "Gestor de Tráfego IA" foi extraída para doc dedicado: `marketing/gestor-trafego.md`
+> **Nota:** A seção "Gestor de Tráfego IA" foi extraída para doc dedicado: `marketing/gestor-trafego.md`  
+> **Nota:** O ecossistema Google completo (Analytics, Ads, Merchant, GMB, Search Console, GTM, Gmail, Calendar) tem doc dedicado: `marketing/google-integracoes.md`
 
 
 ---
