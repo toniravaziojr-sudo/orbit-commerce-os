@@ -902,6 +902,25 @@ serve(async (req) => {
             passStats.email_list_sync.errors = 1;
           }
         }
+
+        // Process monitor-chargebacks result
+        if (monitorChargebacksResult && monitorChargebacksResult.status === 'fulfilled' && monitorChargebacksResult.value.ok) {
+          const data = monitorChargebacksResult.value.data;
+          console.log(`[scheduler-tick] monitor-chargebacks result:`, data);
+          passStats.monitor_chargebacks.approved_checked = data.approved_checked ?? 0;
+          passStats.monitor_chargebacks.disputed_checked = data.disputed_checked ?? 0;
+          passStats.monitor_chargebacks.chargebacks_detected = data.chargebacks_detected ?? 0;
+          passStats.monitor_chargebacks.chargebacks_recovered = data.chargebacks_recovered ?? 0;
+          passStats.monitor_chargebacks.chargebacks_lost = data.chargebacks_lost ?? 0;
+          passStats.monitor_chargebacks.errors = data.errors ?? 0;
+          aggregatedTotals.chargebacks_detected += data.chargebacks_detected ?? 0;
+          aggregatedTotals.chargebacks_recovered += data.chargebacks_recovered ?? 0;
+          aggregatedTotals.chargebacks_lost += data.chargebacks_lost ?? 0;
+        } else if (monitorChargebacksResult) {
+          const error = monitorChargebacksResult.status === 'rejected' ? monitorChargebacksResult.reason : monitorChargebacksResult.value?.error;
+          console.error(`[scheduler-tick] monitor-chargebacks error:`, error);
+          passStats.monitor_chargebacks.errors = 1;
+        }
       }
 
       allPassStats.push(passStats);
