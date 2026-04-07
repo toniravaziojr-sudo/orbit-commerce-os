@@ -203,36 +203,42 @@ export default function Reports() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="overview" className="text-xs">
-            <BarChart3 className="h-4 w-4 mr-1" />
-            Visão Geral
-          </TabsTrigger>
-          <TabsTrigger value="products" className="text-xs">
-            <Package className="h-4 w-4 mr-1" />
-            Produtos
-          </TabsTrigger>
-          <TabsTrigger value="channels" className="text-xs">
-            <Store className="h-4 w-4 mr-1" />
-            Canais
-          </TabsTrigger>
-          <TabsTrigger value="coupons" className="text-xs">
-            <Tag className="h-4 w-4 mr-1" />
-            Cupons
-          </TabsTrigger>
-          <TabsTrigger value="payments" className="text-xs">
-            <CreditCard className="h-4 w-4 mr-1" />
-            Pagamentos
-          </TabsTrigger>
-          <TabsTrigger value="regions" className="text-xs">
-            <MapPin className="h-4 w-4 mr-1" />
-            Regiões
-          </TabsTrigger>
-          <TabsTrigger value="customers" className="text-xs">
-            <Users className="h-4 w-4 mr-1" />
-            Clientes
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto">
+          <TabsList className="inline-flex w-auto min-w-full">
+            <TabsTrigger value="overview" className="text-xs">
+              <BarChart3 className="h-4 w-4 mr-1" />
+              Visão Geral
+            </TabsTrigger>
+            <TabsTrigger value="products" className="text-xs">
+              <Package className="h-4 w-4 mr-1" />
+              Produtos
+            </TabsTrigger>
+            <TabsTrigger value="channels" className="text-xs">
+              <Store className="h-4 w-4 mr-1" />
+              Canais
+            </TabsTrigger>
+            <TabsTrigger value="coupons" className="text-xs">
+              <Tag className="h-4 w-4 mr-1" />
+              Cupons
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="text-xs">
+              <CreditCard className="h-4 w-4 mr-1" />
+              Pagamentos
+            </TabsTrigger>
+            <TabsTrigger value="regions" className="text-xs">
+              <MapPin className="h-4 w-4 mr-1" />
+              Regiões
+            </TabsTrigger>
+            <TabsTrigger value="customers" className="text-xs">
+              <Users className="h-4 w-4 mr-1" />
+              Clientes
+            </TabsTrigger>
+            <TabsTrigger value="ga4" className="text-xs">
+              <BarChart3 className="h-4 w-4 mr-1" />
+              Google Analytics
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
