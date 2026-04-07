@@ -751,6 +751,11 @@ export default function Reports() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Google Analytics Tab */}
+        <TabsContent value="ga4" className="space-y-4">
+          <GA4ReportsTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
