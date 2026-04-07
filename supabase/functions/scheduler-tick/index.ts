@@ -794,10 +794,17 @@ serve(async (req) => {
           callSubFunction(supabaseUrl, supabaseServiceKey, 'fiscal-auto-create-drafts', {})
         );
 
-        // Task H: monitor-chargebacks (post-sale chargeback monitoring — all gateways)
-        parallelTasks.push(
-          callSubFunction(supabaseUrl, supabaseServiceKey, 'monitor-chargebacks', {})
-        );
+        // Task H: monitor-chargebacks (every 12 hours — at 00:00 and 12:00)
+        const currentHour = new Date().getUTCHours();
+        const shouldRunChargebackMonitor = (currentHour === 0 || currentHour === 12) && currentMinute < 2;
+        if (shouldRunChargebackMonitor) {
+          console.log(`[scheduler-tick] Chargeback monitor is DUE (hour=${currentHour}, minute=${currentMinute})`);
+          parallelTasks.push(
+            callSubFunction(supabaseUrl, supabaseServiceKey, 'monitor-chargebacks', {})
+          );
+        } else {
+          console.log(`[scheduler-tick] Chargeback monitor skipped (hour=${currentHour}, next at 00:00 or 12:00 UTC)`);
+        }
 
         console.log(`[scheduler-tick] Starting parallel phase (${parallelTasks.length} tasks)...`);
         const parallelStart = Date.now();
