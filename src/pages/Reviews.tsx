@@ -35,7 +35,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare, Plus, Sparkles, Play, Image as ImageIcon, CheckCheck } from 'lucide-react';
+import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare, Plus, Sparkles, Play, Image as ImageIcon, CheckCheck, MapPin } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
@@ -44,6 +44,7 @@ import { ptBR } from 'date-fns/locale';
 import { AddReviewDialog } from '@/components/reviews/AddReviewDialog';
 import { GenerateReviewsDialog } from '@/components/reviews/GenerateReviewsDialog';
 import { registerReviewMediaToDrive, ensureReviewFolderAndGetId } from '@/lib/registerReviewMediaToDrive';
+import { GoogleBusinessReviewsTab } from '@/components/reviews/GoogleBusinessReviewsTab';
 
 interface ProductReview {
   id: string;
