@@ -67,6 +67,7 @@ export default function Reviews() {
   const queryClient = useQueryClient();
   const [mainTab, setMainTab] = useState<string>('store');
   const [activeTab, setActiveTab] = useState<string>('pending');
+  const [productFilter, setProductFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [lightboxMedia, setLightboxMedia] = useState<string | null>(null);
   const { confirm: confirmAction, ConfirmDialog: ReviewConfirmDialog } = useConfirmDialog();
