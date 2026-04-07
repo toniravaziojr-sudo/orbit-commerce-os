@@ -3,8 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.4.0"; // Add monitor-chargebacks to parallel phase
-// v2.3.2 - Fix products.depth column name (was 'length')
+const VERSION = "v2.4.1"; // monitor-chargebacks runs every 12h (00:00 and 12:00 UTC)
+// v2.4.0 - Add monitor-chargebacks to parallel phase
 // v2.3.0 - Shipping draft queue: creates draft shipments from approved orders
 // v2.2.0 - Added fiscal-auto-create-drafts as parallel fallback
 
@@ -815,8 +815,8 @@ serve(async (req) => {
         const emailListSyncResult = shouldRunEmailListSync ? results[6] : undefined;
         const fiscalDraftsResultIndex = shouldRunEmailListSync ? 7 : 6;
         const fiscalDraftsResult = results[fiscalDraftsResultIndex];
-        // monitor-chargebacks is always the last item
-        const monitorChargebacksResult = results[results.length - 1];
+        // monitor-chargebacks is the last item only when it ran
+        const monitorChargebacksResult = shouldRunChargebackMonitor ? results[results.length - 1] : undefined;
 
         const parallelDuration = Date.now() - parallelStart;
         console.log(`[scheduler-tick] Parallel phase completed in ${parallelDuration}ms`);
