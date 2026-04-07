@@ -39,7 +39,8 @@ export type OrderStatus =
   | 'invoice_rejected'         // NF Rejeitada - SEFAZ rejeitou
   | 'invoice_cancelled'        // NF Cancelada - Cancelada pós-autorização
   | 'chargeback_detected'      // Chargeback detectado - Em análise
-  | 'chargeback_lost';         // Chargeback perdido - Estornado por disputa
+  | 'chargeback_lost'          // Chargeback perdido - Estornado por disputa
+  | 'chargeback_recovered';    // Chargeback recuperado - Resolvido a favor da loja
 
 export const ORDER_STATUS_CONFIG: Record<OrderStatus, { 
   label: string; 
@@ -59,6 +60,7 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, {
   invoice_cancelled: { label: 'NF Cancelada', variant: 'destructive' },
   chargeback_detected: { label: 'Chargeback detectado', variant: 'destructive', color: 'text-orange-700' },
   chargeback_lost: { label: 'Chargeback perdido', variant: 'destructive' },
+  chargeback_recovered: { label: 'Chargeback recuperado', variant: 'default', color: 'text-green-700' },
 };
 
 // ==========================================
@@ -135,6 +137,7 @@ export const LEGACY_ORDER_STATUS_MAP: Record<string, OrderStatus> = {
   invoice_cancelled: 'invoice_cancelled',
   chargeback_detected: 'chargeback_detected',
   chargeback_lost: 'chargeback_lost',
+  chargeback_recovered: 'chargeback_recovered',
   // Legacy values → new values
   pending: 'awaiting_confirmation',
   awaiting_payment: 'awaiting_confirmation',

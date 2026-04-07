@@ -209,6 +209,7 @@ export default function Orders() {
                   <SelectItem value="invoice_cancelled">NF Cancelada</SelectItem>
                   <SelectItem value="chargeback_detected">Chargeback detectado</SelectItem>
                   <SelectItem value="chargeback_lost">Chargeback perdido</SelectItem>
+                  <SelectItem value="chargeback_recovered">Chargeback recuperado</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={paymentFilter} onValueChange={handlePaymentChange}>

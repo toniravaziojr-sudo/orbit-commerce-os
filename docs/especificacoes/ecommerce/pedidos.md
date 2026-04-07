@@ -217,7 +217,8 @@ type OrderStatus =
   | 'invoice_rejected'         // NF Rejeitada
   | 'invoice_cancelled'        // NF Cancelada
   | 'chargeback_detected'      // Chargeback detectado (NOVO v2026-04-07)
-  | 'chargeback_lost';         // Chargeback perdido (NOVO v2026-04-07)
+  | 'chargeback_lost'          // Chargeback perdido (NOVO v2026-04-07)
+  | 'chargeback_recovered';    // Chargeback recuperado (NOVO v2026-04-07)
 ```
 
 #### Status de Pagamento

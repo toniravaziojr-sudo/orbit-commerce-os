@@ -92,6 +92,7 @@ const orderStatusIcons: Record<OrderStatus, typeof Clock> = {
   invoice_cancelled: PackageX,
   chargeback_detected: AlertTriangle,
   chargeback_lost: XCircle,
+  chargeback_recovered: CheckCircle,
 };
 
 const shippingStatusIcons: Record<ShippingStatus, typeof Truck> = {
