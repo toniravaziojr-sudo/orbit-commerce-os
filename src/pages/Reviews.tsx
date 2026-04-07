@@ -708,6 +708,8 @@ export default function Reviews() {
         </DialogContent>
       </Dialog>
       {ReviewConfirmDialog}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
