@@ -17,6 +17,8 @@
  * 9. payment_expired         → Pedido não pago que expirou
  * 10. invoice_rejected       → SEFAZ rejeitou a NF
  * 11. invoice_cancelled      → NF cancelada após autorização
+ * 12. chargeback_detected    → Chargeback detectado — em análise (NOVO v2026-04-07)
+ * 13. chargeback_lost        → Chargeback perdido — pedido estornado (NOVO v2026-04-07)
  * 
  * Colunas Envio e Pagamento: independentes, sem mudança.
  */
@@ -35,7 +37,9 @@ export type OrderStatus =
   | 'returning'                // Em devolução - NF de devolução emitida
   | 'payment_expired'          // Pagamento expirado - Não pago, expirou
   | 'invoice_rejected'         // NF Rejeitada - SEFAZ rejeitou
-  | 'invoice_cancelled';       // NF Cancelada - Cancelada pós-autorização
+  | 'invoice_cancelled'        // NF Cancelada - Cancelada pós-autorização
+  | 'chargeback_detected'      // Chargeback detectado - Em análise
+  | 'chargeback_lost';         // Chargeback perdido - Estornado por disputa
 
 export const ORDER_STATUS_CONFIG: Record<OrderStatus, { 
   label: string; 
@@ -53,17 +57,20 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, {
   payment_expired: { label: 'Pagamento expirado', variant: 'destructive' },
   invoice_rejected: { label: 'NF Rejeitada', variant: 'destructive' },
   invoice_cancelled: { label: 'NF Cancelada', variant: 'destructive' },
+  chargeback_detected: { label: 'Chargeback detectado', variant: 'destructive', color: 'text-orange-700' },
+  chargeback_lost: { label: 'Chargeback perdido', variant: 'destructive' },
 };
 
 // ==========================================
-// PAYMENT STATUS (Status de Pagamento) — SEM MUDANÇA
+// PAYMENT STATUS (Status de Pagamento)
 // ==========================================
 export type PaymentStatus = 
   | 'awaiting_payment'  // Aguardando pagamento
   | 'paid'              // Pago
   | 'declined'          // Recusado
   | 'cancelled'         // Cancelado
-  | 'refunded';         // Estornado
+  | 'refunded'          // Estornado
+  | 'under_review';     // Em análise — chargeback em andamento
 
 export const PAYMENT_STATUS_CONFIG: Record<PaymentStatus, { 
   label: string; 
@@ -74,6 +81,7 @@ export const PAYMENT_STATUS_CONFIG: Record<PaymentStatus, {
   declined: { label: 'Recusado', variant: 'destructive' },
   cancelled: { label: 'Cancelado', variant: 'destructive' },
   refunded: { label: 'Estornado', variant: 'destructive' },
+  under_review: { label: 'Em análise', variant: 'destructive' },
 };
 
 // ==========================================
@@ -125,6 +133,8 @@ export const LEGACY_ORDER_STATUS_MAP: Record<string, OrderStatus> = {
   payment_expired: 'payment_expired',
   invoice_rejected: 'invoice_rejected',
   invoice_cancelled: 'invoice_cancelled',
+  chargeback_detected: 'chargeback_detected',
+  chargeback_lost: 'chargeback_lost',
   // Legacy values → new values
   pending: 'awaiting_confirmation',
   awaiting_payment: 'awaiting_confirmation',
@@ -150,6 +160,9 @@ export const LEGACY_PAYMENT_STATUS_MAP: Record<string, PaymentStatus> = {
   // Identity
   awaiting_payment: 'awaiting_payment',
   paid: 'paid',
+  under_review: 'under_review',
+  // Legacy chargeback status → new under_review
+  chargeback_requested: 'under_review',
 };
 
 export const LEGACY_SHIPPING_STATUS_MAP: Record<string, ShippingStatus> = {
