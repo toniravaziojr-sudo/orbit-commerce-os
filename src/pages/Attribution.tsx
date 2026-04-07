@@ -478,6 +478,10 @@ export default function Attribution() {
           <TabsContent value="stats">
             <AttributionStatsTable />
           </TabsContent>
+
+          <TabsContent value="ga4">
+            <GA4AttributionPanel />
+          </TabsContent>
           
           <TabsContent value="setup">
             <SetupInstructions />
