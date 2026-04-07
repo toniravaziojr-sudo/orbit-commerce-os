@@ -457,7 +457,7 @@ export default function AdsManager() {
                         adAccounts={integration.adAccounts}
                         isConnected={integration.isConnected}
                         onSync={handleSyncCampaigns}
-                        isSyncing={activeChannel === "meta" ? (meta.syncCampaigns.isPending || meta.syncInsights.isPending || meta.syncAdsets.isPending) : activeChannel === "google" ? (google.isSyncingCampaigns || google.isSyncingInsights) : activeChannel === "tiktok" ? (tiktok.syncCampaigns.isPending || tiktok.syncInsights.isPending) : false}
+                        isSyncing={activeChannel === "meta" ? (meta.syncCampaigns.isPending || meta.syncInsights.isPending || meta.syncAdsets.isPending) : activeChannel === "google" ? (google.isSyncingCampaigns || google.isSyncingInsights || google.isSyncingAdGroups || google.isSyncingAds) : activeChannel === "tiktok" ? (tiktok.syncCampaigns.isPending || tiktok.syncInsights.isPending) : false}
                         insights={channelData.insights}
                         adsets={channelData.adsets}
                         ads={channelData.ads}
