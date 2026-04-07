@@ -342,15 +342,16 @@ serve(async (req) => {
 
           if (normalized === 'ok') {
             // Chargeback recovered!
-            console.log(`[monitor-chargebacks] CHARGEBACK RECOVERED: order=${order.id}, restoring status to ${restoreStatus}`);
+            console.log(`[monitor-chargebacks] CHARGEBACK RECOVERED: order=${order.id}, previous_status=${restoreStatus}`);
 
+            // Set status to chargeback_recovered (visible + filterable)
+            // Keep status_before_chargeback for historical reference
+            // Keep chargeback_detected_at for historical reference (don't clear)
             await supabase
               .from('orders')
               .update({
                 payment_status: 'approved',
-                status: restoreStatus,
-                status_before_chargeback: null,
-                chargeback_detected_at: null,
+                status: 'chargeback_recovered',
                 chargeback_deadline_at: null,
                 updated_at: now.toISOString(),
               })
@@ -361,8 +362,8 @@ serve(async (req) => {
               .insert({
                 order_id: order.id,
                 action: 'chargeback_recovered',
-                description: `Chargeback recuperado — pagamento restabelecido (${order.payment_gateway}). Status restaurado: ${restoreStatus}`,
-                new_value: { payment_status: 'approved', status: restoreStatus },
+                description: `Chargeback recuperado — pagamento restabelecido (${order.payment_gateway}). Status anterior ao chargeback: ${restoreStatus}`,
+                new_value: { payment_status: 'approved', status: 'chargeback_recovered' },
                 previous_value: { payment_status: order.payment_status, status: order.status },
               });
 
