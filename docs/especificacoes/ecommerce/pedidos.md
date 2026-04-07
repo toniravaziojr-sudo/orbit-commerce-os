@@ -215,7 +215,9 @@ type OrderStatus =
   | 'returning'                // Em devolução
   | 'payment_expired'          // Pagamento expirado
   | 'invoice_rejected'         // NF Rejeitada
-  | 'invoice_cancelled';       // NF Cancelada
+  | 'invoice_cancelled'        // NF Cancelada
+  | 'chargeback_detected'      // Chargeback detectado (NOVO v2026-04-07)
+  | 'chargeback_lost';         // Chargeback perdido (NOVO v2026-04-07)
 ```
 
 #### Status de Pagamento
@@ -227,7 +229,8 @@ type PaymentStatus =
   | 'declined'               // Recusado
   | 'cancelled'              // Cancelado
   | 'refunded'               // Estornado
-  | 'chargeback_requested';  // Estorno solicitado (NOVO v2026-04-04)
+  | 'under_review'           // Em análise — chargeback em andamento (NOVO v2026-04-07)
+  | 'chargeback_requested';  // Estorno solicitado (legado, substituído por under_review)
 ```
 
 #### Status de Envio
