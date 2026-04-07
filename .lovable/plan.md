@@ -1,119 +1,136 @@
 
-# Plano: Documentação de Lacunas — Anúncios Mercado Livre
 
-## Contexto
-A documentação atual (v2.1.0) cobre bem o fluxo de criação, publicação em massa e edição pré-publicação. Porém, existem 4 lacunas que precisam ser documentadas e implementadas.
+# Plano de Correção Definitiva — Meta Pixel/CAPI v8.26.0
 
----
+## Diagnóstico Completo por Evento
 
-## 1. Edição Pós-Publicação (Campos Editáveis)
+Investiguei todo o código de rastreamento (Edge HTML + SPA + Edge Function CAPI). A tabela abaixo mapeia TODOS os eventos e seus problemas de identidade:
 
-### Situação Atual
-- A action `update` na `meli-publish-listing` já envia: preço, estoque, imagens e descrição
-- **NÃO envia título** na edição (falta no payload do `updateListing`)
-- O frontend (`MeliListingWizard`) bloqueia edição para status `published`/`paused`
+| Evento | Contexto | external_id | fbp | fbc | IP | Problema |
+|--------|----------|-------------|-----|-----|----|----------|
+| PageView | Edge HTML | ❌ `_sf_vid` criado DEPOIS | ⚠️ retry 3.5s, sem polling | ✅ | ⚠️ Proxy IP | `gv()` na linha 1881, `_sfCapi` na linha 130 — cookie não existe no 1o carregamento |
+| ViewContent | Edge HTML | ❌ Mesmo problema | ❌ Sem wait | ✅ | ⚠️ | Dispara inline, sem qualquer espera por `_fbp` |
+| ViewCategory | Edge HTML | ❌ Mesmo problema | ❌ Sem wait | ✅ | ⚠️ | Idem |
+| AddToCart | Edge HTML | ❌ Mesmo problema | ❌ Sem wait | ✅ | ⚠️ | `_sfCapi` chamado no click handler, fbp 3.1% |
+| InitiateCheckout | Edge HTML (buy-now) | ❌ Mesmo problema | ❌ Sem wait | ✅ | ⚠️ | Dispara no click e redireciona imediatamente |
+| InitiateCheckout | SPA | ✅ | ✅ waitForFbp 1.5s | ✅ | ⚠️ | OK exceto IP |
+| Lead | SPA | ✅ | ✅ waitForFbp 1.5s | ✅ | ⚠️ | OK exceto IP |
+| AddShippingInfo | SPA | ✅ | ✅ waitForFbp 1.5s | ✅ | ⚠️ | OK exceto IP |
+| AddPaymentInfo | SPA | ✅ | ✅ waitForFbp 1.5s | ✅ | ⚠️ | OK exceto IP |
+| Purchase | SPA + Server | ✅ | ✅ | ✅ | ⚠️ | OK exceto IP |
 
-### O que documentar e implementar
-- **Campos editáveis pós-publicação via API ML (PUT /items/{id}):**
-  - ✅ Preço (`price`) — já implementado
-  - ✅ Estoque (`available_quantity`) — já implementado
-  - ✅ Imagens (`pictures`) — já implementado
-  - ✅ Descrição (`plain_text` via endpoint separado) — já implementado
-  - ❌ **Título (`title`) — FALTA adicionar ao payload do `updateListing`**
-- **Campos NÃO editáveis pós-publicação (restrição ML):**
-  - `category_id` (categoria é imutável após publicação)
-  - `condition` (novo/usado é imutável)
-  - `buying_mode`
-- **UI:** Permitir edição no Wizard para anúncios `published`/`paused`, mas apenas dos campos permitidos pela API ML
+### Causas Raiz Confirmadas
 
-### Ajustes necessários
-1. Adicionar `title` ao payload de `updateListing` na edge function
-2. Abrir o `MeliListingWizard` para status `published`/`paused` com campos restritos
-3. Documentar quais campos são editáveis e quais são bloqueados
+**1. `external_id` baixo no Edge HTML (afeta PageView, ViewContent, ViewCategory, AddToCart, InitiateCheckout)**
+- A função `gv()` que cria o cookie `_sf_vid` está no script de visit tracking, na **linha 1881** (fim da página).
+- A função `_sfGetVid()` (linha 128) que lê o cookie é definida no **topo**, mas no primeiro carregamento o cookie simplesmente não existe ainda.
+- Resultado: todos os eventos CAPI disparados no Edge HTML para novos visitantes vão sem `external_id`.
 
----
+**2. `fbp` praticamente zero no Edge HTML**
+- O `_sfCapi` (linha 130-141) lê `_fbp` de forma síncrona e imediata.
+- O Meta Pixel é carregado via `requestIdleCallback` (timeout 3s) — o cookie `_fbp` só existe após o Pixel inicializar.
+- No SPA existe `waitForFbp()` com polling. No Edge HTML **não existe nenhum mecanismo equivalente**.
+- O único retry é para PageView (linha 155, setTimeout 3.5s), mas é um retry fixo, não polling, e **não cobre ViewContent, AddToCart, etc.**
 
-## 2. Variações (Multi-variação Completa)
+**3. IP compartilhado (79% dos PageView)**
+- O Edge Function recebe o IP do gateway Supabase, não do visitante real.
+- Headers como `cf-connecting-ip` podem não ser propagados pela infraestrutura Supabase.
+- O IP real do visitante só é acessível no navegador, mas não é enviado no payload CAPI.
 
-### Situação Atual
-- Zero suporte a variações — cada anúncio = 1 SKU fixo
-- Tabela `meli_listings` não tem campo para variações
-
-### O que documentar (para implementação futura)
-
-**Modelo de dados:**
-- Nova tabela `meli_listing_variations` (ou campo JSONB `variations` na `meli_listings`)
-- Cada variação: `attribute_combinations` (ex: cor=Azul + tamanho=M), `price`, `available_quantity`, `picture_ids`, `seller_custom_field` (SKU)
-
-**API ML para variações:**
-- Criar com variações: incluir array `variations` no POST /items
-- Cada variação referencia `picture_ids` (IDs das imagens do anúncio)
-- `attribute_combinations`: array de `{ id: "COLOR", value_name: "Azul" }`
-
-**Impacto cruzado:**
-- Estoque: cada variação tem estoque próprio, soma = `available_quantity` do anúncio
-- Pedidos: pedido ML indica `variation_id`, precisa mapear para SKU interno
-- Imagens: variações referenciam imagens específicas do anúncio
-
-**Fases sugeridas:**
-- Fase 1: Modelo de dados + UI de criação de variações no Wizard
-- Fase 2: Publicação com variações via API ML
-- Fase 3: Sincronização de estoque por variação
-- Fase 4: Mapeamento variação→SKU nos pedidos
+**4. `fbc` abaixo do esperado**
+- `fbc` só existe para tráfego pago Meta (presença de `fbclid`). O nível atual é parcialmente esperado.
+- Porém, a captura no Edge HTML (linha 126) persiste corretamente em cookie + localStorage. No SPA, `captureClickIds()` faz o mesmo. **Não há bug real aqui** — a cobertura reflete o mix de tráfego pago vs orgânico.
 
 ---
 
-## 3. Gestão de Imagens (Herdar + Customizar)
+## Plano de Implementação (4 Frentes)
 
-### Situação Atual
-- `buildImagesList` já faz merge: imagens do anúncio + imagens do produto
-- Não há UI para gerenciar imagens por anúncio (reordenar, adicionar, remover)
-- Campo `images` (JSONB) existe na `meli_listings`
+### Frente 1 — Criar `_sf_vid` no topo do Edge HTML (antes de qualquer CAPI)
 
-### O que documentar e implementar
+**Arquivo:** `supabase/functions/storefront-html/index.ts`
 
-**Comportamento padrão:**
-- Na criação, herdar automaticamente todas as imagens do produto (até 10)
-- Salvar no campo `images` da `meli_listings` como cópia editável
+Mover a lógica `gv()` (criar/ler `_sf_vid`) do script de visit tracking (linha ~1881) para o bloco de inicialização (linha ~125), **antes** da definição de `_sfCapi`. A função `_sfGetVid` passará a usar o valor já criado.
 
-**Customização por anúncio:**
-- UI no Wizard: galeria com drag-and-drop para reordenar
-- Botão para adicionar imagens extras (upload ou URL)
-- Botão para remover imagens específicas daquele anúncio
-- Primeira imagem = imagem principal no ML
+Ordem final do script de inicialização:
+```text
+1. _sfEvtId (gerador de event_id)
+2. Captura fbclid → _fbc cookie  
+3. _sfGetOrCreateVid (NOVO — cria _sf_vid AQUI)
+4. _sfGetFbc, _sfGetVid (agora lê o cookie que acabou de ser criado)
+5. _sfGetAM
+6. _sfCapi (já com vid garantido)
+```
 
-**Regras:**
-- Mínimo 1 imagem para publicar (já validado)
-- Máximo 10 imagens (limite ML, já aplicado no `buildImagesList`)
-- Edição pós-publicação: PUT /items/{id} com `pictures` atualiza imagens
+**Impacto:** `external_id` sobe de ~32-40% para ~95%+ em todos os eventos Edge HTML.
+
+### Frente 2 — Adicionar `waitForFbp` no Edge HTML para TODOS os eventos CAPI
+
+**Arquivo:** `supabase/functions/storefront-html/index.ts`
+
+Refatorar `_sfCapi` para incluir polling assíncrono do cookie `_fbp`:
+- Verifica `_fbp` imediatamente
+- Se ausente, faz polling a cada 250ms (até 6 tentativas = 1.5s)
+- Após timeout, envia com o que tem (graceful degradation)
+- Não bloqueia a UI — a chamada CAPI é assíncrona
+
+Isso cobre: PageView, ViewContent, ViewCategory, AddToCart, InitiateCheckout.
+
+O retry fixo de 3.5s para PageView (linha 155) será removido pois o polling dentro do `_sfCapi` já resolve.
+
+**Impacto:** `fbp` sobe de ~3-20% para ~70-85% nos eventos Edge HTML.
+
+### Frente 3 — Enviar IP real do visitante no payload CAPI
+
+**Arquivos:**
+- `supabase/functions/storefront-html/index.ts` — O `_sfCapi` passará a enviar `client_ip_from_browser` no payload, obtido via uma chamada leve ao próprio endpoint CAPI que retorna o IP detectado
+- `supabase/functions/marketing-capi-track/index.ts` — Aceitar campo opcional `user_data.client_ip_from_browser` e usá-lo como valor preferencial para `client_ip_address`
+- `src/lib/marketingTracker.ts` — O `sendServerEvent` do SPA também enviará o IP capturado, se disponível
+
+Estratégia: Na primeira chamada CAPI (PageView), o response do Edge Function retornará o IP detectado. O script armazena em `window._sfClientIp` e o inclui em todas as chamadas subsequentes.
+
+**Impacto:** Reduz "IPs associados a vários usuários" de 79% para ~10-20%.
+
+### Frente 4 — Aumentar timeout do `waitForFbp` no SPA de 1.5s para 3s
+
+**Arquivo:** `src/lib/marketingTracker.ts`
+
+Na linha 405, o `waitForFbp(1500)` está usando 1.5s, mas a própria função suporta até 5s (linha 294). Aumentar para 3s para maximizar captura sem impactar UX.
+
+**Impacto:** Melhora marginal no `fbp` dos eventos SPA (InitiateCheckout, AddShippingInfo, AddPaymentInfo).
 
 ---
 
-## 4. Multi-Anúncio com Diferenciação
+## Documentação
 
-### Situação Atual
-- Sem restrição de unicidade (permite múltiplos anúncios por produto)
-- Sem alerta ou validação de duplicata
+### Atualização do `docs/meta-tracking-changelog.md`
 
-### O que documentar e implementar
+Adicionar **Registro #4** com:
+- Notas ANTES (capturar dos prints atuais do usuário)
+- Detalhamento das 4 frentes aplicadas
+- Template para acompanhamento APÓS (48-72h)
 
-**Regra de diferenciação:**
-- Ao criar anúncio para produto que já possui anúncio ativo (`published`/`paused`), exigir que **pelo menos título OU preço** sejam diferentes
-- Validação no momento da aprovação/publicação (não bloqueia rascunho)
-- Outros campos podem ser livremente editados
+### Atualização da memória `meta-tracking-standard`
 
-**UI:**
-- Badge indicando "2 anúncios ativos" na lista de produtos/anúncios
-- Alerta informativo (não bloqueante) ao criar: "Este produto já possui X anúncio(s) ativo(s)"
-- Na lista de anúncios, agrupar visualmente anúncios do mesmo produto
+Registrar a versão v8.26.0 com as mudanças de identidade no Edge HTML.
 
 ---
 
-## Resumo de Prioridades
+## Resultado Esperado
 
-| Item | Complexidade | Prioridade |
-|------|-------------|-----------|
-| Edição pós-publicação (título) | Baixa | Alta — fix simples na edge function |
-| Gestão de imagens | Média | Alta — UX essencial |
-| Multi-anúncio diferenciação | Baixa | Média — validação + UI |
-| Variações completas | Alta | Futura — requer modelo de dados novo |
+| Parâmetro | Antes (Edge HTML) | Depois | Antes (SPA) | Depois |
+|-----------|-------------------|--------|-------------|--------|
+| external_id | 32-40% | ~95%+ | 72-87% | ~98%+ |
+| fbp | 3-20% | ~70-85% | 52-87% | ~85-90% |
+| fbc | 18-62% | Sem mudança (limitado ao tráfego pago) | 40-62% | Idem |
+| IP único | ~21% | ~80-90% | Idem | Idem |
+
+---
+
+## Arquivos Impactados
+
+1. `supabase/functions/storefront-html/index.ts` — Frentes 1, 2 e 3
+2. `supabase/functions/marketing-capi-track/index.ts` — Frente 3 (aceitar IP do browser)
+3. `src/lib/marketingTracker.ts` — Frentes 3 e 4
+4. `docs/meta-tracking-changelog.md` — Registro #4
+5. `.lovable/memory/infrastructure/marketing/meta-tracking-standard` — Atualização v8.26.0
+
