@@ -551,15 +551,23 @@ Quando um pedido é criado, o sistema inicia verificação ativa do status de pa
 - Máximo de 30 páginas (900 pedidos) por execução
 - Credenciais cacheadas por tenant para evitar consultas repetidas ao banco
 
-**Fluxo de chargeback:**
-1. `monitor-chargebacks` detecta chargeback → `payment_status = chargeback_requested`
-2. `chargeback_detected_at` é preenchido
-3. `chargeback_deadline_at` = detecção + 15 dias
-4. Verificação contínua por 15 dias:
-   - Chargeback recuperado → `payment_status = approved` (volta ao estado aprovado)
-   - Chargeback perdido → `payment_status = refunded`
-5. Se nenhuma resolução em 15 dias → `payment_status = refunded`
-6. Estornos diretos (sem chargeback) também são detectados → `payment_status = refunded`
+**Fluxo de chargeback (v2026-04-07 — ATUALIZADO):**
+1. `monitor-chargebacks` detecta chargeback:
+   - `payment_status` → `under_review` (Em análise)
+   - `status` → `chargeback_detected` (Chargeback detectado)
+   - `status_before_chargeback` salvo para restauração futura
+   - `chargeback_detected_at` é preenchido
+   - `chargeback_deadline_at` = detecção + 15 dias
+2. Verificação contínua por 15 dias:
+   - **Chargeback recuperado:**
+     - `payment_status` → `paid`
+     - `status` → restaura `status_before_chargeback` (ex: `ready_to_invoice`)
+     - Limpa `chargeback_detected_at` e `chargeback_deadline_at`
+   - **Chargeback perdido:**
+     - `payment_status` → `refunded`
+     - `status` → `chargeback_lost`
+3. Se nenhuma resolução em 15 dias → mesma ação de "chargeback perdido"
+4. Estornos diretos (sem chargeback) → `payment_status = refunded` (status do pedido não muda)
 
 ### 7.3 Sistema de Identificação de Clientes (v2026-04-05)
 
