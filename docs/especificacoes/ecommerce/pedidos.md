@@ -34,6 +34,7 @@ O módulo de Pedidos gerencia todo o ciclo de vida de uma venda, desde a criaç�
 | `OrderShippingMethod.tsx` | Método de envio |
 | `ShipmentSection.tsx` | Rastreio e envio |
 | `PaymentAttemptsCard.tsx` | Histórico de tentativas de pagamento |
+| `OrderAlertsCard.tsx` | Alertas operacionais de pedidos (chargebacks) — exibido na Central de Execuções, aba Pedidos |
 
 ### 2.3 Hooks
 
