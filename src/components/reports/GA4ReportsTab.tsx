@@ -54,7 +54,7 @@ function formatPercent(value: number): string {
 }
 
 export function GA4ReportsTab() {
-  const { connection, isLoading: connLoading } = useGoogleConnection();
+  const { isConnected, isLoading: connLoading } = useGoogleConnection();
   const {
     summary,
     summaryLoading,
@@ -65,8 +65,6 @@ export function GA4ReportsTab() {
     sync,
     isSyncing,
   } = useGoogleAnalytics();
-
-  const isConnected = !!connection && connection.status === "active";
 
   // Not connected state
   if (!connLoading && !isConnected) {
@@ -128,7 +126,7 @@ export function GA4ReportsTab() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => sync()}
+          onClick={() => sync({})}
           disabled={isSyncing}
         >
           {isSyncing ? (

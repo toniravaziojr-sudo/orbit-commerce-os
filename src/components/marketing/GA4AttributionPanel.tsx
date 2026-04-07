@@ -24,10 +24,8 @@ function formatCurrency(value: number): string {
 }
 
 export function GA4AttributionPanel() {
-  const { connection, isLoading: connLoading } = useGoogleConnection();
+  const { isConnected, isLoading: connLoading } = useGoogleConnection();
   const { reports, reportsLoading, sync, isSyncing } = useGoogleAnalytics();
-
-  const isConnected = !!connection && connection.status === "active";
 
   if (!connLoading && !isConnected) {
     return (
@@ -84,7 +82,7 @@ export function GA4AttributionPanel() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => sync()}
+          onClick={() => sync({})}
           disabled={isSyncing}
         >
           {isSyncing ? (
