@@ -39,7 +39,7 @@ export function GoogleSearchConsoleTab() {
     selectedSite ? dateRange : undefined
   );
 
-  const hasSearchScope = googleConn.isConnected && googleConn.connection?.scope_packs?.includes("search_console");
+  const hasSearchScope = googleConn.isConnected && googleConn.connection?.scopePacks?.includes("search_console");
 
   if (!hasSearchScope) {
     return (
