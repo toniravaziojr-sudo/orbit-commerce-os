@@ -794,6 +794,11 @@ serve(async (req) => {
           callSubFunction(supabaseUrl, supabaseServiceKey, 'fiscal-auto-create-drafts', {})
         );
 
+        // Task H: monitor-chargebacks (post-sale chargeback monitoring — all gateways)
+        parallelTasks.push(
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'monitor-chargebacks', {})
+        );
+
         console.log(`[scheduler-tick] Starting parallel phase (${parallelTasks.length} tasks)...`);
         const parallelStart = Date.now();
 
