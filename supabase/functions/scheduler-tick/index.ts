@@ -804,9 +804,12 @@ serve(async (req) => {
 
         const results = await Promise.allSettled(parallelTasks);
         const [reconcileResult, trackingResult, emailsResult, creativeResult, socialPublishResult] = results.slice(0, 5);
-        const emailListSyncResult = shouldRunEmailListSync ? results[5] : undefined;
-        const fiscalDraftsResultIndex = shouldRunEmailListSync ? 6 : 5;
+        // verify-payment-status is at index 5 (results logged but no stat tracking needed)
+        const emailListSyncResult = shouldRunEmailListSync ? results[6] : undefined;
+        const fiscalDraftsResultIndex = shouldRunEmailListSync ? 7 : 6;
         const fiscalDraftsResult = results[fiscalDraftsResultIndex];
+        // monitor-chargebacks is always the last item
+        const monitorChargebacksResult = results[results.length - 1];
 
         const parallelDuration = Date.now() - parallelStart;
         console.log(`[scheduler-tick] Parallel phase completed in ${parallelDuration}ms`);
