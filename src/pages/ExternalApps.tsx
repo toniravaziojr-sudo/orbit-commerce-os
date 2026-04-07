@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tag, Calendar } from "lucide-react";
 import { GoogleTagManagerTab } from "@/components/external-apps/GoogleTagManagerTab";
