@@ -52,6 +52,7 @@ interface TrackRequest {
     fbc?: string;
     gender?: string;
     date_of_birth?: string;
+    client_ip_from_browser?: string;
   };
   // Custom data (event-specific)
   custom_data?: {
