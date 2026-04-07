@@ -207,6 +207,8 @@ export default function Orders() {
                   <SelectItem value="payment_expired">Pgto expirado</SelectItem>
                   <SelectItem value="invoice_rejected">NF Rejeitada</SelectItem>
                   <SelectItem value="invoice_cancelled">NF Cancelada</SelectItem>
+                  <SelectItem value="chargeback_detected">Chargeback detectado</SelectItem>
+                  <SelectItem value="chargeback_lost">Chargeback perdido</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={paymentFilter} onValueChange={handlePaymentChange}>
@@ -221,6 +223,7 @@ export default function Orders() {
                   <SelectItem value="declined">Recusado</SelectItem>
                   <SelectItem value="refunded">Estornado</SelectItem>
                   <SelectItem value="cancelled">Cancelado</SelectItem>
+                  <SelectItem value="under_review">Em análise</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={shippingFilter} onValueChange={handleShippingChange}>
