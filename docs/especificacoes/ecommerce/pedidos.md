@@ -215,7 +215,9 @@ type OrderStatus =
   | 'returning'                // Em devolução
   | 'payment_expired'          // Pagamento expirado
   | 'invoice_rejected'         // NF Rejeitada
-  | 'invoice_cancelled';       // NF Cancelada
+  | 'invoice_cancelled'        // NF Cancelada
+  | 'chargeback_detected'      // Chargeback detectado (NOVO v2026-04-07)
+  | 'chargeback_lost';         // Chargeback perdido (NOVO v2026-04-07)
 ```
 
 #### Status de Pagamento
@@ -227,7 +229,8 @@ type PaymentStatus =
   | 'declined'               // Recusado
   | 'cancelled'              // Cancelado
   | 'refunded'               // Estornado
-  | 'chargeback_requested';  // Estorno solicitado (NOVO v2026-04-04)
+  | 'under_review'           // Em análise — chargeback em andamento (NOVO v2026-04-07)
+  | 'chargeback_requested';  // Estorno solicitado (legado, substituído por under_review)
 ```
 
 #### Status de Envio
@@ -311,9 +314,9 @@ stateDiagram-v2
 | De | Para | Válido | Descrição |
 |----|------|--------|-----------|
 | `awaiting_payment` | `paid`, `declined`, `cancelled` | ✅ | Resposta inicial do gateway |
-| `paid` | `refunded`, `chargeback_requested` | ✅ | Estorno ou disputa |
-| `chargeback_requested` | `paid` | ✅ | Chargeback recuperado |
-| `chargeback_requested` | `refunded` | ✅ | Chargeback perdido |
+| `paid` | `refunded`, `under_review` | ✅ | Estorno ou chargeback detectado |
+| `under_review` | `paid` | ✅ | Chargeback recuperado |
+| `under_review` | `refunded` | ✅ | Chargeback perdido |
 | `declined` | `awaiting_payment`, `cancelled` | ✅ | Retry ou cancelamento |
 | `cancelled` | - | ❌ (final) | - |
 | `refunded` | - | ❌ (final) | - |
@@ -335,15 +338,16 @@ stateDiagram-v2
 
 ### 4.4 Transições Automáticas
 
-| Evento | De | Para | Mecanismo |
-|--------|----|------|-----------|
-| Webhook pagamento aprovado | `awaiting_confirmation` | `ready_to_invoice` | `pagarme-webhook` / webhook da operadora |
-| Verificação ativa: pagamento aprovado | `awaiting_confirmation` | `ready_to_invoice` | `verify-payment-status` (cron) |
-| Verificação ativa: expirado/cancelado | `awaiting_confirmation` | `payment_expired` | `verify-payment-status` (cron) |
-| Verificação ativa: recusado | `awaiting_confirmation` | `payment_expired` | `verify-payment-status` (cron) |
-| Chargeback detectado | `paid` | `chargeback_requested` | `monitor-chargebacks` (cron) |
-| Chargeback recuperado | `chargeback_requested` | `paid` | `monitor-chargebacks` (cron) |
-| Chargeback perdido | `chargeback_requested` | `refunded` | `monitor-chargebacks` (cron) |
+| Evento | De (status) | Para (status) | De (payment) | Para (payment) | Mecanismo |
+|--------|-------------|---------------|--------------|-----------------|-----------|
+| Webhook pagamento aprovado | `awaiting_confirmation` | `ready_to_invoice` | `awaiting_payment` | `paid` | `pagarme-webhook` / webhook da operadora |
+| Verificação ativa: pagamento aprovado | `awaiting_confirmation` | `ready_to_invoice` | `awaiting_payment` | `paid` | `verify-payment-status` (cron) |
+| Verificação ativa: expirado/cancelado | `awaiting_confirmation` | `payment_expired` | — | `cancelled` | `verify-payment-status` (cron) |
+| Chargeback detectado | `*` (qualquer) | `chargeback_detected` | `paid`/`approved` | `under_review` | `monitor-chargebacks` (cron) |
+| Chargeback recuperado | `chargeback_detected` | (restaura status anterior) | `under_review` | `paid` | `monitor-chargebacks` (cron) |
+| Chargeback perdido | `chargeback_detected` | `chargeback_lost` | `under_review` | `refunded` | `monitor-chargebacks` (cron) |
+| Chargeback prazo excedido | `chargeback_detected` | `chargeback_lost` | `under_review` | `refunded` | `monitor-chargebacks` (cron) |
+| Estorno direto (sem disputa) | — | — | `paid`/`approved` | `refunded` | `monitor-chargebacks` (cron) |
 
 ### 4.5 Normalização de Status (ANTI-REGRESSÃO)
 
@@ -360,8 +364,8 @@ const cfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CON
 
 | Função | Mapeia |
 |--------|--------|
-| `normalizeOrderStatus()` | `pending→awaiting_confirmation`, `paid→ready_to_invoice`, `cancelled→payment_expired`, `delivered→completed` |
-| `normalizePaymentStatus()` | `approved→paid`, `pending→awaiting_payment` |
+| `normalizeOrderStatus()` | `pending→awaiting_confirmation`, `paid→ready_to_invoice`, `cancelled→payment_expired`, `delivered→completed`, `chargeback_detected→chargeback_detected`, `chargeback_lost→chargeback_lost` |
+| `normalizePaymentStatus()` | `approved→paid`, `pending→awaiting_payment`, `chargeback_requested→under_review`, `under_review→under_review` |
 | `normalizeShippingStatus()` | `pending→awaiting_shipment`, `processing→label_generated` |
 
 ---
@@ -547,15 +551,23 @@ Quando um pedido é criado, o sistema inicia verificação ativa do status de pa
 - Máximo de 30 páginas (900 pedidos) por execução
 - Credenciais cacheadas por tenant para evitar consultas repetidas ao banco
 
-**Fluxo de chargeback:**
-1. `monitor-chargebacks` detecta chargeback → `payment_status = chargeback_requested`
-2. `chargeback_detected_at` é preenchido
-3. `chargeback_deadline_at` = detecção + 15 dias
-4. Verificação contínua por 15 dias:
-   - Chargeback recuperado → `payment_status = approved` (volta ao estado aprovado)
-   - Chargeback perdido → `payment_status = refunded`
-5. Se nenhuma resolução em 15 dias → `payment_status = refunded`
-6. Estornos diretos (sem chargeback) também são detectados → `payment_status = refunded`
+**Fluxo de chargeback (v2026-04-07 — ATUALIZADO):**
+1. `monitor-chargebacks` detecta chargeback:
+   - `payment_status` → `under_review` (Em análise)
+   - `status` → `chargeback_detected` (Chargeback detectado)
+   - `status_before_chargeback` salvo para restauração futura
+   - `chargeback_detected_at` é preenchido
+   - `chargeback_deadline_at` = detecção + 15 dias
+2. Verificação contínua por 15 dias:
+   - **Chargeback recuperado:**
+     - `payment_status` → `paid`
+     - `status` → restaura `status_before_chargeback` (ex: `ready_to_invoice`)
+     - Limpa `chargeback_detected_at` e `chargeback_deadline_at`
+   - **Chargeback perdido:**
+     - `payment_status` → `refunded`
+     - `status` → `chargeback_lost`
+3. Se nenhuma resolução em 15 dias → mesma ação de "chargeback perdido"
+4. Estornos diretos (sem chargeback) → `payment_status = refunded` (status do pedido não muda)
 
 ### 7.3 Sistema de Identificação de Clientes (v2026-04-05)
 

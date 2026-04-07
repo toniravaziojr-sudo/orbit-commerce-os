@@ -12099,6 +12099,7 @@ export type Database = {
           source_order_number: string | null
           source_platform: string | null
           status: Database["public"]["Enums"]["order_status"]
+          status_before_chargeback: string | null
           subtotal: number
           tax_total: number
           tenant_id: string
@@ -12184,6 +12185,7 @@ export type Database = {
           source_order_number?: string | null
           source_platform?: string | null
           status?: Database["public"]["Enums"]["order_status"]
+          status_before_chargeback?: string | null
           subtotal?: number
           tax_total?: number
           tenant_id: string
@@ -12269,6 +12271,7 @@ export type Database = {
           source_order_number?: string | null
           source_platform?: string | null
           status?: Database["public"]["Enums"]["order_status"]
+          status_before_chargeback?: string | null
           subtotal?: number
           tax_total?: number
           tenant_id?: string
@@ -19977,6 +19980,8 @@ export type Database = {
         | "payment_expired"
         | "invoice_rejected"
         | "invoice_cancelled"
+        | "chargeback_detected"
+        | "chargeback_lost"
       payment_method:
         | "pix"
         | "credit_card"
@@ -19992,6 +19997,7 @@ export type Database = {
         | "refunded"
         | "cancelled"
         | "chargeback_requested"
+        | "under_review"
       shipping_status:
         | "pending"
         | "processing"
@@ -20273,6 +20279,8 @@ export const Constants = {
         "payment_expired",
         "invoice_rejected",
         "invoice_cancelled",
+        "chargeback_detected",
+        "chargeback_lost",
       ],
       payment_method: [
         "pix",
@@ -20290,6 +20298,7 @@ export const Constants = {
         "refunded",
         "cancelled",
         "chargeback_requested",
+        "under_review",
       ],
       shipping_status: [
         "pending",

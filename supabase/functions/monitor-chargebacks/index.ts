@@ -1,9 +1,9 @@
 // ============================================
-// MONITOR CHARGEBACKS - Post-sale payment monitoring (v2.0)
+// MONITOR CHARGEBACKS - Post-sale payment monitoring (v3.0)
 // Multi-gateway: Pagar.me + Mercado Pago
-// Paginates through ALL approved orders (no fixed limit)
-// Checks approved orders for 60 days to detect chargebacks
-// Monitors chargeback_requested orders for 15 days for resolution
+// Now updates BOTH payment_status AND order status
+// payment_status → under_review | paid | refunded
+// order status   → chargeback_detected | chargeback_lost | (restored)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -17,17 +17,11 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Monitor approved orders for 60 days
 const MONITORING_WINDOW_DAYS = 60;
-// Monitor chargeback disputes for 15 days
 const CHARGEBACK_RESOLUTION_DAYS = 15;
-// Page size for pagination (process in batches to avoid timeouts)
 const PAGE_SIZE = 30;
-// Max pages per invocation (safety valve: 30 * 30 = 900 orders max)
 const MAX_PAGES = 30;
-// Delay between pages to avoid rate limiting (ms)
 const PAGE_DELAY_MS = 500;
-// Delay between individual gateway calls (ms)
 const CALL_DELAY_MS = 200;
 
 // ============================================
@@ -40,7 +34,6 @@ interface GatewayCredentials {
   accessToken?: string;
 }
 
-// Cache credentials per tenant to avoid repeated DB lookups
 const credentialsCache = new Map<string, GatewayCredentials | null>();
 
 async function getCredentialsForOrder(
@@ -88,7 +81,6 @@ async function getCredentialsForOrder(
   return result;
 }
 
-// Fetch charge status from Pagar.me
 async function fetchPagarmeStatus(apiKey: string, gatewayOrderId: string): Promise<string | null> {
   const authHeader = btoa(`${apiKey}:`);
   const response = await fetch(`https://api.pagar.me/core/v5/orders/${gatewayOrderId}`, {
@@ -108,7 +100,6 @@ async function fetchPagarmeStatus(apiKey: string, gatewayOrderId: string): Promi
   return data.charges?.[0]?.status || null;
 }
 
-// Fetch payment status from Mercado Pago
 async function fetchMercadoPagoStatus(accessToken: string, paymentId: string): Promise<string | null> {
   const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
     method: 'GET',
@@ -127,7 +118,6 @@ async function fetchMercadoPagoStatus(accessToken: string, paymentId: string): P
   return data.status || null;
 }
 
-// Normalize gateway-specific status to unified chargeback status
 function normalizeChargebackStatus(gateway: string, rawStatus: string | null): 'ok' | 'chargedback' | 'refunded' | 'unknown' {
   if (!rawStatus) return 'unknown';
 
@@ -154,7 +144,6 @@ function normalizeChargebackStatus(gateway: string, rawStatus: string | null): '
   return 'unknown';
 }
 
-// Fetch status from the appropriate gateway
 async function fetchGatewayStatus(credentials: GatewayCredentials, gatewayId: string): Promise<string | null> {
   if (credentials.gateway === 'pagarme' && credentials.apiKey) {
     return fetchPagarmeStatus(credentials.apiKey, gatewayId);
@@ -165,7 +154,6 @@ async function fetchGatewayStatus(credentials: GatewayCredentials, gatewayId: st
   return null;
 }
 
-// Small delay utility
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // ============================================
@@ -181,7 +169,7 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const now = new Date();
 
-    console.log(`[monitor-chargebacks] v2.0 Running at ${now.toISOString()}`);
+    console.log(`[monitor-chargebacks] v3.0 Running at ${now.toISOString()}`);
 
     let chargebacksDetected = 0;
     let chargebacksResolved = 0;
@@ -204,7 +192,7 @@ serve(async (req) => {
     while (hasMoreApproved && pagesProcessed < MAX_PAGES) {
       const { data: approvedOrders, error: approvedError } = await supabase
         .from('orders')
-        .select('id, tenant_id, payment_gateway, payment_gateway_id, paid_at')
+        .select('id, tenant_id, payment_gateway, payment_gateway_id, paid_at, status')
         .eq('payment_status', 'approved')
         .not('payment_gateway_id', 'is', null)
         .not('payment_gateway', 'is', null)
@@ -238,12 +226,15 @@ serve(async (req) => {
           const normalized = normalizeChargebackStatus(order.payment_gateway, rawStatus);
 
           if (normalized === 'chargedback') {
-            console.log(`[monitor-chargebacks] CHARGEBACK DETECTED: order=${order.id}, gateway=${order.payment_gateway}`);
+            console.log(`[monitor-chargebacks] CHARGEBACK DETECTED: order=${order.id}, gateway=${order.payment_gateway}, previous_status=${order.status}`);
 
+            // Update BOTH payment_status AND order status
             await supabase
               .from('orders')
               .update({
-                payment_status: 'chargeback_requested',
+                payment_status: 'under_review',
+                status: 'chargeback_detected',
+                status_before_chargeback: order.status, // Save for restoration
                 chargeback_detected_at: now.toISOString(),
                 chargeback_deadline_at: new Date(now.getTime() + CHARGEBACK_RESOLUTION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
                 updated_at: now.toISOString(),
@@ -255,9 +246,9 @@ serve(async (req) => {
               .insert({
                 order_id: order.id,
                 action: 'chargeback_detected',
-                description: `Chargeback detectado via monitoramento pós-venda (${order.payment_gateway})`,
-                new_value: { payment_status: 'chargeback_requested' },
-                previous_value: { payment_status: 'approved' },
+                description: `Chargeback detectado via monitoramento pós-venda (${order.payment_gateway}). Status anterior: ${order.status}`,
+                new_value: { payment_status: 'under_review', status: 'chargeback_detected' },
+                previous_value: { payment_status: 'approved', status: order.status },
               });
 
             chargebacksDetected++;
@@ -285,7 +276,6 @@ serve(async (req) => {
             refundsDetected++;
           }
 
-          // Rate limiting: small delay between gateway calls
           await delay(CALL_DELAY_MS);
 
         } catch (err) {
@@ -300,22 +290,23 @@ serve(async (req) => {
       if (approvedOrders.length < PAGE_SIZE) {
         hasMoreApproved = false;
       } else {
-        // Delay between pages
         await delay(PAGE_DELAY_MS);
       }
     }
 
     // ============================================================
     // PART 2: Resolve existing chargeback disputes (paginated)
+    // Now checks for status = 'chargeback_detected' OR legacy payment_status = 'chargeback_requested'
     // ============================================================
     let hasMoreDisputed = true;
     let disputedOffset = 0;
 
     while (hasMoreDisputed && pagesProcessed < MAX_PAGES) {
+      // Query: chargeback_detected status OR legacy chargeback_requested payment_status
       const { data: disputedOrders, error: disputedError } = await supabase
         .from('orders')
-        .select('id, tenant_id, payment_gateway, payment_gateway_id, chargeback_detected_at, chargeback_deadline_at')
-        .eq('payment_status', 'chargeback_requested')
+        .select('id, tenant_id, payment_gateway, payment_gateway_id, chargeback_detected_at, chargeback_deadline_at, status, payment_status, status_before_chargeback')
+        .or('status.eq.chargeback_detected,payment_status.eq.chargeback_requested,payment_status.eq.under_review')
         .not('payment_gateway_id', 'is', null)
         .not('payment_gateway', 'is', null)
         .order('chargeback_detected_at', { ascending: true })
@@ -346,14 +337,19 @@ serve(async (req) => {
           const rawStatus = await fetchGatewayStatus(credentials, order.payment_gateway_id);
           const normalized = normalizeChargebackStatus(order.payment_gateway, rawStatus);
 
+          // Determine the status to restore on recovery
+          const restoreStatus = order.status_before_chargeback || 'ready_to_invoice';
+
           if (normalized === 'ok') {
             // Chargeback recovered!
-            console.log(`[monitor-chargebacks] CHARGEBACK RECOVERED: order=${order.id}`);
+            console.log(`[monitor-chargebacks] CHARGEBACK RECOVERED: order=${order.id}, restoring status to ${restoreStatus}`);
 
             await supabase
               .from('orders')
               .update({
                 payment_status: 'approved',
+                status: restoreStatus,
+                status_before_chargeback: null,
                 chargeback_detected_at: null,
                 chargeback_deadline_at: null,
                 updated_at: now.toISOString(),
@@ -365,9 +361,9 @@ serve(async (req) => {
               .insert({
                 order_id: order.id,
                 action: 'chargeback_recovered',
-                description: `Chargeback recuperado — pagamento restabelecido (${order.payment_gateway})`,
-                new_value: { payment_status: 'approved' },
-                previous_value: { payment_status: 'chargeback_requested' },
+                description: `Chargeback recuperado — pagamento restabelecido (${order.payment_gateway}). Status restaurado: ${restoreStatus}`,
+                new_value: { payment_status: 'approved', status: restoreStatus },
+                previous_value: { payment_status: order.payment_status, status: order.status },
               });
 
             chargebacksResolved++;
@@ -379,6 +375,8 @@ serve(async (req) => {
               .from('orders')
               .update({
                 payment_status: 'refunded',
+                status: 'chargeback_lost',
+                status_before_chargeback: null,
                 updated_at: now.toISOString(),
               })
               .eq('id', order.id);
@@ -389,8 +387,8 @@ serve(async (req) => {
                 order_id: order.id,
                 action: 'chargeback_lost',
                 description: `Chargeback perdido — pedido estornado (${order.payment_gateway})`,
-                new_value: { payment_status: 'refunded' },
-                previous_value: { payment_status: 'chargeback_requested' },
+                new_value: { payment_status: 'refunded', status: 'chargeback_lost' },
+                previous_value: { payment_status: order.payment_status, status: order.status },
               });
 
             chargebacksLost++;
@@ -402,6 +400,8 @@ serve(async (req) => {
               .from('orders')
               .update({
                 payment_status: 'refunded',
+                status: 'chargeback_lost',
+                status_before_chargeback: null,
                 updated_at: now.toISOString(),
               })
               .eq('id', order.id);
@@ -412,8 +412,8 @@ serve(async (req) => {
                 order_id: order.id,
                 action: 'chargeback_deadline_exceeded',
                 description: `Prazo de resolução do chargeback excedido — estornado automaticamente (${order.payment_gateway})`,
-                new_value: { payment_status: 'refunded' },
-                previous_value: { payment_status: 'chargeback_requested' },
+                new_value: { payment_status: 'refunded', status: 'chargeback_lost' },
+                previous_value: { payment_status: order.payment_status, status: order.status },
               });
 
             chargebacksLost++;
@@ -439,7 +439,7 @@ serve(async (req) => {
 
     const summary = {
       success: true,
-      version: 'v2.0',
+      version: 'v3.0',
       approved_checked: totalCheckedApproved,
       disputed_checked: totalCheckedDisputed,
       chargebacks_detected: chargebacksDetected,

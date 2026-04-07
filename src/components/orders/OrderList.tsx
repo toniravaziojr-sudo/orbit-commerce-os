@@ -90,6 +90,8 @@ const orderStatusIcons: Record<OrderStatus, typeof Clock> = {
   payment_expired: XCircle,
   invoice_rejected: AlertTriangle,
   invoice_cancelled: PackageX,
+  chargeback_detected: AlertTriangle,
+  chargeback_lost: XCircle,
 };
 
 const shippingStatusIcons: Record<ShippingStatus, typeof Truck> = {
