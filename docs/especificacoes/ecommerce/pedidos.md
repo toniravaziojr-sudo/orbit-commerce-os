@@ -533,11 +533,12 @@ Quando um pedido é criado, o sistema inicia verificação ativa do status de pa
 
 > **Mecanismo:** Cron via `scheduler-tick` (`monitor-chargebacks` v2.0) verifica todos os pedidos aprovados nos últimos 60 dias.
 > **Gateways suportados:** Pagar.me e Mercado Pago (multi-gateway, baseado em `orders.payment_gateway`).
+> **Frequência:** A cada 12 horas (00:00 e 12:00 UTC), controlado por gate horário no `scheduler-tick`.
 
 | Fase | Duração | Ação |
 |------|---------|------|
-| Monitoramento regular | 60 dias após aprovação | Verificação a cada ciclo do scheduler-tick (~5 min) |
-| Chargeback detectado | +15 dias após detecção | Verificação a cada ciclo para resolução |
+| Monitoramento regular | 60 dias após aprovação | Verificação a cada 12 horas via scheduler-tick |
+| Chargeback detectado | +15 dias após detecção | Verificação a cada 12 horas para resolução |
 
 **Paginação e rate limiting:**
 - Processa em lotes de 30 pedidos por página
