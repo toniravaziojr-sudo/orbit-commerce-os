@@ -77,6 +77,7 @@ export type PaymentStatus =
 export const PAYMENT_STATUS_CONFIG: Record<PaymentStatus, { 
   label: string; 
   variant: 'default' | 'secondary' | 'destructive' | 'outline';
+  color?: string;
 }> = {
   awaiting_payment: { label: 'Aguardando pagamento', variant: 'outline' },
   paid: { label: 'Pago', variant: 'default' },
