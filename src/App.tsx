@@ -78,6 +78,7 @@ const Campaigns = lazy(() => import("@/pages/Campaigns"));
 const AdsManager = lazy(() => import("@/pages/AdsManager"));
 const Creatives = lazy(() => import("@/pages/Creatives"));
 const Integrations = lazy(() => import("@/pages/Integrations"));
+const ExternalApps = lazy(() => import("@/pages/ExternalApps"));
 const Finance = lazy(() => import("@/pages/Finance"));
 const Fiscal = lazy(() => import("@/pages/Fiscal"));
 const FiscalProductsConfig = lazy(() => import("@/pages/FiscalProductsConfig"));
@@ -421,6 +422,7 @@ const App = () => {
                   <Route path="/reviews" element={<Reviews />} />
                   <Route path="/emails" element={<FeatureGatedRoute moduleKey="crm" featureKey="emails" featureName="Gestão de Emails" featureDescription="Caixas de email e inbox"><Emails /></FeatureGatedRoute>} />
                   <Route path="/integrations" element={<Integrations />} />
+                  <Route path="/apps-externos" element={<ExternalApps />} />
                   <Route path="/marketplaces" element={<Marketplaces />} />
                   <Route path="/marketplaces/mercadolivre" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="mercadolivre" featureName="Mercado Livre" featureDescription="Integração com Mercado Livre"><MercadoLivre /></FeatureGatedRoute>} />
                   <Route path="/marketplaces/shopee" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="shopee" featureName="Shopee" featureDescription="Integração com Shopee"><Shopee /></FeatureGatedRoute>} />
