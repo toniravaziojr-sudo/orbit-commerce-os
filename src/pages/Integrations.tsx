@@ -21,6 +21,7 @@ import { DomainAndEmailSettings } from "@/components/integrations/DomainAndEmail
 import { TikTokUnifiedSettings } from "@/components/integrations/TikTokUnifiedSettings";
 import { GoogleUnifiedSettings } from "@/components/integrations/GoogleUnifiedSettings";
 import { GoogleMerchantTab } from "@/components/integrations/GoogleMerchantTab";
+import { GoogleSearchConsoleTab } from "@/components/integrations/GoogleSearchConsoleTab";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
@@ -185,6 +186,7 @@ export default function Integrations() {
         <TabsContent value="google" className="space-y-6">
           <GoogleUnifiedSettings />
           <GoogleMerchantTab />
+          <GoogleSearchConsoleTab />
         </TabsContent>
 
         <TabsContent value="tiktok" className="space-y-6">
