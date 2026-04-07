@@ -402,7 +402,7 @@ function sendServerEvent(tenantId: string, payload: {
   };
 
   if (needsFbpWait) {
-    waitForFbp(1500).then(doSend);
+    waitForFbp(3000).then(doSend);
   } else {
     doSend(null);
   }

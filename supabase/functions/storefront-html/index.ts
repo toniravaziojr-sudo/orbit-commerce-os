@@ -124,20 +124,38 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     <script>
     window._sfEvtId=function(){return Date.now()+'-'+Math.random().toString(36).substr(2,7);};
     (function(){var p=new URLSearchParams(location.search);var fc=p.get('fbclid');if(fc){var fbcVal='fb.1.'+Date.now()+'.'+fc;try{localStorage.setItem('_fbc',fbcVal);}catch(e){}var d=new Date();d.setDate(d.getDate()+90);document.cookie='_fbc='+encodeURIComponent(fbcVal)+';path=/;expires='+d.toUTCString()+';SameSite=Lax';}})();
+    // v8.26.0: Create _sf_vid EARLY — before any CAPI call (was at bottom of page in visit tracking)
+    window._sfGetOrCreateVid=function(){var m=document.cookie.match(/(?:^|;\s*)_sf_vid=([^;]+)/);if(m)return decodeURIComponent(m[1]);var id='v_'+Math.random().toString(36).slice(2)+Date.now().toString(36);var d=new Date();d.setFullYear(d.getFullYear()+1);document.cookie='_sf_vid='+id+';path=/;expires='+d.toUTCString()+';SameSite=Lax';return id;};
+    window._sfVid=window._sfGetOrCreateVid();
     window._sfGetFbc=function(){var m=document.cookie.match(/(?:^|;\s*)_fbc=([^;]+)/);if(m)return decodeURIComponent(m[1]);try{return localStorage.getItem('_fbc')||undefined}catch(e){return undefined}};
-    window._sfGetVid=function(){var m=document.cookie.match(/(?:^|;\s*)_sf_vid=([^;]+)/);return m?decodeURIComponent(m[1]):undefined};
+    window._sfGetVid=function(){return window._sfVid||undefined};
     window._sfGetAM=function(){var r={};try{var em=localStorage.getItem('_sf_am_em');var ph=localStorage.getItem('_sf_am_ph');if(em)r.email=em;if(ph)r.phone=ph;}catch(e){}return r;};
+    // v8.26.0: _sfCapi with waitForFbp polling (250ms x 12 = 3s max) and IP capture
+    window._sfClientIp=null;
     window._sfCapi=function(n,eid,cd,ud){
-      var am=window._sfGetAM();
-      var base={fbp:(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||undefined,fbc:window._sfGetFbc(),external_id:window._sfGetVid()};
-      if(am.email)base.email=am.email;
-      if(am.phone)base.phone=am.phone;
-      fetch('${ctxUrl}/functions/v1/marketing-capi-track',{
-        method:'POST',headers:{'Content-Type':'application/json','apikey':'${ctxKey}'},
-        body:JSON.stringify({tenant_id:'${ctxTenantId}',event_name:n,event_id:eid,event_source_url:location.href,
-          custom_data:cd||{},user_data:Object.assign(base,ud||{})}),
-        keepalive:true
-      }).catch(function(){});
+      var _doSend=function(fbpVal){
+        var am=window._sfGetAM();
+        var base={fbp:fbpVal||undefined,fbc:window._sfGetFbc(),external_id:window._sfGetVid()};
+        if(am.email)base.email=am.email;
+        if(am.phone)base.phone=am.phone;
+        if(window._sfClientIp)base.client_ip_from_browser=window._sfClientIp;
+        fetch('${ctxUrl}/functions/v1/marketing-capi-track',{
+          method:'POST',headers:{'Content-Type':'application/json','apikey':'${ctxKey}'},
+          body:JSON.stringify({tenant_id:'${ctxTenantId}',event_name:n,event_id:eid,event_source_url:location.href,
+            custom_data:cd||{},user_data:Object.assign(base,ud||{})}),
+          keepalive:true
+        }).then(function(r){if(r.ok)return r.json();}).then(function(d){
+          if(d&&d.detected_ip&&!window._sfClientIp)window._sfClientIp=d.detected_ip;
+        }).catch(function(){});
+      };
+      // Check _fbp immediately
+      var fbp=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||null;
+      if(fbp){_doSend(fbp);return;}
+      // Poll for _fbp (250ms x 12 = 3s)
+      var _att=0;var _iv=setInterval(function(){
+        _att++;var f=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||null;
+        if(f||_att>=12){clearInterval(_iv);_doSend(f);}
+      },250);
     };
     </script>`);
   }
@@ -151,8 +169,7 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     (function(){
       function loadMeta(){
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init','${pixelId}');var _pvEid=window._sfEvtId?_sfEvtId():'';var _pvFbpBefore=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1];fbq('track','PageView',{},{eventID:_pvEid});if(window._sfCapi)_sfCapi('PageView',_pvEid);
-        if(!_pvFbpBefore){setTimeout(function(){var _fbpNow=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1];if(_fbpNow&&window._sfCapi){window._sfCapi('PageView',_pvEid);}},3500);}
+        fbq('init','${pixelId}');var _pvEid=window._sfEvtId?_sfEvtId():'';fbq('track','PageView',{},{eventID:_pvEid});if(window._sfCapi)_sfCapi('PageView',_pvEid);
         window._sfMetaReady=true;
         if(window._sfPendingMetaEvents){window._sfPendingMetaEvents.forEach(function(fn){fn();});delete window._sfPendingMetaEvents;}
       }
@@ -1877,16 +1894,9 @@ function buildFullPage(opts: {
       if(!tid)return;
       var SU="${Deno.env.get('SUPABASE_URL')}";
       var SK="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
-      // Get or create visitor ID cookie (365 days)
-      function gv(){
-        var m=document.cookie.match(/(?:^|;\\s*)_sf_vid=([^;]*)/);
-        if(m)return decodeURIComponent(m[1]);
-        var id='v_'+Math.random().toString(36).slice(2)+Date.now().toString(36);
-        var d=new Date();d.setFullYear(d.getFullYear()+1);
-        document.cookie="_sf_vid="+id+";path=/;expires="+d.toUTCString()+";SameSite=Lax";
-        return id;
-      }
-      var vid=gv();
+      // v8.26.0: _sf_vid is now created early in marketing init script
+      // Reuse window._sfGetOrCreateVid if available, otherwise create here (fallback for non-marketing pages)
+      var vid=(window._sfGetOrCreateVid?window._sfGetOrCreateVid():(function(){var m=document.cookie.match(/(?:^|;\\s*)_sf_vid=([^;]*)/);if(m)return decodeURIComponent(m[1]);var id='v_'+Math.random().toString(36).slice(2)+Date.now().toString(36);var d=new Date();d.setFullYear(d.getFullYear()+1);document.cookie="_sf_vid="+id+";path=/;expires="+d.toUTCString()+";SameSite=Lax";return id;})());
       // Determine page type from URL
       var pp=location.pathname;
       var pt="home";
