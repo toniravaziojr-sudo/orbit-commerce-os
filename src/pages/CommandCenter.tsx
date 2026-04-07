@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
- import { LayoutDashboard, Bot, CalendarClock } from "lucide-react";
+ import { LayoutDashboard, Bot, CalendarClock, Package } from "lucide-react";
 import { AgendaContent } from "@/components/command-center/agenda";
 import { EmbeddedCommandAssistant } from "@/components/command-assistant/EmbeddedCommandAssistant";
 import { Skeleton } from "@/components/ui/skeleton";
