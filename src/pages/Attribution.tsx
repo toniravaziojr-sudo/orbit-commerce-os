@@ -464,6 +464,10 @@ export default function Attribution() {
               <BarChart3 className="h-4 w-4" />
               Estatísticas
             </TabsTrigger>
+            <TabsTrigger value="ga4" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Google Analytics
+            </TabsTrigger>
             <TabsTrigger value="setup" className="flex items-center gap-2">
               <Info className="h-4 w-4" />
               Configuração
