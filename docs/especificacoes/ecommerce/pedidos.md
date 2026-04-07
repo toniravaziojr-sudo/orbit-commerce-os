@@ -364,8 +364,8 @@ const cfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CON
 
 | Função | Mapeia |
 |--------|--------|
-| `normalizeOrderStatus()` | `pending→awaiting_confirmation`, `paid→ready_to_invoice`, `cancelled→payment_expired`, `delivered→completed` |
-| `normalizePaymentStatus()` | `approved→paid`, `pending→awaiting_payment` |
+| `normalizeOrderStatus()` | `pending→awaiting_confirmation`, `paid→ready_to_invoice`, `cancelled→payment_expired`, `delivered→completed`, `chargeback_detected→chargeback_detected`, `chargeback_lost→chargeback_lost` |
+| `normalizePaymentStatus()` | `approved→paid`, `pending→awaiting_payment`, `chargeback_requested→under_review`, `under_review→under_review` |
 | `normalizeShippingStatus()` | `pending→awaiting_shipment`, `processing→label_generated` |
 
 ---
