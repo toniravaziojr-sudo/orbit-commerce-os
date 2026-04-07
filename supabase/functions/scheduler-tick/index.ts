@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.3.2"; // Fix products.depth column name (was 'length')
+const VERSION = "v2.4.0"; // Add monitor-chargebacks to parallel phase
+// v2.3.2 - Fix products.depth column name (was 'length')
 // v2.3.0 - Shipping draft queue: creates draft shipments from approved orders
 // v2.2.0 - Added fiscal-auto-create-drafts as parallel fallback
 
@@ -299,6 +300,15 @@ interface EmailListSyncStats {
   errors: number;
 }
 
+interface MonitorChargebacksStats {
+  approved_checked: number;
+  disputed_checked: number;
+  chargebacks_detected: number;
+  chargebacks_recovered: number;
+  chargebacks_lost: number;
+  errors: number;
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
@@ -321,6 +331,7 @@ interface TickStats {
   scheduled_emails: ScheduledEmailsStats;
     creative_poll: CreativePollStats;
     email_list_sync: EmailListSyncStats;
+    monitor_chargebacks: MonitorChargebacksStats;
   }
 
 interface AggregatedStats {
@@ -341,6 +352,9 @@ interface AggregatedStats {
       scheduled_emails_sent: number;
       email_lists_synced: number;
       email_subscribers_synced: number;
+      chargebacks_detected: number;
+      chargebacks_recovered: number;
+      chargebacks_lost: number;
     };
     passes: TickStats[];
 }
@@ -425,6 +439,9 @@ serve(async (req) => {
       email_subscribers_synced: 0,
       fiscal_drafts_created: 0,
       shipping_drafts_created: 0,
+      chargebacks_detected: 0,
+      chargebacks_recovered: 0,
+      chargebacks_lost: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
@@ -441,6 +458,7 @@ serve(async (req) => {
         scheduled_emails: { processed: 0, sent: 0, failed: 0, skipped: 0 },
         creative_poll: { resumed: 0, errors: 0 },
         email_list_sync: { lists_synced: 0, subscribers_synced: 0, skipped_not_due: false, errors: 0 },
+        monitor_chargebacks: { approved_checked: 0, disputed_checked: 0, chargebacks_detected: 0, chargebacks_recovered: 0, chargebacks_lost: 0, errors: 0 },
       };
 
       // ====================================================================
@@ -776,14 +794,22 @@ serve(async (req) => {
           callSubFunction(supabaseUrl, supabaseServiceKey, 'fiscal-auto-create-drafts', {})
         );
 
+        // Task H: monitor-chargebacks (post-sale chargeback monitoring — all gateways)
+        parallelTasks.push(
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'monitor-chargebacks', {})
+        );
+
         console.log(`[scheduler-tick] Starting parallel phase (${parallelTasks.length} tasks)...`);
         const parallelStart = Date.now();
 
         const results = await Promise.allSettled(parallelTasks);
         const [reconcileResult, trackingResult, emailsResult, creativeResult, socialPublishResult] = results.slice(0, 5);
-        const emailListSyncResult = shouldRunEmailListSync ? results[5] : undefined;
-        const fiscalDraftsResultIndex = shouldRunEmailListSync ? 6 : 5;
+        // verify-payment-status is at index 5 (results logged but no stat tracking needed)
+        const emailListSyncResult = shouldRunEmailListSync ? results[6] : undefined;
+        const fiscalDraftsResultIndex = shouldRunEmailListSync ? 7 : 6;
         const fiscalDraftsResult = results[fiscalDraftsResultIndex];
+        // monitor-chargebacks is always the last item
+        const monitorChargebacksResult = results[results.length - 1];
 
         const parallelDuration = Date.now() - parallelStart;
         console.log(`[scheduler-tick] Parallel phase completed in ${parallelDuration}ms`);
@@ -875,6 +901,25 @@ serve(async (req) => {
             console.error(`[scheduler-tick] email-marketing-list-sync error:`, error);
             passStats.email_list_sync.errors = 1;
           }
+        }
+
+        // Process monitor-chargebacks result
+        if (monitorChargebacksResult && monitorChargebacksResult.status === 'fulfilled' && monitorChargebacksResult.value.ok) {
+          const data = monitorChargebacksResult.value.data;
+          console.log(`[scheduler-tick] monitor-chargebacks result:`, data);
+          passStats.monitor_chargebacks.approved_checked = data.approved_checked ?? 0;
+          passStats.monitor_chargebacks.disputed_checked = data.disputed_checked ?? 0;
+          passStats.monitor_chargebacks.chargebacks_detected = data.chargebacks_detected ?? 0;
+          passStats.monitor_chargebacks.chargebacks_recovered = data.chargebacks_recovered ?? 0;
+          passStats.monitor_chargebacks.chargebacks_lost = data.chargebacks_lost ?? 0;
+          passStats.monitor_chargebacks.errors = data.errors ?? 0;
+          aggregatedTotals.chargebacks_detected += data.chargebacks_detected ?? 0;
+          aggregatedTotals.chargebacks_recovered += data.chargebacks_recovered ?? 0;
+          aggregatedTotals.chargebacks_lost += data.chargebacks_lost ?? 0;
+        } else if (monitorChargebacksResult) {
+          const error = monitorChargebacksResult.status === 'rejected' ? monitorChargebacksResult.reason : monitorChargebacksResult.value?.error;
+          console.error(`[scheduler-tick] monitor-chargebacks error:`, error);
+          passStats.monitor_chargebacks.errors = 1;
         }
       }
 

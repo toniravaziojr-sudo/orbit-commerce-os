@@ -1,7 +1,9 @@
 // ============================================
-// MONITOR CHARGEBACKS - Post-sale payment monitoring
-// Checks approved orders daily for 60 days to detect chargebacks
-// Also monitors chargeback_requested orders for 15 days for resolution
+// MONITOR CHARGEBACKS - Post-sale payment monitoring (v2.0)
+// Multi-gateway: Pagar.me + Mercado Pago
+// Paginates through ALL approved orders (no fixed limit)
+// Checks approved orders for 60 days to detect chargebacks
+// Monitors chargeback_requested orders for 15 days for resolution
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -14,31 +16,80 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
 
 // Monitor approved orders for 60 days
 const MONITORING_WINDOW_DAYS = 60;
 // Monitor chargeback disputes for 15 days
 const CHARGEBACK_RESOLUTION_DAYS = 15;
-// Max orders per run
-const BATCH_SIZE = 50;
+// Page size for pagination (process in batches to avoid timeouts)
+const PAGE_SIZE = 30;
+// Max pages per invocation (safety valve: 30 * 30 = 900 orders max)
+const MAX_PAGES = 30;
+// Delay between pages to avoid rate limiting (ms)
+const PAGE_DELAY_MS = 500;
+// Delay between individual gateway calls (ms)
+const CALL_DELAY_MS = 200;
 
-async function getPagarmeCredentials(supabase: any, tenantId: string): Promise<string | null> {
-  const { data: provider } = await supabase
-    .from('payment_providers')
-    .select('credentials, is_enabled')
-    .eq('tenant_id', tenantId)
-    .eq('provider', 'pagarme')
-    .single();
+// ============================================
+// GATEWAY ADAPTERS
+// ============================================
 
-  if (provider?.is_enabled && provider?.credentials?.api_key) {
-    return provider.credentials.api_key;
-  }
-
-  return ENV_PAGARME_API_KEY || null;
+interface GatewayCredentials {
+  gateway: 'pagarme' | 'mercadopago';
+  apiKey?: string;
+  accessToken?: string;
 }
 
-async function fetchPagarmeChargeStatus(apiKey: string, gatewayOrderId: string): Promise<string | null> {
+// Cache credentials per tenant to avoid repeated DB lookups
+const credentialsCache = new Map<string, GatewayCredentials | null>();
+
+async function getCredentialsForOrder(
+  supabase: any,
+  tenantId: string,
+  gateway: string
+): Promise<GatewayCredentials | null> {
+  const cacheKey = `${tenantId}:${gateway}`;
+  if (credentialsCache.has(cacheKey)) {
+    return credentialsCache.get(cacheKey)!;
+  }
+
+  let result: GatewayCredentials | null = null;
+
+  if (gateway === 'pagarme') {
+    const { data: provider } = await supabase
+      .from('payment_providers')
+      .select('credentials, is_enabled')
+      .eq('tenant_id', tenantId)
+      .eq('provider', 'pagarme')
+      .single();
+
+    if (provider?.is_enabled && provider?.credentials?.api_key) {
+      result = { gateway: 'pagarme', apiKey: provider.credentials.api_key };
+    } else {
+      const envKey = Deno.env.get('PAGARME_API_KEY');
+      if (envKey) {
+        result = { gateway: 'pagarme', apiKey: envKey };
+      }
+    }
+  } else if (gateway === 'mercadopago') {
+    const { data: provider } = await supabase
+      .from('payment_providers')
+      .select('credentials, is_enabled')
+      .eq('tenant_id', tenantId)
+      .eq('provider', 'mercado_pago')
+      .single();
+
+    if (provider?.is_enabled && provider?.credentials?.access_token) {
+      result = { gateway: 'mercadopago', accessToken: provider.credentials.access_token };
+    }
+  }
+
+  credentialsCache.set(cacheKey, result);
+  return result;
+}
+
+// Fetch charge status from Pagar.me
+async function fetchPagarmeStatus(apiKey: string, gatewayOrderId: string): Promise<string | null> {
   const authHeader = btoa(`${apiKey}:`);
   const response = await fetch(`https://api.pagar.me/core/v5/orders/${gatewayOrderId}`, {
     method: 'GET',
@@ -49,12 +100,77 @@ async function fetchPagarmeChargeStatus(apiKey: string, gatewayOrderId: string):
   });
 
   if (!response.ok) {
-    throw new Error(`Pagar.me API error: ${response.status}`);
+    const body = await response.text();
+    throw new Error(`Pagar.me API error: ${response.status} — ${body.slice(0, 200)}`);
   }
 
   const data = await response.json();
   return data.charges?.[0]?.status || null;
 }
+
+// Fetch payment status from Mercado Pago
+async function fetchMercadoPagoStatus(accessToken: string, paymentId: string): Promise<string | null> {
+  const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`MercadoPago API error: ${response.status} — ${body.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  return data.status || null;
+}
+
+// Normalize gateway-specific status to unified chargeback status
+function normalizeChargebackStatus(gateway: string, rawStatus: string | null): 'ok' | 'chargedback' | 'refunded' | 'unknown' {
+  if (!rawStatus) return 'unknown';
+
+  if (gateway === 'pagarme') {
+    switch (rawStatus) {
+      case 'paid': return 'ok';
+      case 'chargedback': return 'chargedback';
+      case 'refunded': return 'refunded';
+      case 'canceled': return 'refunded';
+      default: return 'unknown';
+    }
+  }
+
+  if (gateway === 'mercadopago') {
+    switch (rawStatus) {
+      case 'approved': return 'ok';
+      case 'charged_back': return 'chargedback';
+      case 'refunded': return 'refunded';
+      case 'cancelled': return 'refunded';
+      default: return 'unknown';
+    }
+  }
+
+  return 'unknown';
+}
+
+// Fetch status from the appropriate gateway
+async function fetchGatewayStatus(credentials: GatewayCredentials, gatewayId: string): Promise<string | null> {
+  if (credentials.gateway === 'pagarme' && credentials.apiKey) {
+    return fetchPagarmeStatus(credentials.apiKey, gatewayId);
+  }
+  if (credentials.gateway === 'mercadopago' && credentials.accessToken) {
+    return fetchMercadoPagoStatus(credentials.accessToken, gatewayId);
+  }
+  return null;
+}
+
+// Small delay utility
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// ============================================
+// MAIN HANDLER
+// ============================================
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -65,54 +181,64 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const now = new Date();
 
-    console.log(`[monitor-chargebacks] Running at ${now.toISOString()}`);
+    console.log(`[monitor-chargebacks] v2.0 Running at ${now.toISOString()}`);
 
     let chargebacksDetected = 0;
     let chargebacksResolved = 0;
     let chargebacksLost = 0;
-    let checkedApproved = 0;
-    let checkedDisputed = 0;
+    let refundsDetected = 0;
+    let totalCheckedApproved = 0;
+    let totalCheckedDisputed = 0;
     let errors = 0;
+    let skippedNoCredentials = 0;
+    let pagesProcessed = 0;
 
     // ============================================================
-    // PART 1: Check approved orders within 60-day window
+    // PART 1: Check approved orders within 60-day window (paginated)
     // ============================================================
     const monitoringCutoff = new Date(now.getTime() - MONITORING_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: approvedOrders, error: approvedError } = await supabase
-      .from('orders')
-      .select('id, tenant_id, payment_gateway_id, paid_at')
-      .eq('payment_status', 'approved')
-      .not('payment_gateway_id', 'is', null)
-      .gte('paid_at', monitoringCutoff)
-      .order('paid_at', { ascending: true })
-      .limit(BATCH_SIZE);
+    let hasMoreApproved = true;
+    let approvedOffset = 0;
 
-    if (approvedError) {
-      console.error('[monitor-chargebacks] Error fetching approved orders:', approvedError);
-    }
+    while (hasMoreApproved && pagesProcessed < MAX_PAGES) {
+      const { data: approvedOrders, error: approvedError } = await supabase
+        .from('orders')
+        .select('id, tenant_id, payment_gateway, payment_gateway_id, paid_at')
+        .eq('payment_status', 'approved')
+        .not('payment_gateway_id', 'is', null)
+        .not('payment_gateway', 'is', null)
+        .gte('paid_at', monitoringCutoff)
+        .order('paid_at', { ascending: true })
+        .range(approvedOffset, approvedOffset + PAGE_SIZE - 1);
 
-    const tenantCredentials = new Map<string, string | null>();
+      if (approvedError) {
+        console.error('[monitor-chargebacks] Error fetching approved orders:', approvedError);
+        break;
+      }
 
-    if (approvedOrders && approvedOrders.length > 0) {
-      console.log(`[monitor-chargebacks] Checking ${approvedOrders.length} approved orders`);
+      if (!approvedOrders || approvedOrders.length === 0) {
+        hasMoreApproved = false;
+        break;
+      }
+
+      console.log(`[monitor-chargebacks] Page ${pagesProcessed + 1}: checking ${approvedOrders.length} approved orders (offset ${approvedOffset})`);
 
       for (const order of approvedOrders) {
         try {
-          checkedApproved++;
+          totalCheckedApproved++;
 
-          if (!tenantCredentials.has(order.tenant_id)) {
-            const creds = await getPagarmeCredentials(supabase, order.tenant_id);
-            tenantCredentials.set(order.tenant_id, creds);
+          const credentials = await getCredentialsForOrder(supabase, order.tenant_id, order.payment_gateway);
+          if (!credentials) {
+            skippedNoCredentials++;
+            continue;
           }
-          const apiKey = tenantCredentials.get(order.tenant_id);
 
-          if (!apiKey) continue;
+          const rawStatus = await fetchGatewayStatus(credentials, order.payment_gateway_id);
+          const normalized = normalizeChargebackStatus(order.payment_gateway, rawStatus);
 
-          const chargeStatus = await fetchPagarmeChargeStatus(apiKey, order.payment_gateway_id);
-
-          if (chargeStatus === 'chargedback') {
-            console.log(`[monitor-chargebacks] CHARGEBACK DETECTED for order ${order.id}`);
+          if (normalized === 'chargedback') {
+            console.log(`[monitor-chargebacks] CHARGEBACK DETECTED: order=${order.id}, gateway=${order.payment_gateway}`);
 
             await supabase
               .from('orders')
@@ -124,20 +250,19 @@ serve(async (req) => {
               })
               .eq('id', order.id);
 
-            // Record in order_history
             await supabase
               .from('order_history')
               .insert({
                 order_id: order.id,
                 action: 'chargeback_detected',
-                description: 'Chargeback detectado via monitoramento pós-venda',
+                description: `Chargeback detectado via monitoramento pós-venda (${order.payment_gateway})`,
                 new_value: { payment_status: 'chargeback_requested' },
                 previous_value: { payment_status: 'approved' },
               });
 
             chargebacksDetected++;
-          } else if (chargeStatus === 'refunded') {
-            console.log(`[monitor-chargebacks] REFUND DETECTED for order ${order.id}`);
+          } else if (normalized === 'refunded') {
+            console.log(`[monitor-chargebacks] REFUND DETECTED: order=${order.id}, gateway=${order.payment_gateway}`);
 
             await supabase
               .from('orders')
@@ -152,53 +277,78 @@ serve(async (req) => {
               .insert({
                 order_id: order.id,
                 action: 'refund_detected',
-                description: 'Estorno detectado via monitoramento pós-venda',
+                description: `Estorno detectado via monitoramento pós-venda (${order.payment_gateway})`,
                 new_value: { payment_status: 'refunded' },
                 previous_value: { payment_status: 'approved' },
               });
+
+            refundsDetected++;
           }
+
+          // Rate limiting: small delay between gateway calls
+          await delay(CALL_DELAY_MS);
+
         } catch (err) {
           console.error(`[monitor-chargebacks] Error checking order ${order.id}:`, err);
           errors++;
         }
       }
+
+      approvedOffset += PAGE_SIZE;
+      pagesProcessed++;
+
+      if (approvedOrders.length < PAGE_SIZE) {
+        hasMoreApproved = false;
+      } else {
+        // Delay between pages
+        await delay(PAGE_DELAY_MS);
+      }
     }
 
     // ============================================================
-    // PART 2: Resolve existing chargeback disputes
+    // PART 2: Resolve existing chargeback disputes (paginated)
     // ============================================================
-    const { data: disputedOrders, error: disputedError } = await supabase
-      .from('orders')
-      .select('id, tenant_id, payment_gateway_id, chargeback_detected_at, chargeback_deadline_at')
-      .eq('payment_status', 'chargeback_requested')
-      .not('payment_gateway_id', 'is', null)
-      .order('chargeback_detected_at', { ascending: true })
-      .limit(BATCH_SIZE);
+    let hasMoreDisputed = true;
+    let disputedOffset = 0;
 
-    if (disputedError) {
-      console.error('[monitor-chargebacks] Error fetching disputed orders:', disputedError);
-    }
+    while (hasMoreDisputed && pagesProcessed < MAX_PAGES) {
+      const { data: disputedOrders, error: disputedError } = await supabase
+        .from('orders')
+        .select('id, tenant_id, payment_gateway, payment_gateway_id, chargeback_detected_at, chargeback_deadline_at')
+        .eq('payment_status', 'chargeback_requested')
+        .not('payment_gateway_id', 'is', null)
+        .not('payment_gateway', 'is', null)
+        .order('chargeback_detected_at', { ascending: true })
+        .range(disputedOffset, disputedOffset + PAGE_SIZE - 1);
 
-    if (disputedOrders && disputedOrders.length > 0) {
-      console.log(`[monitor-chargebacks] Checking ${disputedOrders.length} disputed orders`);
+      if (disputedError) {
+        console.error('[monitor-chargebacks] Error fetching disputed orders:', disputedError);
+        break;
+      }
+
+      if (!disputedOrders || disputedOrders.length === 0) {
+        hasMoreDisputed = false;
+        break;
+      }
+
+      console.log(`[monitor-chargebacks] Page ${pagesProcessed + 1}: checking ${disputedOrders.length} disputed orders (offset ${disputedOffset})`);
 
       for (const order of disputedOrders) {
         try {
-          checkedDisputed++;
+          totalCheckedDisputed++;
 
-          if (!tenantCredentials.has(order.tenant_id)) {
-            const creds = await getPagarmeCredentials(supabase, order.tenant_id);
-            tenantCredentials.set(order.tenant_id, creds);
+          const credentials = await getCredentialsForOrder(supabase, order.tenant_id, order.payment_gateway);
+          if (!credentials) {
+            skippedNoCredentials++;
+            continue;
           }
-          const apiKey = tenantCredentials.get(order.tenant_id);
 
-          if (!apiKey) continue;
+          const rawStatus = await fetchGatewayStatus(credentials, order.payment_gateway_id);
+          const normalized = normalizeChargebackStatus(order.payment_gateway, rawStatus);
 
-          const chargeStatus = await fetchPagarmeChargeStatus(apiKey, order.payment_gateway_id);
-
-          if (chargeStatus === 'paid') {
+          if (normalized === 'ok') {
             // Chargeback recovered!
-            console.log(`[monitor-chargebacks] Chargeback RECOVERED for order ${order.id}`);
+            console.log(`[monitor-chargebacks] CHARGEBACK RECOVERED: order=${order.id}`);
 
             await supabase
               .from('orders')
@@ -215,15 +365,15 @@ serve(async (req) => {
               .insert({
                 order_id: order.id,
                 action: 'chargeback_recovered',
-                description: 'Chargeback recuperado — pagamento restabelecido',
+                description: `Chargeback recuperado — pagamento restabelecido (${order.payment_gateway})`,
                 new_value: { payment_status: 'approved' },
                 previous_value: { payment_status: 'chargeback_requested' },
               });
 
             chargebacksResolved++;
-          } else if (chargeStatus === 'refunded' || chargeStatus === 'canceled') {
+          } else if (normalized === 'refunded') {
             // Chargeback lost
-            console.log(`[monitor-chargebacks] Chargeback LOST for order ${order.id}`);
+            console.log(`[monitor-chargebacks] CHARGEBACK LOST: order=${order.id}`);
 
             await supabase
               .from('orders')
@@ -238,15 +388,15 @@ serve(async (req) => {
               .insert({
                 order_id: order.id,
                 action: 'chargeback_lost',
-                description: 'Chargeback perdido — pedido estornado',
+                description: `Chargeback perdido — pedido estornado (${order.payment_gateway})`,
                 new_value: { payment_status: 'refunded' },
                 previous_value: { payment_status: 'chargeback_requested' },
               });
 
             chargebacksLost++;
           } else if (order.chargeback_deadline_at && new Date(order.chargeback_deadline_at) < now) {
-            // Deadline exceeded without resolution — mark as lost
-            console.log(`[monitor-chargebacks] Chargeback DEADLINE EXCEEDED for order ${order.id}`);
+            // Deadline exceeded without resolution
+            console.log(`[monitor-chargebacks] CHARGEBACK DEADLINE EXCEEDED: order=${order.id}`);
 
             await supabase
               .from('orders')
@@ -261,31 +411,49 @@ serve(async (req) => {
               .insert({
                 order_id: order.id,
                 action: 'chargeback_deadline_exceeded',
-                description: 'Prazo de resolução do chargeback excedido — estornado automaticamente',
+                description: `Prazo de resolução do chargeback excedido — estornado automaticamente (${order.payment_gateway})`,
                 new_value: { payment_status: 'refunded' },
                 previous_value: { payment_status: 'chargeback_requested' },
               });
 
             chargebacksLost++;
           }
+
+          await delay(CALL_DELAY_MS);
+
         } catch (err) {
           console.error(`[monitor-chargebacks] Error checking disputed order ${order.id}:`, err);
           errors++;
         }
       }
+
+      disputedOffset += PAGE_SIZE;
+      pagesProcessed++;
+
+      if (disputedOrders.length < PAGE_SIZE) {
+        hasMoreDisputed = false;
+      } else {
+        await delay(PAGE_DELAY_MS);
+      }
     }
 
-    console.log(`[monitor-chargebacks] Summary: approved_checked=${checkedApproved}, disputed_checked=${checkedDisputed}, chargebacks_detected=${chargebacksDetected}, recovered=${chargebacksResolved}, lost=${chargebacksLost}, errors=${errors}`);
-
-    return new Response(JSON.stringify({
+    const summary = {
       success: true,
-      approved_checked: checkedApproved,
-      disputed_checked: checkedDisputed,
+      version: 'v2.0',
+      approved_checked: totalCheckedApproved,
+      disputed_checked: totalCheckedDisputed,
       chargebacks_detected: chargebacksDetected,
       chargebacks_recovered: chargebacksResolved,
       chargebacks_lost: chargebacksLost,
+      refunds_detected: refundsDetected,
+      skipped_no_credentials: skippedNoCredentials,
+      pages_processed: pagesProcessed,
       errors,
-    }), {
+    };
+
+    console.log(`[monitor-chargebacks] Summary:`, JSON.stringify(summary));
+
+    return new Response(JSON.stringify(summary), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
