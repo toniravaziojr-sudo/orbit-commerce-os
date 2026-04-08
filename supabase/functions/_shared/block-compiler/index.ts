@@ -64,6 +64,13 @@ import { textBannersToStaticHTML } from './blocks/text-banners.ts';
 import { reviewsToStaticHTML } from './blocks/reviews.ts';
 import { videoUploadToStaticHTML } from './blocks/video-upload.ts';
 
+// Unified block compilers
+import { customCodeToStaticHTML } from './blocks/custom-code.ts';
+import { highlightsToStaticHTML } from './blocks/highlights.ts';
+import { videoToStaticHTML } from './blocks/video.ts';
+import { socialProofToStaticHTML } from './blocks/social-proof.ts';
+import { contentSectionToStaticHTML } from './blocks/content-section.ts';
+
 // Layout blocks
 import { containerToStaticHTML } from './blocks/container.ts';
 import { columnsToStaticHTML } from './blocks/columns.ts';
