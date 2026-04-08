@@ -17722,6 +17722,74 @@ export type Database = {
           },
         ]
       }
+      tiktok_ad_assets: {
+        Row: {
+          advertiser_id: string
+          asset_type: string
+          created_at: string
+          duration: number | null
+          file_name: string | null
+          file_size: number | null
+          file_url: string | null
+          format: string | null
+          height: number | null
+          id: string
+          metadata: Json | null
+          signature: string | null
+          synced_at: string
+          tenant_id: string
+          tiktok_asset_id: string
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          advertiser_id: string
+          asset_type?: string
+          created_at?: string
+          duration?: number | null
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          format?: string | null
+          height?: number | null
+          id?: string
+          metadata?: Json | null
+          signature?: string | null
+          synced_at?: string
+          tenant_id: string
+          tiktok_asset_id: string
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          advertiser_id?: string
+          asset_type?: string
+          created_at?: string
+          duration?: number | null
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          format?: string | null
+          height?: number | null
+          id?: string
+          metadata?: Json | null
+          signature?: string | null
+          synced_at?: string
+          tenant_id?: string
+          tiktok_asset_id?: string
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_ad_assets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_ad_audiences: {
         Row: {
           advertiser_id: string
