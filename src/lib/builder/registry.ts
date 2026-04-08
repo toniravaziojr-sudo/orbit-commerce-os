@@ -4070,6 +4070,215 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
     isRemovable: true,
   },
+
+  // ========== UNIFIED BLOCKS ==========
+  {
+    type: 'NewsletterUnified',
+    label: 'Newsletter',
+    category: 'content',
+    icon: 'Mail',
+    defaultProps: {
+      mode: 'inline',
+      title: 'Receba nossas novidades',
+      subtitle: 'Cadastre-se e receba ofertas exclusivas em primeira mão!',
+      buttonText: 'Inscrever-se',
+      layout: 'horizontal',
+      showIcon: true,
+    },
+    propsSchema: {
+      mode: {
+        type: 'select',
+        label: 'Modo',
+        defaultValue: 'inline',
+        options: [
+          { label: 'Simples (só email)', value: 'inline' },
+          { label: 'Formulário completo', value: 'form' },
+          { label: 'Popup/Modal', value: 'popup' },
+        ],
+      },
+      title: { type: 'string', label: 'Título', defaultValue: 'Receba nossas novidades' },
+      subtitle: { type: 'string', label: 'Subtítulo' },
+      buttonText: { type: 'string', label: 'Texto do Botão', defaultValue: 'Inscrever-se' },
+      // Inline mode
+      layout: {
+        type: 'select',
+        label: 'Layout',
+        defaultValue: 'horizontal',
+        options: [
+          { label: 'Horizontal', value: 'horizontal' },
+          { label: 'Vertical', value: 'vertical' },
+          { label: 'Card', value: 'card' },
+        ],
+        showWhen: { mode: 'inline' },
+      },
+      showIcon: { type: 'boolean', label: 'Mostrar Ícone', defaultValue: true, showWhen: { mode: 'inline' } },
+      showIncentive: { type: 'boolean', label: 'Mostrar Incentivo', defaultValue: false, showWhen: { mode: 'inline' } },
+      incentiveText: { type: 'string', label: 'Texto do Incentivo', showWhen: { mode: 'inline' } },
+      // Form mode
+      listId: { type: 'emailList', label: 'Lista de Email', placeholder: 'Selecione uma lista', showWhen: { mode: 'form' } },
+      showName: { type: 'boolean', label: 'Campo Nome', defaultValue: true, showWhen: { mode: 'form' } },
+      showPhone: { type: 'boolean', label: 'Campo Telefone', defaultValue: false, showWhen: { mode: 'form' } },
+      showBirthDate: { type: 'boolean', label: 'Campo Data de Nascimento', defaultValue: false, showWhen: { mode: 'form' } },
+      // Popup mode
+      type: {
+        type: 'select', label: 'Tipo de Popup', defaultValue: 'newsletter',
+        options: [
+          { label: 'Newsletter', value: 'newsletter' },
+          { label: 'Promoção', value: 'promotion' },
+          { label: 'Anúncio', value: 'announcement' },
+        ],
+        showWhen: { mode: 'popup' },
+      },
+      discountCode: { type: 'string', label: 'Código de Desconto', showWhen: { mode: 'popup' } },
+      // Visual
+      backgroundColor: { type: 'color', label: 'Cor de Fundo' },
+      textColor: { type: 'color', label: 'Cor do Texto' },
+      buttonBgColor: { type: 'color', label: 'Cor do Botão' },
+      buttonTextColor: { type: 'color', label: 'Cor do Texto do Botão' },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'CategoryShowcase',
+    label: 'Vitrine de Categorias',
+    category: 'ecommerce',
+    icon: 'FolderTree',
+    defaultProps: {
+      style: 'cards',
+      title: 'Categorias',
+      source: 'auto',
+      layout: 'grid',
+      columnsDesktop: 4,
+      columnsMobile: 2,
+      showImage: true,
+      showName: true,
+      items: [],
+    },
+    propsSchema: {
+      style: {
+        type: 'select',
+        label: 'Estilo',
+        defaultValue: 'cards',
+        options: [
+          { label: 'Cards (retangular)', value: 'cards' },
+          { label: 'Círculos', value: 'circles' },
+        ],
+      },
+      title: { type: 'string', label: 'Título', defaultValue: 'Categorias' },
+      // Cards mode
+      source: {
+        type: 'select', label: 'Fonte', defaultValue: 'auto',
+        options: [
+          { label: 'Automático', value: 'auto' },
+          { label: 'Apenas principais', value: 'parent' },
+          { label: 'Selecionar manualmente', value: 'custom' },
+        ],
+        showWhen: { style: 'cards' },
+      },
+      layout: {
+        type: 'select', label: 'Layout', defaultValue: 'grid',
+        options: [
+          { label: 'Grade', value: 'grid' },
+          { label: 'Lista', value: 'list' },
+        ],
+        showWhen: { style: 'cards' },
+      },
+      columnsDesktop: {
+        type: 'select', label: 'Colunas (Desktop)', defaultValue: '4',
+        options: [
+          { label: '2', value: '2' }, { label: '3', value: '3' },
+          { label: '4', value: '4' }, { label: '5', value: '5' },
+        ],
+        showWhen: { style: 'cards' },
+      },
+      columnsMobile: {
+        type: 'select', label: 'Colunas (Mobile)', defaultValue: '2',
+        options: [{ label: '1', value: '1' }, { label: '2', value: '2' }],
+        showWhen: { style: 'cards' },
+      },
+      showImage: { type: 'boolean', label: 'Mostrar Imagem', defaultValue: true, showWhen: { style: 'cards' } },
+      showDescription: { type: 'boolean', label: 'Mostrar Descrição', defaultValue: false, showWhen: { style: 'cards' } },
+      // Both modes - manual selection
+      items: {
+        type: 'categoryMultiSelect', label: 'Categorias', max: 12,
+        helpText: 'Selecione as categorias a exibir',
+      },
+      // Circles mode
+      showName: { type: 'boolean', label: 'Exibir Nome', defaultValue: true, showWhen: { style: 'circles' } },
+      mobileStyle: {
+        type: 'select', label: 'Estilo Mobile', defaultValue: 'grid',
+        options: [{ label: 'Grade', value: 'grid' }, { label: 'Carrossel', value: 'carousel' }],
+        showWhen: { style: 'circles' },
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'ProductShowcase',
+    label: 'Vitrine de Produtos',
+    category: 'ecommerce',
+    icon: 'LayoutGrid',
+    defaultProps: {
+      source: 'featured',
+      layout: 'grid',
+      title: 'Produtos',
+      limit: 8,
+      columnsDesktop: 4,
+      columnsMobile: 2,
+      showPrice: true,
+      showButton: true,
+      buttonText: 'Ver produto',
+    },
+    propsSchema: {
+      source: {
+        type: 'select',
+        label: 'Fonte dos Produtos',
+        defaultValue: 'featured',
+        options: [
+          { label: 'Destaques', value: 'featured' },
+          { label: 'Novidades', value: 'newest' },
+          { label: 'Todos', value: 'all' },
+          { label: 'Por Categoria', value: 'category' },
+          { label: 'Seleção Manual', value: 'manual' },
+        ],
+      },
+      layout: {
+        type: 'select',
+        label: 'Layout',
+        defaultValue: 'grid',
+        options: [
+          { label: 'Grade', value: 'grid' },
+          { label: 'Carrossel', value: 'carousel' },
+        ],
+      },
+      title: { type: 'string', label: 'Título', defaultValue: 'Produtos' },
+      limit: { type: 'number', label: 'Limite', defaultValue: 8, min: 1, max: 24 },
+      columnsDesktop: {
+        type: 'select', label: 'Colunas (Desktop)', defaultValue: '4',
+        options: [
+          { label: '2', value: '2' }, { label: '3', value: '3' },
+          { label: '4', value: '4' }, { label: '5', value: '5' }, { label: '6', value: '6' },
+        ],
+        showWhen: { layout: 'grid' },
+      },
+      columnsMobile: {
+        type: 'select', label: 'Colunas (Mobile)', defaultValue: '2',
+        options: [{ label: '1', value: '1' }, { label: '2', value: '2' }],
+        showWhen: { layout: 'grid' },
+      },
+      // Category source
+      categoryId: { type: 'category', label: 'Categoria', placeholder: 'Selecione', showWhen: { source: 'category' } },
+      categorySlug: { type: 'string', label: 'Slug da Categoria (para link)', showWhen: { source: 'category' } },
+      showViewAll: { type: 'boolean', label: 'Mostrar "Ver todos"', defaultValue: true, showWhen: { source: 'category' } },
+      // Manual source
+      productIds: { type: 'productMultiSelect', label: 'Produtos', showWhen: { source: 'manual' } },
+      // Common
+      showPrice: { type: 'boolean', label: 'Mostrar Preço', defaultValue: true },
+      showButton: { type: 'boolean', label: 'Mostrar Botão', defaultValue: true },
+      buttonText: { type: 'string', label: 'Texto do Botão', defaultValue: 'Ver produto' },
+    },
+    canHaveChildren: false,
+  },
 ];
 
 // Registry class
