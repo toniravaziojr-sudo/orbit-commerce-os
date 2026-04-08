@@ -75,6 +75,11 @@ import { LogosCarouselBlock as LogosCarouselBlockComponent } from './blocks/Logo
 import { StatsNumbersBlock as StatsNumbersBlockComponent } from './blocks/StatsNumbersBlock';
 import { ImageGalleryBlock as ImageGalleryBlockComponent } from './blocks/image-gallery';
 import { AccordionBlock as AccordionBlockComponent } from './blocks/AccordionBlock';
+import { CustomCodeBlock as CustomCodeBlockComponent } from './blocks/custom-code';
+import { HighlightsBlock as HighlightsBlockComponent } from './blocks/highlights';
+import { VideoBlock as VideoBlockComponent } from './blocks/video';
+import { SocialProofBlock as SocialProofBlockComponent } from './blocks/social-proof';
+import { ContentSectionBlock as ContentSectionBlockComponent } from './blocks/content-section';
 import { CartDemoBlock } from './blocks/CartDemoBlock';
 import { CheckoutDemoBlock } from './blocks/CheckoutDemoBlock';
 import { CategoryBannerBlock as CategoryBannerBlockComponent } from './blocks/CategoryBannerBlock';
