@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
 
-export type GoogleScopePack = "youtube" | "ads" | "merchant" | "analytics" | "search_console" | "business" | "tag_manager" | "gmail";
+export type GoogleScopePack = "youtube" | "ads" | "merchant" | "analytics" | "search_console" | "business" | "tag_manager" | "gmail" | "calendar";
 
 export interface GoogleAssets {
   youtube_channels?: Array<{ id: string; title: string; thumbnail_url?: string; subscriber_count?: number }>;
