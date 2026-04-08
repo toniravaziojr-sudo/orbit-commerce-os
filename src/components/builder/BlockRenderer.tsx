@@ -550,6 +550,13 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     ImageGallery: ImageGalleryBlockWrapper,
     AccordionBlock: AccordionBlockBlockWrapper,
     
+    // Unified blocks
+    CustomCode: (props: any) => <CustomCodeBlockComponent {...props} />,
+    Highlights: (props: any) => <HighlightsBlockComponent {...props} />,
+    Video: (props: any) => <VideoBlockComponent {...props} />,
+    SocialProof: (props: any) => <SocialProofBlockComponent {...props} />,
+    ContentSection: (props: any) => <ContentSectionBlockComponent {...props} />,
+    
     // Offer Slot Blocks - passam context para detectar pageType e evitar duplicação
     // OrderBumpSlot removed - handled internally by CheckoutContent via OrderBumpSection
     CompreJuntoSlot: (props: any) => <CompreJuntoSlotBlock {...props} isEditing={props.isEditing} context={props.context} />,
