@@ -466,9 +466,11 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 #### Garantias
 
 1. **Sem dependência exclusiva do cursor**: Sempre consulta `MAX(numero)` no banco antes de inserir.
-2. **Race condition safe**: Retry com incremento automático em caso de colisão.
-3. **Cursor auto-reparável**: `syncFiscalNumberCursor` recalcula baseado no estado real do banco.
-4. **Idempotente**: `fiscal-auto-create-drafts` verifica existência de invoice antes de criar (double-check).
+2. **Race condition safe**: Retry com incremento automático em caso de colisão de número.
+3. **Anti-duplicata por pedido**: Índice único parcial `idx_fiscal_invoices_order_unique` impede dois rascunhos ativos para o mesmo pedido. Conflitos são tratados como "já existe".
+4. **Cursor auto-reparável**: `syncFiscalNumberCursor` recalcula baseado no estado real do banco.
+5. **Idempotente**: `fiscal-auto-create-drafts` verifica existência de invoice antes de criar (double-check).
+6. **Single Flow**: Rascunhos são criados exclusivamente via pipeline `Trigger → Fila → Cron`. Webhooks de pagamento não chamam a Edge Function diretamente.
 
 ---
 
