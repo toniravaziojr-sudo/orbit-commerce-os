@@ -19,14 +19,15 @@ export default function Fiscal() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab') as MainTab | null;
-  const showSettings = searchParams.get('tab') === 'configuracoes';
+  const rawTab = searchParams.get('tab');
+  const showSettings = rawTab === 'configuracoes';
   const [activeMainTab, setActiveMainTab] = useState<MainTab>(
     tabFromUrl === 'pedidos' || tabFromUrl === 'notas' ? tabFromUrl : 'pedidos'
   );
   const [settingsOpen, setSettingsOpen] = useState(showSettings);
 
   useEffect(() => {
-    if (tabFromUrl === 'configuracoes') {
+    if (rawTab === 'configuracoes') {
       setSettingsOpen(true);
     } else if (tabFromUrl === 'pedidos' || tabFromUrl === 'notas') {
       setActiveMainTab(tabFromUrl);
