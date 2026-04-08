@@ -18284,16 +18284,21 @@ export type Database = {
           access_token: string | null
           assets: Json | null
           avatar_url: string | null
+          bio_description: string | null
           connected_at: string | null
           connected_by: string
           connection_status: string | null
           created_at: string
           display_name: string | null
+          follower_count: number | null
+          following_count: number | null
           granted_scopes: string[] | null
           id: string
           is_active: boolean | null
           last_error: string | null
+          likes_count: number | null
           open_id: string | null
+          profile_synced_at: string | null
           refresh_expires_at: string | null
           refresh_token: string | null
           scope_packs: string[] | null
@@ -18301,21 +18306,27 @@ export type Database = {
           token_expires_at: string | null
           union_id: string | null
           updated_at: string
+          video_count: number | null
         }
         Insert: {
           access_token?: string | null
           assets?: Json | null
           avatar_url?: string | null
+          bio_description?: string | null
           connected_at?: string | null
           connected_by: string
           connection_status?: string | null
           created_at?: string
           display_name?: string | null
+          follower_count?: number | null
+          following_count?: number | null
           granted_scopes?: string[] | null
           id?: string
           is_active?: boolean | null
           last_error?: string | null
+          likes_count?: number | null
           open_id?: string | null
+          profile_synced_at?: string | null
           refresh_expires_at?: string | null
           refresh_token?: string | null
           scope_packs?: string[] | null
@@ -18323,21 +18334,27 @@ export type Database = {
           token_expires_at?: string | null
           union_id?: string | null
           updated_at?: string
+          video_count?: number | null
         }
         Update: {
           access_token?: string | null
           assets?: Json | null
           avatar_url?: string | null
+          bio_description?: string | null
           connected_at?: string | null
           connected_by?: string
           connection_status?: string | null
           created_at?: string
           display_name?: string | null
+          follower_count?: number | null
+          following_count?: number | null
           granted_scopes?: string[] | null
           id?: string
           is_active?: boolean | null
           last_error?: string | null
+          likes_count?: number | null
           open_id?: string | null
+          profile_synced_at?: string | null
           refresh_expires_at?: string | null
           refresh_token?: string | null
           scope_packs?: string[] | null
@@ -18345,12 +18362,78 @@ export type Database = {
           token_expires_at?: string | null
           union_id?: string | null
           updated_at?: string
+          video_count?: number | null
         }
         Relationships: [
           {
             foreignKeyName: "tiktok_content_connections_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_content_scheduled_posts: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          error_message: string | null
+          id: string
+          privacy_level: string
+          publish_id: string | null
+          published_at: string | null
+          scheduled_at: string
+          status: string
+          tenant_id: string
+          tiktok_video_id: string | null
+          title: string
+          updated_at: string
+          video_size: number | null
+          video_storage_path: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          error_message?: string | null
+          id?: string
+          privacy_level?: string
+          publish_id?: string | null
+          published_at?: string | null
+          scheduled_at: string
+          status?: string
+          tenant_id: string
+          tiktok_video_id?: string | null
+          title: string
+          updated_at?: string
+          video_size?: number | null
+          video_storage_path?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          error_message?: string | null
+          id?: string
+          privacy_level?: string
+          publish_id?: string | null
+          published_at?: string | null
+          scheduled_at?: string
+          status?: string
+          tenant_id?: string
+          tiktok_video_id?: string | null
+          title?: string
+          updated_at?: string
+          video_size?: number | null
+          video_storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_content_scheduled_posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
