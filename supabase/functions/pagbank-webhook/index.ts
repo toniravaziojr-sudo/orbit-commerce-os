@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 import { verifyPagbankHmac, handleHmacResult } from "../_shared/webhook-hmac.ts";
 import { errorResponse } from "../_shared/error-response.ts";
-import { triggerFiscalDraftCreation } from "../_shared/fiscal-trigger.ts";
+// fiscal-trigger import removed: draft creation now handled exclusively by queue+cron
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
