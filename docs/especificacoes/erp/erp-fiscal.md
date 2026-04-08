@@ -287,10 +287,22 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 #### Regras
 1. **Separação de colunas**: `status` = etapa operacional interna. `shipping_status` = status de entrega. `payment_status` = status de pagamento.
 2. **Automação**: Transição para `ready_to_invoice` é automática via webhook de pagamento.
-3. **Criação de rascunho fiscal**: O trigger `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico na `fiscal_draft_queue`. O `scheduler-tick` processa a fila a cada minuto e também reconcilia pedidos órfãos. (Padrão Fila + Cron — ver `automacao-patterns.md`)
-4. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
-5. **Terminal**: `completed` é o estado final após confirmação de entrega.
-6. **Fallback de CPF/CNPJ no rascunho fiscal (v2026-04-05)**: Na criação do rascunho, o sistema busca o CPF/CNPJ do cliente na seguinte ordem de prioridade: 1) `customers.cpf`; 2) `orders.customer_cpf`; 3) `orders.customer_cnpj`. Se nenhum estiver disponível, o campo é enviado vazio. Esse fallback garante que pedidos cujos clientes foram importados sem documento fiscal ainda tenham o dado preenchido quando informado diretamente no checkout.
+3. **Criação de rascunho fiscal — Single Flow (v2026-04-08)**: O fluxo de criação de rascunhos fiscais é **restrito obrigatoriamente** à pipeline `SQL Trigger → Fila → Cron → Edge Function`. Chamadas diretas de webhooks de pagamento para `fiscal-auto-create-drafts` são **proibidas** para eliminar condições de corrida. O trigger `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico na `fiscal_draft_queue`. O `scheduler-tick` processa a fila a cada minuto e também reconcilia pedidos órfãos. (Padrão Fila + Cron — ver `automacao-patterns.md`)
+4. **Anti-duplicação via índice único (v2026-04-08)**: O índice parcial `idx_fiscal_invoices_order_unique` em `(tenant_id, order_id) WHERE status != 'canceled' AND order_id IS NOT NULL` impede a criação de múltiplos rascunhos para o mesmo pedido. Conflitos nesse índice são tratados como "registro já existente" (fetch do invoice existente), não como erro.
+5. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
+6. **Terminal**: `completed` é o estado final após confirmação de entrega.
+7. **Fallback de CPF/CNPJ no rascunho fiscal (v2026-04-05)**: Na criação do rascunho, o sistema busca o CPF/CNPJ do cliente na seguinte ordem de prioridade: 1) `customers.cpf`; 2) `orders.customer_cpf`; 3) `orders.customer_cnpj`. Se nenhum estiver disponível, o campo é enviado vazio. Esse fallback garante que pedidos cujos clientes foram importados sem documento fiscal ainda tenham o dado preenchido quando informado diretamente no checkout.
+8. **Enriquecimento automático de clientes (v2026-04-08)**: O trigger `trg_recalc_customer_on_order` atualiza campos nulos (`cpf`, `phone`, `full_name`) no registro do cliente com dados do pedido aprovado mais recente. Isso garante que clientes importados sem CPF/telefone sejam completados automaticamente quando esses dados estiverem disponíveis no checkout.
+
+### Monitoramento de Risco: Chargeback na Tela Fiscal (v2026-04-08)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Melhoria de UX / Segurança Operacional |
+| **Localização** | `src/hooks/useFiscal.ts`, `src/components/fiscal/FiscalInvoiceList.tsx` |
+| **Descrição** | Rascunhos fiscais vinculados a pedidos com status `chargeback_detected` ou `chargeback_lost` exibem a badge vermelha **"Chargeback em andamento"** na lista fiscal |
+| **Objetivo** | Permitir identificação visual de risco operacional antes da emissão da NF-e |
+| **Dados** | `order_status` é obtido via join `orders!fiscal_invoices_order_id_fkey(status)` na query fiscal |
 
 ---
 
