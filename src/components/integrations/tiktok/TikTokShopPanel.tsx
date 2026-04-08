@@ -1,36 +1,35 @@
-// =============================================
-// TIKTOK SHOP PANEL
-// Tabbed panel for TikTok Shop operations
-// Shown inside TikTokUnifiedSettings when Shop is connected
-// =============================================
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, ShoppingCart, Truck, RotateCcw } from 'lucide-react';
+import { Package, ShoppingCart, Truck, RotateCcw, Webhook } from 'lucide-react';
 import { TikTokShopCatalogTab } from './TikTokShopCatalogTab';
 import { TikTokShopOrdersTab } from './TikTokShopOrdersTab';
 import { TikTokShopFulfillmentTab } from './TikTokShopFulfillmentTab';
 import { TikTokShopReturnsTab } from './TikTokShopReturnsTab';
+import { TikTokShopWebhooksTab } from './TikTokShopWebhooksTab';
 
 export function TikTokShopPanel() {
   return (
     <div className="pt-2">
       <Tabs defaultValue="catalog" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="catalog" className="gap-1.5 text-xs">
-            <Package className="h-3.5 w-3.5" />
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="catalog" className="gap-1 text-[10px]">
+            <Package className="h-3 w-3" />
             Catálogo
           </TabsTrigger>
-          <TabsTrigger value="orders" className="gap-1.5 text-xs">
-            <ShoppingCart className="h-3.5 w-3.5" />
+          <TabsTrigger value="orders" className="gap-1 text-[10px]">
+            <ShoppingCart className="h-3 w-3" />
             Pedidos
           </TabsTrigger>
-          <TabsTrigger value="fulfillment" className="gap-1.5 text-xs">
-            <Truck className="h-3.5 w-3.5" />
+          <TabsTrigger value="fulfillment" className="gap-1 text-[10px]">
+            <Truck className="h-3 w-3" />
             Envios
           </TabsTrigger>
-          <TabsTrigger value="returns" className="gap-1.5 text-xs">
-            <RotateCcw className="h-3.5 w-3.5" />
+          <TabsTrigger value="returns" className="gap-1 text-[10px]">
+            <RotateCcw className="h-3 w-3" />
             Devoluções
+          </TabsTrigger>
+          <TabsTrigger value="webhooks" className="gap-1 text-[10px]">
+            <Webhook className="h-3 w-3" />
+            Webhooks
           </TabsTrigger>
         </TabsList>
 
@@ -45,6 +44,9 @@ export function TikTokShopPanel() {
         </TabsContent>
         <TabsContent value="returns" className="mt-4">
           <TikTokShopReturnsTab />
+        </TabsContent>
+        <TabsContent value="webhooks" className="mt-4">
+          <TikTokShopWebhooksTab />
         </TabsContent>
       </Tabs>
     </div>

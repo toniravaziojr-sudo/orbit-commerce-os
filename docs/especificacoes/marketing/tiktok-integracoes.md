@@ -1,6 +1,6 @@
 # TikTok — Ecossistema de Integrações v1.1
 
-> **Status:** 🟡 Em implementação (Fases 1-6 de 8 concluídas)  
+> **Status:** 🟡 Em implementação (Fases 1-7 de 8 concluídas)  
 > **Versão:** 1.1.0  
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Última atualização:** 2026-04-08  
@@ -336,7 +336,7 @@ Permitir publicação de vídeos, análise de métricas e gestão do perfil TikT
 | **Fase 4** | Ads: Audiences | ✅ Concluída |
 | **Fase 5** | Ads: Creative Assets | ✅ Concluída |
 | **Fase 6** | Content: Perfil + Agendamento | ✅ Concluída |
-| **Fase 7** | Shop: Webhooks + Estoque | 🔴 Pendente |
+| **Fase 7** | Shop: Webhooks + Estoque | ✅ Concluída |
 | **Fase 8** | Validação Final e Documentação | 🔴 Pendente |
 
 ---

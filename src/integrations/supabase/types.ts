@@ -18815,6 +18815,8 @@ export type Database = {
           metadata: Json | null
           product_id: string
           status: string
+          stock_quantity: number | null
+          stock_synced_at: string | null
           sync_action: string
           tenant_id: string
           tiktok_category_id: string | null
@@ -18831,6 +18833,8 @@ export type Database = {
           metadata?: Json | null
           product_id: string
           status?: string
+          stock_quantity?: number | null
+          stock_synced_at?: string | null
           sync_action?: string
           tenant_id: string
           tiktok_category_id?: string | null
@@ -18847,6 +18851,8 @@ export type Database = {
           metadata?: Json | null
           product_id?: string
           status?: string
+          stock_quantity?: number | null
+          stock_synced_at?: string | null
           sync_action?: string
           tenant_id?: string
           tiktok_category_id?: string | null
@@ -18974,6 +18980,53 @@ export type Database = {
             columns: ["tiktok_shop_order_id"]
             isOneToOne: false
             referencedRelation: "tiktok_shop_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_shop_webhook_events: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_id: string | null
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          shop_id: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_id?: string | null
+          event_type: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          shop_id?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_id?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          shop_id?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_shop_webhook_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
