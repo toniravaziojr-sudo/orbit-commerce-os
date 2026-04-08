@@ -1,142 +1,66 @@
 
 
-## Plano de Unificação de Blocos do Builder
+## Refatoração UI/UX do Módulo Fiscal
 
-**Objetivo:** Reduzir de ~55 blocos registrados para ~42, unificando blocos com funcionalidade redundante em blocos versáteis com prop `mode`/`layout`, seguindo o padrão já estabelecido na unificação do Banner (Hero+HeroBanner → Banner com `mode: single|carousel`).
+### Situação Atual
 
----
+A página Fiscal possui 3 abas principais (NFs Saída, NFs Entrada, Configurações), e dentro de cada lista há 6 sub-abas de status (Prontas para Emitir, Autorizadas, Emitidas, Pendentes SEFAZ, Rejeitadas, Canceladas). Isso gera muita fragmentação.
 
-### Inventário atual: 55 blocos
+### Nova Estrutura
 
-**Não tocáveis (25 blocos):** Layout (Page, Section, Container, Columns, Divider, Spacer), Header/Footer, PageContent, Button, Image, Banner, CategoryBanner, CategoryPageLayout, ProductDetails, ProductCard, Cart, CartSummary, Checkout, CheckoutSteps, ThankYou, AccountHub, OrdersList, OrderDetail, TrackingLookup, BlogListing.
+Duas abas principais + botão de Configurações separado:
 
-**Candidatos à unificação (30 blocos → ~17):**
-
----
-
-### Unificação 1 — Vitrine de Produtos (4 → 1)
-**Blocos atuais:** `ProductGrid`, `ProductCarousel`, `CollectionSection`, `FeaturedProducts`
-**Bloco unificado:** `ProductShowcase`
-- Prop `source`: `featured` | `newest` | `all` | `category` | `manual`
-- Prop `layout`: `grid` | `carousel`
-- Quando `source=manual`, exibe seletor de produtos (hoje no FeaturedProducts)
-- Quando `source=category`, exibe seletor de categoria (hoje no CollectionSection)
-- Props comuns: `title`, `limit`, `columnsDesktop`, `columnsMobile`, `showPrice`, `showButton`
-- **Impacto:** 4 componentes React, 4 compiladores Edge, BlockRenderer, registry. Aliases de compatibilidade para templates existentes.
-
-### Unificação 2 — Categorias (2 → 1)
-**Blocos atuais:** `CategoryList`, `FeaturedCategories`
-**Bloco unificado:** `CategoryShowcase`
-- Prop `style`: `cards` (cards grandes, atual CategoryList) | `circles` (circular, atual FeaturedCategories)
-- Prop `source`: `auto` | `parent` | `custom`
-- Prop `layout`: `grid` | `list` | `carousel`
-- **Impacto:** 2 componentes, 2 compiladores, BlockRenderer, registry.
-
-### Unificação 3 — Depoimentos / Avaliações (2 → 1)
-**Blocos atuais:** `Testimonials`, `Reviews`
-**Bloco unificado:** `SocialProof`
-- Prop `mode`: `testimonials` | `reviews`
-- No modo `reviews`, exibe rating com estrelas e campos de produto
-- No modo `testimonials`, exibe nome+role+texto
-- Props comuns: `title`, `items`, `visibleCount`
-- **Impacto:** 2 componentes, 2 compiladores.
-
-### Unificação 4 — Newsletter (3 → 1)
-**Blocos atuais:** `Newsletter`, `NewsletterForm`, `PopupModal`
-**Bloco unificado:** `Newsletter` (mantém o nome)
-- Prop `mode`: `inline` | `form` | `popup`
-- `inline`: layout atual do Newsletter (horizontal/vertical/card, só email)
-- `form`: layout do NewsletterForm (com nome, telefone, data nascimento, vinculado a lista)
-- `popup`: layout do PopupModal (trigger por delay/scroll/exit-intent)
-- **Nota:** `NewsletterPopup` permanece separado pois tem lógica específica de trigger + frequência + vinculação a lista. Avaliar fusão posterior.
-- **Impacto:** 3 componentes, 3 compiladores.
-
-### Unificação 5 — Vídeo (2 → 1)
-**Blocos atuais:** `YouTubeVideo`, `VideoUpload`
-**Bloco unificado:** `Video`
-- Prop `source`: `youtube` | `upload`
-- YouTube: mostra campo URL
-- Upload: mostra campos de upload (desktop/mobile) + controles (autoplay, loop, muted)
-- Props comuns: `title`, `aspectRatio`, `widthPreset`
-- `VideoCarousel` permanece separado (múltiplos vídeos, lógica distinta)
-- **Impacto:** 2 componentes, 2 compiladores.
-
-### Unificação 6 — Código Custom (2 → 1)
-**Blocos atuais:** `CustomBlock`, `HTMLSection`
-**Bloco unificado:** `CustomCode`
-- Prop `source`: `inline` | `database`
-- `inline`: HTML/CSS direto (atual HTMLSection)
-- `database`: busca do `custom_blocks` por ID (atual CustomBlock)
-- Ambos já usam `IsolatedCustomBlock` (iframe) para CSS isolation
-- **Impacto:** 2 componentes (já compartilham CustomBlockRenderer), 2 compiladores.
-
-### Unificação 7 — Lista de Benefícios (2 → 1)
-**Blocos atuais:** `FeatureList`, `InfoHighlights`
-**Bloco unificado:** `Highlights`
-- Prop `style`: `list` (vertical com ícones, atual FeatureList) | `bar` (horizontal compacto, atual InfoHighlights)
-- Props comuns: `items[]` (icon+title+description), `iconColor`, `textColor`, `backgroundColor`
-- FeatureList tem `showButton` e `subtitle` — mantidos como opcionais
-- **Impacto:** 2 componentes, 2 compiladores.
-
-### Unificação 8 — Texto + Imagem (2 → 1)
-**Blocos atuais:** `ContentColumns`, `TextBanners`
-**Bloco unificado:** `ContentSection`
-- Prop `style`: `content` (1 imagem + texto + features, atual ContentColumns) | `editorial` (2 imagens + texto, atual TextBanners)
-- Props comuns: `title`, `subtitle`, `imageDesktop`, `imageMobile`, CTA
-- **Impacto:** 2 componentes, 2 compiladores.
-
----
-
-### Resultado
-
-| Métrica | Antes | Depois | Redução |
-|---|---|---|---|
-| Total de blocos | 55 | 42 | -13 blocos |
-| Blocos de produto | 4 | 1 | -3 |
-| Blocos de categoria | 2 | 1 | -1 |
-| Blocos de newsletter | 3 | 1 | -2 |
-| Blocos de vídeo | 3 | 2 | -1 |
-| Blocos de depoimentos | 2 | 1 | -1 |
-| Blocos de código | 2 | 1 | -1 |
-| Blocos de benefícios | 2 | 1 | -1 |
-| Blocos de texto+imagem | 2 | 1 | -1 |
-
----
-
-### Estratégia de migração (aplica-se a todas as unificações)
-
-1. **Alias no BlockRenderer:** Mapear tipos antigos para o componente unificado com normalização de props automática
-2. **Compilador Edge:** Manter compiladores antigos como wrappers que normalizam props e delegam ao novo compilador
-3. **Registry:** Remover blocos antigos, registrar bloco unificado. Não quebra templates salvos pois o BlockRenderer trata aliases
-4. **Ordem de execução:** Uma unificação por vez, começando pelas de menor risco (6 e 7) e terminando pela mais complexa (1)
-
-### Ordem de prioridade sugerida
-
-1. **CustomCode** (Unificação 6) — menor risco, já compartilham componente
-2. **Highlights** (Unificação 7) — componentes simples, sem estado
-3. **Video** (Unificação 5) — 2 blocos, lógica clara
-4. **SocialProof** (Unificação 3) — 2 blocos, similar
-5. **ContentSection** (Unificação 8) — 2 blocos, layout
-6. **Newsletter** (Unificação 4) — 3 blocos, mais complexo
-7. **CategoryShowcase** (Unificação 2) — dados dinâmicos
-8. **ProductShowcase** (Unificação 1) — mais complexo, core do e-commerce
-
----
-
-### Detalhes Técnicos
-
-Cada unificação segue o padrão modular já documentado:
 ```text
-src/components/builder/blocks/{block-name}/
-  ├── types.ts          (interfaces e props)
-  ├── helpers.ts         (lógica pura)
-  ├── {Mode}Layout.tsx   (layout por modo)
-  └── {Block}Block.tsx   (orquestrador)
+┌──────────────────────────────────────────────────────┐
+│  Fiscal                              [Configurações] │
+│  Gestão de notas fiscais eletrônicas (NF-e)          │
+├─────────────────────┬────────────────────────────────┤
+│  Pedidos em Aberto  │  Notas Fiscais                 │
+├─────────────────────┴────────────────────────────────┤
+│  [Filtro Status ▾] [Filtro Loja ▾] [Filtro Data ▾]  │
+│  ─────────────────────────────────────────────────── │
+│  Tabela de dados...                                  │
+└──────────────────────────────────────────────────────┘
 ```
 
-Arquivos impactados por unificação:
-- `src/lib/builder/registry.ts` (remover antigos, registrar novo)
-- `src/components/builder/BlockRenderer.tsx` (aliases + novo componente)
-- `supabase/functions/_shared/block-compiler/` (compiladores Edge)
-- `src/components/builder/blocks/` (componentes React)
+**Aba 1 — Pedidos em Aberto**
+- Mostra todos os drafts (fiscal_invoices com status `draft`) de todas as lojas
+- Filtro de status contextual: Pronta para emitir, Chargeback em andamento, Venda cancelada, etc. (baseado no `order_status` do pedido vinculado)
+- Filtros de loja e data mantidos
+- Ações: emitir, editar, excluir, emissão em lote
+
+**Aba 2 — Notas Fiscais**
+- Mostra todas as NFs que já passaram pelo processo de emissão (status ≠ `draft`)
+- Filtro de status: Autorizada, Impressa, Pendente SEFAZ, Rejeitada, Cancelada, Devolução
+- Filtros de loja e data mantidos
+- Ações: imprimir DANFE, baixar XML, cancelar, corrigir (CC-e), consultar status
+
+**Botão Configurações** — fora das abas, no canto superior direito do header
+
+### O que muda
+
+1. **`Fiscal.tsx`** — Reescrever: 2 abas (pedidos / notas) + botão Configurações separado. Remove distinção Saída/Entrada como aba principal.
+
+2. **`FiscalInvoiceList.tsx`** — Refatorar: remover as sub-abas internas de status. Substituir por um filtro dropdown de status. Receber novo prop `mode: 'orders' | 'invoices'` em vez de `tipoDocumento`. No modo `orders`, filtra `status = 'draft'`. No modo `invoices`, filtra `status != 'draft'`.
+
+3. **`useFiscal.ts`** — Ajustar `useFiscalInvoices` para suportar o novo filtro por modo (draft vs não-draft) e `useFiscalStats` para refletir as contagens corretas por aba.
+
+4. **Filtro de status** — Novo componente dropdown (ou reutilizar padrão existente) para filtrar por status contextual dentro de cada aba.
+
+### O que NÃO muda (preservação de fluxo)
+
+- Nenhuma edge function é alterada
+- Nenhuma tabela ou migration é necessária
+- O fluxo de criação automática de drafts permanece intacto
+- As ações (emitir, cancelar, corrigir, imprimir) continuam usando as mesmas funções
+- Todos os dialogs (ManualInvoiceDialog, InvoiceEditor, CancelInvoiceDialog, etc.) permanecem inalterados
+- A query ao banco continua a mesma, apenas o filtro client-side muda
+- NFs de entrada continuam acessíveis (serão exibidas na aba Notas Fiscais com indicação visual)
+
+### Passos de Implementação
+
+1. Criar componente `FiscalStatusFilter` — dropdown multi-select para filtrar por status
+2. Refatorar `FiscalInvoiceList` — aceitar `mode` prop, remover sub-abas, usar filtro dropdown
+3. Reescrever `Fiscal.tsx` — 2 abas + botão Configurações
+4. Ajustar hooks de stats para nova contagem por aba
 
