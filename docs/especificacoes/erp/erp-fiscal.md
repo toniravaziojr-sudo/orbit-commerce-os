@@ -81,11 +81,11 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | **Tipo** | Cron Job (pg_cron) |
 | **Frequência** | A cada 5 minutos (`*/5 * * * *`) |
 | **Descrição** | Rede de segurança — cria rascunhos para pedidos pagos que o trigger eventualmente não processou |
-| **Modos** | **Cron** (todos tenants) / **User** (tenant do usuário) / **Trigger** (order_id + tenant_id no body) |
+| **Modos** | **Cron** (todos tenants) / **User** (tenant do usuário) |
 | **Data da NF** | Usa `paid_at` do pedido como `created_at` da NF |
-| **Anti-duplicação** | Verifica `fiscal_invoices` existentes antes de criar; retry com incremento de número |
+| **Anti-duplicação** | Verifica `fiscal_invoices` existentes antes de criar; índice único parcial `idx_fiscal_invoices_order_unique` impede duplicatas; retry com incremento de número |
 | **verify_jwt** | `false` (necessário para cron/trigger) |
-| **Segurança** | Cron/Trigger usa anon key → usa service_role internamente |
+| **Segurança** | Cron usa anon key → usa service_role internamente |
 
 ### Regra: Zero Sync on Load (v8.23.0)
 
