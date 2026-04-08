@@ -1,9 +1,9 @@
 # Google — Ecossistema de Integrações v1.0
 
-> **Status:** 🟧 Em Implementação  
+> **Status:** ✅ Implementado (todas as 9 fases concluídas)  
 > **Versão:** 1.0.0  
 > **Camada:** Layer 3 — Especificações / Marketing  
-> **Última atualização:** 2026-04-07  
+> **Última atualização:** 2026-04-08  
 > **Referência:** `docs/especificacoes/marketing/marketing-integracoes.md`
 
 ---
@@ -82,6 +82,8 @@ Este documento especifica a integração completa do ecossistema Google no siste
 | `google-business-posts` | GMB | ✅ Existente |
 | `google-search-console` | Search Console | ✅ Existente |
 | `google-tag-manager` | GTM | ✅ Existente |
+| `google-gmail` | Gmail | ✅ Implementado (Fase 8) |
+| `google-calendar` | Calendar | ✅ Implementado (Fase 9) |
 | `marketing-send-google` | Conversões | ✅ Existente |
 
 ### Hooks
@@ -94,6 +96,8 @@ Este documento especifica a integração completa do ecossistema Google no siste
 | `useGoogleBusiness` | GMB | ✅ Existente |
 | `useGoogleSearchConsole` | Search Console | ✅ Existente |
 | `useGoogleTagManager` | GTM | ✅ Existente |
+| `useGoogleGmail` | Gmail | ✅ Implementado (Fase 8) |
+| `useGoogleCalendar` | Calendar | ✅ Implementado (Fase 9) |
 
 ---
 
