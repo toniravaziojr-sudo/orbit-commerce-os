@@ -1,6 +1,6 @@
 # TikTok — Ecossistema de Integrações v1.0
 
-> **Status:** 🟡 Em implementação (Fase 1 de 8 concluída)  
+> **Status:** 🟡 Em implementação (Fases 1-2 de 8 concluídas)  
 > **Versão:** 1.0.0  
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Última atualização:** 2026-04-08  
@@ -102,7 +102,7 @@ Este documento especifica a integração completa do ecossistema TikTok no siste
 | `tiktok-content-publish` | Content Upload | ✅ Existente |
 | `tiktok-content-analytics` | Content Analytics | ✅ Existente |
 | `marketing-send-tiktok` | Pixel/CAPI | ✅ Existente |
-| `tiktok-token-refresh-cron` | Infra | 🔴 Fase 2 |
+| `tiktok-token-refresh-cron` | Infra | ✅ Implementado (Fase 2) |
 | `tiktok-ads-adgroups` | Ads Ad Groups | 🔴 Fase 3 |
 | `tiktok-ads-ads` | Ads Anúncios | 🔴 Fase 3 |
 | `tiktok-ads-audiences` | Ads Públicos | 🔴 Fase 4 |
@@ -331,7 +331,7 @@ Permitir publicação de vídeos, análise de métricas e gestão do perfil TikT
 | Fase | Descrição | Status |
 |------|-----------|--------|
 | **Fase 1** | Documentação Layer 3 (este documento) | ✅ Concluída |
-| **Fase 2** | Token Refresh Cron (Infra) | 🔴 Pendente |
+| **Fase 2** | Token Refresh Cron (Infra) | ✅ Concluída |
 | **Fase 3** | Ads: Ad Groups & Ads | 🔴 Pendente |
 | **Fase 4** | Ads: Audiences | 🔴 Pendente |
 | **Fase 5** | Ads: Creative Assets | 🔴 Pendente |
