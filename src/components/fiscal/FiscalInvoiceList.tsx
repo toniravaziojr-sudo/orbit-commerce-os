@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, Download, Send, X, Trash2 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,6 +26,7 @@ import { InvoiceTimeline } from '@/components/fiscal/InvoiceTimeline';
 import { ConsultaChaveDialog } from '@/components/fiscal/ConsultaChaveDialog';
 import { MarketplaceSourceFilter } from '@/components/fiscal/MarketplaceSourceFilter';
 import { OrderSourceBadge } from '@/components/orders/OrderSourceBadge';
+import { FiscalStatusFilter, orderStatusOptions, invoiceStatusOptions } from '@/components/fiscal/FiscalStatusFilter';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -58,16 +58,14 @@ function formatDocument(doc: string) {
   return doc;
 }
 
-type TabStatus = 'draft' | 'authorized' | 'printed' | 'pending' | 'rejected' | 'cancelled';
-
 interface FiscalInvoiceListProps {
-  tipoDocumento: 0 | 1; // 0 = Entrada, 1 = Saída
+  mode: 'orders' | 'invoices';
 }
 
-export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
+export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabStatus>('draft');
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
   const [editingInvoiceError, setEditingInvoiceError] = useState<string | null>(null);
@@ -89,9 +87,8 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
-  const { data: stats, isLoading: statsLoading } = useFiscalStats(tipoDocumento);
+  const { data: stats, isLoading: statsLoading } = useFiscalStats();
   const { data: invoices, isLoading: invoicesLoading, refetch } = useFiscalInvoices({ 
-    tipoDocumento,
     marketplaceSource: marketplaceSource !== 'all' ? marketplaceSource : undefined,
   });
   const checkStatus = useCheckInvoiceStatus();
@@ -100,16 +97,38 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
   const isLoading = settingsLoading || statsLoading || invoicesLoading;
   const isConfigured = settings?.is_configured;
 
-  // Filter invoices by tab, search, and advanced filters
-  const filteredInvoices = invoices?.filter(inv => {
-    // Filter by tab
-    if (activeTab === 'draft' && inv.status !== 'draft') return false;
-    if (activeTab === 'authorized' && (inv.status !== 'authorized' || (inv as any).danfe_printed_at)) return false;
-    if (activeTab === 'printed' && (inv.status !== 'authorized' || !(inv as any).danfe_printed_at)) return false;
-    if (activeTab === 'pending' && inv.status !== 'pending') return false;
-    if (activeTab === 'rejected' && inv.status !== 'rejected') return false;
-    if (activeTab === 'cancelled' && inv.status !== 'cancelled' && inv.status !== 'canceled') return false;
-    
+  // Separate invoices by mode
+  const modeFilteredInvoices = invoices?.filter(inv => {
+    if (mode === 'orders') return inv.status === 'draft';
+    return inv.status !== 'draft';
+  });
+
+  // Apply status filter
+  const statusFilteredInvoices = modeFilteredInvoices?.filter(inv => {
+    if (statusFilter.length === 0) return true;
+
+    if (mode === 'orders') {
+      // Filter by order context status
+      const isChargeback = inv.order_status && ['chargeback_detected', 'chargeback_lost'].includes(inv.order_status);
+      const isCancelled = inv.order_status && ['cancelled', 'canceled'].includes(inv.order_status);
+      
+      if (statusFilter.includes('chargeback') && isChargeback) return true;
+      if (statusFilter.includes('cancelled') && isCancelled) return true;
+      if (statusFilter.includes('ready') && !isChargeback && !isCancelled) return true;
+      return false;
+    } else {
+      // Filter by invoice status
+      if (statusFilter.includes('printed') && inv.status === 'authorized' && (inv as any).danfe_printed_at) return true;
+      if (statusFilter.includes('authorized') && inv.status === 'authorized' && !(inv as any).danfe_printed_at) return true;
+      if (statusFilter.includes('pending') && inv.status === 'pending') return true;
+      if (statusFilter.includes('rejected') && inv.status === 'rejected') return true;
+      if (statusFilter.includes('canceled') && (inv.status === 'canceled' || inv.status === 'cancelled')) return true;
+      return false;
+    }
+  });
+
+  // Apply search and date filters
+  const filteredInvoices = statusFilteredInvoices?.filter(inv => {
     // Filter by search
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
@@ -139,9 +158,9 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
     return true;
   });
 
-  // Count by status for tabs
+  // Count by mode
   const counts = {
-    draft: invoices?.filter(i => i.status === 'draft').length || 0,
+    orders: invoices?.filter(i => i.status === 'draft').length || 0,
     authorized: invoices?.filter(i => i.status === 'authorized' && !(i as any).danfe_printed_at).length || 0,
     printed: invoices?.filter(i => i.status === 'authorized' && (i as any).danfe_printed_at).length || 0,
     pending: invoices?.filter(i => i.status === 'pending').length || 0,
@@ -620,12 +639,12 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
     inv => selectedInvoices.has(inv.id) && inv.status === 'authorized'
   ).length;
 
-  const tipoLabel = tipoDocumento === 1 ? 'Saída' : 'Entrada';
+  const cardTitle = mode === 'orders' ? 'Pedidos em Aberto' : 'Notas Fiscais';
 
   return (
     <div className="space-y-6">
-      {/* Fiscal Alerts - only for Saída */}
-      {tipoDocumento === 1 && <FiscalAlertsCard />}
+      {/* Fiscal Alerts - only for orders mode */}
+      {mode === 'orders' && <FiscalAlertsCard />}
 
       {/* Alert if not configured */}
       {!isConfigured && !settingsLoading && (
@@ -650,42 +669,71 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
       )}
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Prontas para Emitir"
-          value={statsLoading ? '...' : counts.draft.toString()}
-          icon={FileText}
-          variant="warning"
-        />
-        <StatCard
-          title="Autorizadas"
-          value={statsLoading ? '...' : stats?.authorized?.toString() || '0'}
-          icon={CheckCircle}
-          variant="success"
-        />
-        <StatCard
-          title="Pendentes SEFAZ"
-          value={statsLoading ? '...' : stats?.pending?.toString() || '0'}
-          icon={Clock}
-          variant="primary"
-        />
-        <StatCard
-          title="Rejeitadas"
-          value={statsLoading ? '...' : stats?.rejected?.toString() || '0'}
-          icon={XCircle}
-          variant="destructive"
-        />
-      </div>
+      {mode === 'orders' ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard
+            title="Pedidos em Aberto"
+            value={statsLoading ? '...' : counts.orders.toString()}
+            icon={FileText}
+            variant="warning"
+          />
+          <StatCard
+            title="Prontas para Emitir"
+            value={statsLoading ? '...' : (modeFilteredInvoices?.filter(i => {
+              const os = i.order_status;
+              return !os || !['chargeback_detected', 'chargeback_lost', 'cancelled', 'canceled'].includes(os);
+            }).length || 0).toString()}
+            icon={CheckCircle}
+            variant="success"
+          />
+          <StatCard
+            title="Com Pendência"
+            value={statsLoading ? '...' : (modeFilteredInvoices?.filter(i => {
+              const os = i.order_status;
+              return os && ['chargeback_detected', 'chargeback_lost', 'cancelled', 'canceled'].includes(os);
+            }).length || 0).toString()}
+            icon={AlertTriangle}
+            variant="destructive"
+          />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Autorizadas"
+            value={statsLoading ? '...' : (counts.authorized + counts.printed).toString()}
+            icon={CheckCircle}
+            variant="success"
+          />
+          <StatCard
+            title="Pendentes SEFAZ"
+            value={statsLoading ? '...' : counts.pending.toString()}
+            icon={Clock}
+            variant="primary"
+          />
+          <StatCard
+            title="Rejeitadas"
+            value={statsLoading ? '...' : counts.rejected.toString()}
+            icon={XCircle}
+            variant="destructive"
+          />
+          <StatCard
+            title="Canceladas"
+            value={statsLoading ? '...' : counts.canceled.toString()}
+            icon={XCircle}
+            variant="default"
+          />
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
-          {tipoDocumento === 1 ? (
+          {mode === 'orders' ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Nova NF-e Saída
+                  Nova NF-e
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
@@ -707,9 +755,9 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button>
+                <Button variant="outline">
                   <Plus className="h-4 w-4 mr-2" />
-                  Nova NF-e Entrada
+                  Ações
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
@@ -728,11 +776,11 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
         </div>
       </div>
 
-      {/* NF-e List with Tabs */}
+      {/* Invoice List */}
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <CardTitle className="text-lg font-semibold">Notas Fiscais de {tipoLabel}</CardTitle>
+            <CardTitle className="text-lg font-semibold">{cardTitle}</CardTitle>
             <div className="flex items-center gap-2">
               <Input
                 placeholder="Buscar por número, cliente..."
@@ -740,55 +788,26 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-64"
               />
-              {tipoDocumento === 1 && (
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={() => {
-                    refetch();
-                  }}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              )}
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={() => refetch()}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabStatus)} className="space-y-4">
+          <div className="space-y-4">
+            {/* Filters row */}
             <div className="flex items-center justify-between">
-              <TabsList className="flex flex-wrap h-auto gap-1">
-                <TabsTrigger value="draft" className="gap-1">
-                  <FileText className="h-3 w-3" />
-                  Prontas para Emitir
-                  {counts.draft > 0 && <Badge variant="secondary" className="ml-1 bg-amber-500/20 text-amber-600">{counts.draft}</Badge>}
-                </TabsTrigger>
-                <TabsTrigger value="authorized" className="gap-1">
-                  <CheckCircle className="h-3 w-3" />
-                  Autorizadas
-                  {counts.authorized > 0 && <Badge variant="secondary" className="ml-1 bg-green-500/20 text-green-600">{counts.authorized}</Badge>}
-                </TabsTrigger>
-                <TabsTrigger value="printed" className="gap-1">
-                  <Printer className="h-3 w-3" />
-                  Emitidas
-                  {counts.printed > 0 && <Badge variant="secondary" className="ml-1">{counts.printed}</Badge>}
-                </TabsTrigger>
-                <TabsTrigger value="pending" className="gap-1">
-                  <Clock className="h-3 w-3" />
-                  Pendentes SEFAZ
-                  {counts.pending > 0 && <Badge variant="secondary" className="ml-1">{counts.pending}</Badge>}
-                </TabsTrigger>
-                <TabsTrigger value="rejected" className="gap-1">
-                  <XCircle className="h-3 w-3" />
-                  Rejeitadas
-                  {counts.rejected > 0 && <Badge variant="destructive" className="ml-1">{counts.rejected}</Badge>}
-                </TabsTrigger>
-                <TabsTrigger value="cancelled" className="gap-1">
-                  Canceladas
-                  {counts.canceled > 0 && <Badge variant="secondary" className="ml-1">{counts.canceled}</Badge>}
-                </TabsTrigger>
-              </TabsList>
               <div className="flex items-center gap-2">
+                <FiscalStatusFilter
+                  options={mode === 'orders' ? orderStatusOptions : invoiceStatusOptions}
+                  selected={statusFilter}
+                  onChange={setStatusFilter}
+                />
                 <MarketplaceSourceFilter
                   value={marketplaceSource}
                   onChange={setMarketplaceSource}
@@ -800,10 +819,10 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
                     setStartDate(start);
                     setEndDate(end);
                   }}
-                  label="Data de emissão"
+                  label="Data"
                 />
-                <ExportInvoicesButton invoices={filteredInvoices || []} isLoading={invoicesLoading} />
               </div>
+              <ExportInvoicesButton invoices={filteredInvoices || []} isLoading={invoicesLoading} />
             </div>
 
             {isLoading ? (
@@ -813,13 +832,11 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
             ) : !filteredInvoices || filteredInvoices.length === 0 ? (
               <EmptyState
                 icon={FileText}
-                title={`Nenhuma NF-e ${statusConfig[activeTab]?.label || activeTab}`}
+                title={mode === 'orders' ? 'Nenhum pedido em aberto' : 'Nenhuma nota fiscal encontrada'}
                 description={isConfigured 
-                  ? activeTab === 'draft' 
-                    ? tipoDocumento === 1
-                      ? "Quando houver pedidos aprovados, os rascunhos de NF-e aparecerão aqui automaticamente."
-                      : "Crie NF-e de entrada manualmente clicando no botão acima."
-                    : "As NF-e aparecerão aqui conforme forem processadas."
+                  ? mode === 'orders'
+                    ? "Quando houver pedidos aprovados, os rascunhos de NF-e aparecerão aqui automaticamente."
+                    : "As NF-e aparecerão aqui conforme forem emitidas e processadas."
                   : "Configure sua integração fiscal para emitir NF-e."}
                 action={!isConfigured ? {
                   label: "Configurar Integração",
@@ -946,6 +963,11 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
                                   <AlertTriangle className="h-3 w-3" />
                                   Chargeback em andamento
                                 </Badge>
+                              ) : invoice.status === 'draft' && invoice.order_status && ['cancelled', 'canceled'].includes(invoice.order_status) ? (
+                                <Badge variant="destructive" className="gap-1 w-fit">
+                                  <XCircle className="h-3 w-3" />
+                                  Venda cancelada
+                                </Badge>
                               ) : (
                                 <Badge variant={status.variant} className="gap-1 w-fit">
                                   <StatusIcon className="h-3 w-3" />
@@ -989,7 +1011,7 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
                 </Table>
               </>
             )}
-          </Tabs>
+          </div>
         </CardContent>
       </Card>
 
