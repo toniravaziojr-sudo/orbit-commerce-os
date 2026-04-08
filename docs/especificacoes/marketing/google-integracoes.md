@@ -524,7 +524,7 @@ Hub unificado para apps externos que se conectam ao sistema.
 | App | Chave | Status |
 |-----|-------|--------|
 | Google Tag Manager | `google_tag_manager` | ✅ Backend existente |
-| Google Calendar | `google_calendar` | 🔴 Criar backend |
+| Google Calendar | `google_calendar` | ✅ Implementado |
 
 ### Layout da Página
 
@@ -560,16 +560,16 @@ Hub unificado para apps externos que se conectam ao sistema.
 
 ## Ordem de Implementação
 
-| Fase | Módulo | Prioridade | Justificativa |
-|------|--------|-----------|---------------|
-| 2 | Google Analytics GA4 | 🔴 Alta | Alimenta relatórios e atribuição — impacto direto em decisões |
-| 3 | Google Ads | 🔴 Alta | Segunda plataforma do Gestor de Tráfego IA |
-| 4 | Merchant Center | 🟡 Média | Expansão de canais de venda |
-| 5 | Google Meu Negócio | 🟡 Média | Reputação e atendimento local |
-| 6 | Search Console | 🟢 Normal | SEO é complementar |
-| 7 | GTM + Apps Externos | 🟢 Normal | Flexibilidade para scripts |
-| 8 | Gmail | 🟢 Normal | Canal adicional de email |
-| 9 | Calendar | 🟢 Normal | Sincronização de agenda |
+| Fase | Módulo | Prioridade | Status |
+|------|--------|-----------|--------|
+| 2 | Google Analytics GA4 | 🔴 Alta | ✅ Concluída |
+| 3 | Google Ads | 🔴 Alta | ✅ Concluída |
+| 4 | Merchant Center | 🟡 Média | ✅ Concluída |
+| 5 | Google Meu Negócio | 🟡 Média | ✅ Concluída |
+| 6 | Search Console | 🟢 Normal | ✅ Concluída |
+| 7 | GTM + Apps Externos | 🟢 Normal | ✅ Concluída |
+| 8 | Gmail | 🟢 Normal | ✅ Concluída |
+| 9 | Calendar | 🟢 Normal | ✅ Concluída |
 
 ---
 
