@@ -22,6 +22,7 @@ import {
   MapPin,
   Tag,
   Megaphone,
+  Mail,
 } from "lucide-react";
 import { useGoogleConnection, GoogleScopePack } from "@/hooks/useGoogleConnection";
 import { formatDistanceToNow } from "date-fns";
@@ -92,6 +93,14 @@ const SCOPE_PACK_INFO: Record<GoogleScopePack, ScopePackInfo> = {
     available: true,
     sensitive: false,
     module: "Utilidades",
+  },
+  gmail: {
+    label: "Gmail",
+    description: "Leitura e envio de emails via Gmail",
+    icon: <Mail className="h-4 w-4" />,
+    available: true,
+    sensitive: true,
+    module: "Emails",
   },
 };
 
