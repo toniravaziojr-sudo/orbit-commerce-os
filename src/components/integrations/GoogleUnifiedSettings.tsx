@@ -102,6 +102,14 @@ const SCOPE_PACK_INFO: Record<GoogleScopePack, ScopePackInfo> = {
     sensitive: true,
     module: "Emails",
   },
+  calendar: {
+    label: "Calendar",
+    description: "Eventos, agendamentos e sincronização",
+    icon: <Tag className="h-4 w-4" />,
+    available: true,
+    sensitive: false,
+    module: "Apps Externos",
+  },
 };
 
 export function GoogleUnifiedSettings() {
