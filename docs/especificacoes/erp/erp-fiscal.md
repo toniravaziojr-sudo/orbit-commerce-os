@@ -92,7 +92,7 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | Campo | Valor |
 |-------|-------|
 | **Regra** | A tela Fiscal **não** dispara criação de rascunhos ao ser acessada |
-| **Motivo** | O backend (webhook + cron) já cria rascunhos instantaneamente no pagamento aprovado |
+| **Motivo** | O backend (fila + cron) já cria rascunhos automaticamente no pagamento aprovado |
 | **Frontend** | Apenas lê os dados do banco via query; botão de refresh manual faz `refetch()` sem chamar edge function |
 | **Referência** | Regra 3.7 do Doc de Regras do Sistema (Zero Sync on Load) |
 
