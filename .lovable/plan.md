@@ -1,211 +1,131 @@
 
 
-# Plano de Implementação Total — Ecossistema Google v1.0
+# TikTok — Ecossistema de Integrações (Documentação + Implementação)
 
-## Visão Geral da Navegação
+## Objetivo
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ INTEGRAÇÃO ATUAL (onde ficam)                                │
-│                                                             │
-│ /integrations?tab=google  ← Hub de conexão OAuth unificado │
-│   (GoogleUnifiedSettings — já existe com scope packs)       │
-│                                                             │
-│ ONDE CADA MÓDULO APARECE NO SISTEMA:                        │
-│                                                             │
-│ 1. Google Analytics GA4                                     │
-│    ├─ /reports (aba "Google Analytics")                     │
-│    └─ /marketing/atribuicao (dados GA4 no painel)           │
-│                                                             │
-│ 2. Google Ads                                               │
-│    └─ /ads (Gestor de Tráfego IA — aba "Google Ads")       │
-│                                                             │
-│ 3. Google Merchant Center                                   │
-│    └─ /integrations?tab=google (seção catálogo, similar Meta)│
-│                                                             │
-│ 4. Google Meu Negócio                                       │
-│    ├─ /reviews (aba "Google Meu Negócio")                   │
-│    └─ /support (canal "Google Meu Negócio" no inbox)        │
-│                                                             │
-│ 5. Google Search Console                                    │
-│    ├─ /settings (card "SEO" com dados do Search Console)    │
-│    └─ /command-center (aba "SEO")                           │
-│                                                             │
-│ 6. Google Tag Manager                                       │
-│    └─ /apps-externos (novo módulo "Aplicativos Externos")   │
-│                                                             │
-│ 7. Gmail                                                    │
-│    └─ /emails (canal "Gmail" no inbox de emails)            │
-│                                                             │
-│ 8. Google Calendar                                          │
-│    └─ /apps-externos (app externo, sincroniza com agenda)   │
-└─────────────────────────────────────────────────────────────┘
-```
+Criar a especificação Layer 3 completa (`docs/especificacoes/marketing/tiktok-integracoes.md`) seguindo o mesmo modelo do Google (`google-integracoes.md`), e depois implementar os gaps identificados — tudo fase a fase.
 
 ---
 
-## Fases de Implementação
+## Estado Atual (Inventário)
 
-### Fase 1 — Documentação Completa (Doc First)
+### Já Implementado
 
-Criar especificação dedicada `docs/especificacoes/marketing/google-integracoes.md` cobrindo todos os 8 módulos com:
+| Área | O que existe | Edge Functions | Tabelas |
+|------|-------------|----------------|---------|
+| **Ads** | Conexão OAuth, campanhas, insights, Pixel/CAPI | `tiktok-oauth-start`, `tiktok-oauth-callback`, `tiktok-ads-campaigns`, `tiktok-ads-insights`, `tiktok-token-refresh` | `tiktok_ads_connections`, `tiktok_ad_campaigns`, `tiktok_ad_insights`, `tiktok_oauth_states` |
+| **Shop** | Conexão OAuth, catálogo, pedidos, fulfillment, devoluções | `tiktok-shop-oauth-start`, `tiktok-shop-oauth-callback`, `tiktok-shop-catalog-sync/status`, `tiktok-shop-orders-sync/detail`, `tiktok-shop-fulfillment`, `tiktok-shop-returns` | `tiktok_shop_connections`, `tiktok_shop_products`, `tiktok_shop_orders`, `tiktok_shop_fulfillments`, `tiktok_shop_returns` |
+| **Content** | Conexão OAuth, upload de vídeos, analytics básico | `tiktok-content-oauth-start/callback`, `tiktok-content-publish`, `tiktok-content-analytics` | `tiktok_content_connections`, `tiktok_content_videos`, `tiktok_content_analytics` |
+| **Hub UI** | `TikTokUnifiedSettings.tsx` com 3 cards (Ads, Shop, Content) + painéis operacionais | — | — |
 
-- Escopo funcional de cada módulo
-- Tabelas necessárias (existentes e novas)
-- Edge Functions envolvidas (existentes e novas)
-- Hooks e componentes de UI
-- Mapeamento de navegação
-- Fluxos de dados e dependências cruzadas
+### Gaps Identificados
 
-Atualizar `docs/especificacoes/marketing/marketing-integracoes.md` com referência ao novo doc.
-Atualizar memória `integrations-roadmap-status`.
-
-### Fase 2 — Google Analytics GA4 (Relatórios + Atribuição)
-
-**Objetivo:** Alimentar os relatórios do sistema e o módulo de atribuição com dados reais do GA4.
-
-**Backend (já existe parcialmente):**
-- Edge Function `google-analytics-report` já suporta summary, realtime, list, sync
-- Hook `useGoogleAnalytics` já existe
-- Validar e completar: funis de conversão, receita por canal, dados de e-commerce
-
-**Frontend:**
-- Adicionar aba "Google Analytics" na página `/reports`
-- Cards: sessões, usuários, pageviews, conversões, receita
-- Gráfico de tendência diária
-- Integrar dados GA4 no painel de atribuição (`/marketing/atribuicao`)
-
-### Fase 3 — Google Ads (Gestor de Tráfego IA)
-
-**Objetivo:** Integrar Google Ads como segunda plataforma no Gestor de Tráfego IA.
-
-**Backend (parcialmente existente):**
-- Edge Functions já existem: `google-ads-campaigns`, `google-ads-adgroups`, `google-ads-ads`, `google-ads-keywords`, `google-ads-audiences`, `google-ads-insights`, `google-ads-assets`
-- Falta: conversões server-side (`google-ads-conversions`), cron de refresh de token (expiração 1h)
-
-**Frontend:**
-- Adicionar aba "Google Ads" no `/ads` (AdsManager)
-- Paridade de funcionalidades com Meta: listar campanhas, métricas, criar/pausar
-- Integrar no Chat IA do Gestor de Tráfego (tools para Google Ads)
-- Integrar com Strategist e Guardian (análise dual-platform)
-
-### Fase 4 — Google Merchant Center (Catálogo de Produtos)
-
-**Objetivo:** Sincronizar catálogo de produtos para Google Shopping, similar ao Meta Catalog.
-
-**Backend (parcialmente existente):**
-- Edge Functions `google-merchant-sync` e `google-merchant-status` existem
-- Completar: sync incremental, feed de produtos, status de aprovação por produto
-
-**Frontend:**
-- Seção "Catálogo Google Shopping" dentro do Hub Google (`/integrations?tab=google`)
-- Cards: produtos sincronizados, aprovados, reprovados, pendentes
-- Botão de sync manual + indicador de última sincronização
-- Tabela com status de cada produto no Merchant Center
-
-### Fase 5 — Google Meu Negócio (Avaliações + Atendimento)
-
-**Objetivo:** Integrar avaliações do Google e canal de mensagens do GMB.
-
-**Backend (existente):**
-- Edge Functions `google-business-reviews` e `google-business-posts` existem
-- Hook `useGoogleBusiness` existe com locations, reviews, posts, reply
-
-**Frontend — Avaliações:**
-- Adicionar aba "Google Meu Negócio" na página `/reviews`
-- Listar avaliações do Google com nota, texto, data
-- Botão de responder direto do painel
-- Sync automático periódico
-
-**Frontend — Atendimento:**
-- Adicionar canal "Google Meu Negócio" no módulo `/support`
-- Mensagens do GMB aparecem no inbox unificado
-- Respostas enviadas via API do Google Business
-
-### Fase 6 — Google Search Console (SEO)
-
-**Objetivo:** Dados de SEO acessíveis em Configurações e na Central de Comando.
-
-**Backend (existente):**
-- Edge Function `google-search-console` já suporta summary, list, sites, sync
-- Hook `useGoogleSearchConsole` existe
-
-**Frontend:**
-- Adicionar card "SEO" na página `/settings` com link para dados do Search Console
-- Adicionar aba "SEO" na Central de Comando (`/command-center`)
-- Métricas: queries top, CTR médio, posição média, impressões
-- Alertas: páginas com erro de indexação, cobertura
-
-### Fase 7 — Google Tag Manager (Aplicativos Externos)
-
-**Objetivo:** Permitir injeção de tags via GTM com visibilidade dos scripts ativos.
-
-**Backend (existente):**
-- Edge Function `google-tag-manager` existe
-- Hook `useGoogleTagManager` existe com containers, sync, scripts
-
-**Frontend — Novo módulo "Aplicativos Externos":**
-- Nova rota `/apps-externos`
-- Nova entrada no menu de navegação (sidebar)
-- Card do Google Tag Manager com:
-  - Container ativo e Public ID
-  - Lista de tags/scripts injetados (obtidos via API GTM)
-  - Toggle para ativar/desativar injeção do GTM no storefront
-  - Snippet de instalação (head + body)
-
-### Fase 8 — Gmail (Inbox de Emails)
-
-**Objetivo:** Conectar Gmail do usuário ao inbox de emails do sistema.
-
-**Backend (novo):**
-- Adicionar scope pack `gmail` no OAuth do Google
-- Nova Edge Function `google-gmail-sync` para ler/enviar emails via Gmail API
-- Novo hook `useGmail`
-
-**Frontend:**
-- Adicionar canal "Gmail" no módulo `/emails`
-- Emails recebidos aparecem no inbox
-- Possibilidade de responder via Gmail conectado
-
-### Fase 9 — Google Calendar (Aplicativo Externo)
-
-**Objetivo:** Sincronizar agenda do sistema com Google Calendar.
-
-**Backend (novo):**
-- Adicionar scope pack `calendar` no OAuth do Google
-- Nova Edge Function `google-calendar-sync` para criar/ler eventos
-- Novo hook `useGoogleCalendar`
-
-**Frontend:**
-- Card "Google Calendar" no módulo `/apps-externos`
-- Toggle de sincronização: ao ativar, eventos da agenda do sistema (agendamentos, lembretes) são espelhados no Google Calendar do usuário
-- Status: conectado/desconectado, último sync
+| Área | Gap | Prioridade |
+|------|-----|-----------|
+| **Ads** | CRUD de Ad Groups e Ads individuais | Alta |
+| **Ads** | Gestão de Públicos (Audiences) | Alta |
+| **Ads** | Upload de Creative Assets | Média |
+| **Content** | Estatísticas do perfil (`user.info.stats`) | Média |
+| **Content** | Agendamento de posts | Média |
+| **Shop** | Webhooks de pedidos em tempo real | Baixa |
+| **Shop** | Sincronização bidirecional de estoque | Baixa |
+| **Infra** | Cron de refresh automático de tokens (3 conexões) | Alta |
 
 ---
 
-## Ordem de Execução
+## Plano de Execução (8 Fases)
 
-| Fase | O que | Estimativa |
-|------|-------|------------|
-| 1 | Documentação completa | 1 sessão |
-| 2 | Google Analytics GA4 | 1-2 sessões |
-| 3 | Google Ads no Gestor de Tráfego | 2-3 sessões |
-| 4 | Google Merchant Center | 1-2 sessões |
-| 5 | Google Meu Negócio | 1-2 sessões |
-| 6 | Search Console (SEO) | 1 sessão |
-| 7 | Tag Manager + módulo Apps Externos | 1 sessão |
-| 8 | Gmail | 1-2 sessões |
-| 9 | Google Calendar | 1 sessão |
+### Fase 1 — Documentação Layer 3
+
+Criar `docs/especificacoes/marketing/tiktok-integracoes.md` com:
+- Visão geral e arquitetura (3 APIs separadas, OAuth independente por produto)
+- Inventário completo (tabelas, edge functions, hooks, componentes)
+- Scope packs por produto (Ads, Shop, Content)
+- Fluxos OAuth documentados
+- Mapa de gaps e roadmap
+- Referência cruzada com `tiktok-shop.md` (marketplaces) e `gestor-trafego.md`
+
+Atualizar `marketing-integracoes.md` com referência ao novo doc dedicado.
+
+### Fase 2 — Token Refresh Automático (Infra)
+
+Criar edge function `tiktok-token-refresh-cron` que:
+- Percorre as 3 tabelas de conexão (`tiktok_ads_connections`, `tiktok_shop_connections`, `tiktok_content_connections`)
+- Renova tokens próximos da expiração (< 24h)
+- Usa a edge function `tiktok-token-refresh` existente como base
+- Registrar cron job via `pg_cron` (a cada 6 horas)
+
+### Fase 3 — Ads: Ad Groups & Ads
+
+- Nova edge function `tiktok-ads-adgroups` (listar, criar, editar ad groups)
+- Nova edge function `tiktok-ads-ads` (listar, criar, editar anúncios individuais)
+- Novas tabelas: `tiktok_ad_groups`, `tiktok_ad_ads`
+- Hook `useTikTokAdGroups.ts` e `useTikTokAds.ts` (ou expandir `useTikTokAds.ts`)
+- UI: novas sub-tabs no `TikTokAdsPanel`
+
+### Fase 4 — Ads: Audiences
+
+- Nova edge function `tiktok-ads-audiences` (listar, criar, editar públicos customizados)
+- Nova tabela: `tiktok_ad_audiences`
+- Hook `useTikTokAudiences.ts`
+- UI: sub-tab "Públicos" no `TikTokAdsPanel`
+
+### Fase 5 — Ads: Creative Assets
+
+- Nova edge function `tiktok-ads-assets` (upload de imagens/vídeos para biblioteca de criativos)
+- Nova tabela: `tiktok_ad_assets`
+- Hook e UI para gestão de assets no painel de Ads
+
+### Fase 6 — Content: Perfil + Agendamento
+
+- Expandir `tiktok-content-analytics` para incluir `user.info.stats` e `user.info.profile`
+- Nova lógica de agendamento (salvar rascunho com `scheduled_at` e publicar via cron)
+- UI: card de perfil no `TikTokContentPanel` e campo de agendamento no fluxo de publicação
+
+### Fase 7 — Shop: Webhooks + Estoque
+
+- Nova edge function `tiktok-shop-webhook` para receber notificações push de pedidos
+- Lógica de sincronização bidirecional de estoque (nosso catálogo ↔ TikTok Shop)
+- Registrar webhook URL no TikTok Shop Partner Center
+
+### Fase 8 — Validação Final e Documentação
+
+- Atualizar `tiktok-integracoes.md` com status final de cada fase
+- Rodar build TypeScript e validar ausência de erros
+- Verificar RLS policies em todas as novas tabelas
+- Atualizar memória do roadmap TikTok
 
 ---
 
 ## Detalhes Técnicos
 
-**Autenticação:** Todos os módulos compartilham o OAuth unificado do Google (`GoogleUnifiedSettings` com scope packs). Cada módulo ativa seu scope pack. O token refresh é gerenciado por `google-token-refresh`.
+```text
+┌──────────────────────────────────────────────────┐
+│                Hub TikTok (UI)                   │
+│  ┌──────────┐  ┌──────────┐  ┌─────────────┐    │
+│  │ Ads Card │  │Shop Card │  │Content Card │    │
+│  │ Campaigns│  │ Catálogo │  │  Vídeos     │    │
+│  │ AdGroups │  │ Pedidos  │  │  Analytics  │    │
+│  │ Ads      │  │ Envios   │  │  Perfil     │    │
+│  │ Audiences│  │ Devoluç. │  │  Agendamento│    │
+│  │ Assets   │  │ Webhooks │  │             │    │
+│  └──────────┘  └──────────┘  └─────────────┘    │
+└──────────────────────────────────────────────────┘
+         │              │              │
+    Marketing API   Commerce API   Login Kit
+    (OAuth sep.)    (OAuth sep.)   (OAuth sep.)
+         │              │              │
+    ┌────┴────┐    ┌────┴────┐   ┌────┴────┐
+    │tiktok_  │    │tiktok_  │   │tiktok_  │
+    │ads_conn │    │shop_conn│   │content_ │
+    └─────────┘    └─────────┘   │conn     │
+                                 └─────────┘
+         ↑              ↑              ↑
+    tiktok-token-refresh-cron (a cada 6h)
+```
 
-**Tabelas existentes** que já suportam: `google_ads_accounts`, `google_analytics_properties`, `google_merchant_products`, `google_business_locations`, `google_business_reviews`, `google_business_posts`, `google_search_console_data`, `google_tag_manager_containers`, `google_connections`.
-
-**Tabelas novas necessárias:** `google_gmail_accounts`, `google_calendar_syncs`, `external_apps` (tabela genérica para o módulo Aplicativos Externos).
-
-**Validação técnica:** Cada fase será validada com: chamada real à Edge Function, verificação de dados no banco, teste do componente de UI, e verificação de logs.
+- **Padrão de Edge Functions**: Mesmo do Google — CORS, validação Zod, service_role para cron, JWT para chamadas manuais
+- **Tabelas novas**: `tiktok_ad_groups`, `tiktok_ad_ads`, `tiktok_ad_audiences`, `tiktok_ad_assets` (todas com `tenant_id` + RLS)
+- **Doc**: ~400-500 linhas, espelhando a estrutura de `google-integracoes.md`
 
