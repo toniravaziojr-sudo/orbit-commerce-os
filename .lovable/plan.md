@@ -1,131 +1,142 @@
 
 
-# TikTok — Ecossistema de Integrações (Documentação + Implementação)
+## Plano de Unificação de Blocos do Builder
 
-## Objetivo
-
-Criar a especificação Layer 3 completa (`docs/especificacoes/marketing/tiktok-integracoes.md`) seguindo o mesmo modelo do Google (`google-integracoes.md`), e depois implementar os gaps identificados — tudo fase a fase.
+**Objetivo:** Reduzir de ~55 blocos registrados para ~42, unificando blocos com funcionalidade redundante em blocos versáteis com prop `mode`/`layout`, seguindo o padrão já estabelecido na unificação do Banner (Hero+HeroBanner → Banner com `mode: single|carousel`).
 
 ---
 
-## Estado Atual (Inventário)
+### Inventário atual: 55 blocos
 
-### Já Implementado
+**Não tocáveis (25 blocos):** Layout (Page, Section, Container, Columns, Divider, Spacer), Header/Footer, PageContent, Button, Image, Banner, CategoryBanner, CategoryPageLayout, ProductDetails, ProductCard, Cart, CartSummary, Checkout, CheckoutSteps, ThankYou, AccountHub, OrdersList, OrderDetail, TrackingLookup, BlogListing.
 
-| Área | O que existe | Edge Functions | Tabelas |
-|------|-------------|----------------|---------|
-| **Ads** | Conexão OAuth, campanhas, insights, Pixel/CAPI | `tiktok-oauth-start`, `tiktok-oauth-callback`, `tiktok-ads-campaigns`, `tiktok-ads-insights`, `tiktok-token-refresh` | `tiktok_ads_connections`, `tiktok_ad_campaigns`, `tiktok_ad_insights`, `tiktok_oauth_states` |
-| **Shop** | Conexão OAuth, catálogo, pedidos, fulfillment, devoluções | `tiktok-shop-oauth-start`, `tiktok-shop-oauth-callback`, `tiktok-shop-catalog-sync/status`, `tiktok-shop-orders-sync/detail`, `tiktok-shop-fulfillment`, `tiktok-shop-returns` | `tiktok_shop_connections`, `tiktok_shop_products`, `tiktok_shop_orders`, `tiktok_shop_fulfillments`, `tiktok_shop_returns` |
-| **Content** | Conexão OAuth, upload de vídeos, analytics básico | `tiktok-content-oauth-start/callback`, `tiktok-content-publish`, `tiktok-content-analytics` | `tiktok_content_connections`, `tiktok_content_videos`, `tiktok_content_analytics` |
-| **Hub UI** | `TikTokUnifiedSettings.tsx` com 3 cards (Ads, Shop, Content) + painéis operacionais | — | — |
-
-### Gaps Identificados
-
-| Área | Gap | Prioridade |
-|------|-----|-----------|
-| **Ads** | CRUD de Ad Groups e Ads individuais | Alta |
-| **Ads** | Gestão de Públicos (Audiences) | Alta |
-| **Ads** | Upload de Creative Assets | Média |
-| **Content** | Estatísticas do perfil (`user.info.stats`) | Média |
-| **Content** | Agendamento de posts | Média |
-| **Shop** | Webhooks de pedidos em tempo real | Baixa |
-| **Shop** | Sincronização bidirecional de estoque | Baixa |
-| **Infra** | Cron de refresh automático de tokens (3 conexões) | Alta |
+**Candidatos à unificação (30 blocos → ~17):**
 
 ---
 
-## Plano de Execução (8 Fases)
+### Unificação 1 — Vitrine de Produtos (4 → 1)
+**Blocos atuais:** `ProductGrid`, `ProductCarousel`, `CollectionSection`, `FeaturedProducts`
+**Bloco unificado:** `ProductShowcase`
+- Prop `source`: `featured` | `newest` | `all` | `category` | `manual`
+- Prop `layout`: `grid` | `carousel`
+- Quando `source=manual`, exibe seletor de produtos (hoje no FeaturedProducts)
+- Quando `source=category`, exibe seletor de categoria (hoje no CollectionSection)
+- Props comuns: `title`, `limit`, `columnsDesktop`, `columnsMobile`, `showPrice`, `showButton`
+- **Impacto:** 4 componentes React, 4 compiladores Edge, BlockRenderer, registry. Aliases de compatibilidade para templates existentes.
 
-### Fase 1 — Documentação Layer 3
+### Unificação 2 — Categorias (2 → 1)
+**Blocos atuais:** `CategoryList`, `FeaturedCategories`
+**Bloco unificado:** `CategoryShowcase`
+- Prop `style`: `cards` (cards grandes, atual CategoryList) | `circles` (circular, atual FeaturedCategories)
+- Prop `source`: `auto` | `parent` | `custom`
+- Prop `layout`: `grid` | `list` | `carousel`
+- **Impacto:** 2 componentes, 2 compiladores, BlockRenderer, registry.
 
-Criar `docs/especificacoes/marketing/tiktok-integracoes.md` com:
-- Visão geral e arquitetura (3 APIs separadas, OAuth independente por produto)
-- Inventário completo (tabelas, edge functions, hooks, componentes)
-- Scope packs por produto (Ads, Shop, Content)
-- Fluxos OAuth documentados
-- Mapa de gaps e roadmap
-- Referência cruzada com `tiktok-shop.md` (marketplaces) e `gestor-trafego.md`
+### Unificação 3 — Depoimentos / Avaliações (2 → 1)
+**Blocos atuais:** `Testimonials`, `Reviews`
+**Bloco unificado:** `SocialProof`
+- Prop `mode`: `testimonials` | `reviews`
+- No modo `reviews`, exibe rating com estrelas e campos de produto
+- No modo `testimonials`, exibe nome+role+texto
+- Props comuns: `title`, `items`, `visibleCount`
+- **Impacto:** 2 componentes, 2 compiladores.
 
-Atualizar `marketing-integracoes.md` com referência ao novo doc dedicado.
+### Unificação 4 — Newsletter (3 → 1)
+**Blocos atuais:** `Newsletter`, `NewsletterForm`, `PopupModal`
+**Bloco unificado:** `Newsletter` (mantém o nome)
+- Prop `mode`: `inline` | `form` | `popup`
+- `inline`: layout atual do Newsletter (horizontal/vertical/card, só email)
+- `form`: layout do NewsletterForm (com nome, telefone, data nascimento, vinculado a lista)
+- `popup`: layout do PopupModal (trigger por delay/scroll/exit-intent)
+- **Nota:** `NewsletterPopup` permanece separado pois tem lógica específica de trigger + frequência + vinculação a lista. Avaliar fusão posterior.
+- **Impacto:** 3 componentes, 3 compiladores.
 
-### Fase 2 — Token Refresh Automático (Infra)
+### Unificação 5 — Vídeo (2 → 1)
+**Blocos atuais:** `YouTubeVideo`, `VideoUpload`
+**Bloco unificado:** `Video`
+- Prop `source`: `youtube` | `upload`
+- YouTube: mostra campo URL
+- Upload: mostra campos de upload (desktop/mobile) + controles (autoplay, loop, muted)
+- Props comuns: `title`, `aspectRatio`, `widthPreset`
+- `VideoCarousel` permanece separado (múltiplos vídeos, lógica distinta)
+- **Impacto:** 2 componentes, 2 compiladores.
 
-Criar edge function `tiktok-token-refresh-cron` que:
-- Percorre as 3 tabelas de conexão (`tiktok_ads_connections`, `tiktok_shop_connections`, `tiktok_content_connections`)
-- Renova tokens próximos da expiração (< 24h)
-- Usa a edge function `tiktok-token-refresh` existente como base
-- Registrar cron job via `pg_cron` (a cada 6 horas)
+### Unificação 6 — Código Custom (2 → 1)
+**Blocos atuais:** `CustomBlock`, `HTMLSection`
+**Bloco unificado:** `CustomCode`
+- Prop `source`: `inline` | `database`
+- `inline`: HTML/CSS direto (atual HTMLSection)
+- `database`: busca do `custom_blocks` por ID (atual CustomBlock)
+- Ambos já usam `IsolatedCustomBlock` (iframe) para CSS isolation
+- **Impacto:** 2 componentes (já compartilham CustomBlockRenderer), 2 compiladores.
 
-### Fase 3 — Ads: Ad Groups & Ads
+### Unificação 7 — Lista de Benefícios (2 → 1)
+**Blocos atuais:** `FeatureList`, `InfoHighlights`
+**Bloco unificado:** `Highlights`
+- Prop `style`: `list` (vertical com ícones, atual FeatureList) | `bar` (horizontal compacto, atual InfoHighlights)
+- Props comuns: `items[]` (icon+title+description), `iconColor`, `textColor`, `backgroundColor`
+- FeatureList tem `showButton` e `subtitle` — mantidos como opcionais
+- **Impacto:** 2 componentes, 2 compiladores.
 
-- Nova edge function `tiktok-ads-adgroups` (listar, criar, editar ad groups)
-- Nova edge function `tiktok-ads-ads` (listar, criar, editar anúncios individuais)
-- Novas tabelas: `tiktok_ad_groups`, `tiktok_ad_ads`
-- Hook `useTikTokAdGroups.ts` e `useTikTokAds.ts` (ou expandir `useTikTokAds.ts`)
-- UI: novas sub-tabs no `TikTokAdsPanel`
-
-### Fase 4 — Ads: Audiences
-
-- Nova edge function `tiktok-ads-audiences` (listar, criar, editar públicos customizados)
-- Nova tabela: `tiktok_ad_audiences`
-- Hook `useTikTokAudiences.ts`
-- UI: sub-tab "Públicos" no `TikTokAdsPanel`
-
-### Fase 5 — Ads: Creative Assets
-
-- Nova edge function `tiktok-ads-assets` (upload de imagens/vídeos para biblioteca de criativos)
-- Nova tabela: `tiktok_ad_assets`
-- Hook e UI para gestão de assets no painel de Ads
-
-### Fase 6 — Content: Perfil + Agendamento
-
-- Expandir `tiktok-content-analytics` para incluir `user.info.stats` e `user.info.profile`
-- Nova lógica de agendamento (salvar rascunho com `scheduled_at` e publicar via cron)
-- UI: card de perfil no `TikTokContentPanel` e campo de agendamento no fluxo de publicação
-
-### Fase 7 — Shop: Webhooks + Estoque
-
-- Nova edge function `tiktok-shop-webhook` para receber notificações push de pedidos
-- Lógica de sincronização bidirecional de estoque (nosso catálogo ↔ TikTok Shop)
-- Registrar webhook URL no TikTok Shop Partner Center
-
-### Fase 8 — Validação Final e Documentação
-
-- Atualizar `tiktok-integracoes.md` com status final de cada fase
-- Rodar build TypeScript e validar ausência de erros
-- Verificar RLS policies em todas as novas tabelas
-- Atualizar memória do roadmap TikTok
+### Unificação 8 — Texto + Imagem (2 → 1)
+**Blocos atuais:** `ContentColumns`, `TextBanners`
+**Bloco unificado:** `ContentSection`
+- Prop `style`: `content` (1 imagem + texto + features, atual ContentColumns) | `editorial` (2 imagens + texto, atual TextBanners)
+- Props comuns: `title`, `subtitle`, `imageDesktop`, `imageMobile`, CTA
+- **Impacto:** 2 componentes, 2 compiladores.
 
 ---
 
-## Detalhes Técnicos
+### Resultado
 
+| Métrica | Antes | Depois | Redução |
+|---|---|---|---|
+| Total de blocos | 55 | 42 | -13 blocos |
+| Blocos de produto | 4 | 1 | -3 |
+| Blocos de categoria | 2 | 1 | -1 |
+| Blocos de newsletter | 3 | 1 | -2 |
+| Blocos de vídeo | 3 | 2 | -1 |
+| Blocos de depoimentos | 2 | 1 | -1 |
+| Blocos de código | 2 | 1 | -1 |
+| Blocos de benefícios | 2 | 1 | -1 |
+| Blocos de texto+imagem | 2 | 1 | -1 |
+
+---
+
+### Estratégia de migração (aplica-se a todas as unificações)
+
+1. **Alias no BlockRenderer:** Mapear tipos antigos para o componente unificado com normalização de props automática
+2. **Compilador Edge:** Manter compiladores antigos como wrappers que normalizam props e delegam ao novo compilador
+3. **Registry:** Remover blocos antigos, registrar bloco unificado. Não quebra templates salvos pois o BlockRenderer trata aliases
+4. **Ordem de execução:** Uma unificação por vez, começando pelas de menor risco (6 e 7) e terminando pela mais complexa (1)
+
+### Ordem de prioridade sugerida
+
+1. **CustomCode** (Unificação 6) — menor risco, já compartilham componente
+2. **Highlights** (Unificação 7) — componentes simples, sem estado
+3. **Video** (Unificação 5) — 2 blocos, lógica clara
+4. **SocialProof** (Unificação 3) — 2 blocos, similar
+5. **ContentSection** (Unificação 8) — 2 blocos, layout
+6. **Newsletter** (Unificação 4) — 3 blocos, mais complexo
+7. **CategoryShowcase** (Unificação 2) — dados dinâmicos
+8. **ProductShowcase** (Unificação 1) — mais complexo, core do e-commerce
+
+---
+
+### Detalhes Técnicos
+
+Cada unificação segue o padrão modular já documentado:
 ```text
-┌──────────────────────────────────────────────────┐
-│                Hub TikTok (UI)                   │
-│  ┌──────────┐  ┌──────────┐  ┌─────────────┐    │
-│  │ Ads Card │  │Shop Card │  │Content Card │    │
-│  │ Campaigns│  │ Catálogo │  │  Vídeos     │    │
-│  │ AdGroups │  │ Pedidos  │  │  Analytics  │    │
-│  │ Ads      │  │ Envios   │  │  Perfil     │    │
-│  │ Audiences│  │ Devoluç. │  │  Agendamento│    │
-│  │ Assets   │  │ Webhooks │  │             │    │
-│  └──────────┘  └──────────┘  └─────────────┘    │
-└──────────────────────────────────────────────────┘
-         │              │              │
-    Marketing API   Commerce API   Login Kit
-    (OAuth sep.)    (OAuth sep.)   (OAuth sep.)
-         │              │              │
-    ┌────┴────┐    ┌────┴────┐   ┌────┴────┐
-    │tiktok_  │    │tiktok_  │   │tiktok_  │
-    │ads_conn │    │shop_conn│   │content_ │
-    └─────────┘    └─────────┘   │conn     │
-                                 └─────────┘
-         ↑              ↑              ↑
-    tiktok-token-refresh-cron (a cada 6h)
+src/components/builder/blocks/{block-name}/
+  ├── types.ts          (interfaces e props)
+  ├── helpers.ts         (lógica pura)
+  ├── {Mode}Layout.tsx   (layout por modo)
+  └── {Block}Block.tsx   (orquestrador)
 ```
 
-- **Padrão de Edge Functions**: Mesmo do Google — CORS, validação Zod, service_role para cron, JWT para chamadas manuais
-- **Tabelas novas**: `tiktok_ad_groups`, `tiktok_ad_ads`, `tiktok_ad_audiences`, `tiktok_ad_assets` (todas com `tenant_id` + RLS)
-- **Doc**: ~400-500 linhas, espelhando a estrutura de `google-integracoes.md`
+Arquivos impactados por unificação:
+- `src/lib/builder/registry.ts` (remover antigos, registrar novo)
+- `src/components/builder/BlockRenderer.tsx` (aliases + novo componente)
+- `supabase/functions/_shared/block-compiler/` (compiladores Edge)
+- `src/components/builder/blocks/` (componentes React)
 
