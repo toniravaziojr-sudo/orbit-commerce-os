@@ -941,10 +941,17 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
                           <TableCell>{formatCurrency(invoice.valor_total)}</TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
-                              <Badge variant={status.variant} className="gap-1 w-fit">
-                                <StatusIcon className="h-3 w-3" />
-                                {status.label}
-                              </Badge>
+                              {invoice.status === 'draft' && invoice.order_status && ['chargeback_detected', 'chargeback_lost'].includes(invoice.order_status) ? (
+                                <Badge variant="destructive" className="gap-1 w-fit bg-red-600">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Chargeback em andamento
+                                </Badge>
+                              ) : (
+                                <Badge variant={status.variant} className="gap-1 w-fit">
+                                  <StatusIcon className="h-3 w-3" />
+                                  {status.label}
+                                </Badge>
+                              )}
                               {invoice.status === 'authorized' && isPrinted && (
                                 <Badge variant="outline" className="gap-1 w-fit text-xs">
                                   <Printer className="h-3 w-3" />
