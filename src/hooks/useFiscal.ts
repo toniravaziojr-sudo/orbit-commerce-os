@@ -136,7 +136,8 @@ export interface FiscalInvoice {
   updated_at: string;
   // Marketplace info (from joined order)
   marketplace_source?: string | null;
-}
+  // Order status (from joined order) - used for chargeback visibility
+  order_status?: string | null;
 
 export interface FiscalInvoiceItem {
   id: string;
