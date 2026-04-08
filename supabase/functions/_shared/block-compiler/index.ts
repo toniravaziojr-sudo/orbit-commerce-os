@@ -188,10 +188,10 @@ export const UNSUPPORTED_BLOCKS = new Set([
   'TrackingLookup', 'BlogListing', 'BlogPostDetail', 'PageContent',
   'ContactForm',
   'CategoryFilters',
-  'CartDemo', 'CheckoutDemo', 'CustomBlock',
+  'CartDemo', 'CheckoutDemo',
   'NewsletterPopup', 'Map', 'SocialFeed',
   'PersonalizedProducts', 'LivePurchases', 'PricingTable',
-  'PopupModal', 'QuizEmbed', 'EmbedSocialPost',
+  'QuizEmbed', 'EmbedSocialPost',
 ]);
 
 /**
