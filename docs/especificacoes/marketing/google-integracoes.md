@@ -448,36 +448,15 @@ Conectar Gmail do usuário ao inbox de emails do sistema.
 
 | Recurso | Status | Detalhes |
 |---------|--------|----------|
-| Edge Function `google-gmail-sync` | 🔴 Criar | Ler/enviar emails via Gmail API |
-| Hook `useGmail` | 🔴 Criar | Emails, send, sync |
-| Scope pack `gmail` | 🔴 Adicionar | `gmail.readonly`, `gmail.send`, `gmail.modify` |
-
-### Tabela Nova — `google_gmail_accounts`
-
-```sql
-CREATE TABLE public.google_gmail_accounts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id),
-  connection_id UUID REFERENCES google_connections(id),
-  email_address TEXT NOT NULL,
-  display_name TEXT,
-  is_active BOOLEAN DEFAULT true,
-  last_sync_at TIMESTAMPTZ,
-  sync_token TEXT,                 -- Gmail API sync token para sync incremental
-  history_id TEXT,                 -- Gmail API history ID
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(tenant_id, email_address)
-);
-```
+| Edge Function `google-gmail` | ✅ Implementado | Ler/enviar emails via Gmail API (profile, inbox, sync, send) |
+| Hook `useGoogleGmail` | ✅ Implementado | Profile, inbox, sync, send |
+| Scope pack `gmail` | ✅ Implementado | `gmail.readonly`, `gmail.send`, `gmail.modify` |
 
 ### Frontend — Componentes
 
 | Componente | Arquivo | Status |
 |------------|---------|--------|
-| `GmailChannelInbox` | `src/components/emails/channels/GmailChannelInbox.tsx` | 🔴 Criar |
-| `GmailComposeDialog` | `src/components/emails/channels/GmailComposeDialog.tsx` | 🔴 Criar |
-| `GmailSettingsCard` | `src/components/emails/GmailSettingsCard.tsx` | 🔴 Criar |
+| `GmailTab` | `src/components/emails/GmailTab.tsx` | ✅ Implementado |
 
 ### Fluxo de Dados
 
@@ -506,34 +485,15 @@ Sincronizar agenda do sistema com Google Calendar.
 
 | Recurso | Status | Detalhes |
 |---------|--------|----------|
-| Edge Function `google-calendar-sync` | 🔴 Criar | Criar/ler eventos no Google Calendar |
-| Hook `useGoogleCalendar` | 🔴 Criar | Events, sync, toggle |
-| Scope pack `calendar` | 🔴 Adicionar | `calendar.events`, `calendar.readonly` |
-
-### Tabela Nova — `google_calendar_syncs`
-
-```sql
-CREATE TABLE public.google_calendar_syncs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id),
-  connection_id UUID REFERENCES google_connections(id),
-  calendar_id TEXT NOT NULL DEFAULT 'primary',
-  is_enabled BOOLEAN DEFAULT false,
-  sync_direction TEXT DEFAULT 'push', -- 'push' (sistema→Google), 'pull' (Google→sistema), 'bidirectional'
-  last_sync_at TIMESTAMPTZ,
-  sync_token TEXT,                    -- Calendar API sync token
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(tenant_id, calendar_id)
-);
-```
+| Edge Function `google-calendar` | ✅ Implementado | Listar calendários, eventos, sync, criar eventos |
+| Hook `useGoogleCalendar` | ✅ Implementado | Calendars, events, sync, createEvent |
+| Scope pack `calendar` | ✅ Implementado | `calendar.events`, `calendar.readonly` |
 
 ### Frontend — Componentes
 
 | Componente | Arquivo | Status |
 |------------|---------|--------|
-| `CalendarAppCard` | `src/components/external-apps/CalendarAppCard.tsx` | 🔴 Criar |
-| `CalendarSyncSettings` | `src/components/external-apps/CalendarSyncSettings.tsx` | 🔴 Criar |
+| `GoogleCalendarTab` | `src/components/external-apps/GoogleCalendarTab.tsx` | ✅ Implementado |
 
 ### Funcionalidades
 
