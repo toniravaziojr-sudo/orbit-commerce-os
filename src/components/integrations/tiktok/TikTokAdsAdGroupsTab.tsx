@@ -68,7 +68,7 @@ export function TikTokAdsAdGroupsTab() {
                 <TableRow key={ag.id}>
                   <TableCell className="font-medium text-sm">{ag.name}</TableCell>
                   <TableCell>
-                    <StatusBadge status={mapStatus(ag.status)} label={ag.status} />
+                    <StatusBadge variant={mapStatus(ag.status) === 'active' ? 'success' : mapStatus(ag.status) === 'inactive' ? 'destructive' : 'warning'} dot>{ag.status}</StatusBadge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{ag.promotion_type || '—'}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{ag.optimize_goal || '—'}</TableCell>
