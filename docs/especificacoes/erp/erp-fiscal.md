@@ -438,7 +438,7 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 | Função | Descrição |
 |--------|-----------|
 | `getNextFiscalNumber()` | Consulta `MAX(numero)` diretamente na tabela `fiscal_invoices` para o tenant+série. Retorna `MAX + 1` ou o fallback de `numero_nfe_atual`, o que for maior. **Nunca confia apenas no cursor de settings.** |
-| `insertFiscalInvoiceWithRetry()` | Tenta inserir o invoice com o número calculado. Se receber erro `23505` (duplicata), incrementa o número e retenta até `maxAttempts` (default: 20). Se o erro NÃO for duplicata, propaga o erro imediatamente. |
+| `insertFiscalInvoiceWithRetry()` | Tenta inserir o invoice com o número calculado. Se receber erro `23505` (duplicata de número), incrementa o número e retenta até `maxAttempts` (default: 20). Se o conflito for no índice `idx_fiscal_invoices_order_unique` (mesmo pedido), retorna o invoice existente sem erro. Se o erro NÃO for duplicata, propaga o erro imediatamente. |
 | `syncFiscalNumberCursor()` | Após inserção bem-sucedida, recalcula o próximo número via `getNextFiscalNumber()` e atualiza `fiscal_settings.numero_nfe_atual` para manter o cursor sincronizado. |
 
 #### Fluxo de Numeração
