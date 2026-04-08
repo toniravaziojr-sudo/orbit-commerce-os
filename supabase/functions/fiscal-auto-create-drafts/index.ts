@@ -135,6 +135,7 @@ async function processTenanDrafts(
       shipping_state,
       shipping_postal_code,
       customer_name,
+      customer_cpf,
       paid_at,
       created_at,
       customer:customers(id, full_name, cpf, email, phone)
