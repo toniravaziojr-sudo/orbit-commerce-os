@@ -17623,6 +17623,105 @@ export type Database = {
           },
         ]
       }
+      tiktok_ad_ads: {
+        Row: {
+          ad_format: string | null
+          ad_text: string | null
+          adgroup_id: string | null
+          advertiser_id: string
+          call_to_action: string | null
+          created_at: string | null
+          deeplink: string | null
+          display_name: string | null
+          id: string
+          identity_id: string | null
+          identity_type: string | null
+          image_ids: Json | null
+          landing_page_url: string | null
+          metadata: Json | null
+          name: string
+          status: string
+          synced_at: string | null
+          tenant_id: string
+          thumbnail_url: string | null
+          tiktok_ad_id: string
+          tiktok_adgroup_id: string
+          tiktok_campaign_id: string
+          tracking_pixel_id: string | null
+          updated_at: string | null
+          video_id: string | null
+        }
+        Insert: {
+          ad_format?: string | null
+          ad_text?: string | null
+          adgroup_id?: string | null
+          advertiser_id: string
+          call_to_action?: string | null
+          created_at?: string | null
+          deeplink?: string | null
+          display_name?: string | null
+          id?: string
+          identity_id?: string | null
+          identity_type?: string | null
+          image_ids?: Json | null
+          landing_page_url?: string | null
+          metadata?: Json | null
+          name: string
+          status?: string
+          synced_at?: string | null
+          tenant_id: string
+          thumbnail_url?: string | null
+          tiktok_ad_id: string
+          tiktok_adgroup_id: string
+          tiktok_campaign_id: string
+          tracking_pixel_id?: string | null
+          updated_at?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          ad_format?: string | null
+          ad_text?: string | null
+          adgroup_id?: string | null
+          advertiser_id?: string
+          call_to_action?: string | null
+          created_at?: string | null
+          deeplink?: string | null
+          display_name?: string | null
+          id?: string
+          identity_id?: string | null
+          identity_type?: string | null
+          image_ids?: Json | null
+          landing_page_url?: string | null
+          metadata?: Json | null
+          name?: string
+          status?: string
+          synced_at?: string | null
+          tenant_id?: string
+          thumbnail_url?: string | null
+          tiktok_ad_id?: string
+          tiktok_adgroup_id?: string
+          tiktok_campaign_id?: string
+          tracking_pixel_id?: string | null
+          updated_at?: string | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_ad_ads_adgroup_id_fkey"
+            columns: ["adgroup_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_ad_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_ad_ads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_ad_campaigns: {
         Row: {
           advertiser_id: string
@@ -17690,6 +17789,99 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tiktok_ad_campaigns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_ad_groups: {
+        Row: {
+          advertiser_id: string
+          bid_price_cents: number | null
+          bid_type: string | null
+          billing_event: string | null
+          budget_cents: number | null
+          budget_mode: string | null
+          campaign_id: string | null
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          name: string
+          optimize_goal: string | null
+          placement_type: string | null
+          promotion_type: string | null
+          schedule_end_time: string | null
+          schedule_start_time: string | null
+          status: string
+          synced_at: string | null
+          targeting: Json | null
+          tenant_id: string
+          tiktok_adgroup_id: string
+          tiktok_campaign_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          advertiser_id: string
+          bid_price_cents?: number | null
+          bid_type?: string | null
+          billing_event?: string | null
+          budget_cents?: number | null
+          budget_mode?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          name: string
+          optimize_goal?: string | null
+          placement_type?: string | null
+          promotion_type?: string | null
+          schedule_end_time?: string | null
+          schedule_start_time?: string | null
+          status?: string
+          synced_at?: string | null
+          targeting?: Json | null
+          tenant_id: string
+          tiktok_adgroup_id: string
+          tiktok_campaign_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          advertiser_id?: string
+          bid_price_cents?: number | null
+          bid_type?: string | null
+          billing_event?: string | null
+          budget_cents?: number | null
+          budget_mode?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string
+          optimize_goal?: string | null
+          placement_type?: string | null
+          promotion_type?: string | null
+          schedule_end_time?: string | null
+          schedule_start_time?: string | null
+          status?: string
+          synced_at?: string | null
+          targeting?: Json | null
+          tenant_id?: string
+          tiktok_adgroup_id?: string
+          tiktok_campaign_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_ad_groups_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_ad_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_ad_groups_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
