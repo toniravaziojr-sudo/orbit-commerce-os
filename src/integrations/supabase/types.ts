@@ -17722,6 +17722,65 @@ export type Database = {
           },
         ]
       }
+      tiktok_ad_audiences: {
+        Row: {
+          advertiser_id: string
+          audience_type: string
+          cover_num: number | null
+          created_at: string
+          id: string
+          is_expired: boolean | null
+          is_valid: boolean | null
+          metadata: Json | null
+          name: string
+          rules: Json | null
+          synced_at: string
+          tenant_id: string
+          tiktok_audience_id: string
+          updated_at: string
+        }
+        Insert: {
+          advertiser_id: string
+          audience_type?: string
+          cover_num?: number | null
+          created_at?: string
+          id?: string
+          is_expired?: boolean | null
+          is_valid?: boolean | null
+          metadata?: Json | null
+          name: string
+          rules?: Json | null
+          synced_at?: string
+          tenant_id: string
+          tiktok_audience_id: string
+          updated_at?: string
+        }
+        Update: {
+          advertiser_id?: string
+          audience_type?: string
+          cover_num?: number | null
+          created_at?: string
+          id?: string
+          is_expired?: boolean | null
+          is_valid?: boolean | null
+          metadata?: Json | null
+          name?: string
+          rules?: Json | null
+          synced_at?: string
+          tenant_id?: string
+          tiktok_audience_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_ad_audiences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_ad_campaigns: {
         Row: {
           advertiser_id: string
