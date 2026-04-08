@@ -80,6 +80,9 @@ import { HighlightsBlock as HighlightsBlockComponent } from './blocks/highlights
 import { VideoBlock as VideoBlockComponent } from './blocks/video';
 import { SocialProofBlock as SocialProofBlockComponent } from './blocks/social-proof';
 import { ContentSectionBlock as ContentSectionBlockComponent } from './blocks/content-section';
+import { NewsletterUnifiedBlock as NewsletterUnifiedBlockComponent } from './blocks/newsletter';
+import { CategoryShowcaseBlock as CategoryShowcaseBlockComponent } from './blocks/category-showcase';
+import { ProductShowcaseBlock as ProductShowcaseBlockComponent } from './blocks/product-showcase';
 import { CartDemoBlock } from './blocks/CartDemoBlock';
 import { CheckoutDemoBlock } from './blocks/CheckoutDemoBlock';
 import { CategoryBannerBlock as CategoryBannerBlockComponent } from './blocks/CategoryBannerBlock';
@@ -556,6 +559,9 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     Video: (props: any) => <VideoBlockComponent {...props} />,
     SocialProof: (props: any) => <SocialProofBlockComponent {...props} />,
     ContentSection: (props: any) => <ContentSectionBlockComponent {...props} />,
+    NewsletterUnified: (props: any) => <NewsletterUnifiedBlockComponent {...props} />,
+    CategoryShowcase: (props: any) => <CategoryShowcaseBlockComponent {...props} />,
+    ProductShowcase: (props: any) => <ProductShowcaseBlockComponent {...props} />,
     
     // Offer Slot Blocks - passam context para detectar pageType e evitar duplicação
     // OrderBumpSlot removed - handled internally by CheckoutContent via OrderBumpSection
