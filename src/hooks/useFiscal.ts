@@ -136,6 +136,8 @@ export interface FiscalInvoice {
   updated_at: string;
   // Marketplace info (from joined order)
   marketplace_source?: string | null;
+  // Order status (from joined order) - used for chargeback visibility
+  order_status?: string | null;
 }
 
 export interface FiscalInvoiceItem {
@@ -329,7 +331,7 @@ export function useFiscalInvoices(filters?: {
       // Query with join to orders for marketplace_source
       let query = supabase
         .from('fiscal_invoices')
-        .select('*, orders!fiscal_invoices_order_id_fkey(marketplace_source)')
+        .select('*, orders!fiscal_invoices_order_id_fkey(marketplace_source, status)')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
@@ -354,7 +356,8 @@ export function useFiscalInvoices(filters?: {
       const invoices = (data || []).map((inv: any) => ({
         ...inv,
         marketplace_source: inv.orders?.marketplace_source || null,
-        orders: undefined, // Remove nested orders object
+        order_status: inv.orders?.status || null,
+        orders: undefined,
       })) as FiscalInvoice[];
 
       // Apply marketplace filter client-side (more flexible)
