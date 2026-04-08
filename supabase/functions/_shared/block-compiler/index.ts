@@ -158,6 +158,13 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   // Reviews & Video
   'Reviews': reviewsToStaticHTML,
   'VideoUpload': videoUploadToStaticHTML,
+  
+  // Unified blocks
+  'CustomCode': customCodeToStaticHTML,
+  'Highlights': highlightsToStaticHTML,
+  'Video': videoToStaticHTML,
+  'SocialProof': socialProofToStaticHTML,
+  'ContentSection': contentSectionToStaticHTML,
 };
 
 /**
