@@ -335,9 +335,10 @@ export function useFiscalInvoices(filters?: {
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
-      // Filter by tipo_documento (default to 1 = Saída if not specified)
-      const tipoDoc = filters?.tipoDocumento ?? 1;
-      query = query.eq('tipo_documento', tipoDoc);
+      // Filter by tipo_documento only if explicitly specified
+      if (filters?.tipoDocumento !== undefined) {
+        query = query.eq('tipo_documento', filters.tipoDocumento);
+      }
 
       if (filters?.status) {
         query = query.eq('status', filters.status);
@@ -380,12 +381,12 @@ export function useFiscalInvoices(filters?: {
 }
 
 // Hook: Invoice Stats
-export function useFiscalStats(tipoDocumento?: number) {
+export function useFiscalStats() {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
   
   return useQuery({
-    queryKey: ['fiscal-stats', tenantId, tipoDocumento],
+    queryKey: ['fiscal-stats', tenantId],
     queryFn: async () => {
       if (!tenantId) return { total: 0, authorized: 0, pending: 0, rejected: 0 };
 
@@ -400,11 +401,6 @@ export function useFiscalStats(tipoDocumento?: number) {
         .eq('tenant_id', tenantId)
         .gte('created_at', startOfMonth)
         .lte('created_at', endOfMonth);
-
-      // Filter by tipo_documento if specified
-      if (tipoDocumento !== undefined) {
-        query = query.eq('tipo_documento', tipoDocumento);
-      }
 
       const { data, error } = await query;
 
