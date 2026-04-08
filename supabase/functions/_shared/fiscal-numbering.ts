@@ -60,6 +60,29 @@ export async function insertFiscalInvoiceWithRetry(params: {
       (String(error?.message || '').includes('fiscal_invoices_numero_unique') ||
         String(error?.message || '').includes('(tenant_id, serie, numero)'));
 
+    // If it's a duplicate order_id conflict (from the unique partial index), treat as "already exists"
+    const isDuplicateOrder =
+      error?.code === '23505' &&
+      String(error?.message || '').includes('idx_fiscal_invoices_order_unique');
+
+    if (isDuplicateOrder) {
+      console.log(`[${logPrefix}] Invoice already exists for this order (unique index). Skipping.`);
+      // Fetch the existing invoice
+      const draftData = buildDraftData(numero);
+      const { data: existing } = await supabase
+        .from('fiscal_invoices')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('order_id', draftData.order_id)
+        .neq('status', 'canceled')
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        return { invoice: existing, numero: existing.numero };
+      }
+      throw new Error(`[${logPrefix}] Duplicate order detected but could not fetch existing invoice.`);
+    }
+
     if (!isDuplicateNumber) {
       throw error;
     }
