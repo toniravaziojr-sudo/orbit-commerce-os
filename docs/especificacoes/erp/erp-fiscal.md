@@ -4,7 +4,7 @@
 
 > **Camada:** Layer 3 — Especificações / Erp  
 > **Migrado de:** `docs/regras/erp.md`  
-> **Última atualização:** 2026-04-05
+> **Última atualização:** 2026-04-08
 
 
 ## Visão Geral
@@ -81,18 +81,18 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | **Tipo** | Cron Job (pg_cron) |
 | **Frequência** | A cada 5 minutos (`*/5 * * * *`) |
 | **Descrição** | Rede de segurança — cria rascunhos para pedidos pagos que o trigger eventualmente não processou |
-| **Modos** | **Cron** (todos tenants) / **User** (tenant do usuário) / **Trigger** (order_id + tenant_id no body) |
+| **Modos** | **Cron** (todos tenants) / **User** (tenant do usuário) |
 | **Data da NF** | Usa `paid_at` do pedido como `created_at` da NF |
-| **Anti-duplicação** | Verifica `fiscal_invoices` existentes antes de criar; retry com incremento de número |
+| **Anti-duplicação** | Verifica `fiscal_invoices` existentes antes de criar; índice único parcial `idx_fiscal_invoices_order_unique` impede duplicatas; retry com incremento de número |
 | **verify_jwt** | `false` (necessário para cron/trigger) |
-| **Segurança** | Cron/Trigger usa anon key → usa service_role internamente |
+| **Segurança** | Cron usa anon key → usa service_role internamente |
 
 ### Regra: Zero Sync on Load (v8.23.0)
 
 | Campo | Valor |
 |-------|-------|
 | **Regra** | A tela Fiscal **não** dispara criação de rascunhos ao ser acessada |
-| **Motivo** | O backend (webhook + cron) já cria rascunhos instantaneamente no pagamento aprovado |
+| **Motivo** | O backend (fila + cron) já cria rascunhos automaticamente no pagamento aprovado |
 | **Frontend** | Apenas lê os dados do banco via query; botão de refresh manual faz `refetch()` sem chamar edge function |
 | **Referência** | Regra 3.7 do Doc de Regras do Sistema (Zero Sync on Load) |
 
@@ -287,10 +287,22 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 #### Regras
 1. **Separação de colunas**: `status` = etapa operacional interna. `shipping_status` = status de entrega. `payment_status` = status de pagamento.
 2. **Automação**: Transição para `ready_to_invoice` é automática via webhook de pagamento.
-3. **Criação de rascunho fiscal**: O trigger `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico na `fiscal_draft_queue`. O `scheduler-tick` processa a fila a cada minuto e também reconcilia pedidos órfãos. (Padrão Fila + Cron — ver `automacao-patterns.md`)
-4. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
-5. **Terminal**: `completed` é o estado final após confirmação de entrega.
-6. **Fallback de CPF/CNPJ no rascunho fiscal (v2026-04-05)**: Na criação do rascunho, o sistema busca o CPF/CNPJ do cliente na seguinte ordem de prioridade: 1) `customers.cpf`; 2) `orders.customer_cpf`; 3) `orders.customer_cnpj`. Se nenhum estiver disponível, o campo é enviado vazio. Esse fallback garante que pedidos cujos clientes foram importados sem documento fiscal ainda tenham o dado preenchido quando informado diretamente no checkout.
+3. **Criação de rascunho fiscal — Single Flow (v2026-04-08)**: O fluxo de criação de rascunhos fiscais é **restrito obrigatoriamente** à pipeline `SQL Trigger → Fila → Cron → Edge Function`. Chamadas diretas de webhooks de pagamento para `fiscal-auto-create-drafts` são **proibidas** para eliminar condições de corrida. O trigger `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico na `fiscal_draft_queue`. O `scheduler-tick` processa a fila a cada minuto e também reconcilia pedidos órfãos. (Padrão Fila + Cron — ver `automacao-patterns.md`)
+4. **Anti-duplicação via índice único (v2026-04-08)**: O índice parcial `idx_fiscal_invoices_order_unique` em `(tenant_id, order_id) WHERE status != 'canceled' AND order_id IS NOT NULL` impede a criação de múltiplos rascunhos para o mesmo pedido. Conflitos nesse índice são tratados como "registro já existente" (fetch do invoice existente), não como erro.
+5. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
+6. **Terminal**: `completed` é o estado final após confirmação de entrega.
+7. **Fallback de CPF/CNPJ no rascunho fiscal (v2026-04-05)**: Na criação do rascunho, o sistema busca o CPF/CNPJ do cliente na seguinte ordem de prioridade: 1) `customers.cpf`; 2) `orders.customer_cpf`; 3) `orders.customer_cnpj`. Se nenhum estiver disponível, o campo é enviado vazio. Esse fallback garante que pedidos cujos clientes foram importados sem documento fiscal ainda tenham o dado preenchido quando informado diretamente no checkout.
+8. **Enriquecimento automático de clientes (v2026-04-08)**: O trigger `trg_recalc_customer_on_order` atualiza campos nulos (`cpf`, `phone`, `full_name`) no registro do cliente com dados do pedido aprovado mais recente. Isso garante que clientes importados sem CPF/telefone sejam completados automaticamente quando esses dados estiverem disponíveis no checkout.
+
+### Monitoramento de Risco: Chargeback na Tela Fiscal (v2026-04-08)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Melhoria de UX / Segurança Operacional |
+| **Localização** | `src/hooks/useFiscal.ts`, `src/components/fiscal/FiscalInvoiceList.tsx` |
+| **Descrição** | Rascunhos fiscais vinculados a pedidos com status `chargeback_detected` ou `chargeback_lost` exibem a badge vermelha **"Chargeback em andamento"** na lista fiscal |
+| **Objetivo** | Permitir identificação visual de risco operacional antes da emissão da NF-e |
+| **Dados** | `order_status` é obtido via join `orders!fiscal_invoices_order_id_fkey(status)` na query fiscal |
 
 ---
 
@@ -426,7 +438,7 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 | Função | Descrição |
 |--------|-----------|
 | `getNextFiscalNumber()` | Consulta `MAX(numero)` diretamente na tabela `fiscal_invoices` para o tenant+série. Retorna `MAX + 1` ou o fallback de `numero_nfe_atual`, o que for maior. **Nunca confia apenas no cursor de settings.** |
-| `insertFiscalInvoiceWithRetry()` | Tenta inserir o invoice com o número calculado. Se receber erro `23505` (duplicata), incrementa o número e retenta até `maxAttempts` (default: 20). Se o erro NÃO for duplicata, propaga o erro imediatamente. |
+| `insertFiscalInvoiceWithRetry()` | Tenta inserir o invoice com o número calculado. Se receber erro `23505` (duplicata de número), incrementa o número e retenta até `maxAttempts` (default: 20). Se o conflito for no índice `idx_fiscal_invoices_order_unique` (mesmo pedido), retorna o invoice existente sem erro. Se o erro NÃO for duplicata, propaga o erro imediatamente. |
 | `syncFiscalNumberCursor()` | Após inserção bem-sucedida, recalcula o próximo número via `getNextFiscalNumber()` e atualiza `fiscal_settings.numero_nfe_atual` para manter o cursor sincronizado. |
 
 #### Fluxo de Numeração
@@ -454,9 +466,11 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 #### Garantias
 
 1. **Sem dependência exclusiva do cursor**: Sempre consulta `MAX(numero)` no banco antes de inserir.
-2. **Race condition safe**: Retry com incremento automático em caso de colisão.
-3. **Cursor auto-reparável**: `syncFiscalNumberCursor` recalcula baseado no estado real do banco.
-4. **Idempotente**: `fiscal-auto-create-drafts` verifica existência de invoice antes de criar (double-check).
+2. **Race condition safe**: Retry com incremento automático em caso de colisão de número.
+3. **Anti-duplicata por pedido**: Índice único parcial `idx_fiscal_invoices_order_unique` impede dois rascunhos ativos para o mesmo pedido. Conflitos são tratados como "já existe".
+4. **Cursor auto-reparável**: `syncFiscalNumberCursor` recalcula baseado no estado real do banco.
+5. **Idempotente**: `fiscal-auto-create-drafts` verifica existência de invoice antes de criar (double-check).
+6. **Single Flow**: Rascunhos são criados exclusivamente via pipeline `Trigger → Fila → Cron`. Webhooks de pagamento não chamam a Edge Function diretamente.
 
 ---
 
