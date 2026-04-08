@@ -6,6 +6,7 @@ import { Mail, Inbox, Send, Info, ExternalLink } from "lucide-react";
 import { MailboxList } from "@/components/emails/MailboxList";
 import { MailboxInbox } from "@/components/emails/MailboxInbox";
 import { EmailNotificationsSettings } from "@/components/emails/EmailNotificationsSettings";
+import { GmailTab } from "@/components/emails/GmailTab";
 import { useMailboxes } from "@/hooks/useMailboxes";
 import { Link } from "react-router-dom";
 
@@ -46,10 +47,14 @@ export default function Emails() {
       </Alert>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid lg:grid-cols-3">
+        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid lg:grid-cols-4">
           <TabsTrigger value="mailboxes" className="gap-2">
             <Mail className="h-4 w-4" />
             Caixas
+          </TabsTrigger>
+          <TabsTrigger value="gmail" className="gap-2">
+            <Inbox className="h-4 w-4" />
+            Gmail
           </TabsTrigger>
           <TabsTrigger value="notifications" className="gap-2">
             <Send className="h-4 w-4" />
@@ -65,6 +70,10 @@ export default function Emails() {
 
         <TabsContent value="mailboxes" className="mt-6">
           <MailboxList onOpenInbox={handleOpenInbox} />
+        </TabsContent>
+
+        <TabsContent value="gmail" className="mt-6">
+          <GmailTab />
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-6">
