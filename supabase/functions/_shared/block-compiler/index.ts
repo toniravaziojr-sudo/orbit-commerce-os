@@ -70,6 +70,9 @@ import { highlightsToStaticHTML } from './blocks/highlights.ts';
 import { videoToStaticHTML } from './blocks/video.ts';
 import { socialProofToStaticHTML } from './blocks/social-proof.ts';
 import { contentSectionToStaticHTML } from './blocks/content-section.ts';
+import { newsletterUnifiedToStaticHTML } from './blocks/newsletter-unified.ts';
+import { categoryShowcaseToStaticHTML } from './blocks/category-showcase.ts';
+import { productShowcaseToStaticHTML } from './blocks/product-showcase.ts';
 
 // Layout blocks
 import { containerToStaticHTML } from './blocks/container.ts';
@@ -165,6 +168,9 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'Video': videoToStaticHTML,
   'SocialProof': socialProofToStaticHTML,
   'ContentSection': contentSectionToStaticHTML,
+  'NewsletterUnified': newsletterUnifiedToStaticHTML,
+  'CategoryShowcase': categoryShowcaseToStaticHTML,
+  'ProductShowcase': productShowcaseToStaticHTML,
 };
 
 /**
