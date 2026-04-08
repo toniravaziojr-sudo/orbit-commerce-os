@@ -1,7 +1,7 @@
-# TikTok — Ecossistema de Integrações v1.0
+# TikTok — Ecossistema de Integrações v1.1
 
-> **Status:** 🟡 Em implementação (Fases 1-2 de 8 concluídas)  
-> **Versão:** 1.0.0  
+> **Status:** 🟡 Em implementação (Fases 1-3 de 8 concluídas)  
+> **Versão:** 1.1.0  
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Última atualização:** 2026-04-08  
 > **Referência:** `docs/especificacoes/marketing/marketing-integracoes.md`
