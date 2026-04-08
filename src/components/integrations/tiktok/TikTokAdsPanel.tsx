@@ -5,17 +5,18 @@
 // =============================================
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Megaphone, BarChart3, Layers, Film } from 'lucide-react';
+import { Megaphone, BarChart3, Layers, Film, Users } from 'lucide-react';
 import { TikTokAdsCampaignsTab } from './TikTokAdsCampaignsTab';
 import { TikTokAdsInsightsTab } from './TikTokAdsInsightsTab';
 import { TikTokAdsAdGroupsTab } from './TikTokAdsAdGroupsTab';
 import { TikTokAdsAdsTab } from './TikTokAdsAdsTab';
+import { TikTokAdsAudiencesTab } from './TikTokAdsAudiencesTab';
 
 export function TikTokAdsPanel() {
   return (
     <div className="pt-2">
       <Tabs defaultValue="campaigns" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="campaigns" className="gap-1.5 text-xs">
             <Megaphone className="h-3.5 w-3.5" />
             Campanhas
@@ -27,6 +28,10 @@ export function TikTokAdsPanel() {
           <TabsTrigger value="ads" className="gap-1.5 text-xs">
             <Film className="h-3.5 w-3.5" />
             Anúncios
+          </TabsTrigger>
+          <TabsTrigger value="audiences" className="gap-1.5 text-xs">
+            <Users className="h-3.5 w-3.5" />
+            Públicos
           </TabsTrigger>
           <TabsTrigger value="insights" className="gap-1.5 text-xs">
             <BarChart3 className="h-3.5 w-3.5" />
@@ -42,6 +47,9 @@ export function TikTokAdsPanel() {
         </TabsContent>
         <TabsContent value="ads" className="mt-4">
           <TikTokAdsAdsTab />
+        </TabsContent>
+        <TabsContent value="audiences" className="mt-4">
+          <TikTokAdsAudiencesTab />
         </TabsContent>
         <TabsContent value="insights" className="mt-4">
           <TikTokAdsInsightsTab />
