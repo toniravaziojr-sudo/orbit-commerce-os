@@ -1,9 +1,9 @@
 # Google — Ecossistema de Integrações v1.0
 
-> **Status:** 🟧 Em Implementação  
+> **Status:** ✅ Implementado (todas as 9 fases concluídas)  
 > **Versão:** 1.0.0  
 > **Camada:** Layer 3 — Especificações / Marketing  
-> **Última atualização:** 2026-04-07  
+> **Última atualização:** 2026-04-08  
 > **Referência:** `docs/especificacoes/marketing/marketing-integracoes.md`
 
 ---
@@ -82,6 +82,8 @@ Este documento especifica a integração completa do ecossistema Google no siste
 | `google-business-posts` | GMB | ✅ Existente |
 | `google-search-console` | Search Console | ✅ Existente |
 | `google-tag-manager` | GTM | ✅ Existente |
+| `google-gmail` | Gmail | ✅ Implementado (Fase 8) |
+| `google-calendar` | Calendar | ✅ Implementado (Fase 9) |
 | `marketing-send-google` | Conversões | ✅ Existente |
 
 ### Hooks
@@ -94,6 +96,8 @@ Este documento especifica a integração completa do ecossistema Google no siste
 | `useGoogleBusiness` | GMB | ✅ Existente |
 | `useGoogleSearchConsole` | Search Console | ✅ Existente |
 | `useGoogleTagManager` | GTM | ✅ Existente |
+| `useGoogleGmail` | Gmail | ✅ Implementado (Fase 8) |
+| `useGoogleCalendar` | Calendar | ✅ Implementado (Fase 9) |
 
 ---
 
@@ -444,36 +448,15 @@ Conectar Gmail do usuário ao inbox de emails do sistema.
 
 | Recurso | Status | Detalhes |
 |---------|--------|----------|
-| Edge Function `google-gmail-sync` | 🔴 Criar | Ler/enviar emails via Gmail API |
-| Hook `useGmail` | 🔴 Criar | Emails, send, sync |
-| Scope pack `gmail` | 🔴 Adicionar | `gmail.readonly`, `gmail.send`, `gmail.modify` |
-
-### Tabela Nova — `google_gmail_accounts`
-
-```sql
-CREATE TABLE public.google_gmail_accounts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id),
-  connection_id UUID REFERENCES google_connections(id),
-  email_address TEXT NOT NULL,
-  display_name TEXT,
-  is_active BOOLEAN DEFAULT true,
-  last_sync_at TIMESTAMPTZ,
-  sync_token TEXT,                 -- Gmail API sync token para sync incremental
-  history_id TEXT,                 -- Gmail API history ID
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(tenant_id, email_address)
-);
-```
+| Edge Function `google-gmail` | ✅ Implementado | Ler/enviar emails via Gmail API (profile, inbox, sync, send) |
+| Hook `useGoogleGmail` | ✅ Implementado | Profile, inbox, sync, send |
+| Scope pack `gmail` | ✅ Implementado | `gmail.readonly`, `gmail.send`, `gmail.modify` |
 
 ### Frontend — Componentes
 
 | Componente | Arquivo | Status |
 |------------|---------|--------|
-| `GmailChannelInbox` | `src/components/emails/channels/GmailChannelInbox.tsx` | 🔴 Criar |
-| `GmailComposeDialog` | `src/components/emails/channels/GmailComposeDialog.tsx` | 🔴 Criar |
-| `GmailSettingsCard` | `src/components/emails/GmailSettingsCard.tsx` | 🔴 Criar |
+| `GmailTab` | `src/components/emails/GmailTab.tsx` | ✅ Implementado |
 
 ### Fluxo de Dados
 
@@ -502,34 +485,15 @@ Sincronizar agenda do sistema com Google Calendar.
 
 | Recurso | Status | Detalhes |
 |---------|--------|----------|
-| Edge Function `google-calendar-sync` | 🔴 Criar | Criar/ler eventos no Google Calendar |
-| Hook `useGoogleCalendar` | 🔴 Criar | Events, sync, toggle |
-| Scope pack `calendar` | 🔴 Adicionar | `calendar.events`, `calendar.readonly` |
-
-### Tabela Nova — `google_calendar_syncs`
-
-```sql
-CREATE TABLE public.google_calendar_syncs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id),
-  connection_id UUID REFERENCES google_connections(id),
-  calendar_id TEXT NOT NULL DEFAULT 'primary',
-  is_enabled BOOLEAN DEFAULT false,
-  sync_direction TEXT DEFAULT 'push', -- 'push' (sistema→Google), 'pull' (Google→sistema), 'bidirectional'
-  last_sync_at TIMESTAMPTZ,
-  sync_token TEXT,                    -- Calendar API sync token
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(tenant_id, calendar_id)
-);
-```
+| Edge Function `google-calendar` | ✅ Implementado | Listar calendários, eventos, sync, criar eventos |
+| Hook `useGoogleCalendar` | ✅ Implementado | Calendars, events, sync, createEvent |
+| Scope pack `calendar` | ✅ Implementado | `calendar.events`, `calendar.readonly` |
 
 ### Frontend — Componentes
 
 | Componente | Arquivo | Status |
 |------------|---------|--------|
-| `CalendarAppCard` | `src/components/external-apps/CalendarAppCard.tsx` | 🔴 Criar |
-| `CalendarSyncSettings` | `src/components/external-apps/CalendarSyncSettings.tsx` | 🔴 Criar |
+| `GoogleCalendarTab` | `src/components/external-apps/GoogleCalendarTab.tsx` | ✅ Implementado |
 
 ### Funcionalidades
 
@@ -560,7 +524,7 @@ Hub unificado para apps externos que se conectam ao sistema.
 | App | Chave | Status |
 |-----|-------|--------|
 | Google Tag Manager | `google_tag_manager` | ✅ Backend existente |
-| Google Calendar | `google_calendar` | 🔴 Criar backend |
+| Google Calendar | `google_calendar` | ✅ Implementado |
 
 ### Layout da Página
 
@@ -596,16 +560,16 @@ Hub unificado para apps externos que se conectam ao sistema.
 
 ## Ordem de Implementação
 
-| Fase | Módulo | Prioridade | Justificativa |
-|------|--------|-----------|---------------|
-| 2 | Google Analytics GA4 | 🔴 Alta | Alimenta relatórios e atribuição — impacto direto em decisões |
-| 3 | Google Ads | 🔴 Alta | Segunda plataforma do Gestor de Tráfego IA |
-| 4 | Merchant Center | 🟡 Média | Expansão de canais de venda |
-| 5 | Google Meu Negócio | 🟡 Média | Reputação e atendimento local |
-| 6 | Search Console | 🟢 Normal | SEO é complementar |
-| 7 | GTM + Apps Externos | 🟢 Normal | Flexibilidade para scripts |
-| 8 | Gmail | 🟢 Normal | Canal adicional de email |
-| 9 | Calendar | 🟢 Normal | Sincronização de agenda |
+| Fase | Módulo | Prioridade | Status |
+|------|--------|-----------|--------|
+| 2 | Google Analytics GA4 | 🔴 Alta | ✅ Concluída |
+| 3 | Google Ads | 🔴 Alta | ✅ Concluída |
+| 4 | Merchant Center | 🟡 Média | ✅ Concluída |
+| 5 | Google Meu Negócio | 🟡 Média | ✅ Concluída |
+| 6 | Search Console | 🟢 Normal | ✅ Concluída |
+| 7 | GTM + Apps Externos | 🟢 Normal | ✅ Concluída |
+| 8 | Gmail | 🟢 Normal | ✅ Concluída |
+| 9 | Calendar | 🟢 Normal | ✅ Concluída |
 
 ---
 
