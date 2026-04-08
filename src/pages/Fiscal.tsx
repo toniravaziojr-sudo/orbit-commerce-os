@@ -1,22 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FileText, ArrowUpRight, ArrowDownLeft, Settings } from "lucide-react";
+import { FileText, Receipt, Settings } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { FiscalInvoiceList } from '@/components/fiscal/FiscalInvoiceList';
 import { FiscalSettingsContent } from '@/components/fiscal/FiscalSettingsContent';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-type MainTab = 'saida' | 'entrada' | 'configuracoes';
+type MainTab = 'pedidos' | 'notas';
 
 export default function Fiscal() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab') as MainTab | null;
-  const [activeMainTab, setActiveMainTab] = useState<MainTab>(tabFromUrl || 'saida');
+  const showSettings = searchParams.get('tab') === 'configuracoes';
+  const [activeMainTab, setActiveMainTab] = useState<MainTab>(
+    tabFromUrl === 'pedidos' || tabFromUrl === 'notas' ? tabFromUrl : 'pedidos'
+  );
+  const [settingsOpen, setSettingsOpen] = useState(showSettings);
 
-  // Sync URL with tab
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeMainTab) {
+    if (tabFromUrl === 'configuracoes') {
+      setSettingsOpen(true);
+    } else if (tabFromUrl === 'pedidos' || tabFromUrl === 'notas') {
       setActiveMainTab(tabFromUrl);
     }
   }, [tabFromUrl]);
@@ -26,41 +38,60 @@ export default function Fiscal() {
     setSearchParams({ tab });
   };
 
+  const handleOpenSettings = () => {
+    setSettingsOpen(true);
+  };
+
+  const handleCloseSettings = (open: boolean) => {
+    setSettingsOpen(open);
+    if (!open && searchParams.get('tab') === 'configuracoes') {
+      setSearchParams({ tab: activeMainTab });
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
         title="Fiscal"
         description="Gestão de notas fiscais eletrônicas (NF-e)"
+        actions={
+          <Button variant="outline" onClick={handleOpenSettings} className="gap-2">
+            <Settings className="h-4 w-4" />
+            Configurações
+          </Button>
+        }
       />
 
       <Tabs value={activeMainTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
-          <TabsTrigger value="saida" className="gap-2">
-            <ArrowUpRight className="h-4 w-4" />
-            NFs Saída
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="pedidos" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Pedidos em Aberto
           </TabsTrigger>
-          <TabsTrigger value="entrada" className="gap-2">
-            <ArrowDownLeft className="h-4 w-4" />
-            NFs Entrada
-          </TabsTrigger>
-          <TabsTrigger value="configuracoes" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Configurações
+          <TabsTrigger value="notas" className="gap-2">
+            <Receipt className="h-4 w-4" />
+            Notas Fiscais
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="saida" className="space-y-6">
-          <FiscalInvoiceList tipoDocumento={1} />
+        <TabsContent value="pedidos" className="space-y-6">
+          <FiscalInvoiceList mode="orders" />
         </TabsContent>
 
-        <TabsContent value="entrada" className="space-y-6">
-          <FiscalInvoiceList tipoDocumento={0} />
-        </TabsContent>
-
-        <TabsContent value="configuracoes" className="space-y-6">
-          <FiscalSettingsContent />
+        <TabsContent value="notas" className="space-y-6">
+          <FiscalInvoiceList mode="invoices" />
         </TabsContent>
       </Tabs>
+
+      {/* Settings Dialog */}
+      <Dialog open={settingsOpen} onOpenChange={handleCloseSettings}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Configurações Fiscais</DialogTitle>
+          </DialogHeader>
+          <FiscalSettingsContent />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
