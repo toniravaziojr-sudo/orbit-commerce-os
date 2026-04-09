@@ -59,6 +59,7 @@ export function FiscalSettingsContent() {
   const navigate = useNavigate();
   const { settings, isLoading, saveSettings, uploadCertificate, removeCertificate } = useFiscalSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [inutilizarDialogOpen, setInutilizarDialogOpen] = useState(false);
   
   const [formData, setFormData] = useState<Partial<FiscalSettings>>({
     razao_social: '',
