@@ -1,25 +1,18 @@
 // =============================================
-// EXECUTION CARD — Stats grid card for the Executions Queue
-// Shows colored counters + action buttons. Returns null if no pendencies.
+// EXECUTION CARD — Stats grid card for the Central de Execuções
+// Shows colored counters as clickable links. Returns null if no pendencies.
+// No redundant action buttons — the counters ARE the actions.
 // =============================================
 
 import { LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import type { ExecutionStat } from "@/hooks/useExecutionCounts";
-
-interface ExecutionAction {
-  label: string;
-  navigateTo: string;
-  icon?: LucideIcon;
-}
 
 interface ExecutionCardProps {
   title: string;
   icon: LucideIcon;
   stats: ExecutionStat[];
-  actions?: ExecutionAction[];
 }
 
 const colorMap = {
@@ -29,14 +22,8 @@ const colorMap = {
   default: "text-muted-foreground",
 };
 
-export function ExecutionCard({ title, icon: Icon, stats, actions }: ExecutionCardProps) {
+export function ExecutionCard({ title, icon: Icon, stats }: ExecutionCardProps) {
   if (stats.length === 0) return null;
-
-  // Auto-generate actions from stats if none provided
-  const effectiveActions = actions || stats.slice(0, 3).map(s => ({
-    label: s.label,
-    navigateTo: s.navigateTo,
-  }));
 
   return (
     <Card className="border-primary/20">
@@ -46,8 +33,7 @@ export function ExecutionCard({ title, icon: Icon, stats, actions }: ExecutionCa
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Stats grid */}
+      <CardContent>
         <div className={`grid gap-3 ${stats.length <= 2 ? "grid-cols-2" : stats.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
           {stats.map((stat) => (
             <Link
@@ -64,23 +50,6 @@ export function ExecutionCard({ title, icon: Icon, stats, actions }: ExecutionCa
             </Link>
           ))}
         </div>
-
-        {/* Action buttons */}
-        {effectiveActions.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {effectiveActions.map((action) => {
-              const ActionIcon = 'icon' in action ? (action as ExecutionAction).icon : undefined;
-              return (
-                <Button key={action.label} variant="outline" size="sm" asChild className="flex-1 min-w-[120px]">
-                  <Link to={action.navigateTo}>
-                    {ActionIcon && <ActionIcon className="h-4 w-4 mr-1" />}
-                    {action.label}
-                  </Link>
-                </Button>
-              );
-            })}
-          </div>
-        )}
       </CardContent>
     </Card>
   );
