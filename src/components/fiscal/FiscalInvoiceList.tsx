@@ -958,6 +958,15 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             <Download className="h-4 w-4 mr-2" />
                             XMLs {selectedAuthorizedCount}
                           </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={handleBulkResendEmail}
+                            disabled={isBulkProcessing}
+                          >
+                            <Mail className="h-4 w-4 mr-2" />
+                            Reenviar Email {selectedAuthorizedCount}
+                          </Button>
                         </>
                       )}
                     </div>
@@ -1060,6 +1069,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onCorrect={() => setCorrectingInvoice(invoice)}
                               onViewTimeline={() => setTimelineInvoice(invoice)}
                               onDelete={() => handleDeleteDraft(invoice)}
+                              onEmitirDevolucao={() => handleEmitirDevolucao(invoice)}
+                              onResendEmail={() => handleResendEmail(invoice)}
                               isSubmitting={submittingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                             />
@@ -1141,8 +1152,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       {/* Entry Invoice Dialog */}
       <EntryInvoiceDialog
         open={entryDialogOpen}
-        onOpenChange={setEntryDialogOpen}
+        onOpenChange={(open) => { setEntryDialogOpen(open); if (!open) setEntryDialogChaveAcesso(undefined); }}
         onSuccess={() => refetch()}
+        initialChaveAcesso={entryDialogChaveAcesso}
       />
 
       {/* Consulta por Chave Dialog */}
