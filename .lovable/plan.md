@@ -1,37 +1,71 @@
 
 
-## Plano de Ajustes no Módulo Fiscal
+## Plano: Refatoração da Central de Comando — 6 Abas
 
-### Situação Atual
-- **Aba Pedidos em Aberto**: O botão "+Nova NF-e" contém NF-e de Saída, Inutilizar Numeração e Consultar por Chave — mas falta a opção de NF-e de Entrada
-- **Aba Notas Fiscais**: Faltam o card "Devolvido" nos stats e a opção "Emitir Devolução" nas ações individuais por NF-e
-- **Ações em massa**: Existem para a aba Pedidos em Aberto (emitir/excluir drafts, imprimir/XML de autorizadas), mas na aba Notas Fiscais a barra de ações em massa aparece com as mesmas opções — precisa incluir reenvio por email em massa
-- **Ações individuais (InvoiceActionsDropdown)**: NF-e autorizada tem Imprimir, Baixar PDF/XML, Copiar Chave, Carta de Correção, Duplicar, Histórico, Cancelar — mas falta "Emitir Devolução" e "Reenviar por Email"
+### O que existe hoje na "Central de Execuções" (tudo preservado exceto Pedidos Recentes)
 
-### Ajustes Planejados
+| Widget atual | Destino na nova estrutura |
+|---|---|
+| Banner de método de pagamento | **Dashboard** |
+| Filtro de data + Métricas de funil/financeiro | **Dashboard** |
+| Alerta de limite de pedidos | **Dashboard** |
+| Widget de Comunicações | **Comunicações** |
+| Alertas de Anúncios | **Alertas** |
+| Erros de Integração | **Alertas** |
+| Alertas do Calendário de Conteúdo | **Comunicações** |
+| Alertas Fiscais | **Alertas** |
+| ~~Pedidos Recentes~~ | **Removido** |
+| Alertas de Integração (sidebar) | **Alertas** |
+| Saúde do Storefront | **Alertas** |
+| Card "Atenção Agora" | **Execuções** (com dados reais e navegação) |
+| Ações Rápidas | **Dashboard** |
 
-**Ajuste 1 — Reestruturar botão "+Nova NF-e" na aba Pedidos em Aberto**
-- Adicionar opção "NF-e de Entrada (Devolução)" ao dropdown, abrindo o `EntryInvoiceDialog` já existente
-- Remover "Inutilizar Numeração" do dropdown (mover para Configurações Fiscais)
-- Remover "Consultar por Chave" do dropdown (adicionar como opção no filtro de busca ou manter apenas na aba Notas Fiscais)
+### Nova Estrutura (6 abas)
 
-**Ajuste 2 — Adicionar card "Devolvido" na aba Notas Fiscais**
-- Adicionar contagem de NFs com status de devolução (invoices que possuem `nfe_referenciada` preenchida ou que foram criadas como tipo_documento=0/finalidade=4)
-- Novo StatCard com ícone de devolução e cor adequada
-- Adicionar filtro correspondente no `invoiceStatusOptions`
+```text
+Dashboard → Execuções → Alertas → Comunicações → Assistente → Agenda
+```
 
-**Ajuste 3 — Completar ações em massa e individuais na aba Notas Fiscais**
-- **Ações em massa (barra de seleção)**: Garantir que Imprimir, Baixar XML, e Reenviar email funcionem para NFs autorizadas selecionadas
-- **Ações individuais (InvoiceActionsDropdown)**: Adicionar "Emitir Devolução" para NF-e autorizada (abre EntryInvoiceDialog pré-preenchido com a chave da NF-e) e "Reenviar por Email" (invoca envio do DANFE por email ao destinatário)
+**1. Dashboard** (aba padrão)
+- Banner de pagamento e limite de pedidos
+- Filtro de data + Métricas (funil, financeiro, checkouts abandonados)
+- Ações Rápidas (Novo Produto, Novo Pedido, Novo Cliente, Processar Pedidos)
 
-**Ajuste 4 — Documentação**
-- Atualizar a memória `features/fiscal/ui-ux-architecture-v3-0` com a estrutura completa dos botões, cards, ações em massa e ações individuais por status
+**2. Execuções** (fila operacional unificada)
+Seções por módulo, cada item com botão que navega direto à ação:
 
-### Arquivos Impactados
-- `src/components/fiscal/FiscalInvoiceList.tsx` — reestruturar dropdowns, cards, ações em massa
-- `src/components/fiscal/InvoiceActionsDropdown.tsx` — adicionar "Emitir Devolução" e "Reenviar Email"
-- `src/components/fiscal/FiscalStatusFilter.tsx` — adicionar opção "Devolvido" nos filtros de notas
-- `src/components/fiscal/EntryInvoiceDialog.tsx` — aceitar prop opcional `chaveAcesso` para pré-preenchimento
-- `src/components/fiscal/FiscalSettingsContent.tsx` — verificar se já tem seção para Inutilização ou adicionar acesso
-- Memória do projeto — atualizar documentação
+| Seção | O que mostra | Clique leva para |
+|---|---|---|
+| Pedidos | Aguardando envio, pagamento pendente, chargebacks | `/orders?status=...` |
+| Notas Fiscais | NF-e pendente, devoluções pendentes | `/fiscal?tab=...` |
+| Integrações | Erros de sync com intervenção manual | `/integrations` |
+| Anúncios | Ações do autopilot pendentes | `/ads?tab=autopilot` |
+| Insights | Estoque baixo, carrinhos abandonados | Módulo relevante |
+
+Seções sem pendências ficam colapsadas.
+
+**3. Alertas**
+- StorefrontHealthCard
+- IntegrationAlerts + IntegrationErrorsCard
+- FiscalAlertsWidget
+- AdsAlertsWidget
+
+**4. Comunicações**
+- CommunicationsWidget
+- ContentCalendarAlertsCard
+
+**5. Assistente** — sem alteração
+**6. Agenda** — sem alteração
+
+### Arquivos
+
+**Criar:**
+- `src/components/command-center/ExecutionsQueue.tsx`
+- `src/components/command-center/ExecutionSection.tsx`
+- `src/components/command-center/DashboardTab.tsx`
+- `src/components/command-center/AlertsTab.tsx`
+- `src/components/command-center/CommunicationsTab.tsx`
+
+**Modificar:**
+- `src/pages/CommandCenter.tsx` — 4→6 abas, importar novos componentes, remover DashboardContent inline
 
