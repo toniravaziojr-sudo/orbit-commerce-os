@@ -1101,6 +1101,43 @@ export function PageSettingsContent({
                           className="w-full"
                         />
                       </div>
+                    ) : pageType === 'checkout' && config.key === 'purchaseEventTiming' ? (
+                      <div className="space-y-3 py-1">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm">{config.label}</Label>
+                          {config.description && (
+                            <p className="text-xs text-muted-foreground">{config.description}</p>
+                          )}
+                        </div>
+                        <RadioGroup
+                          value={String(settings.purchaseEventTiming || config.defaultValue)}
+                          onValueChange={(value) => handleChange('purchaseEventTiming', value)}
+                          className="space-y-3"
+                        >
+                          <div className="flex items-start space-x-3 rounded-md border p-3">
+                            <RadioGroupItem value="all_orders" id="builder-all-orders" className="mt-0.5" />
+                            <div className="space-y-0.5">
+                              <Label htmlFor="builder-all-orders" className="cursor-pointer text-sm font-medium">
+                                Todos os pedidos gerados
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Envia o Purchase assim que o pedido é criado, mesmo antes da confirmação do pagamento.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-start space-x-3 rounded-md border p-3">
+                            <RadioGroupItem value="paid_only" id="builder-paid-only" className="mt-0.5" />
+                            <div className="space-y-0.5">
+                              <Label htmlFor="builder-paid-only" className="cursor-pointer text-sm font-medium">
+                                Apenas pedidos pagos/confirmados
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Envia o Purchase somente quando o pagamento entra como aprovado/pago.
+                              </p>
+                            </div>
+                          </div>
+                        </RadioGroup>
+                      </div>
                     ) : (
                       /* Standard toggle switch */
                       <div className="flex items-center justify-between py-1 gap-3">
@@ -1500,7 +1537,7 @@ interface SettingConfig {
   key: string;
   label: string;
   description?: string;
-  defaultValue: boolean | number;
+  defaultValue: boolean | number | string;
   group?: string;
   hasUpload?: boolean; // If true, shows image upload when enabled
   inputType?: 'toggle' | 'slider'; // Default is toggle
@@ -1564,7 +1601,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       // Ofertas
       { key: 'showOrderBump', label: 'Mostrar Order Bump', description: 'Oferta adicional no checkout', defaultValue: true, group: 'offers' },
       // Pixels
-      { key: 'purchaseEventAllOrders', label: 'Evento em todos os pedidos', description: 'Dispara Purchase ao criar pedido', defaultValue: true, group: 'pixels' },
+      { key: 'purchaseEventTiming', label: 'Evento Purchase', description: 'Define quando o Purchase é enviado para os pixels', defaultValue: 'paid_only', group: 'pixels' },
     ],
     thank_you: [
       { key: 'showUpsell', label: 'Mostrar Upsell', description: 'Ofertas pós-compra', defaultValue: true },
