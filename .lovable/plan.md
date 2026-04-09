@@ -1,66 +1,37 @@
 
 
-## Refatoração UI/UX do Módulo Fiscal
+## Plano de Ajustes no Módulo Fiscal
 
 ### Situação Atual
+- **Aba Pedidos em Aberto**: O botão "+Nova NF-e" contém NF-e de Saída, Inutilizar Numeração e Consultar por Chave — mas falta a opção de NF-e de Entrada
+- **Aba Notas Fiscais**: Faltam o card "Devolvido" nos stats e a opção "Emitir Devolução" nas ações individuais por NF-e
+- **Ações em massa**: Existem para a aba Pedidos em Aberto (emitir/excluir drafts, imprimir/XML de autorizadas), mas na aba Notas Fiscais a barra de ações em massa aparece com as mesmas opções — precisa incluir reenvio por email em massa
+- **Ações individuais (InvoiceActionsDropdown)**: NF-e autorizada tem Imprimir, Baixar PDF/XML, Copiar Chave, Carta de Correção, Duplicar, Histórico, Cancelar — mas falta "Emitir Devolução" e "Reenviar por Email"
 
-A página Fiscal possui 3 abas principais (NFs Saída, NFs Entrada, Configurações), e dentro de cada lista há 6 sub-abas de status (Prontas para Emitir, Autorizadas, Emitidas, Pendentes SEFAZ, Rejeitadas, Canceladas). Isso gera muita fragmentação.
+### Ajustes Planejados
 
-### Nova Estrutura
+**Ajuste 1 — Reestruturar botão "+Nova NF-e" na aba Pedidos em Aberto**
+- Adicionar opção "NF-e de Entrada (Devolução)" ao dropdown, abrindo o `EntryInvoiceDialog` já existente
+- Remover "Inutilizar Numeração" do dropdown (mover para Configurações Fiscais)
+- Remover "Consultar por Chave" do dropdown (adicionar como opção no filtro de busca ou manter apenas na aba Notas Fiscais)
 
-Duas abas principais + botão de Configurações separado:
+**Ajuste 2 — Adicionar card "Devolvido" na aba Notas Fiscais**
+- Adicionar contagem de NFs com status de devolução (invoices que possuem `nfe_referenciada` preenchida ou que foram criadas como tipo_documento=0/finalidade=4)
+- Novo StatCard com ícone de devolução e cor adequada
+- Adicionar filtro correspondente no `invoiceStatusOptions`
 
-```text
-┌──────────────────────────────────────────────────────┐
-│  Fiscal                              [Configurações] │
-│  Gestão de notas fiscais eletrônicas (NF-e)          │
-├─────────────────────┬────────────────────────────────┤
-│  Pedidos em Aberto  │  Notas Fiscais                 │
-├─────────────────────┴────────────────────────────────┤
-│  [Filtro Status ▾] [Filtro Loja ▾] [Filtro Data ▾]  │
-│  ─────────────────────────────────────────────────── │
-│  Tabela de dados...                                  │
-└──────────────────────────────────────────────────────┘
-```
+**Ajuste 3 — Completar ações em massa e individuais na aba Notas Fiscais**
+- **Ações em massa (barra de seleção)**: Garantir que Imprimir, Baixar XML, e Reenviar email funcionem para NFs autorizadas selecionadas
+- **Ações individuais (InvoiceActionsDropdown)**: Adicionar "Emitir Devolução" para NF-e autorizada (abre EntryInvoiceDialog pré-preenchido com a chave da NF-e) e "Reenviar por Email" (invoca envio do DANFE por email ao destinatário)
 
-**Aba 1 — Pedidos em Aberto**
-- Mostra todos os drafts (fiscal_invoices com status `draft`) de todas as lojas
-- Filtro de status contextual: Pronta para emitir, Chargeback em andamento, Venda cancelada, etc. (baseado no `order_status` do pedido vinculado)
-- Filtros de loja e data mantidos
-- Ações: emitir, editar, excluir, emissão em lote
+**Ajuste 4 — Documentação**
+- Atualizar a memória `features/fiscal/ui-ux-architecture-v3-0` com a estrutura completa dos botões, cards, ações em massa e ações individuais por status
 
-**Aba 2 — Notas Fiscais**
-- Mostra todas as NFs que já passaram pelo processo de emissão (status ≠ `draft`)
-- Filtro de status: Autorizada, Impressa, Pendente SEFAZ, Rejeitada, Cancelada, Devolução
-- Filtros de loja e data mantidos
-- Ações: imprimir DANFE, baixar XML, cancelar, corrigir (CC-e), consultar status
-
-**Botão Configurações** — fora das abas, no canto superior direito do header
-
-### O que muda
-
-1. **`Fiscal.tsx`** — Reescrever: 2 abas (pedidos / notas) + botão Configurações separado. Remove distinção Saída/Entrada como aba principal.
-
-2. **`FiscalInvoiceList.tsx`** — Refatorar: remover as sub-abas internas de status. Substituir por um filtro dropdown de status. Receber novo prop `mode: 'orders' | 'invoices'` em vez de `tipoDocumento`. No modo `orders`, filtra `status = 'draft'`. No modo `invoices`, filtra `status != 'draft'`.
-
-3. **`useFiscal.ts`** — Ajustar `useFiscalInvoices` para suportar o novo filtro por modo (draft vs não-draft) e `useFiscalStats` para refletir as contagens corretas por aba.
-
-4. **Filtro de status** — Novo componente dropdown (ou reutilizar padrão existente) para filtrar por status contextual dentro de cada aba.
-
-### O que NÃO muda (preservação de fluxo)
-
-- Nenhuma edge function é alterada
-- Nenhuma tabela ou migration é necessária
-- O fluxo de criação automática de drafts permanece intacto
-- As ações (emitir, cancelar, corrigir, imprimir) continuam usando as mesmas funções
-- Todos os dialogs (ManualInvoiceDialog, InvoiceEditor, CancelInvoiceDialog, etc.) permanecem inalterados
-- A query ao banco continua a mesma, apenas o filtro client-side muda
-- NFs de entrada continuam acessíveis (serão exibidas na aba Notas Fiscais com indicação visual)
-
-### Passos de Implementação
-
-1. Criar componente `FiscalStatusFilter` — dropdown multi-select para filtrar por status
-2. Refatorar `FiscalInvoiceList` — aceitar `mode` prop, remover sub-abas, usar filtro dropdown
-3. Reescrever `Fiscal.tsx` — 2 abas + botão Configurações
-4. Ajustar hooks de stats para nova contagem por aba
+### Arquivos Impactados
+- `src/components/fiscal/FiscalInvoiceList.tsx` — reestruturar dropdowns, cards, ações em massa
+- `src/components/fiscal/InvoiceActionsDropdown.tsx` — adicionar "Emitir Devolução" e "Reenviar Email"
+- `src/components/fiscal/FiscalStatusFilter.tsx` — adicionar opção "Devolvido" nos filtros de notas
+- `src/components/fiscal/EntryInvoiceDialog.tsx` — aceitar prop opcional `chaveAcesso` para pré-preenchimento
+- `src/components/fiscal/FiscalSettingsContent.tsx` — verificar se já tem seção para Inutilização ou adicionar acesso
+- Memória do projeto — atualizar documentação
 
