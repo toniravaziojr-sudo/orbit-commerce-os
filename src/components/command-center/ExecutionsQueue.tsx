@@ -26,20 +26,10 @@ export function ExecutionsQueue() {
   // --- Orders Section ---
   const orderItems: ExecutionItem[] = [];
 
-  const pendingShipment = metrics?.funnel?.awaiting_shipment ?? 0;
-  if (pendingShipment > 0) {
-    orderItems.push({
-      id: "orders-awaiting-shipment",
-      title: `${pendingShipment} pedido(s) aguardando envio`,
-      description: "Pedidos pagos que ainda não foram enviados",
-      icon: Package,
-      variant: "warning",
-      navigateTo: "/orders?status=processing",
-      actionLabel: "Processar",
-    });
-  }
+  // Use unpaid orders as "awaiting shipment" proxy (paid but not shipped)
+  const pendingShipment = (metrics?.paidOrdersToday ?? 0);
+  const pendingPayment = (metrics?.unpaidOrdersToday ?? 0);
 
-  const pendingPayment = metrics?.funnel?.pending_payment ?? 0;
   if (pendingPayment > 0) {
     orderItems.push({
       id: "orders-pending-payment",
@@ -49,6 +39,18 @@ export function ExecutionsQueue() {
       variant: "info",
       navigateTo: "/orders?status=pending",
       actionLabel: "Ver pedidos",
+    });
+  }
+
+  if (pendingShipment > 0) {
+    orderItems.push({
+      id: "orders-awaiting-shipment",
+      title: `${pendingShipment} pedido(s) pago(s) hoje`,
+      description: "Pedidos pagos que podem precisar de processamento",
+      icon: Package,
+      variant: "warning",
+      navigateTo: "/orders?status=processing",
+      actionLabel: "Processar",
     });
   }
 
@@ -69,8 +71,6 @@ export function ExecutionsQueue() {
 
   // --- Integrations Section ---
   const integrationItems: ExecutionItem[] = [];
-  // Integration errors are loaded by IntegrationErrorsCard internally;
-  // for now, this section serves as a placeholder for real-time data.
 
   // --- Ads Section ---
   const adsItems: ExecutionItem[] = [];
@@ -90,25 +90,12 @@ export function ExecutionsQueue() {
   // --- Insights Section ---
   const insightItems: ExecutionItem[] = [];
 
-  const lowStock = metrics?.attention?.low_stock ?? 0;
-  if (lowStock > 0) {
-    insightItems.push({
-      id: "insight-low-stock",
-      title: `${lowStock} produto(s) com estoque baixo`,
-      description: "Menos de 5 unidades disponíveis",
-      icon: TrendingDown,
-      variant: "destructive",
-      navigateTo: "/products?stock=low",
-      actionLabel: "Ver produtos",
-    });
-  }
-
-  const abandonedCarts = metrics?.funnel?.abandoned_checkouts ?? 0;
+  const abandonedCarts = metrics?.abandonedCheckoutsToday ?? 0;
   if (abandonedCarts > 0) {
     insightItems.push({
       id: "insight-abandoned-carts",
-      title: `${abandonedCarts} carrinho(s) abandonado(s)`,
-      description: "Checkouts não finalizados recentemente",
+      title: `${abandonedCarts} carrinho(s) abandonado(s) hoje`,
+      description: "Checkouts não finalizados",
       icon: ShoppingCart,
       variant: "info",
       navigateTo: "/orders?status=abandoned",

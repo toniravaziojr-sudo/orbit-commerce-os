@@ -1,299 +1,24 @@
-import { useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
- import { LayoutDashboard, Bot, CalendarClock } from "lucide-react";
+import {
+  LayoutDashboard,
+  Bot,
+  CalendarClock,
+  ClipboardList,
+  Bell,
+  MessageSquare,
+} from "lucide-react";
 import { AgendaContent } from "@/components/command-center/agenda";
 import { EmbeddedCommandAssistant } from "@/components/command-assistant/EmbeddedCommandAssistant";
-import { OrderAlertsCard } from "@/components/executions/OrderAlertsCard";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useDashboardMetrics,
-  useRecentOrders,
-  formatCurrency,
-  formatRelativeTime,
-} from "@/hooks/useDashboardMetrics";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
-
-import { getComparisonLabel } from "@/lib/date-presets";
-import {
-  ShoppingCart,
-  Package,
-  AlertCircle,
-  Clock,
-  CheckCircle,
-  ArrowRight,
-  Users,
-} from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { DashboardMetricsGrid } from "@/components/dashboard/DashboardMetricsGrid";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
-import { IntegrationAlerts } from "@/components/dashboard/IntegrationAlerts";
-import { IntegrationErrorsCard } from "@/components/dashboard/IntegrationErrorsCard";
-import { ContentCalendarAlertsCard } from "@/components/dashboard/ContentCalendarAlertsCard";
-import { CommunicationsWidget } from "@/components/dashboard/CommunicationsWidget";
-import { FiscalAlertsWidget } from "@/components/dashboard/FiscalAlertsWidget";
-import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
-import { PaymentMethodBanner } from "@/components/billing/PaymentMethodBanner";
-import { AdsAlertsWidget } from "@/components/dashboard/AdsAlertsWidget";
-
-const DEMO_ATTENTION_ITEMS = [
-  {
-    icon: AlertCircle,
-    title: "3 pedidos aguardando envio",
-    description: "Pedidos pagos há mais de 24h",
-    variant: "warning" as const,
-  },
-  {
-    icon: Clock,
-    title: "5 carrinhos abandonados",
-    description: "Nas últimas 2 horas",
-    variant: "info" as const,
-  },
-  {
-    icon: Package,
-    title: "2 produtos com estoque baixo",
-    description: "Menos de 5 unidades",
-    variant: "destructive" as const,
-  },
-];
-
-// Dashboard Tab Content
-function DashboardContent() {
-  const navigate = useNavigate();
-  
-  // Date range state - defaults to undefined (all time / todo o período)
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  
-  const { data: metrics, isLoading: metricsLoading, error: metricsError, refetch: refetchMetrics } = useDashboardMetrics(startDate, endDate);
-  const { data: recentOrders, isLoading: ordersLoading } = useRecentOrders(4);
-
-  const handleDateChange = (start?: Date, end?: Date) => {
-    setStartDate(start);
-    setEndDate(end);
-  };
-
-  const statusVariantMap = {
-    pending: "warning",
-    processing: "info",
-    shipped: "info",
-    delivered: "success",
-    cancelled: "destructive",
-    returned: "destructive",
-  } as const;
-
-  const paymentStatusLabels: Record<string, string> = {
-    pending: "Aguardando pagamento",
-    paid: "Pago",
-    failed: "Falhou",
-    refunded: "Reembolsado",
-  };
-
-  const orderStatusLabels: Record<string, string> = {
-    pending: "Pendente",
-    processing: "Processando",
-    shipped: "Enviado",
-    delivered: "Entregue",
-    cancelled: "Cancelado",
-    returned: "Devolvido",
-  };
-
-  // Dynamic trend label based on date range - centralized
-  const trendLabel = getComparisonLabel(startDate, endDate);
-
-  return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Payment Method Banner for Basic Plan */}
-      <PaymentMethodBanner />
-      {/* Date Range Filter */}
-      <div className="flex justify-end">
-        <DateRangeFilter
-          startDate={startDate}
-          endDate={endDate}
-          onChange={handleDateChange}
-          label="Período"
-        />
-      </div>
-      {/* Order Limit Warning */}
-      <OrderLimitWarning />
-
-      {/* 3-Column Metrics Grid: Funnel | Financial | Abandoned Checkouts */}
-      <DashboardMetricsGrid
-        metrics={metrics}
-        isLoading={metricsLoading}
-        trendLabel={trendLabel}
-      />
-
-      {/* Communications Widget */}
-      <CommunicationsWidget />
-
-      {/* Ads Alerts Widget */}
-      <AdsAlertsWidget />
-
-      {/* Integration Errors Widget */}
-      <IntegrationErrorsCard />
-
-      {/* Content Calendar Alerts Widget */}
-      <ContentCalendarAlertsCard />
-
-      {/* Fiscal Alerts Widget */}
-      <FiscalAlertsWidget />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Recent Orders */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-semibold">
-              Pedidos Recentes
-            </CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="gap-1.5 text-primary"
-              onClick={() => navigate('/orders')}
-            >
-              Ver todos
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {ordersLoading ? (
-              <div className="space-y-4">
-                <Skeleton className="h-20" />
-                <Skeleton className="h-20" />
-                <Skeleton className="h-20" />
-              </div>
-            ) : recentOrders && recentOrders.length > 0 ? (
-              <div className="space-y-4">
-                {recentOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-4 transition-colors hover:bg-muted/50 cursor-pointer"
-                    onClick={() => navigate(`/orders?orderId=${order.id}`)}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                        <ShoppingCart className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {order.order_number} - {order.customer_name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatRelativeTime(order.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <StatusBadge
-                        variant={statusVariantMap[order.status as keyof typeof statusVariantMap] || "default"}
-                        dot
-                      >
-                        {order.payment_status === 'approved' 
-                          ? orderStatusLabels[order.status] || order.status
-                          : paymentStatusLabels[order.payment_status] || order.payment_status}
-                      </StatusBadge>
-                      <span className="font-semibold text-foreground">
-                        {formatCurrency(order.total)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Nenhum pedido recente
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Attention Required */}
-        <div className="space-y-6">
-          <IntegrationAlerts />
-          <StorefrontHealthCard />
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">
-                Atenção Agora
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {DEMO_ATTENTION_ITEMS.map((item, index) => {
-                  const Icon = item.icon;
-                  const iconColors = {
-                    warning: "text-warning bg-warning/10",
-                    info: "text-info bg-info/10",
-                    destructive: "text-destructive bg-destructive/10",
-                  };
-                  return (
-                    <div
-                      key={index}
-                      className="flex items-start gap-3 rounded-lg border border-border/50 bg-muted/30 p-4 transition-colors hover:bg-muted/50 cursor-pointer"
-                    >
-                      <div
-                        className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconColors[item.variant]}`}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground">
-                          {item.title}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {item.description}
-                        </p>
-                      </div>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Ações Rápidas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="h-auto flex-col gap-2 py-4">
-              <Package className="h-5 w-5 text-primary" />
-              <span>Novo Produto</span>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col gap-2 py-4">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-              <span>Novo Pedido</span>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col gap-2 py-4">
-              <Users className="h-5 w-5 text-primary" />
-              <span>Novo Cliente</span>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col gap-2 py-4">
-              <CheckCircle className="h-5 w-5 text-primary" />
-              <span>Processar Pedidos</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// Agenda Tab Content - Uses dedicated component
-// (AgendaContent is imported from command-center/agenda)
+import { DashboardTab } from "@/components/command-center/DashboardTab";
+import { ExecutionsQueue } from "@/components/command-center/ExecutionsQueue";
+import { AlertsTab } from "@/components/command-center/AlertsTab";
+import { CommunicationsTab } from "@/components/command-center/CommunicationsTab";
 
 export default function CommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentTab = searchParams.get("tab") || "overview";
+  const currentTab = searchParams.get("tab") || "dashboard";
 
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value });
@@ -307,14 +32,22 @@ export default function CommandCenter() {
       />
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-         <TabsList className="grid w-full max-w-2xl grid-cols-4">
-          <TabsTrigger value="overview" className="gap-2">
+        <TabsList className="grid w-full max-w-3xl grid-cols-6">
+          <TabsTrigger value="dashboard" className="gap-2">
             <LayoutDashboard className="h-4 w-4" />
-            <span className="hidden sm:inline">Central de Execuções</span>
+            <span className="hidden sm:inline">Dashboard</span>
           </TabsTrigger>
-          <TabsTrigger value="orders-alerts" className="gap-2">
-            <Package className="h-4 w-4" />
-            <span className="hidden sm:inline">Pedidos</span>
+          <TabsTrigger value="executions" className="gap-2">
+            <ClipboardList className="h-4 w-4" />
+            <span className="hidden sm:inline">Execuções</span>
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="gap-2">
+            <Bell className="h-4 w-4" />
+            <span className="hidden sm:inline">Alertas</span>
+          </TabsTrigger>
+          <TabsTrigger value="communications" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            <span className="hidden sm:inline">Comunicações</span>
           </TabsTrigger>
           <TabsTrigger value="assistant" className="gap-2">
             <Bot className="h-4 w-4" />
@@ -326,12 +59,20 @@ export default function CommandCenter() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-6">
-          <DashboardContent />
+        <TabsContent value="dashboard" className="mt-6">
+          <DashboardTab />
         </TabsContent>
 
-        <TabsContent value="orders-alerts" className="mt-6">
-          <OrderAlertsCard />
+        <TabsContent value="executions" className="mt-6">
+          <ExecutionsQueue />
+        </TabsContent>
+
+        <TabsContent value="alerts" className="mt-6">
+          <AlertsTab />
+        </TabsContent>
+
+        <TabsContent value="communications" className="mt-6">
+          <CommunicationsTab />
         </TabsContent>
 
         <TabsContent value="assistant" className="mt-6">
