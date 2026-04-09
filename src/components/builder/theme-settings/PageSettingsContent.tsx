@@ -342,43 +342,6 @@ function ResponsiveImageUploadInput({
                   )}>
                     {isUploading ? (
                       <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    ) : pageType === 'checkout' && config.key === 'purchaseEventTiming' ? (
-                      <div className="space-y-3 py-1">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">{config.label}</Label>
-                          {config.description && (
-                            <p className="text-xs text-muted-foreground">{config.description}</p>
-                          )}
-                        </div>
-                        <RadioGroup
-                          value={String(settings.purchaseEventTiming || config.defaultValue)}
-                          onValueChange={(value) => handleChange('purchaseEventTiming', value)}
-                          className="space-y-3"
-                        >
-                          <div className="flex items-start space-x-3 rounded-md border p-3">
-                            <RadioGroupItem value="all_orders" id="builder-all-orders" className="mt-0.5" />
-                            <div className="space-y-0.5">
-                              <Label htmlFor="builder-all-orders" className="cursor-pointer text-sm font-medium">
-                                Todos os pedidos gerados
-                              </Label>
-                              <p className="text-xs text-muted-foreground">
-                                Envia o Purchase assim que o pedido é criado, mesmo antes da confirmação do pagamento.
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-start space-x-3 rounded-md border p-3">
-                            <RadioGroupItem value="paid_only" id="builder-paid-only" className="mt-0.5" />
-                            <div className="space-y-0.5">
-                              <Label htmlFor="builder-paid-only" className="cursor-pointer text-sm font-medium">
-                                Apenas pedidos pagos/confirmados
-                              </Label>
-                              <p className="text-xs text-muted-foreground">
-                                Envia o Purchase somente quando o pagamento entra como aprovado/pago.
-                              </p>
-                            </div>
-                          </div>
-                        </RadioGroup>
-                      </div>
                     ) : (
                       <Upload className="w-3 h-3 text-muted-foreground" />
                     )}
@@ -1137,6 +1100,43 @@ export function PageSettingsContent({
                           onValueChange={(values) => handleChange(config.key, values[0])}
                           className="w-full"
                         />
+                      </div>
+                    ) : pageType === 'checkout' && config.key === 'purchaseEventTiming' ? (
+                      <div className="space-y-3 py-1">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm">{config.label}</Label>
+                          {config.description && (
+                            <p className="text-xs text-muted-foreground">{config.description}</p>
+                          )}
+                        </div>
+                        <RadioGroup
+                          value={String(settings.purchaseEventTiming || config.defaultValue)}
+                          onValueChange={(value) => handleChange('purchaseEventTiming', value)}
+                          className="space-y-3"
+                        >
+                          <div className="flex items-start space-x-3 rounded-md border p-3">
+                            <RadioGroupItem value="all_orders" id="builder-all-orders" className="mt-0.5" />
+                            <div className="space-y-0.5">
+                              <Label htmlFor="builder-all-orders" className="cursor-pointer text-sm font-medium">
+                                Todos os pedidos gerados
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Envia o Purchase assim que o pedido é criado, mesmo antes da confirmação do pagamento.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-start space-x-3 rounded-md border p-3">
+                            <RadioGroupItem value="paid_only" id="builder-paid-only" className="mt-0.5" />
+                            <div className="space-y-0.5">
+                              <Label htmlFor="builder-paid-only" className="cursor-pointer text-sm font-medium">
+                                Apenas pedidos pagos/confirmados
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Envia o Purchase somente quando o pagamento entra como aprovado/pago.
+                              </p>
+                            </div>
+                          </div>
+                        </RadioGroup>
                       </div>
                     ) : (
                       /* Standard toggle switch */
