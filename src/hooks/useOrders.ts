@@ -222,7 +222,7 @@ export function useOrders(options?: {
   const statsQuery = useQuery({
     queryKey: ['orders-stats', currentTenant?.id, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField],
     queryFn: async () => {
-      if (!currentTenant?.id) return { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0 };
+      if (!currentTenant?.id) return { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0, awaitingPaymentCount: 0, canceledCount: 0, awaitingInvoiceCount: 0, returningCount: 0, chargebackCount: 0 };
 
       // Pre-load date helpers if needed
       let startIso: string | undefined;
@@ -264,16 +264,27 @@ export function useOrders(options?: {
         return q;
       };
 
-      const [approvedRes, nfIssuedRes, shippedRes] = await Promise.all([
+      const [approvedRes, nfIssuedRes, shippedRes, awaitingPaymentRes, canceledRes, awaitingInvoiceRes, returningRes, chargebackDetectedRes, chargebackLostRes] = await Promise.all([
         buildStatQuery().eq('payment_status', 'approved' as any),
         buildStatQuery().eq('status', 'invoice_issued' as any),
         buildStatQuery().eq('shipping_status', 'shipped' as any),
+        buildStatQuery().eq('payment_status', 'awaiting_payment' as any),
+        buildStatQuery().in('status', ['payment_expired', 'cancelled'] as any),
+        buildStatQuery().eq('status', 'ready_to_invoice' as any),
+        buildStatQuery().eq('status', 'returning' as any),
+        buildStatQuery().eq('status', 'chargeback_detected' as any),
+        buildStatQuery().eq('status', 'chargeback_lost' as any),
       ]);
 
       return {
         approvedCount: approvedRes.count ?? 0,
         nfIssuedCount: nfIssuedRes.count ?? 0,
         shippedCount: shippedRes.count ?? 0,
+        awaitingPaymentCount: awaitingPaymentRes.count ?? 0,
+        canceledCount: canceledRes.count ?? 0,
+        awaitingInvoiceCount: awaitingInvoiceRes.count ?? 0,
+        returningCount: returningRes.count ?? 0,
+        chargebackCount: (chargebackDetectedRes.count ?? 0) + (chargebackLostRes.count ?? 0),
       };
     },
     enabled: !!currentTenant?.id,
@@ -351,7 +362,7 @@ export function useOrders(options?: {
   return {
     orders: ordersQuery.data?.data ?? [],
     totalCount: ordersQuery.data?.count ?? 0,
-    stats: statsQuery.data ?? { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0 },
+    stats: statsQuery.data ?? { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0, awaitingPaymentCount: 0, canceledCount: 0, awaitingInvoiceCount: 0, returningCount: 0, chargebackCount: 0 },
     isLoading: ordersQuery.isLoading,
     error: ordersQuery.error,
     createOrder,
