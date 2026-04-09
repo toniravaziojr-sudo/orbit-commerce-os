@@ -71,7 +71,7 @@ export function ExecutionCard({ title, icon: Icon, stats, actions }: ExecutionCa
             {effectiveActions.map((action) => (
               <Button key={action.label} variant="outline" size="sm" asChild className="flex-1 min-w-[120px]">
                 <Link to={action.navigateTo}>
-                  {action.icon && <action.icon className="h-4 w-4 mr-1" />}
+                  {action.icon && (() => { const ActionIcon = action.icon; return <ActionIcon className="h-4 w-4 mr-1" />; })()}
                   {action.label}
                 </Link>
               </Button>

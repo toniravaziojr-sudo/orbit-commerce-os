@@ -46,7 +46,7 @@ function useOrderExecutionCounts() {
 
       const [paymentRes, shipmentRes, chargebackRes, returnsRes] = await Promise.all([
         supabase.from("orders").select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId).eq("payment_status", "awaiting_payment")
+          .eq("tenant_id", tenantId).eq("payment_status", "pending" as any)
           .not("payment_gateway_id", "is", null),
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId).eq("status", "paid")
@@ -138,9 +138,9 @@ function useLowStockCount() {
     queryKey: ["execution-low-stock", tenantId],
     queryFn: async () => {
       if (!tenantId) return 0;
-      // Products where stock <= min_stock and both are set
-      const { count, error } = await supabase
-        .from("products")
+      // Products where stock is low — simple threshold approach
+      const { count, error } = await (supabase
+        .from("products") as any)
         .select("id", { count: "exact", head: true })
         .eq("tenant_id", tenantId)
         .eq("is_active", true)
