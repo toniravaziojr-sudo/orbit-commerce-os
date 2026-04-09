@@ -1,7 +1,7 @@
 // =============================================
 // USE EXECUTION COUNTS — Central hook for all execution pendencies
-// Aggregates counts from orders, fiscal, support, integrations, ads, insights,
-// storefront health, content calendar, and communications
+// Aggregates counts from orders, fiscal, support, integrations, ads, alerts
+// Only shows items that REQUIRE human action
 // =============================================
 
 import { useQuery } from "@tanstack/react-query";
@@ -12,7 +12,6 @@ import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 import { useConversations } from "@/hooks/useConversations";
 import { useViolationsStats } from "@/hooks/useRuntimeViolations";
 import { useHealthCheckStats } from "@/hooks/useHealthChecks";
-import { useAdsInsights } from "@/hooks/useAdsInsights";
 import { useAdsBalanceMonitor } from "@/hooks/useAdsBalanceMonitor";
 import { useCallback, useEffect, useState } from "react";
 
@@ -30,8 +29,7 @@ export interface ExecutionCategory {
 
 interface IntegrationError {
   id: string;
-  name: string;
-  error: string;
+  label: string;
   navigateTo: string;
 }
 
@@ -95,9 +93,9 @@ function useIntegrationErrors() {
       if (metaGrant) {
         const isExpired = metaGrant.token_expires_at ? new Date(metaGrant.token_expires_at) < new Date() : false;
         if (isExpired) {
-          found.push({ id: "meta-expired", name: "Meta", error: "Token expirado", navigateTo: "/integrations?tab=social" });
+          found.push({ id: "meta-expired", label: "Meta — Token expirado", navigateTo: "/integrations?tab=social" });
         } else if (metaGrant.last_error) {
-          found.push({ id: "meta-error", name: "Meta", error: metaGrant.last_error.substring(0, 60), navigateTo: "/integrations?tab=social" });
+          found.push({ id: "meta-error", label: "Meta — Erro de conexão", navigateTo: "/integrations?tab=social" });
         }
       }
 
@@ -105,9 +103,9 @@ function useIntegrationErrors() {
       const waConfig = Array.isArray(waData) && waData.length > 0 ? waData[0] : null;
       if (waConfig) {
         if (waConfig.connection_status === "awaiting_verification" || waConfig.connection_status === "pending_registration") {
-          found.push({ id: "whatsapp-pending", name: "WhatsApp", error: "Pendente de verificação", navigateTo: "/integrations?tab=social" });
+          found.push({ id: "whatsapp-pending", label: "WhatsApp — Verificação pendente", navigateTo: "/integrations?tab=social" });
         } else if (waConfig.is_enabled && waConfig.connection_status !== "connected" && waConfig.last_error) {
-          found.push({ id: "whatsapp-error", name: "WhatsApp", error: waConfig.last_error.substring(0, 60), navigateTo: "/integrations?tab=social" });
+          found.push({ id: "whatsapp-error", label: "WhatsApp — Desconectado", navigateTo: "/integrations?tab=social" });
         }
       }
 
@@ -117,7 +115,7 @@ function useIntegrationErrors() {
         .eq("tenant_id", tenantId).maybeSingle();
 
       if (emailData?.from_email && !emailData.is_verified && emailData.verification_status !== "verified" && !emailData.dns_all_ok) {
-        found.push({ id: "email-dns", name: "Email", error: "DNS pendente de verificação", navigateTo: "/integrations?tab=domain-email" });
+        found.push({ id: "email-dns", label: "Email — DNS pendente", navigateTo: "/integrations?tab=domain-email" });
       }
     } catch (e) {
       console.error("useIntegrationErrors fetch error:", e);
@@ -140,21 +138,23 @@ function useLowStockCount() {
     queryKey: ["execution-low-stock", tenantId],
     queryFn: async () => {
       if (!tenantId) return 0;
-      const { count, error } = await (supabase
+      // Fetch products where stock and min_stock are set, then filter client-side
+      const { data, error } = await (supabase
         .from("products") as any)
-        .select("id", { count: "exact", head: true })
+        .select("id, stock, min_stock")
         .eq("tenant_id", tenantId)
         .eq("is_active", true)
         .is("deleted_at", null)
         .not("stock", "is", null)
         .not("min_stock", "is", null)
-        .filter("stock", "lte", "min_stock" as any);
+        .limit(500);
 
       if (error) {
         console.error("Low stock query error:", error);
         return 0;
       }
-      return count || 0;
+      // Compare columns client-side since PostgREST can't compare two columns
+      return (data || []).filter((p: any) => p.stock <= p.min_stock).length;
     },
     enabled: !!tenantId,
     refetchInterval: 60000,
@@ -169,15 +169,12 @@ function useAbandonedCheckoutsCount() {
     queryKey: ["execution-abandoned-checkouts", tenantId],
     queryFn: async () => {
       if (!tenantId) return 0;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
       const { count, error } = await supabase
         .from("checkout_sessions")
         .select("id", { count: "exact", head: true })
         .eq("tenant_id", tenantId)
         .eq("status", "abandoned")
-        .is("order_id", null)
-        .gte("created_at", today.toISOString());
+        .is("order_id", null);
 
       if (error) return 0;
       return count || 0;
@@ -217,7 +214,7 @@ export function useExecutionCounts() {
   const { alerts: fiscalAlerts, isLoading: fiscalAlertsLoading } = useFiscalAlerts();
   const { data: pendingInvoiceOrders, isLoading: pendingInvoiceLoading } = useOrdersPendingInvoice();
 
-  // Support / Communications
+  // Communications — only items needing action
   const { stats: conversationStats, isLoading: conversationsLoading } = useConversations();
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
@@ -251,9 +248,8 @@ export function useExecutionCounts() {
   // Integrations
   const { errors: integrationErrors, isLoading: integrationsLoading } = useIntegrationErrors();
 
-  // Ads
+  // Ads — only actionable items
   const { pendingActions: adsPending, isLoading: adsLoading } = useAdsPendingActions();
-  const { insights: adsInsights } = useAdsInsights();
   const adsBalance = useAdsBalanceMonitor();
 
   // Storefront health
@@ -293,23 +289,21 @@ export function useExecutionCounts() {
   };
 
   const needsAttention = conversationStats?.needsAttention || 0;
-  const inProgress = conversationStats?.inProgress || 0;
 
   const communications: ExecutionCategory = {
     stats: [
       needsAttention ? { count: needsAttention, label: "Aguardando agente", navigateTo: "/support?status=waiting_agent", color: "warning" as const } : null,
-      inProgress ? { count: inProgress, label: "Em andamento", navigateTo: "/support", color: "info" as const } : null,
       notificationErrors ? { count: notificationErrors, label: "Erros notificação", navigateTo: "/notifications", color: "destructive" as const } : null,
       unreadEmails ? { count: unreadEmails, label: "Emails não lidos", navigateTo: "/emails", color: "info" as const } : null,
       failedSocialPosts ? { count: failedSocialPosts, label: "Posts com falha", navigateTo: "/content-calendar", color: "destructive" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: needsAttention + inProgress + notificationErrors + unreadEmails + failedSocialPosts,
+    totalPending: needsAttention + notificationErrors + unreadEmails + failedSocialPosts,
   };
 
   const integrations: ExecutionCategory = {
     stats: integrationErrors.map(err => ({
       count: 1,
-      label: err.name,
+      label: err.label,
       navigateTo: err.navigateTo,
       color: "destructive" as const,
     })),
@@ -317,18 +311,16 @@ export function useExecutionCounts() {
   };
 
   const adsPendingCount = adsPending?.length || 0;
-  const openInsightsCount = (adsInsights || []).filter((i: any) => i.status === "open").length;
   const zeroBalanceCount = adsBalance.zeroBalanceCount || 0;
   const lowBalanceCount = adsBalance.lowBalanceCount || 0;
 
   const ads: ExecutionCategory = {
     stats: [
       adsPendingCount ? { count: adsPendingCount, label: "Pendentes aprovação", navigateTo: "/ads?tab=autopilot", color: "warning" as const } : null,
-      openInsightsCount ? { count: openInsightsCount, label: "Insights abertos", navigateTo: "/ads?tab=insights", color: "info" as const } : null,
       zeroBalanceCount ? { count: zeroBalanceCount, label: "Contas sem saldo", navigateTo: "/ads?tab=accounts", color: "destructive" as const } : null,
       lowBalanceCount ? { count: lowBalanceCount, label: "Saldo baixo", navigateTo: "/ads?tab=accounts", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: adsPendingCount + openInsightsCount + zeroBalanceCount + lowBalanceCount,
+    totalPending: adsPendingCount + zeroBalanceCount + lowBalanceCount,
   };
 
   const unresolvedViolations = violationStats.unresolved || 0;
