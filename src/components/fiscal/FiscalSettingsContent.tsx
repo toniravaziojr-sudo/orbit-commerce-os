@@ -254,6 +254,24 @@ export function FiscalSettingsContent() {
         </CardContent>
       </Card>
 
+      {/* Inutilizar Numeração Card */}
+      <Card className="border-secondary/20 bg-secondary/5">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10">
+              <Hash className="h-6 w-6 text-secondary-foreground" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground">Inutilizar Numeração</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Inutilize números de NF-e que foram pulados ou não serão utilizados.
+              </p>
+            </div>
+            <InutilizarNumerosButton serie={settings?.serie_nfe} />
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Dados do Emitente */}
         <Card>
