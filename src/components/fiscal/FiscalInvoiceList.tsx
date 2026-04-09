@@ -76,6 +76,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [inutilizarDialogOpen, setInutilizarDialogOpen] = useState(false);
   const [entryDialogOpen, setEntryDialogOpen] = useState(false);
   const [entryDialogChaveAcesso, setEntryDialogChaveAcesso] = useState<string | undefined>();
+  const [consultaChaveOpen, setConsultaChaveOpen] = useState(false);
   const [timelineInvoice, setTimelineInvoice] = useState<FiscalInvoice | null>(null);
   const [errorResolverOpen, setErrorResolverOpen] = useState(false);
   const [currentErrors, setCurrentErrors] = useState<any[]>([]);
