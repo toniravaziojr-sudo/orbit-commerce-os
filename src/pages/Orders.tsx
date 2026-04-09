@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Download, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
+import { Package, Plus, Search, Download, ChevronLeft, ChevronRight, Upload, CheckCircle, Clock, XCircle, FileText, Receipt, RotateCcw, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -136,31 +136,71 @@ export default function Orders() {
         }
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard
-          title="Total de Pedidos"
-          value={totalCount.toString()}
-          icon={Package}
-        />
-        <StatCard
-          title="Pedidos Aprovados"
-          value={stats.approvedCount.toString()}
-          icon={Package}
-          description="Pagamento aprovado"
-        />
-        <StatCard
-          title="NF Emitida"
-          value={stats.nfIssuedCount.toString()}
-          icon={Package}
-          description="Nota fiscal emitida"
-        />
-        <StatCard
-          title="Enviados"
-          value={stats.shippedCount.toString()}
-          icon={Package}
-          description="Pedidos enviados"
-        />
+      {/* Seção 1: VENDA */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Venda</h3>
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatCard
+            title="Total de Pedidos"
+            value={totalCount.toString()}
+            icon={Package}
+          />
+          <StatCard
+            title="Aprovados"
+            value={stats.approvedCount.toString()}
+            icon={CheckCircle}
+            variant="success"
+            description="Pagamento aprovado"
+          />
+          <StatCard
+            title="Aguardando Pagamento"
+            value={stats.awaitingPaymentCount.toString()}
+            icon={Clock}
+            variant="warning"
+            description="Pendente de pagamento"
+          />
+          <StatCard
+            title="Cancelados"
+            value={stats.canceledCount.toString()}
+            icon={XCircle}
+            variant="destructive"
+            description="Expirados, cancelados e recusados"
+          />
+        </div>
+      </div>
+
+      {/* Seção 2: PÓS-VENDA */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Pós-Venda</h3>
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatCard
+            title="Aguardando NF"
+            value={stats.awaitingInvoiceCount.toString()}
+            icon={FileText}
+            variant="info"
+            description="Pronto para emitir NF"
+          />
+          <StatCard
+            title="NF Emitida"
+            value={stats.nfIssuedCount.toString()}
+            icon={Receipt}
+            description="Nota fiscal emitida"
+          />
+          <StatCard
+            title="Devolução"
+            value={stats.returningCount.toString()}
+            icon={RotateCcw}
+            variant="warning"
+            description="Em devolução"
+          />
+          <StatCard
+            title="Chargeback"
+            value={stats.chargebackCount.toString()}
+            icon={AlertTriangle}
+            variant="destructive"
+            description="Disputas abertas ou perdidas"
+          />
+        </div>
       </div>
 
       {/* Filters */}
