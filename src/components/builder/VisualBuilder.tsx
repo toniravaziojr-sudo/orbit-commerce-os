@@ -785,6 +785,7 @@ export function VisualBuilder({
               console.log('[VisualBuilder.handleSave] Synced purchaseEventTiming to store_settings:', finalTiming);
             }
           }
+        }
 
         // Merge header draft changes
         if (headerDraft?.hasDraftChanges) {
