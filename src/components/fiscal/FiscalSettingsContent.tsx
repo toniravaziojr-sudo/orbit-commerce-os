@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, Building2, MapPin, FileText, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2, Truck, Mail } from 'lucide-react';
+import { Save, Building2, MapPin, FileText, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2, Truck, Mail, Hash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
+import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
 
 // Brazilian states
 const UF_OPTIONS = [
@@ -58,6 +59,7 @@ export function FiscalSettingsContent() {
   const navigate = useNavigate();
   const { settings, isLoading, saveSettings, uploadCertificate, removeCertificate } = useFiscalSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [inutilizarDialogOpen, setInutilizarDialogOpen] = useState(false);
   
   const [formData, setFormData] = useState<Partial<FiscalSettings>>({
     razao_social: '',
@@ -249,6 +251,26 @@ export function FiscalSettingsContent() {
             </div>
             <Button variant="outline" onClick={() => navigate('/fiscal/operation-natures')}>
               Gerenciar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Inutilizar Numeração Card */}
+      <Card className="border-secondary/20 bg-secondary/5">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10">
+              <Hash className="h-6 w-6 text-secondary-foreground" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground">Inutilizar Numeração</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Inutilize números de NF-e que foram pulados ou não serão utilizados.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => setInutilizarDialogOpen(true)}>
+              Inutilizar
             </Button>
           </div>
         </CardContent>
@@ -944,6 +966,11 @@ Obrigado pela preferência!
           </CardContent>
         </Card>
       </div>
+      <InutilizarNumerosDialog
+        open={inutilizarDialogOpen}
+        onOpenChange={setInutilizarDialogOpen}
+        serie={settings?.serie_nfe}
+      />
     </div>
   );
 }

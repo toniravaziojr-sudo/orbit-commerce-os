@@ -91,4 +91,5 @@ export const invoiceStatusOptions: StatusOption[] = [
   { value: 'pending', label: 'Pendente SEFAZ' },
   { value: 'rejected', label: 'Rejeitada' },
   { value: 'canceled', label: 'Cancelada' },
+  { value: 'devolvido', label: 'Devolvido' },
 ];

@@ -15,7 +15,9 @@ import {
   FileCode,
   FileEdit,
   History,
-  Trash2
+  Trash2,
+  ArrowDownLeft,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,6 +46,8 @@ interface InvoiceActionsDropdownProps {
   onCorrect?: () => void;
   onViewTimeline?: () => void;
   onDelete?: () => void;
+  onEmitirDevolucao?: () => void;
+  onResendEmail?: () => void;
   isSubmitting?: boolean;
   isCheckingStatus?: boolean;
 }
@@ -60,6 +64,8 @@ export function InvoiceActionsDropdown({
   onCorrect,
   onViewTimeline,
   onDelete,
+  onEmitirDevolucao,
+  onResendEmail,
   isSubmitting,
   isCheckingStatus,
 }: InvoiceActionsDropdownProps) {
@@ -252,9 +258,18 @@ export function InvoiceActionsDropdown({
               <Copy className="h-4 w-4 mr-2" />
               Duplicar NF-e
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={onEmitirDevolucao}>
+              <ArrowDownLeft className="h-4 w-4 mr-2" />
+              Emitir Devolução
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onViewTimeline}>
               <History className="h-4 w-4 mr-2" />
               Ver Histórico
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onResendEmail}>
+              <Mail className="h-4 w-4 mr-2" />
+              Reenviar por Email
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 

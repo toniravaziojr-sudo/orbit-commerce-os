@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, Download, Send, X, Trash2 } from "lucide-react";
+import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, Download, Send, X, Trash2, Mail, RotateCcw } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [correctingInvoice, setCorrectingInvoice] = useState<FiscalInvoice | null>(null);
   const [inutilizarDialogOpen, setInutilizarDialogOpen] = useState(false);
   const [entryDialogOpen, setEntryDialogOpen] = useState(false);
+  const [entryDialogChaveAcesso, setEntryDialogChaveAcesso] = useState<string | undefined>();
   const [consultaChaveOpen, setConsultaChaveOpen] = useState(false);
   const [timelineInvoice, setTimelineInvoice] = useState<FiscalInvoice | null>(null);
   const [errorResolverOpen, setErrorResolverOpen] = useState(false);
@@ -123,6 +124,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       if (statusFilter.includes('pending') && inv.status === 'pending') return true;
       if (statusFilter.includes('rejected') && inv.status === 'rejected') return true;
       if (statusFilter.includes('canceled') && (inv.status === 'canceled' || inv.status === 'cancelled')) return true;
+      if (statusFilter.includes('devolvido') && (inv as any).nfe_referenciada) return true;
       return false;
     }
   });
@@ -166,6 +168,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     pending: invoices?.filter(i => i.status === 'pending').length || 0,
     rejected: invoices?.filter(i => i.status === 'rejected').length || 0,
     canceled: invoices?.filter(i => i.status === 'canceled' || i.status === 'cancelled').length || 0,
+    devolvido: invoices?.filter(i => i.status !== 'draft' && (i as any).nfe_referenciada).length || 0,
   };
 
   const handleCheckStatus = async (invoiceId: string) => {
@@ -562,6 +565,62 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     clearSelection();
   };
 
+  // Bulk resend email
+  const handleBulkResendEmail = async () => {
+    const authorized = (filteredInvoices || []).filter(
+      inv => selectedInvoices.has(inv.id) && inv.status === 'authorized'
+    );
+    
+    if (authorized.length === 0) {
+      toast.error('Nenhuma NF-e autorizada selecionada');
+      return;
+    }
+
+    setIsBulkProcessing(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const invoice of authorized) {
+      try {
+        const { error } = await supabase.functions.invoke('fiscal-resend-email', {
+          body: { invoice_id: invoice.id },
+        });
+        if (error) { errorCount++; } else { successCount++; }
+      } catch {
+        errorCount++;
+      }
+    }
+
+    setIsBulkProcessing(false);
+    clearSelection();
+
+    if (successCount > 0) toast.success(`${successCount} email(s) reenviado(s)`);
+    if (errorCount > 0) toast.error(`${errorCount} email(s) com erro no reenvio`);
+  };
+
+  // Individual: Emitir Devolução (opens EntryInvoiceDialog pre-filled)
+  const handleEmitirDevolucao = (invoice: FiscalInvoice) => {
+    if (invoice.chave_acesso) {
+      setEntryDialogChaveAcesso(invoice.chave_acesso);
+      setEntryDialogOpen(true);
+    } else {
+      toast.error('NF-e sem chave de acesso');
+    }
+  };
+
+  // Individual: Reenviar por Email
+  const handleResendEmail = async (invoice: FiscalInvoice) => {
+    try {
+      const { error } = await supabase.functions.invoke('fiscal-resend-email', {
+        body: { invoice_id: invoice.id },
+      });
+      if (error) throw error;
+      toast.success('Email reenviado com sucesso');
+    } catch (error: any) {
+      showErrorToast(error, { module: 'fiscal', action: 'reenviar email' });
+    }
+  };
+
   // Delete single draft
   const handleDeleteDraft = async (invoice: FiscalInvoice) => {
     if (invoice.status !== 'draft') {
@@ -697,7 +756,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           />
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard
             title="Autorizadas"
             value={statsLoading ? '...' : (counts.authorized + counts.printed).toString()}
@@ -717,6 +776,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
             variant="destructive"
           />
           <StatCard
+            title="Devolvido"
+            value={statsLoading ? '...' : counts.devolvido.toString()}
+            icon={RotateCcw}
+            variant="warning"
+          />
+          <StatCard
             title="Canceladas"
             value={statsLoading ? '...' : counts.canceled.toString()}
             icon={XCircle}
@@ -729,7 +794,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           {mode === 'orders' ? (
-            <DropdownMenu>
+             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
@@ -741,14 +806,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                   <FileText className="h-4 w-4 mr-2" />
                   NF-e de Saída (Venda)
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setInutilizarDialogOpen(true)}>
-                  <Hash className="h-4 w-4 mr-2" />
-                  Inutilizar Numeração
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setConsultaChaveOpen(true)}>
-                  <Search className="h-4 w-4 mr-2" />
-                  Consultar por Chave
+                <DropdownMenuItem onClick={() => { setEntryDialogChaveAcesso(undefined); setEntryDialogOpen(true); }}>
+                  <ArrowDownLeft className="h-4 w-4 mr-2" />
+                  NF-e de Entrada (Devolução)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -898,6 +958,15 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             <Download className="h-4 w-4 mr-2" />
                             XMLs {selectedAuthorizedCount}
                           </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={handleBulkResendEmail}
+                            disabled={isBulkProcessing}
+                          >
+                            <Mail className="h-4 w-4 mr-2" />
+                            Reenviar Email {selectedAuthorizedCount}
+                          </Button>
                         </>
                       )}
                     </div>
@@ -1000,6 +1069,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onCorrect={() => setCorrectingInvoice(invoice)}
                               onViewTimeline={() => setTimelineInvoice(invoice)}
                               onDelete={() => handleDeleteDraft(invoice)}
+                              onEmitirDevolucao={() => handleEmitirDevolucao(invoice)}
+                              onResendEmail={() => handleResendEmail(invoice)}
                               isSubmitting={submittingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                             />
@@ -1081,8 +1152,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       {/* Entry Invoice Dialog */}
       <EntryInvoiceDialog
         open={entryDialogOpen}
-        onOpenChange={setEntryDialogOpen}
+        onOpenChange={(open) => { setEntryDialogOpen(open); if (!open) setEntryDialogChaveAcesso(undefined); }}
         onSuccess={() => refetch()}
+        initialChaveAcesso={entryDialogChaveAcesso}
       />
 
       {/* Consulta por Chave Dialog */}
