@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
+import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
 
 // Brazilian states
 const UF_OPTIONS = [
