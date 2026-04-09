@@ -438,7 +438,7 @@ export function useCheckoutSettings(tenantId: string, templateSetId?: string) {
         .maybeSingle();
       
       const checkoutConfig = storeSettings?.checkout_config as Record<string, unknown> | null;
-      const purchaseEventTiming = checkoutConfig?.purchaseEventTiming === 'all_orders'
+      const purchaseEventTiming: CheckoutSettings['purchaseEventTiming'] = checkoutConfig?.purchaseEventTiming === 'all_orders'
         ? 'all_orders'
         : checkoutConfig?.purchaseEventTiming === 'paid_only'
           ? 'paid_only'
