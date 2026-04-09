@@ -357,7 +357,13 @@ export function parseCheckoutConfig(data: unknown): CheckoutConfig {
     orderBumpEnabled: obj.orderBumpEnabled !== false,
     testimonialsEnabled: Boolean(obj.testimonialsEnabled),
     paymentMethodsOrder,
-    purchaseEventTiming: obj.purchaseEventTiming === 'all_orders' ? 'all_orders' : 'paid_only',
+    purchaseEventTiming: obj.purchaseEventTiming === 'all_orders'
+      ? 'all_orders'
+      : obj.purchaseEventTiming === 'paid_only'
+        ? 'paid_only'
+        : obj.purchaseEventAllOrders === true
+          ? 'all_orders'
+          : 'paid_only',
     paymentMethodLabels,
     // NEW: Parse visibility toggles (default to true)
     showPix: obj.showPix !== false,

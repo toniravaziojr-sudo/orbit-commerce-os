@@ -714,15 +714,24 @@ export function VisualBuilder({
           if (pendingPageSettingsChanges) {
             const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
             const pendingCheckoutSettings = pendingPageSettingsChanges.checkout as Record<string, unknown> | undefined;
+            
+            // Resolve purchaseEventTiming from pending OR current draft checkout settings
+            const resolvedCheckoutSource = pendingCheckoutSettings
+              || (currentPageSettings.checkout as Record<string, unknown> | undefined)
+              || {};
+            const resolvedTiming: string = resolvedCheckoutSource.purchaseEventTiming === 'all_orders'
+              ? 'all_orders'
+              : resolvedCheckoutSource.purchaseEventTiming === 'paid_only'
+                ? 'paid_only'
+                : resolvedCheckoutSource.purchaseEventAllOrders === true
+                  ? 'all_orders'
+                  : 'paid_only';
+            
             const normalizedCheckoutSettings = pendingCheckoutSettings
               ? {
                   ...pendingCheckoutSettings,
-                  ...(pendingCheckoutSettings.purchaseEventTiming
-                    ? {
-                        purchaseEventTiming: pendingCheckoutSettings.purchaseEventTiming === 'all_orders' ? 'all_orders' : 'paid_only',
-                        purchaseEventAllOrders: pendingCheckoutSettings.purchaseEventTiming === 'all_orders',
-                      }
-                    : {}),
+                  purchaseEventTiming: resolvedTiming,
+                  purchaseEventAllOrders: resolvedTiming === 'all_orders',
                 }
               : undefined;
             updatedThemeSettings.pageSettings = {
@@ -738,7 +747,9 @@ export function VisualBuilder({
                 : {}),
             };
 
-            if (tenantId && normalizedCheckoutSettings?.purchaseEventTiming) {
+            // ALWAYS sync purchaseEventTiming to store_settings when checkout settings exist
+            if (tenantId) {
+              const finalTiming = normalizedCheckoutSettings?.purchaseEventTiming || resolvedTiming;
               const { data: existingStoreSettings, error: storeSettingsError } = await supabase
                 .from('store_settings')
                 .select('id, checkout_config')
@@ -750,7 +761,7 @@ export function VisualBuilder({
               const currentCheckoutConfig = (existingStoreSettings?.checkout_config as Record<string, unknown> | null) || {};
               const updatedCheckoutConfig = {
                 ...currentCheckoutConfig,
-                purchaseEventTiming: normalizedCheckoutSettings.purchaseEventTiming,
+                purchaseEventTiming: finalTiming,
               };
 
               if (existingStoreSettings?.id) {
@@ -771,10 +782,11 @@ export function VisualBuilder({
 
               queryClient.invalidateQueries({ queryKey: ['store-config', tenantId] });
               queryClient.invalidateQueries({ queryKey: ['storefront-config', tenantId] });
+              console.log('[VisualBuilder.handleSave] Synced purchaseEventTiming to store_settings:', finalTiming);
             }
           }
         }
-        
+
         // Merge header draft changes
         if (headerDraft?.hasDraftChanges) {
           const pendingHeaderChanges = headerDraft.getPendingChanges();
