@@ -105,6 +105,7 @@ export interface CheckoutSettings {
   // Payment methods config (from store_settings.checkout_config)
   paymentMethodsOrder?: ('pix' | 'credit_card' | 'boleto')[];
   paymentMethodLabels?: Record<string, string>;
+  purchaseEventTiming?: 'all_orders' | 'paid_only';
   // Cores personalizadas (herdam do tema se vazias)
   buttonPrimaryBg?: string;
   buttonPrimaryText?: string;
@@ -214,7 +215,8 @@ export const DEFAULT_CHECKOUT_SETTINGS: CheckoutSettings = {
   showSecuritySeals: true,
   paymentMethodsOrder: ['pix', 'credit_card', 'boleto'],
   paymentMethodLabels: {},
-  purchaseEventAllOrders: true,
+  purchaseEventTiming: 'paid_only',
+  purchaseEventAllOrders: false,
 };
 
 export const DEFAULT_THANKYOU_SETTINGS: ThankYouSettings = {
@@ -436,11 +438,22 @@ export function useCheckoutSettings(tenantId: string, templateSetId?: string) {
         .maybeSingle();
       
       const checkoutConfig = storeSettings?.checkout_config as Record<string, unknown> | null;
+      const purchaseEventTiming = checkoutConfig?.purchaseEventTiming === 'all_orders'
+        ? 'all_orders'
+        : checkoutConfig?.purchaseEventTiming === 'paid_only'
+          ? 'paid_only'
+          : baseSettings?.purchaseEventTiming === 'all_orders'
+            ? 'all_orders'
+            : baseSettings?.purchaseEventAllOrders === true
+              ? 'all_orders'
+              : 'paid_only';
       
       return {
         ...baseSettings,
         paymentMethodsOrder: checkoutConfig?.paymentMethodsOrder as ('pix' | 'credit_card' | 'boleto')[] || undefined,
         paymentMethodLabels: checkoutConfig?.paymentMethodLabels as Record<string, string> || undefined,
+        purchaseEventTiming,
+        purchaseEventAllOrders: purchaseEventTiming === 'all_orders',
       };
     },
     enabled: !!tenantId,

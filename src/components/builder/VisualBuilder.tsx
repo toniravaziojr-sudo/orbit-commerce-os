@@ -713,10 +713,65 @@ export function VisualBuilder({
           console.log('[VisualBuilder.handleSave] Pending page settings changes:', pendingPageSettingsChanges);
           if (pendingPageSettingsChanges) {
             const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
+            const pendingCheckoutSettings = pendingPageSettingsChanges.checkout as Record<string, unknown> | undefined;
+            const normalizedCheckoutSettings = pendingCheckoutSettings
+              ? {
+                  ...pendingCheckoutSettings,
+                  ...(pendingCheckoutSettings.purchaseEventTiming
+                    ? {
+                        purchaseEventTiming: pendingCheckoutSettings.purchaseEventTiming === 'all_orders' ? 'all_orders' : 'paid_only',
+                        purchaseEventAllOrders: pendingCheckoutSettings.purchaseEventTiming === 'all_orders',
+                      }
+                    : {}),
+                }
+              : undefined;
             updatedThemeSettings.pageSettings = {
               ...currentPageSettings,
               ...pendingPageSettingsChanges,
+              ...(normalizedCheckoutSettings
+                ? {
+                    checkout: {
+                      ...(currentPageSettings.checkout as Record<string, unknown> | undefined),
+                      ...normalizedCheckoutSettings,
+                    },
+                  }
+                : {}),
             };
+
+            if (tenantId && normalizedCheckoutSettings?.purchaseEventTiming) {
+              const { data: existingStoreSettings, error: storeSettingsError } = await supabase
+                .from('store_settings')
+                .select('id, checkout_config')
+                .eq('tenant_id', tenantId)
+                .maybeSingle();
+
+              if (storeSettingsError) throw storeSettingsError;
+
+              const currentCheckoutConfig = (existingStoreSettings?.checkout_config as Record<string, unknown> | null) || {};
+              const updatedCheckoutConfig = {
+                ...currentCheckoutConfig,
+                purchaseEventTiming: normalizedCheckoutSettings.purchaseEventTiming,
+              };
+
+              if (existingStoreSettings?.id) {
+                const { error: checkoutConfigError } = await supabase
+                  .from('store_settings')
+                  .update({ checkout_config: updatedCheckoutConfig as unknown as Json })
+                  .eq('id', existingStoreSettings.id);
+                if (checkoutConfigError) throw checkoutConfigError;
+              } else {
+                const { error: checkoutConfigInsertError } = await supabase
+                  .from('store_settings')
+                  .insert({
+                    tenant_id: tenantId,
+                    checkout_config: updatedCheckoutConfig as unknown as Json,
+                  });
+                if (checkoutConfigInsertError) throw checkoutConfigInsertError;
+              }
+
+              queryClient.invalidateQueries({ queryKey: ['store-config', tenantId] });
+              queryClient.invalidateQueries({ queryKey: ['storefront-config', tenantId] });
+            }
           }
         }
         

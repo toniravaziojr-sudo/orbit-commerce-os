@@ -1500,7 +1500,7 @@ interface SettingConfig {
   key: string;
   label: string;
   description?: string;
-  defaultValue: boolean | number;
+  defaultValue: boolean | number | string;
   group?: string;
   hasUpload?: boolean; // If true, shows image upload when enabled
   inputType?: 'toggle' | 'slider'; // Default is toggle
@@ -1564,7 +1564,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       // Ofertas
       { key: 'showOrderBump', label: 'Mostrar Order Bump', description: 'Oferta adicional no checkout', defaultValue: true, group: 'offers' },
       // Pixels
-      { key: 'purchaseEventAllOrders', label: 'Evento em todos os pedidos', description: 'Dispara Purchase ao criar pedido', defaultValue: true, group: 'pixels' },
+      { key: 'purchaseEventTiming', label: 'Evento Purchase', description: 'Define quando o Purchase é enviado para os pixels', defaultValue: 'paid_only', group: 'pixels' },
     ],
     thank_you: [
       { key: 'showUpsell', label: 'Mostrar Upsell', description: 'Ofertas pós-compra', defaultValue: true },
