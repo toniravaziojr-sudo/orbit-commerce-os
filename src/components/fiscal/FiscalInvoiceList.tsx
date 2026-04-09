@@ -700,7 +700,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           />
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard
             title="Autorizadas"
             value={statsLoading ? '...' : (counts.authorized + counts.printed).toString()}
@@ -720,6 +720,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
             variant="destructive"
           />
           <StatCard
+            title="Devolvido"
+            value={statsLoading ? '...' : counts.devolvido.toString()}
+            icon={RotateCcw}
+            variant="warning"
+          />
+          <StatCard
             title="Canceladas"
             value={statsLoading ? '...' : counts.canceled.toString()}
             icon={XCircle}
@@ -732,7 +738,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           {mode === 'orders' ? (
-            <DropdownMenu>
+             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
@@ -744,14 +750,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                   <FileText className="h-4 w-4 mr-2" />
                   NF-e de Saída (Venda)
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setInutilizarDialogOpen(true)}>
-                  <Hash className="h-4 w-4 mr-2" />
-                  Inutilizar Numeração
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setConsultaChaveOpen(true)}>
-                  <Search className="h-4 w-4 mr-2" />
-                  Consultar por Chave
+                <DropdownMenuItem onClick={() => { setEntryDialogChaveAcesso(undefined); setEntryDialogOpen(true); }}>
+                  <ArrowDownLeft className="h-4 w-4 mr-2" />
+                  NF-e de Entrada (Devolução)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
