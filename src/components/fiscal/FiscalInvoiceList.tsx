@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, Download, Send, X, Trash2 } from "lucide-react";
+import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, Download, Send, X, Trash2, Mail, RotateCcw } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -75,7 +75,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [correctingInvoice, setCorrectingInvoice] = useState<FiscalInvoice | null>(null);
   const [inutilizarDialogOpen, setInutilizarDialogOpen] = useState(false);
   const [entryDialogOpen, setEntryDialogOpen] = useState(false);
-  const [consultaChaveOpen, setConsultaChaveOpen] = useState(false);
+  const [entryDialogChaveAcesso, setEntryDialogChaveAcesso] = useState<string | undefined>();
   const [timelineInvoice, setTimelineInvoice] = useState<FiscalInvoice | null>(null);
   const [errorResolverOpen, setErrorResolverOpen] = useState(false);
   const [currentErrors, setCurrentErrors] = useState<any[]>([]);
@@ -123,6 +123,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       if (statusFilter.includes('pending') && inv.status === 'pending') return true;
       if (statusFilter.includes('rejected') && inv.status === 'rejected') return true;
       if (statusFilter.includes('canceled') && (inv.status === 'canceled' || inv.status === 'cancelled')) return true;
+      if (statusFilter.includes('devolvido') && (inv as any).nfe_referenciada) return true;
       return false;
     }
   });
@@ -166,6 +167,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     pending: invoices?.filter(i => i.status === 'pending').length || 0,
     rejected: invoices?.filter(i => i.status === 'rejected').length || 0,
     canceled: invoices?.filter(i => i.status === 'canceled' || i.status === 'cancelled').length || 0,
+    devolvido: invoices?.filter(i => i.status !== 'draft' && (i as any).nfe_referenciada).length || 0,
   };
 
   const handleCheckStatus = async (invoiceId: string) => {
