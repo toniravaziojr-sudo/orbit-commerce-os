@@ -99,9 +99,8 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     if (purchaseTrackedRef.current === order.order_number) return;
     if (!tracker) return;
     
-    // Don't track purchase for declined orders
-    if (effectiveDeclined) return;
-
+    // all_orders: fire Purchase for EVERY order created, regardless of payment status
+    // paid_only: fire only for approved/paid orders
     if (checkoutConfig.purchaseEventTiming === 'paid_only') {
       const isPaid = order.payment_status === 'approved' || order.payment_status === 'paid';
       if (!isPaid) return;
@@ -136,7 +135,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     
     purchaseTrackedRef.current = order.order_number;
     console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
-  }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming, effectiveDeclined]);
+  }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming]);
 
   // Check auth state
   useEffect(() => {
