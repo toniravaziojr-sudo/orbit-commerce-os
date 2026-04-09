@@ -29,19 +29,34 @@ interface EntryInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  initialChaveAcesso?: string;
 }
 
-export function EntryInvoiceDialog({ open, onOpenChange, onSuccess }: EntryInvoiceDialogProps) {
+export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChaveAcesso }: EntryInvoiceDialogProps) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
 
-  const [chaveAcesso, setChaveAcesso] = useState('');
+  const [chaveAcesso, setChaveAcesso] = useState(initialChaveAcesso || '');
   const [searchingNfe, setSearchingNfe] = useState(false);
   const [foundInvoice, setFoundInvoice] = useState<any>(null);
   const [natures, setNatures] = useState<OperationNature[]>([]);
   const [selectedNature, setSelectedNature] = useState<string>('');
   const [observacoes, setObservacoes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Sync initialChaveAcesso when dialog opens
+  useEffect(() => {
+    if (open && initialChaveAcesso) {
+      setChaveAcesso(initialChaveAcesso);
+    }
+  }, [open, initialChaveAcesso]);
+
+  // Auto-search when initialChaveAcesso is provided
+  useEffect(() => {
+    if (open && initialChaveAcesso && initialChaveAcesso.length === 44 && tenantId && !foundInvoice) {
+      handleSearchByChave();
+    }
+  }, [open, initialChaveAcesso, tenantId]);
 
   // Load entry natures (tipo_documento = 0)
   useEffect(() => {
