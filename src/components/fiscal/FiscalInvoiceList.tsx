@@ -565,6 +565,62 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     clearSelection();
   };
 
+  // Bulk resend email
+  const handleBulkResendEmail = async () => {
+    const authorized = (filteredInvoices || []).filter(
+      inv => selectedInvoices.has(inv.id) && inv.status === 'authorized'
+    );
+    
+    if (authorized.length === 0) {
+      toast.error('Nenhuma NF-e autorizada selecionada');
+      return;
+    }
+
+    setIsBulkProcessing(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const invoice of authorized) {
+      try {
+        const { error } = await supabase.functions.invoke('fiscal-resend-email', {
+          body: { invoice_id: invoice.id },
+        });
+        if (error) { errorCount++; } else { successCount++; }
+      } catch {
+        errorCount++;
+      }
+    }
+
+    setIsBulkProcessing(false);
+    clearSelection();
+
+    if (successCount > 0) toast.success(`${successCount} email(s) reenviado(s)`);
+    if (errorCount > 0) toast.error(`${errorCount} email(s) com erro no reenvio`);
+  };
+
+  // Individual: Emitir Devolução (opens EntryInvoiceDialog pre-filled)
+  const handleEmitirDevolucao = (invoice: FiscalInvoice) => {
+    if (invoice.chave_acesso) {
+      setEntryDialogChaveAcesso(invoice.chave_acesso);
+      setEntryDialogOpen(true);
+    } else {
+      toast.error('NF-e sem chave de acesso');
+    }
+  };
+
+  // Individual: Reenviar por Email
+  const handleResendEmail = async (invoice: FiscalInvoice) => {
+    try {
+      const { error } = await supabase.functions.invoke('fiscal-resend-email', {
+        body: { invoice_id: invoice.id },
+      });
+      if (error) throw error;
+      toast.success('Email reenviado com sucesso');
+    } catch (error: any) {
+      showErrorToast(error, { module: 'fiscal', action: 'reenviar email' });
+    }
+  };
+
   // Delete single draft
   const handleDeleteDraft = async (invoice: FiscalInvoice) => {
     if (invoice.status !== 'draft') {
