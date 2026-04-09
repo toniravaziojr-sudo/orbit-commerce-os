@@ -269,7 +269,9 @@ export function FiscalSettingsContent() {
                 Inutilize números de NF-e que foram pulados ou não serão utilizados.
               </p>
             </div>
-            <InutilizarNumerosButton serie={settings?.serie_nfe} />
+            <Button variant="outline" onClick={() => setInutilizarDialogOpen(true)}>
+              Inutilizar
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -964,6 +966,11 @@ Obrigado pela preferência!
           </CardContent>
         </Card>
       </div>
+      <InutilizarNumerosDialog
+        open={inutilizarDialogOpen}
+        onOpenChange={setInutilizarDialogOpen}
+        serie={settings?.serie_nfe}
+      />
     </div>
   );
 }
