@@ -135,7 +135,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     
     purchaseTrackedRef.current = order.order_number;
     console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
-  }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming, effectiveDeclined]);
+  }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming]);
 
   // Check auth state
   useEffect(() => {
