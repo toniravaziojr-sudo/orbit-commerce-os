@@ -1,6 +1,7 @@
 // =============================================
-// EXECUTIONS QUEUE — Unified operational queue
+// CENTRAL DE EXECUÇÕES — Unified operational queue
 // Shows ONLY categories with pending items. Cards with stats grid.
+// Includes: Pedidos, Fiscal, Comunicações, Integrações, Anúncios, Alertas & Insights
 // =============================================
 
 import {
@@ -9,7 +10,7 @@ import {
   Plug,
   Megaphone,
   MessageSquare,
-  Lightbulb,
+  ShieldAlert,
   Package,
 } from "lucide-react";
 import { ExecutionCard } from "./ExecutionCard";
@@ -19,10 +20,10 @@ export function ExecutionsQueue() {
   const {
     orders,
     fiscal,
-    support,
+    communications,
     integrations,
     ads,
-    insights,
+    alerts,
     totalPending,
     isLoading,
   } = useExecutionCounts();
@@ -60,9 +61,9 @@ export function ExecutionsQueue() {
       />
 
       <ExecutionCard
-        title="Atendimento"
+        title="Comunicações"
         icon={MessageSquare}
-        stats={support.stats}
+        stats={communications.stats}
       />
 
       <ExecutionCard
@@ -78,9 +79,9 @@ export function ExecutionsQueue() {
       />
 
       <ExecutionCard
-        title="Insights"
-        icon={Lightbulb}
-        stats={insights.stats}
+        title="Alertas & Insights"
+        icon={ShieldAlert}
+        stats={alerts.stats}
       />
     </div>
   );

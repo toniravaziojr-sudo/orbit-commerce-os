@@ -1,6 +1,7 @@
 // =============================================
 // USE EXECUTION COUNTS — Central hook for all execution pendencies
-// Aggregates counts from orders, fiscal, support, integrations, ads, insights
+// Aggregates counts from orders, fiscal, support, integrations, ads, insights,
+// storefront health, content calendar, and communications
 // =============================================
 
 import { useQuery } from "@tanstack/react-query";
@@ -9,6 +10,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFiscalStats, useFiscalAlerts, useOrdersPendingInvoice } from "@/hooks/useFiscal";
 import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 import { useConversations } from "@/hooks/useConversations";
+import { useViolationsStats } from "@/hooks/useRuntimeViolations";
+import { useHealthCheckStats } from "@/hooks/useHealthChecks";
+import { useAdsInsights } from "@/hooks/useAdsInsights";
+import { useAdsBalanceMonitor } from "@/hooks/useAdsBalanceMonitor";
 import { useCallback, useEffect, useState } from "react";
 
 export interface ExecutionStat {
@@ -81,7 +86,6 @@ function useIntegrationErrors() {
     const found: IntegrationError[] = [];
 
     try {
-      // Meta token
       const { data: metaGrant } = await supabase
         .from("tenant_meta_auth_grants")
         .select("status, token_expires_at, last_error")
@@ -97,7 +101,6 @@ function useIntegrationErrors() {
         }
       }
 
-      // WhatsApp
       const { data: waData } = await supabase.rpc("get_whatsapp_config_for_tenant", { p_tenant_id: tenantId });
       const waConfig = Array.isArray(waData) && waData.length > 0 ? waData[0] : null;
       if (waConfig) {
@@ -108,7 +111,6 @@ function useIntegrationErrors() {
         }
       }
 
-      // Email DNS
       const { data: emailData } = await supabase
         .from("email_provider_configs")
         .select("is_verified, verification_status, from_email, dns_all_ok")
@@ -138,7 +140,6 @@ function useLowStockCount() {
     queryKey: ["execution-low-stock", tenantId],
     queryFn: async () => {
       if (!tenantId) return 0;
-      // Products where stock is low — simple threshold approach
       const { count, error } = await (supabase
         .from("products") as any)
         .select("id", { count: "exact", head: true })
@@ -150,7 +151,6 @@ function useLowStockCount() {
         .filter("stock", "lte", "min_stock" as any);
 
       if (error) {
-        // Fallback: use raw RPC or just return 0
         console.error("Low stock query error:", error);
         return 0;
       }
@@ -187,6 +187,27 @@ function useAbandonedCheckoutsCount() {
   });
 }
 
+function useFailedSocialPostsCount() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ["execution-failed-social-posts", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return 0;
+      const { count, error } = await supabase
+        .from("social_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("status", "failed");
+      if (error) return 0;
+      return count || 0;
+    },
+    enabled: !!tenantId,
+    refetchInterval: 30000,
+  });
+}
+
 export function useExecutionCounts() {
   // Orders
   const { data: orderCounts, isLoading: ordersLoading } = useOrderExecutionCounts();
@@ -196,10 +217,8 @@ export function useExecutionCounts() {
   const { alerts: fiscalAlerts, isLoading: fiscalAlertsLoading } = useFiscalAlerts();
   const { data: pendingInvoiceOrders, isLoading: pendingInvoiceLoading } = useOrdersPendingInvoice();
 
-  // Support
+  // Support / Communications
   const { stats: conversationStats, isLoading: conversationsLoading } = useConversations();
-
-  // Support — notification errors & unread emails (from CommunicationsWidget pattern)
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
 
@@ -234,12 +253,22 @@ export function useExecutionCounts() {
 
   // Ads
   const { pendingActions: adsPending, isLoading: adsLoading } = useAdsPendingActions();
+  const { insights: adsInsights } = useAdsInsights();
+  const adsBalance = useAdsBalanceMonitor();
+
+  // Storefront health
+  const violationStats = useViolationsStats();
+  const healthStats = useHealthCheckStats();
+
+  // Content calendar
+  const { data: failedSocialPosts = 0 } = useFailedSocialPostsCount();
 
   // Insights
   const { data: abandonedCheckouts = 0 } = useAbandonedCheckoutsCount();
   const { data: lowStock = 0 } = useLowStockCount();
 
-  // Build categories
+  // ── Build categories ──
+
   const orders: ExecutionCategory = {
     stats: [
       orderCounts?.awaitingPayment ? { count: orderCounts.awaitingPayment, label: "Pagamento pendente", navigateTo: "/orders?paymentStatus=awaiting_payment", color: "info" as const } : null,
@@ -266,14 +295,15 @@ export function useExecutionCounts() {
   const needsAttention = conversationStats?.needsAttention || 0;
   const inProgress = conversationStats?.inProgress || 0;
 
-  const support: ExecutionCategory = {
+  const communications: ExecutionCategory = {
     stats: [
       needsAttention ? { count: needsAttention, label: "Aguardando agente", navigateTo: "/support?status=waiting_agent", color: "warning" as const } : null,
       inProgress ? { count: inProgress, label: "Em andamento", navigateTo: "/support", color: "info" as const } : null,
       notificationErrors ? { count: notificationErrors, label: "Erros notificação", navigateTo: "/notifications", color: "destructive" as const } : null,
       unreadEmails ? { count: unreadEmails, label: "Emails não lidos", navigateTo: "/emails", color: "info" as const } : null,
+      failedSocialPosts ? { count: failedSocialPosts, label: "Posts com falha", navigateTo: "/content-calendar", color: "destructive" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: needsAttention + inProgress + notificationErrors + unreadEmails,
+    totalPending: needsAttention + inProgress + notificationErrors + unreadEmails + failedSocialPosts,
   };
 
   const integrations: ExecutionCategory = {
@@ -287,24 +317,35 @@ export function useExecutionCounts() {
   };
 
   const adsPendingCount = adsPending?.length || 0;
+  const openInsightsCount = (adsInsights || []).filter((i: any) => i.status === "open").length;
+  const zeroBalanceCount = adsBalance.zeroBalanceCount || 0;
+  const lowBalanceCount = adsBalance.lowBalanceCount || 0;
 
   const ads: ExecutionCategory = {
     stats: [
       adsPendingCount ? { count: adsPendingCount, label: "Pendentes aprovação", navigateTo: "/ads?tab=autopilot", color: "warning" as const } : null,
+      openInsightsCount ? { count: openInsightsCount, label: "Insights abertos", navigateTo: "/ads?tab=insights", color: "info" as const } : null,
+      zeroBalanceCount ? { count: zeroBalanceCount, label: "Contas sem saldo", navigateTo: "/ads?tab=accounts", color: "destructive" as const } : null,
+      lowBalanceCount ? { count: lowBalanceCount, label: "Saldo baixo", navigateTo: "/ads?tab=accounts", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: adsPendingCount,
+    totalPending: adsPendingCount + openInsightsCount + zeroBalanceCount + lowBalanceCount,
   };
 
-  const insights: ExecutionCategory = {
+  const unresolvedViolations = violationStats.unresolved || 0;
+  const failedHealthChecks = healthStats.failed || 0;
+
+  const alerts: ExecutionCategory = {
     stats: [
+      unresolvedViolations ? { count: unresolvedViolations, label: "Violações storefront", navigateTo: "/health-monitor", color: "destructive" as const } : null,
+      failedHealthChecks ? { count: failedHealthChecks, label: "Health checks falhos", navigateTo: "/health-monitor", color: "destructive" as const } : null,
       abandonedCheckouts ? { count: abandonedCheckouts, label: "Carrinhos abandonados", navigateTo: "/orders?status=abandoned", color: "info" as const } : null,
       lowStock ? { count: lowStock, label: "Estoque baixo", navigateTo: "/products?stock=low", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: abandonedCheckouts + lowStock,
+    totalPending: unresolvedViolations + failedHealthChecks + abandonedCheckouts + lowStock,
   };
 
-  const totalPending = orders.totalPending + fiscal.totalPending + support.totalPending +
-    integrations.totalPending + ads.totalPending + insights.totalPending;
+  const totalPending = orders.totalPending + fiscal.totalPending + communications.totalPending +
+    integrations.totalPending + ads.totalPending + alerts.totalPending;
 
   const isLoading = ordersLoading || fiscalStatsLoading || fiscalAlertsLoading ||
     pendingInvoiceLoading || conversationsLoading || integrationsLoading || adsLoading;
@@ -312,10 +353,10 @@ export function useExecutionCounts() {
   return {
     orders,
     fiscal,
-    support,
+    communications,
     integrations,
     ads,
-    insights,
+    alerts,
     totalPending,
     isLoading,
   };
