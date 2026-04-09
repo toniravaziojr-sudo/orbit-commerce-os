@@ -3087,6 +3087,56 @@ export type Database = {
           },
         ]
       }
+      command_insights: {
+        Row: {
+          category: string
+          created_at: string
+          data: Json | null
+          id: string
+          period_end: string
+          period_start: string
+          severity: string
+          status: string
+          summary: string
+          tenant_id: string
+          title: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          period_end: string
+          period_start: string
+          severity?: string
+          status?: string
+          summary: string
+          tenant_id: string
+          title: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          period_end?: string
+          period_start?: string
+          severity?: string
+          status?: string
+          summary?: string
+          tenant_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "command_insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       command_message_attachments: {
         Row: {
           bucket: string
