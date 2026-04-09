@@ -62,7 +62,11 @@ serve(async (req) => {
         });
       }
 
-      const { data: access } = await supabase.rpc("user_has_tenant_access", { p_tenant_id: reqTenantId });
+      // Use a user-scoped client so auth.uid() works inside the RPC
+      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      });
+      const { data: access } = await userClient.rpc("user_has_tenant_access", { p_tenant_id: reqTenantId });
       if (!access) {
         return new Response(JSON.stringify({ error: "Sem acesso ao tenant" }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
