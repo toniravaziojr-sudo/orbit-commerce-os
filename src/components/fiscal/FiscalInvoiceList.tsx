@@ -582,8 +582,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
     for (const invoice of authorized) {
       try {
-        const { error } = await supabase.functions.invoke('fiscal-resend-email', {
-          body: { invoice_id: invoice.id },
+        const { error } = await supabase.functions.invoke('fiscal-send-nfe-email', {
+          body: { invoice_id: invoice.id, tenant_id: invoice.tenant_id },
         });
         if (error) { errorCount++; } else { successCount++; }
       } catch {
@@ -611,8 +611,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   // Individual: Reenviar por Email
   const handleResendEmail = async (invoice: FiscalInvoice) => {
     try {
-      const { error } = await supabase.functions.invoke('fiscal-resend-email', {
-        body: { invoice_id: invoice.id },
+      const { error } = await supabase.functions.invoke('fiscal-send-nfe-email', {
+        body: { invoice_id: invoice.id, tenant_id: invoice.tenant_id },
       });
       if (error) throw error;
       toast.success('Email reenviado com sucesso');
