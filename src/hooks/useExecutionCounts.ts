@@ -401,6 +401,7 @@ export function useExecutionCounts() {
   const { data: marketplaceAlerts } = useMarketplaceAlerts();
   const { data: problematicShipments = 0 } = useProblematicShipments();
   const { data: aiCredits } = useAiCreditsAlert();
+  const { data: storageAlert } = useStorageAlert();
 
   // ── Build categories ──
 
