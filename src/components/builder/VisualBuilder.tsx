@@ -1717,7 +1717,17 @@ export function VisualBuilder({
         onRestore={(content) => store.setContent(content)}
       />
 
-      {/* Unsaved Changes Dialog */}
+      {/* Home Structure Dialog */}
+      {isHomePage && (
+        <HomeStructureDialog
+          open={showHomeStructureDialog}
+          onOpenChange={setShowHomeStructureDialog}
+          onApplyStructure={(content) => store.setContent(content)}
+          storeName={context.settings?.store_name}
+        />
+      )}
+
+
       <UnsavedChangesDialog
         open={showUnsavedDialog}
         onOpenChange={setShowUnsavedDialog}
