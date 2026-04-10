@@ -37,6 +37,7 @@ export function ExecutionsQueue() {
     products,
     tracking,
     aiPackages,
+    storage,
     totalPending,
     isLoading,
   } = useExecutionCounts();
