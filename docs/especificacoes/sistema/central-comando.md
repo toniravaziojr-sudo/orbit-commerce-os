@@ -33,8 +33,13 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/CommandCenter.tsx` | Página principal com Tabs |
+| `src/pages/CommandCenter.tsx` | Página principal com Tabs (5 abas) |
 | `src/hooks/useDashboardMetrics.ts` | Hook de métricas do dashboard |
+| `src/hooks/useExecutionCounts.ts` | Hook central da Central de Execuções (14 categorias) |
+| `src/components/command-center/ExecutionsQueue.tsx` | Grid de cards da Central de Execuções |
+| `src/components/command-center/ExecutionCard.tsx` | Card individual de categoria |
+| `src/components/command-center/InsightsTab.tsx` | Aba de Insights IA |
+| `src/components/command-center/DashboardTab.tsx` | Aba de Dashboard |
 | `src/components/command-center/agenda/` | Módulo completo da Agenda |
 | `src/components/dashboard/` | Widgets do dashboard |
 | `src/components/health/` | Cards de saúde do storefront |
@@ -43,7 +48,9 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 
 ---
 
-## 1. Aba Overview — Dashboard
+## 1. Aba Dashboard
+
+> Anteriormente chamada "Overview". Renomeada na v2.0.0.
 
 ### Estrutura Visual (de cima para baixo)
 
