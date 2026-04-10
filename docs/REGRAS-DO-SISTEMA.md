@@ -283,7 +283,7 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 
 **Função de IA** = capacidade embutida em um módulo para gerar, sugerir, preencher ou analisar algo, sem ser entidade autônoma do sistema. Exemplos: geração de criativos, preenchimento de SEO, sugestão de blocos, geração de landing pages.
 
-### 9.2 Agentes Oficiais (4)
+### 9.2 Agentes Oficiais (5)
 
 | Agente | Escopo | Execução | Restrição Principal |
 |--------|--------|----------|---------------------|
@@ -291,8 +291,11 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 | **Auxiliar de Comando** | Qualquer ação que o usuário poderia fazer manualmente | Executa após aprovação do usuário | Solicitação → Resumo → Aprovação → Execução → Feedback |
 | **Gestor de Tráfego IA** | Tráfego pago (campanhas, criativos, orçamento) | Executa ações de tráfego | Criativos e aumento de orçamento acima do limite exigem aprovação manual |
 | **Agenda** | Gestão de tarefas, lembretes e delegação restrita ao Auxiliar | Comunicação exclusiva via WhatsApp com o admin | Canal exclusivo: admin autorizado via WhatsApp. Ações no sistema somente via Auxiliar com confirmação. Delegação limitada por allowlist de ações. Regra de desambiguação obrigatória. |
+| **IA Atendente** | Atendimento ao cliente do tenant via multi-canal | Responde clientes automaticamente nos canais habilitados | Puramente informativa — NUNCA executa ações. Escala para humano quando necessário. Configurável por canal. |
 
 > **Nota sobre escopo Auxiliar vs Agenda:** O Auxiliar de Comando tem escopo amplo ("qualquer ação manual"). A Agenda, quando delega ao Auxiliar, opera com um subconjunto restrito definido pela allowlist inicial. A ampliação da allowlist exige atualização documental e confirmação do usuário.
+
+> **Nota sobre IA Atendente:** Diferente dos demais agentes que auxiliam o **administrador** da loja, a IA Atendente interage diretamente com os **clientes** do tenant. Opera nos canais WhatsApp, Instagram, Messenger, Email e Chat Widget. Especificação completa: `docs/especificacoes/crm/crm-atendimento.md`.
 
 ### 9.3 Regras Universais dos Agentes
 - Todo agente conhece a estrutura do sistema e opera dentro do escopo de permissões do seu domínio e da autorização do usuário. O acesso a dados do tenant é limitado ao necessário para a função do agente.

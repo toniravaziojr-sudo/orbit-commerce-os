@@ -353,7 +353,7 @@ Hub operacional **"Zero Inbox"** que exibe **somente pendências que exigem aç�
 
 ### 5.1 Identidade e Papel
 
-A **Agenda** é o **quarto agente de IA** do sistema (junto com o Assistente IA/ChatGPT, o Auxiliar de Comando e o Gestor de Tráfego IA). Seu papel principal é:
+A **Agenda** é o **quarto agente de IA** do sistema (junto com o Assistente IA/ChatGPT, o Auxiliar de Comando, o Gestor de Tráfego IA e a IA Atendente). Seu papel principal é:
 
 - **Comunicar-se exclusivamente via WhatsApp** com o administrador da loja
 - **Agendar tarefas e disparar lembretes** conforme solicitações do usuário
