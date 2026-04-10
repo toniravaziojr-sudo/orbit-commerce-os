@@ -1,6 +1,6 @@
 // =============================================
 // USE EXECUTION COUNTS — Central hook for all execution pendencies
-// Aggregates counts from orders, fiscal, support, integrations, ads, alerts
+// Aggregates counts across all operational modules
 // Only shows items that REQUIRE human action
 // =============================================
 
@@ -8,11 +8,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useFiscalStats, useFiscalAlerts, useOrdersPendingInvoice } from "@/hooks/useFiscal";
-import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
-import { useConversations } from "@/hooks/useConversations";
-import { useViolationsStats } from "@/hooks/useRuntimeViolations";
-import { useHealthCheckStats } from "@/hooks/useHealthChecks";
 import { useAdsBalanceMonitor } from "@/hooks/useAdsBalanceMonitor";
+import { useConversations } from "@/hooks/useConversations";
+import { useOrderLimitCheck } from "@/hooks/usePlans";
 import { useCallback, useEffect, useState } from "react";
 
 export interface ExecutionStat {
@@ -33,38 +31,26 @@ interface IntegrationError {
   navigateTo: string;
 }
 
+// ── Pedidos: chargebacks, limite mensal (90%+), aguardando NF ──
 function useOrderExecutionCounts() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
 
   return useQuery({
     queryKey: ["execution-order-counts", tenantId],
-    queryFn: async (): Promise<{
-      awaitingPayment: number;
-      awaitingShipment: number;
-      chargebacks: number;
-      returns: number;
-    }> => {
-      if (!tenantId) return { awaitingPayment: 0, awaitingShipment: 0, chargebacks: 0, returns: 0 };
+    queryFn: async () => {
+      if (!tenantId) return { chargebacks: 0, awaitingInvoice: 0 };
 
-      const [paymentRes, shipmentRes, chargebackRes, returnsRes] = await Promise.all([
-        supabase.from("orders").select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId).eq("payment_status", "pending" as any)
-          .not("payment_gateway_id", "is", null),
-        supabase.from("orders").select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId).eq("status", "paid")
-          .not("payment_gateway_id", "is", null),
+      const [chargebackRes, invoiceRes] = await Promise.all([
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId).in("status", ["chargeback_detected", "chargeback_lost"]),
         supabase.from("orders").select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId).eq("status", "returning"),
+          .eq("tenant_id", tenantId).eq("status", "ready_to_invoice"),
       ]);
 
       return {
-        awaitingPayment: paymentRes.count || 0,
-        awaitingShipment: shipmentRes.count || 0,
         chargebacks: chargebackRes.count || 0,
-        returns: returnsRes.count || 0,
+        awaitingInvoice: invoiceRes.count || 0,
       };
     },
     enabled: !!tenantId,
@@ -72,6 +58,7 @@ function useOrderExecutionCounts() {
   });
 }
 
+// ── Integrações com falha ──
 function useIntegrationErrors() {
   const { currentTenant, profile } = useAuth();
   const tenantId = currentTenant?.id || profile?.current_tenant_id;
@@ -130,6 +117,7 @@ function useIntegrationErrors() {
   return { errors, isLoading, errorCount: errors.length };
 }
 
+// ── Produtos: estoque baixo ──
 function useLowStockCount() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
@@ -138,9 +126,7 @@ function useLowStockCount() {
     queryKey: ["execution-low-stock", tenantId],
     queryFn: async () => {
       if (!tenantId) return 0;
-      // Fetch products where stock and min_stock are set, then filter client-side
-      const { data, error } = await (supabase
-        .from("products") as any)
+      const { data, error } = await (supabase.from("products") as any)
         .select("id, stock, min_stock")
         .eq("tenant_id", tenantId)
         .eq("is_active", true)
@@ -148,12 +134,7 @@ function useLowStockCount() {
         .not("stock", "is", null)
         .not("min_stock", "is", null)
         .limit(500);
-
-      if (error) {
-        console.error("Low stock query error:", error);
-        return 0;
-      }
-      // Compare columns client-side since PostgREST can't compare two columns
+      if (error) return 0;
       return (data || []).filter((p: any) => p.stock <= p.min_stock).length;
     },
     enabled: !!tenantId,
@@ -161,22 +142,18 @@ function useLowStockCount() {
   });
 }
 
-function useAbandonedCheckoutsCount() {
+// ── Avaliações pendentes de aprovação ──
+function usePendingReviewsCount() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ["execution-abandoned-checkouts", tenantId],
+    queryKey: ["execution-pending-reviews", tenantId],
     queryFn: async () => {
       if (!tenantId) return 0;
-      const { count, error } = await supabase
-        .from("checkout_sessions")
+      const { count } = await supabase.from("product_reviews")
         .select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId)
-        .eq("status", "abandoned")
-        .is("order_id", null);
-
-      if (error) return 0;
+        .eq("tenant_id", tenantId).eq("status", "pending");
       return count || 0;
     },
     enabled: !!tenantId,
@@ -184,53 +161,178 @@ function useAbandonedCheckoutsCount() {
   });
 }
 
-function useFailedSocialPostsCount() {
+// ── Calendário de conteúdo: posts com falha + último agendamento acabando ──
+function useContentCalendarAlerts() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ["execution-failed-social-posts", tenantId],
+    queryKey: ["execution-content-calendar", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return { failedPosts: 0, schedulingEndingSoon: false };
+
+      const [failedRes, lastScheduledRes] = await Promise.all([
+        supabase.from("social_posts")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("status", "failed"),
+        supabase.from("social_posts")
+          .select("scheduled_at")
+          .eq("tenant_id", tenantId).in("status", ["scheduled", "pending"])
+          .order("scheduled_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+
+      const failedPosts = failedRes.count || 0;
+      let schedulingEndingSoon = false;
+      if (lastScheduledRes.data?.scheduled_at) {
+        const lastDate = new Date(lastScheduledRes.data.scheduled_at);
+        const threeDaysFromNow = new Date();
+        threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+        schedulingEndingSoon = lastDate <= threeDaysFromNow;
+      }
+
+      return { failedPosts, schedulingEndingSoon };
+    },
+    enabled: !!tenantId,
+    refetchInterval: 60000,
+  });
+}
+
+// ── Blog: posts com falha + último agendamento acabando ──
+function useBlogAlerts() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ["execution-blog-alerts", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return { failedPosts: 0, schedulingEndingSoon: false };
+
+      const [failedRes, lastScheduledRes] = await Promise.all([
+        supabase.from("blog_posts")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("status", "failed"),
+        supabase.from("blog_posts")
+          .select("published_at")
+          .eq("tenant_id", tenantId).eq("status", "scheduled")
+          .order("published_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+
+      const failedPosts = failedRes.count || 0;
+      let schedulingEndingSoon = false;
+      if (lastScheduledRes.data?.published_at) {
+        const lastDate = new Date(lastScheduledRes.data.published_at);
+        const threeDaysFromNow = new Date();
+        threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+        schedulingEndingSoon = lastDate <= threeDaysFromNow;
+      }
+
+      return { failedPosts, schedulingEndingSoon };
+    },
+    enabled: !!tenantId,
+    refetchInterval: 60000,
+  });
+}
+
+// ── Marketplaces: conexões com erro ou syncs com falha ──
+function useMarketplaceAlerts() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ["execution-marketplace-alerts", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return { connectionErrors: 0, syncErrors: 0 };
+
+      const [connRes, syncRes] = await Promise.all([
+        supabase.from("marketplace_connections")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("is_active", true)
+          .not("last_error", "is", null),
+        supabase.from("marketplace_sync_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("status", "failed")
+          .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+      ]);
+
+      return {
+        connectionErrors: connRes.count || 0,
+        syncErrors: syncRes.count || 0,
+      };
+    },
+    enabled: !!tenantId,
+    refetchInterval: 60000,
+  });
+}
+
+// ── Rastreio: entregas problemáticas ──
+function useProblematicShipments() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ["execution-problematic-shipments", tenantId],
     queryFn: async () => {
       if (!tenantId) return 0;
-      const { count, error } = await supabase
-        .from("social_posts")
+      const { count } = await supabase.from("shipments")
         .select("id", { count: "exact", head: true })
         .eq("tenant_id", tenantId)
-        .eq("status", "failed");
-      if (error) return 0;
+        .in("delivery_status", ["failed", "returned", "unknown"]);
       return count || 0;
     },
     enabled: !!tenantId,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
+  });
+}
+
+// ── Pacotes de IA: créditos abaixo de 10% ──
+function useAiCreditsAlert() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ["execution-ai-credits-alert", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return { isLow: false, remaining: 0, total: 0 };
+
+      const { data: sub } = await supabase
+        .from("tenant_ai_subscriptions")
+        .select("credits_remaining, package_id")
+        .eq("tenant_id", tenantId).eq("status", "active")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+
+      if (!sub) return { isLow: false, remaining: 0, total: 0 };
+
+      const { data: pkg } = await supabase
+        .from("ai_packages")
+        .select("credits")
+        .eq("id", sub.package_id).maybeSingle();
+
+      const total = pkg?.credits || 0;
+      const remaining = sub.credits_remaining || 0;
+      const isLow = total > 0 && remaining <= total * 0.1;
+
+      return { isLow, remaining, total };
+    },
+    enabled: !!tenantId,
+    refetchInterval: 120000,
   });
 }
 
 export function useExecutionCounts() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
   // Orders
   const { data: orderCounts, isLoading: ordersLoading } = useOrderExecutionCounts();
+  const { data: limitCheck } = useOrderLimitCheck();
 
   // Fiscal
   const { data: fiscalStats, isLoading: fiscalStatsLoading } = useFiscalStats();
   const { alerts: fiscalAlerts, isLoading: fiscalAlertsLoading } = useFiscalAlerts();
   const { data: pendingInvoiceOrders, isLoading: pendingInvoiceLoading } = useOrdersPendingInvoice();
 
-  // Communications — only items needing action
+  // Communications
   const { stats: conversationStats, isLoading: conversationsLoading } = useConversations();
-  const { currentTenant } = useAuth();
-  const tenantId = currentTenant?.id;
-
-  const { data: notificationErrors = 0 } = useQuery({
-    queryKey: ["execution-notification-errors", tenantId],
-    queryFn: async () => {
-      if (!tenantId) return 0;
-      const { count } = await supabase.from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("tenant_id", tenantId).eq("status", "failed");
-      return count || 0;
-    },
-    enabled: !!tenantId,
-    refetchInterval: 30000,
-  });
 
   const { data: unreadEmails = 0 } = useQuery({
     queryKey: ["execution-unread-emails", tenantId],
@@ -245,61 +347,82 @@ export function useExecutionCounts() {
     refetchInterval: 30000,
   });
 
+  // Notifications with errors
+  const { data: notificationErrors = 0 } = useQuery({
+    queryKey: ["execution-notification-errors", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return 0;
+      const { count } = await supabase.from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId).eq("status", "failed");
+      return count || 0;
+    },
+    enabled: !!tenantId,
+    refetchInterval: 30000,
+  });
+
   // Integrations
   const { errors: integrationErrors, isLoading: integrationsLoading } = useIntegrationErrors();
 
-  // Ads — only actionable items
-  const { pendingActions: adsPending, isLoading: adsLoading } = useAdsPendingActions();
+  // Ads
   const adsBalance = useAdsBalanceMonitor();
 
-  // Storefront health
-  const violationStats = useViolationsStats();
-  const healthStats = useHealthCheckStats();
-
-  // Content calendar
-  const { data: failedSocialPosts = 0 } = useFailedSocialPostsCount();
-
-  // Insights
-  const { data: abandonedCheckouts = 0 } = useAbandonedCheckoutsCount();
+  // New modules
   const { data: lowStock = 0 } = useLowStockCount();
+  const { data: pendingReviews = 0 } = usePendingReviewsCount();
+  const { data: contentCalendar } = useContentCalendarAlerts();
+  const { data: blogAlerts } = useBlogAlerts();
+  const { data: marketplaceAlerts } = useMarketplaceAlerts();
+  const { data: problematicShipments = 0 } = useProblematicShipments();
+  const { data: aiCredits } = useAiCreditsAlert();
 
   // ── Build categories ──
 
+  // Pedidos: chargebacks + limite mensal (90%+) + aguardando NF
+  const orderLimitNear = limitCheck?.order_limit
+    ? (limitCheck.current_count / limitCheck.order_limit) >= 0.9
+    : false;
+
   const orders: ExecutionCategory = {
     stats: [
-      orderCounts?.awaitingPayment ? { count: orderCounts.awaitingPayment, label: "Pagamento pendente", navigateTo: "/orders?paymentStatus=awaiting_payment", color: "info" as const } : null,
-      orderCounts?.awaitingShipment ? { count: orderCounts.awaitingShipment, label: "Aguardando envio", navigateTo: "/orders?status=paid", color: "warning" as const } : null,
       orderCounts?.chargebacks ? { count: orderCounts.chargebacks, label: "Chargebacks", navigateTo: "/orders?status=chargeback_detected", color: "destructive" as const } : null,
-      orderCounts?.returns ? { count: orderCounts.returns, label: "Devoluções", navigateTo: "/orders?status=returning", color: "warning" as const } : null,
+      orderLimitNear && limitCheck ? { count: limitCheck.order_limit! - limitCheck.current_count, label: "Limite mensal acabando", navigateTo: "/settings/billing", color: "warning" as const } : null,
+      orderCounts?.awaitingInvoice ? { count: orderCounts.awaitingInvoice, label: "Aguardando NF", navigateTo: "/orders?status=ready_to_invoice", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: (orderCounts?.awaitingPayment || 0) + (orderCounts?.awaitingShipment || 0) + (orderCounts?.chargebacks || 0) + (orderCounts?.returns || 0),
+    totalPending: 0,
   };
+  orders.totalPending = orders.stats.reduce((s, st) => s + st.count, 0);
 
+  // Notas Fiscais: pendentes emissão + rejeitadas
   const pendingInvoiceCount = pendingInvoiceOrders?.length || 0;
   const rejectedCount = fiscalStats?.rejected || 0;
-  const alertsCount = fiscalAlerts?.length || 0;
 
   const fiscal: ExecutionCategory = {
     stats: [
       pendingInvoiceCount ? { count: pendingInvoiceCount, label: "Emitir NF-e", navigateTo: "/fiscal?tab=open-orders", color: "warning" as const } : null,
-      rejectedCount ? { count: rejectedCount, label: "Rejeitadas SEFAZ", navigateTo: "/fiscal?tab=invoices", color: "destructive" as const } : null,
-      alertsCount ? { count: alertsCount, label: "Alertas fiscais", navigateTo: "/fiscal?tab=invoices", color: "destructive" as const } : null,
+      rejectedCount ? { count: rejectedCount, label: "Pendências emissão", navigateTo: "/fiscal?tab=invoices", color: "destructive" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: pendingInvoiceCount + rejectedCount + alertsCount,
+    totalPending: pendingInvoiceCount + rejectedCount,
   };
 
-  const needsAttention = conversationStats?.needsAttention || 0;
-
-  const communications: ExecutionCategory = {
+  // Anúncios: contas sem saldo
+  const zeroBalanceCount = adsBalance.zeroBalanceCount || 0;
+  const ads: ExecutionCategory = {
     stats: [
-      needsAttention ? { count: needsAttention, label: "Aguardando agente", navigateTo: "/support?status=waiting_agent", color: "warning" as const } : null,
-      notificationErrors ? { count: notificationErrors, label: "Erros notificação", navigateTo: "/notifications", color: "destructive" as const } : null,
-      unreadEmails ? { count: unreadEmails, label: "Emails não lidos", navigateTo: "/emails", color: "info" as const } : null,
-      failedSocialPosts ? { count: failedSocialPosts, label: "Posts com falha", navigateTo: "/content-calendar", color: "destructive" as const } : null,
+      zeroBalanceCount ? { count: zeroBalanceCount, label: "Contas sem saldo", navigateTo: "/ads?tab=accounts", color: "destructive" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: needsAttention + notificationErrors + unreadEmails + failedSocialPosts,
+    totalPending: zeroBalanceCount,
   };
 
+  // Avaliações: pendentes de aprovação
+  const reviews: ExecutionCategory = {
+    stats: [
+      pendingReviews ? { count: pendingReviews, label: "Pendentes aprovação", navigateTo: "/reviews", color: "warning" as const } : null,
+    ].filter(Boolean) as ExecutionStat[],
+    totalPending: pendingReviews,
+  };
+
+  // Integrações: falhas
   const integrations: ExecutionCategory = {
     stats: integrationErrors.map(err => ({
       count: 1,
@@ -310,45 +433,104 @@ export function useExecutionCounts() {
     totalPending: integrationErrors.length,
   };
 
-  const adsPendingCount = adsPending?.length || 0;
-  const zeroBalanceCount = adsBalance.zeroBalanceCount || 0;
-  const lowBalanceCount = adsBalance.lowBalanceCount || 0;
-
-  const ads: ExecutionCategory = {
+  // Calendário de conteúdo
+  const failedSocial = contentCalendar?.failedPosts || 0;
+  const calendarEndingSoon = contentCalendar?.schedulingEndingSoon || false;
+  const contentCalendarCategory: ExecutionCategory = {
     stats: [
-      adsPendingCount ? { count: adsPendingCount, label: "Pendentes aprovação", navigateTo: "/ads?tab=autopilot", color: "warning" as const } : null,
-      zeroBalanceCount ? { count: zeroBalanceCount, label: "Contas sem saldo", navigateTo: "/ads?tab=accounts", color: "destructive" as const } : null,
-      lowBalanceCount ? { count: lowBalanceCount, label: "Saldo baixo", navigateTo: "/ads?tab=accounts", color: "warning" as const } : null,
+      failedSocial ? { count: failedSocial, label: "Posts com falha", navigateTo: "/content-calendar", color: "destructive" as const } : null,
+      calendarEndingSoon ? { count: 1, label: "Agendamentos acabando", navigateTo: "/content-calendar", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: adsPendingCount + zeroBalanceCount + lowBalanceCount,
+    totalPending: failedSocial + (calendarEndingSoon ? 1 : 0),
   };
 
-  const unresolvedViolations = violationStats.unresolved || 0;
-  const failedHealthChecks = healthStats.failed || 0;
-
-  const alerts: ExecutionCategory = {
+  // Marketplaces
+  const mktConnErrors = marketplaceAlerts?.connectionErrors || 0;
+  const mktSyncErrors = marketplaceAlerts?.syncErrors || 0;
+  const marketplaces: ExecutionCategory = {
     stats: [
-      unresolvedViolations ? { count: unresolvedViolations, label: "Violações storefront", navigateTo: "/health-monitor", color: "destructive" as const } : null,
-      failedHealthChecks ? { count: failedHealthChecks, label: "Health checks falhos", navigateTo: "/health-monitor", color: "destructive" as const } : null,
-      abandonedCheckouts ? { count: abandonedCheckouts, label: "Carrinhos abandonados", navigateTo: "/orders?status=abandoned", color: "info" as const } : null,
+      mktConnErrors ? { count: mktConnErrors, label: "Conexões com erro", navigateTo: "/marketplaces", color: "destructive" as const } : null,
+      mktSyncErrors ? { count: mktSyncErrors, label: "Falhas de sincronização", navigateTo: "/marketplaces", color: "destructive" as const } : null,
+    ].filter(Boolean) as ExecutionStat[],
+    totalPending: mktConnErrors + mktSyncErrors,
+  };
+
+  // Comunicações: atendimentos aguardando agente + emails não lidos
+  const needsAttention = conversationStats?.needsAttention || 0;
+  const communications: ExecutionCategory = {
+    stats: [
+      needsAttention ? { count: needsAttention, label: "Aguardando agente", navigateTo: "/support?status=waiting_agent", color: "warning" as const } : null,
+      unreadEmails ? { count: unreadEmails, label: "Emails não lidos", navigateTo: "/emails", color: "info" as const } : null,
+    ].filter(Boolean) as ExecutionStat[],
+    totalPending: needsAttention + unreadEmails,
+  };
+
+  // Notificações com erros
+  const notifications: ExecutionCategory = {
+    stats: [
+      notificationErrors ? { count: notificationErrors, label: "Notificações com erro", navigateTo: "/notifications", color: "destructive" as const } : null,
+    ].filter(Boolean) as ExecutionStat[],
+    totalPending: notificationErrors,
+  };
+
+  // Blog
+  const failedBlog = blogAlerts?.failedPosts || 0;
+  const blogEndingSoon = blogAlerts?.schedulingEndingSoon || false;
+  const blog: ExecutionCategory = {
+    stats: [
+      failedBlog ? { count: failedBlog, label: "Posts com falha", navigateTo: "/blog", color: "destructive" as const } : null,
+      blogEndingSoon ? { count: 1, label: "Agendamentos acabando", navigateTo: "/blog", color: "warning" as const } : null,
+    ].filter(Boolean) as ExecutionStat[],
+    totalPending: failedBlog + (blogEndingSoon ? 1 : 0),
+  };
+
+  // Produtos: estoque baixo
+  const products: ExecutionCategory = {
+    stats: [
       lowStock ? { count: lowStock, label: "Estoque baixo", navigateTo: "/products?stock=low", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: unresolvedViolations + failedHealthChecks + abandonedCheckouts + lowStock,
+    totalPending: lowStock,
   };
 
-  const totalPending = orders.totalPending + fiscal.totalPending + communications.totalPending +
-    integrations.totalPending + ads.totalPending + alerts.totalPending;
+  // Rastreio
+  const tracking: ExecutionCategory = {
+    stats: [
+      problematicShipments ? { count: problematicShipments, label: "Entregas problemáticas", navigateTo: "/shipping", color: "destructive" as const } : null,
+    ].filter(Boolean) as ExecutionStat[],
+    totalPending: problematicShipments,
+  };
+
+  // Pacotes de IA
+  const aiLow = aiCredits?.isLow || false;
+  const aiPackages: ExecutionCategory = {
+    stats: [
+      aiLow ? { count: aiCredits?.remaining || 0, label: "Créditos acabando", navigateTo: "/ai-packages", color: "warning" as const } : null,
+    ].filter(Boolean) as ExecutionStat[],
+    totalPending: aiLow ? 1 : 0,
+  };
+
+  const totalPending = orders.totalPending + fiscal.totalPending + ads.totalPending +
+    reviews.totalPending + integrations.totalPending + contentCalendarCategory.totalPending +
+    marketplaces.totalPending + communications.totalPending + notifications.totalPending +
+    blog.totalPending + products.totalPending + tracking.totalPending + aiPackages.totalPending;
 
   const isLoading = ordersLoading || fiscalStatsLoading || fiscalAlertsLoading ||
-    pendingInvoiceLoading || conversationsLoading || integrationsLoading || adsLoading;
+    pendingInvoiceLoading || conversationsLoading || integrationsLoading;
 
   return {
     orders,
     fiscal,
-    communications,
-    integrations,
     ads,
-    alerts,
+    reviews,
+    integrations,
+    contentCalendar: contentCalendarCategory,
+    marketplaces,
+    communications,
+    notifications,
+    blog,
+    products,
+    tracking,
+    aiPackages,
     totalPending,
     isLoading,
   };

@@ -37,7 +37,7 @@ export default function CommandCenter() {
           </TabsTrigger>
           <TabsTrigger value="executions" className="gap-2">
             <ClipboardList className="h-4 w-4" />
-            <span className="hidden sm:inline">Execuções</span>
+            <span className="hidden sm:inline">Central de Execuções</span>
           </TabsTrigger>
           <TabsTrigger value="insights" className="gap-2">
             <Lightbulb className="h-4 w-4" />
