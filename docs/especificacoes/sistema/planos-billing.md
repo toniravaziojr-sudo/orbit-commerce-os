@@ -1,11 +1,10 @@
 # Planos e Billing — Regras e Especificações
 
-> **STATUS:** 🟢 Implementado (v2.3)  
-> **Última atualização:** 2025-01-30
+> **STATUS:** 🟢 Implementado (v2.4)  
+> **Última atualização:** 2026-04-10
 
 > **Camada:** Layer 3 — Especificações / Sistema  
-> **Migrado de:** `docs/regras/planos-billing.md`  
-> **Última atualização:** 2026-04-03
+> **Migrado de:** `docs/regras/planos-billing.md`
 
 
 ---
@@ -39,16 +38,18 @@ Sistema de planos, assinaturas, créditos de IA e cobrança para tenants da plat
 
 ## Estrutura de Planos (8 tiers)
 
-| Plano | Preço/mês | Pedidos/mês | Sugestão |
-|-------|-----------|-------------|----------|
-| `basico` | 2,5% vendas | Ilimitado | Para quem está começando |
-| `evolucao` | R$ 397,00 | 350 | Até 30 mil/mês |
-| `profissional` | R$ 699,90 | 500 | 30 a 50 mil/mês |
-| `avancado` | R$ 1.299,00 | 1.000 | 70 a 120 mil/mês |
-| `impulso` | R$ 2.499,90 | 1.500 | 130 a 200 mil/mês |
-| `consolidar` | R$ 3.997,00 | 3.000 | 200 a 300 mil/mês |
-| `comando_maximo` | R$ 5.990,00 | 5.000 | Acima de 300 mil/mês |
-| `customizado` | Sob consulta | Negociável | Faturamento consolidado |
+| Plano | plan_key | Preço/mês | Pedidos/mês | Sugestão |
+|-------|----------|-----------|-------------|----------|
+| **Gratuito** | `basico` | 2,5% vendas | Ilimitado | Para quem está começando, sem custo fixo |
+| Evolução | `evolucao` | R$ 397,00 | 350 | Até 30 mil/mês |
+| Profissional | `profissional` | R$ 699,90 | 500 | 30 a 50 mil/mês |
+| Avançado | `avancado` | R$ 1.299,00 | 1.000 | 70 a 120 mil/mês |
+| Impulso | `impulso` | R$ 2.499,90 | 1.500 | 130 a 200 mil/mês |
+| Consolidar | `consolidar` | R$ 3.997,00 | 3.000 | 200 a 300 mil/mês |
+| Comando Máximo | `comando_maximo` | R$ 5.990,00 | 5.000 | Acima de 300 mil/mês |
+| Customizado | `customizado` | Sob consulta | Negociável | Faturamento consolidado |
+
+> **Nota:** O plano Gratuito usa `plan_key = 'basico'` por razões de compatibilidade. O display name é "Gratuito" na interface e no site. Não há cobrança de mensalidade fixa — apenas 2,5% sobre o valor das vendas processadas. E-mail Marketing NÃO está disponível neste plano.
 
 ---
 
@@ -219,12 +220,12 @@ credits = ceil(sell_usd / CREDIT_USD)
 
 ## Restrições por Módulo
 
-### Exemplo: Plano Básico
+### Exemplo: Plano Gratuito (`basico`)
 | Módulo | Acesso | Bloqueios |
 |--------|--------|-----------|
 | Central | Parcial | analytics, reports, agenda, assistant |
 | E-commerce | Parcial | export_orders, export_customers |
-| Marketing Avançado | Nenhum | Tudo bloqueado |
+| Marketing Avançado | Nenhum | Tudo bloqueado (inclui E-mail Marketing) |
 | CRM | Parcial | whatsapp_notifications, support_chat |
 | Parcerias | Nenhum | Tudo bloqueado |
 | Suporte | Parcial | whatsapp, customizacoes |
@@ -497,15 +498,17 @@ Cadastra cartão de crédito para tenant.
 
 ---
 
-## Plano Básico Automático
+## Plano Gratuito (Automático)
 
-Quando um usuário cria uma conta pelo plano básico, o sistema:
+Quando um usuário cria uma conta pelo plano Gratuito, o sistema:
 1. Cria o tenant com `plan = 'start'`
 2. Cria assinatura em `tenant_subscriptions` com `plan_key = 'basico'` e `status = 'pending_payment_method'`
 3. Inicializa `credit_wallet` com saldo zero
 4. Usuário pode usar sistema, mas funcionalidades completas exigem cadastro de cartão
+5. Não há cobrança de mensalidade fixa — apenas 2,5% sobre vendas processadas
+6. E-mail Marketing não está disponível neste plano
 
-Isso permite que o usuário comece a usar a plataforma imediatamente, com incentivo para cadastrar cartão.
+Isso permite que o usuário comece a usar a plataforma imediatamente, com incentivo para cadastrar cartão e fazer upgrade.
 
 ---
 
