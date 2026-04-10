@@ -637,6 +637,10 @@ verify_jwt = false
 [functions.google-token-refresh]
 verify_jwt = false
 
+[functions.google-token-refresh-cron]
+verify_jwt = false
+schedule = "*/5 * * * *"
+
 [functions.google-merchant-sync]
 verify_jwt = false
 
