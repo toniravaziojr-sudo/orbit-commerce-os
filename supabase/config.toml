@@ -728,3 +728,97 @@ verify_jwt = false
 
 [functions.ai-block-fill-visual]
 verify_jwt = false
+
+# ===== Google Ads (extended) =====
+[functions.google-ads-adgroups]
+verify_jwt = false
+
+[functions.google-ads-ads]
+verify_jwt = false
+
+[functions.google-ads-assets]
+verify_jwt = false
+
+[functions.google-ads-keywords]
+verify_jwt = false
+
+# ===== Google Apps =====
+[functions.google-calendar]
+verify_jwt = false
+
+[functions.google-gmail]
+verify_jwt = false
+
+# ===== TikTok Ads =====
+[functions.tiktok-ads-adgroups]
+verify_jwt = false
+
+[functions.tiktok-ads-ads]
+verify_jwt = false
+
+[functions.tiktok-ads-assets]
+verify_jwt = false
+
+[functions.tiktok-ads-audiences]
+verify_jwt = false
+
+[functions.tiktok-ads-campaigns]
+verify_jwt = false
+
+[functions.tiktok-ads-insights]
+verify_jwt = false
+
+# ===== TikTok Content =====
+[functions.tiktok-content-analytics]
+verify_jwt = false
+
+[functions.tiktok-content-oauth-callback]
+verify_jwt = false
+
+[functions.tiktok-content-oauth-start]
+verify_jwt = true
+
+[functions.tiktok-content-profile]
+verify_jwt = false
+
+[functions.tiktok-content-publish]
+verify_jwt = false
+
+# ===== TikTok Shop =====
+[functions.tiktok-shop-catalog-status]
+verify_jwt = false
+
+[functions.tiktok-shop-catalog-sync]
+verify_jwt = false
+
+[functions.tiktok-shop-fulfillment]
+verify_jwt = false
+
+[functions.tiktok-shop-oauth-callback]
+verify_jwt = false
+
+[functions.tiktok-shop-oauth-start]
+verify_jwt = true
+
+[functions.tiktok-shop-orders-detail]
+verify_jwt = false
+
+[functions.tiktok-shop-orders-sync]
+verify_jwt = false
+
+[functions.tiktok-shop-returns]
+verify_jwt = false
+
+[functions.tiktok-shop-stock-sync]
+verify_jwt = false
+
+[functions.tiktok-shop-webhook]
+verify_jwt = false
+
+# ===== TikTok Token Refresh =====
+[functions.tiktok-token-refresh]
+verify_jwt = false
+
+[functions.tiktok-token-refresh-cron]
+verify_jwt = false
+schedule = "0 */6 * * *"
