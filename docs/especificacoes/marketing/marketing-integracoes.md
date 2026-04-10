@@ -220,10 +220,10 @@ A divisão reflete nas permissões:
 ### Funcionalidades
 | Feature | Status | Descrição |
 |---------|--------|-----------|
-| Listas | 🟧 Pending | Segmentação |
-| Templates | 🟧 Pending | Editor visual |
-| Campanhas | 🟧 Pending | Envio em massa |
-| Automações | 🟧 Pending | Fluxos automáticos |
+| Listas | ✅ Ready | Segmentação por tags, listas padrão, sync automático |
+| Templates | ✅ Ready | Editor visual drag-and-drop com blocos |
+| Campanhas | ✅ Ready | Broadcast com wizard 3 steps |
+| Automações | ✅ Ready | Builder visual React Flow com 9 tipos de nós |
 | Métricas | 🟧 Pending | Open rate, CTR |
 
 ### Tipos de Automação
