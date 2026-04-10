@@ -98,7 +98,7 @@ Este documento especifica a integração completa do ecossistema TikTok no siste
 | `tiktok_content_analytics` | Content Analytics | ✅ |
 | `tiktok_content_scheduled_posts` | Content Agendamento | ✅ |
 
-### Edge Functions (25 funções)
+### Edge Functions (26 funções)
 
 | Função | Módulo | Status |
 |--------|--------|--------|
