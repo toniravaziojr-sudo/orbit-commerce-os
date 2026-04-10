@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowDownLeft, Loader2, Search, AlertTriangle } from 'lucide-react';
+import { ArrowDownLeft, Loader2, Search, AlertTriangle, Package, RotateCcw, Truck, ArrowLeftRight, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,60 @@ interface OperationNature {
   tipo_documento: number;
 }
 
+export type EntryInvoiceType = 'devolucao' | 'compra' | 'remessa' | 'transferencia' | 'outros';
+
+interface EntryTypeOption {
+  value: EntryInvoiceType;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  finalidade_emissao: number; // 1=Normal, 4=Devolução
+  requiresReferenceNfe: boolean;
+}
+
+const ENTRY_TYPES: EntryTypeOption[] = [
+  {
+    value: 'devolucao',
+    label: 'Devolução',
+    description: 'Devolução de mercadoria recebida',
+    icon: <RotateCcw className="h-4 w-4" />,
+    finalidade_emissao: 4,
+    requiresReferenceNfe: true,
+  },
+  {
+    value: 'compra',
+    label: 'Compra',
+    description: 'Entrada de mercadoria por compra',
+    icon: <Package className="h-4 w-4" />,
+    finalidade_emissao: 1,
+    requiresReferenceNfe: false,
+  },
+  {
+    value: 'remessa',
+    label: 'Remessa',
+    description: 'Retorno de remessa, conserto ou demonstração',
+    icon: <Truck className="h-4 w-4" />,
+    finalidade_emissao: 1,
+    requiresReferenceNfe: false,
+  },
+  {
+    value: 'transferencia',
+    label: 'Transferência',
+    description: 'Transferência entre filiais ou depósitos',
+    icon: <ArrowLeftRight className="h-4 w-4" />,
+    finalidade_emissao: 1,
+    requiresReferenceNfe: false,
+  },
+  {
+    value: 'outros',
+    label: 'Outros',
+    description: 'Outras operações de entrada',
+    icon: <FileText className="h-4 w-4" />,
+    finalidade_emissao: 1,
+    requiresReferenceNfe: false,
+  },
+];
+
 interface EntryInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,6 +90,7 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
 
+  const [entryType, setEntryType] = useState<EntryInvoiceType>(initialChaveAcesso ? 'devolucao' : 'compra');
   const [chaveAcesso, setChaveAcesso] = useState(initialChaveAcesso || '');
   const [searchingNfe, setSearchingNfe] = useState(false);
   const [foundInvoice, setFoundInvoice] = useState<any>(null);
@@ -44,10 +99,17 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
   const [observacoes, setObservacoes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Manual entry fields (for non-reference types)
+  const [destNome, setDestNome] = useState('');
+  const [destCpfCnpj, setDestCpfCnpj] = useState('');
+
+  const selectedEntryType = ENTRY_TYPES.find(t => t.value === entryType)!;
+
   // Sync initialChaveAcesso when dialog opens
   useEffect(() => {
     if (open && initialChaveAcesso) {
       setChaveAcesso(initialChaveAcesso);
+      setEntryType('devolucao');
     }
   }, [open, initialChaveAcesso]);
 
@@ -65,6 +127,30 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
     }
   }, [open, tenantId]);
 
+  // Auto-select nature based on entry type
+  useEffect(() => {
+    if (natures.length === 0) return;
+    
+    const typeKeywords: Record<EntryInvoiceType, string[]> = {
+      devolucao: ['devolução', 'devolucao'],
+      compra: ['compra', 'aquisição', 'aquisicao'],
+      remessa: ['remessa', 'retorno', 'conserto', 'demonstração'],
+      transferencia: ['transferência', 'transferencia'],
+      outros: [],
+    };
+
+    const keywords = typeKeywords[entryType];
+    const match = natures.find(n => 
+      keywords.some(kw => n.nome.toLowerCase().includes(kw))
+    );
+    
+    if (match) {
+      setSelectedNature(match.id);
+    } else if (natures.length > 0) {
+      setSelectedNature(natures[0].id);
+    }
+  }, [entryType, natures]);
+
   const loadNatures = async () => {
     const { data, error } = await supabase
       .from('fiscal_operation_natures')
@@ -76,13 +162,6 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
 
     if (!error && data) {
       setNatures(data);
-      // Auto-select "Devolução de Venda" if exists
-      const devolucao = data.find(n => n.nome.toLowerCase().includes('devolução'));
-      if (devolucao) {
-        setSelectedNature(devolucao.id);
-      } else if (data.length > 0) {
-        setSelectedNature(data[0].id);
-      }
     }
   };
 
@@ -94,8 +173,7 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
 
     setSearchingNfe(true);
     try {
-      // First, search in our database
-      const { data: localInvoice, error } = await supabase
+      const { data: localInvoice } = await supabase
         .from('fiscal_invoices')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -104,7 +182,6 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
         .maybeSingle();
 
       if (localInvoice) {
-        // Check if can still cancel (within 24h)
         const authorizedAt = localInvoice.authorized_at || localInvoice.created_at;
         const hoursSinceAuth = differenceInHours(new Date(), parseISO(authorizedAt));
         
@@ -115,7 +192,6 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
           hoursSinceAuth,
         });
       } else {
-        // NF-e not found locally - could search via SEFAZ/Focus NFe
         setFoundInvoice({
           chave_acesso: chaveAcesso.replace(/\D/g, ''),
           isLocal: false,
@@ -131,7 +207,15 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
   };
 
   const handleCreateEntry = async () => {
-    if (!selectedNature || !foundInvoice) return;
+    if (!selectedNature) return;
+    
+    // For types that require reference, must have found invoice
+    if (selectedEntryType.requiresReferenceNfe && !foundInvoice) return;
+    // For types that don't require reference, must have dest name
+    if (!selectedEntryType.requiresReferenceNfe && !destNome.trim()) {
+      toast.error('Informe o nome do remetente/fornecedor');
+      return;
+    }
 
     const nature = natures.find(n => n.id === selectedNature);
     if (!nature) {
@@ -141,46 +225,58 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
 
     setIsLoading(true);
     try {
-      // Create entry invoice based on original
-      const entryData = {
+      const entryData: any = {
         natureza_operacao: nature.nome,
         tipo_documento: 0, // Entrada
-        finalidade_emissao: 4, // Devolução
-        nfe_referenciada: foundInvoice.chave_acesso,
-        // Copy recipient data (which becomes the sender for entry)
-        dest_nome: foundInvoice.dest_nome,
-        dest_cpf_cnpj: foundInvoice.dest_cpf_cnpj,
-        dest_inscricao_estadual: foundInvoice.dest_inscricao_estadual,
-        dest_endereco_logradouro: foundInvoice.dest_endereco_logradouro,
-        dest_endereco_numero: foundInvoice.dest_endereco_numero,
-        dest_endereco_complemento: foundInvoice.dest_endereco_complemento,
-        dest_endereco_bairro: foundInvoice.dest_endereco_bairro,
-        dest_endereco_municipio: foundInvoice.dest_endereco_municipio,
-        dest_endereco_uf: foundInvoice.dest_endereco_uf,
-        dest_endereco_cep: foundInvoice.dest_endereco_cep,
-        observacoes: observacoes || `Devolução referente à NF-e ${foundInvoice.chave_acesso}`,
-        items: [], // Will need to fetch items from original
+        finalidade_emissao: selectedEntryType.finalidade_emissao,
+        items: [],
       };
 
-      // If local invoice, fetch items
-      if (foundInvoice.isLocal) {
-        const { data: items } = await supabase
-          .from('fiscal_invoice_items')
-          .select('*')
-          .eq('invoice_id', foundInvoice.id);
+      if (selectedEntryType.requiresReferenceNfe && foundInvoice) {
+        // Reference-based entry (devolução)
+        entryData.nfe_referenciada = foundInvoice.chave_acesso;
+        entryData.dest_nome = foundInvoice.dest_nome;
+        entryData.dest_cpf_cnpj = foundInvoice.dest_cpf_cnpj;
+        entryData.dest_inscricao_estadual = foundInvoice.dest_inscricao_estadual;
+        entryData.dest_endereco_logradouro = foundInvoice.dest_endereco_logradouro;
+        entryData.dest_endereco_numero = foundInvoice.dest_endereco_numero;
+        entryData.dest_endereco_complemento = foundInvoice.dest_endereco_complemento;
+        entryData.dest_endereco_bairro = foundInvoice.dest_endereco_bairro;
+        entryData.dest_endereco_municipio = foundInvoice.dest_endereco_municipio;
+        entryData.dest_endereco_uf = foundInvoice.dest_endereco_uf;
+        entryData.dest_endereco_cep = foundInvoice.dest_endereco_cep;
+        entryData.observacoes = observacoes || `Devolução referente à NF-e ${foundInvoice.chave_acesso}`;
 
-        if (items) {
-          entryData.items = items.map((item: any) => ({
-            codigo: item.codigo_produto,
-            descricao: item.descricao,
-            ncm: item.ncm,
-            cfop: nature.cfop_intra, // Use entry CFOP
-            unidade: item.unidade,
-            quantidade: item.quantidade,
-            valor_unitario: item.valor_unitario,
-            origem: item.origem,
-            csosn: item.csosn,
-          }));
+        // If local invoice, fetch items
+        if (foundInvoice.isLocal) {
+          const { data: items } = await supabase
+            .from('fiscal_invoice_items')
+            .select('*')
+            .eq('invoice_id', foundInvoice.id);
+
+          if (items) {
+            entryData.items = items.map((item: any) => ({
+              codigo: item.codigo_produto,
+              descricao: item.descricao,
+              ncm: item.ncm,
+              cfop: nature.cfop_intra,
+              unidade: item.unidade,
+              quantidade: item.quantidade,
+              valor_unitario: item.valor_unitario,
+              origem: item.origem,
+              csosn: item.csosn,
+            }));
+          }
+        }
+      } else {
+        // Manual entry (compra, remessa, transferência, etc.)
+        entryData.dest_nome = destNome;
+        entryData.dest_cpf_cnpj = destCpfCnpj || null;
+        entryData.observacoes = observacoes || `NF-e de Entrada - ${selectedEntryType.label}`;
+        
+        // If user provided a reference key optionally
+        if (chaveAcesso.replace(/\D/g, '').length === 44) {
+          entryData.nfe_referenciada = chaveAcesso.replace(/\D/g, '');
         }
       }
 
@@ -206,55 +302,129 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
     setChaveAcesso('');
     setFoundInvoice(null);
     setObservacoes('');
+    setDestNome('');
+    setDestCpfCnpj('');
+    if (!initialChaveAcesso) {
+      setEntryType('compra');
+    }
   };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
+  const canSubmit = () => {
+    if (!selectedNature) return false;
+    if (selectedEntryType.requiresReferenceNfe) return !!foundInvoice;
+    return !!destNome.trim();
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowDownLeft className="h-5 w-5 text-blue-500" />
             Nova NF-e de Entrada
           </DialogTitle>
           <DialogDescription>
-            Crie uma NF-e de entrada para devolução ou outras operações
+            Selecione o tipo de operação e preencha os dados necessários
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Search by access key */}
+          {/* Entry Type Selection */}
           <div className="space-y-2">
-            <Label>Chave de Acesso da NF-e Original</Label>
-            <div className="flex gap-2">
-              <Input
-                value={chaveAcesso}
-                onChange={(e) => setChaveAcesso(e.target.value.replace(/\D/g, ''))}
-                placeholder="44 dígitos da chave de acesso"
-                maxLength={44}
-                className="font-mono text-sm"
-              />
-              <Button 
-                onClick={handleSearchByChave}
-                disabled={searchingNfe || chaveAcesso.length !== 44}
-              >
-                {searchingNfe ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="h-4 w-4" />
-                )}
-              </Button>
+            <Label>Tipo de Entrada</Label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {ENTRY_TYPES.map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => {
+                    setEntryType(type.value);
+                    setFoundInvoice(null);
+                    setChaveAcesso('');
+                  }}
+                  className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-colors hover:bg-accent ${
+                    entryType === type.value 
+                      ? 'border-primary bg-primary/5 text-primary ring-1 ring-primary/20' 
+                      : 'border-border text-muted-foreground'
+                  }`}
+                >
+                  {type.icon}
+                  <span className="text-xs font-medium">{type.label}</span>
+                </button>
+              ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              Cole a chave de acesso da NF-e original para criar a devolução
+              {selectedEntryType.description}
             </p>
           </div>
 
-          {/* Found invoice info */}
-          {foundInvoice && (
+          {/* Reference NF-e (required for devolução, optional for others) */}
+          {selectedEntryType.requiresReferenceNfe ? (
+            <div className="space-y-2">
+              <Label>Chave de Acesso da NF-e Original *</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={chaveAcesso}
+                  onChange={(e) => setChaveAcesso(e.target.value.replace(/\D/g, ''))}
+                  placeholder="44 dígitos da chave de acesso"
+                  maxLength={44}
+                  className="font-mono text-sm"
+                />
+                <Button 
+                  onClick={handleSearchByChave}
+                  disabled={searchingNfe || chaveAcesso.length !== 44}
+                >
+                  {searchingNfe ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Informe a chave de acesso da NF-e que originou a devolução
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Remetente/Fornecedor info */}
+              <div className="space-y-2">
+                <Label>Remetente / Fornecedor *</Label>
+                <Input
+                  value={destNome}
+                  onChange={(e) => setDestNome(e.target.value)}
+                  placeholder="Nome ou Razão Social"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>CPF/CNPJ</Label>
+                <Input
+                  value={destCpfCnpj}
+                  onChange={(e) => setDestCpfCnpj(e.target.value)}
+                  placeholder="CPF ou CNPJ do remetente"
+                />
+              </div>
+
+              {/* Optional reference key */}
+              <div className="space-y-2">
+                <Label>Chave de Acesso (opcional)</Label>
+                <Input
+                  value={chaveAcesso}
+                  onChange={(e) => setChaveAcesso(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Chave da NF-e de referência, se houver"
+                  maxLength={44}
+                  className="font-mono text-sm"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Found invoice info (for devolução) */}
+          {foundInvoice && selectedEntryType.requiresReferenceNfe && (
             <Card className={foundInvoice.isLocal ? 'border-green-500/30 bg-green-500/5' : 'border-amber-500/30 bg-amber-500/5'}>
               <CardContent className="p-4">
                 <div className="space-y-2">
@@ -290,8 +460,8 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
             </Card>
           )}
 
-          {/* Nature selection */}
-          {foundInvoice && (
+          {/* Nature selection - always visible when ready */}
+          {(foundInvoice || !selectedEntryType.requiresReferenceNfe) && (
             <>
               <div className="space-y-2">
                 <Label>Natureza da Operação</Label>
@@ -333,7 +503,7 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
           </Button>
           <Button 
             onClick={handleCreateEntry} 
-            disabled={!foundInvoice || !selectedNature || isLoading}
+            disabled={!canSubmit() || isLoading}
           >
             {isLoading ? (
               <>

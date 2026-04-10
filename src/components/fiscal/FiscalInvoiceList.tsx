@@ -808,7 +808,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => { setEntryDialogChaveAcesso(undefined); setEntryDialogOpen(true); }}>
                   <ArrowDownLeft className="h-4 w-4 mr-2" />
-                  NF-e de Entrada (Devolução)
+                  NF-e de Entrada
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -823,7 +823,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
               <DropdownMenuContent align="start">
                 <DropdownMenuItem onClick={() => setEntryDialogOpen(true)}>
                   <ArrowDownLeft className="h-4 w-4 mr-2" />
-                  NF-e de Entrada (Devolução)
+                  NF-e de Entrada
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setConsultaChaveOpen(true)}>
