@@ -35,6 +35,18 @@ function ShopeeLogo({ className }: { className?: string }) {
 }
 
 
+// TikTok Shop Logo Component
+function TikTokShopLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="48" height="48" rx="8" fill="#000000"/>
+      <path d="M33.2 18.4C31.6 18.4 30.2 17.8 29.1 16.8C28.1 15.8 27.4 14.4 27.3 12.8H23.6V28.8C23.6 30.4 22.3 31.7 20.7 31.7C19.1 31.7 17.8 30.4 17.8 28.8C17.8 27.2 19.1 25.9 20.7 25.9C21 25.9 21.3 25.9 21.6 26V22.2C21.3 22.2 21 22.1 20.7 22.1C17 22.1 14 25.1 14 28.8C14 32.5 17 35.5 20.7 35.5C24.4 35.5 27.4 32.5 27.4 28.8V20.4C28.8 21.4 30.5 22 32.3 22V18.4H33.2Z" fill="white"/>
+      <path d="M33.2 18.4C31.6 18.4 30.2 17.8 29.1 16.8" stroke="#25F4EE" strokeWidth="0.5"/>
+      <path d="M20.7 25.9C19.1 25.9 17.8 27.2 17.8 28.8C17.8 30.4 19.1 31.7 20.7 31.7" stroke="#FE2C55" strokeWidth="0.5"/>
+    </svg>
+  );
+}
+
 // Upcoming marketplaces
 const UPCOMING_MARKETPLACES = [
   { id: "amazon", name: "Amazon", icon: "📦", url: "https://amazon.com.br" },
