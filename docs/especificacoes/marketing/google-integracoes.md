@@ -68,6 +68,7 @@ Este documento especifica a integração completa do ecossistema Google no siste
 | `google-oauth-start` | OAuth | ✅ Existente |
 | `google-oauth-callback` | OAuth | ✅ Existente |
 | `google-token-refresh` | OAuth | ✅ Existente |
+| `google-token-refresh-cron` | Infra (Cron 5min) | ✅ Existente |
 | `google-analytics-report` | GA4 | ✅ Existente |
 | `google-ads-campaigns` | Ads | ✅ Existente |
 | `google-ads-adgroups` | Ads | ✅ Existente |
@@ -98,6 +99,7 @@ Este documento especifica a integração completa do ecossistema Google no siste
 | `useGoogleTagManager` | GTM | ✅ Existente |
 | `useGoogleGmail` | Gmail | ✅ Implementado (Fase 8) |
 | `useGoogleCalendar` | Calendar | ✅ Implementado (Fase 9) |
+| `useGoogleMerchant` | Merchant | ✅ Existente |
 
 ---
 

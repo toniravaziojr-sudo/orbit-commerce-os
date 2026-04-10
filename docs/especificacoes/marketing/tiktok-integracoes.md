@@ -76,6 +76,7 @@ Este documento especifica a integração completa do ecossistema TikTok no siste
 
 ### Tabelas no Banco (18 tabelas)
 
+
 | Tabela | Módulo | Status |
 |--------|--------|--------|
 | `tiktok_ads_connections` | Ads OAuth | ✅ |
