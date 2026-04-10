@@ -1536,7 +1536,21 @@ export function VisualBuilder({
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Always visible (WYSIWYG builder) */}
-        <div className="w-56 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
+         <div className="w-56 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
+            {/* AI Structure button for home page */}
+            {isHomePage && (
+              <div className="p-2 border-b">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5 text-xs"
+                  onClick={() => setShowHomeStructureDialog(true)}
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  Criar Estrutura com IA
+                </Button>
+              </div>
+            )}
             {/* Unified Sidebar - No more page-specific settings here */}
             {/* Settings moved to ThemeSettingsPanel > Páginas */}
             <BuilderSidebar
