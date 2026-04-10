@@ -318,6 +318,32 @@ function useAiCreditsAlert() {
   });
 }
 
+// ── Meu Drive: espaço de armazenamento acabando (>90% usado) ──
+function useStorageAlert() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ["execution-storage-alert", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return { isLow: false, usedPct: 0 };
+
+      const { data } = await supabase
+        .from("tenant_storage_usage")
+        .select("used_bytes, limit_bytes")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      if (!data || !data.limit_bytes) return { isLow: false, usedPct: 0 };
+
+      const usedPct = Math.round((data.used_bytes / data.limit_bytes) * 100);
+      return { isLow: usedPct >= 90, usedPct };
+    },
+    enabled: !!tenantId,
+    refetchInterval: 120000,
+  });
+}
+
 export function useExecutionCounts() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
