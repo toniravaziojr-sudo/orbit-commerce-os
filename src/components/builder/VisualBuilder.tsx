@@ -35,7 +35,7 @@ import { useThankYouSettings } from './ThankYouSettingsPanel';
 import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
 // MiniCartPreview is now rendered inside BuilderCanvas
 import { toast } from 'sonner';
-import { LayoutGrid, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
+import { LayoutGrid, PanelRightClose, PanelRightOpen, Trash2, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   useGlobalLayoutForEditor, 
