@@ -31,7 +31,7 @@ Ferramentas de engajamento, automação e geração de criativos com IA.
 
 | Submódulo | Rota | Status |
 |-----------|------|--------|
-| Email Marketing | `/email-marketing` | 🟧 Pending (ver email-marketing.md) |
+| Email Marketing | `/email-marketing` | ✅ Ready (ver email-marketing.md) |
 | Quizzes | `/quizzes` | 🟧 Pending (ver quizzes.md) |
 | Gestor de Mídias IA | `/media` | ✅ Ready |
 | Gestor de Tráfego IA | `/ads` | ✅ Ready (ver `marketing/gestor-trafego.md`) |
