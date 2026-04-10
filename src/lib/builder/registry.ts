@@ -1358,11 +1358,13 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Título',
         defaultValue: 'Oferta Especial',
+        aiFillable: { hint: 'Título chamativo para banner de oferta/promoção de produtos', format: 'text' },
       },
       description: {
         type: 'string',
         label: 'Descrição',
         placeholder: 'Descrição opcional',
+        aiFillable: { hint: 'Descrição curta da promoção ou oferta (1-2 frases)', format: 'text' },
       },
       imageDesktop: {
         type: 'image',
@@ -1412,6 +1414,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Texto do CTA',
         defaultValue: 'Ver mais',
+        aiFillable: { hint: 'Texto curto e persuasivo para o botão de ação (2-4 palavras)', format: 'cta' },
       },
       ctaUrl: {
         type: 'string',
@@ -2238,8 +2241,8 @@ const blockDefinitions: BlockDefinition[] = [
       backgroundColor: 'transparent',
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título da seção de logos/parceiros (ex: Nossos Parceiros, Marcas que confiam)', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo complementar sobre os parceiros ou marcas', format: 'text' } },
       logos: { type: 'array', label: 'Logos' },
       autoplay: { type: 'boolean', label: 'Autoplay' },
       grayscale: { type: 'boolean', label: 'Escala de Cinza' },
@@ -2302,8 +2305,8 @@ const blockDefinitions: BlockDefinition[] = [
       showDots: true,
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título da galeria de imagens (ex: Nossa Galeria, Inspire-se)', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo descritivo da galeria', format: 'text' } },
       images: { type: 'array', label: 'Imagens' },
       layout: {
         type: 'select',
@@ -2574,8 +2577,8 @@ const blockDefinitions: BlockDefinition[] = [
       columns: 4,
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título da seção de recomendações personalizadas (ex: Recomendados para Você)', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo que explica a personalização (ex: Baseado nas suas preferências)', format: 'text' } },
       layout: {
         type: 'select',
         label: 'Layout',
@@ -2611,7 +2614,7 @@ const blockDefinitions: BlockDefinition[] = [
       viewersNow: 43,
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título de prova social de compras em tempo real (ex: Comprando Agora, Vendas ao Vivo)', format: 'text' } },
       layout: {
         type: 'select',
         label: 'Layout',
@@ -2717,13 +2720,13 @@ const blockDefinitions: BlockDefinition[] = [
         required: true,
         helpText: 'Crie listas no módulo Email Marketing',
       },
-      title: { type: 'string', label: 'Título', defaultValue: 'Não perca nossas ofertas!' },
-      subtitle: { type: 'string', label: 'Subtítulo', defaultValue: 'Cadastre-se e ganhe 10% de desconto' },
+      title: { type: 'string', label: 'Título', defaultValue: 'Não perca nossas ofertas!', aiFillable: { hint: 'Título urgente e persuasivo para popup de newsletter/desconto', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', defaultValue: 'Cadastre-se e ganhe 10% de desconto', aiFillable: { hint: 'Subtítulo com benefício claro do cadastro (desconto, acesso antecipado)', format: 'text' } },
       showName: { type: 'boolean', label: 'Mostrar campo Nome', defaultValue: true },
       showPhone: { type: 'boolean', label: 'Mostrar campo Telefone', defaultValue: false },
       showBirthDate: { type: 'boolean', label: 'Mostrar campo Data de Nascimento', defaultValue: false },
-      buttonText: { type: 'string', label: 'Texto do Botão', defaultValue: 'Quero meu desconto' },
-      successMessage: { type: 'string', label: 'Mensagem de Sucesso', defaultValue: 'Cadastro realizado com sucesso!' },
+      buttonText: { type: 'string', label: 'Texto do Botão', defaultValue: 'Quero meu desconto', aiFillable: { hint: 'CTA curto e direto para o botão de cadastro (2-4 palavras)', format: 'cta' } },
+      successMessage: { type: 'string', label: 'Mensagem de Sucesso', defaultValue: 'Cadastro realizado com sucesso!', aiFillable: { hint: 'Mensagem positiva após cadastro bem-sucedido', format: 'feedback' } },
       triggerType: {
         type: 'select',
         label: 'Gatilho de Exibição',
@@ -2881,9 +2884,9 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Popup/Modal', value: 'popup' },
         ],
       },
-      title: { type: 'string', label: 'Título', defaultValue: 'Receba nossas novidades' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
-      buttonText: { type: 'string', label: 'Texto do Botão', defaultValue: 'Inscrever-se' },
+      title: { type: 'string', label: 'Título', defaultValue: 'Receba nossas novidades', aiFillable: { hint: 'Título de engajamento para newsletter (ex: Fique por dentro, Novidades exclusivas)', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo com benefício do cadastro na newsletter', format: 'text' } },
+      buttonText: { type: 'string', label: 'Texto do Botão', defaultValue: 'Inscrever-se', aiFillable: { hint: 'CTA curto para botão de inscrição (2-3 palavras)', format: 'cta' } },
       // Inline mode
       layout: {
         type: 'select',
