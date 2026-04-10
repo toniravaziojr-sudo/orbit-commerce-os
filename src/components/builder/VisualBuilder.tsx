@@ -279,6 +279,7 @@ export function VisualBuilder({
   // Check page context for Header/Footer governance
   const isCheckoutPage = pageType === 'checkout';
   const isHomePage = pageType === 'home';
+  const [showHomeStructureDialog, setShowHomeStructureDialog] = useState(false);
   const isCategoryPage = pageType === 'category';
   const isProductPage = pageType === 'product';
 
