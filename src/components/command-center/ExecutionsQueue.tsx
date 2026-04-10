@@ -17,6 +17,7 @@ import {
   BookOpen,
   Truck,
   Cpu,
+  HardDrive,
 } from "lucide-react";
 import { ExecutionCard } from "./ExecutionCard";
 import { useExecutionCounts } from "@/hooks/useExecutionCounts";
