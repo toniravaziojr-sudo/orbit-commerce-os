@@ -27,6 +27,7 @@ import { HeaderFooterPropsEditor } from './HeaderFooterPropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
+import { HomeStructureDialog } from './HomeStructureDialog';
 import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
 import { useCartSettings } from './CartSettingsPanel';
 import { useCheckoutSettings } from './CheckoutSettingsPanel';
