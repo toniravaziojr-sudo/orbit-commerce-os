@@ -22,9 +22,6 @@ import { useTikTokAdsConnection } from '@/hooks/useTikTokAdsConnection';
 import { useTikTokShopConnection } from '@/hooks/useTikTokShopConnection';
 import { useTikTokContentConnection } from '@/hooks/useTikTokContentConnection';
 import { useMarketingIntegrations } from '@/hooks/useMarketingIntegrations';
-import { TikTokShopPanel } from './tiktok/TikTokShopPanel';
-import { TikTokAdsPanel } from './tiktok/TikTokAdsPanel';
-import { TikTokContentPanel } from './tiktok/TikTokContentPanel';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
