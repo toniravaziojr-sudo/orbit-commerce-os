@@ -515,9 +515,9 @@ Hub unificado para apps externos que se conectam ao sistema.
 
 | Item | Detalhes |
 |------|----------|
-| Menu Sidebar | Novo item "Aplicativos Externos" com ícone `Puzzle` |
+| Menu Sidebar | Item "Apps Externos" no grupo **Utilitários** com ícone `Blocks` |
 | Rota | `/apps-externos` |
-| Permissão RBAC | `external-apps` (novo módulo de permissão) |
+| Permissão RBAC | `external-apps` (módulo de permissão) |
 
 ### Apps Incluídos (Fase 1)
 

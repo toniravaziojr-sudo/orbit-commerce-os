@@ -152,9 +152,10 @@ O sistema é organizado em **9 domínios funcionais**:
 | 4 | **CRM** | Atendimento, suporte, ChatGPT, WhatsApp, checkouts abandonados |
 | 5 | **ERP** | Fiscal (NF-e), financeiro, compras, logística |
 | 6 | **Marketplaces** | Mercado Livre, Shopee, TikTok Shop, extrator B2B |
-| 7 | **Sistema** | Central de comando, configurações, importação, usuários, billing, domínios |
+| 7 | **Sistema** | Central de comando, configurações, usuários, billing, domínios |
 | 8 | **Plataforma** | Administração SaaS: saúde, billing da plataforma, emails, tenants |
 | 9 | **Parcerias** | Afiliados e influencers |
+| 10 | **Utilitários** | Apps externos, importação de dados, meu drive, relatórios |
 
 ---
 
@@ -173,7 +174,7 @@ Referência completa e detalhada → `docs/ESPECIFICACOES-DOS-MODULOS.md` (Layer
 | CRM | Atendimento, Suporte, Pacotes IA, ChatGPT, Checkouts Abandonados | 3 | 2 |
 | ERP | Fiscal, Logística, PagBank | 2 | 1 |
 | Marketplaces | Mercado Livre, Shopee, TikTok Shop, Extrator B2B | 2 | 2 |
-| Sistema | Central, Auxiliar, Usuários, Planos, Configurações, Importação, Integrações, Domínios, Tenants, Edge Functions | 9 | 1 |
+| Sistema | Central, Auxiliar, Usuários, Planos, Configurações, Integrações, Domínios, Tenants, Edge Functions | 8 | 1 |
 | Plataforma | Admin, Emails | 2 | 0 |
 | Parcerias | Afiliados, Influencers | 0 | 2 |
 | **Total** | | **44** | **12** |
@@ -193,7 +194,8 @@ Referência completa e detalhada → `docs/ESPECIFICACOES-DOS-MODULOS.md` (Layer
 | **CRM** | `/notifications`, `/support`, `/emails`, `/abandoned-checkouts`, `/email-marketing` | Atendimento e retenção |
 | **ERP** | `/fiscal`, `/fiscal/products`, `/finance`, `/purchases`, `/shipping` | Operações |
 | **Marketplaces** | `/marketplaces`, `/marketplaces/mercadolivre`, `/marketplaces/shopee`, `/marketplaces/tiktokshop` | Canais de venda |
-| **Sistema** | `/settings`, `/integrations`, `/import`, `/system/users`, `/files`, `/reports` | Configuração |
+| **Sistema** | `/settings`, `/integrations`, `/system/users` | Configuração |
+| **Utilitários** | `/apps-externos`, `/import`, `/files`, `/reports` | Ferramentas e utilidades |
 | **Plataforma** | `/platform/health-monitor`, `/platform/billing`, `/platform/emails`, `/platform/tenants` | Admin SaaS |
 | **Parcerias** | `/affiliates`, `/influencers` | Programas |
 | **Builders** | `/storefront/builder`, `/pages/:id/builder`, `/blog/:id/editor`, `/landing-pages/:id` | Editores visuais |
