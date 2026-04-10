@@ -190,9 +190,7 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
-      { title: "Apps Externos", href: "/apps-externos", icon: Blocks },
       { title: "Configurações", href: "/system/settings", icon: Settings },
-      { title: "Importar Dados", href: "/import", icon: Upload, blockedFeature: "sistema_importacao" },
       { title: "Usuários e Permissões", href: "/system/users", icon: UsersRound, ownerOnly: true, blockedFeature: "sistema_usuarios" },
     ],
   },
@@ -201,6 +199,8 @@ const fullNavigation: NavGroup[] = [
     moduleKey: "central",
     collapsible: true,
     items: [
+      { title: "Apps Externos", href: "/apps-externos", icon: Blocks },
+      { title: "Importar Dados", href: "/import", icon: Upload, blockedFeature: "sistema_importacao" },
       { title: "Meu Drive", href: "/files", icon: FolderOpen },
       { title: "Relatórios", href: "/reports", icon: BarChart3, blockedFeature: "reports" },
     ],
