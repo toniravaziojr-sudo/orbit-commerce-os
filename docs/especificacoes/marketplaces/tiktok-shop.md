@@ -24,7 +24,7 @@ Integração OAuth com TikTok Shop para sincronização de catálogo, gestão de
 | `src/hooks/useTikTokCatalog.ts` | Catálogo de produtos sincronizados |
 | `src/hooks/useTikTokFulfillment.ts` | Envios e rastreamento |
 | `src/hooks/useTikTokReturns.ts` | Devoluções |
-| `src/components/integrations/tiktok/TikTokShopPanel.tsx` | Painel com abas no Hub TikTok (Integrações) |
+| `src/components/integrations/tiktok/TikTokShopPanel.tsx` | Painel operacional com abas (usado no módulo Marketplaces, **não em Integrações**) |
 | `src/components/integrations/tiktok/TikTokShopCatalogTab.tsx` | UI da aba Catálogo |
 | `src/components/integrations/tiktok/TikTokShopOrdersTab.tsx` | UI da aba Pedidos |
 | `src/components/integrations/tiktok/TikTokShopFulfillmentTab.tsx` | UI da aba Envios |
