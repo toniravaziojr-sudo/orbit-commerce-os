@@ -33,7 +33,7 @@ Após correções de regressão em lote, ficou obrigatório validar antes de pub
 - ✅ Core (products, orders, customers, checkout)
 - ✅ Meta/WhatsApp (~25 functions)
 - ✅ Fiscal (~20 functions)
-- ✅ Marketplaces (ML, Shopee, Olist — ~26 functions)
+- ✅ Marketplaces (ML, Shopee — ~21 functions)
 - ✅ Google, TikTok, YouTube (~25 functions)
 - ✅ AI, Media, Ads, Shipping, Support, Billing (~100+ functions)
 - ⚠️ Pendente: `ads-chat` e `command-assistant-execute` (complexidade alta, tool results internos)

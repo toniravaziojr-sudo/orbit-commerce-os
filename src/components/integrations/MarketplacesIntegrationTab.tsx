@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExternalLink, ShoppingBag, Info, CheckCircle2, Unplug, RefreshCw } from "lucide-react";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useShopeeConnection } from "@/hooks/useShopeeConnection";
-import { useOlistConnection } from "@/hooks/useOlistConnection";
+
 import { useTikTokShopConnection } from "@/hooks/useTikTokShopConnection";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -34,29 +34,20 @@ function ShopeeLogo({ className }: { className?: string }) {
   );
 }
 
-// Olist Logo Component
-function OlistLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 48 48" className={className}>
-      <rect width="48" height="48" rx="8" fill="#00C853" />
-      <circle cx="24" cy="24" r="12" fill="white" />
-      <circle cx="24" cy="24" r="6" fill="#00C853" />
-    </svg>
-  );
-}
 
 // TikTok Shop Logo Component
 function TikTokShopLogo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect width="48" height="48" rx="8" fill="#000000"/>
-      <path d="M33.6 18.4c-1.8 0-3.4-.7-4.6-1.8v8.2c0 4.2-3.4 7.6-7.6 7.6s-7.6-3.4-7.6-7.6 3.4-7.6 7.6-7.6c.4 0 .8 0 1.2.1v3.8c-.4-.1-.8-.2-1.2-.2-2.1 0-3.8 1.7-3.8 3.8s1.7 3.8 3.8 3.8c2.1 0 3.9-1.6 3.9-3.7V12h3.7c.3 2.5 2.2 4.5 4.6 4.9v1.5z" fill="#25F4EE"/>
-      <path d="M34.6 19.4c-1.8 0-3.4-.7-4.6-1.8v8.2c0 4.2-3.4 7.6-7.6 7.6s-7.6-3.4-7.6-7.6 3.4-7.6 7.6-7.6c.4 0 .8 0 1.2.1v3.8c-.4-.1-.8-.2-1.2-.2-2.1 0-3.8 1.7-3.8 3.8s1.7 3.8 3.8 3.8c2.1 0 3.9-1.6 3.9-3.7V13h3.7c.3 2.5 2.2 4.5 4.6 4.9v1.5z" fill="#FE2C55"/>
+      <path d="M33.2 18.4C31.6 18.4 30.2 17.8 29.1 16.8C28.1 15.8 27.4 14.4 27.3 12.8H23.6V28.8C23.6 30.4 22.3 31.7 20.7 31.7C19.1 31.7 17.8 30.4 17.8 28.8C17.8 27.2 19.1 25.9 20.7 25.9C21 25.9 21.3 25.9 21.6 26V22.2C21.3 22.2 21 22.1 20.7 22.1C17 22.1 14 25.1 14 28.8C14 32.5 17 35.5 20.7 35.5C24.4 35.5 27.4 32.5 27.4 28.8V20.4C28.8 21.4 30.5 22 32.3 22V18.4H33.2Z" fill="white"/>
+      <path d="M33.2 18.4C31.6 18.4 30.2 17.8 29.1 16.8" stroke="#25F4EE" strokeWidth="0.5"/>
+      <path d="M20.7 25.9C19.1 25.9 17.8 27.2 17.8 28.8C17.8 30.4 19.1 31.7 20.7 31.7" stroke="#FE2C55" strokeWidth="0.5"/>
     </svg>
   );
 }
 
-// Upcoming marketplaces (Olist and Shopee removed - now functional)
+// Upcoming marketplaces
 const UPCOMING_MARKETPLACES = [
   { id: "amazon", name: "Amazon", icon: "📦", url: "https://amazon.com.br" },
   { id: "magalu", name: "Magalu", icon: "🔵", url: "https://magazineluiza.com.br" },
@@ -65,7 +56,7 @@ const UPCOMING_MARKETPLACES = [
 export function MarketplacesIntegrationTab() {
   const { isConnected: meliConnected, isLoading: meliLoading, platformConfigured: meliConfigured, connect: meliConnect, disconnect: meliDisconnect, isConnecting: meliConnecting, isDisconnecting: meliDisconnecting, isExpired: meliExpired } = useMeliConnection();
   const { isConnected: shopeeConnected, isLoading: shopeeLoading, platformConfigured: shopeeConfigured } = useShopeeConnection();
-  const { isConnected: olistConnected, isLoading: olistLoading, platformConfigured: olistConfigured } = useOlistConnection();
+  
   const { connectionStatus: tiktokStatus, isLoading: tiktokLoading } = useTikTokShopConnection();
   const tiktokConnected = tiktokStatus.isConnected;
 
@@ -317,48 +308,6 @@ export function MarketplacesIntegrationTab() {
         </CardContent>
       </Card>
 
-      {/* Olist Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <OlistLogo className="h-10 w-10" />
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Olist
-                  {olistConnected && (
-                    <Badge variant="default" className="bg-green-600">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Conectado
-                    </Badge>
-                  )}
-                  {!olistConnected && !olistLoading && (
-                    <Badge variant="secondary">Não conectado</Badge>
-                  )}
-                </CardTitle>
-                <CardDescription>
-                  Integre com Olist ERP (Tiny) ou E-commerce (Vnda)
-                </CardDescription>
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">Pedidos</Badge>
-              <Badge variant="outline">Nota Fiscal</Badge>
-              <Badge variant="outline">Estoque</Badge>
-            </div>
-            <Button asChild>
-              <Link to="/marketplaces/olist">
-                <ShoppingBag className="h-4 w-4 mr-2" />
-                {olistConnected ? "Gerenciar" : "Conectar"}
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Upcoming Marketplaces */}
       <Card>

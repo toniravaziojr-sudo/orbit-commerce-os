@@ -140,7 +140,7 @@ const ThreadsOAuthCallback = lazy(() => import("@/pages/ThreadsOAuthCallback"));
 const Marketplaces = lazy(() => import("@/pages/Marketplaces"));
 const MercadoLivre = lazy(() => import("@/pages/marketplaces/MercadoLivre"));
 const Shopee = lazy(() => import("@/pages/marketplaces/Shopee"));
-const Olist = lazy(() => import("@/pages/marketplaces/Olist"));
+
 const TikTokShop = lazy(() => import("@/pages/marketplaces/TikTokShop"));
 const Files = lazy(() => import("@/pages/Files"));
 const Reports = lazy(() => import("@/pages/Reports"));
@@ -426,7 +426,7 @@ const App = () => {
                   <Route path="/marketplaces" element={<Marketplaces />} />
                   <Route path="/marketplaces/mercadolivre" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="mercadolivre" featureName="Mercado Livre" featureDescription="Integração com Mercado Livre"><MercadoLivre /></FeatureGatedRoute>} />
                   <Route path="/marketplaces/shopee" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="shopee" featureName="Shopee" featureDescription="Integração com Shopee"><Shopee /></FeatureGatedRoute>} />
-                  <Route path="/marketplaces/olist" element={<Olist />} />
+                  
                   <Route path="/marketplaces/tiktokshop" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="tiktokshop" featureName="TikTok Shop" featureDescription="Integração com TikTok Shop"><TikTokShop /></FeatureGatedRoute>} />
                   <Route path="/files" element={<Files />} />
                   <Route path="/reports" element={<FeatureGatedRoute moduleKey="central" featureKey="reports" featureName="Relatórios" featureDescription="Relatórios avançados"><Reports /></FeatureGatedRoute>} />
