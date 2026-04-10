@@ -110,6 +110,25 @@ export function useEmailMarketing() {
     enabled: !!tenantId,
   });
 
+  // Automation flows
+  const { data: automationFlows = [], isLoading: automationFlowsLoading } = useQuery({
+    queryKey: ["email-automation-flows", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      const { data, error } = await supabase
+        .from("email_automation_flows")
+        .select("*, email_automation_nodes(count)")
+        .eq("tenant_id", tenantId)
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).map((f: any) => ({
+        ...f,
+        node_count: f.email_automation_nodes?.[0]?.count ?? 0,
+      }));
+    },
+    enabled: !!tenantId,
+  });
+
   // Queue stats
   const { data: queueStats } = useQuery({
     queryKey: ["email-queue-stats", tenantId],
@@ -192,6 +211,7 @@ export function useEmailMarketing() {
     templates, templatesLoading,
     campaigns, campaignsLoading,
     forms, formsLoading,
+    automationFlows, automationFlowsLoading,
     queueStats,
     createList, createTemplate, createCampaign, createForm,
     tenantId,
