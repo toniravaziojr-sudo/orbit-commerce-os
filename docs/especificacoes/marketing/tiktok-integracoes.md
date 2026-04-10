@@ -22,15 +22,16 @@ Este documento especifica a integração completa do ecossistema TikTok no siste
 
 ```text
 ┌──────────────────────────────────────────────────┐
-│              Hub TikTok (UI)                     │
-│  ┌──────────┐  ┌──────────┐  ┌─────────────┐    │
-│  │ Ads Card │  │Shop Card │  │Content Card │    │
-│  │ Campanhas│  │ Catálogo │  │  Vídeos     │    │
-│  │ AdGroups │  │ Pedidos  │  │  Analytics  │    │
-│  │ Ads      │  │ Envios   │  │  Perfil     │    │
-│  │ Audiences│  │ Devoluç. │  │  Agendamento│    │
-│  │ Assets   │  │ Webhooks │  │             │    │
-│  └──────────┘  └──────────┘  └─────────────┘    │
+│     Hub TikTok — Integrações (conexão apenas)    │
+│  ┌──────────────────────────────────────────┐    │
+│  │ Card principal (padrão Meta/Google)      │    │
+│  │  ├─ Ads      [Conectar/Reconectar]       │    │
+│  │  ├─ Shop     [Conectar/Reconectar]       │    │
+│  │  └─ Content  [Conectar/Reconectar]       │    │
+│  └──────────────────────────────────────────┘    │
+│  ┌──────────────────────────────────────────┐    │
+│  │ Card Pixel / Events API (CAPI)           │    │
+│  └──────────────────────────────────────────┘    │
 └──────────────────────────────────────────────────┘
          │              │              │
     Marketing API   Commerce API   Login Kit
@@ -45,15 +46,29 @@ Este documento especifica a integração completa do ecossistema TikTok no siste
     tiktok-token-refresh-cron (a cada 6h)
 ```
 
-### Hub UI
+> **IMPORTANTE — Separação Estrutural (padrão Meta/Google)**
+>
+> O Hub TikTok em `/integrations` exibe **apenas gestão de conexão** (status, conectar, reconectar, desconectar, Pixel/CAPI).
+> Os painéis operacionais (`TikTokAdsPanel`, `TikTokShopPanel`, `TikTokContentPanel`) **NÃO são renderizados em Integrações**.
+> Eles pertencem aos seus respectivos módulos operacionais:
+> - **Ads** → Gestor de Tráfego / Marketing
+> - **Shop** → Marketplaces (`/marketplaces/tiktokshop`)
+> - **Content** → Publicações / Gestor de Mídias
 
-| Componente | Arquivo | Status |
-|------------|---------|--------|
-| Hub Unificado | `src/components/integrations/TikTokUnifiedSettings.tsx` | ✅ |
-| Painel Ads | `src/components/integrations/tiktok/TikTokAdsPanel.tsx` | ✅ |
-| Painel Shop | `src/components/integrations/tiktok/TikTokShopPanel.tsx` | ✅ |
-| Painel Content | `src/components/integrations/tiktok/TikTokContentPanel.tsx` | ✅ |
-| Config Plataforma Ads | `src/components/integrations/platform/TikTokAdsPlatformSettings.tsx` | ✅ |
+### Hub UI (Integrações)
+
+| Componente | Arquivo | Propósito | Status |
+|------------|---------|-----------|--------|
+| Hub Unificado | `src/components/integrations/TikTokUnifiedSettings.tsx` | Conexão + Pixel/CAPI (sem painéis operacionais) | ✅ |
+| Config Plataforma Ads | `src/components/integrations/platform/TikTokAdsPlatformSettings.tsx` | Configuração de plataforma | ✅ |
+
+### Componentes Operacionais (fora de Integrações)
+
+| Componente | Arquivo | Módulo de destino | Status |
+|------------|---------|-------------------|--------|
+| `TikTokAdsPanel` | `tiktok/TikTokAdsPanel.tsx` | Gestor de Tráfego | ✅ |
+| `TikTokShopPanel` | `tiktok/TikTokShopPanel.tsx` | Marketplaces | ✅ |
+| `TikTokContentPanel` | `tiktok/TikTokContentPanel.tsx` | Publicações | ✅ |
 
 ---
 
@@ -134,26 +149,30 @@ Este documento especifica a integração completa do ecossistema TikTok no siste
 
 ### Componentes UI (18 componentes)
 
-| Componente | Arquivo | Status |
-|------------|---------|--------|
-| `TikTokAdsPanel` | `tiktok/TikTokAdsPanel.tsx` | ✅ |
-| `TikTokAdsCampaignsTab` | `tiktok/TikTokAdsCampaignsTab.tsx` | ✅ |
-| `TikTokAdsInsightsTab` | `tiktok/TikTokAdsInsightsTab.tsx` | ✅ |
-| `TikTokAdsAdGroupsTab` | `tiktok/TikTokAdsAdGroupsTab.tsx` | ✅ |
-| `TikTokAdsAdsTab` | `tiktok/TikTokAdsAdsTab.tsx` | ✅ |
-| `TikTokAdsAudiencesTab` | `tiktok/TikTokAdsAudiencesTab.tsx` | ✅ |
-| `TikTokAdsAssetsTab` | `tiktok/TikTokAdsAssetsTab.tsx` | ✅ |
-| `TikTokShopPanel` | `tiktok/TikTokShopPanel.tsx` | ✅ |
-| `TikTokShopCatalogTab` | `tiktok/TikTokShopCatalogTab.tsx` | ✅ |
-| `TikTokShopOrdersTab` | `tiktok/TikTokShopOrdersTab.tsx` | ✅ |
-| `TikTokShopFulfillmentTab` | `tiktok/TikTokShopFulfillmentTab.tsx` | ✅ |
-| `TikTokShopReturnsTab` | `tiktok/TikTokShopReturnsTab.tsx` | ✅ |
-| `TikTokShopWebhooksTab` | `tiktok/TikTokShopWebhooksTab.tsx` | ✅ |
-| `TikTokContentPanel` | `tiktok/TikTokContentPanel.tsx` | ✅ |
-| `TikTokContentVideosTab` | `tiktok/TikTokContentVideosTab.tsx` | ✅ |
-| `TikTokContentAnalyticsTab` | `tiktok/TikTokContentAnalyticsTab.tsx` | ✅ |
-| `TikTokContentProfileTab` | `tiktok/TikTokContentProfileTab.tsx` | ✅ |
-| `TikTokContentScheduleTab` | `tiktok/TikTokContentScheduleTab.tsx` | ✅ |
+> **Nota:** Os painéis operacionais (`TikTokAdsPanel`, `TikTokShopPanel`, `TikTokContentPanel`) e suas sub-abas
+> existem no codebase mas **não são renderizados em Integrações**. São consumidos pelos módulos operacionais
+> (Gestor de Tráfego, Marketplaces, Publicações), seguindo o padrão de separação do Meta e Google.
+
+| Componente | Arquivo | Local de uso | Status |
+|------------|---------|--------------|--------|
+| `TikTokAdsPanel` | `tiktok/TikTokAdsPanel.tsx` | Gestor de Tráfego | ✅ |
+| `TikTokAdsCampaignsTab` | `tiktok/TikTokAdsCampaignsTab.tsx` | via TikTokAdsPanel | ✅ |
+| `TikTokAdsInsightsTab` | `tiktok/TikTokAdsInsightsTab.tsx` | via TikTokAdsPanel | ✅ |
+| `TikTokAdsAdGroupsTab` | `tiktok/TikTokAdsAdGroupsTab.tsx` | via TikTokAdsPanel | ✅ |
+| `TikTokAdsAdsTab` | `tiktok/TikTokAdsAdsTab.tsx` | via TikTokAdsPanel | ✅ |
+| `TikTokAdsAudiencesTab` | `tiktok/TikTokAdsAudiencesTab.tsx` | via TikTokAdsPanel | ✅ |
+| `TikTokAdsAssetsTab` | `tiktok/TikTokAdsAssetsTab.tsx` | via TikTokAdsPanel | ✅ |
+| `TikTokShopPanel` | `tiktok/TikTokShopPanel.tsx` | Marketplaces | ✅ |
+| `TikTokShopCatalogTab` | `tiktok/TikTokShopCatalogTab.tsx` | via TikTokShopPanel | ✅ |
+| `TikTokShopOrdersTab` | `tiktok/TikTokShopOrdersTab.tsx` | via TikTokShopPanel | ✅ |
+| `TikTokShopFulfillmentTab` | `tiktok/TikTokShopFulfillmentTab.tsx` | via TikTokShopPanel | ✅ |
+| `TikTokShopReturnsTab` | `tiktok/TikTokShopReturnsTab.tsx` | via TikTokShopPanel | ✅ |
+| `TikTokShopWebhooksTab` | `tiktok/TikTokShopWebhooksTab.tsx` | via TikTokShopPanel | ✅ |
+| `TikTokContentPanel` | `tiktok/TikTokContentPanel.tsx` | Publicações | ✅ |
+| `TikTokContentVideosTab` | `tiktok/TikTokContentVideosTab.tsx` | via TikTokContentPanel | ✅ |
+| `TikTokContentAnalyticsTab` | `tiktok/TikTokContentAnalyticsTab.tsx` | via TikTokContentPanel | ✅ |
+| `TikTokContentProfileTab` | `tiktok/TikTokContentProfileTab.tsx` | via TikTokContentPanel | ✅ |
+| `TikTokContentScheduleTab` | `tiktok/TikTokContentScheduleTab.tsx` | via TikTokContentPanel | ✅ |
 
 ---
 

@@ -77,7 +77,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 | Meta | `social` | `MetaUnifiedSettings` | Meta (WhatsApp + Publicação FB/IG) |
 | YouTube (legado) | `youtube` | `YouTubeSettings` | Apenas para platform operators (será removida) |
 | **Google** | `google` | `GoogleUnifiedSettings` | Hub centralizado Google (YouTube, Ads, Analytics, etc.) |
-| **TikTok** | `tiktok` | `TikTokUnifiedSettings` | Hub TikTok multi-conexão (Ads, Shop, Content) |
+| **TikTok** | `tiktok` | `TikTokUnifiedSettings` | Hub TikTok — apenas gestão de conexão + Pixel/CAPI (sem painéis operacionais, padrão Meta/Google) |
 | Marketplaces | `marketplaces` | `MarketplacesIntegrationTab` | Mercado Livre, etc |
 | **Domínio/Email** | `domain-email` | `DomainAndEmailSettings` | Domínio da loja + Email |
 | Outros | `outros` | Cards ERP | Integrações ERP (em breve) |
@@ -2120,11 +2120,11 @@ A fonte de verdade exclusiva é `tiktok_ads_connections`.
 | `src/hooks/useTikTokShopConnection.ts` | Hook para conexão Shop (lê de `tiktok_shop_connections`) | ✅ Ready |
 | `src/hooks/useTikTokContentConnection.ts` | Hook para conexão Content (lê de `tiktok_content_connections`) | ✅ Ready |
 | `src/hooks/useTikTokConnection.ts` | ~~Hook legado~~ — **DELETADO na Fase 2** | ❌ Deletado |
-| `src/components/integrations/TikTokUnifiedSettings.tsx` | UI Hub com 3 cards (Ads, Shop, Content — todos ativos) | ✅ Ready |
+| `src/components/integrations/TikTokUnifiedSettings.tsx` | UI Hub — apenas gestão de conexão e Pixel/CAPI (sem painéis operacionais, padrão Meta/Google) | ✅ Ready |
 | `src/components/integrations/TikTokIntegrationCard.tsx` | ~~Card legado~~ — **DELETADO na Fase 2** | ❌ Deletado |
 | `src/pages/TikTokOAuthCallback.tsx` | Página de callback OAuth | ✅ Ready |
 | `src/hooks/useTikTokAds.ts` | Hook para campanhas e insights (lê de `tiktok_ad_campaigns` e `tiktok_ad_insights`) | ✅ Ready |
-| `src/components/integrations/tiktok/TikTokAdsPanel.tsx` | Painel operacional Ads (Campanhas + Insights) | ✅ Ready |
+| `src/components/integrations/tiktok/TikTokAdsPanel.tsx` | Painel operacional Ads — usado no Gestor de Tráfego, **não em Integrações** | ✅ Ready |
 | `src/components/integrations/tiktok/TikTokAdsCampaignsTab.tsx` | Tab de campanhas com tabela e sync | ✅ Ready |
 | `src/components/integrations/tiktok/TikTokAdsInsightsTab.tsx` | Tab de métricas diárias com tabela e sync | ✅ Ready |
 
@@ -2491,7 +2491,7 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/components/integrations/tiktok/TikTokShopPanel.tsx` | Painel com abas (Catálogo, Pedidos, Envios, Devoluções) |
+| `src/components/integrations/tiktok/TikTokShopPanel.tsx` | Painel com abas (Catálogo, Pedidos, Envios, Devoluções) — usado no módulo Marketplaces |
 | `src/components/integrations/tiktok/TikTokShopCatalogTab.tsx` | Tab Catálogo — sync e status de produtos |
 | `src/components/integrations/tiktok/TikTokShopOrdersTab.tsx` | Tab Pedidos — listagem e sync de pedidos |
 | `src/components/integrations/tiktok/TikTokShopFulfillmentTab.tsx` | Tab Envios — fulfillments e transportadoras |
@@ -2499,7 +2499,7 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 
 #### Integração
 
-O `TikTokShopPanel` é renderizado dentro do card "TikTok Shop" em `TikTokUnifiedSettings.tsx`, visível apenas quando a conexão Shop está ativa (`shopStatus.isConnected`).
+O `TikTokShopPanel` é renderizado no módulo de Marketplaces (`/marketplaces/tiktokshop`), **não em Integrações**. O `TikTokUnifiedSettings.tsx` em `/integrations` exibe apenas gestão de conexão (padrão Meta/Google).
 
 #### Abas
 
