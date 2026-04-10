@@ -1,109 +1,81 @@
 
 
-## Plano: Central de Execuções Completa — Cards com Stats + Só Pendências
+# Plano: Preenchimento IA dos Blocos Faltantes + Geração de Estrutura da Home Page
 
-### Problema Atual
-- Mostra todas as 5 seções mesmo sem pendências (ruído visual)
-- Cobre apenas 5 das 33 execuções identificadas
-- Layout de lista com expand/collapse, diferente do padrão de cards com contadores que o usuário quer (estilo Comunicações)
+---
 
-### Nova UI — Estilo CommunicationsWidget
-Cada categoria vira um Card com grid de contadores clicáveis + botões de ação rápida. **Só aparece se tiver pendências.** Quando tudo está ok: mensagem "Tudo em dia!".
+## Parte 1 — Mapeamento dos Blocos
 
-```text
-┌─────────────────────────────────────────────────────┐
-│ 🛒 Pedidos                                          │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────────┐│
-│ │    12    │ │    86    │ │     3    │ │    1    ││
-│ │Pagamento │ │  Enviar  │ │Chargeback│ │Devolução││
-│ │ pendente │ │          │ │          │ │         ││
-│ └──────────┘ └──────────┘ └──────────┘ └─────────┘│
-│ [Ver Pendentes]  [Processar Envios]  [Resolver]    │
-├─────────────────────────────────────────────────────┤
-│ 📄 Notas Fiscais                                    │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐            │
-│ │     5    │ │     2    │ │     1    │            │
-│ │ Emitir   │ │Rejeitadas│ │ Alertas  │            │
-│ └──────────┘ └──────────┘ └──────────┘            │
-│ [Emitir NF-e]  [Corrigir Rejeitadas]  [Ver Alertas]│
-├─────────────────────────────────────────────────────┤
-│ 💬 Atendimento                                      │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐            │
-│ │     8    │ │     3    │ │     2    │            │
-│ │Aguardando│ │  Novos   │ │Erros Ntf │            │
-│ └──────────┘ └──────────┘ └──────────┘            │
-│ [Abrir Atendimento]  [Ver Notificações]            │
-├─────────────────────────────────────────────────────┤
-│ (Integrações, Anúncios, Insights — só se houver)   │
-└─────────────────────────────────────────────────────┘
-```
+### Blocos que JÁ possuem preenchimento por IA (14 blocos)
+Banner, RichText, Button, FAQ, Highlights, SocialProof, ContentSection, StepsTimeline, CountdownTimer, StatsNumbers, ContactForm, Map, SocialFeed, PricingTable
 
-### Categorias e Contadores (todas as 33 execuções mapeadas)
+### Blocos que DEVEM receber `aiFillable` (7 blocos)
+| Bloco | Props a preencher com IA | Justificativa |
+|---|---|---|
+| **NewsletterUnified** | title, subtitle, buttonText | Textos de engajamento e CTA |
+| **NewsletterPopup** | title, subtitle, buttonText, successMessage | Textos de conversão e feedback |
+| **BannerProducts** | title, description, ctaText | Textos de oferta e CTA |
+| **PersonalizedProducts** | title, subtitle | Títulos de seção |
+| **LivePurchases** | title | Título de prova social |
+| **LogosCarousel** | title, subtitle | Títulos de seção de parceiros |
+| **ImageGallery** | title, subtitle | Títulos de galeria |
 
-**1. Pedidos** (hooks: `useExecutionOrders` — novo)
-- Pagamento pendente (`payment_status = 'awaiting_payment'`) → `/orders?paymentStatus=awaiting_payment`
-- Aguardando envio (`status = 'paid'` sem shipment) → `/orders?status=paid`
-- Chargebacks (`status in chargeback_detected, chargeback_lost`) → `/orders?status=chargeback_detected`
-- Devoluções (`status = 'returning'`) → `/orders?status=returning`
-- Aguardando NF-e (`status = 'ready_to_invoice'`) → `/orders?status=ready_to_invoice`
+### Blocos onde IA NÃO faz sentido (8 blocos — excluídos)
+| Bloco | Motivo |
+|---|---|
+| **Image** | Só tem imagem e alt — sem conteúdo textual relevante |
+| **Video** | Configuração técnica (URL, aspect ratio) |
+| **VideoCarousel** | Apenas URLs de vídeos e configuração de layout |
+| **EmbedSocialPost** | Apenas URL de embed |
+| **QuizEmbed** | Referência a quiz existente (ID) |
+| **UpsellSlot** | Sem propsSchema (gerenciado por Theme Settings) |
+| **CustomCode** | Código HTML/CSS — não é conteúdo editorial |
+| **CategoryShowcase / ProductShowcase** | Conteúdo dinâmico vindo do catálogo |
 
-**2. Notas Fiscais** (hooks: `useFiscalStats`, `useOrdersPendingInvoice`, `useFiscalAlerts`)
-- NF-e pendente de emissão (drafts) → `/fiscal?tab=open-orders`
-- NF-e rejeitadas pelo SEFAZ → `/fiscal?tab=invoices&status=rejected`
-- Alertas fiscais (cancelamento com NF-e ativa) → `/fiscal?tab=invoices`
+---
 
-**3. Atendimento** (hooks: `useConversations` stats + queries de notificações/emails)
-- Conversas aguardando agente (`status = new | waiting_agent`) → `/support?status=waiting_agent`
-- Conversas em andamento (`status = open | waiting_customer`) → `/support`
-- Erros de notificação (`notifications.status = 'failed'`) → `/notifications`
-- Emails não lidos → `/emails`
+## Parte 2 — Geração de Estrutura da Home Page com IA
 
-**4. Integrações** (hook novo: `useExecutionIntegrations`)
-- Erros de sync Google Merchant (produtos reprovados) → `/integrations/google-merchant`
-- Erros de sync Mercado Livre → `/integrations/mercado-livre`
-- Erros de sync Shopee → `/integrations/shopee`
-- Erros de sync TikTok Shop → `/integrations/tiktok-shop`
+Hoje a função "Criar com IA" existe apenas em **Páginas da Loja** (store_pages). Precisamos trazer essa mesma funcionalidade para o **Builder da Home Page**, oferecendo templates pré-definidos e geração por prompt livre.
 
-**5. Anúncios** (hook existente: `useAdsPendingActions`)
-- Ações do autopilot pendentes de aprovação → `/ads?tab=autopilot`
-- Experimentos pendentes de avaliação → `/ads?tab=experiments`
+### 7 Estruturas Pré-definidas para Home Page
 
-**6. Insights** (hooks: query de estoque + `useDashboardMetrics` + `useRuntimeViolations`)
-- Carrinhos abandonados → `/orders?status=abandoned`
-- Produtos com estoque baixo → `/products?stock=low`
-- Violações de storefront → `/storefront/health`
+1. **Loja Geral** — Banner, Highlights, ProductShowcase (carrossel), CategoryShowcase, SocialProof, Newsletter
+2. **Moda / Vestuário** — Banner, CategoryShowcase, ProductShowcase (grid), ContentSection (editorial), SocialFeed, Newsletter
+3. **Cosméticos / Beleza** — Banner, Highlights, ProductShowcase, StepsTimeline ("Como usar"), SocialProof, SocialFeed, Newsletter
+4. **Eletrônicos / Tech** — Banner, Highlights, ProductShowcase (carrossel), BannerProducts, FAQ, StatsNumbers, Newsletter
+5. **Alimentos / Bebidas** — Banner, Highlights, ProductShowcase, ContentSection, SocialProof, ContactForm
+6. **Serviços / Assinaturas** — Banner, PricingTable, Highlights, StepsTimeline, SocialProof, FAQ, ContactForm
+7. **Promocional / Black Friday** — Banner, CountdownTimer, ProductShowcase, BannerProducts, StatsNumbers, SocialProof, Newsletter
 
-### Implementação Técnica
+### Implementação
 
-**Novo componente de seção** — `ExecutionCard.tsx`:
-- Recebe: título, ícone, array de `{ count, label, color, navigateTo }`, array de botões de ação
-- Renderiza grid de contadores clicáveis (estilo `CommunicationsWidget`) + botões de ação
-- Componente retorna `null` se todos os counts forem 0
+**UI no Builder da Home**: Quando o template da home estiver vazio (ou via ação no toolbar), exibir um diálogo com:
+- Cards visuais das 7 estruturas pré-definidas (1 clique para aplicar)
+- Opção "Personalizado" com campo de prompt livre (usa a edge function `ai-page-architect`)
 
-**Novo hook** — `useExecutionCounts.ts`:
-- Centraliza todas as queries de contagem em um único hook
-- Retorna contadores por categoria: `{ orders, fiscal, support, integrations, ads, insights }`
-- Cada contador com `count` e `navigateTo`
-- Usa queries existentes onde possível (`useFiscalStats`, `useAdsPendingActions`, `useConversations`)
-- Cria queries novas apenas para: contagem de pedidos por status, estoque baixo, erros de integração
+**Edge Function**: Atualizar o `ai-page-architect` para:
+- Usar os nomes de blocos consolidados (ProductShowcase em vez de ProductGrid/ProductCarousel legados)
+- Aceitar um parâmetro `context: 'home'` para adaptar as regras de composição
+- Incluir as 7 estruturas como few-shot examples no prompt
 
-**Reescrever** — `ExecutionsQueue.tsx`:
-- Usa `useExecutionCounts` para obter todos os dados
-- Renderiza `ExecutionCard` para cada categoria com pendências
-- Mostra "Tudo em dia!" quando nenhuma categoria tem pendências
+---
 
-**Remover** — `ExecutionSection.tsx` (substituído por `ExecutionCard.tsx`)
+## Etapas de Implementação
 
-**Modificar** — `DashboardTab.tsx`:
-- Remover seção "Ações Rápidas"
+1. **Adicionar `aiFillable` nos 7 blocos faltantes** no `registry.ts`
+2. **Atualizar o `ai-page-architect`**: Sincronizar catálogo de blocos com nomes consolidados, adicionar contexto `home`, incluir as 7 estruturas como exemplos
+3. **Criar componente `HomeStructureDialog`**: UI com cards das 7 estruturas + opção de prompt livre
+4. **Integrar o diálogo no Builder da Home**: Botão no toolbar ou tela de boas-vindas quando a home está vazia
+5. **Testar fluxo end-to-end**: Preenchimento IA dos novos blocos + geração de estrutura da home
 
-### Ordem de exibição dos cards
-1. Pedidos (maior volume diário)
-2. Notas Fiscais (obrigação legal)
-3. Atendimento (experiência do cliente)
-4. Integrações (erros de sync)
-5. Anúncios (ações de autopilot)
-6. Insights (oportunidades)
+---
 
-Cards sem pendências simplesmente não renderizam.
+## Detalhes Técnicos
+
+- Arquivo principal de registro: `src/lib/builder/registry.ts` (adição de `aiFillable` em 7 blocos)
+- Edge function: `supabase/functions/ai-page-architect/index.ts` (atualização do catálogo e adição do contexto home)
+- Novo componente: `src/components/builder/HomeStructureDialog.tsx`
+- Integração: `src/components/builder/VisualBuilder.tsx` (condicional `isHomePage`)
+- Hook existente: `src/hooks/useAIBlockFill.ts` (sem alteração — já funciona automaticamente com novos `aiFillable`)
 
