@@ -1,28 +1,30 @@
 # Central de Comando — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-03-29  
-> **Versão:** v1.0.0
+> **Última atualização:** 2026-04-10  
+> **Versão:** v2.0.0
 
 > **Camada:** Layer 3 — Especificações / Sistema  
 > **Migrado de:** `docs/regras/central-comando.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-04-10
 
 
 ---
 
 ## Visão Geral
 
-A Central de Comando (`/command-center`) é a página inicial do sistema administrativo. Funciona como hub operacional unificado com **3 abas**:
+A Central de Comando (`/command-center`) é a página inicial do sistema administrativo. Funciona como hub operacional unificado com **5 abas**:
 
-| Aba | Componente | Descrição |
-|-----|-----------|-----------|
-| **Central de Execuções** (`overview`) | `DashboardContent` | Métricas, pedidos recentes, widgets de alerta |
-| **Assistente** (`assistant`) | `EmbeddedCommandAssistant` | Auxiliar de Comando IA (doc separado: `auxiliar-comando.md`) |
-| **Agenda** (`agenda`) | `AgendaContent` | **Agente de IA** — Calendário + comunicação exclusiva via WhatsApp com o admin |
+| Aba | Param | Componente | Descrição |
+|-----|-------|-----------|-----------|
+| **Dashboard** | `dashboard` | `DashboardTab` | Métricas analíticas, funil, faturamento, widgets de alerta |
+| **Central de Execuções** | `executions` | `ExecutionsQueue` | Hub operacional "Zero Inbox" — somente pendências que exigem ação humana |
+| **Insights** | `insights` | `InsightsTab` | Relatórios semanais de performance gerados por IA |
+| **Assistente** | `assistant` | `EmbeddedCommandAssistant` | Auxiliar de Comando IA (doc separado: `auxiliar-comando.md`) |
+| **Agenda** | `agenda` | `AgendaContent` | **Agente de IA** — Calendário + comunicação exclusiva via WhatsApp com o admin |
 
 **Rota:** `/command-center` (redirect de `/` aponta aqui)  
-**Tab control:** via query param `?tab=overview|assistant|agenda`  
+**Tab control:** via query param `?tab=dashboard|executions|insights|assistant|agenda`  
 **Permissão:** Sempre acessível (não requer permissão RBAC)
 
 ---
@@ -31,8 +33,13 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/CommandCenter.tsx` | Página principal com Tabs |
+| `src/pages/CommandCenter.tsx` | Página principal com Tabs (5 abas) |
 | `src/hooks/useDashboardMetrics.ts` | Hook de métricas do dashboard |
+| `src/hooks/useExecutionCounts.ts` | Hook central da Central de Execuções (14 categorias) |
+| `src/components/command-center/ExecutionsQueue.tsx` | Grid de cards da Central de Execuções |
+| `src/components/command-center/ExecutionCard.tsx` | Card individual de categoria |
+| `src/components/command-center/InsightsTab.tsx` | Aba de Insights IA |
+| `src/components/command-center/DashboardTab.tsx` | Aba de Dashboard |
 | `src/components/command-center/agenda/` | Módulo completo da Agenda |
 | `src/components/dashboard/` | Widgets do dashboard |
 | `src/components/health/` | Cards de saúde do storefront |
@@ -41,7 +48,9 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 
 ---
 
-## 1. Aba Overview — Dashboard
+## 1. Aba Dashboard
+
+> Anteriormente chamada "Overview". Renomeada na v2.0.0.
 
 ### Estrutura Visual (de cima para baixo)
 
@@ -268,9 +277,81 @@ Hooks:
 
 ---
 
-## 3. Aba Agenda — Agente de IA da Agenda
+## 3. Aba Central de Execuções
 
-### 3.1 Identidade e Papel
+### 3.1 Conceito
+
+Hub operacional **"Zero Inbox"** que exibe **somente pendências que exigem ação humana**. Cards de categoria só aparecem quando `count > 0`. Se nenhuma categoria tem pendências, exibe "Tudo em dia!".
+
+**Hook central:** `useExecutionCounts()` (`src/hooks/useExecutionCounts.ts`)  
+**Componente:** `ExecutionsQueue` → renderiza `ExecutionCard` por categoria  
+**Layout:** Cards centralizados com flexbox, se reorganizam quando poucos itens
+
+### 3.2 Categorias e Critérios de Alerta (14 categorias)
+
+| # | Categoria | Ícone | Critério de exibição | Rota de destino |
+|---|-----------|-------|---------------------|-----------------|
+| 1 | **Pedidos** | ShoppingCart | Chargebacks (`status IN chargeback_detected, chargeback_lost`), limite mensal ≥ 90% usado, pedidos aguardando emissão de NF (`status = ready_to_invoice`) | `/orders`, `/settings/billing` |
+| 2 | **Notas Fiscais** | FileText | NF-e pendentes de emissão (`pendingInvoiceOrders`), NF-e com pendências/rejeitadas (`fiscalStats.rejected`) | `/fiscal` |
+| 3 | **Comunicações** | MessageSquare | Atendimentos aguardando agente (`needsAttention`), emails não lidos (`email_messages.is_read = false`) | `/support`, `/emails` |
+| 4 | **Integrações** | Plug | Meta token expirado/com erro, WhatsApp verificação pendente/desconectado, Email DNS pendente | `/integrations` |
+| 5 | **Anúncios** | Megaphone | Contas de anúncio sem saldo (`zeroBalanceCount`) | `/ads?tab=accounts` |
+| 6 | **Avaliações** | Star | Reviews com `status = pending` | `/reviews` |
+| 7 | **Calendário de Conteúdo** | CalendarClock | Posts com `status = failed`, último agendamento acaba em ≤ 3 dias | `/content-calendar` |
+| 8 | **Marketplaces** | Store | Conexões com `last_error` não nulo, sync logs com `status = failed` (últimos 7 dias) | `/marketplaces` |
+| 9 | **Notificações** | Bell | Notificações com `status = failed` | `/notifications` |
+| 10 | **Blog** | BookOpen | Posts com `status = failed`, último agendamento acaba em ≤ 3 dias | `/blog` |
+| 11 | **Produtos** | Package | Produtos ativos com `stock <= min_stock` (campo de alerta de estoque do cadastro) | `/products?stock=low` |
+| 12 | **Rastreio** | Truck | Entregas com `delivery_status IN (failed, returned, unknown)` | `/shipping` |
+| 13 | **Meu Drive** | HardDrive | Uso de armazenamento ≥ 90% do limite (`tenant_storage_usage`) | `/drive` |
+| 14 | **Pacotes de IA** | Cpu | Créditos restantes ≤ 10% do total (`tenant_ai_subscriptions` + `ai_packages`) | `/ai-packages` |
+
+### 3.3 Thresholds de Alerta
+
+| Módulo | Threshold | Cálculo |
+|--------|-----------|---------|
+| Limite de pedidos | ≥ 90% do limite mensal | `current_count / order_limit >= 0.9` |
+| Meu Drive | ≥ 90% do espaço | `used_bytes / limit_bytes >= 0.9` |
+| Pacotes de IA | ≤ 10% dos créditos | `credits_remaining <= total_credits * 0.1` |
+| Calendário/Blog | ≤ 3 dias | Último post agendado acaba em 3 dias ou menos |
+
+### 3.4 Tabela de Controle: `tenant_storage_usage`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `tenant_id` | UUID (PK) | FK tenants, ON DELETE CASCADE |
+| `used_bytes` | BIGINT | Total de bytes usados |
+| `limit_bytes` | BIGINT | Limite do plano (default 5GB = 5368709120) |
+| `last_recalculated_at` | TIMESTAMPTZ | Última recálculo automático |
+| `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | Trigger automático |
+
+**Limites por plano:** Básico = 5GB, Médio = 10GB, Completo = 30GB  
+**RLS:** Membros do tenant podem visualizar (`user_belongs_to_tenant`). Atualizações via service role.  
+**Pendência:** Mecanismo de recálculo (cron ou trigger em uploads/deleções) ainda não implementado.
+
+### 3.5 Polling e Refresh
+
+| Grupo | Intervalo |
+|-------|-----------|
+| Pedidos, Comunicações, Emails, Notificações | 30s |
+| Fiscal, Produtos, Calendário, Blog, Marketplaces, Rastreio | 60s |
+| Pacotes de IA, Meu Drive | 120s |
+
+---
+
+## 4. Aba Insights
+
+**Componente:** `InsightsTab`  
+**Descrição:** Relatórios semanais de performance gerados por IA. Separada da Central de Execuções para não misturar itens informativos com pendências acionáveis.
+
+> ⚠️ Alertas e insights **NÃO** aparecem na Central de Execuções. A Central é estritamente para itens que exigem ação humana.
+
+---
+
+## 5. Aba Agenda — Agente de IA da Agenda
+
+### 5.1 Identidade e Papel
 
 A **Agenda** é o **quarto agente de IA** do sistema (junto com o Assistente IA/ChatGPT, o Auxiliar de Comando e o Gestor de Tráfego IA). Seu papel principal é:
 
@@ -281,7 +362,7 @@ A **Agenda** é o **quarto agente de IA** do sistema (junto com o Assistente IA/
 
 > ⚠️ A Agenda **NÃO possui chat no sistema**. O "chat" dela é a conexão WhatsApp entre o número configurado e o WhatsApp do administrador.
 
-### 3.2 Fluxo Principal: Agenda ↔ Auxiliar de Comando
+### 5.2 Fluxo Principal: Agenda ↔ Auxiliar de Comando
 
 ```
 Usuário (WhatsApp)
@@ -318,7 +399,7 @@ Agente Agenda (recebe mensagem via webhook WhatsApp)
 | **Feedback** | Após execução, o resultado é sempre retornado ao usuário via WhatsApp |
 | **Erro** | Se a execução falhar, o erro é traduzido em linguagem de negócio e enviado ao usuário |
 
-### 3.3 Fluxo de Lembretes
+### 5.3 Fluxo de Lembretes
 
 ```
 Origem do lembrete:
@@ -351,7 +432,7 @@ Disparo (cron a cada 5 minutos):
 | "Todo dia às 9h" | Tarefa recorrente diária |
 | "Semana que vem, segunda" | Calcula data da próxima segunda |
 
-### 3.4 Conexão WhatsApp do Administrador
+### 5.4 Conexão WhatsApp do Administrador
 
 O único setup necessário é o administrador **conectar o número de WhatsApp** pelo qual deseja se comunicar com a IA da Agenda.
 
@@ -363,7 +444,7 @@ O único setup necessário é o administrador **conectar o número de WhatsApp**
 | **Webhook** | Mensagens recebidas do administrador são roteadas para o agente Agenda |
 | **Separação** | Este número é o canal de comunicação **exclusivo** entre o admin e a IA da Agenda. Não se confunde com o número WABA usado para atendimento ao cliente. |
 
-### 3.5 Arquitetura Técnica (Visão Geral)
+### 5.5 Arquitetura Técnica (Visão Geral)
 
 **Decisão arquitetural:** NÃO será criado webhook separado para a Agenda. O roteamento acontece dentro do `meta-whatsapp-webhook` existente.
 
@@ -409,7 +490,7 @@ WhatsApp Cloud API (Meta)
 | `meta-whatsapp-send` | Envia mensagens WhatsApp via Cloud API | ✅ Existente |
 | `command-assistant` | Pipeline do Auxiliar de Comando (chamado pela Agenda quando necessário) | ✅ Existente |
 
-### 3.6 Calendário Visual (UI)
+### 5.6 Calendário Visual (UI)
 
 A aba Agenda no sistema exibe um **calendário visual** para que o usuário também possa consultar e gerenciar tarefas pela interface (além do WhatsApp).
 
@@ -425,7 +506,7 @@ AgendaContent
        └─ CreateTaskDialog (criação de tarefa)
 ```
 
-### 3.7 Tabelas do Banco
+### 5.7 Tabelas do Banco
 
 #### agenda_tasks (existente)
 
@@ -550,7 +631,7 @@ A Agenda só pode delegar ao Auxiliar de Comando ações da allowlist inicial:
 
 Expansão da allowlist exige atualização documental e confirmação do usuário.
 
-### 3.8 Tipos TypeScript
+### 5.8 Tipos TypeScript
 
 ```typescript
 type TaskStatus = 'pending' | 'completed' | 'cancelled';
@@ -573,7 +654,7 @@ interface CreateTaskInput {
 }
 ```
 
-### 3.9 Hook: `useAgendaTasks`
+### 5.9 Hook: `useAgendaTasks`
 
 | Operação | Método | Descrição |
 |----------|--------|-----------|
@@ -584,7 +665,7 @@ interface CreateTaskInput {
 | `deleteTask` | Mutation | Exclui tarefa e lembretes associados |
 | `getTaskReminders` | Helper | Filtra lembretes por task_id |
 
-### 3.10 Calendário Visual — Detalhes
+### 5.10 Calendário Visual — Detalhes
 
 **Componente:** `AgendaCalendar`
 
@@ -603,7 +684,7 @@ interface CreateTaskInput {
 - Click em dia vazio → abre `CreateTaskDialog`
 - Stats no header: pendentes e concluídas do mês
 
-### 3.11 Dialog de Tarefas do Dia (`DayTasksDialog`)
+### 5.11 Dialog de Tarefas do Dia (`DayTasksDialog`)
 
 - Lista todas as tarefas do dia selecionado
 - Para cada tarefa: título, descrição, horário, status badge, indicador de recorrência
@@ -611,7 +692,7 @@ interface CreateTaskInput {
 - Seção de lembretes por tarefa: status (pendente/enviado/falhou), horário
 - Botão "Adicionar Lembrete" no final
 
-### 3.12 Dialog de Criação (`CreateTaskDialog`)
+### 5.12 Dialog de Criação (`CreateTaskDialog`)
 
 Campos:
 - **Título** (obrigatório)
@@ -624,7 +705,7 @@ Campos:
   - Unidades: minutos, horas, dias
   - Preview: "Você será notificado em: DD/MM/YYYY às HH:mm"
 
-### 3.13 Pendências Técnicas e Etapas de Implementação
+### 5.13 Pendências Técnicas e Etapas de Implementação
 
 #### Etapa 1 — Contrato Operacional + Infraestrutura ✅
 
@@ -667,7 +748,7 @@ Campos:
 
 > **Decisão definitiva:** NÃO será criado webhook separado para a Agenda. O roteamento acontece dentro do `meta-whatsapp-webhook` existente. Esta decisão está documentada em §3.5.
 
-### 3.14 Cenários de Aceitação Obrigatórios
+### 5.14 Cenários de Aceitação Obrigatórios
 
 | # | Cenário | Resultado esperado |
 |---|---------|-------------------|
@@ -684,7 +765,7 @@ Campos:
 
 ---
 
-## 4. Componentes Compartilhados de Chat
+## 6. Componentes Compartilhados de Chat
 
 **Diretório:** `src/components/chat/`
 
@@ -703,7 +784,7 @@ Componentes visuais usados por **3 chats** do sistema (Auxiliar de Comando, Chat
 
 ---
 
-## 5. Componentes de Billing no Dashboard
+## 7. Componentes de Billing no Dashboard
 
 ### OrderLimitWarning
 
