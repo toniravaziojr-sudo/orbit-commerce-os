@@ -1,12 +1,11 @@
 // =============================================
-// EXECUTION CARD — Stats grid card for the Central de Execuções
-// Shows colored counters as clickable links. Returns null if no pendencies.
-// Cards are centered when there are few items.
+// EXECUTION CARD — Compact stats card for Central de Execuções
+// Auto-sizes based on number of stats. Returns null if no pendencies.
 // =============================================
 
 import { LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import type { ExecutionStat } from "@/hooks/useExecutionCounts";
 
 interface ExecutionCardProps {
@@ -27,24 +26,22 @@ export function ExecutionCard({ title, icon: Icon, stats }: ExecutionCardProps) 
 
   return (
     <Card className="border-primary/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold flex items-center gap-2">
-          <Icon className="h-5 w-5 text-primary" />
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap justify-center gap-3">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Icon className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold">{title}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
           {stats.map((stat) => (
             <Link
               key={stat.label}
               to={stat.navigateTo}
-              className="p-3 bg-muted rounded-lg text-center hover:bg-muted/80 transition-colors group min-w-[140px] flex-1 max-w-[280px]"
+              className="px-3 py-2 bg-muted rounded-lg text-center hover:bg-muted/80 transition-colors group min-w-[110px]"
             >
-              <div className={`text-2xl font-bold ${colorMap[stat.color]}`}>
+              <div className={`text-xl font-bold ${colorMap[stat.color]}`}>
                 {stat.count}
               </div>
-              <div className="text-xs text-muted-foreground group-hover:text-foreground transition-colors line-clamp-2">
+              <div className="text-[11px] text-muted-foreground group-hover:text-foreground transition-colors line-clamp-2">
                 {stat.label}
               </div>
             </Link>
