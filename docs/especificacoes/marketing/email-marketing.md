@@ -1,11 +1,10 @@
 # Email Marketing — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-04-02
+> **Última atualização:** 2026-04-10
 
 > **Camada:** Layer 3 — Especificações / Marketing  
-> **Migrado de:** `docs/regras/email-marketing.md`  
-> **Última atualização:** 2026-04-03
+> **Migrado de:** `docs/regras/email-marketing.md`
 
 
 ---
@@ -502,9 +501,13 @@ interface FlowConfig {
 
 ### Interface no Admin
 
-- Aba "Automações" no dashboard de Email Marketing
+- Aba "Automações" no dashboard de Email Marketing (`EmailMarketing.tsx`)
+- Listagem de automações existentes consultando `email_automation_flows` com contagem de nós (`email_automation_nodes(count)`)
+- Cada card exibe: nome, tipo de trigger (label de negócio), quantidade de blocos e badge de status (Rascunho/Ativa/Pausada)
+- Clique no card navega para o builder visual (`/email-marketing/automation/:flowId`)
 - Botão "Nova Automação" → `/email-marketing/automation/new`
-- Lista de automações existentes com status (draft, active, paused)
+- Empty state exibido quando não há fluxos salvos
+- Query centralizada no hook `useEmailMarketing` (`automationFlows`), ordenada por `updated_at DESC`
 
 ---
 
@@ -550,3 +553,4 @@ Toda tentativa de projetar um customer para o módulo de email marketing é audi
 - [x] **Nós: trigger, send_email, delay, condition, add/remove_tag, move_to_list, split_ab, end**
 - [x] **Tabelas de automação com RLS**
 - [x] **Persistência de fluxos (save/load)**
+- [x] **Listagem de automações na aba com contagem de nós e status**
