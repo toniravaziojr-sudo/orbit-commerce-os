@@ -4,17 +4,16 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
+import { AIUsageBreakdown } from "@/components/billing/AIUsageBreakdown";
 
 export default function Billing() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
 
   // Get plan - fallback to free if not set
-  const tenantPlan = "free"; // Will be connected to actual billing system later
+  const tenantPlan = "free";
 
-  // Placeholder data - will be connected to billing system
   const currentPlan = {
     name: tenantPlan,
     label: "Gratuito",
@@ -29,7 +28,7 @@ export default function Billing() {
         </Button>
         <PageHeader
           title="Planos e Faturamento"
-          description="Gerencie seu plano e formas de pagamento"
+          description="Gerencie seu plano, créditos de IA e formas de pagamento"
         />
       </div>
 
@@ -65,6 +64,9 @@ export default function Billing() {
           </div>
         </CardContent>
       </Card>
+
+      {/* AI Usage Breakdown */}
+      <AIUsageBreakdown />
 
       {/* Payment Methods */}
       <Card>
