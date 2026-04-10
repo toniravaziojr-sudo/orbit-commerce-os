@@ -1,8 +1,9 @@
 # Importação de Dados
 
 > **Camada:** Layer 3 — Especificações / Sistema  
+> **Sidebar:** Utilitários → Importar Dados  
 > **Migrado de:** `docs/regras/importacao.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-04-10
 
 
 ## Objetivo
