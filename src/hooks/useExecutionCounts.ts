@@ -536,10 +536,20 @@ export function useExecutionCounts() {
     totalPending: aiLow ? 1 : 0,
   };
 
+  // Meu Drive: espaço acabando
+  const storageLow = storageAlert?.isLow || false;
+  const storage: ExecutionCategory = {
+    stats: [
+      storageLow ? { count: storageAlert?.usedPct || 0, label: "Espaço acabando", navigateTo: "/drive", color: "warning" as const } : null,
+    ].filter(Boolean) as ExecutionStat[],
+    totalPending: storageLow ? 1 : 0,
+  };
+
   const totalPending = orders.totalPending + fiscal.totalPending + ads.totalPending +
     reviews.totalPending + integrations.totalPending + contentCalendarCategory.totalPending +
     marketplaces.totalPending + communications.totalPending + notifications.totalPending +
-    blog.totalPending + products.totalPending + tracking.totalPending + aiPackages.totalPending;
+    blog.totalPending + products.totalPending + tracking.totalPending + aiPackages.totalPending +
+    storage.totalPending;
 
   const isLoading = ordersLoading || fiscalStatsLoading || fiscalAlertsLoading ||
     pendingInvoiceLoading || conversationsLoading || integrationsLoading;
@@ -558,6 +568,7 @@ export function useExecutionCounts() {
     products,
     tracking,
     aiPackages,
+    storage,
     totalPending,
     isLoading,
   };
