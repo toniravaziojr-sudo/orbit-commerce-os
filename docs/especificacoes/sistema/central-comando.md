@@ -1,28 +1,30 @@
 # Central de Comando — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-03-29  
-> **Versão:** v1.0.0
+> **Última atualização:** 2026-04-10  
+> **Versão:** v2.0.0
 
 > **Camada:** Layer 3 — Especificações / Sistema  
 > **Migrado de:** `docs/regras/central-comando.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-04-10
 
 
 ---
 
 ## Visão Geral
 
-A Central de Comando (`/command-center`) é a página inicial do sistema administrativo. Funciona como hub operacional unificado com **3 abas**:
+A Central de Comando (`/command-center`) é a página inicial do sistema administrativo. Funciona como hub operacional unificado com **5 abas**:
 
-| Aba | Componente | Descrição |
-|-----|-----------|-----------|
-| **Central de Execuções** (`overview`) | `DashboardContent` | Métricas, pedidos recentes, widgets de alerta |
-| **Assistente** (`assistant`) | `EmbeddedCommandAssistant` | Auxiliar de Comando IA (doc separado: `auxiliar-comando.md`) |
-| **Agenda** (`agenda`) | `AgendaContent` | **Agente de IA** — Calendário + comunicação exclusiva via WhatsApp com o admin |
+| Aba | Param | Componente | Descrição |
+|-----|-------|-----------|-----------|
+| **Dashboard** | `dashboard` | `DashboardTab` | Métricas analíticas, funil, faturamento, widgets de alerta |
+| **Central de Execuções** | `executions` | `ExecutionsQueue` | Hub operacional "Zero Inbox" — somente pendências que exigem ação humana |
+| **Insights** | `insights` | `InsightsTab` | Relatórios semanais de performance gerados por IA |
+| **Assistente** | `assistant` | `EmbeddedCommandAssistant` | Auxiliar de Comando IA (doc separado: `auxiliar-comando.md`) |
+| **Agenda** | `agenda` | `AgendaContent` | **Agente de IA** — Calendário + comunicação exclusiva via WhatsApp com o admin |
 
 **Rota:** `/command-center` (redirect de `/` aponta aqui)  
-**Tab control:** via query param `?tab=overview|assistant|agenda`  
+**Tab control:** via query param `?tab=dashboard|executions|insights|assistant|agenda`  
 **Permissão:** Sempre acessível (não requer permissão RBAC)
 
 ---

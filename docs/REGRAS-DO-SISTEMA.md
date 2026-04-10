@@ -634,6 +634,7 @@ Detalhes de cada plano (features, limites, preços, créditos) ficam no doc de e
 | **Fiscal (NFe)** | Módulo fiscal/certificado — **não é "integração"** |
 | **Logística (/shipping)** | Frete e transportadoras — **não fica em Integrações** |
 | **Meu Drive (public.files)** | Fonte de verdade de arquivos/mídias do tenant |
+| **Controle de Armazenamento (public.tenant_storage_usage)** | Fonte de verdade de uso e limite de espaço de armazenamento por tenant. Limites por plano: Básico=5GB, Médio=10GB, Completo=30GB. Alerta na Central de Execuções quando uso ≥ 90%. |
 | **Usuários e Permissões** | Equipe do tenant — não confundir com `platform_admins` |
 
 ---
