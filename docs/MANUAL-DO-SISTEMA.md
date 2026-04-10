@@ -63,7 +63,7 @@ Este Manual **referencia e organiza**. Nunca sobrepõe.
 - Marketplaces integrados (Mercado Livre, Shopee, TikTok Shop)
 - Programa de afiliados e influencers
 - Email marketing com automações
-- 3 agentes de IA embutidos
+- 5 agentes de IA embutidos
 
 ### Core do Sistema
 
@@ -133,8 +133,8 @@ O sistema integra com provedores de pagamento, fiscal, logística, marketplaces,
 
 | Tipo | Exemplos | Papel |
 |------|----------|-------|
-| **Agentes** (4) | Assistente IA (ChatGPT), Auxiliar de Comando, Gestor de Tráfego IA, Agenda | Entidades autônomas com escopo e permissões próprias |
-| **Funções embutidas** | Descrições de produto, criativos, landing pages, blocos, SEO, suporte | Capacidades de IA dentro de módulos existentes |
+| **Agentes** (5) | Assistente IA (ChatGPT), Auxiliar de Comando, Gestor de Tráfego IA, Agenda, IA Atendente | Entidades autônomas com escopo e permissões próprias |
+| **Funções embutidas** | Descrições de produto, criativos, landing pages, blocos, SEO | Capacidades de IA dentro de módulos existentes |
 
 Regras completas dos agentes → Layer 2, Seção 9.
 

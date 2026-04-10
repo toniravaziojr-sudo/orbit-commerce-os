@@ -209,7 +209,47 @@ O `run-notifications` reconstrói os valores reais do payload ao enviar.
 
 ---
 
-## 3. Fluxo de Atendimento com IA (OpenAI)
+## 3. IA Atendente — 5º Agente de IA do Sistema
+
+### 3.1 Identidade e Papel
+
+A **IA Atendente** é o **quinto agente de IA** do sistema, e o único que interage diretamente com os **clientes** do tenant (os demais agentes auxiliam o administrador da loja).
+
+| Atributo | Valor |
+|----------|-------|
+| **Escopo** | Atendimento ao cliente via multi-canal (WhatsApp, Instagram, Messenger, Email, Chat Widget) |
+| **Execução** | Responde automaticamente clientes nos canais habilitados |
+| **Restrição Principal** | Puramente informativa — NUNCA executa ações no sistema |
+| **Público-alvo** | Clientes finais do tenant (não o admin) |
+| **Escalamento** | Transfere para humano quando necessário |
+| **Configuração** | Global via `ai_support_config` + granular por canal via `ai_channel_config` |
+| **Trilha de auditoria** | `conversation_events` com modelo, tokens, latência e custo |
+| **Billing** | Consumo registrado via `record_ai_usage` e `increment_ai_metrics` |
+
+### 3.2 Critérios de Promoção a Agente (Layer 2, § 9.4)
+
+A IA Atendente atende todos os critérios de promoção:
+
+| Critério | Evidência |
+|----------|-----------|
+| Escopo próprio | Atendimento ao cliente final (domínio exclusivo) |
+| Regras próprias de permissão | Configuração por tenant (`ai_support_config`) e por canal (`ai_channel_config`) |
+| Autonomia de execução própria | Responde automaticamente sem intervenção do admin |
+| Trilha de auditoria própria | `conversation_events`, `ai_support_metrics`, billing por modelo |
+
+### 3.3 Diferença dos Demais Agentes
+
+| Agente | Quem interage | Onde |
+|--------|---------------|------|
+| Assistente IA (ChatGPT) | Admin | Chat interno |
+| Auxiliar de Comando | Admin | Central de Comando |
+| Gestor de Tráfego IA | Admin | Gestor de Tráfego |
+| Agenda | Admin | WhatsApp (admin) |
+| **IA Atendente** | **Clientes** | **Multi-canal (WhatsApp, IG, Messenger, Email, Chat Widget)** |
+
+---
+
+## 4. Fluxo de Atendimento com IA (OpenAI)
 
 ### Provider: OpenAI
 
