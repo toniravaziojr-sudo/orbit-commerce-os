@@ -17,6 +17,7 @@ import {
   BookOpen,
   Truck,
   Cpu,
+  HardDrive,
 } from "lucide-react";
 import { ExecutionCard } from "./ExecutionCard";
 import { useExecutionCounts } from "@/hooks/useExecutionCounts";
@@ -36,6 +37,7 @@ export function ExecutionsQueue() {
     products,
     tracking,
     aiPackages,
+    storage,
     totalPending,
     isLoading,
   } = useExecutionCounts();
@@ -72,6 +74,7 @@ export function ExecutionsQueue() {
       <ExecutionCard title="Blog" icon={BookOpen} stats={blog.stats} />
       <ExecutionCard title="Produtos" icon={Package} stats={products.stats} />
       <ExecutionCard title="Rastreio" icon={Truck} stats={tracking.stats} />
+      <ExecutionCard title="Meu Drive" icon={HardDrive} stats={storage.stats} />
       <ExecutionCard title="Pacotes de IA" icon={Cpu} stats={aiPackages.stats} />
     </div>
   );

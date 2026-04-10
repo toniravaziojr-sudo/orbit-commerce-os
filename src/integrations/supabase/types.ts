@@ -17414,6 +17414,41 @@ export type Database = {
           },
         ]
       }
+      tenant_storage_usage: {
+        Row: {
+          created_at: string
+          last_recalculated_at: string | null
+          limit_bytes: number
+          tenant_id: string
+          updated_at: string
+          used_bytes: number
+        }
+        Insert: {
+          created_at?: string
+          last_recalculated_at?: string | null
+          limit_bytes?: number
+          tenant_id: string
+          updated_at?: string
+          used_bytes?: number
+        }
+        Update: {
+          created_at?: string
+          last_recalculated_at?: string | null
+          limit_bytes?: number
+          tenant_id?: string
+          updated_at?: string
+          used_bytes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_storage_usage_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_subscriptions: {
         Row: {
           activated_at: string | null

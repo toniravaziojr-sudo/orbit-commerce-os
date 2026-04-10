@@ -318,6 +318,32 @@ function useAiCreditsAlert() {
   });
 }
 
+// ── Meu Drive: espaço de armazenamento acabando (>90% usado) ──
+function useStorageAlert() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ["execution-storage-alert", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return { isLow: false, usedPct: 0 };
+
+      const { data } = await supabase
+        .from("tenant_storage_usage")
+        .select("used_bytes, limit_bytes")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      if (!data || !data.limit_bytes) return { isLow: false, usedPct: 0 };
+
+      const usedPct = Math.round((data.used_bytes / data.limit_bytes) * 100);
+      return { isLow: usedPct >= 90, usedPct };
+    },
+    enabled: !!tenantId,
+    refetchInterval: 120000,
+  });
+}
+
 export function useExecutionCounts() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
@@ -375,6 +401,7 @@ export function useExecutionCounts() {
   const { data: marketplaceAlerts } = useMarketplaceAlerts();
   const { data: problematicShipments = 0 } = useProblematicShipments();
   const { data: aiCredits } = useAiCreditsAlert();
+  const { data: storageAlert } = useStorageAlert();
 
   // ── Build categories ──
 
@@ -509,10 +536,20 @@ export function useExecutionCounts() {
     totalPending: aiLow ? 1 : 0,
   };
 
+  // Meu Drive: espaço acabando
+  const storageLow = storageAlert?.isLow || false;
+  const storage: ExecutionCategory = {
+    stats: [
+      storageLow ? { count: storageAlert?.usedPct || 0, label: "Espaço acabando", navigateTo: "/drive", color: "warning" as const } : null,
+    ].filter(Boolean) as ExecutionStat[],
+    totalPending: storageLow ? 1 : 0,
+  };
+
   const totalPending = orders.totalPending + fiscal.totalPending + ads.totalPending +
     reviews.totalPending + integrations.totalPending + contentCalendarCategory.totalPending +
     marketplaces.totalPending + communications.totalPending + notifications.totalPending +
-    blog.totalPending + products.totalPending + tracking.totalPending + aiPackages.totalPending;
+    blog.totalPending + products.totalPending + tracking.totalPending + aiPackages.totalPending +
+    storage.totalPending;
 
   const isLoading = ordersLoading || fiscalStatsLoading || fiscalAlertsLoading ||
     pendingInvoiceLoading || conversationsLoading || integrationsLoading;
@@ -531,6 +568,7 @@ export function useExecutionCounts() {
     products,
     tracking,
     aiPackages,
+    storage,
     totalPending,
     isLoading,
   };
