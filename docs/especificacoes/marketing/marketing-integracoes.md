@@ -817,8 +817,8 @@ Pipeline de execução sequencial para ações Google Ads aprovadas:
 - [x] Ads Chat com comandos TikTok Ads (v5.18.0)
 - [x] Guardian sync TikTok Ads — métricas de campanhas e insights (v1.3.0)
 - [x] AdsOverviewTab cross-channel — suporte a Google Ads e TikTok Ads
-- [ ] Módulo de email marketing completo
-- [ ] Automações de marketing
+- [x] Módulo de email marketing completo (listas, templates, campanhas, automações)
+- [x] Automações de marketing (builder visual React Flow)
 - [x] Gestor de Tráfego IA — Fase 1: DB (3 tabelas + RLS)
 - [x] Gestor de Tráfego IA — Fase 2: Edge Function `ads-autopilot-analyze`
 - [x] Gestor de Tráfego IA — Fase 3: Edge Function `ads-autopilot-creative`
