@@ -27,6 +27,7 @@ import { HeaderFooterPropsEditor } from './HeaderFooterPropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
+import { HomeStructureDialog } from './HomeStructureDialog';
 import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
 import { useCartSettings } from './CartSettingsPanel';
 import { useCheckoutSettings } from './CheckoutSettingsPanel';
@@ -34,7 +35,7 @@ import { useThankYouSettings } from './ThankYouSettingsPanel';
 import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
 // MiniCartPreview is now rendered inside BuilderCanvas
 import { toast } from 'sonner';
-import { LayoutGrid, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
+import { LayoutGrid, PanelRightClose, PanelRightOpen, Trash2, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   useGlobalLayoutForEditor, 
@@ -278,6 +279,7 @@ export function VisualBuilder({
   // Check page context for Header/Footer governance
   const isCheckoutPage = pageType === 'checkout';
   const isHomePage = pageType === 'home';
+  const [showHomeStructureDialog, setShowHomeStructureDialog] = useState(false);
   const isCategoryPage = pageType === 'category';
   const isProductPage = pageType === 'product';
 
@@ -1534,7 +1536,21 @@ export function VisualBuilder({
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Always visible (WYSIWYG builder) */}
-        <div className="w-56 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
+         <div className="w-56 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
+            {/* AI Structure button for home page */}
+            {isHomePage && (
+              <div className="p-2 border-b">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5 text-xs"
+                  onClick={() => setShowHomeStructureDialog(true)}
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  Criar Estrutura com IA
+                </Button>
+              </div>
+            )}
             {/* Unified Sidebar - No more page-specific settings here */}
             {/* Settings moved to ThemeSettingsPanel > Páginas */}
             <BuilderSidebar
@@ -1715,7 +1731,17 @@ export function VisualBuilder({
         onRestore={(content) => store.setContent(content)}
       />
 
-      {/* Unsaved Changes Dialog */}
+      {/* Home Structure Dialog */}
+      {isHomePage && (
+        <HomeStructureDialog
+          open={showHomeStructureDialog}
+          onOpenChange={setShowHomeStructureDialog}
+          onApplyStructure={(content) => store.setContent(content)}
+          storeName={context.settings?.store_name}
+        />
+      )}
+
+
       <UnsavedChangesDialog
         open={showUnsavedDialog}
         onOpenChange={setShowUnsavedDialog}

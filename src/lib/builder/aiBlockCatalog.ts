@@ -55,6 +55,7 @@ export function getAvailableBlockTypes(): string[] {
 /**
  * Build the complete system prompt for the AI Page Architect.
  * Includes: catalog, composition rules, and few-shot examples.
+ * Uses consolidated block names (v1.1.0+).
  */
 export function buildAIPageArchitectPrompt(): string {
   const catalog = generateAIBlockCatalog();
@@ -72,25 +73,25 @@ ${validTypes.join(', ')}
 1. Header e Footer são INJETADOS AUTOMATICAMENTE — NÃO inclua na sua resposta
 2. Retorne entre 3 e 12 blocos de conteúdo
 3. NÃO repita o mesmo tipo de bloco consecutivamente (ex: dois Banner seguidos)
-4. Landing pages devem começar com impacto visual (Banner, Image, ou VideoUpload)
+4. Landing pages devem começar com impacto visual (Banner, Image, ou Video)
 5. Páginas promocionais devem ter pelo menos 1 CTA claro (Button ou banner com link)
 6. Use Divider ou Spacer com moderação (máximo 2 por página)
-7. Finalize com um bloco de engajamento quando fizer sentido (Newsletter, ContactForm, SocialFeed)
+7. Finalize com um bloco de engajamento quando fizer sentido (NewsletterUnified, ContactForm, SocialFeed)
 8. Varie os blocos — páginas monotônicas (só texto) são ruins
 
 ## EXEMPLOS DE ESTRUTURAS BEM MONTADAS
 
 ### Landing de Produto (venda direta)
-Banner, InfoHighlights, ContentColumns, Testimonials, FAQ, Button
+Banner, Highlights, ContentSection, SocialProof, FAQ, Button
 
 ### Home Institucional (loja de cosméticos)
-Banner, FeaturedCategories, ProductCarousel, TextBanners, Reviews, Newsletter
+Banner, CategoryShowcase, ProductShowcase, ContentSection, SocialProof, NewsletterUnified
 
 ### Página de Contato
 Banner, RichText, ContactForm, Map, FAQ
 
 ### Página Promocional (Black Friday)
-Banner, CountdownTimer, ProductGrid, StatsNumbers, Testimonials, Newsletter
+Banner, CountdownTimer, ProductShowcase, StatsNumbers, SocialProof, NewsletterUnified
 
 ### Página Sobre Nós
 Banner, RichText, StepsTimeline, LogosCarousel, SocialFeed
