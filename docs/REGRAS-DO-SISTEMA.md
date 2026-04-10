@@ -517,7 +517,7 @@ Os docs abaixo pertencem à estrutura antiga (`docs/regras/*.md`). Durante a tra
 | Tenants | `docs/regras/tenants.md` | ✅ Ready |
 | Regras Gerais | `docs/regras/regras-gerais.md` | ✅ Ready |
 | Marketing Integrações | `docs/regras/marketing-integracoes.md` | 🟧 Pending |
-| Email Marketing | `docs/regras/email-marketing.md` | 🟧 Pending |
+| Email Marketing | `docs/especificacoes/marketing/email-marketing.md` | ✅ Ready |
 | CRM | `docs/regras/crm.md` | 🟧 Pending |
 | Suporte | `docs/regras/suporte.md` | 🟧 Pending |
 | ERP | `docs/regras/erp.md` | 🟧 Pending |
