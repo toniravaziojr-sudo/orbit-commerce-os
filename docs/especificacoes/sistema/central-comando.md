@@ -277,7 +277,79 @@ Hooks:
 
 ---
 
-## 3. Aba Agenda — Agente de IA da Agenda
+## 3. Aba Central de Execuções
+
+### 3.1 Conceito
+
+Hub operacional **"Zero Inbox"** que exibe **somente pendências que exigem ação humana**. Cards de categoria só aparecem quando `count > 0`. Se nenhuma categoria tem pendências, exibe "Tudo em dia!".
+
+**Hook central:** `useExecutionCounts()` (`src/hooks/useExecutionCounts.ts`)  
+**Componente:** `ExecutionsQueue` → renderiza `ExecutionCard` por categoria  
+**Layout:** Cards centralizados com flexbox, se reorganizam quando poucos itens
+
+### 3.2 Categorias e Critérios de Alerta (14 categorias)
+
+| # | Categoria | Ícone | Critério de exibição | Rota de destino |
+|---|-----------|-------|---------------------|-----------------|
+| 1 | **Pedidos** | ShoppingCart | Chargebacks (`status IN chargeback_detected, chargeback_lost`), limite mensal ≥ 90% usado, pedidos aguardando emissão de NF (`status = ready_to_invoice`) | `/orders`, `/settings/billing` |
+| 2 | **Notas Fiscais** | FileText | NF-e pendentes de emissão (`pendingInvoiceOrders`), NF-e com pendências/rejeitadas (`fiscalStats.rejected`) | `/fiscal` |
+| 3 | **Comunicações** | MessageSquare | Atendimentos aguardando agente (`needsAttention`), emails não lidos (`email_messages.is_read = false`) | `/support`, `/emails` |
+| 4 | **Integrações** | Plug | Meta token expirado/com erro, WhatsApp verificação pendente/desconectado, Email DNS pendente | `/integrations` |
+| 5 | **Anúncios** | Megaphone | Contas de anúncio sem saldo (`zeroBalanceCount`) | `/ads?tab=accounts` |
+| 6 | **Avaliações** | Star | Reviews com `status = pending` | `/reviews` |
+| 7 | **Calendário de Conteúdo** | CalendarClock | Posts com `status = failed`, último agendamento acaba em ≤ 3 dias | `/content-calendar` |
+| 8 | **Marketplaces** | Store | Conexões com `last_error` não nulo, sync logs com `status = failed` (últimos 7 dias) | `/marketplaces` |
+| 9 | **Notificações** | Bell | Notificações com `status = failed` | `/notifications` |
+| 10 | **Blog** | BookOpen | Posts com `status = failed`, último agendamento acaba em ≤ 3 dias | `/blog` |
+| 11 | **Produtos** | Package | Produtos ativos com `stock <= min_stock` (campo de alerta de estoque do cadastro) | `/products?stock=low` |
+| 12 | **Rastreio** | Truck | Entregas com `delivery_status IN (failed, returned, unknown)` | `/shipping` |
+| 13 | **Meu Drive** | HardDrive | Uso de armazenamento ≥ 90% do limite (`tenant_storage_usage`) | `/drive` |
+| 14 | **Pacotes de IA** | Cpu | Créditos restantes ≤ 10% do total (`tenant_ai_subscriptions` + `ai_packages`) | `/ai-packages` |
+
+### 3.3 Thresholds de Alerta
+
+| Módulo | Threshold | Cálculo |
+|--------|-----------|---------|
+| Limite de pedidos | ≥ 90% do limite mensal | `current_count / order_limit >= 0.9` |
+| Meu Drive | ≥ 90% do espaço | `used_bytes / limit_bytes >= 0.9` |
+| Pacotes de IA | ≤ 10% dos créditos | `credits_remaining <= total_credits * 0.1` |
+| Calendário/Blog | ≤ 3 dias | Último post agendado acaba em 3 dias ou menos |
+
+### 3.4 Tabela de Controle: `tenant_storage_usage`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `tenant_id` | UUID (PK) | FK tenants, ON DELETE CASCADE |
+| `used_bytes` | BIGINT | Total de bytes usados |
+| `limit_bytes` | BIGINT | Limite do plano (default 5GB = 5368709120) |
+| `last_recalculated_at` | TIMESTAMPTZ | Última recálculo automático |
+| `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | Trigger automático |
+
+**Limites por plano:** Básico = 5GB, Médio = 10GB, Completo = 30GB  
+**RLS:** Membros do tenant podem visualizar (`user_belongs_to_tenant`). Atualizações via service role.  
+**Pendência:** Mecanismo de recálculo (cron ou trigger em uploads/deleções) ainda não implementado.
+
+### 3.5 Polling e Refresh
+
+| Grupo | Intervalo |
+|-------|-----------|
+| Pedidos, Comunicações, Emails, Notificações | 30s |
+| Fiscal, Produtos, Calendário, Blog, Marketplaces, Rastreio | 60s |
+| Pacotes de IA, Meu Drive | 120s |
+
+---
+
+## 4. Aba Insights
+
+**Componente:** `InsightsTab`  
+**Descrição:** Relatórios semanais de performance gerados por IA. Separada da Central de Execuções para não misturar itens informativos com pendências acionáveis.
+
+> ⚠️ Alertas e insights **NÃO** aparecem na Central de Execuções. A Central é estritamente para itens que exigem ação humana.
+
+---
+
+## 5. Aba Agenda — Agente de IA da Agenda
 
 ### 3.1 Identidade e Papel
 
