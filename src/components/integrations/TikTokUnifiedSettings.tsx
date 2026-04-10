@@ -22,9 +22,6 @@ import { useTikTokAdsConnection } from '@/hooks/useTikTokAdsConnection';
 import { useTikTokShopConnection } from '@/hooks/useTikTokShopConnection';
 import { useTikTokContentConnection } from '@/hooks/useTikTokContentConnection';
 import { useMarketingIntegrations } from '@/hooks/useMarketingIntegrations';
-import { TikTokShopPanel } from './tiktok/TikTokShopPanel';
-import { TikTokAdsPanel } from './tiktok/TikTokAdsPanel';
-import { TikTokContentPanel } from './tiktok/TikTokContentPanel';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -211,10 +208,6 @@ export function TikTokUnifiedSettings() {
             </Alert>
           )}
 
-          {/* Ads Operational Panel */}
-          <Separator />
-          <TikTokAdsPanel />
-
           <Separator />
 
           {/* Pixel / CAPI Config */}
@@ -340,9 +333,6 @@ export function TikTokUnifiedSettings() {
                 </Button>
               </div>
 
-              {/* Operational Panel */}
-              <Separator />
-              <TikTokShopPanel />
             </div>
           ) : (
             <div className="space-y-3">
@@ -432,9 +422,6 @@ export function TikTokUnifiedSettings() {
                 </Button>
               </div>
 
-              {/* Content Operational Panel */}
-              <Separator />
-              <TikTokContentPanel />
             </div>
           ) : (
             <div className="space-y-3">
