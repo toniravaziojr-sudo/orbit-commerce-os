@@ -24,7 +24,7 @@ import { Tag } from "lucide-react";
 export default function EmailMarketing() {
   const navigate = useNavigate();
   const emailMarketing = useEmailMarketing();
-  const { lists, templates, campaigns, queueStats, subscribersCount, listsLoading, listsError, refetchLists } = emailMarketing;
+  const { lists, templates, campaigns, queueStats, subscribersCount, listsLoading, listsError, refetchLists, automationFlows } = emailMarketing;
 
   const [listDialogOpen, setListDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -300,12 +300,43 @@ export default function EmailMarketing() {
               </Button>
             </CardHeader>
             <CardContent>
-              <EmptyState
-                icon={Workflow}
-                title="Nenhuma automação"
-                description="Crie fluxos visuais para automatizar emails, tags e segmentação"
-                action={{ label: "Criar Automação", onClick: () => navigate("/email-marketing/automation/new") }}
-              />
+              {automationFlows.length === 0 ? (
+                <EmptyState
+                  icon={Workflow}
+                  title="Nenhuma automação"
+                  description="Crie fluxos visuais para automatizar emails, tags e segmentação"
+                  action={{ label: "Criar Automação", onClick: () => navigate("/email-marketing/automation/new") }}
+                />
+              ) : (
+                <div className="space-y-2">
+                  {automationFlows.map((flow: any) => (
+                    <div
+                      key={flow.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
+                      onClick={() => navigate(`/email-marketing/automation/${flow.id}`)}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <Workflow className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{flow.name || "Sem nome"}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {flow.trigger_type === "list_subscription" ? "Entrada na lista" : flow.trigger_type}
+                            {" • "}{flow.node_count} blocos
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant={flow.status === "active" ? "default" : "secondary"}>
+                          {flow.status === "active" ? "Ativa" : flow.status === "draft" ? "Rascunho" : flow.status === "paused" ? "Pausada" : flow.status}
+                        </Badge>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
