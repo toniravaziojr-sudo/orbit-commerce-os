@@ -1,7 +1,6 @@
 // =============================================
 // CENTRAL DE EXECUÇÕES — Unified operational queue
-// Shows ONLY categories with pending items. Cards with stats grid.
-// Includes: Pedidos, Fiscal, Comunicações, Integrações, Anúncios, Alertas & Insights
+// Shows ONLY categories with pending items. Cards centered.
 // =============================================
 
 import {
@@ -10,8 +9,14 @@ import {
   Plug,
   Megaphone,
   MessageSquare,
-  ShieldAlert,
+  Star,
+  CalendarClock,
+  Store,
   Package,
+  Bell,
+  BookOpen,
+  Truck,
+  Cpu,
 } from "lucide-react";
 import { ExecutionCard } from "./ExecutionCard";
 import { useExecutionCounts } from "@/hooks/useExecutionCounts";
@@ -20,10 +25,17 @@ export function ExecutionsQueue() {
   const {
     orders,
     fiscal,
-    communications,
-    integrations,
     ads,
-    alerts,
+    reviews,
+    integrations,
+    contentCalendar,
+    marketplaces,
+    communications,
+    notifications,
+    blog,
+    products,
+    tracking,
+    aiPackages,
     totalPending,
     isLoading,
   } = useExecutionCounts();
@@ -48,41 +60,19 @@ export function ExecutionsQueue() {
         </div>
       )}
 
-      <ExecutionCard
-        title="Pedidos"
-        icon={ShoppingCart}
-        stats={orders.stats}
-      />
-
-      <ExecutionCard
-        title="Notas Fiscais"
-        icon={FileText}
-        stats={fiscal.stats}
-      />
-
-      <ExecutionCard
-        title="Comunicações"
-        icon={MessageSquare}
-        stats={communications.stats}
-      />
-
-      <ExecutionCard
-        title="Integrações"
-        icon={Plug}
-        stats={integrations.stats}
-      />
-
-      <ExecutionCard
-        title="Anúncios"
-        icon={Megaphone}
-        stats={ads.stats}
-      />
-
-      <ExecutionCard
-        title="Alertas & Insights"
-        icon={ShieldAlert}
-        stats={alerts.stats}
-      />
+      <ExecutionCard title="Pedidos" icon={ShoppingCart} stats={orders.stats} />
+      <ExecutionCard title="Notas Fiscais" icon={FileText} stats={fiscal.stats} />
+      <ExecutionCard title="Comunicações" icon={MessageSquare} stats={communications.stats} />
+      <ExecutionCard title="Integrações" icon={Plug} stats={integrations.stats} />
+      <ExecutionCard title="Anúncios" icon={Megaphone} stats={ads.stats} />
+      <ExecutionCard title="Avaliações" icon={Star} stats={reviews.stats} />
+      <ExecutionCard title="Calendário de Conteúdo" icon={CalendarClock} stats={contentCalendar.stats} />
+      <ExecutionCard title="Marketplaces" icon={Store} stats={marketplaces.stats} />
+      <ExecutionCard title="Notificações" icon={Bell} stats={notifications.stats} />
+      <ExecutionCard title="Blog" icon={BookOpen} stats={blog.stats} />
+      <ExecutionCard title="Produtos" icon={Package} stats={products.stats} />
+      <ExecutionCard title="Rastreio" icon={Truck} stats={tracking.stats} />
+      <ExecutionCard title="Pacotes de IA" icon={Cpu} stats={aiPackages.stats} />
     </div>
   );
 }

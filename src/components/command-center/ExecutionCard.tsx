@@ -1,7 +1,7 @@
 // =============================================
 // EXECUTION CARD — Stats grid card for the Central de Execuções
 // Shows colored counters as clickable links. Returns null if no pendencies.
-// No redundant action buttons — the counters ARE the actions.
+// Cards are centered when there are few items.
 // =============================================
 
 import { LucideIcon } from "lucide-react";
@@ -34,12 +34,12 @@ export function ExecutionCard({ title, icon: Icon, stats }: ExecutionCardProps) 
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className={`grid gap-3 ${stats.length <= 2 ? "grid-cols-2" : stats.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
+        <div className="flex flex-wrap justify-center gap-3">
           {stats.map((stat) => (
             <Link
               key={stat.label}
               to={stat.navigateTo}
-              className="p-3 bg-muted rounded-lg text-center hover:bg-muted/80 transition-colors group"
+              className="p-3 bg-muted rounded-lg text-center hover:bg-muted/80 transition-colors group min-w-[140px] flex-1 max-w-[280px]"
             >
               <div className={`text-2xl font-bold ${colorMap[stat.color]}`}>
                 {stat.count}
