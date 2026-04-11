@@ -85,7 +85,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount, revalidateDiscount, checkFirstPurchaseEligibility } = useDiscount();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
-  const { processPayment, isProcessing: paymentProcessing, paymentResult, activeGateway } = useCheckoutPayment({ tenantId });
+  const { processPayment, isProcessing: paymentProcessing, paymentResult, activeGateway, mpRedirectEnabled } = useCheckoutPayment({ tenantId });
   const { customDomain } = useCanonicalDomain();
   const { config: checkoutConfig } = useCheckoutConfig();
   const { trackInitiateCheckout, trackLead, trackAddShippingInfo, trackAddPaymentInfo } = useMarketingEvents();
