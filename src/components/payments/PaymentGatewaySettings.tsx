@@ -39,7 +39,6 @@ import {
 import { usePaymentProviders, PaymentProviderInput } from '@/hooks/usePaymentProviders';
 import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
 import { Link } from 'react-router-dom';
-import { toast } from 'sonner';
 
 interface GatewayField {
   key: string;
