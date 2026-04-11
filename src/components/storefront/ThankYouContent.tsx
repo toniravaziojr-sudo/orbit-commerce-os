@@ -137,6 +137,79 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
   }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming]);
 
+  // =============================================
+  // PIX POLLING — check payment status every 5s for up to 10 minutes
+  // =============================================
+  const [pixJustConfirmed, setPixJustConfirmed] = useState(false);
+  const pollingStartRef = useRef<number | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const PIX_POLL_INTERVAL = 5_000; // 5 seconds
+  const PIX_POLL_MAX_DURATION = 10 * 60 * 1000; // 10 minutes
+
+  const isPixPending = !!(
+    order &&
+    paymentInstructions?.method === 'pix' &&
+    order.payment_status === 'pending' &&
+    !pixJustConfirmed
+  );
+
+  useEffect(() => {
+    // Only poll for PIX pending payments
+    if (!isPixPending || !orderParam) {
+      // Cleanup if conditions no longer met
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Initialize polling start time
+    if (!pollingStartRef.current) {
+      pollingStartRef.current = Date.now();
+    }
+
+    console.log('[ThankYou] Starting PIX payment polling every 5s (max 10min)');
+
+    pollingIntervalRef.current = setInterval(async () => {
+      const elapsed = Date.now() - (pollingStartRef.current || Date.now());
+
+      // Stop after 10 minutes — webhook/reconciliation will handle it
+      if (elapsed >= PIX_POLL_MAX_DURATION) {
+        console.log('[ThankYou] PIX polling timeout (10min). Stopping. Webhook will handle confirmation.');
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        return;
+      }
+
+      try {
+        const result = await refetch();
+        const updatedOrder = result.data;
+
+        if (updatedOrder && (updatedOrder.payment_status === 'approved' || updatedOrder.payment_status === 'paid')) {
+          console.log('[ThankYou] PIX payment confirmed! Transitioning to success.');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          setPixJustConfirmed(true);
+          toast.success('Pagamento PIX confirmado! 🎉');
+        }
+      } catch (err) {
+        console.warn('[ThankYou] PIX polling refetch error (will retry):', err);
+      }
+    }, PIX_POLL_INTERVAL);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [isPixPending, orderParam, refetch]);
+
   // Check auth state
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -246,8 +319,12 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     );
   }
 
+  // Effective PIX confirmed (either polling detected it or server already has it)
+  const isPixApproved = pixJustConfirmed || (order?.payment_status === 'approved' && paymentInstructions?.method === 'pix');
+
   // Get payment status display
   const getPaymentStatusInfo = () => {
+    if (pixJustConfirmed) return { text: 'Pagamento PIX confirmado!', color: 'text-green-600' };
     switch (order?.payment_status) {
       case 'approved':
         return { text: 'Pagamento aprovado', color: 'text-green-600' };
@@ -269,6 +346,38 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       {/* Header — conditional on declined vs success */}
       {effectiveDeclined ? (
         <DeclinedHeader orderNumber={order?.order_number} />
+      ) : isPixPending ? (
+        // PIX WAITING HEADER — pulsing animation
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-yellow-100 flex items-center justify-center relative">
+            <div className="absolute inset-0 rounded-full bg-yellow-200 animate-ping opacity-30" />
+            <Clock className="h-10 w-10 text-yellow-600 relative z-10" />
+          </div>
+          
+          <h1 className="text-3xl font-bold mb-2">Aguardando pagamento PIX</h1>
+          <p className="text-muted-foreground">
+            Pedido <span className="font-semibold">#{order?.order_number}</span> — escaneie o QR Code abaixo para pagar.
+          </p>
+          <div className="flex items-center justify-center gap-2 mt-3 text-sm text-yellow-600">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Verificando pagamento...</span>
+          </div>
+        </div>
+      ) : pixJustConfirmed ? (
+        // PIX JUST CONFIRMED — success transition
+        <div className="text-center mb-8 animate-in fade-in-0 zoom-in-95 duration-500">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
+            <Check className="h-10 w-10 text-green-600" />
+          </div>
+          
+          <h1 className="text-3xl font-bold mb-2">Pagamento PIX confirmado! 🎉</h1>
+          <p className="text-muted-foreground">
+            Seu pedido <span className="font-semibold">#{order?.order_number}</span> foi pago com sucesso.
+          </p>
+          <p className="text-sm mt-2 text-green-600 font-medium">
+            Pagamento aprovado
+          </p>
+        </div>
       ) : (
         <div className="text-center mb-8">
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
@@ -294,9 +403,12 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
         />
       )}
 
-      {/* PIX Payment Section - SERVER-SIDE DATA */}
-      {paymentInstructions?.method === 'pix' && paymentInstructions.pix_qr_code && order?.payment_status === 'pending' && (
-        <div className="border rounded-lg p-6 bg-muted/30 text-center space-y-4 mb-6">
+      {/* PIX Payment Section - SERVER-SIDE DATA (hidden when just confirmed) */}
+      {paymentInstructions?.method === 'pix' && paymentInstructions.pix_qr_code && order?.payment_status === 'pending' && !pixJustConfirmed && (
+        <div className="border-2 border-yellow-300 rounded-lg p-6 bg-muted/30 text-center space-y-4 mb-6 relative overflow-hidden">
+          {/* Pulsing border overlay */}
+          <div className="absolute inset-0 rounded-lg border-2 border-yellow-400 animate-pulse pointer-events-none" />
+          
           <div 
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
             style={{
@@ -342,6 +454,28 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
               Expira em: {new Date(paymentInstructions.pix_expires_at).toLocaleString('pt-BR')}
             </p>
           )}
+
+          {/* Polling indicator */}
+          <div className="flex items-center justify-center gap-2 pt-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Verificando pagamento automaticamente...</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Após o pagamento, esta página será atualizada automaticamente.
+          </p>
+        </div>
+      )}
+
+      {/* PIX Confirmed success card — shown right after polling detects payment */}
+      {pixJustConfirmed && (
+        <div className="border-2 border-green-300 rounded-lg p-6 bg-green-50 text-center space-y-4 mb-6 animate-in fade-in-0 zoom-in-95 duration-500">
+          <div className="w-16 h-16 mx-auto rounded-full bg-green-100 flex items-center justify-center">
+            <Check className="h-8 w-8 text-green-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-green-800">Pagamento PIX confirmado!</h3>
+          <p className="text-sm text-green-700">
+            Seu pagamento foi recebido com sucesso. Seu pedido será processado em breve.
+          </p>
         </div>
       )}
 
