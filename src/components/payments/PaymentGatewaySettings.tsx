@@ -13,8 +13,11 @@ import {
   Unplug,
   ChevronDown,
   ChevronUp,
-  Plug
+  Plug,
+  Copy,
+  Check
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,7 +39,6 @@ import {
 import { usePaymentProviders, PaymentProviderInput } from '@/hooks/usePaymentProviders';
 import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
 import { Link } from 'react-router-dom';
-import { toast } from 'sonner';
 
 interface GatewayField {
   key: string;
@@ -54,7 +56,11 @@ interface GatewayDefinition {
   supportedMethods: string[];
   docsUrl: string;
   comingSoon?: boolean;
+  webhookUrl?: string;
+  webhookInstructions?: string;
 }
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
   {
@@ -69,6 +75,8 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     ],
     supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
     docsUrl: 'https://docs.pagar.me',
+    webhookUrl: `${SUPABASE_URL}/functions/v1/pagarme-webhook`,
+    webhookInstructions: 'Acesse o Dashboard da Pagar.me → Configurações → Webhooks → Adicione esta URL.',
   },
   {
     id: 'pagbank',
@@ -94,6 +102,8 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     ],
     supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
     docsUrl: 'https://www.mercadopago.com.br/developers',
+    webhookUrl: `${SUPABASE_URL}/functions/v1/mercadopago-storefront-webhook`,
+    webhookInstructions: 'Acesse Mercado Pago → Sua aplicação → Webhooks → Configure esta URL para receber notificações de pagamento.',
   },
 ];
 
@@ -102,9 +112,21 @@ export function PaymentGatewaySettings() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [expandedGateway, setExpandedGateway] = useState<string | null>(null);
   const [disconnectDialog, setDisconnectDialog] = useState<string | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, {
     fields: Record<string, string>;
   }>>({});
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedUrl(label);
+      toast.success('URL copiada!');
+      setTimeout(() => setCopiedUrl(null), 2000);
+    } catch {
+      toast.error('Erro ao copiar');
+    }
+  };
 
   // Initialize form data from saved providers
   useEffect(() => {
@@ -313,6 +335,34 @@ export function PaymentGatewaySettings() {
                       );
                     })}
                   </div>
+
+                  {/* Webhook URL Section */}
+                  {gateway.webhookUrl && connected && (
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                      <Label className="text-sm font-medium">URL do Webhook</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {gateway.webhookInstructions}
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          value={gateway.webhookUrl}
+                          readOnly
+                          className="font-mono text-xs"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => copyToClipboard(gateway.webhookUrl!, `webhook-${gateway.id}`)}
+                        >
+                          {copiedUrl === `webhook-${gateway.id}` ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between pt-2 border-t">
                     <Button variant="outline" size="sm" asChild>
