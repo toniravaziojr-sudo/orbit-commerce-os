@@ -611,8 +611,7 @@ BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
         }];
 
         if (successfulResults.length === 0) {
-          const errors = providerResults.map((r) => r.error).filter(Boolean).join("; ");
-          throw new Error(`Nenhum provedor gerou imagem: ${errors}`);
+          throw new Error(`Nenhum provedor gerou imagem`);
         }
 
         // Sort by overall score (best first)

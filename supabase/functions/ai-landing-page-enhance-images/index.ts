@@ -1,9 +1,8 @@
 // =============================================
-// AI LANDING PAGE ENHANCE IMAGES — V4.1.0
+// AI LANDING PAGE ENHANCE IMAGES — V5.0.0
 // Step 2: Generates BACKGROUND-ONLY scenes (no product in image)
 // Product is ALWAYS composited via CSS overlay in the frontend
-// This eliminates AI distortion of labels/colors/shapes
-// v4.1.0: Background-only generation + CSS composition
+// v5.0.0: fal.ai FLUX 2 as primary → Gemini Nativa → Lovable Gateway
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -11,8 +10,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { generateWithNativeGemini } from "../_shared/native-gemini.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { generateImageWithFalPro, generateImageWithFalTurbo, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = "3.0.0"; // Gemini Nativa priority: 1. Gemini Nativa → 2. Lovable Gateway
+const VERSION = "5.0.0"; // fal.ai FLUX 2 → Gemini Nativa → Lovable Gateway
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // Timeout budget: Edge Functions have 150s limit, reserve margin for persistence + overhead
