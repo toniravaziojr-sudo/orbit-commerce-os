@@ -1545,6 +1545,7 @@ function Step4Payment({
   showPix,
   showBoleto,
   showCreditCard,
+  showMercadoPagoRedirect,
   maxInstallments,
   selectedInstallments,
   onInstallmentsChange,
