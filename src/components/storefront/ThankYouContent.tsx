@@ -319,8 +319,12 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     );
   }
 
+  // Effective PIX confirmed (either polling detected it or server already has it)
+  const isPixApproved = pixJustConfirmed || (order?.payment_status === 'approved' && paymentInstructions?.method === 'pix');
+
   // Get payment status display
   const getPaymentStatusInfo = () => {
+    if (pixJustConfirmed) return { text: 'Pagamento PIX confirmado!', color: 'text-green-600' };
     switch (order?.payment_status) {
       case 'approved':
         return { text: 'Pagamento aprovado', color: 'text-green-600' };
@@ -342,6 +346,38 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       {/* Header — conditional on declined vs success */}
       {effectiveDeclined ? (
         <DeclinedHeader orderNumber={order?.order_number} />
+      ) : isPixPending ? (
+        // PIX WAITING HEADER — pulsing animation
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-yellow-100 flex items-center justify-center relative">
+            <div className="absolute inset-0 rounded-full bg-yellow-200 animate-ping opacity-30" />
+            <Clock className="h-10 w-10 text-yellow-600 relative z-10" />
+          </div>
+          
+          <h1 className="text-3xl font-bold mb-2">Aguardando pagamento PIX</h1>
+          <p className="text-muted-foreground">
+            Pedido <span className="font-semibold">#{order?.order_number}</span> — escaneie o QR Code abaixo para pagar.
+          </p>
+          <div className="flex items-center justify-center gap-2 mt-3 text-sm text-yellow-600">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Verificando pagamento...</span>
+          </div>
+        </div>
+      ) : pixJustConfirmed ? (
+        // PIX JUST CONFIRMED — success transition
+        <div className="text-center mb-8 animate-in fade-in-0 zoom-in-95 duration-500">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
+            <Check className="h-10 w-10 text-green-600" />
+          </div>
+          
+          <h1 className="text-3xl font-bold mb-2">Pagamento PIX confirmado! 🎉</h1>
+          <p className="text-muted-foreground">
+            Seu pedido <span className="font-semibold">#{order?.order_number}</span> foi pago com sucesso.
+          </p>
+          <p className="text-sm mt-2 text-green-600 font-medium">
+            Pagamento aprovado
+          </p>
+        </div>
       ) : (
         <div className="text-center mb-8">
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
