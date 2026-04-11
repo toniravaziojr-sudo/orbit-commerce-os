@@ -364,6 +364,7 @@ export function PaymentGatewaySettings() {
                     </div>
                   )}
 
+                  <div className="flex items-center justify-between pt-2 border-t">
                     <Button variant="outline" size="sm" asChild>
                       <a href={gateway.docsUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-4 w-4 mr-2" />
