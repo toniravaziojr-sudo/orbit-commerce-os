@@ -584,6 +584,7 @@ export async function generateForRequest(
   lovableApiKey: string,
   openaiApiKey: string | null,
   geminiApiKey: string | null = null,
+  falApiKey: string | null = null,
 ): Promise<VisualGenerationResult> {
   const startTime = Date.now();
   const assets: GeneratedAsset[] = [];
