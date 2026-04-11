@@ -61,6 +61,8 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 export function VideoJobsList({ jobs, isLoading, highlightNew }: VideoJobsListProps) {
+  const { isSpecialTenant: isSpecial } = useIsSpecialTenant();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -145,9 +147,11 @@ export function VideoJobsList({ jobs, isLoading, highlightNew }: VideoJobsListPr
                     </Badge>
                     
                     {/* Badge de pipeline version */}
-                    <Badge variant="secondary" className="text-[10px] h-5">
-                      v2.0
-                    </Badge>
+                    {isSpecial && (
+                      <Badge variant="secondary" className="text-[10px] h-5">
+                        v2.0
+                      </Badge>
+                    )}
                     
                     {/* Badge de duração */}
                     <Badge variant="outline" className="text-[10px] h-5">
