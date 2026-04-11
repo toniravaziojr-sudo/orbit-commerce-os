@@ -972,6 +972,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 showPix={checkoutConfig.showPix}
                 showBoleto={checkoutConfig.showBoleto}
                 showCreditCard={checkoutConfig.showCreditCard}
+                showMercadoPagoRedirect={mpRedirectEnabled}
                 maxInstallments={maxInstallments}
                 selectedInstallments={selectedInstallments}
                 onInstallmentsChange={setSelectedInstallments}
