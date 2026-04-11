@@ -20,6 +20,7 @@ import type {
 
 import { buildFinalPrompt, buildCreativeBrief } from './creative-brief-builder.ts';
 import { tryNativeGemini } from './native-gemini.ts';
+import { generateImageWithFalPro, generateImageWithFalTurbo, downloadImageAsBase64 as falDownloadImage } from './fal-client.ts';
 
 // ===== CONSTANTS =====
 
