@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Package, AlertCircle, Sparkles, Crown, Zap, Volume2 } from 'lucide-react';
-import { useCreateVideoJob } from '@/hooks/useVideoCreatives';
+import { useCreateVideoJob, useVideoJobs } from '@/hooks/useVideoCreatives';
 import { useProductsWithImages } from '@/hooks/useProducts';
 import { VideoJobsList } from '../VideoJobsList';
 
@@ -32,7 +32,8 @@ export function VideoGeneratorForm() {
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [prompt, setPrompt] = useState('');
 
-  const { data: products, isLoading: loadingProducts } = useProductsWithImages();
+  const { products, isLoading: loadingProducts } = useProductsWithImages();
+  const { data: jobs, isLoading: loadingJobs } = useVideoJobs();
   const createJob = useCreateVideoJob();
 
   const handleGenerate = () => {
@@ -160,7 +161,7 @@ export function VideoGeneratorForm() {
       </Button>
 
       {/* Jobs */}
-      <VideoJobsList />
+      <VideoJobsList jobs={jobs || []} isLoading={loadingJobs} />
     </div>
   );
 }
