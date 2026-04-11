@@ -12,7 +12,7 @@ import { sanitizeCep } from '@/lib/cepUtils';
 import { AffiliateData } from '@/lib/affiliateTracking';
 // Meta CAPI identifiers no longer needed here - handled by MarketingTracker client-side
 
-export type PaymentMethod = 'pix' | 'boleto' | 'credit_card';
+export type PaymentMethod = 'pix' | 'boleto' | 'credit_card' | 'mercadopago_redirect';
 
 export interface PaymentResult {
   success: boolean;
