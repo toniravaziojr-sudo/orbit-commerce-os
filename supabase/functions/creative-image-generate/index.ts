@@ -705,20 +705,26 @@ serve(async (req) => {
       );
     }
 
-    // Fetch GEMINI_API_KEY from platform_credentials (priority 1)
+    // Fetch API keys from platform_credentials
+    const falApiKey = await getFalApiKey(supabaseUrl, supabaseServiceKey);
     const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
     
+    if (falApiKey) {
+      console.log(`[creative-image-generate v${VERSION}] ✅ FAL_API_KEY found — fal.ai FLUX 2 enabled (priority 1-2)`);
+    } else {
+      console.log(`[creative-image-generate v${VERSION}] ⚠️ No FAL_API_KEY — fal.ai disabled`);
+    }
     if (geminiApiKey) {
-      console.log(`[creative-image-generate v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 1)`);
+      console.log(`[creative-image-generate v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 3)`);
     } else {
       console.log(`[creative-image-generate v${VERSION}] ⚠️ No GEMINI_API_KEY — Gemini Nativa disabled`);
     }
     if (openaiApiKey) {
-      console.log(`[creative-image-generate v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 2)`);
+      console.log(`[creative-image-generate v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 4)`);
     } else {
       console.log(`[creative-image-generate v${VERSION}] ⚠️ No OPENAI_API_KEY — OpenAI disabled`);
     }
-    console.log(`[creative-image-generate v${VERSION}] Lovable Gateway always available (priority 3 — fallback)`);
+    console.log(`[creative-image-generate v${VERSION}] Lovable Gateway always available (priority 5 — último recurso)`);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
