@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 import { 
   Upload, 
   Video, 
@@ -88,6 +89,7 @@ export function UGCRealForm() {
                    <User className="h-4 w-4" />
                    Trocar Rosto
                    {isSpecial && <Badge variant="outline" className="text-[10px]">Akool</Badge>}
+                </Label>
                 <p className="text-xs text-muted-foreground mt-1">
                   Upload de 1-3 fotos do novo rosto
                 </p>
@@ -124,6 +126,7 @@ export function UGCRealForm() {
                    <Mic className="h-4 w-4" />
                    Trocar Voz
                    {isSpecial && <Badge variant="outline" className="text-[10px]">ElevenLabs</Badge>}
+                </Label>
                 <p className="text-xs text-muted-foreground mt-1">
                   Gerar nova voz via TTS ou clonar uma voz de referência
                 </p>
