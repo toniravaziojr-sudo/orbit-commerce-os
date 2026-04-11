@@ -1,5 +1,5 @@
 // =============================================
-// PAYMENT METHOD SELECTOR - Choose between PIX, Boleto, Credit Card
+// PAYMENT METHOD SELECTOR - Choose between PIX, Boleto, Credit Card, MP Redirect
 // Supports dynamic ordering via methodsOrder prop
 // =============================================
 
@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
-import { QrCode, Barcode, CreditCard } from 'lucide-react';
+import { QrCode, Barcode, CreditCard, ExternalLink } from 'lucide-react';
 import { PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
 
 interface PaymentMethodConfig {
@@ -40,6 +40,13 @@ const PAYMENT_METHODS: Record<PaymentMethod, PaymentMethodConfig> = {
     label: 'Cartão de Crédito',
     description: 'Em até 12x sem juros',
   },
+  mercadopago_redirect: {
+    value: 'mercadopago_redirect',
+    id: 'payment-mp-redirect',
+    icon: <ExternalLink className="h-5 w-5" style={{ color: 'var(--theme-highlight-bg, #00b1ea)' }} />,
+    label: 'Mercado Pago',
+    description: 'Pague com sua conta Mercado Pago',
+  },
 };
 
 interface PaymentMethodSelectorProps {
@@ -50,10 +57,10 @@ interface PaymentMethodSelectorProps {
   disabled?: boolean;
   methodsOrder?: PaymentMethod[];
   customLabels?: Record<string, string>;
-  // NEW: Visibility toggles for each payment method
   showPix?: boolean;
   showBoleto?: boolean;
   showCreditCard?: boolean;
+  showMercadoPagoRedirect?: boolean;
 }
 
 export function PaymentMethodSelector({
@@ -62,12 +69,12 @@ export function PaymentMethodSelector({
   cardData,
   onCardDataChange,
   disabled = false,
-  methodsOrder = ['pix', 'credit_card', 'boleto'],
+  methodsOrder = ['pix', 'credit_card', 'boleto', 'mercadopago_redirect'],
   customLabels = {},
-  // NEW: Default to true (show all)
   showPix = true,
   showBoleto = true,
   showCreditCard = true,
+  showMercadoPagoRedirect = false,
 }: PaymentMethodSelectorProps) {
   const formatCardNumber = (value: string): string => {
     const digits = value.replace(/\D/g, '').slice(0, 16);
@@ -90,10 +97,11 @@ export function PaymentMethodSelector({
         if (method === 'pix' && !showPix) return false;
         if (method === 'boleto' && !showBoleto) return false;
         if (method === 'credit_card' && !showCreditCard) return false;
+        if (method === 'mercadopago_redirect' && !showMercadoPagoRedirect) return false;
         return true;
       })
       .map(method => PAYMENT_METHODS[method]);
-  }, [methodsOrder, showPix, showBoleto, showCreditCard]);
+  }, [methodsOrder, showPix, showBoleto, showCreditCard, showMercadoPagoRedirect]);
 
   return (
     <div className="border rounded-lg p-4">
@@ -196,6 +204,18 @@ export function PaymentMethodSelector({
                 className="font-mono"
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mercado Pago Redirect info */}
+      {selectedMethod === 'mercadopago_redirect' && (
+        <div className="mt-4 pt-4 border-t">
+          <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <ExternalLink className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-sm text-muted-foreground">
+              Você será redirecionado para o Mercado Pago para concluir o pagamento com segurança.
+            </p>
           </div>
         </div>
       )}

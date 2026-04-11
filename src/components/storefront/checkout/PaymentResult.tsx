@@ -10,7 +10,7 @@ import { PaymentResult as PaymentResultType } from '@/hooks/useCheckoutPayment';
 
 interface PaymentResultProps {
   result: PaymentResultType;
-  method: 'pix' | 'boleto' | 'credit_card';
+  method: 'pix' | 'boleto' | 'credit_card' | 'mercadopago_redirect';
   onContinue?: () => void;
 }
 

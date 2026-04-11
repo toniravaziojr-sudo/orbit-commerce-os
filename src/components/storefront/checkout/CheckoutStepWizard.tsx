@@ -85,7 +85,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount, revalidateDiscount, checkFirstPurchaseEligibility } = useDiscount();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
-  const { processPayment, isProcessing: paymentProcessing, paymentResult, activeGateway } = useCheckoutPayment({ tenantId });
+  const { processPayment, isProcessing: paymentProcessing, paymentResult, activeGateway, mpRedirectEnabled } = useCheckoutPayment({ tenantId });
   const { customDomain } = useCanonicalDomain();
   const { config: checkoutConfig } = useCheckoutConfig();
   const { trackInitiateCheckout, trackLead, trackAddShippingInfo, trackAddPaymentInfo } = useMarketingEvents();
@@ -722,6 +722,15 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       });
 
       if (result.success) {
+        // === MP REDIRECT: redirect to external MP checkout ===
+        if (paymentMethod === 'mercadopago_redirect' && result.redirectUrl) {
+          clearCart();
+          clearDraft();
+          clearStoredAttribution();
+          clearStoredAffiliateData();
+          window.location.href = result.redirectUrl;
+          return;
+        }
         // Complete checkout session
         completeCheckoutSession({
           tenantSlug: tenantSlug || undefined,
@@ -963,6 +972,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 showPix={checkoutConfig.showPix}
                 showBoleto={checkoutConfig.showBoleto}
                 showCreditCard={checkoutConfig.showCreditCard}
+                showMercadoPagoRedirect={mpRedirectEnabled}
                 maxInstallments={maxInstallments}
                 selectedInstallments={selectedInstallments}
                 onInstallmentsChange={setSelectedInstallments}
@@ -1536,6 +1546,7 @@ function Step4Payment({
   showPix,
   showBoleto,
   showCreditCard,
+  showMercadoPagoRedirect,
   maxInstallments,
   selectedInstallments,
   onInstallmentsChange,
@@ -1552,6 +1563,7 @@ function Step4Payment({
   showPix?: boolean;
   showBoleto?: boolean;
   showCreditCard?: boolean;
+  showMercadoPagoRedirect?: boolean;
   maxInstallments: number;
   selectedInstallments: number;
   onInstallmentsChange: (n: number) => void;
@@ -1576,6 +1588,7 @@ function Step4Payment({
         showPix={showPix}
         showBoleto={showBoleto}
         showCreditCard={showCreditCard}
+        showMercadoPagoRedirect={showMercadoPagoRedirect}
       />
 
       {/* Payment method discount info */}
