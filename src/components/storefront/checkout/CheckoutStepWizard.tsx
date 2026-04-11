@@ -1587,6 +1587,7 @@ function Step4Payment({
         showPix={showPix}
         showBoleto={showBoleto}
         showCreditCard={showCreditCard}
+        showMercadoPagoRedirect={showMercadoPagoRedirect}
       />
 
       {/* Payment method discount info */}
