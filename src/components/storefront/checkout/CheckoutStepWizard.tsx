@@ -1561,6 +1561,7 @@ function Step4Payment({
   showPix?: boolean;
   showBoleto?: boolean;
   showCreditCard?: boolean;
+  showMercadoPagoRedirect?: boolean;
   maxInstallments: number;
   selectedInstallments: number;
   onInstallmentsChange: (n: number) => void;
