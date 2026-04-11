@@ -456,20 +456,12 @@ serve(async (req) => {
     );
   }
 
-  // Fetch GEMINI_API_KEY from platform_credentials (priority 1)
+  // Fetch credentials from platform_credentials
   const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
+  const falApiKeyValue = await getFalApiKey(supabaseUrl, supabaseServiceKey);
 
-  if (geminiApiKey) {
-    console.log(`[media-process-generation-queue v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 1)`);
-  } else {
-    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No GEMINI_API_KEY — Gemini Nativa disabled`);
-  }
-  if (openaiApiKey) {
-    console.log(`[media-process-generation-queue v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 2)`);
-  } else {
-    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No OPENAI_API_KEY — OpenAI disabled`);
-  }
-  console.log(`[media-process-generation-queue v${VERSION}] Lovable Gateway always available (priority 3 — fallback)`);
+  console.log(`[media-process-generation-queue v${VERSION}] Credentials: FAL=${!!falApiKeyValue} GEMINI=${!!geminiApiKey} OPENAI=${!!openaiApiKey} LOVABLE=✅`);
+  console.log(`[media-process-generation-queue v${VERSION}] Hierarchy: 1.FLUX Pro → 2.FLUX Turbo → 3.Gemini Nativa → 4.OpenAI → 5.Lovable Gateway`);
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
