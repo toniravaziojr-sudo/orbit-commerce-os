@@ -37,7 +37,7 @@ const TIER_OPTIONS: TierOption[] = [
 ];
 
 export function VideoGeneratorForm() {
-  const isSpecial = useIsSpecialTenant();
+  const { isSpecialTenant: isSpecial } = useIsSpecialTenant();
   const [selectedProduct, setSelectedProduct] = useState('');
   const [tier, setTier] = useState<VideoTier>('premium');
   const [duration, setDuration] = useState<'5' | '10'>('5');

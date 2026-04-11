@@ -18,7 +18,7 @@ import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 const PIPELINE = ['fal.ai', 'Kling v3 / Veo 3.1 / Wan 2.6'];
 
 export function UnifiedVideoTab() {
-  const isSpecial = useIsSpecialTenant();
+  const { isSpecialTenant: isSpecial } = useIsSpecialTenant();
 
   return (
     <div className="space-y-6">
