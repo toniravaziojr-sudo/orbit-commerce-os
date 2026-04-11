@@ -45,7 +45,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const urls = useStorefrontUrls(tenantSlug);
   const { items, shipping, isLoading: cartLoading, clearCart } = useCart();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
-  const { processPayment, isProcessing, paymentResult } = useCheckoutPayment({ tenantId });
+  const { processPayment, isProcessing, paymentResult, mpRedirectEnabled } = useCheckoutPayment({ tenantId });
   const { config: checkoutConfig } = useCheckoutConfig();
   
   const [formData, setFormData] = useState<CheckoutFormData>(initialCheckoutFormData);
