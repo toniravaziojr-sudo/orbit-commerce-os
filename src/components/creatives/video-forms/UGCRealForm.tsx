@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 
 export function UGCRealForm() {
+  const { isSpecialTenant: isSpecial } = useIsSpecialTenant();
   // Toggles principais
   const [swapFace, setSwapFace] = useState(false);
   const [swapBackground, setSwapBackground] = useState(false);
