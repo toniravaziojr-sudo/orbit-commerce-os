@@ -667,11 +667,11 @@ serve(async (req) => {
       const schemaVariantSeed = schema?.variantSeed as number | undefined;
       const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0, brandColors, schemaMood, schemaVariantSeed);
       
-      // Try Gemini Nativa first, then Lovable Gateway Pro, then Flash
-      let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, geminiApiKey);
+      // Try fal.ai FLUX 2 → Gemini Nativa → Lovable Gateway Pro → Flash
+      let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, geminiApiKey, falApiKeyValue);
       if (!imageDataUrl) {
-        console.log(`[AI-LP-Enhance] Pro failed for ${spec.promptSuffix}, trying flash...`);
-        imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, null); // Don't retry native again
+        console.log(`[AI-LP-Enhance] Primary chain failed for ${spec.promptSuffix}, trying flash fallback...`);
+        imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, null, null); // Pure gateway fallback
       }
 
       if (!imageDataUrl) {
