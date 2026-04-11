@@ -47,7 +47,7 @@ export function AIPlatformSettings() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          OpenAI e Gemini são usados como provedores primários de geração de imagens. O Lovable AI Gateway serve como fallback.
+          <strong>Fal.AI</strong> é o provedor principal de imagens (FLUX 2) e vídeos (Kling v3, Veo 3.1, Wan 2.6). Gemini, OpenAI e Lovable Gateway servem como fallback seguro.
         </AlertDescription>
       </Alert>
 
