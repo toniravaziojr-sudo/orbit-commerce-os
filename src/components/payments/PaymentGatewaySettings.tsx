@@ -112,9 +112,21 @@ export function PaymentGatewaySettings() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [expandedGateway, setExpandedGateway] = useState<string | null>(null);
   const [disconnectDialog, setDisconnectDialog] = useState<string | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, {
     fields: Record<string, string>;
   }>>({});
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedUrl(label);
+      toast.success('URL copiada!');
+      setTimeout(() => setCopiedUrl(null), 2000);
+    } catch {
+      toast.error('Erro ao copiar');
+    }
+  };
 
   // Initialize form data from saved providers
   useEffect(() => {
