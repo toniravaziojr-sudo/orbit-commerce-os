@@ -722,6 +722,15 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       });
 
       if (result.success) {
+        // === MP REDIRECT: redirect to external MP checkout ===
+        if (method === 'mercadopago_redirect' && result.redirectUrl) {
+          clearCart();
+          clearDraft();
+          clearStoredAttribution();
+          clearStoredAffiliateData();
+          window.location.href = result.redirectUrl;
+          return;
+        }
         // Complete checkout session
         completeCheckoutSession({
           tenantSlug: tenantSlug || undefined,
