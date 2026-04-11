@@ -356,7 +356,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
           
           <h1 className="text-3xl font-bold mb-2">Aguardando pagamento PIX</h1>
           <p className="text-muted-foreground">
-            Pedido <span className="font-semibold">#{order?.order_number}</span> — escaneie o QR Code abaixo para pagar.
+            Pedido <span className="font-semibold">{order?.order_number}</span> — escaneie o QR Code abaixo para pagar.
           </p>
           <div className="flex items-center justify-center gap-2 mt-3 text-sm text-yellow-600">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -372,7 +372,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
           
           <h1 className="text-3xl font-bold mb-2">Pagamento PIX confirmado! 🎉</h1>
           <p className="text-muted-foreground">
-            Seu pedido <span className="font-semibold">#{order?.order_number}</span> foi pago com sucesso.
+            Seu pedido <span className="font-semibold">{order?.order_number}</span> foi pago com sucesso.
           </p>
           <p className="text-sm mt-2 text-green-600 font-medium">
             Pagamento aprovado
@@ -386,7 +386,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
           
           <h1 className="text-3xl font-bold mb-2">Obrigado pela compra!</h1>
           <p className="text-muted-foreground">
-            Seu pedido <span className="font-semibold">#{order?.order_number}</span> foi recebido com sucesso.
+            Seu pedido <span className="font-semibold">{order?.order_number}</span> foi recebido com sucesso.
           </p>
           <p className={`text-sm mt-2 ${paymentInfo.color}`}>
             {paymentInfo.text}
