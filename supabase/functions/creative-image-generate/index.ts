@@ -16,8 +16,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { tryNativeGemini } from "../_shared/native-gemini.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { generateImageWithFalPro, generateImageWithFalTurbo, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = '6.0.0'; // Gemini Nativa priority: 1. Gemini Nativa → 2. OpenAI → 3. Lovable Gateway
+const VERSION = '7.0.0'; // fal.ai FLUX 2 priority: 1. FLUX 2 Pro → 2. FLUX 2 Turbo → 3. Gemini Nativa → 4. OpenAI → 5. Lovable Gateway
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -418,20 +419,58 @@ async function generateWithLovableGateway(
   }
 }
 
-// ========== RESILIENT GENERATE v6.0 (Gemini Nativa → OpenAI → Lovable Gateway) ==========
+// ========== RESILIENT GENERATE v7.0 (fal.ai FLUX 2 → Gemini Nativa → OpenAI → Lovable Gateway) ==========
 
 async function resilientGenerate(
   lovableApiKey: string,
   openaiApiKey: string | null,
   geminiApiKey: string | null,
+  falApiKey: string | null,
   prompt: string,
   referenceImageBase64: string,
   provider: Provider,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
 
-  // ===== STEP 1: Gemini Nativa (PRIORIDADE MÁXIMA — para todos os providers) =====
+  // ===== STEP 1: fal.ai FLUX 2 Pro (PRIORIDADE MÁXIMA) =====
+  if (falApiKey) {
+    console.log(`[creative-image] Step 1: fal.ai FLUX 2 Pro (prioridade máxima)...`);
+    const falResult = await generateImageWithFalPro(falApiKey, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (falResult?.imageUrl) {
+      // Download fal.ai hosted image to base64 for pipeline compatibility
+      const b64 = await falDownloadImage(falResult.imageUrl);
+      if (b64) {
+        console.log(`[creative-image] ✅ fal.ai FLUX 2 Pro succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2-pro' };
+      }
+    }
+    console.warn(`[creative-image] fal.ai FLUX 2 Pro failed. Trying FLUX 2 Turbo...`);
+
+    // ===== STEP 2: fal.ai FLUX 2 Turbo (fallback rápido) =====
+    console.log(`[creative-image] Step 2: fal.ai FLUX 2 Turbo...`);
+    const turboResult = await generateImageWithFalTurbo(falApiKey, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (turboResult?.imageUrl) {
+      const b64 = await falDownloadImage(turboResult.imageUrl);
+      if (b64) {
+        console.log(`[creative-image] ✅ fal.ai FLUX 2 Turbo succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2 (turbo)' };
+      }
+    }
+    console.warn(`[creative-image] fal.ai FLUX 2 Turbo failed. Falling back to Gemini Nativa...`);
+  } else {
+    console.warn(`[creative-image] FAL_API_KEY not available. Skipping fal.ai steps.`);
+  }
+
+  // ===== STEP 3: Gemini Nativa (FALLBACK SEGURO) =====
   if (geminiApiKey) {
-    console.log(`[creative-image] Step 1: Gemini Nativa (prioridade máxima)...`);
+    console.log(`[creative-image] Step 3: Gemini Nativa (fallback seguro)...`);
     const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, `creative-${provider}`);
     if (nativeResult.imageBase64) {
       console.log(`[creative-image] ✅ Gemini Nativa succeeded`);
@@ -442,9 +481,9 @@ async function resilientGenerate(
     console.warn(`[creative-image] GEMINI_API_KEY not available. Skipping native Gemini.`);
   }
 
-  // ===== STEP 2: OpenAI Nativa =====
+  // ===== STEP 4: OpenAI Nativa =====
   if (openaiApiKey) {
-    console.log(`[creative-image] Step 2: OpenAI Nativa (gpt-image-1)...`);
+    console.log(`[creative-image] Step 4: OpenAI Nativa (gpt-image-1)...`);
     const openaiResult = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
     if (openaiResult.imageBase64) {
       console.log(`[creative-image] ✅ OpenAI Nativa succeeded`);
@@ -455,8 +494,8 @@ async function resilientGenerate(
     console.warn(`[creative-image] OPENAI_API_KEY not available. Skipping OpenAI.`);
   }
 
-  // ===== STEP 3: Lovable AI Gateway (ÚLTIMO RECURSO) =====
-  console.log(`[creative-image] Step 3: Lovable Gateway Pro (fallback)...`);
+  // ===== STEP 5: Lovable AI Gateway (ÚLTIMO RECURSO) =====
+  console.log(`[creative-image] Step 5: Lovable Gateway Pro (último recurso)...`);
   const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64);
   if (attempt3.imageBase64) {
     return { imageBase64: attempt3.imageBase64, model: `${LOVABLE_MODELS.primary} (Lovable fallback)` };
@@ -468,14 +507,14 @@ async function resilientGenerate(
     return { imageBase64: attempt4.imageBase64, model: `${LOVABLE_MODELS.fallback} (Lovable fallback)` };
   }
 
-  // Step 3c: Simplified prompt
+  // Step 5c: Simplified prompt
   const simplifiedPrompt = `Crie uma fotografia profissional do produto "${prompt.match(/"([^"]+)"/)?.[1] || 'produto'}" em fundo branco limpo. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.`;
   const attempt5 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, simplifiedPrompt, referenceImageBase64);
   if (attempt5.imageBase64) {
     return { imageBase64: attempt5.imageBase64, model: `${LOVABLE_MODELS.primary} (simplified, Lovable fallback)` };
   }
 
-  return { imageBase64: null, model: 'all-failed', error: 'All attempts failed (Gemini Nativa → OpenAI → Lovable Gateway)' };
+  return { imageBase64: null, model: 'all-failed', error: 'All attempts failed (fal.ai FLUX 2 → Gemini Nativa → OpenAI → Lovable Gateway)' };
 }
 
 // ========== REALISM SCORER ==========
@@ -666,20 +705,26 @@ serve(async (req) => {
       );
     }
 
-    // Fetch GEMINI_API_KEY from platform_credentials (priority 1)
+    // Fetch API keys from platform_credentials
+    const falApiKey = await getFalApiKey(supabaseUrl, supabaseServiceKey);
     const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
     
+    if (falApiKey) {
+      console.log(`[creative-image-generate v${VERSION}] ✅ FAL_API_KEY found — fal.ai FLUX 2 enabled (priority 1-2)`);
+    } else {
+      console.log(`[creative-image-generate v${VERSION}] ⚠️ No FAL_API_KEY — fal.ai disabled`);
+    }
     if (geminiApiKey) {
-      console.log(`[creative-image-generate v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 1)`);
+      console.log(`[creative-image-generate v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 3)`);
     } else {
       console.log(`[creative-image-generate v${VERSION}] ⚠️ No GEMINI_API_KEY — Gemini Nativa disabled`);
     }
     if (openaiApiKey) {
-      console.log(`[creative-image-generate v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 2)`);
+      console.log(`[creative-image-generate v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 4)`);
     } else {
       console.log(`[creative-image-generate v${VERSION}] ⚠️ No OPENAI_API_KEY — OpenAI disabled`);
     }
-    console.log(`[creative-image-generate v${VERSION}] Lovable Gateway always available (priority 3 — fallback)`);
+    console.log(`[creative-image-generate v${VERSION}] Lovable Gateway always available (priority 5 — último recurso)`);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -914,7 +959,7 @@ serve(async (req) => {
 
           // Generate with resilient pipeline (retry + fallback model)
           const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
-            const result = await resilientGenerate(lovableApiKey, openaiApiKey, geminiApiKey, variantPrompt, productBase64, provider);
+            const result = await resilientGenerate(lovableApiKey, openaiApiKey, geminiApiKey, falApiKey, variantPrompt, productBase64, provider);
             
             if (!result.imageBase64) {
               return {
