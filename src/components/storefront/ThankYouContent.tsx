@@ -137,6 +137,79 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
   }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming]);
 
+  // =============================================
+  // PIX POLLING — check payment status every 5s for up to 10 minutes
+  // =============================================
+  const [pixJustConfirmed, setPixJustConfirmed] = useState(false);
+  const pollingStartRef = useRef<number | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const PIX_POLL_INTERVAL = 5_000; // 5 seconds
+  const PIX_POLL_MAX_DURATION = 10 * 60 * 1000; // 10 minutes
+
+  const isPixPending = !!(
+    order &&
+    paymentInstructions?.method === 'pix' &&
+    order.payment_status === 'pending' &&
+    !pixJustConfirmed
+  );
+
+  useEffect(() => {
+    // Only poll for PIX pending payments
+    if (!isPixPending || !orderParam) {
+      // Cleanup if conditions no longer met
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Initialize polling start time
+    if (!pollingStartRef.current) {
+      pollingStartRef.current = Date.now();
+    }
+
+    console.log('[ThankYou] Starting PIX payment polling every 5s (max 10min)');
+
+    pollingIntervalRef.current = setInterval(async () => {
+      const elapsed = Date.now() - (pollingStartRef.current || Date.now());
+
+      // Stop after 10 minutes — webhook/reconciliation will handle it
+      if (elapsed >= PIX_POLL_MAX_DURATION) {
+        console.log('[ThankYou] PIX polling timeout (10min). Stopping. Webhook will handle confirmation.');
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        return;
+      }
+
+      try {
+        const result = await refetch();
+        const updatedOrder = result.data;
+
+        if (updatedOrder && (updatedOrder.payment_status === 'approved' || updatedOrder.payment_status === 'paid')) {
+          console.log('[ThankYou] PIX payment confirmed! Transitioning to success.');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          setPixJustConfirmed(true);
+          toast.success('Pagamento PIX confirmado! 🎉');
+        }
+      } catch (err) {
+        console.warn('[ThankYou] PIX polling refetch error (will retry):', err);
+      }
+    }, PIX_POLL_INTERVAL);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [isPixPending, orderParam, refetch]);
+
   // Check auth state
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
