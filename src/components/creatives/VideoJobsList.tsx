@@ -31,6 +31,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { VideoJob } from '@/hooks/useVideoCreatives';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 
 interface VideoJobsListProps {
   jobs: VideoJob[];

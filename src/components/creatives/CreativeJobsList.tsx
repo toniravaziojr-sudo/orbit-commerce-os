@@ -26,6 +26,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getStatusColor, getStatusLabel, useRetryCreativeJob } from '@/hooks/useCreatives';
 import type { CreativeJob, CreativeType } from '@/types/creatives';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 
 interface CreativeJobsListProps {
   jobs: CreativeJob[];
