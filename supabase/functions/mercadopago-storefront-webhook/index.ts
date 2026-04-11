@@ -88,8 +88,206 @@ serve(async (req) => {
     }
 
     if (!existingTransaction) {
-      console.log(`[${requestId}] Transaction not found for MP payment: ${paymentId}`);
-      return new Response(JSON.stringify({ received: true, message: 'Transaction not found' }), {
+      // === REDIRECT CHECKOUT FLOW ===
+      // No transaction found — this might be a redirect checkout (mp_pending_checkouts)
+      // Fetch payment from MP to get external_reference
+      console.log(`[${requestId}] No transaction found, checking redirect checkout flow...`);
+
+      // We need credentials from ANY active MP provider to fetch payment details
+      // First try to find the pending checkout by fetching the payment from MP
+      const { data: allMpProviders } = await supabase
+        .from('payment_providers')
+        .select('tenant_id, credentials')
+        .or("provider.eq.mercado_pago,provider.eq.mercadopago")
+        .eq('is_enabled', true);
+
+      let mpPayment: any = null;
+      let resolvedTenantId: string | null = null;
+
+      for (const prov of (allMpProviders || [])) {
+        const at = (prov.credentials as any)?.access_token || (prov.credentials as any)?.production_access_token;
+        if (!at) continue;
+
+        const resp = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+          headers: { 'Authorization': `Bearer ${at}` },
+        });
+
+        if (resp.ok) {
+          mpPayment = await resp.json();
+          resolvedTenantId = prov.tenant_id;
+          break;
+        }
+        await resp.text(); // consume body
+      }
+
+      if (!mpPayment || !mpPayment.external_reference) {
+        console.log(`[${requestId}] Could not resolve payment ${paymentId} to any tenant`);
+        return new Response(JSON.stringify({ received: true, message: 'Transaction not found' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const pendingId = mpPayment.external_reference;
+      console.log(`[${requestId}] Found external_reference=${pendingId}, checking mp_pending_checkouts...`);
+
+      const { data: pendingCheckout } = await supabase
+        .from('mp_pending_checkouts' as any)
+        .select('*')
+        .eq('id', pendingId)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (!pendingCheckout) {
+        console.log(`[${requestId}] No pending checkout found for ${pendingId}`);
+        return new Response(JSON.stringify({ received: true, message: 'Pending checkout not found or already processed' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Only process approved/pending payments for order creation
+      if (mpPayment.status !== 'approved' && mpPayment.status !== 'pending' && mpPayment.status !== 'in_process') {
+        console.log(`[${requestId}] Payment status ${mpPayment.status} — not creating order for redirect checkout`);
+        // Mark as failed if rejected/cancelled
+        if (mpPayment.status === 'rejected' || mpPayment.status === 'cancelled') {
+          await supabase.from('mp_pending_checkouts' as any)
+            .update({ status: 'failed' } as any)
+            .eq('id', pendingId);
+        }
+        return new Response(JSON.stringify({ received: true, message: `Payment ${mpPayment.status}` }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // === CREATE ORDER FROM PENDING CHECKOUT ===
+      const pc = pendingCheckout as any;
+      const tenantId = pc.tenant_id;
+
+      console.log(`[${requestId}] Creating order from redirect checkout for tenant ${tenantId}`);
+
+      // Call checkout-create-order internally
+      const orderPayload = {
+        tenant_id: tenantId,
+        customer: pc.customer_data,
+        shipping: pc.shipping_data,
+        items: pc.items_data,
+        payment_method: 'mercadopago_redirect',
+        subtotal: pc.subtotal,
+        shipping_total: pc.shipping_total,
+        discount_total: pc.discount_total || 0,
+        payment_method_discount: pc.payment_method_discount || 0,
+        total: pc.total,
+        discount: pc.discount_data || undefined,
+        attribution: pc.attribution_data || undefined,
+        affiliate: pc.affiliate_data || undefined,
+        shipping_quote_id: pc.shipping_quote_id || undefined,
+        checkout_attempt_id: pc.checkout_attempt_id || undefined,
+      };
+
+      const createOrderResp = await fetch(`${SUPABASE_URL}/functions/v1/checkout-create-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify(orderPayload),
+      });
+
+      const orderResult = await createOrderResp.json();
+
+      if (!orderResult.success || !orderResult.order_id) {
+        console.error(`[${requestId}] Failed to create order from redirect:`, orderResult);
+        return new Response(JSON.stringify({ received: true, message: 'Order creation failed' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const orderId = orderResult.order_id;
+      console.log(`[${requestId}] Order created: ${orderId}`);
+
+      // Update order with payment info
+      const paymentStatus = mpPayment.status === 'approved' ? 'approved' : 'pending';
+      const orderStatus = mpPayment.status === 'approved' ? 'ready_to_invoice' : 'pending';
+      const paidAtRedirect = mpPayment.status === 'approved' ? new Date().toISOString() : null;
+
+      await supabase.from('orders').update({
+        payment_status: paymentStatus,
+        status: orderStatus,
+        payment_gateway: 'mercadopago',
+        payment_gateway_id: String(paymentId),
+        payment_method: 'mercadopago_redirect',
+        ...(paidAtRedirect ? { paid_at: paidAtRedirect } : {}),
+        updated_at: new Date().toISOString(),
+      }).eq('id', orderId);
+
+      // Mark pending checkout as completed
+      await supabase.from('mp_pending_checkouts' as any)
+        .update({ status: 'completed', order_id: orderId } as any)
+        .eq('id', pendingId);
+
+      // Record event
+      await supabase.from('payment_events').insert({
+        tenant_id: tenantId,
+        provider: 'mercadopago',
+        event_id: String(eventId),
+        provider_payment_id: String(paymentId),
+        event_type: eventType,
+        payload: { webhook: body, payment_status: mpPayment.status, redirect_checkout: true },
+        received_at: new Date().toISOString(),
+        processed_at: new Date().toISOString(),
+        processing_result: 'success',
+      });
+
+      // Record order history
+      await supabase.from('order_history').insert({
+        order_id: orderId,
+        action: 'order_created',
+        previous_value: {},
+        new_value: { status: orderStatus, payment_status: paymentStatus },
+        description: `Pedido criado via checkout redirect Mercado Pago (payment: ${mpPayment.status})`,
+      });
+
+      // Emit canonical event
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('order_number, customer_name, customer_email, customer_phone, total')
+        .eq('id', orderId)
+        .single();
+
+      await supabase.from('events_inbox').insert({
+        tenant_id: tenantId,
+        provider: 'internal',
+        event_type: 'payment_status_changed',
+        idempotency_key: `redirect_payment_${pendingId}_${mpPayment.status}`,
+        occurred_at: new Date().toISOString(),
+        payload_normalized: {
+          order_id: orderId,
+          order_number: orderData?.order_number || '',
+          customer_name: orderData?.customer_name || '',
+          customer_email: orderData?.customer_email || '',
+          customer_phone: orderData?.customer_phone || '',
+          order_total: orderData?.total || 0,
+          old_status: 'new',
+          new_status: paymentStatus,
+          payment_method: 'mercadopago_redirect',
+          payment_gateway: 'mercadopago',
+        },
+        status: 'new',
+      }).then(({ error }) => {
+        if (error && !error.message?.includes('duplicate')) {
+          console.error(`[${requestId}] Error emitting redirect event:`, error);
+        }
+      });
+
+      const duration = Date.now() - startTime;
+      console.log(`[${requestId}] Redirect checkout processed in ${duration}ms, order: ${orderId}`);
+
+      return new Response(JSON.stringify({
+        received: true,
+        request_id: requestId,
+        order_id: orderId,
+        payment_status: paymentStatus,
+        duration_ms: duration,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
