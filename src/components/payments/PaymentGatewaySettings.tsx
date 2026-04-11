@@ -56,7 +56,11 @@ interface GatewayDefinition {
   supportedMethods: string[];
   docsUrl: string;
   comingSoon?: boolean;
+  webhookUrl?: string;
+  webhookInstructions?: string;
 }
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
   {
@@ -71,6 +75,8 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     ],
     supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
     docsUrl: 'https://docs.pagar.me',
+    webhookUrl: `${SUPABASE_URL}/functions/v1/pagarme-webhook`,
+    webhookInstructions: 'Acesse o Dashboard da Pagar.me → Configurações → Webhooks → Adicione esta URL.',
   },
   {
     id: 'pagbank',
@@ -96,6 +102,8 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     ],
     supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
     docsUrl: 'https://www.mercadopago.com.br/developers',
+    webhookUrl: `${SUPABASE_URL}/functions/v1/mercadopago-storefront-webhook`,
+    webhookInstructions: 'Acesse Mercado Pago → Sua aplicação → Webhooks → Configure esta URL para receber notificações de pagamento.',
   },
 ];
 
