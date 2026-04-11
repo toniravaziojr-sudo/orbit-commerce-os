@@ -3,6 +3,7 @@ import { MarketingIntegrationsSettings } from "@/components/integrations/Marketi
 import { ProductFeedsSettings } from "@/components/integrations/ProductFeedsSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, BarChart3, Rss } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export default function Marketing() {
   return (
@@ -14,18 +15,24 @@ export default function Marketing() {
 
       <Tabs defaultValue="integrations" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="integrations" className="gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Integrações
-          </TabsTrigger>
-          <TabsTrigger value="feeds" className="gap-2">
-            <Rss className="h-4 w-4" />
-            Catálogos
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="gap-2" disabled>
-            <BarChart3 className="h-4 w-4" />
-            Relatórios
-          </TabsTrigger>
+          <InfoTooltip tooltipKey="marketing.tab.integrations">
+            <TabsTrigger value="integrations" className="gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Integrações
+            </TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip tooltipKey="marketing.tab.feeds">
+            <TabsTrigger value="feeds" className="gap-2">
+              <Rss className="h-4 w-4" />
+              Catálogos
+            </TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip tooltipKey="marketing.tab.analytics">
+            <TabsTrigger value="analytics" className="gap-2" disabled>
+              <BarChart3 className="h-4 w-4" />
+              Relatórios
+            </TabsTrigger>
+          </InfoTooltip>
         </TabsList>
 
         <TabsContent value="integrations">

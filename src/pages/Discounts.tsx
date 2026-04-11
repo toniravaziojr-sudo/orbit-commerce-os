@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDiscounts, getDiscountStatus, formatDiscountValue, Discount, discountTypeLabels } from "@/hooks/useDiscounts";
 import { DiscountFormDialog } from "@/components/discounts/DiscountFormDialog";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -111,10 +112,12 @@ export default function Discounts() {
         title="Descontos"
         description="Gerencie cupons e descontos da sua loja"
         actions={
-          <Button onClick={handleCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Criar desconto
-          </Button>
+          <InfoTooltip tooltipKey="discounts.btn.new">
+            <Button onClick={handleCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Criar desconto
+            </Button>
+          </InfoTooltip>
         }
       />
 

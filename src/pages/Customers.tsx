@@ -23,6 +23,7 @@ import { exportToCSV, formatDateForExport, formatCurrencyForExport } from '@/lib
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const PAGE_SIZE = 50;
 
@@ -151,20 +152,26 @@ export default function Customers() {
         description="Base de clientes com histórico, tags e segmentação"
         actions={
           <div className="flex gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
-              <Upload className="h-4 w-4" />
-              Importar
-            </Button>
-            <FeatureGate feature="export_customers">
-              <Button variant="outline" className="gap-2" onClick={handleExportCustomers}>
-                <Download className="h-4 w-4" />
-                Exportar
+            <InfoTooltip tooltipKey="customers.btn.import">
+              <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4" />
+                Importar
               </Button>
+            </InfoTooltip>
+            <FeatureGate feature="export_customers">
+              <InfoTooltip tooltipKey="customers.btn.export">
+                <Button variant="outline" className="gap-2" onClick={handleExportCustomers}>
+                  <Download className="h-4 w-4" />
+                  Exportar
+                </Button>
+              </InfoTooltip>
             </FeatureGate>
-            <Button className="gap-2" onClick={handleAddNew}>
-              <Plus className="h-4 w-4" />
-              Novo Cliente
-            </Button>
+            <InfoTooltip tooltipKey="customers.btn.new">
+              <Button className="gap-2" onClick={handleAddNew}>
+                <Plus className="h-4 w-4" />
+                Novo Cliente
+              </Button>
+            </InfoTooltip>
           </div>
         }
       />

@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { PlatformAlerts } from "./PlatformAlerts";
 import { ModuleTutorialLink } from "./ModuleTutorialLink";
 import { AdminModeToggle } from "./AdminModeToggle";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export function AppHeader() {
   const navigate = useNavigate();
@@ -100,14 +101,18 @@ export function AppHeader() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/account/data")}>
-              <User className="mr-2 h-4 w-4" />
-              Dados da Conta
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/account/billing")}>
-              <CreditCard className="mr-2 h-4 w-4" />
-              Planos e Faturamento
-            </DropdownMenuItem>
+            <InfoTooltip tooltipKey="header.account-data" side="left">
+              <DropdownMenuItem onClick={() => navigate("/account/data")}>
+                <User className="mr-2 h-4 w-4" />
+                Dados da Conta
+              </DropdownMenuItem>
+            </InfoTooltip>
+            <InfoTooltip tooltipKey="header.billing" side="left">
+              <DropdownMenuItem onClick={() => navigate("/account/billing")}>
+                <CreditCard className="mr-2 h-4 w-4" />
+                Planos e Faturamento
+              </DropdownMenuItem>
+            </InfoTooltip>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleSignOut}
