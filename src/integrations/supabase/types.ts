@@ -11161,6 +11161,89 @@ export type Database = {
         }
         Relationships: []
       }
+      mp_pending_checkouts: {
+        Row: {
+          affiliate_data: Json | null
+          attribution_data: Json | null
+          checkout_attempt_id: string | null
+          checkout_session_id: string | null
+          created_at: string
+          customer_data: Json
+          discount_data: Json | null
+          discount_total: number
+          id: string
+          items_data: Json
+          mp_payment_id: string | null
+          mp_preference_id: string | null
+          order_id: string | null
+          payment_method_discount: number
+          shipping_data: Json
+          shipping_quote_id: string | null
+          shipping_total: number
+          status: string
+          subtotal: number
+          tenant_id: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          affiliate_data?: Json | null
+          attribution_data?: Json | null
+          checkout_attempt_id?: string | null
+          checkout_session_id?: string | null
+          created_at?: string
+          customer_data?: Json
+          discount_data?: Json | null
+          discount_total?: number
+          id?: string
+          items_data?: Json
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          order_id?: string | null
+          payment_method_discount?: number
+          shipping_data?: Json
+          shipping_quote_id?: string | null
+          shipping_total?: number
+          status?: string
+          subtotal?: number
+          tenant_id: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          affiliate_data?: Json | null
+          attribution_data?: Json | null
+          checkout_attempt_id?: string | null
+          checkout_session_id?: string | null
+          created_at?: string
+          customer_data?: Json
+          discount_data?: Json | null
+          discount_total?: number
+          id?: string
+          items_data?: Json
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          order_id?: string | null
+          payment_method_discount?: number
+          shipping_data?: Json
+          shipping_quote_id?: string | null
+          shipping_total?: number
+          status?: string
+          subtotal?: number
+          tenant_id?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mp_pending_checkouts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       newsletter_popup_configs: {
         Row: {
           background_color: string | null
