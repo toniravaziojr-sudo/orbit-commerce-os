@@ -582,48 +582,33 @@ PROIBIÇÕES ABSOLUTAS:
 BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
         }
 
-        // Generate with both providers in parallel
-        const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
-          const result = provider === 'gemini' 
-            ? await generateWithGemini(lovableApiKey, geminiApiKey, finalPrompt, referenceBase64)
-            : await generateWithOpenAI(lovableApiKey, openaiApiKey, geminiApiKey, finalPrompt, referenceBase64);
+        // Generate with unified resilient pipeline (fal.ai → Gemini → OpenAI → Gateway)
+        const result = await resilientGenerateMedia(
+          lovableApiKey, geminiApiKey, openaiApiKey, falApiKeyValue,
+          finalPrompt, referenceBase64,
+        );
 
-          if (!result.imageBase64) {
-            return {
-              provider,
-              imageBase64: null,
-              scores: { realism: 0, quality: 0, composition: 0, label: 0, overall: 0 },
-              error: result.error,
-              usedReference: !!referenceBase64,
-            };
-          }
+        if (!result.imageBase64) {
+          throw new Error(`Nenhum provedor gerou imagem: ${result.error}`);
+        }
 
-          // QA Scoring
-          if (enableQA) {
-            const scores = await scoreImageForRealism(
-              lovableApiKey,
-              result.imageBase64,
-              referenceBase64,
-              productWithImage?.name || "Produto",
-            );
-            return {
-              provider,
-              imageBase64: result.imageBase64,
-              scores,
-              usedReference: !!referenceBase64,
-            };
-          }
+        // QA Scoring if enabled
+        let scores: QAScores = { realism: 7, quality: 7, composition: 7, label: 7, overall: 0.7 };
+        if (enableQA) {
+          scores = await scoreImageForRealism(
+            lovableApiKey,
+            result.imageBase64,
+            referenceBase64,
+            productWithImage?.name || "Produto",
+          );
+        }
 
-          return {
-            provider,
-            imageBase64: result.imageBase64,
-            scores: { realism: 7, quality: 7, composition: 7, label: 7, overall: 0.7 },
-            usedReference: !!referenceBase64,
-          };
-        });
-
-        const providerResults = await Promise.all(providerPromises);
-        const successfulResults = providerResults.filter((r) => r.imageBase64);
+        const successfulResults: ProviderResult[] = [{
+          provider: 'gemini' as Provider,
+          imageBase64: result.imageBase64,
+          scores,
+          usedReference: !!referenceBase64,
+        }];
 
         if (successfulResults.length === 0) {
           const errors = providerResults.map((r) => r.error).filter(Boolean).join("; ");
