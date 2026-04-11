@@ -26,6 +26,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getStatusColor, getStatusLabel, useRetryCreativeJob } from '@/hooks/useCreatives';
 import type { CreativeJob, CreativeType } from '@/types/creatives';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 
 interface CreativeJobsListProps {
   jobs: CreativeJob[];
@@ -35,6 +36,7 @@ interface CreativeJobsListProps {
 }
 
 export function CreativeJobsList({ jobs, isLoading, type, highlightNew }: CreativeJobsListProps) {
+  const { isSpecialTenant: isSpecial } = useIsSpecialTenant();
   const retryJob = useRetryCreativeJob();
 
   if (isLoading) {
@@ -111,7 +113,7 @@ export function CreativeJobsList({ jobs, isLoading, type, highlightNew }: Creati
                     </Badge>
                     
                     {/* Badge de versão da pipeline */}
-                    {pipelineVersion && (
+                    {isSpecial && pipelineVersion && (
                       <Badge variant="secondary" className="text-[10px] h-5">
                         v{pipelineVersion}
                       </Badge>

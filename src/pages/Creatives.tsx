@@ -44,7 +44,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType; description: st
     id: 'images',
     label: 'Imagens',
     icon: Image,
-    description: 'Imagens de produto com OpenAI + Gemini',
+    description: 'Imagens de produto com IA',
   },
   {
     id: 'gallery',

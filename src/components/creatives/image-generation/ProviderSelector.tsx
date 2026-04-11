@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Sparkles, Zap } from 'lucide-react';
 import { ImageProvider } from './types';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 
 interface ProviderSelectorProps {
   value: ImageProvider[];
@@ -20,7 +21,9 @@ const PROVIDERS = [
   {
     id: 'openai' as ImageProvider,
     name: 'OpenAI',
+    namePublic: 'Motor A',
     description: 'GPT Image — excelente em composição e realismo',
+    descriptionPublic: 'Excelente em composição e realismo',
     icon: Sparkles,
     color: 'text-emerald-600',
     bgColor: 'bg-emerald-50',
@@ -28,7 +31,9 @@ const PROVIDERS = [
   {
     id: 'gemini' as ImageProvider,
     name: 'Gemini',
+    namePublic: 'Motor B',
     description: 'Google Gemini — forte em cores e detalhes',
+    descriptionPublic: 'Forte em cores e detalhes',
     icon: Zap,
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
@@ -36,6 +41,7 @@ const PROVIDERS = [
 ];
 
 export function ProviderSelector({ value, onChange, disabled }: ProviderSelectorProps) {
+  const { isSpecialTenant: isSpecial } = useIsSpecialTenant();
   const toggleProvider = (providerId: ImageProvider) => {
     if (value.includes(providerId)) {
       onChange(value.filter(p => p !== providerId));
@@ -81,12 +87,12 @@ export function ProviderSelector({ value, onChange, disabled }: ProviderSelector
                 className="mt-0.5"
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
+               <div className="flex items-center gap-1.5">
                   <Icon className={`h-4 w-4 ${provider.color}`} />
-                  <span className="font-medium text-sm">{provider.name}</span>
+                  <span className="font-medium text-sm">{isSpecial ? provider.name : provider.namePublic}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                  {provider.description}
+                  {isSpecial ? provider.description : provider.descriptionPublic}
                 </p>
               </div>
             </div>

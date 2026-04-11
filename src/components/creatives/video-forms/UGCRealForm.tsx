@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 import { 
   Upload, 
   Video, 
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react';
 
 export function UGCRealForm() {
+  const { isSpecialTenant: isSpecial } = useIsSpecialTenant();
   // Toggles principais
   const [swapFace, setSwapFace] = useState(false);
   const [swapBackground, setSwapBackground] = useState(false);
@@ -85,9 +87,9 @@ export function UGCRealForm() {
               />
               <div className="flex-1">
                 <Label htmlFor="swap-face" className="flex items-center gap-2 cursor-pointer">
-                  <User className="h-4 w-4" />
-                  Trocar Rosto
-                  <Badge variant="outline" className="text-[10px]">Akool</Badge>
+                   <User className="h-4 w-4" />
+                   Trocar Rosto
+                   {isSpecial && <Badge variant="outline" className="text-[10px]">Akool</Badge>}
                 </Label>
                 <p className="text-xs text-muted-foreground mt-1">
                   Upload de 1-3 fotos do novo rosto
@@ -122,9 +124,9 @@ export function UGCRealForm() {
               />
               <div className="flex-1">
                 <Label htmlFor="swap-voice" className="flex items-center gap-2 cursor-pointer">
-                  <Mic className="h-4 w-4" />
-                  Trocar Voz
-                  <Badge variant="outline" className="text-[10px]">ElevenLabs</Badge>
+                   <Mic className="h-4 w-4" />
+                   Trocar Voz
+                   {isSpecial && <Badge variant="outline" className="text-[10px]">ElevenLabs</Badge>}
                 </Label>
                 <p className="text-xs text-muted-foreground mt-1">
                   Gerar nova voz via TTS ou clonar uma voz de referência

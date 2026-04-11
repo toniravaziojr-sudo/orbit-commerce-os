@@ -29,10 +29,12 @@ import { useVideoJobs, useCreateVideoJob } from '@/hooks/useVideoCreatives';
 import { useProductsWithImages } from '@/hooks/useProducts';
 import { VideoJobsList } from '../VideoJobsList';
 import { VoiceSelector } from '../VoiceSelector';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 
 type AudioMode = 'none' | 'tts_ptbr';
 
 export function UGCAIForm() {
+  const { isSpecialTenant: isSpecial } = useIsSpecialTenant();
   // Produto OBRIGATÓRIO
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   
@@ -241,9 +243,9 @@ Exemplo:
                     Português (TTS)
                     <Badge variant="secondary" className="text-[10px]">Recomendado</Badge>
                   </Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Narração em PT-BR via ElevenLabs + sincronização labial
-                  </p>
+                   <p className="text-xs text-muted-foreground mt-0.5">
+                     Narração em PT-BR{isSpecial ? ' via ElevenLabs' : ''} + sincronização labial
+                   </p>
                 </div>
               </div>
             </RadioGroup>

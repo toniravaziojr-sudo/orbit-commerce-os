@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Coins, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ImageProvider } from './types';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 
 interface CostEstimateProps {
   providers: ImageProvider[];
@@ -23,6 +24,7 @@ const PROVIDER_COSTS = {
 const QA_COST = 5; // R$ 0,05 por QA
 
 export function CostEstimate({ providers, variations }: CostEstimateProps) {
+  const { isSpecialTenant: isSpecial } = useIsSpecialTenant();
   // Calcular custo total
   const providerCosts = providers.map(p => ({
     provider: p,
@@ -53,7 +55,7 @@ export function CostEstimate({ providers, variations }: CostEstimateProps) {
                   <p className="font-medium">Detalhamento:</p>
                   {providerCosts.map(pc => (
                     <div key={pc.provider} className="flex justify-between">
-                      <span>{pc.provider === 'openai' ? 'OpenAI' : 'Gemini'} ({variations} imgs):</span>
+                      <span>{isSpecial ? (pc.provider === 'openai' ? 'OpenAI' : 'Gemini') : (pc.provider === 'openai' ? 'Motor A' : 'Motor B')} ({variations} imgs):</span>
                       <span>{formatCurrency(pc.cost)}</span>
                     </div>
                   ))}
