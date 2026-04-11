@@ -1,6 +1,7 @@
 // =============================================
 // USE CHECKOUT PAYMENT - Real payment processing
 // Supports Pagar.me and Mercado Pago gateways
+// Resolves gateway PER payment method via payment_method_gateway_map
 // Uses edge functions for secure server-side operations
 // =============================================
 
@@ -10,7 +11,6 @@ import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { AttributionData } from '@/hooks/useAttribution';
 import { sanitizeCep } from '@/lib/cepUtils';
 import { AffiliateData } from '@/lib/affiliateTracking';
-// Meta CAPI identifiers no longer needed here - handled by MarketingTracker client-side
 
 export type PaymentMethod = 'pix' | 'boleto' | 'credit_card' | 'mercadopago_redirect';
 
@@ -30,10 +30,12 @@ export interface PaymentResult {
   // Credit card specific
   cardStatus?: string;
   // Failure classification (v8.15.0)
-  cardDeclined?: boolean;    // Gateway explicitly rejected (antifraude, saldo, etc)
-  technicalError?: boolean;  // HTTP/network error after order was created
-  // Secure retry token (v8.15.1) — for card retry on thank you page
+  cardDeclined?: boolean;
+  technicalError?: boolean;
+  // Secure retry token (v8.15.1)
   retryToken?: string;
+  // MP Redirect
+  redirectUrl?: string;
   // Error
   error?: string;
 }
@@ -76,35 +78,74 @@ interface UseCheckoutPaymentOptions {
   tenantId: string;
 }
 
+interface GatewayMapEntry {
+  payment_method: string;
+  provider: string;
+  is_enabled: boolean;
+}
 
 export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
-  // Determine which payment gateway to use based on tenant config
+  // Gateway map: which provider handles each method
+  const [gatewayMap, setGatewayMap] = useState<GatewayMapEntry[]>([]);
+  // Fallback: legacy single gateway
   const [activeGateway, setActiveGateway] = useState<'pagarme' | 'mercadopago'>('pagarme');
+  // MP Redirect enabled flag
+  const [mpRedirectEnabled, setMpRedirectEnabled] = useState(false);
   
-  // Check for active payment provider on mount
+  // Load gateway map + fallback on mount
   useEffect(() => {
-    const checkGateway = async () => {
+    const loadConfig = async () => {
       try {
-        const { data } = await supabase
+        // 1. Load per-method gateway map
+        const { data: mapData } = await supabase
+          .from('payment_method_gateway_map' as any)
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('is_enabled', true);
+        
+        if (mapData && (mapData as any[]).length > 0) {
+          setGatewayMap(mapData as any as GatewayMapEntry[]);
+        }
+
+        // 2. Load providers for fallback + MP redirect flag
+        const { data: providers } = await supabase
           .from('payment_providers')
-          .select('provider, is_enabled')
+          .select('provider, is_enabled, mp_redirect_enabled' as any)
           .eq('tenant_id', tenantId)
           .eq('is_enabled', true)
           .order('updated_at', { ascending: false });
         
-        if (data && data.length > 0) {
-          // Prefer mercado_pago if configured, otherwise pagarme
-          const mp = data.find((p: any) => p.provider === 'mercado_pago');
-          const pg = data.find((p: any) => p.provider === 'pagarme');
-          if (mp) setActiveGateway('mercadopago');
-          else if (pg) setActiveGateway('pagarme');
+        if (providers && providers.length > 0) {
+          const mp = (providers as any[]).find(p => p.provider === 'mercado_pago' || p.provider === 'mercadopago');
+          const pg = (providers as any[]).find(p => p.provider === 'pagarme');
+          if (mp) {
+            setActiveGateway('mercadopago');
+            setMpRedirectEnabled(!!(mp as any).mp_redirect_enabled);
+          } else if (pg) {
+            setActiveGateway('pagarme');
+          }
         }
       } catch (e) {
-        console.warn('[Checkout] Could not determine gateway, defaulting to pagarme');
+        console.warn('[Checkout] Could not load gateway config, defaulting to pagarme');
       }
     };
-    checkGateway();
+    loadConfig();
   }, [tenantId]);
+
+  // Resolve which gateway to use for a given method
+  const resolveGateway = (method: PaymentMethod): 'pagarme' | 'mercadopago' => {
+    if (method === 'mercadopago_redirect') return 'mercadopago';
+    
+    // Check per-method map first
+    const entry = gatewayMap.find(e => e.payment_method === method);
+    if (entry) {
+      if (entry.provider === 'mercado_pago' || entry.provider === 'mercadopago') return 'mercadopago';
+      if (entry.provider === 'pagarme') return 'pagarme';
+    }
+    
+    // Fallback to legacy single gateway
+    return activeGateway;
+  };
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
@@ -152,30 +193,26 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     try {
       console.log('[Checkout] Starting payment process via edge functions');
       
-      // Calculate totals (discount is already applied if present)
+      // Calculate totals
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const shippingTotal = typeof shippingOption?.price === 'string' 
         ? parseFloat(shippingOption.price) || 0 
         : (shippingOption?.price || 0);
       
-      // Apply discount & free shipping hierarchy: product > coupon > logistics
       const discountAmount = discount?.discount_amount || 0;
       const allItemsFreeShipping = items.length > 0 && items.every(item => (item as any).free_shipping === true);
       const hasFreeShipping = allItemsFreeShipping || discount?.free_shipping;
       const effectiveShippingTotal = hasFreeShipping ? 0 : shippingTotal;
       
-      // Payment method discount (real, from tenant config)
       const pmDiscountAmount = paymentMethodDiscount?.amount || 0;
       const total = Math.max(0, subtotal - discountAmount - pmDiscountAmount + effectiveShippingTotal);
       
       console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, pmDiscountAmount, total });
 
-      // 1. Always create a new order (each finalization = new order)
-      let orderId: string;
-      let orderNumber: string;
-
-      console.log('[Checkout] Step 1: Creating order via edge function');
-        const { data: orderData, error: orderError } = await supabase.functions.invoke('checkout-create-order', {
+      // === MP REDIRECT FLOW ===
+      if (method === 'mercadopago_redirect') {
+        console.log('[Checkout] MP Redirect flow - creating preference');
+        const { data: mpData, error: mpError } = await supabase.functions.invoke('mercadopago-create-preference', {
           body: {
             tenant_id: tenantId,
             checkout_session_id: checkoutSessionId,
@@ -207,79 +244,140 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
               unit_price: item.price,
               image_url: item.image_url,
             })),
-            payment_method: method,
             subtotal,
             shipping_total: effectiveShippingTotal,
             discount_total: discountAmount,
             payment_method_discount: pmDiscountAmount,
             total,
-            installments: installments || 1,
-            discount: discount ? {
-              discount_id: discount.discount_id,
-              discount_code: discount.discount_code,
-              discount_name: discount.discount_name,
-              discount_type: discount.discount_type,
-              discount_amount: discount.discount_amount,
-              free_shipping: discount.free_shipping,
-            } : undefined,
-            attribution: attribution ? {
-              utm_source: attribution.utm_source,
-              utm_medium: attribution.utm_medium,
-              utm_campaign: attribution.utm_campaign,
-              utm_content: attribution.utm_content,
-              utm_term: attribution.utm_term,
-              gclid: attribution.gclid,
-              fbclid: attribution.fbclid,
-              ttclid: attribution.ttclid,
-              msclkid: attribution.msclkid,
-              referrer_url: attribution.referrer_url,
-              referrer_domain: attribution.referrer_domain,
-              landing_page: attribution.landing_page,
-              attribution_source: attribution.attribution_source,
-              attribution_medium: attribution.attribution_medium,
-              session_id: attribution.session_id,
-              first_touch_at: attribution.first_touch_at,
-            } : undefined,
-            affiliate: affiliate ? {
-              affiliate_code: affiliate.affiliate_code,
-              captured_at: affiliate.captured_at,
-            } : undefined,
-            // Shipping quote ID for server-side validation (Security Plan v3.1)
+            discount: discount || undefined,
+            attribution: attribution || undefined,
+            affiliate: affiliate || undefined,
             shipping_quote_id: shippingQuoteId || undefined,
-            // Step 5: Link to original declined order
-            retry_from_order_id: retryFromOrderId || undefined,
-            retry_token: retryToken || undefined,  // param from caller, used to invalidate original order's token
-            // Idempotency key to prevent duplicate order creation
             checkout_attempt_id: checkoutAttemptId || undefined,
           },
         });
 
-        if (orderError || !orderData?.success) {
-          console.error('[Checkout] Step 1 FAILED:', orderError || orderData?.error);
-          throw new Error(orderError?.message || orderData?.error || 'Erro ao criar pedido');
+        if (mpError || !mpData?.success) {
+          console.error('[Checkout] MP Redirect FAILED:', mpError || mpData?.error);
+          throw new Error(mpError?.message || mpData?.error || 'Erro ao criar checkout do Mercado Pago');
         }
 
-        orderId = orderData.order_id;
-        orderNumber = orderData.order_number;
-        const newRetryToken = orderData.retry_token || undefined;
-        console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber, newRetryToken ? '(retry_token generated)' : '');
+        const result: PaymentResult = {
+          success: true,
+          redirectUrl: mpData.init_point || mpData.redirect_url,
+        };
+        setPaymentResult(result);
+        return result;
+      }
 
-      // 2. Process payment via active gateway (Pagar.me or Mercado Pago)
-      // Use canonical_total from server response for gateway amount (prevents frontend drift)
+      // === TRANSPARENT FLOW (PIX, Boleto, Credit Card) ===
+      // Resolve which gateway handles this method
+      const gateway = resolveGateway(method);
+      console.log(`[Checkout] Resolved gateway for ${method}: ${gateway}`);
+
+      // 1. Create order
+      console.log('[Checkout] Step 1: Creating order via edge function');
+      const { data: orderData, error: orderError } = await supabase.functions.invoke('checkout-create-order', {
+        body: {
+          tenant_id: tenantId,
+          checkout_session_id: checkoutSessionId,
+          customer: {
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone,
+            cpf: customer.cpf,
+          },
+          shipping: {
+            street: shipping.street,
+            number: shipping.number,
+            complement: shipping.complement,
+            neighborhood: shipping.neighborhood,
+            city: shipping.city,
+            state: shipping.state,
+            postal_code: shipping.postalCode,
+            carrier: shippingOption?.carrier || shippingOption?.label || 'Frenet',
+            service_code: shippingOption?.code,
+            service_name: shippingOption?.label,
+            estimated_days: shippingOption?.deliveryDays,
+          },
+          items: items.map(item => ({
+            product_id: item.product_id,
+            variant_id: item.variant_id || undefined,
+            product_name: item.name,
+            sku: item.sku,
+            quantity: item.quantity,
+            unit_price: item.price,
+            image_url: item.image_url,
+          })),
+          payment_method: method,
+          subtotal,
+          shipping_total: effectiveShippingTotal,
+          discount_total: discountAmount,
+          payment_method_discount: pmDiscountAmount,
+          total,
+          installments: installments || 1,
+          discount: discount ? {
+            discount_id: discount.discount_id,
+            discount_code: discount.discount_code,
+            discount_name: discount.discount_name,
+            discount_type: discount.discount_type,
+            discount_amount: discount.discount_amount,
+            free_shipping: discount.free_shipping,
+          } : undefined,
+          attribution: attribution ? {
+            utm_source: attribution.utm_source,
+            utm_medium: attribution.utm_medium,
+            utm_campaign: attribution.utm_campaign,
+            utm_content: attribution.utm_content,
+            utm_term: attribution.utm_term,
+            gclid: attribution.gclid,
+            fbclid: attribution.fbclid,
+            ttclid: attribution.ttclid,
+            msclkid: attribution.msclkid,
+            referrer_url: attribution.referrer_url,
+            referrer_domain: attribution.referrer_domain,
+            landing_page: attribution.landing_page,
+            attribution_source: attribution.attribution_source,
+            attribution_medium: attribution.attribution_medium,
+            session_id: attribution.session_id,
+            first_touch_at: attribution.first_touch_at,
+          } : undefined,
+          affiliate: affiliate ? {
+            affiliate_code: affiliate.affiliate_code,
+            captured_at: affiliate.captured_at,
+          } : undefined,
+          shipping_quote_id: shippingQuoteId || undefined,
+          retry_from_order_id: retryFromOrderId || undefined,
+          retry_token: retryToken || undefined,
+          checkout_attempt_id: checkoutAttemptId || undefined,
+        },
+      });
+
+      if (orderError || !orderData?.success) {
+        console.error('[Checkout] Step 1 FAILED:', orderError || orderData?.error);
+        throw new Error(orderError?.message || orderData?.error || 'Erro ao criar pedido');
+      }
+
+      const orderId = orderData.order_id;
+      const orderNumber = orderData.order_number;
+      const newRetryToken = orderData.retry_token || undefined;
+      console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
+
+      // 2. Process payment via resolved gateway
       const canonicalTotal = orderData.canonical_total;
       const gatewayAmount = canonicalTotal != null
         ? Math.round(Number(canonicalTotal) * 100)
         : Math.round(total * 100);
       console.log(`[Checkout] Using ${canonicalTotal != null ? 'canonical' : 'frontend'} total for gateway: ${gatewayAmount} cents`);
 
-      const gatewayFunction = activeGateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
+      const gatewayFunction = gateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
       console.log(`[Checkout] Step 2: Processing payment via ${gatewayFunction}`);
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke(gatewayFunction, {
         body: {
           tenant_id: tenantId,
           order_id: orderId,
           method,
-          amount: gatewayAmount, // Use canonical total from server
+          amount: gatewayAmount,
           customer: {
             name: customer.name,
             email: customer.email,
@@ -304,14 +402,11 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             cvv: card.cvv,
           } : undefined,
           installments: method === 'credit_card' ? (installments || 1) : 1,
-          // Idempotency key for gateway charge (prevents duplicate charges on same click)
           payment_attempt_id: paymentAttemptId || undefined,
         },
       });
 
       if (paymentError) {
-        // Technical error: HTTP/network failure calling the gateway
-        // Order exists but no real charge was attempted at the gateway
         console.error('[Checkout] Step 2 FAILED (invoke error):', paymentError);
         const result: PaymentResult = {
           success: false,
@@ -324,9 +419,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
         return result;
       }
 
-      // Check if payment was rejected by the gateway
       if (paymentData?.success === false) {
-        // Card declined: gateway explicitly rejected (antifraude, saldo, limite, etc)
         console.error('[Checkout] Step 2 FAILED (gateway rejection):', paymentData.error);
         const result: PaymentResult = {
           success: false,
@@ -342,7 +435,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       
       console.log('[Checkout] Step 2 OK - Payment processed');
 
-      // Build result
       const result: PaymentResult = {
         success: true,
         orderId,
@@ -366,8 +458,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       return result;
 
     } catch (error) {
-      // Scenario A: Error before order creation (throw from step 1)
-      // No order exists, no charge attempted
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       const result: PaymentResult = {
         success: false,
@@ -390,5 +480,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     isProcessing,
     paymentResult,
     activeGateway,
+    mpRedirectEnabled,
+    resolveGateway,
   };
 }
