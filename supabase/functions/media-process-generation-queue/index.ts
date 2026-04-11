@@ -1,12 +1,13 @@
 /**
- * Media Process Generation Queue — v6.0 (Real OpenAI + Gemini Lovable + QA Scorer)
+ * Media Process Generation Queue — v8.0 (fal.ai FLUX 2 + Gemini Nativa + OpenAI + Lovable Gateway)
  * 
- * Provedores de imagem:
- * - OpenAI: Real OpenAI API (gpt-image-1) — provider primário "openai"
- * - Gemini Flash (google/gemini-2.5-flash-image) via Lovable Gateway — provider "gemini"
- * - Gemini Pro (google/gemini-3-pro-image-preview) via Lovable Gateway — fallback
- * - QA Scorer (google/gemini-3-flash-preview) — scoring de realismo
- * - Seleção automática do melhor resultado por score
+ * Hierarquia v7.0:
+ * 1. fal.ai FLUX 2 Pro (PRINCIPAL)
+ * 2. fal.ai FLUX 2 Turbo (FALLBACK RÁPIDO)
+ * 3. Gemini Nativa (FALLBACK SEGURO)
+ * 4. OpenAI Nativa (FALLBACK SEGURO)
+ * 5. Lovable Gateway (ÚLTIMO RECURSO)
+ * + QA Scorer (google/gemini-3-flash-preview) — scoring de realismo
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -14,8 +15,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { tryNativeGemini } from "../_shared/native-gemini.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { generateImageWithFalPro, generateImageWithFalTurbo, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = '7.0.0'; // Gemini Nativa priority: 1. Gemini Nativa → 2. OpenAI → 3. Lovable Gateway
+const VERSION = '8.0.0'; // fal.ai FLUX 2 priority: 1. FLUX 2 Pro → 2. FLUX 2 Turbo → 3. Gemini Nativa → 4. OpenAI → 5. Lovable Gateway
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -172,69 +174,149 @@ async function downloadImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
-// ========== GENERATE WITH GEMINI NATIVA (Priority 1) → then Lovable Gateway ==========
+// ========== RESILIENT GENERATE v7.0 (fal.ai → Gemini Nativa → OpenAI → Lovable Gateway) ==========
 
-async function generateWithGemini(
+async function resilientGenerateMedia(
   lovableApiKey: string,
   geminiApiKey: string | null,
+  openaiApiKey: string | null,
+  falApiKeyValue: string | null,
   prompt: string,
   referenceImageBase64: string | null,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
-  // Step 1: Try native Gemini (API direta)
-  if (geminiApiKey) {
-    const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, 'media-gemini');
-    if (nativeResult.imageBase64) {
-      console.log(`✅ Gemini Nativa succeeded for media generation`);
-      return nativeResult;
+
+  // ===== STEP 1: fal.ai FLUX 2 Pro (PRIORIDADE MÁXIMA) =====
+  if (falApiKeyValue) {
+    console.log(`🎨 Step 1: fal.ai FLUX 2 Pro...`);
+    const falResult = await generateImageWithFalPro(falApiKeyValue, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (falResult?.imageUrl) {
+      const b64 = await falDownloadImage(falResult.imageUrl);
+      if (b64) {
+        console.log(`✅ fal.ai FLUX 2 Pro succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2-pro' };
+      }
     }
-    console.warn(`⚠️ Gemini Nativa failed: ${nativeResult.error}. Falling back to Lovable Gateway...`);
+    console.warn(`⚠️ FLUX 2 Pro failed. Trying Turbo...`);
+
+    // ===== STEP 2: fal.ai FLUX 2 Turbo =====
+    console.log(`🎨 Step 2: fal.ai FLUX 2 Turbo...`);
+    const turboResult = await generateImageWithFalTurbo(falApiKeyValue, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (turboResult?.imageUrl) {
+      const b64 = await falDownloadImage(turboResult.imageUrl);
+      if (b64) {
+        console.log(`✅ fal.ai FLUX 2 Turbo succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2 (turbo)' };
+      }
+    }
+    console.warn(`⚠️ FLUX 2 Turbo failed. Falling back to Gemini Nativa...`);
+  } else {
+    console.warn(`⚠️ FAL_API_KEY not available. Skipping fal.ai steps.`);
   }
 
-  // Step 2: Lovable Gateway Flash (fallback)
+  // ===== STEP 3: Gemini Nativa (FALLBACK SEGURO) =====
+  if (geminiApiKey) {
+    console.log(`🎨 Step 3: Gemini Nativa...`);
+    const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, 'media-gemini');
+    if (nativeResult.imageBase64) {
+      console.log(`✅ Gemini Nativa succeeded`);
+      return nativeResult;
+    }
+    console.warn(`⚠️ Gemini Nativa failed: ${nativeResult.error}`);
+  }
+
+  // ===== STEP 4: OpenAI Nativa =====
+  if (openaiApiKey) {
+    console.log(`🎨 Step 4: OpenAI Nativa (gpt-image-1)...`);
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-image-1",
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              ...(referenceImageBase64 ? [{
+                type: 'image_url',
+                image_url: { url: `data:image/png;base64,${referenceImageBase64}` },
+              }] : []),
+            ],
+          }],
+          modalities: ['image', 'text'],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        let b64: string | null = null;
+        const outputImages = data.choices?.[0]?.message?.output_images;
+        if (outputImages?.length > 0) {
+          const imgUrl = outputImages[0]?.url || outputImages[0];
+          b64 = typeof imgUrl === 'string' && imgUrl.startsWith('data:') ? imgUrl.split(',')[1] : (typeof imgUrl === 'string' ? imgUrl : null);
+        }
+        if (!b64) {
+          const content = data.choices?.[0]?.message?.content;
+          if (Array.isArray(content)) {
+            for (const part of content) {
+              if (part.type === 'image_url' && part.image_url?.url) {
+                b64 = part.image_url.url.startsWith('data:') ? part.image_url.url.split(',')[1] : part.image_url.url;
+                break;
+              }
+            }
+          }
+        }
+        if (b64) {
+          console.log(`✅ OpenAI Nativa succeeded`);
+          return { imageBase64: b64, model: 'gpt-image-1 (OpenAI)' };
+        }
+      }
+    } catch (e) {
+      console.warn(`⚠️ OpenAI error:`, e);
+    }
+  }
+
+  // ===== STEP 5: Lovable Gateway (ÚLTIMO RECURSO) =====
   const model = "google/gemini-2.5-flash-image";
   try {
-    console.log(`🎨 Gemini Flash via Lovable Gateway (fallback) (ref: ${!!referenceImageBase64})...`);
-
+    console.log(`🎨 Step 5: Lovable Gateway ${model} (último recurso)...`);
     const content: any[] = [{ type: "text", text: prompt }];
     if (referenceImageBase64) {
-      content.push({
-        type: "image_url",
-        image_url: { url: `data:image/png;base64,${referenceImageBase64}` },
-      });
+      content.push({ type: "image_url", image_url: { url: `data:image/png;base64,${referenceImageBase64}` } });
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content }],
-        modalities: ["image", "text"],
-      }),
+      headers: { Authorization: `Bearer ${lovableApiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages: [{ role: "user", content }], modalities: ["image", "text"] }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Gemini error: ${response.status}`, errorText);
-      if (response.status === 429) return { imageBase64: null, model, error: "Rate limit Gemini. Aguarde." };
-      if (response.status === 402) return { imageBase64: null, model, error: "Créditos insuficientes." };
-      return { imageBase64: null, model, error: `Gemini HTTP ${response.status}` };
+      return { imageBase64: null, model, error: `Lovable Gateway HTTP ${response.status}` };
     }
 
     const data = await response.json();
     const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imageUrl) return { imageBase64: null, model, error: "Gemini não retornou imagem" };
+    if (!imageUrl) return { imageBase64: null, model, error: "Gateway não retornou imagem" };
 
     const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
-    if (!base64Match) return { imageBase64: null, model, error: "Formato inválido Gemini" };
+    if (!base64Match) return { imageBase64: null, model, error: "Formato inválido" };
 
-    console.log("✅ Gemini Flash (Lovable Gateway) image generated");
-    return { imageBase64: base64Match[1], model: `${model} (Lovable fallback)` };
+    console.log("✅ Lovable Gateway image generated");
+    return { imageBase64: base64Match[1], model: `${model} (Lovable Gateway)` };
   } catch (error) {
-    console.error("❌ Gemini error:", error);
+    console.error("❌ All providers failed:", error);
     return { imageBase64: null, model, error: String(error) };
   }
 }
