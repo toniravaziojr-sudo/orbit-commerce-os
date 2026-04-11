@@ -51,10 +51,43 @@ async function callImageModel(
   productBase64: string | null,
   styleReferences?: string[],
   geminiApiKey?: string | null,
+  falApiKeyValue?: string | null,
 ): Promise<string | null> {
-  // Step 1: Try native Gemini first (PRIORIDADE MÁXIMA)
+  // Step 1: Try fal.ai FLUX 2 Pro first (PRIORIDADE MÁXIMA)
+  if (falApiKeyValue) {
+    console.log(`[AI-LP-Enhance] Trying fal.ai FLUX 2 Pro first...`);
+    const falResult = await generateImageWithFalPro(falApiKeyValue, {
+      prompt,
+      imageSize: { width: 1920, height: 1080 },
+      outputFormat: 'jpeg',
+    });
+    if (falResult?.imageUrl) {
+      const b64 = await falDownloadImage(falResult.imageUrl);
+      if (b64) {
+        console.log(`[AI-LP-Enhance] ✅ fal.ai FLUX 2 Pro succeeded`);
+        return `data:image/jpeg;base64,${b64}`;
+      }
+    }
+    console.warn(`[AI-LP-Enhance] FLUX 2 Pro failed, trying Turbo...`);
+
+    const turboResult = await generateImageWithFalTurbo(falApiKeyValue, {
+      prompt,
+      imageSize: { width: 1920, height: 1080 },
+      outputFormat: 'jpeg',
+    });
+    if (turboResult?.imageUrl) {
+      const b64 = await falDownloadImage(turboResult.imageUrl);
+      if (b64) {
+        console.log(`[AI-LP-Enhance] ✅ fal.ai FLUX 2 Turbo succeeded`);
+        return `data:image/jpeg;base64,${b64}`;
+      }
+    }
+    console.warn(`[AI-LP-Enhance] fal.ai failed entirely, falling back to Gemini/Gateway...`);
+  }
+
+  // Step 2: Try native Gemini (FALLBACK SEGURO)
   if (geminiApiKey) {
-    console.log(`[AI-LP-Enhance] Trying Gemini Nativa first...`);
+    console.log(`[AI-LP-Enhance] Trying Gemini Nativa...`);
     const nativeResult = await generateWithNativeGemini(geminiApiKey, prompt, productBase64);
     if (nativeResult.imageBase64) {
       console.log(`[AI-LP-Enhance] ✅ Gemini Nativa succeeded`);
@@ -63,7 +96,7 @@ async function callImageModel(
     console.warn(`[AI-LP-Enhance] Gemini Nativa failed: ${nativeResult.error}. Falling back to Lovable Gateway...`);
   }
 
-  // Step 2: Lovable Gateway (fallback)
+  // Step 3: Lovable Gateway (ÚLTIMO RECURSO)
   const content: any[] = [
     { type: 'text', text: prompt },
   ];
