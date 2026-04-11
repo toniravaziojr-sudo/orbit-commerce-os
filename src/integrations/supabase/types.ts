@@ -12511,6 +12511,44 @@ export type Database = {
           },
         ]
       }
+      payment_method_gateway_map: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          payment_method: string
+          provider: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          payment_method: string
+          provider: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          payment_method?: string
+          provider?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_method_gateway_map_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_methods: {
         Row: {
           created_at: string
@@ -12581,6 +12619,7 @@ export type Database = {
           environment: string
           id: string
           is_enabled: boolean
+          mp_redirect_enabled: boolean
           provider: string
           settings: Json
           tenant_id: string
@@ -12592,6 +12631,7 @@ export type Database = {
           environment?: string
           id?: string
           is_enabled?: boolean
+          mp_redirect_enabled?: boolean
           provider: string
           settings?: Json
           tenant_id: string
@@ -12603,6 +12643,7 @@ export type Database = {
           environment?: string
           id?: string
           is_enabled?: boolean
+          mp_redirect_enabled?: boolean
           provider?: string
           settings?: Json
           tenant_id?: string
