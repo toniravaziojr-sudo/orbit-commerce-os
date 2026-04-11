@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Bot, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Flame, Sparkles, Cpu, Image, Loader2 } from "lucide-react";
+import { Bot, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Flame, Sparkles, Cpu, Image, Loader2, Wand2, Video } from "lucide-react";
 import { usePlatformSecretsStatus } from "@/hooks/usePlatformSecretsStatus";
 import { CredentialEditor } from "./CredentialEditor";
 
