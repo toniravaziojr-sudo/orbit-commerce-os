@@ -1,81 +1,105 @@
 
 
-# Plano: Preenchimento IA dos Blocos Faltantes + Geração de Estrutura da Home Page
+# Plano: Sistema de Tooltips Informativos para toda a UI
 
----
+## Resumo
 
-## Parte 1 — Mapeamento dos Blocos
+Criar um sistema centralizado de textos de ajuda (tooltips) que aparece como "balão" ao manter o mouse sobre botões, ícones e funcionalidades por 1 segundo, explicando o que cada elemento faz. O sistema será baseado num arquivo de configuração único com todas as descrições, um componente wrapper reutilizável, e documentação completa.
 
-### Blocos que JÁ possuem preenchimento por IA (14 blocos)
-Banner, RichText, Button, FAQ, Highlights, SocialProof, ContentSection, StepsTimeline, CountdownTimer, StatsNumbers, ContactForm, Map, SocialFeed, PricingTable
+## O que será feito
 
-### Blocos que DEVEM receber `aiFillable` (7 blocos)
-| Bloco | Props a preencher com IA | Justificativa |
-|---|---|---|
-| **NewsletterUnified** | title, subtitle, buttonText | Textos de engajamento e CTA |
-| **NewsletterPopup** | title, subtitle, buttonText, successMessage | Textos de conversão e feedback |
-| **BannerProducts** | title, description, ctaText | Textos de oferta e CTA |
-| **PersonalizedProducts** | title, subtitle | Títulos de seção |
-| **LivePurchases** | title | Título de prova social |
-| **LogosCarousel** | title, subtitle | Títulos de seção de parceiros |
-| **ImageGallery** | title, subtitle | Títulos de galeria |
+### 1. Criar arquivo de configuração central de tooltips
+Um único arquivo (`src/config/ui-tooltips.ts`) com todas as descrições organizadas por módulo/página. Isso permite editar textos sem mexer em componentes.
 
-### Blocos onde IA NÃO faz sentido (8 blocos — excluídos)
-| Bloco | Motivo |
-|---|---|
-| **Image** | Só tem imagem e alt — sem conteúdo textual relevante |
-| **Video** | Configuração técnica (URL, aspect ratio) |
-| **VideoCarousel** | Apenas URLs de vídeos e configuração de layout |
-| **EmbedSocialPost** | Apenas URL de embed |
-| **QuizEmbed** | Referência a quiz existente (ID) |
-| **UpsellSlot** | Sem propsSchema (gerenciado por Theme Settings) |
-| **CustomCode** | Código HTML/CSS — não é conteúdo editorial |
-| **CategoryShowcase / ProductShowcase** | Conteúdo dinâmico vindo do catálogo |
+Exemplo de estrutura:
+- **Sidebar**: cada item do menu terá uma descrição curta do módulo
+- **Botões de ação**: "Novo Pedido", "Exportar CSV", "Importar", etc.
+- **Tabs**: cada aba em páginas como Central de Comando, Pedidos, Logística
+- **Filtros e controles**: seletores de status, datas, busca
+- **Cards informativos**: StatCards no dashboard, métricas
+- **Header**: menu do usuário, toggle de modo admin
 
----
+### 2. Criar componente `InfoTooltip`
+Componente wrapper reutilizável que:
+- Usa `delayDuration={1000}` (1 segundo) para aparecer
+- Visual de "balão" com estilo diferenciado (fundo escuro, seta, max-width)
+- Aceita `tooltipKey` (busca no config) ou `content` direto
+- Opcionalmente mostra ícone de "?" (info) ao lado do elemento
 
-## Parte 2 — Geração de Estrutura da Home Page com IA
+### 3. Aplicar tooltips em todas as páginas principais
 
-Hoje a função "Criar com IA" existe apenas em **Páginas da Loja** (store_pages). Precisamos trazer essa mesma funcionalidade para o **Builder da Home Page**, oferecendo templates pré-definidos e geração por prompt livre.
+**Sidebar (~40 itens)**: Descrição curta de cada módulo ao passar o mouse no item do menu (já existe para sidebar colapsada, expandir para sidebar aberta também).
 
-### 7 Estruturas Pré-definidas para Home Page
+**Central de Comando (5 tabs)**:
+- Dashboard: "Visão geral de métricas e indicadores do dia"
+- Central de Execuções: "Fila de tarefas pendentes e automações em andamento"
+- Insights: "Sugestões inteligentes baseadas nos dados da loja"
+- Assistente: "Chat com IA para tirar dúvidas e executar ações"
+- Agenda: "Calendário de tarefas, compromissos e lembretes"
 
-1. **Loja Geral** — Banner, Highlights, ProductShowcase (carrossel), CategoryShowcase, SocialProof, Newsletter
-2. **Moda / Vestuário** — Banner, CategoryShowcase, ProductShowcase (grid), ContentSection (editorial), SocialFeed, Newsletter
-3. **Cosméticos / Beleza** — Banner, Highlights, ProductShowcase, StepsTimeline ("Como usar"), SocialProof, SocialFeed, Newsletter
-4. **Eletrônicos / Tech** — Banner, Highlights, ProductShowcase (carrossel), BannerProducts, FAQ, StatsNumbers, Newsletter
-5. **Alimentos / Bebidas** — Banner, Highlights, ProductShowcase, ContentSection, SocialProof, ContactForm
-6. **Serviços / Assinaturas** — Banner, PricingTable, Highlights, StepsTimeline, SocialProof, FAQ, ContactForm
-7. **Promocional / Black Friday** — Banner, CountdownTimer, ProductShowcase, BannerProducts, StatsNumbers, SocialProof, Newsletter
+**Pedidos**: botões Novo Pedido, Exportar, Importar, filtros de status/pagamento/envio, StatCards
 
-### Implementação
+**Produtos**: botão Novo Produto, Importar, filtros
 
-**UI no Builder da Home**: Quando o template da home estiver vazio (ou via ação no toolbar), exibir um diálogo com:
-- Cards visuais das 7 estruturas pré-definidas (1 clique para aplicar)
-- Opção "Personalizado" com campo de prompt livre (usa a edge function `ai-page-architect`)
+**Clientes**: botão Novo Cliente, Tags, Importar, Exportar, filtros
 
-**Edge Function**: Atualizar o `ai-page-architect` para:
-- Usar os nomes de blocos consolidados (ProductShowcase em vez de ProductGrid/ProductCarousel legados)
-- Aceitar um parâmetro `context: 'home'` para adaptar as regras de composição
-- Incluir as 7 estruturas como few-shot examples no prompt
+**Descontos**: botão Novo Cupom, filtros de status
 
----
+**Marketing**: tabs Integrações, Catálogos, Relatórios
 
-## Etapas de Implementação
+**Email Marketing**: botões de criar lista, template, campanha, automação
 
-1. **Adicionar `aiFillable` nos 7 blocos faltantes** no `registry.ts`
-2. **Atualizar o `ai-page-architect`**: Sincronizar catálogo de blocos com nomes consolidados, adicionar contexto `home`, incluir as 7 estruturas como exemplos
-3. **Criar componente `HomeStructureDialog`**: UI com cards das 7 estruturas + opção de prompt livre
-4. **Integrar o diálogo no Builder da Home**: Botão no toolbar ou tela de boas-vindas quando a home está vazia
-5. **Testar fluxo end-to-end**: Preenchimento IA dos novos blocos + geração de estrutura da home
+**Logística**: tabs Remessas, Transportadoras, Frete Grátis, Regras Customizadas
 
----
+**Financeiro, Fiscal, Blog, Avaliações, Notificações, Configurações** — botões de ação e seções principais
 
-## Detalhes Técnicos
+**Header**: ícone do usuário, item "Dados da Conta", "Planos e Faturamento"
 
-- Arquivo principal de registro: `src/lib/builder/registry.ts` (adição de `aiFillable` em 7 blocos)
-- Edge function: `supabase/functions/ai-page-architect/index.ts` (atualização do catálogo e adição do contexto home)
-- Novo componente: `src/components/builder/HomeStructureDialog.tsx`
-- Integração: `src/components/builder/VisualBuilder.tsx` (condicional `isHomePage`)
-- Hook existente: `src/hooks/useAIBlockFill.ts` (sem alteração — já funciona automaticamente com novos `aiFillable`)
+### 4. Documentar no Layer 3
+Criar seção "Tooltips Informativos" no doc `docs/especificacoes/transversais/padroes-ui.md` com:
+- Padrão de implementação
+- Referência ao arquivo de configuração central
+- Regras: delay de 1s, max 120 caracteres, linguagem de negócio
+
+## Detalhes técnicos
+
+### Arquivos a criar
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/config/ui-tooltips.ts` | Mapa centralizado `Record<string, string>` com ~120 textos |
+| `src/components/ui/info-tooltip.tsx` | Componente wrapper com delay 1s |
+
+### Arquivos a modificar
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/layout/AppSidebar.tsx` | Adicionar tooltip descritivo em cada item (sidebar aberta) |
+| `src/pages/CommandCenter.tsx` | Tooltip em cada TabsTrigger |
+| `src/pages/Orders.tsx` | Tooltip nos botões de ação e filtros |
+| `src/pages/Products.tsx` | Tooltip nos botões |
+| `src/pages/Customers.tsx` | Tooltip nos botões e filtros |
+| `src/pages/Discounts.tsx` | Tooltip nos botões |
+| `src/pages/Marketing.tsx` | Tooltip nas tabs |
+| `src/pages/EmailMarketing.tsx` | Tooltip nos botões |
+| `src/pages/Shipping.tsx` | Tooltip nas tabs e botões |
+| `src/pages/Settings.tsx` | Tooltip nos cards |
+| `src/components/layout/AppHeader.tsx` | Tooltip nos itens do menu |
+| `docs/especificacoes/transversais/padroes-ui.md` | Nova seção documentando o padrão |
+
+### Componente InfoTooltip — assinatura
+```tsx
+interface InfoTooltipProps {
+  tooltipKey?: string;    // busca texto no ui-tooltips.ts
+  content?: string;       // texto direto (override)
+  children: React.ReactNode;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  showIcon?: boolean;     // mostra ícone "?" ao lado
+}
+```
+
+### Comportamento
+- **Delay**: 1000ms (aparece após 1s com mouse parado)
+- **Desaparece**: imediatamente ao retirar o mouse
+- **Estilo**: fundo escuro, texto branco, border-radius, seta apontando para o elemento
+- **Max-width**: 280px para textos mais longos
+- **Não interfere** com tooltips já existentes na sidebar colapsada
 
