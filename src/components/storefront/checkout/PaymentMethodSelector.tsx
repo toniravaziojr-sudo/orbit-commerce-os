@@ -162,14 +162,20 @@ export function PaymentMethodSelector({
                 id="card-expiry"
                 type="text"
                 placeholder="MM/AA"
-                value={cardData.expMonth && cardData.expYear ? `${cardData.expMonth}/${cardData.expYear}` : ''}
+                value={(() => {
+                  const m = cardData.expMonth || '';
+                  const y = cardData.expYear || '';
+                  if (!m && !y) return '';
+                  if (y) return `${m}/${y}`;
+                  return m;
+                })()}
                 onChange={(e) => {
                   const formatted = formatExpiry(e.target.value);
-                  const [month, year] = formatted.split('/');
+                  const parts = formatted.split('/');
                   onCardDataChange({ 
                     ...cardData, 
-                    expMonth: month || '', 
-                    expYear: year || '',
+                    expMonth: parts[0] || '', 
+                    expYear: parts[1] || '',
                   });
                 }}
                 disabled={disabled}
