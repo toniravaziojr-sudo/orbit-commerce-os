@@ -14,11 +14,13 @@ export function AIPlatformSettings() {
     lovableAi: allIntegrations?.find((i) => i.key === 'lovable_ai'),
     openai: allIntegrations?.find((i) => i.key === 'openai'),
     gemini: allIntegrations?.find((i) => i.key === 'gemini'),
+    falAi: allIntegrations?.find((i) => i.key === 'fal_ai'),
   };
 
   const firecrawlConfigured = secretsStatus?.firecrawl?.status === 'configured';
   const openaiConfigured = secretsStatus?.openai?.status === 'configured';
   const geminiConfigured = secretsStatus?.gemini?.status === 'configured';
+  const falAiConfigured = secretsStatus?.falAi?.status === 'configured';
 
   if (isLoading) {
     return (
