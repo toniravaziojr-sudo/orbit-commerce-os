@@ -627,6 +627,7 @@ export async function generateForRequest(
       preferOpenAI,
       slotLabel,
       geminiApiKey,
+      falApiKey,
     );
 
     // Log fallback audit trail
