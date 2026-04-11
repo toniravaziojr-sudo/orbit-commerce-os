@@ -120,7 +120,7 @@ export default function PlatformIntegrations() {
           </TabsTrigger>
           <TabsTrigger value="mercadopago" className="gap-2">
             <CreditCard className="h-4 w-4" />
-            <span className="hidden sm:inline">MP Billing</span>
+            <span className="hidden sm:inline">Mercado Pago</span>
           </TabsTrigger>
           <TabsTrigger value="shopee" className="gap-2">
             <Store className="h-4 w-4" />

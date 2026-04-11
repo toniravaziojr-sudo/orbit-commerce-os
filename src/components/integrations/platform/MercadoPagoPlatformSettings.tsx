@@ -44,19 +44,19 @@ export function MercadoPagoPlatformSettings() {
           <CreditCard className="h-6 w-6 text-sky-600" />
         </div>
         <div>
-          <h2 className="text-xl font-semibold">Mercado Pago (Billing SaaS)</h2>
-          <p className="text-sm text-muted-foreground">Credenciais para cobrar assinaturas do Comando Central</p>
+          <h2 className="text-xl font-semibold">Mercado Pago</h2>
+          <p className="text-sm text-muted-foreground">Credenciais globais do Mercado Pago da plataforma</p>
         </div>
       </div>
 
       <Alert className="border-blue-500/30 bg-blue-50 dark:bg-blue-900/10">
         <Info className="h-4 w-4 text-blue-600" />
-        <AlertTitle className="text-blue-800 dark:text-blue-200">Separação Platform vs Tenant</AlertTitle>
+        <AlertTitle className="text-blue-800 dark:text-blue-200">Credenciais da Plataforma</AlertTitle>
         <AlertDescription className="text-blue-700 dark:text-blue-300">
-          <strong>Estas credenciais são para cobrar assinaturas do SaaS.</strong>
+          Estas credenciais são usadas para o <strong>billing de assinaturas</strong> do SaaS.
           <br />
-          Os clientes configuram as próprias credenciais MP em{" "}
-          <code className="text-xs bg-background px-1 rounded">Integrações → Pagamentos</code> para receber pagamentos nas lojas deles.
+          Os tenants configuram suas próprias credenciais MP em{" "}
+          <code className="text-xs bg-background px-1 rounded">Integrações → Pagamentos</code> para processar pagamentos nas lojas.
         </AlertDescription>
       </Alert>
 
@@ -69,7 +69,7 @@ export function MercadoPagoPlatformSettings() {
                 <CreditCard className="h-5 w-5 text-sky-600" />
               </div>
               <div>
-                <CardTitle className="text-base">Mercado Pago Billing</CardTitle>
+                <CardTitle className="text-base">Mercado Pago</CardTitle>
                 <CardDescription>Access Token, Public Key e Webhook Secret</CardDescription>
               </div>
             </div>
