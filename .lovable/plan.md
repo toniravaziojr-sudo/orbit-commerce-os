@@ -1,105 +1,167 @@
 
 
-# Plano: Sistema de Tooltips Informativos para toda a UI
+# Plano: Stack Dupla fal.ai (Titular) + Stack Atual (Fallback) — Imagens e Vídeos
 
 ## Resumo
 
-Criar um sistema centralizado de textos de ajuda (tooltips) que aparece como "balão" ao manter o mouse sobre botões, ícones e funcionalidades por 1 segundo, explicando o que cada elemento faz. O sistema será baseado num arquivo de configuração único com todas as descrições, um componente wrapper reutilizável, e documentação completa.
+Reestruturar toda a geração visual (imagens e vídeos) para usar **fal.ai como provedor principal** e manter a **stack atual como fallback seguro**. Isso se aplica ao Estúdio de Criativos e ao Calendário de Conteúdo.
+
+---
+
+## Stack Definitiva
+
+### IMAGENS
+
+| Prioridade | Provedor | Modelo | Custo/img | Quando usa |
+|------------|----------|--------|-----------|------------|
+| **1. Principal** | fal.ai | FLUX 2 Pro (com referência) | ~$0.03 | Sempre tenta primeiro |
+| **2. Principal fallback** | fal.ai | FLUX 2 Turbo | ~$0.008 | Se Pro falhar |
+| **3. Fallback seguro** | Gemini Nativa | gemini-2.5-flash-image | ~$0.04 | Se fal.ai inteira falhar |
+| **4. Fallback secundário** | OpenAI Nativa | gpt-image-1 | ~$0.04-0.08 | Se Gemini falhar |
+| **5. Último recurso** | Lovable Gateway | gemini-3-pro-image-preview | créditos | Se tudo falhar |
+
+**Por que FLUX 2 Pro?** Melhor fotorrealismo da categoria, aceita imagem de referência (image-to-image), custo 30% menor que Gemini, e controle total de parâmetros (guidance_scale, steps, seed).
+
+### VÍDEOS
+
+| Prioridade | Provedor | Modelo | Custo/5s | Quando usa |
+|------------|----------|--------|----------|------------|
+| **1. Premium** | fal.ai | Kling v3 Pro I2V | ~$0.42 | Padrão com imagem de produto |
+| **2. Com áudio nativo** | fal.ai | Veo 3.1 | ~$0.75 | Quando narração nativa ativada |
+| **3. Econômico** | fal.ai | Wan 2.6 I2V | ~$0.15 | Modo econômico / testes A/B |
+| **4. Lipsync** | fal.ai | Kling Lipsync | ~$0.07 | Pós-processamento com TTS |
+| **5. TTS** | ElevenLabs (direto) | Multilingual v2 | ~$0.04 | Narração PT-BR |
+| **Fallback vídeo** | Lovable Gateway | gemini-3-pro-image-preview → frame animation | créditos | Se fal.ai falhar completamente |
+
+**Fallback de vídeo**: Se a fal.ai estiver indisponível, o sistema gera uma **imagem estática** via stack atual (Gemini/OpenAI/Gateway) e informa ao usuário que o vídeo não pôde ser gerado, oferecendo a imagem como alternativa. Isso garante que o usuário nunca fique sem conteúdo.
+
+---
 
 ## O que será feito
 
-### 1. Criar arquivo de configuração central de tooltips
-Um único arquivo (`src/config/ui-tooltips.ts`) com todas as descrições organizadas por módulo/página. Isso permite editar textos sem mexer em componentes.
+### Fase 1: Módulo compartilhado fal.ai
 
-Exemplo de estrutura:
-- **Sidebar**: cada item do menu terá uma descrição curta do módulo
-- **Botões de ação**: "Novo Pedido", "Exportar CSV", "Importar", etc.
-- **Tabs**: cada aba em páginas como Central de Comando, Pedidos, Logística
-- **Filtros e controles**: seletores de status, datas, busca
-- **Cards informativos**: StatCards no dashboard, métricas
-- **Header**: menu do usuário, toggle de modo admin
+Criar `supabase/functions/_shared/fal-client.ts` — módulo centralizado para todas as chamadas à fal.ai:
+- `generateImageWithFal()` — FLUX 2 Pro/Turbo para imagens
+- `generateVideoWithFal()` — Kling/Veo/Wan para vídeos
+- `applyLipsyncWithFal()` — Kling Lipsync pós-processamento
+- Tratamento de polling (fal.ai usa queue → poll → result)
+- Timeout e retry configuráveis
 
-### 2. Criar componente `InfoTooltip`
-Componente wrapper reutilizável que:
-- Usa `delayDuration={1000}` (1 segundo) para aparecer
-- Visual de "balão" com estilo diferenciado (fundo escuro, seta, max-width)
-- Aceita `tooltipKey` (busca no config) ou `content` direto
-- Opcionalmente mostra ícone de "?" (info) ao lado do elemento
+### Fase 2: Reescrever pipeline de imagens
 
-### 3. Aplicar tooltips em todas as páginas principais
+**`creative-image-generate/index.ts`** — Alterar `resilientGenerate()`:
+```
+NOVA HIERARQUIA:
+1. fal.ai FLUX 2 Pro (com imagem referência) ← NOVO
+2. fal.ai FLUX 2 Turbo (fallback rápido) ← NOVO
+3. Gemini Nativa (fallback seguro — stack atual)
+4. OpenAI Nativa (fallback seguro)
+5. Lovable Gateway (último recurso)
+```
 
-**Sidebar (~40 itens)**: Descrição curta de cada módulo ao passar o mouse no item do menu (já existe para sidebar colapsada, expandir para sidebar aberta também).
+**`media-process-generation-queue/index.ts`** — Mesma hierarquia para o Calendário.
 
-**Central de Comando (5 tabs)**:
-- Dashboard: "Visão geral de métricas e indicadores do dia"
-- Central de Execuções: "Fila de tarefas pendentes e automações em andamento"
-- Insights: "Sugestões inteligentes baseadas nos dados da loja"
-- Assistente: "Chat com IA para tirar dúvidas e executar ações"
-- Agenda: "Calendário de tarefas, compromissos e lembretes"
+**Sistemas afetados** (todos passam a usar a mesma hierarquia):
+- `creative-image-generate` — Estúdio de Criativos
+- `media-process-generation-queue` — Calendário de Conteúdo
+- `ai-landing-page-enhance-images` — Landing Pages
+- `_shared/visual-engine.ts` — Construtor de Lojas
+- `ai-block-fill-visual` — Blocos visuais
 
-**Pedidos**: botões Novo Pedido, Exportar, Importar, filtros de status/pagamento/envio, StatCards
+### Fase 3: Novo sistema de vídeos
 
-**Produtos**: botão Novo Produto, Importar, filtros
+**Remover formulários antigos:**
+- `UGCRealForm.tsx`, `UGCAIForm.tsx`, `ProductVideoForm.tsx`, `AvatarMascotForm.tsx`
+- Referências a Runway, HeyGen, Akool nos tipos e hooks
 
-**Clientes**: botão Novo Cliente, Tags, Importar, Exportar, filtros
+**Criar formulário unificado:**
+- `VideoGeneratorForm.tsx` — Interface única com:
+  - Seletor de produto (obrigatório no Estúdio)
+  - Prompt descritivo
+  - Tier: Premium (Kling) | Com áudio (Veo 3.1) | Econômico (Wan)
+  - Duração: 5s | 10s
+  - Formato: 9:16 | 16:9 | 1:1
+  - Toggle narração PT-BR (ElevenLabs + Lipsync)
 
-**Descontos**: botão Novo Cupom, filtros de status
+**Reescrever edge functions de vídeo:**
+- `creative-video-generate/index.ts` — Pipeline fal.ai para Estúdio
+- `media-generate-video/index.ts` — Pipeline fal.ai para Calendário
+- Ambos usam `_shared/fal-client.ts`
 
-**Marketing**: tabs Integrações, Catálogos, Relatórios
+### Fase 4: Drive — Separação de vídeos
 
-**Email Marketing**: botões de criar lista, template, campanha, automação
+Adicionar rotas no `FOLDER_ROUTES`:
+```
+ai_creative_video: 'Criativos IA/Vídeos'
+ai_creative_video_calendar: 'Criativos IA/Vídeos Calendário'
+```
 
-**Logística**: tabs Remessas, Transportadoras, Frete Grátis, Regras Customizadas
+### Fase 5: Limpeza e documentação
 
-**Financeiro, Fiscal, Blog, Avaliações, Notificações, Configurações** — botões de ação e seções principais
+- Remover `creative-generate/index.ts` e `creative-process/index.ts` (pipeline legado com 5 tipos)
+- Atualizar tipos em `src/types/creatives.ts`
+- Atualizar `useVideoCreatives.ts`
+- Reescrever memory `features/ai/image-generation-native-priority` com nova hierarquia
+- Criar memory `features/ai/video-generation-standard` com pipeline documentado
+- Atualizar `docs/especificacoes/marketing/criativos.md`
 
-**Header**: ícone do usuário, item "Dados da Conta", "Planos e Faturamento"
-
-### 4. Documentar no Layer 3
-Criar seção "Tooltips Informativos" no doc `docs/especificacoes/transversais/padroes-ui.md` com:
-- Padrão de implementação
-- Referência ao arquivo de configuração central
-- Regras: delay de 1s, max 120 caracteres, linguagem de negócio
+---
 
 ## Detalhes técnicos
 
 ### Arquivos a criar
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/config/ui-tooltips.ts` | Mapa centralizado `Record<string, string>` com ~120 textos |
-| `src/components/ui/info-tooltip.tsx` | Componente wrapper com delay 1s |
+| `_shared/fal-client.ts` | Cliente centralizado fal.ai (imagens + vídeos) |
+| `video-forms/VideoGeneratorForm.tsx` | Formulário unificado de vídeo |
 
-### Arquivos a modificar
+### Arquivos a remover
+| Arquivo | Motivo |
+|---------|--------|
+| `video-forms/UGCRealForm.tsx` | Substituído |
+| `video-forms/UGCAIForm.tsx` | Substituído |
+| `video-forms/ProductVideoForm.tsx` | Substituído |
+| `video-forms/AvatarMascotForm.tsx` | Substituído |
+| `creative-generate/index.ts` | Pipeline legado |
+| `creative-process/index.ts` | Pipeline legado |
+
+### Arquivos a reescrever
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/layout/AppSidebar.tsx` | Adicionar tooltip descritivo em cada item (sidebar aberta) |
-| `src/pages/CommandCenter.tsx` | Tooltip em cada TabsTrigger |
-| `src/pages/Orders.tsx` | Tooltip nos botões de ação e filtros |
-| `src/pages/Products.tsx` | Tooltip nos botões |
-| `src/pages/Customers.tsx` | Tooltip nos botões e filtros |
-| `src/pages/Discounts.tsx` | Tooltip nos botões |
-| `src/pages/Marketing.tsx` | Tooltip nas tabs |
-| `src/pages/EmailMarketing.tsx` | Tooltip nos botões |
-| `src/pages/Shipping.tsx` | Tooltip nas tabs e botões |
-| `src/pages/Settings.tsx` | Tooltip nos cards |
-| `src/components/layout/AppHeader.tsx` | Tooltip nos itens do menu |
-| `docs/especificacoes/transversais/padroes-ui.md` | Nova seção documentando o padrão |
+| `creative-image-generate/index.ts` | fal.ai como step 1, stack atual como fallback |
+| `media-process-generation-queue/index.ts` | Mesma hierarquia |
+| `ai-landing-page-enhance-images/index.ts` | Mesma hierarquia |
+| `_shared/visual-engine.ts` | Mesma hierarquia |
+| `ai-block-fill-visual/index.ts` | Mesma hierarquia |
+| `creative-video-generate/index.ts` | Pipeline fal.ai (Kling/Veo/Wan) |
+| `media-generate-video/index.ts` | Pipeline fal.ai para calendário |
+| `UnifiedVideoTab.tsx` | Formulário único |
+| `src/types/creatives.ts` | Limpar tipos antigos, adicionar novos |
+| `src/hooks/useVideoCreatives.ts` | Adaptar para novo pipeline |
+| `src/lib/driveService.ts` | Rotas de vídeo |
 
-### Componente InfoTooltip — assinatura
-```tsx
-interface InfoTooltipProps {
-  tooltipKey?: string;    // busca texto no ui-tooltips.ts
-  content?: string;       // texto direto (override)
-  children: React.ReactNode;
-  side?: 'top' | 'bottom' | 'left' | 'right';
-  showIcon?: boolean;     // mostra ícone "?" ao lado
-}
+### Nova hierarquia (substitui a v6.0 atual)
+
+```text
+IMAGENS (v7.0):
+  1. fal.ai FLUX 2 Pro        ← PRINCIPAL (melhor custo-benefício)
+  2. fal.ai FLUX 2 Turbo      ← PRINCIPAL fallback rápido
+  3. Gemini Nativa             ← FALLBACK SEGURO (stack atual)
+  4. OpenAI Nativa             ← FALLBACK SEGURO
+  5. Lovable Gateway           ← ÚLTIMO RECURSO
+
+VÍDEOS (v1.0):
+  1. fal.ai Kling v3 Pro I2V   ← PRINCIPAL (padrão)
+  2. fal.ai Veo 3.1            ← PRINCIPAL (com áudio nativo)
+  3. fal.ai Wan 2.6 I2V        ← ECONÔMICO
+  4. Imagem estática (stack atual) ← FALLBACK SEGURO
 ```
 
-### Comportamento
-- **Delay**: 1000ms (aparece após 1s com mouse parado)
-- **Desaparece**: imediatamente ao retirar o mouse
-- **Estilo**: fundo escuro, texto branco, border-radius, seta apontando para o elemento
-- **Max-width**: 280px para textos mais longos
-- **Não interfere** com tooltips já existentes na sidebar colapsada
+### Dependências
+- `FAL_API_KEY` — já na `platform_credentials`
+- `ELEVENLABS_API_KEY` — já nos secrets (connector)
+- `GEMINI_API_KEY` — já na `platform_credentials`
+- `OPENAI_API_KEY` — já nos secrets
+- `voice_presets` — tabela e seletor já funcionais
 
