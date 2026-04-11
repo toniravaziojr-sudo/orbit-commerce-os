@@ -336,7 +336,34 @@ export function PaymentGatewaySettings() {
                     })}
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t">
+                  {/* Webhook URL Section */}
+                  {gateway.webhookUrl && connected && (
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                      <Label className="text-sm font-medium">URL do Webhook</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {gateway.webhookInstructions}
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          value={gateway.webhookUrl}
+                          readOnly
+                          className="font-mono text-xs"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => copyToClipboard(gateway.webhookUrl!, `webhook-${gateway.id}`)}
+                        >
+                          {copiedUrl === `webhook-${gateway.id}` ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                     <Button variant="outline" size="sm" asChild>
                       <a href={gateway.docsUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-4 w-4 mr-2" />
