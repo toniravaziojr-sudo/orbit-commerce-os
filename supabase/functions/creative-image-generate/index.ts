@@ -419,20 +419,58 @@ async function generateWithLovableGateway(
   }
 }
 
-// ========== RESILIENT GENERATE v6.0 (Gemini Nativa → OpenAI → Lovable Gateway) ==========
+// ========== RESILIENT GENERATE v7.0 (fal.ai FLUX 2 → Gemini Nativa → OpenAI → Lovable Gateway) ==========
 
 async function resilientGenerate(
   lovableApiKey: string,
   openaiApiKey: string | null,
   geminiApiKey: string | null,
+  falApiKey: string | null,
   prompt: string,
   referenceImageBase64: string,
   provider: Provider,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
 
-  // ===== STEP 1: Gemini Nativa (PRIORIDADE MÁXIMA — para todos os providers) =====
+  // ===== STEP 1: fal.ai FLUX 2 Pro (PRIORIDADE MÁXIMA) =====
+  if (falApiKey) {
+    console.log(`[creative-image] Step 1: fal.ai FLUX 2 Pro (prioridade máxima)...`);
+    const falResult = await generateImageWithFalPro(falApiKey, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (falResult?.imageUrl) {
+      // Download fal.ai hosted image to base64 for pipeline compatibility
+      const b64 = await falDownloadImage(falResult.imageUrl);
+      if (b64) {
+        console.log(`[creative-image] ✅ fal.ai FLUX 2 Pro succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2-pro' };
+      }
+    }
+    console.warn(`[creative-image] fal.ai FLUX 2 Pro failed. Trying FLUX 2 Turbo...`);
+
+    // ===== STEP 2: fal.ai FLUX 2 Turbo (fallback rápido) =====
+    console.log(`[creative-image] Step 2: fal.ai FLUX 2 Turbo...`);
+    const turboResult = await generateImageWithFalTurbo(falApiKey, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (turboResult?.imageUrl) {
+      const b64 = await falDownloadImage(turboResult.imageUrl);
+      if (b64) {
+        console.log(`[creative-image] ✅ fal.ai FLUX 2 Turbo succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2 (turbo)' };
+      }
+    }
+    console.warn(`[creative-image] fal.ai FLUX 2 Turbo failed. Falling back to Gemini Nativa...`);
+  } else {
+    console.warn(`[creative-image] FAL_API_KEY not available. Skipping fal.ai steps.`);
+  }
+
+  // ===== STEP 3: Gemini Nativa (FALLBACK SEGURO) =====
   if (geminiApiKey) {
-    console.log(`[creative-image] Step 1: Gemini Nativa (prioridade máxima)...`);
+    console.log(`[creative-image] Step 3: Gemini Nativa (fallback seguro)...`);
     const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, `creative-${provider}`);
     if (nativeResult.imageBase64) {
       console.log(`[creative-image] ✅ Gemini Nativa succeeded`);
@@ -443,9 +481,9 @@ async function resilientGenerate(
     console.warn(`[creative-image] GEMINI_API_KEY not available. Skipping native Gemini.`);
   }
 
-  // ===== STEP 2: OpenAI Nativa =====
+  // ===== STEP 4: OpenAI Nativa =====
   if (openaiApiKey) {
-    console.log(`[creative-image] Step 2: OpenAI Nativa (gpt-image-1)...`);
+    console.log(`[creative-image] Step 4: OpenAI Nativa (gpt-image-1)...`);
     const openaiResult = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
     if (openaiResult.imageBase64) {
       console.log(`[creative-image] ✅ OpenAI Nativa succeeded`);
@@ -456,8 +494,8 @@ async function resilientGenerate(
     console.warn(`[creative-image] OPENAI_API_KEY not available. Skipping OpenAI.`);
   }
 
-  // ===== STEP 3: Lovable AI Gateway (ÚLTIMO RECURSO) =====
-  console.log(`[creative-image] Step 3: Lovable Gateway Pro (fallback)...`);
+  // ===== STEP 5: Lovable AI Gateway (ÚLTIMO RECURSO) =====
+  console.log(`[creative-image] Step 5: Lovable Gateway Pro (último recurso)...`);
   const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64);
   if (attempt3.imageBase64) {
     return { imageBase64: attempt3.imageBase64, model: `${LOVABLE_MODELS.primary} (Lovable fallback)` };
@@ -469,14 +507,14 @@ async function resilientGenerate(
     return { imageBase64: attempt4.imageBase64, model: `${LOVABLE_MODELS.fallback} (Lovable fallback)` };
   }
 
-  // Step 3c: Simplified prompt
+  // Step 5c: Simplified prompt
   const simplifiedPrompt = `Crie uma fotografia profissional do produto "${prompt.match(/"([^"]+)"/)?.[1] || 'produto'}" em fundo branco limpo. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.`;
   const attempt5 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, simplifiedPrompt, referenceImageBase64);
   if (attempt5.imageBase64) {
     return { imageBase64: attempt5.imageBase64, model: `${LOVABLE_MODELS.primary} (simplified, Lovable fallback)` };
   }
 
-  return { imageBase64: null, model: 'all-failed', error: 'All attempts failed (Gemini Nativa → OpenAI → Lovable Gateway)' };
+  return { imageBase64: null, model: 'all-failed', error: 'All attempts failed (fal.ai FLUX 2 → Gemini Nativa → OpenAI → Lovable Gateway)' };
 }
 
 // ========== REALISM SCORER ==========
