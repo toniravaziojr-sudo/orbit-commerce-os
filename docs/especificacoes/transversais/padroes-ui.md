@@ -413,4 +413,78 @@ Antes de QUALQUER alteração de UI/estilo, verificar:
 
 ---
 
+## Tooltips Informativos
+
+> **Adicionado em:** 2026-04-11
+
+### Objetivo
+
+Fornecer descrições contextuais para botões, tabs, itens de menu e controles da UI. O usuário vê um "balão" explicativo ao manter o mouse sobre o elemento por 1 segundo.
+
+### Arquitetura
+
+| Arquivo | Função |
+|---------|--------|
+| `src/config/ui-tooltips.ts` | Mapa centralizado `Record<string, string>` com todas as descrições (~120 textos) |
+| `src/components/ui/info-tooltip.tsx` | Componente wrapper reutilizável `<InfoTooltip>` |
+
+### Regras
+
+1. **Delay**: 1000ms — o balão aparece após 1 segundo com o mouse parado
+2. **Desaparece**: imediatamente ao retirar o mouse
+3. **Tamanho**: max-width 280px, texto de no máximo 120 caracteres
+4. **Linguagem**: sempre de negócio, sem termos técnicos
+5. **Estilo**: usa o `TooltipContent` padrão do design system (bg-popover)
+6. **Não interfere**: com tooltips já existentes na sidebar colapsada (delay 0)
+
+### Como usar
+
+```tsx
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+
+// Via chave do config:
+<InfoTooltip tooltipKey="orders.btn.new">
+  <Button>Novo Pedido</Button>
+</InfoTooltip>
+
+// Via texto direto:
+<InfoTooltip content="Descrição customizada aqui">
+  <Button>Ação</Button>
+</InfoTooltip>
+
+// Com ícone de "?" ao lado:
+<InfoTooltip tooltipKey="orders.btn.new" showIcon>
+  <span>Novo Pedido</span>
+</InfoTooltip>
+```
+
+### Convenção de chaves
+
+- `sidebar.<segmento>` — Itens do menu lateral
+- `cc.tab.<nome>` — Tabs da Central de Comando
+- `<módulo>.btn.<ação>` — Botões de ação (ex: `orders.btn.new`)
+- `<módulo>.tab.<nome>` — Tabs de módulos (ex: `shipping.tab.carriers`)
+- `<módulo>.stat.<nome>` — StatCards (ex: `orders.stat.total`)
+- `header.<elemento>` — Itens do header
+
+### Onde aplicado
+
+- **Sidebar**: todos os itens de navegação (modo expandido, com delay de 1s)
+- **Central de Comando**: 5 tabs
+- **Pedidos**: botões Importar, Exportar, Novo Pedido
+- **Clientes**: botões Importar, Exportar, Novo Cliente
+- **Descontos**: botão Criar desconto
+- **Marketing**: 3 tabs
+- **Logística**: 4 tabs
+- **Header**: itens Dados da Conta e Planos e Faturamento
+
+### Manutenção
+
+Para adicionar um novo tooltip:
+1. Adicionar a chave e texto em `src/config/ui-tooltips.ts`
+2. Envolver o elemento com `<InfoTooltip tooltipKey="chave">`
+3. Não é necessário alterar nenhum outro arquivo de configuração
+
+---
+
 *Fim do documento.*

@@ -59,6 +59,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TenantSwitcher } from "./TenantSwitcher";
+import { getTooltip } from "@/config/ui-tooltips";
 
 interface NavItem {
   title: string;
@@ -521,12 +522,23 @@ export function AppSidebar() {
       </NavLink>
     );
 
+    // Build tooltip key from href (e.g. /orders -> sidebar.orders)
+    const hrefSegment = item.href.split("/").filter(Boolean)[0] || "";
+    const sidebarTooltipText = getTooltip(`sidebar.${hrefSegment}`);
+
     const wrappedLink = collapsed ? (
       <Tooltip delayDuration={0}>
         <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
         <TooltipContent side="right" className="font-medium">
           {item.title}
           {status && <ModuleStatusIndicator status={status} />}
+        </TooltipContent>
+      </Tooltip>
+    ) : sidebarTooltipText ? (
+      <Tooltip delayDuration={1000}>
+        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+        <TooltipContent side="right" className="max-w-[280px] text-xs font-normal">
+          {sidebarTooltipText}
         </TooltipContent>
       </Tooltip>
     ) : (

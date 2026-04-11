@@ -19,6 +19,7 @@ import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { FeatureGate } from '@/components/layout/FeatureGate';
 import { FileImportDialog } from '@/components/import/FileImportDialog';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const PAGE_SIZE = 50;
 
@@ -117,20 +118,26 @@ export default function Orders() {
         description="Gestão de pedidos, pagamentos e envios"
         actions={
           <div className="flex gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
-              <Upload className="h-4 w-4" />
-              Importar
-            </Button>
-            <FeatureGate feature="export_orders">
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" />
-                Exportar
+            <InfoTooltip tooltipKey="orders.btn.import">
+              <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4" />
+                Importar
               </Button>
+            </InfoTooltip>
+            <FeatureGate feature="export_orders">
+              <InfoTooltip tooltipKey="orders.btn.export">
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Exportar
+                </Button>
+              </InfoTooltip>
             </FeatureGate>
-            <Button className="gap-2" onClick={() => navigate('/orders/new')}>
-              <Plus className="h-4 w-4" />
-              Novo Pedido
-            </Button>
+            <InfoTooltip tooltipKey="orders.btn.new">
+              <Button className="gap-2" onClick={() => navigate('/orders/new')}>
+                <Plus className="h-4 w-4" />
+                Novo Pedido
+              </Button>
+            </InfoTooltip>
             <FileImportDialog open={importOpen} onOpenChange={setImportOpen} module="orders" />
           </div>
         }

@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DashboardTab } from "@/components/command-center/DashboardTab";
 import { ExecutionsQueue } from "@/components/command-center/ExecutionsQueue";
 import { InsightsTab } from "@/components/command-center/InsightsTab";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export default function CommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -31,26 +32,36 @@ export default function CommandCenter() {
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full max-w-4xl grid-cols-5">
-          <TabsTrigger value="dashboard" className="gap-2">
-            <LayoutDashboard className="h-4 w-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </TabsTrigger>
-          <TabsTrigger value="executions" className="gap-2">
-            <ClipboardList className="h-4 w-4" />
-            <span className="hidden sm:inline">Central de Execuções</span>
-          </TabsTrigger>
-          <TabsTrigger value="insights" className="gap-2">
-            <Lightbulb className="h-4 w-4" />
-            <span className="hidden sm:inline">Insights</span>
-          </TabsTrigger>
-          <TabsTrigger value="assistant" className="gap-2">
-            <Bot className="h-4 w-4" />
-            <span className="hidden sm:inline">Assistente</span>
-          </TabsTrigger>
-          <TabsTrigger value="agenda" className="gap-2">
-            <CalendarClock className="h-4 w-4" />
-            <span className="hidden sm:inline">Agenda</span>
-          </TabsTrigger>
+          <InfoTooltip tooltipKey="cc.tab.dashboard">
+            <TabsTrigger value="dashboard" className="gap-2">
+              <LayoutDashboard className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip tooltipKey="cc.tab.executions">
+            <TabsTrigger value="executions" className="gap-2">
+              <ClipboardList className="h-4 w-4" />
+              <span className="hidden sm:inline">Central de Execuções</span>
+            </TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip tooltipKey="cc.tab.insights">
+            <TabsTrigger value="insights" className="gap-2">
+              <Lightbulb className="h-4 w-4" />
+              <span className="hidden sm:inline">Insights</span>
+            </TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip tooltipKey="cc.tab.assistant">
+            <TabsTrigger value="assistant" className="gap-2">
+              <Bot className="h-4 w-4" />
+              <span className="hidden sm:inline">Assistente</span>
+            </TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip tooltipKey="cc.tab.agenda">
+            <TabsTrigger value="agenda" className="gap-2">
+              <CalendarClock className="h-4 w-4" />
+              <span className="hidden sm:inline">Agenda</span>
+            </TabsTrigger>
+          </InfoTooltip>
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-6">

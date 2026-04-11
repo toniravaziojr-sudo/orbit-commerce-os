@@ -28,6 +28,7 @@ import { useShipments, type Shipment } from '@/hooks/useShipments';
 import { ShippingCarrierSettings } from '@/components/shipping/ShippingCarrierSettings';
 import { FreeShippingSubTabs } from '@/components/shipping/FreeShippingSubTabs';
 import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const PAGE_SIZE = 20;
 
@@ -125,22 +126,30 @@ export default function Shipping() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="shipments" className="gap-2">
-            <Package className="h-4 w-4" />
-            <span className="hidden sm:inline">Envios</span>
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="gap-2">
-            <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Transportadoras</span>
-          </TabsTrigger>
-          <TabsTrigger value="frete-gratis" className="gap-2">
-            <Gift className="h-4 w-4" />
-            <span className="hidden sm:inline">Frete Grátis</span>
-          </TabsTrigger>
-          <TabsTrigger value="frete-personalizado" className="gap-2">
-            <DollarSign className="h-4 w-4" />
-            <span className="hidden sm:inline">Frete Personalizado</span>
-          </TabsTrigger>
+          <InfoTooltip tooltipKey="shipping.tab.shipments">
+            <TabsTrigger value="shipments" className="gap-2">
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">Envios</span>
+            </TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip tooltipKey="shipping.tab.carriers">
+            <TabsTrigger value="settings" className="gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Transportadoras</span>
+            </TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip tooltipKey="shipping.tab.free-shipping">
+            <TabsTrigger value="frete-gratis" className="gap-2">
+              <Gift className="h-4 w-4" />
+              <span className="hidden sm:inline">Frete Grátis</span>
+            </TabsTrigger>
+          </InfoTooltip>
+          <InfoTooltip tooltipKey="shipping.tab.custom-rules">
+            <TabsTrigger value="frete-personalizado" className="gap-2">
+              <DollarSign className="h-4 w-4" />
+              <span className="hidden sm:inline">Frete Personalizado</span>
+            </TabsTrigger>
+          </InfoTooltip>
         </TabsList>
 
         <TabsContent value="shipments" className="space-y-4">
