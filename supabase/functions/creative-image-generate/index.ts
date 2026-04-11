@@ -18,7 +18,7 @@ import { tryNativeGemini } from "../_shared/native-gemini.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { generateImageWithFalPro, generateImageWithFalTurbo, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = '6.0.0'; // Gemini Nativa priority: 1. Gemini Nativa → 2. OpenAI → 3. Lovable Gateway
+const VERSION = '7.0.0'; // fal.ai FLUX 2 priority: 1. FLUX 2 Pro → 2. FLUX 2 Turbo → 3. Gemini Nativa → 4. OpenAI → 5. Lovable Gateway
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
