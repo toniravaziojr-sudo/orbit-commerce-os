@@ -1,34 +1,42 @@
 # Memory: features/ai/visual-content-dual-stack-standard
-Updated: 2026-04-11
+Updated: now
 
-Arquitetura de Geração de Conteúdo Visual (v8.0 — Dual Stack fal.ai + Fallback):
+Arquitetura de Geração de Conteúdo Visual (v8.0 — Dual Stack fal.ai + Fallback Seguro):
 
-1. **Dual-Stack**: fal.ai como provedor principal, stack nativa (Gemini/OpenAI/Lovable Gateway) como fallback seguro.
+## IMAGENS (v7.0) — Hierarquia obrigatória em TODOS os pipelines:
+1. **fal.ai FLUX 2 Pro** — Principal (melhor fotorrealismo, ~$0.03/img)
+2. **fal.ai FLUX 2 Turbo** — Fallback rápido (~$0.008/img)
+3. **Gemini Nativa** — Fallback seguro (API direta, GEMINI_API_KEY)
+4. **OpenAI Nativa** — Fallback seguro (gpt-image-1, OPENAI_API_KEY)
+5. **Lovable AI Gateway** — Último recurso (créditos da workspace)
 
-2. **IMAGENS (v8.0)**:
-   - (1) fal.ai FLUX 2 Pro [Principal — melhor fotorrealismo, ~$0.03/img]
-   - (2) fal.ai FLUX 2 Turbo [Fallback rápido — ~$0.008/img]
-   - (3) Gemini Nativa [Fallback seguro]
-   - (4) OpenAI Nativa gpt-image-1 [Fallback secundário]
-   - (5) Lovable Gateway [Último recurso]
-   - Sistemas integrados: creative-image-generate, media-process-generation-queue, ai-landing-page-enhance-images, visual-engine.ts, ai-block-fill-visual
+**Pipelines alinhados:**
+- `creative-image-generate` v7.0 ✅
+- `_shared/visual-engine.ts` v2.1 ✅
+- `media-process-generation-queue` v8.0 ✅
+- `ai-landing-page-enhance-images` v5.0 ✅
 
-3. **VÍDEOS (v3.0 — fal.ai Pipeline)**:
-   - Premium: Kling v3 Pro I2V (~$0.42/5s) — Melhor fidelidade de produto
-   - Com Áudio Nativo: Veo 3.1 (~$0.75/5s) — Qualidade cinema
-   - Econômico: Wan 2.6 I2V (~$0.15/5s) — Custo reduzido para escala
-   - Lipsync: Kling Lipsync (~$0.07) — Pós-processamento com TTS ElevenLabs
-   - Fallback: Imagem estática via stack de imagens
+## VÍDEOS (v3.0) — Pipeline fal.ai:
+- **Premium**: Kling v3 Pro I2V (melhor fidelidade de produto, ~$0.56/5s)
+- **Áudio Nativo**: Veo 3.1 (qualidade cinema com áudio, ~$1.00/5s)
+- **Econômico**: Wan 2.6 I2V (custo reduzido, ~$0.50/5s)
+- **Fallback**: Imagem estática via stack de imagens (Gemini/OpenAI/Gateway)
 
-4. **Frontend**: VideoGeneratorForm unificado substitui 4 formulários antigos (UGCReal, UGCAI, ProductVideo, AvatarMascot). Seletor de produto + tier + duração + formato + narração.
+**Pipeline:** `creative-video-generate` v3.0 ✅
 
-5. **Edge Functions**:
-   - `_shared/fal-client.ts` — Cliente centralizado (queue + poll + result)
-   - `creative-video-generate` — Pipeline fal.ai para Estúdio (v3.0)
-   - `creative-image-generate` — Hierarquia v8.0 com fal.ai
-   - `media-process-generation-queue` — Hierarquia v8.0 para Calendário
-   - `ai-landing-page-enhance-images` — Hierarquia v4.0 com fal.ai
+## Frontend:
+- `UnifiedVideoTab.tsx` — Seletor simplificado sem tipos legados
+- `VideoGeneratorForm.tsx` — Formulário unificado com seletor de tier/duração/formato
 
-6. **Drive**: Rotas `ai_creative_video` e `ai_creative_video_calendar` adicionadas ao FOLDER_ROUTES.
+## Módulo compartilhado:
+- `_shared/fal-client.ts` — Cliente centralizado para imagens (FLUX 2) e vídeos (Kling/Veo/Wan)
 
-7. **Credenciais**: FAL_API_KEY via platform_credentials (painel Integrações → IA).
+## Credenciais:
+- `FAL_API_KEY` — platform_credentials (obrigatória para pipeline principal)
+- `GEMINI_API_KEY` — platform_credentials (fallback seguro)
+- `OPENAI_API_KEY` — secrets (fallback seguro)
+- `LOVABLE_API_KEY` — automática (último recurso)
+
+## Armazenamento:
+- Vídeos: rota `Criativos IA/Vídeos` no Drive
+- Vídeos Calendário: rota `Criativos IA/Vídeos Calendário` no Drive

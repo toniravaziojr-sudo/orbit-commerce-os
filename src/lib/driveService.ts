@@ -146,9 +146,6 @@ export const FOLDER_ROUTES: Record<string, string> = {
   // Videos
   video_desktop: 'Loja Virtual',
   video_mobile: 'Loja Virtual',
-  // AI Creative Videos
-  ai_creative_video: 'Criativos IA/Vídeos',
-  ai_creative_video_calendar: 'Criativos IA/Vídeos Calendário',
 };
 
 /**

@@ -1,200 +1,125 @@
 /**
- * VideoGeneratorForm — Formulário unificado para geração de vídeos via fal.ai
- * 
- * Tiers:
- * - Premium (Kling v3 Pro I2V): Melhor fidelidade de produto
- * - Com áudio nativo (Veo 3.1): Qualidade cinema + áudio
- * - Econômico (Wan 2.6 I2V): Custo reduzido para escala
+ * VideoGeneratorForm — Formulário unificado de geração de vídeo via fal.ai
+ * Tiers: Premium (Kling v3) | Áudio Nativo (Veo 3.1) | Econômico (Wan 2.6)
  */
 
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Video, 
-  Sparkles, 
-  Clock, 
-  Ratio, 
-  Mic, 
-  Loader2, 
-  Crown, 
-  Zap, 
-  DollarSign,
-  Info,
-} from 'lucide-react';
-import { useCreateVideoJob } from '@/hooks/useVideoCreatives';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
-
-// ==================== TYPES ====================
+import { Loader2, Package, AlertCircle, Sparkles, Crown, Zap, Volume2 } from 'lucide-react';
+import { useCreateVideoJob, useVideoJobs } from '@/hooks/useVideoCreatives';
+import { useProductsWithImages } from '@/hooks/useProducts';
+import { VideoJobsList } from '../VideoJobsList';
 
 type VideoTier = 'premium' | 'audio_native' | 'economic';
 
-interface TierOption {
-  id: VideoTier;
-  label: string;
-  description: string;
-  icon: React.ElementType;
-  models: string;
-  costEstimate: string;
-  badge?: string;
-}
-
-const VIDEO_TIERS: TierOption[] = [
-  {
-    id: 'premium',
-    label: 'Premium',
-    description: 'Melhor fidelidade de produto. Ideal para e-commerce.',
-    icon: Crown,
-    models: 'Kling v3 Pro I2V',
-    costEstimate: '~$0.42/5s',
-    badge: 'Recomendado',
-  },
-  {
-    id: 'audio_native',
-    label: 'Com Áudio Nativo',
-    description: 'Qualidade cinema com áudio gerado nativamente.',
-    icon: Mic,
-    models: 'Veo 3.1',
-    costEstimate: '~$0.75/5s',
-  },
-  {
-    id: 'economic',
-    label: 'Econômico',
-    description: 'Custo reduzido. Ideal para testes A/B e escala.',
-    icon: DollarSign,
-    models: 'Wan 2.6 I2V',
-    costEstimate: '~$0.15/5s',
-  },
+const TIER_OPTIONS: { id: VideoTier; label: string; desc: string; icon: React.ElementType; badge?: string; cost: string }[] = [
+  { id: 'premium', label: 'Premium', desc: 'Kling v3 Pro — Melhor fidelidade de produto', icon: Crown, badge: 'Recomendado', cost: '~R$3,00/5s' },
+  { id: 'audio_native', label: 'Com Áudio Nativo', desc: 'Veo 3.1 — Qualidade cinema com áudio gerado', icon: Volume2, cost: '~R$5,50/8s' },
+  { id: 'economic', label: 'Econômico', desc: 'Wan 2.6 — Custo reduzido para testes', icon: Zap, cost: '~R$1,50/5s' },
 ];
 
 export function VideoGeneratorForm() {
-  const { currentTenant } = useAuth();
-  const createVideoJob = useCreateVideoJob();
-
-  const [productId, setProductId] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState('');
   const [tier, setTier] = useState<VideoTier>('premium');
-  const [duration, setDuration] = useState('5');
-  const [aspectRatio, setAspectRatio] = useState('9:16');
+  const [duration, setDuration] = useState<'5' | '10'>('5');
+  const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [prompt, setPrompt] = useState('');
-  const [narrationEnabled, setNarrationEnabled] = useState(false);
-  const [narrationText, setNarrationText] = useState('');
 
-  // Fetch products for selector
-  const { data: products = [] } = useQuery({
-    queryKey: ['products-for-video', currentTenant?.id],
-    queryFn: async () => {
-      if (!currentTenant?.id) return [];
-      const { data } = await supabase
-        .from('products')
-        .select('id, name')
-        .eq('tenant_id', currentTenant.id)
-        .eq('status', 'active')
-        .order('name')
-        .limit(100);
-      return data || [];
-    },
-    enabled: !!currentTenant?.id,
-  });
+  const { products, isLoading: loadingProducts } = useProductsWithImages();
+  const { data: jobs, isLoading: loadingJobs } = useVideoJobs();
+  const createJob = useCreateVideoJob();
 
-  const selectedTier = VIDEO_TIERS.find(t => t.id === tier)!;
-  const canSubmit = !!productId && !createVideoJob.isPending;
-
-  const handleSubmit = () => {
-    if (!productId) return;
-
-    createVideoJob.mutate({
-      product_id: productId,
+  const handleGenerate = () => {
+    if (!selectedProduct) return;
+    createJob.mutate({
+      product_id: selectedProduct,
       video_type: 'product_video',
-      aspect_ratio: aspectRatio as any,
-      duration_seconds: parseInt(duration) as any,
+      aspect_ratio: aspectRatio,
+      duration_seconds: parseInt(duration) as 6 | 10,
       user_prompt: prompt || undefined,
+      // @ts-ignore - tier is passed as extra field
+      tier,
     });
   };
+
+  const selectedTier = TIER_OPTIONS.find(t => t.id === tier)!;
 
   return (
     <div className="space-y-6">
       {/* Produto */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Produto</CardTitle>
-          <CardDescription>Selecione o produto para o vídeo</CardDescription>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Package className="h-4 w-4" /> Produto
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <Select value={productId} onValueChange={setProductId}>
+          <Select value={selectedProduct} onValueChange={setSelectedProduct}>
             <SelectTrigger>
-              <SelectValue placeholder="Selecione um produto..." />
+              <SelectValue placeholder={loadingProducts ? "Carregando..." : "Selecione o produto"} />
             </SelectTrigger>
             <SelectContent>
-              {products.map((p: any) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              {(products || []).map((p: any) => (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="flex items-center gap-2">
+                    {p.image_url && <img src={p.image_url} alt="" className="h-6 w-6 rounded object-cover" />}
+                    {p.name}
+                  </span>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </CardContent>
       </Card>
 
-      {/* Tier de Vídeo */}
+      {/* Tier */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Qualidade do Vídeo</CardTitle>
-          <CardDescription>Escolha o nível de qualidade e custo</CardDescription>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="h-4 w-4" /> Qualidade do Vídeo
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {VIDEO_TIERS.map((t) => {
-            const Icon = t.icon;
-            const isSelected = tier === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTier(t.id)}
-                className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
-                  isSelected
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-muted-foreground/30'
-                }`}
-              >
-                <Icon className={`h-5 w-5 mt-0.5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{t.label}</span>
-                    {t.badge && (
-                      <Badge variant="secondary" className="text-[10px]">{t.badge}</Badge>
-                    )}
-                    <Badge variant="outline" className="text-[10px] ml-auto">{t.costEstimate}</Badge>
+        <CardContent>
+          <RadioGroup value={tier} onValueChange={(v) => setTier(v as VideoTier)} className="space-y-3">
+            {TIER_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <label key={opt.id} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${tier === opt.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}>
+                  <RadioGroupItem value={opt.id} className="mt-0.5" />
+                  <Icon className="h-4 w-4 mt-0.5 text-primary" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{opt.label}</span>
+                      {opt.badge && <Badge variant="secondary" className="text-[10px]">{opt.badge}</Badge>}
+                      <span className="text-[10px] text-muted-foreground ml-auto">{opt.cost}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{opt.desc}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{t.description}</p>
-                  <p className="text-xs text-muted-foreground/70 mt-0.5">{t.models}</p>
-                </div>
-              </button>
-            );
-          })}
+                </label>
+              );
+            })}
+          </RadioGroup>
         </CardContent>
       </Card>
 
-      {/* Configurações */}
+      {/* Config */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Configurações</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Duração e Formato */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-sm flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" /> Duração
-              </Label>
-              <Select value={duration} onValueChange={setDuration}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+              <Label className="text-sm">Duração</Label>
+              <Select value={duration} onValueChange={(v) => setDuration(v as '5' | '10')}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="5">5 segundos</SelectItem>
                   <SelectItem value="10">10 segundos</SelectItem>
@@ -202,80 +127,41 @@ export function VideoGeneratorForm() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-sm flex items-center gap-1.5">
-                <Ratio className="h-3.5 w-3.5" /> Formato
-              </Label>
-              <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+              <Label className="text-sm">Formato</Label>
+              <Select value={aspectRatio} onValueChange={(v) => setAspectRatio(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="9:16">9:16 (Stories/Reels)</SelectItem>
-                  <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
-                  <SelectItem value="1:1">1:1 (Quadrado)</SelectItem>
+                  <SelectItem value="16:9">16:9 (YouTube)</SelectItem>
+                  <SelectItem value="1:1">1:1 (Feed)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Prompt */}
           <div className="space-y-2">
             <Label className="text-sm">Prompt (opcional)</Label>
             <Textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Descreva o vídeo desejado... (ex: 'Produto flutuando com partículas brilhantes em fundo escuro premium')"
-              className="min-h-[80px] resize-none"
+              placeholder="Descreva o vídeo desejado... Ex: Produto girando suavemente com iluminação premium"
+              rows={3}
             />
-          </div>
-
-          {/* Narração */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm flex items-center gap-1.5">
-                <Mic className="h-3.5 w-3.5" /> Narração PT-BR
-              </Label>
-              <Switch checked={narrationEnabled} onCheckedChange={setNarrationEnabled} />
-            </div>
-            {narrationEnabled && (
-              <div className="space-y-2">
-                <Textarea
-                  value={narrationText}
-                  onChange={(e) => setNarrationText(e.target.value)}
-                  placeholder="Texto da narração em português..."
-                  className="min-h-[60px] resize-none"
-                />
-                <Alert className="bg-muted/50">
-                  <Info className="h-3.5 w-3.5" />
-                  <AlertDescription className="text-xs">
-                    A narração será gerada via ElevenLabs e sincronizada com lipsync via Kling.
-                  </AlertDescription>
-                </Alert>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Botão */}
-      <Button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className="w-full h-12"
-        size="lg"
-      >
-        {createVideoJob.isPending ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Gerando vídeo...
-          </>
-        ) : (
-          <>
-            <Video className="h-4 w-4 mr-2" />
-            Gerar Vídeo com IA
-          </>
-        )}
+      {/* Gerar */}
+      {!selectedProduct && (
+        <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Selecione um produto para gerar o vídeo.</AlertDescription></Alert>
+      )}
+
+      <Button onClick={handleGenerate} disabled={!selectedProduct || createJob.isPending} className="w-full" size="lg">
+        {createJob.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Iniciando...</> : <><Sparkles className="h-4 w-4 mr-2" /> Gerar Vídeo ({selectedTier.label})</>}
       </Button>
+
+      {/* Jobs */}
+      <VideoJobsList jobs={jobs || []} isLoading={loadingJobs} />
     </div>
   );
 }

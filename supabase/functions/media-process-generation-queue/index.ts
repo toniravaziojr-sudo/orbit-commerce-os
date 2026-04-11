@@ -1,12 +1,13 @@
 /**
- * Media Process Generation Queue — v6.0 (Real OpenAI + Gemini Lovable + QA Scorer)
+ * Media Process Generation Queue — v8.0 (fal.ai FLUX 2 + Gemini Nativa + OpenAI + Lovable Gateway)
  * 
- * Provedores de imagem:
- * - OpenAI: Real OpenAI API (gpt-image-1) — provider primário "openai"
- * - Gemini Flash (google/gemini-2.5-flash-image) via Lovable Gateway — provider "gemini"
- * - Gemini Pro (google/gemini-3-pro-image-preview) via Lovable Gateway — fallback
- * - QA Scorer (google/gemini-3-flash-preview) — scoring de realismo
- * - Seleção automática do melhor resultado por score
+ * Hierarquia v7.0:
+ * 1. fal.ai FLUX 2 Pro (PRINCIPAL)
+ * 2. fal.ai FLUX 2 Turbo (FALLBACK RÁPIDO)
+ * 3. Gemini Nativa (FALLBACK SEGURO)
+ * 4. OpenAI Nativa (FALLBACK SEGURO)
+ * 5. Lovable Gateway (ÚLTIMO RECURSO)
+ * + QA Scorer (google/gemini-3-flash-preview) — scoring de realismo
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -16,7 +17,7 @@ import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { generateImageWithFalPro, generateImageWithFalTurbo, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = '8.0.0'; // fal.ai FLUX priority: 1. FLUX 2 Pro → 2. FLUX 2 Turbo → 3. Gemini Nativa → 4. OpenAI → 5. Lovable Gateway
+const VERSION = '8.0.0'; // fal.ai FLUX 2 priority: 1. FLUX 2 Pro → 2. FLUX 2 Turbo → 3. Gemini Nativa → 4. OpenAI → 5. Lovable Gateway
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -173,112 +174,68 @@ async function downloadImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
-// ========== GENERATE WITH GEMINI NATIVA (Priority 1) → then Lovable Gateway ==========
+// ========== RESILIENT GENERATE v7.0 (fal.ai → Gemini Nativa → OpenAI → Lovable Gateway) ==========
 
-async function generateWithGemini(
+async function resilientGenerateMedia(
   lovableApiKey: string,
   geminiApiKey: string | null,
+  openaiApiKey: string | null,
+  falApiKeyValue: string | null,
   prompt: string,
   referenceImageBase64: string | null,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
-  // Step 1: Try native Gemini (API direta)
+
+  // ===== STEP 1: fal.ai FLUX 2 Pro (PRIORIDADE MÁXIMA) =====
+  if (falApiKeyValue) {
+    console.log(`🎨 Step 1: fal.ai FLUX 2 Pro...`);
+    const falResult = await generateImageWithFalPro(falApiKeyValue, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (falResult?.imageUrl) {
+      const b64 = await falDownloadImage(falResult.imageUrl);
+      if (b64) {
+        console.log(`✅ fal.ai FLUX 2 Pro succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2-pro' };
+      }
+    }
+    console.warn(`⚠️ FLUX 2 Pro failed. Trying Turbo...`);
+
+    // ===== STEP 2: fal.ai FLUX 2 Turbo =====
+    console.log(`🎨 Step 2: fal.ai FLUX 2 Turbo...`);
+    const turboResult = await generateImageWithFalTurbo(falApiKeyValue, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (turboResult?.imageUrl) {
+      const b64 = await falDownloadImage(turboResult.imageUrl);
+      if (b64) {
+        console.log(`✅ fal.ai FLUX 2 Turbo succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2 (turbo)' };
+      }
+    }
+    console.warn(`⚠️ FLUX 2 Turbo failed. Falling back to Gemini Nativa...`);
+  } else {
+    console.warn(`⚠️ FAL_API_KEY not available. Skipping fal.ai steps.`);
+  }
+
+  // ===== STEP 3: Gemini Nativa (FALLBACK SEGURO) =====
   if (geminiApiKey) {
+    console.log(`🎨 Step 3: Gemini Nativa...`);
     const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, 'media-gemini');
     if (nativeResult.imageBase64) {
-      console.log(`✅ Gemini Nativa succeeded for media generation`);
+      console.log(`✅ Gemini Nativa succeeded`);
       return nativeResult;
     }
-    console.warn(`⚠️ Gemini Nativa failed: ${nativeResult.error}. Falling back to Lovable Gateway...`);
+    console.warn(`⚠️ Gemini Nativa failed: ${nativeResult.error}`);
   }
 
-  // Step 2: Lovable Gateway Flash (fallback)
-  const model = "google/gemini-2.5-flash-image";
-  try {
-    console.log(`🎨 Gemini Flash via Lovable Gateway (fallback) (ref: ${!!referenceImageBase64})...`);
-
-    const content: any[] = [{ type: "text", text: prompt }];
-    if (referenceImageBase64) {
-      content.push({
-        type: "image_url",
-        image_url: { url: `data:image/png;base64,${referenceImageBase64}` },
-      });
-    }
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content }],
-        modalities: ["image", "text"],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Gemini error: ${response.status}`, errorText);
-      if (response.status === 429) return { imageBase64: null, model, error: "Rate limit Gemini. Aguarde." };
-      if (response.status === 402) return { imageBase64: null, model, error: "Créditos insuficientes." };
-      return { imageBase64: null, model, error: `Gemini HTTP ${response.status}` };
-    }
-
-    const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imageUrl) return { imageBase64: null, model, error: "Gemini não retornou imagem" };
-
-    const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
-    if (!base64Match) return { imageBase64: null, model, error: "Formato inválido Gemini" };
-
-    console.log("✅ Gemini Flash (Lovable Gateway) image generated");
-    return { imageBase64: base64Match[1], model: `${model} (Lovable fallback)` };
-  } catch (error) {
-    console.error("❌ Gemini error:", error);
-    return { imageBase64: null, model, error: String(error) };
-  }
-}
-
-// ========== GENERATE WITH OPENAI (Priority 2) ==========
-
-async function generateWithOpenAI(
-  lovableApiKey: string,
-  openaiApiKey: string | null,
-  geminiApiKey: string | null,
-  prompt: string,
-  referenceImageBase64: string | null,
-): Promise<{ imageBase64: string | null; model: string; error?: string }> {
-  
-  // Step 1: Try native Gemini FIRST (even for "OpenAI" provider — it's always priority 1)
-  if (geminiApiKey) {
-    const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, 'media-openai');
-    if (nativeResult.imageBase64) {
-      console.log(`✅ Gemini Nativa succeeded for OpenAI provider`);
-      return nativeResult;
-    }
-    console.warn(`⚠️ Gemini Nativa failed for OpenAI provider: ${nativeResult.error}`);
-  }
-
-  // Step 2: Try Real OpenAI via Chat Completions API (gpt-image-1)
+  // ===== STEP 4: OpenAI Nativa =====
   if (openaiApiKey) {
-    const model = "gpt-image-1";
+    console.log(`🎨 Step 4: OpenAI Nativa (gpt-image-1)...`);
     try {
-      console.log(`🎨 Real OpenAI ${model} via Chat Completions (ref: ${!!referenceImageBase64})...`);
-
-      const userContent: any[] = [
-        { type: 'text', text: prompt },
-      ];
-      
-      if (referenceImageBase64) {
-        userContent.push({
-          type: 'image_url',
-          image_url: {
-            url: `data:image/png;base64,${referenceImageBase64}`,
-          },
-        });
-      }
-
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -286,10 +243,17 @@ async function generateWithOpenAI(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'user', content: userContent },
-          ],
+          model: "gpt-image-1",
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              ...(referenceImageBase64 ? [{
+                type: 'image_url',
+                image_url: { url: `data:image/png;base64,${referenceImageBase64}` },
+              }] : []),
+            ],
+          }],
           modalities: ['image', 'text'],
         }),
       });
@@ -297,104 +261,67 @@ async function generateWithOpenAI(
       if (response.ok) {
         const data = await response.json();
         let b64: string | null = null;
-        
         const outputImages = data.choices?.[0]?.message?.output_images;
-        if (outputImages && outputImages.length > 0) {
+        if (outputImages?.length > 0) {
           const imgUrl = outputImages[0]?.url || outputImages[0];
-          if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
-            b64 = imgUrl.split(',')[1] || null;
-          } else if (typeof imgUrl === 'string') {
-            b64 = imgUrl;
-          }
+          b64 = typeof imgUrl === 'string' && imgUrl.startsWith('data:') ? imgUrl.split(',')[1] : (typeof imgUrl === 'string' ? imgUrl : null);
         }
-        
         if (!b64) {
           const content = data.choices?.[0]?.message?.content;
           if (Array.isArray(content)) {
             for (const part of content) {
               if (part.type === 'image_url' && part.image_url?.url) {
-                const url = part.image_url.url;
-                b64 = url.startsWith('data:') ? url.split(',')[1] : url;
+                b64 = part.image_url.url.startsWith('data:') ? part.image_url.url.split(',')[1] : part.image_url.url;
                 break;
               }
             }
           }
         }
-        
         if (b64) {
-          console.log(`✅ Real OpenAI ${model} image generated via Chat Completions`);
-          return { imageBase64: b64, model: `${model} (OpenAI)` };
+          console.log(`✅ OpenAI Nativa succeeded`);
+          return { imageBase64: b64, model: 'gpt-image-1 (OpenAI)' };
         }
-        console.warn(`⚠️ OpenAI ${model} returned no image in response`);
-      } else {
-        const errorText = await response.text();
-        console.error(`❌ OpenAI ${model} error: ${response.status}`, errorText.substring(0, 200));
       }
-
-      console.warn("⚠️ Real OpenAI failed, falling back to Lovable Gateway (Gemini Pro)...");
-    } catch (error) {
-      console.error("❌ Real OpenAI error:", error);
+    } catch (e) {
+      console.warn(`⚠️ OpenAI error:`, e);
     }
-  } else {
-    console.warn("⚠️ OPENAI_API_KEY not available, using Lovable Gateway fallback for OpenAI provider");
   }
 
-  // Step 3: Lovable Gateway with Gemini Pro (ÚLTIMO RECURSO)
-  const fallbackModel = "google/gemini-3-pro-image-preview";
+  // ===== STEP 5: Lovable Gateway (ÚLTIMO RECURSO) =====
+  const model = "google/gemini-2.5-flash-image";
   try {
-    console.log(`🎨 Lovable Gateway fallback (${fallbackModel})...`);
-
-    const openaiPrompt = `${prompt}
-
-ESTILO OPENAI:
-- Fotorrealismo extremo
-- Iluminação natural cinematográfica
-- Composição equilibrada
-- Cores realistas sem oversaturation`;
-
-    const content: any[] = [{ type: "text", text: openaiPrompt }];
+    console.log(`🎨 Step 5: Lovable Gateway ${model} (último recurso)...`);
+    const content: any[] = [{ type: "text", text: prompt }];
     if (referenceImageBase64) {
-      content.push({
-        type: "image_url",
-        image_url: { url: `data:image/png;base64,${referenceImageBase64}` },
-      });
+      content.push({ type: "image_url", image_url: { url: `data:image/png;base64,${referenceImageBase64}` } });
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: fallbackModel,
-        messages: [{ role: "user", content }],
-        modalities: ["image", "text"],
-      }),
+      headers: { Authorization: `Bearer ${lovableApiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages: [{ role: "user", content }], modalities: ["image", "text"] }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Lovable fallback error: ${response.status}`, errorText);
-      if (response.status === 429) return { imageBase64: null, model: fallbackModel, error: "Rate limit. Aguarde." };
-      if (response.status === 402) return { imageBase64: null, model: fallbackModel, error: "Créditos insuficientes." };
-      return { imageBase64: null, model: fallbackModel, error: `Lovable HTTP ${response.status}` };
+      return { imageBase64: null, model, error: `Lovable Gateway HTTP ${response.status}` };
     }
 
     const data = await response.json();
     const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imageUrl) return { imageBase64: null, model: fallbackModel, error: "Lovable fallback não gerou imagem" };
+    if (!imageUrl) return { imageBase64: null, model, error: "Gateway não retornou imagem" };
 
     const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
-    if (!base64Match) return { imageBase64: null, model: fallbackModel, error: "Formato inválido Lovable" };
+    if (!base64Match) return { imageBase64: null, model, error: "Formato inválido" };
 
-    console.log("✅ Lovable fallback (Gemini Pro) image generated");
-    return { imageBase64: base64Match[1], model: `${fallbackModel} (Lovable fallback)` };
+    console.log("✅ Lovable Gateway image generated");
+    return { imageBase64: base64Match[1], model: `${model} (Lovable Gateway)` };
   } catch (error) {
-    console.error("❌ Lovable fallback error:", error);
-    return { imageBase64: null, model: fallbackModel, error: String(error) };
+    console.error("❌ All providers failed:", error);
+    return { imageBase64: null, model, error: String(error) };
   }
 }
+
+// generateWithOpenAI removed — now using unified resilientGenerateMedia
 
 // ========== REALISM SCORER ==========
 
@@ -529,26 +456,12 @@ serve(async (req) => {
     );
   }
 
-  // Fetch keys from platform_credentials
+  // Fetch credentials from platform_credentials
   const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
   const falApiKeyValue = await getFalApiKey(supabaseUrl, supabaseServiceKey);
 
-  if (falApiKeyValue) {
-    console.log(`[media-process-generation-queue v${VERSION}] ✅ FAL_API_KEY found — fal.ai FLUX enabled (priority 1-2)`);
-  } else {
-    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No FAL_API_KEY — fal.ai disabled`);
-  }
-  if (geminiApiKey) {
-    console.log(`[media-process-generation-queue v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 3)`);
-  } else {
-    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No GEMINI_API_KEY — Gemini Nativa disabled`);
-  }
-  if (openaiApiKey) {
-    console.log(`[media-process-generation-queue v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 4)`);
-  } else {
-    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No OPENAI_API_KEY — OpenAI disabled`);
-  }
-  console.log(`[media-process-generation-queue v${VERSION}] Lovable Gateway always available (priority 5 — fallback)`);
+  console.log(`[media-process-generation-queue v${VERSION}] Credentials: FAL=${!!falApiKeyValue} GEMINI=${!!geminiApiKey} OPENAI=${!!openaiApiKey} LOVABLE=✅`);
+  console.log(`[media-process-generation-queue v${VERSION}] Hierarchy: 1.FLUX Pro → 2.FLUX Turbo → 3.Gemini Nativa → 4.OpenAI → 5.Lovable Gateway`);
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -669,86 +582,33 @@ PROIBIÇÕES ABSOLUTAS:
 BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
         }
 
-        // ===== fal.ai FLUX FIRST (Priority 1-2) =====
-        let falWinner: ProviderResult | null = null;
-        if (falApiKeyValue) {
-          // Try FLUX 2 Pro first
-          const proProm = generateImageWithFalPro(falApiKeyValue, { prompt: finalPrompt });
-          const proResult = await proProm;
-          if (proResult?.imageUrl) {
-            const b64 = await falDownloadImage(proResult.imageUrl);
-            if (b64) {
-              console.log(`✅ fal.ai FLUX 2 Pro succeeded`);
-              const scores = enableQA
-                ? await scoreImageForRealism(lovableApiKey, b64, referenceBase64, productWithImage?.name || "Produto")
-                : { realism: 8, quality: 8, composition: 8, label: 7, overall: 0.78 };
-              falWinner = { provider: 'gemini' as Provider, imageBase64: b64, scores, usedReference: !!referenceBase64 };
-            }
-          }
-          // Try FLUX 2 Turbo if Pro failed
-          if (!falWinner) {
-            const turboResult = await generateImageWithFalTurbo(falApiKeyValue, { prompt: finalPrompt });
-            if (turboResult?.imageUrl) {
-              const b64 = await falDownloadImage(turboResult.imageUrl);
-              if (b64) {
-                console.log(`✅ fal.ai FLUX 2 Turbo succeeded`);
-                const scores = enableQA
-                  ? await scoreImageForRealism(lovableApiKey, b64, referenceBase64, productWithImage?.name || "Produto")
-                  : { realism: 7, quality: 7, composition: 7, label: 7, overall: 0.7 };
-                falWinner = { provider: 'gemini' as Provider, imageBase64: b64, scores, usedReference: !!referenceBase64 };
-              }
-            }
-          }
+        // Generate with unified resilient pipeline (fal.ai → Gemini → OpenAI → Gateway)
+        const result = await resilientGenerateMedia(
+          lovableApiKey, geminiApiKey, openaiApiKey, falApiKeyValue,
+          finalPrompt, referenceBase64,
+        );
+
+        if (!result.imageBase64) {
+          throw new Error(`Nenhum provedor gerou imagem: ${result.error}`);
         }
 
-        // ===== FALLBACK: Gemini/OpenAI (Priority 3-5) =====
-        const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
-          const result = provider === 'gemini' 
-            ? await generateWithGemini(lovableApiKey, geminiApiKey, finalPrompt, referenceBase64)
-            : await generateWithOpenAI(lovableApiKey, openaiApiKey, geminiApiKey, finalPrompt, referenceBase64);
-
-          if (!result.imageBase64) {
-            return {
-              provider,
-              imageBase64: null,
-              scores: { realism: 0, quality: 0, composition: 0, label: 0, overall: 0 },
-              error: result.error,
-              usedReference: !!referenceBase64,
-            };
-          }
-
-          // QA Scoring
-          if (enableQA) {
-            const scores = await scoreImageForRealism(
-              lovableApiKey,
-              result.imageBase64,
-              referenceBase64,
-              productWithImage?.name || "Produto",
-            );
-            return {
-              provider,
-              imageBase64: result.imageBase64,
-              scores,
-              usedReference: !!referenceBase64,
-            };
-          }
-
-          return {
-            provider,
-            imageBase64: result.imageBase64,
-            scores: { realism: 7, quality: 7, composition: 7, label: 7, overall: 0.7 },
-            usedReference: !!referenceBase64,
-          };
-        });
-
-        // Only run fallback providers if fal.ai failed
-        let successfulResults: ProviderResult[];
-        if (falWinner) {
-          successfulResults = [falWinner];
-        } else {
-          const providerResults = await Promise.all(providerPromises);
-          successfulResults = providerResults.filter((r) => r.imageBase64);
+        // QA Scoring if enabled
+        let scores: QAScores = { realism: 7, quality: 7, composition: 7, label: 7, overall: 0.7 };
+        if (enableQA) {
+          scores = await scoreImageForRealism(
+            lovableApiKey,
+            result.imageBase64,
+            referenceBase64,
+            productWithImage?.name || "Produto",
+          );
         }
+
+        const successfulResults: ProviderResult[] = [{
+          provider: 'gemini' as Provider,
+          imageBase64: result.imageBase64,
+          scores,
+          usedReference: !!referenceBase64,
+        }];
 
         if (successfulResults.length === 0) {
           throw new Error(`Nenhum provedor gerou imagem`);
