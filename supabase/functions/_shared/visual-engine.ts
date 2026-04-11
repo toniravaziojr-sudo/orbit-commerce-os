@@ -223,10 +223,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  * Returns which model was used and whether fallback occurred.
  */
 /**
- * HIERARQUIA OBRIGATÓRIA v6.0:
- * 1. Gemini Nativa (API direta Google AI Studio) — usa GEMINI_API_KEY
- * 2. OpenAI Nativa — usa OPENAI_API_KEY
- * 3. Lovable AI Gateway (Pro → Flash → Simplified) — último recurso
+ * HIERARQUIA OBRIGATÓRIA v7.0:
+ * 1. fal.ai FLUX 2 Pro — usa FAL_API_KEY
+ * 2. fal.ai FLUX 2 Turbo — fallback rápido
+ * 3. Gemini Nativa (API direta Google AI Studio) — usa GEMINI_API_KEY
+ * 4. OpenAI Nativa — usa OPENAI_API_KEY
+ * 5. Lovable AI Gateway (Pro → Flash → Simplified) — último recurso
  */
 export async function resilientGenerate(
   lovableApiKey: string,
@@ -236,35 +238,72 @@ export async function resilientGenerate(
   preferOpenAI: boolean = false,
   slotLabel: string = 'slot',
   geminiApiKey: string | null = null,
+  falApiKey: string | null = null,
 ): Promise<{ imageBase64: string | null; model: string; fallbackReason?: string; error?: string }> {
   const PRO_TIMEOUT_MS = 70_000;
 
-  // ===== STEP 1: Gemini Nativa (PRIORIDADE MÁXIMA) =====
+  // ===== STEP 1: fal.ai FLUX 2 Pro (PRIORIDADE MÁXIMA) =====
+  if (falApiKey) {
+    console.log(`[visual-engine] [${slotLabel}] Step 1: fal.ai FLUX 2 Pro...`);
+    const falResult = await generateImageWithFalPro(falApiKey, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (falResult?.imageUrl) {
+      const b64 = await falDownloadImage(falResult.imageUrl);
+      if (b64) {
+        console.log(`[visual-engine] [${slotLabel}] ✅ fal.ai FLUX 2 Pro succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2-pro', fallbackReason: undefined };
+      }
+    }
+    console.warn(`[visual-engine] [${slotLabel}] fal.ai FLUX 2 Pro failed. Trying Turbo...`);
+
+    // ===== STEP 2: fal.ai FLUX 2 Turbo =====
+    console.log(`[visual-engine] [${slotLabel}] Step 2: fal.ai FLUX 2 Turbo...`);
+    const turboResult = await generateImageWithFalTurbo(falApiKey, {
+      prompt,
+      imageSize: { width: 1024, height: 1024 },
+      outputFormat: 'jpeg',
+    });
+    if (turboResult?.imageUrl) {
+      const b64 = await falDownloadImage(turboResult.imageUrl);
+      if (b64) {
+        console.log(`[visual-engine] [${slotLabel}] ✅ fal.ai FLUX 2 Turbo succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/flux-2 (turbo)', fallbackReason: 'flux2_pro_failed' };
+      }
+    }
+    console.warn(`[visual-engine] [${slotLabel}] fal.ai FLUX 2 Turbo failed. Falling back to Gemini Nativa...`);
+  } else {
+    console.warn(`[visual-engine] [${slotLabel}] FAL_API_KEY not available. Skipping fal.ai steps.`);
+  }
+
+  // ===== STEP 3: Gemini Nativa (FALLBACK SEGURO) =====
   if (geminiApiKey) {
     const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, slotLabel);
     if (nativeResult.imageBase64) {
       console.log(`[visual-engine] [${slotLabel}] ✅ Gemini Nativa succeeded`);
-      return { ...nativeResult, fallbackReason: undefined };
+      return { ...nativeResult, fallbackReason: falApiKey ? 'fal_ai_failed' : 'no_fal_key' };
     }
     console.warn(`[visual-engine] [${slotLabel}] Gemini Nativa failed: ${nativeResult.error}. Trying OpenAI...`);
   } else {
     console.warn(`[visual-engine] [${slotLabel}] GEMINI_API_KEY not available. Skipping native Gemini.`);
   }
 
-  // ===== STEP 2: OpenAI Nativa =====
+  // ===== STEP 4: OpenAI Nativa =====
   if (openaiApiKey) {
     const openaiResult = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
     if (openaiResult.imageBase64) {
       console.log(`[visual-engine] [${slotLabel}] ✅ OpenAI Nativa succeeded`);
-      return { ...openaiResult, fallbackReason: geminiApiKey ? 'gemini_native_failed' : 'no_gemini_key' };
+      return { ...openaiResult, fallbackReason: 'native_providers_failed' };
     }
     console.warn(`[visual-engine] [${slotLabel}] OpenAI failed: ${openaiResult.error}. Trying Lovable Gateway...`);
   } else {
     console.warn(`[visual-engine] [${slotLabel}] OPENAI_API_KEY not available. Skipping OpenAI.`);
   }
 
-  // ===== STEP 3: Lovable AI Gateway (ÚLTIMO RECURSO) =====
-  console.log(`[visual-engine] [${slotLabel}] Step 3 (fallback): ${LOVABLE_MODELS.primary} via Lovable Gateway (timeout ${PRO_TIMEOUT_MS}ms)`);
+  // ===== STEP 5: Lovable AI Gateway (ÚLTIMO RECURSO) =====
+  console.log(`[visual-engine] [${slotLabel}] Step 5 (fallback): ${LOVABLE_MODELS.primary} via Lovable Gateway (timeout ${PRO_TIMEOUT_MS}ms)`);
   try {
     const proResult = await withTimeout(
       generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64),
@@ -281,8 +320,8 @@ export async function resilientGenerate(
     console.warn(`[visual-engine] [${slotLabel}] Lovable Pro failed (${reason}). Trying Flash...`);
   }
 
-  // Step 3b: Flash model via Lovable
-  console.log(`[visual-engine] [${slotLabel}] Step 3b: ${LOVABLE_MODELS.fast} via Lovable Gateway`);
+  // Step 5b: Flash model via Lovable
+  console.log(`[visual-engine] [${slotLabel}] Step 5b: ${LOVABLE_MODELS.fast} via Lovable Gateway`);
   const flashResult = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fast, prompt, referenceImageBase64);
   if (flashResult.imageBase64) {
     console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Lovable Flash used`);
@@ -293,8 +332,8 @@ export async function resilientGenerate(
     };
   }
 
-  // Step 3c: Simplified prompt — ABSOLUTE LAST RESORT
-  console.warn(`[visual-engine] [${slotLabel}] Step 3c: Simplified prompt (absolute last resort)`);
+  // Step 5c: Simplified prompt — ABSOLUTE LAST RESORT
+  console.warn(`[visual-engine] [${slotLabel}] Step 5c: Simplified prompt (absolute last resort)`);
   const productName = prompt.match(/"([^"]+)"/)?.[1] || 'produto';
   const hasNoTextRule = prompt.includes('ZERO TEXT') || prompt.includes('ZERO TEXTO');
   const noTextSuffix = hasNoTextRule ? ' A imagem NÃO pode conter NENHUM texto, letra, número ou tipografia.' : '';
