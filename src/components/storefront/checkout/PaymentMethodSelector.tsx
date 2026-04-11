@@ -211,9 +211,9 @@ export function PaymentMethodSelector({
       {/* Mercado Pago Redirect info */}
       {selectedMethod === 'mercadopago_redirect' && (
         <div className="mt-4 pt-4 border-t">
-          <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <ExternalLink className="h-4 w-4 text-blue-500 shrink-0" />
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+          <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <ExternalLink className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-sm text-muted-foreground">
               Você será redirecionado para o Mercado Pago para concluir o pagamento com segurança.
             </p>
           </div>
