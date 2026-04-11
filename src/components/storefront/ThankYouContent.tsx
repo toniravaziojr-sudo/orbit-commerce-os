@@ -403,9 +403,12 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
         />
       )}
 
-      {/* PIX Payment Section - SERVER-SIDE DATA */}
-      {paymentInstructions?.method === 'pix' && paymentInstructions.pix_qr_code && order?.payment_status === 'pending' && (
-        <div className="border rounded-lg p-6 bg-muted/30 text-center space-y-4 mb-6">
+      {/* PIX Payment Section - SERVER-SIDE DATA (hidden when just confirmed) */}
+      {paymentInstructions?.method === 'pix' && paymentInstructions.pix_qr_code && order?.payment_status === 'pending' && !pixJustConfirmed && (
+        <div className="border-2 border-yellow-300 rounded-lg p-6 bg-muted/30 text-center space-y-4 mb-6 relative overflow-hidden">
+          {/* Pulsing border overlay */}
+          <div className="absolute inset-0 rounded-lg border-2 border-yellow-400 animate-pulse pointer-events-none" />
+          
           <div 
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
             style={{
@@ -451,6 +454,28 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
               Expira em: {new Date(paymentInstructions.pix_expires_at).toLocaleString('pt-BR')}
             </p>
           )}
+
+          {/* Polling indicator */}
+          <div className="flex items-center justify-center gap-2 pt-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Verificando pagamento automaticamente...</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Após o pagamento, esta página será atualizada automaticamente.
+          </p>
+        </div>
+      )}
+
+      {/* PIX Confirmed success card — shown right after polling detects payment */}
+      {pixJustConfirmed && (
+        <div className="border-2 border-green-300 rounded-lg p-6 bg-green-50 text-center space-y-4 mb-6 animate-in fade-in-0 zoom-in-95 duration-500">
+          <div className="w-16 h-16 mx-auto rounded-full bg-green-100 flex items-center justify-center">
+            <Check className="h-8 w-8 text-green-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-green-800">Pagamento PIX confirmado!</h3>
+          <p className="text-sm text-green-700">
+            Seu pagamento foi recebido com sucesso. Seu pedido será processado em breve.
+          </p>
         </div>
       )}
 
