@@ -421,6 +421,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
               onCardDataChange={setCardData}
               disabled={isProcessing}
               methodsOrder={checkoutConfig.paymentMethodsOrder}
+              showMercadoPagoRedirect={mpRedirectEnabled}
             />
           </div>
 
