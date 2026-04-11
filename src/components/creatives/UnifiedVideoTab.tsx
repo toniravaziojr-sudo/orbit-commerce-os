@@ -13,10 +13,13 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Video, Sparkles, ArrowRight } from 'lucide-react';
 import { VideoGeneratorForm } from './video-forms/VideoGeneratorForm';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 
 const PIPELINE = ['fal.ai', 'Kling v3 / Veo 3.1 / Wan 2.6'];
 
 export function UnifiedVideoTab() {
+  const isSpecial = useIsSpecialTenant();
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -34,20 +37,22 @@ export function UnifiedVideoTab() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <Alert className="bg-muted/50">
-            <Sparkles className="h-4 w-4" />
-            <AlertDescription className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-medium">Pipeline:</span>
-              {PIPELINE.map((tool, index) => (
-                <span key={tool} className="flex items-center gap-1">
-                  <Badge variant="outline" className="text-xs">{tool}</Badge>
-                  {index < PIPELINE.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
-                </span>
-              ))}
-            </AlertDescription>
-          </Alert>
-        </CardContent>
+        {isSpecial && (
+          <CardContent>
+            <Alert className="bg-muted/50">
+              <Sparkles className="h-4 w-4" />
+              <AlertDescription className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-medium">Pipeline:</span>
+                {PIPELINE.map((tool, index) => (
+                  <span key={tool} className="flex items-center gap-1">
+                    <Badge variant="outline" className="text-xs">{tool}</Badge>
+                    {index < PIPELINE.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
+                  </span>
+                ))}
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        )}
       </Card>
 
       {/* Formulário unificado */}

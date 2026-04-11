@@ -16,16 +16,28 @@ import { Loader2, Package, AlertCircle, Sparkles, Crown, Zap, Volume2 } from 'lu
 import { useCreateVideoJob, useVideoJobs } from '@/hooks/useVideoCreatives';
 import { useProductsWithImages } from '@/hooks/useProducts';
 import { VideoJobsList } from '../VideoJobsList';
+import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 
 type VideoTier = 'premium' | 'audio_native' | 'economic';
 
-const TIER_OPTIONS: { id: VideoTier; label: string; desc: string; icon: React.ElementType; badge?: string; cost: string }[] = [
-  { id: 'premium', label: 'Premium', desc: 'Kling v3 Pro — Melhor fidelidade de produto', icon: Crown, badge: 'Recomendado', cost: '~R$3,00/5s' },
-  { id: 'audio_native', label: 'Com Áudio Nativo', desc: 'Veo 3.1 — Qualidade cinema com áudio gerado', icon: Volume2, cost: '~R$5,50/8s' },
-  { id: 'economic', label: 'Econômico', desc: 'Wan 2.6 — Custo reduzido para testes', icon: Zap, cost: '~R$1,50/5s' },
+interface TierOption {
+  id: VideoTier;
+  label: string;
+  desc: string;
+  descPublic: string;
+  icon: React.ElementType;
+  badge?: string;
+  cost: string;
+}
+
+const TIER_OPTIONS: TierOption[] = [
+  { id: 'premium', label: 'Premium', desc: 'Kling v3 Pro — Melhor fidelidade de produto', descPublic: 'Melhor fidelidade de produto', icon: Crown, badge: 'Recomendado', cost: '~R$3,00/5s' },
+  { id: 'audio_native', label: 'Com Áudio Nativo', desc: 'Veo 3.1 — Qualidade cinema com áudio gerado', descPublic: 'Qualidade cinema com áudio gerado', icon: Volume2, cost: '~R$5,50/8s' },
+  { id: 'economic', label: 'Econômico', desc: 'Wan 2.6 — Custo reduzido para testes', descPublic: 'Custo reduzido para testes', icon: Zap, cost: '~R$1,50/5s' },
 ];
 
 export function VideoGeneratorForm() {
+  const isSpecial = useIsSpecialTenant();
   const [selectedProduct, setSelectedProduct] = useState('');
   const [tier, setTier] = useState<VideoTier>('premium');
   const [duration, setDuration] = useState<'5' | '10'>('5');
@@ -100,7 +112,7 @@ export function VideoGeneratorForm() {
                       {opt.badge && <Badge variant="secondary" className="text-[10px]">{opt.badge}</Badge>}
                       <span className="text-[10px] text-muted-foreground ml-auto">{opt.cost}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                    <p className="text-xs text-muted-foreground">{isSpecial ? opt.desc : opt.descPublic}</p>
                   </div>
                 </label>
               );
