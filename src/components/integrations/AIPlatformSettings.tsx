@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Bot, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Flame, Sparkles, Cpu, Image, Loader2 } from "lucide-react";
+import { Bot, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Flame, Sparkles, Cpu, Image, Loader2, Wand2, Video } from "lucide-react";
 import { usePlatformSecretsStatus } from "@/hooks/usePlatformSecretsStatus";
 import { CredentialEditor } from "./CredentialEditor";
 
@@ -14,11 +14,13 @@ export function AIPlatformSettings() {
     lovableAi: allIntegrations?.find((i) => i.key === 'lovable_ai'),
     openai: allIntegrations?.find((i) => i.key === 'openai'),
     gemini: allIntegrations?.find((i) => i.key === 'gemini'),
+    falAi: allIntegrations?.find((i) => i.key === 'fal_ai'),
   };
 
   const firecrawlConfigured = secretsStatus?.firecrawl?.status === 'configured';
   const openaiConfigured = secretsStatus?.openai?.status === 'configured';
   const geminiConfigured = secretsStatus?.gemini?.status === 'configured';
+  const falAiConfigured = secretsStatus?.falAi?.status === 'configured';
 
   if (isLoading) {
     return (
@@ -45,7 +47,7 @@ export function AIPlatformSettings() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          OpenAI e Gemini são usados como provedores primários de geração de imagens. O Lovable AI Gateway serve como fallback.
+          <strong>Fal.AI</strong> é o provedor principal de imagens (FLUX 2) e vídeos (Kling v3, Veo 3.1, Wan 2.6). Gemini, OpenAI e Lovable Gateway servem como fallback seguro.
         </AlertDescription>
       </Alert>
 
@@ -84,6 +86,54 @@ export function AIPlatformSettings() {
               <span>Edição com referência</span>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Fal.AI (Principal — Imagens e Vídeos) */}
+      <Card className="border-purple-500/30">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10">
+                <Wand2 className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Fal.AI</CardTitle>
+                <CardDescription>Provedor principal — Imagens (FLUX 2) e Vídeos (Kling v3, Veo 3.1, Wan 2.6)</CardDescription>
+              </div>
+            </div>
+            <Badge variant="outline" className={falAiConfigured ? "bg-green-500/10 text-green-600" : "bg-amber-500/10 text-amber-600"}>
+              {falAiConfigured ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <AlertCircle className="h-3 w-3 mr-1" />}
+              {falAiConfigured ? "Configurado" : "Obrigatório"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <CredentialEditor
+            credentialKey="FAL_API_KEY"
+            label="API Key (Escopo: API)"
+            description="Obtida em fal.ai/dashboard/keys — Escopo API (não Admin). Usada para FLUX 2 Pro/Turbo, Kling v3, Veo 3.1, Wan 2.6 e Lipsync."
+            isConfigured={falAiConfigured}
+            preview={secretsStatus?.falAi?.previews?.FAL_API_KEY}
+            source={secretsStatus?.falAi?.sources?.FAL_API_KEY as 'db' | 'env' | null}
+            placeholder="Insira sua FAL_KEY aqui..."
+          />
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="flex items-center gap-2 text-sm">
+              <Image className="h-4 w-4 text-purple-500" />
+              <span>FLUX 2 Pro / Turbo (Imagens)</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <Video className="h-4 w-4 text-purple-500" />
+              <span>Kling v3 / Veo 3.1 / Wan 2.6 (Vídeos)</span>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <a href="https://fal.ai/dashboard/keys" target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Abrir Dashboard fal.ai
+            </a>
+          </Button>
         </CardContent>
       </Card>
 
