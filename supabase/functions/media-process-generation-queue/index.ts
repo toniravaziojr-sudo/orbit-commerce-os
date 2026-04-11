@@ -14,8 +14,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { tryNativeGemini } from "../_shared/native-gemini.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { generateImageWithFalPro, generateImageWithFalTurbo, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = '7.0.0'; // Gemini Nativa priority: 1. Gemini Nativa → 2. OpenAI → 3. Lovable Gateway
+const VERSION = '8.0.0'; // fal.ai FLUX priority: 1. FLUX 2 Pro → 2. FLUX 2 Turbo → 3. Gemini Nativa → 4. OpenAI → 5. Lovable Gateway
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -528,20 +529,26 @@ serve(async (req) => {
     );
   }
 
-  // Fetch GEMINI_API_KEY from platform_credentials (priority 1)
+  // Fetch keys from platform_credentials
   const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
+  const falApiKeyValue = await getFalApiKey(supabaseUrl, supabaseServiceKey);
 
+  if (falApiKeyValue) {
+    console.log(`[media-process-generation-queue v${VERSION}] ✅ FAL_API_KEY found — fal.ai FLUX enabled (priority 1-2)`);
+  } else {
+    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No FAL_API_KEY — fal.ai disabled`);
+  }
   if (geminiApiKey) {
-    console.log(`[media-process-generation-queue v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 1)`);
+    console.log(`[media-process-generation-queue v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 3)`);
   } else {
     console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No GEMINI_API_KEY — Gemini Nativa disabled`);
   }
   if (openaiApiKey) {
-    console.log(`[media-process-generation-queue v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 2)`);
+    console.log(`[media-process-generation-queue v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 4)`);
   } else {
     console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No OPENAI_API_KEY — OpenAI disabled`);
   }
-  console.log(`[media-process-generation-queue v${VERSION}] Lovable Gateway always available (priority 3 — fallback)`);
+  console.log(`[media-process-generation-queue v${VERSION}] Lovable Gateway always available (priority 5 — fallback)`);
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -662,7 +669,39 @@ PROIBIÇÕES ABSOLUTAS:
 BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
         }
 
-        // Generate with both providers in parallel
+        // ===== fal.ai FLUX FIRST (Priority 1-2) =====
+        let falWinner: ProviderResult | null = null;
+        if (falApiKeyValue) {
+          // Try FLUX 2 Pro first
+          const proProm = generateImageWithFalPro(falApiKeyValue, { prompt: finalPrompt });
+          const proResult = await proProm;
+          if (proResult?.imageUrl) {
+            const b64 = await falDownloadImage(proResult.imageUrl);
+            if (b64) {
+              console.log(`✅ fal.ai FLUX 2 Pro succeeded`);
+              const scores = enableQA
+                ? await scoreImageForRealism(lovableApiKey, b64, referenceBase64, productWithImage?.name || "Produto")
+                : { realism: 8, quality: 8, composition: 8, label: 7, overall: 0.78 };
+              falWinner = { provider: 'gemini' as Provider, imageBase64: b64, scores, usedReference: !!referenceBase64 };
+            }
+          }
+          // Try FLUX 2 Turbo if Pro failed
+          if (!falWinner) {
+            const turboResult = await generateImageWithFalTurbo(falApiKeyValue, { prompt: finalPrompt });
+            if (turboResult?.imageUrl) {
+              const b64 = await falDownloadImage(turboResult.imageUrl);
+              if (b64) {
+                console.log(`✅ fal.ai FLUX 2 Turbo succeeded`);
+                const scores = enableQA
+                  ? await scoreImageForRealism(lovableApiKey, b64, referenceBase64, productWithImage?.name || "Produto")
+                  : { realism: 7, quality: 7, composition: 7, label: 7, overall: 0.7 };
+                falWinner = { provider: 'gemini' as Provider, imageBase64: b64, scores, usedReference: !!referenceBase64 };
+              }
+            }
+          }
+        }
+
+        // ===== FALLBACK: Gemini/OpenAI (Priority 3-5) =====
         const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
           const result = provider === 'gemini' 
             ? await generateWithGemini(lovableApiKey, geminiApiKey, finalPrompt, referenceBase64)
@@ -702,12 +741,17 @@ BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
           };
         });
 
-        const providerResults = await Promise.all(providerPromises);
-        const successfulResults = providerResults.filter((r) => r.imageBase64);
+        // Only run fallback providers if fal.ai failed
+        let successfulResults: ProviderResult[];
+        if (falWinner) {
+          successfulResults = [falWinner];
+        } else {
+          const providerResults = await Promise.all(providerPromises);
+          successfulResults = providerResults.filter((r) => r.imageBase64);
+        }
 
         if (successfulResults.length === 0) {
-          const errors = providerResults.map((r) => r.error).filter(Boolean).join("; ");
-          throw new Error(`Nenhum provedor gerou imagem: ${errors}`);
+          throw new Error(`Nenhum provedor gerou imagem`);
         }
 
         // Sort by overall score (best first)
