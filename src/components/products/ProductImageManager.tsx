@@ -34,7 +34,9 @@ import {
   GripVertical,
   Loader2,
   ImagePlus,
+  Sparkles,
 } from 'lucide-react';
+import { AIImageGeneratorDialog } from './AIImageGeneratorDialog';
 
 import {
   DndContext,
@@ -64,6 +66,7 @@ interface ProductImage {
 
 interface ProductImageManagerProps {
   productId: string;
+  productName?: string;
   images: ProductImage[];
   onImagesChange: () => void;
 }
@@ -160,7 +163,7 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
   );
 }
 
-export function ProductImageManager({ productId, images, onImagesChange }: ProductImageManagerProps) {
+export function ProductImageManager({ productId, productName = '', images, onImagesChange }: ProductImageManagerProps) {
   const { toast } = useToast();
   const { currentTenant, user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
@@ -169,6 +172,9 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
   const [imageUrl, setImageUrl] = useState('');
   const [altText, setAltText] = useState('');
   const [deleteImageId, setDeleteImageId] = useState<string | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+
+  const primaryImage = images.find((img) => img.is_primary);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -496,6 +502,18 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
           </Button>
         </div>
 
+        {primaryImage && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAiDialogOpen(true)}
+            className="hover:bg-primary hover:text-primary-foreground hover:border-primary"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Gerar com IA
+          </Button>
+        )}
+
         <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
           <DialogTrigger asChild>
             <Button type="button" variant="outline">
@@ -604,6 +622,18 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {primaryImage && (
+        <AIImageGeneratorDialog
+          open={aiDialogOpen}
+          onOpenChange={setAiDialogOpen}
+          productId={productId}
+          productName={productName}
+          primaryImageUrl={primaryImage.url}
+          currentImageCount={images.length}
+          onImagesGenerated={onImagesChange}
+        />
+      )}
     </div>
   );
 }

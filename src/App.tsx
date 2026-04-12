@@ -65,6 +65,7 @@ const Orders = lazy(() => import("@/pages/Orders"));
 const OrderNew = lazy(() => import("@/pages/OrderNew"));
 const OrderDetail = lazy(() => import("@/pages/OrderDetail"));
 const Products = lazy(() => import("@/pages/Products"));
+const CheckoutLinks = lazy(() => import("@/pages/CheckoutLinks"));
 const Categories = lazy(() => import("@/pages/Categories"));
 const Menus = lazy(() => import("@/pages/Menus"));
 const Pages = lazy(() => import("@/pages/Pages"));
@@ -399,6 +400,7 @@ const App = () => {
                   <Route path="/shipping/settings" element={<ShippingSettings />} />
                   <Route path="/shipments" element={<Navigate to="/shipping/shipments" replace />} />
                   <Route path="/products" element={<Products />} />
+                  <Route path="/checkout-links" element={<CheckoutLinks />} />
                   <Route path="/categories" element={<Categories />} />
                   <Route path="/discounts" element={<Discounts />} />
                   <Route path="/menus" element={<Menus />} />

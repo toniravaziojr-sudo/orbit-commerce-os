@@ -1094,6 +1094,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                   {isEditing && product ? (
                     <ProductImageManager
                       productId={product.id}
+                      productName={product.name}
                       images={productImages}
                       onImagesChange={loadProductImages}
                     />

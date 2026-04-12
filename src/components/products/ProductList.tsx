@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package, Copy, ImageIcon, Eye, Upload } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package, Copy, ImageIcon, Eye, Upload, Link2 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QueryErrorState } from '@/components/ui/query-error-state';
@@ -347,6 +347,19 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
                         >
                           <Copy className="mr-2 h-4 w-4" />
                           Duplicar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (primaryOrigin && product.slug) {
+                              const url = buildPublicStorefrontUrl(primaryOrigin, `/checkout?product=${product.slug}&qty=1`);
+                              navigator.clipboard.writeText(url);
+                              toast.success('Link de checkout copiado!');
+                            }
+                          }}
+                          disabled={!product.slug || !primaryOrigin}
+                        >
+                          <Link2 className="mr-2 h-4 w-4" />
+                          Copiar Link Checkout
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
