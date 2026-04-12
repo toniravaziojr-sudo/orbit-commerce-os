@@ -161,15 +161,18 @@ export function useCheckoutSessionsStats() {
 
       const data: { status: string; total_estimated: number | null; order_id: string | null }[] = await response.json();
 
-      // REGRA: só contar abandono real (sem pedido vinculado) — ghost orders não são abandono
-      const realAbandoned = data.filter(c => (c.status === 'abandoned' || c.status === 'recovered') && !c.order_id);
+      // REGRA: só contar sessões que passaram por abandono real
+      // abandoned = ainda abandonado, recovered = abandonado e depois recuperado, reverted = abandonado e revertido
+      const abandonmentUniverse = data.filter(c => 
+        c.status === 'abandoned' || c.status === 'recovered' || c.status === 'reverted'
+      );
 
       const stats = {
-        total: realAbandoned.length,
-        abandoned: realAbandoned.length,
-        recovered: realAbandoned.filter(c => c.status === 'recovered').length,
-        notRecovered: realAbandoned.filter(c => c.status === 'abandoned').length,
-        totalValue: realAbandoned.reduce((sum, c) => sum + (c.total_estimated || 0), 0),
+        total: abandonmentUniverse.length,
+        abandoned: abandonmentUniverse.filter(c => c.status === 'abandoned').length,
+        recovered: abandonmentUniverse.filter(c => c.status === 'recovered' || c.status === 'reverted').length,
+        notRecovered: abandonmentUniverse.filter(c => c.status === 'abandoned').length,
+        totalValue: abandonmentUniverse.filter(c => c.status === 'abandoned').reduce((sum, c) => sum + (c.total_estimated || 0), 0),
       };
 
       return stats;
