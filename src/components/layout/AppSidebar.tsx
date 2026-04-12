@@ -54,6 +54,7 @@ import {
   Lock,
    Wrench,
    Blocks,
+   Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -99,6 +100,7 @@ const fullNavigation: NavGroup[] = [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
       { title: "Checkout Abandonado", href: "/abandoned-checkouts", icon: ShoppingBag },
       { title: "Produtos", href: "/products", icon: Package },
+      { title: "Link Checkout", href: "/checkout-links", icon: Link2 },
       { title: "Clientes", href: "/customers", icon: Users },
     ],
   },
