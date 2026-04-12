@@ -61,17 +61,20 @@ export function useCheckoutSessions(filters: CheckoutSessionsFilters = {}) {
       // Sessões sem contato não são úteis para recuperação
       params.set('contact_captured_at', 'not.is.null');
       
-      // Filtrar por status - agora suporta active também
+      // Filtrar por status
+      // REGRA: por padrão (sem filtro), só mostrar sessões de abandono real
+      // Excluir 'converted' (vendas diretas) e 'active' (em andamento)
       if (filters.status === 'abandoned') {
         params.set('status', 'eq.abandoned');
       } else if (filters.status === 'recovered') {
         params.set('status', 'eq.recovered');
-      } else if (filters.status === 'active') {
-        params.set('status', 'eq.active');
-      } else if (filters.status === 'converted') {
-        params.set('status', 'eq.converted');
+      } else if (filters.status === 'reverted') {
+        params.set('status', 'eq.reverted');
+      } else if (!filters.status) {
+        // Default: só abandonados, recuperados e revertidos
+        params.set('status', 'in.(abandoned,recovered,reverted)');
       }
-      // Se 'all', não adiciona filtro de status
+      // Se um status explícito diferente for passado, não filtra
 
       if (filters.startDate) {
         const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
