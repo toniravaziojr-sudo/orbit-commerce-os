@@ -63,6 +63,9 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 | `is_enabled` | BOOLEAN | Toggle de ativação |
 | `installments_max` | INTEGER | Parcelas máximas (default 12) |
 | `installments_min_value_cents` | INTEGER | Valor mínimo por parcela em centavos |
+| `free_installments` | INTEGER | Parcelas sem juros para o cliente (default 12) |
+| `pix_expiration_minutes` | INTEGER | Tempo de expiração do PIX em minutos (default 60) |
+| `boleto_expiration_days` | INTEGER | Prazo de vencimento do boleto em dias (default 3) |
 | `description` | TEXT | Descrição opcional |
 
 **Unique constraint:** `(tenant_id, provider, payment_method)`
@@ -77,11 +80,11 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 
 ### Funcionalidades por Método
 
-| Método | Desconto | Parcelas | Valor mínimo |
-|--------|----------|----------|--------------|
-| **PIX** | ✅ Percentual ou fixo | ❌ N/A | ❌ N/A |
-| **Cartão de Crédito** | ✅ Percentual ou fixo | ✅ 1-12x | ✅ Configurável |
-| **Boleto** | ✅ Percentual ou fixo | ❌ N/A | ❌ N/A |
+| Método | Desconto | Parcelas | Valor mínimo | Parc. sem juros | Expiração |
+|--------|----------|----------|--------------|-----------------|-----------|
+| **PIX** | ✅ Percentual ou fixo | ❌ N/A | ❌ N/A | ❌ N/A | ✅ 15min a 24h |
+| **Cartão de Crédito** | ✅ Percentual ou fixo | ✅ 1-12x | ✅ Configurável | ✅ 1x até máx | ❌ N/A |
+| **Boleto** | ✅ Percentual ou fixo | ❌ N/A | ❌ N/A | ❌ N/A | ✅ 1 a 30 dias |
 
 ### Comportamento
 
