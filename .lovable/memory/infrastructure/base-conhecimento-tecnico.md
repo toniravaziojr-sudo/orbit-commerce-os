@@ -3,14 +3,19 @@ Updated: 2026-04-12
 
 Base de Conhecimento Técnico do sistema (doc completo em docs/tecnico/base-de-conhecimento-tecnico.md). Registra problemas→soluções, anti-patterns e decisões arquiteturais. DEVE ser consultado antes de qualquer correção ou implementação.
 
-Principais lições registradas:
-1. useEffect com array derivado como dep → loop infinito (usar useMemo + useRef flag)
-2. Valores hardcoded em edge functions → buscar do banco por tenant
-3. CHECK constraints com now() → usar triggers
-4. Expiração PIX/Boleto é controlada 100% via API (Pagar.me: expires_in, MP: date_of_expiration)
-5. Parcelamento cartão é 100% via API em ambos gateways
-6. Nunca alterar schemas reservados do Supabase
-7. Cron é fallback, não fluxo primário
-8. Nunca memorizar diagnósticos de IA automaticamente
-9. payment_method_discounts é fonte unificada de descontos + parcelas + expiração
-10. Billing SaaS vs Vendas do Lojista são completamente isolados
+## Lições Registradas (resumo):
+1. **useEffect + array derivado** → loop infinito, UI não responde → usar useMemo + useRef flag
+2. **Valores hardcoded em edge functions** → buscar do banco por tenant
+3. **CHECK constraint com now()** → usar triggers de validação
+4. **PIX/Boleto expiração** → 100% via API (Pagar.me: expires_in, MP: date_of_expiration)
+5. **Parcelamento cartão** → 100% via API em ambos gateways
+6. **Schemas reservados Supabase** → nunca alterar (auth, storage, realtime, etc)
+7. **Cron** → fallback apenas, nunca fluxo primário
+8. **Memória IA** → nunca memorizar diagnósticos da IA, só fatos explícitos do usuário
+9. **payment_method_discounts** → fonte unificada de descontos + parcelas + expiração
+10. **WhatsApp Meta** → sempre System User Token, verificar WABA produção vs teste, Cloudflare Worker sincronizado
+11. **Builder defaults** → templates salvos no DB sobrescrevem defaults novos do código
+12. **Queries de menu** → nunca usar .limit() arbitrário
+13. **Formulários de entidade** → sempre incluir campo de upload se a tabela tem coluna de imagem
+14. **Frete com valor zero** → logar falhas dos provedores claramente, nunca retornar R$0 silenciosamente
+15. **Fluxos de campanha** → Blog e Mídia Social devem ser separados (prop campaignType)
