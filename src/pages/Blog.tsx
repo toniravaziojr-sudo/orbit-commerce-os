@@ -63,9 +63,9 @@ const getAvailableMonths = () => {
     const start = i === 0 ? startOfDay(now) : monthStart;
     months.push({
       value: format(monthDate, "yyyy-MM"),
-      label: format(monthDate, "MMMM", { locale: ptBR }),
-      shortLabel: format(monthDate, "MMM", { locale: ptBR }),
-      fullLabel: format(monthDate, "MMMM yyyy", { locale: ptBR }),
+      label: formatMonthYearBR(monthDate).replace(/ d{4}/, ''),
+      shortLabel: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', month: 'short' }).format(monthDate),
+      fullLabel: formatMonthYearBR(monthDate),
       start,
       end: monthEnd,
       isCurrent: i === 0,
