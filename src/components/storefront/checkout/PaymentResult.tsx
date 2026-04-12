@@ -8,7 +8,7 @@ import { Check, Copy, ExternalLink, Loader2, QrCode, Clock } from 'lucide-react'
 import { toast } from 'sonner';
 import { PaymentResult as PaymentResultType } from '@/hooks/useCheckoutPayment';
 
-import { formatDateBR, formatDateTimeBR } from "@/lib/date-";
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
 interface PaymentResultProps {
   result: PaymentResultType;

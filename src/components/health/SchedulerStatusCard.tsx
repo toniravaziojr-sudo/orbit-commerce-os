@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 
-import { formatTimeBR } from "@/lib/date-";
+import { formatTimeBR } from "@/lib/date-format";
 
 interface SchedulerConfig {
   name: string;

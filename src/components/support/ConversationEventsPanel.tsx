@@ -7,7 +7,7 @@ import { formatDistanceToNow} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-import { formatDayMonthTimeBR } from "@/lib/date-";
+import { formatDayMonthTimeBR } from "@/lib/date-format";
 
 interface ConversationEvent {
   id: string;

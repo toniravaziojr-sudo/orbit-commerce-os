@@ -28,7 +28,7 @@ import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-import { formatDateBR, formatDateTimeBR } from "@/lib/date-";
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
 interface PaymentInstructions {
   method: string;

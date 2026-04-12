@@ -14,7 +14,7 @@ import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 export function GoogleBusinessReviewsTab() {
   const { isConnected, connection } = useGoogleConnection();

@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ActionDetailDialog } from "./ActionDetailDialog";
 import { AdsStartupProgress } from "./AdsStartupProgress";
 import { showErrorToast } from '@/lib/error-toast';
-import { formatDateTimeBR } from "@/lib/date-";
+import { formatDateTimeBR } from "@/lib/date-format";
 
 import {
   AlertDialog,

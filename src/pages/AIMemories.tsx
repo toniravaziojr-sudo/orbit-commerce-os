@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAIMemories, AIMemory } from "@/hooks/useAIMemories";
 import { Loader2 } from "lucide-react";
 
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   business_fact: { label: "Fato do Negócio", color: "bg-blue-500/10 text-blue-600" },

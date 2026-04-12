@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { ptBR } from "date-fns/locale";
 
-import { formatDateBR, formatDateTimeBR } from "@/lib/date-";
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
 const PAGE_SIZE = 50;
 

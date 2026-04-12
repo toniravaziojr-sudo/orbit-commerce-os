@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 interface Conversation {
   id: string;

@@ -49,7 +49,7 @@ import { toast } from "sonner";
 import { ptBR } from "date-fns/locale";
 import { showErrorToast } from '@/lib/error-toast';
 
-import { formatDateBR, formatDateTimeBR } from "@/lib/date-";
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
 const PAGE_SIZE = 50;
 

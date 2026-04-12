@@ -5,7 +5,7 @@
 
 import { Package, Truck, ExternalLink, Clock, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 import { 
   deliveryStatusLabels, 

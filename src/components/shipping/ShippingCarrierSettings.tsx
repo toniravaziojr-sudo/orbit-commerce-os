@@ -51,7 +51,7 @@ interface CarrierDefinition {
 
 import { getTokenStatus } from '@/lib/tokenUtils';
 
-import { formatDateTimeBR } from "@/lib/date-";
+import { formatDateTimeBR } from "@/lib/date-format";
 
 const CARRIER_DEFINITIONS: CarrierDefinition[] = [
   {

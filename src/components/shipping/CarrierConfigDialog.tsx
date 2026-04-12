@@ -28,7 +28,7 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useShippingProviders, ShippingProviderInput, TestConnectionResult } from '@/hooks/useShippingProviders';
 
-import { formatDateTimeBR } from "@/lib/date-";
+import { formatDateTimeBR } from "@/lib/date-format";
 
 interface CarrierField {
   key: string;

@@ -14,7 +14,7 @@ import {
 import { ptBR } from "date-fns/locale";
 import { Store, Crown, Star } from "lucide-react";
 
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 const planColors: Record<string, string> = {
   free: "bg-muted text-muted-foreground",

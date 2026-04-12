@@ -24,7 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",

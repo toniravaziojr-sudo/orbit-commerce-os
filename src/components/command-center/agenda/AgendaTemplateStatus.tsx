@@ -6,7 +6,7 @@ import { useAgendaTemplateStatus } from "@/hooks/useAgendaTemplateStatus";
 import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
 import { ptBR } from "date-fns/locale";
 
-import { formatDateTimeBR } from "@/lib/date-";
+import { formatDateTimeBR } from "@/lib/date-format";
 
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) {

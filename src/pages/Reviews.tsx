@@ -45,7 +45,7 @@ import { GenerateReviewsDialog } from '@/components/reviews/GenerateReviewsDialo
 import { registerReviewMediaToDrive, ensureReviewFolderAndGetId } from '@/lib/registerReviewMediaToDrive';
 import { GoogleBusinessReviewsTab } from '@/components/reviews/GoogleBusinessReviewsTab';
 
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 interface ProductReview {
   id: string;

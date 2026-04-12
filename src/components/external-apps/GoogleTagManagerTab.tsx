@@ -10,7 +10,7 @@ import { useGoogleTagManager } from "@/hooks/useGoogleTagManager";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { toast } from "sonner";
 
-import { formatDateTimeBR } from "@/lib/date-";
+import { formatDateTimeBR } from "@/lib/date-format";
 
 export function GoogleTagManagerTab() {
   const { isConnected, connection } = useGoogleConnection();

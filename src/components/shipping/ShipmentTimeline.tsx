@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-import { formatDayMonthTimeBR } from "@/lib/date-";
+import { formatDayMonthTimeBR } from "@/lib/date-format";
 
 interface ShipmentEvent {
   id: string;

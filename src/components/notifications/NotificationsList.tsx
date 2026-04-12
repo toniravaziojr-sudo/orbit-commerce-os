@@ -34,7 +34,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Notification, NotificationStatus } from "@/hooks/useNotifications";
 
-import { formatDayMonthTimeBR } from "@/lib/date-";
+import { formatDayMonthTimeBR } from "@/lib/date-format";
 
 interface NotificationsListProps {
   notifications: Notification[];

@@ -62,7 +62,7 @@ import { ShipmentDetailsCard } from '@/components/shipping/ShipmentDetailsCard';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { showErrorToast } from '@/lib/error-toast';
 
-import { formatDateTimeBR } from "@/lib/date-";
+import { formatDateTimeBR } from "@/lib/date-format";
 
 type DeliveryStatus = 
   | 'label_created' 

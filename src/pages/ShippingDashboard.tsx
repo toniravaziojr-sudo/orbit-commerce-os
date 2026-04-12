@@ -38,7 +38,7 @@ import { SuccessRatePopover } from '@/components/shipping/SuccessRatePopover';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { FreeShippingSubTabs } from '@/components/shipping/FreeShippingSubTabs';
 import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 import {
   PieChart,

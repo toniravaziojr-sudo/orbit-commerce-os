@@ -29,7 +29,7 @@ import {
 import { useAgendaAuthorizedPhones } from "@/hooks/useAgendaAuthorizedPhones";
 import { ptBR } from "date-fns/locale";
 
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 function formatPhoneDisplay(phone: string): string {
   if (phone.length === 13) {

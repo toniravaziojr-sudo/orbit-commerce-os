@@ -17,7 +17,7 @@ import { useEmailAttachmentUpload, PendingAttachment } from "@/hooks/useEmailAtt
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-import { formatDateTimeBR } from "@/lib/date-";
+import { formatDateTimeBR } from "@/lib/date-format";
 
 interface EmailComposerProps {
   mailbox: Mailbox;

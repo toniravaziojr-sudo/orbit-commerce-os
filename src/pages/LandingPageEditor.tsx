@@ -29,7 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { GenerateSeoButton } from "@/components/seo/GenerateSeoButton";
 import { LandingPageChatInput } from "@/components/landing-pages/LandingPageChatInput";
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 // Header/Footer are rendered only in the public page (StorefrontAILandingPage)
 // In the editor, we show a clean iframe-only preview to avoid CSS conflicts

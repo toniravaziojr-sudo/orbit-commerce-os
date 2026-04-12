@@ -7,7 +7,7 @@ import { EmailMessage } from "@/hooks/useEmailMessages";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Mail } from "lucide-react";
 
-import { formatDayMonthBR, formatDayMonthYearShortBR, formatTimeBR, isThisYearBR, isTodayBR, isYesterdayBR } from "@/lib/date-";
+import { formatDayMonthBR, formatDayMonthYearShortBR, formatTimeBR, isThisYearBR, isTodayBR, isYesterdayBR } from "@/lib/date-format";
 
 interface EmailListProps {
   messages: EmailMessage[];

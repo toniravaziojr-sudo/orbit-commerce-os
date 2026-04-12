@@ -21,7 +21,7 @@ import { exportToCSV, exportToExcel, formatDateForExport, formatCurrencyForExpor
 import { isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
 
-import { formatDateBR } from "@/lib/date-";
+import { formatDateBR } from "@/lib/date-format";
 
 export default function Finance() {
   const { entries, orders, totalIncome, totalExpense, netProfit, margin, ordersIncome, createEntry, updateEntry, deleteEntry, isLoading, error } = useFinanceEntries();

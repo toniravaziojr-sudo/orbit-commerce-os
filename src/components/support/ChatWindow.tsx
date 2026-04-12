@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { QuickRepliesDropdown } from "./QuickRepliesDropdown";
 import { toast } from "sonner";
 
-import { formatTimeBR } from "@/lib/date-";
+import { formatTimeBR } from "@/lib/date-format";
 
 interface ChatWindowProps {
   conversation: Conversation | null;

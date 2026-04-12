@@ -20,7 +20,7 @@ import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 
-import { formatDateBR, formatDateTimeBR } from "@/lib/date-";
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
 export type RejectMode = "dismiss" | "regenerate";
 

@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 
-import { formatDateTimeBR } from "@/lib/date-";
+import { formatDateTimeBR } from "@/lib/date-format";
 
 interface ActionDetailDialogProps {
   action: AutopilotAction | null;

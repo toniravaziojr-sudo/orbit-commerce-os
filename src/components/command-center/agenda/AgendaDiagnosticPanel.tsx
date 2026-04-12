@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Terminal, RefreshCw, ArrowUpDown, MessageCircle, Bot } from "lucide-react";
 import { ptBR } from "date-fns/locale";
 
-import { formatDayMonthTimeBR } from "@/lib/date-";
+import { formatDayMonthTimeBR } from "@/lib/date-format";
 
 interface CommandLogEntry {
   id: string;

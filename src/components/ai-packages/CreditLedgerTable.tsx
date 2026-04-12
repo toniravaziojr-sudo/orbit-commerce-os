@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { CreditLedgerEntry, formatCredits } from "@/hooks/useCredits";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { formatDateTimeShortBR } from "@/lib/date-";
+import { formatDateTimeShortBR } from "@/lib/date-format";
 
 interface CreditLedgerTableProps {
   entries: CreditLedgerEntry[];

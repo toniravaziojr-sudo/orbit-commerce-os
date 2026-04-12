@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
 import { ptBR } from 'date-fns/locale';
 
-import { formatDateTimeBR } from "@/lib/date-";
+import { formatDateTimeBR } from "@/lib/date-format";
 
 interface CCeRecord {
   id: string;

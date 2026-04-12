@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 
-import { formatDayMonthNumericBR } from "@/lib/date-";
+import { formatDayMonthNumericBR } from "@/lib/date-format";
 
 interface ApprovalDialogProps {
   open: boolean;

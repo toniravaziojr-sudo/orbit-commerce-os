@@ -36,7 +36,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCreateShipment } from '@/hooks/useShipments';
 import { toast } from 'sonner';
 
-import { formatDateTimeBR, formatDayMonthTimeBR } from "@/lib/date-";
+import { formatDateTimeBR, formatDayMonthTimeBR } from "@/lib/date-format";
 
 interface ShipmentRecord {
   id: string;

@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
-import { formatDayMonthNumericBR } from "@/lib/date-";
+import { formatDayMonthNumericBR } from "@/lib/date-format";
 
 const platformIcons: Record<string, React.ReactNode> = {
   instagram: <Instagram className="h-3.5 w-3.5 text-pink-500" />,

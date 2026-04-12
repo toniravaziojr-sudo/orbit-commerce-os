@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-import { formatDateLongBR } from "@/lib/date-";
+import { formatDateLongBR } from "@/lib/date-format";
 
 interface RescheduleDialogProps {
   open: boolean;

@@ -34,7 +34,7 @@ import { HealthCheckDetailDialog } from '@/components/health/HealthCheckDetailDi
 import { SchedulerStatusCard } from '@/components/health/SchedulerStatusCard';
 import { toast } from 'sonner';
 
-import { formatDayMonthNumericBR, formatDayMonthTimeBR, formatTimeBR } from "@/lib/date-";
+import { formatDayMonthNumericBR, formatDayMonthTimeBR, formatTimeBR } from "@/lib/date-format";
 
 const statusConfig = {
   pass: { icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10', label: 'OK' },

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/collapsible";
 import type { Notification, NotificationAttempt, NotificationStatus } from "@/hooks/useNotifications";
 
-import { formatDateTimeSecondsBR, formatDayMonthTimeBR, formatTimeBR } from "@/lib/date-";
+import { formatDateTimeSecondsBR, formatDayMonthTimeBR, formatTimeBR } from "@/lib/date-format";
 
 interface NotificationDetailDialogProps {
   notification: Notification | null;
