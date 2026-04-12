@@ -1,167 +1,101 @@
 
 
-# Plano: Stack Dupla fal.ai (Titular) + Stack Atual (Fallback) — Imagens e Vídeos
+## Plano: Documentação Completa da UI do Sistema
 
-## Resumo
-
-Reestruturar toda a geração visual (imagens e vídeos) para usar **fal.ai como provedor principal** e manter a **stack atual como fallback seguro**. Isso se aplica ao Estúdio de Criativos e ao Calendário de Conteúdo.
-
----
-
-## Stack Definitiva
-
-### IMAGENS
-
-| Prioridade | Provedor | Modelo | Custo/img | Quando usa |
-|------------|----------|--------|-----------|------------|
-| **1. Principal** | fal.ai | FLUX 2 Pro (com referência) | ~$0.03 | Sempre tenta primeiro |
-| **2. Principal fallback** | fal.ai | FLUX 2 Turbo | ~$0.008 | Se Pro falhar |
-| **3. Fallback seguro** | Gemini Nativa | gemini-2.5-flash-image | ~$0.04 | Se fal.ai inteira falhar |
-| **4. Fallback secundário** | OpenAI Nativa | gpt-image-1 | ~$0.04-0.08 | Se Gemini falhar |
-| **5. Último recurso** | Lovable Gateway | gemini-3-pro-image-preview | créditos | Se tudo falhar |
-
-**Por que FLUX 2 Pro?** Melhor fotorrealismo da categoria, aceita imagem de referência (image-to-image), custo 30% menor que Gemini, e controle total de parâmetros (guidance_scale, steps, seed).
-
-### VÍDEOS
-
-| Prioridade | Provedor | Modelo | Custo/5s | Quando usa |
-|------------|----------|--------|----------|------------|
-| **1. Premium** | fal.ai | Kling v3 Pro I2V | ~$0.42 | Padrão com imagem de produto |
-| **2. Com áudio nativo** | fal.ai | Veo 3.1 | ~$0.75 | Quando narração nativa ativada |
-| **3. Econômico** | fal.ai | Wan 2.6 I2V | ~$0.15 | Modo econômico / testes A/B |
-| **4. Lipsync** | fal.ai | Kling Lipsync | ~$0.07 | Pós-processamento com TTS |
-| **5. TTS** | ElevenLabs (direto) | Multilingual v2 | ~$0.04 | Narração PT-BR |
-| **Fallback vídeo** | Lovable Gateway | gemini-3-pro-image-preview → frame animation | créditos | Se fal.ai falhar completamente |
-
-**Fallback de vídeo**: Se a fal.ai estiver indisponível, o sistema gera uma **imagem estática** via stack atual (Gemini/OpenAI/Gateway) e informa ao usuário que o vídeo não pôde ser gerado, oferecendo a imagem como alternativa. Isso garante que o usuário nunca fique sem conteúdo.
+### Objetivo
+Criar um documento formal de referência da UI (Layer 3 — Transversais) com o mapa completo de rotas, telas, navegação e regras de visibilidade, segmentado por tipo de usuário. Depois, atualizar o Knowledge (Layer 1) para tornar obrigatória a atualização desse doc em toda entrega que impacte a UI.
 
 ---
 
-## O que será feito
+### Parte 1 — Criar o documento `docs/especificacoes/transversais/mapa-ui.md`
 
-### Fase 1: Módulo compartilhado fal.ai
+**Estrutura do documento:**
 
-Criar `supabase/functions/_shared/fal-client.ts` — módulo centralizado para todas as chamadas à fal.ai:
-- `generateImageWithFal()` — FLUX 2 Pro/Turbo para imagens
-- `generateVideoWithFal()` — Kling/Veo/Wan para vídeos
-- `applyLipsyncWithFal()` — Kling Lipsync pós-processamento
-- Tratamento de polling (fal.ai usa queue → poll → result)
-- Timeout e retry configuráveis
+1. **Cabeçalho padrão** (Camada, Status, Última atualização)
 
-### Fase 2: Reescrever pipeline de imagens
+2. **Mapa de Navegação (Sidebar)** — Tabela completa com todas as 14 seções e seus itens:
 
-**`creative-image-generate/index.ts`** — Alterar `resilientGenerate()`:
-```
-NOVA HIERARQUIA:
-1. fal.ai FLUX 2 Pro (com imagem referência) ← NOVO
-2. fal.ai FLUX 2 Turbo (fallback rápido) ← NOVO
-3. Gemini Nativa (fallback seguro — stack atual)
-4. OpenAI Nativa (fallback seguro)
-5. Lovable Gateway (último recurso)
-```
+| Grupo | Item | Rota | Visibilidade |
+|-------|------|------|-------------|
+| Principal | Central de Comando | /command-center | Todos |
+| Principal | ChatGPT | /chatgpt | Bloqueável (assistant) |
+| E-commerce | Pedidos | /orders | RBAC |
+| ... | ... | ... | ... |
+| Plataforma | Health Monitor | /platform/health-monitor | Platform Admin only |
 
-**`media-process-generation-queue/index.ts`** — Mesma hierarquia para o Calendário.
+3. **Segmentação por Perfil de Acesso** — 3 blocos separados:
 
-**Sistemas afetados** (todos passam a usar a mesma hierarquia):
-- `creative-image-generate` — Estúdio de Criativos
-- `media-process-generation-queue` — Calendário de Conteúdo
-- `ai-landing-page-enhance-images` — Landing Pages
-- `_shared/visual-engine.ts` — Construtor de Lojas
-- `ai-block-fill-visual` — Blocos visuais
+   **a) Tenant Normal (cliente)**
+   - Sidebar: `fullNavigation` (13 grupos)
+   - Itens com `blockedFeature` mostram badge "Upgrade" se plano não inclui
+   - Itens com `ownerOnly` visíveis apenas para owner do tenant
+   - RBAC controla visibilidade por role (manager, editor, attendant, assistant, viewer)
+   - Sem indicadores de status (✅/🟧)
+   - Sem acesso a rotas `/platform/*`
 
-### Fase 3: Novo sistema de vídeos
+   **b) Tenant Especial (Respeite o Homem, Amazgan)**
+   - Mesma sidebar do tenant normal
+   - `isUnlimited = true` → sem badges "Upgrade", sem bloqueio de features
+   - `showStatusIndicators = true` → mostra ✅/🟧 nos itens
+   - Visibilidade técnica de IA (nomes de modelos, provedores) via `useIsSpecialTenant`
+   - Sem acesso a rotas `/platform/*`
 
-**Remover formulários antigos:**
-- `UGCRealForm.tsx`, `UGCAIForm.tsx`, `ProductVideoForm.tsx`, `AvatarMascotForm.tsx`
-- Referências a Runway, HeyGen, Akool nos tipos e hooks
+   **c) Platform Admin (Comando Central)**
+   - Toggle de modo: Plataforma vs Minha Loja (`AdminModeContext`)
+   - **Modo Plataforma**: sidebar `platformAdminNavigation` (9 itens exclusivos)
+   - **Modo Loja**: sidebar `fullNavigation` completa (sem bloqueios)
+   - Acesso total a todas as rotas
+   - Indicadores de status visíveis (exceto em demo mode)
 
-**Criar formulário unificado:**
-- `VideoGeneratorForm.tsx` — Interface única com:
-  - Seletor de produto (obrigatório no Estúdio)
-  - Prompt descritivo
-  - Tier: Premium (Kling) | Com áudio (Veo 3.1) | Econômico (Wan)
-  - Duração: 5s | 10s
-  - Formato: 9:16 | 16:9 | 1:1
-  - Toggle narração PT-BR (ElevenLabs + Lipsync)
+4. **Rotas Protegidas e Guards** — Inventário de todos os mecanismos:
+   - `PermissionGuard` (RBAC por rota)
+   - `GatedRoute` (bloqueio por plano/módulo)
+   - `FeatureGatedRoute` (bloqueio por feature específica)
+   - `PlatformAdminGate` (componente, não rota)
+   - Rotas sempre acessíveis: `/`, `/command-center`, `/account/*`, `/getting-started`, `/dev/*`
 
-**Reescrever edge functions de vídeo:**
-- `creative-video-generate/index.ts` — Pipeline fal.ai para Estúdio
-- `media-generate-video/index.ts` — Pipeline fal.ai para Calendário
-- Ambos usam `_shared/fal-client.ts`
+5. **Rotas Completas do Sistema** — Lista extraída do `App.tsx`:
+   - Rotas públicas (auth, storefront)
+   - Rotas admin protegidas (~70 rotas)
+   - Rotas platform (~9 rotas)
+   - Redirects e rotas legadas
 
-### Fase 4: Drive — Separação de vídeos
+6. **Regras de Posicionamento de UI** — Decisões já tomadas:
+   - Hub de Integrações (`/integrations`) = apenas conexões, nunca painéis operacionais
+   - Sidebar: Sistema vs Utilitários (configurações estruturais vs ferramentas)
+   - Informações técnicas de IA ocultas para tenants comuns
 
-Adicionar rotas no `FOLDER_ROUTES`:
-```
-ai_creative_video: 'Criativos IA/Vídeos'
-ai_creative_video_calendar: 'Criativos IA/Vídeos Calendário'
-```
-
-### Fase 5: Limpeza e documentação
-
-- Remover `creative-generate/index.ts` e `creative-process/index.ts` (pipeline legado com 5 tipos)
-- Atualizar tipos em `src/types/creatives.ts`
-- Atualizar `useVideoCreatives.ts`
-- Reescrever memory `features/ai/image-generation-native-priority` com nova hierarquia
-- Criar memory `features/ai/video-generation-standard` com pipeline documentado
-- Atualizar `docs/especificacoes/marketing/criativos.md`
+7. **Componentes de Layout** — Referência:
+   - `AppShell` (sidebar + header + outlet)
+   - `AppSidebar` (navegação principal)
+   - `AppHeader` (header com tenant switcher, admin mode toggle)
+   - `TenantSwitcher` (troca de tenant)
+   - `AdminModeToggle` (platform/store switch)
 
 ---
 
-## Detalhes técnicos
+### Parte 2 — Atualizar o Knowledge (Layer 1)
 
-### Arquivos a criar
-| Arquivo | Descrição |
-|---------|-----------|
-| `_shared/fal-client.ts` | Cliente centralizado fal.ai (imagens + vídeos) |
-| `video-forms/VideoGeneratorForm.tsx` | Formulário unificado de vídeo |
+Adicionar ao checklist obrigatório de governança:
 
-### Arquivos a remover
-| Arquivo | Motivo |
-|---------|--------|
-| `video-forms/UGCRealForm.tsx` | Substituído |
-| `video-forms/UGCAIForm.tsx` | Substituído |
-| `video-forms/ProductVideoForm.tsx` | Substituído |
-| `video-forms/AvatarMascotForm.tsx` | Substituído |
-| `creative-generate/index.ts` | Pipeline legado |
-| `creative-process/index.ts` | Pipeline legado |
+- Nova linha no checklist: `UI impactada? Doc de UI atualizado (ou lacuna declarada)`
+- Nova regra no bloco "GOVERNANÇA DOCUMENTAL": toda entrega que adicione, remova ou altere tela, rota, item de sidebar ou regra de visibilidade deve atualizar `docs/especificacoes/transversais/mapa-ui.md`
+- No bloco "📝 DOCUMENTAÇÃO NECESSÁRIA", incluir verificação de UI como item obrigatório
 
-### Arquivos a reescrever
-| Arquivo | Alteração |
-|---------|-----------|
-| `creative-image-generate/index.ts` | fal.ai como step 1, stack atual como fallback |
-| `media-process-generation-queue/index.ts` | Mesma hierarquia |
-| `ai-landing-page-enhance-images/index.ts` | Mesma hierarquia |
-| `_shared/visual-engine.ts` | Mesma hierarquia |
-| `ai-block-fill-visual/index.ts` | Mesma hierarquia |
-| `creative-video-generate/index.ts` | Pipeline fal.ai (Kling/Veo/Wan) |
-| `media-generate-video/index.ts` | Pipeline fal.ai para calendário |
-| `UnifiedVideoTab.tsx` | Formulário único |
-| `src/types/creatives.ts` | Limpar tipos antigos, adicionar novos |
-| `src/hooks/useVideoCreatives.ts` | Adaptar para novo pipeline |
-| `src/lib/driveService.ts` | Rotas de vídeo |
+---
 
-### Nova hierarquia (substitui a v6.0 atual)
+### Parte 3 — Atualizar referências no Layer 4
 
-```text
-IMAGENS (v7.0):
-  1. fal.ai FLUX 2 Pro        ← PRINCIPAL (melhor custo-benefício)
-  2. fal.ai FLUX 2 Turbo      ← PRINCIPAL fallback rápido
-  3. Gemini Nativa             ← FALLBACK SEGURO (stack atual)
-  4. OpenAI Nativa             ← FALLBACK SEGURO
-  5. Lovable Gateway           ← ÚLTIMO RECURSO
+Adicionar ao `docs/MANUAL-DO-SISTEMA.md` (Seção 15 — Índice de documentação):
+- Referência ao novo doc `mapa-ui.md` como fonte de verdade para navegação e visibilidade de telas
 
-VÍDEOS (v1.0):
-  1. fal.ai Kling v3 Pro I2V   ← PRINCIPAL (padrão)
-  2. fal.ai Veo 3.1            ← PRINCIPAL (com áudio nativo)
-  3. fal.ai Wan 2.6 I2V        ← ECONÔMICO
-  4. Imagem estática (stack atual) ← FALLBACK SEGURO
-```
+---
 
-### Dependências
-- `FAL_API_KEY` — já na `platform_credentials`
-- `ELEVENLABS_API_KEY` — já nos secrets (connector)
-- `GEMINI_API_KEY` — já na `platform_credentials`
-- `OPENAI_API_KEY` — já nos secrets
-- `voice_presets` — tabela e seletor já funcionais
+### Resumo da execução
+
+| Passo | Ação | Arquivo |
+|-------|------|---------|
+| 1 | Criar doc completo da UI | `docs/especificacoes/transversais/mapa-ui.md` |
+| 2 | Atualizar Knowledge com regra de UI obrigatória | Knowledge (Layer 1) |
+| 3 | Adicionar referência no Manual | `docs/MANUAL-DO-SISTEMA.md` |
 
