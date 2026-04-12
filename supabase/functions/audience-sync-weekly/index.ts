@@ -314,7 +314,7 @@ async function syncMetaAudiences(
 
       for (let i = 0; i < members.length; i += BATCH_SIZE) {
         const batch = members.slice(i, i + BATCH_SIZE);
-        const schema = ["EMAIL_SHA256", "PHONE_SHA256", "FN_SHA256", "LN_SHA256"];
+        const schema = ["EMAIL", "PHONE", "FN", "LN"];
         const dataRows: string[][] = [];
 
         for (const m of batch) {
