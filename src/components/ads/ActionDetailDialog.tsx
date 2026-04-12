@@ -198,7 +198,7 @@ function CreativePreview({ data }: { data: Record<string, any> }) {
         {data.headline && <DetailRow label="Título" value={data.headline} />}
         {data.copy_text && <DetailRow label="Texto" value={data.copy_text} />}
         {data.cta_type && <DetailRow label="CTA" value={data.cta_type} />}
-        {data.&& <DetailRow label="Formato" value={data.} />}
+        {data.format && <DetailRow label="Formato" value={data.format} />}
         {data.angle && <DetailRow label="Ângulo" value={data.angle} />}
         {data.generation_style && <DetailRow label="Estilo" value={data.generation_style} />}
         {data.channel && <DetailRow label="Canal" value={data.channel} />}

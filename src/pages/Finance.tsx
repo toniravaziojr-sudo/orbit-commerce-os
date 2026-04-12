@@ -167,14 +167,14 @@ export default function Finance() {
   }, [entries, orders, dashboardStartDate, dashboardEndDate]);
 
   const handleExportHistory = (exportFormat: 'csv' | 'excel') => {
-    const columns: { key: keyof FinanceEntry; label: string;?: (value: any, row: FinanceEntry) => string }[] = [
-      { key: 'entry_date', label: 'Data': (v) => formatDateForExport(v) },
+    const columns: { key: keyof FinanceEntry; label: string; format?: (value: any, row: FinanceEntry) => string }[] = [
+      { key: 'entry_date', label: 'Data', format: (v) => formatDateForExport(v) },
       { key: 'description', label: 'Descrição' },
-      { key: 'type', label: 'Tipo': (v) => v === 'income' ? 'Entrada' : 'Saída' },
-      { key: 'finance_entry_type_id', label: 'Classificação': (v) => getEntryTypeName(v) || '' },
-      { key: 'category', label: 'Categoria': (v) => v || 'Outros' },
-      { key: 'amount', label: 'Valor': (v) => formatCurrencyForExport(v) },
-      { key: 'notes', label: 'Observações': (v) => v || '' },
+      { key: 'type', label: 'Tipo', format: (v) => v === 'income' ? 'Entrada' : 'Saída' },
+      { key: 'finance_entry_type_id', label: 'Classificação', format: (v) => getEntryTypeName(v) || '' },
+      { key: 'category', label: 'Categoria', format: (v) => v || 'Outros' },
+      { key: 'amount', label: 'Valor', format: (v) => formatCurrencyForExport(v) },
+      { key: 'notes', label: 'Observações', format: (v) => v || '' },
     ];
     
     const filename = `historico-financeiro-${exportFormat === 'csv' ? 'csv' : 'excel'}`;

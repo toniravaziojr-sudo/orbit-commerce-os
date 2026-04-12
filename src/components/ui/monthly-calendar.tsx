@@ -28,7 +28,8 @@ export type Holiday = BrazilianHoliday;
 
 export interface DayCellInfo {
   date: Date;
-  dateKey: string;: boolean;
+  dateKey: string;
+  isToday: boolean;
   holiday: Holiday | null;
 }
 
