@@ -40,6 +40,12 @@ const SCOPE_PACKS: Record<string, string[]> = {
     "https://www.googleapis.com/auth/tagmanager.edit.containers",
     "https://www.googleapis.com/auth/tagmanager.readonly",
   ],
+  gmail: [
+    "https://www.googleapis.com/auth/gmail.modify",
+  ],
+  calendar: [
+    "https://www.googleapis.com/auth/calendar",
+  ],
 };
 
 // Base scopes always included
