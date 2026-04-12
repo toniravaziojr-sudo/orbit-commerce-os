@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Initial: Weekly audience sync from email lists to Meta + Google
+const VERSION = "v1.1.0"; // Fix: use ad account from tenant_meta_integrations (anuncios) instead of first discovered_asset
 // ===================
 
 const corsHeaders = {
@@ -138,9 +138,32 @@ async function processTenant(
   let metaResult: any = { skipped: "not_connected" };
   const metaConn = await getMetaConnectionForTenant(supabase, tenantId, traceId);
   if (metaConn) {
-    const adAccounts = metaConn.metadata?.assets?.ad_accounts || [];
-    if (adAccounts.length > 0) {
-      metaResult = await syncMetaAudiences(supabase, tenantId, lists, metaConn, adAccounts[0].id, traceId, dryRun);
+    // Priority: use ad account from "anuncios" integration (user-selected), fallback to discovered_assets
+    let adAccountId: string | null = null;
+
+    const { data: anunciosInteg } = await supabase
+      .from("tenant_meta_integrations")
+      .select("selected_assets")
+      .eq("tenant_id", tenantId)
+      .eq("integration_id", "anuncios")
+      .eq("status", "active")
+      .maybeSingle();
+
+    const integAdAccounts = anunciosInteg?.selected_assets?.ad_accounts;
+    if (integAdAccounts && integAdAccounts.length > 0) {
+      adAccountId = integAdAccounts[0].id;
+      console.log(`${tag} Using ad account from anuncios integration: ${adAccountId}`);
+    } else {
+      // Fallback to discovered_assets
+      const allAdAccounts = metaConn.metadata?.assets?.ad_accounts || [];
+      if (allAdAccounts.length > 0) {
+        adAccountId = allAdAccounts[0].id;
+        console.log(`${tag} Using first discovered ad account (fallback): ${adAccountId}`);
+      }
+    }
+
+    if (adAccountId) {
+      metaResult = await syncMetaAudiences(supabase, tenantId, lists, metaConn, adAccountId, traceId, dryRun);
     } else {
       metaResult = { skipped: "no_ad_accounts" };
     }
