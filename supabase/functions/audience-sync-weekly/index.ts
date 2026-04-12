@@ -334,20 +334,22 @@ async function syncMetaAudiences(
 
         if (dataRows.length === 0) continue;
 
-        // Upload users
+        // Upload users using multi-key schema
+        const uploadPayload = {
+          payload: {
+            schema,
+            data: dataRows,
+          },
+          access_token: metaConn.access_token,
+        };
+        console.log(`${tag} Upload payload schema: ${JSON.stringify(schema)}, rows: ${dataRows.length}, sample[0]: ${JSON.stringify(dataRows[0]?.slice(0, 2))}`);
+        
         const uploadRes = await fetch(
           `https://graph.facebook.com/${GRAPH_API_VERSION}/${audienceId}/users`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              payload: {
-                schema,
-                is_raw: false,
-                data: dataRows,
-              },
-              access_token: metaConn.access_token,
-            }),
+            body: JSON.stringify(uploadPayload),
           }
         );
         const uploadData = await uploadRes.json();
