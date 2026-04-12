@@ -272,6 +272,7 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 - Falha em integração externa nunca deve derrubar operação core.
 - Toda integração deve ter: retry com backoff, log de falha, alerta ao admin.
 - Degradação graceful: se a integração está fora, o sistema continua funcionando com capacidade reduzida.
+- Consistência UI ↔ Backend para credenciais: toda credencial exibida na interface de configuração deve existir na whitelist do serviço de atualização no backend. Ao adicionar ou remover uma credencial da UI, a whitelist do backend deve ser atualizada na mesma entrega. É proibido expor campo de credencial na interface sem correspondência no backend.
 
 ---
 
