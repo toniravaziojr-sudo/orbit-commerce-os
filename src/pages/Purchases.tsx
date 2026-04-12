@@ -1,6 +1,5 @@
 import { formatDateBR } from "@/lib/date-format";
 import { useState, useMemo } from "react";
-import { formatDateBR } from "@/lib/date-format";
 import { ShoppingBag, Plus, Truck, Package, Users, Pencil, Trash2, FileText, Search, History } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";

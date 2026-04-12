@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
 import { useMediaCampaigns, MediaCampaign } from '@/hooks/useMediaCampaigns';
 import { showErrorToast } from '@/lib/error-toast';
 
-import { formatDateBR } from "@/lib/date-format";
+import { formatDateBR, formatMonthYearBR } from "@/lib/date-format";
 
 interface BlogPost {
   id: string;

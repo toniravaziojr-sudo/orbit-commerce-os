@@ -1,6 +1,5 @@
 import { formatDateTimeBR } from "@/lib/date-format";
 import { Download, Loader2 } from 'lucide-react';
-import { formatDateTimeBR } from "@/lib/date-format";
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import type { FiscalInvoice } from '@/hooks/useFiscal';
