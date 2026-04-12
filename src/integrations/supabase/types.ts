@@ -12735,43 +12735,52 @@ export type Database = {
       }
       payment_method_discounts: {
         Row: {
+          boleto_expiration_days: number
           created_at: string
           description: string | null
           discount_type: string
           discount_value: number
+          free_installments: number
           id: string
           installments_max: number | null
           installments_min_value_cents: number | null
           is_enabled: boolean
           payment_method: string
+          pix_expiration_minutes: number
           provider: string
           tenant_id: string
           updated_at: string
         }
         Insert: {
+          boleto_expiration_days?: number
           created_at?: string
           description?: string | null
           discount_type?: string
           discount_value?: number
+          free_installments?: number
           id?: string
           installments_max?: number | null
           installments_min_value_cents?: number | null
           is_enabled?: boolean
           payment_method: string
+          pix_expiration_minutes?: number
           provider?: string
           tenant_id: string
           updated_at?: string
         }
         Update: {
+          boleto_expiration_days?: number
           created_at?: string
           description?: string | null
           discount_type?: string
           discount_value?: number
+          free_installments?: number
           id?: string
           installments_max?: number | null
           installments_min_value_cents?: number | null
           is_enabled?: boolean
           payment_method?: string
+          pix_expiration_minutes?: number
           provider?: string
           tenant_id?: string
           updated_at?: string
