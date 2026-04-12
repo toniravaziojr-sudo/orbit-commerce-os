@@ -724,4 +724,36 @@ Todo PR que introduza nova formatação de data deve ser verificado contra esta 
 
 ---
 
+## 31. EXCLUSIVIDADE DE LISTAS SISTÊMICAS — REGRA DE TRANSFERÊNCIA
+
+> **Um contato que se torna "Cliente" (pedido aprovado) deve ser automaticamente removido de todas as outras listas sistêmicas.**
+
+### Regra
+
+Quando um pedido é aprovado (`payment_status = 'approved'`), a trigger `after_order_approved_sync` executa, na ordem:
+
+1. **Atribui** a tag "Cliente" ao contato
+2. **Recalcula** as métricas de fidelidade do cliente
+3. **Adiciona** o contato à lista "Clientes"
+4. **Remove** o contato de **todas as outras listas sistêmicas** (`is_system = true`), como "Clientes Potenciais" e "Newsletter PopUp"
+5. **Remove** as tags sistêmicas anteriores associadas a essas listas (ex: "Cliente Potencial", "Newsletter PopUp")
+
+### Escopo
+
+- Apenas listas com `is_system = true` são afetadas. Listas manuais/customizadas não são tocadas.
+- A deduplicação é baseada no e-mail do contato (`LOWER(TRIM(email))`).
+- A remoção de tags usa o vínculo `customer_tags ↔ email_marketing_lists` para identificar apenas tags sistêmicas.
+
+### Fonte de verdade
+
+- Membros: `email_marketing_list_members`
+- Tags: `customer_tag_assignments`
+- Trigger: `after_order_approved_sync` (AFTER UPDATE on orders)
+
+### Anti-regressão
+
+Qualquer novo fluxo que adicione contatos a listas sistêmicas deve respeitar esta regra de exclusividade. Um contato não pode estar simultaneamente na lista "Clientes" e em outra lista sistêmica.
+
+---
+
 *Fim do documento.*
