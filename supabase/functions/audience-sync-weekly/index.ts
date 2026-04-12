@@ -238,7 +238,8 @@ async function syncMetaAudiences(
         const createData = await createRes.json();
 
         if (createData.error) {
-          console.error(`${tag} Create audience failed:`, createData.error.message);
+          console.error(`${tag} Create audience failed:`, JSON.stringify(createData.error));
+          const errMsg = `${createData.error.message} (code: ${createData.error.code}, subcode: ${createData.error.error_subcode}, type: ${createData.error.type})`;
           await logSync(supabase, tenantId, list.id, "meta", null, "error", 0, null, createData.error.message, Date.now() - startTime);
           syncResults.push({ list: list.name, error: createData.error.message });
           continue;
