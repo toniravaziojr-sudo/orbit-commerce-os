@@ -10,7 +10,7 @@ export function blogIndexToStaticHTML(posts: any[], storeName: string): string {
     const imgUrl = post.cover_image_url;
     const optimized = imgUrl ? optimizeImageUrl(imgUrl, 400, 80) : '';
     const dateStr = post.published_at
-      ? new Date(post.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+      ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(post.published_at))
       : '';
 
     return `
@@ -41,7 +41,7 @@ export function blogPostToStaticHTML(post: any, hostname: string): string {
   const coverUrl = post.cover_image_url;
   const optimizedCover = coverUrl ? optimizeImageUrl(coverUrl, 1200, 85) : '';
   const dateStr = post.published_at
-    ? new Date(post.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+    ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(post.published_at))
     : '';
 
   const jsonLd = JSON.stringify({

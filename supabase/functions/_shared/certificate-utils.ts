@@ -154,7 +154,7 @@ export async function loadTenantCertificate(
   if (settings.certificado_valido_ate) {
     const validUntil = new Date(settings.certificado_valido_ate);
     if (validUntil < new Date()) {
-      throw new Error(`Certificado expirado em ${validUntil.toLocaleDateString('pt-BR')}.`);
+      throw new Error(`Certificado expirado em ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(validUntil)}.`);
     }
   }
 

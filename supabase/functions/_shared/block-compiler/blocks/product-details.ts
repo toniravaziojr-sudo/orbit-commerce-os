@@ -361,7 +361,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
 
     const reviewCardsHtml = reviewsList.slice(0, 10).map(r => {
       const starsHtml = renderStars(r.rating);
-      const dateStr = new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' });
+      const dateStr = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(r.created_at));
       const verifiedHtml = r.is_verified_purchase
         ? `<span style="display:inline-flex;align-items:center;gap:3px;color:#16a34a;font-size:12px;">✓ Compra verificada</span>`
         : '';
