@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Initial: Weekly audience sync from email lists to Meta + Google
+const VERSION = "v1.1.1"; // Fix: multi-key schema without is_raw, paginated member fetch, correct ad account selection
 // ===================
 
 const corsHeaders = {
@@ -138,9 +138,32 @@ async function processTenant(
   let metaResult: any = { skipped: "not_connected" };
   const metaConn = await getMetaConnectionForTenant(supabase, tenantId, traceId);
   if (metaConn) {
-    const adAccounts = metaConn.metadata?.assets?.ad_accounts || [];
-    if (adAccounts.length > 0) {
-      metaResult = await syncMetaAudiences(supabase, tenantId, lists, metaConn, adAccounts[0].id, traceId, dryRun);
+    // Priority: use ad account from "anuncios" integration (user-selected), fallback to discovered_assets
+    let adAccountId: string | null = null;
+
+    const { data: anunciosInteg } = await supabase
+      .from("tenant_meta_integrations")
+      .select("selected_assets")
+      .eq("tenant_id", tenantId)
+      .eq("integration_id", "anuncios")
+      .eq("status", "active")
+      .maybeSingle();
+
+    const integAdAccounts = anunciosInteg?.selected_assets?.ad_accounts;
+    if (integAdAccounts && integAdAccounts.length > 0) {
+      adAccountId = integAdAccounts[0].id;
+      console.log(`${tag} Using ad account from anuncios integration: ${adAccountId}`);
+    } else {
+      // Fallback to discovered_assets
+      const allAdAccounts = metaConn.metadata?.assets?.ad_accounts || [];
+      if (allAdAccounts.length > 0) {
+        adAccountId = allAdAccounts[0].id;
+        console.log(`${tag} Using first discovered ad account (fallback): ${adAccountId}`);
+      }
+    }
+
+    if (adAccountId) {
+      metaResult = await syncMetaAudiences(supabase, tenantId, lists, metaConn, adAccountId, traceId, dryRun);
     } else {
       metaResult = { skipped: "no_ad_accounts" };
     }
@@ -189,13 +212,30 @@ async function syncMetaAudiences(
     const audienceName = `${list.name} - Atualizado ${dateSuffix}`;
 
     try {
-      // Get members for this list with subscriber data
-      const { data: members } = await supabase
-        .from("email_marketing_list_members")
-        .select("subscriber_id, email_marketing_subscribers!inner(email, name, phone)")
-        .eq("tenant_id", tenantId)
-        .eq("list_id", list.id)
-        .limit(50000);
+      // Get members for this list with subscriber data (paginated to handle 1000-row limit)
+      let allMembers: any[] = [];
+      const PAGE_SIZE = 1000;
+      let page = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .from("email_marketing_list_members")
+          .select("subscriber_id, email_marketing_subscribers!inner(email, name, phone)")
+          .eq("tenant_id", tenantId)
+          .eq("list_id", list.id)
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        
+        if (!batch || batch.length === 0) {
+          hasMore = false;
+        } else {
+          allMembers = allMembers.concat(batch);
+          page++;
+          if (batch.length < PAGE_SIZE) hasMore = false;
+        }
+        // Safety: max 50k
+        if (allMembers.length >= 50000) break;
+      }
+      const members = allMembers;
 
       if (!members || members.length === 0) {
         console.log(`${tag} List "${list.name}": no members, skipping`);
@@ -294,20 +334,22 @@ async function syncMetaAudiences(
 
         if (dataRows.length === 0) continue;
 
-        // Upload users
+        // Upload users using multi-key schema
+        const uploadPayload = {
+          payload: {
+            schema,
+            data: dataRows,
+          },
+          access_token: metaConn.access_token,
+        };
+        console.log(`${tag} Upload payload schema: ${JSON.stringify(schema)}, rows: ${dataRows.length}, sample[0]: ${JSON.stringify(dataRows[0]?.slice(0, 2))}`);
+        
         const uploadRes = await fetch(
           `https://graph.facebook.com/${GRAPH_API_VERSION}/${audienceId}/users`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              payload: {
-                schema,
-                is_raw: false,
-                data: dataRows,
-              },
-              access_token: metaConn.access_token,
-            }),
+            body: JSON.stringify(uploadPayload),
           }
         );
         const uploadData = await uploadRes.json();
@@ -393,13 +435,23 @@ async function syncGoogleAudiences(
     const audienceName = `${list.name} - Atualizado ${dateSuffix}`;
 
     try {
-      // Get members
-      const { data: members } = await supabase
-        .from("email_marketing_list_members")
-        .select("subscriber_id, email_marketing_subscribers!inner(email, name, phone)")
-        .eq("tenant_id", tenantId)
-        .eq("list_id", list.id)
-        .limit(100000);
+      // Get members (paginated to handle 1000-row limit)
+      let allMembers: any[] = [];
+      const PAGE_SIZE = 1000;
+      let page = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .from("email_marketing_list_members")
+          .select("subscriber_id, email_marketing_subscribers!inner(email, name, phone)")
+          .eq("tenant_id", tenantId)
+          .eq("list_id", list.id)
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        if (!batch || batch.length === 0) { hasMore = false; }
+        else { allMembers = allMembers.concat(batch); page++; if (batch.length < PAGE_SIZE) hasMore = false; }
+        if (allMembers.length >= 100000) break;
+      }
+      const members = allMembers;
 
       if (!members || members.length === 0) continue;
 
