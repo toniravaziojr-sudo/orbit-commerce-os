@@ -45,17 +45,38 @@ function formatCurrency(value: number | null) {
 function formatDate(dateStr: string | null) {
   if (!dateStr) return '-';
   const date = new Date(dateStr);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
   
-  if (diffDays === 0) {
-    return `Hoje às ${format(date, 'HH:mm', { locale: ptBR })}`;
-  } else if (diffDays === 1) {
-    return `Ontem às ${format(date, 'HH:mm', { locale: ptBR })}`;
-  } else if (diffDays < 7) {
-    return format(date, "EEEE 'às' HH:mm", { locale: ptBR });
+  // Formatar hora no timezone de São Paulo
+  const timeFmt = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const time = timeFmt.format(date);
+  
+  // Comparar datas no timezone de São Paulo
+  const dateFmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const dateKey = dateFmt.format(date);
+  const todayKey = dateFmt.format(new Date());
+  const yesterdayDate = new Date(Date.now() - 86400000);
+  const yesterdayKey = dateFmt.format(yesterdayDate);
+  
+  if (dateKey === todayKey) {
+    return `Hoje às ${time}`;
+  } else if (dateKey === yesterdayKey) {
+    return `Ontem às ${time}`;
   }
-  return format(date, 'dd/MM/yyyy HH:mm', { locale: ptBR });
+  
+  // Para datas mais antigas, formato completo em SP
+  const fullFmt = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+  return fullFmt.format(date);
 }
 
 function getStatusBadge(status: CheckoutSession['status']) {
