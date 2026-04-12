@@ -233,11 +233,11 @@ export function SubscribersTab() {
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">
-              Todos os Assinantes ({formatDateTimeBR(totalCount)})
+              Todos os Assinantes ({totalCount.toLocaleString("pt-BR")})
             </CardTitle>
             {totalCount > 0 && (
               <span className="text-sm text-muted-foreground">
-                Exibindo {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalCount)} de {formatDateTimeBR(totalCount)}
+                Exibindo {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalCount)} de {totalCount.toLocaleString("pt-BR")}
               </span>
             )}
           </div>

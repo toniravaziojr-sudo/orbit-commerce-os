@@ -109,7 +109,7 @@ function formatCurrency(cents: number) {
 function formatNumber(n: number) {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return formatDateTimeBR(n);
+  return n.toLocaleString("pt-BR");
 }
 
 function getAccountId(campaign: any): string {

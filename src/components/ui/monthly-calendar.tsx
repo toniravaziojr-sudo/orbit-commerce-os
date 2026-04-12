@@ -159,7 +159,7 @@ export function MonthlyCalendar({
 
           return (
             <div key={dateKey} style={{ minHeight: cellMinHeight }}>
-              {renderCell({ date, dateKey: today, holiday })}
+              {renderCell({ date, dateKey, isToday: today, holiday })}
             </div>
           );
         })}

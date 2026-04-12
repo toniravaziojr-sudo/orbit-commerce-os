@@ -44,7 +44,7 @@ import {
 function formatNumber(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return formatDateTimeBR(value);
+  return value.toLocaleString("pt-BR");
 }
 
 function formatCurrency(value: number): string {

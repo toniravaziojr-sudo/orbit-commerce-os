@@ -58,7 +58,7 @@ function AnimatedNumber({ value, animate }: { value: string; animate: boolean })
             
             // Format with same style as original
             let formatted = numericMatch[0].includes(',') || numericMatch[0].includes('.')
-              ? formatDateTimeBR(current)
+              ? current.toLocaleString("pt-BR")
               : Math.round(current).toString();
             
             setDisplayValue(`${prefix}${formatted}${suffix}`);

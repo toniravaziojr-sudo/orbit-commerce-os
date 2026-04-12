@@ -83,7 +83,7 @@ export function calculateCreditsForCost(costUsd: number): number {
  * Format credits as display string
  */
 export function formatCredits(credits: number): string {
-  return formatDateTimeBR(credits);
+  return credits.toLocaleString("pt-BR");
 }
 
 /**
