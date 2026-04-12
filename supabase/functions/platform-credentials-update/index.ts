@@ -54,6 +54,8 @@ const EDITABLE_CREDENTIALS = [
   // Shopee (Marketplace)
   'SHOPEE_PARTNER_ID',
   'SHOPEE_PARTNER_KEY',
+  // Google Ads (Developer Token da plataforma)
+  'GOOGLE_ADS_DEVELOPER_TOKEN',
 ];
 
 serve(async (req) => {
