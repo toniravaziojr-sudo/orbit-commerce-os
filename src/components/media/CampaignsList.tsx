@@ -1,4 +1,6 @@
+import { formatDayMonthBR } from "@/lib/date-format";
 import { useState } from "react";
+import { formatDayMonthBR } from "@/lib/date-format";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -157,7 +159,7 @@ export function CampaignsList() {
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="h-4 w-4" />
                     <span>
-                      {format(new Date(campaign.start_date), "dd MMM", { locale: ptBR })} - {format(new Date(campaign.end_date), "dd MMM", { locale: ptBR })}
+                      {formatDayMonthBR(campaign.start_date)} - {formatDayMonthBR(campaign.end_date)}
                     </span>
                   </div>
                   <Badge variant={status.variant}>{status.label}</Badge>

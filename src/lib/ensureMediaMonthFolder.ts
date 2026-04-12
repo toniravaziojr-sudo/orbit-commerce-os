@@ -5,6 +5,7 @@
  * Será removido em fase posterior de limpeza.
  */
 
+import { formatMonthYearBR } from "@/lib/date-format";
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ensureFolder } from './driveService';
@@ -13,7 +14,7 @@ const MEDIA_ROOT_FOLDER = 'Mídias Sociais';
 
 function getMonthFolderName(dateStr: string): string {
   const date = parseISO(dateStr);
-  const monthName = format(date, 'MMMM yyyy', { locale: ptBR });
+  const monthName = formatMonthYearBR(date);
   return monthName.charAt(0).toUpperCase() + monthName.slice(1);
 }
 

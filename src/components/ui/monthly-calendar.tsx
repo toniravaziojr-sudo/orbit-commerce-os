@@ -22,7 +22,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { getHolidayForDate, type BrazilianHoliday } from "@/lib/brazilian-holidays";
 
-import { isTodayBR } from "@/lib/date-format";
+import { isTodayBR, formatMonthYearBR } from "@/lib/date-format";
 
 export type Holiday = BrazilianHoliday;
 
@@ -92,7 +92,7 @@ export function MonthlyCalendar({
     return eachDayOfInterval({ start: ms, end: me });
   }, [currentMonth]);
 
-  const displayTitle = title ?? format(currentMonth, "MMMM yyyy", { locale: ptBR });
+  const displayTitle = title ?? formatMonthYearBR(currentMonth);
 
   const emptyCellCount = days[0]?.getDay() ?? 0;
 

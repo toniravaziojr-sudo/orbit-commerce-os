@@ -1,4 +1,6 @@
+import { formatDayMonthBR, formatDayMonthYearShortBR } from "@/lib/date-format";
 import { useState } from "react";
+import { formatDayMonthBR, formatDayMonthYearShortBR } from "@/lib/date-format";
 import {
   Lightbulb,
   TrendingUp,
@@ -176,7 +178,7 @@ function InsightCard({ insight, onMarkRead }: { insight: CommandInsight; onMarkR
         </p>
         <div className="flex items-center justify-between mt-3">
           <span className="text-[10px] text-muted-foreground">
-            {format(new Date(insight.period_start), "dd MMM", { locale: ptBR })} — {format(new Date(insight.period_end), "dd MMM yyyy", { locale: ptBR })}
+            {formatDayMonthBR(insight.period_start)} — {formatDayMonthYearShortBR(insight.period_end)}
           </span>
           {isNew && (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onMarkRead}>
