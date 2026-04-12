@@ -1936,6 +1936,126 @@ export type Database = {
           },
         ]
       }
+      audience_sync_logs: {
+        Row: {
+          action: string
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          list_id: string | null
+          members_matched: number | null
+          members_sent: number | null
+          metadata: Json | null
+          platform: string
+          platform_audience_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          action?: string
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          list_id?: string | null
+          members_matched?: number | null
+          members_sent?: number | null
+          metadata?: Json | null
+          platform: string
+          platform_audience_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          list_id?: string | null
+          members_matched?: number | null
+          members_sent?: number | null
+          metadata?: Json | null
+          platform?: string
+          platform_audience_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audience_sync_logs_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audience_sync_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audience_sync_mappings: {
+        Row: {
+          ad_account_id: string | null
+          audience_name: string | null
+          created_at: string
+          id: string
+          last_synced_at: string | null
+          list_id: string
+          members_synced: number | null
+          platform: string
+          platform_audience_id: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          audience_name?: string | null
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          list_id: string
+          members_synced?: number | null
+          platform: string
+          platform_audience_id?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          audience_name?: string | null
+          created_at?: string
+          id?: string
+          last_synced_at?: string | null
+          list_id?: string
+          members_synced?: number | null
+          platform?: string
+          platform_audience_id?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audience_sync_mappings_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audience_sync_mappings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_checkout_sessions: {
         Row: {
           billing_cycle: string
