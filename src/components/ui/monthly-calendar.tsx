@@ -235,12 +235,14 @@ export function MonthlyCalendar({
  */
 export function DayHeader({
   date,
-  holiday: today,
+  holiday,
+  isToday: today,
   className: extraClass,
   children,
 }: {
   date: Date;
-  holiday: Holiday | null;: boolean;
+  holiday: Holiday | null;
+  isToday: boolean;
   className?: string;
   children?: ReactNode;
 }) {
