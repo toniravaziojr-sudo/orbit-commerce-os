@@ -126,7 +126,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      const loginCustomerId = await getCredential(supabaseUrl, supabaseServiceKey, "GOOGLE_ADS_LOGIN_CUSTOMER_ID");
       const cleanCustomerId = customerId.replace(/-/g, "");
 
       // Date range: default last 30 days
@@ -138,9 +137,6 @@ Deno.serve(async (req) => {
         "developer-token": devToken,
         "Content-Type": "application/json",
       };
-      if (loginCustomerId) {
-        headers["login-customer-id"] = loginCustomerId.replace(/-/g, "");
-      }
 
       const query = `
         SELECT
