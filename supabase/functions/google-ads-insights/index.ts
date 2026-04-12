@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
       const devToken = await getCredential(supabaseUrl, supabaseServiceKey, "GOOGLE_ADS_DEVELOPER_TOKEN");
       if (!devToken) {
         return new Response(
-          JSON.stringify({ success: false, error: "GOOGLE_ADS_DEVELOPER_TOKEN não configurado" }),
+          JSON.stringify({ success: false, code: "MISSING_GOOGLE_ADS_DEVELOPER_TOKEN", error: "Configure o Developer Token em Integrações → Google Ads (admin da plataforma)." }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

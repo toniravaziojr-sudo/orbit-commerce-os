@@ -124,6 +124,9 @@ serve(async (req) => {
     // Google (Ads, Analytics, YouTube, etc.)
     const googleClientId = await checkCredential(supabaseUrl, supabaseServiceKey, 'GOOGLE_CLIENT_ID');
     const googleClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'GOOGLE_CLIENT_SECRET');
+    // Google Ads (MCC / Developer Token)
+    const googleAdsDevToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'GOOGLE_ADS_DEVELOPER_TOKEN');
+    const googleAdsLoginCustomerId = await checkCredential(supabaseUrl, supabaseServiceKey, 'GOOGLE_ADS_LOGIN_CUSTOMER_ID');
     // TikTok Ads
     const tiktokAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'TIKTOK_APP_ID');
     const tiktokAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'TIKTOK_APP_SECRET');
@@ -402,14 +405,20 @@ serve(async (req) => {
         secrets: {
           GOOGLE_CLIENT_ID: googleClientId.exists,
           GOOGLE_CLIENT_SECRET: googleClientSecret.exists,
+          GOOGLE_ADS_DEVELOPER_TOKEN: googleAdsDevToken.exists,
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: googleAdsLoginCustomerId.exists,
         },
         previews: {
           GOOGLE_CLIENT_ID: googleClientId.preview || '',
           GOOGLE_CLIENT_SECRET: googleClientSecret.preview || '',
+          GOOGLE_ADS_DEVELOPER_TOKEN: googleAdsDevToken.preview || '',
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: googleAdsLoginCustomerId.preview || '',
         },
         sources: {
           GOOGLE_CLIENT_ID: googleClientId.source || '',
           GOOGLE_CLIENT_SECRET: googleClientSecret.source || '',
+          GOOGLE_ADS_DEVELOPER_TOKEN: googleAdsDevToken.source || '',
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: googleAdsLoginCustomerId.source || '',
         },
       },
       tiktok_ads_platform: {
