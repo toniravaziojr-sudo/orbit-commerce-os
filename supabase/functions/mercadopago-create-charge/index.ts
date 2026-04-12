@@ -140,12 +140,32 @@ serve(async (req) => {
       },
     };
 
+    // Fetch tenant payment config for this method
+    let pixExpirationMinutes = 60;
+    let boletoExpirationDays = 3;
+    try {
+      const { data: methodConfig } = await supabase
+        .from('payment_method_discounts')
+        .select('pix_expiration_minutes, boleto_expiration_days')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('provider', 'mercadopago')
+        .eq('payment_method', payload.method)
+        .maybeSingle();
+      if (methodConfig) {
+        if (methodConfig.pix_expiration_minutes) pixExpirationMinutes = methodConfig.pix_expiration_minutes;
+        if (methodConfig.boleto_expiration_days) boletoExpirationDays = methodConfig.boleto_expiration_days;
+      }
+    } catch (cfgErr) {
+      console.warn('[MercadoPago] Non-blocking config fetch error, using defaults:', cfgErr);
+    }
+
     // Build payment method specific fields
     if (payload.method === 'pix') {
       mpPayload.payment_method_id = 'pix';
+      mpPayload.date_of_expiration = new Date(Date.now() + pixExpirationMinutes * 60 * 1000).toISOString();
     } else if (payload.method === 'boleto') {
       mpPayload.payment_method_id = 'bolbradesco';
-      mpPayload.date_of_expiration = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+      mpPayload.date_of_expiration = new Date(Date.now() + boletoExpirationDays * 24 * 60 * 60 * 1000).toISOString();
     } else if (payload.method === 'credit_card') {
       if (!payload.card) {
         throw new Error('Dados do cartão são obrigatórios para pagamento com cartão');
