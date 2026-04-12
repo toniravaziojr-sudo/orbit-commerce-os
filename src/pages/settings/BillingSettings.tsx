@@ -34,6 +34,8 @@ import { Progress } from '@/components/ui/progress';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+import { formatDateBR, formatMonthYearBR } from "@/lib/date-format";
+
 export default function BillingSettings() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
@@ -258,11 +260,11 @@ export default function BillingSettings() {
                     >
                       <div>
                         <p className="font-medium">
-                          {format(new Date(invoice.year_month + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                          {formatMonthYearBR(new Date(invoice.year_month + '-01'))}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Vencimento: {invoice.due_date 
-                            ? format(new Date(invoice.due_date), 'dd/MM/yyyy')
+                            ? formatDateBR(new Date(invoice.due_date))
                             : '-'
                           }
                         </p>

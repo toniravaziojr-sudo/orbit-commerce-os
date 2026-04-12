@@ -4,8 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAgendaTemplateStatus } from "@/hooks/useAgendaTemplateStatus";
 import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+import { formatDateTimeBR } from "@/lib/date-format";
 
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) {
@@ -109,13 +110,13 @@ export function AgendaTemplateStatus() {
         {status.submitted && (
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
             {status.submitted_at && (
-              <span>Submetido: {format(new Date(status.submitted_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+              <span>Submetido: {formatDateTimeBR(new Date(status.submitted_at))}</span>
             )}
             {status.approved_at && (
-              <span>Aprovado: {format(new Date(status.approved_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+              <span>Aprovado: {formatDateTimeBR(new Date(status.approved_at))}</span>
             )}
             {status.last_checked_at && (
-              <span>Última verificação: {format(new Date(status.last_checked_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+              <span>Última verificação: {formatDateTimeBR(new Date(status.last_checked_at))}</span>
             )}
           </div>
         )}

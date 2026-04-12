@@ -18,6 +18,8 @@ import { subDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAdsAccountConfigs } from "@/hooks/useAdsAccountConfigs";
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 // ========== TYPES ==========
 
 interface AdAccount {

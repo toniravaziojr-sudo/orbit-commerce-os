@@ -9,6 +9,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { useSocialPosts, useSocialPostActions, type SocialPostEntry } from "@/hooks/useSocialPosts";
 
+import { formatTimeBR } from "@/lib/date-format";
+
 interface PlatformStatusPanelProps {
   calendarItemId: string;
   compact?: boolean;
@@ -104,7 +106,7 @@ function PostRow({ post, onRetry, onDismiss, isActing }: {
         {/* Retry pending info */}
         {isRetryPending && post.next_retry_at && (
           <p className="text-[10px] text-muted-foreground">
-            Próxima tentativa: {format(new Date(post.next_retry_at), "HH:mm", { locale: ptBR })}
+            Próxima tentativa: {formatTimeBR(new Date(post.next_retry_at))}
           </p>
         )}
 

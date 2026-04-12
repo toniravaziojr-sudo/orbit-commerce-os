@@ -1,4 +1,6 @@
+import { formatDateBR } from "@/lib/date-format";
 import { useState } from 'react';
+import { formatDateBR } from "@/lib/date-format";
 import { Filter, X, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -72,7 +74,7 @@ export function InvoiceFiltersComponent({ filters, onChange, onClear }: InvoiceF
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="justify-start text-left font-normal">
                     {localFilters.startDate 
-                      ? format(localFilters.startDate, 'dd/MM/yy') 
+                      ? formatDateBR(localFilters.startDate) 
                       : 'De'}
                   </Button>
                 </PopoverTrigger>
@@ -89,7 +91,7 @@ export function InvoiceFiltersComponent({ filters, onChange, onClear }: InvoiceF
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="justify-start text-left font-normal">
                     {localFilters.endDate 
-                      ? format(localFilters.endDate, 'dd/MM/yy') 
+                      ? formatDateBR(localFilters.endDate) 
                       : 'Até'}
                   </Button>
                 </PopoverTrigger>

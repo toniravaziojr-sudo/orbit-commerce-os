@@ -10,6 +10,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAIMemories, AIMemory } from "@/hooks/useAIMemories";
 import { Loader2 } from "lucide-react";
 
+import { formatDateBR } from "@/lib/date-format";
+
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   business_fact: { label: "Fato do Negócio", color: "bg-blue-500/10 text-blue-600" },
   preference: { label: "Preferência", color: "bg-purple-500/10 text-purple-600" },
@@ -104,7 +106,7 @@ function MemoryCard({ memory, onDelete, onUpdate }: {
           <p className="text-sm text-foreground">{memory.content}</p>
         )}
         <p className="text-[10px] text-muted-foreground">
-          {new Date(memory.created_at).toLocaleDateString("pt-BR")} · {new Date(memory.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+          {formatDateBR(new Date(memory.created_at))} · {new Date(memory.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
         </p>
       </div>
       {!isEditing && (
@@ -260,7 +262,7 @@ export default function AIMemories() {
                       </div>
                     )}
                     <p className="text-[10px] text-muted-foreground">
-                      {new Date(s.created_at).toLocaleDateString("pt-BR")} · {s.message_count || "?"} mensagens
+                      {formatDateBR(new Date(s.created_at))} · {s.message_count || "?"} mensagens
                     </p>
                   </div>
                   <Button

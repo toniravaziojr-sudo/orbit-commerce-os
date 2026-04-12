@@ -29,6 +29,8 @@ import {
 import { useAgendaTasks, type AgendaTask, type AgendaReminder } from "@/hooks/useAgendaTasks";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { formatDayMonthTimeBR } from "@/lib/date-format";
+
 interface AgendaTaskListProps {
   tasks: AgendaTask[];
   isLoading: boolean;
@@ -175,7 +177,7 @@ export function AgendaTaskList({ tasks, isLoading, getTaskReminders }: AgendaTas
                           <p className="font-medium">Lembretes:</p>
                           {reminders.map(r => (
                             <div key={r.id} className="text-xs flex items-center gap-2">
-                              <span>{format(new Date(r.remind_at), "dd/MM HH:mm")}</span>
+                              <span>{formatDayMonthTimeBR(new Date(r.remind_at))}</span>
                               <Badge variant="outline" className={`text-xs ${
                                 r.status === 'dispatched' ? 'text-success' :
                                 r.status === 'failed' ? 'text-destructive' :

@@ -12,6 +12,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+import { formatDateBR } from "@/lib/date-format";
+
 interface ConsultaChaveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -207,7 +209,7 @@ export function ConsultaChaveDialog({ open, onOpenChange }: ConsultaChaveDialogP
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Data de Emissão</span>
                         <span className="text-sm">
-                          {format(new Date(result.data_emissao), "dd/MM/yyyy", { locale: ptBR })}
+                          {formatDateBR(new Date(result.data_emissao))}
                         </span>
                       </div>
                     )}

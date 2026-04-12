@@ -18,8 +18,10 @@ import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { ExportDropdown } from "@/components/ui/export-dropdown";
 import { QueryErrorState } from '@/components/ui/query-error-state';
 import { exportToCSV, exportToExcel, formatDateForExport, formatCurrencyForExport } from "@/lib/exportUtils";
-import { format, isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
+import { isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
+
+import { formatDateBR } from "@/lib/date-format";
 
 export default function Finance() {
   const { entries, orders, totalIncome, totalExpense, netProfit, margin, ordersIncome, createEntry, updateEntry, deleteEntry, isLoading, error } = useFinanceEntries();
@@ -271,7 +273,7 @@ export default function Finance() {
                   <TableBody>
                     {incomeEntries.map((e) => (
                       <TableRow key={e.id}>
-                        <TableCell>{format(new Date(e.entry_date), "dd/MM/yyyy")}</TableCell>
+                        <TableCell>{formatDateBR(new Date(e.entry_date))}</TableCell>
                         <TableCell>{e.description}</TableCell>
                         <TableCell>{getEntryTypeName(e.finance_entry_type_id) ? <Badge variant="secondary">{getEntryTypeName(e.finance_entry_type_id)}</Badge> : "-"}</TableCell>
                         <TableCell><Badge variant="outline">{e.category || "Outros"}</Badge></TableCell>
@@ -306,7 +308,7 @@ export default function Finance() {
                   <TableBody>
                     {expenseEntries.map((e) => (
                       <TableRow key={e.id}>
-                        <TableCell>{format(new Date(e.entry_date), "dd/MM/yyyy")}</TableCell>
+                        <TableCell>{formatDateBR(new Date(e.entry_date))}</TableCell>
                         <TableCell>{e.description}</TableCell>
                         <TableCell>{getEntryTypeName(e.finance_entry_type_id) ? <Badge variant="secondary">{getEntryTypeName(e.finance_entry_type_id)}</Badge> : "-"}</TableCell>
                         <TableCell><Badge variant="outline">{e.category || "Outros"}</Badge></TableCell>
@@ -398,7 +400,7 @@ export default function Finance() {
                   <TableBody>
                     {filteredHistoryEntries.map((e) => (
                       <TableRow key={e.id}>
-                        <TableCell>{format(new Date(e.entry_date), "dd/MM/yyyy")}</TableCell>
+                        <TableCell>{formatDateBR(new Date(e.entry_date))}</TableCell>
                         <TableCell>{e.description}</TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">

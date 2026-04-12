@@ -11,9 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Star, RefreshCw, Search, Loader2, MessageSquare, Send, MapPin, AlertCircle, ExternalLink } from "lucide-react";
 import { useGoogleBusiness } from "@/hooks/useGoogleBusiness";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+
+import { formatDateBR } from "@/lib/date-format";
 
 export function GoogleBusinessReviewsTab() {
   const { isConnected, connection } = useGoogleConnection();
@@ -214,7 +215,7 @@ export function GoogleBusinessReviewsTab() {
                       <TableCell>{renderStars(rating)}</TableCell>
                       <TableCell className="hidden md:table-cell max-w-xs truncate">{comment || "—"}</TableCell>
                       <TableCell className="hidden lg:table-cell text-muted-foreground">
-                        {createdAt ? format(new Date(createdAt), "dd/MM/yyyy", { locale: ptBR }) : "—"}
+                        {createdAt ? formatDateBR(new Date(createdAt)) : "—"}
                       </TableCell>
                       <TableCell>
                         {hasReply ? (

@@ -10,6 +10,8 @@ import { ptBR } from "date-fns/locale";
 import type { Conversation, ConversationStatus, SupportChannelType } from "@/hooks/useConversations";
 import { cn } from "@/lib/utils";
 
+import { formatDateBR } from "@/lib/date-format";
+
 interface ConversationListProps {
   conversations: Conversation[];
   selectedId: string | null;
@@ -65,7 +67,7 @@ function formatConversationDate(dateStr: string | null): string {
   if (diff === 0) return 'Hoje';
   if (diff === 1) return 'Ontem';
   if (diff < 7) return format(date, "EEEE", { locale: ptBR }); // dia da semana
-  return format(date, "dd/MM/yyyy");
+  return formatDateBR(date);
 }
 
 const statusColors: Record<ConversationStatus, string> = {

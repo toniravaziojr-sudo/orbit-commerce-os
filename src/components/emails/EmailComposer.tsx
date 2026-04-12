@@ -17,6 +17,8 @@ import { useEmailAttachmentUpload, PendingAttachment } from "@/hooks/useEmailAtt
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 interface EmailComposerProps {
   mailbox: Mailbox;
   replyToMessageId?: string | null;
@@ -55,7 +57,7 @@ export function EmailComposer({ mailbox, replyToMessageId, onClose }: EmailCompo
     if (replyToMessage) {
       setTo(replyToMessage.from_email);
       setSubject(`Re: ${replyToMessage.subject || ''}`);
-      setBody(`\n\n---\nEm ${new Date(replyToMessage.received_at || replyToMessage.created_at).toLocaleString('pt-BR')}, ${replyToMessage.from_name || replyToMessage.from_email} escreveu:\n\n${replyToMessage.body_text || ''}`);
+      setBody(`\n\n---\nEm ${formatDateTimeBR(new Date(replyToMessage.received_at || replyToMessage.created_at))}, ${replyToMessage.from_name || replyToMessage.from_email} escreveu:\n\n${replyToMessage.body_text || ''}`);
     }
   }, [replyToMessage]);
 

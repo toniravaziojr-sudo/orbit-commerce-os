@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 interface StatItem {
   id?: string;
   number: string;
@@ -56,7 +58,7 @@ function AnimatedNumber({ value, animate }: { value: string; animate: boolean })
             
             // Format with same style as original
             let formatted = numericMatch[0].includes(',') || numericMatch[0].includes('.')
-              ? current.toLocaleString('pt-BR')
+              ? current.toLocaleString("pt-BR")
               : Math.round(current).toString();
             
             setDisplayValue(`${prefix}${formatted}${suffix}`);

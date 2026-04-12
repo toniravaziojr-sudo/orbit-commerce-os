@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
   Clock, RefreshCw, Send, CheckCircle, XCircle, Ban, 
@@ -22,6 +21,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { Notification, NotificationAttempt, NotificationStatus } from "@/hooks/useNotifications";
+
+import { formatDateTimeSecondsBR, formatDayMonthTimeBR, formatTimeBR } from "@/lib/date-format";
 
 interface NotificationDetailDialogProps {
   notification: Notification | null;
@@ -109,7 +110,7 @@ export function NotificationDetailDialog({
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Criado em</p>
                 <p className="text-sm">
-                  {format(new Date(notification.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
+                  {formatDateTimeSecondsBR(new Date(notification.created_at))}
                 </p>
               </div>
             </div>
@@ -118,7 +119,7 @@ export function NotificationDetailDialog({
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Enviado em</p>
                 <p className="text-sm text-success">
-                  {format(new Date(notification.sent_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
+                  {formatDateTimeSecondsBR(new Date(notification.sent_at))}
                 </p>
               </div>
             )}
@@ -206,7 +207,7 @@ export function NotificationDetailDialog({
                             Tentativa #{attempt.attempt_no}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {format(new Date(attempt.started_at), "dd/MM HH:mm:ss", { locale: ptBR })}
+                            {formatDayMonthTimeBR(new Date(attempt.started_at))}
                           </span>
                         </div>
                         <Badge variant="outline" className="capitalize">
@@ -223,7 +224,7 @@ export function NotificationDetailDialog({
                       
                       {attempt.finished_at && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Finalizado: {format(new Date(attempt.finished_at), "HH:mm:ss", { locale: ptBR })}
+                          Finalizado: {formatTimeBR(new Date(attempt.finished_at))}
                         </p>
                       )}
                     </div>

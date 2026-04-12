@@ -13,6 +13,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { ActionDetailDialog } from "./ActionDetailDialog";
 import { AdsStartupProgress } from "./AdsStartupProgress";
 import { showErrorToast } from '@/lib/error-toast';
+import { formatDateTimeBR } from "@/lib/date-format";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -324,7 +326,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    {new Date(action.created_at).toLocaleString("pt-BR")}
+                    {formatDateTimeBR(new Date(action.created_at))}
                   </p>
                 </div>
               </div>

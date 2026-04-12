@@ -30,6 +30,8 @@ import {
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 const BRAZILIAN_STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
 function formatCurrency(value: number | null): string {
@@ -392,22 +394,22 @@ export function AbandonedCheckoutsTab() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Iniciado em</span>
-                    <span>{format(new Date(selectedSession.started_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
+                    <span>{formatDateTimeBR(new Date(selectedSession.started_at))}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Última atividade</span>
-                    <span>{format(new Date(selectedSession.last_seen_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
+                    <span>{formatDateTimeBR(new Date(selectedSession.last_seen_at))}</span>
                   </div>
                   {selectedSession.abandoned_at && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Abandonado em</span>
-                      <span>{format(new Date(selectedSession.abandoned_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
+                      <span>{formatDateTimeBR(new Date(selectedSession.abandoned_at))}</span>
                     </div>
                   )}
                   {selectedSession.recovered_at && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Recuperado em</span>
-                      <span>{format(new Date(selectedSession.recovered_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
+                      <span>{formatDateTimeBR(new Date(selectedSession.recovered_at))}</span>
                     </div>
                   )}
                 </div>

@@ -3,9 +3,11 @@ import { Clock, User, Bot, ArrowRight, MessageSquare, AlertCircle, CheckCircle, 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+
+import { formatDayMonthTimeBR } from "@/lib/date-format";
 
 interface ConversationEvent {
   id: string;
@@ -152,7 +154,7 @@ export function ConversationEventsPanel({ conversationId }: ConversationEventsPa
                       {formatEventDescription(event)}
                     </p>
                     <span className="text-xs text-muted-foreground">
-                      {format(new Date(event.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                      {formatDayMonthTimeBR(new Date(event.created_at))}
                       {' · '}
                       {formatDistanceToNow(new Date(event.created_at), { 
                         addSuffix: true, 

@@ -1,4 +1,6 @@
+import { formatDateTimeBR } from "@/lib/date-format";
 import { Download, Loader2 } from 'lucide-react';
+import { formatDateTimeBR } from "@/lib/date-format";
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import type { FiscalInvoice } from '@/hooks/useFiscal';
@@ -34,7 +36,7 @@ export function ExportInvoicesButton({ invoices, isLoading }: ExportInvoicesButt
       const rows = invoices.map(inv => [
         inv.numero,
         inv.serie,
-        format(new Date(inv.created_at), 'dd/MM/yyyy HH:mm'),
+        formatDateTimeBR(inv.created_at),
         `"${inv.dest_nome.replace(/"/g, '""')}"`, // Escape quotes
         inv.dest_cpf_cnpj,
         inv.valor_total.toFixed(2).replace('.', ','),

@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +35,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCreateShipment } from '@/hooks/useShipments';
 import { toast } from 'sonner';
+
+import { formatDateTimeBR, formatDayMonthTimeBR } from "@/lib/date-format";
 
 interface ShipmentRecord {
   id: string;
@@ -681,7 +682,7 @@ export function ShipmentGenerator() {
                             <Badge variant="outline" className="text-xs">{shipment.carrier}</Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
-                            {format(new Date(shipment.created_at), 'dd/MM HH:mm', { locale: ptBR })}
+                            {formatDayMonthTimeBR(new Date(shipment.created_at))}
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1 justify-end">
@@ -786,7 +787,7 @@ export function ShipmentGenerator() {
                             {shipment.carrier}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {format(new Date(shipment.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                            {formatDateTimeBR(new Date(shipment.created_at))}
                           </span>
                         </div>
                       </div>

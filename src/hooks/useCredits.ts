@@ -11,6 +11,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 // Types
 export interface CreditPackage {
   id: string;
@@ -81,7 +83,7 @@ export function calculateCreditsForCost(costUsd: number): number {
  * Format credits as display string
  */
 export function formatCredits(credits: number): string {
-  return credits.toLocaleString('pt-BR');
+  return credits.toLocaleString("pt-BR");
 }
 
 /**

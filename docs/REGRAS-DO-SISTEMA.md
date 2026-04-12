@@ -689,4 +689,39 @@ Toda alteração que afete dados, comportamento, formatação ou apresentação 
 
 ---
 
+## 30. FUSO HORÁRIO — REGRA UNIVERSAL
+
+> **Todo horário exibido ao usuário deve refletir o horário oficial de Brasília (America/Sao_Paulo).**
+
+### Princípios
+
+| Camada | Timezone | Motivo |
+|--------|----------|--------|
+| Banco de dados | UTC | Padrão ISO. Nunca armazenar com offset. |
+| Edge Functions | BRT (via `Intl.DateTimeFormat` com `timeZone: 'America/Sao_Paulo'`) | Mensagens, notas e logs gerados pelo servidor devem respeitar BRT. |
+| Front-end | BRT (via `src/lib/date-format.ts`) | Toda exibição de data/hora ao usuário. |
+
+### Utilitários Obrigatórios
+
+| Caminho | Uso |
+|---------|-----|
+| `src/lib/date-format.ts` | Formatação de datas no front-end. Funções: `formatDateBR`, `formatDateTimeBR`, `formatTimeBR`, `isTodayBR`, `isYesterdayBR`, `formatRelativeDateBR`, etc. |
+| `src/lib/date-timezone.ts` | Cálculo de início/fim de dia em BRT para queries no banco (ex: filtros de data). |
+| `supabase/functions/_shared/date-format-br.ts` | Formatação BRT em Edge Functions. |
+
+### Regras de Uso
+
+1. **PROIBIDO** usar `date-fns format()` com `{ locale: ptBR }` para exibição — o resultado depende do timezone do browser.
+2. **PROIBIDO** usar `.toLocaleDateString('pt-BR')` ou `.toLocaleString('pt-BR')` sem `timeZone` explícito.
+3. **PROIBIDO** usar `isToday()`, `isYesterday()`, `isThisYear()` do `date-fns` — usar `isTodayBR()`, `isYesterdayBR()`, `isThisYearBR()`.
+4. **OBRIGATÓRIO** importar de `@/lib/date-format` para qualquer formatação de data no front-end.
+5. Em Edge Functions, usar `Intl.DateTimeFormat` com `timeZone: 'America/Sao_Paulo'` ou o utilitário `_shared/date-format-br.ts`.
+6. Exceções: formatação `yyyy-MM-dd` para chaves internas, nomes de arquivo ou queries SQL pode usar `date-fns format()` sem locale.
+
+### Anti-regressão
+
+Todo PR que introduza nova formatação de data deve ser verificado contra esta regra. Se usar `format(date, ...)` com `ptBR` ou `.toLocaleDateString` sem timezone, deve ser corrigido antes do merge.
+
+---
+
 *Fim do documento.*

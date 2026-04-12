@@ -1,4 +1,6 @@
+import { formatDateBR } from "@/lib/date-format";
 import { useState, useMemo } from "react";
+import { formatDateBR } from "@/lib/date-format";
 import { ShoppingBag, Plus, Truck, Package, Users, Pencil, Trash2, FileText, Search, History } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -329,7 +331,7 @@ export default function Purchases() {
                             </Badge>
                           ) : "-"}
                         </TableCell>
-                        <TableCell>{p.expected_delivery_date ? format(new Date(p.expected_delivery_date), "dd/MM/yyyy") : "-"}</TableCell>
+                        <TableCell>{p.expected_delivery_date ? formatDateBR(p.expected_delivery_date) : "-"}</TableCell>
                         <TableCell><Badge className={PURCHASE_STATUS_COLORS[p.status]}>{PURCHASE_STATUS_LABELS[p.status]}</Badge></TableCell>
                         <TableCell>
                           <div className="flex gap-1">
@@ -470,7 +472,7 @@ export default function Purchases() {
                         <TableCell>{getPurchaseTypeName(p.purchase_type_id) ? <Badge variant="secondary">{getPurchaseTypeName(p.purchase_type_id)}</Badge> : "-"}</TableCell>
                         <TableCell>{p.supplier?.name || "-"}</TableCell>
                         <TableCell>R$ {Number(p.total_value).toFixed(2)}</TableCell>
-                        <TableCell>{p.actual_delivery_date ? format(new Date(p.actual_delivery_date), "dd/MM/yyyy") : "-"}</TableCell>
+                        <TableCell>{p.actual_delivery_date ? formatDateBR(p.actual_delivery_date) : "-"}</TableCell>
                         <TableCell><Badge className={PURCHASE_STATUS_COLORS[p.status]}>{PURCHASE_STATUS_LABELS[p.status]}</Badge></TableCell>
                       </TableRow>
                     ))}

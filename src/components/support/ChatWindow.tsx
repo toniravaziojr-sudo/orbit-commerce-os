@@ -5,7 +5,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@/hooks/useConversations";
 import type { Message } from "@/hooks/useMessages";
@@ -14,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { QuickRepliesDropdown } from "./QuickRepliesDropdown";
 import { toast } from "sonner";
+
+import { formatTimeBR } from "@/lib/date-format";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -248,7 +249,7 @@ export function ChatWindow({
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     <div className="flex items-center gap-2 text-xs mt-1 opacity-70">
-                      <span>{format(new Date(msg.created_at), 'HH:mm', { locale: ptBR })}</span>
+                      <span>{formatTimeBR(new Date(msg.created_at))}</span>
                     </div>
                   </div>
                   <Avatar className="h-8 w-8">
@@ -313,7 +314,7 @@ export function ChatWindow({
                     "flex items-center gap-2 text-xs mt-1",
                     isOutbound ? "opacity-70" : "text-muted-foreground"
                   )}>
-                    <span>{format(new Date(msg.created_at), 'HH:mm', { locale: ptBR })}</span>
+                    <span>{formatTimeBR(new Date(msg.created_at))}</span>
                     {isOutbound && (
                       <span className="text-xs">
                         {msg.delivery_status === 'read' ? '✓✓' : 

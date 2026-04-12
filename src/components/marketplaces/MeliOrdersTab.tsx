@@ -14,6 +14,8 @@ import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 const ORDER_STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pendente", variant: "outline" },
   processing: { label: "Processando", variant: "default" },
@@ -138,7 +140,7 @@ export function MeliOrdersTab() {
                       {formatCurrency(order.total)}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {format(new Date(order.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      {formatDateTimeBR(new Date(order.created_at))}
                     </TableCell>
                     <TableCell>
                       <Button

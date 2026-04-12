@@ -31,6 +31,8 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useAgendaTasks, type RecurrenceConfig } from "@/hooks/useAgendaTasks";
 
+import { formatDateBR } from "@/lib/date-format";
+
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -209,7 +211,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dueDate ? format(dueDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
+                    {dueDate ? formatDateBR(dueDate) : "Selecione"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">

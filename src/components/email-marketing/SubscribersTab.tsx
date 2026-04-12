@@ -32,8 +32,9 @@ import {
   UserCheck,
   UserX
 } from "lucide-react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
 const PAGE_SIZE = 50;
 
@@ -302,7 +303,7 @@ export function SubscribersTab() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">
-                          {format(new Date(sub.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                          {formatDateBR(new Date(sub.created_at))}
                         </TableCell>
                       </TableRow>
                     ))}

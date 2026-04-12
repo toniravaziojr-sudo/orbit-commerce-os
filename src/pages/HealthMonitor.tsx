@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Navigate } from 'react-router-dom';
 import { 
@@ -34,6 +33,8 @@ import { HealthCheckTargetDialog } from '@/components/health/HealthCheckTargetDi
 import { HealthCheckDetailDialog } from '@/components/health/HealthCheckDetailDialog';
 import { SchedulerStatusCard } from '@/components/health/SchedulerStatusCard';
 import { toast } from 'sonner';
+
+import { formatDayMonthNumericBR, formatDayMonthTimeBR, formatTimeBR } from "@/lib/date-format";
 
 const statusConfig = {
   pass: { icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10', label: 'OK' },
@@ -164,9 +165,9 @@ export default function HealthMonitor() {
           />
           <StatCard
             title="Última Verificação"
-            value={aggregatedStats.lastCheckAt ? format(new Date(aggregatedStats.lastCheckAt), 'HH:mm') : '-'}
+            value={aggregatedStats.lastCheckAt ? formatTimeBR(new Date(aggregatedStats.lastCheckAt)) : '-'}
             icon={Clock}
-            description={aggregatedStats.lastCheckAt ? format(new Date(aggregatedStats.lastCheckAt), 'dd/MM') : '-'}
+            description={aggregatedStats.lastCheckAt ? formatDayMonthNumericBR(new Date(aggregatedStats.lastCheckAt)) : '-'}
           />
         </div>
 
@@ -238,7 +239,7 @@ export default function HealthMonitor() {
                           </div>
                           <div className="text-right text-sm text-muted-foreground">
                             <p>{tenantChecks.length} verificações</p>
-                            <p>Última: {format(new Date(lastCheck.ran_at), 'dd/MM HH:mm')}</p>
+                            <p>Última: {formatDayMonthTimeBR(new Date(lastCheck.ran_at))}</p>
                           </div>
                         </div>
                       );
@@ -295,7 +296,7 @@ export default function HealthMonitor() {
                                   {target?.label || check.tenant_id.slice(0, 8)}
                                 </span>
                                 <span className="font-medium">
-                                  {format(new Date(check.ran_at), "dd/MM HH:mm", { locale: ptBR })}
+                                  {formatDayMonthTimeBR(new Date(check.ran_at))}
                                 </span>
                                 <Badge variant={check.status === 'pass' ? 'secondary' : 'destructive'}>
                                   {config.label}

@@ -21,6 +21,8 @@ import { StatCard } from '@/components/ui/stat-card';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 interface ChargebackOrder {
   id: string;
   order_number: string;
@@ -39,7 +41,7 @@ function formatCurrency(value: number) {
 }
 
 function formatDate(dateString: string) {
-  return format(new Date(dateString), "dd/MM/yyyy HH:mm", { locale: ptBR });
+  return formatDateTimeBR(new Date(dateString));
 }
 
 function timeRemaining(deadline: string | null) {

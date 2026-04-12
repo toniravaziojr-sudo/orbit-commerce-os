@@ -12,6 +12,8 @@ import { Search, CreditCard, Users, TrendingUp, AlertCircle } from "lucide-react
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+import { formatDateBR, formatDateTimeBR, formatDateTimeSecondsBR } from "@/lib/date-format";
+
 interface Subscription {
   tenant_id: string;
   plan_key: string;
@@ -255,11 +257,11 @@ export default function PlatformBilling() {
                         <TableCell>{getStatusBadge(sub.status)}</TableCell>
                         <TableCell>
                           {sub.current_period_end
-                            ? format(new Date(sub.current_period_end), 'dd/MM/yyyy', { locale: ptBR })
+                            ? formatDateBR(new Date(sub.current_period_end))
                             : '-'}
                         </TableCell>
                         <TableCell>
-                          {format(new Date(sub.updated_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                          {formatDateTimeBR(new Date(sub.updated_at))}
                         </TableCell>
                       </TableRow>
                     ))
@@ -348,7 +350,7 @@ export default function PlatformBilling() {
                       events?.map((event) => (
                         <TableRow key={event.id}>
                           <TableCell>
-                            {format(new Date(event.created_at), 'dd/MM/yyyy HH:mm:ss', { locale: ptBR })}
+                            {formatDateTimeSecondsBR(new Date(event.created_at))}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{event.event_type}</Badge>

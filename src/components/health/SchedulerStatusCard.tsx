@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { format, differenceInMinutes } from 'date-fns';
+import { differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   Clock, 
@@ -14,6 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+
+import { formatTimeBR } from "@/lib/date-format";
 
 interface SchedulerConfig {
   name: string;
@@ -253,7 +255,7 @@ export function SchedulerStatusCard() {
                     {statusData?.lastRun ? (
                       <>
                         <p className="text-muted-foreground">
-                          {format(new Date(statusData.lastRun), 'HH:mm', { locale: ptBR })}
+                          {formatTimeBR(new Date(statusData.lastRun))}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {statusData.minutesSinceRun}min atrás

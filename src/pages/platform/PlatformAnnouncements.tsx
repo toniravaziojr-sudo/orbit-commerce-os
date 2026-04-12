@@ -3,6 +3,7 @@
 // Admin page for creating/managing system-wide announcements
 // =============================================
 
+import { formatDateBR } from "@/lib/date-format";
 import { useState } from "react";
 import { parse } from 'date-fns';
 import { DatePickerField } from '@/components/ui/date-picker-field';
@@ -277,12 +278,12 @@ export default function PlatformAnnouncements() {
                       <TableCell>
                         <div className="text-sm">
                           {announcement.starts_at ? (
-                            <span>{format(new Date(announcement.starts_at), "dd/MM/yy", { locale: ptBR })}</span>
+                            <span>{formatDateBR(announcement.starts_at)}</span>
                           ) : (
                             <span className="text-muted-foreground">Sempre</span>
                           )}
                           {announcement.ends_at && (
-                            <span> → {format(new Date(announcement.ends_at), "dd/MM/yy", { locale: ptBR })}</span>
+                            <span> → {formatDateBR(announcement.ends_at)}</span>
                           )}
                         </div>
                       </TableCell>

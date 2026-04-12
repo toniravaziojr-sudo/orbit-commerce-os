@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { format, parse, isValid, isSameDay, startOfDay, endOfDay, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateBR } from "@/lib/date-format";
+
 import {
   type DatePreset,
   PRESET_OPTIONS,
@@ -47,8 +49,8 @@ export function DateRangeFilter({
   const [localStartDate, setLocalStartDate] = useState<Date | undefined>(startDate);
   const [localEndDate, setLocalEndDate] = useState<Date | undefined>(endDate);
   const [activePreset, setActivePreset] = useState<DatePreset | null>(() => detectPreset(startDate, endDate));
-  const [startInputValue, setStartInputValue] = useState(startDate ? format(startDate, 'dd/MM/yyyy') : '');
-  const [endInputValue, setEndInputValue] = useState(endDate ? format(endDate, 'dd/MM/yyyy') : '');
+  const [startInputValue, setStartInputValue] = useState(startDate ? formatDateBR(startDate) : '');
+  const [endInputValue, setEndInputValue] = useState(endDate ? formatDateBR(endDate) : '');
   const [calendarMonth, setCalendarMonth] = useState<Date>(startDate || new Date());
   // Selection phase: 'start' = next click sets start date, 'end' = next click sets end date
   const [selectionPhase, setSelectionPhase] = useState<'start' | 'end'>('start');
@@ -57,8 +59,8 @@ export function DateRangeFilter({
   useEffect(() => {
     setLocalStartDate(startDate);
     setLocalEndDate(endDate);
-    setStartInputValue(startDate ? format(startDate, 'dd/MM/yyyy') : '');
-    setEndInputValue(endDate ? format(endDate, 'dd/MM/yyyy') : '');
+    setStartInputValue(startDate ? formatDateBR(startDate) : '');
+    setEndInputValue(endDate ? formatDateBR(endDate) : '');
     setActivePreset(detectPreset(startDate, endDate));
   }, [startDate, endDate]);
 
@@ -87,8 +89,8 @@ export function DateRangeFilter({
       const { start, end } = getPresetDateRange('select_month', calendarMonth);
       setLocalStartDate(start);
       setLocalEndDate(end);
-      setStartInputValue(start ? format(start, 'dd/MM/yyyy') : '');
-      setEndInputValue(end ? format(end, 'dd/MM/yyyy') : '');
+      setStartInputValue(start ? formatDateBR(start) : '');
+      setEndInputValue(end ? formatDateBR(end) : '');
       return;
     }
 
@@ -96,8 +98,8 @@ export function DateRangeFilter({
     const { start, end } = getPresetDateRange(preset);
     setLocalStartDate(start);
     setLocalEndDate(end);
-    setStartInputValue(start ? format(start, 'dd/MM/yyyy') : '');
-    setEndInputValue(end ? format(end, 'dd/MM/yyyy') : '');
+    setStartInputValue(start ? formatDateBR(start) : '');
+    setEndInputValue(end ? formatDateBR(end) : '');
   };
 
   // Unified calendar click handler — works for both left and right calendars
@@ -111,7 +113,7 @@ export function DateRangeFilter({
       const dayStart = startOfDay(date);
       setLocalStartDate(dayStart);
       setLocalEndDate(undefined);
-      setStartInputValue(format(dayStart, 'dd/MM/yyyy'));
+      setStartInputValue(formatDateBR(dayStart));
       setEndInputValue('');
       setSelectionPhase('end');
     } else {
@@ -123,11 +125,11 @@ export function DateRangeFilter({
         const singleDay = startOfDay(date);
         setLocalStartDate(singleDay);
         setLocalEndDate(endOfDay(date));
-        setStartInputValue(format(singleDay, 'dd/MM/yyyy'));
-        setEndInputValue(format(date, 'dd/MM/yyyy'));
+        setStartInputValue(formatDateBR(singleDay));
+        setEndInputValue(formatDateBR(date));
       } else {
         setLocalEndDate(dayEnd);
-        setEndInputValue(format(date, 'dd/MM/yyyy'));
+        setEndInputValue(formatDateBR(date));
       }
       setSelectionPhase('start');
     }
@@ -160,7 +162,7 @@ export function DateRangeFilter({
     
     if (finalEnd && !localEndDate) {
       setLocalEndDate(finalEnd);
-      setEndInputValue(format(finalEnd, 'dd/MM/yyyy'));
+      setEndInputValue(formatDateBR(finalEnd));
     }
     
     onChange(finalStart, finalEnd);
@@ -181,8 +183,8 @@ export function DateRangeFilter({
   const handleCancel = () => {
     setLocalStartDate(startDate);
     setLocalEndDate(endDate);
-    setStartInputValue(startDate ? format(startDate, 'dd/MM/yyyy') : '');
-    setEndInputValue(endDate ? format(endDate, 'dd/MM/yyyy') : '');
+    setStartInputValue(startDate ? formatDateBR(startDate) : '');
+    setEndInputValue(endDate ? formatDateBR(endDate) : '');
     setActivePreset(detectPreset(startDate, endDate));
     setIsOpen(false);
   };
@@ -281,8 +283,8 @@ export function DateRangeFilter({
                     const end = endOfMonth(month);
                     setLocalStartDate(start);
                     setLocalEndDate(end);
-                    setStartInputValue(format(start, 'dd/MM/yyyy'));
-                    setEndInputValue(format(end, 'dd/MM/yyyy'));
+                    setStartInputValue(formatDateBR(start));
+                    setEndInputValue(formatDateBR(end));
                   }}
                 />
               ) : (

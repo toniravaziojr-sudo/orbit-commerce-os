@@ -1,4 +1,3 @@
-import { format, isToday, isYesterday, isThisYear } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Star, Paperclip } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -7,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { EmailMessage } from "@/hooks/useEmailMessages";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Mail } from "lucide-react";
+
+import { formatDayMonthBR, formatDayMonthYearShortBR, formatTimeBR, isThisYearBR, isTodayBR, isYesterdayBR } from "@/lib/date-format";
 
 interface EmailListProps {
   messages: EmailMessage[];
@@ -26,16 +27,16 @@ function formatEmailDate(dateStr: string | null) {
   if (!dateStr) return '';
   const date = new Date(dateStr);
   
-  if (isToday(date)) {
-    return format(date, 'HH:mm', { locale: ptBR });
+  if (isTodayBR(date)) {
+    return formatTimeBR(date);
   }
-  if (isYesterday(date)) {
+  if (isYesterdayBR(date)) {
     return 'Ontem';
   }
-  if (isThisYear(date)) {
-    return format(date, 'd MMM', { locale: ptBR });
+  if (isThisYearBR(date)) {
+    return formatDayMonthBR(date);
   }
-  return format(date, 'd MMM yyyy', { locale: ptBR });
+  return formatDayMonthYearShortBR(date);
 }
 
 export function EmailList({ messages, isLoading, selectedId, onSelect }: EmailListProps) {

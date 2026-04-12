@@ -14,6 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { formatDateBR } from "@/lib/date-format";
+
 import { 
   useAffiliateProgram, 
   useAffiliates, 
@@ -586,7 +588,7 @@ export default function Affiliates() {
                             {payout.status === 'approved' && <Badge className="bg-yellow-500 text-white">Aprovado</Badge>}
                             {payout.status === 'paid' && <Badge className="bg-green-500 text-white">Pago</Badge>}
                           </TableCell>
-                          <TableCell>{new Date(payout.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                          <TableCell>{formatDateBR(new Date(payout.created_at))}</TableCell>
                           <TableCell>
                             {payout.status !== 'paid' && (
                               <Button 

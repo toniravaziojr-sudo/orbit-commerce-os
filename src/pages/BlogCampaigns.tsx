@@ -2,6 +2,7 @@
 // BLOG CAMPAIGNS - Manage AI-generated blog campaigns
 // =============================================
 
+import { formatMonthYearBR } from "@/lib/date-format";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -61,9 +62,9 @@ const getAvailableMonths = () => {
     
     months.push({
       value: format(monthDate, "yyyy-MM"),
-      label: format(monthDate, "MMMM", { locale: ptBR }),
-      shortLabel: format(monthDate, "MMM", { locale: ptBR }),
-      fullLabel: format(monthDate, "MMMM yyyy", { locale: ptBR }),
+      label: formatMonthYearBR(monthDate).replace(/ d{4}/, ''),
+      shortLabel: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', month: 'short' }).format(monthDate),
+      fullLabel: formatMonthYearBR(monthDate),
       start,
       end: monthEnd,
       isCurrent: i === 0,

@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+import { formatDateBR } from "@/lib/date-format";
+
 interface Conversation {
   id: string;
   title: string;
@@ -44,7 +46,7 @@ function relativeTime(dateStr: string): string {
   if (diffMin < 60) return `${diffMin}min`;
   if (diffH < 24) return `${diffH}h`;
   if (diffD < 7) return `${diffD}d`;
-  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return formatDateBR(date);
 }
 
 export function ChatConversationList({

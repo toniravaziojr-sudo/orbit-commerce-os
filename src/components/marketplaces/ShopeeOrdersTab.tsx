@@ -11,6 +11,8 @@ import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 };
@@ -153,7 +155,7 @@ export function ShopeeOrdersTab() {
                       {formatCurrency(order.total)}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {format(new Date(order.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      {formatDateTimeBR(new Date(order.created_at))}
                     </TableCell>
                     <TableCell>
                       <Button

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
 import {
@@ -19,6 +18,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+
+import { formatDateLongBR } from "@/lib/date-format";
 
 interface RescheduleDialogProps {
   open: boolean;
@@ -67,7 +68,7 @@ export function RescheduleDialog({ open, onOpenChange, onConfirm }: RescheduleDi
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP", { locale: ptBR }) : "Selecione uma data"}
+                  {date ? formatDateLongBR(date) : "Selecione uma data"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">

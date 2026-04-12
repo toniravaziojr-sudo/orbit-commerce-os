@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { useGoogleAnalytics } from "@/hooks/useGoogleAnalytics";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
+import { formatDateTimeBR } from "@/lib/date-format";
+
 import {
   AreaChart,
   Area,

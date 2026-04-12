@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
+import { formatDateBR } from "@/lib/date-format";
+
 /** Remove technical IDs, account references, jargon, and clean up insight text for display */
 function sanitizeInsightText(text: string): string {
   if (!text) return text;
@@ -209,7 +211,7 @@ export function AdsInsightsTab({ insights, isLoading, onMarkDone, onMarkIgnored,
                           Ignorar
                         </Button>
                         <span className="text-xs text-muted-foreground ml-auto">
-                          {new Date(insight.created_at).toLocaleDateString("pt-BR")}
+                          {formatDateBR(new Date(insight.created_at))}
                         </span>
                       </div>
                     </div>

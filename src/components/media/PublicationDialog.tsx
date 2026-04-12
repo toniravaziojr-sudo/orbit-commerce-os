@@ -1,4 +1,6 @@
+import { formatWeekdayBR } from "@/lib/date-format";
 import { useState, useEffect, useMemo, useRef } from "react";
+import { formatWeekdayBR } from "@/lib/date-format";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -437,7 +439,7 @@ export function PublicationDialog({
   };
 
   const displayDate = date 
-    ? format(date, "EEEE, dd 'de' MMMM", { locale: ptBR })
+    ? formatWeekdayBR(date)
     : "";
 
   // Context banner for editing mode

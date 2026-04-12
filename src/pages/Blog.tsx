@@ -34,6 +34,8 @@ import { cn } from '@/lib/utils';
 import { useMediaCampaigns, MediaCampaign } from '@/hooks/useMediaCampaigns';
 import { showErrorToast } from '@/lib/error-toast';
 
+import { formatDateBR } from "@/lib/date-format";
+
 interface BlogPost {
   id: string;
   tenant_id: string;
@@ -61,9 +63,9 @@ const getAvailableMonths = () => {
     const start = i === 0 ? startOfDay(now) : monthStart;
     months.push({
       value: format(monthDate, "yyyy-MM"),
-      label: format(monthDate, "MMMM", { locale: ptBR }),
-      shortLabel: format(monthDate, "MMM", { locale: ptBR }),
-      fullLabel: format(monthDate, "MMMM yyyy", { locale: ptBR }),
+      label: formatMonthYearBR(monthDate).replace(/ d{4}/, ''),
+      shortLabel: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', month: 'short' }).format(monthDate),
+      fullLabel: formatMonthYearBR(monthDate),
       start,
       end: monthEnd,
       isCurrent: i === 0,
@@ -567,7 +569,7 @@ export default function Blog() {
                       <TableCell className="text-muted-foreground">
                         <div className="flex items-center gap-1 text-sm">
                           <Calendar className="h-3 w-3" />
-                          {format(new Date(post.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                          {formatDateBR(new Date(post.created_at))}
                         </div>
                       </TableCell>
                       <TableCell>

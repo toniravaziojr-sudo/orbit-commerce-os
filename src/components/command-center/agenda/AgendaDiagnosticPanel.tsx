@@ -7,8 +7,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Terminal, RefreshCw, ArrowUpDown, MessageCircle, Bot } from "lucide-react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+import { formatDayMonthTimeBR } from "@/lib/date-format";
 
 interface CommandLogEntry {
   id: string;
@@ -140,7 +141,7 @@ export function AgendaDiagnosticPanel() {
                       </p>
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <span>
-                          {format(new Date(log.created_at), "dd/MM HH:mm:ss", { locale: ptBR })}
+                          {formatDayMonthTimeBR(new Date(log.created_at))}
                         </span>
                         {log.from_phone && (
                           <span>• {log.from_phone.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, "+$1 ($2) $3-$4")}</span>

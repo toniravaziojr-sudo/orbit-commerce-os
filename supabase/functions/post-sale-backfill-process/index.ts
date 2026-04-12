@@ -182,7 +182,7 @@ serve(async (req) => {
           customer_first_name: customer.full_name?.split(' ')[0] || customer.full_name,
           customer_email: customer.email,
           customer_phone: customer.phone,
-          first_order_date: customer.first_order_at ? new Date(customer.first_order_at).toLocaleDateString('pt-BR') : '',
+          first_order_date: customer.first_order_at ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(customer.first_order_at)) : '',
         };
 
         // Process channels

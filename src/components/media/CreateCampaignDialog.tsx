@@ -27,6 +27,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useMediaCampaigns, MediaCampaign } from "@/hooks/useMediaCampaigns";
 
+import { formatDateBR, formatDayMonthNumericBR } from "@/lib/date-format";
+
 // Gera lista de meses disponíveis (mês atual + próximos 5 meses)
 const getAvailableMonths = () => {
   const now = new Date();
@@ -184,7 +186,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                   </div>
                   {selectedMonthData && (
                     <FormDescription>
-                      Período: {format(selectedMonthData.start, "dd/MM", { locale: ptBR })} até {format(selectedMonthData.end, "dd/MM/yyyy", { locale: ptBR })}
+                      Período: {formatDayMonthNumericBR(selectedMonthData.start)} até {formatDateBR(selectedMonthData.end)}
                     </FormDescription>
                   )}
                   <FormMessage />

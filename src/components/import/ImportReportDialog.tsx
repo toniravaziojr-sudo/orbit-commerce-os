@@ -12,6 +12,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Download, CheckCircle2, XCircle, AlertTriangle, FileText } from 'lucide-react';
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 export interface ImportReportItem {
   index: number;
   identifier: string;
@@ -145,7 +147,7 @@ export function ImportReportDialog({ open, onOpenChange, report }: ImportReportD
           </DialogTitle>
           <DialogDescription>
             Plataforma: {report.platform} • Concluído em:{' '}
-            {report.completedAt.toLocaleString('pt-BR')}
+            {formatDateTimeBR(report.completedAt)}
           </DialogDescription>
         </DialogHeader>
 

@@ -35,6 +35,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useShipmentEvents } from '@/hooks/useShipments';
 
+import { formatDateBR } from "@/lib/date-format";
+
 type DeliveryStatus = 
   | 'label_created' 
   | 'posted' 
@@ -300,7 +302,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
                             </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground">
-                            {format(new Date(shipment.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                            {formatDateBR(new Date(shipment.created_at))}
                           </TableCell>
                         </TableRow>
                       ))}

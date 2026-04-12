@@ -8,6 +8,8 @@ import { Check, Copy, ExternalLink, Loader2, QrCode, Clock } from 'lucide-react'
 import { toast } from 'sonner';
 import { PaymentResult as PaymentResultType } from '@/hooks/useCheckoutPayment';
 
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
+
 interface PaymentResultProps {
   result: PaymentResultType;
   method: 'pix' | 'boleto' | 'credit_card' | 'mercadopago_redirect';
@@ -74,7 +76,7 @@ export function PaymentResultDisplay({ result, method, onContinue }: PaymentResu
 
         {result.pixExpiresAt && (
           <p className="text-sm text-muted-foreground">
-            Expira em: {new Date(result.pixExpiresAt).toLocaleString('pt-BR')}
+            Expira em: {formatDateTimeBR(new Date(result.pixExpiresAt))}
           </p>
         )}
 
@@ -131,7 +133,7 @@ export function PaymentResultDisplay({ result, method, onContinue }: PaymentResu
 
         {result.boletoDueDate && (
           <p className="text-sm text-muted-foreground">
-            Vencimento: {new Date(result.boletoDueDate).toLocaleDateString('pt-BR')}
+            Vencimento: {formatDateBR(new Date(result.boletoDueDate))}
           </p>
         )}
       </div>

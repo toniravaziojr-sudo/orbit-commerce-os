@@ -36,6 +36,8 @@ import {
 import { useAgendaTasks, type AgendaTask, type AgendaReminder } from "@/hooks/useAgendaTasks";
 import { cn } from "@/lib/utils";
 
+import { formatTimeBR } from "@/lib/date-format";
+
 interface DayTasksDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -171,7 +173,7 @@ export function DayTasksDialog({
                           isOverdue ? "text-destructive font-medium" : ""
                         )}>
                           <Clock className="h-3 w-3" />
-                          {format(dueAt, "HH:mm", { locale: ptBR })}
+                          {formatTimeBR(dueAt)}
                           {isOverdue && ' (atrasada)'}
                         </span>
 
@@ -196,7 +198,7 @@ export function DayTasksDialog({
                                 <p className="font-medium text-xs">Lembretes:</p>
                                 {reminders.map(r => (
                                   <div key={r.id} className="text-xs flex items-center gap-2">
-                                    <span>{format(new Date(r.remind_at), "HH:mm")}</span>
+                                    <span>{formatTimeBR(new Date(r.remind_at))}</span>
                                     <Badge variant="outline" className={cn(
                                       "text-[10px] py-0",
                                       r.status === 'dispatched' ? "text-success" :
