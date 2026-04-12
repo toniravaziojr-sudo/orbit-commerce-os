@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
     const auth = await getValidToken(supabase, tenantId);
     if (!auth) return jsonRes({ success: false, error: "Google Ads não conectado" });
     const headers = await getAdsHeaders(supabaseUrl, supabaseServiceKey, auth.token);
-    if (!headers) return jsonRes({ success: false, error: "GOOGLE_ADS_DEVELOPER_TOKEN não configurado" });
+    if (!headers) return jsonRes({ success: false, code: "MISSING_GOOGLE_ADS_DEVELOPER_TOKEN", error: "Configure o Developer Token em Integrações → Google Ads (admin da plataforma)." });
     const customerId = (body.customer_id || auth.conn.assets?.ad_accounts?.[0]?.id || "").replace(/-/g, "");
     if (!customerId) return jsonRes({ success: false, error: "Nenhuma conta encontrada" });
 
