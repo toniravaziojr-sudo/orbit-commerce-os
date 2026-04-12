@@ -212,13 +212,30 @@ async function syncMetaAudiences(
     const audienceName = `${list.name} - Atualizado ${dateSuffix}`;
 
     try {
-      // Get members for this list with subscriber data
-      const { data: members } = await supabase
-        .from("email_marketing_list_members")
-        .select("subscriber_id, email_marketing_subscribers!inner(email, name, phone)")
-        .eq("tenant_id", tenantId)
-        .eq("list_id", list.id)
-        .limit(50000);
+      // Get members for this list with subscriber data (paginated to handle 1000-row limit)
+      let allMembers: any[] = [];
+      const PAGE_SIZE = 1000;
+      let page = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .from("email_marketing_list_members")
+          .select("subscriber_id, email_marketing_subscribers!inner(email, name, phone)")
+          .eq("tenant_id", tenantId)
+          .eq("list_id", list.id)
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        
+        if (!batch || batch.length === 0) {
+          hasMore = false;
+        } else {
+          allMembers = allMembers.concat(batch);
+          page++;
+          if (batch.length < PAGE_SIZE) hasMore = false;
+        }
+        // Safety: max 50k
+        if (allMembers.length >= 50000) break;
+      }
+      const members = allMembers;
 
       if (!members || members.length === 0) {
         console.log(`${tag} List "${list.name}": no members, skipping`);
