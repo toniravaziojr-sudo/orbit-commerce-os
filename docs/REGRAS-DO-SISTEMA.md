@@ -756,4 +756,36 @@ Qualquer novo fluxo que adicione contatos a listas sistêmicas deve respeitar es
 
 ---
 
+## SEÇÃO 32 — LINK CHECKOUT (MÓDULO)
+
+### Objetivo
+
+Permitir que o lojista crie links personalizados de checkout contendo produto pré-selecionado, cupom, frete fixo, preço alterado e produtos opcionais adicionais.
+
+### Tabela
+
+- `checkout_links` — armazena cada link com `slug` único por tenant, referência ao produto principal (`product_id`), cupom (`coupon_code`), override de frete e preço, e array de produtos adicionais em JSONB.
+
+### Fluxo
+
+1. O lojista acessa **E-commerce → Link Checkout** na sidebar.
+2. Cria um link informando nome, slug, produto principal, quantidade, cupom (opcional), frete fixo (opcional), preço final (opcional) e produtos opcionais.
+3. O link gerado segue o formato: `https://{domínio-da-loja}/checkout?link={slug}`
+4. Ao acessar o link, o checkout é montado automaticamente com as condições configuradas.
+
+### Segurança
+
+- RLS tenant-scoped usando `user_belongs_to_tenant(auth.uid(), tenant_id)`.
+- Métricas de `click_count` e `conversion_count` são campos nativos para rastreamento.
+
+### Link Direto de Produto
+
+Além do módulo Link Checkout, cada produto ativo possui um botão "Copiar Link Checkout" no menu de ações da listagem, que gera o link `https://{domínio}/checkout?product={slug}&qty=1`.
+
+### Geração de Imagens com IA
+
+No gerenciador de imagens do produto, após subir a imagem principal, o botão "Gerar com IA" permite criar até 5 imagens secundárias automaticamente. Utiliza o pipeline de geração visual existente (edge function `creative-image-generate`) com 3 estilos: Natural, Pessoa Interagindo e Promocional.
+
+---
+
 *Fim do documento.*
