@@ -139,6 +139,8 @@ export function useCheckoutSessionsStats() {
       params.set('tenant_id', `eq.${currentTenant.id}`);
       params.set('select', 'status,total_estimated,order_id');
       params.set('contact_captured_at', 'not.is.null');
+      // Só buscar sessões do universo de abandono para stats
+      params.set('status', 'in.(abandoned,recovered,reverted)');
 
       const response = await fetch(`${supabaseUrl}/rest/v1/checkout_sessions?${params.toString()}`, {
         method: 'GET',
