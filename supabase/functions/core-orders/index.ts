@@ -436,7 +436,7 @@ Deno.serve(async (req) => {
 
         // Append note with timestamp
         const existingNotes = order.internal_notes || '';
-        const timestamp = new Date().toLocaleString('pt-BR');
+        const timestamp = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date());
         const newNotes = existingNotes 
           ? `${existingNotes}\n\n[${timestamp}]\n${note}`
           : `[${timestamp}]\n${note}`;
