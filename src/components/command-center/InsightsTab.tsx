@@ -1,6 +1,5 @@
 import { formatDayMonthBR, formatDayMonthYearShortBR } from "@/lib/date-format";
 import { useState } from "react";
-import { formatDayMonthBR, formatDayMonthYearShortBR } from "@/lib/date-format";
 import {
   Lightbulb,
   TrendingUp,

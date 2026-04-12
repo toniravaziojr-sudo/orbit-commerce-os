@@ -1,6 +1,5 @@
 import { formatDateBR } from "@/lib/date-format";
 import { useState } from 'react';
-import { formatDateBR } from "@/lib/date-format";
 import { Filter, X, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
