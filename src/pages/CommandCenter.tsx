@@ -31,7 +31,7 @@ export default function CommandCenter() {
       />
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-5">
+        <TabsList className="inline-flex w-auto mx-auto">
           <InfoTooltip tooltipKey="cc.tab.dashboard">
             <TabsTrigger value="dashboard" className="gap-2">
               <LayoutDashboard className="h-4 w-4" />
