@@ -4,7 +4,7 @@
 
 > **Camada:** Layer 3 — Especificações / CRM  
 > **Migrado de:** `docs/regras/checkouts-abandonados.md`  
-> **Última atualização:** 2026-04-04
+> **Última atualização:** 2026-04-12
 
 ## Visão Geral
 
@@ -146,10 +146,12 @@ O estado interno controla a validade temporária da sessão de checkout:
 
 | Card | Métrica |
 |------|---------|
-| **Total** | Quantidade total de checkouts abandonados no período |
+| **Total** | Quantidade total de sessões no universo de abandono (`abandoned` + `recovered` + `reverted`) |
 | **Abandonados** | Checkouts com status `abandoned` (não recuperados/revertidos) |
-| **Não recuperados** | Abandonados sem conversão posterior |
+| **Não recuperados** | Abandonados sem conversão posterior (status = `abandoned`) |
 | **Valor perdido** | Soma do `total_estimated` dos não recuperados |
+
+> **REGRA DE FILTRAGEM (v2026-04-12):** A listagem e as stats **excluem** sessões com status `converted` (vendas diretas que nunca foram abandonadas) e `active` (em andamento). Só entram no universo de checkouts abandonados: `abandoned`, `recovered` e `reverted`. Isso evita poluição das métricas de recuperação com vendas normais.
 
 ---
 
@@ -158,7 +160,7 @@ O estado interno controla a validade temporária da sessão de checkout:
 | Filtro | Opções | Componente |
 |--------|--------|------------|
 | **Busca** | Por nome, email ou telefone | `Input` com ícone Search |
-| **Status** | Todos, Ativo, Abandonado, Convertido, Recuperado, Revertido | `Select` |
+| **Status** | Todos, Abandonado, Recuperado, Revertido | `Select` |
 | **Região** | Estado/UF do cliente | `Select` |
 | **Período** | Data inicial e final | `DateRangeFilter` (padrão do sistema — ver `regras-gerais.md`) |
 
@@ -186,6 +188,7 @@ O estado interno controla a validade temporária da sessão de checkout:
 | **Estado interno não bloqueia** | Mesmo com estado `inactive`, o cliente pode converter (→ reverted) |
 | **Sem pedidos fantasma** | Pedidos só existem após resposta do gateway. Não há mais ghost orders |
 | **Lista Cliente Potencial** | Checkout abandonado insere automaticamente na lista "Cliente Potencial" do email marketing |
+| **Exclusão de convertidos** | **(v2026-04-12)** Sessões `converted` (vendas diretas) e `active` são **excluídas** da listagem e das stats de abandonos. Apenas `abandoned`, `recovered` e `reverted` compõem o universo de checkouts abandonados |
 
 ---
 

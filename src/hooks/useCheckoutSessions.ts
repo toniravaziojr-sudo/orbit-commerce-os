@@ -61,17 +61,20 @@ export function useCheckoutSessions(filters: CheckoutSessionsFilters = {}) {
       // Sessões sem contato não são úteis para recuperação
       params.set('contact_captured_at', 'not.is.null');
       
-      // Filtrar por status - agora suporta active também
+      // Filtrar por status
+      // REGRA: por padrão (sem filtro), só mostrar sessões de abandono real
+      // Excluir 'converted' (vendas diretas) e 'active' (em andamento)
       if (filters.status === 'abandoned') {
         params.set('status', 'eq.abandoned');
       } else if (filters.status === 'recovered') {
         params.set('status', 'eq.recovered');
-      } else if (filters.status === 'active') {
-        params.set('status', 'eq.active');
-      } else if (filters.status === 'converted') {
-        params.set('status', 'eq.converted');
+      } else if (filters.status === 'reverted') {
+        params.set('status', 'eq.reverted');
+      } else if (!filters.status) {
+        // Default: só abandonados, recuperados e revertidos
+        params.set('status', 'in.(abandoned,recovered,reverted)');
       }
-      // Se 'all', não adiciona filtro de status
+      // Se um status explícito diferente for passado, não filtra
 
       if (filters.startDate) {
         const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
@@ -136,6 +139,8 @@ export function useCheckoutSessionsStats() {
       params.set('tenant_id', `eq.${currentTenant.id}`);
       params.set('select', 'status,total_estimated,order_id');
       params.set('contact_captured_at', 'not.is.null');
+      // Só buscar sessões do universo de abandono para stats
+      params.set('status', 'in.(abandoned,recovered,reverted)');
 
       const response = await fetch(`${supabaseUrl}/rest/v1/checkout_sessions?${params.toString()}`, {
         method: 'GET',
@@ -158,15 +163,18 @@ export function useCheckoutSessionsStats() {
 
       const data: { status: string; total_estimated: number | null; order_id: string | null }[] = await response.json();
 
-      // REGRA: só contar abandono real (sem pedido vinculado) — ghost orders não são abandono
-      const realAbandoned = data.filter(c => (c.status === 'abandoned' || c.status === 'recovered') && !c.order_id);
+      // REGRA: só contar sessões que passaram por abandono real
+      // abandoned = ainda abandonado, recovered = abandonado e depois recuperado, reverted = abandonado e revertido
+      const abandonmentUniverse = data.filter(c => 
+        c.status === 'abandoned' || c.status === 'recovered' || c.status === 'reverted'
+      );
 
       const stats = {
-        total: realAbandoned.length,
-        abandoned: realAbandoned.length,
-        recovered: realAbandoned.filter(c => c.status === 'recovered').length,
-        notRecovered: realAbandoned.filter(c => c.status === 'abandoned').length,
-        totalValue: realAbandoned.reduce((sum, c) => sum + (c.total_estimated || 0), 0),
+        total: abandonmentUniverse.length,
+        abandoned: abandonmentUniverse.filter(c => c.status === 'abandoned').length,
+        recovered: abandonmentUniverse.filter(c => c.status === 'recovered' || c.status === 'reverted').length,
+        notRecovered: abandonmentUniverse.filter(c => c.status === 'abandoned').length,
+        totalValue: abandonmentUniverse.filter(c => c.status === 'abandoned').reduce((sum, c) => sum + (c.total_estimated || 0), 0),
       };
 
       return stats;

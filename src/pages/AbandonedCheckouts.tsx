@@ -179,10 +179,9 @@ export default function AbandonedCheckouts() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="active">Ativo</SelectItem>
             <SelectItem value="abandoned">Abandonado</SelectItem>
             <SelectItem value="recovered">Recuperado</SelectItem>
-            <SelectItem value="converted">Convertido</SelectItem>
+            <SelectItem value="reverted">Revertido</SelectItem>
           </SelectContent>
         </Select>
 
