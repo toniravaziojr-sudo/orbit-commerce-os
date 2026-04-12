@@ -198,12 +198,31 @@ serve(async (req) => {
       },
     };
 
+    // Fetch tenant payment config for this method from payment_method_discounts
+    let pixExpirationMinutes = 60;
+    let boletoExpirationDays = 3;
+    try {
+      const { data: methodConfig } = await supabase
+        .from('payment_method_discounts')
+        .select('pix_expiration_minutes, boleto_expiration_days')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('provider', 'pagarme')
+        .eq('payment_method', payload.method)
+        .maybeSingle();
+      if (methodConfig) {
+        if (methodConfig.pix_expiration_minutes) pixExpirationMinutes = methodConfig.pix_expiration_minutes;
+        if (methodConfig.boleto_expiration_days) boletoExpirationDays = methodConfig.boleto_expiration_days;
+      }
+    } catch (cfgErr) {
+      console.warn('[Pagar.me] Non-blocking config fetch error, using defaults:', cfgErr);
+    }
+
     // Build payment based on method
     if (payload.method === 'pix') {
       orderPayload.payments.push({
         payment_method: 'pix',
         pix: {
-          expires_in: 3600, // 1 hour
+          expires_in: pixExpirationMinutes * 60, // convert minutes to seconds
         },
       });
     } else if (payload.method === 'boleto') {
@@ -211,7 +230,7 @@ serve(async (req) => {
         payment_method: 'boleto',
         boleto: {
           instructions: 'Não receber após o vencimento',
-          due_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days
+          due_at: new Date(Date.now() + boletoExpirationDays * 24 * 60 * 60 * 1000).toISOString(),
           document_number: referenceId.substring(0, 16),
           type: 'DM',
         },

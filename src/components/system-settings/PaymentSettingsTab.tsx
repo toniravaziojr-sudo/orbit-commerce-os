@@ -149,10 +149,71 @@ function MethodPaymentCard({
               </div>
             </div>
 
+            {/* PIX Expiration */}
+            {method === 'pix' && (
+              <>
+                <Separator />
+                <div>
+                  <Label className="text-sm">Tempo de expiração do PIX</Label>
+                  <Select
+                    value={String(discount.pix_expiration_minutes)}
+                    onValueChange={(v) => onDiscountChange({ pix_expiration_minutes: parseInt(v) })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="15">15 minutos</SelectItem>
+                      <SelectItem value="30">30 minutos</SelectItem>
+                      <SelectItem value="60">1 hora</SelectItem>
+                      <SelectItem value="120">2 horas</SelectItem>
+                      <SelectItem value="360">6 horas</SelectItem>
+                      <SelectItem value="720">12 horas</SelectItem>
+                      <SelectItem value="1440">24 horas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Tempo de validade do QR Code/código PIX após a geração
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Boleto Expiration */}
+            {method === 'boleto' && (
+              <>
+                <Separator />
+                <div>
+                  <Label className="text-sm">Prazo de vencimento do Boleto</Label>
+                  <Select
+                    value={String(discount.boleto_expiration_days)}
+                    onValueChange={(v) => onDiscountChange({ boleto_expiration_days: parseInt(v) })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 dia</SelectItem>
+                      <SelectItem value="2">2 dias</SelectItem>
+                      <SelectItem value="3">3 dias</SelectItem>
+                      <SelectItem value="5">5 dias</SelectItem>
+                      <SelectItem value="7">7 dias</SelectItem>
+                      <SelectItem value="15">15 dias</SelectItem>
+                      <SelectItem value="30">30 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Dias úteis para pagamento após a emissão do boleto
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Credit Card Installments */}
             {meta.showInstallments && (
               <>
                 <Separator />
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <div>
                     <Label className="text-sm">Parcelas máximas</Label>
                     <Select
@@ -165,11 +226,32 @@ function MethodPaymentCard({
                       <SelectContent>
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
                           <SelectItem key={n} value={String(n)}>
+                            {n}x {n === 1 ? '(à vista)' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm">Parcelas sem juros</Label>
+                    <Select
+                      value={String(discount.free_installments)}
+                      onValueChange={(v) => onDiscountChange({ free_installments: parseInt(v) })}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: discount.installments_max }, (_, i) => i + 1).map(n => (
+                          <SelectItem key={n} value={String(n)}>
                             {n}x {n === 1 ? '(à vista)' : 'sem juros'}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Até quantas parcelas o cliente não paga juros
+                    </p>
                   </div>
                   <div>
                     <Label className="text-sm">Valor mínimo por parcela (R$)</Label>
@@ -283,6 +365,9 @@ export function PaymentSettingsTab() {
               is_enabled: false,
               installments_max: method === 'credit_card' ? 12 : 1,
               installments_min_value_cents: method === 'credit_card' ? 500 : 0,
+              free_installments: method === 'credit_card' ? 12 : 1,
+              pix_expiration_minutes: 60,
+              boleto_expiration_days: 3,
               description: null,
             };
           }
