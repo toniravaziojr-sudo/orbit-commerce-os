@@ -716,7 +716,8 @@ Lojista adiciona domínio → domains-create
 | Índice de todos os módulos e status | Layer 3 — `docs/ESPECIFICACOES-DOS-MODULOS.md` |
 | Arquitetura, inventário, contexto geral | Layer 4 — **Este documento** |
 | Schema de tabelas (tipo, colunas) | `src/integrations/supabase/types.ts` |
-| Rotas do sistema | `src/App.tsx` |
+| Mapa completo de UI, rotas e navegação | Layer 3 — `docs/especificacoes/transversais/mapa-ui.md` |
+| Rotas do sistema (código-fonte) | `src/App.tsx` |
 | Status dos módulos na sidebar | `src/config/module-status.ts` |
 | Configurações de auth/RLS | `supabase/config.toml` + migrations |
 | Código de edge functions | `supabase/functions/<nome>/` |
