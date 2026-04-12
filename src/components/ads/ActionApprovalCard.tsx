@@ -4,6 +4,7 @@
 // =============================================
 
 import { useState } from "react";
+import { formatDayMonthTimeBR } from "@/lib/date-format";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -1287,7 +1288,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
               </div>
               <span className="text-xs font-semibold">{label}</span>
               <span className="text-[10px] text-muted-foreground">
-                {new Date(action.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                {formatDayMonthTimeBR(action.created_at)}
               </span>
               {funnelInfo && (
                 <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 ml-auto", funnelInfo.color)}>

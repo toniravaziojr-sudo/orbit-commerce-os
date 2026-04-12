@@ -423,7 +423,7 @@ export function ShippingCarrierSettings() {
                           )}
                           {tokenStatus.status === 'expired' && (
                             <>
-                              O token expirou em {tokenStatus.expiresAt?.toLocaleString('pt-BR')}. 
+                              O token expirou em {formatDateTimeBR(tokenStatus.expiresAt)}. 
                               Atualize-o no <a href="https://cws.correios.com.br" target="_blank" rel="noopener" className="underline">portal CWS</a> ou mude para OAuth2.
                             </>
                           )}

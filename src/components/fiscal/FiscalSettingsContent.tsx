@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { formatDateBR } from '@/lib/date-format';
 import { useNavigate } from 'react-router-dom';
 import { Save, Building2, MapPin, FileText, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2, Truck, Mail, Hash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -621,7 +622,7 @@ export function FiscalSettingsContent() {
                         <p>CNPJ: {settings.certificado_cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}</p>
                       )}
                       <p>Serial: {settings?.certificado_serial}</p>
-                      <p>Válido até: {certValidUntil?.toLocaleDateString('pt-BR')}</p>
+                      <p>Válido até: {certValidUntil ? formatDateBR(certValidUntil) : '-'}</p>
                     </div>
                   </div>
                   <Button
