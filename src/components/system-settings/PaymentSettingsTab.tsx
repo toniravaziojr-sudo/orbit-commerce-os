@@ -15,7 +15,7 @@ import { QrCode, CreditCard, FileText, Info, Save, AlertTriangle, ExternalLink }
 import { usePaymentMethodDiscounts, PaymentMethodDiscount } from '@/hooks/usePaymentMethodDiscounts';
 import { usePaymentProviders } from '@/hooks/usePaymentProviders';
 import { usePaymentGatewayMap } from '@/hooks/usePaymentGatewayMap';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { Link } from 'react-router-dom';
 
@@ -291,7 +291,7 @@ function MethodPaymentCard({
 export function PaymentSettingsTab() {
   const { providers, isLoading: loadingProviders } = usePaymentProviders();
   const { entries: gatewayMap, saveEntry, isSaving: savingMap } = usePaymentGatewayMap();
-  const activeProviders = providers.filter(p => p.is_enabled);
+  const activeProviders = useMemo(() => providers.filter(p => p.is_enabled), [providers]);
 
   // Local state for gateway configs per method
   const [localGatewayConfigs, setLocalGatewayConfigs] = useState<Record<MethodKey, MethodGatewayConfig>>({
@@ -307,74 +307,74 @@ export function PaymentSettingsTab() {
     boleto: null,
   });
 
-  // Load discount data for each method based on its selected provider
-  const pixProvider = localGatewayConfigs.pix.provider;
-  const cardProvider = localGatewayConfigs.credit_card.provider;
-  const boletoProvider = localGatewayConfigs.boleto.provider;
-
-  // Get unique providers being used
-  const usedProviders = [...new Set([pixProvider, cardProvider, boletoProvider].filter(Boolean))];
-  
   // Load discounts for each used provider
   const { discounts: allDiscounts, saveDiscount, isSaving: savingDiscount } = usePaymentMethodDiscounts();
 
-  // Initialize gateway configs from DB
+  // Track whether initial load from DB has been done
+  const gatewayInitialized = useRef(false);
+  const discountsInitialized = useRef(false);
+
+  // Initialize gateway configs from DB — only once when data arrives
   useEffect(() => {
-    if (gatewayMap.length > 0 || activeProviders.length > 0) {
-      const defaultProvider = activeProviders[0]?.provider || '';
-      setLocalGatewayConfigs(prev => {
-        const newConfigs = { ...prev };
-        for (const method of ['pix', 'credit_card', 'boleto'] as MethodKey[]) {
-          const existing = gatewayMap.find(e => e.payment_method === method);
-          if (existing) {
-            newConfigs[method] = {
-              payment_method: method,
-              provider: existing.provider,
-              is_enabled: existing.is_enabled,
-            };
-          } else {
-            newConfigs[method] = {
-              payment_method: method,
-              provider: defaultProvider,
-              is_enabled: false,
-            };
-          }
+    if (gatewayInitialized.current) return;
+    if (gatewayMap.length === 0 && activeProviders.length === 0) return;
+    gatewayInitialized.current = true;
+
+    const defaultProvider = activeProviders[0]?.provider || '';
+    setLocalGatewayConfigs(prev => {
+      const newConfigs = { ...prev };
+      for (const method of ['pix', 'credit_card', 'boleto'] as MethodKey[]) {
+        const existing = gatewayMap.find(e => e.payment_method === method);
+        if (existing) {
+          newConfigs[method] = {
+            payment_method: method,
+            provider: existing.provider,
+            is_enabled: existing.is_enabled,
+          };
+        } else {
+          newConfigs[method] = {
+            payment_method: method,
+            provider: defaultProvider,
+            is_enabled: false,
+          };
         }
-        return newConfigs;
-      });
-    }
+      }
+      return newConfigs;
+    });
   }, [gatewayMap, activeProviders]);
 
-  // Initialize discounts from DB
+  // Initialize discounts from DB — only once when data arrives
   useEffect(() => {
-    if (allDiscounts.length > 0) {
-      setLocalDiscounts(prev => {
-        const newDiscounts = { ...prev };
-        for (const method of ['pix', 'credit_card', 'boleto'] as MethodKey[]) {
-          const provider = localGatewayConfigs[method].provider;
-          const found = allDiscounts.find(d => d.payment_method === method && d.provider === provider);
-          if (found) {
-            newDiscounts[method] = found;
-          } else if (provider) {
-            newDiscounts[method] = {
-              tenant_id: '',
-              provider,
-              payment_method: method,
-              discount_type: 'percentage',
-              discount_value: 0,
-              is_enabled: false,
-              installments_max: method === 'credit_card' ? 12 : 1,
-              installments_min_value_cents: method === 'credit_card' ? 500 : 0,
-              free_installments: method === 'credit_card' ? 12 : 1,
-              pix_expiration_minutes: 60,
-              boleto_expiration_days: 3,
-              description: null,
-            };
-          }
+    if (discountsInitialized.current) return;
+    if (allDiscounts.length === 0) return;
+    discountsInitialized.current = true;
+
+    setLocalDiscounts(() => {
+      const newDiscounts: Record<MethodKey, PaymentMethodDiscount | null> = { pix: null, credit_card: null, boleto: null };
+      for (const method of ['pix', 'credit_card', 'boleto'] as MethodKey[]) {
+        const provider = localGatewayConfigs[method].provider;
+        const found = allDiscounts.find(d => d.payment_method === method && d.provider === provider);
+        if (found) {
+          newDiscounts[method] = found;
+        } else if (provider) {
+          newDiscounts[method] = {
+            tenant_id: '',
+            provider,
+            payment_method: method,
+            discount_type: 'percentage',
+            discount_value: 0,
+            is_enabled: false,
+            installments_max: method === 'credit_card' ? 12 : 1,
+            installments_min_value_cents: method === 'credit_card' ? 500 : 0,
+            free_installments: method === 'credit_card' ? 12 : 1,
+            pix_expiration_minutes: 60,
+            boleto_expiration_days: 3,
+            description: null,
+          };
         }
-        return newDiscounts;
-      });
-    }
+      }
+      return newDiscounts;
+    });
   }, [allDiscounts, localGatewayConfigs]);
 
   const handleGatewayChange = (method: MethodKey, updates: Partial<MethodGatewayConfig>) => {
