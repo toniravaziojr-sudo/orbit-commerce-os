@@ -15,7 +15,7 @@ import { QrCode, CreditCard, FileText, Info, Save, AlertTriangle, ExternalLink }
 import { usePaymentMethodDiscounts, PaymentMethodDiscount } from '@/hooks/usePaymentMethodDiscounts';
 import { usePaymentProviders } from '@/hooks/usePaymentProviders';
 import { usePaymentGatewayMap } from '@/hooks/usePaymentGatewayMap';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { Link } from 'react-router-dom';
 
