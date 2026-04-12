@@ -1,4 +1,6 @@
+import { formatDayMonthYearShortBR } from "@/lib/date-format";
 import { useState } from "react";
+import { formatDayMonthYearShortBR } from "@/lib/date-format";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -196,7 +198,7 @@ export function ListDetailDrawer({ open, onOpenChange, list }: ListDetailDrawerP
                         {sub.status === "active" ? "Ativo" : sub.status === "unsubscribed" ? "Descadastrado" : sub.status}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {format(new Date(sub.created_at), "dd MMM yyyy", { locale: ptBR })}
+                        {formatDayMonthYearShortBR(sub.created_at)}
                       </span>
                     </div>
                   </div>

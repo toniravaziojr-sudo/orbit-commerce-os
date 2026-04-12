@@ -17,7 +17,7 @@ import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
-import { formatTimeBR, isTodayBR } from "@/lib/date-format";
+import { formatDayMonthTimeBR, formatTimeBR, isTodayBR } from "@/lib/date-format";
 
 export function GoogleCalendarTab() {
   const { isConnected, connection } = useGoogleConnection();
@@ -69,7 +69,7 @@ export function GoogleCalendarTab() {
       const d = parseISO(dateStr);
       if (isTodayBR(d)) return `Hoje, ${formatTimeBR(d)}`;
       if (isTomorrow(d)) return `Amanhã, ${formatTimeBR(d)}`;
-      return format(d, "dd/MM · HH:mm", { locale: ptBR });
+      return formatDayMonthTimeBR(d);
     } catch {
       return dateStr;
     }
