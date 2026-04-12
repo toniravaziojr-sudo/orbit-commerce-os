@@ -1250,7 +1250,7 @@ async function executeTool(
       }
       
       const list = data.map((t: any) => {
-        const dueDate = new Date(t.due_at).toLocaleString("pt-BR");
+        const dueDate = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(t.due_at));
         const statusIcon = t.status === "done" ? "✅" : "⏳";
         return `${statusIcon} ${t.title} - ${dueDate}`;
       }).join("\n");
@@ -1901,7 +1901,7 @@ async function executeTool(
           `• Title: ${p.seo_title || "—"}\n` +
           `• Description: ${p.seo_description || "—"}\n` +
           `• Keywords: ${p.meta_keywords || "—"}\n\n` +
-          `• Criado em: ${new Date(p.created_at).toLocaleDateString("pt-BR")}`,
+          `• Criado em: ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(p.created_at))}`,
         data: p,
       };
     }
@@ -1932,7 +1932,7 @@ async function executeTool(
       }
       
       const list = data.map((o: any) => 
-        `• #${o.order_number} — ${o.customer_name || "—"} — R$ ${(o.total || 0).toFixed(2)} — ${o.status} — ${new Date(o.created_at).toLocaleDateString("pt-BR")}`
+        `• #${o.order_number} — ${o.customer_name || "—"} — R$ ${(o.total || 0).toFixed(2)} — ${o.status} — ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(o.created_at))}`
       ).join("\n");
       
       return {
@@ -1980,7 +1980,7 @@ async function executeTool(
           `• Transportadora: ${o.shipping_carrier || "—"}\n` +
           `• Endereço: ${[o.shipping_street, o.shipping_number, o.shipping_complement, o.shipping_neighborhood, o.shipping_city, o.shipping_state, o.shipping_postal_code].filter(Boolean).join(", ") || "—"}\n` +
           `• Notas: ${o.notes || "—"}\n` +
-          `• Data: ${new Date(o.created_at).toLocaleString("pt-BR")}\n\n` +
+          `• Data: ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(o.created_at))}\n\n` +
           `**Itens:**\n${itemsList || "  Nenhum item"}`,
         data: { ...o, items },
       };
@@ -2344,7 +2344,7 @@ async function executeTool(
           .eq("tenant_id", tenant_id)
           .single();
         
-        const timestamp = new Date().toLocaleString("pt-BR");
+        const timestamp = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
         const cancelNote = `[${timestamp}] ❌ CANCELADO: ${reason}`;
         updateData.notes = order?.notes ? `${order.notes}\n${cancelNote}` : cancelNote;
       }
@@ -2984,7 +2984,7 @@ async function executeTool(
       }
       
       const list = data.map((n: any) => 
-        `${n.is_read ? "📭" : "📬"} ${n.title || n.message?.substring(0, 60) || "—"} — ${new Date(n.created_at).toLocaleDateString("pt-BR")}`
+        `${n.is_read ? "📭" : "📬"} ${n.title || n.message?.substring(0, 60) || "—"} — ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(n.created_at))}`
       ).join("\n");
       
       return {
@@ -3033,7 +3033,7 @@ async function executeTool(
       
       const list = data.map((f: any) => {
         const size = f.file_size ? `${(f.file_size / 1024).toFixed(1)} KB` : "—";
-        return `• ${f.file_name} (${size}) — ${f.folder || "raiz"} — ${new Date(f.created_at).toLocaleDateString("pt-BR")}`;
+        return `• ${f.file_name} (${size}) — ${f.folder || "raiz"} — ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(f.created_at))}`;
       }).join("\n");
       
       return {
