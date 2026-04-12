@@ -13,6 +13,9 @@ export interface PaymentMethodDiscount {
   is_enabled: boolean;
   installments_max: number;
   installments_min_value_cents: number;
+  free_installments: number;
+  pix_expiration_minutes: number;
+  boleto_expiration_days: number;
   description: string | null;
 }
 
@@ -27,6 +30,9 @@ function getDefaults(provider: string): Omit<PaymentMethodDiscount, 'id' | 'tena
     is_enabled: false,
     installments_max: method === 'credit_card' ? 12 : 1,
     installments_min_value_cents: method === 'credit_card' ? 500 : 0,
+    free_installments: method === 'credit_card' ? 12 : 1,
+    pix_expiration_minutes: 60,
+    boleto_expiration_days: 3,
     description: null,
   }));
 }
@@ -83,6 +89,9 @@ export function usePaymentMethodDiscounts(provider?: string) {
         is_enabled: discount.is_enabled ?? false,
         installments_max: discount.installments_max ?? 12,
         installments_min_value_cents: discount.installments_min_value_cents ?? 500,
+        free_installments: discount.free_installments ?? 12,
+        pix_expiration_minutes: discount.pix_expiration_minutes ?? 60,
+        boleto_expiration_days: discount.boleto_expiration_days ?? 3,
         description: discount.description || null,
       };
 
