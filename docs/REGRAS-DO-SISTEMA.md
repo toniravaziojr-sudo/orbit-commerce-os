@@ -511,6 +511,7 @@ Os docs abaixo pertencem à estrutura antiga (`docs/regras/*.md`). Durante a tra
 | Auxiliar de Comando | `docs/regras/auxiliar-comando.md` | ✅ Ready |
 | Importação | `docs/regras/importacao.md` | ✅ Ready |
 | Afiliados | `docs/regras/afiliados.md` | ✅ Ready |
+| Link Checkout | `docs/especificacoes/ecommerce/link-checkout.md` | ✅ Ready |
 | Shopee | `docs/regras/shopee.md` | ✅ Ready |
 | Domínios | `docs/regras/dominios.md` | ✅ Ready |
 | Feature Rollout | `docs/regras/feature-rollout.md` | ✅ Ready |
