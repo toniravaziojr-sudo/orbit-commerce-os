@@ -66,6 +66,7 @@ interface ProductImage {
 
 interface ProductImageManagerProps {
   productId: string;
+  productName?: string;
   images: ProductImage[];
   onImagesChange: () => void;
 }
@@ -162,7 +163,7 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
   );
 }
 
-export function ProductImageManager({ productId, images, onImagesChange }: ProductImageManagerProps) {
+export function ProductImageManager({ productId, productName = '', images, onImagesChange }: ProductImageManagerProps) {
   const { toast } = useToast();
   const { currentTenant, user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
@@ -174,7 +175,6 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
   const primaryImage = images.find((img) => img.is_primary);
-  const productName = ''; // Will be passed as context
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -622,6 +622,18 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {primaryImage && (
+        <AIImageGeneratorDialog
+          open={aiDialogOpen}
+          onOpenChange={setAiDialogOpen}
+          productId={productId}
+          productName={productName}
+          primaryImageUrl={primaryImage.url}
+          currentImageCount={images.length}
+          onImagesGenerated={onImagesChange}
+        />
+      )}
     </div>
   );
 }
