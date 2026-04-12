@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   Package, 
@@ -10,6 +9,8 @@ import {
   Clock,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+
+import { formatDayMonthTimeBR } from "@/lib/date-";
 
 interface ShipmentEvent {
   id: string;
@@ -104,7 +105,7 @@ export function ShipmentTimeline({ events, isLoading }: ShipmentTimelineProps) {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground whitespace-nowrap">
-                      {format(new Date(event.occurred_at), "dd/MM HH:mm", { locale: ptBR })}
+                      {formatDayMonthTimeBR(new Date(event.occurred_at))}
                     </p>
                   </div>
                 </div>

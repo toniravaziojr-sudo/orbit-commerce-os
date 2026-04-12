@@ -46,9 +46,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { showErrorToast } from '@/lib/error-toast';
+
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-";
 
 const PAGE_SIZE = 50;
 
@@ -375,11 +376,11 @@ export default function EmailMarketingListDetail() {
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">
-              Assinantes ({totalCount.toLocaleString("pt-BR")})
+              Assinantes ({formatDateTimeBR(totalCount)})
             </CardTitle>
             {totalCount > 0 && (
               <span className="text-sm text-muted-foreground">
-                Exibindo {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalCount)} de {totalCount.toLocaleString("pt-BR")}
+                Exibindo {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalCount)} de {formatDateTimeBR(totalCount)}
               </span>
             )}
           </div>
@@ -448,7 +449,7 @@ export default function EmailMarketingListDetail() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">
-                          {format(new Date(sub.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                          {formatDateBR(new Date(sub.created_at))}
                         </TableCell>
                       </TableRow>
                     ))}

@@ -39,12 +39,13 @@ import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare,
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AddReviewDialog } from '@/components/reviews/AddReviewDialog';
 import { GenerateReviewsDialog } from '@/components/reviews/GenerateReviewsDialog';
 import { registerReviewMediaToDrive, ensureReviewFolderAndGetId } from '@/lib/registerReviewMediaToDrive';
 import { GoogleBusinessReviewsTab } from '@/components/reviews/GoogleBusinessReviewsTab';
+
+import { formatDateBR } from "@/lib/date-";
 
 interface ProductReview {
   id: string;
@@ -619,7 +620,7 @@ export default function Reviews() {
                     </TableCell>
                     <TableCell>{getStatusBadge(review.status)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(review.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                      {formatDateBR(new Date(review.created_at))}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

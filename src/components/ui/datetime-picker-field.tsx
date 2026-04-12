@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatTimeBR } from "@/lib/date-format";
+
 import {
   Popover,
   PopoverContent,
@@ -36,11 +38,11 @@ export function DateTimePickerField({
 }: DateTimePickerFieldProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(value);
-  const [timeValue, setTimeValue] = useState(value ? format(value, 'HH:mm') : '00:00');
+  const [timeValue, setTimeValue] = useState(value ? formatTimeBR(value) : '00:00');
 
   useEffect(() => {
     setSelectedDate(value);
-    setTimeValue(value ? format(value, 'HH:mm') : '00:00');
+    setTimeValue(value ? formatTimeBR(value) : '00:00');
   }, [value]);
 
   const handleDateSelect = (date: Date | undefined) => {
@@ -77,7 +79,7 @@ export function DateTimePickerField({
 
   const handleCancel = () => {
     setSelectedDate(value);
-    setTimeValue(value ? format(value, 'HH:mm') : '00:00');
+    setTimeValue(value ? formatTimeBR(value) : '00:00');
     setIsOpen(false);
   };
 

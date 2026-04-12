@@ -3,7 +3,6 @@
  * Shows transaction history for credits
  */
 
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
   ArrowDownCircle, 
@@ -30,6 +29,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CreditLedgerEntry, formatCredits } from "@/hooks/useCredits";
 import { Skeleton } from "@/components/ui/skeleton";
+
+import { formatDateTimeShortBR } from "@/lib/date-";
 
 interface CreditLedgerTableProps {
   entries: CreditLedgerEntry[];
@@ -120,7 +121,7 @@ export function CreditLedgerTable({ entries, isLoading }: CreditLedgerTableProps
           return (
             <TableRow key={entry.id}>
               <TableCell className="text-sm text-muted-foreground">
-                {format(new Date(entry.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}
+                {formatDateTimeShortBR(new Date(entry.created_at))}
               </TableCell>
               <TableCell>
                 <Badge variant={config.variant} className="gap-1">

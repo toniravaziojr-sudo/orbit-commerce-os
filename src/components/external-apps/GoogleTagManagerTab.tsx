@@ -10,6 +10,8 @@ import { useGoogleTagManager } from "@/hooks/useGoogleTagManager";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { toast } from "sonner";
 
+import { formatDateTimeBR } from "@/lib/date-";
+
 export function GoogleTagManagerTab() {
   const { isConnected, connection } = useGoogleConnection();
   const { containersQuery, syncMutation, scriptsMutation } = useGoogleTagManager();
@@ -93,7 +95,7 @@ export function GoogleTagManagerTab() {
             <CardDescription>Última Sincronização</CardDescription>
             <CardTitle className="text-sm font-medium">
               {containers[0]?.last_sync_at
-                ? new Date(containers[0].last_sync_at).toLocaleString("pt-BR")
+                ? formatDateTimeBR(new Date(containers[0].last_sync_at))
                 : "Nunca"}
             </CardTitle>
           </CardHeader>

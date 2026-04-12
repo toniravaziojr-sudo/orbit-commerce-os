@@ -11,6 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 
+import { formatDateTimeBR } from "@/lib/date-";
+
 interface ActionDetailDialogProps {
   action: AutopilotAction | null;
   open: boolean;
@@ -157,8 +159,8 @@ function AdsetPreview({ data }: { data: Record<string, any> }) {
 
       {data.schedule && (
         <DetailSection icon={<Calendar className="h-4 w-4" />} title="Agendamento">
-          {data.schedule.start_time && <DetailRow label="Início" value={new Date(data.schedule.start_time).toLocaleString("pt-BR")} />}
-          {data.schedule.end_time && <DetailRow label="Fim" value={new Date(data.schedule.end_time).toLocaleString("pt-BR")} />}
+          {data.schedule.start_time && <DetailRow label="Início" value={formatDateTimeBR(new Date(data.schedule.start_time))} />}
+          {data.schedule.end_time && <DetailRow label="Fim" value={formatDateTimeBR(new Date(data.schedule.end_time))} />}
         </DetailSection>
       )}
     </div>
@@ -196,7 +198,7 @@ function CreativePreview({ data }: { data: Record<string, any> }) {
         {data.headline && <DetailRow label="Título" value={data.headline} />}
         {data.copy_text && <DetailRow label="Texto" value={data.copy_text} />}
         {data.cta_type && <DetailRow label="CTA" value={data.cta_type} />}
-        {data.format && <DetailRow label="Formato" value={data.format} />}
+        {data.&& <DetailRow label="Formato" value={data.} />}
         {data.angle && <DetailRow label="Ângulo" value={data.angle} />}
         {data.generation_style && <DetailRow label="Estilo" value={data.generation_style} />}
         {data.channel && <DetailRow label="Canal" value={data.channel} />}
@@ -435,7 +437,7 @@ export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailD
             <Badge variant="outline" className="text-xs capitalize">{action.channel}</Badge>
           </DialogTitle>
           <DialogDescription className="text-xs">
-            {new Date(action.created_at).toLocaleString("pt-BR")}
+            {formatDateTimeBR(new Date(action.created_at))}
             {action.confidence && (
               <> · Confiança: {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</>
             )}

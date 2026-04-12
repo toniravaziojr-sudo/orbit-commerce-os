@@ -5,6 +5,8 @@
 
 import { Package, Truck, ExternalLink, Clock, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { formatDateBR } from "@/lib/date-";
+
 import { 
   deliveryStatusLabels, 
   type DeliveryStatus 
@@ -71,13 +73,7 @@ export function TrackingInfo({
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock className="h-3 w-3" />
           <span>
-            Atualizado em {new Date(lastStatusAt).toLocaleDateString('pt-BR', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            Atualizado em {formatDateBR(new Date(lastStatusAt))}
           </span>
         </div>
       )}
@@ -86,13 +82,7 @@ export function TrackingInfo({
         <div className="flex items-center gap-2 text-xs text-green-600">
           <CheckCircle2 className="h-3 w-3" />
           <span>
-            Entregue em {new Date(deliveredAt).toLocaleDateString('pt-BR', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            Entregue em {formatDateBR(new Date(deliveredAt))}
           </span>
         </div>
       )}

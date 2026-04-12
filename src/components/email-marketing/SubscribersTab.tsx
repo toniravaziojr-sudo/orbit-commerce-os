@@ -32,8 +32,9 @@ import {
   UserCheck,
   UserX
 } from "lucide-react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-";
 
 const PAGE_SIZE = 50;
 
@@ -232,11 +233,11 @@ export function SubscribersTab() {
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">
-              Todos os Assinantes ({totalCount.toLocaleString("pt-BR")})
+              Todos os Assinantes ({formatDateTimeBR(totalCount)})
             </CardTitle>
             {totalCount > 0 && (
               <span className="text-sm text-muted-foreground">
-                Exibindo {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalCount)} de {totalCount.toLocaleString("pt-BR")}
+                Exibindo {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalCount)} de {formatDateTimeBR(totalCount)}
               </span>
             )}
           </div>
@@ -302,7 +303,7 @@ export function SubscribersTab() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">
-                          {format(new Date(sub.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                          {formatDateBR(new Date(sub.created_at))}
                         </TableCell>
                       </TableRow>
                     ))}

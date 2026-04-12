@@ -16,7 +16,7 @@ import {
   Timer,
   Plus,
 } from 'lucide-react';
-import { format, formatDistanceToNow, isPast } from 'date-fns';
+import { formatDistanceToNow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -61,6 +61,8 @@ import { CreateShipmentDialog } from '@/components/shipping/CreateShipmentDialog
 import { ShipmentDetailsCard } from '@/components/shipping/ShipmentDetailsCard';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { showErrorToast } from '@/lib/error-toast';
+
+import { formatDateTimeBR } from "@/lib/date-";
 
 type DeliveryStatus = 
   | 'label_created' 
@@ -127,7 +129,7 @@ function maskTrackingCode(code: string | null): string {
 
 function formatDate(date: string | null): string {
   if (!date) return '—';
-  return format(new Date(date), "dd/MM/yyyy HH:mm", { locale: ptBR });
+  return formatDateTimeBR(new Date(date));
 }
 
 function formatNextPoll(nextPollAt: string | null, errorCount: number, lastError: string | null): { text: string; isBackoff: boolean } {

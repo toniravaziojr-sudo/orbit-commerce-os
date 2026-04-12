@@ -19,6 +19,8 @@ import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-";
+
 export type RejectMode = "dismiss" | "regenerate";
 
 export interface ActionApprovalCardProps {
@@ -737,10 +739,10 @@ function CampaignDetailsTab({ data, preview, action, childActions }: { data: Rec
 
   // --- SCHEDULE ---
   const startDate = f("start_time") || f("start_date");
-  if (startDate) details.push({ label: "Início", value: new Date(startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }), icon: <Clock className="h-3.5 w-3.5" />, section: "Agendamento" });
+  if (startDate) details.push({ label: "Início", value: formatDateBR(new Date(startDate)), icon: <Clock className="h-3.5 w-3.5" />, section: "Agendamento" });
 
   const endDate = f("end_time") || f("end_date");
-  if (endDate) details.push({ label: "Término", value: new Date(endDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }), icon: <Clock className="h-3.5 w-3.5" />, section: "Agendamento" });
+  if (endDate) details.push({ label: "Término", value: formatDateBR(new Date(endDate)), icon: <Clock className="h-3.5 w-3.5" />, section: "Agendamento" });
 
   const adSchedule = f("ad_schedule") || f("dayparting");
   if (adSchedule) details.push({ label: "Programação de Horários", value: formatFieldValue(adSchedule), icon: <Clock className="h-3.5 w-3.5" />, section: "Agendamento" });
@@ -788,7 +790,7 @@ function CampaignDetailsTab({ data, preview, action, childActions }: { data: Rec
   const adName = f("ad_name") || f("creative_name");
   if (adName) details.push({ label: "Nome do Anúncio", value: adName, icon: <ImageIcon className="h-3.5 w-3.5" />, section: "Criativos" });
   
-  const adFormat = f("ad_format") || f("creative_format") || f("format");
+  const adFormat = f("ad_format") || f("creative_format") || f("");
   if (adFormat) details.push({ label: "Formato do Anúncio", value: translateTechnical(adFormat), icon: <ImageIcon className="h-3.5 w-3.5" />, section: "Criativos" });
 
   // --- Scan remaining action_data keys not yet covered ---
@@ -811,7 +813,7 @@ function CampaignDetailsTab({ data, preview, action, childActions }: { data: Rec
     "asset_url", "adset_name", "parent_campaign_name", "diagnosis", "planned_actions", "expected_results",
     "risk_assessment", "timeline", "budget_snapshot", "session_id", "strategy_run_id", "ad_account_id",
     "creative_assets", "creatives", "adsets", "ad_name", "creative_name", "ad_format", "creative_format",
-    "format", "name", "reasoning", "confidence", "metric_trigger", "action_hash",
+    "", "name", "reasoning", "confidence", "metric_trigger", "action_hash",
   ]);
 
   const FIELD_LABELS: Record<string, string> = {
@@ -939,7 +941,7 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
               {label}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {new Date(action.created_at).toLocaleString("pt-BR")}
+              {formatDateTimeBR(new Date(action.created_at))}
               {action.confidence && (
                 <> · Confiança: {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</>
               )}

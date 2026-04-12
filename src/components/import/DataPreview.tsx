@@ -7,6 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, Info, XCircle, CheckCircle2 } from 'lucide-react';
 
+import { formatDateBR } from "@/lib/date-";
+
 interface DataPreviewProps {
   data: Record<string, any[]>;
   modules: string[];
@@ -372,7 +374,7 @@ function OrdersPreview({ items }: { items: any[] }) {
               <Badge variant="outline">{item.status}</Badge>
             </TableCell>
             <TableCell>
-              {item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '-'}
+              {item.created_at ? formatDateBR(new Date(item.created_at)) : '-'}
             </TableCell>
           </TableRow>
         ))}

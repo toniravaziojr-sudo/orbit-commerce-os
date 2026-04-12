@@ -35,6 +35,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 const statusConfig: Record<BlockRequestStatus, { label: string; color: string; icon: React.ReactNode }> = {
   pending: { label: 'Pendente', color: 'bg-amber-500', icon: <Clock className="w-3 h-3" /> },
   in_progress: { label: 'Em Progresso', color: 'bg-blue-500', icon: <Loader2 className="w-3 h-3 animate-spin" /> },
@@ -331,7 +333,7 @@ export default function BlockSuggestions() {
                   <Label className="text-muted-foreground">Data</Label>
                   <p>
                     {selectedRequest?.created_at && 
-                      format(new Date(selectedRequest.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      formatDateTimeBR(new Date(selectedRequest.created_at))}
                   </p>
                 </div>
               </div>

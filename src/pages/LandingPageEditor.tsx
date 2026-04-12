@@ -29,6 +29,8 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { GenerateSeoButton } from "@/components/seo/GenerateSeoButton";
 import { LandingPageChatInput } from "@/components/landing-pages/LandingPageChatInput";
+import { formatDateBR } from "@/lib/date-";
+
 // Header/Footer are rendered only in the public page (StorefrontAILandingPage)
 // In the editor, we show a clean iframe-only preview to avoid CSS conflicts
 import {
@@ -822,7 +824,7 @@ export default function LandingPageEditor() {
                           <div className="flex items-center justify-between mb-1">
                             <Badge variant="outline">v{v.version}</Badge>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(v.created_at).toLocaleDateString('pt-BR')}
+                              {formatDateBR(new Date(v.created_at))}
                             </span>
                           </div>
                           <p className="text-sm">{v.prompt}</p>

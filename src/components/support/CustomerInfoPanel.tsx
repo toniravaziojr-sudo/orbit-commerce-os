@@ -13,6 +13,8 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
+import { formatDayMonthTimeBR } from "@/lib/date-format";
+
 interface CustomerInfoPanelProps {
   conversation: Conversation | null;
 }
@@ -255,7 +257,7 @@ export function CustomerInfoPanel({ conversation }: CustomerInfoPanelProps) {
                       <p className="text-sm">{note.content}</p>
                       <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
                         <span>{note.sender_name}</span>
-                        <span>{format(new Date(note.created_at), 'dd/MM HH:mm', { locale: ptBR })}</span>
+                        <span>{formatDayMonthTimeBR(new Date(note.created_at))}</span>
                       </div>
                     </div>
                   ))}

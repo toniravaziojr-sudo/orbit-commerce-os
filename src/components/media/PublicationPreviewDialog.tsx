@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
   Clock, 
@@ -24,6 +23,8 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { MediaCalendarItem } from "@/hooks/useMediaCampaigns";
+
+import { formatDateBR } from "@/lib/date-";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -187,7 +188,7 @@ export function PublicationPreviewDialog({
               )}
               {item.scheduled_date && (
                 <span>
-                  {format(new Date(item.scheduled_date), "dd/MM/yyyy")}
+                  {formatDateBR(new Date(item.scheduled_date))}
                 </span>
               )}
             </div>

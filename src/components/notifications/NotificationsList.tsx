@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
   Clock, RefreshCw, Send, CheckCircle, XCircle, Ban, 
@@ -34,6 +33,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Notification, NotificationStatus } from "@/hooks/useNotifications";
+
+import { formatDayMonthTimeBR } from "@/lib/date-";
 
 interface NotificationsListProps {
   notifications: Notification[];
@@ -149,15 +150,15 @@ export function NotificationsList({
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-muted-foreground">
-                    {format(new Date(notification.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                    {formatDayMonthTimeBR(new Date(notification.created_at))}
                   </span>
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-muted-foreground">
                     {notification.sent_at 
-                      ? format(new Date(notification.sent_at), "dd/MM HH:mm", { locale: ptBR })
+                      ? formatDayMonthTimeBR(new Date(notification.sent_at))
                       : notification.next_attempt_at 
-                        ? format(new Date(notification.next_attempt_at), "dd/MM HH:mm", { locale: ptBR })
+                        ? formatDayMonthTimeBR(new Date(notification.next_attempt_at))
                         : '-'
                     }
                   </span>

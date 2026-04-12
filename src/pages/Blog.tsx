@@ -34,6 +34,8 @@ import { cn } from '@/lib/utils';
 import { useMediaCampaigns, MediaCampaign } from '@/hooks/useMediaCampaigns';
 import { showErrorToast } from '@/lib/error-toast';
 
+import { formatDateBR } from "@/lib/date-format";
+
 interface BlogPost {
   id: string;
   tenant_id: string;
@@ -567,7 +569,7 @@ export default function Blog() {
                       <TableCell className="text-muted-foreground">
                         <div className="flex items-center gap-1 text-sm">
                           <Calendar className="h-3 w-3" />
-                          {format(new Date(post.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                          {formatDateBR(new Date(post.created_at))}
                         </div>
                       </TableCell>
                       <TableCell>

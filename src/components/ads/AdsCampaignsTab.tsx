@@ -18,6 +18,8 @@ import { subDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAdsAccountConfigs } from "@/hooks/useAdsAccountConfigs";
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 // ========== TYPES ==========
 
 interface AdAccount {
@@ -107,7 +109,7 @@ function formatCurrency(cents: number) {
 function formatNumber(n: number) {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return n.toLocaleString("pt-BR");
+  return formatDateTimeBR(n);
 }
 
 function getAccountId(campaign: any): string {

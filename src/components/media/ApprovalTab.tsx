@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, Image as ImageIcon, FileText, Instagram, Facebook, Send, Loader2, ArrowLeft, AlertCircle, PenTool } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -14,6 +13,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+
+import { formatDayMonthNumericBR } from "@/lib/date-";
 
 const platformIcons: Record<string, React.ReactNode> = {
   instagram: <Instagram className="h-3.5 w-3.5 text-pink-500" />,
@@ -319,7 +320,7 @@ export function ApprovalTab({
                       <div className="flex items-center gap-2">
                         <h4 className="text-sm font-medium truncate">{item.title || "Sem título"}</h4>
                         <span className="text-xs text-muted-foreground shrink-0">
-                          {format(new Date(item.scheduled_date), "dd/MM", { locale: ptBR })}
+                          {formatDayMonthNumericBR(new Date(item.scheduled_date))}
                         </span>
                       </div>
                       {item.copy && (

@@ -12,10 +12,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { RefreshCw, Calendar, CalendarPlus, Clock, MapPin, Users, AlertCircle, ExternalLink } from "lucide-react";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { useGoogleCalendar, type CalendarEvent } from "@/hooks/useGoogleCalendar";
-import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
+import { format, parseISO,  isTomorrow, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+
+import { formatTimeBR, isTodayBR } from "@/lib/date-format";
 
 export function GoogleCalendarTab() {
   const { isConnected, connection } = useGoogleConnection();
@@ -65,8 +67,8 @@ export function GoogleCalendarTab() {
   const formatEventDate = (dateStr: string) => {
     try {
       const d = parseISO(dateStr);
-      if (isToday(d)) return `Hoje, ${format(d, "HH:mm")}`;
-      if (isTomorrow(d)) return `Amanhã, ${format(d, "HH:mm")}`;
+      if (isTodayBR(d)) return `Hoje, ${formatTimeBR(d)}`;
+      if (isTomorrow(d)) return `Amanhã, ${formatTimeBR(d)}`;
       return format(d, "dd/MM · HH:mm", { locale: ptBR });
     } catch {
       return dateStr;

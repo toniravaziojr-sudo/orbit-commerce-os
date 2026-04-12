@@ -28,6 +28,8 @@ import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+import { formatDateBR, formatDateTimeBR } from "@/lib/date-";
+
 interface PaymentInstructions {
   method: string;
   status: string;
@@ -106,9 +108,8 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       if (!isPaid) return;
     }
     
-    // v8.23.0: Strip # from order_number to match server-side event_id format
-    // Server (process-events) uses cleanOrderNumber.replace(/^#/, '') → purchase_paid_141
-    // Browser must use the same format for deduplication to work
+    // v8.23.0: Strip # from order_number to match server-side event_id// Server (process-events) uses cleanOrderNumber.replace(/^#/, '') → purchase_paid_141
+    // Browser must use the samefor deduplication to work
     const cleanOrderNumber = order.order_number.replace(/^#/, '').trim();
     
     trackPurchase({
@@ -451,7 +452,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
 
           {paymentInstructions.pix_expires_at && (
             <p className="text-sm text-muted-foreground">
-              Expira em: {new Date(paymentInstructions.pix_expires_at).toLocaleString('pt-BR')}
+              Expira em: {formatDateTimeBR(new Date(paymentInstructions.pix_expires_at))}
             </p>
           )}
 
@@ -510,7 +511,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
 
           {paymentInstructions.boleto_due_date && (
             <p className="text-sm text-muted-foreground">
-              Vencimento: {new Date(paymentInstructions.boleto_due_date).toLocaleDateString('pt-BR')}
+              Vencimento: {formatDateBR(new Date(paymentInstructions.boleto_due_date))}
             </p>
           )}
         </div>

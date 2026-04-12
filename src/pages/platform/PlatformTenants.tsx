@@ -11,9 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Store, Crown, Star } from "lucide-react";
+
+import { formatDateBR } from "@/lib/date-";
 
 const planColors: Record<string, string> = {
   free: "bg-muted text-muted-foreground",
@@ -94,7 +95,7 @@ export default function PlatformTenants() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {format(new Date(tenant.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                    {formatDateBR(new Date(tenant.created_at))}
                   </TableCell>
                 </TableRow>
               ))}

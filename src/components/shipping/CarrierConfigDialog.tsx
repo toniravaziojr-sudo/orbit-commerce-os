@@ -28,6 +28,8 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useShippingProviders, ShippingProviderInput, TestConnectionResult } from '@/hooks/useShippingProviders';
 
+import { formatDateTimeBR } from "@/lib/date-";
+
 interface CarrierField {
   key: string;
   label: string;
@@ -373,7 +375,7 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
                     {testResult.success ? (
                       <>
                         {testResult.token_expires_at && (
-                          <span>Token válido até: {new Date(testResult.token_expires_at).toLocaleString('pt-BR')}</span>
+                          <span>Token válido até: {formatDateTimeBR(new Date(testResult.token_expires_at))}</span>
                         )}
                         {testResult.cep_lookup_works && (
                           <span className="block text-xs mt-1">✓ Consulta de CEP funcionando</span>

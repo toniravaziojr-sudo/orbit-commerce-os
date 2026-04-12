@@ -11,8 +11,7 @@ import {
   endOfMonth,
   eachDayOfInterval,
   addMonths,
-  subMonths,
-  isToday,
+  subMonths, 
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -23,12 +22,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { getHolidayForDate, type BrazilianHoliday } from "@/lib/brazilian-holidays";
 
+import { isTodayBR } from "@/lib/date-format";
+
 export type Holiday = BrazilianHoliday;
 
 export interface DayCellInfo {
   date: Date;
-  dateKey: string;
-  isToday: boolean;
+  dateKey: string;: boolean;
   holiday: Holiday | null;
 }
 
@@ -154,11 +154,11 @@ export function MonthlyCalendar({
         {days.map((date) => {
           const dateKey = format(date, "yyyy-MM-dd");
           const holiday = getHolidayForDate(date);
-          const today = isToday(date);
+          const today = isTodayBR(date);
 
           return (
             <div key={dateKey} style={{ minHeight: cellMinHeight }}>
-              {renderCell({ date, dateKey, isToday: today, holiday })}
+              {renderCell({ date, dateKey: today, holiday })}
             </div>
           );
         })}
@@ -234,14 +234,12 @@ export function MonthlyCalendar({
  */
 export function DayHeader({
   date,
-  holiday,
-  isToday: today,
+  holiday: today,
   className: extraClass,
   children,
 }: {
   date: Date;
-  holiday: Holiday | null;
-  isToday: boolean;
+  holiday: Holiday | null;: boolean;
   className?: string;
   children?: ReactNode;
 }) {

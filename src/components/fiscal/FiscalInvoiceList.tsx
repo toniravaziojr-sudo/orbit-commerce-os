@@ -33,6 +33,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
 
+import { formatDateTimeBR } from "@/lib/date-format";
+
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
   draft: { label: 'Pronta para Emitir', variant: 'secondary', icon: FileText },
   pending: { label: 'Processando', variant: 'outline', icon: Clock },
@@ -1016,7 +1018,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             />
                           </TableCell>
                           <TableCell>
-                            {format(new Date(invoice.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                            {formatDateTimeBR(new Date(invoice.created_at))}
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate">
                             {invoice.dest_nome}

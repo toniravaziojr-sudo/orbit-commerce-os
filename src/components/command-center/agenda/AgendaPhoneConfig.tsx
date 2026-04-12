@@ -27,8 +27,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useAgendaAuthorizedPhones } from "@/hooks/useAgendaAuthorizedPhones";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+import { formatDateBR } from "@/lib/date-";
 
 function formatPhoneDisplay(phone: string): string {
   if (phone.length === 13) {
@@ -142,7 +143,7 @@ export function AgendaPhoneConfig() {
                       <p className="text-xs text-muted-foreground">{phone.label}</p>
                     )}
                     <p className="text-[10px] text-muted-foreground/70">
-                      Adicionado em {format(new Date(phone.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                      Adicionado em {formatDateBR(new Date(phone.created_at))}
                     </p>
                   </div>
                 </div>

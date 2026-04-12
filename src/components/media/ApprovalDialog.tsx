@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, Image as ImageIcon, FileText, Instagram, Facebook } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { MediaCalendarItem } from "@/hooks/useMediaCampaigns";
+
+import { formatDayMonthNumericBR } from "@/lib/date-";
 
 interface ApprovalDialogProps {
   open: boolean;
@@ -134,7 +135,7 @@ export function ApprovalDialog({ open, onOpenChange, items, onApprove, isApprovi
                     <div className="flex items-center gap-2">
                       <h4 className="text-sm font-medium truncate">{item.title}</h4>
                       <span className="text-xs text-muted-foreground shrink-0">
-                        {format(new Date(item.scheduled_date), "dd/MM", { locale: ptBR })}
+                        {formatDayMonthNumericBR(new Date(item.scheduled_date))}
                       </span>
                     </div>
                     

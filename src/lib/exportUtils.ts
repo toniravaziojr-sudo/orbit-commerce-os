@@ -1,5 +1,7 @@
 import { format } from "date-fns";
 
+import { formatDateBR } from "@/lib/date-format";
+
 export function exportToCSV<T extends Record<string, any>>(
   data: T[],
   columns: { key: keyof T; label: string; format?: (value: any, row: T) => string }[],
@@ -79,7 +81,7 @@ function downloadBlob(blob: Blob, filename: string) {
 export function formatDateForExport(dateString: string | null | undefined): string {
   if (!dateString) return '';
   try {
-    return format(new Date(dateString), 'dd/MM/yyyy');
+    return formatDateBR(new Date(dateString));
   } catch {
     return '';
   }

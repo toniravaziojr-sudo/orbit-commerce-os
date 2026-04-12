@@ -14,7 +14,6 @@ import {
   Gift,
   DollarSign,
 } from 'lucide-react';
-import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -39,6 +38,8 @@ import { SuccessRatePopover } from '@/components/shipping/SuccessRatePopover';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { FreeShippingSubTabs } from '@/components/shipping/FreeShippingSubTabs';
 import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
+import { formatDateBR } from "@/lib/date-";
+
 import {
   PieChart,
   Pie,
@@ -430,7 +431,7 @@ export default function ShippingDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {format(new Date(shipment.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                          {formatDateBR(new Date(shipment.created_at))}
                         </TableCell>
                       </TableRow>
                     ))}

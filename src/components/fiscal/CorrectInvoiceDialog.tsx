@@ -10,8 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
-import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+import { formatDateTimeBR } from "@/lib/date-";
 
 interface CCeRecord {
   id: string;
@@ -173,7 +174,7 @@ export function CorrectInvoiceDialog({ open, onOpenChange, invoice, onSuccess }:
                               #{cce.numero_sequencia}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
-                              {format(new Date(cce.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              {formatDateTimeBR(new Date(cce.created_at))}
                             </span>
                           </div>
                           <p className="text-sm text-muted-foreground line-clamp-2">{cce.correcao}</p>
