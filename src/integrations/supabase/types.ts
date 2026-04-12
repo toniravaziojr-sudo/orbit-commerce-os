@@ -2813,6 +2813,78 @@ export type Database = {
           },
         ]
       }
+      checkout_links: {
+        Row: {
+          additional_products: Json | null
+          click_count: number
+          conversion_count: number
+          coupon_code: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          name: string
+          price_override: number | null
+          product_id: string
+          quantity: number
+          shipping_override: number | null
+          slug: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          additional_products?: Json | null
+          click_count?: number
+          conversion_count?: number
+          coupon_code?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price_override?: number | null
+          product_id: string
+          quantity?: number
+          shipping_override?: number | null
+          slug: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          additional_products?: Json | null
+          click_count?: number
+          conversion_count?: number
+          coupon_code?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price_override?: number | null
+          product_id?: string
+          quantity?: number
+          shipping_override?: number | null
+          slug?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_links_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkout_sessions: {
         Row: {
           abandoned_at: string | null
