@@ -4,7 +4,7 @@
 
 > **Camada:** Layer 3 — Especificações / CRM  
 > **Migrado de:** `docs/regras/checkouts-abandonados.md`  
-> **Última atualização:** 2026-04-04
+> **Última atualização:** 2026-04-12
 
 ## Visão Geral
 
@@ -188,6 +188,7 @@ O estado interno controla a validade temporária da sessão de checkout:
 | **Estado interno não bloqueia** | Mesmo com estado `inactive`, o cliente pode converter (→ reverted) |
 | **Sem pedidos fantasma** | Pedidos só existem após resposta do gateway. Não há mais ghost orders |
 | **Lista Cliente Potencial** | Checkout abandonado insere automaticamente na lista "Cliente Potencial" do email marketing |
+| **Exclusão de convertidos** | **(v2026-04-12)** Sessões `converted` (vendas diretas) e `active` são **excluídas** da listagem e das stats de abandonos. Apenas `abandoned`, `recovered` e `reverted` compõem o universo de checkouts abandonados |
 
 ---
 
