@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.1.0"; // Fix: use ad account from tenant_meta_integrations (anuncios) instead of first discovered_asset
+const VERSION = "v1.1.1"; // Fix: multi-key schema without is_raw, paginated member fetch, correct ad account selection
 // ===================
 
 const corsHeaders = {
