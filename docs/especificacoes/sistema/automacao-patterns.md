@@ -170,3 +170,4 @@ Preciso reagir a uma mudança de estado no banco?
 |------------|-------------------------------------------------------------------------|
 | 2026-04-04 | Criação do documento. Substituição do trigger pg_net fiscal por Fila+Cron |
 | 2026-04-08 | Enforcement do Single Flow: webhooks de pagamento não chamam mais Edge Functions de criação fiscal diretamente. Pipeline única: Trigger → Fila → Cron. Adicionado índice único parcial `idx_fiscal_invoices_order_unique` como safety net no banco. |
+| 2026-04-12 | Adição do `audience-sync-weekly`: Padrão 3 (Edge Function) via cron semanal (sáb 23h BRT). Sincroniza listas de email → públicos Meta/Google com SHA-256. |
