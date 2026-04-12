@@ -14,7 +14,6 @@ export function GooglePlatformSettings() {
   const oauthConfigured = clientIdConfigured && clientSecretConfigured;
 
   const devTokenConfigured = !!credentials?.secrets?.GOOGLE_ADS_DEVELOPER_TOKEN;
-  const loginCustomerIdConfigured = !!credentials?.secrets?.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -83,7 +82,7 @@ export function GooglePlatformSettings() {
         </CardContent>
       </Card>
 
-      {/* Google Ads (MCC) */}
+      {/* Google Ads */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -93,7 +92,7 @@ export function GooglePlatformSettings() {
               </div>
               <div>
                 <CardTitle className="text-base">Google Ads</CardTitle>
-                <CardDescription>Developer Token e Login Customer ID (conta MCC)</CardDescription>
+                <CardDescription>Developer Token da plataforma</CardDescription>
               </div>
             </div>
             <Badge variant={devTokenConfigured ? "default" : "outline"} className={devTokenConfigured ? "bg-green-500/10 text-green-600" : ""}>
@@ -106,7 +105,7 @@ export function GooglePlatformSettings() {
           <Alert variant="default" className="bg-amber-500/5 border-amber-500/20">
             <Info className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-sm">
-              O Developer Token é obtido na conta MCC do Google Ads (API Center). O Login Customer ID é o número da conta MCC sem hífens.
+              O Developer Token é obtido na conta MCC do Google Ads (API Center). Identifica a plataforma como desenvolvedora autorizada.
               <Button variant="link" size="sm" className="ml-1 h-auto p-0" asChild>
                 <a href="https://ads.google.com/aw/apicenter" target="_blank" rel="noopener noreferrer">
                   Google Ads API Center <ExternalLink className="h-3 w-3 ml-1" />
@@ -122,15 +121,6 @@ export function GooglePlatformSettings() {
             isConfigured={devTokenConfigured}
             preview={credentials?.previews?.GOOGLE_ADS_DEVELOPER_TOKEN}
             source={credentials?.sources?.GOOGLE_ADS_DEVELOPER_TOKEN as 'db' | 'env' | null}
-          />
-          <CredentialEditor
-            credentialKey="GOOGLE_ADS_LOGIN_CUSTOMER_ID"
-            label="Login Customer ID (MCC)"
-            description="ID da conta MCC sem hífens (ex: 1234567890). Necessário para acessar contas vinculadas."
-            isConfigured={loginCustomerIdConfigured}
-            preview={credentials?.previews?.GOOGLE_ADS_LOGIN_CUSTOMER_ID}
-            source={credentials?.sources?.GOOGLE_ADS_LOGIN_CUSTOMER_ID as 'db' | 'env' | null}
-            placeholder="1234567890"
           />
         </CardContent>
       </Card>

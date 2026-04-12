@@ -47,9 +47,7 @@ async function getValidToken(supabase: any, tenantId: string): Promise<{ token: 
 async function getAdsHeaders(supabaseUrl: string, supabaseServiceKey: string, token: string) {
   const devToken = await getCredential(supabaseUrl, supabaseServiceKey, "GOOGLE_ADS_DEVELOPER_TOKEN");
   if (!devToken) return null;
-  const loginCustomerId = await getCredential(supabaseUrl, supabaseServiceKey, "GOOGLE_ADS_LOGIN_CUSTOMER_ID");
   const headers: Record<string, string> = { "Authorization": `Bearer ${token}`, "developer-token": devToken, "Content-Type": "application/json" };
-  if (loginCustomerId) headers["login-customer-id"] = loginCustomerId.replace(/-/g, "");
   return headers;
 }
 
