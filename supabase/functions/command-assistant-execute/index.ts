@@ -1871,7 +1871,7 @@ async function executeTool(
           `• Preço: R$ ${(p.price || 0).toFixed(2)}\n` +
           `• Preço original: ${p.compare_at_price ? `R$ ${p.compare_at_price.toFixed(2)}` : "—"}\n` +
           `• Custo: ${p.cost_price ? `R$ ${p.cost_price.toFixed(2)}` : "—"}\n` +
-          `• Promoção: ${p.promotion_start_date ? `${new Date(p.promotion_start_date).toLocaleDateString("pt-BR")} até ${p.promotion_end_date ? new Date(p.promotion_end_date).toLocaleDateString("pt-BR") : "—"}` : "—"}\n\n` +
+          `• Promoção: ${p.promotion_start_date ? `${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(p.promotion_start_date))} até ${p.promotion_end_date ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(p.promotion_end_date)) : "—"}` : "—"}\n\n` +
           `**Estoque:**\n` +
           `• Quantidade: ${p.stock_quantity ?? 0}\n` +
           `• Controle de estoque: ${p.manage_stock ? "✅" : "❌"}\n` +
