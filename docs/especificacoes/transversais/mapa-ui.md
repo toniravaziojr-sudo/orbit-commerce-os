@@ -34,6 +34,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 4 | E-commerce | Checkout Abandonado | `/abandoned-checkouts` | ecommerce | — | — | — |
 | 5 | E-commerce | Produtos | `/products` | ecommerce | — | — | — |
 | 6 | E-commerce | Clientes | `/customers` | ecommerce | — | — | — |
+| 6.1 | E-commerce | Link Checkout | `/checkout-links` | ecommerce | — | — | — |
 | 7 | Loja Online | Loja Virtual | `/storefront` | loja_online | — | — | — |
 | 8 | Loja Online | Categorias | `/categories` | loja_online | — | — | — |
 | 9 | Loja Online | Menus | `/menus` | loja_online | — | — | — |
@@ -201,6 +202,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/abandoned-checkouts` — Checkouts abandonados
 - `/products` — Produtos
 - `/customers` — Clientes
+- `/checkout-links` — Link Checkout (links personalizados de checkout)
 - `/customers/:id` — Detalhe do cliente
 
 **Loja Online:**
@@ -357,7 +359,7 @@ Configurados em `src/config/module-status.ts`. Referência rápida:
 
 | Status | Módulos |
 |--------|---------|
-| ✅ Ready | Pedidos, Produtos, Categorias, Clientes, Loja Virtual, Checkout Abandonado, Menus, Páginas, Blog, Descontos, Ofertas, Calendário de Conteúdo, Notificações, Emails, Avaliações, Fiscal, Compras, Importar, ChatGPT, Drive, Relatórios, Emails do Sistema, Usuários |
+| ✅ Ready | Pedidos, Produtos, Categorias, Clientes, Link Checkout, Loja Virtual, Checkout Abandonado, Menus, Páginas, Blog, Descontos, Ofertas, Calendário de Conteúdo, Notificações, Emails, Avaliações, Fiscal, Compras, Importar, ChatGPT, Drive, Relatórios, Emails do Sistema, Usuários |
 | 🟧 Pending | Central de Comando, Landing Pages, Marketing, Atribuição, Email Marketing, Quizzes, Campanhas, Criativos, Atendimento, Pacotes IA, Financeiro, Logística, Integrações, Configurações, Marketplaces, Health Monitor, Integrações da Plataforma, Sugestões de Blocos |
 
 ---
