@@ -283,6 +283,9 @@ export function PaymentSettingsTab() {
               is_enabled: false,
               installments_max: method === 'credit_card' ? 12 : 1,
               installments_min_value_cents: method === 'credit_card' ? 500 : 0,
+              free_installments: method === 'credit_card' ? 12 : 1,
+              pix_expiration_minutes: 60,
+              boleto_expiration_days: 3,
               description: null,
             };
           }
