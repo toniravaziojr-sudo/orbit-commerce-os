@@ -40,6 +40,7 @@ import { getStoreHost } from '@/lib/storeHost';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { getStoredAttribution, clearStoredAttribution } from '@/hooks/useAttribution';
 import { getStoredAffiliateData, clearStoredAffiliateData } from '@/lib/affiliateTracking';
+import { useCheckoutLinkLoader } from '@/hooks/useCheckoutLinkLoader';
 import {
   startCheckoutSession,
   heartbeatCheckoutSession,
@@ -88,6 +89,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { processPayment, isProcessing: paymentProcessing, paymentResult, activeGateway, mpRedirectEnabled } = useCheckoutPayment({ tenantId });
   const { customDomain } = useCanonicalDomain();
   const { config: checkoutConfig } = useCheckoutConfig();
+  const { isLoading: linkLoading, error: linkError, shippingOverride, linkSlug } = useCheckoutLinkLoader({ tenantId });
   const { trackInitiateCheckout, trackLead, trackAddShippingInfo, trackAddPaymentInfo } = useMarketingEvents();
   // Map gateway name to provider key used in payment_method_discounts
   const providerKey = activeGateway === 'mercadopago' ? 'mercadopago' : 'pagarme';
@@ -601,26 +603,38 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     try {
       setShippingCep(cep);
       
-      let options;
-      // Use async quote for multi-provider or Frenet
-      if (shippingConfig.provider === 'frenet' || shippingConfig.provider === 'multi') {
-        const cartItems = items.map(item => ({
-          weight: 0.3,
-          height: 10,
-          width: 10,
-          length: 10,
-          quantity: item.quantity,
-          price: item.price,
-        }));
-        options = await quoteAsync(cep, totals.subtotal, cartItems);
+      // If checkout link has shipping override, use fixed shipping
+      if (shippingOverride != null) {
+        const fixedOptions = [{
+          label: shippingOverride === 0 ? 'Frete Grátis' : 'Frete Fixo',
+          price: shippingOverride,
+          deliveryDays: 0,
+          isFree: shippingOverride === 0,
+        }];
+        setShippingOptions(fixedOptions);
+        selectShipping(fixedOptions[0]);
       } else {
-        // Sync quote for mock/manual providers
-        options = quote(cep, totals.subtotal);
-      }
-      
-      setShippingOptions(options || []);
-      if (options && options.length > 0 && !shipping.selected) {
-        selectShipping(options[0]);
+        let options;
+        // Use async quote for multi-provider or Frenet
+        if (shippingConfig.provider === 'frenet' || shippingConfig.provider === 'multi') {
+          const cartItems = items.map(item => ({
+            weight: 0.3,
+            height: 10,
+            width: 10,
+            length: 10,
+            quantity: item.quantity,
+            price: item.price,
+          }));
+          options = await quoteAsync(cep, totals.subtotal, cartItems);
+        } else {
+          // Sync quote for mock/manual providers
+          options = quote(cep, totals.subtotal);
+        }
+        
+        setShippingOptions(options || []);
+        if (options && options.length > 0 && !shipping.selected) {
+          selectShipping(options[0]);
+        }
       }
     } catch (error) {
       console.error('Error calculating shipping:', error);
@@ -833,7 +847,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   };
 
   // Loading state
-  if (cartLoading) {
+  if (cartLoading || linkLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="flex items-center justify-center gap-3">
@@ -846,7 +860,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
   // Empty cart guard (allow if payment pending, approved, or retry mode with prefill)
   const isRetryMode = !!retryTokenParam && !!retryPrefill;
-  if (items.length === 0 && paymentStatus !== 'approved' && paymentStatus !== 'pending_payment' && !isRetryMode && !retryLoading) {
+  if (items.length === 0 && paymentStatus !== 'approved' && paymentStatus !== 'pending_payment' && !isRetryMode && !retryLoading && !linkLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto text-center">
