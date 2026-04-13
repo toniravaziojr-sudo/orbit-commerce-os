@@ -1560,6 +1560,7 @@ function Step4Payment({
   onInstallmentsChange,
   grandTotal,
   paymentMethodDiscountAmount,
+  pixDiscountPercent,
 }: { 
   disabled: boolean;
   paymentMethod: PaymentMethod;
@@ -1578,6 +1579,7 @@ function Step4Payment({
   onInstallmentsChange: (n: number) => void;
   grandTotal: number;
   paymentMethodDiscountAmount: number;
+  pixDiscountPercent: number;
 }) {
   return (
     <div className="space-y-6">
