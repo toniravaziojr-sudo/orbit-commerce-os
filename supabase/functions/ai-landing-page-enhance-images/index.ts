@@ -1,8 +1,8 @@
 // =============================================
-// AI LANDING PAGE ENHANCE IMAGES — V5.0.0
+// AI LANDING PAGE ENHANCE IMAGES — V6.0.0
 // Step 2: Generates BACKGROUND-ONLY scenes (no product in image)
 // Product is ALWAYS composited via CSS overlay in the frontend
-// v5.0.0: fal.ai FLUX 2 as primary → Gemini Nativa → Lovable Gateway
+// v6.0.0: GPT Image 1 as primary → Gemini Nativa → Lovable Gateway
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -10,9 +10,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { generateWithNativeGemini } from "../_shared/native-gemini.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
-import { generateImageWithFalPro, generateImageWithFalTurbo, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
+import { generateImageWithGptImage1, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = "5.0.0"; // fal.ai FLUX 2 → Gemini Nativa → Lovable Gateway
+const VERSION = "6.0.0"; // GPT Image 1 → Gemini Nativa → Lovable Gateway
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // Timeout budget: Edge Functions have 150s limit, reserve margin for persistence + overhead
@@ -52,37 +52,27 @@ async function callImageModel(
   styleReferences?: string[],
   geminiApiKey?: string | null,
   falApiKeyValue?: string | null,
+  productImageUrl?: string | null,
 ): Promise<string | null> {
-  // Step 1: Try fal.ai FLUX 2 Pro first (PRIORIDADE MÁXIMA)
-  if (falApiKeyValue) {
-    console.log(`[AI-LP-Enhance] Trying fal.ai FLUX 2 Pro first...`);
-    const falResult = await generateImageWithFalPro(falApiKeyValue, {
+  // Step 1: Try GPT Image 1 edit-image first (PRIORIDADE MÁXIMA)
+  if (falApiKeyValue && productImageUrl) {
+    console.log(`[AI-LP-Enhance] Trying GPT Image 1 edit-image first...`);
+    const gptResult = await generateImageWithGptImage1(
+      falApiKeyValue,
       prompt,
-      imageSize: { width: 1920, height: 1080 },
-      outputFormat: 'jpeg',
-    });
-    if (falResult?.imageUrl) {
-      const b64 = await falDownloadImage(falResult.imageUrl);
+      [productImageUrl],
+      '1536x1024', // Landscape for landing pages
+    );
+    if (gptResult?.imageUrl) {
+      const b64 = await falDownloadImage(gptResult.imageUrl);
       if (b64) {
-        console.log(`[AI-LP-Enhance] ✅ fal.ai FLUX 2 Pro succeeded`);
-        return `data:image/jpeg;base64,${b64}`;
+        console.log(`[AI-LP-Enhance] ✅ GPT Image 1 edit-image succeeded`);
+        return `data:image/png;base64,${b64}`;
       }
     }
-    console.warn(`[AI-LP-Enhance] FLUX 2 Pro failed, trying Turbo...`);
-
-    const turboResult = await generateImageWithFalTurbo(falApiKeyValue, {
-      prompt,
-      imageSize: { width: 1920, height: 1080 },
-      outputFormat: 'jpeg',
-    });
-    if (turboResult?.imageUrl) {
-      const b64 = await falDownloadImage(turboResult.imageUrl);
-      if (b64) {
-        console.log(`[AI-LP-Enhance] ✅ fal.ai FLUX 2 Turbo succeeded`);
-        return `data:image/jpeg;base64,${b64}`;
-      }
-    }
-    console.warn(`[AI-LP-Enhance] fal.ai failed entirely, falling back to Gemini/Gateway...`);
+    console.warn(`[AI-LP-Enhance] GPT Image 1 failed, falling back to Gemini/Gateway...`);
+  } else if (!falApiKeyValue) {
+    console.warn(`[AI-LP-Enhance] FAL_API_KEY not available. Skipping GPT Image 1.`);
   }
 
   // Step 2: Try native Gemini (FALLBACK SEGURO)
@@ -667,11 +657,11 @@ serve(async (req) => {
       const schemaVariantSeed = schema?.variantSeed as number | undefined;
       const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0, brandColors, schemaMood, schemaVariantSeed);
       
-      // Try fal.ai FLUX 2 → Gemini Nativa → Lovable Gateway Pro → Flash
-      let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, geminiApiKey, falApiKeyValue);
+      // Try GPT Image 1 → Gemini Nativa → Lovable Gateway Pro → Flash
+      let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, geminiApiKey, falApiKeyValue, primaryImageUrl);
       if (!imageDataUrl) {
         console.log(`[AI-LP-Enhance] Primary chain failed for ${spec.promptSuffix}, trying flash fallback...`);
-        imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, null, null); // Pure gateway fallback
+        imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, null, null, null); // Pure gateway fallback
       }
 
       if (!imageDataUrl) {

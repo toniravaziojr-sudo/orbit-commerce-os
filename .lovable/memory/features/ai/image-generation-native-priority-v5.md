@@ -35,20 +35,21 @@ Updated: now
 ## REMOVIDO (v9.0)
 - ❌ **FLUX 2 Pro/Turbo** — Removido do pipeline de imagens. Modelo text-to-image puro que NÃO aceita imagem de referência, resultando em produtos genéricos. Incompatível com e-commerce.
 
-## Sistemas Afetados (TODOS seguem esta hierarquia)
-- `supabase/functions/creative-image-generate/index.ts` — Criativos e produtos (v8.0.0) ✅
-- `supabase/functions/media-process-generation-queue/index.ts` — Calendário de conteúdo (PENDENTE)
-- `supabase/functions/ai-landing-page-enhance-images/index.ts` — Landing Pages (PENDENTE)
-- `supabase/functions/_shared/visual-engine.ts` — Construtor de Lojas (PENDENTE)
+## Sistemas Afetados (TODOS seguem esta hierarquia — TODOS ALINHADOS ✅)
+- `supabase/functions/creative-image-generate/index.ts` v8.0.0 ✅
+- `supabase/functions/media-process-generation-queue/index.ts` v9.0.0 ✅
+- `supabase/functions/ai-landing-page-enhance-images/index.ts` v6.0.0 ✅
+- `supabase/functions/_shared/visual-engine.ts` v3.0.0 ✅
 
 ## Checklist Anti-Regressão (OBRIGATÓRIO antes de qualquer mudança)
-- [ ] GPT Image 1 edit-image é SEMPRE o primeiro provedor tentado (quando há referência)
-- [ ] GPT Image 1 recebe a URL da imagem de referência via `image_urls`
-- [ ] Gemini Nativa é o SEGUNDO provedor tentado
-- [ ] OpenAI é o TERCEIRO provedor tentado
-- [ ] Lovable AI Gateway é SEMPRE o ÚLTIMO recurso
-- [ ] `_shared/fal-client.ts` contém `generateImageWithGptImage1()`
-- [ ] Fallback Drive (por product_id) funciona antes do catálogo no creative-image-generate
+- [x] GPT Image 1 edit-image é SEMPRE o primeiro provedor tentado (quando há referência)
+- [x] GPT Image 1 recebe a URL da imagem de referência via `image_urls`
+- [x] Gemini Nativa é o SEGUNDO provedor tentado
+- [x] OpenAI é o TERCEIRO provedor tentado
+- [x] Lovable AI Gateway é SEMPRE o ÚLTIMO recurso
+- [x] `_shared/fal-client.ts` contém `generateImageWithGptImage1()`
+- [x] Fallback Drive (por product_id) funciona antes do catálogo no creative-image-generate
+- [x] TODOS os 4 pipelines estão alinhados à hierarquia v9.0
 
 ## PROIBIÇÕES ABSOLUTAS
 - ❌ NUNCA usar FLUX 2 Pro/Turbo para geração de imagens (não suporta referência)

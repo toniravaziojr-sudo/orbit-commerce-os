@@ -13,9 +13,9 @@ Arquitetura de Geração de Conteúdo Visual (v9.0 — GPT Image 1 Priority):
 
 **Pipelines alinhados:**
 - `creative-image-generate` v8.0 ✅
-- `_shared/visual-engine.ts` — PENDENTE atualização
-- `media-process-generation-queue` — PENDENTE atualização
-- `ai-landing-page-enhance-images` — PENDENTE atualização
+- `_shared/visual-engine.ts` v3.0 ✅
+- `media-process-generation-queue` v9.0 ✅
+- `ai-landing-page-enhance-images` v6.0 ✅
 
 ## VÍDEOS (v3.0) — Pipeline fal.ai (sem alteração):
 - **Premium**: Kling v3 Pro I2V (melhor fidelidade de produto, ~$0.56/5s)
