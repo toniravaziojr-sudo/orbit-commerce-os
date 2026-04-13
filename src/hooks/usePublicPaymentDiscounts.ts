@@ -13,6 +13,7 @@ export interface PublicPaymentDiscount {
   is_enabled: boolean;
   installments_max: number;
   installments_min_value_cents: number;
+  free_installments: number;
   description: string | null;
 }
 
@@ -24,7 +25,7 @@ export function usePublicPaymentDiscounts(tenantId: string | undefined, provider
       
       let query = supabase
         .from('payment_method_discounts')
-        .select('payment_method, discount_type, discount_value, is_enabled, installments_max, installments_min_value_cents, description')
+        .select('payment_method, discount_type, discount_value, is_enabled, installments_max, installments_min_value_cents, free_installments, description')
         .eq('tenant_id', tenantId)
         .eq('is_enabled', true);
       
@@ -79,4 +80,15 @@ export function getMaxInstallments(
   const maxFromValue = Math.floor(totalCents / minValueCents);
 
   return Math.max(1, Math.min(maxFromConfig, maxFromValue));
+}
+
+/**
+ * Get the number of interest-free installments from config.
+ */
+export function getFreeInstallments(
+  discounts: PublicPaymentDiscount[],
+): number {
+  const config = discounts.find(d => d.payment_method === 'credit_card' && d.is_enabled);
+  if (!config) return 1;
+  return config.free_installments || 1;
 }

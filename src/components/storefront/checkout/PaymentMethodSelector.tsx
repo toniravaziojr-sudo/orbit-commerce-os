@@ -61,6 +61,9 @@ interface PaymentMethodSelectorProps {
   showBoleto?: boolean;
   showCreditCard?: boolean;
   showMercadoPagoRedirect?: boolean;
+  freeInstallments?: number;
+  maxInstallments?: number;
+  pixDiscountPercent?: number;
 }
 
 export function PaymentMethodSelector({
@@ -75,6 +78,9 @@ export function PaymentMethodSelector({
   showBoleto = true,
   showCreditCard = true,
   showMercadoPagoRedirect = false,
+  freeInstallments = 1,
+  maxInstallments = 1,
+  pixDiscountPercent = 0,
 }: PaymentMethodSelectorProps) {
   const formatCardNumber = (value: string): string => {
     const digits = value.replace(/\D/g, '').slice(0, 16);
@@ -90,6 +96,20 @@ export function PaymentMethodSelector({
   };
 
   // Get ordered methods based on methodsOrder prop - filter by visibility
+  // Build dynamic descriptions based on actual config
+  const getDynamicDescription = (method: PaymentMethod): string => {
+    if (method === 'credit_card') {
+      if (maxInstallments <= 1) return 'Pagamento à vista';
+      if (freeInstallments >= maxInstallments) return `Em até ${maxInstallments}x sem juros`;
+      if (freeInstallments > 1) return `Em até ${freeInstallments}x sem juros`;
+      return `Em até ${maxInstallments}x`;
+    }
+    if (method === 'pix' && pixDiscountPercent > 0) {
+      return `Pagamento instantâneo — ${pixDiscountPercent}% de desconto`;
+    }
+    return PAYMENT_METHODS[method]?.description || '';
+  };
+
   const orderedMethods = useMemo(() => {
     return methodsOrder
       .filter(method => PAYMENT_METHODS[method])
@@ -123,7 +143,7 @@ export function PaymentMethodSelector({
             {method.icon}
             <div className="flex-1">
               <p className="font-medium">{method.label}</p>
-              <p className="text-sm text-muted-foreground">{method.description}</p>
+              <p className="text-sm text-muted-foreground">{getDynamicDescription(method.value)}</p>
             </div>
             {customLabels[method.value] && (
               <span className="text-xs font-semibold sf-tag-success px-2 py-1 rounded">

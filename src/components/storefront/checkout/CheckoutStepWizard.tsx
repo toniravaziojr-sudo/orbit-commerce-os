@@ -48,7 +48,7 @@ import {
   captureCheckoutContact,
   endCheckoutSession,
 } from '@/lib/checkoutSession';
-import { usePublicPaymentDiscounts, calculatePaymentMethodDiscount, getMaxInstallments } from '@/hooks/usePublicPaymentDiscounts';
+import { usePublicPaymentDiscounts, calculatePaymentMethodDiscount, getMaxInstallments, getFreeInstallments } from '@/hooks/usePublicPaymentDiscounts';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 type CheckoutStep = 1 | 2 | 3 | 4;
@@ -159,6 +159,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
   // Max installments from config
   const maxInstallments = getMaxInstallments(paymentDiscounts, totals.grandTotal);
+  const freeInstallments = getFreeInstallments(paymentDiscounts);
+  const pixDiscountPercent = (() => {
+    const pixConfig = paymentDiscounts.find(d => d.payment_method === 'pix' && d.is_enabled && d.discount_type === 'percentage');
+    return pixConfig?.discount_value || 0;
+  })();
   
   // Reset installments when payment method changes or max changes
   useEffect(() => {
@@ -974,10 +979,12 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 showCreditCard={checkoutConfig.showCreditCard}
                 showMercadoPagoRedirect={mpRedirectEnabled}
                 maxInstallments={maxInstallments}
+                freeInstallments={freeInstallments}
                 selectedInstallments={selectedInstallments}
                 onInstallmentsChange={setSelectedInstallments}
                 grandTotal={totals.grandTotal}
                 paymentMethodDiscountAmount={paymentMethodDiscountAmount}
+                pixDiscountPercent={pixDiscountPercent}
               />
             )}
 
@@ -1548,10 +1555,12 @@ function Step4Payment({
   showCreditCard,
   showMercadoPagoRedirect,
   maxInstallments,
+  freeInstallments,
   selectedInstallments,
   onInstallmentsChange,
   grandTotal,
   paymentMethodDiscountAmount,
+  pixDiscountPercent,
 }: { 
   disabled: boolean;
   paymentMethod: PaymentMethod;
@@ -1565,10 +1574,12 @@ function Step4Payment({
   showCreditCard?: boolean;
   showMercadoPagoRedirect?: boolean;
   maxInstallments: number;
+  freeInstallments: number;
   selectedInstallments: number;
   onInstallmentsChange: (n: number) => void;
   grandTotal: number;
   paymentMethodDiscountAmount: number;
+  pixDiscountPercent: number;
 }) {
   return (
     <div className="space-y-6">
@@ -1589,6 +1600,9 @@ function Step4Payment({
         showBoleto={showBoleto}
         showCreditCard={showCreditCard}
         showMercadoPagoRedirect={showMercadoPagoRedirect}
+        freeInstallments={freeInstallments}
+        maxInstallments={maxInstallments}
+        pixDiscountPercent={pixDiscountPercent}
       />
 
       {/* Payment method discount info */}
@@ -1621,7 +1635,7 @@ function Step4Payment({
                 >
                   <RadioGroupItem value={String(n)} id={`installment-${n}`} disabled={disabled} />
                   <span className="flex-1 text-sm">
-                    {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : 'sem juros'}
+                    {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : n <= freeInstallments ? 'sem juros' : 'com juros'}
                   </span>
                   {n === 1 && <span className="text-xs font-medium text-muted-foreground">{formatCurrency(grandTotal)}</span>}
                 </Label>
