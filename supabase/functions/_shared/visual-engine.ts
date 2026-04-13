@@ -20,7 +20,7 @@ import type {
 
 import { buildFinalPrompt, buildCreativeBrief } from './creative-brief-builder.ts';
 import { tryNativeGemini } from './native-gemini.ts';
-import { generateImageWithFalPro, generateImageWithFalTurbo, downloadImageAsBase64 as falDownloadImage } from './fal-client.ts';
+import { generateImageWithGptImage1, downloadImageAsBase64 as falDownloadImage } from './fal-client.ts';
 
 // ===== CONSTANTS =====
 
@@ -223,12 +223,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  * Returns which model was used and whether fallback occurred.
  */
 /**
- * HIERARQUIA OBRIGATÓRIA v7.0:
- * 1. fal.ai FLUX 2 Pro — usa FAL_API_KEY
- * 2. fal.ai FLUX 2 Turbo — fallback rápido
- * 3. Gemini Nativa (API direta Google AI Studio) — usa GEMINI_API_KEY
- * 4. OpenAI Nativa — usa OPENAI_API_KEY
- * 5. Lovable AI Gateway (Pro → Flash → Simplified) — último recurso
+ * HIERARQUIA OBRIGATÓRIA v9.0:
+ * 1. GPT Image 1 edit-image (fal.ai) — usa FAL_API_KEY + referência URL
+ * 2. Gemini Nativa (API direta Google AI Studio) — usa GEMINI_API_KEY
+ * 3. OpenAI Nativa — usa OPENAI_API_KEY
+ * 4. Lovable AI Gateway (Pro → Flash → Simplified) — último recurso
  */
 export async function resilientGenerate(
   lovableApiKey: string,
@@ -239,58 +238,46 @@ export async function resilientGenerate(
   slotLabel: string = 'slot',
   geminiApiKey: string | null = null,
   falApiKey: string | null = null,
+  referenceImageUrl: string | null = null,
 ): Promise<{ imageBase64: string | null; model: string; fallbackReason?: string; error?: string }> {
   const PRO_TIMEOUT_MS = 70_000;
 
-  // ===== STEP 1: fal.ai FLUX 2 Pro (PRIORIDADE MÁXIMA) =====
-  if (falApiKey) {
-    console.log(`[visual-engine] [${slotLabel}] Step 1: fal.ai FLUX 2 Pro...`);
-    const falResult = await generateImageWithFalPro(falApiKey, {
+  // ===== STEP 1: GPT Image 1 edit-image via fal.ai (PRIORIDADE MÁXIMA) =====
+  if (falApiKey && referenceImageUrl) {
+    console.log(`[visual-engine] [${slotLabel}] Step 1: GPT Image 1 edit-image (prioridade máxima)...`);
+    const gptResult = await generateImageWithGptImage1(
+      falApiKey,
       prompt,
-      imageSize: { width: 1024, height: 1024 },
-      outputFormat: 'jpeg',
-    });
-    if (falResult?.imageUrl) {
-      const b64 = await falDownloadImage(falResult.imageUrl);
+      [referenceImageUrl],
+      '1024x1024',
+    );
+    if (gptResult?.imageUrl) {
+      const b64 = await falDownloadImage(gptResult.imageUrl);
       if (b64) {
-        console.log(`[visual-engine] [${slotLabel}] ✅ fal.ai FLUX 2 Pro succeeded`);
-        return { imageBase64: b64, model: 'fal-ai/flux-2-pro', fallbackReason: undefined };
+        console.log(`[visual-engine] [${slotLabel}] ✅ GPT Image 1 edit-image succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/gpt-image-1/edit-image', fallbackReason: undefined };
       }
     }
-    console.warn(`[visual-engine] [${slotLabel}] fal.ai FLUX 2 Pro failed. Trying Turbo...`);
-
-    // ===== STEP 2: fal.ai FLUX 2 Turbo =====
-    console.log(`[visual-engine] [${slotLabel}] Step 2: fal.ai FLUX 2 Turbo...`);
-    const turboResult = await generateImageWithFalTurbo(falApiKey, {
-      prompt,
-      imageSize: { width: 1024, height: 1024 },
-      outputFormat: 'jpeg',
-    });
-    if (turboResult?.imageUrl) {
-      const b64 = await falDownloadImage(turboResult.imageUrl);
-      if (b64) {
-        console.log(`[visual-engine] [${slotLabel}] ✅ fal.ai FLUX 2 Turbo succeeded`);
-        return { imageBase64: b64, model: 'fal-ai/flux-2 (turbo)', fallbackReason: 'flux2_pro_failed' };
-      }
-    }
-    console.warn(`[visual-engine] [${slotLabel}] fal.ai FLUX 2 Turbo failed. Falling back to Gemini Nativa...`);
+    console.warn(`[visual-engine] [${slotLabel}] GPT Image 1 failed. Falling back to Gemini Nativa...`);
+  } else if (!falApiKey) {
+    console.warn(`[visual-engine] [${slotLabel}] FAL_API_KEY not available. Skipping GPT Image 1.`);
   } else {
-    console.warn(`[visual-engine] [${slotLabel}] FAL_API_KEY not available. Skipping fal.ai steps.`);
+    console.warn(`[visual-engine] [${slotLabel}] No reference image URL. Skipping GPT Image 1.`);
   }
 
-  // ===== STEP 3: Gemini Nativa (FALLBACK SEGURO) =====
+  // ===== STEP 2: Gemini Nativa (FALLBACK SEGURO) =====
   if (geminiApiKey) {
     const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, slotLabel);
     if (nativeResult.imageBase64) {
       console.log(`[visual-engine] [${slotLabel}] ✅ Gemini Nativa succeeded`);
-      return { ...nativeResult, fallbackReason: falApiKey ? 'fal_ai_failed' : 'no_fal_key' };
+      return { ...nativeResult, fallbackReason: falApiKey ? 'gpt_image_1_failed' : 'no_fal_key' };
     }
     console.warn(`[visual-engine] [${slotLabel}] Gemini Nativa failed: ${nativeResult.error}. Trying OpenAI...`);
   } else {
     console.warn(`[visual-engine] [${slotLabel}] GEMINI_API_KEY not available. Skipping native Gemini.`);
   }
 
-  // ===== STEP 4: OpenAI Nativa =====
+  // ===== STEP 3: OpenAI Nativa =====
   if (openaiApiKey) {
     const openaiResult = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
     if (openaiResult.imageBase64) {
@@ -302,8 +289,8 @@ export async function resilientGenerate(
     console.warn(`[visual-engine] [${slotLabel}] OPENAI_API_KEY not available. Skipping OpenAI.`);
   }
 
-  // ===== STEP 5: Lovable AI Gateway (ÚLTIMO RECURSO) =====
-  console.log(`[visual-engine] [${slotLabel}] Step 5 (fallback): ${LOVABLE_MODELS.primary} via Lovable Gateway (timeout ${PRO_TIMEOUT_MS}ms)`);
+  // ===== STEP 4: Lovable AI Gateway (ÚLTIMO RECURSO) =====
+  console.log(`[visual-engine] [${slotLabel}] Step 4 (fallback): ${LOVABLE_MODELS.primary} via Lovable Gateway (timeout ${PRO_TIMEOUT_MS}ms)`);
   try {
     const proResult = await withTimeout(
       generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64),
@@ -320,8 +307,8 @@ export async function resilientGenerate(
     console.warn(`[visual-engine] [${slotLabel}] Lovable Pro failed (${reason}). Trying Flash...`);
   }
 
-  // Step 5b: Flash model via Lovable
-  console.log(`[visual-engine] [${slotLabel}] Step 5b: ${LOVABLE_MODELS.fast} via Lovable Gateway`);
+  // Step 4b: Flash model via Lovable
+  console.log(`[visual-engine] [${slotLabel}] Step 4b: ${LOVABLE_MODELS.fast} via Lovable Gateway`);
   const flashResult = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fast, prompt, referenceImageBase64);
   if (flashResult.imageBase64) {
     console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Lovable Flash used`);
@@ -332,8 +319,8 @@ export async function resilientGenerate(
     };
   }
 
-  // Step 5c: Simplified prompt — ABSOLUTE LAST RESORT
-  console.warn(`[visual-engine] [${slotLabel}] Step 5c: Simplified prompt (absolute last resort)`);
+  // Step 4c: Simplified prompt — ABSOLUTE LAST RESORT
+  console.warn(`[visual-engine] [${slotLabel}] Step 4c: Simplified prompt (absolute last resort)`);
   const productName = prompt.match(/"([^"]+)"/)?.[1] || 'produto';
   const hasNoTextRule = prompt.includes('ZERO TEXT') || prompt.includes('ZERO TEXTO');
   const noTextSuffix = hasNoTextRule ? ' A imagem NÃO pode conter NENHUM texto, letra, número ou tipografia.' : '';
@@ -628,6 +615,7 @@ export async function generateForRequest(
       slotLabel,
       geminiApiKey,
       falApiKey,
+      request.product?.mainImageUrl || null,
     );
 
     // Log fallback audit trail
