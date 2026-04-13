@@ -603,26 +603,38 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     try {
       setShippingCep(cep);
       
-      let options;
-      // Use async quote for multi-provider or Frenet
-      if (shippingConfig.provider === 'frenet' || shippingConfig.provider === 'multi') {
-        const cartItems = items.map(item => ({
-          weight: 0.3,
-          height: 10,
-          width: 10,
-          length: 10,
-          quantity: item.quantity,
-          price: item.price,
-        }));
-        options = await quoteAsync(cep, totals.subtotal, cartItems);
+      // If checkout link has shipping override, use fixed shipping
+      if (shippingOverride != null) {
+        const fixedOptions = [{
+          label: shippingOverride === 0 ? 'Frete Grátis' : 'Frete Fixo',
+          price: shippingOverride,
+          deliveryDays: 0,
+          isFree: shippingOverride === 0,
+        }];
+        setShippingOptions(fixedOptions);
+        selectShipping(fixedOptions[0]);
       } else {
-        // Sync quote for mock/manual providers
-        options = quote(cep, totals.subtotal);
-      }
-      
-      setShippingOptions(options || []);
-      if (options && options.length > 0 && !shipping.selected) {
-        selectShipping(options[0]);
+        let options;
+        // Use async quote for multi-provider or Frenet
+        if (shippingConfig.provider === 'frenet' || shippingConfig.provider === 'multi') {
+          const cartItems = items.map(item => ({
+            weight: 0.3,
+            height: 10,
+            width: 10,
+            length: 10,
+            quantity: item.quantity,
+            price: item.price,
+          }));
+          options = await quoteAsync(cep, totals.subtotal, cartItems);
+        } else {
+          // Sync quote for mock/manual providers
+          options = quote(cep, totals.subtotal);
+        }
+        
+        setShippingOptions(options || []);
+        if (options && options.length > 0 && !shipping.selected) {
+          selectShipping(options[0]);
+        }
       }
     } catch (error) {
       console.error('Error calculating shipping:', error);
