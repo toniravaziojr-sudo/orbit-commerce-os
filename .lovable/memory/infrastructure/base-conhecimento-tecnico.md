@@ -1,5 +1,5 @@
 # Memory: infrastructure/base-conhecimento-tecnico
-Updated: 2026-04-12
+Updated: 2026-04-13
 
 Base de Conhecimento Técnico do sistema (doc completo em docs/tecnico/base-de-conhecimento-tecnico.md). Registra problemas→soluções, anti-patterns e decisões arquiteturais. DEVE ser consultado antes de qualquer correção ou implementação.
 
@@ -19,3 +19,4 @@ Base de Conhecimento Técnico do sistema (doc completo em docs/tecnico/base-de-c
 13. **Formulários de entidade** → sempre incluir campo de upload se a tabela tem coluna de imagem
 14. **Frete com valor zero** → logar falhas dos provedores claramente, nunca retornar R$0 silenciosamente
 15. **Fluxos de campanha** → Blog e Mídia Social devem ser separados (prop campaignType)
+16. **free_installments no hook público** → campo OBRIGATÓRIO; nunca adicionar config na tabela/admin sem propagar para o hook público do storefront
