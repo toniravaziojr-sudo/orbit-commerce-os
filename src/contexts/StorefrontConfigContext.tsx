@@ -399,7 +399,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
             return [{
               price: isFreeShipping ? 0 : shippingConfig.defaultPrice,
               deliveryDays: shippingConfig.defaultDays,
-              label: 'Frete padrão (fallback)',
+              label: 'Frete padrão',
               isFree: isFreeShipping,
             }];
           }
@@ -469,7 +469,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         return [{
           price: isFreeShipping ? 0 : shippingConfig.defaultPrice,
           deliveryDays: shippingConfig.defaultDays,
-          label: 'Frete padrão (fallback)',
+          label: 'Frete padrão',
           isFree: isFreeShipping,
         }];
       }

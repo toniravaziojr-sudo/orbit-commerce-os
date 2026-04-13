@@ -302,6 +302,22 @@ useEffect(() => {
 
 ---
 
+### 11.2 Frenet retornando zero opções — unidade de peso errada (regressão)
+
+**Problema:** O checkout mostrava "Frete padrão (fallback)" a R$ 15,00 em vez das opções reais de transportadora (PAC, SEDEX, etc.). A Central de Execuções não exibia nenhum alerta.
+
+**Causa raiz:** O agregador `shipping-quote` calcula peso internamente em **gramas** (300g mínimo) para compatibilidade com a API dos Correios. Porém, o adaptador do Frenet enviava esse valor diretamente no campo `Weight`, que a API do Frenet espera em **quilogramas**. Resultado: 300 KG era rejeitado silenciosamente pela API.
+
+**Por que era invisível:** (1) O adaptador do Frenet no agregador não logava a resposta da API, impossibilitando diagnóstico. (2) O label de fallback continha "(fallback)" — termo técnico que vazou para o cliente. (3) A auto-detecção de provider (`shipping_providers → multi`) funcionava corretamente, mascarando o problema como se fosse do banco.
+
+**Solução:** (1) Converter gramas para KG no adaptador Frenet: `Weight: totals.weight / 1000`. (2) Adicionar log da resposta da API Frenet. (3) Remover "(fallback)" dos labels visíveis ao cliente.
+
+**Regra derivada:** Ao integrar APIs de terceiros que esperam unidades específicas, sempre documentar e converter explicitamente na camada do adaptador. Nunca assumir que a unidade interna do agregador é compatível. Sempre logar respostas de APIs externas para diagnóstico.
+
+**Função legada de referência:** `frenet-quote/index.ts` usava 0.3 KG corretamente. A migração para o agregador `shipping-quote` não preservou a conversão de unidade.
+
+---
+
 ## Como Adicionar Novas Entradas
 
 Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entrada aqui seguindo o formato:

@@ -175,6 +175,11 @@ async function quoteFrenet(
   }
 
   try {
+    // IMPORTANT: Frenet API expects weight in KG, but totals.weight is in GRAMS
+    // (internally the aggregator uses grams for Correios compatibility)
+    // Legacy frenet-quote used 0.3 KG directly; we must convert here
+    const weightKg = Math.max(0.3, totals.weight / 1000);
+
     const payload = {
       SellerCEP: originCep.replace(/\D/g, ''),
       RecipientCEP: recipientCep.replace(/\D/g, ''),
@@ -183,7 +188,7 @@ async function quoteFrenet(
         Height: totals.height,
         Length: totals.length,
         Width: totals.width,
-        Weight: totals.weight,
+        Weight: weightKg,
         Quantity: 1,
       }],
     };
@@ -206,6 +211,7 @@ async function quoteFrenet(
     }
 
     const data = await response.json();
+    console.log('[Frenet] API response:', JSON.stringify(data).substring(0, 1000));
     const services = data.ShippingSevicesArray || [];
 
     return services
