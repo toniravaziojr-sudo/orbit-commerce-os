@@ -697,21 +697,21 @@ serve(async (req) => {
     const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
     
     if (falApiKey) {
-      console.log(`[creative-image-generate v${VERSION}] ✅ FAL_API_KEY found — fal.ai FLUX 2 enabled (priority 1-2)`);
+      console.log(`[creative-image-generate v${VERSION}] ✅ FAL_API_KEY found — GPT Image 1 edit-image enabled (priority 1)`);
     } else {
-      console.log(`[creative-image-generate v${VERSION}] ⚠️ No FAL_API_KEY — fal.ai disabled`);
+      console.log(`[creative-image-generate v${VERSION}] ⚠️ No FAL_API_KEY — GPT Image 1 disabled`);
     }
     if (geminiApiKey) {
-      console.log(`[creative-image-generate v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 3)`);
+      console.log(`[creative-image-generate v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 2)`);
     } else {
       console.log(`[creative-image-generate v${VERSION}] ⚠️ No GEMINI_API_KEY — Gemini Nativa disabled`);
     }
     if (openaiApiKey) {
-      console.log(`[creative-image-generate v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 4)`);
+      console.log(`[creative-image-generate v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 3)`);
     } else {
       console.log(`[creative-image-generate v${VERSION}] ⚠️ No OPENAI_API_KEY — OpenAI disabled`);
     }
-    console.log(`[creative-image-generate v${VERSION}] Lovable Gateway always available (priority 5 — último recurso)`);
+    console.log(`[creative-image-generate v${VERSION}] Lovable Gateway always available (priority 4 — último recurso)`);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -946,7 +946,7 @@ serve(async (req) => {
 
           // Generate with resilient pipeline (retry + fallback model)
           const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
-            const result = await resilientGenerate(lovableApiKey, openaiApiKey, geminiApiKey, falApiKey, variantPrompt, productBase64, provider);
+            const result = await resilientGenerate(lovableApiKey, openaiApiKey, geminiApiKey, falApiKey, variantPrompt, productBase64, product_image_url || null, provider);
             
             if (!result.imageBase64) {
               return {
