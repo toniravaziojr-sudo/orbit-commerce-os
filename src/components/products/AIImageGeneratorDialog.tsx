@@ -140,11 +140,12 @@ export function AIImageGeneratorDialog({
               product_id: productId,
               product_name: productName,
               product_image_url: primaryImageUrl,
-              prompt: `Gerar imagem variação ${i + 1} do produto "${productName}" no estilo ${style}`,
+              prompt: `Criar foto profissional do produto "${productName}" baseada fielmente na imagem de referência fornecida. O produto deve ser IDÊNTICO ao da referência (mesmas cores, rótulo, formato). Variação ${i + 1}.`,
               settings: {
                 generation_style: style,
                 format: '1:1',
                 variations: 1,
+                providers: ['gemini'],
               },
             },
           });
