@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -7,7 +7,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Sparkles, Package, User, Megaphone } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Loader2, Sparkles, Package, User, Megaphone, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AIImageGeneratorDialogProps {
@@ -26,30 +27,113 @@ const STYLES = [
   { value: 'promotional', label: 'Promocional', icon: Megaphone, description: 'Visual de anúncio com impacto' },
 ];
 
+type JobPhase = 'idle' | 'submitting' | 'polling' | 'saving' | 'done' | 'error';
+
+const POLL_INTERVAL_MS = 4000;
+const MAX_POLL_MS = 5 * 60 * 1000; // 5 min
+
 export function AIImageGeneratorDialog({
   open, onOpenChange, productId, productName, primaryImageUrl, currentImageCount, onImagesGenerated,
 }: AIImageGeneratorDialogProps) {
   const { currentTenant } = useAuth();
-  const [quantity, setQuantity] = useState('2');
+  const [quantity, setQuantity] = useState('1');
   const [style, setStyle] = useState('product_natural');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [jobPhase, setJobPhase] = useState<JobPhase>('idle');
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef(false);
 
-  const maxImages = Math.min(5, 10 - currentImageCount); // Limit total to 10 images
+  const maxImages = Math.min(5, 10 - currentImageCount);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      abortRef.current = true;
+    };
+  }, []);
+
+  /**
+   * Poll creative_jobs until status is 'succeeded' or 'failed'.
+   * Returns output_urls on success.
+   */
+  const pollJobStatus = useCallback((jobId: string): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      let dots = 0;
+
+      const check = async () => {
+        if (abortRef.current) {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          reject(new Error('Cancelado'));
+          return;
+        }
+
+        const elapsed = Date.now() - startTime;
+        if (elapsed > MAX_POLL_MS) {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          reject(new Error('Tempo limite excedido (5 min). Tente novamente.'));
+          return;
+        }
+
+        dots = (dots + 1) % 4;
+        const elapsedSec = Math.round(elapsed / 1000);
+        setStatusMessage(`Gerando imagem com IA${'.'.repeat(dots + 1)} (${elapsedSec}s)`);
+        setProgress(Math.min(90, Math.round((elapsed / MAX_POLL_MS) * 100)));
+
+        try {
+          const { data, error } = await supabase
+            .from('creative_jobs' as any)
+            .select('status, output_urls, error_message')
+            .eq('id', jobId)
+            .single();
+
+          if (error) {
+            console.warn('[AIImageGen] Poll query error:', error);
+            return; // retry
+          }
+
+          const job = data as any;
+          if (job.status === 'succeeded') {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            resolve(job.output_urls || []);
+          } else if (job.status === 'failed') {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            reject(new Error(job.error_message || 'Falha na geração'));
+          }
+        } catch (err) {
+          console.warn('[AIImageGen] Poll exception:', err);
+        }
+      };
+
+      check(); // immediate first check
+      pollingRef.current = setInterval(check, POLL_INTERVAL_MS);
+    });
+  }, []);
 
   const handleGenerate = async () => {
     if (!currentTenant?.id) return;
     const count = parseInt(quantity);
     setIsGenerating(true);
     setProgress(0);
+    setJobPhase('submitting');
+    setStatusMessage('Iniciando geração...');
+    abortRef.current = false;
 
     let successCount = 0;
 
     try {
       for (let i = 0; i < count; i++) {
-        setProgress(i + 1);
+        if (abortRef.current) break;
+
+        setStatusMessage(`Enviando solicitação ${i + 1} de ${count}...`);
+        setJobPhase('submitting');
+        setProgress(0);
 
         try {
+          // 1. Submit job
           const { data, error } = await supabase.functions.invoke('creative-image-generate', {
             body: {
               tenant_id: currentTenant.id,
@@ -66,68 +150,117 @@ export function AIImageGeneratorDialog({
           });
 
           if (error) {
-            console.error(`Error generating image ${i + 1}:`, error);
+            console.error(`[AIImageGen] Invoke error ${i + 1}:`, error);
+            setStatusMessage(`Erro ao solicitar imagem ${i + 1}`);
             continue;
           }
 
-          // The edge function returns success + images array or image_url
           if (!data?.success) {
-            console.error(`Generation failed for image ${i + 1}:`, data?.error);
+            console.error(`[AIImageGen] Logical failure ${i + 1}:`, data?.error);
+            setStatusMessage(`Falha: ${data?.error || 'Erro desconhecido'}`);
             continue;
           }
 
-          // Extract generated image URLs from the response
-          const generatedImages: string[] = [];
-          if (data?.images && Array.isArray(data.images)) {
-            for (const img of data.images) {
-              const url = img?.url || img?.image_url || img?.storage_url;
-              if (url) generatedImages.push(url);
+          // 2. Extract job_id
+          const jobId = data?.data?.job_id || data?.job_id;
+          if (!jobId) {
+            console.error(`[AIImageGen] No job_id for image ${i + 1}`, data);
+            continue;
+          }
+
+          console.log(`[AIImageGen] Job ${jobId} submitted (image ${i + 1})`);
+          setJobPhase('polling');
+
+          // 3. Poll until complete
+          const outputUrls = await pollJobStatus(jobId);
+
+          if (outputUrls.length > 0) {
+            setJobPhase('saving');
+            setStatusMessage(`Salvando imagem ${i + 1}...`);
+            setProgress(95);
+
+            for (let j = 0; j < outputUrls.length; j++) {
+              const url = outputUrls[j];
+              if (!url) continue;
+
+              const { error: insertError } = await supabase.from('product_images').insert({
+                product_id: productId,
+                url,
+                alt_text: `${productName} - IA ${style} ${i + 1}`,
+                is_primary: false,
+                sort_order: currentImageCount + successCount + j + 1,
+              });
+
+              if (!insertError) {
+                successCount++;
+                console.log(`[AIImageGen] Image saved to product_images`);
+              } else {
+                console.error(`[AIImageGen] Insert error:`, insertError);
+              }
             }
-          } else if (data?.image_url) {
-            generatedImages.push(data.image_url);
-          } else if (data?.url) {
-            generatedImages.push(data.url);
           }
-
-          if (generatedImages.length === 0) {
-            console.error(`No image URL in response for image ${i + 1}`, data);
-            continue;
-          }
-
-          // Save each generated image as product image
-          for (let j = 0; j < generatedImages.length; j++) {
-            const { error: insertError } = await supabase.from('product_images').insert({
-              product_id: productId,
-              url: generatedImages[j],
-              alt_text: `${productName} - IA ${style} ${i + 1}`,
-              is_primary: false,
-              sort_order: currentImageCount + successCount + j + 1,
-            });
-            if (!insertError) successCount++;
-          }
-        } catch (err) {
-          console.error(`Failed to generate image ${i + 1}:`, err);
+        } catch (err: any) {
+          console.error(`[AIImageGen] Error for image ${i + 1}:`, err);
+          setStatusMessage(err?.message || 'Erro na geração');
         }
       }
 
       if (successCount > 0) {
+        setJobPhase('done');
+        setProgress(100);
+        setStatusMessage(`${successCount} imagem(ns) gerada(s) com sucesso!`);
         toast.success(`${successCount} imagem(ns) gerada(s) com sucesso!`);
         onImagesGenerated();
-        onOpenChange(false);
+        setTimeout(() => handleClose(), 1500);
       } else {
+        setJobPhase('error');
         toast.error('Nenhuma imagem foi gerada. Tente novamente.');
+        setStatusMessage('Nenhuma imagem gerada. Verifique os créditos ou tente outro estilo.');
       }
     } catch (error) {
-      console.error('Error in AI image generation:', error);
+      console.error('[AIImageGen] Fatal error:', error);
+      setJobPhase('error');
       toast.error('Erro ao gerar imagens');
     } finally {
       setIsGenerating(false);
-      setProgress(0);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    }
+  };
+
+  const handleClose = () => {
+    if (isGenerating) abortRef.current = true;
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setJobPhase('idle');
+    setProgress(0);
+    setStatusMessage('');
+    onOpenChange(false);
+  };
+
+  const phaseIcon = () => {
+    if (jobPhase === 'done') return <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />;
+    if (jobPhase === 'error') return <AlertCircle className="h-5 w-5 text-destructive shrink-0" />;
+    return <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />;
+  };
+
+  const phaseHint = () => {
+    switch (jobPhase) {
+      case 'submitting': return 'Enviando para o motor de IA...';
+      case 'polling': return 'A IA está processando — pode levar até 60 segundos';
+      case 'saving': return 'Vinculando imagem ao produto...';
+      case 'done': return 'Concluído!';
+      case 'error': return 'Verifique e tente novamente';
+      default: return '';
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else onOpenChange(v); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -140,7 +273,6 @@ export function AIImageGeneratorDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Preview of primary image */}
           <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
             <img src={primaryImageUrl} alt={productName} className="w-16 h-16 rounded object-cover" />
             <div>
@@ -149,7 +281,6 @@ export function AIImageGeneratorDialog({
             </div>
           </div>
 
-          {/* Style selector */}
           <div className="space-y-2">
             <Label>Estilo de geração</Label>
             <Select value={style} onValueChange={setStyle} disabled={isGenerating}>
@@ -170,7 +301,6 @@ export function AIImageGeneratorDialog({
             </p>
           </div>
 
-          {/* Quantity selector */}
           <div className="space-y-2">
             <Label>Quantidade de imagens</Label>
             <Select value={quantity} onValueChange={setQuantity} disabled={isGenerating}>
@@ -184,18 +314,25 @@ export function AIImageGeneratorDialog({
           </div>
 
           {isGenerating && (
-            <div className="flex items-center gap-3 p-3 rounded-lg border bg-primary/5">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <div>
-                <p className="text-sm font-medium">Gerando imagem {progress} de {quantity}...</p>
-                <p className="text-xs text-muted-foreground">Cada imagem leva 10-30 segundos</p>
+            <div className="space-y-3 p-3 rounded-lg border bg-primary/5">
+              <div className="flex items-center gap-3">
+                {phaseIcon()}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{statusMessage}</p>
+                  <p className="text-xs text-muted-foreground">{phaseHint()}</p>
+                </div>
               </div>
+              {(jobPhase === 'polling' || jobPhase === 'submitting') && (
+                <Progress value={progress} className="h-1.5" />
+              )}
             </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isGenerating}>Cancelar</Button>
+          <Button variant="outline" onClick={handleClose} disabled={jobPhase === 'saving'}>
+            {isGenerating ? 'Cancelar' : 'Fechar'}
+          </Button>
           <Button onClick={handleGenerate} disabled={isGenerating || maxImages === 0}>
             {isGenerating ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
