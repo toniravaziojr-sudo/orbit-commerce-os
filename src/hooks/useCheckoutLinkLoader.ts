@@ -134,8 +134,8 @@ export function useCheckoutLinkLoader({ tenantId }: CheckoutLinkLoaderOptions): 
 
         // Clear cart and add main product
         clearCart();
-        const mainImage = product.product_images
-          ?.sort((a: any, b: any) => (a.position ?? 999) - (b.position ?? 999))[0]?.url;
+        const mainImage = (product.product_images as any[])
+          ?.sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))[0]?.url;
 
         const effectivePrice = link.price_override != null ? Number(link.price_override) : product.price;
 
