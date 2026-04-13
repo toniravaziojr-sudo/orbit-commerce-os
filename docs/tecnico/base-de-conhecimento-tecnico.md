@@ -341,6 +341,27 @@ useEffect(() => {
 
 ---
 
+### 1.5 Geração de imagens de produto — contrato assíncrono ignorado
+
+**Problema:** Ao clicar "Gerar Imagens com IA" no cadastro de produto, o toast mostrava "Nenhuma imagem foi gerada" mesmo com o motor de IA gerando a imagem com sucesso no backend.
+
+**Causa raiz:** O `AIImageGeneratorDialog` tratava a resposta da edge function `creative-image-generate` como **síncrona** — esperava `images[]` ou `image_url` na resposta imediata. Porém, a função foi evoluída para um pipeline **assíncrono**: retorna HTTP 202 com `job_id` + `status: running`, processa em background via `EdgeRuntime.waitUntil`, e salva os resultados em `creative_jobs.output_urls` ao terminar. O frontend não fazia polling do job e nunca recebia as URLs geradas.
+
+**Evidência:** Consulta ao banco confirmou job `succeeded` com `output_urls` preenchidas, mas nenhuma nova linha em `product_images` vinculada.
+
+**Solução:** Reescrita do `AIImageGeneratorDialog` para o padrão assíncrono:
+1. Submete o job normalmente
+2. Faz **polling** na tabela `creative_jobs` a cada 4s (timeout 5 min) verificando `status`
+3. Quando `succeeded`, lê `output_urls` e insere cada URL em `product_images`
+4. Feedback visual com barra de progresso e mensagens de fase (`submitting` → `polling` → `saving` → `done`)
+5. Cancelamento limpo ao fechar o dialog
+
+**Onde ocorreu:** `src/components/products/AIImageGeneratorDialog.tsx`
+
+**Regra derivada:** Todo fluxo que consume uma edge function com processamento em background (retorno 202 + job_id) DEVE implementar polling no lado do cliente. Nunca assumir que o resultado estará na resposta imediata sem verificar o contrato da função. Pattern: "submit → poll → reconcile".
+
+---
+
 ## Como Adicionar Novas Entradas
 
 Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entrada aqui seguindo o formato:
