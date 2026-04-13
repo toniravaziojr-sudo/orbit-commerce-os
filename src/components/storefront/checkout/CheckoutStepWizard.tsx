@@ -160,6 +160,10 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   // Max installments from config
   const maxInstallments = getMaxInstallments(paymentDiscounts, totals.grandTotal);
   const freeInstallments = getFreeInstallments(paymentDiscounts);
+  const pixDiscountPercent = (() => {
+    const pixConfig = paymentDiscounts.find(d => d.payment_method === 'pix' && d.is_enabled && d.discount_type === 'percentage');
+    return pixConfig?.discount_value || 0;
+  })();
   
   // Reset installments when payment method changes or max changes
   useEffect(() => {
