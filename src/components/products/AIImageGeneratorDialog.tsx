@@ -318,6 +318,22 @@ export function AIImageGeneratorDialog({
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <MessageSquare className="h-3.5 w-3.5" />
+              Direções criativas
+              <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+            </Label>
+            <Textarea
+              placeholder="Ex: Foto para campanha de Dia dos Pais, fundo azul escuro, estilo premium..."
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              disabled={isGenerating}
+              rows={3}
+              className="resize-none text-sm"
+            />
+          </div>
+
           {isGenerating && (
             <div className="space-y-3 p-3 rounded-lg border bg-primary/5">
               <div className="flex items-center gap-3">
