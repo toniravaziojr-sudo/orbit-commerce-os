@@ -13,7 +13,7 @@ Nomes de modelos de IA, provedores, versões de pipeline e detalhes técnicos de
 ### O que é ocultado para tenants comuns
 | Categoria | Exemplos ocultados |
 |---|---|
-| Nomes de modelos | Kling v3, Veo 3.1, Wan 2.6, FLUX 2, GPT-5, Gemini |
+| Nomes de modelos | Kling v3, Veo 3.1, Wan 2.6, GPT Image 1, GPT-5, Gemini |
 | Provedores | fal.ai, ElevenLabs, OpenAI, Akool |
 | Versões de pipeline | v2.0, v3.0, v7.0 |
 | Badges técnicos | Alertas de pipeline, modelo utilizado em jobs |
@@ -26,7 +26,7 @@ import { useIsSpecialTenant } from '@/hooks/useIsSpecialTenant';
 const { isSpecialTenant } = useIsSpecialTenant();
 
 // Condicional para exibir info técnica
-{isSpecialTenant && <Badge>fal.ai FLUX 2 Pro</Badge>}
+{isSpecialTenant && <Badge>fal.ai GPT Image 1</Badge>}
 
 // Anonimização para tenants comuns
 <span>{isSpecialTenant ? 'Kling v3 Pro' : 'Melhor fidelidade de produto'}</span>
