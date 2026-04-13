@@ -835,7 +835,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   };
 
   // Loading state
-  if (cartLoading) {
+  if (cartLoading || linkLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="flex items-center justify-center gap-3">
@@ -848,7 +848,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
   // Empty cart guard (allow if payment pending, approved, or retry mode with prefill)
   const isRetryMode = !!retryTokenParam && !!retryPrefill;
-  if (items.length === 0 && paymentStatus !== 'approved' && paymentStatus !== 'pending_payment' && !isRetryMode && !retryLoading) {
+  if (items.length === 0 && paymentStatus !== 'approved' && paymentStatus !== 'pending_payment' && !isRetryMode && !retryLoading && !linkLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto text-center">
