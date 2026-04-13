@@ -1,15 +1,16 @@
 /**
- * Creative Image Generate — Edge Function v5.2.0 (Drive Fallback Priority)
+ * Creative Image Generate — Edge Function v8.0.0 (GPT Image 1 Priority)
  * 
  * Suporta:
- * - Gemini Flash + Gemini Pro como providers reais distintos
- * - Retry automático com modelo alternativo se o primeiro falhar
- * - Fallback: 1) Criativos existentes na pasta "Gestor de Tráfego IA" (por product_id) → 2) Imagem do catálogo
+ * - GPT Image 1 (edit-image) via fal.ai como provedor PRIORITÁRIO (image-to-image com referência)
+ * - Gemini Nativa, OpenAI Nativa e Lovable Gateway como fallbacks
  * - 3 estilos: product_natural, person_interacting, promotional
  * 
- * MODELOS:
- * - Primary: google/gemini-3-pro-image-preview
- * - Fallback: google/gemini-2.5-flash-image
+ * PIPELINE DE PRIORIDADE:
+ * 1. GPT Image 1 edit-image (fal.ai) — usa imagem de referência do produto
+ * 2. Gemini Nativa — fallback com referência base64
+ * 3. OpenAI Nativa (gpt-image-1 direto) — fallback
+ * 4. Lovable AI Gateway — último recurso
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -677,7 +678,7 @@ serve(async (req) => {
   }
 
   const startTime = Date.now();
-  console.log(`[creative-image-generate v${VERSION}] Starting dual-provider pipeline...`);
+  console.log(`[creative-image-generate v${VERSION}] Starting GPT Image 1 priority pipeline...`);
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
