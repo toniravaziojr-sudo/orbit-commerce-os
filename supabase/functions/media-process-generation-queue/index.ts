@@ -569,10 +569,11 @@ PROIBIÇÕES ABSOLUTAS:
 BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
         }
 
-        // Generate with unified resilient pipeline (fal.ai → Gemini → OpenAI → Gateway)
+        // Generate with unified resilient pipeline (GPT Image 1 → Gemini → OpenAI → Gateway)
+        const productImageUrl = productWithImage?.image_url || null;
         const result = await resilientGenerateMedia(
           lovableApiKey, geminiApiKey, openaiApiKey, falApiKeyValue,
-          finalPrompt, referenceBase64,
+          finalPrompt, referenceBase64, productImageUrl,
         );
 
         if (!result.imageBase64) {
