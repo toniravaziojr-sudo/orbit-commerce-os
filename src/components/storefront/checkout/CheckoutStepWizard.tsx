@@ -89,6 +89,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { processPayment, isProcessing: paymentProcessing, paymentResult, activeGateway, mpRedirectEnabled } = useCheckoutPayment({ tenantId });
   const { customDomain } = useCanonicalDomain();
   const { config: checkoutConfig } = useCheckoutConfig();
+  const { isLoading: linkLoading, error: linkError, shippingOverride, linkSlug } = useCheckoutLinkLoader({ tenantId });
   const { trackInitiateCheckout, trackLead, trackAddShippingInfo, trackAddPaymentInfo } = useMarketingEvents();
   // Map gateway name to provider key used in payment_method_discounts
   const providerKey = activeGateway === 'mercadopago' ? 'mercadopago' : 'pagarme';
