@@ -61,6 +61,9 @@ interface PaymentMethodSelectorProps {
   showBoleto?: boolean;
   showCreditCard?: boolean;
   showMercadoPagoRedirect?: boolean;
+  freeInstallments?: number;
+  maxInstallments?: number;
+  pixDiscountPercent?: number;
 }
 
 export function PaymentMethodSelector({
@@ -75,6 +78,9 @@ export function PaymentMethodSelector({
   showBoleto = true,
   showCreditCard = true,
   showMercadoPagoRedirect = false,
+  freeInstallments = 1,
+  maxInstallments = 1,
+  pixDiscountPercent = 0,
 }: PaymentMethodSelectorProps) {
   const formatCardNumber = (value: string): string => {
     const digits = value.replace(/\D/g, '').slice(0, 16);
