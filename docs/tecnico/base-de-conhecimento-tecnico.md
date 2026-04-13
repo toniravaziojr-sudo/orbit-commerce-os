@@ -137,6 +137,29 @@ A autorização de cartão expira em ~5-7 dias se não capturada (padrão de adq
 
 **Anti-pattern:** Nunca adicionar campos de configuração na tabela e no admin sem propagar para o hook público/storefront correspondente.
 
+### 4.5 Checkout Links — processamento de parâmetros de URL
+
+**Problema:** Os links de checkout (direto de produto `?product=slug` e personalizado `?link=slug`) geravam URLs corretas, mas o checkout não processava esses parâmetros. O carrinho chegava vazio e o usuário via a mensagem "Seu carrinho está vazio".
+
+**Causa raiz:** A funcionalidade de geração de URLs foi implementada (no `ProductList` e `CheckoutLinkList`), mas o lado receptor — o processamento dos query params no checkout — nunca foi implementado. Nenhum código lia `?product=` ou `?link=` para adicionar produtos ao carrinho.
+
+**Solução:**
+1. Criado hook `useCheckoutLinkLoader` que:
+   - Lê `?product={slug}&qty={n}` para link direto de produto
+   - Lê `?link={slug}` para link personalizado com overrides
+   - Busca produto(s) no banco, limpa o carrinho e adiciona os itens
+   - Aplica cupom automaticamente (se configurado no link)
+   - Suporta preço override e frete fixo/grátis
+   - Carrega produtos adicionais (venda cruzada)
+   - Incrementa click_count do checkout link
+2. Integrado no `CheckoutStepWizard` com guarda de loading
+3. Adicionada RLS pública (anon SELECT) para `checkout_links` ativos e não expirados
+4. Frete override aplicado diretamente na etapa de cálculo de frete
+
+**Onde ocorreu:** `src/hooks/useCheckoutLinkLoader.ts` (novo), `src/components/storefront/checkout/CheckoutStepWizard.tsx`
+
+**Regra derivada:** Sempre que criar uma funcionalidade que gera URLs com parâmetros, implementar simultaneamente o processamento desses parâmetros no destino. Nunca deixar o "lado emissor" sem o "lado receptor".
+
 ---
 
 ## 5. Integrações Externas
