@@ -40,6 +40,7 @@ import { getStoreHost } from '@/lib/storeHost';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { getStoredAttribution, clearStoredAttribution } from '@/hooks/useAttribution';
 import { getStoredAffiliateData, clearStoredAffiliateData } from '@/lib/affiliateTracking';
+import { useCheckoutLinkLoader } from '@/hooks/useCheckoutLinkLoader';
 import {
   startCheckoutSession,
   heartbeatCheckoutSession,
