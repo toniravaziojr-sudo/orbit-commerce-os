@@ -123,6 +123,20 @@ Nunca criar triggers, functions ou alterar tabelas nesses schemas — causa degr
 
 A autorização de cartão expira em ~5-7 dias se não capturada (padrão de adquirente, não do gateway).
 
+### 4.4 free_installments — campo obrigatório no hook público de descontos
+
+**Problema:** O hook `usePublicPaymentDiscounts` não incluía o campo `free_installments` na query, fazendo com que o checkout exibisse "sem juros" em todas as parcelas e a descrição do cartão fosse sempre "Em até 12x sem juros", independente da configuração real.
+
+**Causa raiz:** O campo foi implementado na tabela e no hook admin (`usePaymentMethodDiscounts`), mas não no hook público que alimenta o checkout da loja. A descrição do `PaymentMethodSelector` era estática (hardcoded).
+
+**Solução:**
+1. Adicionado `free_installments` na query e interface do `usePublicPaymentDiscounts`
+2. Criada função `getFreeInstallments()` no hook
+3. Label de parcelas agora mostra "sem juros" até o limite configurado e "com juros" acima
+4. Descrição do `PaymentMethodSelector` é dinâmica (baseada em `freeInstallments`, `maxInstallments` e `pixDiscountPercent`)
+
+**Anti-pattern:** Nunca adicionar campos de configuração na tabela e no admin sem propagar para o hook público/storefront correspondente.
+
 ---
 
 ## 5. Integrações Externas
