@@ -1,8 +1,9 @@
 /**
  * fal-client.ts — Módulo centralizado para chamadas à fal.ai
  * 
- * STACK VISUAL v7.0:
- * IMAGENS: fal.ai FLUX 2 Pro → FLUX 2 Turbo → Gemini Nativa → OpenAI → Lovable Gateway
+ * STACK VISUAL v9.0:
+ * IMAGENS: GPT Image 1 edit-image → Gemini Nativa → OpenAI → Lovable Gateway
+ *          (FLUX 2 Pro/Turbo REMOVIDO — text-to-image puro, sem referência)
  * VÍDEOS:  Kling v3 Pro I2V | Veo 3.1 | Wan 2.6 I2V → fallback imagem estática
  * 
  * Endpoints fal.ai usam REST direto com polling (queue → status → result).
