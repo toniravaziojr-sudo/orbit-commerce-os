@@ -984,6 +984,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 onInstallmentsChange={setSelectedInstallments}
                 grandTotal={totals.grandTotal}
                 paymentMethodDiscountAmount={paymentMethodDiscountAmount}
+                pixDiscountPercent={pixDiscountPercent}
               />
             )}
 
