@@ -1550,6 +1550,7 @@ function Step4Payment({
   showCreditCard,
   showMercadoPagoRedirect,
   maxInstallments,
+  freeInstallments,
   selectedInstallments,
   onInstallmentsChange,
   grandTotal,
@@ -1567,6 +1568,7 @@ function Step4Payment({
   showCreditCard?: boolean;
   showMercadoPagoRedirect?: boolean;
   maxInstallments: number;
+  freeInstallments: number;
   selectedInstallments: number;
   onInstallmentsChange: (n: number) => void;
   grandTotal: number;
