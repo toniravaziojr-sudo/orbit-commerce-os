@@ -19,5 +19,9 @@ Base de Conhecimento Técnico do sistema (doc completo em docs/tecnico/base-de-c
 13. **Formulários de entidade** → sempre incluir campo de upload se a tabela tem coluna de imagem
 14. **Frete com valor zero** → logar falhas dos provedores claramente, nunca retornar R$0 silenciosamente
 15. **Fluxos de campanha** → Blog e Mídia Social devem ser separados (prop campaignType)
-16. **free_installments no hook público** → campo OBRIGATÓRIO; nunca adicionar config na tabela/admin sem propagar para o hook público do storefront
-17. **Frenet peso em KG vs gramas** → O agregador shipping-quote usa gramas internamente (Correios). O adaptador do Frenet DEVE converter para KG (÷1000). A migração da função legada frenet-quote para o agregador não preservou essa conversão, causando rejeição silenciosa. Sempre logar respostas de APIs externas. Nunca exibir termos técnicos como "(fallback)" em labels visíveis ao cliente.
+16. **free_installments no hook público** → campo OBRIGATÓRIO; nunca adicionar config na tabela/admin sem propagar para o hook público do storefront. Descrição do PaymentMethodSelector deve ser dinâmica. ✅ Validado em 2026-04-13.
+17. **Frenet peso em KG vs gramas** → O agregador shipping-quote usa gramas internamente (Correios). O adaptador do Frenet DEVE converter para KG (÷1000). Sempre logar respostas de APIs externas. Nunca exibir termos técnicos como "(fallback)" em labels visíveis ao cliente. ✅ Validado em 2026-04-13.
+
+## Correções Validadas (2026-04-13):
+- **Frete (tenant respeiteohomem):** Frenet recebia peso em gramas (300) em vez de KG (0.3), rejeitava silenciosamente. Corrigido no adaptador + log adicionado + label "(fallback)" removido.
+- **Pagamentos (tenant respeiteohomem):** free_installments não era propagado para o hook público, causando "sem juros" em todas as parcelas. Corrigido no hook + descrição dinâmica no PaymentMethodSelector.
