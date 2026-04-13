@@ -78,6 +78,39 @@ Permitir que o lojista crie links personalizados de checkout com produto pré-se
 
 ---
 
+## Processamento no Checkout (Receptor)
+
+O checkout processa os parâmetros de URL via hook `useCheckoutLinkLoader`. Regra fundamental: **emissor e receptor devem ser implementados simultaneamente** — nunca gerar URLs sem garantir que o checkout saiba processá-las.
+
+### Link Direto (`?product={slug}&qty={n}`)
+
+1. Hook lê `product` e `qty` da URL
+2. Busca o produto pelo slug na tabela `products`
+3. Limpa o carrinho e adiciona o produto com a quantidade especificada
+4. Checkout segue fluxo normal (cálculo de frete, pagamento, etc.)
+
+### Link Personalizado (`?link={slug}`)
+
+1. Hook lê `link` da URL
+2. Busca o registro em `checkout_links` pelo slug (RLS pública para links ativos/não-expirados)
+3. Incrementa `click_count` via update
+4. Limpa o carrinho e adiciona o produto principal com quantidade configurada
+5. Se `price_override` existir, aplica como preço do item
+6. Se `additional_products` existir, adiciona cada produto adicional ao carrinho
+7. Se `coupon_code` existir, aplica o cupom automaticamente
+8. Se `shipping_override` existir:
+   - Valor `0` → exibe "Frete Grátis"
+   - Valor `> 0` → exibe "Frete Fixo" com o valor configurado
+   - `null` → cálculo normal de frete
+
+### RLS Pública
+
+- `SELECT`: qualquer usuário anônimo pode ler links com `is_active = true` e não expirados
+- `UPDATE`: qualquer usuário anônimo pode incrementar `click_count`
+- Demais operações: restritas a usuários autenticados do tenant
+
+---
+
 ## Funcionalidades Relacionadas
 
 ### Link Direto de Produto
