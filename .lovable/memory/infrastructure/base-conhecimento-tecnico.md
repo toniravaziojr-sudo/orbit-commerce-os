@@ -20,3 +20,4 @@ Base de Conhecimento Técnico do sistema (doc completo em docs/tecnico/base-de-c
 14. **Frete com valor zero** → logar falhas dos provedores claramente, nunca retornar R$0 silenciosamente
 15. **Fluxos de campanha** → Blog e Mídia Social devem ser separados (prop campaignType)
 16. **free_installments no hook público** → campo OBRIGATÓRIO; nunca adicionar config na tabela/admin sem propagar para o hook público do storefront
+17. **Frenet peso em KG vs gramas** → O agregador shipping-quote usa gramas internamente (Correios). O adaptador do Frenet DEVE converter para KG (÷1000). A migração da função legada frenet-quote para o agregador não preservou essa conversão, causando rejeição silenciosa. Sempre logar respostas de APIs externas. Nunca exibir termos técnicos como "(fallback)" em labels visíveis ao cliente.
