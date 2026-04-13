@@ -1625,7 +1625,7 @@ function Step4Payment({
                 >
                   <RadioGroupItem value={String(n)} id={`installment-${n}`} disabled={disabled} />
                   <span className="flex-1 text-sm">
-                    {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : 'sem juros'}
+                    {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : n <= freeInstallments ? 'sem juros' : 'com juros'}
                   </span>
                   {n === 1 && <span className="text-xs font-medium text-muted-foreground">{formatCurrency(grandTotal)}</span>}
                 </Label>
