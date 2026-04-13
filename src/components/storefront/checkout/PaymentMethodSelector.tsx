@@ -143,7 +143,7 @@ export function PaymentMethodSelector({
             {method.icon}
             <div className="flex-1">
               <p className="font-medium">{method.label}</p>
-              <p className="text-sm text-muted-foreground">{method.description}</p>
+              <p className="text-sm text-muted-foreground">{getDynamicDescription(method.value)}</p>
             </div>
             {customLabels[method.value] && (
               <span className="text-xs font-semibold sf-tag-success px-2 py-1 rounded">
