@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Sparkles, Package, User, Megaphone, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Sparkles, Package, User, Megaphone, CheckCircle2, AlertCircle, MessageSquare } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
 interface AIImageGeneratorDialogProps {
@@ -38,6 +39,7 @@ export function AIImageGeneratorDialog({
   const { currentTenant } = useAuth();
   const [quantity, setQuantity] = useState('1');
   const [style, setStyle] = useState('product_natural');
+  const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
@@ -140,7 +142,9 @@ export function AIImageGeneratorDialog({
               product_id: productId,
               product_name: productName,
               product_image_url: primaryImageUrl,
-              prompt: `Criar foto profissional do produto "${productName}" baseada fielmente na imagem de referência fornecida. O produto deve ser IDÊNTICO ao da referência (mesmas cores, rótulo, formato). Variação ${i + 1}.`,
+              prompt: customPrompt
+                ? `${customPrompt}. Produto: "${productName}". Variação ${i + 1}.`
+                : `Criar foto profissional do produto "${productName}" baseada fielmente na imagem de referência fornecida. O produto deve ser IDÊNTICO ao da referência (mesmas cores, rótulo, formato). Variação ${i + 1}.`,
               settings: {
                 generation_style: style,
                 format: '1:1',
@@ -312,6 +316,22 @@ export function AIImageGeneratorDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <MessageSquare className="h-3.5 w-3.5" />
+              Direções criativas
+              <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+            </Label>
+            <Textarea
+              placeholder="Ex: Foto para campanha de Dia dos Pais, fundo azul escuro, estilo premium..."
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              disabled={isGenerating}
+              rows={3}
+              className="resize-none text-sm"
+            />
           </div>
 
           {isGenerating && (

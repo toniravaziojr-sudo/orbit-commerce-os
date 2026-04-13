@@ -22,6 +22,7 @@ export const FAL_MODELS = {
   // Imagens
   FLUX_2_PRO: "fal-ai/flux-2-pro",
   FLUX_2_TURBO: "fal-ai/flux-2",
+  GPT_IMAGE_1_EDIT: "fal-ai/gpt-image-1/edit-image",
 
   // Vídeos
   KLING_V3_PRO_I2V: "fal-ai/kling-video/v3/pro/image-to-video",
@@ -297,6 +298,52 @@ export async function generateImageWithFalTurbo(
     };
   } catch (error) {
     console.error("[fal-client] FLUX 2 Turbo error:", error);
+    return null;
+  }
+}
+
+/**
+ * Gera imagem com GPT Image 1 (edit-image) via fal.ai — image-to-image com referência.
+ * PRIORIDADE MÁXIMA para cenários com imagem de referência (produto, criativo, etc.)
+ * Aceita imagem(ns) de referência e gera variação fiel.
+ */
+export async function generateImageWithGptImage1(
+  apiKey: string,
+  prompt: string,
+  referenceImageUrls: string[],
+  size: 'auto' | '1024x1024' | '1536x1024' | '1024x1536' = '1024x1024',
+): Promise<FalImageResult | null> {
+  try {
+    console.log(`[fal-client] Generating image with GPT Image 1 (edit-image)...`);
+    const input: Record<string, unknown> = {
+      prompt,
+      image_urls: referenceImageUrls,
+      size,
+    };
+
+    const requestId = await submitToQueue(apiKey, FAL_MODELS.GPT_IMAGE_1_EDIT, input);
+    await pollStatus(apiKey, FAL_MODELS.GPT_IMAGE_1_EDIT, requestId, 120_000);
+
+    const result = await fetchResult<{
+      images: Array<{ url: string; width?: number; height?: number; content_type?: string }>;
+    }>(apiKey, FAL_MODELS.GPT_IMAGE_1_EDIT, requestId);
+
+    if (!result.images?.[0]?.url) {
+      console.warn("[fal-client] GPT Image 1 returned no image");
+      return null;
+    }
+
+    const img = result.images[0];
+    console.log(`[fal-client] ✅ GPT Image 1 image generated: ${img.url.substring(0, 80)}...`);
+    return {
+      imageUrl: img.url,
+      seed: 0,
+      width: img.width,
+      height: img.height,
+      contentType: img.content_type,
+    };
+  } catch (error) {
+    console.error("[fal-client] GPT Image 1 error:", error);
     return null;
   }
 }
