@@ -22,6 +22,7 @@ export const FAL_MODELS = {
   // Imagens
   FLUX_2_PRO: "fal-ai/flux-2-pro",
   FLUX_2_TURBO: "fal-ai/flux-2",
+  GPT_IMAGE_1_EDIT: "fal-ai/gpt-image-1/edit-image",
 
   // Vídeos
   KLING_V3_PRO_I2V: "fal-ai/kling-video/v3/pro/image-to-video",
