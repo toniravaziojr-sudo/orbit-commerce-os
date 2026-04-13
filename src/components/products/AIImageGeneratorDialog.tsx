@@ -39,6 +39,7 @@ export function AIImageGeneratorDialog({
   const { currentTenant } = useAuth();
   const [quantity, setQuantity] = useState('1');
   const [style, setStyle] = useState('product_natural');
+  const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
@@ -141,7 +142,9 @@ export function AIImageGeneratorDialog({
               product_id: productId,
               product_name: productName,
               product_image_url: primaryImageUrl,
-              prompt: `Criar foto profissional do produto "${productName}" baseada fielmente na imagem de referência fornecida. O produto deve ser IDÊNTICO ao da referência (mesmas cores, rótulo, formato). Variação ${i + 1}.`,
+              prompt: customPrompt
+                ? `${customPrompt}. Produto: "${productName}". Variação ${i + 1}.`
+                : `Criar foto profissional do produto "${productName}" baseada fielmente na imagem de referência fornecida. O produto deve ser IDÊNTICO ao da referência (mesmas cores, rótulo, formato). Variação ${i + 1}.`,
               settings: {
                 generation_style: style,
                 format: '1:1',
