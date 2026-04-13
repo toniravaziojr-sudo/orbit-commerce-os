@@ -96,6 +96,20 @@ export function PaymentMethodSelector({
   };
 
   // Get ordered methods based on methodsOrder prop - filter by visibility
+  // Build dynamic descriptions based on actual config
+  const getDynamicDescription = (method: PaymentMethod): string => {
+    if (method === 'credit_card') {
+      if (maxInstallments <= 1) return 'Pagamento à vista';
+      if (freeInstallments >= maxInstallments) return `Em até ${maxInstallments}x sem juros`;
+      if (freeInstallments > 1) return `Em até ${freeInstallments}x sem juros`;
+      return `Em até ${maxInstallments}x`;
+    }
+    if (method === 'pix' && pixDiscountPercent > 0) {
+      return `Pagamento instantâneo — ${pixDiscountPercent}% de desconto`;
+    }
+    return PAYMENT_METHODS[method]?.description || '';
+  };
+
   const orderedMethods = useMemo(() => {
     return methodsOrder
       .filter(method => PAYMENT_METHODS[method])
