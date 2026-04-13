@@ -16,9 +16,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { tryNativeGemini } from "../_shared/native-gemini.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
-import { generateImageWithFalPro, generateImageWithFalTurbo, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
+import { generateImageWithFalPro, generateImageWithFalTurbo, generateImageWithGptImage1, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = '7.0.0'; // fal.ai FLUX 2 priority: 1. FLUX 2 Pro → 2. FLUX 2 Turbo → 3. Gemini Nativa → 4. OpenAI → 5. Lovable Gateway
+const VERSION = '8.0.0'; // gpt-image-1 priority: 1. GPT Image 1 (edit-image) → 2. Gemini Nativa → 3. OpenAI Nativa → 4. Lovable Gateway
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

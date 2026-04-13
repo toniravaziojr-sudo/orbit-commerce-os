@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Sparkles, Package, User, Megaphone, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Sparkles, Package, User, Megaphone, CheckCircle2, AlertCircle, MessageSquare } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
 interface AIImageGeneratorDialogProps {
