@@ -1593,6 +1593,8 @@ function Step4Payment({
         showBoleto={showBoleto}
         showCreditCard={showCreditCard}
         showMercadoPagoRedirect={showMercadoPagoRedirect}
+        freeInstallments={freeInstallments}
+        maxInstallments={maxInstallments}
       />
 
       {/* Payment method discount info */}
