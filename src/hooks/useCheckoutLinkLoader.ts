@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount } from '@/contexts/DiscountContext';
-import { getStoreHost } from '@/lib/publicUrls';
+import { getStoreHost } from '@/lib/storeHost';
 
 interface CheckoutLinkLoaderOptions {
   tenantId: string;
