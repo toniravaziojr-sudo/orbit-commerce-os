@@ -35,6 +35,7 @@ O módulo de Produtos é o núcleo do catálogo do e-commerce. Permite gerenciar
 | `ProductInventorySection.tsx` | Controle de estoque e backorder |
 | `ProductSeoSection.tsx` | Campos SEO (title, description) |
 | `AIDescriptionButton.tsx` | Geração de descrições via IA |
+| `AIImageGeneratorDialog.tsx` | Geração de imagens secundárias via IA (assíncrono com polling) |
 
 ### 2.3 Hooks
 
