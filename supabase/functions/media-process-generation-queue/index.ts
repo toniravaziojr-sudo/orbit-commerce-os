@@ -1,12 +1,11 @@
 /**
- * Media Process Generation Queue — v8.0 (fal.ai FLUX 2 + Gemini Nativa + OpenAI + Lovable Gateway)
+ * Media Process Generation Queue — v9.0 (GPT Image 1 Priority)
  * 
- * Hierarquia v7.0:
- * 1. fal.ai FLUX 2 Pro (PRINCIPAL)
- * 2. fal.ai FLUX 2 Turbo (FALLBACK RÁPIDO)
- * 3. Gemini Nativa (FALLBACK SEGURO)
- * 4. OpenAI Nativa (FALLBACK SEGURO)
- * 5. Lovable Gateway (ÚLTIMO RECURSO)
+ * Hierarquia v9.0:
+ * 1. GPT Image 1 edit-image (fal.ai) — PRINCIPAL (image-to-image com referência)
+ * 2. Gemini Nativa (FALLBACK SEGURO)
+ * 3. OpenAI Nativa (FALLBACK SEGURO)
+ * 4. Lovable Gateway (ÚLTIMO RECURSO)
  * + QA Scorer (google/gemini-3-flash-preview) — scoring de realismo
  */
 
@@ -15,9 +14,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { tryNativeGemini } from "../_shared/native-gemini.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
-import { generateImageWithFalPro, generateImageWithFalTurbo, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
+import { generateImageWithGptImage1, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = '8.0.0'; // fal.ai FLUX 2 priority: 1. FLUX 2 Pro → 2. FLUX 2 Turbo → 3. Gemini Nativa → 4. OpenAI → 5. Lovable Gateway
+const VERSION = '9.0.0'; // GPT Image 1 priority: 1. GPT Image 1 (edit-image) → 2. Gemini Nativa → 3. OpenAI → 4. Lovable Gateway
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -174,7 +173,7 @@ async function downloadImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
-// ========== RESILIENT GENERATE v7.0 (fal.ai → Gemini Nativa → OpenAI → Lovable Gateway) ==========
+// ========== RESILIENT GENERATE v9.0 (GPT Image 1 → Gemini Nativa → OpenAI → Lovable Gateway) ==========
 
 async function resilientGenerateMedia(
   lovableApiKey: string,
@@ -183,47 +182,35 @@ async function resilientGenerateMedia(
   falApiKeyValue: string | null,
   prompt: string,
   referenceImageBase64: string | null,
+  referenceImageUrl: string | null = null,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
 
-  // ===== STEP 1: fal.ai FLUX 2 Pro (PRIORIDADE MÁXIMA) =====
-  if (falApiKeyValue) {
-    console.log(`🎨 Step 1: fal.ai FLUX 2 Pro...`);
-    const falResult = await generateImageWithFalPro(falApiKeyValue, {
+  // ===== STEP 1: GPT Image 1 edit-image via fal.ai (PRIORIDADE MÁXIMA) =====
+  if (falApiKeyValue && referenceImageUrl) {
+    console.log(`🎨 Step 1: GPT Image 1 edit-image (prioridade máxima)...`);
+    const gptResult = await generateImageWithGptImage1(
+      falApiKeyValue,
       prompt,
-      imageSize: { width: 1024, height: 1024 },
-      outputFormat: 'jpeg',
-    });
-    if (falResult?.imageUrl) {
-      const b64 = await falDownloadImage(falResult.imageUrl);
+      [referenceImageUrl],
+      '1024x1024',
+    );
+    if (gptResult?.imageUrl) {
+      const b64 = await falDownloadImage(gptResult.imageUrl);
       if (b64) {
-        console.log(`✅ fal.ai FLUX 2 Pro succeeded`);
-        return { imageBase64: b64, model: 'fal-ai/flux-2-pro' };
+        console.log(`✅ GPT Image 1 edit-image succeeded`);
+        return { imageBase64: b64, model: 'fal-ai/gpt-image-1/edit-image' };
       }
     }
-    console.warn(`⚠️ FLUX 2 Pro failed. Trying Turbo...`);
-
-    // ===== STEP 2: fal.ai FLUX 2 Turbo =====
-    console.log(`🎨 Step 2: fal.ai FLUX 2 Turbo...`);
-    const turboResult = await generateImageWithFalTurbo(falApiKeyValue, {
-      prompt,
-      imageSize: { width: 1024, height: 1024 },
-      outputFormat: 'jpeg',
-    });
-    if (turboResult?.imageUrl) {
-      const b64 = await falDownloadImage(turboResult.imageUrl);
-      if (b64) {
-        console.log(`✅ fal.ai FLUX 2 Turbo succeeded`);
-        return { imageBase64: b64, model: 'fal-ai/flux-2 (turbo)' };
-      }
-    }
-    console.warn(`⚠️ FLUX 2 Turbo failed. Falling back to Gemini Nativa...`);
+    console.warn(`⚠️ GPT Image 1 failed. Falling back to Gemini Nativa...`);
+  } else if (!falApiKeyValue) {
+    console.warn(`⚠️ FAL_API_KEY not available. Skipping GPT Image 1.`);
   } else {
-    console.warn(`⚠️ FAL_API_KEY not available. Skipping fal.ai steps.`);
+    console.warn(`⚠️ No reference image URL. Skipping GPT Image 1.`);
   }
 
-  // ===== STEP 3: Gemini Nativa (FALLBACK SEGURO) =====
+  // ===== STEP 2: Gemini Nativa (FALLBACK SEGURO) =====
   if (geminiApiKey) {
-    console.log(`🎨 Step 3: Gemini Nativa...`);
+    console.log(`🎨 Step 2: Gemini Nativa...`);
     const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, 'media-gemini');
     if (nativeResult.imageBase64) {
       console.log(`✅ Gemini Nativa succeeded`);
@@ -232,9 +219,9 @@ async function resilientGenerateMedia(
     console.warn(`⚠️ Gemini Nativa failed: ${nativeResult.error}`);
   }
 
-  // ===== STEP 4: OpenAI Nativa =====
+  // ===== STEP 3: OpenAI Nativa =====
   if (openaiApiKey) {
-    console.log(`🎨 Step 4: OpenAI Nativa (gpt-image-1)...`);
+    console.log(`🎨 Step 3: OpenAI Nativa (gpt-image-1)...`);
     try {
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -287,10 +274,10 @@ async function resilientGenerateMedia(
     }
   }
 
-  // ===== STEP 5: Lovable Gateway (ÚLTIMO RECURSO) =====
+  // ===== STEP 4: Lovable Gateway (ÚLTIMO RECURSO) =====
   const model = "google/gemini-2.5-flash-image";
   try {
-    console.log(`🎨 Step 5: Lovable Gateway ${model} (último recurso)...`);
+    console.log(`🎨 Step 4: Lovable Gateway ${model} (último recurso)...`);
     const content: any[] = [{ type: "text", text: prompt }];
     if (referenceImageBase64) {
       content.push({ type: "image_url", image_url: { url: `data:image/png;base64,${referenceImageBase64}` } });
@@ -461,7 +448,7 @@ serve(async (req) => {
   const falApiKeyValue = await getFalApiKey(supabaseUrl, supabaseServiceKey);
 
   console.log(`[media-process-generation-queue v${VERSION}] Credentials: FAL=${!!falApiKeyValue} GEMINI=${!!geminiApiKey} OPENAI=${!!openaiApiKey} LOVABLE=✅`);
-  console.log(`[media-process-generation-queue v${VERSION}] Hierarchy: 1.FLUX Pro → 2.FLUX Turbo → 3.Gemini Nativa → 4.OpenAI → 5.Lovable Gateway`);
+  console.log(`[media-process-generation-queue v${VERSION}] Hierarchy: 1.GPT Image 1 → 2.Gemini Nativa → 3.OpenAI → 4.Lovable Gateway`);
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 

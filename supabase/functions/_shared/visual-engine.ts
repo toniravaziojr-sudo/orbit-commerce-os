@@ -1,13 +1,14 @@
 // =============================================
 // VISUAL ENGINE — Shared image generation motor
-// v2.1.0: Now registers generated assets in Meu Drive
+// v3.0.0: GPT Image 1 (edit-image) priority hierarchy
 // Provides: resilient generation cascade, QA scoring,
 // image download, upload to storage + Drive registration
 //
-// ARCHITECTURE CHANGE (v2.0.0):
-// - Prompt building moved to creative-brief-builder.ts
-// - This module focuses on: generation, upload, QA
-// - buildPromptForSlot now delegates to buildFinalPrompt
+// HIERARQUIA v9.0:
+// 1. GPT Image 1 edit-image (fal.ai) — image-to-image com referência
+// 2. Gemini Nativa — fallback com referência base64
+// 3. OpenAI Nativa — fallback
+// 4. Lovable AI Gateway — último recurso
 // =============================================
 
 import type {
