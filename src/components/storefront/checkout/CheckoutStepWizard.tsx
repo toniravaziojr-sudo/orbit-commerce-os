@@ -1602,6 +1602,7 @@ function Step4Payment({
         showMercadoPagoRedirect={showMercadoPagoRedirect}
         freeInstallments={freeInstallments}
         maxInstallments={maxInstallments}
+        pixDiscountPercent={pixDiscountPercent}
       />
 
       {/* Payment method discount info */}
