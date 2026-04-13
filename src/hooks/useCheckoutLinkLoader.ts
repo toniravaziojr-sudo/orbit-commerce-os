@@ -5,8 +5,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useCart, CartItem } from '@/contexts/CartContext';
+import { useCart } from '@/contexts/CartContext';
 import { useDiscount } from '@/contexts/DiscountContext';
+import { getStoreHost } from '@/lib/publicUrls';
 
 interface CheckoutLinkLoaderOptions {
   tenantId: string;
@@ -60,7 +61,7 @@ export function useCheckoutLinkLoader({ tenantId }: CheckoutLinkLoaderOptions): 
 
         const { data: product, error } = await supabase
           .from('products')
-          .select('id, name, slug, price, sku, status, product_images(url, position)')
+          .select('id, name, slug, price, sku, status, product_images(url, sort_order)')
           .eq('tenant_id', tenantId)
           .eq('slug', productSlug!)
           .eq('status', 'active')
@@ -74,8 +75,8 @@ export function useCheckoutLinkLoader({ tenantId }: CheckoutLinkLoaderOptions): 
 
         // Clear cart and add the product
         clearCart();
-        const mainImage = product.product_images
-          ?.sort((a: any, b: any) => (a.position ?? 999) - (b.position ?? 999))[0]?.url;
+        const mainImage = (product.product_images as any[])
+          ?.sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))[0]?.url;
 
         addItem({
           product_id: product.id,
@@ -100,7 +101,7 @@ export function useCheckoutLinkLoader({ tenantId }: CheckoutLinkLoaderOptions): 
         // Fetch the checkout link with its product
         const { data: link, error } = await supabase
           .from('checkout_links')
-          .select('*, products(id, name, slug, price, sku, status, product_images(url, position))')
+          .select('*, products(id, name, slug, price, sku, status, product_images(url, sort_order))')
           .eq('tenant_id', tenantId)
           .eq('slug', linkSlug!)
           .eq('is_active', true)
@@ -153,7 +154,7 @@ export function useCheckoutLinkLoader({ tenantId }: CheckoutLinkLoaderOptions): 
           const productIds = additionalProducts.map(p => p.product_id);
           const { data: extraProducts } = await supabase
             .from('products')
-            .select('id, name, slug, price, sku, status, product_images(url, position)')
+            .select('id, name, slug, price, sku, status, product_images(url, sort_order)')
             .in('id', productIds)
             .eq('tenant_id', tenantId)
             .eq('status', 'active');
@@ -161,8 +162,8 @@ export function useCheckoutLinkLoader({ tenantId }: CheckoutLinkLoaderOptions): 
           if (extraProducts) {
             for (const extra of extraProducts) {
               const addConfig = additionalProducts.find(p => p.product_id === extra.id);
-              const extraImage = extra.product_images
-                ?.sort((a: any, b: any) => (a.position ?? 999) - (b.position ?? 999))[0]?.url;
+              const extraImage = (extra.product_images as any[])
+                ?.sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))[0]?.url;
 
               addItem({
                 product_id: extra.id,
@@ -177,9 +178,11 @@ export function useCheckoutLinkLoader({ tenantId }: CheckoutLinkLoaderOptions): 
         }
 
         // Apply coupon if specified
+        // Apply coupon if specified (fire-and-forget, non-blocking)
         if (link.coupon_code) {
+          const storeHost = getStoreHost();
           try {
-            await applyDiscount(link.coupon_code);
+            await applyDiscount(storeHost, link.coupon_code, effectivePrice * (link.quantity || 1));
             console.log('[CheckoutLinkLoader] Coupon applied:', link.coupon_code);
           } catch (couponErr) {
             console.warn('[CheckoutLinkLoader] Failed to apply coupon:', link.coupon_code, couponErr);
