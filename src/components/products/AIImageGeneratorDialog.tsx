@@ -53,11 +53,15 @@ export function AIImageGeneratorDialog({
           const { data, error } = await supabase.functions.invoke('creative-image-generate', {
             body: {
               tenant_id: currentTenant.id,
-              style,
+              product_id: productId,
               product_name: productName,
-              reference_image_url: primaryImageUrl,
-              format: '1:1',
-              context_brief: `Gerar imagem variação ${i + 1} do produto "${productName}" no estilo ${style}`,
+              product_image_url: primaryImageUrl,
+              prompt: `Gerar imagem variação ${i + 1} do produto "${productName}" no estilo ${style}`,
+              settings: {
+                generation_style: style,
+                format: '1:1',
+                variations: 1,
+              },
             },
           });
 
@@ -66,22 +70,41 @@ export function AIImageGeneratorDialog({
             continue;
           }
 
-          const imageUrl = data?.image_url || data?.url;
-          if (!imageUrl) {
-            console.error(`No image URL in response for image ${i + 1}`);
+          // The edge function returns success + images array or image_url
+          if (!data?.success) {
+            console.error(`Generation failed for image ${i + 1}:`, data?.error);
             continue;
           }
 
-          // Save as product image
-          const { error: insertError } = await supabase.from('product_images').insert({
-            product_id: productId,
-            url: imageUrl,
-            alt_text: `${productName} - IA ${style} ${i + 1}`,
-            is_primary: false,
-            sort_order: currentImageCount + i + 1,
-          });
+          // Extract generated image URLs from the response
+          const generatedImages: string[] = [];
+          if (data?.images && Array.isArray(data.images)) {
+            for (const img of data.images) {
+              const url = img?.url || img?.image_url || img?.storage_url;
+              if (url) generatedImages.push(url);
+            }
+          } else if (data?.image_url) {
+            generatedImages.push(data.image_url);
+          } else if (data?.url) {
+            generatedImages.push(data.url);
+          }
 
-          if (!insertError) successCount++;
+          if (generatedImages.length === 0) {
+            console.error(`No image URL in response for image ${i + 1}`, data);
+            continue;
+          }
+
+          // Save each generated image as product image
+          for (let j = 0; j < generatedImages.length; j++) {
+            const { error: insertError } = await supabase.from('product_images').insert({
+              product_id: productId,
+              url: generatedImages[j],
+              alt_text: `${productName} - IA ${style} ${i + 1}`,
+              is_primary: false,
+              sort_order: currentImageCount + successCount + j + 1,
+            });
+            if (!insertError) successCount++;
+          }
         } catch (err) {
           console.error(`Failed to generate image ${i + 1}:`, err);
         }
