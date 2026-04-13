@@ -48,7 +48,7 @@ import {
   captureCheckoutContact,
   endCheckoutSession,
 } from '@/lib/checkoutSession';
-import { usePublicPaymentDiscounts, calculatePaymentMethodDiscount, getMaxInstallments } from '@/hooks/usePublicPaymentDiscounts';
+import { usePublicPaymentDiscounts, calculatePaymentMethodDiscount, getMaxInstallments, getFreeInstallments } from '@/hooks/usePublicPaymentDiscounts';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 type CheckoutStep = 1 | 2 | 3 | 4;
@@ -159,6 +159,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
   // Max installments from config
   const maxInstallments = getMaxInstallments(paymentDiscounts, totals.grandTotal);
+  const freeInstallments = getFreeInstallments(paymentDiscounts);
   
   // Reset installments when payment method changes or max changes
   useEffect(() => {
