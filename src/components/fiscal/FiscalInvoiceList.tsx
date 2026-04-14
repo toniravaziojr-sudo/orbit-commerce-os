@@ -88,6 +88,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [marketplaceSource, setMarketplaceSource] = useState<string>('all');
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -610,6 +611,49 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
+  // Create a new empty invoice draft and open the editor
+  const handleCreateNewInvoice = async () => {
+    setIsCreatingInvoice(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fiscal-create-manual', {
+        body: {
+          natureza_operacao: 'VENDA DE MERCADORIA',
+          destinatario: {
+            nome: 'CONSUMIDOR',
+            cpf_cnpj: '',
+            endereco: { logradouro: '', numero: 'S/N', bairro: '', municipio: '', uf: '', cep: '' },
+          },
+          itens: [{
+            numero_item: 1,
+            codigo: '',
+            descricao: 'PRODUTO',
+            ncm: '00000000',
+            cfop: '5102',
+            unidade: 'UN',
+            quantidade: 1,
+            valor_unitario: 0,
+            origem: '0',
+            csosn: '102',
+          }],
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao criar NF-e');
+
+      // Open the full editor with the new draft
+      const invoice = data.invoice;
+      if (invoice) {
+        await handleEditInvoice(invoice);
+      }
+      refetch();
+    } catch (error: any) {
+      showErrorToast(error, { module: 'fiscal', action: 'criar NF-e' });
+    } finally {
+      setIsCreatingInvoice(false);
+    }
+  };
+
   // Individual: Reenviar por Email
   const handleResendEmail = async (invoice: FiscalInvoice) => {
     try {
@@ -801,16 +845,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
               Novo Pedido
             </Button>
           ) : (
-            <>
-              <Button onClick={() => setManualDialogOpen(true)}>
+            <Button onClick={handleCreateNewInvoice} disabled={isCreatingInvoice}>
+              {isCreatingInvoice ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
                 <Plus className="h-4 w-4 mr-2" />
-                Nova NF-e
-              </Button>
-              <Button variant="outline" onClick={() => { setEntryDialogChaveAcesso(undefined); setEntryDialogOpen(true); }}>
-                <ArrowDownLeft className="h-4 w-4 mr-2" />
-                NF-e de Entrada
-              </Button>
-            </>
+              )}
+              Nova NF-e
+            </Button>
           )}
         </div>
       </div>

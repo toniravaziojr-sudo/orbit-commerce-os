@@ -315,22 +315,30 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 #### Aba "Pedidos em Aberto" (`mode=orders`)
 - Lista rascunhos de NF-e gerados automaticamente a partir de pedidos pagos (todas as origens: lojas, marketplaces, etc.)
 - Permite criar pedidos/rascunhos manualmente via botão **"Novo Pedido"** → abre `ManualInvoiceDialog`
-- O rascunho criado aqui não exige escolha de tipo de NF (simplificado)
+- O formulário de pedido é **simplificado**: apenas Cliente + Produtos (descrição, código, unidade, qtd, valor) + Observações
+- **Sem campos fiscais** no pedido: NCM, CFOP, CSOSN, Origem, Indicador de Presença, Indicador IE, Pagamento — tudo preenchido automaticamente com defaults no backend
+- Os pedidos em aberto são **NF-e de venda/saída** — ao emitir, transformam-se em NF-e
 
 #### Aba "Notas Fiscais" (`mode=invoices`)
 - Lista NF-e emitidas (autorizadas, pendentes, rejeitadas, canceladas, devolvidas)
-- Botão principal **"Nova NF-e"** → abre `ManualInvoiceDialog` para criação manual de NF completa
-- Botão **"NF-e de Entrada"** → abre `EntryInvoiceDialog` para nota de entrada
+- Botão principal **"Nova NF-e"** → cria rascunho vazio e abre o **InvoiceEditor** (editor completo com 6 abas: Geral, Destinatário, Itens, Valores, Transporte, Pagamento)
+- ~~Botão "NF-e de Entrada"~~ removido (rev3) — o tipo de NF é selecionado dentro do InvoiceEditor na aba Geral
 - ~~Dropdown "Ações"~~ removido (rev2) — era desnecessário
 - ~~"Consultar por Chave"~~ removido como ação separada — o campo de busca da lista já pesquisa por `chave_acesso`
 
-#### ManualInvoiceDialog
-- **Título**: "Novo Pedido" (cria rascunho/pedido para posterior emissão)
-- ~~Seletor "Importar de Pedido"~~ removido (rev2) — duplicava a lógica de seleção de destinatário
+#### InvoiceEditor — Seletor de Tipo de NF (rev3)
+- Campo **"Tipo de Nota"** na aba Geral com opções: Saída (Venda), Entrada (Compra), Devolução, Remessa, Transferência
+- Quando tipo = Entrada ou Devolução, exibe campo **"Chave de Acesso da NF-e Referenciada"** (44 dígitos)
+- Substitui a necessidade do `EntryInvoiceDialog` como botão avulso
+
+#### ManualInvoiceDialog (simplificado para pedidos)
+- **Título**: "Novo Pedido"
+- **Campos do formulário**: Cliente (busca ou manual) + Produtos (código, descrição, unidade, quantidade, valor unitário) + Observações
+- **Sem campos fiscais** — NCM, CFOP, CSOSN, Origem, Natureza da Operação, Indicadores SEFAZ e Pagamento são gerenciados apenas no InvoiceEditor
 
 #### Busca de Cliente no ManualInvoiceDialog
 - Seletor com duas opções: **"Cliente existente"** e **"Preencher manualmente"**
-- **Cliente existente**: campo de busca com debounce (400ms) que consulta `customers` por `full_name` (ilike), `email` (ilike) e `cpf` (ilike nos dígitos). Inclui join com `customer_addresses` para endereço. Filtro `deleted_at IS NULL`. Limite de 10 resultados. Ao selecionar, preenche automaticamente todos os campos do destinatário (nome, CPF/CNPJ, email, telefone, endereço padrão ou primeiro disponível).
+- **Cliente existente**: campo de busca com debounce (400ms) que consulta `customers` por `full_name` (ilike), `email` (ilike) e `cpf` (ilike nos dígitos). Inclui join com `customer_addresses` para endereço. Filtro `deleted_at IS NULL`. Limite de 10 resultados. Dropdown de resultados aparece imediatamente ao digitar. Ao selecionar, preenche automaticamente todos os campos do destinatário (nome, CPF/CNPJ, email, telefone, endereço padrão ou primeiro disponível).
 - **Preencher manualmente**: campos vazios para digitação livre.
 
 #### Mapeamento de Campos (customers → ManualInvoiceDialog)

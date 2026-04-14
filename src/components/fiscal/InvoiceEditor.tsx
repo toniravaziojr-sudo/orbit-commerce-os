@@ -30,6 +30,8 @@ export interface InvoiceData {
   natureza_operacao: string;
   cfop: string;
   observacoes?: string;
+  tipo_nota?: 'saida' | 'entrada' | 'remessa' | 'devolucao' | 'transferencia';
+  chave_acesso_referenciada?: string;
   // SEFAZ IDE
   indicador_presenca: number;
   informacoes_fisco?: string;
@@ -643,6 +645,39 @@ export function InvoiceEditor({
                 <CardTitle className="text-base">Dados Gerais</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Tipo de Nota <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={data.tipo_nota || 'saida'}
+                    onValueChange={(value) => updateField('tipo_nota', value as InvoiceData['tipo_nota'])}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="saida">Saída (Venda)</SelectItem>
+                      <SelectItem value="entrada">Entrada (Compra)</SelectItem>
+                      <SelectItem value="devolucao">Devolução</SelectItem>
+                      <SelectItem value="remessa">Remessa</SelectItem>
+                      <SelectItem value="transferencia">Transferência</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(data.tipo_nota === 'entrada' || data.tipo_nota === 'devolucao') && (
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Chave de Acesso da NF-e Referenciada</Label>
+                    <Input
+                      value={data.chave_acesso_referenciada || ''}
+                      onChange={(e) => updateField('chave_acesso_referenciada', e.target.value.replace(/\D/g, ''))}
+                      placeholder="44 dígitos da chave de acesso"
+                      maxLength={44}
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Informe a chave de acesso da NF-e original para referência
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Número da NF-e</Label>
                   <Input value={data.numero} disabled />
