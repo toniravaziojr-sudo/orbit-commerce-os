@@ -481,6 +481,7 @@ export default function EmailMarketingListDetail() {
                       <TableHead>Origem</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Inscrito em</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -516,6 +517,30 @@ export default function EmailMarketingListDetail() {
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">
                           {formatDateBR(new Date(sub.created_at))}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {otherLists.length > 0 && (
+                                <DropdownMenuItem onClick={() => setMoveMember({ subscriberId: sub.id, name: sub.name || sub.email })}>
+                                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                                  Mover para outra lista
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setRemoveMemberId(sub.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Remover da lista
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}
