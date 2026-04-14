@@ -638,6 +638,73 @@ export default function EmailMarketingListDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Remove Member Confirmation */}
+      <Dialog open={!!removeMemberId} onOpenChange={(open) => !open && setRemoveMemberId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Remover da Lista
+            </DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja remover este lead da lista? O contato não será excluído do sistema, apenas desvinculado desta lista.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveMemberId(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => removeMemberId && removeMemberFromList.mutate(removeMemberId)}
+              disabled={removeMemberFromList.isPending}
+            >
+              {removeMemberFromList.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Remover
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Member Dialog */}
+      <Dialog open={!!moveMember} onOpenChange={(open) => { if (!open) { setMoveMember(null); setMoveTargetListId(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5" />
+              Mover para outra lista
+            </DialogTitle>
+            <DialogDescription>
+              Mover "{moveMember?.name}" para outra lista. O lead será removido desta lista e adicionado à lista selecionada.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Select value={moveTargetListId} onValueChange={setMoveTargetListId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a lista de destino..." />
+              </SelectTrigger>
+              <SelectContent>
+                {otherLists.map((l: any) => (
+                  <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setMoveMember(null); setMoveTargetListId(""); }}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => moveMember && moveTargetListId && moveMemberToList.mutate({ subscriberId: moveMember.subscriberId, targetListId: moveTargetListId })}
+              disabled={!moveTargetListId || moveMemberToList.isPending}
+            >
+              {moveMemberToList.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Mover
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
