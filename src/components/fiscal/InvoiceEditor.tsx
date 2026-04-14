@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format, parse } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
@@ -241,14 +243,7 @@ function formatCep(value: string): string {
 
 const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
-const NATUREZA_OPTIONS = [
-  'Venda de mercadoria adquirida de terceiros',
-  'Venda de produção do estabelecimento',
-  'Devolução de compra',
-  'Remessa para conserto',
-  'Remessa para demonstração',
-  'VENDA DE MERCADORIA',
-];
+// Naturezas de operação agora são carregadas do banco (fiscal_operation_natures)
 
 const MODALIDADE_FRETE_OPTIONS = [
   { value: '0', label: 'Contratação do Frete por conta do Remetente (CIF)' },
