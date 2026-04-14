@@ -258,11 +258,11 @@ export default function EmailMarketingListDetail() {
   // Move member to another list
   const moveMemberToList = useMutation({
     mutationFn: async ({ subscriberId, targetListId }: { subscriberId: string; targetListId: string }) => {
-      if (!listId) throw new Error("Lista não encontrada");
+      if (!listId || !list?.tenant_id) throw new Error("Lista não encontrada");
       // Insert into target list
       const { error: insertErr } = await supabase
         .from("email_marketing_list_members")
-        .insert({ list_id: targetListId, subscriber_id: subscriberId });
+        .insert({ list_id: targetListId, subscriber_id: subscriberId, tenant_id: list.tenant_id });
       if (insertErr && !insertErr.message?.includes("duplicate")) throw insertErr;
       // Remove from current list
       const { error: deleteErr } = await supabase
