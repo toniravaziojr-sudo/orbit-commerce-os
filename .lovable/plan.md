@@ -1,118 +1,91 @@
 
 
-# Plano: Link Checkout de Produto + Geração de Imagens IA + Módulo Link Checkout
+# Plano: Motor Único de Geração de Imagens
 
-## Contexto
+## Problema Atual
 
-O sistema não possui link direto de checkout por produto, não tem geração de imagens secundárias por IA no cadastro de produto, e não existe o módulo "Link Checkout" para criação de links personalizados.
+Existem **4 cópias** da mesma cascata de fallback espalhadas pelo sistema, cada uma com pequenas diferenças que causam inconsistências:
 
----
+| Local | Função | Diferenças |
+|-------|--------|------------|
+| `_shared/visual-engine.ts` | `resilientGenerate()` | Usado só por banners/builder. Tem timeout de 70s no Gateway, etapa "simplified prompt" |
+| `creative-image-generate` | `resilientGenerate()` (local) | Usado por thumbs de produto. Cópia quase idêntica mas sem timeout no Gateway |
+| `media-process-generation-queue` | `resilientGenerateMedia()` (local) | Usado pelo calendário. Reimplementa OpenAI inline em vez de usar `generateWithRealOpenAI()` |
+| `ai-landing-page-enhance-images` | `callImageModel()` (local) | Landing pages. Pula OpenAI inteiramente, usa size `1536x1024` |
 
-## Implementação 1 — Link Direto para Checkout no Produto
+O resultado: quando um módulo funciona bem (ex: banners), outro falha (ex: thumbs de produto) porque cada um tem sua própria implementação.
 
-**O que faz**: Cada produto ativo terá um link copiável que leva direto ao checkout da loja com aquele produto no carrinho.
+## O Que Cada Um Tem de Bom
 
-**Como funciona**:
-- Na listagem de produtos e no formulário de edição, exibir um botão "Copiar Link de Checkout"
-- O link será montado no formato: `https://{domínio-da-loja}/checkout?product={product_slug}&qty=1`
-- Sem tabela nova — é apenas uma composição de URL no frontend usando o slug do produto e o domínio do tenant
+- **visual-engine.ts**: Timeout com fallback automático, QA scorer, upload integrado, prompt builder centralizado (`creative-brief-builder.ts`)
+- **creative-image-generate**: Tracking de `actualProvider` e `external_model_id` para diagnóstico
+- **media-process-generation-queue**: Fallback limpo sem timeout excessivo
+- **ai-landing-page-enhance-images**: Suporte a `styleReferences` adicionais e tamanho dinâmico
 
-**Arquivos impactados**:
-- `src/components/products/ProductList.tsx` — botão na linha da tabela
-- `src/components/products/ProductForm.tsx` — seção com link copiável na aba de dados
+## Solução: Um Único `resilientGenerate()` em `_shared/visual-engine.ts`
 
----
+### Passo 1 — Expandir a assinatura do `resilientGenerate` compartilhado
 
-## Implementação 2 — Geração de Imagens Secundárias com IA
+Adicionar parâmetros opcionais para cobrir todos os casos:
 
-**O que faz**: Após o usuário subir a imagem principal do produto, aparece um botão "Gerar imagens com IA" que cria até 5 imagens secundárias automaticamente usando a imagem principal como referência.
+- `outputSize` — tamanho da imagem (default `1024x1024`, landing pages usam `1536x1024`, banners usam dimensões do slot)
+- `styleReferences` — imagens de referência de estilo adicionais (landing pages)
+- `timeoutMs` — timeout configurável por chamador (default 60s para GPT Image 1)
 
-**Capacidade**: A edge function `creative-image-generate` já suporta geração individual com referência. Para gerar múltiplas, faremos chamadas sequenciais (até 5). O pipeline existente (fal.ai → Gemini → OpenAI → Lovable Gateway) será reutilizado integralmente.
+A cascata unificada fica:
+1. **GPT Image 1 (fal.ai)** — com `referenceImageUrl` + prompt + `outputSize`
+2. **Gemini Nativa** — com referência base64 + prompt completo
+3. **OpenAI Nativa** — com referência base64 + prompt completo (usando `generateWithRealOpenAI` já existente)
+4. **Lovable Gateway Pro** — com referência base64 + timeout
+5. **Lovable Gateway Flash** — fallback rápido
+6. **Lovable Gateway Simplified** — último recurso com prompt simplificado
 
-**Limite prático**: Cada geração leva ~10-30s. Gerar 5 em paralelo pode estourar timeout da edge function (máximo ~300s). Recomendo permitir até 3 em paralelo para segurança, e até 5 em modo sequencial. O usuário escolhe de 1 a 5.
+Retorno padronizado com `actualProvider`, `model`, `fallbackReason`.
 
-**Como funciona**:
-- No `ProductImageManager`, quando existe pelo menos 1 imagem (a principal), exibir botão "Gerar imagens com IA"
-- Ao clicar, abre um dialog com: seletor de quantidade (1-5), seletor de estilo (Natural, Pessoa Interagindo, Promocional) — reusa os estilos existentes
-- Chama a edge function `creative-image-generate` N vezes (ou cria uma nova rota batch)
-- Imagens geradas são automaticamente salvas como imagens secundárias do produto
+### Passo 2 — Eliminar as cópias locais
 
-**Arquivos novos/impactados**:
-- `src/components/products/AIImageGeneratorDialog.tsx` — dialog com opções
-- `src/components/products/ProductImageManager.tsx` — adicionar botão que abre o dialog
-- Possível nova edge function `product-ai-images-generate` (wrapper batch) ou reutilizar a existente com chamadas paralelas do frontend
+- **`creative-image-generate`**: Remover `resilientGenerate()` local (~80 linhas). Importar de `_shared/visual-engine.ts`.
+- **`media-process-generation-queue`**: Remover `resilientGenerateMedia()` local (~130 linhas). Importar de `_shared/visual-engine.ts`.
+- **`ai-landing-page-enhance-images`**: Remover `callImageModel()` local (~65 linhas). Importar de `_shared/visual-engine.ts`.
 
----
+### Passo 3 — Cada módulo passa seus diferenciais como parâmetros
 
-## Implementação 3 — Módulo Link Checkout
+| Módulo | outputSize | Referência | Extra |
+|--------|-----------|------------|-------|
+| Thumbs produto (1:1) | `1024x1024` | URL do produto | — |
+| Banners desktop | `1536x640` (do slot) | URL do produto | — |
+| Banners mobile | `640x800` (do slot) | URL do produto | — |
+| Landing pages | `1536x1024` | URL do produto | `styleReferences` |
+| Calendário | `1024x1024` | URL do produto | — |
+| Criativos | `1024x1024` | URL do produto | — |
 
-**O que faz**: Novo módulo no sidebar (abaixo de "Produtos" no grupo E-commerce) onde o usuário cria links personalizados de checkout com produto, cupom, frete e preço alterado.
+### Passo 4 — Prompt: apenas o prompt direciona a IA
 
-### Tabela nova: `checkout_links`
+O `creative-brief-builder.ts` já existe e já prioriza o briefing do usuário. Vamos garantir que:
+- O estilo (`product_natural`, `person_interacting`, `promotional`) se torna **opcional** — se o usuário não escolher, a IA interpreta pelo prompt
+- O briefing/prompt do usuário é SEMPRE a direção primária
+- O produto + referência visual são SEMPRE enviados
 
-```text
-id              uuid PK
-tenant_id       uuid FK tenants
-name            text (nome do link para identificação)
-slug            text UNIQUE (código do link, ex: "promo-verao")
-product_id      uuid FK products (produto principal)
-quantity        integer default 1
-coupon_code     text nullable
-shipping_override numeric nullable (valor de frete fixo, null = calcular)
-price_override  numeric nullable (preço final diferente)
-additional_products jsonb nullable (array de {product_id, quantity})
-is_active       boolean default true
-expires_at      timestamptz nullable
-click_count     integer default 0
-conversion_count integer default 0
-created_at      timestamptz
-updated_at      timestamptz
-```
+### Passo 5 — Fix do bug de quantidade
 
-### Sidebar
-- Adicionar "Link Checkout" no grupo E-commerce, após "Produtos", com ícone `Link2`
+Corrigir a lógica de `maxImages` no `AIImageGeneratorDialog.tsx` para mostrar mensagem "Limite atingido" quando `maxImages <= 0`.
 
-### Página e componentes
-- `src/pages/CheckoutLinks.tsx` — página principal (listagem + criação)
-- `src/components/checkout-links/CheckoutLinkList.tsx` — tabela com links criados
-- `src/components/checkout-links/CheckoutLinkForm.tsx` — formulário de criação/edição
-  - Seletor de produto (com busca)
-  - Campo de cupom
-  - Toggle de frete (calcular normal ou valor fixo)
-  - Campo de preço final alternativo
-  - Seção de produtos opcionais adicionais
+### Passo 6 — Deploy e validação
 
-### Rota
-- `/checkout-links` no App.tsx
+Redeployar as 4 edge functions afetadas e validar nos logs que todas usam o mesmo caminho.
 
-### RLS
-- Policies tenant-scoped para SELECT, INSERT, UPDATE, DELETE
+## Detalhes Técnicos
 
----
+**Arquivos modificados:**
+1. `supabase/functions/_shared/visual-engine.ts` — Expandir `resilientGenerate()` com novos parâmetros opcionais
+2. `supabase/functions/creative-image-generate/index.ts` — Remover `resilientGenerate()` local, importar do shared
+3. `supabase/functions/media-process-generation-queue/index.ts` — Remover `resilientGenerateMedia()` local, importar do shared
+4. `supabase/functions/ai-landing-page-enhance-images/index.ts` — Remover `callImageModel()` local, importar do shared
+5. `src/components/products/AIImageGeneratorDialog.tsx` — Fix bug quantidade + tornar estilo opcional
 
-## Documentação
-
-- Atualizar `docs/REGRAS-DO-SISTEMA.md` com seção sobre Link Checkout
-- Atualizar sidebar navigation no mapa de UI
-
-## Validação Técnica
-
-- Consultar banco para confirmar tabela criada
-- Testar criação de link via interface
-- Testar geração de imagens IA com 1 e 3 imagens
-- Verificar link de checkout direto do produto
-
----
-
-## Resumo de Impacto
-
-| Item | Quantidade |
-|------|-----------|
-| Tabela nova | 1 (`checkout_links`) |
-| Páginas novas | 1 (`CheckoutLinks`) |
-| Componentes novos | ~4 |
-| Componentes editados | ~3 |
-| Edge functions | 0-1 (reuso ou wrapper) |
-| Migration SQL | 1 |
-| Docs atualizados | 1-2 |
+**Resultado esperado:**
+- Um único motor para todo o sistema
+- Mesma cascata de fallback em todos os módulos
+- Diagnóstico unificado (qual motor venceu, por que houve fallback)
+- Prompt como direção única, sem depender de seleção de estilo
 
