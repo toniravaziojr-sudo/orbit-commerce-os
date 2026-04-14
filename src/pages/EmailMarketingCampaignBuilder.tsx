@@ -5,6 +5,7 @@ import { CampaignStepBar } from "@/components/email-marketing/campaign-builder/C
 import { StepConfig } from "@/components/email-marketing/campaign-builder/StepConfig";
 import { StepContent } from "@/components/email-marketing/campaign-builder/StepContent";
 import { StepReview } from "@/components/email-marketing/campaign-builder/StepReview";
+import { SequenceBuilder } from "@/components/email-marketing/campaign-builder/SequenceBuilder";
 import { useEmailCampaignBuilder } from "@/hooks/useEmailCampaignBuilder";
 
 export default function EmailMarketingCampaignBuilder() {
@@ -13,10 +14,16 @@ export default function EmailMarketingCampaignBuilder() {
 
   const canNavigateToStep = (target: number) => {
     if (target <= builder.step) return true;
-    // Can only go forward if current steps are valid
     for (let i = 0; i < target; i++) {
       if (i === 0 && (builder.config.name.trim() === "" || builder.config.list_id === "")) return false;
-      if (i === 1 && (builder.content.subject.trim() === "" || builder.content.blocks.length === 0)) return false;
+      if (i === 1) {
+        if (builder.config.type === "sequence") {
+          const steps = builder.content.sequenceSteps || [];
+          if (steps.length === 0 || !steps.some(s => s.type === "send_email")) return false;
+        } else {
+          if (builder.content.subject.trim() === "" || builder.content.blocks.length === 0) return false;
+        }
+      }
     }
     return true;
   };
@@ -46,7 +53,16 @@ export default function EmailMarketingCampaignBuilder() {
           </div>
         )}
 
-        {builder.step === 1 && (
+        {builder.step === 1 && builder.config.type === "sequence" && (
+          <SequenceBuilder
+            steps={builder.content.sequenceSteps || []}
+            onAddStep={builder.addSequenceStep}
+            onUpdateStep={builder.updateSequenceStep}
+            onRemoveStep={builder.removeSequenceStep}
+          />
+        )}
+
+        {builder.step === 1 && builder.config.type !== "sequence" && (
           <StepContent
             content={builder.content}
             onContentChange={builder.setContent}
