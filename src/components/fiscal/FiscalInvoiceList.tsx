@@ -88,6 +88,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [marketplaceSource, setMarketplaceSource] = useState<string>('all');
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
