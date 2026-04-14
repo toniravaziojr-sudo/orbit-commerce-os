@@ -4,7 +4,7 @@
 
 > **Camada:** Layer 3 — Especificações / Erp  
 > **Migrado de:** `docs/regras/erp.md`  
-> **Última atualização:** 2026-04-08
+> **Última atualização:** 2026-04-14
 
 
 ## Visão Geral
