@@ -29,8 +29,10 @@ const corsHeaders = {
 
 // Custos base (em USD)
 const COST_PER_IMAGE = {
+  'fal-ai': 0.04,
   openai: 0.04,
   gemini: 0.02,
+  lovable: 0.02,
 };
 const COST_PER_QA = 0.005;
 const COST_MARKUP = 1.5;
@@ -41,10 +43,13 @@ const QA_PASS_SCORE = 0.70;
 
 // Tipos
 type Provider = 'openai' | 'gemini';
+type ActualProvider = 'fal-ai' | 'gemini' | 'openai' | 'lovable' | 'unknown';
 type ImageStyle = 'product_natural' | 'person_interacting' | 'promotional';
 
 interface ProviderResult {
-  provider: Provider;
+  requestedProvider: Provider;
+  actualProvider: ActualProvider;
+  model: string;
   imageBase64: string | null;
   realismScore: number;
   qualityScore: number;
@@ -262,6 +267,31 @@ const LOVABLE_MODELS = {
 } as const;
 
 const OPENAI_CHAT_API = 'https://api.openai.com/v1/chat/completions';
+
+function getActualProviderFromModel(model: string): ActualProvider {
+  const normalized = model.toLowerCase();
+
+  if (normalized.startsWith('fal-ai/')) return 'fal-ai';
+  if (normalized.includes('lovable fallback')) return 'lovable';
+  if (normalized.includes('gemini')) return 'gemini';
+  if (normalized.includes('openai') || normalized.includes('gpt-image-1')) return 'openai';
+
+  return 'unknown';
+}
+
+function getCostBucketFromModel(model: string): keyof typeof COST_PER_IMAGE {
+  const provider = getActualProviderFromModel(model);
+
+  if (provider === 'fal-ai') return 'fal-ai';
+  if (provider === 'gemini') return 'gemini';
+  if (provider === 'openai') return 'openai';
+
+  return 'lovable';
+}
+
+function sanitizeProviderLabel(label: string): string {
+  return label.replace(/[^a-z0-9-]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'unknown';
+}
 
 // ========== GENERATE WITH REAL OPENAI (gpt-image-1 via Chat Completions) ==========
 
@@ -948,10 +978,13 @@ serve(async (req) => {
           // Generate with resilient pipeline (retry + fallback model)
           const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
             const result = await resilientGenerate(lovableApiKey, openaiApiKey, geminiApiKey, falApiKey, variantPrompt, productBase64, product_image_url || null, provider);
+            const actualProvider = getActualProviderFromModel(result.model);
             
             if (!result.imageBase64) {
               return {
-                provider,
+                requestedProvider: provider,
+                actualProvider,
+                model: result.model,
                 imageBase64: null,
                 realismScore: 0,
                 qualityScore: 0,
@@ -962,7 +995,7 @@ serve(async (req) => {
               };
             }
 
-            totalCostCents += Math.ceil(COST_PER_IMAGE[provider] * COST_MARKUP * USD_TO_BRL * 100);
+            totalCostCents += Math.ceil(COST_PER_IMAGE[getCostBucketFromModel(result.model)] * COST_MARKUP * USD_TO_BRL * 100);
 
             // Score for realism
             if (enable_qa) {
@@ -976,7 +1009,9 @@ serve(async (req) => {
               totalCostCents += Math.ceil(COST_PER_QA * COST_MARKUP * USD_TO_BRL * 100);
 
               return {
-                provider,
+                requestedProvider: provider,
+                actualProvider,
+                model: result.model,
                 imageBase64: result.imageBase64,
                 realismScore: scores.realism,
                 qualityScore: scores.quality,
@@ -987,7 +1022,9 @@ serve(async (req) => {
             }
 
             return {
-              provider,
+              requestedProvider: provider,
+              actualProvider,
+              model: result.model,
               imageBase64: result.imageBase64,
               realismScore: 7,
               qualityScore: 7,
@@ -1007,7 +1044,9 @@ serve(async (req) => {
         // Upload best results
         const uploadedImages: { 
           url: string; 
-          provider: Provider; 
+          requestedProvider: Provider;
+          actualProvider: ActualProvider;
+          model: string;
           scores: QAScores;
           isWinner: boolean;
         }[] = [];
@@ -1016,7 +1055,7 @@ serve(async (req) => {
           const result = allResults[i];
           if (!result.imageBase64) continue;
 
-          const storagePath = `${tenant_id}/${jobId}/${result.provider}_${i + 1}.png`;
+          const storagePath = `${tenant_id}/${jobId}/${sanitizeProviderLabel(result.actualProvider)}_${i + 1}.png`;
           
           try {
             const binaryData = Uint8Array.from(atob(result.imageBase64), c => c.charCodeAt(0));
@@ -1037,7 +1076,9 @@ serve(async (req) => {
             if (publicUrlData?.publicUrl) {
               uploadedImages.push({
                 url: publicUrlData.publicUrl,
-                provider: result.provider,
+                requestedProvider: result.requestedProvider,
+                actualProvider: result.actualProvider,
+                model: result.model,
                 scores: {
                   realism: result.realismScore,
                   quality: result.qualityScore,
@@ -1062,6 +1103,7 @@ serve(async (req) => {
           .from('creative_jobs')
           .update({
             status: finalStatus,
+            external_model_id: winner?.model || null,
             output_urls: uploadedImages.map(img => img.url),
             cost_cents: totalCostCents,
             processing_time_ms: elapsedMs,
@@ -1071,11 +1113,15 @@ serve(async (req) => {
               ...job.settings,
               results: uploadedImages.map(img => ({
                 url: img.url,
-                provider: img.provider,
+                requested_provider: img.requestedProvider,
+                actual_provider: img.actualProvider,
+                model: img.model,
                 scores: img.scores,
                 isWinner: img.isWinner,
               })),
-              winner_provider: winner?.provider,
+              winner_provider: winner?.actualProvider,
+              winner_requested_provider: winner?.requestedProvider,
+              winner_model: winner?.model,
               winner_score: winner?.scores.overall,
             },
           })
@@ -1086,14 +1132,14 @@ serve(async (req) => {
           const img = uploadedImages[i];
           // Extract storage path from URL to ensure it matches the actual uploaded path
           const urlMatch = img.url.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
-          const actualStoragePath = urlMatch ? urlMatch[1] : `${tenant_id}/${jobId}/${img.provider}_${i + 1}.png`;
+          const actualStoragePath = urlMatch ? urlMatch[1] : `${tenant_id}/${jobId}/${sanitizeProviderLabel(img.actualProvider)}_${i + 1}.png`;
           
           // Generate unique descriptive filename
           const now = new Date();
           const timestamp = `${String(now.getDate()).padStart(2,'0')}${String(now.getMonth()+1).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
           const sanitizedProduct = (product_name || 'Produto').replace(/[^a-zA-Z0-9À-ÿ]/g, '_').substring(0, 30);
           const style = (job?.settings?.style || 'default').replace(/[^a-zA-Z0-9]/g, '_');
-          const uniqueFilename = `${sanitizedProduct}_${style}_${img.provider}_${timestamp}${img.isWinner ? '_BEST' : ''}.png`;
+          const uniqueFilename = `${sanitizedProduct}_${style}_${sanitizeProviderLabel(img.actualProvider)}_${timestamp}${img.isWinner ? '_BEST' : ''}.png`;
 
           const { error: fileInsertError } = await supabase.from('files').insert({
             tenant_id,

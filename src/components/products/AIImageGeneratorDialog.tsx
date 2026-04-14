@@ -149,7 +149,7 @@ export function AIImageGeneratorDialog({
                 generation_style: style,
                 format: '1:1',
                 variations: 1,
-                providers: ['openai', 'gemini'],
+                providers: ['gemini'],
               },
             },
           });
