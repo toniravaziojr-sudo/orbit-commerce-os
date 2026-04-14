@@ -199,9 +199,24 @@ export function useCreateCreativeJob() {
         return data.data;
       }
 
-      // Video types are temporarily disabled
+      // Video types: route to creative-process
       if (['ugc_client_video', 'ugc_ai_video', 'product_video', 'avatar_mascot'].includes(params.type)) {
-        throw new Error('Geração de vídeos temporariamente desativada. Estamos migrando para um novo provedor.');
+        const { data, error } = await supabase.functions.invoke('creative-process', {
+          body: {
+            tenant_id: currentTenant.id,
+            ...params,
+          },
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Erro ao criar job de vídeo');
+        }
+
+        if (!data?.success) {
+          throw new Error(data?.error || 'Erro desconhecido');
+        }
+
+        return data.data;
       }
 
       // Legacy path (should not be reached)
