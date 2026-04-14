@@ -34,7 +34,6 @@ export function AIImageGeneratorDialog({
   const { currentTenant } = useAuth();
   const [quantity, setQuantity] = useState('1');
   const [customPrompt, setCustomPrompt] = useState('');
-  const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
@@ -141,10 +140,8 @@ export function AIImageGeneratorDialog({
                 ? `${customPrompt}. Produto: "${productName}". Variação ${i + 1}.`
                 : `Criar foto profissional do produto "${productName}" baseada fielmente na imagem de referência fornecida. O produto deve ser IDÊNTICO ao da referência (mesmas cores, rótulo, formato). Variação ${i + 1}.`,
               settings: {
-                generation_style: style,
                 format: '1:1',
                 variations: 1,
-                providers: ['gemini'],
               },
             },
           });
@@ -186,7 +183,7 @@ export function AIImageGeneratorDialog({
               const { error: insertError } = await supabase.from('product_images').insert({
                 product_id: productId,
                 url,
-                alt_text: `${productName} - IA ${style} ${i + 1}`,
+                alt_text: `${productName} - IA ${i + 1}`,
                 is_primary: false,
                 sort_order: currentImageCount + successCount + j + 1,
               });
