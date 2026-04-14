@@ -752,20 +752,38 @@ export function InvoiceEditor({
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>Natureza da Operação</Label>
+                  <Label>Natureza da Operação <span className="text-destructive">*</span></Label>
                   <Select
                     value={data.natureza_operacao}
-                    onValueChange={(value) => updateField('natureza_operacao', value)}
+                    onValueChange={handleNatureChange}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione a natureza..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {NATUREZA_OPTIONS.map(opt => (
-                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                      ))}
+                      {filteredNatures.length > 0 ? (
+                        filteredNatures.map(n => (
+                          <SelectItem key={n.id} value={n.nome}>
+                            {n.nome}
+                            {n.cfop_intra && <span className="ml-2 text-muted-foreground text-xs">({n.cfop_intra}/{n.cfop_inter})</span>}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        operationNatures.map(n => (
+                          <SelectItem key={n.id} value={n.nome}>
+                            {n.nome}
+                            {n.cfop_intra && <span className="ml-2 text-muted-foreground text-xs">({n.cfop_intra}/{n.cfop_inter})</span>}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
+                  {data.natureza_operacao && (() => {
+                    const selected = operationNatures.find(n => n.nome === data.natureza_operacao);
+                    return selected?.descricao ? (
+                      <p className="text-xs text-muted-foreground">{selected.descricao}</p>
+                    ) : null;
+                  })()}
                 </div>
                 <div className="space-y-2">
                   <Label>CFOP Principal <span className="text-destructive">*</span></Label>
