@@ -331,6 +331,15 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 - Quando tipo = Entrada ou Devolução, exibe campo **"Chave de Acesso da NF-e Referenciada"** (44 dígitos)
 - Substitui a necessidade do `EntryInvoiceDialog` como botão avulso
 
+#### InvoiceEditor — Natureza de Operação Dinâmica (rev4)
+- Campo **"Natureza da Operação"** carrega opções da tabela `fiscal_operation_natures` filtrada por tenant e status ativo
+- Naturezas são **filtradas automaticamente** conforme o tipo de nota selecionado (saída→vendas, entrada→compras, devolução→devoluções, remessa→remessas não faturadas, transferência→transferências)
+- Ao selecionar uma natureza, os seguintes campos são preenchidos automaticamente: **CFOP** (`cfop_intra`), **Indicador de Presença** (`ind_pres`), **Consumidor Final** (`consumidor_final`)
+- Ao trocar o tipo de nota, natureza e CFOP são **resetados** para forçar re-seleção coerente
+- CFOP preenchido usa `cfop_intra` como padrão (intraestadual); o usuário pode alterar manualmente para `cfop_inter` se necessário
+- 18 naturezas padrão pré-cadastradas cobrindo operações comuns de e-commerce (vendas, compras, devoluções, remessas, consignação, bonificação, transferência)
+- Seed automático no primeiro acesso via `OperationNaturesSettings.tsx`
+
 #### ManualInvoiceDialog (simplificado para pedidos)
 - **Título**: "Novo Pedido"
 - **Campos do formulário**: Cliente (busca ou manual) + Produtos (código, descrição, unidade, quantidade, valor unitário) + Observações
