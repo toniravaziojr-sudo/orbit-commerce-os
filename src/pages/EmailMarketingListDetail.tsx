@@ -83,6 +83,10 @@ export default function EmailMarketingListDetail() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
+  const [moveMember, setMoveMember] = useState<{ subscriberId: string; name: string } | null>(null);
+  const [moveTargetListId, setMoveTargetListId] = useState("");
+  const { lists } = useEmailMarketing();
 
   // Debounce search
   useEffect(() => {
