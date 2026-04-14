@@ -796,24 +796,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           {mode === 'orders' ? (
-             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nova NF-e
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => setManualDialogOpen(true)}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  NF-e de Saída (Venda)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setEntryDialogChaveAcesso(undefined); setEntryDialogOpen(true); }}>
-                  <ArrowDownLeft className="h-4 w-4 mr-2" />
-                  NF-e de Entrada
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button onClick={() => setManualDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova NF-e
+            </Button>
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -823,7 +809,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => setEntryDialogOpen(true)}>
+                <DropdownMenuItem onClick={() => { setEntryDialogChaveAcesso(undefined); setEntryDialogOpen(true); }}>
                   <ArrowDownLeft className="h-4 w-4 mr-2" />
                   NF-e de Entrada
                 </DropdownMenuItem>
