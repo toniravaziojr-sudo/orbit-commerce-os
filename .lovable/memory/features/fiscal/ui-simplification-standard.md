@@ -1,7 +1,7 @@
 # Memory: features/fiscal/ui-simplification-standard
 Updated: 2026-04-14
 
-## Fluxo Fiscal — Interface (rev3)
+## Fluxo Fiscal — Interface (rev4)
 
 ### Aba "Pedidos em Aberto" (mode=orders)
 - Lista rascunhos de diversas origens (lojas, marketplaces, manual)
@@ -15,10 +15,15 @@ Updated: 2026-04-14
 ### Aba "Notas Fiscais" (mode=invoices)
 - Lista NF-e emitidas (autorizadas, pendentes, rejeitadas, canceladas)
 - Botão **"Nova NF-e"** → cria rascunho vazio e abre o **InvoiceEditor** completo (6 abas)
-- ~~Botão "NF-e de Entrada"~~ REMOVIDO na rev3
-- Tipo de NF (Saída, Entrada, Devolução, Remessa, Transferência, Outros) é selecionado dentro do InvoiceEditor na aba Geral
-- ~~Menu "Ações"~~ REMOVIDO (redundante)
-- ~~"Consultar por Chave"~~ REMOVIDO (campo de busca já cobre essa funcionalidade)
+- Tipo de NF (Saída, Entrada, Devolução, Remessa, Transferência) é selecionado dentro do InvoiceEditor na aba Geral
+
+### Naturezas de Operação (rev4 — 2026-04-14)
+- Tabela `fiscal_operation_natures` é a fonte de verdade
+- InvoiceEditor carrega naturezas ativas do banco, filtradas pelo tipo de nota selecionado
+- Ao selecionar uma natureza, CFOP, indicador de presença e consumidor final são preenchidos automaticamente
+- Ao trocar o tipo de nota, natureza e CFOP são resetados
+- DEFAULT_NATURES expandido com 18 naturezas comuns de e-commerce (vendas, entradas, remessas, devoluções, transferência, bonificação)
+- Seed automático: ao acessar a tela de configuração sem naturezas, as padrão são criadas
 
 ### Distinção Pedido vs NF-e
 - Pedido = prévia da NF, dados comerciais apenas (cliente, produtos, valores)
