@@ -168,13 +168,14 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
         
         let query = supabase
           .from('customers')
-          .select('id, name, email, cpf, phone, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, address_postal_code')
+          .select('id, full_name, email, cpf, phone, customer_addresses(street, number, complement, neighborhood, city, state, postal_code, is_default)')
           .eq('tenant_id', tenantId)
+          .is('deleted_at', null)
           .limit(10);
 
         // Build OR filter
         const orFilters: string[] = [];
-        orFilters.push(`name.ilike.%${search}%`);
+        orFilters.push(`full_name.ilike.%${search}%`);
         if (search.includes('@')) {
           orFilters.push(`email.ilike.%${search}%`);
         }
