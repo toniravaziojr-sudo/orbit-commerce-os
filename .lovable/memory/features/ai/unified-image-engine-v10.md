@@ -26,16 +26,23 @@ Um único `resilientGenerate()` centralizado em `supabase/functions/_shared/visu
 | Blocos Visuais (Banners) | via `_shared/visual-engine.ts` | Dimensões do slot | — |
 | Calendário de Conteúdo | `media-process-generation-queue` | `1024x1024` | — |
 | Landing Pages | `ai-landing-page-enhance-images` | `1536x1024` | `styleReferences` |
-| Estúdio de Criativos | `creative-image-generate` | `1024x1024` | — |
+| Estúdio de Criativos | `creative-image-generate` | `1024x1024` | Prompt-only (v10.0) |
 
-### Observabilidade
-Todos os módulos registram `actualProvider` e `external_model_id` para auditoria de qual motor efetivamente gerou a imagem e por que houve fallback.
+### UI do Estúdio de Criativos (v10.0)
+- Sem seletor de estilo — geração dirigida exclusivamente pelo prompt do usuário
+- Sem seletor de provedor — motor único decide automaticamente
+- Campos: Produto + Direções Criativas + Formato + Variações
+- Componentes removidos: `ProviderSelector`, `StyleSelector`, `StyleFields`, `CostEstimate`
+- Pipeline version: `10.0`
 
 ### UI de Produtos
 - Sem seletor de estilo — geração dirigida exclusivamente pelo prompt do usuário
 - Descrição completa do produto injetada automaticamente no contexto do prompt
 - Imagem principal do produto enviada como referência visual obrigatória
 - Botão de geração sempre habilitado (até 5 imagens por request)
+
+### Observabilidade
+Todos os módulos registram `actualProvider` e `external_model_id` para auditoria de qual motor efetivamente gerou a imagem e por que houve fallback.
 
 ### Módulos Compartilhados
 - `_shared/visual-engine.ts` — Motor único com `resilientGenerate()`
@@ -47,5 +54,6 @@ Todos os módulos registram `actualProvider` e `external_model_id` para auditori
 - ❌ Implementações locais de fallback em edge functions
 - ❌ FLUX 2 Pro/Turbo (text-to-image sem referência)
 - ❌ Seletores de estilo pré-definidos na UI
+- ❌ Seletores de provedor na UI
 - ❌ Geração sem imagem de referência do produto
 - ❌ Lovable Gateway como primeira opção

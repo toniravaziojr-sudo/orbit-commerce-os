@@ -1,23 +1,17 @@
 /**
- * Nova Tab de Geração de Imagens v3.0
+ * Tab de Geração de Imagens — Prompt-Only (v10.0)
  * 
- * Features:
- * - Dual Provider (OpenAI + Gemini)
- * - 3 Estilos de Geração
- * - Campos dinâmicos por estilo
- * - Scoring por realismo
+ * Alinhado ao motor único visual-engine.ts.
+ * Sem seletores de estilo/provedor — tudo dirigido pelo prompt.
  */
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { 
   Image as ImageIcon, 
   Loader2,
@@ -27,96 +21,41 @@ import {
 import { useProductsWithImages } from '@/hooks/useProducts';
 import { useCreateCreativeJob, useCreativeJobs } from '@/hooks/useCreatives';
 import { CreativeJobsList } from '../CreativeJobsList';
-import { ProviderSelector } from './ProviderSelector';
-import { StyleSelector } from './StyleSelector';
-import { StyleFields } from './StyleFields';
-import { CostEstimate } from './CostEstimate';
-import { 
-  ImageProvider, 
-  ImageStyle, 
-  ImageFormat,
-  ProductNaturalSettings,
-  PersonInteractingSettings,
-  PromotionalSettings,
-  IMAGE_FORMAT_CONFIG,
-  DEFAULT_IMAGE_FORM,
-} from './types';
+import { IMAGE_FORMAT_CONFIG, type ImageFormat } from './types';
 
 export function ImageGenerationTabV3() {
-  // Provedores (multi-select)
-  const [providers, setProviders] = useState<ImageProvider[]>(DEFAULT_IMAGE_FORM.providers);
-  
-  // Estilo (single-select)
-  const [style, setStyle] = useState<ImageStyle>(DEFAULT_IMAGE_FORM.style);
-  
-  // Campos comuns
   const [productId, setProductId] = useState('');
-  const [contextBrief, setContextBrief] = useState('');
+  const [prompt, setPrompt] = useState('');
   const [format, setFormat] = useState<ImageFormat>('1:1');
   const [variations, setVariations] = useState<number[]>([2]);
-  
-  // Campos por estilo
-  const [productNatural, setProductNatural] = useState<ProductNaturalSettings>({
-    environment: 'studio',
-    lighting: 'natural',
-    mood: 'clean',
-  });
-  const [personInteracting, setPersonInteracting] = useState<PersonInteractingSettings>({
-    action: 'holding',
-    personProfile: '',
-    tone: 'lifestyle',
-  });
-  const [promotional, setPromotional] = useState<PromotionalSettings>({
-    effectsIntensity: 'medium',
-    visualElements: [],
-    overlayText: '',
-  });
 
-  // Hooks
   const { products, isLoading: productsLoading } = useProductsWithImages();
   const { data: jobs } = useCreativeJobs('product_image');
   const createJob = useCreateCreativeJob();
 
-  // Produto selecionado
   const selectedProduct = products.find(p => p.id === productId);
   const productImageUrl = selectedProduct?.primary_image_url || 
                           (selectedProduct as any)?.images?.[0] || 
                           (selectedProduct as any)?.thumbnail;
 
-  // Validação
-  const isValid = productId && providers.length > 0;
+  const isValid = !!productId;
 
   const handleGenerate = async () => {
     if (!isValid) return;
 
-    // Montar settings baseado no estilo
-    let styleSettings = {};
-    if (style === 'product_natural') {
-      styleSettings = { style_config: productNatural };
-    } else if (style === 'person_interacting') {
-      styleSettings = { style_config: personInteracting };
-    } else if (style === 'promotional') {
-      styleSettings = { style_config: promotional };
-    }
-
     createJob.mutate({
       type: 'product_image',
-      prompt: contextBrief,
+      prompt,
       product_id: productId,
       product_name: selectedProduct?.name,
       product_image_url: productImageUrl,
       settings: {
-        // Nova config v3.0
-        providers,
-        generation_style: style,
         format,
         variations: variations[0],
-        ...styleSettings,
-        // Compatibilidade com v2.x
         enable_qa: true,
         enable_fallback: true,
         label_lock: true,
-        pipeline_version: '3.0.0',
+        pipeline_version: '10.0',
       },
     });
   };
@@ -129,31 +68,12 @@ export function ImageGenerationTabV3() {
           <CardTitle className="flex items-center gap-2">
             <ImageIcon className="h-5 w-5" />
             Gerar Imagens com IA
-            <Badge variant="secondary" className="text-[10px]">v3.0</Badge>
           </CardTitle>
           <CardDescription>
-            Escolha provedores, estilo e gere imagens profissionais
+            Descreva o que deseja e o sistema escolhe o melhor modelo automaticamente
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* PROVEDORES */}
-          <ProviderSelector
-            value={providers}
-            onChange={setProviders}
-            disabled={createJob.isPending}
-          />
-
-          <Separator />
-
-          {/* ESTILO */}
-          <StyleSelector
-            value={style}
-            onChange={setStyle}
-            disabled={createJob.isPending}
-          />
-
-          <Separator />
-
           {/* PRODUTO */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
@@ -184,7 +104,6 @@ export function ImageGenerationTabV3() {
               </SelectContent>
             </Select>
 
-            {/* Preview do produto */}
             {selectedProduct && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 mt-2">
                 {productImageUrl ? (
@@ -208,29 +127,20 @@ export function ImageGenerationTabV3() {
             )}
           </div>
 
-          {/* CONTEXTO/BRIEF */}
+          {/* DIREÇÕES CRIATIVAS */}
           <div className="space-y-2">
-            <Label>Contexto/Brief (opcional)</Label>
+            <Label>Direções Criativas</Label>
             <Textarea
-              value={contextBrief}
-              onChange={(e) => setContextBrief(e.target.value)}
-              placeholder="Descreva o que você quer ver na imagem..."
-              rows={2}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Descreva o que você quer ver na imagem... Ex: Produto em cenário de praia, pessoa segurando com sorriso natural, fundo premium com iluminação dourada..."
+              rows={3}
               disabled={createJob.isPending}
             />
+            <p className="text-xs text-muted-foreground">
+              O sistema escolhe automaticamente o melhor modelo de IA com base na sua descrição.
+            </p>
           </div>
-
-          {/* CAMPOS DINÂMICOS POR ESTILO */}
-          <StyleFields
-            style={style}
-            productNatural={productNatural}
-            personInteracting={personInteracting}
-            promotional={promotional}
-            onProductNaturalChange={setProductNatural}
-            onPersonInteractingChange={setPersonInteracting}
-            onPromotionalChange={setPromotional}
-            disabled={createJob.isPending}
-          />
 
           {/* FORMATO E VARIAÇÕES */}
           <div className="grid grid-cols-2 gap-4">
@@ -262,12 +172,6 @@ export function ImageGenerationTabV3() {
               />
             </div>
           </div>
-
-          {/* ESTIMATIVA DE CUSTO */}
-          <CostEstimate
-            providers={providers}
-            variations={variations[0]}
-          />
 
           {/* BOTÃO GERAR */}
           <Button
