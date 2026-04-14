@@ -67,6 +67,7 @@ interface ProductImage {
 interface ProductImageManagerProps {
   productId: string;
   productName?: string;
+  productDescription?: string;
   images: ProductImage[];
   onImagesChange: () => void;
 }
@@ -163,7 +164,7 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
   );
 }
 
-export function ProductImageManager({ productId, productName = '', images, onImagesChange }: ProductImageManagerProps) {
+export function ProductImageManager({ productId, productName = '', productDescription = '', images, onImagesChange }: ProductImageManagerProps) {
   const { toast } = useToast();
   const { currentTenant, user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
@@ -629,6 +630,7 @@ export function ProductImageManager({ productId, productName = '', images, onIma
           onOpenChange={setAiDialogOpen}
           productId={productId}
           productName={productName}
+          productDescription={productDescription}
           primaryImageUrl={primaryImage.url}
           currentImageCount={images.length}
           onImagesGenerated={onImagesChange}
