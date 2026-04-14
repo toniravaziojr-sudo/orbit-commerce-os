@@ -698,7 +698,11 @@ export function InvoiceEditor({
                   <Label>Tipo de Nota <span className="text-destructive">*</span></Label>
                   <Select
                     value={data.tipo_nota || 'saida'}
-                    onValueChange={(value) => updateField('tipo_nota', value as InvoiceData['tipo_nota'])}
+                    onValueChange={(value) => {
+                      updateField('tipo_nota', value as InvoiceData['tipo_nota']);
+                      // Reset nature and CFOP when type changes
+                      setData(prev => prev ? { ...prev, tipo_nota: value as any, natureza_operacao: '', cfop: '' } : null);
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
