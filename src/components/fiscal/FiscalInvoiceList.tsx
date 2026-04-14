@@ -611,6 +611,49 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
+  // Create a new empty invoice draft and open the editor
+  const handleCreateNewInvoice = async () => {
+    setIsCreatingInvoice(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fiscal-create-manual', {
+        body: {
+          natureza_operacao: 'VENDA DE MERCADORIA',
+          destinatario: {
+            nome: 'CONSUMIDOR',
+            cpf_cnpj: '',
+            endereco: { logradouro: '', numero: 'S/N', bairro: '', municipio: '', uf: '', cep: '' },
+          },
+          itens: [{
+            numero_item: 1,
+            codigo: '',
+            descricao: 'PRODUTO',
+            ncm: '00000000',
+            cfop: '5102',
+            unidade: 'UN',
+            quantidade: 1,
+            valor_unitario: 0,
+            origem: '0',
+            csosn: '102',
+          }],
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao criar NF-e');
+
+      // Open the full editor with the new draft
+      const invoice = data.invoice;
+      if (invoice) {
+        await handleEditInvoice(invoice);
+      }
+      refetch();
+    } catch (error: any) {
+      showErrorToast(error, { module: 'fiscal', action: 'criar NF-e' });
+    } finally {
+      setIsCreatingInvoice(false);
+    }
+  };
+
   // Individual: Reenviar por Email
   const handleResendEmail = async (invoice: FiscalInvoice) => {
     try {
