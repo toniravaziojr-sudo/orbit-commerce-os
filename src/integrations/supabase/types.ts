@@ -6753,6 +6753,7 @@ export type Database = {
         Row: {
           action_dismissed_at: string | null
           action_reason: string | null
+          ambiente: string | null
           authorized_at: string | null
           cancel_justificativa: string | null
           cancelled_at: string | null
@@ -6824,6 +6825,7 @@ export type Database = {
         Insert: {
           action_dismissed_at?: string | null
           action_reason?: string | null
+          ambiente?: string | null
           authorized_at?: string | null
           cancel_justificativa?: string | null
           cancelled_at?: string | null
@@ -6895,6 +6897,7 @@ export type Database = {
         Update: {
           action_dismissed_at?: string | null
           action_reason?: string | null
+          ambiente?: string | null
           authorized_at?: string | null
           cancel_justificativa?: string | null
           cancelled_at?: string | null
