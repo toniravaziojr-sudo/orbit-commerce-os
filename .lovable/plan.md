@@ -1,91 +1,128 @@
 
 
-# Plano: Motor Único de Geração de Imagens
+# Plano: Motor Inteligente de Roteamento por Tipo de Criativo (Imagem + Vídeo)
 
-## Problema Atual
+## Problema Central
 
-Existem **4 cópias** da mesma cascata de fallback espalhadas pelo sistema, cada uma com pequenas diferenças que causam inconsistências:
+O sistema hoje tem modelos fixos por módulo, sem inteligência de roteamento. O usuário escreve um prompt e o sistema usa sempre o mesmo modelo, independente do tipo de conteúdo que o prompt pede. Cada modelo tem pontos fortes diferentes, e o sistema deveria escolher automaticamente o melhor para cada caso.
 
-| Local | Função | Diferenças |
-|-------|--------|------------|
-| `_shared/visual-engine.ts` | `resilientGenerate()` | Usado só por banners/builder. Tem timeout de 70s no Gateway, etapa "simplified prompt" |
-| `creative-image-generate` | `resilientGenerate()` (local) | Usado por thumbs de produto. Cópia quase idêntica mas sem timeout no Gateway |
-| `media-process-generation-queue` | `resilientGenerateMedia()` (local) | Usado pelo calendário. Reimplementa OpenAI inline em vez de usar `generateWithRealOpenAI()` |
-| `ai-landing-page-enhance-images` | `callImageModel()` (local) | Landing pages. Pula OpenAI inteiramente, usa size `1536x1024` |
+## Como Funciona Hoje vs. Como Deveria Funcionar
 
-O resultado: quando um módulo funciona bem (ex: banners), outro falha (ex: thumbs de produto) porque cada um tem sua própria implementação.
+**Hoje:** Usuário escolhe tier manualmente (Premium/Áudio/Econômico) → sistema sempre usa Kling I2V para vídeo, Lovable Gateway para imagem no estúdio.
 
-## O Que Cada Um Tem de Bom
+**Proposta:** Usuário escreve o prompt → sistema classifica a intenção → escolhe o melhor modelo → fallback por qualidade se falhar.
 
-- **visual-engine.ts**: Timeout com fallback automático, QA scorer, upload integrado, prompt builder centralizado (`creative-brief-builder.ts`)
-- **creative-image-generate**: Tracking de `actualProvider` e `external_model_id` para diagnóstico
-- **media-process-generation-queue**: Fallback limpo sem timeout excessivo
-- **ai-landing-page-enhance-images**: Suporte a `styleReferences` adicionais e tamanho dinâmico
+## Mapa de Modelos: Melhor IA Para Cada Tipo
 
-## Solução: Um Único `resilientGenerate()` em `_shared/visual-engine.ts`
+### Imagens (Motor Único v10 — já implementado, apenas alinhar Estúdio)
 
-### Passo 1 — Expandir a assinatura do `resilientGenerate` compartilhado
+| Tipo de Imagem | Melhor Modelo | Por Quê |
+|---|---|---|
+| Produto com fidelidade (rótulo, embalagem) | GPT Image 1 (fal.ai) | Edit-image preserva referência |
+| Cenário lifestyle / pessoa com produto | Gemini Pro Image | Composição realista de cenas |
+| Promocional / efeitos visuais | GPT Image 1 → Gemini | Composição + fidelidade |
+| Fundo / ambiente sem produto | Gemini Flash Image | Rápido, sem necessidade de referência |
 
-Adicionar parâmetros opcionais para cobrir todos os casos:
+### Vídeos (NOVO motor unificado)
 
-- `outputSize` — tamanho da imagem (default `1024x1024`, landing pages usam `1536x1024`, banners usam dimensões do slot)
-- `styleReferences` — imagens de referência de estilo adicionais (landing pages)
-- `timeoutMs` — timeout configurável por chamador (default 60s para GPT Image 1)
+| Tipo de Vídeo | Melhor Modelo | Por Quê | Fallback |
+|---|---|---|---|
+| Produto girando / showcase | **Kling v3 Pro I2V** | Melhor fidelidade de produto em movimento | Wan 2.6 I2V |
+| Pessoa usando produto (UGC) | **Kling v3 Pro I2V** (keyframe GPT Image) | Composição pessoa+produto | Wan 2.6 |
+| Vídeo com narração / áudio | **Veo 3.1** | Único com áudio nativo | Kling + F5-TTS |
+| Vídeo de texto/prompt puro (sem referência) | **Veo 3.1** | Text-to-video nativo | Wan 2.6 T2V |
+| Teste / rascunho rápido | **Wan 2.6 I2V** | Custo baixo, resultado aceitável | — |
 
-A cascata unificada fica:
-1. **GPT Image 1 (fal.ai)** — com `referenceImageUrl` + prompt + `outputSize`
-2. **Gemini Nativa** — com referência base64 + prompt completo
-3. **OpenAI Nativa** — com referência base64 + prompt completo (usando `generateWithRealOpenAI` já existente)
-4. **Lovable Gateway Pro** — com referência base64 + timeout
-5. **Lovable Gateway Flash** — fallback rápido
-6. **Lovable Gateway Simplified** — último recurso com prompt simplificado
+## Arquitetura: Classificador de Intenção
 
-Retorno padronizado com `actualProvider`, `model`, `fallbackReason`.
+Criar um classificador leve que analisa o prompt do usuário e determina:
 
-### Passo 2 — Eliminar as cópias locais
+```text
+Prompt do Usuário
+       ↓
+ [Classificador de Intenção]
+       ↓
+ intent: product_showcase | ugc_scene | narrated | text_only | draft
+       ↓
+ [Seletor de Modelo] → melhor modelo para o intent
+       ↓
+ [Execução com Fallback por Qualidade]
+```
 
-- **`creative-image-generate`**: Remover `resilientGenerate()` local (~80 linhas). Importar de `_shared/visual-engine.ts`.
-- **`media-process-generation-queue`**: Remover `resilientGenerateMedia()` local (~130 linhas). Importar de `_shared/visual-engine.ts`.
-- **`ai-landing-page-enhance-images`**: Remover `callImageModel()` local (~65 linhas). Importar de `_shared/visual-engine.ts`.
+O classificador usa regras simples (palavras-chave) — sem IA para classificar:
+- "girando", "rotação", "showcase", "360" → `product_showcase` → Kling v3
+- "pessoa", "segurando", "usando", "UGC" → `ugc_scene` → Kling v3 + keyframe
+- "narração", "fala", "áudio", "voz" → `narrated` → Veo 3.1
+- sem imagem de referência → `text_only` → Veo 3.1
+- "teste", "rascunho", "rápido" → `draft` → Wan 2.6
 
-### Passo 3 — Cada módulo passa seus diferenciais como parâmetros
+Se o usuário não der pistas, o sistema usa `product_showcase` (Kling v3) como default quando tem imagem de referência, ou `text_only` (Veo 3.1) quando não tem.
 
-| Módulo | outputSize | Referência | Extra |
-|--------|-----------|------------|-------|
-| Thumbs produto (1:1) | `1024x1024` | URL do produto | — |
-| Banners desktop | `1536x640` (do slot) | URL do produto | — |
-| Banners mobile | `640x800` (do slot) | URL do produto | — |
-| Landing pages | `1536x1024` | URL do produto | `styleReferences` |
-| Calendário | `1024x1024` | URL do produto | — |
-| Criativos | `1024x1024` | URL do produto | — |
+## Implementação em 6 Passos
 
-### Passo 4 — Prompt: apenas o prompt direciona a IA
+### Passo 1 — Motor Único de Vídeo (`_shared/video-engine.ts`)
 
-O `creative-brief-builder.ts` já existe e já prioriza o briefing do usuário. Vamos garantir que:
-- O estilo (`product_natural`, `person_interacting`, `promotional`) se torna **opcional** — se o usuário não escolher, a IA interpreta pelo prompt
-- O briefing/prompt do usuário é SEMPRE a direção primária
-- O produto + referência visual são SEMPRE enviados
+Criar `resilientVideoGenerate()` com:
+- Classificador de intenção por keywords no prompt
+- Cascata de fallback por qualidade (Kling → Veo → Wan)
+- Parâmetros: `prompt`, `referenceImageUrl`, `duration`, `aspectRatio`, `timeoutMs`
+- Retorno: `{ videoUrl, provider, model, intent, fallbackReason }`
 
-### Passo 5 — Fix do bug de quantidade
+### Passo 2 — Integrar nos Consumidores de Vídeo
 
-Corrigir a lógica de `maxImages` no `AIImageGeneratorDialog.tsx` para mostrar mensagem "Limite atingido" quando `maxImages <= 0`.
+- **Estúdio de Criativos** (`creative-process`): Remover lógica local de `submitFalJob`, importar motor unificado. Remover seleção manual de tier — o motor decide pelo prompt.
+- **Calendário** (`media-generate-video`): Substituir referência a Sora 2 pelo motor unificado.
+- **Gestor de Tráfego** (`ads-autopilot-creative-generate`): Adicionar suporte a vídeo invocando o motor unificado.
+- **Desbloquear hook** (`useCreatives.ts`): Remover trava "temporariamente desativada" (linha 203).
 
-### Passo 6 — Deploy e validação
+### Passo 3 — Alinhar Imagens no Estúdio de Criativos
 
-Redeployar as 4 edge functions afetadas e validar nos logs que todas usam o mesmo caminho.
+Refatorar `ImageGenerationTabV3`:
+- Remover `ProviderSelector`, `StyleSelector`, `StyleFields`
+- UI simplificada: Produto + Prompt + Formato + Quantidade
+- Invocar `creative-image-generate` (motor único v10 já implementado)
 
-## Detalhes Técnicos
+### Passo 4 — UI do Vídeo: Prompt-First
 
-**Arquivos modificados:**
-1. `supabase/functions/_shared/visual-engine.ts` — Expandir `resilientGenerate()` com novos parâmetros opcionais
-2. `supabase/functions/creative-image-generate/index.ts` — Remover `resilientGenerate()` local, importar do shared
-3. `supabase/functions/media-process-generation-queue/index.ts` — Remover `resilientGenerateMedia()` local, importar do shared
-4. `supabase/functions/ai-landing-page-enhance-images/index.ts` — Remover `callImageModel()` local, importar do shared
-5. `src/components/products/AIImageGeneratorDialog.tsx` — Fix bug quantidade + tornar estilo opcional
+Simplificar `VideoGeneratorForm`:
+- Remover seleção manual de tier (Premium/Áudio/Econômico)
+- Manter: Produto + Prompt + Duração + Formato
+- O motor decide automaticamente o melhor modelo pelo prompt
 
-**Resultado esperado:**
-- Um único motor para todo o sistema
-- Mesma cascata de fallback em todos os módulos
-- Diagnóstico unificado (qual motor venceu, por que houve fallback)
-- Prompt como direção única, sem depender de seleção de estilo
+### Passo 5 — Deploy e Validação Técnica
+
+- Deploy de todas as edge functions afetadas
+- Verificar logs (sem erros de import)
+- Build do frontend
+- Testar classificação de intenção com prompts reais
+
+### Passo 6 — Documentação
+
+Atualizar memórias do sistema com a nova arquitetura unificada.
+
+## Arquivos Impactados
+
+**Novo:**
+- `supabase/functions/_shared/video-engine.ts` — Motor único de vídeo
+
+**Modificados:**
+- `supabase/functions/creative-process/index.ts` — Importar motor unificado para vídeos
+- `supabase/functions/media-generate-video/index.ts` — Substituir Sora 2
+- `supabase/functions/ads-autopilot-creative-generate/index.ts` — Adicionar vídeo
+- `src/hooks/useCreatives.ts` — Desbloquear vídeo
+- `src/components/creatives/image-generation/ImageGenerationTabV3.tsx` — Prompt-only
+- `src/components/creatives/video-forms/VideoGeneratorForm.tsx` — Remover tier manual
+
+**Removidos:**
+- `src/components/creatives/image-generation/ProviderSelector.tsx`
+- `src/components/creatives/image-generation/StyleSelector.tsx`
+- `src/components/creatives/image-generation/StyleFields.tsx`
+
+## Resultado Esperado
+
+- Um único motor para vídeo, um único motor para imagens
+- Sem seleção manual de modelo/tier/estilo — tudo pelo prompt
+- Classificação automática de intenção para escolher o melhor modelo
+- Fallback por qualidade se o modelo ideal falhar
+- Observabilidade: `intent`, `selectedModel`, `actualProvider`, `fallbackReason`
 
