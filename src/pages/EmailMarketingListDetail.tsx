@@ -20,7 +20,9 @@ import {
   Loader2,
   AlertTriangle,
   UserCheck,
-  UserX
+  UserX,
+  MoreHorizontal,
+  ArrowRightLeft,
 } from "lucide-react";
 import {
   Dialog,
@@ -48,6 +50,13 @@ import {
 import { toast } from "sonner";
 import { ptBR } from "date-fns/locale";
 import { showErrorToast } from '@/lib/error-toast';
+import { useEmailMarketing } from "@/hooks/useEmailMarketing";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
@@ -74,6 +83,10 @@ export default function EmailMarketingListDetail() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
+  const [moveMember, setMoveMember] = useState<{ subscriberId: string; name: string } | null>(null);
+  const [moveTargetListId, setMoveTargetListId] = useState("");
+  const { lists } = useEmailMarketing();
 
   // Debounce search
   useEffect(() => {
@@ -219,6 +232,59 @@ export default function EmailMarketingListDetail() {
     },
     onError: (err) => showErrorToast(err, { module: 'email', action: 'excluir' }),
   });
+
+  // Remove member from list
+  const removeMemberFromList = useMutation({
+    mutationFn: async (subscriberId: string) => {
+      if (!listId) throw new Error("Lista não encontrada");
+      const { error } = await supabase
+        .from("email_marketing_list_members")
+        .delete()
+        .eq("list_id", listId)
+        .eq("subscriber_id", subscriberId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers"] });
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers-count"] });
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["email-marketing-lists"] });
+      toast.success("Lead removido da lista");
+      setRemoveMemberId(null);
+    },
+    onError: (err) => showErrorToast(err, { module: "email", action: "remover" }),
+  });
+
+  // Move member to another list
+  const moveMemberToList = useMutation({
+    mutationFn: async ({ subscriberId, targetListId }: { subscriberId: string; targetListId: string }) => {
+      if (!listId || !list?.tenant_id) throw new Error("Lista não encontrada");
+      // Insert into target list
+      const { error: insertErr } = await supabase
+        .from("email_marketing_list_members")
+        .insert({ list_id: targetListId, subscriber_id: subscriberId, tenant_id: list.tenant_id });
+      if (insertErr && !insertErr.message?.includes("duplicate")) throw insertErr;
+      // Remove from current list
+      const { error: deleteErr } = await supabase
+        .from("email_marketing_list_members")
+        .delete()
+        .eq("list_id", listId)
+        .eq("subscriber_id", subscriberId);
+      if (deleteErr) throw deleteErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers"] });
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers-count"] });
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["email-marketing-lists"] });
+      toast.success("Lead movido para outra lista");
+      setMoveMember(null);
+      setMoveTargetListId("");
+    },
+    onError: (err) => showErrorToast(err, { module: "email", action: "mover" }),
+  });
+
+  const otherLists = lists.filter((l: any) => l.id !== listId);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -415,6 +481,7 @@ export default function EmailMarketingListDetail() {
                       <TableHead>Origem</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Inscrito em</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -450,6 +517,30 @@ export default function EmailMarketingListDetail() {
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">
                           {formatDateBR(new Date(sub.created_at))}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {otherLists.length > 0 && (
+                                <DropdownMenuItem onClick={() => setMoveMember({ subscriberId: sub.id, name: sub.name || sub.email })}>
+                                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                                  Mover para outra lista
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setRemoveMemberId(sub.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Remover da lista
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -543,6 +634,73 @@ export default function EmailMarketingListDetail() {
             >
               {deleteList.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Sim, Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Member Confirmation */}
+      <Dialog open={!!removeMemberId} onOpenChange={(open) => !open && setRemoveMemberId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Remover da Lista
+            </DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja remover este lead da lista? O contato não será excluído do sistema, apenas desvinculado desta lista.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveMemberId(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => removeMemberId && removeMemberFromList.mutate(removeMemberId)}
+              disabled={removeMemberFromList.isPending}
+            >
+              {removeMemberFromList.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Remover
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Member Dialog */}
+      <Dialog open={!!moveMember} onOpenChange={(open) => { if (!open) { setMoveMember(null); setMoveTargetListId(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5" />
+              Mover para outra lista
+            </DialogTitle>
+            <DialogDescription>
+              Mover "{moveMember?.name}" para outra lista. O lead será removido desta lista e adicionado à lista selecionada.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Select value={moveTargetListId} onValueChange={setMoveTargetListId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a lista de destino..." />
+              </SelectTrigger>
+              <SelectContent>
+                {otherLists.map((l: any) => (
+                  <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setMoveMember(null); setMoveTargetListId(""); }}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => moveMember && moveTargetListId && moveMemberToList.mutate({ subscriberId: moveMember.subscriberId, targetListId: moveTargetListId })}
+              disabled={!moveTargetListId || moveMemberToList.isPending}
+            >
+              {moveMemberToList.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Mover
             </Button>
           </DialogFooter>
         </DialogContent>

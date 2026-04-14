@@ -8,14 +8,32 @@ import { showErrorToast } from '@/lib/error-toast';
 
 export interface CampaignConfig {
   name: string;
-  type: "broadcast" | "automation";
+  type: "broadcast" | "automation" | "sequence";
   list_id: string;
+}
+
+export type SequenceStepType = "send_email" | "wait" | "condition";
+
+export interface SequenceStep {
+  id: string;
+  type: SequenceStepType;
+  data: {
+    // send_email
+    subject?: string;
+    bodyHtml?: string;
+    // wait
+    delayValue?: number;
+    delayUnit?: "hours" | "days";
+    // condition
+    conditionType?: "opened" | "clicked";
+  };
 }
 
 export interface CampaignContent {
   subject: string;
   previewText: string;
   blocks: EmailBlock[];
+  sequenceSteps?: SequenceStep[];
 }
 
 export function useEmailCampaignBuilder() {
@@ -23,7 +41,7 @@ export function useEmailCampaignBuilder() {
   const { tenantId } = useEmailMarketing();
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<CampaignConfig>({ name: "", type: "broadcast", list_id: "" });
-  const [content, setContent] = useState<CampaignContent>({ subject: "", previewText: "", blocks: [] });
+  const [content, setContent] = useState<CampaignContent>({ subject: "", previewText: "", blocks: [], sequenceSteps: [] });
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
@@ -83,6 +101,35 @@ export function useEmailCampaignBuilder() {
     setContent(prev => ({ ...prev, blocks: newBlocks }));
   }, []);
 
+  // Sequence step management
+  const addSequenceStep = useCallback((type: SequenceStepType, index?: number) => {
+    const step: SequenceStep = {
+      id: crypto.randomUUID(),
+      type,
+      data: type === "wait" ? { delayValue: 1, delayUnit: "days" } : type === "condition" ? { conditionType: "opened" } : { subject: "", bodyHtml: "" },
+    };
+    setContent(prev => {
+      const steps = [...(prev.sequenceSteps || [])];
+      if (index !== undefined) steps.splice(index, 0, step);
+      else steps.push(step);
+      return { ...prev, sequenceSteps: steps };
+    });
+  }, []);
+
+  const updateSequenceStep = useCallback((id: string, data: Partial<SequenceStep["data"]>) => {
+    setContent(prev => ({
+      ...prev,
+      sequenceSteps: (prev.sequenceSteps || []).map(s => s.id === id ? { ...s, data: { ...s.data, ...data } } : s),
+    }));
+  }, []);
+
+  const removeSequenceStep = useCallback((id: string) => {
+    setContent(prev => ({
+      ...prev,
+      sequenceSteps: (prev.sequenceSteps || []).filter(s => s.id !== id),
+    }));
+  }, []);
+
   const getHtml = useCallback(() => {
     return blocksToHtml(content.blocks, content.previewText);
   }, [content]);
@@ -93,7 +140,12 @@ export function useEmailCampaignBuilder() {
 
   const canGoNext = useCallback(() => {
     if (step === 0) return config.name.trim() !== "" && config.list_id !== "";
-    if (step === 1) return content.subject.trim() !== "" && content.blocks.length > 0;
+    if (step === 1) {
+      if (config.type === "sequence") {
+        return (content.sequenceSteps || []).length > 0 && (content.sequenceSteps || []).some(s => s.type === "send_email");
+      }
+      return content.subject.trim() !== "" && content.blocks.length > 0;
+    }
     return true;
   }, [step, config, content]);
 
@@ -158,6 +210,7 @@ export function useEmailCampaignBuilder() {
     selectedBlockId, setSelectedBlockId,
     selectedBlock,
     addBlock, updateBlock, removeBlock, duplicateBlock, moveBlock, reorderBlocks,
+    addSequenceStep, updateSequenceStep, removeSequenceStep,
     getHtml, getPlainText,
     canGoNext,
     sendCampaign, isSending,
