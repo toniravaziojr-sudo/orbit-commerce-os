@@ -168,13 +168,14 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
         
         let query = supabase
           .from('customers')
-          .select('id, name, email, cpf, phone, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, address_postal_code')
+          .select('id, full_name, email, cpf, phone, customer_addresses(street, number, complement, neighborhood, city, state, postal_code, is_default)')
           .eq('tenant_id', tenantId)
+          .is('deleted_at', null)
           .limit(10);
 
         // Build OR filter
         const orFilters: string[] = [];
-        orFilters.push(`name.ilike.%${search}%`);
+        orFilters.push(`full_name.ilike.%${search}%`);
         if (search.includes('@')) {
           orFilters.push(`email.ilike.%${search}%`);
         }
@@ -198,20 +199,27 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
 
   const handleSelectCustomer = (customer: any) => {
     setSelectedCustomerId(customer.id);
-    setDestNome(customer.name || '');
+    setDestNome(customer.full_name || '');
     setDestCpfCnpj(customer.cpf?.replace(/\D/g, '') || '');
     setDestEmail(customer.email || '');
     setDestTelefone(customer.phone || '');
-    setDestLogradouro(customer.address_street || '');
-    setDestNumero(customer.address_number || '');
-    setDestComplemento(customer.address_complement || '');
-    setDestBairro(customer.address_neighborhood || '');
-    setDestMunicipio(customer.address_city || '');
-    setDestUf(customer.address_state || '');
-    setDestCep(customer.address_postal_code?.replace(/\D/g, '') || '');
+    
+    // Get default address or first address
+    const addresses = customer.customer_addresses || [];
+    const addr = addresses.find((a: any) => a.is_default) || addresses[0];
+    if (addr) {
+      setDestLogradouro(addr.street || '');
+      setDestNumero(addr.number || '');
+      setDestComplemento(addr.complement || '');
+      setDestBairro(addr.neighborhood || '');
+      setDestMunicipio(addr.city || '');
+      setDestUf(addr.state || '');
+      setDestCep(addr.postal_code?.replace(/\D/g, '') || '');
+    }
+    
     setCustomerSearchTerm('');
     setCustomerSearchResults([]);
-    toast.success(`Cliente "${customer.name}" selecionado`);
+    toast.success(`Cliente "${customer.full_name}" selecionado`);
   };
 
   const handleClearCustomer = () => {
@@ -500,36 +508,13 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nova Nota Fiscal</DialogTitle>
+          <DialogTitle>Novo Pedido</DialogTitle>
           <DialogDescription>
-            Crie uma NF-e manualmente ou importe dados de um pedido existente.
+            Crie um rascunho de pedido para emissão de NF-e.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Import from Order */}
-          <div className="space-y-2">
-            <Label>Importar de Pedido (opcional)</Label>
-            <Select
-              value={selectedOrderId}
-              onValueChange={(v) => {
-                setSelectedOrderId(v);
-                handleImportOrder(v);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione para importar dados..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">Preencher manualmente</SelectItem>
-                {orders.map((order) => (
-                  <SelectItem key={order.id} value={order.id}>
-                    #{order.order_number} - {order.customer_name || 'Cliente'} - {formatCurrency(order.total)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* Destinatário */}
           <Card>
@@ -584,7 +569,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
                           onClick={() => handleSelectCustomer(c)}
                           className="w-full text-left px-3 py-2 hover:bg-accent transition-colors text-sm"
                         >
-                          <div className="font-medium">{c.name}</div>
+                          <div className="font-medium">{c.full_name}</div>
                           <div className="text-xs text-muted-foreground">
                             {c.email && <span>{c.email}</span>}
                             {c.cpf && <span> · CPF: {c.cpf}</span>}
