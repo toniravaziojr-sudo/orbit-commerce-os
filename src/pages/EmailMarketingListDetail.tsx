@@ -50,6 +50,13 @@ import {
 import { toast } from "sonner";
 import { ptBR } from "date-fns/locale";
 import { showErrorToast } from '@/lib/error-toast';
+import { useEmailMarketing } from "@/hooks/useEmailMarketing";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import { formatDateBR, formatDateTimeBR } from "@/lib/date-format";
 
