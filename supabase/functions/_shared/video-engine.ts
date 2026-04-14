@@ -99,6 +99,7 @@ export function classifyIntent(
     product_showcase: 0,
     ugc_scene: 0,
     narrated: 0,
+    creative_vfx: 0,
     text_only: 0,
     draft: 0,
   };
