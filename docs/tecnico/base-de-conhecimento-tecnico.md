@@ -95,6 +95,16 @@ Nunca criar triggers, functions ou alterar tabelas nesses schemas — causa degr
 
 **Solução:** Sempre paginar ou usar `.range()` quando o volume de dados pode exceder 1000.
 
+### 3.4 Coluna ausente no schema vs edge function (PGRST204)
+
+**Problema:** A edge function `fiscal-create-manual` incluía o campo `ambiente` no INSERT em `fiscal_invoices`, mas a coluna não existia na tabela. Erro: `Could not find the 'ambiente' column of 'fiscal_invoices' in the schema cache` (PGRST204).
+
+**Causa raiz:** O campo `ambiente` existia em `fiscal_settings` mas nunca foi adicionado à tabela `fiscal_invoices`. A edge function assumia que existia.
+
+**Solução:** Adicionada coluna `ambiente text DEFAULT 'homologacao'` em `fiscal_invoices` via migration (2026-04-14).
+
+**Lição:** Ao adicionar campos no INSERT de uma edge function, sempre verificar se a coluna existe na tabela destino. Testar a criação de registros após qualquer alteração em edge functions fiscais.
+
 ---
 
 ## 4. Pagamentos — Gateways & Checkout
