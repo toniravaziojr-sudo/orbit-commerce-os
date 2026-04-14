@@ -73,6 +73,34 @@
 1. Remover ou renomear `deno.lock` e tentar novamente
 2. Preferir `npm:` specifiers em vez de `esm.sh` para estabilidade
 
+### 2.3 platform-secrets-check não verificava credenciais novas
+
+**Problema:** Após migrar de Focus NFe para Nuvem Fiscal, o Admin exibia "Não configurado" para o módulo Fiscal, apesar das credenciais estarem presentes no ambiente.
+
+**Causa raiz:** A edge function `platform-secrets-check` não foi atualizada para verificar `NUVEM_FISCAL_CLIENT_ID` e `NUVEM_FISCAL_CLIENT_SECRET`. Ela ainda procurava pelas chaves antigas da Focus.
+
+**Solução:** Atualizar `platform-secrets-check` para incluir as novas variáveis da Nuvem Fiscal na verificação.
+
+**Regra derivada:** Ao migrar de provedor, atualizar todas as referências ao provedor antigo em edge functions utilitárias (health checks, secrets checks, dashboards).
+
+### 2.4 Busca de clientes no Fiscal — campo e tabela errados
+
+**Problema:** A busca de clientes no `ManualInvoiceDialog` não retornava resultados ao digitar nome, email ou CPF.
+
+**Causa raiz:** (1) O filtro usava `name` em vez de `full_name` (nome real da coluna na tabela `customers`). (2) O endereço era buscado de colunas `address_*` inexistentes na tabela `customers`, em vez de vir da tabela `customer_addresses` via join.
+
+**Solução:** Corrigir o campo para `full_name`, adicionar join com `customer_addresses` priorizando `is_default`, e filtrar `deleted_at IS NULL`.
+
+**Regra derivada:** Sempre validar nomes de colunas contra o schema real antes de implementar queries. Endereços de clientes estão na tabela `customer_addresses`, nunca em `customers`.
+
+### 2.5 Lógica duplicada no ManualInvoiceDialog (seletor "Importar de Pedido")
+
+**Problema:** O dialog de criação de pedido manual continha um seletor "Importar de Pedido (opcional)" que duplicava a lógica de preenchimento, confundindo o fluxo.
+
+**Solução:** Removido o seletor. O `ManualInvoiceDialog` é exclusivamente para criação manual — importação de pedidos existentes ocorre pelo fluxo automático (fila + cron).
+
+**Regra derivada:** Cada dialog deve ter um único propósito claro. Não misturar criação manual com importação de dados existentes no mesmo formulário.
+
 ---
 
 ## 3. Banco de Dados — Migrations & RLS
