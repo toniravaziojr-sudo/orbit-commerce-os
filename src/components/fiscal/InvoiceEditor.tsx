@@ -279,11 +279,65 @@ export function InvoiceEditor({
   rejectionError,
   invoiceStatus,
 }: InvoiceEditorProps) {
+  const { profile } = useAuth();
+  const tenantId = profile?.current_tenant_id;
   const [data, setData] = useState<InvoiceData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('geral');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [operationNatures, setOperationNatures] = useState<Array<{
+    id: string; nome: string; descricao: string | null;
+    cfop_intra: string; cfop_inter: string;
+    tipo_documento: number; finalidade: number;
+    csosn_padrao: string | null; ind_pres: number;
+    consumidor_final: boolean; faturada: boolean;
+  }>>([]);
+
+  // Load operation natures from database
+  useEffect(() => {
+    if (!tenantId) return;
+    const load = async () => {
+      const { data: natures } = await supabase
+        .from('fiscal_operation_natures')
+        .select('id, nome, descricao, cfop_intra, cfop_inter, tipo_documento, finalidade, csosn_padrao, ind_pres, consumidor_final, faturada')
+        .eq('tenant_id', tenantId)
+        .eq('ativo', true)
+        .order('nome');
+      if (natures) setOperationNatures(natures as any);
+    };
+    load();
+  }, [tenantId]);
+
+  // Filter natures based on selected tipo_nota
+  const filteredNatures = operationNatures.filter(n => {
+    if (!data?.tipo_nota) return true;
+    switch (data.tipo_nota) {
+      case 'saida': return n.tipo_documento === 1 && n.finalidade === 1;
+      case 'entrada': return n.tipo_documento === 0 && n.finalidade === 1;
+      case 'devolucao': return n.finalidade === 4;
+      case 'remessa': return n.tipo_documento === 1 && n.finalidade === 1 && !n.faturada;
+      case 'transferencia': return n.nome.toLowerCase().includes('transferência') || n.nome.toLowerCase().includes('transferencia');
+      default: return true;
+    }
+  });
+
+  // Auto-fill fields when nature is selected
+  const handleNatureChange = useCallback((natureName: string) => {
+    const nature = operationNatures.find(n => n.nome === natureName);
+    if (!nature || !data) {
+      updateField('natureza_operacao', natureName);
+      return;
+    }
+    // Use cfop_intra as default (intrastate); user can change if interstate
+    setData(prev => prev ? {
+      ...prev,
+      natureza_operacao: nature.nome,
+      cfop: nature.cfop_intra,
+      indicador_presenca: nature.ind_pres ?? 2,
+      dest_consumidor_final: nature.consumidor_final ?? true,
+    } : null);
+  }, [operationNatures, data]);
 
   useEffect(() => {
     if (invoice) {
