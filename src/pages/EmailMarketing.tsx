@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useEmailMarketing } from "@/hooks/useEmailMarketing";
-import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit, ChevronRight, Workflow } from "lucide-react";
+import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit, ChevronRight, Workflow, Pause, Play, Copy } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListDialog } from "@/components/email-marketing/ListDialog";
 import { TemplateDialog } from "@/components/email-marketing/TemplateDialog";
@@ -17,18 +17,35 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tag } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { showErrorToast } from "@/lib/error-toast";
 
 export default function EmailMarketing() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const emailMarketing = useEmailMarketing();
-  const { lists, templates, campaigns, queueStats, subscribersCount, listsLoading, listsError, refetchLists, automationFlows } = emailMarketing;
+  const { lists, templates, campaigns, queueStats, subscribersCount, listsLoading, listsError, refetchLists, automationFlows, tenantId } = emailMarketing;
 
   const [listDialogOpen, setListDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  const [deleteCampaignId, setDeleteCampaignId] = useState<string | null>(null);
 
   // Render error state if needed
   if (listsError) {
@@ -42,6 +59,78 @@ export default function EmailMarketing() {
 
   const handleViewList = (list: any) => {
     navigate(`/email-marketing/list/${list.id}`);
+  };
+
+  const handlePauseCampaign = async (camp: any) => {
+    const newStatus = camp.status === "paused" ? "active" : "paused";
+    try {
+      const { error } = await supabase
+        .from("email_marketing_campaigns")
+        .update({ status: newStatus })
+        .eq("id", camp.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["email-marketing-campaigns"] });
+      toast.success(newStatus === "paused" ? "Campanha pausada" : "Campanha retomada");
+    } catch (err) {
+      showErrorToast(err, { module: "email", action: "atualizar" });
+    }
+  };
+
+  const handleDeleteCampaign = async () => {
+    if (!deleteCampaignId) return;
+    try {
+      const { error } = await supabase
+        .from("email_marketing_campaigns")
+        .delete()
+        .eq("id", deleteCampaignId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["email-marketing-campaigns"] });
+      toast.success("Campanha excluída");
+    } catch (err) {
+      showErrorToast(err, { module: "email", action: "excluir" });
+    } finally {
+      setDeleteCampaignId(null);
+    }
+  };
+
+  const handleDuplicateCampaign = async (camp: any) => {
+    if (!tenantId) return;
+    try {
+      const { error } = await supabase
+        .from("email_marketing_campaigns")
+        .insert({
+          tenant_id: tenantId,
+          name: `${camp.name} (cópia)`,
+          type: camp.type,
+          list_id: camp.list_id,
+          template_id: camp.template_id,
+          status: "draft",
+        });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["email-marketing-campaigns"] });
+      toast.success("Campanha duplicada como rascunho");
+    } catch (err) {
+      showErrorToast(err, { module: "email", action: "duplicar" });
+    }
+  };
+
+  const getCampaignStatusLabel = (status: string) => {
+    switch (status) {
+      case "active": return "Ativa";
+      case "draft": return "Rascunho";
+      case "paused": return "Pausada";
+      case "sent": return "Enviada";
+      default: return status;
+    }
+  };
+
+  const getCampaignStatusVariant = (status: string) => {
+    switch (status) {
+      case "active": return "default" as const;
+      case "paused": return "outline" as const;
+      case "sent": return "secondary" as const;
+      default: return "secondary" as const;
+    }
   };
 
   return (
@@ -257,12 +346,17 @@ export default function EmailMarketing() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Badge variant={camp.status === 'active' ? 'default' : 'secondary'}>
-                          {camp.status === 'active' ? 'Ativa' : camp.status === 'draft' ? 'Rascunho' : camp.status}
+                        <Badge variant={getCampaignStatusVariant(camp.status)}>
+                          {getCampaignStatusLabel(camp.status)}
                         </Badge>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -274,6 +368,27 @@ export default function EmailMarketing() {
                             <DropdownMenuItem>
                               <Edit className="h-4 w-4 mr-2" />
                               Editar
+                            </DropdownMenuItem>
+                            {(camp.status === "active" || camp.status === "paused") && (
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePauseCampaign(camp); }}>
+                                {camp.status === "paused" ? (
+                                  <><Play className="h-4 w-4 mr-2" />Retomar</>
+                                ) : (
+                                  <><Pause className="h-4 w-4 mr-2" />Pausar</>
+                                )}
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicateCampaign(camp); }}>
+                              <Copy className="h-4 w-4 mr-2" />
+                              Duplicar
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-destructive focus:text-destructive"
+                              onClick={(e) => { e.stopPropagation(); setDeleteCampaignId(camp.id); }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -346,6 +461,24 @@ export default function EmailMarketing() {
       <ListDialog open={listDialogOpen} onOpenChange={setListDialogOpen} />
       <TemplateDialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen} />
       <CampaignDialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen} />
+
+      {/* Delete Campaign Confirmation */}
+      <AlertDialog open={!!deleteCampaignId} onOpenChange={(open) => !open && setDeleteCampaignId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir campanha?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. A campanha será removida permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCampaign} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
