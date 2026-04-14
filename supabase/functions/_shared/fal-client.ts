@@ -323,7 +323,7 @@ export async function generateImageWithGptImage1(
     };
 
     const requestId = await submitToQueue(apiKey, FAL_MODELS.GPT_IMAGE_1_EDIT, input);
-    await pollStatus(apiKey, FAL_MODELS.GPT_IMAGE_1_EDIT, requestId, 120_000);
+    await pollStatus(apiKey, FAL_MODELS.GPT_IMAGE_1_EDIT, requestId, 60_000);
 
     const result = await fetchResult<{
       images: Array<{ url: string; width?: number; height?: number; content_type?: string }>;
