@@ -2,16 +2,15 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { classifyIntent } from "../_shared/video-engine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Durações suportadas pelo Sora 2 (em segundos)
-// Nota: Para vídeos maiores, Sora 2 suporta até 20s nativo
-// Para 1 minuto, faremos geração em chunks se necessário
-const SUPPORTED_DURATIONS = [5, 10, 15, 20] as const;
+// Durações suportadas (em segundos)
+const SUPPORTED_DURATIONS = [5, 10] as const;
 type SupportedDuration = typeof SUPPORTED_DURATIONS[number];
 
 interface ProductMatch {
@@ -141,14 +140,22 @@ serve(async (req) => {
       });
     }
 
-    // Validate duration (max 20s per generation - Sora 2 limit)
+    // Validate duration
     const validDuration = SUPPORTED_DURATIONS.includes(duration as SupportedDuration) 
       ? duration 
       : 5;
 
+    // Classify video intent from prompt
+    const searchTextForIntent = [
+      calendarItem?.campaign?.prompt || "",
+      calendarItem?.generation_prompt || "",
+    ].join(" ");
+    const hasProductRef = !!matchedProducts?.find((p: any) => p.image_url);
+    const intent = classifyIntent(searchTextForIntent, hasProductRef);
+
     console.log(`\n[media-generate-video] === START ===`);
     console.log(`[media-generate-video] Calendar item: ${calendar_item_id}`);
-    console.log(`[media-generate-video] Duration: ${validDuration}s, Aspect: ${aspect_ratio}`);
+    console.log(`[media-generate-video] Duration: ${validDuration}s, Aspect: ${aspect_ratio}, Intent: ${intent}`);
 
     // Check FAL_API_KEY
     const falApiKey = await getCredential(supabaseUrl, supabaseServiceKey, "FAL_API_KEY");
@@ -248,9 +255,10 @@ serve(async (req) => {
     // cenas com pessoas segurando o produto, ambientes, etc.
     const promptParts: string[] = [];
 
-    promptParts.push("GERAÇÃO DE VÍDEO PREMIUM COM SORA 2 (Image-to-Video Pro)");
+    promptParts.push("GERAÇÃO DE VÍDEO COM IA (Motor Unificado)");
     promptParts.push(`Duração: ${validDuration} segundos`);
     promptParts.push(`Formato: ${aspect_ratio}`);
+    promptParts.push(`Intenção detectada: ${intent}`);
 
     if (productWithImage) {
       promptParts.push("");
@@ -315,7 +323,7 @@ serve(async (req) => {
         tenant_id: tenantId,
         calendar_item_id: calendar_item_id,
         provider: "fal.ai",
-        model: "sora-2/image-to-video/pro",
+        model: "video-engine-unified",
         prompt_final: promptFinal,
         brand_context_snapshot: brandContext || null,
         settings: {
@@ -327,7 +335,7 @@ serve(async (req) => {
           product_name: productWithImage?.name || null,
           matched_products: matchedProducts,
           is_kit_scenario: isKitScenario,
-          content_type: calendarItem.content_type,
+          video_intent: intent,
         },
         status: "queued",
         variant_count: 1,
@@ -345,7 +353,7 @@ serve(async (req) => {
     }
 
     console.log(`[media-generate-video] Video generation queued: ${generation.id}`);
-    console.log(`[media-generate-video] - Model: sora-2/image-to-video/pro`);
+    console.log(`[media-generate-video] - Model: video-engine-unified (intent: ${intent})`);
     console.log(`[media-generate-video] - Product reference: ${productWithImage?.name || "none"}`);
     console.log(`[media-generate-video] - Duration: ${validDuration}s`);
 
@@ -367,8 +375,8 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       generation_id: generation.id,
-      model: "sora-2/image-to-video/pro",
-      product_name: productWithImage?.name || null,
+      model: "video-engine-unified",
+      video_intent: intent,
       has_product_reference: !!productWithImage,
       duration: validDuration,
       aspect_ratio,
