@@ -23,6 +23,7 @@ export type VideoIntent =
   | "product_showcase"
   | "ugc_scene"
   | "narrated"
+  | "creative_vfx"
   | "text_only"
   | "draft";
 
@@ -64,6 +65,15 @@ const INTENT_KEYWORDS: Record<VideoIntent, string[]> = {
     "narração", "narrando", "fala", "áudio", "voz", "falando",
     "narrated", "voice", "audio", "speaking", "som", "música",
     "comentário", "explicação", "narrador",
+  ],
+  creative_vfx: [
+    "mascote", "personagem", "animação", "animado", "cartoon",
+    "efeito", "efeitos", "vfx", "explosão", "partícula", "partículas",
+    "cinematic", "cinematográfico", "fantasia", "mágico", "magia",
+    "futurista", "neon", "holográfico", "3d", "motion graphics",
+    "character", "mascot", "animated", "fantasy", "magical",
+    "glitch", "transição", "transition", "sparks", "faíscas",
+    "fumaça", "smoke", "fogo", "fire", "raio", "lightning",
   ],
   text_only: [],
   draft: [
