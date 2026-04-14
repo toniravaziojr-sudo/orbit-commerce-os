@@ -500,36 +500,13 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nova Nota Fiscal</DialogTitle>
+          <DialogTitle>Novo Pedido</DialogTitle>
           <DialogDescription>
-            Crie uma NF-e manualmente ou importe dados de um pedido existente.
+            Crie um rascunho de pedido para emissão de NF-e.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Import from Order */}
-          <div className="space-y-2">
-            <Label>Importar de Pedido (opcional)</Label>
-            <Select
-              value={selectedOrderId}
-              onValueChange={(v) => {
-                setSelectedOrderId(v);
-                handleImportOrder(v);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione para importar dados..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">Preencher manualmente</SelectItem>
-                {orders.map((order) => (
-                  <SelectItem key={order.id} value={order.id}>
-                    #{order.order_number} - {order.customer_name || 'Cliente'} - {formatCurrency(order.total)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* Destinatário */}
           <Card>
