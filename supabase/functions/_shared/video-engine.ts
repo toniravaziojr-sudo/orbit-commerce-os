@@ -23,6 +23,7 @@ export type VideoIntent =
   | "product_showcase"
   | "ugc_scene"
   | "narrated"
+  | "creative_vfx"
   | "text_only"
   | "draft";
 
@@ -65,6 +66,15 @@ const INTENT_KEYWORDS: Record<VideoIntent, string[]> = {
     "narrated", "voice", "audio", "speaking", "som", "música",
     "comentário", "explicação", "narrador",
   ],
+  creative_vfx: [
+    "mascote", "personagem", "animação", "animado", "cartoon",
+    "efeito", "efeitos", "vfx", "explosão", "partícula", "partículas",
+    "cinematic", "cinematográfico", "fantasia", "mágico", "magia",
+    "futurista", "neon", "holográfico", "3d", "motion graphics",
+    "character", "mascot", "animated", "fantasy", "magical",
+    "glitch", "transição", "transition", "sparks", "faíscas",
+    "fumaça", "smoke", "fogo", "fire", "raio", "lightning",
+  ],
   text_only: [],
   draft: [
     "teste", "rascunho", "rápido", "draft", "test", "quick",
@@ -89,6 +99,7 @@ export function classifyIntent(
     product_showcase: 0,
     ugc_scene: 0,
     narrated: 0,
+    creative_vfx: 0,
     text_only: 0,
     draft: 0,
   };
@@ -135,6 +146,12 @@ function getModelCascade(
 
     case "narrated":
       // Veo 3.1 (áudio nativo) → Kling + TTS externo
+      return hasReferenceImage
+        ? ["audio_native", "premium", "economic"]
+        : ["audio_native", "economic"];
+
+    case "creative_vfx":
+      // Veo 3.1 (melhor para animação/efeitos) → Kling → Wan
       return hasReferenceImage
         ? ["audio_native", "premium", "economic"]
         : ["audio_native", "economic"];
