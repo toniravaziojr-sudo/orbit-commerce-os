@@ -150,6 +150,12 @@ function getModelCascade(
         ? ["audio_native", "premium", "economic"]
         : ["audio_native", "economic"];
 
+    case "creative_vfx":
+      // Veo 3.1 (melhor para animação/efeitos) → Kling → Wan
+      return hasReferenceImage
+        ? ["audio_native", "premium", "economic"]
+        : ["audio_native", "economic"];
+
     case "text_only":
       // Veo 3.1 (text-to-video) → Wan 2.6 T2V
       return ["audio_native", "economic"];
