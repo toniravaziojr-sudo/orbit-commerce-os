@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format, parse } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
@@ -241,14 +243,7 @@ function formatCep(value: string): string {
 
 const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
-const NATUREZA_OPTIONS = [
-  'Venda de mercadoria adquirida de terceiros',
-  'Venda de produção do estabelecimento',
-  'Devolução de compra',
-  'Remessa para conserto',
-  'Remessa para demonstração',
-  'VENDA DE MERCADORIA',
-];
+// Naturezas de operação agora são carregadas do banco (fiscal_operation_natures)
 
 const MODALIDADE_FRETE_OPTIONS = [
   { value: '0', label: 'Contratação do Frete por conta do Remetente (CIF)' },
@@ -284,11 +279,65 @@ export function InvoiceEditor({
   rejectionError,
   invoiceStatus,
 }: InvoiceEditorProps) {
+  const { profile } = useAuth();
+  const tenantId = profile?.current_tenant_id;
   const [data, setData] = useState<InvoiceData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('geral');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [operationNatures, setOperationNatures] = useState<Array<{
+    id: string; nome: string; descricao: string | null;
+    cfop_intra: string; cfop_inter: string;
+    tipo_documento: number; finalidade: number;
+    csosn_padrao: string | null; ind_pres: number;
+    consumidor_final: boolean; faturada: boolean;
+  }>>([]);
+
+  // Load operation natures from database
+  useEffect(() => {
+    if (!tenantId) return;
+    const load = async () => {
+      const { data: natures } = await supabase
+        .from('fiscal_operation_natures')
+        .select('id, nome, descricao, cfop_intra, cfop_inter, tipo_documento, finalidade, csosn_padrao, ind_pres, consumidor_final, faturada')
+        .eq('tenant_id', tenantId)
+        .eq('ativo', true)
+        .order('nome');
+      if (natures) setOperationNatures(natures as any);
+    };
+    load();
+  }, [tenantId]);
+
+  // Filter natures based on selected tipo_nota
+  const filteredNatures = operationNatures.filter(n => {
+    if (!data?.tipo_nota) return true;
+    switch (data.tipo_nota) {
+      case 'saida': return n.tipo_documento === 1 && n.finalidade === 1;
+      case 'entrada': return n.tipo_documento === 0 && n.finalidade === 1;
+      case 'devolucao': return n.finalidade === 4;
+      case 'remessa': return n.tipo_documento === 1 && n.finalidade === 1 && !n.faturada;
+      case 'transferencia': return n.nome.toLowerCase().includes('transferência') || n.nome.toLowerCase().includes('transferencia');
+      default: return true;
+    }
+  });
+
+  // Auto-fill fields when nature is selected
+  const handleNatureChange = useCallback((natureName: string) => {
+    const nature = operationNatures.find(n => n.nome === natureName);
+    if (!nature || !data) {
+      updateField('natureza_operacao', natureName);
+      return;
+    }
+    // Use cfop_intra as default (intrastate); user can change if interstate
+    setData(prev => prev ? {
+      ...prev,
+      natureza_operacao: nature.nome,
+      cfop: nature.cfop_intra,
+      indicador_presenca: nature.ind_pres ?? 2,
+      dest_consumidor_final: nature.consumidor_final ?? true,
+    } : null);
+  }, [operationNatures, data]);
 
   useEffect(() => {
     if (invoice) {
@@ -649,7 +698,11 @@ export function InvoiceEditor({
                   <Label>Tipo de Nota <span className="text-destructive">*</span></Label>
                   <Select
                     value={data.tipo_nota || 'saida'}
-                    onValueChange={(value) => updateField('tipo_nota', value as InvoiceData['tipo_nota'])}
+                    onValueChange={(value) => {
+                      updateField('tipo_nota', value as InvoiceData['tipo_nota']);
+                      // Reset nature and CFOP when type changes
+                      setData(prev => prev ? { ...prev, tipo_nota: value as any, natureza_operacao: '', cfop: '' } : null);
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -703,20 +756,38 @@ export function InvoiceEditor({
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>Natureza da Operação</Label>
+                  <Label>Natureza da Operação <span className="text-destructive">*</span></Label>
                   <Select
                     value={data.natureza_operacao}
-                    onValueChange={(value) => updateField('natureza_operacao', value)}
+                    onValueChange={handleNatureChange}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione a natureza..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {NATUREZA_OPTIONS.map(opt => (
-                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                      ))}
+                      {filteredNatures.length > 0 ? (
+                        filteredNatures.map(n => (
+                          <SelectItem key={n.id} value={n.nome}>
+                            {n.nome}
+                            {n.cfop_intra && <span className="ml-2 text-muted-foreground text-xs">({n.cfop_intra}/{n.cfop_inter})</span>}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        operationNatures.map(n => (
+                          <SelectItem key={n.id} value={n.nome}>
+                            {n.nome}
+                            {n.cfop_intra && <span className="ml-2 text-muted-foreground text-xs">({n.cfop_intra}/{n.cfop_inter})</span>}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
+                  {data.natureza_operacao && (() => {
+                    const selected = operationNatures.find(n => n.nome === data.natureza_operacao);
+                    return selected?.descricao ? (
+                      <p className="text-xs text-muted-foreground">{selected.descricao}</p>
+                    ) : null;
+                  })()}
                 </div>
                 <div className="space-y-2">
                   <Label>CFOP Principal <span className="text-destructive">*</span></Label>
