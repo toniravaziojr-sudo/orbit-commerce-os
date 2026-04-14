@@ -41,7 +41,7 @@ export function useEmailCampaignBuilder() {
   const { tenantId } = useEmailMarketing();
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<CampaignConfig>({ name: "", type: "broadcast", list_id: "" });
-  const [content, setContent] = useState<CampaignContent>({ subject: "", previewText: "", blocks: [] });
+  const [content, setContent] = useState<CampaignContent>({ subject: "", previewText: "", blocks: [], sequenceSteps: [] });
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
