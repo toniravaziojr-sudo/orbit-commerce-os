@@ -199,20 +199,27 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
 
   const handleSelectCustomer = (customer: any) => {
     setSelectedCustomerId(customer.id);
-    setDestNome(customer.name || '');
+    setDestNome(customer.full_name || '');
     setDestCpfCnpj(customer.cpf?.replace(/\D/g, '') || '');
     setDestEmail(customer.email || '');
     setDestTelefone(customer.phone || '');
-    setDestLogradouro(customer.address_street || '');
-    setDestNumero(customer.address_number || '');
-    setDestComplemento(customer.address_complement || '');
-    setDestBairro(customer.address_neighborhood || '');
-    setDestMunicipio(customer.address_city || '');
-    setDestUf(customer.address_state || '');
-    setDestCep(customer.address_postal_code?.replace(/\D/g, '') || '');
+    
+    // Get default address or first address
+    const addresses = customer.customer_addresses || [];
+    const addr = addresses.find((a: any) => a.is_default) || addresses[0];
+    if (addr) {
+      setDestLogradouro(addr.street || '');
+      setDestNumero(addr.number || '');
+      setDestComplemento(addr.complement || '');
+      setDestBairro(addr.neighborhood || '');
+      setDestMunicipio(addr.city || '');
+      setDestUf(addr.state || '');
+      setDestCep(addr.postal_code?.replace(/\D/g, '') || '');
+    }
+    
     setCustomerSearchTerm('');
     setCustomerSearchResults([]);
-    toast.success(`Cliente "${customer.name}" selecionado`);
+    toast.success(`Cliente "${customer.full_name}" selecionado`);
   };
 
   const handleClearCustomer = () => {
