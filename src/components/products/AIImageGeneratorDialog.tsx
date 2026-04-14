@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Sparkles, Package, User, Megaphone, CheckCircle2, AlertCircle, MessageSquare } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, AlertCircle, MessageSquare } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
@@ -22,11 +22,6 @@ interface AIImageGeneratorDialogProps {
   onImagesGenerated: () => void;
 }
 
-const STYLES = [
-  { value: 'product_natural', label: 'Produto + Fundo Natural', icon: Package, description: 'Produto em cenário natural, sem pessoas' },
-  { value: 'person_interacting', label: 'Pessoa + Produto', icon: User, description: 'Pessoa usando ou segurando o produto' },
-  { value: 'promotional', label: 'Promocional', icon: Megaphone, description: 'Visual de anúncio com impacto' },
-];
 
 type JobPhase = 'idle' | 'submitting' | 'polling' | 'saving' | 'done' | 'error';
 
@@ -38,7 +33,6 @@ export function AIImageGeneratorDialog({
 }: AIImageGeneratorDialogProps) {
   const { currentTenant } = useAuth();
   const [quantity, setQuantity] = useState('1');
-  const [style, setStyle] = useState('product_natural');
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -146,10 +140,8 @@ export function AIImageGeneratorDialog({
                 ? `${customPrompt}. Produto: "${productName}". Variação ${i + 1}.`
                 : `Criar foto profissional do produto "${productName}" baseada fielmente na imagem de referência fornecida. O produto deve ser IDÊNTICO ao da referência (mesmas cores, rótulo, formato). Variação ${i + 1}.`,
               settings: {
-                generation_style: style,
                 format: '1:1',
                 variations: 1,
-                providers: ['gemini'],
               },
             },
           });
@@ -191,7 +183,7 @@ export function AIImageGeneratorDialog({
               const { error: insertError } = await supabase.from('product_images').insert({
                 product_id: productId,
                 url,
-                alt_text: `${productName} - IA ${style} ${i + 1}`,
+                alt_text: `${productName} - IA ${i + 1}`,
                 is_primary: false,
                 sort_order: currentImageCount + successCount + j + 1,
               });
@@ -284,26 +276,6 @@ export function AIImageGeneratorDialog({
               <p className="font-medium text-sm">{productName}</p>
               <p className="text-xs text-muted-foreground">Imagem de referência</p>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Estilo de geração</Label>
-            <Select value={style} onValueChange={setStyle} disabled={isGenerating}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {STYLES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    <div className="flex items-center gap-2">
-                      <s.icon className="h-4 w-4" />
-                      <span>{s.label}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {STYLES.find((s) => s.value === style)?.description}
-            </p>
           </div>
 
           <div className="space-y-2">
