@@ -210,6 +210,7 @@ export function useEmailCampaignBuilder() {
     selectedBlockId, setSelectedBlockId,
     selectedBlock,
     addBlock, updateBlock, removeBlock, duplicateBlock, moveBlock, reorderBlocks,
+    addSequenceStep, updateSequenceStep, removeSequenceStep,
     getHtml, getPlainText,
     canGoNext,
     sendCampaign, isSending,
