@@ -398,7 +398,24 @@ useEffect(() => {
 
 **Regra derivada:** Todo fluxo que consume uma edge function com processamento em background (retorno 202 + job_id) DEVE implementar polling no lado do cliente. Nunca assumir que o resultado estará na resposta imediata sem verificar o contrato da função. Pattern: "submit → poll → reconcile".
 
----
+### 3.5 Naturezas de operação dinâmicas no InvoiceEditor
+
+**Problema:** O editor de NF-e usava uma lista fixa de 6 naturezas de operação (strings hardcoded), desconectada do cadastro real em `fiscal_operation_natures`. O CFOP era preenchido manualmente.
+
+**Causa raiz:** Implementação inicial usou array estático `NATUREZA_OPTIONS` em vez de consultar o banco.
+
+**Solução:**  
+1. Substituído `NATUREZA_OPTIONS` por consulta dinâmica à tabela `fiscal_operation_natures` filtrada por tenant e status ativo  
+2. Ao selecionar uma natureza, CFOP, indicador de presença e consumidor final são preenchidos automaticamente  
+3. Ao trocar o tipo de nota, natureza e CFOP são resetados para forçar re-seleção  
+4. Expandido `DEFAULT_NATURES` de 10 para 18 naturezas comuns de e-commerce  
+5. Naturezas filtradas conforme tipo de nota selecionado (saída, entrada, devolução, remessa, transferência)
+
+**Onde ocorreu:** `src/components/fiscal/InvoiceEditor.tsx`, `src/pages/OperationNaturesSettings.tsx`
+
+**Regra derivada:** Nunca usar listas fixas em componentes fiscais quando existe tabela de configuração no banco. Sempre buscar da fonte de verdade (`fiscal_operation_natures`) e propagar dados automaticamente.
+
+
 
 ## Como Adicionar Novas Entradas
 
