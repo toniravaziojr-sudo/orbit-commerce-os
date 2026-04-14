@@ -1,22 +1,24 @@
 /**
- * Media Process Generation Queue — v9.0 (GPT Image 1 Priority)
+ * Media Process Generation Queue — v10.0 (Unified Engine)
  * 
- * Hierarquia v9.0:
- * 1. GPT Image 1 edit-image (fal.ai) — PRINCIPAL (image-to-image com referência)
- * 2. Gemini Nativa (FALLBACK SEGURO)
- * 3. OpenAI Nativa (FALLBACK SEGURO)
- * 4. Lovable Gateway (ÚLTIMO RECURSO)
- * + QA Scorer (google/gemini-3-flash-preview) — scoring de realismo
+ * Uses shared visual-engine.ts resilientGenerate() for ALL image generation.
+ * No more local duplicate.
+ * 
+ * PIPELINE: GPT Image 1 → Gemini Nativa → OpenAI → Lovable Gateway
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { tryNativeGemini } from "../_shared/native-gemini.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
-import { generateImageWithGptImage1, getFalApiKey, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
+import { getFalApiKey } from "../_shared/fal-client.ts";
+import {
+  resilientGenerate,
+  downloadImageAsBase64,
+  scoreImageForRealism,
+} from "../_shared/visual-engine.ts";
 
-const VERSION = '9.0.0'; // GPT Image 1 priority: 1. GPT Image 1 (edit-image) → 2. Gemini Nativa → 3. OpenAI → 4. Lovable Gateway
+const VERSION = '10.0.0';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,375 +53,49 @@ interface QAScores {
   overall: number;
 }
 
-interface ProviderResult {
-  provider: Provider;
-  imageBase64: string | null;
-  scores: QAScores;
-  error?: string;
-  usedReference: boolean;
-}
-
 // ========== ENSURE MEDIA MONTH FOLDER (Drive) ==========
 
 const MEDIA_ROOT_FOLDER = 'Mídias Sociais';
 
 async function ensureMediaMonthFolderEdge(
-  supabase: any,
-  tenantId: string,
-  userId: string,
-  campaignStartDate: string
+  supabase: any, tenantId: string, userId: string, campaignStartDate: string
 ): Promise<string | null> {
   try {
-    // Ensure root folder
     let rootFolderId: string | null = null;
-    const { data: existingRootArr } = await supabase
-      .from('files')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('filename', MEDIA_ROOT_FOLDER)
-      .eq('is_folder', true)
-      .is('folder_id', null)
-      .order('created_at', { ascending: true })
-      .limit(1);
+    const { data: existingRootArr } = await supabase.from('files').select('id').eq('tenant_id', tenantId).eq('filename', MEDIA_ROOT_FOLDER).eq('is_folder', true).is('folder_id', null).order('created_at', { ascending: true }).limit(1);
     const existingRoot = existingRootArr?.[0];
 
     if (existingRoot) {
       rootFolderId = existingRoot.id;
     } else {
-      const { data: createdRoot, error: rootErr } = await supabase
-        .from('files')
-        .insert({
-          tenant_id: tenantId,
-          folder_id: null,
-          filename: MEDIA_ROOT_FOLDER,
-          original_name: MEDIA_ROOT_FOLDER,
-          storage_path: `${tenantId}/midias-sociais/`,
-          is_folder: true,
-          is_system_folder: false,
-          created_by: userId,
-          metadata: { source: 'media_module', system_managed: true },
-        })
-        .select('id')
-        .single();
+      const { data: createdRoot, error: rootErr } = await supabase.from('files').insert({
+        tenant_id: tenantId, folder_id: null, filename: MEDIA_ROOT_FOLDER, original_name: MEDIA_ROOT_FOLDER,
+        storage_path: `${tenantId}/midias-sociais/`, is_folder: true, is_system_folder: false, created_by: userId,
+        metadata: { source: 'media_module', system_managed: true },
+      }).select('id').single();
       if (rootErr || !createdRoot) return null;
       rootFolderId = createdRoot.id;
     }
 
-    // Parse month from start_date
     const date = new Date(campaignStartDate + 'T00:00:00');
-    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const monthName = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
     const monthSlug = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
-    // Ensure month folder
-    const { data: existingMonthArr } = await supabase
-      .from('files')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('folder_id', rootFolderId)
-      .eq('filename', monthName)
-      .eq('is_folder', true)
-      .order('created_at', { ascending: true })
-      .limit(1);
-    const existingMonth = existingMonthArr?.[0];
+    const { data: existingMonthArr } = await supabase.from('files').select('id').eq('tenant_id', tenantId).eq('folder_id', rootFolderId).eq('filename', monthName).eq('is_folder', true).order('created_at', { ascending: true }).limit(1);
+    if (existingMonthArr?.[0]) return existingMonthArr[0].id;
 
-    if (existingMonth) return existingMonth.id;
-
-    const { data: createdMonth, error: monthErr } = await supabase
-      .from('files')
-      .insert({
-        tenant_id: tenantId,
-        folder_id: rootFolderId,
-        filename: monthName,
-        original_name: monthName,
-        storage_path: `${tenantId}/midias-sociais/${monthSlug}/`,
-        is_folder: true,
-        is_system_folder: false,
-        created_by: userId,
-        metadata: { source: 'media_campaign', system_managed: true, month: monthSlug },
-      })
-      .select('id')
-      .single();
+    const { data: createdMonth, error: monthErr } = await supabase.from('files').insert({
+      tenant_id: tenantId, folder_id: rootFolderId, filename: monthName, original_name: monthName,
+      storage_path: `${tenantId}/midias-sociais/${monthSlug}/`, is_folder: true, is_system_folder: false, created_by: userId,
+      metadata: { source: 'media_campaign', system_managed: true, month: monthSlug },
+    }).select('id').single();
 
     if (monthErr || !createdMonth) return null;
     return createdMonth.id;
   } catch (err) {
     console.error('⚠️ ensureMediaMonthFolderEdge error:', err);
     return null;
-  }
-}
-
-// ========== DOWNLOAD IMAGE ==========
-
-async function downloadImageAsBase64(url: string): Promise<string | null> {
-  try {
-    console.log(`📥 Downloading: ${url.substring(0, 80)}...`);
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error(`❌ Download failed: ${response.status}`);
-      return null;
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let binary = '';
-    for (let i = 0; i < uint8Array.length; i++) {
-      binary += String.fromCharCode(uint8Array[i]);
-    }
-    return btoa(binary);
-  } catch (error) {
-    console.error(`❌ Download error:`, error);
-    return null;
-  }
-}
-
-// ========== RESILIENT GENERATE v9.0 (GPT Image 1 → Gemini Nativa → OpenAI → Lovable Gateway) ==========
-
-async function resilientGenerateMedia(
-  lovableApiKey: string,
-  geminiApiKey: string | null,
-  openaiApiKey: string | null,
-  falApiKeyValue: string | null,
-  prompt: string,
-  referenceImageBase64: string | null,
-  referenceImageUrl: string | null = null,
-): Promise<{ imageBase64: string | null; model: string; error?: string }> {
-
-  // ===== STEP 1: GPT Image 1 edit-image via fal.ai (PRIORIDADE MÁXIMA) =====
-  if (falApiKeyValue && referenceImageUrl) {
-    console.log(`🎨 Step 1: GPT Image 1 edit-image (prioridade máxima)...`);
-    const gptResult = await generateImageWithGptImage1(
-      falApiKeyValue,
-      prompt,
-      [referenceImageUrl],
-      '1024x1024',
-    );
-    if (gptResult?.imageUrl) {
-      const b64 = await falDownloadImage(gptResult.imageUrl);
-      if (b64) {
-        console.log(`✅ GPT Image 1 edit-image succeeded`);
-        return { imageBase64: b64, model: 'fal-ai/gpt-image-1/edit-image' };
-      }
-    }
-    console.warn(`⚠️ GPT Image 1 failed. Falling back to Gemini Nativa...`);
-  } else if (!falApiKeyValue) {
-    console.warn(`⚠️ FAL_API_KEY not available. Skipping GPT Image 1.`);
-  } else {
-    console.warn(`⚠️ No reference image URL. Skipping GPT Image 1.`);
-  }
-
-  // ===== STEP 2: Gemini Nativa (FALLBACK SEGURO) =====
-  if (geminiApiKey) {
-    console.log(`🎨 Step 2: Gemini Nativa...`);
-    const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, 'media-gemini');
-    if (nativeResult.imageBase64) {
-      console.log(`✅ Gemini Nativa succeeded`);
-      return nativeResult;
-    }
-    console.warn(`⚠️ Gemini Nativa failed: ${nativeResult.error}`);
-  }
-
-  // ===== STEP 3: OpenAI Nativa =====
-  if (openaiApiKey) {
-    console.log(`🎨 Step 3: OpenAI Nativa (gpt-image-1)...`);
-    try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-image-1",
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              ...(referenceImageBase64 ? [{
-                type: 'image_url',
-                image_url: { url: `data:image/png;base64,${referenceImageBase64}` },
-              }] : []),
-            ],
-          }],
-          modalities: ['image', 'text'],
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        let b64: string | null = null;
-        const outputImages = data.choices?.[0]?.message?.output_images;
-        if (outputImages?.length > 0) {
-          const imgUrl = outputImages[0]?.url || outputImages[0];
-          b64 = typeof imgUrl === 'string' && imgUrl.startsWith('data:') ? imgUrl.split(',')[1] : (typeof imgUrl === 'string' ? imgUrl : null);
-        }
-        if (!b64) {
-          const content = data.choices?.[0]?.message?.content;
-          if (Array.isArray(content)) {
-            for (const part of content) {
-              if (part.type === 'image_url' && part.image_url?.url) {
-                b64 = part.image_url.url.startsWith('data:') ? part.image_url.url.split(',')[1] : part.image_url.url;
-                break;
-              }
-            }
-          }
-        }
-        if (b64) {
-          console.log(`✅ OpenAI Nativa succeeded`);
-          return { imageBase64: b64, model: 'gpt-image-1 (OpenAI)' };
-        }
-      }
-    } catch (e) {
-      console.warn(`⚠️ OpenAI error:`, e);
-    }
-  }
-
-  // ===== STEP 4: Lovable Gateway (ÚLTIMO RECURSO) =====
-  const model = "google/gemini-2.5-flash-image";
-  try {
-    console.log(`🎨 Step 4: Lovable Gateway ${model} (último recurso)...`);
-    const content: any[] = [{ type: "text", text: prompt }];
-    if (referenceImageBase64) {
-      content.push({ type: "image_url", image_url: { url: `data:image/png;base64,${referenceImageBase64}` } });
-    }
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${lovableApiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages: [{ role: "user", content }], modalities: ["image", "text"] }),
-    });
-
-    if (!response.ok) {
-      return { imageBase64: null, model, error: `Lovable Gateway HTTP ${response.status}` };
-    }
-
-    const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imageUrl) return { imageBase64: null, model, error: "Gateway não retornou imagem" };
-
-    const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
-    if (!base64Match) return { imageBase64: null, model, error: "Formato inválido" };
-
-    console.log("✅ Lovable Gateway image generated");
-    return { imageBase64: base64Match[1], model: `${model} (Lovable Gateway)` };
-  } catch (error) {
-    console.error("❌ All providers failed:", error);
-    return { imageBase64: null, model, error: String(error) };
-  }
-}
-
-// generateWithOpenAI removed — now using unified resilientGenerateMedia
-
-// ========== REALISM SCORER ==========
-
-async function scoreImageForRealism(
-  apiKey: string,
-  imageBase64: string,
-  originalProductBase64: string | null,
-  productName: string,
-): Promise<QAScores> {
-  console.log(`🔍 Scoring image for realism...`);
-  try {
-    const content: any[] = [
-      {
-        type: "text",
-        text: `Você é um juiz especialista em avaliar FIDELIDADE de imagens de produto geradas por IA.
-
-TAREFA: Avaliar se a IMAGEM GERADA mantém o produto IDÊNTICO ao original e se parece uma FOTO REAL.
-
-PRODUTO ESPERADO: "${productName}"
-
-REGRA CRÍTICA: Se o produto foi ALTERADO, REDESENHADO ou tem VARIAÇÕES que não existem na referência, a nota de LABEL deve ser 0-2.
-
-Avalie de 0 a 10 cada critério:
-
-1. REALISM (Parece foto real?):
-   - 10 = Indistinguível de foto real
-   - 7 = Muito boa, pequenos detalhes revelam IA
-   - 5 = Obviamente IA mas aceitável
-   - 0 = Claramente artificial
-
-2. QUALITY (Qualidade técnica):
-   - 10 = Qualidade profissional 4K
-   - 0 = Baixa qualidade
-
-3. COMPOSITION (Composição):
-   - 10 = Composição perfeita
-   - 0 = Composição ruim
-
-4. LABEL (Fidelidade do produto — CRITÉRIO MAIS IMPORTANTE):
-   - 10 = Produto 100% idêntico ao original (mesma embalagem, rótulo, cores)
-   - 5 = Produto similar mas com pequenas diferenças
-   - 2 = Produto foi redesenhado ou alterado significativamente
-   - 0 = Produto completamente diferente, inventado, ou criou variações que não existem
-
-Responda APENAS em JSON:
-{
-  "realism": <0-10>,
-  "quality": <0-10>,
-  "composition": <0-10>,
-  "label": <0-10>,
-  "reasoning": "<breve explicação, mencione se o produto foi alterado>"
-}`,
-      },
-    ];
-
-    // Add original product reference if available
-    if (originalProductBase64) {
-      content.push({
-        type: "image_url",
-        image_url: { url: `data:image/png;base64,${originalProductBase64}` },
-      });
-    }
-
-    // Add generated image
-    content.push({
-      type: "image_url",
-      image_url: { url: `data:image/png;base64,${imageBase64}` },
-    });
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "user", content }],
-      }),
-    });
-
-    if (!response.ok) {
-      console.error(`❌ Scorer API error: ${response.status}`);
-      return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
-    }
-
-    const data = await response.json();
-    const textContent = data.choices?.[0]?.message?.content || "";
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
-    }
-
-    const scores = JSON.parse(jsonMatch[0]);
-    const realism = Math.min(10, Math.max(0, Number(scores.realism) || 5));
-    const quality = Math.min(10, Math.max(0, Number(scores.quality) || 5));
-    const composition = Math.min(10, Math.max(0, Number(scores.composition) || 5));
-    const label = Math.min(10, Math.max(0, Number(scores.label) || 5));
-
-    // Peso: Realismo 40%, Label 25%, Quality 20%, Composition 15%
-    const overall =
-      (realism / 10) * 0.4 +
-      (label / 10) * 0.25 +
-      (quality / 10) * 0.2 +
-      (composition / 10) * 0.15;
-
-    console.log(`📊 Scores: realism=${realism}, quality=${quality}, composition=${composition}, label=${label}, overall=${overall.toFixed(2)}`);
-    return { realism, quality, composition, label, overall };
-  } catch (error) {
-    console.error("❌ Scorer error:", error);
-    return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
   }
 }
 
@@ -436,33 +112,25 @@ serve(async (req) => {
   const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
 
   if (!lovableApiKey) {
-    console.error("❌ LOVABLE_API_KEY not configured");
     return new Response(
       JSON.stringify({ success: false, error: "LOVABLE_API_KEY não configurada" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
-  // Fetch credentials from platform_credentials
   const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
   const falApiKeyValue = await getFalApiKey(supabaseUrl, supabaseServiceKey);
 
   console.log(`[media-process-generation-queue v${VERSION}] Credentials: FAL=${!!falApiKeyValue} GEMINI=${!!geminiApiKey} OPENAI=${!!openaiApiKey} LOVABLE=✅`);
-  console.log(`[media-process-generation-queue v${VERSION}] Hierarchy: 1.GPT Image 1 → 2.Gemini Nativa → 3.OpenAI → 4.Lovable Gateway`);
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // Fetch queued generations (limit 3)
     const { data: generations, error: fetchError } = await supabase
-      .from("media_asset_generations")
-      .select("*")
-      .eq("status", "queued")
-      .order("created_at", { ascending: true })
-      .limit(3);
+      .from("media_asset_generations").select("*").eq("status", "queued")
+      .order("created_at", { ascending: true }).limit(3);
 
     if (fetchError) {
-      console.error("❌ Error fetching queued generations:", fetchError);
       return new Response(
         JSON.stringify({ success: false, error: "Erro ao buscar fila" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -487,72 +155,46 @@ serve(async (req) => {
       const genId = generation.id;
 
       try {
-        // Mark as generating
-        await supabase
-          .from("media_asset_generations")
-          .update({ status: "generating" })
-          .eq("id", genId);
-
-        console.log(`\n========== 🎬 Processing generation ${genId} ==========`);
+        await supabase.from("media_asset_generations").update({ status: "generating" }).eq("id", genId);
 
         const settings = (generation.settings || {}) as GenerationSettings;
         const assetType = settings.asset_type || "image";
-        const contentType = settings.content_type || "image";
-        const needsProductImage = settings.needs_product_image ?? false;
-        const matchedProducts = settings.matched_products || [];
-        const isKitScenario = settings.is_kit_scenario ?? false;
-        const enabledProviders: Provider[] = settings.providers || ['gemini', 'openai'];
-        const enableQA = settings.enable_qa !== false; // default true
 
-        console.log("📋 Settings:", JSON.stringify({
-          assetType, contentType, needsProductImage,
-          matchedProductsCount: matchedProducts.length,
-          isKitScenario, providers: enabledProviders, enableQA,
-        }));
-
-        // Skip video generation
         if (assetType === "video") {
           throw new Error("Geração de vídeo não disponível. Use o Gestor de Criativos para vídeos.");
         }
 
-        // ============ DUAL PROVIDER IMAGE GENERATION ============
+        const matchedProducts = settings.matched_products || [];
+        const needsProductImage = settings.needs_product_image ?? false;
+        const isKitScenario = settings.is_kit_scenario ?? false;
+        const enableQA = settings.enable_qa !== false;
+        const contentType = settings.content_type || "image";
 
         const productWithImage = matchedProducts.find((p) => p.image_url);
         let referenceBase64: string | null = null;
         let finalPrompt = generation.prompt_final;
 
-        // Download product reference image
         if (needsProductImage && productWithImage?.image_url) {
-          console.log(`📦 Product: "${productWithImage.name}" — downloading reference...`);
           referenceBase64 = await downloadImageAsBase64(productWithImage.image_url);
           if (!referenceBase64) {
             throw new Error(`Não foi possível baixar a imagem do produto "${productWithImage.name}".`);
           }
 
           const kitInstruction = isKitScenario
-            ? `CENÁRIO DE KIT (${matchedProducts.length} produtos):
-- PROIBIDO: pessoa segurando múltiplos produtos na mão
-- OBRIGATÓRIO: apresentar em bancada, flatlay ou ambiente lifestyle
-- Produtos APOIADOS em superfície, organizados elegantemente`
-            : `CENÁRIO DE PRODUTO ÚNICO:
-- Pode mostrar modelo segurando de forma natural
-- Máximo 1 produto por mão, pose elegante`;
+            ? `CENÁRIO DE KIT (${matchedProducts.length} produtos):\n- PROIBIDO: pessoa segurando múltiplos produtos na mão\n- OBRIGATÓRIO: apresentar em bancada, flatlay ou ambiente lifestyle\n- Produtos APOIADOS em superfície, organizados elegantemente`
+            : `CENÁRIO DE PRODUTO ÚNICO:\n- Pode mostrar modelo segurando de forma natural\n- Máximo 1 produto por mão, pose elegante`;
 
           finalPrompt = `REGRA ABSOLUTA — PRODUTO IMUTÁVEL:
 A imagem anexada é a foto REAL do produto "${productWithImage.name}".
 O produto NÃO PODE ser alterado de NENHUMA forma. Ele é SAGRADO e IMUTÁVEL.
 - NÃO redesenhe, recrie ou reimagine o produto
 - NÃO mude a embalagem, rótulo, formato, cores ou proporções
-- NÃO crie variações do produto (ex: frascos diferentes, tamanhos diferentes)
-- NÃO invente produtos que não existem na imagem de referência
-- NÃO multiplique o produto além do que o briefing pede
-- O produto na imagem gerada DEVE ser PIXEL-PERFECT idêntico ao da referência
+- NÃO crie variações do produto
 
 VOCÊ PODE APENAS:
-- Mudar o AMBIENTE/CENÁRIO ao redor do produto (fundo, superfície, iluminação)
+- Mudar o AMBIENTE/CENÁRIO ao redor do produto
 - Adicionar CONTEXTO (mãos segurando, bancada, flatlay)
-- Aplicar efeitos leves de iluminação/sombra NO AMBIENTE (nunca no produto)
-- Posicionar o produto em diferentes ângulos (mantendo fidelidade total)
+- Aplicar efeitos leves de iluminação/sombra NO AMBIENTE
 
 ${kitInstruction}
 
@@ -562,127 +204,68 @@ FORMATO: ${contentType === "story" || contentType === "reel" ? "Vertical 9:16" :
 PROIBIÇÕES ABSOLUTAS:
 - NÃO inventar rótulos/logos
 - NÃO alterar cores/design do produto
-- NÃO duplicar produto sem instrução explícita
 - NÃO adicionar texto sobreposto
-- NÃO criar embalagens fictícias ou variações do produto
 
 BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
         }
 
-        // Generate with unified resilient pipeline (GPT Image 1 → Gemini → OpenAI → Gateway)
+        // Use unified resilientGenerate from visual-engine
         const productImageUrl = productWithImage?.image_url || null;
-        const result = await resilientGenerateMedia(
-          lovableApiKey, geminiApiKey, openaiApiKey, falApiKeyValue,
-          finalPrompt, referenceBase64, productImageUrl,
-        );
+        const result = await resilientGenerate({
+          lovableApiKey,
+          openaiApiKey,
+          geminiApiKey,
+          falApiKey: falApiKeyValue,
+          prompt: finalPrompt,
+          referenceImageBase64: referenceBase64,
+          referenceImageUrl: productImageUrl,
+          outputSize: '1024x1024',
+          slotLabel: `media-${genId.substring(0, 8)}`,
+        });
 
         if (!result.imageBase64) {
           throw new Error(`Nenhum provedor gerou imagem: ${result.error}`);
         }
 
-        // QA Scoring if enabled
+        // QA Scoring
         let scores: QAScores = { realism: 7, quality: 7, composition: 7, label: 7, overall: 0.7 };
         if (enableQA) {
-          scores = await scoreImageForRealism(
-            lovableApiKey,
-            result.imageBase64,
-            referenceBase64,
-            productWithImage?.name || "Produto",
-          );
+          scores = await scoreImageForRealism(lovableApiKey, result.imageBase64, referenceBase64, productWithImage?.name || "Produto");
         }
-
-        const successfulResults: ProviderResult[] = [{
-          provider: 'gemini' as Provider,
-          imageBase64: result.imageBase64,
-          scores,
-          usedReference: !!referenceBase64,
-        }];
-
-        if (successfulResults.length === 0) {
-          throw new Error(`Nenhum provedor gerou imagem`);
-        }
-
-        // Sort by overall score (best first)
-        successfulResults.sort((a, b) => b.scores.overall - a.scores.overall);
-
-        const winner = successfulResults[0];
-        console.log(`🏆 Winner: ${winner.provider} (score: ${winner.scores.overall.toFixed(2)})`);
 
         // Upload winner to storage
-        const binaryData = Uint8Array.from(atob(winner.imageBase64!), (c) => c.charCodeAt(0));
-        const storagePath = `${generation.tenant_id}/${genId}/${winner.provider}_winner.png`;
+        const binaryData = Uint8Array.from(atob(result.imageBase64), (c) => c.charCodeAt(0));
+        const storagePath = `${generation.tenant_id}/${genId}/${result.actualProvider}_winner.png`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("media-assets")
-          .upload(storagePath, binaryData, { contentType: "image/png", upsert: true });
+        const { error: uploadError } = await supabase.storage.from("media-assets").upload(storagePath, binaryData, { contentType: "image/png", upsert: true });
+        if (uploadError) throw new Error("Falha ao salvar imagem no storage");
 
-        if (uploadError) {
-          console.error("❌ Upload error:", uploadError);
-          throw new Error("Falha ao salvar imagem no storage");
-        }
-
-        // Create variant record
         await supabase.from("media_asset_variants").insert({
-          generation_id: genId,
-          variant_index: 1,
-          storage_path: storagePath,
-          mime_type: "image/png",
-          file_size: binaryData.length,
-          width: 1024,
-          height: 1024,
+          generation_id: genId, variant_index: 1, storage_path: storagePath,
+          mime_type: "image/png", file_size: binaryData.length, width: 1024, height: 1024,
         });
 
-        // Get public URL
-        const { data: publicUrlData } = supabase.storage
-          .from("media-assets")
-          .getPublicUrl(storagePath);
+        const { data: publicUrlData } = supabase.storage.from("media-assets").getPublicUrl(storagePath);
         const publicUrl = publicUrlData?.publicUrl;
 
-        // Update calendar item with asset URL & register to Drive month folder
+        // Update calendar item + register in Drive
         if (publicUrl && generation.calendar_item_id) {
-          await supabase
-            .from("media_calendar_items")
-            .update({ asset_url: publicUrl, asset_thumbnail_url: publicUrl })
-            .eq("id", generation.calendar_item_id);
-          console.log(`✅ Calendar item ${generation.calendar_item_id} updated with winner`);
+          await supabase.from("media_calendar_items").update({ asset_url: publicUrl, asset_thumbnail_url: publicUrl }).eq("id", generation.calendar_item_id);
 
-          // Register in Drive month folder
           try {
-            // Get campaign start_date via calendar_item → campaign
-            const { data: calItem } = await supabase
-              .from("media_calendar_items")
-              .select("campaign_id")
-              .eq("id", generation.calendar_item_id)
-              .single();
-
+            const { data: calItem } = await supabase.from("media_calendar_items").select("campaign_id").eq("id", generation.calendar_item_id).single();
             if (calItem?.campaign_id) {
-              const { data: campaignData } = await supabase
-                .from("media_campaigns")
-                .select("start_date, created_by")
-                .eq("id", calItem.campaign_id)
-                .single();
-
+              const { data: campaignData } = await supabase.from("media_campaigns").select("start_date, created_by").eq("id", calItem.campaign_id).single();
               if (campaignData?.start_date) {
-                const monthFolderId = await ensureMediaMonthFolderEdge(
-                  supabase, generation.tenant_id, campaignData.created_by || generation.tenant_id, campaignData.start_date
-                );
-
+                const monthFolderId = await ensureMediaMonthFolderEdge(supabase, generation.tenant_id, campaignData.created_by || generation.tenant_id, campaignData.start_date);
                 if (monthFolderId) {
-                  const filename = `${winner.provider}_winner_${genId.slice(0, 8)}.png`;
+                  const filename = `${result.actualProvider}_winner_${genId.slice(0, 8)}.png`;
                   await supabase.from("files").insert({
-                    tenant_id: generation.tenant_id,
-                    folder_id: monthFolderId,
-                    filename,
-                    original_name: filename,
-                    storage_path: storagePath,
-                    mime_type: "image/png",
-                    size_bytes: binaryData.length,
-                    is_folder: false,
-                    is_system_folder: false,
-                    created_by: campaignData.created_by,
+                    tenant_id: generation.tenant_id, folder_id: monthFolderId, filename, original_name: filename,
+                    storage_path: storagePath, mime_type: "image/png", size_bytes: binaryData.length,
+                    is_folder: false, is_system_folder: false, created_by: campaignData.created_by,
                     metadata: { source: "media_ai_creative", url: publicUrl, bucket: "media-assets", system_managed: true },
                   });
-                  console.log(`📁 File registered in Drive month folder`);
                 }
               }
             }
@@ -691,96 +274,36 @@ BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
           }
         }
 
-        // Also upload runner-up if exists (for comparison)
-        if (successfulResults.length > 1) {
-          const runnerUp = successfulResults[1];
-          const runnerUpPath = `${generation.tenant_id}/${genId}/${runnerUp.provider}_alt.png`;
-          const runnerUpBinary = Uint8Array.from(atob(runnerUp.imageBase64!), (c) => c.charCodeAt(0));
-          
-          await supabase.storage
-            .from("media-assets")
-            .upload(runnerUpPath, runnerUpBinary, { contentType: "image/png", upsert: true });
-
-          await supabase.from("media_asset_variants").insert({
-            generation_id: genId,
-            variant_index: 2,
-            storage_path: runnerUpPath,
-            mime_type: "image/png",
-            file_size: runnerUpBinary.length,
-            width: 1024,
-            height: 1024,
-          });
-          console.log(`📸 Runner-up saved: ${runnerUp.provider} (score: ${runnerUp.scores.overall.toFixed(2)})`);
-        }
-
         const elapsedMs = Date.now() - genStartTime;
 
-        // Mark as succeeded with full metadata
-        await supabase
-          .from("media_asset_generations")
-          .update({
-            status: "succeeded",
-            completed_at: new Date().toISOString(),
-            provider: winner.provider === 'openai' ? 'lovable-ai-pro' : 'lovable-ai',
-            model: winner.provider === 'openai' ? 'google/gemini-3-pro-image-preview' : 'google/gemini-2.5-flash-image',
-            settings: {
-              ...settings,
-              actual_variant_count: successfulResults.length,
-              processing_time_ms: elapsedMs,
-              used_product_reference: winner.usedReference,
-              product_asset_url: productWithImage?.image_url || null,
-              pipeline_version: VERSION,
-              winner: {
-                provider: winner.provider,
-                scores: winner.scores,
-              },
-              all_results: successfulResults.map((r) => ({
-                provider: r.provider,
-                scores: r.scores,
-              })),
-            },
-          })
-          .eq("id", genId);
+        await supabase.from("media_asset_generations").update({
+          status: "succeeded", completed_at: new Date().toISOString(),
+          provider: result.actualProvider, model: result.model,
+          settings: {
+            ...settings,
+            processing_time_ms: elapsedMs,
+            used_product_reference: !!referenceBase64,
+            pipeline_version: VERSION,
+            winner: { provider: result.actualProvider, model: result.model, scores },
+          },
+        }).eq("id", genId);
 
         processed++;
-        results.push({
-          id: genId,
-          status: "succeeded",
-          winner: winner.provider,
-          winnerScore: winner.scores.overall,
-          totalVariants: successfulResults.length,
-          timeMs: elapsedMs,
-        });
-        console.log(`✅ Generation ${genId} done (${elapsedMs}ms, winner: ${winner.provider})`);
+        results.push({ id: genId, status: "succeeded", winner: result.actualProvider, winnerScore: scores.overall, timeMs: elapsedMs });
 
       } catch (genError) {
         console.error(`❌ Error processing ${genId}:`, genError);
-
         const errorMessage = genError instanceof Error ? genError.message : "Erro desconhecido";
-
-        await supabase
-          .from("media_asset_generations")
-          .update({
-            status: "failed",
-            error_message: errorMessage,
-            completed_at: new Date().toISOString(),
-          })
-          .eq("id", genId);
-
+        await supabase.from("media_asset_generations").update({
+          status: "failed", error_message: errorMessage, completed_at: new Date().toISOString(),
+        }).eq("id", genId);
         failed++;
         results.push({ id: genId, status: "failed", error: errorMessage });
       }
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        processed,
-        failed,
-        results,
-        version: VERSION,
-        message: `${processed} gerações processadas, ${failed} falhas`,
-      }),
+      JSON.stringify({ success: true, processed, failed, results, version: VERSION }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
