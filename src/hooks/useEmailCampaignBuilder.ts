@@ -8,14 +8,32 @@ import { showErrorToast } from '@/lib/error-toast';
 
 export interface CampaignConfig {
   name: string;
-  type: "broadcast" | "automation";
+  type: "broadcast" | "automation" | "sequence";
   list_id: string;
+}
+
+export type SequenceStepType = "send_email" | "wait" | "condition";
+
+export interface SequenceStep {
+  id: string;
+  type: SequenceStepType;
+  data: {
+    // send_email
+    subject?: string;
+    bodyHtml?: string;
+    // wait
+    delayValue?: number;
+    delayUnit?: "hours" | "days";
+    // condition
+    conditionType?: "opened" | "clicked";
+  };
 }
 
 export interface CampaignContent {
   subject: string;
   previewText: string;
   blocks: EmailBlock[];
+  sequenceSteps?: SequenceStep[];
 }
 
 export function useEmailCampaignBuilder() {
