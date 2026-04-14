@@ -33,7 +33,7 @@ export function AIImageGeneratorDialog({
 }: AIImageGeneratorDialogProps) {
   const { currentTenant } = useAuth();
   const [quantity, setQuantity] = useState('1');
-  const [style, setStyle] = useState('product_natural');
+  const [customPrompt, setCustomPrompt] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -279,26 +279,6 @@ export function AIImageGeneratorDialog({
               <p className="font-medium text-sm">{productName}</p>
               <p className="text-xs text-muted-foreground">Imagem de referência</p>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Estilo de geração</Label>
-            <Select value={style} onValueChange={setStyle} disabled={isGenerating}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {STYLES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    <div className="flex items-center gap-2">
-                      <s.icon className="h-4 w-4" />
-                      <span>{s.label}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {STYLES.find((s) => s.value === style)?.description}
-            </p>
           </div>
 
           <div className="space-y-2">
