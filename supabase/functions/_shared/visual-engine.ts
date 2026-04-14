@@ -41,6 +41,86 @@ export const LOVABLE_MODELS = {
 // ===== RE-EXPORT for backward compatibility =====
 export { buildFinalPrompt, buildCreativeBrief } from './creative-brief-builder.ts';
 
+// ===== IMAGE INTENT CLASSIFIER =====
+
+export type ImageIntent =
+  | "product_photo"
+  | "lifestyle_scene"
+  | "creative_vfx"
+  | "banner_promo"
+  | "social_post"
+  | "generic";
+
+const IMAGE_INTENT_KEYWORDS: Record<ImageIntent, string[]> = {
+  product_photo: [
+    "produto", "embalagem", "rótulo", "close-up", "detalhe", "packshot",
+    "fundo branco", "catálogo", "e-commerce", "product", "packaging", "label",
+    "white background", "catalog",
+  ],
+  lifestyle_scene: [
+    "pessoa", "segurando", "usando", "lifestyle", "cenário", "ambiente",
+    "mesa", "cozinha", "praia", "jardim", "mão", "mãos", "holding",
+    "using", "scene", "outdoor", "indoor",
+  ],
+  creative_vfx: [
+    "mascote", "personagem", "animação", "cartoon", "ilustração",
+    "efeito", "efeitos", "vfx", "explosão", "partícula", "neon",
+    "holográfico", "3d", "fantasia", "mágico", "magia", "futurista",
+    "character", "mascot", "animated", "illustration", "fantasy",
+    "magical", "glitch", "sparks", "faíscas", "fumaça", "smoke",
+    "fogo", "fire", "raio", "lightning", "surreal", "abstrato",
+  ],
+  banner_promo: [
+    "banner", "promoção", "desconto", "oferta", "sale", "promo",
+    "black friday", "natal", "páscoa", "dia das mães", "campanha",
+    "anúncio", "ad", "cta", "call to action",
+  ],
+  social_post: [
+    "post", "instagram", "reels", "stories", "feed", "tiktok",
+    "social", "carrossel", "carousel", "thumbnail", "thumb",
+  ],
+  generic: [],
+};
+
+export function classifyImageIntent(
+  prompt: string,
+  hasReferenceImage: boolean,
+): ImageIntent {
+  if (!prompt || prompt.trim().length === 0) {
+    return hasReferenceImage ? "product_photo" : "generic";
+  }
+
+  const promptLower = prompt.toLowerCase();
+  const scores: Record<ImageIntent, number> = {
+    product_photo: 0,
+    lifestyle_scene: 0,
+    creative_vfx: 0,
+    banner_promo: 0,
+    social_post: 0,
+    generic: 0,
+  };
+
+  for (const [intent, keywords] of Object.entries(IMAGE_INTENT_KEYWORDS)) {
+    for (const kw of keywords) {
+      if (promptLower.includes(kw)) {
+        scores[intent as ImageIntent]++;
+      }
+    }
+  }
+
+  let bestIntent: ImageIntent = hasReferenceImage ? "product_photo" : "generic";
+  let bestScore = 0;
+
+  for (const [intent, score] of Object.entries(scores)) {
+    if (score > bestScore) {
+      bestScore = score;
+      bestIntent = intent as ImageIntent;
+    }
+  }
+
+  return bestIntent;
+}
+
 // ===== TYPES =====
 
 export type ActualProvider = 'fal-ai' | 'gemini' | 'openai' | 'lovable' | 'unknown';
