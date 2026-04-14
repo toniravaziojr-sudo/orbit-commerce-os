@@ -22,11 +22,6 @@ interface AIImageGeneratorDialogProps {
   onImagesGenerated: () => void;
 }
 
-const STYLES = [
-  { value: 'product_natural', label: 'Produto + Fundo Natural', icon: Package, description: 'Produto em cenário natural, sem pessoas' },
-  { value: 'person_interacting', label: 'Pessoa + Produto', icon: User, description: 'Pessoa usando ou segurando o produto' },
-  { value: 'promotional', label: 'Promocional', icon: Megaphone, description: 'Visual de anúncio com impacto' },
-];
 
 type JobPhase = 'idle' | 'submitting' | 'polling' | 'saving' | 'done' | 'error';
 
