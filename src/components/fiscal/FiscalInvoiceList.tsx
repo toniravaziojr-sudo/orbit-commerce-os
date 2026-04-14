@@ -798,28 +798,33 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           {mode === 'orders' ? (
             <Button onClick={() => setManualDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Nova NF-e
+              Novo Rascunho
             </Button>
           ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Ações
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => { setEntryDialogChaveAcesso(undefined); setEntryDialogOpen(true); }}>
-                  <ArrowDownLeft className="h-4 w-4 mr-2" />
-                  NF-e de Entrada
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setConsultaChaveOpen(true)}>
-                  <Search className="h-4 w-4 mr-2" />
-                  Consultar por Chave
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <>
+              <Button onClick={() => setManualDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nova NF-e
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    Ações
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => { setEntryDialogChaveAcesso(undefined); setEntryDialogOpen(true); }}>
+                    <ArrowDownLeft className="h-4 w-4 mr-2" />
+                    NF-e de Entrada
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setConsultaChaveOpen(true)}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Consultar por Chave
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           )}
         </div>
       </div>
