@@ -239,32 +239,43 @@ async function processTenanDrafts(
         itemsToProcess = await unbundleKitItems(supabase, itemsToProcess);
       }
 
-      // Get fiscal product data
+      // Get fiscal product data + fallback from products table
       const productIds = itemsToProcess.map(item => item.product_id).filter(Boolean);
-      const { data: fiscalProducts } = await supabase
-        .from('fiscal_products')
-        .select('*')
-        .in('product_id', productIds);
+      
+      const [{ data: fiscalProducts }, { data: productsData }] = await Promise.all([
+        supabase
+          .from('fiscal_products')
+          .select('*')
+          .in('product_id', productIds),
+        supabase
+          .from('products')
+          .select('id, ncm, cest, origin_code, unit_of_measure')
+          .in('id', productIds),
+      ]);
 
       const fiscalProductMap = new Map(
         (fiscalProducts || []).map((fp: any) => [fp.product_id, fp])
       );
+      const productMap = new Map(
+        (productsData || []).map((p: any) => [p.id, p])
+      );
 
-      // Build invoice items
+      // Build invoice items (fiscal_products takes priority, products table as fallback)
       const invoiceItems = itemsToProcess.map((item, index) => {
         const fiscalProduct = fiscalProductMap.get(item.product_id);
+        const product = productMap.get(item.product_id);
         return {
           numero_item: index + 1,
           order_item_id: item.id || null,
           codigo_produto: item.sku || item.product_id?.substring(0, 8) || `PROD${index + 1}`,
           descricao: item.product_name || 'Produto',
-          ncm: fiscalProduct?.ncm || '',
+          ncm: fiscalProduct?.ncm || product?.ncm || '',
           cfop: fiscalProduct?.cfop_override || cfop,
-          unidade: fiscalProduct?.unidade_comercial || 'UN',
+          unidade: fiscalProduct?.unidade_comercial || product?.unit_of_measure || 'UN',
           quantidade: item.quantity,
           valor_unitario: item.unit_price,
           valor_total: item.total_price,
-          origem: fiscalProduct?.origem || 0,
+          origem: fiscalProduct?.origem ?? product?.origin_code ?? fiscalSettings.origin_code ?? 0,
           csosn: fiscalProduct?.csosn_override || fiscalSettings.csosn_padrao,
           cst: fiscalProduct?.cst_override || fiscalSettings.cst_padrao,
         };
