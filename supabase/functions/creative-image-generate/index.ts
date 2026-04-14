@@ -452,15 +452,19 @@ serve(async (req) => {
           const sanitizedProduct = (product_name || 'Produto').replace(/[^a-zA-Z0-9À-ÿ]/g, '_').substring(0, 30);
           const uniqueFilename = `${sanitizedProduct}_${sanitizeProviderLabel(img.actualProvider)}_${timestamp}${img.isWinner ? '_BEST' : ''}.png`;
 
-          await supabase.from('files').insert({
-            tenant_id, folder_id: folderId, filename: uniqueFilename, original_name: uniqueFilename,
-            storage_path: actualStoragePath, mime_type: 'image/png', size_bytes: null, created_by: userId,
-            metadata: {
-              source: 'creative_job_v3', job_id: jobId, product_id,
-              provider: img.actualProvider, is_winner: img.isWinner, scores: img.scores,
-              url: img.url, bucket: 'media-assets', system_managed: true,
-            },
-          }).catch(e => console.error('[creative-image] Drive register error:', e));
+          try {
+            await supabase.from('files').insert({
+              tenant_id, folder_id: folderId, filename: uniqueFilename, original_name: uniqueFilename,
+              storage_path: actualStoragePath, mime_type: 'image/png', size_bytes: null, created_by: userId,
+              metadata: {
+                source: 'creative_job_v3', job_id: jobId, product_id,
+                provider: img.actualProvider, is_winner: img.isWinner, scores: img.scores,
+                url: img.url, bucket: 'media-assets', system_managed: true,
+              },
+            });
+          } catch (e) {
+            console.error('[creative-image] Drive register error:', e);
+          }
         }
 
         // Update ads_creative_assets
