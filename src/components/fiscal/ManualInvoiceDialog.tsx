@@ -537,10 +537,82 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
               <CardTitle className="text-base">Destinatário</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Customer mode selector */}
+              <RadioGroup
+                value={customerMode}
+                onValueChange={(v) => {
+                  setCustomerMode(v as 'existing' | 'manual');
+                  if (v === 'manual') {
+                    handleClearCustomer();
+                    setCustomerSearchResults([]);
+                    setCustomerSearchTerm('');
+                  }
+                }}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="existing" id="customer-existing" />
+                  <Label htmlFor="customer-existing" className="cursor-pointer">Cliente existente</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="manual" id="customer-manual" />
+                  <Label htmlFor="customer-manual" className="cursor-pointer">Preencher manualmente</Label>
+                </div>
+              </RadioGroup>
+
+              {/* Customer search */}
+              {customerMode === 'existing' && !selectedCustomerId && (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={customerSearchTerm}
+                      onChange={e => setCustomerSearchTerm(e.target.value)}
+                      placeholder="Buscar por nome, email ou CPF..."
+                      className="pl-9"
+                    />
+                    {isSearchingCustomer && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  {customerSearchResults.length > 0 && (
+                    <div className="border rounded-md max-h-48 overflow-y-auto divide-y">
+                      {customerSearchResults.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => handleSelectCustomer(c)}
+                          className="w-full text-left px-3 py-2 hover:bg-accent transition-colors text-sm"
+                        >
+                          <div className="font-medium">{c.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {c.email && <span>{c.email}</span>}
+                            {c.cpf && <span> · CPF: {c.cpf}</span>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {customerSearchTerm.length >= 2 && !isSearchingCustomer && customerSearchResults.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Nenhum cliente encontrado.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Selected customer indicator */}
+              {customerMode === 'existing' && selectedCustomerId && (
+                <div className="flex items-center justify-between p-2 bg-accent/50 rounded-md">
+                  <span className="text-sm font-medium">Cliente: {destNome}</span>
+                  <Button variant="ghost" size="sm" onClick={handleClearCustomer}>
+                    Trocar
+                  </Button>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nome / Razão Social *</Label>
-                  <Input value={destNome} onChange={e => setDestNome(e.target.value)} />
+                  <Input value={destNome} onChange={e => setDestNome(e.target.value)} disabled={customerMode === 'existing' && !!selectedCustomerId} />
                 </div>
                 <div className="space-y-2">
                   <Label>CPF / CNPJ * <span className="text-xs text-muted-foreground">({destCpfCnpj.replace(/\D/g, '').length}/14 dígitos)</span></Label>
@@ -550,6 +622,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
                     maxLength={14}
                     placeholder="Apenas números"
                     className={`font-mono ${destCpfCnpj && !isValidCpfCnpj(destCpfCnpj) ? 'border-destructive' : ''}`}
+                    disabled={customerMode === 'existing' && !!selectedCustomerId}
                   />
                 </div>
               </div>
