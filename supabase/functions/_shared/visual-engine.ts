@@ -156,6 +156,7 @@ export interface ResilientGenerateResult {
   imageBase64: string | null;
   model: string;
   actualProvider: ActualProvider;
+  imageIntent?: ImageIntent;
   fallbackReason?: string;
   error?: string;
 }
