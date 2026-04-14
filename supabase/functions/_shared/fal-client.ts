@@ -315,34 +315,62 @@ export async function generateImageWithGptImage1(
   size: 'auto' | '1024x1024' | '1536x1024' | '1024x1536' = '1024x1024',
 ): Promise<FalImageResult | null> {
   try {
-    console.log(`[fal-client] Generating image with GPT Image 1 (edit-image)...`);
+    console.log(`[fal-client] Generating image with GPT Image 1 (edit-image) — sync mode...`);
     const input: Record<string, unknown> = {
       prompt,
       image_urls: referenceImageUrls,
       size,
     };
 
-    const requestId = await submitToQueue(apiKey, FAL_MODELS.GPT_IMAGE_1_EDIT, input);
-    await pollStatus(apiKey, FAL_MODELS.GPT_IMAGE_1_EDIT, requestId, 60_000);
+    // GPT Image 1 edit-image: use synchronous fal.run (queue polling returns 405 for this model)
+    const FAL_SYNC_BASE = "https://fal.run";
+    const url = `${FAL_SYNC_BASE}/${FAL_MODELS.GPT_IMAGE_1_EDIT}`;
+    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000);
+    
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: falHeaders(apiKey),
+        body: JSON.stringify(input),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
 
-    const result = await fetchResult<{
-      images: Array<{ url: string; width?: number; height?: number; content_type?: string }>;
-    }>(apiKey, FAL_MODELS.GPT_IMAGE_1_EDIT, requestId);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[fal-client] GPT Image 1 sync error ${response.status}:`, errorText.substring(0, 500));
+        return null;
+      }
 
-    if (!result.images?.[0]?.url) {
-      console.warn("[fal-client] GPT Image 1 returned no image");
+      const result = await response.json() as {
+        images?: Array<{ url: string; width?: number; height?: number; content_type?: string }>;
+      };
+
+      if (!result.images?.[0]?.url) {
+        console.warn("[fal-client] GPT Image 1 returned no image");
+        return null;
+      }
+
+      const img = result.images[0];
+      console.log(`[fal-client] ✅ GPT Image 1 image generated: ${img.url.substring(0, 80)}...`);
+      return {
+        imageUrl: img.url,
+        seed: 0,
+        width: img.width,
+        height: img.height,
+        contentType: img.content_type,
+      };
+    } catch (fetchError) {
+      clearTimeout(timeout);
+      if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+        console.error("[fal-client] GPT Image 1 timeout after 60s");
+      } else {
+        console.error("[fal-client] GPT Image 1 fetch error:", fetchError);
+      }
       return null;
     }
-
-    const img = result.images[0];
-    console.log(`[fal-client] ✅ GPT Image 1 image generated: ${img.url.substring(0, 80)}...`);
-    return {
-      imageUrl: img.url,
-      seed: 0,
-      width: img.width,
-      height: img.height,
-      contentType: img.content_type,
-    };
   } catch (error) {
     console.error("[fal-client] GPT Image 1 error:", error);
     return null;
