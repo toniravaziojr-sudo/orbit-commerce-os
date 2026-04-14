@@ -30,6 +30,8 @@ export interface InvoiceData {
   natureza_operacao: string;
   cfop: string;
   observacoes?: string;
+  tipo_nota?: 'saida' | 'entrada' | 'remessa' | 'devolucao' | 'transferencia';
+  chave_acesso_referenciada?: string;
   // SEFAZ IDE
   indicador_presenca: number;
   informacoes_fisco?: string;
