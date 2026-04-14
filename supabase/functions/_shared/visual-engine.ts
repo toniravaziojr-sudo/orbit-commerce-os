@@ -423,8 +423,10 @@ export async function resilientGenerate(
     slotLabel: label = 'slot',
   } = opts;
 
+  // Classify image intent for observability
+  const imageIntent = classifyImageIntent(finalPrompt, !!refUrl || !!refBase64);
   console.log(`[visual-engine] [${label}] ═══ resilientGenerate v10.0 START ═══`);
-  console.log(`[visual-engine] [${label}] Keys: FAL=${!!falKey} GEMINI=${!!gemKey} OPENAI=${!!oaiKey} LOVABLE=✅ | size=${outputSize}`);
+  console.log(`[visual-engine] [${label}] Intent: ${imageIntent} | Keys: FAL=${!!falKey} GEMINI=${!!gemKey} OPENAI=${!!oaiKey} LOVABLE=✅ | size=${outputSize}`);
 
   // ===== STEP 1: GPT Image 1 edit-image via fal.ai (PRIORIDADE MÁXIMA) =====
   if (falKey && refUrl) {
