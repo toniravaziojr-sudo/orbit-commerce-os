@@ -17,6 +17,7 @@ interface AIImageGeneratorDialogProps {
   onOpenChange: (open: boolean) => void;
   productId: string;
   productName: string;
+  productDescription?: string;
   primaryImageUrl: string;
   currentImageCount: number;
   onImagesGenerated: () => void;
@@ -29,7 +30,7 @@ const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_MS = 5 * 60 * 1000; // 5 min
 
 export function AIImageGeneratorDialog({
-  open, onOpenChange, productId, productName, primaryImageUrl, currentImageCount, onImagesGenerated,
+  open, onOpenChange, productId, productName, productDescription, primaryImageUrl, currentImageCount, onImagesGenerated,
 }: AIImageGeneratorDialogProps) {
   const { currentTenant } = useAuth();
   const [quantity, setQuantity] = useState('1');
@@ -41,7 +42,7 @@ export function AIImageGeneratorDialog({
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef(false);
 
-  const maxImages = Math.max(0, Math.min(5, 10 - currentImageCount));
+  const maxImages = 5;
 
   // Cleanup on unmount
   useEffect(() => {
@@ -135,6 +136,7 @@ export function AIImageGeneratorDialog({
               tenant_id: currentTenant.id,
               product_id: productId,
               product_name: productName,
+              product_description: productDescription || '',
               product_image_url: primaryImageUrl,
               prompt: customPrompt
                 ? `${customPrompt}. Produto: "${productName}". Variação ${i + 1}.`
@@ -280,18 +282,14 @@ export function AIImageGeneratorDialog({
 
           <div className="space-y-2">
             <Label>Quantidade de imagens</Label>
-            {maxImages <= 0 ? (
-              <p className="text-sm text-destructive">Limite de 10 imagens atingido para este produto.</p>
-            ) : (
-              <Select value={quantity} onValueChange={setQuantity} disabled={isGenerating}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: maxImages }, (_, i) => i + 1).map((n) => (
-                    <SelectItem key={n} value={String(n)}>{n} {n === 1 ? 'imagem' : 'imagens'}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <Select value={quantity} onValueChange={setQuantity} disabled={isGenerating}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: maxImages }, (_, i) => i + 1).map((n) => (
+                  <SelectItem key={n} value={String(n)}>{n} {n === 1 ? 'imagem' : 'imagens'}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -330,7 +328,7 @@ export function AIImageGeneratorDialog({
           <Button variant="outline" onClick={handleClose} disabled={jobPhase === 'saving'}>
             {isGenerating ? 'Cancelar' : 'Fechar'}
           </Button>
-          <Button onClick={handleGenerate} disabled={isGenerating || maxImages === 0}>
+          <Button onClick={handleGenerate} disabled={isGenerating}>
             {isGenerating ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
