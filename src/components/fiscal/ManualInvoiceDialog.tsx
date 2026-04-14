@@ -90,6 +90,13 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
   const [selectedOrderId, setSelectedOrderId] = useState<string>('manual');
   const [selectedNatureId, setSelectedNatureId] = useState<string>('');
 
+  // Customer search state
+  const [customerMode, setCustomerMode] = useState<'existing' | 'manual'>('manual');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
+  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+
   // Form state
   const [destNome, setDestNome] = useState('');
   const [destCpfCnpj, setDestCpfCnpj] = useState('');
