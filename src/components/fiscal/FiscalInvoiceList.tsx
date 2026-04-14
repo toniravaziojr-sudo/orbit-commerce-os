@@ -801,16 +801,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
               Novo Pedido
             </Button>
           ) : (
-            <>
-              <Button onClick={() => setManualDialogOpen(true)}>
+            <Button onClick={handleCreateNewInvoice} disabled={isCreatingInvoice}>
+              {isCreatingInvoice ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
                 <Plus className="h-4 w-4 mr-2" />
-                Nova NF-e
-              </Button>
-              <Button variant="outline" onClick={() => { setEntryDialogChaveAcesso(undefined); setEntryDialogOpen(true); }}>
-                <ArrowDownLeft className="h-4 w-4 mr-2" />
-                NF-e de Entrada
-              </Button>
-            </>
+              )}
+              Nova NF-e
+            </Button>
           )}
         </div>
       </div>
