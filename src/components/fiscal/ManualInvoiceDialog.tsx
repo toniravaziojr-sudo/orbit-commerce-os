@@ -153,6 +153,82 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
     }
   }, [open, tenantId]);
 
+  // Customer search with debounce
+  useEffect(() => {
+    if (customerMode !== 'existing' || !customerSearchTerm || customerSearchTerm.length < 2 || !tenantId) {
+      setCustomerSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingCustomer(true);
+      try {
+        const search = customerSearchTerm.trim();
+        const searchDigits = search.replace(/\D/g, '');
+        
+        let query = supabase
+          .from('customers')
+          .select('id, name, email, cpf, phone, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, address_postal_code')
+          .eq('tenant_id', tenantId)
+          .limit(10);
+
+        // Build OR filter
+        const orFilters: string[] = [];
+        orFilters.push(`name.ilike.%${search}%`);
+        if (search.includes('@')) {
+          orFilters.push(`email.ilike.%${search}%`);
+        }
+        if (searchDigits.length >= 3) {
+          orFilters.push(`cpf.ilike.%${searchDigits}%`);
+        }
+        
+        query = query.or(orFilters.join(','));
+        
+        const { data } = await query;
+        setCustomerSearchResults(data || []);
+      } catch (error) {
+        console.error('Error searching customers:', error);
+      } finally {
+        setIsSearchingCustomer(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [customerSearchTerm, customerMode, tenantId]);
+
+  const handleSelectCustomer = (customer: any) => {
+    setSelectedCustomerId(customer.id);
+    setDestNome(customer.name || '');
+    setDestCpfCnpj(customer.cpf?.replace(/\D/g, '') || '');
+    setDestEmail(customer.email || '');
+    setDestTelefone(customer.phone || '');
+    setDestLogradouro(customer.address_street || '');
+    setDestNumero(customer.address_number || '');
+    setDestComplemento(customer.address_complement || '');
+    setDestBairro(customer.address_neighborhood || '');
+    setDestMunicipio(customer.address_city || '');
+    setDestUf(customer.address_state || '');
+    setDestCep(customer.address_postal_code?.replace(/\D/g, '') || '');
+    setCustomerSearchTerm('');
+    setCustomerSearchResults([]);
+    toast.success(`Cliente "${customer.name}" selecionado`);
+  };
+
+  const handleClearCustomer = () => {
+    setSelectedCustomerId(null);
+    setDestNome('');
+    setDestCpfCnpj('');
+    setDestEmail('');
+    setDestTelefone('');
+    setDestLogradouro('');
+    setDestNumero('');
+    setDestComplemento('');
+    setDestBairro('');
+    setDestMunicipio('');
+    setDestUf('');
+    setDestCep('');
+  };
+
   // Handle nature selection
   const handleNatureChange = (natureId: string) => {
     setSelectedNatureId(natureId);
