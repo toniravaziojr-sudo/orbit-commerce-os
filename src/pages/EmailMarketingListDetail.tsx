@@ -233,6 +233,59 @@ export default function EmailMarketingListDetail() {
     onError: (err) => showErrorToast(err, { module: 'email', action: 'excluir' }),
   });
 
+  // Remove member from list
+  const removeMemberFromList = useMutation({
+    mutationFn: async (subscriberId: string) => {
+      if (!listId) throw new Error("Lista não encontrada");
+      const { error } = await supabase
+        .from("email_marketing_list_members")
+        .delete()
+        .eq("list_id", listId)
+        .eq("subscriber_id", subscriberId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers"] });
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers-count"] });
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["email-marketing-lists"] });
+      toast.success("Lead removido da lista");
+      setRemoveMemberId(null);
+    },
+    onError: (err) => showErrorToast(err, { module: "email", action: "remover" }),
+  });
+
+  // Move member to another list
+  const moveMemberToList = useMutation({
+    mutationFn: async ({ subscriberId, targetListId }: { subscriberId: string; targetListId: string }) => {
+      if (!listId) throw new Error("Lista não encontrada");
+      // Insert into target list
+      const { error: insertErr } = await supabase
+        .from("email_marketing_list_members")
+        .insert({ list_id: targetListId, subscriber_id: subscriberId });
+      if (insertErr && !insertErr.message?.includes("duplicate")) throw insertErr;
+      // Remove from current list
+      const { error: deleteErr } = await supabase
+        .from("email_marketing_list_members")
+        .delete()
+        .eq("list_id", listId)
+        .eq("subscriber_id", subscriberId);
+      if (deleteErr) throw deleteErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers"] });
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers-count"] });
+      queryClient.invalidateQueries({ queryKey: ["list-subscribers-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["email-marketing-lists"] });
+      toast.success("Lead movido para outra lista");
+      setMoveMember(null);
+      setMoveTargetListId("");
+    },
+    onError: (err) => showErrorToast(err, { module: "email", action: "mover" }),
+  });
+
+  const otherLists = lists.filter((l: any) => l.id !== listId);
+
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   if (listLoading) {
