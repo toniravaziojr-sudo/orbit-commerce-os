@@ -216,7 +216,7 @@ serve(async (req) => {
 
     const body = await req.json();
     const { 
-      tenant_id, product_id, product_name, product_image_url,
+      tenant_id, product_id, product_name, product_description, product_image_url,
       prompt, output_folder_id, settings = {},
     } = body;
 
@@ -322,11 +322,15 @@ serve(async (req) => {
           return;
         }
 
+        const descriptionContext = product_description 
+          ? `\n\n📋 DESCRIÇÃO DO PRODUTO: ${product_description}` 
+          : '';
+
         const finalPrompt = buildPromptForStyle({
           productName: product_name || 'Produto',
           style: generation_style,
           styleConfig: style_config,
-          contextBrief: prompt || '',
+          contextBrief: (prompt || '') + descriptionContext,
           format,
         });
 
