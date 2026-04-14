@@ -47,7 +47,7 @@ export function AIImageGeneratorDialog({
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef(false);
 
-  const maxImages = Math.min(5, 10 - currentImageCount);
+  const maxImages = Math.max(0, Math.min(5, 10 - currentImageCount));
 
   // Cleanup on unmount
   useEffect(() => {
@@ -308,14 +308,18 @@ export function AIImageGeneratorDialog({
 
           <div className="space-y-2">
             <Label>Quantidade de imagens</Label>
-            <Select value={quantity} onValueChange={setQuantity} disabled={isGenerating}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: maxImages }, (_, i) => i + 1).map((n) => (
-                  <SelectItem key={n} value={String(n)}>{n} {n === 1 ? 'imagem' : 'imagens'}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {maxImages <= 0 ? (
+              <p className="text-sm text-destructive">Limite de 10 imagens atingido para este produto.</p>
+            ) : (
+              <Select value={quantity} onValueChange={setQuantity} disabled={isGenerating}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: maxImages }, (_, i) => i + 1).map((n) => (
+                    <SelectItem key={n} value={String(n)}>{n} {n === 1 ? 'imagem' : 'imagens'}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="space-y-2">

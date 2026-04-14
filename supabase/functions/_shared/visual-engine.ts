@@ -1,14 +1,18 @@
 // =============================================
-// VISUAL ENGINE — Shared image generation motor
-// v3.0.0: GPT Image 1 (edit-image) priority hierarchy
-// Provides: resilient generation cascade, QA scoring,
-// image download, upload to storage + Drive registration
-//
-// HIERARQUIA v9.0:
+// VISUAL ENGINE — Unified Image Generation Motor
+// v4.0.0: Single resilientGenerate for ALL modules
+// 
+// HIERARQUIA UNIFICADA v10.0:
 // 1. GPT Image 1 edit-image (fal.ai) — image-to-image com referência
 // 2. Gemini Nativa — fallback com referência base64
 // 3. OpenAI Nativa — fallback
-// 4. Lovable AI Gateway — último recurso
+// 4. Lovable AI Gateway (Pro → Flash → Simplified) — último recurso
+//
+// CONSUMERS:
+// - creative-image-generate (thumbs produto 1:1)
+// - media-process-generation-queue (calendário)
+// - ai-landing-page-enhance-images (landing pages)
+// - store-builder visual blocks (banners)
 // =============================================
 
 import type {
@@ -37,6 +41,45 @@ export const LOVABLE_MODELS = {
 // ===== RE-EXPORT for backward compatibility =====
 export { buildFinalPrompt, buildCreativeBrief } from './creative-brief-builder.ts';
 
+// ===== TYPES =====
+
+export type ActualProvider = 'fal-ai' | 'gemini' | 'openai' | 'lovable' | 'unknown';
+
+export interface ResilientGenerateOptions {
+  /** Lovable API Key (required, always available) */
+  lovableApiKey: string;
+  /** OpenAI API Key (optional) */
+  openaiApiKey?: string | null;
+  /** Gemini API Key (optional) */
+  geminiApiKey?: string | null;
+  /** fal.ai API Key (optional) */
+  falApiKey?: string | null;
+  /** The prompt to generate */
+  prompt: string;
+  /** Product reference image as base64 (for Gemini/OpenAI/Gateway) */
+  referenceImageBase64?: string | null;
+  /** Product reference image URL (for GPT Image 1 fal.ai) */
+  referenceImageUrl?: string | null;
+  /** Output image size for fal.ai (default: '1024x1024') */
+  outputSize?: 'auto' | '1024x1024' | '1536x1024' | '1024x1536';
+  /** Additional style reference images as base64 (for Gateway, e.g. landing pages) */
+  styleReferences?: string[];
+  /** Timeout for GPT Image 1 polling in ms (default: 60000) */
+  gptTimeoutMs?: number;
+  /** Timeout for Gateway Pro model in ms (default: 70000) */
+  gatewayProTimeoutMs?: number;
+  /** Label for logging (e.g. 'desktop', 'mobile', 'thumb-1') */
+  slotLabel?: string;
+}
+
+export interface ResilientGenerateResult {
+  imageBase64: string | null;
+  model: string;
+  actualProvider: ActualProvider;
+  fallbackReason?: string;
+  error?: string;
+}
+
 // ===== PROMPT BUILDING (delegates to creative-brief-builder) =====
 
 /**
@@ -57,6 +100,7 @@ export async function generateWithLovableGateway(
   model: string,
   prompt: string,
   referenceImageBase64: string | null,
+  styleReferences?: string[],
 ): Promise<{ imageBase64: string | null; error?: string }> {
   try {
     console.log(`[visual-engine] Generating with ${model}...`);
@@ -67,6 +111,15 @@ export async function generateWithLovableGateway(
         type: 'image_url',
         image_url: { url: `data:image/png;base64,${referenceImageBase64}` },
       });
+    }
+    // Add style references (for landing pages)
+    if (styleReferences?.length) {
+      for (const refB64 of styleReferences.slice(0, 2)) {
+        content.push({
+          type: 'image_url',
+          image_url: { url: `data:image/png;base64,${refB64}` },
+        });
+      }
     }
 
     const response = await fetch(LOVABLE_GATEWAY_URL, {
@@ -194,11 +247,8 @@ export async function generateWithRealOpenAI(
   }
 }
 
-// ===== RESILIENT GENERATE — Quality-First with Per-Slot Timeout =====
+// ===== TIMEOUT HELPER =====
 
-/**
- * Wraps a promise with a timeout. Rejects with 'TIMEOUT' if exceeded.
- */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -212,131 +262,212 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
+// ===== HELPER: Detect actual provider from model string =====
+
+export function getActualProviderFromModel(model: string): ActualProvider {
+  const normalized = model.toLowerCase();
+  if (normalized.startsWith('fal-ai/')) return 'fal-ai';
+  if (normalized.includes('lovable fallback') || normalized.includes('lovable gateway')) return 'lovable';
+  if (normalized.includes('gemini nativa') || (normalized.includes('gemini') && !normalized.includes('lovable'))) return 'gemini';
+  if (normalized.includes('openai') || normalized === 'gpt-image-1') return 'openai';
+  if (normalized.includes('google/')) return 'lovable';
+  return 'unknown';
+}
+
+// ===== RESILIENT GENERATE v10.0 — UNIFIED FOR ALL MODULES =====
+
 /**
- * Quality-first generation cascade per slot:
- *   1. Pro model with 70s timeout
- *   2. Flash model (no aggressive timeout)
- *   3. Simplified prompt + Flash model (last resort)
- *
- * The same creative brief/prompt is used for steps 1 and 2.
- * Only step 3 simplifies the prompt as a final fallback.
- *
- * Returns which model was used and whether fallback occurred.
- */
-/**
- * HIERARQUIA OBRIGATÓRIA v9.0:
+ * HIERARQUIA OBRIGATÓRIA v10.0 (UNIFICADA):
  * 1. GPT Image 1 edit-image (fal.ai) — usa FAL_API_KEY + referência URL
  * 2. Gemini Nativa (API direta Google AI Studio) — usa GEMINI_API_KEY
  * 3. OpenAI Nativa — usa OPENAI_API_KEY
  * 4. Lovable AI Gateway (Pro → Flash → Simplified) — último recurso
+ * 
+ * Returns standardized result with actualProvider for tracking.
+ */
+export async function resilientGenerate(opts: ResilientGenerateOptions): Promise<ResilientGenerateResult>;
+/**
+ * @deprecated Legacy signature — use options object instead.
  */
 export async function resilientGenerate(
   lovableApiKey: string,
   openaiApiKey: string | null,
   prompt: string,
   referenceImageBase64: string | null,
-  preferOpenAI: boolean = false,
-  slotLabel: string = 'slot',
-  geminiApiKey: string | null = null,
-  falApiKey: string | null = null,
-  referenceImageUrl: string | null = null,
-): Promise<{ imageBase64: string | null; model: string; fallbackReason?: string; error?: string }> {
-  const PRO_TIMEOUT_MS = 70_000;
+  preferOpenAI?: boolean,
+  slotLabel?: string,
+  geminiApiKey?: string | null,
+  falApiKey?: string | null,
+  referenceImageUrl?: string | null,
+): Promise<ResilientGenerateResult>;
+export async function resilientGenerate(
+  lovableApiKeyOrOpts: string | ResilientGenerateOptions,
+  openaiApiKey?: string | null,
+  prompt?: string,
+  referenceImageBase64?: string | null,
+  _preferOpenAI?: boolean,
+  slotLabel?: string,
+  geminiApiKey?: string | null,
+  falApiKey?: string | null,
+  referenceImageUrl?: string | null,
+): Promise<ResilientGenerateResult> {
+  // Normalize to options object
+  let opts: ResilientGenerateOptions;
+  if (typeof lovableApiKeyOrOpts === 'string') {
+    opts = {
+      lovableApiKey: lovableApiKeyOrOpts,
+      openaiApiKey,
+      geminiApiKey,
+      falApiKey,
+      prompt: prompt!,
+      referenceImageBase64,
+      referenceImageUrl,
+      slotLabel,
+    };
+  } else {
+    opts = lovableApiKeyOrOpts;
+  }
+
+  const {
+    lovableApiKey: apiKey,
+    openaiApiKey: oaiKey,
+    geminiApiKey: gemKey,
+    falApiKey: falKey,
+    prompt: finalPrompt,
+    referenceImageBase64: refBase64,
+    referenceImageUrl: refUrl,
+    outputSize = '1024x1024',
+    styleReferences,
+    gptTimeoutMs = 60_000,
+    gatewayProTimeoutMs = 70_000,
+    slotLabel: label = 'slot',
+  } = opts;
+
+  console.log(`[visual-engine] [${label}] ═══ resilientGenerate v10.0 START ═══`);
+  console.log(`[visual-engine] [${label}] Keys: FAL=${!!falKey} GEMINI=${!!gemKey} OPENAI=${!!oaiKey} LOVABLE=✅ | size=${outputSize}`);
 
   // ===== STEP 1: GPT Image 1 edit-image via fal.ai (PRIORIDADE MÁXIMA) =====
-  if (falApiKey && referenceImageUrl) {
-    console.log(`[visual-engine] [${slotLabel}] Step 1: GPT Image 1 edit-image (prioridade máxima)...`);
-    const gptResult = await generateImageWithGptImage1(
-      falApiKey,
-      prompt,
-      [referenceImageUrl],
-      '1024x1024',
-    );
-    if (gptResult?.imageUrl) {
-      const b64 = await falDownloadImage(gptResult.imageUrl);
-      if (b64) {
-        console.log(`[visual-engine] [${slotLabel}] ✅ GPT Image 1 edit-image succeeded`);
-        return { imageBase64: b64, model: 'fal-ai/gpt-image-1/edit-image', fallbackReason: undefined };
+  if (falKey && refUrl) {
+    console.log(`[visual-engine] [${label}] Step 1: GPT Image 1 edit-image (prioridade máxima)...`);
+    try {
+      const gptResult = await withTimeout(
+        generateImageWithGptImage1(falKey, finalPrompt, [refUrl], outputSize),
+        gptTimeoutMs,
+        `${label}:gpt-image-1`,
+      );
+      if (gptResult?.imageUrl) {
+        const b64 = await falDownloadImage(gptResult.imageUrl);
+        if (b64) {
+          console.log(`[visual-engine] [${label}] ✅ GPT Image 1 edit-image succeeded`);
+          return { imageBase64: b64, model: 'fal-ai/gpt-image-1/edit-image', actualProvider: 'fal-ai' };
+        }
       }
+      console.warn(`[visual-engine] [${label}] GPT Image 1 returned no usable image. Falling back...`);
+    } catch (err: any) {
+      const reason = err?.message === 'TIMEOUT' ? 'timeout' : 'error';
+      console.warn(`[visual-engine] [${label}] GPT Image 1 failed (${reason}): ${err?.message}. Falling back...`);
     }
-    console.warn(`[visual-engine] [${slotLabel}] GPT Image 1 failed. Falling back to Gemini Nativa...`);
-  } else if (!falApiKey) {
-    console.warn(`[visual-engine] [${slotLabel}] FAL_API_KEY not available. Skipping GPT Image 1.`);
+  } else if (!falKey) {
+    console.warn(`[visual-engine] [${label}] FAL_API_KEY not available. Skipping GPT Image 1.`);
   } else {
-    console.warn(`[visual-engine] [${slotLabel}] No reference image URL. Skipping GPT Image 1.`);
+    console.warn(`[visual-engine] [${label}] No reference image URL. Skipping GPT Image 1.`);
   }
 
   // ===== STEP 2: Gemini Nativa (FALLBACK SEGURO) =====
-  if (geminiApiKey) {
-    const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, slotLabel);
+  if (gemKey) {
+    const nativeResult = await tryNativeGemini(gemKey, finalPrompt, refBase64 || null, label);
     if (nativeResult.imageBase64) {
-      console.log(`[visual-engine] [${slotLabel}] ✅ Gemini Nativa succeeded`);
-      return { ...nativeResult, fallbackReason: falApiKey ? 'gpt_image_1_failed' : 'no_fal_key' };
+      console.log(`[visual-engine] [${label}] ✅ Gemini Nativa succeeded`);
+      return {
+        imageBase64: nativeResult.imageBase64,
+        model: nativeResult.model,
+        actualProvider: 'gemini',
+        fallbackReason: falKey ? 'gpt_image_1_failed' : 'no_fal_key',
+      };
     }
-    console.warn(`[visual-engine] [${slotLabel}] Gemini Nativa failed: ${nativeResult.error}. Trying OpenAI...`);
+    console.warn(`[visual-engine] [${label}] Gemini Nativa failed: ${nativeResult.error}. Trying OpenAI...`);
   } else {
-    console.warn(`[visual-engine] [${slotLabel}] GEMINI_API_KEY not available. Skipping native Gemini.`);
+    console.warn(`[visual-engine] [${label}] GEMINI_API_KEY not available. Skipping native Gemini.`);
   }
 
   // ===== STEP 3: OpenAI Nativa =====
-  if (openaiApiKey) {
-    const openaiResult = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
+  if (oaiKey) {
+    const openaiResult = await generateWithRealOpenAI(oaiKey, finalPrompt, refBase64 || null);
     if (openaiResult.imageBase64) {
-      console.log(`[visual-engine] [${slotLabel}] ✅ OpenAI Nativa succeeded`);
-      return { ...openaiResult, fallbackReason: 'native_providers_failed' };
+      console.log(`[visual-engine] [${label}] ✅ OpenAI Nativa succeeded`);
+      return {
+        imageBase64: openaiResult.imageBase64,
+        model: openaiResult.model,
+        actualProvider: 'openai',
+        fallbackReason: 'native_providers_failed',
+      };
     }
-    console.warn(`[visual-engine] [${slotLabel}] OpenAI failed: ${openaiResult.error}. Trying Lovable Gateway...`);
+    console.warn(`[visual-engine] [${label}] OpenAI failed: ${openaiResult.error}. Trying Lovable Gateway...`);
   } else {
-    console.warn(`[visual-engine] [${slotLabel}] OPENAI_API_KEY not available. Skipping OpenAI.`);
+    console.warn(`[visual-engine] [${label}] OPENAI_API_KEY not available. Skipping OpenAI.`);
   }
 
   // ===== STEP 4: Lovable AI Gateway (ÚLTIMO RECURSO) =====
-  console.log(`[visual-engine] [${slotLabel}] Step 4 (fallback): ${LOVABLE_MODELS.primary} via Lovable Gateway (timeout ${PRO_TIMEOUT_MS}ms)`);
+  // 4a: Pro model with timeout
+  console.log(`[visual-engine] [${label}] Step 4a: ${LOVABLE_MODELS.primary} via Lovable Gateway (timeout ${gatewayProTimeoutMs}ms)`);
   try {
     const proResult = await withTimeout(
-      generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64),
-      PRO_TIMEOUT_MS,
-      `${slotLabel}:pro`,
+      generateWithLovableGateway(apiKey, LOVABLE_MODELS.primary, finalPrompt, refBase64 || null, styleReferences),
+      gatewayProTimeoutMs,
+      `${label}:pro`,
     );
     if (proResult.imageBase64) {
-      console.log(`[visual-engine] [${slotLabel}] ✅ Lovable Gateway Pro succeeded (fallback)`);
-      return { imageBase64: proResult.imageBase64, model: `${LOVABLE_MODELS.primary} (Lovable fallback)`, fallbackReason: 'native_providers_failed' };
+      console.log(`[visual-engine] [${label}] ✅ Lovable Gateway Pro succeeded (fallback)`);
+      return {
+        imageBase64: proResult.imageBase64,
+        model: `${LOVABLE_MODELS.primary} (Lovable fallback)`,
+        actualProvider: 'lovable',
+        fallbackReason: 'native_providers_failed',
+      };
     }
-    console.warn(`[visual-engine] [${slotLabel}] Lovable Pro returned no image: ${proResult.error}`);
+    console.warn(`[visual-engine] [${label}] Lovable Pro returned no image: ${proResult.error}`);
   } catch (err: any) {
     const reason = err?.message === 'TIMEOUT' ? 'timeout' : 'error';
-    console.warn(`[visual-engine] [${slotLabel}] Lovable Pro failed (${reason}). Trying Flash...`);
+    console.warn(`[visual-engine] [${label}] Lovable Pro failed (${reason}). Trying Flash...`);
   }
 
-  // Step 4b: Flash model via Lovable
-  console.log(`[visual-engine] [${slotLabel}] Step 4b: ${LOVABLE_MODELS.fast} via Lovable Gateway`);
-  const flashResult = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fast, prompt, referenceImageBase64);
+  // 4b: Flash model
+  console.log(`[visual-engine] [${label}] Step 4b: ${LOVABLE_MODELS.fast} via Lovable Gateway`);
+  const flashResult = await generateWithLovableGateway(apiKey, LOVABLE_MODELS.fast, finalPrompt, refBase64 || null, styleReferences);
   if (flashResult.imageBase64) {
-    console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Lovable Flash used`);
+    console.warn(`[visual-engine] [${label}] ⚠️ FALLBACK: Lovable Flash used`);
     return {
       imageBase64: flashResult.imageBase64,
       model: `${LOVABLE_MODELS.fast} (Lovable fallback)`,
+      actualProvider: 'lovable',
       fallbackReason: 'all_native_failed_lovable_flash',
     };
   }
 
-  // Step 4c: Simplified prompt — ABSOLUTE LAST RESORT
-  console.warn(`[visual-engine] [${slotLabel}] Step 4c: Simplified prompt (absolute last resort)`);
-  const productName = prompt.match(/"([^"]+)"/)?.[1] || 'produto';
-  const hasNoTextRule = prompt.includes('ZERO TEXT') || prompt.includes('ZERO TEXTO');
+  // 4c: Simplified prompt — ABSOLUTE LAST RESORT
+  console.warn(`[visual-engine] [${label}] Step 4c: Simplified prompt (absolute last resort)`);
+  const productName = finalPrompt.match(/"([^"]+)"/)?.[1] || 'produto';
+  const hasNoTextRule = finalPrompt.includes('ZERO TEXT') || finalPrompt.includes('ZERO TEXTO');
   const noTextSuffix = hasNoTextRule ? ' A imagem NÃO pode conter NENHUM texto, letra, número ou tipografia.' : '';
   const simplifiedPrompt = `Crie uma fotografia profissional do produto "${productName}" em fundo escuro elegante. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.${noTextSuffix}`;
-  const lastResort = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fast, simplifiedPrompt, referenceImageBase64);
+  const lastResort = await generateWithLovableGateway(apiKey, LOVABLE_MODELS.fast, simplifiedPrompt, refBase64 || null);
   if (lastResort.imageBase64) {
-    console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Simplified prompt used`);
+    console.warn(`[visual-engine] [${label}] ⚠️ FALLBACK: Simplified prompt used`);
     return {
       imageBase64: lastResort.imageBase64,
       model: `${LOVABLE_MODELS.fast} (simplified, Lovable fallback)`,
+      actualProvider: 'lovable',
       fallbackReason: 'all_failed_simplified',
     };
   }
 
-  return { imageBase64: null, model: LOVABLE_MODELS.primary, error: 'All generation attempts failed (Gemini Nativa → OpenAI → Lovable Gateway)' };
+  console.error(`[visual-engine] [${label}] ═══ ALL GENERATION ATTEMPTS FAILED ═══`);
+  return {
+    imageBase64: null,
+    model: 'all-failed',
+    actualProvider: 'unknown',
+    error: 'All generation attempts failed (GPT Image 1 → Gemini Nativa → OpenAI → Lovable Gateway)',
+  };
 }
 
 // ===== QA SCORER =====
@@ -344,11 +475,37 @@ export async function resilientGenerate(
 export async function scoreImageForRealism(
   lovableApiKey: string,
   imageBase64: string,
-  originalProductBase64: string,
+  originalProductBase64: string | null,
   productName: string,
 ): Promise<QAScores> {
   console.log(`[visual-engine] Scoring image for realism...`);
   try {
+    const content: any[] = [
+      {
+        type: 'text',
+        text: `Você é um juiz especialista em avaliar FIDELIDADE de imagens de produto geradas por IA.
+
+TAREFA: Avaliar se a IMAGEM GERADA mantém o produto IDÊNTICO ao original e se parece uma FOTO REAL.
+PRODUTO ESPERADO: "${productName}"
+
+REGRA CRÍTICA: Se o produto foi ALTERADO, REDESENHADO ou tem VARIAÇÕES que não existem na referência, a nota de LABEL deve ser 0-2.
+
+Avalie de 0 a 10:
+1. REALISM (Parece foto real?)
+2. QUALITY (Qualidade técnica)
+3. COMPOSITION (Composição)
+4. LABEL (Fidelidade do produto — CRITÉRIO MAIS IMPORTANTE)
+
+Responda APENAS em JSON:
+{"realism":<0-10>,"quality":<0-10>,"composition":<0-10>,"label":<0-10>,"reasoning":"<breve>"}`,
+      },
+    ];
+
+    if (originalProductBase64) {
+      content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${originalProductBase64}` } });
+    }
+    content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } });
+
     const response = await fetch(LOVABLE_GATEWAY_URL, {
       method: 'POST',
       headers: {
@@ -357,17 +514,7 @@ export async function scoreImageForRealism(
       },
       body: JSON.stringify({
         model: 'google/gemini-3-flash-preview',
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `Você é um juiz especialista em avaliar REALISMO de imagens geradas por IA.\n\nTAREFA: Avaliar se a IMAGEM GERADA parece uma FOTO REAL.\nPRODUTO ESPERADO: "${productName}"\n\nAvalie de 0 a 10:\n1. REALISM\n2. QUALITY\n3. COMPOSITION\n4. LABEL\n\nResponda APENAS em JSON:\n{"realism":<0-10>,"quality":<0-10>,"composition":<0-10>,"label":<0-10>,"reasoning":"<breve>"}`
-            },
-            { type: 'image_url', image_url: { url: `data:image/png;base64,${originalProductBase64}` } },
-            { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } },
-          ],
-        }],
+        messages: [{ role: 'user', content }],
       }),
     });
 
@@ -376,8 +523,8 @@ export async function scoreImageForRealism(
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    const textContent = data.choices?.[0]?.message?.content || '';
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
 
     const scores = JSON.parse(jsonMatch[0]);
@@ -433,19 +580,12 @@ export async function downloadImageAsBase64(url: string): Promise<string | null>
 // ===== UPLOAD TO STORAGE =====
 
 interface UploadContext {
-  /** Product name for semantic file naming */
   productName?: string;
-  /** Slot device label (e.g. 'desktop', 'mobile') */
   device?: string;
-  /** Slot dimensions for folder organization */
   width?: number;
   height?: number;
 }
 
-/**
- * Builds the subfolder path: criativos-builder/{WIDTHxHEIGHT}
- * Rule: All AI creatives go under one root folder, organized by dimensions.
- */
 function getCreativeSubfolder(context?: UploadContext): string {
   const root = 'criativos-builder';
   if (context?.width && context?.height) {
@@ -454,28 +594,23 @@ function getCreativeSubfolder(context?: UploadContext): string {
   return root;
 }
 
-/**
- * Builds a semantic filename: {product}-{device}-{YYYY-MM-DD}-{shortId}.png
- */
 function buildCreativeFilename(label: string, context?: UploadContext): string {
   const now = new Date();
-  const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const date = now.toISOString().split('T')[0];
   const shortId = Date.now().toString(36).slice(-5);
 
   const parts: string[] = [];
 
-  // Product name (sanitized)
   if (context?.productName) {
     const safeProd = context.productName
       .toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .substring(0, 40);
     if (safeProd) parts.push(safeProd);
   }
 
-  // Device label (desktop/mobile)
   if (context?.device) {
     parts.push(context.device);
   } else {
@@ -483,7 +618,6 @@ function buildCreativeFilename(label: string, context?: UploadContext): string {
     parts.push(safeLabel);
   }
 
-  // Date + short unique id
   parts.push(date);
   parts.push(shortId);
 
@@ -523,7 +657,6 @@ export async function uploadToStorage(
     const publicUrl = publicUrlData?.publicUrl || null;
     console.log(`[visual-engine] Uploaded: ${filePath}`);
 
-    // Register in Drive (fire-and-forget)
     if (publicUrl) {
       try {
         const { resolveAndEnsureFolderEdge, registerFileToDriveEdge } = await import('./drive-register.ts');
@@ -532,7 +665,7 @@ export async function uploadToStorage(
         if (folderId) {
           await registerFileToDriveEdge(supabase, {
             tenantId,
-            userId: tenantId, // fallback: tenantId as creator (no user context in edge)
+            userId: tenantId,
             folderId,
             storagePath: filePath,
             originalName: filename,
@@ -559,12 +692,6 @@ export async function uploadToStorage(
 
 // ===== HIGH-LEVEL: GENERATE FOR A SINGLE REQUEST =====
 
-/**
- * Generates all slots for a single VisualGenerationRequest.
- * Uses resilient cascade, downloads product reference, uploads results.
- * 
- * v2.0.0: Now logs the consolidated creative brief for diagnostics.
- */
 export async function generateForRequest(
   request: VisualGenerationRequest,
   supabase: any,
@@ -577,7 +704,6 @@ export async function generateForRequest(
   const startTime = Date.now();
   const assets: GeneratedAsset[] = [];
 
-  // Log the consolidated creative brief ONCE per request
   const briefForLog = buildCreativeBrief({
     creativeStyle: request.creativeStyle,
     styleConfig: request.styleConfig,
@@ -590,40 +716,33 @@ export async function generateForRequest(
   });
   console.log(`[visual-engine] ══ CREATIVE BRIEF ══\n${briefForLog.substring(0, 800)}...`);
 
-  // Download product reference image if available
   let referenceBase64: string | null = null;
   if (request.product?.mainImageUrl) {
     referenceBase64 = await downloadImageAsBase64(request.product.mainImageUrl);
   }
 
-  const preferOpenAI = !!openaiApiKey && request.outputMode === 'complete';
-
-  // Generate all slots in parallel — each slot has its own quality-first cascade
   const slotPromises = request.slots.map(async (slot) => {
     const prompt = buildFinalPrompt(request, slot);
-    
-    // Determine slot label for logging/audit
     const isDesktop = slot.composition.includes('desktop');
     const slotLabel = isDesktop ? 'desktop' : 'mobile';
     console.log(`[visual-engine] ══ FINAL PROMPT (${slotLabel.toUpperCase()}) ══\n${prompt.substring(0, 500)}...`);
 
-    const result = await resilientGenerate(
+    const result = await resilientGenerate({
       lovableApiKey,
       openaiApiKey,
-      prompt,
-      referenceBase64,
-      preferOpenAI,
-      slotLabel,
       geminiApiKey,
       falApiKey,
-      request.product?.mainImageUrl || null,
-    );
+      prompt,
+      referenceImageBase64: referenceBase64,
+      referenceImageUrl: request.product?.mainImageUrl || null,
+      outputSize: `${slot.width}x${slot.height}` as any || '1024x1024',
+      slotLabel,
+    });
 
-    // Log fallback audit trail
     if (result.fallbackReason) {
-      console.warn(`[visual-engine] 📊 AUDIT [${slotLabel}]: model=${result.model}, fallbackReason=${result.fallbackReason}`);
+      console.warn(`[visual-engine] 📊 AUDIT [${slotLabel}]: model=${result.model}, provider=${result.actualProvider}, fallbackReason=${result.fallbackReason}`);
     } else {
-      console.log(`[visual-engine] 📊 AUDIT [${slotLabel}]: model=${result.model}, fallback=none`);
+      console.log(`[visual-engine] 📊 AUDIT [${slotLabel}]: model=${result.model}, provider=${result.actualProvider}, fallback=none`);
     }
 
     if (!result.imageBase64) {
