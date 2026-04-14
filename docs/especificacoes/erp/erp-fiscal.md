@@ -304,7 +304,31 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 | **Objetivo** | Permitir identificação visual de risco operacional antes da emissão da NF-e |
 | **Dados** | `order_status` é obtido via join `orders!fiscal_invoices_order_id_fkey(status)` na query fiscal |
 
+### Interface: Abas e Ações (v2026-04-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Estrutura de UI |
+| **Localização** | `src/pages/Fiscal.tsx`, `src/components/fiscal/FiscalInvoiceList.tsx`, `src/components/fiscal/ManualInvoiceDialog.tsx` |
+| **Descrição** | A página Fiscal possui duas abas principais com ações distintas |
+
+#### Aba "Pedidos em Aberto" (`mode=orders`)
+- Lista rascunhos de NF-e gerados automaticamente a partir de pedidos pagos (todas as origens: lojas, marketplaces, etc.)
+- Permite criar rascunhos manualmente via botão **"Novo Rascunho"** → abre `ManualInvoiceDialog`
+- O rascunho criado aqui não exige escolha de tipo de NF (simplificado)
+
+#### Aba "Notas Fiscais" (`mode=invoices`)
+- Lista NF-e emitidas (autorizadas, pendentes, rejeitadas, canceladas, devolvidas)
+- Botão principal **"Nova NF-e"** → abre `ManualInvoiceDialog` para criação manual de NF completa
+- Dropdown **"Ações"** com: "NF-e de Entrada" e "Consultar por Chave"
+
+#### Busca de Cliente no ManualInvoiceDialog
+- Seletor com duas opções: **"Cliente existente"** e **"Preencher manualmente"**
+- **Cliente existente**: campo de busca com debounce (400ms) que consulta `customers` por `name` (ilike), `email` (ilike) e `cpf` (ilike nos dígitos). Limite de 10 resultados. Ao selecionar, preenche automaticamente todos os campos do destinatário (nome, CPF/CNPJ, email, telefone, endereço completo).
+- **Preencher manualmente**: campos vazios para digitação livre, como era anteriormente.
+
 ---
+
 
 ## 2. Financeiro
 
