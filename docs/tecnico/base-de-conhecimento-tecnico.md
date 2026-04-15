@@ -477,14 +477,3 @@ Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entra
 **Regra derivada:** Regra geral para evitar recorrência
 ```
 
-Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entrada aqui seguindo o formato:
-
-```markdown
-### X.N Título curto
-
-**Problema:** O que acontecia / o sintoma visível
-**Causa raiz:** Por que acontecia (técnico)
-**Solução:** O que foi feito para resolver
-**Onde ocorreu:** Arquivo(s) / módulo afetado
-**Regra derivada:** Regra geral para evitar recorrência
-```
