@@ -1,102 +1,61 @@
 
 
-# Integração WMS Pratika — App Externo com Ativação/Desativação
+# Plano: Correção do Bloco de Categorias + Auditoria Completa dos 35 Blocos Personalizáveis
 
-## Resumo
+## Problemas Identificados no CategoryShowcase
 
-Criar uma nova aba "WMS Pratika" no módulo de Aplicativos Externos (/apps-externos), seguindo o mesmo padrão das abas GTM e Calendar. O app terá toggle de ativação por tenant, configuração de URL do endpoint SOAP, e envio automático de XML da NFe e etiquetas quando ativado.
+### Problema 1 — Painel direito cortado
+O painel de propriedades tem largura fixa de `w-72` (288px). O conteúdo do `CategoryMultiSelect` (lista de categorias com thumbnails, texto longo) ultrapassa essa largura. Solução: ajustar overflow e truncar textos dentro do painel.
 
-## Como funciona hoje
+### Problema 2 — Estilo "Cards" ignora seleção de categorias
+**Causa raiz encontrada:** No modo "cards", o `CategoryListBlock` só usa a lista de `items` quando `source === 'custom'`. Porém, o campo `source` começa como `'auto'` (mostrar todas). Quando o usuário seleciona categorias no `items`, o `source` não muda automaticamente para `'custom'`, então o bloco continua mostrando TODAS as categorias.
 
-- O módulo Apps Externos tem 2 abas: Tag Manager e Calendar
-- Cada aba verifica conexão/configuração e oferece gestão simplificada
-- NFe é emitida via `fiscal-emit` e etiquetas via `shipping-get-label`, sem envio para sistemas externos
+**Solução:** Quando o usuário adicionar categorias via `items`, o sistema deve automaticamente mudar `source` para `'custom'`. Ou, melhor ainda, quando `items.length > 0` no modo cards, tratar como custom independentemente do valor de `source`.
 
-## O que será feito
+---
 
-### 1. Migration — Tabela de configuração do app
+## Plano de Execução
 
-Adicionar campos na tabela `tenant_settings` ou criar uma entrada na lógica de apps externos para armazenar:
-- `wms_pratika_enabled` (boolean)
-- `wms_pratika_url` (string, pré-preenchido com o endpoint padrão)
-- `wms_pratika_cnpj` (string, CNPJ usado para identificação no WMS)
+### Fase 1 — Correções do CategoryShowcase
+1. **Corrigir lógica de source no CategoryListBlock** — quando `items.length > 0`, tratar como custom automaticamente
+2. **Corrigir overflow do painel** — truncar nomes longos de categorias e ajustar largura do conteúdo no `CategoryMultiSelect`
 
-### 2. Nova aba na UI — `WmsPratikaTab.tsx`
+### Fase 2 — Auditoria dos 35 Blocos Personalizáveis
+Inserir cada bloco em uma página de teste no Builder e verificar:
+- O bloco renderiza sem erro?
+- As propriedades do painel direito aparecem corretamente?
+- Alterar cada configuração reflete visualmente no bloco?
+- O painel não tem overflow/corte?
 
-- Toggle de ativação/desativação (Switch)
-- Campo de URL do web service (pré-preenchido)
-- Campo de CNPJ para identificação
-- Botão "Testar Conexão" (chamada SOAP simples)
-- Log de últimos envios (sucesso/erro)
-- Seguindo exatamente o padrão visual das abas GTM e Calendar
+**Blocos a auditar (35):**
+- Banners: `Banner`, `BannerProducts`
+- Produtos: `ProductShowcase`, `ProductCard`
+- Categorias: `CategoryShowcase` (já corrigido na Fase 1)
+- Galerias: `VideoCarousel`, `ImageGallery`, `LogosCarousel`
+- Conteúdo: `RichText`, `Button`, `Image`, `Video`, `ContentSection`, `Highlights`, `StepsTimeline`, `CountdownTimer`, `StatsNumbers`, `FAQ`, `CustomCode`, `EmbedSocialPost`
+- Engajamento: `SocialProof`, `ContactForm`, `Map`, `SocialFeed`, `PersonalizedProducts`, `LivePurchases`, `PricingTable`, `NewsletterPopup`
+- Formulários: `NewsletterUnified`, `QuizEmbed`
+- Layout: `Section`, `Container`, `Columns`, `Spacer`, `Divider`
 
-### 3. Atualização da página ExternalApps
+### Fase 3 — Correções encontradas na auditoria
+Aplicar correções para qualquer problema encontrado.
 
-- Adicionar terceira aba "WMS Pratika" com ícone Truck
-- Import do novo componente
+### Fase 4 — Documentação
+- Atualizar o doc de consolidação de blocos (`mem://features/ui-builder/block-consolidation-standard`)
+- Registrar problema × solução para cada correção
+- Atualizar `mapa-ui.md` se aplicável
 
-### 4. Edge Function — `wms-pratika-send`
-
-- Recebe `invoice_id` ou `shipment_id` + `tenant_id`
-- Verifica se WMS Pratika está ativado para o tenant
-- Baixa XML da NFe (da Nuvem Fiscal ou do campo `xml_url` salvo)
-- Monta envelope SOAP e envia para `RecepcaoDocNfe`
-- Registra resultado em log
-- Operações SOAP suportadas:
-  - `RecepcaoDocNfe` — envio do XML
-  - `AtualizarCodRastreioNfe` — atualização de rastreio
-  - `RecepcaoLoteValidaAutoNfe` — envio de etiquetas em lote
-
-### 5. Helper compartilhado — `_shared/soap-client.ts`
-
-- Função genérica para montar envelope SOAP e executar POST
-- Reutilizável para futuras integrações SOAP
-
-### 6. Triggers automáticos (quando ativado)
-
-- No `fiscal-emit`: após autorização da NFe, chamar `wms-pratika-send` se ativado
-- No `shipping-get-label`: após geração de etiqueta, enviar para WMS se ativado
-- Chamadas fire-and-forget (não bloqueiam o fluxo principal)
-
-### 7. Documentação
-
-- Atualizar memória do módulo External Apps
-- Atualizar mapa-ui.md com nova aba
-- Registrar na base de conhecimento técnico
+---
 
 ## Detalhes Técnicos
 
-```text
-Fluxo:
-Tenant ativa WMS Pratika em /apps-externos
-  └── Toggle ON → salva config no banco
+**Arquivos principais afetados (Fase 1):**
+- `src/components/builder/blocks/CategoryListBlock.tsx` — lógica de source
+- `src/components/builder/CategoryMultiSelect.tsx` — overflow/truncate
+- `src/lib/builder/registry.ts` — possível ajuste no schema
 
-NFe Autorizada → fiscal-emit
-  └── Verifica wms_pratika_enabled
-      └── Se ON → fire-and-forget → wms-pratika-send
-          ├── Baixa XML (Nuvem Fiscal)
-          ├── SOAP RecepcaoDocNfe (CNPJ + XML)
-          └── Log resultado
-
-Etiqueta Gerada → shipping-get-label
-  └── Verifica wms_pratika_enabled
-      └── Se ON → fire-and-forget → wms-pratika-send
-          ├── SOAP RecepcaoLoteValidaAutoNfe
-          └── Log resultado
-```
-
-**Sem autenticação SOAP** — CNPJ identifica o cliente no WMS.
-
-## Arquivos a criar/modificar
-
-| Arquivo | Ação |
-|---------|------|
-| Migration SQL | Campos de config WMS Pratika |
-| `src/components/external-apps/WmsPratikaTab.tsx` | Nova aba UI |
-| `src/pages/ExternalApps.tsx` | Adicionar aba |
-| `supabase/functions/wms-pratika-send/index.ts` | Edge Function SOAP |
-| `supabase/functions/_shared/soap-client.ts` | Helper SOAP genérico |
-| `supabase/functions/fiscal-emit/index.ts` | Trigger pós-autorização |
-| `supabase/functions/shipping-get-label/index.ts` | Trigger pós-etiqueta |
-| `docs/especificacoes/transversais/mapa-ui.md` | Atualizar UI map |
+**Método de auditoria (Fase 2):**
+- Análise de código: verificar `propsSchema` vs renderização real de cada bloco
+- Teste via browser: navegar ao Builder, inserir blocos e verificar interação
+- Validação de build: `tsc --noEmit` após correções
 
