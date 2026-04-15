@@ -167,6 +167,21 @@ serve(async (req) => {
         .from('shipments')
         .update({ label_url: result.label_url })
         .eq('id', shipment.id);
+
+      // WMS Pratika — fire-and-forget: notify about label
+      fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({
+          action: 'update_tracking',
+          invoice_id: shipment.order_id,
+          tracking_code: shipment.tracking_code,
+          tenant_id: tenantId,
+        }),
+      }).catch(err => console.error('[shipping-get-label] WMS Pratika error:', err));
     }
 
     return new Response(
