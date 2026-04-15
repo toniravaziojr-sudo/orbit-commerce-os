@@ -3962,7 +3962,7 @@ async function executeTool(
       const { sessionId } = tool_args;
       const { data, error } = await supabase.from("checkout_sessions").select("*").eq("id", sessionId).eq("tenant_id", tenant_id).single();
       if (error) throw new Error(error.message);
-      return { success: true, message: `🎯 **${data.customer_name || "—"}**\n• Email: ${data.customer_email || "—"}\n• Telefone: ${data.customer_phone || "—"}\n• Valor: R$ ${(data.total || 0).toFixed(2)}\n• Status: ${data.status}\n• Capturado em: ${data.contact_captured_at || "—"}\n• Abandonado em: ${data.abandoned_at || "—"}`, data };
+      return { success: true, message: `🎯 **${data.customer_name || "—"}**\n• Email: ${data.customer_email || "—"}\n• Telefone: ${data.customer_phone || "—"}\n• Valor: R$ ${(data.total_estimated || 0).toFixed(2)}\n• Status: ${data.status}\n• Capturado em: ${data.contact_captured_at || "—"}\n• Abandonado em: ${data.abandoned_at || "—"}`, data };
     }
     case "updatePotentialCustomerStatus": {
       const { sessionId, status: newStatus } = tool_args;
