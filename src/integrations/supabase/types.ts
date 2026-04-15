@@ -20029,6 +20029,97 @@ export type Database = {
           },
         ]
       }
+      wms_pratika_configs: {
+        Row: {
+          auto_send_label: boolean
+          auto_send_nfe: boolean
+          cnpj: string | null
+          created_at: string
+          endpoint_url: string
+          id: string
+          is_enabled: boolean
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_send_label?: boolean
+          auto_send_nfe?: boolean
+          cnpj?: string | null
+          created_at?: string
+          endpoint_url?: string
+          id?: string
+          is_enabled?: boolean
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_send_label?: boolean
+          auto_send_nfe?: boolean
+          cnpj?: string | null
+          created_at?: string
+          endpoint_url?: string
+          id?: string
+          is_enabled?: boolean
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_pratika_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_pratika_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          operation: string
+          reference_id: string | null
+          reference_type: string | null
+          request_payload: string | null
+          response_payload: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation: string
+          reference_id?: string | null
+          reference_type?: string | null
+          request_payload?: string | null
+          response_payload?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          request_payload?: string | null
+          response_payload?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_pratika_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       youtube_analytics: {
         Row: {
           average_view_duration_seconds: number | null

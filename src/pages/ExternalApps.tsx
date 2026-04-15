@@ -1,8 +1,9 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tag, Calendar } from "lucide-react";
+import { Tag, Calendar, Truck } from "lucide-react";
 import { GoogleTagManagerTab } from "@/components/external-apps/GoogleTagManagerTab";
 import { GoogleCalendarTab } from "@/components/external-apps/GoogleCalendarTab";
+import { WmsPratikaTab } from "@/components/external-apps/WmsPratikaTab";
 
 export default function ExternalApps() {
   return (
@@ -22,6 +23,10 @@ export default function ExternalApps() {
             <Calendar className="h-4 w-4" />
             Calendar
           </TabsTrigger>
+          <TabsTrigger value="wms-pratika" className="gap-2">
+            <Truck className="h-4 w-4" />
+            WMS Pratika
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="gtm">
@@ -30,6 +35,10 @@ export default function ExternalApps() {
 
         <TabsContent value="calendar">
           <GoogleCalendarTab />
+        </TabsContent>
+
+        <TabsContent value="wms-pratika">
+          <WmsPratikaTab />
         </TabsContent>
       </Tabs>
     </div>
