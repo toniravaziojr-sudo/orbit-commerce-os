@@ -377,7 +377,7 @@ async function executeTool(
       // Primeiro, buscar produtos antes da atualização para relatório
       let selectQuery = supabase
         .from("products")
-        .select("id, name, sku, ncm_code")
+        .select("id, name, sku, ncm")
         .eq("tenant_id", tenant_id);
       
       if (productIds && productIds.length > 0 && !productIds.includes("all")) {
@@ -388,13 +388,13 @@ async function executeTool(
       if (selectError) throw new Error(selectError.message);
       
       const totalProducts = productsBefore?.length || 0;
-      const alreadyWithNCM = productsBefore?.filter((p: any) => p.ncm_code === ncm).length || 0;
+      const alreadyWithNCM = productsBefore?.filter((p: any) => p.ncm === ncm).length || 0;
       const toUpdate = totalProducts - alreadyWithNCM;
       
       // Atualizar produtos
       let updateQuery = supabase
         .from("products")
-        .update({ ncm_code: ncm, updated_at: new Date().toISOString() })
+        .update({ ncm: ncm, updated_at: new Date().toISOString() })
         .eq("tenant_id", tenant_id);
       
       if (productIds && productIds.length > 0 && !productIds.includes("all")) {
@@ -440,7 +440,7 @@ async function executeTool(
       
       let query = supabase
         .from("products")
-        .update({ cest_code: cest, updated_at: new Date().toISOString() })
+        .update({ cest: cest, updated_at: new Date().toISOString() })
         .eq("tenant_id", tenant_id);
       
       if (productIds && productIds.length > 0) {
@@ -846,18 +846,20 @@ async function executeTool(
     case "deleteProducts": {
       const { productIds } = tool_args;
       
-      const { error } = await supabase
+      // Soft delete using deleted_at
+      const { data, error } = await supabase
         .from("products")
-        .delete()
+        .update({ deleted_at: new Date().toISOString(), status: "inactive", updated_at: new Date().toISOString() })
         .eq("tenant_id", tenant_id)
-        .in("id", productIds);
+        .in("id", productIds)
+        .select("id");
       
       if (error) throw new Error(error.message);
       
       return {
         success: true,
-        message: `✅ ${productIds.length} produto(s) excluído(s)!`,
-        data: { deleted: productIds.length },
+        message: `✅ ${data?.length || 0} produto(s) excluído(s)!`,
+        data: { deleted: data?.length || 0 },
       };
     }
 
@@ -942,11 +944,11 @@ async function executeTool(
           name,
           code: code.toUpperCase(),
           type: type === "percent" ? "percentage" : "fixed",
-          value: type === "percent" ? value : value * 100,
-          min_subtotal: minSubtotal ? minSubtotal * 100 : null,
+          value,
+          min_subtotal: minSubtotal || null,
           starts_at: startsAt || null,
           ends_at: endsAt || null,
-          usage_limit: usageLimit || null,
+          usage_limit_total: usageLimit || null,
           is_active: true,
         })
         .select()
@@ -1052,7 +1054,7 @@ async function executeTool(
       // Get current notes
       const { data: order, error: fetchError } = await supabase
         .from("orders")
-        .select("notes")
+        .select("internal_notes")
         .eq("id", orderId)
         .eq("tenant_id", tenant_id)
         .single();
@@ -1061,11 +1063,11 @@ async function executeTool(
       
       const timestamp = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date());
       const newNote = `[${timestamp}] ${note}`;
-      const updatedNotes = order.notes ? `${order.notes}\n${newNote}` : newNote;
+      const updatedNotes = order.internal_notes ? `${order.internal_notes}\n${newNote}` : newNote;
       
       const { error } = await supabase
         .from("orders")
-        .update({ notes: updatedNotes, updated_at: new Date().toISOString() })
+        .update({ internal_notes: updatedNotes, updated_at: new Date().toISOString() })
         .eq("id", orderId);
       
       if (error) throw new Error(error.message);
@@ -1127,8 +1129,8 @@ async function executeTool(
           `• Pedidos pagos: ${paidOrders.length}\n` +
           `• Pedidos pendentes: ${pendingOrders.length}\n` +
           `• Pedidos cancelados: ${cancelledOrders.length}\n` +
-          `• Receita total: R$ ${(totalRevenue / 100).toFixed(2)}\n` +
-          `• Ticket médio: R$ ${totalOrders > 0 ? ((totalRevenue / 100) / totalOrders).toFixed(2) : "0.00"}`,
+          `• Receita total: R$ ${totalRevenue.toFixed(2)}\n` +
+          `• Ticket médio: R$ ${totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : "0.00"}`,
         data: { totalOrders, paidOrders: paidOrders.length, pendingOrders: pendingOrders.length, totalRevenue },
       };
     }
@@ -1141,7 +1143,7 @@ async function executeTool(
         .from("customers")
         .insert({
           tenant_id,
-          name,
+          full_name: name,
           email,
           phone: phone || null,
           cpf: cpf || null,
@@ -1162,7 +1164,7 @@ async function executeTool(
       const { customerId, name, email, phone } = tool_args;
       
       const updateData: any = { updated_at: new Date().toISOString() };
-      if (name !== undefined) updateData.name = name;
+      if (name !== undefined) updateData.full_name = name;
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
       
@@ -2391,18 +2393,20 @@ async function executeTool(
         updated_at: new Date().toISOString(),
       };
       
-      // Append cancellation reason to notes
+      // Append cancellation reason to internal_notes
       if (reason) {
         const { data: order } = await supabase
           .from("orders")
-          .select("notes")
+          .select("internal_notes")
           .eq("id", orderId)
           .eq("tenant_id", tenant_id)
           .single();
         
         const timestamp = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
         const cancelNote = `[${timestamp}] ❌ CANCELADO: ${reason}`;
-        updateData.notes = order?.notes ? `${order.notes}\n${cancelNote}` : cancelNote;
+        updateData.internal_notes = order?.internal_notes ? `${order.internal_notes}\n${cancelNote}` : cancelNote;
+        updateData.cancellation_reason = reason;
+        updateData.cancelled_at = new Date().toISOString();
       }
       
       const { data, error } = await supabase
@@ -2498,8 +2502,8 @@ async function executeTool(
           total: subtotal,
           shipping_total: 0,
           discount_total: 0,
-          notes: notes || null,
-          source: "manual",
+          internal_notes: notes || null,
+          source_platform: "manual",
         })
         .select("id, order_number")
         .single();
@@ -2855,9 +2859,21 @@ async function executeTool(
     case "respondToReview": {
       const { reviewId, response } = tool_args;
       
+      // product_reviews doesn't have store_response column, so we update the content with the response appended
+      const { data: review, error: fetchErr } = await supabase
+        .from("product_reviews")
+        .select("id, customer_name, content")
+        .eq("id", reviewId)
+        .eq("tenant_id", tenant_id)
+        .single();
+      
+      if (fetchErr) throw new Error(fetchErr.message);
+      
+      // Store response in content field as appended note
+      const updatedContent = `${review.content || ""}\n\n--- Resposta da loja ---\n${response}`;
       const { data, error } = await supabase
         .from("product_reviews")
-        .update({ store_response: response, responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ content: updatedContent, updated_at: new Date().toISOString() })
         .eq("id", reviewId)
         .eq("tenant_id", tenant_id)
         .select("id, customer_name")
@@ -3818,8 +3834,8 @@ async function executeTool(
       const { campaignId } = tool_args;
       const { data: original, error: fetchError } = await supabase.from("email_marketing_campaigns").select("*").eq("id", campaignId).eq("tenant_id", tenant_id).single();
       if (fetchError) throw new Error(fetchError.message);
-      const { id, created_at, updated_at, sent_count, open_count, click_count, bounce_count, unsubscribe_count, sent_at, ...campaignData } = original;
-      const { data, error } = await supabase.from("email_marketing_campaigns").insert({ ...campaignData, name: `${original.name} (Cópia)`, status: "draft", sent_count: 0, open_count: 0, click_count: 0 }).select("id, name").single();
+      const { id, created_at, updated_at, sent_count, open_count, click_count, unique_open_count, unique_click_count, conversion_count, conversion_value_cents, ...campaignData } = original;
+      const { data, error } = await supabase.from("email_marketing_campaigns").insert({ ...campaignData, name: `${original.name} (Cópia)`, status: "draft", sent_count: 0, open_count: 0, click_count: 0, unique_open_count: 0, unique_click_count: 0, conversion_count: 0, conversion_value_cents: 0 }).select("id, name").single();
       if (error) throw new Error(error.message);
       return { success: true, message: `✅ Campanha duplicada como "${data.name}"!`, data };
     }
