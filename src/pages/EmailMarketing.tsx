@@ -346,6 +346,22 @@ export default function EmailMarketing() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
+                        {(camp.sent_count || 0) > 0 && (
+                          <div className="hidden md:flex items-center gap-4 text-xs text-muted-foreground">
+                            <span title="Aberturas">
+                              📬 {camp.sent_count > 0 ? Math.round(((camp.unique_open_count || 0) / camp.sent_count) * 100) : 0}%
+                            </span>
+                            <span title="Cliques">
+                              🔗 {camp.sent_count > 0 ? Math.round(((camp.unique_click_count || 0) / camp.sent_count) * 100) : 0}%
+                            </span>
+                            <span title="Conversões">
+                              💰 {camp.conversion_count || 0}
+                              {(camp.conversion_value_cents || 0) > 0 && (
+                                <> ({(camp.conversion_value_cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</>
+                              )}
+                            </span>
+                          </div>
+                        )}
                         <Badge variant={getCampaignStatusVariant(camp.status)}>
                           {getCampaignStatusLabel(camp.status)}
                         </Badge>

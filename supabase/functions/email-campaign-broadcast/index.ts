@@ -9,7 +9,7 @@ const corsHeaders = {
 
 interface BroadcastRequest {
   campaign_id: string;
-  scheduled_at?: string; // Optional: schedule for later
+  scheduled_at?: string;
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -22,7 +22,6 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Validate auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -50,7 +49,6 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Fetch campaign with template
     const { data: campaign, error: campaignError } = await supabase
       .from("email_marketing_campaigns")
       .select("*, email_marketing_templates(*)")
@@ -89,7 +87,6 @@ serve(async (req: Request): Promise<Response> => {
     const tenantId = campaign.tenant_id;
     const scheduleTime = scheduled_at || new Date().toISOString();
 
-    // Get active subscribers from the list
     const { data: listMembers, error: membersError } = await supabase
       .from("email_marketing_list_members")
       .select("subscriber_id, email_marketing_subscribers(id, email, name, status)")
@@ -103,7 +100,6 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Filter active subscribers
     const activeSubscribers = (listMembers || [])
       .filter((m: any) => m.email_marketing_subscribers?.status === "active")
       .map((m: any) => m.email_marketing_subscribers);
@@ -115,19 +111,53 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Create queue entries
-    const queueEntries = activeSubscribers.map((subscriber: any) => ({
-      tenant_id: tenantId,
-      campaign_id: campaign.id,
-      subscriber_id: subscriber.id,
-      to_email: subscriber.email,
-      subject: template.subject.replace("{{name}}", subscriber.name || ""),
-      body_html: template.body_html.replace("{{name}}", subscriber.name || ""),
-      body_text: template.body_text?.replace("{{name}}", subscriber.name || ""),
-      scheduled_at: scheduleTime,
-      status: "queued",
-      metadata: { broadcast: true },
-    }));
+    // Build tracking base URL
+    const trackBaseUrl = `${supabaseUrl}/functions/v1/email-track`;
+
+    // Create tracking tokens for each subscriber
+    const trackingTokens: { subscriberId: string; token: string }[] = [];
+    const tokenInserts = activeSubscribers.map((sub: any) => {
+      const tkn = crypto.randomUUID();
+      trackingTokens.push({ subscriberId: sub.id, token: tkn });
+      return {
+        tenant_id: tenantId,
+        campaign_id: campaign.id,
+        subscriber_id: sub.id,
+        token: tkn,
+      };
+    });
+
+    // Insert tracking tokens in batches
+    const TOKEN_BATCH = 100;
+    for (let i = 0; i < tokenInserts.length; i += TOKEN_BATCH) {
+      await supabase.from("email_tracking_tokens").insert(tokenInserts.slice(i, i + TOKEN_BATCH));
+    }
+
+    // Build subscriber→token map
+    const tokenMap = new Map(trackingTokens.map(t => [t.subscriberId, t.token]));
+
+    // Create queue entries with tracking injected
+    const queueEntries = activeSubscribers.map((subscriber: any) => {
+      const tkn = tokenMap.get(subscriber.id)!;
+      const personalizedSubject = template.subject.replace(/\{\{name\}\}/g, subscriber.name || "");
+      let personalizedHtml = template.body_html.replace(/\{\{name\}\}/g, subscriber.name || "");
+
+      // Inject tracking into HTML
+      personalizedHtml = injectTracking(personalizedHtml, trackBaseUrl, tkn);
+
+      return {
+        tenant_id: tenantId,
+        campaign_id: campaign.id,
+        subscriber_id: subscriber.id,
+        to_email: subscriber.email,
+        subject: personalizedSubject,
+        body_html: personalizedHtml,
+        body_text: template.body_text?.replace(/\{\{name\}\}/g, subscriber.name || ""),
+        scheduled_at: scheduleTime,
+        status: "queued",
+        metadata: { broadcast: true },
+      };
+    });
 
     // Insert in batches
     const BATCH_SIZE = 100;
@@ -135,10 +165,7 @@ serve(async (req: Request): Promise<Response> => {
     
     for (let i = 0; i < queueEntries.length; i += BATCH_SIZE) {
       const batch = queueEntries.slice(i, i + BATCH_SIZE);
-      const { error: insertError } = await supabase
-        .from("email_send_queue")
-        .insert(batch);
-      
+      const { error: insertError } = await supabase.from("email_send_queue").insert(batch);
       if (insertError) {
         console.error("Error inserting batch:", insertError);
         continue;
@@ -146,10 +173,10 @@ serve(async (req: Request): Promise<Response> => {
       insertedCount += batch.length;
     }
 
-    // Update campaign status
+    // Update campaign status and sent_count
     await supabase
       .from("email_marketing_campaigns")
-      .update({ status: "active" })
+      .update({ status: "active", sent_count: insertedCount })
       .eq("id", campaign_id);
 
     return new Response(
@@ -169,3 +196,28 @@ serve(async (req: Request): Promise<Response> => {
     );
   }
 });
+
+/**
+ * Inject tracking pixel and rewrite links for click tracking
+ */
+function injectTracking(html: string, trackBaseUrl: string, token: string): string {
+  // 1. Rewrite all <a href="..."> to go through click tracker
+  const rewritten = html.replace(
+    /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*?)>/gi,
+    (match, before, href, after) => {
+      // Skip mailto: and tel: links
+      if (href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("#")) {
+        return match;
+      }
+      const trackedUrl = `${trackBaseUrl}?type=click&t=${token}&url=${encodeURIComponent(href)}`;
+      return `<a ${before}href="${trackedUrl}"${after}>`;
+    }
+  );
+
+  // 2. Append tracking pixel before </body> or at end
+  const pixel = `<img src="${trackBaseUrl}?type=open&t=${token}" width="1" height="1" style="display:none" alt="" />`;
+  if (rewritten.includes("</body>")) {
+    return rewritten.replace("</body>", `${pixel}</body>`);
+  }
+  return rewritten + pixel;
+}
