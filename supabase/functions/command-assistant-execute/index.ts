@@ -846,18 +846,20 @@ async function executeTool(
     case "deleteProducts": {
       const { productIds } = tool_args;
       
-      const { error } = await supabase
+      // Soft delete using deleted_at
+      const { data, error } = await supabase
         .from("products")
-        .delete()
+        .update({ deleted_at: new Date().toISOString(), status: "inactive", updated_at: new Date().toISOString() })
         .eq("tenant_id", tenant_id)
-        .in("id", productIds);
+        .in("id", productIds)
+        .select("id");
       
       if (error) throw new Error(error.message);
       
       return {
         success: true,
-        message: `✅ ${productIds.length} produto(s) excluído(s)!`,
-        data: { deleted: productIds.length },
+        message: `✅ ${data?.length || 0} produto(s) excluído(s)!`,
+        data: { deleted: data?.length || 0 },
       };
     }
 
@@ -2391,18 +2393,20 @@ async function executeTool(
         updated_at: new Date().toISOString(),
       };
       
-      // Append cancellation reason to notes
+      // Append cancellation reason to internal_notes
       if (reason) {
         const { data: order } = await supabase
           .from("orders")
-          .select("notes")
+          .select("internal_notes")
           .eq("id", orderId)
           .eq("tenant_id", tenant_id)
           .single();
         
         const timestamp = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
         const cancelNote = `[${timestamp}] ❌ CANCELADO: ${reason}`;
-        updateData.notes = order?.notes ? `${order.notes}\n${cancelNote}` : cancelNote;
+        updateData.internal_notes = order?.internal_notes ? `${order.internal_notes}\n${cancelNote}` : cancelNote;
+        updateData.cancellation_reason = reason;
+        updateData.cancelled_at = new Date().toISOString();
       }
       
       const { data, error } = await supabase
@@ -2498,8 +2502,8 @@ async function executeTool(
           total: subtotal,
           shipping_total: 0,
           discount_total: 0,
-          notes: notes || null,
-          source: "manual",
+          internal_notes: notes || null,
+          source_platform: "manual",
         })
         .select("id, order_number")
         .single();
