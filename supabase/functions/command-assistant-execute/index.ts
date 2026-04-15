@@ -2137,7 +2137,7 @@ async function executeTool(
         .is("deleted_at", null);
       
       const totalOrders = orders?.length || 0;
-      const paidOrders = orders?.filter((o: any) => o.payment_status === "paid") || [];
+      const paidOrders = orders?.filter((o: any) => o.payment_status === "approved") || [];
       const revenue = paidOrders.reduce((sum: number, o: any) => sum + (o.total || 0), 0);
       const avgTicket = paidOrders.length > 0 ? revenue / paidOrders.length : 0;
       
@@ -2975,7 +2975,7 @@ async function executeTool(
         .eq("tenant_id", tenant_id)
         .gte("created_at", start.toISOString());
       
-      const paidOrders = (orders || []).filter((o: any) => o.payment_status === "paid");
+      const paidOrders = (orders || []).filter((o: any) => o.payment_status === "approved");
       const revenue = paidOrders.reduce((s: number, o: any) => s + (o.total || 0), 0);
       const shippingTotal = paidOrders.reduce((s: number, o: any) => s + (o.shipping_total || 0), 0);
       const discountTotal = paidOrders.reduce((s: number, o: any) => s + (o.discount_total || 0), 0);
