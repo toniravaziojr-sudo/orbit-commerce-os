@@ -52,58 +52,50 @@ const essentialCategoryLabels: Record<EssentialCategory, string> = {
 const blockCategoryMapping: Record<string, EssentialCategory> = {
   // Banners
   'HeroBanner': 'banners',
-  'Hero': 'banners',
   'Banner': 'banners',
-  'Image': 'banners',
+  'BannerProducts': 'banners',
   
-  // Products
-  'ProductGrid': 'products',
-  'ProductCarousel': 'products',
-  'FeaturedProducts': 'products',
+  // Products (unified)
+  'ProductShowcase': 'products',
   'ProductCard': 'products',
-  'BannerProducts': 'products',
-  'CollectionSection': 'products',
   
   // Categories (unified)
   'CategoryShowcase': 'categories',
   
   // Media
   'VideoCarousel': 'media',
-  'ImageCarousel': 'media',
   'ImageGallery': 'media',
-  'YouTubeVideo': 'media',
-  'VideoUpload': 'media',
+  'LogosCarousel': 'media',
   
   // Content
   'RichText': 'content',
   'Button': 'content',
-  'ContentColumns': 'content',
-  'FeatureList': 'content',
+  'Image': 'content',
+  'Video': 'content',
+  'ContentSection': 'content',
+  'Highlights': 'content',
   'StepsTimeline': 'content',
   'CountdownTimer': 'content',
-  'LogosCarousel': 'content',
   'StatsNumbers': 'content',
-  'AccordionBlock': 'content',
+  'FAQ': 'content',
+  'CustomCode': 'content',
+  'EmbedSocialPost': 'content',
   
-  // Social Proof
-  'Testimonials': 'social-proof',
-  
-  // Interactive
-  'NewsletterBlock': 'interactive',
-  'ContactFormBlock': 'interactive',
-  'MapBlock': 'interactive',
-  'SocialFeedBlock': 'interactive',
+  // Social Proof & Engagement
+  'SocialProof': 'social-proof',
+  'ContactForm': 'interactive',
+  'Map': 'interactive',
+  'SocialFeed': 'interactive',
   'PersonalizedProducts': 'interactive',
   'LivePurchases': 'interactive',
   'PricingTable': 'interactive',
-  'PopupModal': 'interactive',
+  'NewsletterPopup': 'interactive',
   
   // Forms (Email Marketing / Quiz)
-  'NewsletterForm': 'forms',
+  'NewsletterUnified': 'forms',
   'QuizEmbed': 'forms',
   
   // Info
-  'InfoHighlights': 'info',
   'FAQ': 'info',
   
   // Layout
@@ -114,61 +106,27 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'Divider': 'layout',
 };
 
-// Blocks to show in palette (excluding system blocks like Page, Header, Footer, etc.)
+// Blocks to show in palette — only user-personalizable blocks
 const visibleBlockTypes = new Set([
   // Banners
-  'HeroBanner',
-  'Hero',
-  'Banner',
-  'Image',
-  // Products
-  'ProductGrid',
-  'ProductCarousel',
-  'FeaturedProducts',
-  'ProductCard',
-  'BannerProducts',
-  'CollectionSection',
+  'Banner', 'BannerProducts',
+  // Products (unified)
+  'ProductShowcase', 'ProductCard',
   // Categories (unified)
   'CategoryShowcase',
   // Media
-  'VideoCarousel',
-  'ImageCarousel',
-  'ImageGallery',
-  'YouTubeVideo',
-  'VideoUpload',
+  'VideoCarousel', 'ImageGallery', 'LogosCarousel',
   // Content
-  'RichText',
-  'Button',
-  'ContentColumns',
-  'FeatureList',
-  'StepsTimeline',
-  'CountdownTimer',
-  'LogosCarousel',
-  'StatsNumbers',
-  'AccordionBlock',
-  // Social Proof
-  'Testimonials',
-  // Interactive
-  'NewsletterBlock',
-  'ContactFormBlock',
-  'MapBlock',
-  'SocialFeedBlock',
-  'PersonalizedProducts',
-  'LivePurchases',
-  'PricingTable',
-  'PopupModal',
-  // Forms (Email Marketing / Quiz)
-  'NewsletterForm',
-  'QuizEmbed',
-  // Info
-  'InfoHighlights',
-  'FAQ',
+  'RichText', 'Button', 'Image', 'Video', 'ContentSection', 'Highlights',
+  'StepsTimeline', 'CountdownTimer', 'StatsNumbers', 'FAQ',
+  'CustomCode', 'EmbedSocialPost',
+  // Social Proof & Engagement
+  'SocialProof', 'ContactForm', 'Map', 'SocialFeed',
+  'PersonalizedProducts', 'LivePurchases', 'PricingTable', 'NewsletterPopup',
+  // Forms
+  'NewsletterUnified', 'QuizEmbed',
   // Layout
-  'Section',
-  'Container',
-  'Columns',
-  'Spacer',
-  'Divider',
+  'Section', 'Container', 'Columns', 'Spacer', 'Divider',
 ]);
 
 // Draggable block item component
