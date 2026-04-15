@@ -417,6 +417,52 @@ useEffect(() => {
 
 
 
+### 3.6 Auxiliar de Comando v4.0.0 — Correções de Schema em Tools de Escrita (Abril/2026)
+
+**Problema:** 16 tools de escrita do Auxiliar de Comando referenciavam colunas inexistentes ou usavam lógica incompatível com o schema real do banco, causando falhas silenciosas ou erros 500.
+
+**Causa raiz:** As tools foram implementadas com nomes de colunas presumidos sem validação contra o schema real das tabelas.
+
+**Correções aplicadas (command-assistant-execute/index.ts):**
+
+| Tool | Coluna errada | Coluna correta | Observação |
+|------|--------------|----------------|------------|
+| bulkUpdateProductsNCM | `ncm_code` | `ncm` | — |
+| bulkUpdateProductsCEST | `cest_code` | `cest` | — |
+| deleteProducts | `DELETE FROM` | `UPDATE ... SET deleted_at` | Soft-delete obrigatório |
+| createProduct | `ncm_code`, `cest_code` | `ncm`, `cest` | — |
+| updateProduct | `ncm_code`, `cest_code` | `ncm`, `cest` | — |
+| addOrderNote | `notes` | `internal_notes` | — |
+| updateOrderTracking | `tracking_code` | já correto | Verificado OK |
+| createManualOrder | `source` | `source_platform` | — |
+| createCustomer | `name` | `full_name` | — |
+| updateCustomer | `name` | `full_name` | — |
+| createDiscount | `usage_limit`, `value/100` | `usage_limit_total`, valor direto em reais | Valores já em reais, não centavos |
+| updateDiscount | `usage_limit`, `value/100` | `usage_limit_total`, valor direto em reais | Idem |
+| createCampaign | desestruturação de `analytics` | campos diretos no insert | Tabela não tem coluna `analytics` |
+| approveReview | `is_approved` | `status = 'approved'` | — |
+| replyToReview | `response` (coluna separada) | concatenar em `content` | Tabela não tem coluna `response` |
+| createPage | `content` | `html_content` | — |
+| updatePage | `content` | `html_content` | — |
+
+**Onde ocorreu:** `supabase/functions/command-assistant-execute/index.ts`
+
+**Regra derivada:** Toda nova tool do Auxiliar de Comando DEVE ser validada contra o schema real (`types.ts` ou consulta SQL) antes do deploy. Nunca presumir nomes de colunas. Usar soft-delete (`deleted_at`) para produtos. Valores monetários em `discounts` são em reais (não centavos).
+
+---
+
+### 3.7 Auxiliar de Comando v4.0.0 — Tools de Leitura com Colunas Inexistentes
+
+**Problema:** Algumas tools de leitura referenciavam colunas que não existem nas tabelas, retornando `null` para campos esperados ou causando erros.
+
+**Correções aplicadas:**
+- `listPotentialCustomers`: usava `total` (inexistente) → corrigido para `total_estimated`
+- `listProductVariants`: validação de UUID adicionada para evitar queries com IDs inválidos
+
+**Regra derivada:** Mesmo tools de leitura devem ser validadas contra o schema. Campos de agregação (`count`, `total`) devem usar os nomes exatos da tabela.
+
+---
+
 ## Como Adicionar Novas Entradas
 
 Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entrada aqui seguindo o formato:
@@ -430,3 +476,4 @@ Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entra
 **Onde ocorreu:** Arquivo(s) / módulo afetado
 **Regra derivada:** Regra geral para evitar recorrência
 ```
+
