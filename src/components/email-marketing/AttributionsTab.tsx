@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useTenantContext } from "@/hooks/useTenantContext";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TrendingUp, DollarSign, ShoppingCart, Target } from "lucide-react";
 
 export function AttributionsTab() {
-  const { tenantId } = useTenantContext();
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
   const [period, setPeriod] = useState("30");
   const [campaignFilter, setCampaignFilter] = useState("all");
 
