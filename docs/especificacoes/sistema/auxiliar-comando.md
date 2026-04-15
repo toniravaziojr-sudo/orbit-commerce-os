@@ -1004,6 +1004,47 @@ O assistente NUNCA deve expor nomes internos de ferramentas, variáveis, IDs ou 
 | `recalculateKitPrices` | "recalcular preços dos kits baseado nos componentes" |
 | `listKitsSummary` | "listar todos os kits com quantidade de unidades" |
 | `applyKitDiscount` | "aplicar descontos nos kits" |
+| `listFiscalDrafts` | "listar os rascunhos fiscais" |
+| `getFiscalDraftDetails` | "ver os detalhes do rascunho fiscal" |
+| `listFiscalInvoices` | "listar as notas fiscais" |
+| `emitFiscalNote` | "emitir nota fiscal" |
+| `cancelFiscalNote` | "cancelar nota fiscal" |
+| `listShipments` | "listar as remessas" |
+| `getShipmentDetails` | "ver os detalhes da remessa" |
+| `createShipment` | "criar remessa" |
+| `updateShipmentStatus` | "atualizar status da remessa" |
+| `listPurchases` | "listar as compras" |
+| `createPurchase` | "registrar compra" |
+| `listTeamMembers` | "listar os membros da equipe" |
+| `inviteTeamMember` | "convidar membro para a equipe" |
+| `updateTeamMemberRole` | "alterar função do membro" |
+| `removeTeamMember` | "remover membro da equipe" |
+| `listIntegrations` | "ver as integrações" |
+| `listSupportTickets` | "listar os tickets de suporte" |
+| `replyToTicket` | "responder ao ticket" |
+| `assignTicket` | "atribuir ticket" |
+| `listAutomations` | "listar as automações" |
+| `toggleAutomation` | "ativar/desativar automação" |
+| `listCheckoutLinks` | "listar os links de checkout" |
+| `createCheckoutLink` | "criar link de checkout" |
+| `listAffiliates` | "listar os afiliados" |
+| `createAffiliate` | "cadastrar afiliado" |
+| `toggleAffiliate` | "ativar/desativar afiliado" |
+| `listSocialPosts` | "listar as publicações sociais" |
+| `createSocialPost` | "criar publicação social" |
+| `scheduleSocialPost` | "agendar publicação" |
+| `listDomains` | "listar os domínios" |
+| `getStoreDetails` | "ver detalhes da loja" |
+| `listPotentialCustomers` | "listar os clientes potenciais" |
+| `convertPotentialCustomer` | "converter lead em cliente" |
+| `listProductVariants` | "listar as variantes do produto" |
+| `createProductVariant` | "criar variante" |
+| `getCampaignDetails` | "ver detalhes da campanha" |
+| `getCampaignStats` | "ver estatísticas da campanha" |
+| `duplicateCampaign` | "duplicar campanha" |
+| `pauseCampaign` | "pausar campanha" |
+| `removeSubscriber` | "remover inscrito" |
+| `moveSubscriber` | "mover inscrito entre listas" |
 | `tool_name` / `tool_args` | NUNCA mencionar |
 | `tenant_id`, `user_id` | NUNCA mencionar |
 | `autopilot_config` | "Configurações da IA de Tráfego" |
