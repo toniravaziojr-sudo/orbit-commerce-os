@@ -77,7 +77,7 @@ export function AIConfigPanel() {
       </div>
 
       <Tabs defaultValue="personality">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="personality" className="gap-2">
             <Sparkles className="h-4 w-4" />
             Personalidade
@@ -89,6 +89,10 @@ export function AIConfigPanel() {
           <TabsTrigger value="behavior" className="gap-2">
             <MessageCircle className="h-4 w-4" />
             Comportamento
+          </TabsTrigger>
+          <TabsTrigger value="sales" className="gap-2">
+            <ShoppingCart className="h-4 w-4" />
+            Vendas
           </TabsTrigger>
           <TabsTrigger value="safety" className="gap-2">
             <Shield className="h-4 w-4" />
