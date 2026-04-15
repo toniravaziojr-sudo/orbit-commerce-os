@@ -1,92 +1,102 @@
 
 
-# Plano: Auxiliar de Comando com Cobertura Total de Ferramentas + Gemini Nativa como Primária
+# Integração WMS Pratika — App Externo com Ativação/Desativação
 
-## Situacao Atual
+## Resumo
 
-O Auxiliar de Comando (v3.16.0) opera em 5 fases com ~70 ferramentas cobrindo:
-- **Produtos:** CRUD completo, kits, composicao, precos em massa, estoque, NCM/CEST
-- **Pedidos:** Status, notas, rastreio, cancelamento, criacao manual, relatorios
-- **Clientes:** CRUD, tags, busca
-- **Categorias e Cupons:** CRUD completo
-- **Blog, Ofertas, Avaliacoes, Paginas:** CRUD completo
-- **Email Marketing:** Listas, inscritos, campanhas (basico)
-- **Agenda:** Tarefas e lembretes
-- **Operacional:** Notificacoes, arquivos, armazenamento, frete, configuracoes
+Criar uma nova aba "WMS Pratika" no módulo de Aplicativos Externos (/apps-externos), seguindo o mesmo padrão das abas GTM e Calendar. O app terá toggle de ativação por tenant, configuração de URL do endpoint SOAP, e envio automático de XML da NFe e etiquetas quando ativado.
 
-**IA Atual:** Gemini 2.5 Flash via rota nativa (ai-router.ts) como primaria, com fallback para Lovable Gateway. Ja funciona conforme solicitado.
+## Como funciona hoje
 
-## Modulos Faltantes (Mapeamento Completo)
+- O módulo Apps Externos tem 2 abas: Tag Manager e Calendar
+- Cada aba verifica conexão/configuração e oferece gestão simplificada
+- NFe é emitida via `fiscal-emit` e etiquetas via `shipping-get-label`, sem envio para sistemas externos
 
-| # | Modulo | Tools de Leitura | Tools de Escrita |
-|---|--------|-----------------|------------------|
-| 1 | **Fiscal/NF-e** | listFiscalDrafts, getFiscalDraftDetails | createFiscalDraft, updateFiscalDraft, emitFiscalNote, cancelFiscalNote |
-| 2 | **Logistica/Remessas** | listShipments, getShipmentDetails, listShippingLabels | createShipment, updateShipmentStatus |
-| 3 | **Financeiro (Escrita)** | listFinancialEntries | createFinancialEntry, updateFinancialEntry, deleteFinancialEntry |
-| 4 | **Equipe/Permissoes** | listTeamMembers, getTeamMemberDetails | inviteTeamMember, updateTeamMemberRole, removeTeamMember |
-| 5 | **Integracoes (Status)** | listIntegrations, getIntegrationStatus | — (sem escrita via chat por seguranca) |
-| 6 | **Suporte/Tickets** | listSupportTickets, getSupportTicketDetails | updateTicketStatus, replyToTicket, assignTicket |
-| 7 | **Automacoes** | listAutomations, getAutomationDetails | toggleAutomation (ativar/desativar) |
-| 8 | **Email Marketing (Expandido)** | getCampaignDetails, listEmailTemplates, getCampaignStats | updateCampaign, deleteCampaign, duplicateCampaign, pauseCampaign, removeSubscriber, moveSubscriber |
-| 9 | **Checkout Links** | listCheckoutLinks, getCheckoutLinkDetails | createCheckoutLink, updateCheckoutLink, deleteCheckoutLink |
-| 10 | **Afiliados** | listAffiliates, getAffiliateDetails | createAffiliate, updateAffiliate, toggleAffiliate |
-| 11 | **Marketplaces** | listMarketplaceListings, getMarketplaceStatus | — (operacoes via fluxos dedicados) |
-| 12 | **Midia Social** | listSocialPosts, getSocialPostDetails | createSocialPost, scheduleSocialPost |
-| 13 | **Dominos e Loja** | listDomains, getDomainStatus, getStoreDetails | — (operacoes sensíveis via UI) |
-| 14 | **Clientes Potenciais** | listPotentialCustomers, getPotentialCustomerDetails | convertPotentialCustomer, updatePotentialCustomerStatus |
-| 15 | **Variantes de Produto** | listProductVariants | createProductVariant, updateProductVariant, deleteProductVariant |
+## O que será feito
 
-**Total estimado:** ~45 novas tools de leitura + ~35 novas tools de escrita = ~80 ferramentas novas.
+### 1. Migration — Tabela de configuração do app
 
-## Estrategia de IA (Gemini Nativa Primaria)
+Adicionar campos na tabela `tenant_settings` ou criar uma entrada na lógica de apps externos para armazenar:
+- `wms_pratika_enabled` (boolean)
+- `wms_pratika_url` (string, pré-preenchido com o endpoint padrão)
+- `wms_pratika_cnpj` (string, CNPJ usado para identificação no WMS)
 
-O ai-router.ts **ja implementa** a hierarquia correta:
-1. **Gemini Nativa** (GEMINI_API_KEY via platform_credentials) — primaria
-2. **OpenAI Nativa** (OPENAI_API_KEY) — secundaria
-3. **Lovable AI Gateway** (LOVABLE_API_KEY) — fallback final
+### 2. Nova aba na UI — `WmsPratikaTab.tsx`
 
-Nenhuma mudanca necessaria na hierarquia de provedores. O modelo `gemini-2.5-flash` via endpoint OpenAI-compat do Google ja e usado para tool calling.
+- Toggle de ativação/desativação (Switch)
+- Campo de URL do web service (pré-preenchido)
+- Campo de CNPJ para identificação
+- Botão "Testar Conexão" (chamada SOAP simples)
+- Log de últimos envios (sucesso/erro)
+- Seguindo exatamente o padrão visual das abas GTM e Calendar
 
-## O que sera feito
+### 3. Atualização da página ExternalApps
 
-### Etapa 1 — Novas Tools de Leitura (command-assistant-chat)
-- Adicionar ~45 novas tool definitions no array `OPENAI_READ_TOOLS`
-- Adicionar entradas correspondentes em `READ_TOOLS` (Set) e `READ_PERMISSION_MAP`
-- Cada tool com parameters tipados e descriptions claras em portugues
+- Adicionar terceira aba "WMS Pratika" com ícone Truck
+- Import do novo componente
 
-### Etapa 2 — Novas Tools de Escrita (command-assistant-execute)
-- Adicionar ~35 novos cases no `switch(tool_name)` do `executeTool()`
-- Adicionar entradas no `PERMISSION_MAP` e no `TOOL_REGISTRY` (system prompt)
-- Cada tool com validacao de tenant_id e permissoes adequadas
+### 4. Edge Function — `wms-pratika-send`
 
-### Etapa 3 — System Prompt Atualizado
-- Expandir exemplos de uso para novos modulos no prompt do `buildSystemPrompt()`
-- Adicionar secao de "modulos disponiveis" para orientar a IA
+- Recebe `invoice_id` ou `shipment_id` + `tenant_id`
+- Verifica se WMS Pratika está ativado para o tenant
+- Baixa XML da NFe (da Nuvem Fiscal ou do campo `xml_url` salvo)
+- Monta envelope SOAP e envia para `RecepcaoDocNfe`
+- Registra resultado em log
+- Operações SOAP suportadas:
+  - `RecepcaoDocNfe` — envio do XML
+  - `AtualizarCodRastreioNfe` — atualização de rastreio
+  - `RecepcaoLoteValidaAutoNfe` — envio de etiquetas em lote
 
-### Etapa 4 — Validacao Tecnica
-- Teste de chamada para cada ferramenta nova via `curl_edge_functions`
-- Verificar que leituras retornam dados validos
-- Verificar que escritas executam corretamente com tenant isolation
+### 5. Helper compartilhado — `_shared/soap-client.ts`
 
-### Etapa 5 — Documentacao
-- Atualizar memoria do projeto com inventario completo de tools
-- Atualizar version para v4.0.0
-- Registrar na base de conhecimento tecnico
+- Função genérica para montar envelope SOAP e executar POST
+- Reutilizável para futuras integrações SOAP
 
-## Detalhes Tecnicos
+### 6. Triggers automáticos (quando ativado)
 
-| Item | Impacto |
-|------|---------|
-| `command-assistant-chat/index.ts` | +45 read tool definitions, permission maps, system prompt |
-| `command-assistant-execute/index.ts` | +35 write tool cases, permission map, tool registry |
-| Banco de dados | Nenhuma migracao — todas as tabelas ja existem |
-| AI Router | Nenhuma mudanca — hierarquia ja correta |
+- No `fiscal-emit`: após autorização da NFe, chamar `wms-pratika-send` se ativado
+- No `shipping-get-label`: após geração de etiqueta, enviar para WMS se ativado
+- Chamadas fire-and-forget (não bloqueiam o fluxo principal)
 
-## Resultado Final
+### 7. Documentação
 
-- Auxiliar de Comando com **~150 ferramentas** cobrindo todos os modulos do sistema
-- Gemini nativa como provedor primario (ja configurado)
-- Lovable Gateway como fallback (ja configurado)
-- Teste de validacao tecnica por ferramenta
-- Documentacao completa atualizada
+- Atualizar memória do módulo External Apps
+- Atualizar mapa-ui.md com nova aba
+- Registrar na base de conhecimento técnico
+
+## Detalhes Técnicos
+
+```text
+Fluxo:
+Tenant ativa WMS Pratika em /apps-externos
+  └── Toggle ON → salva config no banco
+
+NFe Autorizada → fiscal-emit
+  └── Verifica wms_pratika_enabled
+      └── Se ON → fire-and-forget → wms-pratika-send
+          ├── Baixa XML (Nuvem Fiscal)
+          ├── SOAP RecepcaoDocNfe (CNPJ + XML)
+          └── Log resultado
+
+Etiqueta Gerada → shipping-get-label
+  └── Verifica wms_pratika_enabled
+      └── Se ON → fire-and-forget → wms-pratika-send
+          ├── SOAP RecepcaoLoteValidaAutoNfe
+          └── Log resultado
+```
+
+**Sem autenticação SOAP** — CNPJ identifica o cliente no WMS.
+
+## Arquivos a criar/modificar
+
+| Arquivo | Ação |
+|---------|------|
+| Migration SQL | Campos de config WMS Pratika |
+| `src/components/external-apps/WmsPratikaTab.tsx` | Nova aba UI |
+| `src/pages/ExternalApps.tsx` | Adicionar aba |
+| `supabase/functions/wms-pratika-send/index.ts` | Edge Function SOAP |
+| `supabase/functions/_shared/soap-client.ts` | Helper SOAP genérico |
+| `supabase/functions/fiscal-emit/index.ts` | Trigger pós-autorização |
+| `supabase/functions/shipping-get-label/index.ts` | Trigger pós-etiqueta |
+| `docs/especificacoes/transversais/mapa-ui.md` | Atualizar UI map |
 
