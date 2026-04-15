@@ -531,6 +531,51 @@ const OPENAI_READ_TOOLS = [
       },
     },
   },
+  // ==================== v4.0.0: NEW READ TOOLS ====================
+  // --- Fiscal ---
+  { type: "function", function: { name: "listFiscalDrafts", description: "Listar rascunhos fiscais (fila de NF-e pendentes)", parameters: { type: "object", properties: { status: { type: "string", description: "pending, processed, error, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getFiscalDraftDetails", description: "Ver detalhes de um rascunho fiscal", parameters: { type: "object", properties: { draftId: { type: "string", description: "ID do rascunho" } }, required: ["draftId"] } } },
+  { type: "function", function: { name: "listFiscalInvoices", description: "Listar notas fiscais emitidas", parameters: { type: "object", properties: { status: { type: "string", description: "authorized, cancelled, denied, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getFiscalInvoiceDetails", description: "Ver detalhes de uma nota fiscal", parameters: { type: "object", properties: { invoiceId: { type: "string", description: "ID da nota fiscal" } }, required: ["invoiceId"] } } },
+  // --- Logística ---
+  { type: "function", function: { name: "listShipments", description: "Listar remessas/envios", parameters: { type: "object", properties: { status: { type: "string", description: "pending, shipped, in_transit, delivered, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getShipmentDetails", description: "Ver detalhes de uma remessa com rastreio", parameters: { type: "object", properties: { shipmentId: { type: "string", description: "ID da remessa" } }, required: ["shipmentId"] } } },
+  // --- Financeiro/Compras ---
+  { type: "function", function: { name: "listPurchases", description: "Listar compras/entradas financeiras", parameters: { type: "object", properties: { status: { type: "string", description: "pending, received, cancelled, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getPurchaseDetails", description: "Ver detalhes de uma compra", parameters: { type: "object", properties: { purchaseId: { type: "string", description: "ID da compra" } }, required: ["purchaseId"] } } },
+  // --- Equipe ---
+  { type: "function", function: { name: "listTeamMembers", description: "Listar membros da equipe e permissões", parameters: { type: "object", properties: {}, required: [] } } },
+  { type: "function", function: { name: "getTeamMemberDetails", description: "Ver detalhes de um membro da equipe", parameters: { type: "object", properties: { memberId: { type: "string", description: "ID do user_role" } }, required: ["memberId"] } } },
+  // --- Integrações ---
+  { type: "function", function: { name: "listIntegrations", description: "Listar integrações e status", parameters: { type: "object", properties: {}, required: [] } } },
+  // --- Suporte ---
+  { type: "function", function: { name: "listSupportTickets", description: "Listar tickets de suporte", parameters: { type: "object", properties: { status: { type: "string", description: "open, in_progress, resolved, closed, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getSupportTicketDetails", description: "Ver detalhes de um ticket com mensagens", parameters: { type: "object", properties: { ticketId: { type: "string", description: "ID do ticket" } }, required: ["ticketId"] } } },
+  // --- Automações ---
+  { type: "function", function: { name: "listAutomations", description: "Listar automações de email (fluxos)", parameters: { type: "object", properties: { status: { type: "string", description: "active, inactive, draft, all" } }, required: [] } } },
+  { type: "function", function: { name: "getAutomationDetails", description: "Ver detalhes de uma automação", parameters: { type: "object", properties: { automationId: { type: "string", description: "ID da automação" } }, required: ["automationId"] } } },
+  // --- Email Marketing Expandido ---
+  { type: "function", function: { name: "getCampaignDetails", description: "Ver detalhes de uma campanha de email", parameters: { type: "object", properties: { campaignId: { type: "string", description: "ID da campanha" } }, required: ["campaignId"] } } },
+  { type: "function", function: { name: "listEmailTemplates", description: "Listar templates de email", parameters: { type: "object", properties: { limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getCampaignStats", description: "Estatísticas de uma campanha (aberturas, cliques)", parameters: { type: "object", properties: { campaignId: { type: "string", description: "ID da campanha" } }, required: ["campaignId"] } } },
+  // --- Checkout Links ---
+  { type: "function", function: { name: "listCheckoutLinks", description: "Listar links de checkout direto", parameters: { type: "object", properties: { status: { type: "string", description: "active, inactive, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getCheckoutLinkDetails", description: "Ver detalhes de um link de checkout", parameters: { type: "object", properties: { linkId: { type: "string", description: "ID do link" } }, required: ["linkId"] } } },
+  // --- Afiliados ---
+  { type: "function", function: { name: "listAffiliates", description: "Listar afiliados", parameters: { type: "object", properties: { status: { type: "string", description: "active, inactive, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getAffiliateDetails", description: "Ver detalhes de um afiliado", parameters: { type: "object", properties: { affiliateId: { type: "string", description: "ID do afiliado" } }, required: ["affiliateId"] } } },
+  { type: "function", function: { name: "listAffiliatePayouts", description: "Listar pagamentos de afiliados", parameters: { type: "object", properties: { status: { type: "string", description: "pending, paid, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  // --- Mídia Social ---
+  { type: "function", function: { name: "listSocialPosts", description: "Listar publicações sociais", parameters: { type: "object", properties: { status: { type: "string", description: "draft, scheduled, published, failed, all" }, platform: { type: "string", description: "instagram, facebook, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getSocialPostDetails", description: "Ver detalhes de uma publicação social", parameters: { type: "object", properties: { postId: { type: "string", description: "ID da publicação" } }, required: ["postId"] } } },
+  // --- Domínios e Loja ---
+  { type: "function", function: { name: "listDomains", description: "Listar domínios da loja", parameters: { type: "object", properties: {}, required: [] } } },
+  { type: "function", function: { name: "getStoreDetails", description: "Ver informações da loja (nome, email, plano)", parameters: { type: "object", properties: {}, required: [] } } },
+  // --- Clientes Potenciais ---
+  { type: "function", function: { name: "listPotentialCustomers", description: "Listar checkouts abandonados com contato", parameters: { type: "object", properties: { limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getPotentialCustomerDetails", description: "Ver detalhes de checkout abandonado", parameters: { type: "object", properties: { sessionId: { type: "string", description: "ID da sessão" } }, required: ["sessionId"] } } },
+  // --- Variantes ---
+  { type: "function", function: { name: "listProductVariants", description: "Listar variantes de um produto", parameters: { type: "object", properties: { productId: { type: "string", description: "ID do produto" } }, required: ["productId"] } } },
 ];
 
 // ==================== Execute read tool server-side ====================
