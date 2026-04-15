@@ -1052,7 +1052,7 @@ async function executeTool(
       // Get current notes
       const { data: order, error: fetchError } = await supabase
         .from("orders")
-        .select("notes")
+        .select("internal_notes")
         .eq("id", orderId)
         .eq("tenant_id", tenant_id)
         .single();
@@ -1061,11 +1061,11 @@ async function executeTool(
       
       const timestamp = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date());
       const newNote = `[${timestamp}] ${note}`;
-      const updatedNotes = order.notes ? `${order.notes}\n${newNote}` : newNote;
+      const updatedNotes = order.internal_notes ? `${order.internal_notes}\n${newNote}` : newNote;
       
       const { error } = await supabase
         .from("orders")
-        .update({ notes: updatedNotes, updated_at: new Date().toISOString() })
+        .update({ internal_notes: updatedNotes, updated_at: new Date().toISOString() })
         .eq("id", orderId);
       
       if (error) throw new Error(error.message);
@@ -1127,8 +1127,8 @@ async function executeTool(
           `• Pedidos pagos: ${paidOrders.length}\n` +
           `• Pedidos pendentes: ${pendingOrders.length}\n` +
           `• Pedidos cancelados: ${cancelledOrders.length}\n` +
-          `• Receita total: R$ ${(totalRevenue / 100).toFixed(2)}\n` +
-          `• Ticket médio: R$ ${totalOrders > 0 ? ((totalRevenue / 100) / totalOrders).toFixed(2) : "0.00"}`,
+          `• Receita total: R$ ${totalRevenue.toFixed(2)}\n` +
+          `• Ticket médio: R$ ${totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : "0.00"}`,
         data: { totalOrders, paidOrders: paidOrders.length, pendingOrders: pendingOrders.length, totalRevenue },
       };
     }
@@ -1141,7 +1141,7 @@ async function executeTool(
         .from("customers")
         .insert({
           tenant_id,
-          name,
+          full_name: name,
           email,
           phone: phone || null,
           cpf: cpf || null,
@@ -1162,7 +1162,7 @@ async function executeTool(
       const { customerId, name, email, phone } = tool_args;
       
       const updateData: any = { updated_at: new Date().toISOString() };
-      if (name !== undefined) updateData.name = name;
+      if (name !== undefined) updateData.full_name = name;
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
       
