@@ -1620,8 +1620,8 @@ export function VisualBuilder({
         {store.selectedBlock && (
           <button
             onClick={() => setShowRightSidebar(!showRightSidebar)}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background border border-r-0 rounded-l-md p-1.5 shadow-sm hover:bg-muted transition-colors"
-            style={{ right: showRightSidebar ? '288px' : '0' }}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-background border border-r-0 rounded-l-md p-1.5 shadow-sm hover:bg-muted transition-colors"
+            style={{ right: showRightSidebar ? '320px' : '0' }}
             title={showRightSidebar ? 'Ocultar painel de configurações' : 'Mostrar painel de configurações'}
           >
             {showRightSidebar ? (
