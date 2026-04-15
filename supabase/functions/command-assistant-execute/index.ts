@@ -1210,9 +1210,10 @@ async function executeTool(
       
       const { data, error } = await supabase
         .from("customers")
-        .select("id, name, email, phone")
+        .select("id, full_name, email, phone")
         .eq("tenant_id", tenant_id)
-        .or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
+        .is("deleted_at", null)
+        .or(`full_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
         .limit(10);
       
       if (error) throw new Error(error.message);
@@ -1225,7 +1226,7 @@ async function executeTool(
         };
       }
       
-      const list = data.map((c: any) => `• ${c.name} (${c.email})`).join("\n");
+      const list = data.map((c: any) => `• ${c.full_name || "—"} (${c.email})`).join("\n");
       
       return {
         success: true,
@@ -2999,24 +3000,24 @@ async function executeTool(
 
     case "listShippingMethods": {
       const { data, error } = await supabase
-        .from("shipping_methods")
-        .select("id, name, type, is_active, price, min_days, max_days")
+        .from("shipping_providers")
+        .select("id, provider, is_enabled, supports_quote, supports_tracking, created_at")
         .eq("tenant_id", tenant_id)
-        .order("name");
+        .order("provider");
       
       if (error) throw new Error(error.message);
       
       if (!data || data.length === 0) {
-        return { success: true, message: "Nenhum método de frete configurado.", data: [] };
+        return { success: true, message: "Nenhum provedor de frete configurado.", data: [] };
       }
       
       const list = data.map((m: any) => 
-        `• ${m.name} (${m.type || "—"}) — ${m.is_active ? "Ativo" : "Inativo"} — R$ ${(m.price || 0).toFixed(2)}${m.min_days ? ` — ${m.min_days}-${m.max_days} dias` : ""}`
+        `• ${m.provider} — ${m.is_enabled ? "Ativo" : "Inativo"}${m.supports_quote ? " — Cotação" : ""}${m.supports_tracking ? " — Rastreio" : ""}`
       ).join("\n");
       
       return {
         success: true,
-        message: `🚚 **${data.length} método(s) de frete:**\n\n${list}`,
+        message: `🚚 **${data.length} provedor(es) de frete:**\n\n${list}`,
         data,
       };
     }
@@ -3027,22 +3028,22 @@ async function executeTool(
       
       let q = supabase
         .from("notifications")
-        .select("id, title, message, type, is_read, created_at")
+        .select("id, channel, template_key, recipient, status, scheduled_for, sent_at, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false })
         .limit(maxResults);
       
-      if (unreadOnly) q = q.eq("is_read", false);
+      if (unreadOnly) q = q.eq("status", "pending");
       
       const { data, error } = await q;
       if (error) throw new Error(error.message);
       
       if (!data || data.length === 0) {
-        return { success: true, message: unreadOnly ? "Nenhuma notificação não lida." : "Nenhuma notificação encontrada.", data: [] };
+        return { success: true, message: unreadOnly ? "Nenhuma notificação pendente." : "Nenhuma notificação encontrada.", data: [] };
       }
       
       const list = data.map((n: any) => 
-        `${n.is_read ? "📭" : "📬"} ${n.title || n.message?.substring(0, 60) || "—"} — ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(n.created_at))}`
+        `${n.status === "sent" ? "📭" : "📬"} ${n.template_key || "—"} (${n.channel}) → ${n.recipient || "—"} — ${n.status} — ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(n.created_at))}`
       ).join("\n");
       
       return {
@@ -3057,7 +3058,7 @@ async function executeTool(
       
       const { error } = await supabase
         .from("notifications")
-        .update({ is_read: true })
+        .update({ status: "read" })
         .eq("id", notificationId)
         .eq("tenant_id", tenant_id);
       
@@ -3074,13 +3075,13 @@ async function executeTool(
       const maxResults = limit || 20;
       
       let q = supabase
-        .from("media_files")
-        .select("id, file_name, file_size, mime_type, folder, created_at")
+        .from("files")
+        .select("id, filename, original_name, size_bytes, mime_type, is_folder, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false })
         .limit(maxResults);
       
-      if (folder) q = q.eq("folder", folder);
+      if (folder) q = q.eq("folder_id", folder);
       
       const { data, error } = await q;
       if (error) throw new Error(error.message);
@@ -3090,8 +3091,9 @@ async function executeTool(
       }
       
       const list = data.map((f: any) => {
-        const size = f.file_size ? `${(f.file_size / 1024).toFixed(1)} KB` : "—";
-        return `• ${f.file_name} (${size}) — ${f.folder || "raiz"} — ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(f.created_at))}`;
+        const size = f.size_bytes ? `${(f.size_bytes / 1024).toFixed(1)} KB` : "—";
+        const name = f.original_name || f.filename;
+        return `• ${f.is_folder ? "📁" : "📄"} ${name} (${size}) — ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(f.created_at))}`;
       }).join("\n");
       
       return {
@@ -3102,21 +3104,30 @@ async function executeTool(
     }
 
     case "getStorageUsage": {
-      const { data, error } = await supabase
-        .from("media_files")
-        .select("file_size")
-        .eq("tenant_id", tenant_id);
+      const { data: usage, error: usageError } = await supabase
+        .from("tenant_storage_usage")
+        .select("used_bytes, limit_bytes, last_recalculated_at")
+        .eq("tenant_id", tenant_id)
+        .maybeSingle();
       
-      if (error) throw new Error(error.message);
+      if (usageError) throw new Error(usageError.message);
       
-      const totalFiles = data?.length || 0;
-      const totalBytes = (data || []).reduce((s: number, f: any) => s + (f.file_size || 0), 0);
-      const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
+      const usedBytes = usage?.used_bytes || 0;
+      const limitBytes = usage?.limit_bytes || 0;
+      const usedMB = (usedBytes / (1024 * 1024)).toFixed(2);
+      const limitMB = limitBytes > 0 ? (limitBytes / (1024 * 1024)).toFixed(2) : "∞";
+      
+      // Count files
+      const { count } = await supabase
+        .from("files")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenant_id)
+        .eq("is_folder", false);
       
       return {
         success: true,
-        message: `💾 **Uso de Armazenamento**\n\n• Arquivos: ${totalFiles}\n• Espaço usado: ${totalMB} MB`,
-        data: { totalFiles, totalBytes, totalMB },
+        message: `💾 **Uso de Armazenamento**\n\n• Arquivos: ${count || 0}\n• Espaço usado: ${usedMB} MB\n• Limite: ${limitMB} MB`,
+        data: { totalFiles: count || 0, usedBytes, limitBytes, usedMB, limitMB },
       };
     }
 
