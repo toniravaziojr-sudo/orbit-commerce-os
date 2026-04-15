@@ -2750,8 +2750,8 @@ async function executeTool(
       const { type, status } = tool_args;
       
       let q = supabase
-        .from("offers")
-        .select("id, name, type, discount_percent, is_active, offer_product_id, created_at")
+        .from("offer_rules")
+        .select("id, name, type, discount_type, discount_value, is_active, priority, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false });
       
@@ -2766,9 +2766,10 @@ async function executeTool(
         return { success: true, message: "Nenhuma oferta encontrada.", data: [] };
       }
       
-      const list = data.map((o: any) => 
-        `• ${o.name} (${o.type}) — ${o.discount_percent}% off — ${o.is_active ? "Ativa" : "Inativa"}`
-      ).join("\n");
+      const list = data.map((o: any) => {
+        const discountStr = o.discount_type === "percentage" ? `${o.discount_value}%` : `R$ ${(o.discount_value || 0).toFixed(2)}`;
+        return `• ${o.name} (${o.type}) — ${discountStr} off — ${o.is_active ? "Ativa" : "Inativa"}`;
+      }).join("\n");
       
       return {
         success: true,
@@ -2783,7 +2784,7 @@ async function executeTool(
       
       let q = supabase
         .from("product_reviews")
-        .select("id, rating, title, comment, customer_name, status, product_id, created_at")
+        .select("id, rating, title, content, customer_name, status, product_id, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false })
         .limit(maxResults);
@@ -2798,7 +2799,7 @@ async function executeTool(
       }
       
       const list = data.map((r: any) => 
-        `• ${"⭐".repeat(r.rating || 0)} — ${r.customer_name || "Anônimo"} — "${r.title || r.comment?.substring(0, 50) || "—"}" — ${r.status}`
+        `• ${"⭐".repeat(r.rating || 0)} — ${r.customer_name || "Anônimo"} — "${r.title || r.content?.substring(0, 50) || "—"}" — ${r.status}`
       ).join("\n");
       
       return {
