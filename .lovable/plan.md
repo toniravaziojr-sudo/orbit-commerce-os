@@ -1,66 +1,92 @@
 
 
-## Plano: Ajustes no Email Marketing — Gestão de Campanhas, Leads e Builder de Automações
+# Plano: Auxiliar de Comando com Cobertura Total de Ferramentas + Gemini Nativa como Primária
 
-### Situacao atual
+## Situacao Atual
 
-**Campanhas:** O dropdown de ações mostra apenas "Ver Detalhes" e "Editar". Nao existe opcao de pausar, excluir ou duplicar campanhas.
+O Auxiliar de Comando (v3.16.0) opera em 5 fases com ~70 ferramentas cobrindo:
+- **Produtos:** CRUD completo, kits, composicao, precos em massa, estoque, NCM/CEST
+- **Pedidos:** Status, notas, rastreio, cancelamento, criacao manual, relatorios
+- **Clientes:** CRUD, tags, busca
+- **Categorias e Cupons:** CRUD completo
+- **Blog, Ofertas, Avaliacoes, Paginas:** CRUD completo
+- **Email Marketing:** Listas, inscritos, campanhas (basico)
+- **Agenda:** Tarefas e lembretes
+- **Operacional:** Notificacoes, arquivos, armazenamento, frete, configuracoes
 
-**Leads/Assinantes:** Na tela de detalhe da lista (`EmailMarketingListDetail`), a tabela mostra os assinantes mas nao oferece acoes individuais — nao ha botao para excluir um lead da lista nem para mover para outra lista.
+**IA Atual:** Gemini 2.5 Flash via rota nativa (ai-router.ts) como primaria, com fallback para Lovable Gateway. Ja funciona conforme solicitado.
 
-**Campaign Builder:** Ja existe um builder de campanhas com 3 steps (Configuracao, Conteudo com blocos drag-and-drop, Revisar e Enviar). Porem so suporta envio unico (broadcast). Nao ha modo "builder" para sequencias/automacoes inline — as automacoes usam o ReactFlow separado.
+## Modulos Faltantes (Mapeamento Completo)
 
----
+| # | Modulo | Tools de Leitura | Tools de Escrita |
+|---|--------|-----------------|------------------|
+| 1 | **Fiscal/NF-e** | listFiscalDrafts, getFiscalDraftDetails | createFiscalDraft, updateFiscalDraft, emitFiscalNote, cancelFiscalNote |
+| 2 | **Logistica/Remessas** | listShipments, getShipmentDetails, listShippingLabels | createShipment, updateShipmentStatus |
+| 3 | **Financeiro (Escrita)** | listFinancialEntries | createFinancialEntry, updateFinancialEntry, deleteFinancialEntry |
+| 4 | **Equipe/Permissoes** | listTeamMembers, getTeamMemberDetails | inviteTeamMember, updateTeamMemberRole, removeTeamMember |
+| 5 | **Integracoes (Status)** | listIntegrations, getIntegrationStatus | — (sem escrita via chat por seguranca) |
+| 6 | **Suporte/Tickets** | listSupportTickets, getSupportTicketDetails | updateTicketStatus, replyToTicket, assignTicket |
+| 7 | **Automacoes** | listAutomations, getAutomationDetails | toggleAutomation (ativar/desativar) |
+| 8 | **Email Marketing (Expandido)** | getCampaignDetails, listEmailTemplates, getCampaignStats | updateCampaign, deleteCampaign, duplicateCampaign, pauseCampaign, removeSubscriber, moveSubscriber |
+| 9 | **Checkout Links** | listCheckoutLinks, getCheckoutLinkDetails | createCheckoutLink, updateCheckoutLink, deleteCheckoutLink |
+| 10 | **Afiliados** | listAffiliates, getAffiliateDetails | createAffiliate, updateAffiliate, toggleAffiliate |
+| 11 | **Marketplaces** | listMarketplaceListings, getMarketplaceStatus | — (operacoes via fluxos dedicados) |
+| 12 | **Midia Social** | listSocialPosts, getSocialPostDetails | createSocialPost, scheduleSocialPost |
+| 13 | **Dominos e Loja** | listDomains, getDomainStatus, getStoreDetails | — (operacoes sensíveis via UI) |
+| 14 | **Clientes Potenciais** | listPotentialCustomers, getPotentialCustomerDetails | convertPotentialCustomer, updatePotentialCustomerStatus |
+| 15 | **Variantes de Produto** | listProductVariants | createProductVariant, updateProductVariant, deleteProductVariant |
 
-### O que sera feito
+**Total estimado:** ~45 novas tools de leitura + ~35 novas tools de escrita = ~80 ferramentas novas.
 
-**1. Acoes de Campanha (Pausar, Excluir, Duplicar)**
+## Estrategia de IA (Gemini Nativa Primaria)
 
-Na aba Campanhas do `EmailMarketing.tsx`:
-- Adicionar opcoes no dropdown: **Pausar/Retomar**, **Excluir** e **Duplicar**
-- Pausar altera o status da campanha para `paused` no banco; Retomar volta para `active`
-- Excluir mostra confirmacao e remove a campanha
-- Duplicar cria copia como rascunho
-- Adicionar mutations correspondentes no `useEmailMarketing.ts`
+O ai-router.ts **ja implementa** a hierarquia correta:
+1. **Gemini Nativa** (GEMINI_API_KEY via platform_credentials) — primaria
+2. **OpenAI Nativa** (OPENAI_API_KEY) — secundaria
+3. **Lovable AI Gateway** (LOVABLE_API_KEY) — fallback final
 
-**2. Gestao individual de Leads na Lista**
+Nenhuma mudanca necessaria na hierarquia de provedores. O modelo `gemini-2.5-flash` via endpoint OpenAI-compat do Google ja e usado para tool calling.
 
-Na tela `EmailMarketingListDetail.tsx`:
-- Adicionar coluna de acoes na tabela de assinantes com dropdown por linha
-- **Excluir da lista**: remove o registro da tabela `email_marketing_list_members` (nao deleta o subscriber global)
-- **Mover para outra lista**: dialog que lista as outras listas do tenant, ao confirmar remove da lista atual e insere na lista destino
-- Ambas as acoes com confirmacao
+## O que sera feito
 
-**3. Builder de Campanhas com Sequencias (Automacao Simples)**
+### Etapa 1 — Novas Tools de Leitura (command-assistant-chat)
+- Adicionar ~45 novas tool definitions no array `OPENAI_READ_TOOLS`
+- Adicionar entradas correspondentes em `READ_TOOLS` (Set) e `READ_PERMISSION_MAP`
+- Cada tool com parameters tipados e descriptions claras em portugues
 
-Atualmente as automacoes usam ReactFlow, que e poderoso mas complexo. A ideia e criar um modo mais simples e pratico, tipo "sequencia linear" dentro do proprio campaign builder:
+### Etapa 2 — Novas Tools de Escrita (command-assistant-execute)
+- Adicionar ~35 novos cases no `switch(tool_name)` do `executeTool()`
+- Adicionar entradas no `PERMISSION_MAP` e no `TOOL_REGISTRY` (system prompt)
+- Cada tool com validacao de tenant_id e permissoes adequadas
 
-- No Step 1 (Configuracao), adicionar tipo de campanha: **Envio Unico** (broadcast atual) ou **Sequencia Automatizada**
-- Quando "Sequencia Automatizada" for selecionado, o Step 2 muda para um builder de sequencia linear (lista vertical de steps):
-  - Cada step pode ser: **Enviar Email**, **Aguardar X dias/horas**, **Condição** (abriu email? clicou?)
-  - Interface simples: botao "+ Adicionar Passo" entre cada step
-  - Cada step editavel inline (escolher template, definir delay, etc.)
-- Na revisao (Step 3), mostra a sequencia completa antes de ativar
-- Salva como campanha tipo `sequence` com os steps em JSON no campo `content` ou em tabela dedicada
+### Etapa 3 — System Prompt Atualizado
+- Expandir exemplos de uso para novos modulos no prompt do `buildSystemPrompt()`
+- Adicionar secao de "modulos disponiveis" para orientar a IA
 
-Isso complementa o ReactFlow (que continua para automacoes complexas) com uma opcao mais acessivel para sequencias simples tipo: "Email de boas-vindas → Espera 3 dias → Email de oferta → Espera 2 dias → Email de lembrete".
+### Etapa 4 — Validacao Tecnica
+- Teste de chamada para cada ferramenta nova via `curl_edge_functions`
+- Verificar que leituras retornam dados validos
+- Verificar que escritas executam corretamente com tenant isolation
 
----
+### Etapa 5 — Documentacao
+- Atualizar memoria do projeto com inventario completo de tools
+- Atualizar version para v4.0.0
+- Registrar na base de conhecimento tecnico
 
-### Detalhes tecnicos
+## Detalhes Tecnicos
 
-| Ajuste | Arquivos impactados |
-|--------|---------------------|
-| Acoes de campanha | `EmailMarketing.tsx`, `useEmailMarketing.ts` |
-| Gestao de leads | `EmailMarketingListDetail.tsx` |
-| Builder de sequencia | `StepConfig.tsx`, novo componente `SequenceBuilder.tsx`, `StepContent.tsx`, `useEmailCampaignBuilder.ts` |
-| Possivel migration | Coluna `content_json` ou tabela `email_campaign_steps` para persistir steps da sequencia |
+| Item | Impacto |
+|------|---------|
+| `command-assistant-chat/index.ts` | +45 read tool definitions, permission maps, system prompt |
+| `command-assistant-execute/index.ts` | +35 write tool cases, permission map, tool registry |
+| Banco de dados | Nenhuma migracao — todas as tabelas ja existem |
+| AI Router | Nenhuma mudanca — hierarquia ja correta |
 
----
+## Resultado Final
 
-### Resultado final
-
-- Campanhas poderao ser pausadas, retomadas, excluidas e duplicadas direto da listagem
-- Leads poderao ser removidos de uma lista ou movidos para outra individualmente
-- O builder de campanhas tera um modo de sequencia automatizada simples e visual, sem precisar usar o ReactFlow para fluxos lineares basicos
+- Auxiliar de Comando com **~150 ferramentas** cobrindo todos os modulos do sistema
+- Gemini nativa como provedor primario (ja configurado)
+- Lovable Gateway como fallback (ja configurado)
+- Teste de validacao tecnica por ferramenta
+- Documentacao completa atualizada
 
