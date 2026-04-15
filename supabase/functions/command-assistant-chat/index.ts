@@ -5,7 +5,7 @@ import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_sha
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.16.0"; // Full product field coverage for read/write operations
+const VERSION = "v4.0.0"; // Full system coverage: ~150 tools across all modules
 // ===========================================================
 
 const corsHeaders = {
