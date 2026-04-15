@@ -713,7 +713,141 @@ for (const chunk of chunks) {
 | `listAgendaTasks` | Listar tarefas (filtro por status) | todos |
 | `completeTask` | Marcar tarefa como concluída | todos |
 
-### Formato de Ação Proposta
+### Fiscal/NF-e (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listFiscalDrafts` | Listar rascunhos fiscais (status, período) | owner, admin, manager |
+| `getFiscalDraftDetails` | Detalhes de um rascunho fiscal | owner, admin, manager |
+| `listFiscalInvoices` | Listar notas fiscais emitidas | owner, admin, manager |
+| `getFiscalInvoiceDetails` | Detalhes de uma nota fiscal | owner, admin, manager |
+| `createFiscalDraft` | Criar rascunho fiscal | owner, admin, manager |
+| `updateFiscalDraft` | Atualizar rascunho fiscal | owner, admin, manager |
+| `emitFiscalNote` | Emitir nota fiscal a partir de rascunho | owner, admin |
+| `cancelFiscalNote` | Cancelar nota fiscal emitida | owner, admin |
+
+### Logística/Remessas (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listShipments` | Listar remessas (status, período) | owner, admin, manager |
+| `getShipmentDetails` | Detalhes de uma remessa | owner, admin, manager |
+| `createShipment` | Criar remessa | owner, admin, manager |
+| `updateShipmentStatus` | Atualizar status de remessa | owner, admin, manager |
+
+### Financeiro/Compras (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listPurchases` | Listar compras/despesas | owner, admin |
+| `getPurchaseDetails` | Detalhes de uma compra | owner, admin |
+| `createPurchase` | Registrar compra/despesa | owner, admin |
+| `updatePurchase` | Atualizar compra | owner, admin |
+| `deletePurchase` | Excluir compra | owner, admin |
+
+### Equipe/Permissões (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listTeamMembers` | Listar membros da equipe | owner, admin |
+| `getTeamMemberDetails` | Detalhes de um membro | owner, admin |
+| `inviteTeamMember` | Convidar membro para a equipe | owner |
+| `updateTeamMemberRole` | Alterar função de membro | owner |
+| `removeTeamMember` | Remover membro da equipe | owner |
+
+### Integrações (v4.0.0 — Somente Leitura)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listIntegrations` | Listar status das integrações | owner, admin |
+
+### Suporte/Tickets (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listSupportTickets` | Listar tickets de suporte | owner, admin, manager, attendant |
+| `getSupportTicketDetails` | Detalhes de um ticket | owner, admin, manager, attendant |
+| `updateTicketStatus` | Atualizar status do ticket | owner, admin, manager, attendant |
+| `replyToTicket` | Responder a um ticket | owner, admin, manager, attendant |
+| `assignTicket` | Atribuir ticket a um membro | owner, admin, manager |
+
+### Automações (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listAutomations` | Listar automações configuradas | owner, admin |
+| `getAutomationDetails` | Detalhes de uma automação | owner, admin |
+| `toggleAutomation` | Ativar/desativar automação | owner, admin |
+
+### Checkout Links (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listCheckoutLinks` | Listar links de checkout | owner, admin, manager |
+| `getCheckoutLinkDetails` | Detalhes de um link de checkout | owner, admin, manager |
+| `createCheckoutLink` | Criar link de checkout | owner, admin, manager |
+| `updateCheckoutLink` | Atualizar link de checkout | owner, admin, manager |
+| `deleteCheckoutLink` | Excluir link de checkout | owner, admin |
+
+### Afiliados (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listAffiliates` | Listar afiliados | owner, admin |
+| `getAffiliateDetails` | Detalhes de um afiliado | owner, admin |
+| `listAffiliatePayouts` | Listar pagamentos de afiliados | owner, admin |
+| `createAffiliate` | Cadastrar afiliado | owner, admin |
+| `updateAffiliate` | Atualizar afiliado | owner, admin |
+| `toggleAffiliate` | Ativar/desativar afiliado | owner, admin |
+
+### Mídia Social (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listSocialPosts` | Listar publicações sociais | owner, admin, manager |
+| `getSocialPostDetails` | Detalhes de uma publicação | owner, admin, manager |
+| `createSocialPost` | Criar publicação | owner, admin, manager |
+| `scheduleSocialPost` | Agendar publicação | owner, admin, manager |
+
+### Domínios/Loja (v4.0.0 — Somente Leitura)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listDomains` | Listar domínios configurados | owner, admin |
+| `getStoreDetails` | Detalhes da loja | owner, admin |
+
+### Clientes Potenciais (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listPotentialCustomers` | Listar clientes potenciais (leads) | owner, admin, manager |
+| `getPotentialCustomerDetails` | Detalhes de um lead | owner, admin, manager |
+| `convertPotentialCustomer` | Converter lead em cliente | owner, admin, manager |
+| `updatePotentialCustomerStatus` | Atualizar status do lead | owner, admin, manager |
+
+### Variantes de Produto (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listProductVariants` | Listar variantes de um produto | todos |
+| `createProductVariant` | Criar variante | owner, admin, manager, editor |
+| `updateProductVariant` | Atualizar variante | owner, admin, manager, editor |
+| `deleteProductVariant` | Excluir variante | owner, admin, manager |
+
+### Email Marketing Expandido (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `getCampaignDetails` | Detalhes de uma campanha | owner, admin |
+| `listEmailTemplates` | Listar templates de email | owner, admin, manager |
+| `getCampaignStats` | Estatísticas de campanha | owner, admin |
+| `updateCampaign` | Atualizar campanha | owner, admin |
+| `deleteCampaign` | Excluir campanha | owner, admin |
+| `duplicateCampaign` | Duplicar campanha | owner, admin |
+| `pauseCampaign` | Pausar campanha | owner, admin |
+| `removeSubscriber` | Remover inscrito de lista | owner, admin, manager |
+| `moveSubscriber` | Mover inscrito entre listas | owner, admin, manager |
+
 
 ```json
 {
