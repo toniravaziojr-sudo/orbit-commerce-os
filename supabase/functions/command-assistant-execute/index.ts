@@ -3778,11 +3778,11 @@ async function executeTool(
     }
     case "getCampaignStats": {
       const { campaignId } = tool_args;
-      const { data, error } = await supabase.from("email_marketing_campaigns").select("id, name, sent_count, open_count, click_count, bounce_count, unsubscribe_count").eq("id", campaignId).eq("tenant_id", tenant_id).single();
+      const { data, error } = await supabase.from("email_marketing_campaigns").select("id, name, sent_count, open_count, unique_open_count, click_count, unique_click_count, conversion_count, conversion_value_cents").eq("id", campaignId).eq("tenant_id", tenant_id).single();
       if (error) throw new Error(error.message);
       const openRate = data.sent_count > 0 ? ((data.open_count || 0) / data.sent_count * 100).toFixed(1) : "0";
       const clickRate = data.sent_count > 0 ? ((data.click_count || 0) / data.sent_count * 100).toFixed(1) : "0";
-      return { success: true, message: `📊 **Estatísticas — ${data.name}**\n• Enviados: ${data.sent_count || 0}\n• Abertos: ${data.open_count || 0} (${openRate}%)\n• Cliques: ${data.click_count || 0} (${clickRate}%)\n• Bounces: ${data.bounce_count || 0}\n• Descadastros: ${data.unsubscribe_count || 0}`, data };
+      return { success: true, message: `📊 **Estatísticas — ${data.name}**\n• Enviados: ${data.sent_count || 0}\n• Abertos: ${data.open_count || 0} (${openRate}%)\n• Abertos únicos: ${data.unique_open_count || 0}\n• Cliques: ${data.click_count || 0} (${clickRate}%)\n• Cliques únicos: ${data.unique_click_count || 0}\n• Conversões: ${data.conversion_count || 0}`, data };
     }
     case "updateCampaign": {
       const { campaignId, name, subject, status: newStatus } = tool_args;
