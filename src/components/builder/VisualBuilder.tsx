@@ -1620,7 +1620,7 @@ export function VisualBuilder({
         {store.selectedBlock && (
           <button
             onClick={() => setShowRightSidebar(!showRightSidebar)}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-background border border-r-0 rounded-l-md p-1.5 shadow-sm hover:bg-muted transition-colors"
+            className="absolute top-20 z-20 bg-background border rounded-l-md p-1.5 shadow-sm hover:bg-muted transition-colors"
             style={{ right: showRightSidebar ? '320px' : '0' }}
             title={showRightSidebar ? 'Ocultar painel de configurações' : 'Mostrar painel de configurações'}
           >
@@ -1634,7 +1634,7 @@ export function VisualBuilder({
 
         {/* Right Sidebar - Props Editor - Auto-hide when no block selected */}
         {showRightSidebar && store.selectedBlock && (
-          <div className="w-80 flex-shrink-0 bg-background shadow-sm relative overflow-hidden">
+          <div className="w-80 flex-shrink-0 bg-background shadow-sm relative overflow-hidden pr-2">
             {store.selectedBlock && store.selectedBlockDefinition ? (
               // Header/Footer: Check if it's checkout page for dedicated editor
               store.selectedBlock.type === 'Header' || store.selectedBlock.type === 'Footer' ? (
