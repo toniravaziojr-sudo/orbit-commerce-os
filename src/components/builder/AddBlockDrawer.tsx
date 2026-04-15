@@ -47,17 +47,15 @@ const categoryLabels: Record<BlockCategoryType, string> = {
 };
 
 const blockCategoryMapping: Record<string, BlockCategoryType> = {
-  // Banners (seções de destaque) - unified to single "Banner" block
+  // Banners (seções de destaque)
   'Banner': 'banners',
   'BannerProducts': 'banners',
   
-  // Produtos (coleções e exibição de produtos)
-  'CollectionSection': 'products',
-  'ProductCarousel': 'products',
-  'FeaturedProducts': 'products',
+  // Produtos (coleções e exibição — unificado em ProductShowcase)
+  'ProductShowcase': 'products',
   'ProductCard': 'products',
   
-  // Categorias (unificado)
+  // Categorias (unificado em CategoryShowcase)
   'CategoryShowcase': 'categories',
   
   // Galerias (coleções de mídia)
@@ -65,32 +63,32 @@ const blockCategoryMapping: Record<string, BlockCategoryType> = {
   'ImageGallery': 'galleries',
   'LogosCarousel': 'galleries',
   
-  // Conteúdo (itens únicos e textos)
+  // Conteúdo
   'RichText': 'content',
   'Button': 'content',
   'Image': 'content',
-  'YouTubeVideo': 'content',
-  'VideoUpload': 'content',
-  'TextBanners': 'content',
+  'Video': 'content',
+  'ContentSection': 'content',
+  'Highlights': 'content',
   'StepsTimeline': 'content',
   'CountdownTimer': 'content',
   'StatsNumbers': 'content',
   'FAQ': 'content',
-  'InfoHighlights': 'content',
+  'CustomCode': 'content',
+  'EmbedSocialPost': 'content',
   
   // Engajamento (interação e prova social)
-  'Reviews': 'engagement',
-  'NewsletterBlock': 'engagement',
-  'ContactFormBlock': 'engagement',
-  'MapBlock': 'engagement',
-  'SocialFeedBlock': 'engagement',
+  'SocialProof': 'engagement',
+  'ContactForm': 'engagement',
+  'Map': 'engagement',
+  'SocialFeed': 'engagement',
   'PersonalizedProducts': 'engagement',
   'LivePurchases': 'engagement',
   'PricingTable': 'engagement',
-  'PopupModal': 'engagement',
+  'NewsletterPopup': 'engagement',
   
   // Formulários (Email Marketing / Quiz)
-  'NewsletterForm': 'forms',
+  'NewsletterUnified': 'forms',
   'QuizEmbed': 'forms',
   
   // Layout
@@ -101,24 +99,25 @@ const blockCategoryMapping: Record<string, BlockCategoryType> = {
   'Divider': 'layout',
 };
 
-// Visible blocks - unified Banner block (was Hero + HeroBanner)
+// Blocks visible in the "Add Block" drawer — only user-personalizable blocks
 const visibleBlockTypes = new Set([
-  // Banners - unified
+  // Banners
   'Banner', 'BannerProducts',
-  // Produtos
-  'CollectionSection', 'ProductCarousel', 'FeaturedProducts', 'ProductCard',
+  // Produtos (unificado)
+  'ProductShowcase', 'ProductCard',
   // Categorias (unificado)
   'CategoryShowcase',
   // Galerias
   'VideoCarousel', 'ImageGallery', 'LogosCarousel',
   // Conteúdo
-  'RichText', 'Button', 'Image', 'YouTubeVideo', 'VideoUpload', 'TextBanners',
-  'StepsTimeline', 'CountdownTimer', 'StatsNumbers', 'FAQ', 'InfoHighlights',
+  'RichText', 'Button', 'Image', 'Video', 'ContentSection', 'Highlights',
+  'StepsTimeline', 'CountdownTimer', 'StatsNumbers', 'FAQ',
+  'CustomCode', 'EmbedSocialPost',
   // Engajamento
-  'Reviews', 'NewsletterBlock', 'ContactFormBlock', 'MapBlock', 'SocialFeedBlock',
-  'PersonalizedProducts', 'LivePurchases', 'PricingTable', 'PopupModal',
-  // Formulários (Email Marketing / Quiz)
-  'NewsletterForm', 'QuizEmbed',
+  'SocialProof', 'ContactForm', 'Map', 'SocialFeed',
+  'PersonalizedProducts', 'LivePurchases', 'PricingTable', 'NewsletterPopup',
+  // Formulários
+  'NewsletterUnified', 'QuizEmbed',
   // Layout
   'Section', 'Container', 'Columns', 'Spacer', 'Divider',
 ]);
