@@ -5298,8 +5298,71 @@ export type Database = {
           },
         ]
       }
+      email_conversions: {
+        Row: {
+          attributed_at: string
+          campaign_id: string
+          created_at: string
+          id: string
+          order_id: string | null
+          subscriber_id: string | null
+          tenant_id: string
+          value_cents: number
+        }
+        Insert: {
+          attributed_at?: string
+          campaign_id: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          subscriber_id?: string | null
+          tenant_id: string
+          value_cents?: number
+        }
+        Update: {
+          attributed_at?: string
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          subscriber_id?: string | null
+          tenant_id?: string
+          value_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_conversions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_conversions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_conversions_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_conversions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_events: {
         Row: {
+          campaign_id: string | null
           created_at: string
           data: Json | null
           event_type: string
@@ -5308,6 +5371,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          campaign_id?: string | null
           created_at?: string
           data?: Json | null
           event_type: string
@@ -5316,6 +5380,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          campaign_id?: string | null
           created_at?: string
           data?: Json | null
           event_type?: string
@@ -5324,6 +5389,13 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "email_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "email_events_subscriber_id_fkey"
             columns: ["subscriber_id"]
@@ -5441,10 +5513,14 @@ export type Database = {
       }
       email_marketing_campaigns: {
         Row: {
+          click_count: number
+          conversion_count: number
+          conversion_value_cents: number
           created_at: string
           id: string
           list_id: string | null
           name: string
+          open_count: number
           segment: Json | null
           sent_count: number | null
           status: string
@@ -5453,13 +5529,19 @@ export type Database = {
           trigger_config: Json | null
           trigger_type: string | null
           type: string
+          unique_click_count: number
+          unique_open_count: number
           updated_at: string
         }
         Insert: {
+          click_count?: number
+          conversion_count?: number
+          conversion_value_cents?: number
           created_at?: string
           id?: string
           list_id?: string | null
           name: string
+          open_count?: number
           segment?: Json | null
           sent_count?: number | null
           status?: string
@@ -5468,13 +5550,19 @@ export type Database = {
           trigger_config?: Json | null
           trigger_type?: string | null
           type: string
+          unique_click_count?: number
+          unique_open_count?: number
           updated_at?: string
         }
         Update: {
+          click_count?: number
+          conversion_count?: number
+          conversion_value_cents?: number
           created_at?: string
           id?: string
           list_id?: string | null
           name?: string
+          open_count?: number
           segment?: Json | null
           sent_count?: number | null
           status?: string
@@ -5483,6 +5571,8 @@ export type Database = {
           trigger_config?: Json | null
           trigger_type?: string | null
           type?: string
+          unique_click_count?: number
+          unique_open_count?: number
           updated_at?: string
         }
         Relationships: [
@@ -6100,6 +6190,67 @@ export type Database = {
           },
           {
             foreignKeyName: "email_send_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_tracking_tokens: {
+        Row: {
+          campaign_id: string
+          click_count: number
+          clicked_at: string | null
+          created_at: string
+          id: string
+          open_count: number
+          opened_at: string | null
+          subscriber_id: string
+          tenant_id: string
+          token: string
+        }
+        Insert: {
+          campaign_id: string
+          click_count?: number
+          clicked_at?: string | null
+          created_at?: string
+          id?: string
+          open_count?: number
+          opened_at?: string | null
+          subscriber_id: string
+          tenant_id: string
+          token: string
+        }
+        Update: {
+          campaign_id?: string
+          click_count?: number
+          clicked_at?: string | null
+          created_at?: string
+          id?: string
+          open_count?: number
+          opened_at?: string | null
+          subscriber_id?: string
+          tenant_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_tracking_tokens_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_tracking_tokens_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_tracking_tokens_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
