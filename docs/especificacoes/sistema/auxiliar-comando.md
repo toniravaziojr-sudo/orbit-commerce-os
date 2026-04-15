@@ -523,7 +523,7 @@ for (const chunk of chunks) {
 
 ## Ações Suportadas (Tools) — Cobertura 100%
 
-> **Total: 56+ tools** — Implementação completa Fases 1–5 (Jan/2025)
+> **Total: ~150 tools** — Implementação completa Fases 1–5 + Expansão v4.0.0 (Abr/2026)
 
 ---
 
