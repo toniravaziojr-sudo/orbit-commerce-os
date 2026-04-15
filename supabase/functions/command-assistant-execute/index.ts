@@ -2047,7 +2047,7 @@ async function executeTool(
       
       let q = supabase
         .from("discounts")
-        .select("id, name, code, type, value, is_active, usage_limit, usage_count, starts_at, ends_at")
+        .select("id, name, code, type, value, is_active, usage_limit_total, starts_at, ends_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false })
         .limit(maxResults);
@@ -2064,7 +2064,7 @@ async function executeTool(
       
       const list = data.map((d: any) => {
         const valueStr = d.type === "percentage" ? `${d.value}%` : `R$ ${(d.value / 100).toFixed(2)}`;
-        return `• ${d.code} — ${valueStr} off — ${d.is_active ? "Ativo" : "Inativo"} — Usos: ${d.usage_count || 0}/${d.usage_limit || "∞"}`;
+        return `• ${d.code} — ${valueStr} off — ${d.is_active ? "Ativo" : "Inativo"} — Limite: ${d.usage_limit_total || "∞"}`;
       }).join("\n");
       
       return {
@@ -2137,7 +2137,7 @@ async function executeTool(
         .is("deleted_at", null);
       
       const totalOrders = orders?.length || 0;
-      const paidOrders = orders?.filter((o: any) => o.payment_status === "paid") || [];
+      const paidOrders = orders?.filter((o: any) => o.payment_status === "approved") || [];
       const revenue = paidOrders.reduce((sum: number, o: any) => sum + (o.total || 0), 0);
       const avgTicket = paidOrders.length > 0 ? revenue / paidOrders.length : 0;
       
@@ -2170,7 +2170,7 @@ async function executeTool(
         .from("order_items")
         .select("product_name, product_id, quantity, total_price, orders!inner(tenant_id, created_at, payment_status)")
         .eq("orders.tenant_id", tenant_id)
-        .eq("orders.payment_status", "paid")
+        .eq("orders.payment_status", "approved")
         .gte("orders.created_at", start.toISOString());
       
       if (error) throw new Error(error.message);
@@ -2676,17 +2676,18 @@ async function executeTool(
     }
 
     case "createOffer": {
-      const { name, type, triggerProductId, offerProductId, discountPercent, isActive } = tool_args;
+      const { name, type, triggerProductIds, suggestedProductIds, discountType, discountValue, isActive } = tool_args;
       
       const { data, error } = await supabase
-        .from("offers")
+        .from("offer_rules")
         .insert({
           tenant_id,
           name,
           type: type || "bump",
-          trigger_product_id: triggerProductId || null,
-          offer_product_id: offerProductId,
-          discount_percent: discountPercent || 0,
+          trigger_product_ids: triggerProductIds || [],
+          suggested_product_ids: suggestedProductIds || [],
+          discount_type: discountType || "percentage",
+          discount_value: discountValue || 0,
           is_active: isActive !== false,
         })
         .select("id, name, type")
@@ -2702,15 +2703,16 @@ async function executeTool(
     }
 
     case "updateOffer": {
-      const { offerId, name, discountPercent, isActive } = tool_args;
+      const { offerId, name, discountType, discountValue, isActive } = tool_args;
       
       const updateData: any = { updated_at: new Date().toISOString() };
       if (name !== undefined) updateData.name = name;
-      if (discountPercent !== undefined) updateData.discount_percent = discountPercent;
+      if (discountType !== undefined) updateData.discount_type = discountType;
+      if (discountValue !== undefined) updateData.discount_value = discountValue;
       if (isActive !== undefined) updateData.is_active = isActive;
       
       const { data, error } = await supabase
-        .from("offers")
+        .from("offer_rules")
         .update(updateData)
         .eq("id", offerId)
         .eq("tenant_id", tenant_id)
@@ -2730,7 +2732,7 @@ async function executeTool(
       const { offerId } = tool_args;
       
       const { data, error } = await supabase
-        .from("offers")
+        .from("offer_rules")
         .delete()
         .eq("id", offerId)
         .eq("tenant_id", tenant_id)
@@ -2750,8 +2752,8 @@ async function executeTool(
       const { type, status } = tool_args;
       
       let q = supabase
-        .from("offers")
-        .select("id, name, type, discount_percent, is_active, offer_product_id, created_at")
+        .from("offer_rules")
+        .select("id, name, type, discount_type, discount_value, is_active, priority, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false });
       
@@ -2766,9 +2768,10 @@ async function executeTool(
         return { success: true, message: "Nenhuma oferta encontrada.", data: [] };
       }
       
-      const list = data.map((o: any) => 
-        `• ${o.name} (${o.type}) — ${o.discount_percent}% off — ${o.is_active ? "Ativa" : "Inativa"}`
-      ).join("\n");
+      const list = data.map((o: any) => {
+        const discountStr = o.discount_type === "percentage" ? `${o.discount_value}%` : `R$ ${(o.discount_value || 0).toFixed(2)}`;
+        return `• ${o.name} (${o.type}) — ${discountStr} off — ${o.is_active ? "Ativa" : "Inativa"}`;
+      }).join("\n");
       
       return {
         success: true,
@@ -2783,7 +2786,7 @@ async function executeTool(
       
       let q = supabase
         .from("product_reviews")
-        .select("id, rating, title, comment, customer_name, status, product_id, created_at")
+        .select("id, rating, title, content, customer_name, status, product_id, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false })
         .limit(maxResults);
@@ -2798,7 +2801,7 @@ async function executeTool(
       }
       
       const list = data.map((r: any) => 
-        `• ${"⭐".repeat(r.rating || 0)} — ${r.customer_name || "Anônimo"} — "${r.title || r.comment?.substring(0, 50) || "—"}" — ${r.status}`
+        `• ${"⭐".repeat(r.rating || 0)} — ${r.customer_name || "Anônimo"} — "${r.title || r.content?.substring(0, 50) || "—"}" — ${r.status}`
       ).join("\n");
       
       return {
@@ -2975,7 +2978,7 @@ async function executeTool(
         .eq("tenant_id", tenant_id)
         .gte("created_at", start.toISOString());
       
-      const paidOrders = (orders || []).filter((o: any) => o.payment_status === "paid");
+      const paidOrders = (orders || []).filter((o: any) => o.payment_status === "approved");
       const revenue = paidOrders.reduce((s: number, o: any) => s + (o.total || 0), 0);
       const shippingTotal = paidOrders.reduce((s: number, o: any) => s + (o.shipping_total || 0), 0);
       const discountTotal = paidOrders.reduce((s: number, o: any) => s + (o.discount_total || 0), 0);
@@ -3242,7 +3245,7 @@ async function executeTool(
       
       let q = supabase
         .from("email_marketing_campaigns")
-        .select("id, name, subject, status, type, sent_count, created_at")
+        .select("id, name, status, type, sent_count, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false })
         .limit(maxResults);
@@ -3590,19 +3593,19 @@ async function executeTool(
     }
     case "listFiscalInvoices": {
       const { status, limit } = tool_args;
-      let q = supabase.from("fiscal_invoices").select("id, number, series, status, total_value, recipient_name, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      let q = supabase.from("fiscal_invoices").select("id, numero, serie, status, valor_total, dest_nome, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
       if (status && status !== "all") q = q.eq("status", status);
       const { data, error } = await q;
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) return { success: true, message: "Nenhuma nota fiscal encontrada.", data: [] };
-      const list = data.map((n: any) => `• NF ${n.number || "—"}/${n.series || "—"} — ${n.recipient_name || "—"} — R$ ${(n.total_value || 0).toFixed(2)} — ${n.status}`).join("\n");
+      const list = data.map((n: any) => `• NF ${n.numero || "—"}/${n.serie || "—"} — ${n.dest_nome || "—"} — R$ ${(n.valor_total || 0).toFixed(2)} — ${n.status}`).join("\n");
       return { success: true, message: `🧾 **${data.length} nota(s) fiscal(is):**\n\n${list}`, data };
     }
     case "getFiscalInvoiceDetails": {
       const { invoiceId } = tool_args;
       const { data, error } = await supabase.from("fiscal_invoices").select("*").eq("id", invoiceId).eq("tenant_id", tenant_id).single();
       if (error) throw new Error(error.message);
-      return { success: true, message: `🧾 **NF ${data.number || "—"}/${data.series || "—"}**\n• Status: ${data.status}\n• Destinatário: ${data.recipient_name || "—"}\n• CNPJ/CPF: ${data.recipient_document || "—"}\n• Valor: R$ ${(data.total_value || 0).toFixed(2)}\n• Chave: ${data.access_key || "—"}`, data };
+      return { success: true, message: `🧾 **NF ${data.numero || "—"}/${data.serie || "—"}**\n• Status: ${data.status}\n• Destinatário: ${data.dest_nome || "—"}\n• CNPJ/CPF: ${data.dest_cpf_cnpj || "—"}\n• Valor: R$ ${(data.valor_total || 0).toFixed(2)}\n• Chave: ${data.chave_acesso || "—"}`, data };
     }
     case "updateFiscalDraft": {
       const { draftId, status: newStatus } = tool_args;
@@ -3694,11 +3697,15 @@ async function executeTool(
     }
     // --- Integrações ---
     case "listIntegrations": {
-      const { data, error } = await supabase.from("marketing_integrations").select("id, platform, status, account_name, created_at").eq("tenant_id", tenant_id).order("platform");
+      const { data, error } = await supabase.from("marketing_integrations").select("id, tenant_id, meta_enabled, meta_status, google_enabled, google_status, tiktok_enabled, tiktok_status, created_at").eq("tenant_id", tenant_id).single();
       if (error) throw new Error(error.message);
-      if (!data || data.length === 0) return { success: true, message: "Nenhuma integração encontrada.", data: [] };
-      const list = data.map((i: any) => `• ${i.platform} — ${i.status} — ${i.account_name || "—"}`).join("\n");
-      return { success: true, message: `🔗 **${data.length} integração(ões):**\n\n${list}`, data };
+      if (!data) return { success: true, message: "Nenhuma integração configurada.", data: [] };
+      const integrations = [];
+      if (data.meta_enabled) integrations.push(`• Meta Pixel — ${data.meta_status || "configurado"}`);
+      if (data.google_enabled) integrations.push(`• Google Analytics — ${data.google_status || "configurado"}`);
+      if (data.tiktok_enabled) integrations.push(`• TikTok Pixel — ${data.tiktok_status || "configurado"}`);
+      if (integrations.length === 0) return { success: true, message: "Nenhuma integração ativa.", data };
+      return { success: true, message: `🔗 **${integrations.length} integração(ões) ativa(s):**\n\n${integrations.join("\n")}`, data };
     }
     // --- Suporte ---
     case "listSupportTickets": {
@@ -3766,19 +3773,19 @@ async function executeTool(
     }
     case "listEmailTemplates": {
       const { limit } = tool_args;
-      const { data, error } = await supabase.from("email_marketing_templates").select("id, name, subject, category, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      const { data, error } = await supabase.from("email_marketing_templates").select("id, name, subject, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) return { success: true, message: "Nenhum template encontrado.", data: [] };
-      const list = data.map((t: any) => `• ${t.name} — ${t.category || "—"} — Assunto: ${t.subject || "—"}`).join("\n");
+      const list = data.map((t: any) => `• ${t.name} — Assunto: ${t.subject || "—"}`).join("\n");
       return { success: true, message: `📧 **${data.length} template(s):**\n\n${list}`, data };
     }
     case "getCampaignStats": {
       const { campaignId } = tool_args;
-      const { data, error } = await supabase.from("email_marketing_campaigns").select("id, name, sent_count, open_count, click_count, bounce_count, unsubscribe_count").eq("id", campaignId).eq("tenant_id", tenant_id).single();
+      const { data, error } = await supabase.from("email_marketing_campaigns").select("id, name, sent_count, open_count, unique_open_count, click_count, unique_click_count, conversion_count, conversion_value_cents").eq("id", campaignId).eq("tenant_id", tenant_id).single();
       if (error) throw new Error(error.message);
       const openRate = data.sent_count > 0 ? ((data.open_count || 0) / data.sent_count * 100).toFixed(1) : "0";
       const clickRate = data.sent_count > 0 ? ((data.click_count || 0) / data.sent_count * 100).toFixed(1) : "0";
-      return { success: true, message: `📊 **Estatísticas — ${data.name}**\n• Enviados: ${data.sent_count || 0}\n• Abertos: ${data.open_count || 0} (${openRate}%)\n• Cliques: ${data.click_count || 0} (${clickRate}%)\n• Bounces: ${data.bounce_count || 0}\n• Descadastros: ${data.unsubscribe_count || 0}`, data };
+      return { success: true, message: `📊 **Estatísticas — ${data.name}**\n• Enviados: ${data.sent_count || 0}\n• Abertos: ${data.open_count || 0} (${openRate}%)\n• Abertos únicos: ${data.unique_open_count || 0}\n• Cliques: ${data.click_count || 0} (${clickRate}%)\n• Cliques únicos: ${data.unique_click_count || 0}\n• Conversões: ${data.conversion_count || 0}`, data };
     }
     case "updateCampaign": {
       const { campaignId, name, subject, status: newStatus } = tool_args;
@@ -3944,10 +3951,11 @@ async function executeTool(
       return { success: true, message: `🌐 **${data.length} domínio(s):**\n\n${list}`, data };
     }
     case "getStoreDetails": {
-      const { data, error } = await supabase.from("tenants").select("id, name, slug, email, phone, domain, logo_url, favicon_url, created_at").eq("id", tenant_id).single();
+      const { data, error } = await supabase.from("tenants").select("id, name, slug, logo_url, settings, created_at").eq("id", tenant_id).single();
       if (error) throw new Error(error.message);
       const { data: sub } = await supabase.from("tenant_subscriptions").select("plan_key, status, current_period_end").eq("tenant_id", tenant_id).eq("status", "active").single();
-      return { success: true, message: `🏪 **${data.name}**\n• Slug: ${data.slug}\n• Email: ${data.email || "—"}\n• Telefone: ${data.phone || "—"}\n• Domínio: ${data.domain || "—"}\n• Plano: ${sub?.plan_key || "—"} (${sub?.status || "—"})`, data: { ...data, subscription: sub } };
+      const { data: domain } = await supabase.from("tenant_domains").select("domain, is_primary").eq("tenant_id", tenant_id).eq("is_primary", true).single();
+      return { success: true, message: `🏪 **${data.name}**\n• Slug: ${data.slug}\n• Domínio: ${domain?.domain || "—"}\n• Plano: ${sub?.plan_key || "—"} (${sub?.status || "—"})`, data: { ...data, subscription: sub, domain: domain?.domain } };
     }
     // --- Clientes Potenciais ---
     case "listPotentialCustomers": {
@@ -3972,7 +3980,8 @@ async function executeTool(
     }
     // --- Variantes ---
     case "listProductVariants": {
-      const { productId } = tool_args;
+      const productId = tool_args.productId || tool_args.product_id;
+      if (!productId) return { success: false, error: "Parâmetro product_id é obrigatório." };
       const { data, error } = await supabase.from("product_variants").select("id, name, sku, price, stock_quantity, is_active, option1_name, option1_value, option2_name, option2_value").eq("product_id", productId).order("position");
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) return { success: true, message: "Nenhuma variante encontrada para este produto.", data: [] };
