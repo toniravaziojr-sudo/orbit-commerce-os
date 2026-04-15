@@ -57,9 +57,8 @@ const blockCategoryMapping: Record<string, BlockCategoryType> = {
   'FeaturedProducts': 'products',
   'ProductCard': 'products',
   
-  // Categorias
-  'CategoryList': 'categories',
-  'FeaturedCategories': 'categories',
+  // Categorias (unificado)
+  'CategoryShowcase': 'categories',
   
   // Galerias (coleções de mídia)
   'VideoCarousel': 'galleries',
@@ -108,8 +107,8 @@ const visibleBlockTypes = new Set([
   'Banner', 'BannerProducts',
   // Produtos
   'CollectionSection', 'ProductCarousel', 'FeaturedProducts', 'ProductCard',
-  // Categorias
-  'CategoryList', 'FeaturedCategories',
+  // Categorias (unificado)
+  'CategoryShowcase',
   // Galerias
   'VideoCarousel', 'ImageGallery', 'LogosCarousel',
   // Conteúdo

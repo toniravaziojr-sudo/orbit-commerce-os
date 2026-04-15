@@ -285,7 +285,7 @@ export function extractProductIds(node: BlockNode): string[] {
  */
 export function extractCategoryIds(node: BlockNode): string[] {
   const ids: string[] = [];
-  if (node.type === 'FeaturedCategories' && Array.isArray(node.props.items)) {
+  if ((node.type === 'FeaturedCategories' || node.type === 'CategoryShowcase') && Array.isArray(node.props.items)) {
     ids.push(...(node.props.items as any[]).map(i => i.categoryId).filter(Boolean));
   }
   if (node.children) {

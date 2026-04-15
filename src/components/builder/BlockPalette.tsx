@@ -64,9 +64,8 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'BannerProducts': 'products',
   'CollectionSection': 'products',
   
-  // Categories
-  'CategoryList': 'categories',
-  'FeaturedCategories': 'categories',
+  // Categories (unified)
+  'CategoryShowcase': 'categories',
   
   // Media
   'VideoCarousel': 'media',
@@ -129,9 +128,8 @@ const visibleBlockTypes = new Set([
   'ProductCard',
   'BannerProducts',
   'CollectionSection',
-  // Categories
-  'CategoryList',
-  'FeaturedCategories',
+  // Categories (unified)
+  'CategoryShowcase',
   // Media
   'VideoCarousel',
   'ImageCarousel',
