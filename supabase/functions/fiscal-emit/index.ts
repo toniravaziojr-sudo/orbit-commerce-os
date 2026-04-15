@@ -392,7 +392,16 @@ serve(async (req) => {
           body: JSON.stringify({ invoice_id, tenant_id: tenantId }),
         }).catch(err => console.error('[fiscal-emit] Email error:', err));
       }
-    }
+
+      // WMS Pratika — fire-and-forget
+      fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ action: 'send_nfe', invoice_id, tenant_id: tenantId }),
+      }).catch(err => console.error('[fiscal-emit] WMS Pratika error:', err));
 
     await supabaseClient
       .from('fiscal_invoices')
