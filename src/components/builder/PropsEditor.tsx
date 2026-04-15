@@ -362,7 +362,7 @@ export function PropsEditor({
 
       {/* Props */}
       <ScrollArea className="flex-1">
-        <div className="p-3 pr-6 space-y-2.5 overflow-x-hidden min-w-0 box-border">
+        <div className="p-3 pr-8 space-y-2.5 overflow-x-hidden min-w-0 box-border">
           {/* Banner custom panel — replaces generic loop */}
           {definition.type === 'Banner' ? (
             <BannerPropsPanel
@@ -690,12 +690,12 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
 
       case 'boolean':
         return (
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{schema.label}</span>
+          <div className="flex items-center justify-between gap-3 pr-1">
+            <span className="text-xs text-muted-foreground flex-1 min-w-0 pr-2">{schema.label}</span>
             <Switch
               checked={Boolean(value)}
               onCheckedChange={onChange}
-              className="scale-90"
+              className="scale-90 shrink-0"
             />
           </div>
         );
