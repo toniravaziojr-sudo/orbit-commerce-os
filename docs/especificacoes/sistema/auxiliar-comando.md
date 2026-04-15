@@ -1,13 +1,13 @@
 # Auxiliar de Comando — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-03-04  
-> **Versão do Pipeline:** v3.16.0 | **AI Router:** v1.2.0  
-> **Cobertura:** 61+ tools — 100% dos módulos (Fases 1–5 completas)
+> **Última atualização:** 2026-04-15  
+> **Versão do Pipeline:** v4.0.0 | **AI Router:** v1.2.0  
+> **Cobertura:** ~150 tools — 100% dos módulos (Fases 1–5 + Expansão v4.0.0)
 
 > **Camada:** Layer 3 — Especificações / Sistema  
 > **Migrado de:** `docs/regras/auxiliar-comando.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-04-15
 
 
 ---
@@ -128,11 +128,13 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.8.0 — OpenAI Nativa + Linguagem Natural para Empreendedores)
+## Arquitetura (v4.0.0 — Gemini Nativa Primária + Expansão Total de Tools)
 
 ### Modelo de IA
 
 > **Mudança v3.5.0**: Migração de Gemini (via Lovable Gateway) para **OpenAI nativa (gpt-4o)** com `preferProvider: 'openai'`. Motivo: Gemini via OpenAI-compat não suportava `tools` de forma confiável, causando alucinações onde a IA dizia "estou buscando" sem chamar nenhuma tool.
+
+> **Mudança v4.0.0**: IA primária atualizada para **Gemini 2.5 Flash** via rota nativa (`ai-router.ts` → `GEMINI_API_KEY` via `platform_credentials`). Fallback: Lovable AI Gateway (`LOVABLE_API_KEY`). Hierarquia de provedores no `ai-router.ts`: 1) Gemini Nativa, 2) OpenAI Nativa, 3) Lovable Gateway.
 
 ### Filosofia de Interpretação (v3.8.0)
 
@@ -188,7 +190,27 @@ O sistema usa **native tool calling** da OpenAI para executar tools de leitura a
 
 Essas tools são executadas internamente pela Edge Function `command-assistant-chat` antes de gerar a resposta final. O usuário não vê botão de confirmação para elas:
 
-`searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `findKitsContainingProduct`, `listKitsSummary`, `searchOrders`, `getOrderDetails`, `listDiscounts`, `listCategories`, `getDashboardStats`, `getTopProducts`, `listCustomerTags`, `searchCustomers`, `listBlogPosts`, `listOffers`, `listReviews`, `listPages`, `getFinancialSummary`, `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`, `listEmailLists`, `listSubscribers`, `listCampaigns`, `listAgendaTasks`, `inventoryReport`, `customersReport`, `salesReport`
+**Produtos:** `searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `findKitsContainingProduct`, `listKitsSummary`, `listProductVariants`
+**Pedidos:** `searchOrders`, `getOrderDetails`
+**Clientes:** `searchCustomers`, `listCustomerTags`
+**Catálogo:** `listDiscounts`, `listCategories`, `listOffers`
+**Conteúdo:** `listBlogPosts`, `listReviews`, `listPages`
+**Dashboard/Relatórios:** `getDashboardStats`, `getTopProducts`, `getFinancialSummary`, `inventoryReport`, `customersReport`, `salesReport`
+**Operacional:** `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`
+**Email Marketing:** `listEmailLists`, `listSubscribers`, `listCampaigns`, `getCampaignDetails`, `listEmailTemplates`, `getCampaignStats`
+**Agenda:** `listAgendaTasks`
+**Fiscal (v4.0.0):** `listFiscalDrafts`, `getFiscalDraftDetails`, `listFiscalInvoices`, `getFiscalInvoiceDetails`
+**Logística (v4.0.0):** `listShipments`, `getShipmentDetails`
+**Financeiro (v4.0.0):** `listPurchases`, `getPurchaseDetails`
+**Equipe (v4.0.0):** `listTeamMembers`, `getTeamMemberDetails`
+**Integrações (v4.0.0):** `listIntegrations`
+**Suporte (v4.0.0):** `listSupportTickets`, `getSupportTicketDetails`
+**Automações (v4.0.0):** `listAutomations`, `getAutomationDetails`
+**Checkout Links (v4.0.0):** `listCheckoutLinks`, `getCheckoutLinkDetails`
+**Afiliados (v4.0.0):** `listAffiliates`, `getAffiliateDetails`, `listAffiliatePayouts`
+**Mídia Social (v4.0.0):** `listSocialPosts`, `getSocialPostDetails`
+**Domínios/Loja (v4.0.0):** `listDomains`, `getStoreDetails`
+**Clientes Potenciais (v4.0.0):** `listPotentialCustomers`, `getPotentialCustomerDetails`
 
 #### Tools de Escrita (Confirmação via botão)
 
@@ -501,7 +523,7 @@ for (const chunk of chunks) {
 
 ## Ações Suportadas (Tools) — Cobertura 100%
 
-> **Total: 56+ tools** — Implementação completa Fases 1–5 (Jan/2025)
+> **Total: ~150 tools** — Implementação completa Fases 1–5 + Expansão v4.0.0 (Abr/2026)
 
 ---
 
@@ -691,7 +713,141 @@ for (const chunk of chunks) {
 | `listAgendaTasks` | Listar tarefas (filtro por status) | todos |
 | `completeTask` | Marcar tarefa como concluída | todos |
 
-### Formato de Ação Proposta
+### Fiscal/NF-e (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listFiscalDrafts` | Listar rascunhos fiscais (status, período) | owner, admin, manager |
+| `getFiscalDraftDetails` | Detalhes de um rascunho fiscal | owner, admin, manager |
+| `listFiscalInvoices` | Listar notas fiscais emitidas | owner, admin, manager |
+| `getFiscalInvoiceDetails` | Detalhes de uma nota fiscal | owner, admin, manager |
+| `createFiscalDraft` | Criar rascunho fiscal | owner, admin, manager |
+| `updateFiscalDraft` | Atualizar rascunho fiscal | owner, admin, manager |
+| `emitFiscalNote` | Emitir nota fiscal a partir de rascunho | owner, admin |
+| `cancelFiscalNote` | Cancelar nota fiscal emitida | owner, admin |
+
+### Logística/Remessas (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listShipments` | Listar remessas (status, período) | owner, admin, manager |
+| `getShipmentDetails` | Detalhes de uma remessa | owner, admin, manager |
+| `createShipment` | Criar remessa | owner, admin, manager |
+| `updateShipmentStatus` | Atualizar status de remessa | owner, admin, manager |
+
+### Financeiro/Compras (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listPurchases` | Listar compras/despesas | owner, admin |
+| `getPurchaseDetails` | Detalhes de uma compra | owner, admin |
+| `createPurchase` | Registrar compra/despesa | owner, admin |
+| `updatePurchase` | Atualizar compra | owner, admin |
+| `deletePurchase` | Excluir compra | owner, admin |
+
+### Equipe/Permissões (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listTeamMembers` | Listar membros da equipe | owner, admin |
+| `getTeamMemberDetails` | Detalhes de um membro | owner, admin |
+| `inviteTeamMember` | Convidar membro para a equipe | owner |
+| `updateTeamMemberRole` | Alterar função de membro | owner |
+| `removeTeamMember` | Remover membro da equipe | owner |
+
+### Integrações (v4.0.0 — Somente Leitura)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listIntegrations` | Listar status das integrações | owner, admin |
+
+### Suporte/Tickets (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listSupportTickets` | Listar tickets de suporte | owner, admin, manager, attendant |
+| `getSupportTicketDetails` | Detalhes de um ticket | owner, admin, manager, attendant |
+| `updateTicketStatus` | Atualizar status do ticket | owner, admin, manager, attendant |
+| `replyToTicket` | Responder a um ticket | owner, admin, manager, attendant |
+| `assignTicket` | Atribuir ticket a um membro | owner, admin, manager |
+
+### Automações (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listAutomations` | Listar automações configuradas | owner, admin |
+| `getAutomationDetails` | Detalhes de uma automação | owner, admin |
+| `toggleAutomation` | Ativar/desativar automação | owner, admin |
+
+### Checkout Links (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listCheckoutLinks` | Listar links de checkout | owner, admin, manager |
+| `getCheckoutLinkDetails` | Detalhes de um link de checkout | owner, admin, manager |
+| `createCheckoutLink` | Criar link de checkout | owner, admin, manager |
+| `updateCheckoutLink` | Atualizar link de checkout | owner, admin, manager |
+| `deleteCheckoutLink` | Excluir link de checkout | owner, admin |
+
+### Afiliados (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listAffiliates` | Listar afiliados | owner, admin |
+| `getAffiliateDetails` | Detalhes de um afiliado | owner, admin |
+| `listAffiliatePayouts` | Listar pagamentos de afiliados | owner, admin |
+| `createAffiliate` | Cadastrar afiliado | owner, admin |
+| `updateAffiliate` | Atualizar afiliado | owner, admin |
+| `toggleAffiliate` | Ativar/desativar afiliado | owner, admin |
+
+### Mídia Social (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listSocialPosts` | Listar publicações sociais | owner, admin, manager |
+| `getSocialPostDetails` | Detalhes de uma publicação | owner, admin, manager |
+| `createSocialPost` | Criar publicação | owner, admin, manager |
+| `scheduleSocialPost` | Agendar publicação | owner, admin, manager |
+
+### Domínios/Loja (v4.0.0 — Somente Leitura)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listDomains` | Listar domínios configurados | owner, admin |
+| `getStoreDetails` | Detalhes da loja | owner, admin |
+
+### Clientes Potenciais (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listPotentialCustomers` | Listar clientes potenciais (leads) | owner, admin, manager |
+| `getPotentialCustomerDetails` | Detalhes de um lead | owner, admin, manager |
+| `convertPotentialCustomer` | Converter lead em cliente | owner, admin, manager |
+| `updatePotentialCustomerStatus` | Atualizar status do lead | owner, admin, manager |
+
+### Variantes de Produto (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listProductVariants` | Listar variantes de um produto | todos |
+| `createProductVariant` | Criar variante | owner, admin, manager, editor |
+| `updateProductVariant` | Atualizar variante | owner, admin, manager, editor |
+| `deleteProductVariant` | Excluir variante | owner, admin, manager |
+
+### Email Marketing Expandido (v4.0.0)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `getCampaignDetails` | Detalhes de uma campanha | owner, admin |
+| `listEmailTemplates` | Listar templates de email | owner, admin, manager |
+| `getCampaignStats` | Estatísticas de campanha | owner, admin |
+| `updateCampaign` | Atualizar campanha | owner, admin |
+| `deleteCampaign` | Excluir campanha | owner, admin |
+| `duplicateCampaign` | Duplicar campanha | owner, admin |
+| `pauseCampaign` | Pausar campanha | owner, admin |
+| `removeSubscriber` | Remover inscrito de lista | owner, admin, manager |
+| `moveSubscriber` | Mover inscrito entre listas | owner, admin, manager |
+
 
 ```json
 {
@@ -848,6 +1004,47 @@ O assistente NUNCA deve expor nomes internos de ferramentas, variáveis, IDs ou 
 | `recalculateKitPrices` | "recalcular preços dos kits baseado nos componentes" |
 | `listKitsSummary` | "listar todos os kits com quantidade de unidades" |
 | `applyKitDiscount` | "aplicar descontos nos kits" |
+| `listFiscalDrafts` | "listar os rascunhos fiscais" |
+| `getFiscalDraftDetails` | "ver os detalhes do rascunho fiscal" |
+| `listFiscalInvoices` | "listar as notas fiscais" |
+| `emitFiscalNote` | "emitir nota fiscal" |
+| `cancelFiscalNote` | "cancelar nota fiscal" |
+| `listShipments` | "listar as remessas" |
+| `getShipmentDetails` | "ver os detalhes da remessa" |
+| `createShipment` | "criar remessa" |
+| `updateShipmentStatus` | "atualizar status da remessa" |
+| `listPurchases` | "listar as compras" |
+| `createPurchase` | "registrar compra" |
+| `listTeamMembers` | "listar os membros da equipe" |
+| `inviteTeamMember` | "convidar membro para a equipe" |
+| `updateTeamMemberRole` | "alterar função do membro" |
+| `removeTeamMember` | "remover membro da equipe" |
+| `listIntegrations` | "ver as integrações" |
+| `listSupportTickets` | "listar os tickets de suporte" |
+| `replyToTicket` | "responder ao ticket" |
+| `assignTicket` | "atribuir ticket" |
+| `listAutomations` | "listar as automações" |
+| `toggleAutomation` | "ativar/desativar automação" |
+| `listCheckoutLinks` | "listar os links de checkout" |
+| `createCheckoutLink` | "criar link de checkout" |
+| `listAffiliates` | "listar os afiliados" |
+| `createAffiliate` | "cadastrar afiliado" |
+| `toggleAffiliate` | "ativar/desativar afiliado" |
+| `listSocialPosts` | "listar as publicações sociais" |
+| `createSocialPost` | "criar publicação social" |
+| `scheduleSocialPost` | "agendar publicação" |
+| `listDomains` | "listar os domínios" |
+| `getStoreDetails` | "ver detalhes da loja" |
+| `listPotentialCustomers` | "listar os clientes potenciais" |
+| `convertPotentialCustomer` | "converter lead em cliente" |
+| `listProductVariants` | "listar as variantes do produto" |
+| `createProductVariant` | "criar variante" |
+| `getCampaignDetails` | "ver detalhes da campanha" |
+| `getCampaignStats` | "ver estatísticas da campanha" |
+| `duplicateCampaign` | "duplicar campanha" |
+| `pauseCampaign` | "pausar campanha" |
+| `removeSubscriber` | "remover inscrito" |
+| `moveSubscriber` | "mover inscrito entre listas" |
 | `tool_name` / `tool_args` | NUNCA mencionar |
 | `tenant_id`, `user_id` | NUNCA mencionar |
 | `autopilot_config` | "Configurações da IA de Tráfego" |
