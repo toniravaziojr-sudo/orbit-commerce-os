@@ -98,7 +98,7 @@ export function CategoryMultiSelect({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 overflow-hidden">
       {/* Instructions banner */}
       <div className="bg-muted/50 border border-border rounded-lg p-3">
         <div className="flex items-start gap-2">
