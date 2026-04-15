@@ -22,6 +22,21 @@ const READ_TOOLS = new Set([
   "getFinancialSummary", "listShippingMethods", "listNotifications",
   "listFiles", "getStorageUsage", "listEmailLists", "listSubscribers",
   "listCampaigns", "listAgendaTasks", "inventoryReport", "customersReport", "salesReport",
+  // v4.0.0: New read tools
+  "listFiscalDrafts", "getFiscalDraftDetails", "listFiscalInvoices", "getFiscalInvoiceDetails",
+  "listShipments", "getShipmentDetails",
+  "listPurchases", "getPurchaseDetails",
+  "listTeamMembers", "getTeamMemberDetails",
+  "listIntegrations",
+  "listSupportTickets", "getSupportTicketDetails",
+  "listAutomations", "getAutomationDetails",
+  "getCampaignDetails", "listEmailTemplates", "getCampaignStats",
+  "listCheckoutLinks", "getCheckoutLinkDetails",
+  "listAffiliates", "getAffiliateDetails", "listAffiliatePayouts",
+  "listSocialPosts", "getSocialPostDetails",
+  "listDomains", "getStoreDetails",
+  "listPotentialCustomers", "getPotentialCustomerDetails",
+  "listProductVariants",
 ]);
 
 // ==================== PERMISSION MAP for read tools ====================
