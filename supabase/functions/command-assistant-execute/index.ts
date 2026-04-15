@@ -3834,8 +3834,8 @@ async function executeTool(
       const { campaignId } = tool_args;
       const { data: original, error: fetchError } = await supabase.from("email_marketing_campaigns").select("*").eq("id", campaignId).eq("tenant_id", tenant_id).single();
       if (fetchError) throw new Error(fetchError.message);
-      const { id, created_at, updated_at, sent_count, open_count, click_count, bounce_count, unsubscribe_count, sent_at, ...campaignData } = original;
-      const { data, error } = await supabase.from("email_marketing_campaigns").insert({ ...campaignData, name: `${original.name} (Cópia)`, status: "draft", sent_count: 0, open_count: 0, click_count: 0 }).select("id, name").single();
+      const { id, created_at, updated_at, sent_count, open_count, click_count, unique_open_count, unique_click_count, conversion_count, conversion_value_cents, ...campaignData } = original;
+      const { data, error } = await supabase.from("email_marketing_campaigns").insert({ ...campaignData, name: `${original.name} (Cópia)`, status: "draft", sent_count: 0, open_count: 0, click_count: 0, unique_open_count: 0, unique_click_count: 0, conversion_count: 0, conversion_value_cents: 0 }).select("id, name").single();
       if (error) throw new Error(error.message);
       return { success: true, message: `✅ Campanha duplicada como "${data.name}"!`, data };
     }
