@@ -1,8 +1,9 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tag, Calendar } from "lucide-react";
+import { Tag, Calendar, Truck } from "lucide-react";
 import { GoogleTagManagerTab } from "@/components/external-apps/GoogleTagManagerTab";
 import { GoogleCalendarTab } from "@/components/external-apps/GoogleCalendarTab";
+import { WmsPratikaTab } from "@/components/external-apps/WmsPratikaTab";
 
 export default function ExternalApps() {
   return (
