@@ -126,6 +126,26 @@ export function PropsEditor({
     ? propsEntries.filter(([key]) => !HEADER_NOTICE_PROPS.includes(key))
     : propsEntries;
 
+  const handleSchemaValueChange = (
+    key: string,
+    schema: BlockPropsSchema[string],
+    value: unknown
+  ) => {
+    if (schema.type === 'categoryMultiSelect' && key === 'items') {
+      const nextItems = Array.isArray(value) ? value : [];
+
+      if (nextItems.length > 0 && props.source !== 'custom') {
+        handleBatchChange({
+          items: nextItems,
+          source: 'custom',
+        });
+        return;
+      }
+    }
+
+    handleChange(key, value);
+  };
+
   // SYSTEM BLOCKS - Configured via Theme Settings, not via PropsEditor
   // These blocks have configurations in Theme Settings (Páginas section)
   const SYSTEM_BLOCKS = [
@@ -197,7 +217,7 @@ export function PropsEditor({
   if (isSystemBlock) {
     const redirect = getSystemBlockRedirect(definition.type);
     return (
-      <div className="h-full flex flex-col border-l">
+      <div className="h-full min-w-0 flex flex-col overflow-hidden border-l">
         {/* Header */}
         <div className="p-2 border-b bg-muted/30">
           <div className="flex items-center gap-1.5">
@@ -208,7 +228,7 @@ export function PropsEditor({
             </div>
           </div>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
+        <div className="flex-1 min-w-0 flex flex-col items-center justify-center p-4 text-center">
           <div className="p-4 bg-muted/30 rounded-lg space-y-3">
             <Settings2 className="h-8 w-8 mx-auto text-muted-foreground" />
             <div>
@@ -227,7 +247,7 @@ export function PropsEditor({
   }
 
   return (
-    <div className="h-full flex flex-col border-l overflow-hidden">
+    <div className="h-full min-w-0 flex flex-col overflow-hidden border-l">
       {/* Header */}
       <div className="p-3 border-b bg-muted/30 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -361,8 +381,8 @@ export function PropsEditor({
       </div>
 
       {/* Props */}
-      <ScrollArea className="flex-1">
-        <div className="p-3 pr-8 space-y-2.5 overflow-x-hidden min-w-0 box-border">
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
+        <div className="box-border min-w-0 max-w-full space-y-2.5 overflow-x-hidden p-3 pr-6">
           {/* Banner custom panel — replaces generic loop */}
           {definition.type === 'Banner' ? (
             <BannerPropsPanel
@@ -419,7 +439,7 @@ export function PropsEditor({
                       name={key}
                       schema={schema}
                       value={props[key] ?? schema.defaultValue}
-                      onChange={(value) => handleChange(key, value)}
+                        onChange={(value) => handleSchemaValueChange(key, schema, value)}
                       blockType={definition.type}
                       allProps={props}
                     />

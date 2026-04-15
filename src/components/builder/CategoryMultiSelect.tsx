@@ -98,16 +98,13 @@ export function CategoryMultiSelect({
   }
 
   return (
-    <div className="space-y-4 overflow-hidden">
+    <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
       {/* Instructions banner */}
-      <div className="bg-muted/50 border border-border rounded-lg p-3">
+      <div className="max-w-full rounded-lg border border-border bg-muted/50 p-3 overflow-hidden">
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-          <div className="text-xs text-muted-foreground break-words">
+          <div className="min-w-0 text-xs text-muted-foreground break-words">
             <p>Selecione as categorias que deseja exibir neste bloco.</p>
-            <p className="mt-1">
-              As imagens são gerenciadas em <strong>Categorias &gt; Miniatura</strong>.
-            </p>
             <p className="mt-1">
               As imagens são gerenciadas em <strong>Categorias &gt; Miniatura</strong>.
             </p>
@@ -127,8 +124,8 @@ export function CategoryMultiSelect({
       </div>
 
       {/* Category list to select */}
-      <ScrollArea className="h-36 border rounded-md">
-        <div className="p-2 space-y-1">
+      <ScrollArea className="h-36 min-w-0 rounded-md border">
+        <div className="space-y-1 p-2 pr-3">
           {filteredCategories.length === 0 ? (
             <div className="py-4 text-center text-muted-foreground text-sm">
               Nenhuma categoria encontrada
@@ -142,7 +139,7 @@ export function CategoryMultiSelect({
                 <div
                   key={category.id}
                   className={cn(
-                    "flex items-center gap-1.5 p-1.5 rounded-md hover:bg-muted cursor-pointer transition-colors overflow-hidden",
+                    "flex min-w-0 items-center gap-1.5 overflow-hidden rounded-md p-1.5 transition-colors hover:bg-muted cursor-pointer",
                     isSelected && "bg-primary/10 border border-primary/30",
                     isDisabled && "opacity-50 cursor-not-allowed"
                   )}
@@ -153,7 +150,7 @@ export function CategoryMultiSelect({
                     disabled={isDisabled}
                     className="pointer-events-none flex-shrink-0"
                   />
-                  <div className="w-6 h-6 rounded bg-muted overflow-hidden flex-shrink-0">
+                  <div className="h-6 w-6 overflow-hidden rounded bg-muted flex-shrink-0">
                     {category.image_url ? (
                       <img
                         src={category.image_url}
@@ -166,8 +163,8 @@ export function CategoryMultiSelect({
                       </div>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <p className="text-xs font-medium truncate">{category.name}</p>
+                  <div className="min-w-0 flex-1 overflow-hidden pr-1">
+                    <p className="truncate text-xs font-medium leading-tight">{category.name}</p>
                   </div>
                 </div>
               );
@@ -185,11 +182,11 @@ export function CategoryMultiSelect({
       {selectedCategories.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">Selecionadas ({selectedCategories.length}):</p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex max-w-full flex-wrap gap-1.5 overflow-hidden">
             {selectedCategories.map((item) => (
               <div 
                 key={item.id}
-                className="flex items-center gap-1 bg-muted rounded-full pl-1.5 pr-0.5 py-0.5 max-w-full"
+                className="flex max-w-full items-center gap-1 rounded-full bg-muted py-0.5 pl-1.5 pr-0.5"
               >
                 <div className="w-4 h-4 rounded-full bg-background overflow-hidden flex-shrink-0">
                   {item.image_url ? (
@@ -204,7 +201,7 @@ export function CategoryMultiSelect({
                     </div>
                   )}
                 </div>
-                <span className="text-[10px] font-medium truncate max-w-[100px]">{item.name}</span>
+                <span className="max-w-[88px] truncate text-[10px] font-medium">{item.name}</span>
                 <Button 
                   variant="ghost" 
                   size="icon" 
