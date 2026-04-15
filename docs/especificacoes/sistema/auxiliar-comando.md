@@ -1,13 +1,13 @@
 # Auxiliar de Comando — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-03-04  
-> **Versão do Pipeline:** v3.16.0 | **AI Router:** v1.2.0  
-> **Cobertura:** 61+ tools — 100% dos módulos (Fases 1–5 completas)
+> **Última atualização:** 2026-04-15  
+> **Versão do Pipeline:** v4.0.0 | **AI Router:** v1.2.0  
+> **Cobertura:** ~150 tools — 100% dos módulos (Fases 1–5 + Expansão v4.0.0)
 
 > **Camada:** Layer 3 — Especificações / Sistema  
 > **Migrado de:** `docs/regras/auxiliar-comando.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-04-15
 
 
 ---
@@ -128,11 +128,13 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.8.0 — OpenAI Nativa + Linguagem Natural para Empreendedores)
+## Arquitetura (v4.0.0 — Gemini Nativa Primária + Expansão Total de Tools)
 
 ### Modelo de IA
 
 > **Mudança v3.5.0**: Migração de Gemini (via Lovable Gateway) para **OpenAI nativa (gpt-4o)** com `preferProvider: 'openai'`. Motivo: Gemini via OpenAI-compat não suportava `tools` de forma confiável, causando alucinações onde a IA dizia "estou buscando" sem chamar nenhuma tool.
+
+> **Mudança v4.0.0**: IA primária atualizada para **Gemini 2.5 Flash** via rota nativa (`ai-router.ts` → `GEMINI_API_KEY` via `platform_credentials`). Fallback: Lovable AI Gateway (`LOVABLE_API_KEY`). Hierarquia de provedores no `ai-router.ts`: 1) Gemini Nativa, 2) OpenAI Nativa, 3) Lovable Gateway.
 
 ### Filosofia de Interpretação (v3.8.0)
 
@@ -188,7 +190,27 @@ O sistema usa **native tool calling** da OpenAI para executar tools de leitura a
 
 Essas tools são executadas internamente pela Edge Function `command-assistant-chat` antes de gerar a resposta final. O usuário não vê botão de confirmação para elas:
 
-`searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `findKitsContainingProduct`, `listKitsSummary`, `searchOrders`, `getOrderDetails`, `listDiscounts`, `listCategories`, `getDashboardStats`, `getTopProducts`, `listCustomerTags`, `searchCustomers`, `listBlogPosts`, `listOffers`, `listReviews`, `listPages`, `getFinancialSummary`, `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`, `listEmailLists`, `listSubscribers`, `listCampaigns`, `listAgendaTasks`, `inventoryReport`, `customersReport`, `salesReport`
+**Produtos:** `searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `findKitsContainingProduct`, `listKitsSummary`, `listProductVariants`
+**Pedidos:** `searchOrders`, `getOrderDetails`
+**Clientes:** `searchCustomers`, `listCustomerTags`
+**Catálogo:** `listDiscounts`, `listCategories`, `listOffers`
+**Conteúdo:** `listBlogPosts`, `listReviews`, `listPages`
+**Dashboard/Relatórios:** `getDashboardStats`, `getTopProducts`, `getFinancialSummary`, `inventoryReport`, `customersReport`, `salesReport`
+**Operacional:** `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`
+**Email Marketing:** `listEmailLists`, `listSubscribers`, `listCampaigns`, `getCampaignDetails`, `listEmailTemplates`, `getCampaignStats`
+**Agenda:** `listAgendaTasks`
+**Fiscal (v4.0.0):** `listFiscalDrafts`, `getFiscalDraftDetails`, `listFiscalInvoices`, `getFiscalInvoiceDetails`
+**Logística (v4.0.0):** `listShipments`, `getShipmentDetails`
+**Financeiro (v4.0.0):** `listPurchases`, `getPurchaseDetails`
+**Equipe (v4.0.0):** `listTeamMembers`, `getTeamMemberDetails`
+**Integrações (v4.0.0):** `listIntegrations`
+**Suporte (v4.0.0):** `listSupportTickets`, `getSupportTicketDetails`
+**Automações (v4.0.0):** `listAutomations`, `getAutomationDetails`
+**Checkout Links (v4.0.0):** `listCheckoutLinks`, `getCheckoutLinkDetails`
+**Afiliados (v4.0.0):** `listAffiliates`, `getAffiliateDetails`, `listAffiliatePayouts`
+**Mídia Social (v4.0.0):** `listSocialPosts`, `getSocialPostDetails`
+**Domínios/Loja (v4.0.0):** `listDomains`, `getStoreDetails`
+**Clientes Potenciais (v4.0.0):** `listPotentialCustomers`, `getPotentialCustomerDetails`
 
 #### Tools de Escrita (Confirmação via botão)
 
