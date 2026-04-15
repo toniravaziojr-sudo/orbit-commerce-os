@@ -1634,7 +1634,7 @@ export function VisualBuilder({
 
         {/* Right Sidebar - Props Editor - Auto-hide when no block selected */}
         {showRightSidebar && store.selectedBlock && (
-          <div className="w-80 flex-shrink-0 bg-background shadow-sm relative overflow-hidden pr-2">
+          <div className="relative w-80 flex-shrink-0 overflow-hidden bg-background pr-1 shadow-sm">
             {store.selectedBlock && store.selectedBlockDefinition ? (
               // Header/Footer: Check if it's checkout page for dedicated editor
               store.selectedBlock.type === 'Header' || store.selectedBlock.type === 'Footer' ? (
