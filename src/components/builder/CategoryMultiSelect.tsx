@@ -103,8 +103,11 @@ export function CategoryMultiSelect({
       <div className="bg-muted/50 border border-border rounded-lg p-3">
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground break-words">
             <p>Selecione as categorias que deseja exibir neste bloco.</p>
+            <p className="mt-1">
+              As imagens são gerenciadas em <strong>Categorias &gt; Miniatura</strong>.
+            </p>
             <p className="mt-1">
               As imagens são gerenciadas em <strong>Categorias &gt; Miniatura</strong>.
             </p>
