@@ -3952,10 +3952,10 @@ async function executeTool(
     // --- Clientes Potenciais ---
     case "listPotentialCustomers": {
       const { limit } = tool_args;
-      const { data, error } = await supabase.from("checkout_sessions").select("id, customer_email, customer_name, total, status, contact_captured_at, abandoned_at, created_at").eq("tenant_id", tenant_id).not("customer_email", "is", null).eq("status", "abandoned").order("created_at", { ascending: false }).limit(limit || 20);
+      const { data, error } = await supabase.from("checkout_sessions").select("id, customer_email, customer_name, total_estimated, status, contact_captured_at, abandoned_at, created_at").eq("tenant_id", tenant_id).not("customer_email", "is", null).eq("status", "abandoned").order("created_at", { ascending: false }).limit(limit || 20);
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) return { success: true, message: "Nenhum cliente potencial encontrado.", data: [] };
-      const list = data.map((c: any) => `• ${c.customer_name || "—"} (${c.customer_email}) — R$ ${(c.total || 0).toFixed(2)}`).join("\n");
+      const list = data.map((c: any) => `• ${c.customer_name || "—"} (${c.customer_email}) — R$ ${(c.total_estimated || 0).toFixed(2)}`).join("\n");
       return { success: true, message: `🎯 **${data.length} cliente(s) potencial(is):**\n\n${list}`, data };
     }
     case "getPotentialCustomerDetails": {
