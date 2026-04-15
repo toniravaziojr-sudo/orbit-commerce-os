@@ -2676,17 +2676,18 @@ async function executeTool(
     }
 
     case "createOffer": {
-      const { name, type, triggerProductId, offerProductId, discountPercent, isActive } = tool_args;
+      const { name, type, triggerProductIds, suggestedProductIds, discountType, discountValue, isActive } = tool_args;
       
       const { data, error } = await supabase
-        .from("offers")
+        .from("offer_rules")
         .insert({
           tenant_id,
           name,
           type: type || "bump",
-          trigger_product_id: triggerProductId || null,
-          offer_product_id: offerProductId,
-          discount_percent: discountPercent || 0,
+          trigger_product_ids: triggerProductIds || [],
+          suggested_product_ids: suggestedProductIds || [],
+          discount_type: discountType || "percentage",
+          discount_value: discountValue || 0,
           is_active: isActive !== false,
         })
         .select("id, name, type")
@@ -2702,15 +2703,16 @@ async function executeTool(
     }
 
     case "updateOffer": {
-      const { offerId, name, discountPercent, isActive } = tool_args;
+      const { offerId, name, discountType, discountValue, isActive } = tool_args;
       
       const updateData: any = { updated_at: new Date().toISOString() };
       if (name !== undefined) updateData.name = name;
-      if (discountPercent !== undefined) updateData.discount_percent = discountPercent;
+      if (discountType !== undefined) updateData.discount_type = discountType;
+      if (discountValue !== undefined) updateData.discount_value = discountValue;
       if (isActive !== undefined) updateData.is_active = isActive;
       
       const { data, error } = await supabase
-        .from("offers")
+        .from("offer_rules")
         .update(updateData)
         .eq("id", offerId)
         .eq("tenant_id", tenant_id)
@@ -2730,7 +2732,7 @@ async function executeTool(
       const { offerId } = tool_args;
       
       const { data, error } = await supabase
-        .from("offers")
+        .from("offer_rules")
         .delete()
         .eq("id", offerId)
         .eq("tenant_id", tenant_id)
