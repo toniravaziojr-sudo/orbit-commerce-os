@@ -95,9 +95,6 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'NewsletterUnified': 'forms',
   'QuizEmbed': 'forms',
   
-  // Info
-  'FAQ': 'info',
-  
   // Layout
   'Section': 'layout',
   'Container': 'layout',
