@@ -181,14 +181,14 @@ export function CategoryMultiSelect({
       {/* Selected categories - simple list for reordering */}
       {selectedCategories.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Categorias selecionadas (ordem de exibição):</p>
-          <div className="flex flex-wrap gap-2">
+          <p className="text-xs font-medium text-muted-foreground">Selecionadas ({selectedCategories.length}):</p>
+          <div className="flex flex-wrap gap-1.5">
             {selectedCategories.map((item) => (
               <div 
                 key={item.id}
-                className="flex items-center gap-2 bg-muted rounded-full pl-2 pr-1 py-1"
+                className="flex items-center gap-1 bg-muted rounded-full pl-1.5 pr-0.5 py-0.5 max-w-full"
               >
-                <div className="w-5 h-5 rounded-full bg-background overflow-hidden flex-shrink-0">
+                <div className="w-4 h-4 rounded-full bg-background overflow-hidden flex-shrink-0">
                   {item.image_url ? (
                     <img
                       src={item.image_url}
@@ -197,18 +197,18 @@ export function CategoryMultiSelect({
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <FolderOpen className="h-3 w-3 text-muted-foreground" />
+                      <FolderOpen className="h-2.5 w-2.5 text-muted-foreground" />
                     </div>
                   )}
                 </div>
-                <span className="text-xs font-medium">{item.name}</span>
+                <span className="text-[10px] font-medium truncate max-w-[100px]">{item.name}</span>
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-5 w-5 rounded-full hover:bg-destructive/20"
+                  className="h-4 w-4 rounded-full hover:bg-destructive/20 flex-shrink-0"
                   onClick={() => removeCategory(item.id)}
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-2.5 w-2.5" />
                 </Button>
               </div>
             ))}
