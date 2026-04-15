@@ -6,12 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useEmailMarketing } from "@/hooks/useEmailMarketing";
-import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit, ChevronRight, Workflow, Pause, Play, Copy } from "lucide-react";
+import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit, ChevronRight, Workflow, Pause, Play, Copy, TrendingUp } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListDialog } from "@/components/email-marketing/ListDialog";
 import { TemplateDialog } from "@/components/email-marketing/TemplateDialog";
 import { CampaignDialog } from "@/components/email-marketing/CampaignDialog";
 import { SubscribersTab } from "@/components/email-marketing/SubscribersTab";
+import { AttributionsTab } from "@/components/email-marketing/AttributionsTab";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -183,6 +184,7 @@ export default function EmailMarketing() {
           <TabsTrigger value="templates" className="gap-2"><Mail className="h-4 w-4" />Templates</TabsTrigger>
           <TabsTrigger value="campaigns" className="gap-2"><Megaphone className="h-4 w-4" />Campanhas</TabsTrigger>
           <TabsTrigger value="automations" className="gap-2"><Workflow className="h-4 w-4" />Automações</TabsTrigger>
+          <TabsTrigger value="attributions" className="gap-2"><TrendingUp className="h-4 w-4" />Atribuições</TabsTrigger>
         </TabsList>
 
         <TabsContent value="lists">
@@ -470,6 +472,10 @@ export default function EmailMarketing() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="attributions">
+          <AttributionsTab />
         </TabsContent>
       </Tabs>
 
