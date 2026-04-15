@@ -1357,6 +1357,56 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
   },
   {
+    type: 'CategoryList',
+    label: 'Lista de Categorias',
+    category: 'ecommerce',
+    icon: 'List',
+    defaultProps: {
+      source: 'auto',
+      layout: 'grid',
+      columnsDesktop: 4,
+      columnsMobile: 2,
+      showImage: true,
+      showDescription: false,
+      items: [],
+    },
+    propsSchema: {
+      source: {
+        type: 'select', label: 'Fonte', defaultValue: 'auto',
+        options: [
+          { label: 'Automático (todas)', value: 'auto' },
+          { label: 'Apenas principais', value: 'parent' },
+          { label: 'Selecionar manualmente', value: 'custom' },
+        ],
+      },
+      layout: {
+        type: 'select', label: 'Layout', defaultValue: 'grid',
+        options: [
+          { label: 'Grade', value: 'grid' },
+          { label: 'Lista', value: 'list' },
+        ],
+      },
+      columnsDesktop: {
+        type: 'select', label: 'Colunas (Desktop)', defaultValue: '4',
+        options: [
+          { label: '2', value: '2' }, { label: '3', value: '3' },
+          { label: '4', value: '4' }, { label: '5', value: '5' },
+        ],
+      },
+      columnsMobile: {
+        type: 'select', label: 'Colunas (Mobile)', defaultValue: '2',
+        options: [{ label: '1', value: '1' }, { label: '2', value: '2' }],
+      },
+      showImage: { type: 'boolean', label: 'Mostrar Imagem', defaultValue: true },
+      showDescription: { type: 'boolean', label: 'Mostrar Descrição', defaultValue: false },
+      items: {
+        type: 'categoryMultiSelect', label: 'Categorias', max: 12,
+        helpText: 'Selecione as categorias (modo manual)',
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
     // REGRAS.md linha 77: Banner configurado SOMENTE no menu Categorias
     // Sem opções de edição no builder - propsSchema vazio = sem painel direito
     type: 'CategoryBanner',
