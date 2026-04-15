@@ -39,7 +39,7 @@ interface KnowledgeChunk {
 }
 
 interface IntentClassification {
-  intent: 'question' | 'complaint' | 'action_request' | 'greeting' | 'thanks' | 'general';
+  intent: 'question' | 'complaint' | 'action_request' | 'greeting' | 'thanks' | 'general' | 'purchase_intent';
   sentiment: 'positive' | 'neutral' | 'negative' | 'aggressive';
   urgency: 'low' | 'medium' | 'high';
   requires_action: boolean;
@@ -107,7 +107,225 @@ VOCÊ É UM ASSISTENTE PURAMENTE INFORMATIVO. SIGA RIGOROSAMENTE:
 LEMBRE-SE: Você INFORMA e ORIENTA. Você NÃO EXECUTA nem PROMETE execução.
 `;
 
-// Intent classification tool definition
+// Sales agent prompt (replaces INFORMATIVE_GUARDRAILS when sales mode is on)
+const SALES_AGENT_PROMPT = `
+========================================
+🛒 MODO VENDAS — AGENTE DE VENDAS CONVERSACIONAL
+========================================
+
+Você é um agente de vendas consultivo. Seu objetivo é AJUDAR o cliente a encontrar o produto ideal e finalizar a compra de forma natural e agradável.
+
+DIRETRIZES DE VENDAS:
+
+1. **IDENTIFICAR INTENÇÃO DE COMPRA:**
+   - Quando o cliente mencionar interesse em produto, categoria ou necessidade, use a ferramenta search_products para buscar opções
+   - Pergunte sobre preferências (cor, tamanho, faixa de preço) para refinar sugestões
+
+2. **APRESENTAR PRODUTOS:**
+   - Use get_product_details para obter informações completas
+   - Apresente preço, disponibilidade e principais características
+   - Sugira até 3 opções relevantes por vez
+   - NUNCA invente preços ou características — use APENAS dados das ferramentas
+
+3. **CUPONS E DESCONTOS:**
+   - Use check_coupon para validar cupons mencionados pelo cliente
+   - Use check_customer_coupon_eligibility para verificar se o cliente pode usar o cupom
+   - Ofereça cupons ativos quando for estratégico (ex: cliente hesitante)
+
+4. **CARRINHO CONVERSACIONAL:**
+   - Use add_to_cart quando o cliente confirmar interesse em um produto
+   - Use view_cart para mostrar o resumo do carrinho
+   - Use remove_from_cart se o cliente pedir para remover algo
+   - Use apply_coupon para aplicar descontos ao carrinho
+
+5. **UPSELL E OFERTAS:**
+   - Use check_upsell_offers para verificar ofertas de aumento de ticket
+   - Sugira ofertas de forma natural, sem pressão ("Aproveitando que você está levando X, temos uma oferta especial...")
+
+6. **FINALIZAR COMPRA:**
+   - Quando o cliente estiver pronto, use generate_checkout_link para criar o link de checkout
+   - O link já virá com os dados do cliente preenchidos
+   - Envie o link com uma mensagem amigável
+
+7. **REGRAS DE SEGURANÇA:**
+   - NUNCA invente preços, descontos ou promoções
+   - Respeite estoque: se indisponível, informe e sugira alternativas
+   - Não force venda — se o cliente não quiser, respeite
+   - Para problemas com pedidos anteriores, ESCALONE para humano
+   - Mantenha tom consultivo e amigável, nunca agressivo ou insistente
+
+8. **ESCALONAMENTO:**
+   - Reclamações, problemas com pedidos, estornos → ESCALONE para humano
+   - Cliente irritado ou agressivo → ESCALONE para humano
+   - Dúvidas que não envolvem venda e não estão na base → ESCALONE para humano
+`;
+
+// ==============================
+// SALES TOOL DEFINITIONS
+// ==============================
+const SALES_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "search_products",
+      description: "Busca produtos no catálogo por nome, categoria ou termo de busca. Retorna lista resumida.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Termo de busca (nome do produto, categoria, etc.)" },
+          limit: { type: "number", description: "Máximo de resultados (default: 5)" },
+        },
+        required: ["query"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_product_details",
+      description: "Retorna informações detalhadas de um produto específico (preço, estoque, descrição, imagens).",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "string", description: "UUID do produto" },
+        },
+        required: ["product_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_coupon",
+      description: "Valida um cupom de desconto: verifica se está ativo, dentro da validade e limite de uso.",
+      parameters: {
+        type: "object",
+        properties: {
+          coupon_code: { type: "string", description: "Código do cupom" },
+        },
+        required: ["coupon_code"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_customer_coupon_eligibility",
+      description: "Verifica se o cliente específico pode usar um cupom (já usou antes? atingiu limite?).",
+      parameters: {
+        type: "object",
+        properties: {
+          coupon_code: { type: "string", description: "Código do cupom" },
+          customer_id: { type: "string", description: "UUID do cliente" },
+        },
+        required: ["coupon_code", "customer_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_to_cart",
+      description: "Adiciona um produto ao carrinho da conversa.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "string", description: "UUID do produto" },
+          quantity: { type: "number", description: "Quantidade (default: 1)" },
+        },
+        required: ["product_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "view_cart",
+      description: "Mostra o conteúdo atual do carrinho da conversa.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "remove_from_cart",
+      description: "Remove um produto do carrinho da conversa.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "string", description: "UUID do produto a remover" },
+        },
+        required: ["product_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "apply_coupon",
+      description: "Aplica um cupom de desconto ao carrinho da conversa.",
+      parameters: {
+        type: "object",
+        properties: {
+          coupon_code: { type: "string", description: "Código do cupom" },
+        },
+        required: ["coupon_code"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_upsell_offers",
+      description: "Verifica ofertas de upsell/aumento de ticket disponíveis para o carrinho atual.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_checkout_link",
+      description: "Gera um link de checkout pré-preenchido com os itens do carrinho, cupom e dados do cliente.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "lookup_customer",
+      description: "Consulta o cadastro do cliente na loja para obter dados e histórico.",
+      parameters: {
+        type: "object",
+        properties: {
+          phone: { type: "string", description: "Telefone do cliente (opcional)" },
+          email: { type: "string", description: "Email do cliente (opcional)" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+];
+
+// Intent classification tool definition (updated with purchase_intent)
 const INTENT_CLASSIFICATION_TOOL = {
   type: "function",
   function: {
@@ -118,18 +336,18 @@ const INTENT_CLASSIFICATION_TOOL = {
       properties: {
         intent: {
           type: "string",
-          enum: ["question", "complaint", "action_request", "greeting", "thanks", "general"],
-          description: "Tipo de intenção: question=pergunta, complaint=reclamação, action_request=pedido de ação, greeting=saudação, thanks=agradecimento, general=outro"
+          enum: ["question", "complaint", "action_request", "greeting", "thanks", "general", "purchase_intent"],
+          description: "Tipo de intenção: question=pergunta, complaint=reclamação, action_request=pedido de ação, greeting=saudação, thanks=agradecimento, general=outro, purchase_intent=interesse em comprar"
         },
         sentiment: {
           type: "string",
           enum: ["positive", "neutral", "negative", "aggressive"],
-          description: "Sentimento do cliente: positive=satisfeito, neutral=neutro, negative=insatisfeito, aggressive=agressivo/irritado"
+          description: "Sentimento do cliente"
         },
         urgency: {
           type: "string",
           enum: ["low", "medium", "high"],
-          description: "Urgência: low=pode esperar, medium=importante, high=urgente"
+          description: "Urgência"
         },
         requires_action: {
           type: "boolean",
@@ -138,7 +356,7 @@ const INTENT_CLASSIFICATION_TOOL = {
         topics: {
           type: "array",
           items: { type: "string" },
-          description: "Lista de tópicos mencionados (ex: 'pedido', 'frete', 'pagamento', 'produto')"
+          description: "Lista de tópicos mencionados"
         },
         summary: {
           type: "string",
@@ -150,6 +368,480 @@ const INTENT_CLASSIFICATION_TOOL = {
     }
   }
 };
+
+// ==============================
+// SALES TOOL EXECUTORS
+// ==============================
+async function executeSalesTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  ctx: {
+    supabase: ReturnType<typeof createClient>;
+    tenantId: string;
+    conversationId: string;
+    customerId: string | null;
+    storeUrl: string;
+    customerPhone: string | null;
+    customerEmail: string | null;
+    customerName: string | null;
+  }
+): Promise<string> {
+  const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
+
+  try {
+    switch (toolName) {
+      case "search_products": {
+        const query = (args.query as string) || "";
+        const limit = (args.limit as number) || 5;
+        
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, name, slug, price, compare_at_price, stock_quantity, status, images")
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .is("deleted_at", null)
+          .ilike("name", `%${query}%`)
+          .limit(limit);
+
+        if (error) {
+          // Fallback: try fuzzy search via RPC if available
+          const { data: fuzzyData } = await (supabase as any).rpc("search_products_fuzzy", {
+            p_tenant_id: tenantId,
+            p_query: query,
+            p_limit: limit,
+          });
+          if (fuzzyData?.length) {
+            return JSON.stringify(fuzzyData.map((p: any) => ({
+              id: p.id, name: p.name, price: p.price, stock: p.stock_quantity,
+              image: p.images?.[0] || null,
+            })));
+          }
+          return JSON.stringify({ error: "Nenhum produto encontrado", query });
+        }
+
+        if (!data?.length) return JSON.stringify({ message: "Nenhum produto encontrado para a busca.", query });
+
+        return JSON.stringify(data.map(p => ({
+          id: p.id, name: p.name, slug: p.slug,
+          price: p.price, compare_at_price: p.compare_at_price,
+          stock: p.stock_quantity,
+          image: (p.images as any)?.[0] || null,
+        })));
+      }
+
+      case "get_product_details": {
+        const productId = args.product_id as string;
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, name, slug, description, price, compare_at_price, stock_quantity, status, images, weight, sku")
+          .eq("id", productId)
+          .eq("tenant_id", tenantId)
+          .is("deleted_at", null)
+          .single();
+
+        if (error || !data) return JSON.stringify({ error: "Produto não encontrado" });
+
+        return JSON.stringify({
+          id: data.id, name: data.name, slug: data.slug,
+          description: data.description?.slice(0, 500),
+          price: data.price, compare_at_price: data.compare_at_price,
+          stock: data.stock_quantity,
+          available: data.status === "active" && (data.stock_quantity ?? 0) > 0,
+          images: (data.images as any[])?.slice(0, 3) || [],
+          sku: data.sku, weight: data.weight,
+        });
+      }
+
+      case "check_coupon": {
+        const code = (args.coupon_code as string).toUpperCase().trim();
+        const { data, error } = await supabase
+          .from("discounts")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .eq("code", code)
+          .maybeSingle();
+
+        if (error || !data) return JSON.stringify({ valid: false, reason: "Cupom não encontrado" });
+
+        const now = new Date();
+        if (!data.is_active) return JSON.stringify({ valid: false, reason: "Cupom desativado" });
+        if (data.starts_at && new Date(data.starts_at) > now) return JSON.stringify({ valid: false, reason: "Cupom ainda não válido" });
+        if (data.ends_at && new Date(data.ends_at) < now) return JSON.stringify({ valid: false, reason: "Cupom expirado" });
+        if (data.max_uses && data.total_uses >= data.max_uses) return JSON.stringify({ valid: false, reason: "Cupom esgotado" });
+
+        return JSON.stringify({
+          valid: true,
+          code: data.code,
+          type: data.discount_type,
+          value: data.discount_value,
+          min_order_value: data.min_order_value,
+          max_discount_value: data.max_discount_value,
+          remaining_uses: data.max_uses ? data.max_uses - (data.total_uses || 0) : "ilimitado",
+        });
+      }
+
+      case "check_customer_coupon_eligibility": {
+        const code = (args.coupon_code as string).toUpperCase().trim();
+        const custId = args.customer_id as string;
+
+        const { data: discount } = await supabase
+          .from("discounts")
+          .select("id, max_uses_per_customer")
+          .eq("tenant_id", tenantId)
+          .eq("code", code)
+          .maybeSingle();
+
+        if (!discount) return JSON.stringify({ eligible: false, reason: "Cupom não encontrado" });
+
+        const { count } = await supabase
+          .from("discount_redemptions")
+          .select("id", { count: "exact", head: true })
+          .eq("discount_id", discount.id)
+          .eq("customer_id", custId);
+
+        const used = count || 0;
+        const maxPerCustomer = discount.max_uses_per_customer || 1;
+
+        if (used >= maxPerCustomer) {
+          return JSON.stringify({ eligible: false, reason: `Cliente já usou este cupom ${used} vez(es). Limite: ${maxPerCustomer}` });
+        }
+
+        return JSON.stringify({ eligible: true, uses_remaining: maxPerCustomer - used });
+      }
+
+      case "add_to_cart": {
+        const productId = args.product_id as string;
+        const quantity = (args.quantity as number) || 1;
+
+        // Get product info
+        const { data: product } = await supabase
+          .from("products")
+          .select("id, name, price, stock_quantity, status")
+          .eq("id", productId)
+          .eq("tenant_id", tenantId)
+          .is("deleted_at", null)
+          .single();
+
+        if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado" });
+        if (product.status !== "active") return JSON.stringify({ success: false, error: "Produto indisponível" });
+        if ((product.stock_quantity ?? 0) < quantity) return JSON.stringify({ success: false, error: `Estoque insuficiente. Disponível: ${product.stock_quantity}` });
+
+        // Get or create cart
+        let { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        const items = cart?.items as any[] || [];
+        const existingIdx = items.findIndex((i: any) => i.product_id === productId);
+
+        if (existingIdx >= 0) {
+          items[existingIdx].quantity += quantity;
+          items[existingIdx].subtotal = items[existingIdx].quantity * product.price;
+        } else {
+          items.push({
+            product_id: productId,
+            name: product.name,
+            price: product.price,
+            quantity,
+            subtotal: quantity * product.price,
+          });
+        }
+
+        const subtotalCents = Math.round(items.reduce((s: number, i: any) => s + i.subtotal * 100, 0));
+
+        if (cart) {
+          await supabase
+            .from("whatsapp_carts")
+            .update({ items, subtotal_cents: subtotalCents, updated_at: new Date().toISOString() })
+            .eq("id", cart.id);
+        } else {
+          await supabase
+            .from("whatsapp_carts")
+            .insert({
+              conversation_id: conversationId,
+              tenant_id: tenantId,
+              customer_id: customerId,
+              items,
+              subtotal_cents: subtotalCents,
+              status: "active",
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            });
+        }
+
+        return JSON.stringify({
+          success: true,
+          message: `${product.name} (x${quantity}) adicionado ao carrinho`,
+          cart_total: `R$ ${(subtotalCents / 100).toFixed(2)}`,
+          items_count: items.length,
+        });
+      }
+
+      case "view_cart": {
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (!cart || !(cart.items as any[])?.length) {
+          return JSON.stringify({ empty: true, message: "Carrinho vazio" });
+        }
+
+        const items = cart.items as any[];
+        return JSON.stringify({
+          items: items.map((i: any) => ({
+            name: i.name,
+            quantity: i.quantity,
+            price: `R$ ${i.price.toFixed(2)}`,
+            subtotal: `R$ ${i.subtotal.toFixed(2)}`,
+          })),
+          coupon: cart.coupon_code || null,
+          total: `R$ ${(cart.subtotal_cents / 100).toFixed(2)}`,
+        });
+      }
+
+      case "remove_from_cart": {
+        const productId = args.product_id as string;
+
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (!cart) return JSON.stringify({ success: false, error: "Carrinho vazio" });
+
+        const items = (cart.items as any[]).filter((i: any) => i.product_id !== productId);
+        const subtotalCents = Math.round(items.reduce((s: number, i: any) => s + i.subtotal * 100, 0));
+
+        await supabase
+          .from("whatsapp_carts")
+          .update({ items, subtotal_cents: subtotalCents, updated_at: new Date().toISOString() })
+          .eq("id", cart.id);
+
+        return JSON.stringify({ success: true, items_count: items.length, total: `R$ ${(subtotalCents / 100).toFixed(2)}` });
+      }
+
+      case "apply_coupon": {
+        const code = (args.coupon_code as string).toUpperCase().trim();
+
+        // Validate coupon first
+        const { data: discount } = await supabase
+          .from("discounts")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .eq("code", code)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (!discount) return JSON.stringify({ success: false, error: "Cupom inválido ou expirado" });
+
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (!cart) return JSON.stringify({ success: false, error: "Carrinho vazio" });
+
+        // Check min order value
+        if (discount.min_order_value && cart.subtotal_cents / 100 < discount.min_order_value) {
+          return JSON.stringify({
+            success: false,
+            error: `Valor mínimo do pedido: R$ ${discount.min_order_value.toFixed(2)}. Carrinho: R$ ${(cart.subtotal_cents / 100).toFixed(2)}`,
+          });
+        }
+
+        await supabase
+          .from("whatsapp_carts")
+          .update({ coupon_code: code, updated_at: new Date().toISOString() })
+          .eq("id", cart.id);
+
+        let discountText = "";
+        if (discount.discount_type === "percentage") {
+          discountText = `${discount.discount_value}% de desconto`;
+        } else {
+          discountText = `R$ ${discount.discount_value.toFixed(2)} de desconto`;
+        }
+
+        return JSON.stringify({ success: true, coupon: code, discount: discountText });
+      }
+
+      case "check_upsell_offers": {
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (!cart || !(cart.items as any[])?.length) {
+          return JSON.stringify({ offers: [], message: "Carrinho vazio" });
+        }
+
+        const cartTotal = cart.subtotal_cents / 100;
+        const cartProductIds = (cart.items as any[]).map((i: any) => i.product_id);
+
+        // Get active offer rules
+        const { data: offers } = await supabase
+          .from("offer_rules")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true);
+
+        if (!offers?.length) return JSON.stringify({ offers: [], message: "Sem ofertas disponíveis" });
+
+        const matchedOffers: any[] = [];
+
+        for (const offer of offers) {
+          // Check min_cart_value
+          if (offer.min_cart_value && cartTotal < offer.min_cart_value) continue;
+
+          // Check trigger products
+          if (offer.trigger_product_ids?.length) {
+            const hasTrigger = offer.trigger_product_ids.some((id: string) => cartProductIds.includes(id));
+            if (!hasTrigger) continue;
+          }
+
+          // Get offer product details
+          if (offer.offer_product_id) {
+            const { data: offerProduct } = await supabase
+              .from("products")
+              .select("id, name, price, images")
+              .eq("id", offer.offer_product_id)
+              .single();
+
+            if (offerProduct) {
+              matchedOffers.push({
+                rule_name: offer.name,
+                type: offer.offer_type,
+                product: { id: offerProduct.id, name: offerProduct.name, price: offerProduct.price },
+                discount_type: offer.discount_type,
+                discount_value: offer.discount_value,
+                message: offer.display_message,
+              });
+            }
+          }
+        }
+
+        return JSON.stringify({ offers: matchedOffers });
+      }
+
+      case "generate_checkout_link": {
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (!cart || !(cart.items as any[])?.length) {
+          return JSON.stringify({ success: false, error: "Carrinho vazio. Adicione produtos antes de gerar o link." });
+        }
+
+        const items = cart.items as any[];
+        const mainItem = items[0];
+        const additionalItems = items.slice(1);
+
+        // Create checkout_link record
+        const slug = `wpp-${Date.now().toString(36)}`;
+        const { data: checkoutLink, error: linkError } = await supabase
+          .from("checkout_links")
+          .insert({
+            tenant_id: tenantId,
+            name: `WhatsApp Cart - ${conversationId.slice(0, 8)}`,
+            slug,
+            product_id: mainItem.product_id,
+            quantity: mainItem.quantity,
+            coupon_code: cart.coupon_code || null,
+            additional_products: additionalItems.map((i: any) => ({
+              product_id: i.product_id,
+              quantity: i.quantity,
+            })),
+            is_active: true,
+            expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+          })
+          .select()
+          .single();
+
+        if (linkError || !checkoutLink) {
+          console.error("[sales-tool] checkout link creation error:", linkError);
+          return JSON.stringify({ success: false, error: "Erro ao gerar link de checkout" });
+        }
+
+        // Build the checkout URL with customer data
+        const params = new URLSearchParams();
+        params.set("link", slug);
+        if (customerName) params.set("name", customerName);
+        if (customerEmail) params.set("email", customerEmail);
+        if (customerPhone) params.set("phone", customerPhone);
+
+        const checkoutUrl = `${storeUrl}/checkout?${params.toString()}`;
+
+        // Mark cart as converted
+        await supabase
+          .from("whatsapp_carts")
+          .update({ status: "converted", updated_at: new Date().toISOString() })
+          .eq("id", cart.id);
+
+        return JSON.stringify({
+          success: true,
+          checkout_url: checkoutUrl,
+          items_count: items.length,
+          total: `R$ ${(cart.subtotal_cents / 100).toFixed(2)}`,
+          coupon: cart.coupon_code || null,
+        });
+      }
+
+      case "lookup_customer": {
+        const phone = args.phone as string | undefined;
+        const email = args.email as string | undefined;
+
+        let query = supabase
+          .from("customers")
+          .select("id, full_name, email, phone, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
+          .eq("tenant_id", tenantId);
+
+        if (phone) query = query.or(`phone.eq.${phone}`);
+        if (email) query = query.or(`email.eq.${email}`);
+
+        const { data: customer } = await query.maybeSingle();
+
+        if (!customer) return JSON.stringify({ found: false, message: "Cliente não encontrado no cadastro" });
+
+        return JSON.stringify({
+          found: true,
+          id: customer.id,
+          name: customer.full_name,
+          email: customer.email,
+          phone: customer.phone,
+          total_orders: customer.total_orders,
+          total_spent: customer.total_spent ? `R$ ${customer.total_spent.toFixed(2)}` : "R$ 0,00",
+          tier: customer.loyalty_tier,
+          tags: customer.tags,
+        });
+      }
+
+      default:
+        return JSON.stringify({ error: `Ferramenta desconhecida: ${toolName}` });
+    }
+  } catch (err) {
+    console.error(`[sales-tool] Error in ${toolName}:`, err);
+    return JSON.stringify({ error: `Erro ao executar ${toolName}` });
+  }
+}
 
 /**
  * Generates embedding for a query using ai-generate-embedding function
@@ -193,7 +885,6 @@ async function searchKnowledgeBase(
   threshold: number
 ): Promise<KnowledgeChunk[]> {
   try {
-    // Use raw query approach for pgvector compatibility - cast to any to bypass strict typing
     const { data, error } = await (supabase as any).rpc("search_knowledge_base", {
       p_tenant_id: tenantId,
       p_query_embedding: `[${embedding.join(",")}]`,
@@ -229,12 +920,13 @@ async function classifyIntent(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o", // Fast model for classification
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
             content: `Você é um classificador de intenções para atendimento ao cliente de e-commerce.
 Analise a mensagem do cliente e classifique a intenção, sentimento e urgência.
+Se o cliente demonstrar interesse em comprar algo, classificar como "purchase_intent".
 
 Contexto da conversa:
 ${conversationContext}`,
@@ -328,13 +1020,15 @@ serve(async (req) => {
       forbidden_topics: [],
       handoff_keywords: [],
       ai_model: "gpt-5.2",
-      // RAG settings (with defaults)
+      sales_mode_enabled: false,
       rag_similarity_threshold: 0.7,
       rag_top_k: 5,
       rag_min_evidence_chunks: 1,
       handoff_on_no_evidence: true,
       redact_pii_in_logs: true,
     };
+
+    const salesModeEnabled = effectiveConfig.sales_mode_enabled === true;
 
     if (effectiveConfig.is_enabled === false) {
       return new Response(
@@ -409,18 +1103,40 @@ serve(async (req) => {
     if (intentClassification) {
       console.log("[ai-support-chat] Intent classification:", JSON.stringify(intentClassification));
       
-      // Handoff triggers based on intent
-      if (intentClassification.requires_action) {
-        shouldHandoff = true;
-        handoffReason = "Cliente solicitou ação (requer atendente)";
-      }
-      if (intentClassification.sentiment === "aggressive") {
-        shouldHandoff = true;
-        handoffReason = "Cliente demonstra irritação/agressividade";
-      }
-      if (intentClassification.intent === "complaint" && intentClassification.urgency === "high") {
-        shouldHandoff = true;
-        handoffReason = "Reclamação urgente";
+      // In sales mode, purchase_intent and action_request for buying are OK
+      if (salesModeEnabled) {
+        if (intentClassification.sentiment === "aggressive") {
+          shouldHandoff = true;
+          handoffReason = "Cliente demonstra irritação/agressividade";
+        }
+        if (intentClassification.intent === "complaint" && intentClassification.urgency === "high") {
+          shouldHandoff = true;
+          handoffReason = "Reclamação urgente";
+        }
+        // In sales mode, action_request for purchases is handled by tools, not handoff
+        if (intentClassification.requires_action && intentClassification.intent !== "purchase_intent") {
+          // Check if it's a sales-related action (adding to cart, etc.) vs support action (cancel, refund)
+          const supportActions = ["cancelar", "cancelamento", "reembolso", "estorno", "devolver", "troca"];
+          const isSupportAction = intentClassification.topics.some(t => supportActions.some(sa => t.includes(sa)));
+          if (isSupportAction) {
+            shouldHandoff = true;
+            handoffReason = "Cliente solicitou ação de suporte (requer atendente)";
+          }
+        }
+      } else {
+        // Original informative mode handoff logic
+        if (intentClassification.requires_action) {
+          shouldHandoff = true;
+          handoffReason = "Cliente solicitou ação (requer atendente)";
+        }
+        if (intentClassification.sentiment === "aggressive") {
+          shouldHandoff = true;
+          handoffReason = "Cliente demonstra irritação/agressividade";
+        }
+        if (intentClassification.intent === "complaint" && intentClassification.urgency === "high") {
+          shouldHandoff = true;
+          handoffReason = "Reclamação urgente";
+        }
       }
     }
 
@@ -431,7 +1147,6 @@ serve(async (req) => {
     let noEvidenceHandoff = false;
     let similarityScores: number[] = [];
 
-    // Only do RAG search for questions or general inquiries
     const shouldSearchKnowledge = intentClassification?.intent === "question" || 
                                    intentClassification?.intent === "general" ||
                                    !intentClassification;
@@ -447,7 +1162,7 @@ serve(async (req) => {
       );
 
     if (queryEmbedding) {
-        embeddingTokens = Math.ceil(lastMessageContent.length / 4); // Rough estimate
+        embeddingTokens = Math.ceil(lastMessageContent.length / 4);
 
         console.log("[ai-support-chat] Searching knowledge base...");
         const chunks = await searchKnowledgeBase(
@@ -463,12 +1178,10 @@ serve(async (req) => {
         if (chunks.length > 0) {
           console.log(`[ai-support-chat] Found ${chunks.length} relevant chunks`);
           
-          // Build knowledge context from chunks
           knowledgeContext = "\n\n========================================\n";
           knowledgeContext += "📚 BASE DE CONHECIMENTO (relevância semântica)\n";
           knowledgeContext += "========================================\n";
           
-          // Group chunks by doc type
           const byType: Record<string, KnowledgeChunk[]> = {};
           for (const chunk of chunks) {
             if (!byType[chunk.doc_type]) byType[chunk.doc_type] = [];
@@ -484,9 +1197,8 @@ serve(async (req) => {
         } else {
           console.log("[ai-support-chat] No relevant chunks found in knowledge base");
           
-          // Check if we should handoff due to no evidence
           const minChunks = effectiveConfig.rag_min_evidence_chunks || 1;
-          if (effectiveConfig.handoff_on_no_evidence && chunks.length < minChunks) {
+          if (effectiveConfig.handoff_on_no_evidence && chunks.length < minChunks && !salesModeEnabled) {
             noEvidenceHandoff = true;
             if (!shouldHandoff) {
               shouldHandoff = true;
@@ -529,7 +1241,6 @@ serve(async (req) => {
 
     const storeName = storeSettings?.store_name || tenant?.name || "Nossa Loja";
 
-    // Build basic store context (only essential info not in KB)
     let storeContext = `\n\n### Informações da loja:\n`;
     storeContext += `- Nome: ${storeName}\n`;
     if (storeUrl) storeContext += `- Site: ${storeUrl}\n`;
@@ -560,6 +1271,7 @@ serve(async (req) => {
         customerId = customer.id;
         customerContext += `\n\n### Dados do cliente:\n`;
         customerContext += `- Nome: ${customer.full_name}\n`;
+        customerContext += `- ID: ${customer.id}\n`;
         if (customer.total_orders) customerContext += `- Total de pedidos: ${customer.total_orders}\n`;
         if (customer.total_spent) customerContext += `- Total gasto: R$ ${customer.total_spent.toFixed(2)}\n`;
         if (customer.loyalty_tier) customerContext += `- Nível de fidelidade: ${customer.loyalty_tier}\n`;
@@ -660,8 +1372,13 @@ DIRETRIZES IMPORTANTES:
       systemPrompt = channelConfig.system_prompt_override;
     }
 
-    // Add guardrails (MANDATORY)
-    systemPrompt += INFORMATIVE_GUARDRAILS;
+    // Add guardrails — sales mode or informative mode
+    if (salesModeEnabled) {
+      systemPrompt += SALES_AGENT_PROMPT;
+      console.log("[ai-support-chat] Sales mode ENABLED — injecting sales tools and prompt");
+    } else {
+      systemPrompt += INFORMATIVE_GUARDRAILS;
+    }
 
     // Add knowledge base context (RAG results)
     if (knowledgeContext) {
@@ -674,7 +1391,7 @@ DIRETRIZES IMPORTANTES:
       systemPrompt += customerContext;
     }
 
-    // Inject AI memory context (tenant-level business facts for support)
+    // Inject AI memory context
     try {
       const memoryContext = await getMemoryContext(supabase, tenant_id, "system", "support", { memoryLimit: 10, summaryLimit: 0 });
       if (memoryContext) {
@@ -745,7 +1462,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     // STEP 6: BUILD CONVERSATION HISTORY
     // ============================================
-    const aiMessages: { role: string; content: string }[] = [
+    const aiMessages: { role: string; content: string; tool_calls?: any[]; tool_call_id?: string }[] = [
       { role: "system", content: systemPrompt },
     ];
 
@@ -767,7 +1484,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
 
     // ============================================
-    // STEP 7: CALL OPENAI API
+    // STEP 7: CALL OPENAI API (with tool call loop for sales mode)
     // ============================================
     let aiContent: string;
     
@@ -790,20 +1507,49 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       aiContent = forceResponse;
       console.log(`[ai-support-chat] Using rule-based response for rule: ${matchedRule.id}`);
     } else {
-      console.log(`[ai-support-chat] Calling OpenAI model: ${aiModel}, messages: ${aiMessages.length}, context: ${systemPrompt.length} chars`);
+      console.log(`[ai-support-chat] Calling OpenAI model: ${aiModel}, messages: ${aiMessages.length}, sales_mode: ${salesModeEnabled}`);
+
+      // Tool call loop context
+      const salesToolCtx = {
+        supabase,
+        tenantId: tenant_id,
+        conversationId: conversation_id,
+        customerId,
+        storeUrl,
+        customerPhone: conversation.customer_phone || null,
+        customerEmail: conversation.customer_email || null,
+        customerName: conversation.customer_name || null,
+      };
 
       let response: Response | null = null;
       let usedModel = aiModel;
       const modelsToTry = [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
 
       let lastErrorText = "";
+      let currentMessages = [...aiMessages];
+      let toolCallIterations = 0;
+      const MAX_TOOL_ITERATIONS = 5;
+
+      // Outer loop for model fallback
+      let modelFound = false;
       for (const modelToTry of modelsToTry) {
         try {
-          // GPT-5 models use max_completion_tokens instead of max_tokens
           const isGpt5Model = modelToTry.startsWith("gpt-5");
           const tokenParams = isGpt5Model 
             ? { max_completion_tokens: 1024 }
             : { max_tokens: 1024 };
+
+          const requestBody: any = {
+            model: modelToTry,
+            messages: currentMessages,
+            ...tokenParams,
+            temperature: 0.7,
+          };
+
+          // Add sales tools only in sales mode
+          if (salesModeEnabled) {
+            requestBody.tools = SALES_TOOLS;
+          }
 
           response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
@@ -811,25 +1557,19 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
               "Authorization": `Bearer ${OPENAI_API_KEY}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              model: modelToTry,
-              messages: aiMessages,
-              ...tokenParams,
-              temperature: 0.7,
-            }),
+            body: JSON.stringify(requestBody),
           });
 
           if (response.ok) {
             usedModel = modelToTry;
             modelUsed = modelToTry;
-            console.log(`[ai-support-chat] Using model: ${modelToTry}`);
+            modelFound = true;
             break;
           }
 
           lastErrorText = await response.text();
           console.warn(`[ai-support-chat] Model ${modelToTry} failed:`, response.status, lastErrorText);
           
-          // Reset response so we try next model
           if (response.status === 404 || response.status === 400) {
             response = null;
             continue;
@@ -858,13 +1598,89 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         );
       }
 
-      const aiData = await response.json();
-      aiContent = aiData.choices?.[0]?.message?.content;
+      let aiData = await response.json();
       
       if (aiData.usage) {
-        inputTokens = aiData.usage.prompt_tokens || 0;
-        outputTokens = aiData.usage.completion_tokens || 0;
+        inputTokens += aiData.usage.prompt_tokens || 0;
+        outputTokens += aiData.usage.completion_tokens || 0;
       }
+
+      // ============================================
+      // TOOL CALL LOOP (sales mode only)
+      // ============================================
+      while (
+        salesModeEnabled &&
+        aiData.choices?.[0]?.message?.tool_calls?.length &&
+        toolCallIterations < MAX_TOOL_ITERATIONS
+      ) {
+        toolCallIterations++;
+        const assistantMsg = aiData.choices[0].message;
+        
+        console.log(`[ai-support-chat] Tool call iteration ${toolCallIterations}: ${assistantMsg.tool_calls.length} calls`);
+
+        // Add assistant message with tool calls
+        currentMessages.push({
+          role: "assistant",
+          content: assistantMsg.content || "",
+          tool_calls: assistantMsg.tool_calls,
+        });
+
+        // Execute each tool call and add results
+        for (const toolCall of assistantMsg.tool_calls) {
+          const fnName = toolCall.function.name;
+          let fnArgs: Record<string, unknown> = {};
+          try {
+            fnArgs = JSON.parse(toolCall.function.arguments || "{}");
+          } catch { /* empty args */ }
+
+          console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
+          const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
+          console.log(`[ai-support-chat] Tool result (${fnName}):`, result.slice(0, 200));
+
+          currentMessages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: result,
+          } as any);
+        }
+
+        // Call OpenAI again with tool results
+        const isGpt5Model = usedModel.startsWith("gpt-5");
+        const tokenParams = isGpt5Model 
+          ? { max_completion_tokens: 1024 }
+          : { max_tokens: 1024 };
+
+        const followUpBody: any = {
+          model: usedModel,
+          messages: currentMessages,
+          ...tokenParams,
+          temperature: 0.7,
+          tools: SALES_TOOLS,
+        };
+
+        const followUpResp = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(followUpBody),
+        });
+
+        if (!followUpResp.ok) {
+          console.error("[ai-support-chat] Follow-up call failed:", followUpResp.status);
+          break;
+        }
+
+        aiData = await followUpResp.json();
+        
+        if (aiData.usage) {
+          inputTokens += aiData.usage.prompt_tokens || 0;
+          outputTokens += aiData.usage.completion_tokens || 0;
+        }
+      }
+
+      aiContent = aiData.choices?.[0]?.message?.content;
 
       if (!aiContent) {
         console.error("[ai-support-chat] No content in AI response:", aiData);
@@ -898,7 +1714,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
     }
 
-    // Increment AI metrics (messages, handoffs, no_evidence)
+    // Increment AI metrics
     try {
       await supabase.rpc("increment_ai_metrics", {
         p_tenant_id: tenant_id,
@@ -944,6 +1760,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           matched_rule: matchedRule?.id,
           channel_type: channelType,
           handoff_reason: handoffReason || null,
+          sales_mode: salesModeEnabled,
           input_tokens: inputTokens,
           output_tokens: outputTokens,
           embedding_tokens: embeddingTokens,
@@ -978,14 +1795,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     await supabase.from("conversation_events").insert({
       conversation_id,
       tenant_id,
-      event_type: shouldHandoff ? "ai_handoff" : "ai_response",
+      event_type: shouldHandoff ? "ai_handoff" : salesModeEnabled ? "ai_sales_response" : "ai_response",
       actor_type: "bot",
       actor_name: personalityName,
       description: shouldHandoff 
         ? `IA escalou para humano: ${handoffReason}` 
-        : matchedRule 
-          ? `IA respondeu via regra: ${matchedRule.condition}` 
-          : `IA respondeu via ${channelType} (RAG: ${similarityScores.length} chunks)`,
+        : salesModeEnabled
+          ? `IA respondeu em modo vendas via ${channelType}`
+          : matchedRule 
+            ? `IA respondeu via regra: ${matchedRule.condition}` 
+            : `IA respondeu via ${channelType} (RAG: ${similarityScores.length} chunks)`,
       metadata: { 
         model: forceResponse ? "rule-based" : modelUsed,
         rag_chunks: similarityScores.length,
@@ -996,6 +1815,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         sentiment: intentClassification?.sentiment,
         matched_rule: matchedRule?.id,
         channel_type: channelType,
+        sales_mode: salesModeEnabled,
         latency_ms: latencyMs,
         cost_cents: costCents,
       },
@@ -1010,7 +1830,6 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.log(`[ai-support-chat] Sending WhatsApp response...`);
       
       try {
-        // Always use Meta WhatsApp send
         const sendResponse = await fetch(
           `${supabaseUrl}/functions/v1/meta-whatsapp-send`,
           {
@@ -1097,7 +1916,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         .eq("id", newMessage.id);
     }
 
-    console.log(`[ai-support-chat] Response ${sendResult.success ? "sent" : "failed"} via ${channelType}. Model: ${modelUsed}, RAG: ${similarityScores.length} chunks, Latency: ${latencyMs}ms`);
+    console.log(`[ai-support-chat] Response ${sendResult.success ? "sent" : "failed"} via ${channelType}. Model: ${modelUsed}, Sales: ${salesModeEnabled}, RAG: ${similarityScores.length} chunks, Latency: ${latencyMs}ms`);
 
     return new Response(
       JSON.stringify({
@@ -1109,6 +1928,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         sent: sendResult.success,
         send_error: sendResult.error,
         channel_type: channelType,
+        sales_mode: salesModeEnabled,
         rag: {
           chunks_found: similarityScores.length,
           avg_similarity: similarityScores.length > 0 
