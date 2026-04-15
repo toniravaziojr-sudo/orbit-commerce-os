@@ -3570,6 +3570,441 @@ async function executeTool(
       };
     }
 
+    // ==================== v4.0.0: NEW TOOLS ====================
+    // --- Fiscal ---
+    case "listFiscalDrafts": {
+      const { status, limit } = tool_args;
+      let q = supabase.from("fiscal_draft_queue").select("id, order_id, status, attempts, error_message, created_at, processed_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      if (status && status !== "all") q = q.eq("status", status);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhum rascunho fiscal encontrado.", data: [] };
+      const list = data.map((d: any) => `• ${d.id.slice(0,8)}... — Pedido: ${d.order_id.slice(0,8)}... — ${d.status} — Tentativas: ${d.attempts}`).join("\n");
+      return { success: true, message: `📋 **${data.length} rascunho(s) fiscal(is):**\n\n${list}`, data };
+    }
+    case "getFiscalDraftDetails": {
+      const { draftId } = tool_args;
+      const { data, error } = await supabase.from("fiscal_draft_queue").select("*").eq("id", draftId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `📋 **Rascunho Fiscal**\n• Status: ${data.status}\n• Pedido: ${data.order_id}\n• Tentativas: ${data.attempts}\n• Erro: ${data.error_message || "—"}`, data };
+    }
+    case "listFiscalInvoices": {
+      const { status, limit } = tool_args;
+      let q = supabase.from("fiscal_invoices").select("id, number, series, status, total_value, recipient_name, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      if (status && status !== "all") q = q.eq("status", status);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhuma nota fiscal encontrada.", data: [] };
+      const list = data.map((n: any) => `• NF ${n.number || "—"}/${n.series || "—"} — ${n.recipient_name || "—"} — R$ ${(n.total_value || 0).toFixed(2)} — ${n.status}`).join("\n");
+      return { success: true, message: `🧾 **${data.length} nota(s) fiscal(is):**\n\n${list}`, data };
+    }
+    case "getFiscalInvoiceDetails": {
+      const { invoiceId } = tool_args;
+      const { data, error } = await supabase.from("fiscal_invoices").select("*").eq("id", invoiceId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `🧾 **NF ${data.number || "—"}/${data.series || "—"}**\n• Status: ${data.status}\n• Destinatário: ${data.recipient_name || "—"}\n• CNPJ/CPF: ${data.recipient_document || "—"}\n• Valor: R$ ${(data.total_value || 0).toFixed(2)}\n• Chave: ${data.access_key || "—"}`, data };
+    }
+    case "updateFiscalDraft": {
+      const { draftId, status: newStatus } = tool_args;
+      const updateData: any = {};
+      if (newStatus) updateData.status = newStatus;
+      const { data, error } = await supabase.from("fiscal_draft_queue").update(updateData).eq("id", draftId).eq("tenant_id", tenant_id).select().single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Rascunho fiscal atualizado para "${newStatus}"!`, data };
+    }
+    // --- Logística ---
+    case "listShipments": {
+      const { status, limit } = tool_args;
+      let q = supabase.from("shipments").select("id, order_id, carrier, tracking_code, delivery_status, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      if (status && status !== "all") q = q.eq("delivery_status", status);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhuma remessa encontrada.", data: [] };
+      const list = data.map((s: any) => `• ${s.carrier} — Rastreio: ${s.tracking_code || "—"} — ${s.delivery_status}`).join("\n");
+      return { success: true, message: `🚚 **${data.length} remessa(s):**\n\n${list}`, data };
+    }
+    case "getShipmentDetails": {
+      const { shipmentId } = tool_args;
+      const { data, error } = await supabase.from("shipments").select("*").eq("id", shipmentId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      const { data: events } = await supabase.from("shipment_events").select("status, description, location, occurred_at").eq("shipment_id", shipmentId).order("occurred_at", { ascending: false }).limit(10);
+      const eventList = (events || []).map((e: any) => `  • ${e.status} — ${e.description || "—"} — ${e.location || "—"}`).join("\n");
+      return { success: true, message: `🚚 **Remessa ${data.carrier}**\n• Rastreio: ${data.tracking_code || "—"}\n• Status: ${data.delivery_status}\n• Pedido: ${data.order_id}\n\n**Eventos:**\n${eventList || "Sem eventos"}`, data: { ...data, events } };
+    }
+    case "updateShipmentStatus": {
+      const { shipmentId, status: newStatus, trackingCode } = tool_args;
+      const updateData: any = { delivery_status: newStatus, updated_at: new Date().toISOString() };
+      if (trackingCode) updateData.tracking_code = trackingCode;
+      if (newStatus === "delivered") updateData.delivered_at = new Date().toISOString();
+      const { data, error } = await supabase.from("shipments").update(updateData).eq("id", shipmentId).eq("tenant_id", tenant_id).select("id, carrier, delivery_status").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Remessa atualizada para "${newStatus}"!`, data };
+    }
+    // --- Financeiro/Compras ---
+    case "listPurchases": {
+      const { status, limit } = tool_args;
+      let q = supabase.from("purchases").select("id, order_number, total_value, status, description, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      if (status && status !== "all") q = q.eq("status", status);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhuma compra encontrada.", data: [] };
+      const list = data.map((p: any) => `• #${p.order_number} — R$ ${(p.total_value || 0).toFixed(2)} — ${p.status}${p.description ? ` — ${p.description}` : ""}`).join("\n");
+      return { success: true, message: `💰 **${data.length} compra(s):**\n\n${list}`, data };
+    }
+    case "getPurchaseDetails": {
+      const { purchaseId } = tool_args;
+      const { data, error } = await supabase.from("purchases").select("*").eq("id", purchaseId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `💰 **Compra #${data.order_number}**\n• Valor: R$ ${(data.total_value || 0).toFixed(2)}\n• Status: ${data.status}\n• Descrição: ${data.description || "—"}\n• Notas: ${data.notes || "—"}`, data };
+    }
+    case "createPurchase": {
+      const { orderNumber, totalValue, description, notes } = tool_args;
+      const { data, error } = await supabase.from("purchases").insert({ tenant_id, order_number: orderNumber, total_value: totalValue, description: description || null, notes: notes || null, status: "pending" }).select().single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Compra #${orderNumber} criada — R$ ${totalValue.toFixed(2)}!`, data };
+    }
+    case "updatePurchase": {
+      const { purchaseId, status: newStatus, notes } = tool_args;
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (newStatus) updateData.status = newStatus;
+      if (notes !== undefined) updateData.notes = notes;
+      const { data, error } = await supabase.from("purchases").update(updateData).eq("id", purchaseId).eq("tenant_id", tenant_id).select("id, order_number").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Compra #${data.order_number} atualizada!`, data };
+    }
+    case "deletePurchase": {
+      const { purchaseId } = tool_args;
+      const { error } = await supabase.from("purchases").delete().eq("id", purchaseId).eq("tenant_id", tenant_id);
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Compra excluída!`, data: { deleted: purchaseId } };
+    }
+    // --- Equipe ---
+    case "listTeamMembers": {
+      const { data, error } = await supabase.from("user_roles").select("id, user_id, role, user_type, permissions, created_at").eq("tenant_id", tenant_id).order("created_at");
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhum membro encontrado.", data: [] };
+      const list = data.map((m: any) => `• ${m.role} (${m.user_type || "—"}) — ID: ${m.user_id.slice(0,8)}...`).join("\n");
+      return { success: true, message: `👥 **${data.length} membro(s) da equipe:**\n\n${list}`, data };
+    }
+    case "getTeamMemberDetails": {
+      const { memberId } = tool_args;
+      const { data, error } = await supabase.from("user_roles").select("*").eq("id", memberId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `👤 **Membro**\n• Role: ${data.role}\n• Tipo: ${data.user_type || "—"}\n• Permissões: ${data.permissions ? JSON.stringify(data.permissions).slice(0,200) : "Todas"}`, data };
+    }
+    // --- Integrações ---
+    case "listIntegrations": {
+      const { data, error } = await supabase.from("marketing_integrations").select("id, platform, status, account_name, created_at").eq("tenant_id", tenant_id).order("platform");
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhuma integração encontrada.", data: [] };
+      const list = data.map((i: any) => `• ${i.platform} — ${i.status} — ${i.account_name || "—"}`).join("\n");
+      return { success: true, message: `🔗 **${data.length} integração(ões):**\n\n${list}`, data };
+    }
+    // --- Suporte ---
+    case "listSupportTickets": {
+      const { status, limit } = tool_args;
+      let q = supabase.from("support_tickets").select("id, subject, status, priority, category, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      if (status && status !== "all") q = q.eq("status", status);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhum ticket encontrado.", data: [] };
+      const list = data.map((t: any) => `• ${t.subject} — ${t.status} — ${t.priority} — ${t.category}`).join("\n");
+      return { success: true, message: `🎫 **${data.length} ticket(s):**\n\n${list}`, data };
+    }
+    case "getSupportTicketDetails": {
+      const { ticketId } = tool_args;
+      const { data, error } = await supabase.from("support_tickets").select("*").eq("id", ticketId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      const { data: msgs } = await supabase.from("support_ticket_messages").select("content, sender_type, created_at").eq("ticket_id", ticketId).order("created_at").limit(10);
+      const msgList = (msgs || []).map((m: any) => `  [${m.sender_type}]: ${m.content.slice(0,100)}`).join("\n");
+      return { success: true, message: `🎫 **${data.subject}**\n• Status: ${data.status}\n• Prioridade: ${data.priority}\n• Categoria: ${data.category}\n\n**Mensagens:**\n${msgList || "Sem mensagens"}`, data: { ...data, messages: msgs } };
+    }
+    case "updateTicketStatus": {
+      const { ticketId, status: newStatus } = tool_args;
+      const { data, error } = await supabase.from("support_tickets").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", ticketId).eq("tenant_id", tenant_id).select("id, subject").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Ticket "${data.subject}" atualizado para "${newStatus}"!`, data };
+    }
+    case "replyToTicket": {
+      const { ticketId, content } = tool_args;
+      const { data, error } = await supabase.from("support_ticket_messages").insert({ ticket_id: ticketId, tenant_id, content, sender_type: "agent", sender_user_id: user_id }).select().single();
+      if (error) throw new Error(error.message);
+      await supabase.from("support_tickets").update({ last_message_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", ticketId).eq("tenant_id", tenant_id);
+      return { success: true, message: `✅ Resposta enviada ao ticket!`, data };
+    }
+    // --- Automações ---
+    case "listAutomations": {
+      const { status } = tool_args;
+      let q = supabase.from("email_automation_flows").select("id, name, status, trigger_type, stats, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false });
+      if (status && status !== "all") q = q.eq("status", status);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhuma automação encontrada.", data: [] };
+      const list = data.map((a: any) => `• ${a.name} — ${a.status} — Trigger: ${a.trigger_type}`).join("\n");
+      return { success: true, message: `⚡ **${data.length} automação(ões):**\n\n${list}`, data };
+    }
+    case "getAutomationDetails": {
+      const { automationId } = tool_args;
+      const { data, error } = await supabase.from("email_automation_flows").select("*").eq("id", automationId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      const { data: nodes } = await supabase.from("email_automation_nodes").select("id, type, config, position").eq("flow_id", automationId);
+      return { success: true, message: `⚡ **${data.name}**\n• Status: ${data.status}\n• Trigger: ${data.trigger_type}\n• Nós: ${(nodes || []).length}\n• Stats: ${JSON.stringify(data.stats || {}).slice(0,200)}`, data: { ...data, nodes } };
+    }
+    case "toggleAutomation": {
+      const { automationId, isActive } = tool_args;
+      const newStatus = isActive ? "active" : "inactive";
+      const { data, error } = await supabase.from("email_automation_flows").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", automationId).eq("tenant_id", tenant_id).select("id, name").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Automação "${data.name}" ${isActive ? "ativada" : "desativada"}!`, data };
+    }
+    // --- Email Marketing Expandido ---
+    case "getCampaignDetails": {
+      const { campaignId } = tool_args;
+      const { data, error } = await supabase.from("email_marketing_campaigns").select("*").eq("id", campaignId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `📨 **${data.name}**\n• Assunto: ${data.subject || "—"}\n• Status: ${data.status}\n• Tipo: ${data.type}\n• Enviados: ${data.sent_count || 0}\n• Aberturas: ${data.open_count || 0}\n• Cliques: ${data.click_count || 0}`, data };
+    }
+    case "listEmailTemplates": {
+      const { limit } = tool_args;
+      const { data, error } = await supabase.from("email_marketing_templates").select("id, name, subject, category, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhum template encontrado.", data: [] };
+      const list = data.map((t: any) => `• ${t.name} — ${t.category || "—"} — Assunto: ${t.subject || "—"}`).join("\n");
+      return { success: true, message: `📧 **${data.length} template(s):**\n\n${list}`, data };
+    }
+    case "getCampaignStats": {
+      const { campaignId } = tool_args;
+      const { data, error } = await supabase.from("email_marketing_campaigns").select("id, name, sent_count, open_count, click_count, bounce_count, unsubscribe_count").eq("id", campaignId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      const openRate = data.sent_count > 0 ? ((data.open_count || 0) / data.sent_count * 100).toFixed(1) : "0";
+      const clickRate = data.sent_count > 0 ? ((data.click_count || 0) / data.sent_count * 100).toFixed(1) : "0";
+      return { success: true, message: `📊 **Estatísticas — ${data.name}**\n• Enviados: ${data.sent_count || 0}\n• Abertos: ${data.open_count || 0} (${openRate}%)\n• Cliques: ${data.click_count || 0} (${clickRate}%)\n• Bounces: ${data.bounce_count || 0}\n• Descadastros: ${data.unsubscribe_count || 0}`, data };
+    }
+    case "updateCampaign": {
+      const { campaignId, name, subject, status: newStatus } = tool_args;
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updateData.name = name;
+      if (subject !== undefined) updateData.subject = subject;
+      if (newStatus !== undefined) updateData.status = newStatus;
+      const { data, error } = await supabase.from("email_marketing_campaigns").update(updateData).eq("id", campaignId).eq("tenant_id", tenant_id).select("id, name").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Campanha "${data.name}" atualizada!`, data };
+    }
+    case "deleteCampaign": {
+      const { campaignId } = tool_args;
+      const { data, error } = await supabase.from("email_marketing_campaigns").delete().eq("id", campaignId).eq("tenant_id", tenant_id).select("id, name").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Campanha "${data.name}" excluída!`, data };
+    }
+    case "duplicateCampaign": {
+      const { campaignId } = tool_args;
+      const { data: original, error: fetchError } = await supabase.from("email_marketing_campaigns").select("*").eq("id", campaignId).eq("tenant_id", tenant_id).single();
+      if (fetchError) throw new Error(fetchError.message);
+      const { id, created_at, updated_at, sent_count, open_count, click_count, bounce_count, unsubscribe_count, sent_at, ...campaignData } = original;
+      const { data, error } = await supabase.from("email_marketing_campaigns").insert({ ...campaignData, name: `${original.name} (Cópia)`, status: "draft", sent_count: 0, open_count: 0, click_count: 0 }).select("id, name").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Campanha duplicada como "${data.name}"!`, data };
+    }
+    case "pauseCampaign": {
+      const { campaignId, pause } = tool_args;
+      const newStatus = pause ? "paused" : "active";
+      const { data, error } = await supabase.from("email_marketing_campaigns").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", campaignId).eq("tenant_id", tenant_id).select("id, name").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Campanha "${data.name}" ${pause ? "pausada" : "retomada"}!`, data };
+    }
+    case "removeSubscriber": {
+      const { listId, subscriberId } = tool_args;
+      const { error } = await supabase.from("email_marketing_list_members").delete().eq("list_id", listId).eq("subscriber_id", subscriberId).eq("tenant_id", tenant_id);
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Inscrito removido da lista!` };
+    }
+    case "moveSubscriber": {
+      const { fromListId, toListId, subscriberId } = tool_args;
+      const { error: delError } = await supabase.from("email_marketing_list_members").delete().eq("list_id", fromListId).eq("subscriber_id", subscriberId).eq("tenant_id", tenant_id);
+      if (delError) throw new Error(delError.message);
+      const { error: insError } = await supabase.from("email_marketing_list_members").insert({ list_id: toListId, subscriber_id: subscriberId, tenant_id }).select().single();
+      if (insError) throw new Error(insError.message);
+      return { success: true, message: `✅ Inscrito movido para a nova lista!` };
+    }
+    // --- Checkout Links ---
+    case "listCheckoutLinks": {
+      const { status, limit } = tool_args;
+      let q = supabase.from("checkout_links").select("id, name, slug, is_active, product_id, quantity, price_override, click_count, conversion_count, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      if (status === "active") q = q.eq("is_active", true);
+      else if (status === "inactive") q = q.eq("is_active", false);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhum link de checkout encontrado.", data: [] };
+      const list = data.map((l: any) => `• ${l.name} (/${l.slug}) — ${l.is_active ? "Ativo" : "Inativo"} — ${l.click_count} cliques — ${l.conversion_count} conversões`).join("\n");
+      return { success: true, message: `🔗 **${data.length} link(s) de checkout:**\n\n${list}`, data };
+    }
+    case "getCheckoutLinkDetails": {
+      const { linkId } = tool_args;
+      const { data, error } = await supabase.from("checkout_links").select("*").eq("id", linkId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `🔗 **${data.name}**\n• Slug: /${data.slug}\n• Produto: ${data.product_id}\n• Qtd: ${data.quantity}\n• Preço override: ${data.price_override ? `R$ ${data.price_override.toFixed(2)}` : "—"}\n• Cupom: ${data.coupon_code || "—"}\n• Cliques: ${data.click_count}\n• Conversões: ${data.conversion_count}\n• Ativo: ${data.is_active ? "✅" : "❌"}`, data };
+    }
+    case "createCheckoutLink": {
+      const { name, productId, slug, quantity, priceOverride, couponCode } = tool_args;
+      const { data, error } = await supabase.from("checkout_links").insert({ tenant_id, name, product_id: productId, slug, quantity: quantity || 1, price_override: priceOverride || null, coupon_code: couponCode || null, is_active: true }).select("id, name, slug").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Link de checkout "${name}" criado (/${slug})!`, data };
+    }
+    case "updateCheckoutLink": {
+      const { linkId, name, isActive, priceOverride } = tool_args;
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updateData.name = name;
+      if (isActive !== undefined) updateData.is_active = isActive;
+      if (priceOverride !== undefined) updateData.price_override = priceOverride;
+      const { data, error } = await supabase.from("checkout_links").update(updateData).eq("id", linkId).eq("tenant_id", tenant_id).select("id, name").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Link "${data.name}" atualizado!`, data };
+    }
+    case "deleteCheckoutLink": {
+      const { linkId } = tool_args;
+      const { error } = await supabase.from("checkout_links").delete().eq("id", linkId).eq("tenant_id", tenant_id);
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Link de checkout excluído!`, data: { deleted: linkId } };
+    }
+    // --- Afiliados ---
+    case "listAffiliates": {
+      const { status, limit } = tool_args;
+      let q = supabase.from("affiliates").select("id, name, email, phone, status, created_at").eq("tenant_id", tenant_id).order("name").limit(limit || 20);
+      if (status && status !== "all") q = q.eq("status", status);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhum afiliado encontrado.", data: [] };
+      const list = data.map((a: any) => `• ${a.name} (${a.email}) — ${a.status}`).join("\n");
+      return { success: true, message: `🤝 **${data.length} afiliado(s):**\n\n${list}`, data };
+    }
+    case "getAffiliateDetails": {
+      const { affiliateId } = tool_args;
+      const { data, error } = await supabase.from("affiliates").select("*").eq("id", affiliateId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      const { data: links } = await supabase.from("affiliate_links").select("id, code, target_url").eq("affiliate_id", affiliateId).limit(5);
+      const { count: conversions } = await supabase.from("affiliate_conversions").select("id", { count: "exact", head: true }).eq("affiliate_id", affiliateId);
+      return { success: true, message: `🤝 **${data.name}**\n• Email: ${data.email}\n• Status: ${data.status}\n• Links: ${(links || []).length}\n• Conversões: ${conversions || 0}`, data: { ...data, links, totalConversions: conversions } };
+    }
+    case "listAffiliatePayouts": {
+      const { status, limit } = tool_args;
+      let q = supabase.from("affiliate_payouts").select("id, affiliate_id, amount_cents, status, paid_at, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      if (status && status !== "all") q = q.eq("status", status);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhum pagamento encontrado.", data: [] };
+      const list = data.map((p: any) => `• R$ ${(p.amount_cents / 100).toFixed(2)} — ${p.status}${p.paid_at ? ` — Pago em ${new Date(p.paid_at).toLocaleDateString("pt-BR")}` : ""}`).join("\n");
+      return { success: true, message: `💸 **${data.length} pagamento(s):**\n\n${list}`, data };
+    }
+    case "createAffiliate": {
+      const { name, email, phone } = tool_args;
+      const { data, error } = await supabase.from("affiliates").insert({ tenant_id, name, email, phone: phone || null, status: "active" }).select().single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Afiliado "${name}" criado!`, data };
+    }
+    case "updateAffiliate": {
+      const { affiliateId, name, status: newStatus } = tool_args;
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updateData.name = name;
+      if (newStatus !== undefined) updateData.status = newStatus;
+      const { data, error } = await supabase.from("affiliates").update(updateData).eq("id", affiliateId).eq("tenant_id", tenant_id).select("id, name").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Afiliado "${data.name}" atualizado!`, data };
+    }
+    case "toggleAffiliate": {
+      const { affiliateId, isActive } = tool_args;
+      const newStatus = isActive ? "active" : "inactive";
+      const { data, error } = await supabase.from("affiliates").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", affiliateId).eq("tenant_id", tenant_id).select("id, name").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Afiliado "${data.name}" ${isActive ? "ativado" : "desativado"}!`, data };
+    }
+    // --- Mídia Social ---
+    case "listSocialPosts": {
+      const { status, platform, limit } = tool_args;
+      let q = supabase.from("social_posts").select("id, platform, post_type, status, caption, scheduled_at, published_at, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      if (status && status !== "all") q = q.eq("status", status);
+      if (platform && platform !== "all") q = q.eq("platform", platform);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhuma publicação encontrada.", data: [] };
+      const list = data.map((p: any) => `• ${p.platform} (${p.post_type}) — ${p.status} — "${(p.caption || "").slice(0,50)}..."`).join("\n");
+      return { success: true, message: `📱 **${data.length} publicação(ões):**\n\n${list}`, data };
+    }
+    case "getSocialPostDetails": {
+      const { postId } = tool_args;
+      const { data, error } = await supabase.from("social_posts").select("*").eq("id", postId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `📱 **Publicação ${data.platform}**\n• Tipo: ${data.post_type}\n• Status: ${data.status}\n• Legenda: ${(data.caption || "").slice(0,200)}\n• Agendado: ${data.scheduled_at || "—"}\n• Publicado: ${data.published_at || "—"}\n• Erro: ${data.error_message || "—"}`, data };
+    }
+    // --- Domínios e Loja ---
+    case "listDomains": {
+      const { data, error } = await supabase.from("tenant_domains").select("id, domain, type, status, is_primary, ssl_status, verified_at").eq("tenant_id", tenant_id).order("is_primary", { ascending: false });
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhum domínio configurado.", data: [] };
+      const list = data.map((d: any) => `• ${d.domain} — ${d.type} — ${d.status}${d.is_primary ? " ⭐ Principal" : ""} — SSL: ${d.ssl_status || "—"}`).join("\n");
+      return { success: true, message: `🌐 **${data.length} domínio(s):**\n\n${list}`, data };
+    }
+    case "getStoreDetails": {
+      const { data, error } = await supabase.from("tenants").select("id, name, slug, email, phone, domain, logo_url, favicon_url, created_at").eq("id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      const { data: sub } = await supabase.from("tenant_subscriptions").select("plan_key, status, current_period_end").eq("tenant_id", tenant_id).eq("status", "active").single();
+      return { success: true, message: `🏪 **${data.name}**\n• Slug: ${data.slug}\n• Email: ${data.email || "—"}\n• Telefone: ${data.phone || "—"}\n• Domínio: ${data.domain || "—"}\n• Plano: ${sub?.plan_key || "—"} (${sub?.status || "—"})`, data: { ...data, subscription: sub } };
+    }
+    // --- Clientes Potenciais ---
+    case "listPotentialCustomers": {
+      const { limit } = tool_args;
+      const { data, error } = await supabase.from("checkout_sessions").select("id, customer_email, customer_name, total, status, contact_captured_at, abandoned_at, created_at").eq("tenant_id", tenant_id).not("customer_email", "is", null).eq("status", "abandoned").order("created_at", { ascending: false }).limit(limit || 20);
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhum cliente potencial encontrado.", data: [] };
+      const list = data.map((c: any) => `• ${c.customer_name || "—"} (${c.customer_email}) — R$ ${(c.total || 0).toFixed(2)}`).join("\n");
+      return { success: true, message: `🎯 **${data.length} cliente(s) potencial(is):**\n\n${list}`, data };
+    }
+    case "getPotentialCustomerDetails": {
+      const { sessionId } = tool_args;
+      const { data, error } = await supabase.from("checkout_sessions").select("*").eq("id", sessionId).eq("tenant_id", tenant_id).single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `🎯 **${data.customer_name || "—"}**\n• Email: ${data.customer_email || "—"}\n• Telefone: ${data.customer_phone || "—"}\n• Valor: R$ ${(data.total || 0).toFixed(2)}\n• Status: ${data.status}\n• Capturado em: ${data.contact_captured_at || "—"}\n• Abandonado em: ${data.abandoned_at || "—"}`, data };
+    }
+    case "updatePotentialCustomerStatus": {
+      const { sessionId, status: newStatus } = tool_args;
+      const { data, error } = await supabase.from("checkout_sessions").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("tenant_id", tenant_id).select("id, customer_email").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Status do cliente potencial atualizado para "${newStatus}"!`, data };
+    }
+    // --- Variantes ---
+    case "listProductVariants": {
+      const { productId } = tool_args;
+      const { data, error } = await supabase.from("product_variants").select("id, name, sku, price, stock_quantity, is_active, option1_name, option1_value, option2_name, option2_value").eq("product_id", productId).order("position");
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return { success: true, message: "Nenhuma variante encontrada para este produto.", data: [] };
+      const list = data.map((v: any) => `• ${v.name} (SKU: ${v.sku}) — R$ ${(v.price || 0).toFixed(2)} — Estoque: ${v.stock_quantity} — ${v.is_active ? "Ativa" : "Inativa"}`).join("\n");
+      return { success: true, message: `🎨 **${data.length} variante(s):**\n\n${list}`, data };
+    }
+    case "createProductVariant": {
+      const { productId, name, sku, price, stockQuantity, option1Name, option1Value, option2Name, option2Value } = tool_args;
+      await supabase.from("products").update({ product_format: "with_variants", updated_at: new Date().toISOString() }).eq("id", productId).eq("tenant_id", tenant_id);
+      const { data, error } = await supabase.from("product_variants").insert({ product_id: productId, name, sku, price: price || null, stock_quantity: stockQuantity || 0, option1_name: option1Name || null, option1_value: option1Value || null, option2_name: option2Name || null, option2_value: option2Value || null, is_active: true }).select().single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Variante "${name}" criada!`, data };
+    }
+    case "updateProductVariant": {
+      const { variantId, name, sku, price, stockQuantity, isActive } = tool_args;
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updateData.name = name;
+      if (sku !== undefined) updateData.sku = sku;
+      if (price !== undefined) updateData.price = price;
+      if (stockQuantity !== undefined) updateData.stock_quantity = stockQuantity;
+      if (isActive !== undefined) updateData.is_active = isActive;
+      const { data, error } = await supabase.from("product_variants").update(updateData).eq("id", variantId).select("id, name").single();
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Variante "${data.name}" atualizada!`, data };
+    }
+    case "deleteProductVariant": {
+      const { variantId } = tool_args;
+      const { error } = await supabase.from("product_variants").delete().eq("id", variantId);
+      if (error) throw new Error(error.message);
+      return { success: true, message: `✅ Variante excluída!`, data: { deleted: variantId } };
+    }
+
     default:
       return { success: false, error: `Ação "${tool_name}" não reconhecida.` };
   }
