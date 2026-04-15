@@ -53,11 +53,12 @@ const standardHomeTemplate: BlockNode = {
             showDots: true,
           },
         },
-        // 2. Categorias em Destaque (grid mobile)
+        // 2. Categorias em Destaque (unified)
         {
-          id: generateBlockId('FeaturedCategories'),
-          type: 'FeaturedCategories',
+          id: generateBlockId('CategoryShowcase'),
+          type: 'CategoryShowcase',
           props: {
+            style: 'circles',
             title: 'Categorias',
             items: [], // Preenchido dinamicamente
             mobileStyle: 'grid',

@@ -235,9 +235,10 @@ export const defaultHomeTemplate: BlockNode = {
       },
       children: [
         {
-          id: generateBlockId('FeaturedCategories'),
-          type: 'FeaturedCategories',
+          id: generateBlockId('CategoryShowcase'),
+          type: 'CategoryShowcase',
           props: {
+            style: 'circles',
             title: 'Navegue por Categorias',
             limit: 6,
             columns: 6,
