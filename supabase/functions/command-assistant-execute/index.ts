@@ -377,7 +377,7 @@ async function executeTool(
       // Primeiro, buscar produtos antes da atualização para relatório
       let selectQuery = supabase
         .from("products")
-        .select("id, name, sku, ncm_code")
+        .select("id, name, sku, ncm")
         .eq("tenant_id", tenant_id);
       
       if (productIds && productIds.length > 0 && !productIds.includes("all")) {
@@ -388,13 +388,13 @@ async function executeTool(
       if (selectError) throw new Error(selectError.message);
       
       const totalProducts = productsBefore?.length || 0;
-      const alreadyWithNCM = productsBefore?.filter((p: any) => p.ncm_code === ncm).length || 0;
+      const alreadyWithNCM = productsBefore?.filter((p: any) => p.ncm === ncm).length || 0;
       const toUpdate = totalProducts - alreadyWithNCM;
       
       // Atualizar produtos
       let updateQuery = supabase
         .from("products")
-        .update({ ncm_code: ncm, updated_at: new Date().toISOString() })
+        .update({ ncm: ncm, updated_at: new Date().toISOString() })
         .eq("tenant_id", tenant_id);
       
       if (productIds && productIds.length > 0 && !productIds.includes("all")) {
@@ -440,7 +440,7 @@ async function executeTool(
       
       let query = supabase
         .from("products")
-        .update({ cest_code: cest, updated_at: new Date().toISOString() })
+        .update({ cest: cest, updated_at: new Date().toISOString() })
         .eq("tenant_id", tenant_id);
       
       if (productIds && productIds.length > 0) {
@@ -942,11 +942,11 @@ async function executeTool(
           name,
           code: code.toUpperCase(),
           type: type === "percent" ? "percentage" : "fixed",
-          value: type === "percent" ? value : value * 100,
-          min_subtotal: minSubtotal ? minSubtotal * 100 : null,
+          value,
+          min_subtotal: minSubtotal || null,
           starts_at: startsAt || null,
           ends_at: endsAt || null,
-          usage_limit: usageLimit || null,
+          usage_limit_total: usageLimit || null,
           is_active: true,
         })
         .select()
