@@ -3242,7 +3242,7 @@ async function executeTool(
       
       let q = supabase
         .from("email_marketing_campaigns")
-        .select("id, name, subject, status, type, sent_count, created_at")
+        .select("id, name, status, type, sent_count, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false })
         .limit(maxResults);
@@ -3590,19 +3590,19 @@ async function executeTool(
     }
     case "listFiscalInvoices": {
       const { status, limit } = tool_args;
-      let q = supabase.from("fiscal_invoices").select("id, number, series, status, total_value, recipient_name, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      let q = supabase.from("fiscal_invoices").select("id, numero, serie, status, valor_total, dest_nome, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
       if (status && status !== "all") q = q.eq("status", status);
       const { data, error } = await q;
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) return { success: true, message: "Nenhuma nota fiscal encontrada.", data: [] };
-      const list = data.map((n: any) => `• NF ${n.number || "—"}/${n.series || "—"} — ${n.recipient_name || "—"} — R$ ${(n.total_value || 0).toFixed(2)} — ${n.status}`).join("\n");
+      const list = data.map((n: any) => `• NF ${n.numero || "—"}/${n.serie || "—"} — ${n.dest_nome || "—"} — R$ ${(n.valor_total || 0).toFixed(2)} — ${n.status}`).join("\n");
       return { success: true, message: `🧾 **${data.length} nota(s) fiscal(is):**\n\n${list}`, data };
     }
     case "getFiscalInvoiceDetails": {
       const { invoiceId } = tool_args;
       const { data, error } = await supabase.from("fiscal_invoices").select("*").eq("id", invoiceId).eq("tenant_id", tenant_id).single();
       if (error) throw new Error(error.message);
-      return { success: true, message: `🧾 **NF ${data.number || "—"}/${data.series || "—"}**\n• Status: ${data.status}\n• Destinatário: ${data.recipient_name || "—"}\n• CNPJ/CPF: ${data.recipient_document || "—"}\n• Valor: R$ ${(data.total_value || 0).toFixed(2)}\n• Chave: ${data.access_key || "—"}`, data };
+      return { success: true, message: `🧾 **NF ${data.numero || "—"}/${data.serie || "—"}**\n• Status: ${data.status}\n• Destinatário: ${data.dest_nome || "—"}\n• CNPJ/CPF: ${data.dest_cpf_cnpj || "—"}\n• Valor: R$ ${(data.valor_total || 0).toFixed(2)}\n• Chave: ${data.chave_acesso || "—"}`, data };
     }
     case "updateFiscalDraft": {
       const { draftId, status: newStatus } = tool_args;
@@ -3694,11 +3694,15 @@ async function executeTool(
     }
     // --- Integrações ---
     case "listIntegrations": {
-      const { data, error } = await supabase.from("marketing_integrations").select("id, platform, status, account_name, created_at").eq("tenant_id", tenant_id).order("platform");
+      const { data, error } = await supabase.from("marketing_integrations").select("id, tenant_id, meta_enabled, meta_status, google_enabled, google_status, tiktok_enabled, tiktok_status, created_at").eq("tenant_id", tenant_id).single();
       if (error) throw new Error(error.message);
-      if (!data || data.length === 0) return { success: true, message: "Nenhuma integração encontrada.", data: [] };
-      const list = data.map((i: any) => `• ${i.platform} — ${i.status} — ${i.account_name || "—"}`).join("\n");
-      return { success: true, message: `🔗 **${data.length} integração(ões):**\n\n${list}`, data };
+      if (!data) return { success: true, message: "Nenhuma integração configurada.", data: [] };
+      const integrations = [];
+      if (data.meta_enabled) integrations.push(`• Meta Pixel — ${data.meta_status || "configurado"}`);
+      if (data.google_enabled) integrations.push(`• Google Analytics — ${data.google_status || "configurado"}`);
+      if (data.tiktok_enabled) integrations.push(`• TikTok Pixel — ${data.tiktok_status || "configurado"}`);
+      if (integrations.length === 0) return { success: true, message: "Nenhuma integração ativa.", data };
+      return { success: true, message: `🔗 **${integrations.length} integração(ões) ativa(s):**\n\n${integrations.join("\n")}`, data };
     }
     // --- Suporte ---
     case "listSupportTickets": {
@@ -3766,10 +3770,10 @@ async function executeTool(
     }
     case "listEmailTemplates": {
       const { limit } = tool_args;
-      const { data, error } = await supabase.from("email_marketing_templates").select("id, name, subject, category, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
+      const { data, error } = await supabase.from("email_marketing_templates").select("id, name, subject, created_at").eq("tenant_id", tenant_id).order("created_at", { ascending: false }).limit(limit || 20);
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) return { success: true, message: "Nenhum template encontrado.", data: [] };
-      const list = data.map((t: any) => `• ${t.name} — ${t.category || "—"} — Assunto: ${t.subject || "—"}`).join("\n");
+      const list = data.map((t: any) => `• ${t.name} — Assunto: ${t.subject || "—"}`).join("\n");
       return { success: true, message: `📧 **${data.length} template(s):**\n\n${list}`, data };
     }
     case "getCampaignStats": {
@@ -3944,10 +3948,11 @@ async function executeTool(
       return { success: true, message: `🌐 **${data.length} domínio(s):**\n\n${list}`, data };
     }
     case "getStoreDetails": {
-      const { data, error } = await supabase.from("tenants").select("id, name, slug, email, phone, domain, logo_url, favicon_url, created_at").eq("id", tenant_id).single();
+      const { data, error } = await supabase.from("tenants").select("id, name, slug, logo_url, settings, created_at").eq("id", tenant_id).single();
       if (error) throw new Error(error.message);
       const { data: sub } = await supabase.from("tenant_subscriptions").select("plan_key, status, current_period_end").eq("tenant_id", tenant_id).eq("status", "active").single();
-      return { success: true, message: `🏪 **${data.name}**\n• Slug: ${data.slug}\n• Email: ${data.email || "—"}\n• Telefone: ${data.phone || "—"}\n• Domínio: ${data.domain || "—"}\n• Plano: ${sub?.plan_key || "—"} (${sub?.status || "—"})`, data: { ...data, subscription: sub } };
+      const { data: domain } = await supabase.from("tenant_domains").select("domain, is_primary").eq("tenant_id", tenant_id).eq("is_primary", true).single();
+      return { success: true, message: `🏪 **${data.name}**\n• Slug: ${data.slug}\n• Domínio: ${domain?.domain || "—"}\n• Plano: ${sub?.plan_key || "—"} (${sub?.status || "—"})`, data: { ...data, subscription: sub, domain: domain?.domain } };
     }
     // --- Clientes Potenciais ---
     case "listPotentialCustomers": {
@@ -3972,7 +3977,8 @@ async function executeTool(
     }
     // --- Variantes ---
     case "listProductVariants": {
-      const { productId } = tool_args;
+      const productId = tool_args.productId || tool_args.product_id;
+      if (!productId) return { success: false, error: "Parâmetro product_id é obrigatório." };
       const { data, error } = await supabase.from("product_variants").select("id, name, sku, price, stock_quantity, is_active, option1_name, option1_value, option2_name, option2_value").eq("product_id", productId).order("position");
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) return { success: true, message: "Nenhuma variante encontrada para este produto.", data: [] };
