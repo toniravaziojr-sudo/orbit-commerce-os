@@ -139,7 +139,7 @@ export function CategoryMultiSelect({
                 <div
                   key={category.id}
                   className={cn(
-                    "flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer transition-colors",
+                    "flex items-center gap-1.5 p-1.5 rounded-md hover:bg-muted cursor-pointer transition-colors overflow-hidden",
                     isSelected && "bg-primary/10 border border-primary/30",
                     isDisabled && "opacity-50 cursor-not-allowed"
                   )}
@@ -148,9 +148,9 @@ export function CategoryMultiSelect({
                   <Checkbox
                     checked={isSelected}
                     disabled={isDisabled}
-                    className="pointer-events-none"
+                    className="pointer-events-none flex-shrink-0"
                   />
-                  <div className="w-7 h-7 rounded bg-muted overflow-hidden flex-shrink-0">
+                  <div className="w-6 h-6 rounded bg-muted overflow-hidden flex-shrink-0">
                     {category.image_url ? (
                       <img
                         src={category.image_url}
@@ -159,13 +159,12 @@ export function CategoryMultiSelect({
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                        <FolderOpen className="h-3 w-3 text-muted-foreground" />
                       </div>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{category.name}</p>
-                    <p className="text-xs text-muted-foreground">{category.slug}</p>
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <p className="text-xs font-medium truncate">{category.name}</p>
                   </div>
                 </div>
               );
