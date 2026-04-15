@@ -3058,7 +3058,7 @@ async function executeTool(
       
       const { error } = await supabase
         .from("notifications")
-        .update({ is_read: true })
+        .update({ status: "read" })
         .eq("id", notificationId)
         .eq("tenant_id", tenant_id);
       
