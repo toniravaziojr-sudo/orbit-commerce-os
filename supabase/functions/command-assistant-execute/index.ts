@@ -2047,7 +2047,7 @@ async function executeTool(
       
       let q = supabase
         .from("discounts")
-        .select("id, name, code, type, value, is_active, usage_limit, usage_count, starts_at, ends_at")
+        .select("id, name, code, type, value, is_active, usage_limit_total, starts_at, ends_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", { ascending: false })
         .limit(maxResults);
@@ -2064,7 +2064,7 @@ async function executeTool(
       
       const list = data.map((d: any) => {
         const valueStr = d.type === "percentage" ? `${d.value}%` : `R$ ${(d.value / 100).toFixed(2)}`;
-        return `• ${d.code} — ${valueStr} off — ${d.is_active ? "Ativo" : "Inativo"} — Usos: ${d.usage_count || 0}/${d.usage_limit || "∞"}`;
+        return `• ${d.code} — ${valueStr} off — ${d.is_active ? "Ativo" : "Inativo"} — Limite: ${d.usage_limit_total || "∞"}`;
       }).join("\n");
       
       return {
@@ -2170,7 +2170,7 @@ async function executeTool(
         .from("order_items")
         .select("product_name, product_id, quantity, total_price, orders!inner(tenant_id, created_at, payment_status)")
         .eq("orders.tenant_id", tenant_id)
-        .eq("orders.payment_status", "paid")
+        .eq("orders.payment_status", "approved")
         .gte("orders.created_at", start.toISOString());
       
       if (error) throw new Error(error.message);
