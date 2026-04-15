@@ -42,6 +42,7 @@ export interface AiSupportConfig {
   target_first_response_seconds: number;
   target_resolution_minutes: number;
   rules: AIRule[];
+  sales_mode_enabled: boolean;
   created_at: string;
   updated_at: string;
 }

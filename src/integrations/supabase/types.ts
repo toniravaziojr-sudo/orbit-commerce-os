@@ -1843,6 +1843,7 @@ export type Database = {
           rag_top_k: number | null
           redact_pii_in_logs: boolean | null
           rules: Json | null
+          sales_mode_enabled: boolean | null
           system_prompt: string | null
           target_first_response_seconds: number | null
           target_resolution_minutes: number | null
@@ -1881,6 +1882,7 @@ export type Database = {
           rag_top_k?: number | null
           redact_pii_in_logs?: boolean | null
           rules?: Json | null
+          sales_mode_enabled?: boolean | null
           system_prompt?: string | null
           target_first_response_seconds?: number | null
           target_resolution_minutes?: number | null
@@ -1919,6 +1921,7 @@ export type Database = {
           rag_top_k?: number | null
           redact_pii_in_logs?: boolean | null
           rules?: Json | null
+          sales_mode_enabled?: boolean | null
           system_prompt?: string | null
           target_first_response_seconds?: number | null
           target_resolution_minutes?: number | null
@@ -19718,6 +19721,70 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "webhook_secrets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_carts: {
+        Row: {
+          conversation_id: string
+          coupon_code: string | null
+          created_at: string
+          customer_id: string | null
+          expires_at: string
+          id: string
+          items: Json
+          status: string
+          subtotal_cents: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          conversation_id: string
+          coupon_code?: string | null
+          created_at?: string
+          customer_id?: string | null
+          expires_at?: string
+          id?: string
+          items?: Json
+          status?: string
+          subtotal_cents?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          conversation_id?: string
+          coupon_code?: string | null
+          created_at?: string
+          customer_id?: string | null
+          expires_at?: string
+          id?: string
+          items?: Json
+          status?: string
+          subtotal_cents?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_carts_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_carts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_carts_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
