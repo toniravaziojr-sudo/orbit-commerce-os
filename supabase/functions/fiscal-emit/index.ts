@@ -402,6 +402,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({ action: 'send_nfe', invoice_id, tenant_id: tenantId }),
       }).catch(err => console.error('[fiscal-emit] WMS Pratika error:', err));
+    }
 
     await supabaseClient
       .from('fiscal_invoices')
