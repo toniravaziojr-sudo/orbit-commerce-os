@@ -2859,9 +2859,21 @@ async function executeTool(
     case "respondToReview": {
       const { reviewId, response } = tool_args;
       
+      // product_reviews doesn't have store_response column, so we update the content with the response appended
+      const { data: review, error: fetchErr } = await supabase
+        .from("product_reviews")
+        .select("id, customer_name, content")
+        .eq("id", reviewId)
+        .eq("tenant_id", tenant_id)
+        .single();
+      
+      if (fetchErr) throw new Error(fetchErr.message);
+      
+      // Store response in content field as appended note
+      const updatedContent = `${review.content || ""}\n\n--- Resposta da loja ---\n${response}`;
       const { data, error } = await supabase
         .from("product_reviews")
-        .update({ store_response: response, responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ content: updatedContent, updated_at: new Date().toISOString() })
         .eq("id", reviewId)
         .eq("tenant_id", tenant_id)
         .select("id, customer_name")
