@@ -338,6 +338,65 @@ export function AIConfigPanel() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="sales" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                Modo Vendas
+                <Badge variant={getValue('sales_mode_enabled') ? 'default' : 'secondary'}>
+                  {getValue('sales_mode_enabled') ? 'Ativo' : 'Inativo'}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Quando ativado, a IA se torna um agente de vendas conversacional capaz de buscar produtos, 
+                oferecer cupons, montar carrinho e gerar links de checkout pré-preenchidos — tudo dentro da conversa.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                <div className="space-y-1">
+                  <Label className="text-base font-medium">Ativar Modo Vendas</Label>
+                  <p className="text-sm text-muted-foreground">
+                    A IA poderá sugerir produtos, aplicar cupons e gerar links de checkout durante o atendimento
+                  </p>
+                </div>
+                <Switch
+                  checked={getValue('sales_mode_enabled') ?? false}
+                  onCheckedChange={(checked) => updateField('sales_mode_enabled', checked)}
+                />
+              </div>
+
+              {getValue('sales_mode_enabled') && (
+                <div className="space-y-3 pl-4 border-l-2 border-primary/30">
+                  <p className="text-sm font-medium text-muted-foreground">Com o Modo Vendas ativo, a IA poderá:</p>
+                  <ul className="text-sm text-muted-foreground space-y-2">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>Buscar e sugerir produtos do catálogo durante a conversa</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>Verificar cupons e elegibilidade do cliente para descontos</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>Montar um carrinho conversacional com itens selecionados</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>Oferecer upsells e ofertas de aumento de ticket quando disponíveis</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>Gerar link de checkout com dados do cliente já preenchidos</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="safety" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
