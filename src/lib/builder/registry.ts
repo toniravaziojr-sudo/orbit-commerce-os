@@ -1325,6 +1325,38 @@ const blockDefinitions: BlockDefinition[] = [
   },
 
   {
+    type: 'FeaturedCategories',
+    label: 'Categorias em Destaque',
+    category: 'ecommerce',
+    icon: 'Circle',
+    defaultProps: {
+      title: 'Categorias',
+      items: [],
+      mobileStyle: 'carousel',
+      showName: true,
+    },
+    propsSchema: {
+      title: { type: 'string', label: 'Título', defaultValue: 'Categorias' },
+      items: {
+        type: 'categoryMultiSelect',
+        label: 'Categorias',
+        max: 12,
+        helpText: 'Selecione as categorias a exibir',
+      },
+      showName: { type: 'boolean', label: 'Exibir Nome', defaultValue: true },
+      mobileStyle: {
+        type: 'select',
+        label: 'Estilo Mobile',
+        defaultValue: 'carousel',
+        options: [
+          { label: 'Grade', value: 'grid' },
+          { label: 'Carrossel', value: 'carousel' },
+        ],
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
     // REGRAS.md linha 77: Banner configurado SOMENTE no menu Categorias
     // Sem opções de edição no builder - propsSchema vazio = sem painel direito
     type: 'CategoryBanner',
