@@ -5,7 +5,7 @@ import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_sha
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.16.0"; // Full product field coverage for read/write operations
+const VERSION = "v4.0.0"; // Full system coverage: ~150 tools across all modules
 // ===========================================================
 
 const corsHeaders = {
@@ -22,6 +22,21 @@ const READ_TOOLS = new Set([
   "getFinancialSummary", "listShippingMethods", "listNotifications",
   "listFiles", "getStorageUsage", "listEmailLists", "listSubscribers",
   "listCampaigns", "listAgendaTasks", "inventoryReport", "customersReport", "salesReport",
+  // v4.0.0: New read tools
+  "listFiscalDrafts", "getFiscalDraftDetails", "listFiscalInvoices", "getFiscalInvoiceDetails",
+  "listShipments", "getShipmentDetails",
+  "listPurchases", "getPurchaseDetails",
+  "listTeamMembers", "getTeamMemberDetails",
+  "listIntegrations",
+  "listSupportTickets", "getSupportTicketDetails",
+  "listAutomations", "getAutomationDetails",
+  "getCampaignDetails", "listEmailTemplates", "getCampaignStats",
+  "listCheckoutLinks", "getCheckoutLinkDetails",
+  "listAffiliates", "getAffiliateDetails", "listAffiliatePayouts",
+  "listSocialPosts", "getSocialPostDetails",
+  "listDomains", "getStoreDetails",
+  "listPotentialCustomers", "getPotentialCustomerDetails",
+  "listProductVariants",
 ]);
 
 // ==================== PERMISSION MAP for read tools ====================
@@ -56,6 +71,37 @@ const READ_PERMISSION_MAP: Record<string, string[]> = {
   inventoryReport: ["owner", "admin", "manager", "editor", "viewer"],
   customersReport: ["owner", "admin", "manager", "viewer"],
   salesReport: ["owner", "admin", "manager", "editor", "viewer"],
+  // v4.0.0: New read tool permissions
+  listFiscalDrafts: ["owner", "admin", "manager"],
+  getFiscalDraftDetails: ["owner", "admin", "manager"],
+  listFiscalInvoices: ["owner", "admin", "manager"],
+  getFiscalInvoiceDetails: ["owner", "admin", "manager"],
+  listShipments: ["owner", "admin", "manager", "attendant"],
+  getShipmentDetails: ["owner", "admin", "manager", "attendant"],
+  listPurchases: ["owner", "admin", "manager"],
+  getPurchaseDetails: ["owner", "admin", "manager"],
+  listTeamMembers: ["owner"],
+  getTeamMemberDetails: ["owner"],
+  listIntegrations: ["owner", "admin", "manager"],
+  listSupportTickets: ["owner", "admin", "manager", "attendant"],
+  getSupportTicketDetails: ["owner", "admin", "manager", "attendant"],
+  listAutomations: ["owner", "admin", "manager"],
+  getAutomationDetails: ["owner", "admin", "manager"],
+  getCampaignDetails: ["owner", "admin", "manager"],
+  listEmailTemplates: ["owner", "admin", "manager", "editor"],
+  getCampaignStats: ["owner", "admin", "manager"],
+  listCheckoutLinks: ["owner", "admin", "manager"],
+  getCheckoutLinkDetails: ["owner", "admin", "manager"],
+  listAffiliates: ["owner", "admin", "manager"],
+  getAffiliateDetails: ["owner", "admin", "manager"],
+  listAffiliatePayouts: ["owner", "admin", "manager"],
+  listSocialPosts: ["owner", "admin", "manager", "editor"],
+  getSocialPostDetails: ["owner", "admin", "manager", "editor"],
+  listDomains: ["owner", "admin"],
+  getStoreDetails: ["owner", "admin", "manager", "viewer"],
+  listPotentialCustomers: ["owner", "admin", "manager", "attendant"],
+  getPotentialCustomerDetails: ["owner", "admin", "manager", "attendant"],
+  listProductVariants: ["owner", "admin", "manager", "editor", "viewer"],
 };
 
 // ==================== OpenAI-format tool definitions for read tools ====================
@@ -485,6 +531,51 @@ const OPENAI_READ_TOOLS = [
       },
     },
   },
+  // ==================== v4.0.0: NEW READ TOOLS ====================
+  // --- Fiscal ---
+  { type: "function", function: { name: "listFiscalDrafts", description: "Listar rascunhos fiscais (fila de NF-e pendentes)", parameters: { type: "object", properties: { status: { type: "string", description: "pending, processed, error, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getFiscalDraftDetails", description: "Ver detalhes de um rascunho fiscal", parameters: { type: "object", properties: { draftId: { type: "string", description: "ID do rascunho" } }, required: ["draftId"] } } },
+  { type: "function", function: { name: "listFiscalInvoices", description: "Listar notas fiscais emitidas", parameters: { type: "object", properties: { status: { type: "string", description: "authorized, cancelled, denied, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getFiscalInvoiceDetails", description: "Ver detalhes de uma nota fiscal", parameters: { type: "object", properties: { invoiceId: { type: "string", description: "ID da nota fiscal" } }, required: ["invoiceId"] } } },
+  // --- Logística ---
+  { type: "function", function: { name: "listShipments", description: "Listar remessas/envios", parameters: { type: "object", properties: { status: { type: "string", description: "pending, shipped, in_transit, delivered, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getShipmentDetails", description: "Ver detalhes de uma remessa com rastreio", parameters: { type: "object", properties: { shipmentId: { type: "string", description: "ID da remessa" } }, required: ["shipmentId"] } } },
+  // --- Financeiro/Compras ---
+  { type: "function", function: { name: "listPurchases", description: "Listar compras/entradas financeiras", parameters: { type: "object", properties: { status: { type: "string", description: "pending, received, cancelled, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getPurchaseDetails", description: "Ver detalhes de uma compra", parameters: { type: "object", properties: { purchaseId: { type: "string", description: "ID da compra" } }, required: ["purchaseId"] } } },
+  // --- Equipe ---
+  { type: "function", function: { name: "listTeamMembers", description: "Listar membros da equipe e permissões", parameters: { type: "object", properties: {}, required: [] } } },
+  { type: "function", function: { name: "getTeamMemberDetails", description: "Ver detalhes de um membro da equipe", parameters: { type: "object", properties: { memberId: { type: "string", description: "ID do user_role" } }, required: ["memberId"] } } },
+  // --- Integrações ---
+  { type: "function", function: { name: "listIntegrations", description: "Listar integrações e status", parameters: { type: "object", properties: {}, required: [] } } },
+  // --- Suporte ---
+  { type: "function", function: { name: "listSupportTickets", description: "Listar tickets de suporte", parameters: { type: "object", properties: { status: { type: "string", description: "open, in_progress, resolved, closed, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getSupportTicketDetails", description: "Ver detalhes de um ticket com mensagens", parameters: { type: "object", properties: { ticketId: { type: "string", description: "ID do ticket" } }, required: ["ticketId"] } } },
+  // --- Automações ---
+  { type: "function", function: { name: "listAutomations", description: "Listar automações de email (fluxos)", parameters: { type: "object", properties: { status: { type: "string", description: "active, inactive, draft, all" } }, required: [] } } },
+  { type: "function", function: { name: "getAutomationDetails", description: "Ver detalhes de uma automação", parameters: { type: "object", properties: { automationId: { type: "string", description: "ID da automação" } }, required: ["automationId"] } } },
+  // --- Email Marketing Expandido ---
+  { type: "function", function: { name: "getCampaignDetails", description: "Ver detalhes de uma campanha de email", parameters: { type: "object", properties: { campaignId: { type: "string", description: "ID da campanha" } }, required: ["campaignId"] } } },
+  { type: "function", function: { name: "listEmailTemplates", description: "Listar templates de email", parameters: { type: "object", properties: { limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getCampaignStats", description: "Estatísticas de uma campanha (aberturas, cliques)", parameters: { type: "object", properties: { campaignId: { type: "string", description: "ID da campanha" } }, required: ["campaignId"] } } },
+  // --- Checkout Links ---
+  { type: "function", function: { name: "listCheckoutLinks", description: "Listar links de checkout direto", parameters: { type: "object", properties: { status: { type: "string", description: "active, inactive, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getCheckoutLinkDetails", description: "Ver detalhes de um link de checkout", parameters: { type: "object", properties: { linkId: { type: "string", description: "ID do link" } }, required: ["linkId"] } } },
+  // --- Afiliados ---
+  { type: "function", function: { name: "listAffiliates", description: "Listar afiliados", parameters: { type: "object", properties: { status: { type: "string", description: "active, inactive, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getAffiliateDetails", description: "Ver detalhes de um afiliado", parameters: { type: "object", properties: { affiliateId: { type: "string", description: "ID do afiliado" } }, required: ["affiliateId"] } } },
+  { type: "function", function: { name: "listAffiliatePayouts", description: "Listar pagamentos de afiliados", parameters: { type: "object", properties: { status: { type: "string", description: "pending, paid, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  // --- Mídia Social ---
+  { type: "function", function: { name: "listSocialPosts", description: "Listar publicações sociais", parameters: { type: "object", properties: { status: { type: "string", description: "draft, scheduled, published, failed, all" }, platform: { type: "string", description: "instagram, facebook, all" }, limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getSocialPostDetails", description: "Ver detalhes de uma publicação social", parameters: { type: "object", properties: { postId: { type: "string", description: "ID da publicação" } }, required: ["postId"] } } },
+  // --- Domínios e Loja ---
+  { type: "function", function: { name: "listDomains", description: "Listar domínios da loja", parameters: { type: "object", properties: {}, required: [] } } },
+  { type: "function", function: { name: "getStoreDetails", description: "Ver informações da loja (nome, email, plano)", parameters: { type: "object", properties: {}, required: [] } } },
+  // --- Clientes Potenciais ---
+  { type: "function", function: { name: "listPotentialCustomers", description: "Listar checkouts abandonados com contato", parameters: { type: "object", properties: { limit: { type: "number", description: "Limite (padrão 20)" } }, required: [] } } },
+  { type: "function", function: { name: "getPotentialCustomerDetails", description: "Ver detalhes de checkout abandonado", parameters: { type: "object", properties: { sessionId: { type: "string", description: "ID da sessão" } }, required: ["sessionId"] } } },
+  // --- Variantes ---
+  { type: "function", function: { name: "listProductVariants", description: "Listar variantes de um produto", parameters: { type: "object", properties: { productId: { type: "string", description: "ID do produto" } }, required: ["productId"] } } },
 ];
 
 // ==================== Execute read tool server-side ====================
@@ -1052,6 +1143,41 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "products",
   },
+  // ==================== v4.0.0: NEW WRITE TOOLS ====================
+  // --- Fiscal ---
+  updateFiscalDraft: { description: "Atualizar campos de um rascunho fiscal", parameters: { draftId: { type: "string", required: true, description: "ID do rascunho" }, status: { type: "string", required: false, description: "Novo status" } }, requiredPermission: "fiscal" },
+  // --- Logística ---
+  updateShipmentStatus: { description: "Atualizar status de uma remessa", parameters: { shipmentId: { type: "string", required: true, description: "ID da remessa" }, status: { type: "string", required: true, description: "Novo status (shipped, in_transit, delivered)" }, trackingCode: { type: "string", required: false, description: "Código de rastreio" } }, requiredPermission: "shipping" },
+  // --- Financeiro ---
+  createPurchase: { description: "Criar nova compra/entrada financeira", parameters: { orderNumber: { type: "string", required: true, description: "Número do pedido" }, totalValue: { type: "number", required: true, description: "Valor total em reais" }, description: { type: "string", required: false, description: "Descrição" }, notes: { type: "string", required: false, description: "Observações" } }, requiredPermission: "purchases" },
+  updatePurchase: { description: "Atualizar uma compra", parameters: { purchaseId: { type: "string", required: true, description: "ID da compra" }, status: { type: "string", required: false, description: "Novo status" }, notes: { type: "string", required: false, description: "Novas observações" } }, requiredPermission: "purchases" },
+  deletePurchase: { description: "Excluir uma compra", parameters: { purchaseId: { type: "string", required: true, description: "ID da compra" } }, requiredPermission: "purchases" },
+  // --- Suporte ---
+  updateTicketStatus: { description: "Atualizar status de um ticket de suporte", parameters: { ticketId: { type: "string", required: true, description: "ID do ticket" }, status: { type: "string", required: true, description: "open, in_progress, resolved, closed" } }, requiredPermission: "support" },
+  replyToTicket: { description: "Responder a um ticket de suporte", parameters: { ticketId: { type: "string", required: true, description: "ID do ticket" }, content: { type: "string", required: true, description: "Conteúdo da resposta" } }, requiredPermission: "support" },
+  // --- Automações ---
+  toggleAutomation: { description: "Ativar ou desativar uma automação de email", parameters: { automationId: { type: "string", required: true, description: "ID da automação" }, isActive: { type: "boolean", required: true, description: "true=ativar, false=desativar" } }, requiredPermission: "email_marketing" },
+  // --- Email Marketing Expandido ---
+  updateCampaign: { description: "Atualizar campos de uma campanha de email", parameters: { campaignId: { type: "string", required: true, description: "ID da campanha" }, name: { type: "string", required: false, description: "Novo nome" }, subject: { type: "string", required: false, description: "Novo assunto" }, status: { type: "string", required: false, description: "Novo status" } }, requiredPermission: "email_marketing" },
+  deleteCampaign: { description: "Excluir uma campanha de email", parameters: { campaignId: { type: "string", required: true, description: "ID da campanha" } }, requiredPermission: "email_marketing" },
+  duplicateCampaign: { description: "Duplicar uma campanha de email como rascunho", parameters: { campaignId: { type: "string", required: true, description: "ID da campanha" } }, requiredPermission: "email_marketing" },
+  pauseCampaign: { description: "Pausar ou retomar uma campanha", parameters: { campaignId: { type: "string", required: true, description: "ID da campanha" }, pause: { type: "boolean", required: true, description: "true=pausar, false=retomar" } }, requiredPermission: "email_marketing" },
+  removeSubscriber: { description: "Remover inscrito de uma lista", parameters: { listId: { type: "string", required: true, description: "ID da lista" }, subscriberId: { type: "string", required: true, description: "ID do inscrito" } }, requiredPermission: "email_marketing" },
+  moveSubscriber: { description: "Mover inscrito para outra lista", parameters: { fromListId: { type: "string", required: true, description: "Lista de origem" }, toListId: { type: "string", required: true, description: "Lista de destino" }, subscriberId: { type: "string", required: true, description: "ID do inscrito" } }, requiredPermission: "email_marketing" },
+  // --- Checkout Links ---
+  createCheckoutLink: { description: "Criar link de checkout direto", parameters: { name: { type: "string", required: true, description: "Nome do link" }, productId: { type: "string", required: true, description: "ID do produto" }, slug: { type: "string", required: true, description: "Slug para URL" }, quantity: { type: "number", required: false, description: "Quantidade (padrão 1)" }, priceOverride: { type: "number", required: false, description: "Preço especial em reais" }, couponCode: { type: "string", required: false, description: "Cupom automático" } }, requiredPermission: "checkout_links" },
+  updateCheckoutLink: { description: "Atualizar link de checkout", parameters: { linkId: { type: "string", required: true, description: "ID do link" }, name: { type: "string", required: false, description: "Novo nome" }, isActive: { type: "boolean", required: false, description: "Ativar/desativar" }, priceOverride: { type: "number", required: false, description: "Novo preço" } }, requiredPermission: "checkout_links" },
+  deleteCheckoutLink: { description: "Excluir link de checkout", parameters: { linkId: { type: "string", required: true, description: "ID do link" } }, requiredPermission: "checkout_links" },
+  // --- Afiliados ---
+  createAffiliate: { description: "Criar novo afiliado", parameters: { name: { type: "string", required: true, description: "Nome" }, email: { type: "string", required: true, description: "Email" }, phone: { type: "string", required: false, description: "Telefone" } }, requiredPermission: "affiliates" },
+  updateAffiliate: { description: "Atualizar dados de um afiliado", parameters: { affiliateId: { type: "string", required: true, description: "ID do afiliado" }, name: { type: "string", required: false, description: "Novo nome" }, status: { type: "string", required: false, description: "active ou inactive" } }, requiredPermission: "affiliates" },
+  toggleAffiliate: { description: "Ativar ou desativar afiliado", parameters: { affiliateId: { type: "string", required: true, description: "ID do afiliado" }, isActive: { type: "boolean", required: true, description: "true=ativar, false=desativar" } }, requiredPermission: "affiliates" },
+  // --- Clientes Potenciais ---
+  updatePotentialCustomerStatus: { description: "Atualizar status de cliente potencial", parameters: { sessionId: { type: "string", required: true, description: "ID da sessão de checkout" }, status: { type: "string", required: true, description: "Novo status: contacted, converted, discarded" } }, requiredPermission: "customers" },
+  // --- Variantes ---
+  createProductVariant: { description: "Criar variante de produto", parameters: { productId: { type: "string", required: true, description: "ID do produto" }, name: { type: "string", required: true, description: "Nome da variante" }, sku: { type: "string", required: true, description: "SKU" }, price: { type: "number", required: false, description: "Preço em reais" }, stockQuantity: { type: "number", required: false, description: "Estoque" }, option1Name: { type: "string", required: false, description: "Nome opção 1 (ex: Cor)" }, option1Value: { type: "string", required: false, description: "Valor opção 1 (ex: Azul)" }, option2Name: { type: "string", required: false, description: "Nome opção 2" }, option2Value: { type: "string", required: false, description: "Valor opção 2" } }, requiredPermission: "products" },
+  updateProductVariant: { description: "Atualizar variante", parameters: { variantId: { type: "string", required: true, description: "ID da variante" }, name: { type: "string", required: false, description: "Novo nome" }, sku: { type: "string", required: false, description: "Novo SKU" }, price: { type: "number", required: false, description: "Novo preço" }, stockQuantity: { type: "number", required: false, description: "Novo estoque" }, isActive: { type: "boolean", required: false, description: "Ativar/desativar" } }, requiredPermission: "products" },
+  deleteProductVariant: { description: "Excluir variante", parameters: { variantId: { type: "string", required: true, description: "ID da variante" } }, requiredPermission: "products" },
 };
 
 // Build dynamic system prompt with all available tools (WRITE only - reads are native tools)
