@@ -84,7 +84,8 @@ export function CategoryListBlock({
 
   // Normalize source for backwards compatibility
   const normalizedSource = source === 'all' ? 'auto' : source;
-  const isCustomMode = normalizedSource === 'custom' && items && items.length > 0;
+  // Treat as custom whenever items are selected, regardless of source value
+  const isCustomMode = items && items.length > 0;
 
   // Fetch categories - different logic for custom vs auto
   const { data: categories, isLoading: categoriesLoading } = useQuery({

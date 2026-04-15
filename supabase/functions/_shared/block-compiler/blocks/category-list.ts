@@ -24,10 +24,10 @@ export const categoryListToStaticHTML: BlockCompilerFn = (
   const source = (props.source as string) || 'auto';
   const items = (props.items as CategoryItemConfig[]) || [];
 
-  // Gather categories
+  // Gather categories — treat as custom whenever items are selected
   let categories: Array<{ id: string; name: string; slug: string; image_url?: string; description?: string }> = [];
 
-  if ((source === 'custom') && items.length > 0) {
+  if (items.length > 0) {
     // Custom mode: use items order, look up from context
     for (const item of items) {
       const cat = context.categories.get(item.categoryId);
