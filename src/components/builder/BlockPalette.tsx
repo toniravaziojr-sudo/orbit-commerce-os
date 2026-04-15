@@ -51,7 +51,6 @@ const essentialCategoryLabels: Record<EssentialCategory, string> = {
 // Map block types to new categories
 const blockCategoryMapping: Record<string, EssentialCategory> = {
   // Banners
-  'HeroBanner': 'banners',
   'Banner': 'banners',
   'BannerProducts': 'banners',
   
