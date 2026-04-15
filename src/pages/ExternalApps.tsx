@@ -23,6 +23,10 @@ export default function ExternalApps() {
             <Calendar className="h-4 w-4" />
             Calendar
           </TabsTrigger>
+          <TabsTrigger value="wms-pratika" className="gap-2">
+            <Truck className="h-4 w-4" />
+            WMS Pratika
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="gtm">
@@ -31,6 +35,10 @@ export default function ExternalApps() {
 
         <TabsContent value="calendar">
           <GoogleCalendarTab />
+        </TabsContent>
+
+        <TabsContent value="wms-pratika">
+          <WmsPratikaTab />
         </TabsContent>
       </Tabs>
     </div>
