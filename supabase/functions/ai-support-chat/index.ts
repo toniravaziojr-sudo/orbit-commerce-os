@@ -1115,6 +1115,99 @@ async function executeSalesTool(
         return JSON.stringify({ success: true, message: "Dados do cliente salvos com sucesso.", saved_fields: Object.keys(custSaveData) });
       }
 
+      case "update_customer_record": {
+        const customerId = args.customer_id as string;
+        if (!customerId) return JSON.stringify({ success: false, error: "customer_id é obrigatório" });
+
+        // Update customer table fields
+        const customerUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (args.full_name) customerUpdate.full_name = args.full_name;
+        if (args.cpf) customerUpdate.cpf = args.cpf;
+        if (args.phone) customerUpdate.phone = args.phone;
+
+        const { error: custErr } = await supabase
+          .from("customers")
+          .update(customerUpdate)
+          .eq("id", customerId)
+          .eq("tenant_id", tenantId);
+
+        if (custErr) {
+          console.error("[sales-tool] update customer error:", custErr);
+          return JSON.stringify({ success: false, error: "Erro ao atualizar cadastro do cliente." });
+        }
+
+        // Update or create address if address fields provided
+        const hasAddr = args.postal_code || args.street || args.number;
+        if (hasAddr) {
+          const addrData: Record<string, unknown> = {
+            customer_id: customerId,
+            tenant_id: tenantId,
+            is_default: true,
+            updated_at: new Date().toISOString(),
+          };
+          if (args.postal_code) addrData.postal_code = (args.postal_code as string).replace(/\D/g, "");
+          if (args.street) addrData.street = args.street;
+          if (args.number) addrData.number = args.number;
+          if (args.complement) addrData.complement = args.complement;
+          if (args.neighborhood) addrData.neighborhood = args.neighborhood;
+          if (args.city) addrData.city = args.city;
+          if (args.state) addrData.state = args.state;
+
+          // Check if default address exists
+          const { data: existingAddr } = await supabase
+            .from("customer_addresses")
+            .select("id")
+            .eq("customer_id", customerId)
+            .eq("is_default", true)
+            .maybeSingle();
+
+          if (existingAddr) {
+            await supabase.from("customer_addresses").update(addrData).eq("id", existingAddr.id);
+          } else {
+            addrData.created_at = new Date().toISOString();
+            await supabase.from("customer_addresses").insert(addrData);
+          }
+        }
+
+        // Also update cart customer_data
+        const cartUpdate: Record<string, string> = {};
+        if (args.full_name) cartUpdate.name = args.full_name as string;
+        if (args.cpf) cartUpdate.cpf = args.cpf as string;
+        if (args.phone) cartUpdate.phone = args.phone as string;
+        if (args.postal_code) cartUpdate.postal_code = args.postal_code as string;
+        if (args.street) cartUpdate.street = args.street as string;
+        if (args.number) cartUpdate.number = args.number as string;
+        if (args.complement) cartUpdate.complement = args.complement as string;
+        if (args.neighborhood) cartUpdate.neighborhood = args.neighborhood as string;
+        if (args.city) cartUpdate.city = args.city as string;
+        if (args.state) cartUpdate.state = args.state as string;
+
+        if (Object.keys(cartUpdate).length > 0) {
+          // Merge with existing cart customer_data
+          const { data: activeCart } = await supabase
+            .from("whatsapp_carts")
+            .select("customer_data")
+            .eq("conversation_id", conversationId)
+            .eq("tenant_id", tenantId)
+            .eq("status", "active")
+            .maybeSingle();
+
+          const merged = { ...(activeCart?.customer_data as Record<string, string> || {}), ...cartUpdate };
+          await supabase
+            .from("whatsapp_carts")
+            .update({ customer_data: merged, updated_at: new Date().toISOString() })
+            .eq("conversation_id", conversationId)
+            .eq("tenant_id", tenantId)
+            .eq("status", "active");
+        }
+
+        return JSON.stringify({
+          success: true,
+          message: "Cadastro do cliente atualizado com sucesso.",
+          updated_fields: [...Object.keys(customerUpdate).filter(k => k !== "updated_at"), ...(hasAddr ? ["address"] : [])],
+        });
+      }
+
       default:
         return JSON.stringify({ error: `Ferramenta desconhecida: ${toolName}` });
     }
