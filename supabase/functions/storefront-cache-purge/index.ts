@@ -7,6 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const VERSION = "v2.0.0";
 
 const corsHeaders = {
@@ -257,7 +258,10 @@ serve(async (req) => {
   console.log(`[storefront-cache-purge][${VERSION}] Request received`);
 
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   try {

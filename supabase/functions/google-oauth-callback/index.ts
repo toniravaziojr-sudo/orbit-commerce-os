@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION =====
 const VERSION = "v1.0.0"; // Initial Google Hub OAuth callback
 // ===================
@@ -13,7 +14,10 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { NUVEMSHOP_PATTERNS } from '../_shared/platform-adapters/nuvemshop-adapter.ts';
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const VERSION = '2026-01-30.2130';
 
 const corsHeaders = {
@@ -788,7 +789,10 @@ async function saveMenus(
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   try {

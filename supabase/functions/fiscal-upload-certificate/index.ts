@@ -9,6 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 // deno-lint-ignore-file no-explicit-any
 import forge from "https://esm.sh/node-forge@1.3.1?bundle";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -70,7 +71,10 @@ async function decryptData(encryptedBase64: string, key: string): Promise<string
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   try {

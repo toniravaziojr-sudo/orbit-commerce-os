@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Initial: GA4 report + realtime + list
 // ===========================================================
@@ -76,7 +77,10 @@ Deno.serve(async (req) => {
   console.log(`[google-analytics-report][${VERSION}][${traceId}] ${req.method}`);
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

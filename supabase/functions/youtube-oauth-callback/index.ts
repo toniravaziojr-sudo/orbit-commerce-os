@@ -7,6 +7,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION =====
 const VERSION = "v2.0.0"; // Phase 2: dual-write to google_connections
 // ===================
@@ -69,6 +70,8 @@ function parseGoogleError(error: string, errorDescription?: string): { code: str
 }
 
 Deno.serve(async (req) => {
+  await loadPlatformCredentials();
+
   try {
     console.log(`[youtube-oauth-callback][${VERSION}] Request received`);
 

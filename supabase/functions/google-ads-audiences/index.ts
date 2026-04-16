@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Initial: Google Ads Audiences sync + list
 // ===========================================================
@@ -77,7 +78,10 @@ Deno.serve(async (req) => {
   console.log(`[google-ads-audiences][${VERSION}][${traceId}] ${req.method}`);
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

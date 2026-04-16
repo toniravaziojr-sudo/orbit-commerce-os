@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION =====
 const VERSION = "v2.0.0"; // CRUD: create, update, pause, activate + sync + list
 // ===================
@@ -79,6 +80,8 @@ function resolveCustomerId(body: any, conn: any): string | null {
 // =====================
 
 Deno.serve(async (req) => {
+  await loadPlatformCredentials();
+
   const traceId = crypto.randomUUID().substring(0, 8);
   console.log(`[google-ads-campaigns][${VERSION}][${traceId}] ${req.method}`);
 

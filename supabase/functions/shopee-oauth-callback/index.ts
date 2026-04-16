@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { createHmac } from "https://deno.land/std@0.177.0/node/crypto.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 /**
  * Shopee OAuth Callback
  * 
@@ -12,6 +13,8 @@ import { createHmac } from "https://deno.land/std@0.177.0/node/crypto.ts";
  * Docs: https://open.shopee.com/documents/v2/v2.auth.token.get
  */
 serve(async (req) => {
+  await loadPlatformCredentials();
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);

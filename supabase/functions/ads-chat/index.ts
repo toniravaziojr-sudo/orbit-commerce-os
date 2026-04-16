@@ -4,6 +4,7 @@ import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/a
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v5.38.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===========================================================
@@ -4999,7 +5000,10 @@ function buildUserMessage(message: string, attachments?: any[]) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   console.log(`[ads-chat][${VERSION}] ${req.method} request received, url=${req.url}`);

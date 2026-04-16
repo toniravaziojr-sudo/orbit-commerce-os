@@ -5,6 +5,7 @@ import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.t
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -22,7 +23,10 @@ function buildFocusUrl(path: string | undefined, ambiente: string): string | und
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

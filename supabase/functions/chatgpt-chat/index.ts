@@ -4,6 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const VERSION = "4.0.0"; // + AI Memory (long-term + conversation summaries)
 
 const corsHeaders = {
@@ -26,7 +27,10 @@ interface ProcessedAttachment extends Attachment {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   try {

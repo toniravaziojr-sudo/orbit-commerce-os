@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION =====
 const VERSION = "v1.0.0"; // Asset management: create image/text assets, link to campaigns (PMax), sync, list
 // ===================
@@ -48,6 +49,8 @@ async function getAdsHeaders(supabaseUrl: string, supabaseServiceKey: string, to
 }
 
 Deno.serve(async (req) => {
+  await loadPlatformCredentials();
+
   const traceId = crypto.randomUUID().substring(0, 8);
   console.log(`[google-ads-assets][${VERSION}][${traceId}] ${req.method}`);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });

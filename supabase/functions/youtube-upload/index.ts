@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION =====
 const VERSION = "v2.0.0"; // Phase 2: read from google_connections with legacy fallback
 // ===================
@@ -24,7 +25,10 @@ interface UploadRequest {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders }
+
+  await loadPlatformCredentials();
+);
   }
 
   try {
