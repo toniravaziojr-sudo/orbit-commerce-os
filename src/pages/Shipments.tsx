@@ -80,6 +80,8 @@ interface ShipmentRecord {
   tenant_id: string;
   order_id: string;
   carrier: string | null;
+  service_name: string | null;
+  service_code: string | null;
   tracking_code: string;
   delivery_status: DeliveryStatus;
   last_status_at: string | null;
@@ -177,6 +179,7 @@ export default function Shipments() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [carrierFilter, setCarrierFilter] = useState('all');
+  const [serviceFilter, setServiceFilter] = useState('all');
   const [selectedShipment, setSelectedShipment] = useState<ShipmentRecord | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [lastPollResult, setLastPollResult] = useState<{ timestamp: string; processed: number; updated: number; errors: number } | null>(null);
@@ -189,7 +192,7 @@ export default function Shipments() {
   
   // Fetch shipments
   const { data: shipments, isLoading } = useQuery({
-    queryKey: ['admin-shipments', currentTenant?.id, search, statusFilter, carrierFilter, startDate?.toISOString(), endDate?.toISOString()],
+    queryKey: ['admin-shipments', currentTenant?.id, search, statusFilter, carrierFilter, serviceFilter, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
       
@@ -209,7 +212,7 @@ export default function Shipments() {
       
       if (carrierFilter !== 'all') {
         if (carrierFilter === 'correios') {
-          // Correios cobre rotulagens "Correios", "PAC", "Sedex"
+          // Correios cobre rotulagens "Correios", "PAC", "Sedex" (legado)
           query = query.or('carrier.ilike.correios,carrier.ilike.pac,carrier.ilike.sedex');
         } else if (carrierFilter === 'fallback') {
           query = query.ilike('carrier', '%fallback%');
@@ -218,6 +221,10 @@ export default function Shipments() {
         } else {
           query = query.ilike('carrier', carrierFilter);
         }
+      }
+
+      if (serviceFilter !== 'all') {
+        query = query.ilike('service_name', serviceFilter);
       }
       
       if (search) {
@@ -237,6 +244,23 @@ export default function Shipments() {
       const { data, error } = await query;
       if (error) throw error;
       return data as ShipmentRecord[];
+    },
+    enabled: !!currentTenant?.id,
+  });
+
+  // Buscar serviços distintos disponíveis no tenant (para o filtro dinâmico)
+  const { data: availableServices } = useQuery({
+    queryKey: ['shipment-services', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [] as string[];
+      const { data } = await supabase
+        .from('shipments')
+        .select('service_name')
+        .eq('tenant_id', currentTenant.id)
+        .not('service_name', 'is', null);
+      const set = new Set<string>();
+      (data || []).forEach((r: any) => { if (r.service_name) set.add(r.service_name); });
+      return Array.from(set).sort();
     },
     enabled: !!currentTenant?.id,
   });
@@ -502,15 +526,15 @@ export default function Shipments() {
                 </SelectContent>
               </Select>
               <Select value={carrierFilter} onValueChange={setCarrierFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-44">
                   <SelectValue placeholder="Transportadora" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="all">Todas transportadoras</SelectItem>
                   <SelectItem value="correios">
                     <span className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      Correios (PAC/Sedex)
+                      Correios
                     </span>
                   </SelectItem>
                   <SelectItem value="loggi">
@@ -532,6 +556,17 @@ export default function Shipments() {
                     </span>
                   </SelectItem>
                   <SelectItem value="unset">Sem transportadora</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={serviceFilter} onValueChange={setServiceFilter}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Serviço" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos serviços</SelectItem>
+                  {(availableServices || []).map((svc) => (
+                    <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -612,9 +647,16 @@ export default function Shipments() {
                             {(() => {
                               const badge = getCarrierBadge(shipment.carrier);
                               return (
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
-                                  {badge.label}
-                                </span>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className={`inline-flex w-fit px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
+                                    {badge.label}
+                                  </span>
+                                  {shipment.service_name && (
+                                    <span className="text-xs text-muted-foreground pl-1">
+                                      {shipment.service_name}
+                                    </span>
+                                  )}
+                                </div>
                               );
                             })()}
                           </TableCell>
