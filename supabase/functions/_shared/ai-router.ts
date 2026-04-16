@@ -106,7 +106,7 @@ async function resolveAPIKeys(supabaseUrl?: string, supabaseServiceKey?: string)
       getCredential(supabaseUrl, supabaseServiceKey, "OPENAI_API_KEY"),
       getCredential(supabaseUrl, supabaseServiceKey, "GEMINI_API_KEY"),
     ]);
-  } else {
+    // Fallback sem supabase context — ainda tentar env vars
     openaiKey = Deno.env.get("OPENAI_API_KEY") || null;
     geminiKey = Deno.env.get("GEMINI_API_KEY") || null;
   }
