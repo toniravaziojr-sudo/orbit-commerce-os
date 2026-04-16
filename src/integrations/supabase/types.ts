@@ -19733,6 +19733,7 @@ export type Database = {
           conversation_id: string
           coupon_code: string | null
           created_at: string
+          customer_data: Json | null
           customer_id: string | null
           expires_at: string
           id: string
@@ -19746,6 +19747,7 @@ export type Database = {
           conversation_id: string
           coupon_code?: string | null
           created_at?: string
+          customer_data?: Json | null
           customer_id?: string | null
           expires_at?: string
           id?: string
@@ -19759,6 +19761,7 @@ export type Database = {
           conversation_id?: string
           coupon_code?: string | null
           created_at?: string
+          customer_data?: Json | null
           customer_id?: string | null
           expires_at?: string
           id?: string

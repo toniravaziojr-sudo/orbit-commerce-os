@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_carts ADD COLUMN customer_data jsonb DEFAULT '{}';
