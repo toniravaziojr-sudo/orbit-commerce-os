@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_insights_sync_coverage: {
+        Row: {
+          ad_account_id: string | null
+          created_at: string
+          first_day_synced: string | null
+          id: string
+          last_day_synced: string | null
+          last_sync_at: string | null
+          last_sync_error: string | null
+          last_sync_kind: string | null
+          last_sync_status: string | null
+          platform: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          created_at?: string
+          first_day_synced?: string | null
+          id?: string
+          last_day_synced?: string | null
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_sync_kind?: string | null
+          last_sync_status?: string | null
+          platform: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          created_at?: string
+          first_day_synced?: string | null
+          id?: string
+          last_day_synced?: string | null
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_sync_kind?: string | null
+          last_sync_status?: string | null
+          platform?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_insights_sync_coverage_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_autopilot_account_configs: {
         Row: {
           ad_account_id: string
