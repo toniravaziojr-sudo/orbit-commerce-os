@@ -98,7 +98,7 @@ serve(async (req) => {
     // Verify order exists and belongs to tenant
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, tenant_id, status, tracking_code')
+      .select('id, tenant_id, status, tracking_code, shipping_service_name, shipping_service_code')
       .eq('id', order_id)
       .eq('tenant_id', tenantId)
       .single();
@@ -118,7 +118,16 @@ serve(async (req) => {
     }
 
     const cleanTrackingCode = tracking_code.trim().toUpperCase();
-    const cleanCarrier = carrier.toLowerCase();
+    // Normaliza carrier: "PAC"/"Sedex" são serviços dos Correios, não transportadoras
+    let cleanCarrier = carrier.trim();
+    let derivedService: string | null = null;
+    let derivedServiceCode: string | null = null;
+    const lc = cleanCarrier.toLowerCase();
+    if (lc === 'pac' || lc === 'sedex') {
+      derivedService = lc === 'pac' ? 'PAC' : 'Sedex';
+      derivedServiceCode = lc === 'pac' ? '03298' : '03220';
+      cleanCarrier = 'Correios';
+    }
     const now = new Date().toISOString();
 
     // Update order with tracking info
@@ -127,6 +136,8 @@ serve(async (req) => {
       .update({
         tracking_code: cleanTrackingCode,
         shipping_carrier: cleanCarrier,
+        shipping_service_name: order.shipping_service_name || derivedService,
+        shipping_service_code: order.shipping_service_code || derivedServiceCode,
         shipping_status: 'label_created',
         status: 'shipped',
         shipped_at: now,
@@ -142,13 +153,15 @@ serve(async (req) => {
       );
     }
 
-    // Create shipment record
+    // Create shipment record (carrier + service_name + service_code)
     const { data: shipment, error: shipmentError } = await supabase
       .from('shipments')
       .insert({
         tenant_id: tenantId,
         order_id: order_id,
         carrier: cleanCarrier,
+        service_name: order.shipping_service_name || derivedService,
+        service_code: order.shipping_service_code || derivedServiceCode,
         tracking_code: cleanTrackingCode,
         delivery_status: 'label_created',
         source: 'manual',

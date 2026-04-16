@@ -685,7 +685,7 @@ serve(async (req) => {
                 continue;
               }
 
-              // Create draft shipment
+              // Create draft shipment — propagar carrier + service_name + service_code (3 campos obrigatórios)
               const { error: insertError } = await supabaseShipping
                 .from('shipments')
                 .insert({
@@ -695,6 +695,7 @@ serve(async (req) => {
                   tracking_code: '',
                   delivery_status: 'draft' as any,
                   last_status_at: new Date().toISOString(),
+                  service_name: order.shipping_service_name || null,
                   service_code: order.shipping_service_code || null,
                   source: 'auto_draft',
                   metadata: {

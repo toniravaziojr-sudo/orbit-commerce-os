@@ -251,7 +251,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/finance` — Financeiro (GatedRoute: `erp_financeiro`)
 - `/purchases` — Compras (GatedRoute: `erp_compras`)
 - `/shipping` — Dashboard de logística
-- `/shipping/shipments` — Remessas (FeatureGated: `remessas`)
+- `/shipping/shipments` — Remessas (FeatureGated: `remessas`) — filtros: busca, data, status, **Transportadora** (Correios/Loggi/Frenet/Fallback/Sem) e **Serviço** (PAC, Sedex, Loggi Express — dinâmico). Coluna Transportadora exibe badge + serviço (ex: "Correios · PAC"). Detalhe em `docs/especificacoes/erp/rascunhos-logisticos.md` v2.5.0.
 - `/shipping/settings` — Config de frete
 
 **Parcerias (GatedRoute: `parcerias`):**

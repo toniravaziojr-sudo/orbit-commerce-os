@@ -192,19 +192,38 @@ Na aba "Remessas emitidas", checkboxes permitem selecionar múltiplas remessas e
 
 ---
 
-## Filtros da Tela Rastreios
+## Filtros e Exibição da Tela Rastreios
 
-A tela `/shipments` (Rastreios) oferece filtros que cobrem TODAS as variações reais de `shipments.carrier` no banco:
+A tela `/shipments` (Rastreios) trabalha com **três campos** que descrevem o envio, propagados obrigatoriamente do pedido para a remessa:
 
+| Campo da remessa | Significado | Origem (pedido) |
+|------------------|-------------|-----------------|
+| `carrier` | Transportadora (Correios, Loggi, Frenet) | `orders.shipping_carrier` |
+| `service_name` | Serviço escolhido (PAC, Sedex, Loggi Express, etc) | `orders.shipping_service_name` |
+| `service_code` | Código do serviço (ex: 03298=PAC, 03220=Sedex) | `orders.shipping_service_code` |
+
+### Propagação obrigatória
+Toda criação de remessa (rascunho automático em `scheduler-tick`, etiqueta gerada via `shipping-create-shipment`, ou registro manual em `shipping-register-manual`) **deve** copiar os três campos do pedido. Se a entrada vier com `carrier="PAC"` ou `"Sedex"` (legado), o sistema normaliza automaticamente para `carrier="Correios"` + `service_name="PAC"|"Sedex"` + `service_code="03298"|"03220"`.
+
+### Exibição
+Cada linha mostra o **badge da transportadora** (Correios/Loggi/Frenet) e abaixo, em texto secundário, o **serviço** (PAC, Sedex, etc).
+
+### Filtros disponíveis
+A tela tem **dois filtros independentes** que combinam:
+
+**Filtro 1 — Transportadora**
 | Opção | Casamento (case-insensitive) |
 |-------|------------------------------|
-| **Correios (PAC/Sedex)** | `carrier ILIKE 'correios'` OU `'pac'` OU `'sedex'` |
+| **Correios** | `carrier ILIKE 'correios'` OU `'pac'` OU `'sedex'` (cobre legado) |
 | **Loggi** | `carrier ILIKE 'loggi'` |
 | **Frenet** | `carrier ILIKE 'frenet'` |
 | **Sem integração (fallback)** | `carrier ILIKE '%fallback%'` |
 | **Sem transportadora** | `carrier IS NULL` |
 
-> **Importante:** PAC e Sedex são *serviços* dos Correios, não transportadoras separadas. O filtro Correios cobre as três rotulagens. Pedidos com frete fallback (quando a cotação dinâmica falha no checkout) ficam visíveis no filtro dedicado, evitando que sumam da tela.
+**Filtro 2 — Serviço (dinâmico)**
+Lista populada a partir dos `service_name` distintos existentes nas remessas do tenant (PAC, Sedex, Loggi Express, etc). Garante que apareçam apenas serviços realmente em uso.
+
+> **Importante:** PAC e Sedex são *serviços* dos Correios, não transportadoras separadas. O filtro Transportadora=Correios sempre cobre PAC e Sedex; para refinar, use o filtro Serviço.
 
 ---
 
@@ -217,6 +236,7 @@ A tela `/shipments` (Rastreios) oferece filtros que cobrem TODAS as variações 
 | 2026-04-06 | v2.3.3 | Campo `products.weight` padronizado para gramas (g) |
 | 2026-04-06 | v2.4.0 | Fluxo integrado NF-e → Remessa → Despacho. Helper nfe-shipment-link.ts. NF-e obrigatória. Status dispatched. UI de impressão e despacho. |
 | 2026-04-14 | v2.4.1 | Filtros de Rastreios cobrindo PAC/Sedex como Correios, fallback dedicado e "Sem transportadora". Normalização case-insensitive. |
+| 2026-04-16 | v2.5.0 | Coluna `shipments.service_name` adicionada. Propagação obrigatória dos 3 campos (carrier+service_name+service_code) em scheduler-tick, shipping-create-shipment e shipping-register-manual. UI passa a mostrar "Correios · PAC/Sedex" e ganha filtro dinâmico de Serviço. Backfill aplicado no tenant Respeite o Homem (106 remessas normalizadas). |
 
 ---
 

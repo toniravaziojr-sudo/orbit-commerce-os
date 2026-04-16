@@ -15202,6 +15202,7 @@ export type Database = {
           poll_error_count: number | null
           provider_shipment_id: string | null
           service_code: string | null
+          service_name: string | null
           source: string | null
           source_id: string | null
           tenant_id: string
@@ -15227,6 +15228,7 @@ export type Database = {
           poll_error_count?: number | null
           provider_shipment_id?: string | null
           service_code?: string | null
+          service_name?: string | null
           source?: string | null
           source_id?: string | null
           tenant_id: string
@@ -15252,6 +15254,7 @@ export type Database = {
           poll_error_count?: number | null
           provider_shipment_id?: string | null
           service_code?: string | null
+          service_name?: string | null
           source?: string | null
           source_id?: string | null
           tenant_id?: string
