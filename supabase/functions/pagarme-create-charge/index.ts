@@ -18,9 +18,9 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-// Fallback to environment secrets
-const ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
-const ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
+// Fallback to environment secrets (read lazily inside handler so platform_credentials sync applies)
+let ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
+let ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
 
 interface ChargeRequest {
   checkout_id?: string;

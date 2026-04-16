@@ -12,7 +12,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+let GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 

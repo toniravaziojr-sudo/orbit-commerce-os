@@ -20,7 +20,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-const ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
+let ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
 
 const PENDING_THRESHOLD_MINUTES = 30;
 

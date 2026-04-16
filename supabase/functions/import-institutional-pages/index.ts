@@ -19,7 +19,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+// Note: read inside handler so platform_credentials sync (loadPlatformCredentials) takes effect.
+let FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
 
 // =====================================================
 // TYPES
