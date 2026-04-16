@@ -141,6 +141,8 @@ serve(async (req) => {
 
   await loadPlatformCredentials();
 
+  // __reload_after_platform_credentials__
+  ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const now = new Date();

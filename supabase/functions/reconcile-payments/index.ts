@@ -225,6 +225,8 @@ serve(async (req) => {
 
   await loadPlatformCredentials();
 
+  // __reload_after_platform_credentials__
+  ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
   const startTime = Date.now();
   console.log(`[reconcile-payments][${VERSION}] Starting reconciliation`);
 

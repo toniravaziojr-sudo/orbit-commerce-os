@@ -72,6 +72,9 @@ function parseGoogleError(error: string, errorDescription?: string): { code: str
 Deno.serve(async (req) => {
   await loadPlatformCredentials();
 
+  // __reload_after_platform_credentials__
+  GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+  GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
   try {
     console.log(`[youtube-oauth-callback][${VERSION}] Request received`);
 

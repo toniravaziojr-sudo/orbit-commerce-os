@@ -731,6 +731,8 @@ Deno.serve(async (req) => {
 
   await loadPlatformCredentials();
 
+  // __reload_after_platform_credentials__
+  FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
   try {
     const { tenantId, storeUrl } = await req.json();
 

@@ -32,6 +32,8 @@ Deno.serve(async (req) => {
 
   await loadPlatformCredentials();
 
+  // __reload_after_platform_credentials__
+  GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
   try {
     // Validate configuration
     if (!GOOGLE_CLIENT_ID || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {

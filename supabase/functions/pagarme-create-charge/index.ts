@@ -119,6 +119,9 @@ serve(async (req) => {
 
   await loadPlatformCredentials();
 
+  // __reload_after_platform_credentials__
+  ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
+  ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
   try {
     const payload: ChargeRequest = await req.json();
     console.log('Creating charge:', { 
