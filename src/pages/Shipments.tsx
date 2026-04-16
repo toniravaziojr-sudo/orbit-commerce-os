@@ -305,21 +305,33 @@ export default function Shipments() {
     withErrors: shipments?.filter(s => (s.poll_error_count || 0) > 0).length || 0,
   };
 
+  // Normaliza variações conhecidas (PAC/Sedex são serviços dos Correios)
+  const normalizeCarrier = (raw: string | null): string => {
+    if (!raw) return '';
+    const c = raw.toLowerCase().trim();
+    if (c === 'correios' || c === 'pac' || c === 'sedex') return 'correios';
+    if (c.includes('fallback')) return 'fallback';
+    if (c === 'loggi') return 'loggi';
+    if (c === 'frenet') return 'frenet';
+    return c;
+  };
+
   // Carrier stats
   const carrierStats = {
-    correios: shipments?.filter(s => s.carrier?.toLowerCase() === 'correios').length || 0,
-    loggi: shipments?.filter(s => s.carrier?.toLowerCase() === 'loggi').length || 0,
-    frenet: shipments?.filter(s => s.carrier?.toLowerCase() === 'frenet').length || 0,
-    outros: shipments?.filter(s => s.carrier && !['correios', 'loggi', 'frenet'].includes(s.carrier.toLowerCase())).length || 0,
+    correios: shipments?.filter(s => normalizeCarrier(s.carrier) === 'correios').length || 0,
+    loggi: shipments?.filter(s => normalizeCarrier(s.carrier) === 'loggi').length || 0,
+    frenet: shipments?.filter(s => normalizeCarrier(s.carrier) === 'frenet').length || 0,
+    outros: shipments?.filter(s => s.carrier && !['correios', 'loggi', 'frenet'].includes(normalizeCarrier(s.carrier))).length || 0,
   };
 
   // Carrier badge config
   const getCarrierBadge = (carrier: string | null) => {
     if (!carrier) return { color: 'bg-muted text-muted-foreground', label: 'Não definido' };
-    const c = carrier.toLowerCase();
-    if (c === 'correios') return { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', label: 'Correios' };
-    if (c === 'loggi') return { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', label: 'Loggi' };
-    if (c === 'frenet') return { color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300', label: 'Frenet' };
+    const norm = normalizeCarrier(carrier);
+    if (norm === 'correios') return { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', label: 'Correios' };
+    if (norm === 'loggi') return { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', label: 'Loggi' };
+    if (norm === 'frenet') return { color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300', label: 'Frenet' };
+    if (norm === 'fallback') return { color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300', label: 'Sem integração' };
     return { color: 'bg-muted text-muted-foreground', label: carrier };
   };
 
