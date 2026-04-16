@@ -394,6 +394,31 @@ const SALES_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "update_customer_record",
+      description: "Atualiza o cadastro de um cliente existente com dados faltantes (CPF, endereço, etc.). Usar quando o cliente já existe mas tem cadastro incompleto.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_id: { type: "string", description: "ID do cliente retornado por lookup_customer" },
+          full_name: { type: "string", description: "Nome completo (atualizar se necessário)" },
+          cpf: { type: "string", description: "CPF do cliente" },
+          phone: { type: "string", description: "Telefone do cliente" },
+          postal_code: { type: "string", description: "CEP" },
+          street: { type: "string", description: "Rua/logradouro" },
+          number: { type: "string", description: "Número" },
+          complement: { type: "string", description: "Complemento (opcional)" },
+          neighborhood: { type: "string", description: "Bairro" },
+          city: { type: "string", description: "Cidade" },
+          state: { type: "string", description: "Estado (UF)" },
+        },
+        required: ["customer_id"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // Intent classification tool definition (updated with purchase_intent)
