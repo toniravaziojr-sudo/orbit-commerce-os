@@ -224,7 +224,7 @@ serve(async (req) => {
 
     const geminiApiKey = await getCredential(supabaseUrl, supabaseKey, 'GEMINI_API_KEY');
     const falApiKeyValue = await getFalApiKey(supabaseUrl, supabaseKey);
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
+    const openaiApiKey = await getCredential(supabaseUrl, supabaseKey, "OPENAI_API_KEY");
     console.log(`[AI-LP-Enhance v${VERSION}] Credentials: FAL=${!!falApiKeyValue} GEMINI=${!!geminiApiKey} OPENAI=${!!openaiApiKey} LOVABLE=✅`);
 
     // 1. Fetch landing page

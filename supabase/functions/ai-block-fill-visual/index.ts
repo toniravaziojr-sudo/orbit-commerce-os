@@ -599,7 +599,7 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const storeCtx = await fetchStoreContext(supabase, tenantId);
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
+    const openaiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, "OPENAI_API_KEY");
     const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
 
     // Extract outputMode and creativeStyle from collectedData or top-level

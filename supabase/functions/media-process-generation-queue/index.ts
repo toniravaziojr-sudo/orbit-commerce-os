@@ -109,7 +109,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-  const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
+  const openaiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, "OPENAI_API_KEY");
 
   if (!lovableApiKey) {
     return new Response(
