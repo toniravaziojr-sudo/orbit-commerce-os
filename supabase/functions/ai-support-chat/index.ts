@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPII } from "../_shared/redact-pii.ts";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getCredential } from "../_shared/platform-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1356,17 +1357,19 @@ serve(async (req) => {
       );
     }
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Buscar OPENAI_API_KEY via platform_credentials (banco) com fallback para env var
+    const OPENAI_API_KEY = await getCredential(supabaseUrl, serviceKey, "OPENAI_API_KEY");
     if (!OPENAI_API_KEY) {
-      console.error("OPENAI_API_KEY not configured");
+      console.error("OPENAI_API_KEY not configured (neither in platform_credentials nor env var)");
       return new Response(
         JSON.stringify({ success: false, error: "AI not configured", code: "AI_NOT_CONFIGURED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
     const supabase = createClient(supabaseUrl, serviceKey);
 
