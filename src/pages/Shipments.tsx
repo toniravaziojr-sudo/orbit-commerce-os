@@ -208,7 +208,16 @@ export default function Shipments() {
       }
       
       if (carrierFilter !== 'all') {
-        query = query.ilike('carrier', carrierFilter);
+        if (carrierFilter === 'correios') {
+          // Correios cobre rotulagens "Correios", "PAC", "Sedex"
+          query = query.or('carrier.ilike.correios,carrier.ilike.pac,carrier.ilike.sedex');
+        } else if (carrierFilter === 'fallback') {
+          query = query.ilike('carrier', '%fallback%');
+        } else if (carrierFilter === 'unset') {
+          query = query.is('carrier', null);
+        } else {
+          query = query.ilike('carrier', carrierFilter);
+        }
       }
       
       if (search) {
@@ -501,7 +510,7 @@ export default function Shipments() {
                   <SelectItem value="correios">
                     <span className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      Correios
+                      Correios (PAC/Sedex)
                     </span>
                   </SelectItem>
                   <SelectItem value="loggi">
@@ -516,6 +525,13 @@ export default function Shipments() {
                       Frenet
                     </span>
                   </SelectItem>
+                  <SelectItem value="fallback">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      Sem integração (fallback)
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="unset">Sem transportadora</SelectItem>
                 </SelectContent>
               </Select>
             </div>
