@@ -708,6 +708,13 @@ serve(async (req) => {
       
       console.log(`[shipping-create-shipment] Order ${order_id} tracking updated: ${result.tracking_code} (status stays processing)`);
 
+      // Buscar dados do pedido para propagar service_name/service_code
+      const { data: orderForShip } = await supabase
+        .from('orders')
+        .select('shipping_service_name, shipping_service_code')
+        .eq('id', order_id)
+        .single();
+
       // Update existing shipment draft (created by scheduler-tick) or create new
       await supabase
         .from('shipments')
@@ -721,6 +728,8 @@ serve(async (req) => {
           provider_shipment_id: result.provider_shipment_id,
           invoice_id: invoiceData.id,
           nfe_key: invoiceData.chave_acesso,
+          service_name: (result as any).service_name || orderForShip?.shipping_service_name || null,
+          service_code: (result as any).service_code || orderForShip?.shipping_service_code || null,
           last_status_at: new Date().toISOString(),
           next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           poll_error_count: 0,
@@ -739,6 +748,8 @@ serve(async (req) => {
           invoice_id: invoiceData.id,
           nfe_key: invoiceData.chave_acesso,
           carrier: result.carrier || provider,
+          service_name: (result as any).service_name || orderForShip?.shipping_service_name || null,
+          service_code: (result as any).service_code || orderForShip?.shipping_service_code || null,
           last_status_at: new Date().toISOString(),
           next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         })
