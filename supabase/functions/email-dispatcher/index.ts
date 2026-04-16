@@ -13,11 +13,10 @@ const BATCH_SIZE = 10;
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

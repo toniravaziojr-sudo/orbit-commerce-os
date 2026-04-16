@@ -14,11 +14,10 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders }
+    return new Response("ok", { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

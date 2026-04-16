@@ -742,11 +742,10 @@ function calculateBackoffSeconds(attemptNo: number): number {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

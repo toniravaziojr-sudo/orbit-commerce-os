@@ -26,11 +26,10 @@ serve(async (req) => {
   console.log(`[tiktok-content-oauth-callback][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

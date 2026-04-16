@@ -27,11 +27,10 @@ interface ProcessedAttachment extends Attachment {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const { messages, hasAttachments, mode = "chat", attachments = [], tenant_id, user_id, conversation_id } = await req.json();

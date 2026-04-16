@@ -79,11 +79,10 @@ async function calendarFetch(accessToken: string, path: string, options?: Reques
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const { action, tenantId, ...params } = await req.json();

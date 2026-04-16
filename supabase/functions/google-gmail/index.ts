@@ -80,11 +80,10 @@ async function gmailFetch(accessToken: string, path: string, options?: RequestIn
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const { action, tenantId, ...params } = await req.json();

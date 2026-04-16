@@ -41,11 +41,10 @@ async function cloudflarePurgeRequest(
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const cloudflareApiToken = Deno.env.get('CLOUDFLARE_API_TOKEN');

@@ -5000,11 +5000,10 @@ function buildUserMessage(message: string, attachments?: any[]) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   console.log(`[ads-chat][${VERSION}] ${req.method} request received, url=${req.url}`);
 

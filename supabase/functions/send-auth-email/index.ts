@@ -60,11 +60,10 @@ async function sendEmailViaSendGrid(
 const serve_handler = async (req: Request): Promise<Response> => {
   // Handle CORS
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");

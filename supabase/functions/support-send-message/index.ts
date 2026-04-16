@@ -54,11 +54,10 @@ async function sendEmailViaSendGrid(
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const { message_id, channel_type } = await req.json();

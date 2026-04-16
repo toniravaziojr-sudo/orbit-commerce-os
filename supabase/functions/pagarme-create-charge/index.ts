@@ -114,11 +114,10 @@ async function isMethodEnabled(supabase: any, tenantId: string, method: string):
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const payload: ChargeRequest = await req.json();

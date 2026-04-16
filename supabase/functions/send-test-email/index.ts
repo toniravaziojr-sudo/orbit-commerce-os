@@ -54,11 +54,10 @@ async function sendEmailViaSendGrid(
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");

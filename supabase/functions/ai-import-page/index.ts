@@ -79,11 +79,10 @@ Deno.serve(async (req) => {
   console.log(`[ai-import-page][${VERSION}] Request received`);
   
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const authHeader = req.headers.get('Authorization');

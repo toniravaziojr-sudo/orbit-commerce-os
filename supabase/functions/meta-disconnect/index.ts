@@ -17,11 +17,10 @@ const corsHeaders = {
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders }
+    return new Response("ok", { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   const traceId = crypto.randomUUID().substring(0, 8);
   console.log(`[meta-disconnect][${VERSION}][${traceId}] Request received`);

@@ -49,11 +49,10 @@ async function sendEmailViaSendGrid(
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const hookSecret = Deno.env.get("AUTH_EMAIL_HOOK_SECRET");

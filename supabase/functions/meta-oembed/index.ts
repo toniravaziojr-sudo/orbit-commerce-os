@@ -42,11 +42,10 @@ serve(async (req) => {
   console.log(`[meta-oembed][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const body = await req.json();

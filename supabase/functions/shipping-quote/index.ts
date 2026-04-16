@@ -886,11 +886,10 @@ function deduplicateOptions(options: ShippingOption[]): ShippingOption[] {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   const startTime = Date.now();
   const quoteWarnings: QuoteWarning[] = [];

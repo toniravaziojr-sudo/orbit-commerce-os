@@ -11,11 +11,10 @@ const SENDGRID_API_URL = "https://api.sendgrid.com/v3";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");

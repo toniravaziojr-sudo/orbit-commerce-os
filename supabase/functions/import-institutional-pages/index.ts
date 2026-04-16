@@ -725,11 +725,10 @@ function escapeHtml(text: string): string {
 // =====================================================
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const { tenantId, storeUrl } = await req.json();

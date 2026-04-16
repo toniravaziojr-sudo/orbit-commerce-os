@@ -71,11 +71,10 @@ async function decryptData(encryptedBase64: string, key: string): Promise<string
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

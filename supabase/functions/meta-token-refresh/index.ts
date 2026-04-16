@@ -25,11 +25,10 @@ const corsHeaders = {
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders }
+    return new Response(null, { headers: corsHeaders });
+  }
 
   await loadPlatformCredentials();
-);
-  }
 
   try {
     console.log(`[meta-token-refresh][${VERSION}] Request received`);
