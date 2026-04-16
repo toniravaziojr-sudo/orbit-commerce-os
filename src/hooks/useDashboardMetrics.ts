@@ -143,6 +143,16 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         prevEndDate,
       } = computePeriods(startDate, endDate, firstOrderDate);
 
+      // Fire-and-forget: garante que o range de Ads pedido tem cobertura no banco.
+      // Se faltar dia, dispara backfill cirúrgico em background (não bloqueia o dashboard).
+      supabase.functions.invoke('ads-ensure-coverage', {
+        body: {
+          tenant_id: tid,
+          date_start: periodStartDate,
+          date_end: periodEndDate,
+        },
+      }).catch((e) => console.warn('[dashboard] ads-ensure-coverage failed', e));
+
       // Use REST API for checkout_sessions funnel fields (not in generated types yet)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const { data: { session } } = await supabase.auth.getSession();
