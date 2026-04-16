@@ -337,6 +337,38 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     }
   }, [retryPrefill]);
 
+  // Prefill form from URL params (WhatsApp checkout links with customer data)
+  const urlPrefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (urlPrefillAppliedRef.current) return;
+    const sp = new URLSearchParams(window.location.search);
+    const hasUrlPrefill = sp.get('name') || sp.get('email') || sp.get('cpf') || sp.get('cep');
+    if (!hasUrlPrefill) return;
+    urlPrefillAppliedRef.current = true;
+    console.log('[Checkout] Applying URL param prefill (WhatsApp checkout link)');
+
+    setFormData(prev => ({
+      ...prev,
+      customerName: sp.get('name') || prev.customerName,
+      customerEmail: sp.get('email') || prev.customerEmail,
+      customerPhone: sp.get('phone') || prev.customerPhone,
+      customerCpf: sp.get('cpf') || prev.customerCpf,
+      shippingPostalCode: sp.get('cep') || prev.shippingPostalCode,
+      shippingStreet: sp.get('street') || prev.shippingStreet,
+      shippingNumber: sp.get('number') || prev.shippingNumber,
+      shippingComplement: sp.get('complement') || prev.shippingComplement,
+      shippingNeighborhood: sp.get('neighborhood') || prev.shippingNeighborhood,
+      shippingCity: sp.get('city') || prev.shippingCity,
+      shippingState: sp.get('state') || prev.shippingState,
+    }));
+
+    // Trigger shipping calculation if CEP provided
+    const cep = sp.get('cep');
+    if (cep && cep.replace(/\D/g, '').length === 8) {
+      setShippingCep(cep.replace(/\D/g, ''));
+    }
+  }, [setShippingCep]);
+
   useEffect(() => {
     if (appliedDiscount && subtotal > 0) {
       revalidateDiscount(storeHost, subtotal, shipping.selected?.price || 0, formData.customerEmail || undefined);

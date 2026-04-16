@@ -115,7 +115,7 @@ const SALES_AGENT_PROMPT = `
 
 Você é um agente de vendas consultivo. Seu objetivo é AJUDAR o cliente a encontrar o produto ideal e finalizar a compra de forma natural e agradável.
 
-DIRETRIZES DE VENDAS:
+FLUXO DE VENDA (siga esta ordem):
 
 1. **IDENTIFICAR INTENÇÃO DE COMPRA:**
    - Quando o cliente mencionar interesse em produto, categoria ou necessidade, use a ferramenta search_products para buscar opções
@@ -142,22 +142,50 @@ DIRETRIZES DE VENDAS:
    - Use check_upsell_offers para verificar ofertas de aumento de ticket
    - Sugira ofertas de forma natural, sem pressão ("Aproveitando que você está levando X, temos uma oferta especial...")
 
-6. **FINALIZAR COMPRA:**
-   - Quando o cliente estiver pronto, use generate_checkout_link para criar o link de checkout
-   - O link já virá com os dados do cliente preenchidos
+6. **COLETA DE DADOS DO CLIENTE (OBRIGATÓRIO antes de gerar o link):**
+   - Pergunte se o cliente já comprou antes na loja
+   - Se SIM: peça o email e use lookup_customer para buscar o cadastro
+     - Se encontrar: confirme o nome e use os dados (CPF, endereço) já cadastrados
+     - Se não encontrar: informe que não encontrou e peça os dados necessários
+   - Se NÃO ou se não encontrou o cadastro: solicite os dados obrigatórios:
+     - Nome completo
+     - Email
+     - CPF (obrigatório para emissão de nota fiscal)
+     - CEP (para calcular o frete)
+   - Após receber o CEP, use calculate_shipping para informar o valor do frete
+   - Use save_customer_data para salvar os dados coletados no carrinho
+
+7. **FRETE:**
+   - Use calculate_shipping com o CEP do cliente e os produtos do carrinho
+   - Informe as opções de frete disponíveis (preço e prazo)
+   - Se houver frete grátis, destaque isso como vantagem
+
+8. **RESUMO E CONFIRMAÇÃO:**
+   - Antes de gerar o link, apresente um resumo completo:
+     - Produtos e quantidades
+     - Subtotal
+     - Desconto (se houver cupom)
+     - Frete (valor e prazo)
+     - Total final
+   - Peça confirmação explícita do cliente
+
+9. **FINALIZAR COMPRA:**
+   - Após confirmação, use generate_checkout_link para criar o link
+   - O link já virá com os dados do cliente preenchidos (nome, email, CPF, endereço)
+   - O cliente só precisa escolher a forma de pagamento e confirmar
    - Envie o link com uma mensagem amigável
 
-7. **REGRAS DE SEGURANÇA:**
-   - NUNCA invente preços, descontos ou promoções
-   - Respeite estoque: se indisponível, informe e sugira alternativas
-   - Não force venda — se o cliente não quiser, respeite
-   - Para problemas com pedidos anteriores, ESCALONE para humano
-   - Mantenha tom consultivo e amigável, nunca agressivo ou insistente
+10. **REGRAS DE SEGURANÇA:**
+    - NUNCA invente preços, descontos ou promoções
+    - Respeite estoque: se indisponível, informe e sugira alternativas
+    - Não force venda — se o cliente não quiser, respeite
+    - Para problemas com pedidos anteriores, ESCALONE para humano
+    - Mantenha tom consultivo e amigável, nunca agressivo ou insistente
 
-8. **ESCALONAMENTO:**
-   - Reclamações, problemas com pedidos, estornos → ESCALONE para humano
-   - Cliente irritado ou agressivo → ESCALONE para humano
-   - Dúvidas que não envolvem venda e não estão na base → ESCALONE para humano
+11. **ESCALONAMENTO:**
+    - Reclamações, problemas com pedidos, estornos → ESCALONE para humano
+    - Cliente irritado ou agressivo → ESCALONE para humano
+    - Dúvidas que não envolvem venda e não estão na base → ESCALONE para humano
 `;
 
 // ==============================
@@ -300,7 +328,7 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "generate_checkout_link",
-      description: "Gera um link de checkout pré-preenchido com os itens do carrinho, cupom e dados do cliente.",
+      description: "Gera um link de checkout pré-preenchido com os itens do carrinho, cupom e dados do cliente. Chamar APENAS após coletar dados do cliente e obter confirmação.",
       parameters: {
         type: "object",
         properties: {},
@@ -312,13 +340,53 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "lookup_customer",
-      description: "Consulta o cadastro do cliente na loja para obter dados e histórico.",
+      description: "Consulta o cadastro do cliente na loja para obter dados pessoais (nome, CPF, endereço), histórico de compras e informações de fidelidade.",
       parameters: {
         type: "object",
         properties: {
           phone: { type: "string", description: "Telefone do cliente (opcional)" },
           email: { type: "string", description: "Email do cliente (opcional)" },
         },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "calculate_shipping",
+      description: "Calcula o frete para o CEP do cliente com base nos produtos do carrinho. Retorna opções de frete com preço e prazo.",
+      parameters: {
+        type: "object",
+        properties: {
+          postal_code: { type: "string", description: "CEP do cliente (somente números ou com hífen)" },
+        },
+        required: ["postal_code"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "save_customer_data",
+      description: "Salva os dados do cliente coletados durante a conversa no carrinho (nome, email, CPF, CEP, endereço). Usar após coletar os dados obrigatórios.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Nome completo do cliente" },
+          email: { type: "string", description: "Email do cliente" },
+          cpf: { type: "string", description: "CPF do cliente" },
+          phone: { type: "string", description: "Telefone do cliente" },
+          postal_code: { type: "string", description: "CEP do cliente" },
+          street: { type: "string", description: "Rua/logradouro" },
+          number: { type: "string", description: "Número" },
+          complement: { type: "string", description: "Complemento (opcional)" },
+          neighborhood: { type: "string", description: "Bairro" },
+          city: { type: "string", description: "Cidade" },
+          state: { type: "string", description: "Estado (UF)" },
+        },
+        required: ["name", "email", "cpf"],
         additionalProperties: false,
       },
     },
@@ -781,12 +849,27 @@ async function executeSalesTool(
           return JSON.stringify({ success: false, error: "Erro ao gerar link de checkout" });
         }
 
-        // Build the checkout URL with customer data
+        // Build the checkout URL with customer data from cart or conversation
+        const custData = (cart.customer_data as Record<string, string>) || {};
         const params = new URLSearchParams();
         params.set("link", slug);
-        if (customerName) params.set("name", customerName);
-        if (customerEmail) params.set("email", customerEmail);
-        if (customerPhone) params.set("phone", customerPhone);
+        // Customer identification
+        const cName = custData.name || customerName;
+        const cEmail = custData.email || customerEmail;
+        const cPhone = custData.phone || customerPhone;
+        const cCpf = custData.cpf;
+        if (cName) params.set("name", cName);
+        if (cEmail) params.set("email", cEmail);
+        if (cPhone) params.set("phone", cPhone);
+        if (cCpf) params.set("cpf", cCpf);
+        // Address data
+        if (custData.postal_code) params.set("cep", custData.postal_code);
+        if (custData.street) params.set("street", custData.street);
+        if (custData.number) params.set("number", custData.number);
+        if (custData.complement) params.set("complement", custData.complement);
+        if (custData.neighborhood) params.set("neighborhood", custData.neighborhood);
+        if (custData.city) params.set("city", custData.city);
+        if (custData.state) params.set("state", custData.state);
 
         const checkoutUrl = `${storeUrl}/checkout?${params.toString()}`;
 
@@ -811,7 +894,7 @@ async function executeSalesTool(
 
         let query = supabase
           .from("customers")
-          .select("id, full_name, email, phone, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
+          .select("id, full_name, email, phone, cpf, person_type, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
           .eq("tenant_id", tenantId);
 
         if (phone) query = query.or(`phone.eq.${phone}`);
@@ -821,17 +904,170 @@ async function executeSalesTool(
 
         if (!customer) return JSON.stringify({ found: false, message: "Cliente não encontrado no cadastro" });
 
+        // Fetch default address if available
+        let address = null;
+        const { data: addr } = await supabase
+          .from("customer_addresses")
+          .select("street, number, complement, neighborhood, city, state, postal_code")
+          .eq("customer_id", customer.id)
+          .eq("is_default", true)
+          .maybeSingle();
+        if (addr) address = addr;
+
+        // Auto-save customer data to active cart
+        const custDataForCart: Record<string, string> = {
+          name: customer.full_name,
+          email: customer.email,
+          phone: customer.phone || "",
+        };
+        if (customer.cpf) custDataForCart.cpf = customer.cpf;
+        if (address) {
+          custDataForCart.postal_code = address.postal_code;
+          custDataForCart.street = address.street;
+          custDataForCart.number = address.number;
+          if (address.complement) custDataForCart.complement = address.complement;
+          custDataForCart.neighborhood = address.neighborhood;
+          custDataForCart.city = address.city;
+          custDataForCart.state = address.state;
+        }
+
+        // Save to cart if active
+        await supabase
+          .from("whatsapp_carts")
+          .update({ customer_data: custDataForCart, customer_id: customer.id, updated_at: new Date().toISOString() })
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active");
+
         return JSON.stringify({
           found: true,
           id: customer.id,
           name: customer.full_name,
           email: customer.email,
           phone: customer.phone,
+          cpf: customer.cpf,
+          has_address: !!address,
+          address: address ? {
+            street: address.street,
+            number: address.number,
+            complement: address.complement,
+            neighborhood: address.neighborhood,
+            city: address.city,
+            state: address.state,
+            postal_code: address.postal_code,
+          } : null,
           total_orders: customer.total_orders,
           total_spent: customer.total_spent ? `R$ ${customer.total_spent.toFixed(2)}` : "R$ 0,00",
           tier: customer.loyalty_tier,
           tags: customer.tags,
         });
+      }
+
+      case "calculate_shipping": {
+        const postalCode = (args.postal_code as string || "").replace(/\D/g, "");
+        if (postalCode.length !== 8) {
+          return JSON.stringify({ success: false, error: "CEP inválido. Informe um CEP com 8 dígitos." });
+        }
+
+        // Get cart items to calculate shipping
+        const { data: shippingCart } = await supabase
+          .from("whatsapp_carts")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (!shippingCart || !(shippingCart.items as any[])?.length) {
+          return JSON.stringify({ success: false, error: "Carrinho vazio. Adicione produtos antes de calcular o frete." });
+        }
+
+        const cartItems = shippingCart.items as any[];
+        
+        // Get product details for weight/dimensions
+        const productIds = cartItems.map((i: any) => i.product_id);
+        const { data: shippingProducts } = await supabase
+          .from("products")
+          .select("id, name, weight, width, height, length")
+          .in("id", productIds)
+          .eq("tenant_id", tenantId);
+
+        // Build items for shipping quote
+        const shippingItems = cartItems.map((item: any) => {
+          const prod = shippingProducts?.find((p: any) => p.id === item.product_id);
+          return {
+            product_id: item.product_id,
+            quantity: item.quantity,
+            weight: prod?.weight || 300,
+            width: prod?.width || 11,
+            height: prod?.height || 2,
+            length: prod?.length || 16,
+          };
+        });
+
+        // Call shipping-quote edge function
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+        try {
+          const shippingResp = await fetch(`${supabaseUrl}/functions/v1/shipping-quote`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${serviceKey}`,
+              "apikey": serviceKey,
+              "x-tenant-id": tenantId,
+            },
+            body: JSON.stringify({
+              tenant_id: tenantId,
+              postal_code: postalCode,
+              items: shippingItems,
+            }),
+          });
+
+          if (!shippingResp.ok) {
+            const errText = await shippingResp.text();
+            console.error("[sales-tool] shipping quote error:", errText);
+            return JSON.stringify({ success: false, error: "Não foi possível calcular o frete. Tente novamente." });
+          }
+
+          const shippingData = await shippingResp.json();
+          const options = (shippingData.options || shippingData || []).map((opt: any) => ({
+            carrier: opt.carrier || opt.name || "Transportadora",
+            service: opt.service || opt.name || "",
+            price: opt.price != null ? `R$ ${Number(opt.price).toFixed(2)}` : "Grátis",
+            price_cents: opt.price != null ? Math.round(Number(opt.price) * 100) : 0,
+            delivery_days: opt.delivery_days || opt.days || opt.deadline || null,
+            is_free: opt.price === 0 || opt.price === "0" || opt.is_free,
+          }));
+
+          return JSON.stringify({ success: true, options, postal_code: postalCode });
+        } catch (shippingErr) {
+          console.error("[sales-tool] shipping calc error:", shippingErr);
+          return JSON.stringify({ success: false, error: "Erro ao calcular frete. Tente novamente." });
+        }
+      }
+
+      case "save_customer_data": {
+        const custSaveData: Record<string, string> = {};
+        const fields = ["name", "email", "cpf", "phone", "postal_code", "street", "number", "complement", "neighborhood", "city", "state"];
+        for (const f of fields) {
+          if (args[f]) custSaveData[f] = args[f] as string;
+        }
+
+        const { error: saveErr } = await supabase
+          .from("whatsapp_carts")
+          .update({ customer_data: custSaveData, updated_at: new Date().toISOString() })
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active");
+
+        if (saveErr) {
+          console.error("[sales-tool] save customer data error:", saveErr);
+          return JSON.stringify({ success: false, error: "Erro ao salvar dados do cliente." });
+        }
+
+        return JSON.stringify({ success: true, message: "Dados do cliente salvos com sucesso.", saved_fields: Object.keys(custSaveData) });
       }
 
       default:
