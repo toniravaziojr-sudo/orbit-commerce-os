@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getCredential } from "../_shared/platform-credentials.ts";
 
 const VERSION = "4.0.0"; // + AI Memory (long-term + conversation summaries)
 
@@ -270,7 +271,9 @@ async function extractDocumentText(attachment: Attachment): Promise<string> {
 }
 
 async function transcribeAudio(attachment: Attachment): Promise<string> {
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const OPENAI_API_KEY = await getCredential(supabaseUrl, supabaseServiceKey, "OPENAI_API_KEY");
   if (!OPENAI_API_KEY) {
     console.warn("OPENAI_API_KEY not configured, skipping audio transcription");
     return "[Áudio anexado - transcrição não disponível]";
@@ -490,7 +493,9 @@ Diretrizes:
 }
 
 async function handleThinkingMode(messages: any[], memoryContext?: string) {
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  const supabaseUrl2 = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey2 = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const OPENAI_API_KEY = await getCredential(supabaseUrl2, supabaseServiceKey2, "OPENAI_API_KEY");
   if (!OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
