@@ -4,8 +4,23 @@
 
 > **Camada:** Layer 3 — Especificações / Storefront  
 > **Migrado de:** `docs/regras/builder.md`  
-> **Última atualização:** 2026-04-04
+> **Última atualização:** 2026-04-16
 
+---
+
+## 📌 Consolidação de Vitrines (v1.4.0+) — Padrão Atual
+
+A vitrine de produtos e categorias foi **consolidada em dois blocos orquestradores oficiais**:
+
+| Bloco oficial | Substitui (legados) | Variantes |
+|---------------|---------------------|-----------|
+| **`ProductShowcase`** | `ProductGrid`, `ProductCarousel`, `FeaturedProducts`, `CollectionSection` | `source`: `featured`, `newest`, `all`, `category`, `manual` × `layout`: `grid`, `carousel` |
+| **`CategoryShowcase`** | `CategoryList`, `FeaturedCategories` | `style`: `cards`, `circles` |
+
+**Regra:**
+- Novos templates, presets e geração por IA devem usar **apenas** `ProductShowcase` e `CategoryShowcase`.
+- Os tipos legados continuam renderizando via aliases internos no `BlockRenderer.tsx` e nos compilers Edge — isso garante compatibilidade retroativa para templates já salvos no banco e não pode ser removido sem migração de dados.
+- As menções a blocos legados nas seções históricas deste documento permanecem como registro de versões anteriores.
 
 ---
 

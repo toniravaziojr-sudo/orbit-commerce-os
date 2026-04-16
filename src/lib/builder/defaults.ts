@@ -139,6 +139,11 @@ function getCleanDefaultProps(blockType: string): Record<string, unknown> {
   const props: Record<string, Record<string, unknown>> = {
     ProductDetails: { showGallery: true, showDescription: true, showVariants: true, showStock: true },
     CategoryBanner: { showTitle: true, titlePosition: 'center', overlayOpacity: 0, height: 'md' },
+    // Unified showcase blocks (replace legacy ProductGrid/ProductCarousel/FeaturedProducts/CollectionSection
+    // and CategoryList/FeaturedCategories — legacy types still render via aliases for backward compat)
+    ProductShowcase: { source: 'featured', layout: 'grid', title: '', columns: 4, limit: 8, showPrice: true },
+    CategoryShowcase: { style: 'cards', title: '', limit: 6, columns: 6, showImage: true, showName: true },
+    // Legacy alias kept for backward compatibility (any old contracts referencing ProductGrid)
     ProductGrid: { title: '', source: 'category', columns: 4, limit: 24, showPrice: true },
     CategoryPageLayout: { showFilters: true, columns: 4, limit: 24 },
     Cart: {},
@@ -259,11 +264,12 @@ export const defaultHomeTemplate: BlockNode = {
       },
       children: [
         {
-          id: generateBlockId('ProductGrid'),
-          type: 'ProductGrid',
+          id: generateBlockId('ProductShowcase'),
+          type: 'ProductShowcase',
           props: {
-            title: 'Produtos em Destaque',
             source: 'featured',
+            layout: 'grid',
+            title: 'Produtos em Destaque',
             columns: 4,
             limit: 8,
             showPrice: true,

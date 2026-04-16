@@ -65,11 +65,13 @@ const standardHomeTemplate: BlockNode = {
             showName: true,
           },
         },
-        // 3. Produtos em Destaque
+        // 3. Produtos em Destaque (unified ProductShowcase com source=manual)
         {
-          id: generateBlockId('FeaturedProducts'),
-          type: 'FeaturedProducts',
+          id: generateBlockId('ProductShowcase'),
+          type: 'ProductShowcase',
           props: {
+            source: 'manual',
+            layout: 'grid',
             title: 'Promoção da semana',
             productIds: [], // Usuário seleciona
             columns: 4,

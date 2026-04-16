@@ -430,19 +430,23 @@ O hook `usePreviewTemplate` é responsável por carregar o conteúdo do rascunho
 
 ### E-commerce
 
-| Bloco | Arquivo | Descrição |
-|-------|---------|-----------|
-| `ProductGrid` | `ProductGridBlock.tsx` | Grid de produtos |
-| `ProductCarousel` | `ProductCarouselBlock.tsx` | Carrossel de produtos |
-| `FeaturedProducts` | `FeaturedProductsBlock.tsx` | Produtos em destaque |
-| `CategoryList` | `CategoryListBlock.tsx` | Lista de categorias |
-| `FeaturedCategories` | `FeaturedCategoriesBlock.tsx` | Categorias em destaque |
-| `BannerProducts` | `BannerProductsBlock.tsx` | Banner + produtos |
-| `CollectionSection` | `CollectionSectionBlock.tsx` | Coleção de produtos |
-| `CategoryPageLayout` | `CategoryPageLayout.tsx` | Layout de categoria |
-| `CategoryBanner` | `CategoryBannerBlock.tsx` | Banner de categoria |
-| `Reviews` | `ReviewsBlock.tsx` | Avaliações |
-| `TrackingLookup` | `TrackingLookupBlock.tsx` | Busca de rastreio |
+> **Padrão atual (v1.4.0+):** Vitrine de produtos e categorias consolidada em **dois blocos orquestradores oficiais**: `ProductShowcase` e `CategoryShowcase`. Os blocos legados continuam funcionando via aliases internos (compat retroativo) e não devem ser inseridos em novos templates.
+
+| Bloco | Arquivo | Descrição | Status |
+|-------|---------|-----------|--------|
+| `ProductShowcase` | `product-showcase/ProductShowcaseBlock.tsx` | **Vitrine de Produtos unificada** — orquestra grid/carousel/coleção via props `source` (featured/newest/all/category/manual) + `layout` (grid/carousel) | ✅ Oficial |
+| `CategoryShowcase` | `category-showcase/CategoryShowcaseBlock.tsx` | **Vitrine de Categorias unificada** — orquestra cards/círculos via prop `style` (cards/circles) | ✅ Oficial |
+| `ProductGrid` | `ProductGridBlock.tsx` | Grid de produtos | 🟡 Alias → ProductShowcase |
+| `ProductCarousel` | `ProductCarouselBlock.tsx` | Carrossel de produtos | 🟡 Alias → ProductShowcase |
+| `FeaturedProducts` | `FeaturedProductsBlock.tsx` | Produtos em destaque | 🟡 Alias → ProductShowcase |
+| `CollectionSection` | `CollectionSectionBlock.tsx` | Coleção de produtos | 🟡 Alias → ProductShowcase |
+| `CategoryList` | `CategoryListBlock.tsx` | Lista de categorias | 🟡 Alias → CategoryShowcase |
+| `FeaturedCategories` | `FeaturedCategoriesBlock.tsx` | Categorias em destaque | 🟡 Alias → CategoryShowcase |
+| `BannerProducts` | `BannerProductsBlock.tsx` | Banner + produtos | ✅ |
+| `CategoryPageLayout` | `CategoryPageLayout.tsx` | Layout de categoria | ✅ |
+| `CategoryBanner` | `CategoryBannerBlock.tsx` | Banner de categoria | ✅ |
+| `Reviews` | `ReviewsBlock.tsx` | Avaliações | ✅ |
+| `TrackingLookup` | `TrackingLookupBlock.tsx` | Busca de rastreio | ✅ |
 
 ### Interativos
 
