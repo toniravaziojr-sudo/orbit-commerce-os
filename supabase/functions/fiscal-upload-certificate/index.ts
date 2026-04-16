@@ -9,6 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 // deno-lint-ignore-file no-explicit-any
 import forge from "https://esm.sh/node-forge@1.3.1?bundle";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -72,6 +73,8 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  await loadPlatformCredentials();
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

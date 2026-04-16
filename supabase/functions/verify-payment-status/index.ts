@@ -7,6 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -14,7 +15,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
+let ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
 
 // Max orders to process per invocation
 const BATCH_SIZE = 20;
@@ -138,6 +139,10 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  await loadPlatformCredentials();
+
+  // __reload_after_platform_credentials__
+  ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const now = new Date();

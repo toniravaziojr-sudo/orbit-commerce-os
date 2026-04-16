@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION =====
 const VERSION = "v1.1.1"; // Fix: multi-key schema without is_raw, paginated member fetch, correct ad account selection
 // ===================
@@ -60,6 +61,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  await loadPlatformCredentials();
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

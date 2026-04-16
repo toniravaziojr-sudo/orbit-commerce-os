@@ -5,13 +5,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
 
-const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+let GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -29,6 +30,10 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  await loadPlatformCredentials();
+
+  // __reload_after_platform_credentials__
+  GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
   try {
     // Validate configuration
     if (!GOOGLE_CLIENT_ID || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {

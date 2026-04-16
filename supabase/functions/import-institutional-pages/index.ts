@@ -12,13 +12,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+// Note: read inside handler so platform_credentials sync (loadPlatformCredentials) takes effect.
+let FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
 
 // =====================================================
 // TYPES
@@ -727,6 +729,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  await loadPlatformCredentials();
+
+  // __reload_after_platform_credentials__
+  FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
   try {
     const { tenantId, storeUrl } = await req.json();
 

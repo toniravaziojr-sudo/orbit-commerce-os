@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Fase 4: TikTok Content OAuth start
 // ===========================================================
@@ -34,6 +35,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  await loadPlatformCredentials();
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

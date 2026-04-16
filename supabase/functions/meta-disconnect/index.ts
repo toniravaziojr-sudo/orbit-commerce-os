@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const VERSION = "v3.1.0";
 
 const corsHeaders = {
@@ -18,6 +19,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  await loadPlatformCredentials();
 
   const traceId = crypto.randomUUID().substring(0, 8);
   console.log(`[meta-disconnect][${VERSION}][${traceId}] Request received`);

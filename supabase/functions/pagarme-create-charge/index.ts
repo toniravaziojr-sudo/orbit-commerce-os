@@ -9,6 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -17,9 +18,9 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-// Fallback to environment secrets
-const ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
-const ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
+// Fallback to environment secrets (read lazily inside handler so platform_credentials sync applies)
+let ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
+let ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
 
 interface ChargeRequest {
   checkout_id?: string;
@@ -116,6 +117,11 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  await loadPlatformCredentials();
+
+  // __reload_after_platform_credentials__
+  ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
+  ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
   try {
     const payload: ChargeRequest = await req.json();
     console.log('Creating charge:', { 

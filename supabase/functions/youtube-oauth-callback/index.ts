@@ -7,12 +7,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION =====
 const VERSION = "v2.0.0"; // Phase 2: dual-write to google_connections
 // ===================
 
-const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
-const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
+let GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+let GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -69,6 +70,11 @@ function parseGoogleError(error: string, errorDescription?: string): { code: str
 }
 
 Deno.serve(async (req) => {
+  await loadPlatformCredentials();
+
+  // __reload_after_platform_credentials__
+  GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+  GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
   try {
     console.log(`[youtube-oauth-callback][${VERSION}] Request received`);
 

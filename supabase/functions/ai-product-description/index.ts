@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v2.5.0"; // Fix: alinhar SYSTEM_PROMPT_FULL e SYSTEM_PROMPT_KIT com padrão <h2> + <br>
 // ===========================================================
@@ -261,6 +262,8 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  await loadPlatformCredentials();
 
   try {
     resetAIRouterCache();

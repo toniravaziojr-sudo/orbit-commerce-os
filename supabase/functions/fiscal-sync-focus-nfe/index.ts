@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { syncEmpresa, getEmpresa, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { buildEmpresaPayload } from "../_shared/focus-nfe-adapter.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -13,6 +14,8 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  await loadPlatformCredentials();
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

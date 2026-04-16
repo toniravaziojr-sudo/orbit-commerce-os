@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // deno-lint-ignore-file no-explicit-any
 const { Webhook } = await import("https://cdn.jsdelivr.net/npm/standardwebhooks@1.0.0/+esm") as any;
 
@@ -50,6 +51,8 @@ serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  await loadPlatformCredentials();
 
   try {
     const hookSecret = Deno.env.get("AUTH_EMAIL_HOOK_SECRET");

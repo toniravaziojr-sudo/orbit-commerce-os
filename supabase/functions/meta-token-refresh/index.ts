@@ -3,6 +3,7 @@ import { getCredential } from "../_shared/platform-credentials.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v3.0.0"; // Lote B: Legacy marketplace_connections removed
 // ===========================================================
@@ -26,6 +27,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  await loadPlatformCredentials();
 
   try {
     console.log(`[meta-token-refresh][${VERSION}] Request received`);
