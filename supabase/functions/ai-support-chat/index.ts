@@ -849,12 +849,27 @@ async function executeSalesTool(
           return JSON.stringify({ success: false, error: "Erro ao gerar link de checkout" });
         }
 
-        // Build the checkout URL with customer data
+        // Build the checkout URL with customer data from cart or conversation
+        const custData = (cart.customer_data as Record<string, string>) || {};
         const params = new URLSearchParams();
         params.set("link", slug);
-        if (customerName) params.set("name", customerName);
-        if (customerEmail) params.set("email", customerEmail);
-        if (customerPhone) params.set("phone", customerPhone);
+        // Customer identification
+        const cName = custData.name || customerName;
+        const cEmail = custData.email || customerEmail;
+        const cPhone = custData.phone || customerPhone;
+        const cCpf = custData.cpf;
+        if (cName) params.set("name", cName);
+        if (cEmail) params.set("email", cEmail);
+        if (cPhone) params.set("phone", cPhone);
+        if (cCpf) params.set("cpf", cCpf);
+        // Address data
+        if (custData.postal_code) params.set("cep", custData.postal_code);
+        if (custData.street) params.set("street", custData.street);
+        if (custData.number) params.set("number", custData.number);
+        if (custData.complement) params.set("complement", custData.complement);
+        if (custData.neighborhood) params.set("neighborhood", custData.neighborhood);
+        if (custData.city) params.set("city", custData.city);
+        if (custData.state) params.set("state", custData.state);
 
         const checkoutUrl = `${storeUrl}/checkout?${params.toString()}`;
 
@@ -879,7 +894,7 @@ async function executeSalesTool(
 
         let query = supabase
           .from("customers")
-          .select("id, full_name, email, phone, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
+          .select("id, full_name, email, phone, cpf, person_type, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
           .eq("tenant_id", tenantId);
 
         if (phone) query = query.or(`phone.eq.${phone}`);
@@ -889,17 +904,170 @@ async function executeSalesTool(
 
         if (!customer) return JSON.stringify({ found: false, message: "Cliente não encontrado no cadastro" });
 
+        // Fetch default address if available
+        let address = null;
+        const { data: addr } = await supabase
+          .from("customer_addresses")
+          .select("street, number, complement, neighborhood, city, state, postal_code")
+          .eq("customer_id", customer.id)
+          .eq("is_default", true)
+          .maybeSingle();
+        if (addr) address = addr;
+
+        // Auto-save customer data to active cart
+        const custDataForCart: Record<string, string> = {
+          name: customer.full_name,
+          email: customer.email,
+          phone: customer.phone || "",
+        };
+        if (customer.cpf) custDataForCart.cpf = customer.cpf;
+        if (address) {
+          custDataForCart.postal_code = address.postal_code;
+          custDataForCart.street = address.street;
+          custDataForCart.number = address.number;
+          if (address.complement) custDataForCart.complement = address.complement;
+          custDataForCart.neighborhood = address.neighborhood;
+          custDataForCart.city = address.city;
+          custDataForCart.state = address.state;
+        }
+
+        // Save to cart if active
+        await supabase
+          .from("whatsapp_carts")
+          .update({ customer_data: custDataForCart, customer_id: customer.id, updated_at: new Date().toISOString() })
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active");
+
         return JSON.stringify({
           found: true,
           id: customer.id,
           name: customer.full_name,
           email: customer.email,
           phone: customer.phone,
+          cpf: customer.cpf,
+          has_address: !!address,
+          address: address ? {
+            street: address.street,
+            number: address.number,
+            complement: address.complement,
+            neighborhood: address.neighborhood,
+            city: address.city,
+            state: address.state,
+            postal_code: address.postal_code,
+          } : null,
           total_orders: customer.total_orders,
           total_spent: customer.total_spent ? `R$ ${customer.total_spent.toFixed(2)}` : "R$ 0,00",
           tier: customer.loyalty_tier,
           tags: customer.tags,
         });
+      }
+
+      case "calculate_shipping": {
+        const postalCode = (args.postal_code as string || "").replace(/\D/g, "");
+        if (postalCode.length !== 8) {
+          return JSON.stringify({ success: false, error: "CEP inválido. Informe um CEP com 8 dígitos." });
+        }
+
+        // Get cart items to calculate shipping
+        const { data: shippingCart } = await supabase
+          .from("whatsapp_carts")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (!shippingCart || !(shippingCart.items as any[])?.length) {
+          return JSON.stringify({ success: false, error: "Carrinho vazio. Adicione produtos antes de calcular o frete." });
+        }
+
+        const cartItems = shippingCart.items as any[];
+        
+        // Get product details for weight/dimensions
+        const productIds = cartItems.map((i: any) => i.product_id);
+        const { data: shippingProducts } = await supabase
+          .from("products")
+          .select("id, name, weight, width, height, length")
+          .in("id", productIds)
+          .eq("tenant_id", tenantId);
+
+        // Build items for shipping quote
+        const shippingItems = cartItems.map((item: any) => {
+          const prod = shippingProducts?.find((p: any) => p.id === item.product_id);
+          return {
+            product_id: item.product_id,
+            quantity: item.quantity,
+            weight: prod?.weight || 300,
+            width: prod?.width || 11,
+            height: prod?.height || 2,
+            length: prod?.length || 16,
+          };
+        });
+
+        // Call shipping-quote edge function
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+        try {
+          const shippingResp = await fetch(`${supabaseUrl}/functions/v1/shipping-quote`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${serviceKey}`,
+              "apikey": serviceKey,
+              "x-tenant-id": tenantId,
+            },
+            body: JSON.stringify({
+              tenant_id: tenantId,
+              postal_code: postalCode,
+              items: shippingItems,
+            }),
+          });
+
+          if (!shippingResp.ok) {
+            const errText = await shippingResp.text();
+            console.error("[sales-tool] shipping quote error:", errText);
+            return JSON.stringify({ success: false, error: "Não foi possível calcular o frete. Tente novamente." });
+          }
+
+          const shippingData = await shippingResp.json();
+          const options = (shippingData.options || shippingData || []).map((opt: any) => ({
+            carrier: opt.carrier || opt.name || "Transportadora",
+            service: opt.service || opt.name || "",
+            price: opt.price != null ? `R$ ${Number(opt.price).toFixed(2)}` : "Grátis",
+            price_cents: opt.price != null ? Math.round(Number(opt.price) * 100) : 0,
+            delivery_days: opt.delivery_days || opt.days || opt.deadline || null,
+            is_free: opt.price === 0 || opt.price === "0" || opt.is_free,
+          }));
+
+          return JSON.stringify({ success: true, options, postal_code: postalCode });
+        } catch (shippingErr) {
+          console.error("[sales-tool] shipping calc error:", shippingErr);
+          return JSON.stringify({ success: false, error: "Erro ao calcular frete. Tente novamente." });
+        }
+      }
+
+      case "save_customer_data": {
+        const custSaveData: Record<string, string> = {};
+        const fields = ["name", "email", "cpf", "phone", "postal_code", "street", "number", "complement", "neighborhood", "city", "state"];
+        for (const f of fields) {
+          if (args[f]) custSaveData[f] = args[f] as string;
+        }
+
+        const { error: saveErr } = await supabase
+          .from("whatsapp_carts")
+          .update({ customer_data: custSaveData, updated_at: new Date().toISOString() })
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active");
+
+        if (saveErr) {
+          console.error("[sales-tool] save customer data error:", saveErr);
+          return JSON.stringify({ success: false, error: "Erro ao salvar dados do cliente." });
+        }
+
+        return JSON.stringify({ success: true, message: "Dados do cliente salvos com sucesso.", saved_fields: Object.keys(custSaveData) });
       }
 
       default:
