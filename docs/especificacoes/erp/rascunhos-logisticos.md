@@ -192,6 +192,22 @@ Na aba "Remessas emitidas", checkboxes permitem selecionar múltiplas remessas e
 
 ---
 
+## Filtros da Tela Rastreios
+
+A tela `/shipments` (Rastreios) oferece filtros que cobrem TODAS as variações reais de `shipments.carrier` no banco:
+
+| Opção | Casamento (case-insensitive) |
+|-------|------------------------------|
+| **Correios (PAC/Sedex)** | `carrier ILIKE 'correios'` OU `'pac'` OU `'sedex'` |
+| **Loggi** | `carrier ILIKE 'loggi'` |
+| **Frenet** | `carrier ILIKE 'frenet'` |
+| **Sem integração (fallback)** | `carrier ILIKE '%fallback%'` |
+| **Sem transportadora** | `carrier IS NULL` |
+
+> **Importante:** PAC e Sedex são *serviços* dos Correios, não transportadoras separadas. O filtro Correios cobre as três rotulagens. Pedidos com frete fallback (quando a cotação dinâmica falha no checkout) ficam visíveis no filtro dedicado, evitando que sumam da tela.
+
+---
+
 ## Correções Aplicadas
 
 | Data | Versão | Correção |
@@ -200,6 +216,7 @@ Na aba "Remessas emitidas", checkboxes permitem selecionar múltiplas remessas e
 | 2026-04-06 | v2.3.2 | Coluna de profundidade corrigida de `length` para `depth` |
 | 2026-04-06 | v2.3.3 | Campo `products.weight` padronizado para gramas (g) |
 | 2026-04-06 | v2.4.0 | Fluxo integrado NF-e → Remessa → Despacho. Helper nfe-shipment-link.ts. NF-e obrigatória. Status dispatched. UI de impressão e despacho. |
+| 2026-04-14 | v2.4.1 | Filtros de Rastreios cobrindo PAC/Sedex como Correios, fallback dedicado e "Sem transportadora". Normalização case-insensitive. |
 
 ---
 
