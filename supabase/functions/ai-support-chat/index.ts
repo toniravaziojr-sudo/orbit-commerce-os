@@ -328,7 +328,7 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "generate_checkout_link",
-      description: "Gera um link de checkout pré-preenchido com os itens do carrinho, cupom e dados do cliente.",
+      description: "Gera um link de checkout pré-preenchido com os itens do carrinho, cupom e dados do cliente. Chamar APENAS após coletar dados do cliente e obter confirmação.",
       parameters: {
         type: "object",
         properties: {},
@@ -340,13 +340,53 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "lookup_customer",
-      description: "Consulta o cadastro do cliente na loja para obter dados e histórico.",
+      description: "Consulta o cadastro do cliente na loja para obter dados pessoais (nome, CPF, endereço), histórico de compras e informações de fidelidade.",
       parameters: {
         type: "object",
         properties: {
           phone: { type: "string", description: "Telefone do cliente (opcional)" },
           email: { type: "string", description: "Email do cliente (opcional)" },
         },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "calculate_shipping",
+      description: "Calcula o frete para o CEP do cliente com base nos produtos do carrinho. Retorna opções de frete com preço e prazo.",
+      parameters: {
+        type: "object",
+        properties: {
+          postal_code: { type: "string", description: "CEP do cliente (somente números ou com hífen)" },
+        },
+        required: ["postal_code"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "save_customer_data",
+      description: "Salva os dados do cliente coletados durante a conversa no carrinho (nome, email, CPF, CEP, endereço). Usar após coletar os dados obrigatórios.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Nome completo do cliente" },
+          email: { type: "string", description: "Email do cliente" },
+          cpf: { type: "string", description: "CPF do cliente" },
+          phone: { type: "string", description: "Telefone do cliente" },
+          postal_code: { type: "string", description: "CEP do cliente" },
+          street: { type: "string", description: "Rua/logradouro" },
+          number: { type: "string", description: "Número" },
+          complement: { type: "string", description: "Complemento (opcional)" },
+          neighborhood: { type: "string", description: "Bairro" },
+          city: { type: "string", description: "Cidade" },
+          state: { type: "string", description: "Estado (UF)" },
+        },
+        required: ["name", "email", "cpf"],
         additionalProperties: false,
       },
     },
