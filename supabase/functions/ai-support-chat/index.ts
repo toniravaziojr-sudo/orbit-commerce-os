@@ -145,7 +145,9 @@ FLUXO DE VENDA (siga esta ordem):
 6. **COLETA DE DADOS DO CLIENTE (OBRIGATÓRIO antes de gerar o link):**
    - Pergunte se o cliente já comprou antes na loja
    - Se SIM: peça o email e use lookup_customer para buscar o cadastro
-     - Se encontrar: confirme o nome e use os dados (CPF, endereço) já cadastrados
+     - Se encontrar: confirme o nome e VERIFIQUE se há campos faltantes (missing_fields)
+       - Se houver campos faltantes (ex: CPF, endereço, CEP): solicite ao cliente apenas os dados que faltam
+       - Após receber os dados faltantes, use update_customer_record para atualizar o cadastro do cliente
      - Se não encontrar: informe que não encontrou e peça os dados necessários
    - Se NÃO ou se não encontrou o cadastro: solicite os dados obrigatórios:
      - Nome completo
@@ -154,6 +156,7 @@ FLUXO DE VENDA (siga esta ordem):
      - CEP (para calcular o frete)
    - Após receber o CEP, use calculate_shipping para informar o valor do frete
    - Use save_customer_data para salvar os dados coletados no carrinho
+   - IMPORTANTE: Sempre que atualizar dados do cliente que já existe no cadastro, use update_customer_record para manter o cadastro completo e atualizado
 
 7. **FRETE:**
    - Use calculate_shipping com o CEP do cliente e os produtos do carrinho
@@ -387,6 +390,31 @@ const SALES_TOOLS = [
           state: { type: "string", description: "Estado (UF)" },
         },
         required: ["name", "email", "cpf"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_customer_record",
+      description: "Atualiza o cadastro de um cliente existente com dados faltantes (CPF, endereço, etc.). Usar quando o cliente já existe mas tem cadastro incompleto.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_id: { type: "string", description: "ID do cliente retornado por lookup_customer" },
+          full_name: { type: "string", description: "Nome completo (atualizar se necessário)" },
+          cpf: { type: "string", description: "CPF do cliente" },
+          phone: { type: "string", description: "Telefone do cliente" },
+          postal_code: { type: "string", description: "CEP" },
+          street: { type: "string", description: "Rua/logradouro" },
+          number: { type: "string", description: "Número" },
+          complement: { type: "string", description: "Complemento (opcional)" },
+          neighborhood: { type: "string", description: "Bairro" },
+          city: { type: "string", description: "Cidade" },
+          state: { type: "string", description: "Estado (UF)" },
+        },
+        required: ["customer_id"],
         additionalProperties: false,
       },
     },
@@ -939,6 +967,21 @@ async function executeSalesTool(
           .eq("tenant_id", tenantId)
           .eq("status", "active");
 
+        // Detect missing fields for incomplete profiles
+        const missingFields: string[] = [];
+        if (!customer.cpf) missingFields.push("cpf");
+        if (!customer.phone) missingFields.push("phone");
+        if (!address) {
+          missingFields.push("postal_code", "street", "number", "neighborhood", "city", "state");
+        } else {
+          if (!address.postal_code) missingFields.push("postal_code");
+          if (!address.street) missingFields.push("street");
+          if (!address.number) missingFields.push("number");
+          if (!address.neighborhood) missingFields.push("neighborhood");
+          if (!address.city) missingFields.push("city");
+          if (!address.state) missingFields.push("state");
+        }
+
         return JSON.stringify({
           found: true,
           id: customer.id,
@@ -960,6 +1003,8 @@ async function executeSalesTool(
           total_spent: customer.total_spent ? `R$ ${customer.total_spent.toFixed(2)}` : "R$ 0,00",
           tier: customer.loyalty_tier,
           tags: customer.tags,
+          missing_fields: missingFields.length > 0 ? missingFields : null,
+          profile_complete: missingFields.length === 0,
         });
       }
 
@@ -1068,6 +1113,99 @@ async function executeSalesTool(
         }
 
         return JSON.stringify({ success: true, message: "Dados do cliente salvos com sucesso.", saved_fields: Object.keys(custSaveData) });
+      }
+
+      case "update_customer_record": {
+        const customerId = args.customer_id as string;
+        if (!customerId) return JSON.stringify({ success: false, error: "customer_id é obrigatório" });
+
+        // Update customer table fields
+        const customerUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (args.full_name) customerUpdate.full_name = args.full_name;
+        if (args.cpf) customerUpdate.cpf = args.cpf;
+        if (args.phone) customerUpdate.phone = args.phone;
+
+        const { error: custErr } = await supabase
+          .from("customers")
+          .update(customerUpdate)
+          .eq("id", customerId)
+          .eq("tenant_id", tenantId);
+
+        if (custErr) {
+          console.error("[sales-tool] update customer error:", custErr);
+          return JSON.stringify({ success: false, error: "Erro ao atualizar cadastro do cliente." });
+        }
+
+        // Update or create address if address fields provided
+        const hasAddr = args.postal_code || args.street || args.number;
+        if (hasAddr) {
+          const addrData: Record<string, unknown> = {
+            customer_id: customerId,
+            tenant_id: tenantId,
+            is_default: true,
+            updated_at: new Date().toISOString(),
+          };
+          if (args.postal_code) addrData.postal_code = (args.postal_code as string).replace(/\D/g, "");
+          if (args.street) addrData.street = args.street;
+          if (args.number) addrData.number = args.number;
+          if (args.complement) addrData.complement = args.complement;
+          if (args.neighborhood) addrData.neighborhood = args.neighborhood;
+          if (args.city) addrData.city = args.city;
+          if (args.state) addrData.state = args.state;
+
+          // Check if default address exists
+          const { data: existingAddr } = await supabase
+            .from("customer_addresses")
+            .select("id")
+            .eq("customer_id", customerId)
+            .eq("is_default", true)
+            .maybeSingle();
+
+          if (existingAddr) {
+            await supabase.from("customer_addresses").update(addrData).eq("id", existingAddr.id);
+          } else {
+            addrData.created_at = new Date().toISOString();
+            await supabase.from("customer_addresses").insert(addrData);
+          }
+        }
+
+        // Also update cart customer_data
+        const cartUpdate: Record<string, string> = {};
+        if (args.full_name) cartUpdate.name = args.full_name as string;
+        if (args.cpf) cartUpdate.cpf = args.cpf as string;
+        if (args.phone) cartUpdate.phone = args.phone as string;
+        if (args.postal_code) cartUpdate.postal_code = args.postal_code as string;
+        if (args.street) cartUpdate.street = args.street as string;
+        if (args.number) cartUpdate.number = args.number as string;
+        if (args.complement) cartUpdate.complement = args.complement as string;
+        if (args.neighborhood) cartUpdate.neighborhood = args.neighborhood as string;
+        if (args.city) cartUpdate.city = args.city as string;
+        if (args.state) cartUpdate.state = args.state as string;
+
+        if (Object.keys(cartUpdate).length > 0) {
+          // Merge with existing cart customer_data
+          const { data: activeCart } = await supabase
+            .from("whatsapp_carts")
+            .select("customer_data")
+            .eq("conversation_id", conversationId)
+            .eq("tenant_id", tenantId)
+            .eq("status", "active")
+            .maybeSingle();
+
+          const merged = { ...(activeCart?.customer_data as Record<string, string> || {}), ...cartUpdate };
+          await supabase
+            .from("whatsapp_carts")
+            .update({ customer_data: merged, updated_at: new Date().toISOString() })
+            .eq("conversation_id", conversationId)
+            .eq("tenant_id", tenantId)
+            .eq("status", "active");
+        }
+
+        return JSON.stringify({
+          success: true,
+          message: "Cadastro do cliente atualizado com sucesso.",
+          updated_fields: [...Object.keys(customerUpdate).filter(k => k !== "updated_at"), ...(hasAddr ? ["address"] : [])],
+        });
       }
 
       default:
