@@ -967,6 +967,21 @@ async function executeSalesTool(
           .eq("tenant_id", tenantId)
           .eq("status", "active");
 
+        // Detect missing fields for incomplete profiles
+        const missingFields: string[] = [];
+        if (!customer.cpf) missingFields.push("cpf");
+        if (!customer.phone) missingFields.push("phone");
+        if (!address) {
+          missingFields.push("postal_code", "street", "number", "neighborhood", "city", "state");
+        } else {
+          if (!address.postal_code) missingFields.push("postal_code");
+          if (!address.street) missingFields.push("street");
+          if (!address.number) missingFields.push("number");
+          if (!address.neighborhood) missingFields.push("neighborhood");
+          if (!address.city) missingFields.push("city");
+          if (!address.state) missingFields.push("state");
+        }
+
         return JSON.stringify({
           found: true,
           id: customer.id,
@@ -988,6 +1003,8 @@ async function executeSalesTool(
           total_spent: customer.total_spent ? `R$ ${customer.total_spent.toFixed(2)}` : "R$ 0,00",
           tier: customer.loyalty_tier,
           tags: customer.tags,
+          missing_fields: missingFields.length > 0 ? missingFields : null,
+          profile_complete: missingFields.length === 0,
         });
       }
 
