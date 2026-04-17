@@ -29,8 +29,9 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 ### Arquivos
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/Fiscal.tsx` | Dashboard fiscal (abas: Pedidos em Aberto, Notas Fiscais). Botão "Configurações" navega para `/fiscal/configuracoes` |
-| `src/pages/FiscalSettings.tsx` | **Página dedicada** de Configurações Fiscais (rev 2026-04-17) — 3 abas: Configurações Fiscais (emitente), Natureza Jurídica, Outros. Botão "Voltar" retorna para `/fiscal?tab=pedidos`. Substitui o antigo modal/dialog. |
+| `src/pages/Fiscal.tsx` | Dashboard fiscal (abas: Pedidos em Aberto, Notas Fiscais). Botão "Configurações" navega para `/fiscal/configuracoes?from=fiscal` |
+| `src/pages/FiscalSettings.tsx` | **Página dedicada** de Configurações Fiscais — 3 abas: Configurações Fiscais (emitente), Natureza Jurídica, Outros. Botão "Voltar" contextual via `?from=`. Acessada pelo módulo Fiscal. |
+| `src/pages/SystemSettings.tsx` | **Casa oficial** das configurações (rev 2026-04-17c) — abas Pagamentos e Fiscal. A aba Fiscal renderiza os mesmos componentes (`EmitenteSettings`, `OperationNaturesContent`, `OutrosSettings`) embutidos, sem redirecionamento. URL: `/system/settings?tab=fiscal&aba=<emitente\|natureza\|outros>`. |
 | `src/components/fiscal/settings/EmitenteSettings.tsx` | Aba Emitente — dados da empresa, endereço, regime tributário, certificado A1 |
 | `src/components/fiscal/settings/OperationNaturesContent.tsx` | Aba Natureza Jurídica — gestão das naturezas de operação |
 | `src/components/fiscal/settings/OutrosSettings.tsx` | Aba Outros — inutilização de numeração, automações de emissão/remessa/e-mail, desmembramento de kits |

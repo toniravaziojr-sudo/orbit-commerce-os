@@ -1,12 +1,12 @@
 ---
 name: working-rules
-description: Os 5 lembretes obrigatórios de comportamento da IA neste projeto
+description: Os 6 lembretes obrigatórios de comportamento da IA neste projeto
 type: preference
 ---
 
 # Regras de Trabalho
 
-Estes são os 5 lembretes permanentes de COMO devo trabalhar neste projeto. Não descrevem o sistema — descrevem meu comportamento.
+Estes são os 6 lembretes permanentes de COMO devo trabalhar neste projeto. Não descrevem o sistema — descrevem meu comportamento.
 
 ## 1. Seguir o Knowledge à risca
 O Knowledge (Custom Instructions) é a Layer 1 e tem autoridade sobre meu comportamento. Toda resposta começa com o checklist de conformidade obrigatório quando há análise, correção, ajuste ou implementação.
@@ -36,3 +36,6 @@ Toda entrega que altere comportamento DEVE terminar com uma validação técnica
 
 ## 5. Testar no tenant `respeiteohomem` sempre que possível
 Para cada novo ajuste ou implementação, executar pelo menos uma validação técnica usando o tenant `respeiteohomem` como ambiente de homologação informal. Se o cenário não permitir teste seguro, declarar o motivo explicitamente.
+
+## 6. Ler os docs ANTES de propor qualquer ajuste ou ação
+Antes de propor qualquer correção, ajuste, implementação ou ação, é obrigatório ler os docs formais do tema/módulo afetado (Layer 2/3/4). Memória ativa ou contexto da conversa NÃO substituem leitura de docs. Se o doc não existir, declarar lacuna documental no checklist. Nunca propor solução baseada em suposição ou em conhecimento prévio sem confirmar nos docs vigentes.
