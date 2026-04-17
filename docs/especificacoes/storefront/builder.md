@@ -22,6 +22,73 @@ A vitrine de produtos e categorias foi **consolidada em dois blocos orquestrador
 - Os tipos legados continuam renderizando via aliases internos no `BlockRenderer.tsx` e nos compilers Edge — isso garante compatibilidade retroativa para templates já salvos no banco e não pode ser removido sem migração de dados.
 - As menções a blocos legados nas seções históricas deste documento permanecem como registro de versões anteriores.
 
+### Compilers Edge correspondentes (paridade obrigatória)
+
+| Bloco oficial | React Orquestrador | Compiler Edge | Roteamento interno |
+|---------------|--------------------|---------------|--------------------|
+| `ProductShowcase` | `product-showcase/ProductShowcaseBlock.tsx` | `blocks/product-showcase.ts` | `source=manual` → `featured-products` · `source=category` (com `showViewAll`/`categorySlug`) → `collection-section` · `layout=carousel` → `product-carousel` · default → `product-grid` |
+| `CategoryShowcase` | `category-showcase/CategoryShowcaseBlock.tsx` | `blocks/category-showcase.ts` | `style=cards` → `featured-categories` · `style=circles` → `category-list` |
+
+> **Importante:** Os compilers legados (`product-grid.ts`, `product-carousel.ts`, `collection-section.ts`, `featured-products.ts`, `featured-categories.ts`, `category-list.ts`) NÃO podem ser removidos. Eles são reutilizados pelos orquestradores e ainda atendem templates antigos salvos no banco.
+
+---
+
+## 📦 Pipeline de Pré-busca de Dados (Edge) — Contrato Obrigatório
+
+> **Status:** 🔒 Crítico — Quebrar este contrato faz a vitrine de produtos/categorias renderizar vazia no domínio público mesmo com o template correto.
+
+O renderizador público (`storefront-html`) é **data-blind**: cada compiler de bloco roda síncrono e só consegue renderizar produtos/categorias que já estejam dentro de `compilerContext.products` / `compilerContext.productImages` / `compilerContext.categories`. Por isso, antes de chamar `compileBlockTree`, o orquestrador precisa varrer a árvore e pré-carregar os dados.
+
+### Fluxo oficial
+
+```
+Template salvo (BlockNode tree)
+        │
+        ▼
+┌──────────────────────────────────────────────────────┐
+│ 1. extractProductIds(tree)                           │
+│    Coleta IDs explícitos (source=manual)             │
+│    Blocos cobertos: ProductShowcase, FeaturedProducts│
+├──────────────────────────────────────────────────────┤
+│ 2. extractProductFetchSpecs(tree)                    │
+│    Coleta specs dinâmicas {source, categoryId, limit}│
+│    Cobre: ProductShowcase, ProductGrid,              │
+│           ProductCarousel, CollectionSection,        │
+│           BannerProducts                             │
+├──────────────────────────────────────────────────────┤
+│ 3. extractCategoryIds(tree)                          │
+│    Cobre: FeaturedCategories, CategoryShowcase       │
+└──────────────────────────────────────────────────────┘
+        │
+        ▼
+storefront-html executa as queries (Supabase)
+        │
+        ▼
+context.products / productImages / categories populados
+        │
+        ▼
+compileBlockTree(root, context)  →  HTML estático
+```
+
+### Regras
+
+1. **Todo bloco novo de vitrine** que dependa de produtos/categorias DEVE estar registrado em pelo menos um dos sets `MANUAL_PRODUCT_ID_BLOCKS`, `DYNAMIC_PRODUCT_FETCH_BLOCKS` ou na função `extractCategoryIds` em `supabase/functions/_shared/block-compiler/index.ts`.
+2. **Aliases legados** (`ProductGrid`, `ProductCarousel`, `CollectionSection`, `FeaturedProducts`, `BannerProducts`, `FeaturedCategories`, `CategoryList`) DEVEM continuar nos extractors — removê-los quebra templates publicados antes da v1.4.0.
+3. O orquestrador `storefront-html` é a **única fonte de verdade** para a execução das queries dinâmicas (featured / newest / all / category). Compilers de bloco são proibidos de fazer fetch direto.
+4. Após qualquer alteração no extractor ou no orquestrador é obrigatório:
+   - `deploy_edge_functions(['storefront-html'])`
+   - Marcar prerender como `stale` para forçar recompilação
+   - Validar com `?revalidate=1` no domínio público
+
+### Sintomas de quebra deste contrato
+
+| Sintoma observado no domínio público | Causa provável |
+|--------------------------------------|----------------|
+| Vitrine aparece vazia mas funciona no Builder | Bloco não registrado nos extractors → contexto sem produtos |
+| "Produto não encontrado" em itens manuais | `productIds` não foi capturado (bloco fora de `MANUAL_PRODUCT_ID_BLOCKS`) |
+| Categoria selecionada não retorna produtos | Spec dinâmico ignorado (bloco fora de `DYNAMIC_PRODUCT_FETCH_BLOCKS` ou sem `categoryId`) |
+| Cards de categoria sem imagem/nome | `extractCategoryIds` não cobre o tipo do bloco |
+
 ---
 
 ## 🎯 WYSIWYG Unificado (Regra Principal)
