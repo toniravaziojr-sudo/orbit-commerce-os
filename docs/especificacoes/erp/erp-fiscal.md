@@ -29,8 +29,11 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 ### Arquivos
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/Fiscal.tsx` | Dashboard fiscal |
-| `src/pages/FiscalSettings.tsx` | Configurações |
+| `src/pages/Fiscal.tsx` | Dashboard fiscal (abas: Pedidos em Aberto, Notas Fiscais). Botão "Configurações" navega para `/fiscal/configuracoes` |
+| `src/pages/FiscalSettings.tsx` | **Página dedicada** de Configurações Fiscais (rev 2026-04-17) — 3 abas: Configurações Fiscais (emitente), Natureza Jurídica, Outros. Botão "Voltar" retorna para `/fiscal?tab=pedidos`. Substitui o antigo modal/dialog. |
+| `src/components/fiscal/settings/EmitenteSettings.tsx` | Aba Emitente — dados da empresa, endereço, regime tributário, certificado A1 |
+| `src/components/fiscal/settings/OperationNaturesContent.tsx` | Aba Natureza Jurídica — gestão das naturezas de operação |
+| `src/components/fiscal/settings/OutrosSettings.tsx` | Aba Outros — inutilização de numeração, automações de emissão/remessa/e-mail, desmembramento de kits |
 | `src/pages/FiscalProductsConfig.tsx` | NCM/CFOP por produto |
 | `src/components/integrations/FiscalPlatformSettings.tsx` | Config global Nuvem Fiscal |
 
