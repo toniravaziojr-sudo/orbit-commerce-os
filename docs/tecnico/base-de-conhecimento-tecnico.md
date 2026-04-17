@@ -347,6 +347,21 @@ useEffect(() => {
 
 **Regra derivada:** Ao criar formulário para entidade que tem campo de imagem no banco, sempre incluir o campo de upload na UI.
 
+### 10.4 Vitrine de produtos vazia no domínio público (ProductShowcase)
+
+**Problema:** Após consolidar `ProductGrid` / `ProductCarousel` / `FeaturedProducts` / `CollectionSection` no orquestrador `ProductShowcase`, o bloco renderizava perfeitamente no Builder (que faz fetch via React Query no cliente) mas aparecia **vazio** no domínio publicado.
+
+**Causa raiz:** O renderizador Edge (`storefront-html`) é data-blind — cada compiler de bloco roda síncrono e só lê de `compilerContext.products`. A função `extractProductIds` só reconhecia o tipo legado `FeaturedProducts` e não havia mecanismo para pré-buscar produtos de fontes dinâmicas (`featured`, `newest`, `all`, `category`). Resultado: nenhum produto era pré-carregado para `ProductShowcase`.
+
+**Solução:**
+1. Atualizado `extractProductIds` para reconhecer `ProductShowcase` quando `source === 'manual'` (mantendo `FeaturedProducts` como alias).
+2. Criado `extractProductFetchSpecs` que coleta specs `{source, categoryId, limit}` de todos os blocos de vitrine (incluindo aliases legados `ProductGrid`, `ProductCarousel`, `CollectionSection`, `BannerProducts`).
+3. Orquestrador `storefront-html` executa as queries dinâmicas e popula `context.products` / `context.productImages` antes de chamar `compileBlockTree`.
+
+**Onde ocorreu:** `supabase/functions/_shared/block-compiler/index.ts`, `supabase/functions/storefront-html/index.ts`.
+
+**Regra derivada:** **Todo bloco de vitrine novo ou renomeado precisa ser registrado nos sets `MANUAL_PRODUCT_ID_BLOCKS` / `DYNAMIC_PRODUCT_FETCH_BLOCKS` (ou em `extractCategoryIds`).** Compilers de bloco são proibidos de fazer fetch direto — toda I/O acontece no orquestrador `storefront-html`. Aliases legados não podem ser removidos dos extractors sem migração de dados (templates antigos quebram). Contrato formal em `docs/especificacoes/storefront/builder.md` › "Pipeline de Pré-busca de Dados (Edge)" e mapa em `docs/especificacoes/transversais/paridade-builder-publico.md` › "Pré-busca de dados".
+
 ---
 
 ## 11. Frete & Logística

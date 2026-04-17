@@ -125,25 +125,27 @@ Quando um bloco tem comportamento diferente entre desktop e mobile, DEVE ter pro
 | `layout/DividerBlock.tsx` | `blocks/divider.ts` | |
 | `layout/PageBlock.tsx` | `blocks/page.ts` | |
 | `BannerBlock.tsx` | `blocks/banner.ts` | |
-| `BannerProductsBlock.tsx` | `blocks/banner-products.ts` | |
+| `BannerProductsBlock.tsx` | `blocks/banner-products.ts` | Vitrine — registrado em `DYNAMIC_PRODUCT_FETCH_BLOCKS` |
 | `HeroBannerBlock.tsx` | `blocks/hero-banner.ts` | Legado |
 | `AccordionBlock.tsx` | `blocks/accordion.ts` | |
 | `CategoryBannerBlock.tsx` | `blocks/category-banner.ts` | |
-| `CategoryListBlock.tsx` | `blocks/category-list.ts` | |
+| `CategoryListBlock.tsx` | `blocks/category-list.ts` | Alias de `CategoryShowcase` (style=circles) |
 | `CategoryPageLayout.tsx` | `blocks/category-page-layout.ts` | Complexo |
-| `CollectionSectionBlock.tsx` | `blocks/collection-section.ts` | |
+| `CollectionSectionBlock.tsx` | `blocks/collection-section.ts` | Alias de `ProductShowcase` (source=category + showViewAll) |
 | `ContentColumnsBlock.tsx` | `blocks/content-columns.ts` | |
 | `CountdownTimerBlock.tsx` | `blocks/countdown-timer.ts` | |
 | `FeatureListBlock.tsx` | `blocks/feature-list.ts` | |
-| `FeaturedCategoriesBlock.tsx` | `blocks/featured-categories.ts` | |
-| `FeaturedProductsBlock.tsx` | `blocks/featured-products.ts` | |
+| `FeaturedCategoriesBlock.tsx` | `blocks/featured-categories.ts` | Alias de `CategoryShowcase` (style=cards) |
+| `FeaturedProductsBlock.tsx` | `blocks/featured-products.ts` | Alias de `ProductShowcase` (source=manual) |
 | `HTMLSectionBlock.tsx` | `blocks/html-section.ts` | |
 | `ImageCarouselBlock.tsx` | `blocks/image-carousel.ts` | |
 | `ImageGalleryBlock.tsx` | `blocks/image-gallery.ts` | |
 | `InfoHighlightsBlock.tsx` | `blocks/info-highlights.ts` | |
 | `LogosCarouselBlock.tsx` | `blocks/logos-carousel.ts` | |
-| `ProductCarouselBlock.tsx` | `blocks/product-carousel.ts` | |
-| `ProductGridBlock.tsx` | `blocks/product-grid.ts` | |
+| `ProductCarouselBlock.tsx` | `blocks/product-carousel.ts` | Alias de `ProductShowcase` (layout=carousel) |
+| `ProductGridBlock.tsx` | `blocks/product-grid.ts` | Alias de `ProductShowcase` (layout=grid) |
+| `product-showcase/ProductShowcaseBlock.tsx` | `blocks/product-showcase.ts` | **Orquestrador oficial — v1.4.0+** |
+| `category-showcase/CategoryShowcaseBlock.tsx` | `blocks/category-showcase.ts` | **Orquestrador oficial — v1.4.0+** |
 | `ReviewsBlock.tsx` | `blocks/reviews.ts` | |
 | `StatsNumbersBlock.tsx` | `blocks/stats-numbers.ts` | |
 | `StepsTimelineBlock.tsx` | `blocks/steps-timeline.ts` | |
@@ -163,6 +165,18 @@ Quando um bloco tem comportamento diferente entre desktop e mobile, DEVE ter pro
 | — (Header é slot fixo) | `blocks/header.ts` | |
 | — (Footer é slot fixo) | `blocks/footer.ts` | |
 | `PageContentBlock.tsx` | `blocks/institutional-page.ts` | |
+
+### Pré-busca de dados (extractors no compiler)
+
+> Vitrines (produtos/categorias) só renderizam no público se o orquestrador `storefront-html` pré-carregar os dados no `CompilerContext`. Esta tabela é a fonte de verdade dos blocos cobertos.
+
+| Extractor (`supabase/functions/_shared/block-compiler/index.ts`) | Blocos cobertos |
+|------------------------------------------------------------------|-----------------|
+| `extractProductIds` (set `MANUAL_PRODUCT_ID_BLOCKS`) | `ProductShowcase` (source=manual), `FeaturedProducts` |
+| `extractProductFetchSpecs` (set `DYNAMIC_PRODUCT_FETCH_BLOCKS`) | `ProductShowcase`, `ProductGrid`, `ProductCarousel`, `CollectionSection`, `BannerProducts` |
+| `extractCategoryIds` | `FeaturedCategories`, `CategoryShowcase` |
+
+**Regra:** ao criar/renomear bloco de vitrine, atualizar o set correspondente E o orquestrador. Detalhes do contrato em `docs/especificacoes/storefront/builder.md` › "Pipeline de Pré-busca de Dados (Edge)".
 
 ### Blocos sem par (Builder-only):
 - `CartDemoBlock.tsx` — Demo no builder, SPA no público
@@ -225,5 +239,6 @@ Após qualquer alteração em compiler (Edge):
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-04-17 | v1.2.0 | **Pipeline de pré-busca documentado**: orquestradores oficiais `ProductShowcase` / `CategoryShowcase` adicionados ao mapa de paridade. Tabela de extractors (`MANUAL_PRODUCT_ID_BLOCKS`, `DYNAMIC_PRODUCT_FETCH_BLOCKS`, `extractCategoryIds`) declarada como contrato anti-regressão. Aliases legados marcados explicitamente. |
 | 2026-03-16 | v1.1.0 | **Hardening do Banner**: CTA responsivo no compiler (padding, font-size, button size adaptam mobile/desktop via @media). IDs únicos por instância em Banner e HeroBanner (evita colisões CSS). Removido min-height:400px hardcoded, usando aspect-ratio consistente. maxWidth:55% só no desktop. Validação estrutural completa em todas as famílias de página. |
 | 2026-03-10 | v1.0.0 | Criação do documento. Regra universal de paridade obrigatória entre Builder (React) e Público (Edge Compiler). Mapeamento completo de 45+ blocos. Checklist de validação. Fluxo de deploy obrigatório. |
