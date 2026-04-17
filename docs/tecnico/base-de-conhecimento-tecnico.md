@@ -374,6 +374,24 @@ useEffect(() => {
 
 **Regra derivada:** **Todo bloco registrado em `getBlockComponent` deve ser uma referência direta ao componente, NUNCA arrow function inline.** Wrappers só são permitidos quando há transformação real de props (ex: `OrderBumpSlot`, `CrossSellSlot`) — e mesmo nesses casos, o wrapper deve ser declarado fora do `getBlockComponent` (módulo ou `useMemo`) para preservar identidade. Padrão consolidado em `mem://infrastructure/builder/modular-block-architecture-standard`.
 
+### 10.6 "Vitrine de Categorias" (variante circular) re-renderizando ao selecionar outros blocos
+
+**Problema:** Mesmo após o ajuste 10.5 (referências diretas no registry), o bloco `CategoryShowcase` em modo `circles` ainda exibia flicker de "loading" toda vez que o usuário clicava em qualquer outro bloco do canvas do Builder.
+
+**Causa raiz:** O componente `FeaturedCategoriesBlock` original concentrava 4 responsabilidades (normalização de props, fetch manual via `useEffect` sem cache, lógica responsiva e instância do Embla). A dependência `[JSON.stringify(normalizedItems)]` no `useEffect`, combinada com a ausência de cache e com o `useEmblaCarousel` recebendo opções recriadas a cada render, fazia com que qualquer re-render do canvas (disparado por seleção em outros blocos) reiniciasse o ciclo `loading → fetch → render`.
+
+**Solução:** Refatoração modular SRP em `src/components/builder/blocks/category-showcase/circles/`:
+- `normalizeItems.ts` — normalização pura (sem efeitos).
+- `useCategoriesData.ts` — fetch via React Query (cache 5min, key determinística pelos IDs).
+- `CategoryCard.tsx` — card unitário memoizado.
+- `GridLayout.tsx` / `CarouselLayout.tsx` / `DemoLayout.tsx` — layouts isolados e memoizados.
+- `CirclesVariantBlock.tsx` — orquestrador puro (composição).
+- `FeaturedCategoriesBlock.tsx` — shim de compatibilidade reexportando o novo módulo.
+
+**Onde ocorreu:** `src/components/builder/blocks/FeaturedCategoriesBlock.tsx` (monolítico, removido) e `category-showcase/CategoryShowcaseBlock.tsx` (passou a importar `CirclesVariantBlock`).
+
+**Regra derivada:** **Blocos do Builder que fazem fetch de dados devem usar React Query (ou outro cache estável), NUNCA `useEffect + useState + supabase` direto.** Re-renders do canvas são frequentes e esperados; sem cache, o ciclo loading reseta visualmente. Cada bloco complexo deve ser decomposto em: (1) normalização de props (puro), (2) hook de dados (com cache), (3) componentes de layout memoizados, (4) orquestrador. Padrão consolidado em `mem://infrastructure/builder/modular-block-architecture-standard`.
+
 ---
 
 ## 11. Frete & Logística
