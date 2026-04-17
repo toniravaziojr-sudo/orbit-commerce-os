@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
@@ -14,7 +13,7 @@ const corsHeaders = {
  * Renova tokens que estão próximos de expirar.
  * Pode ser chamado manualmente ou via scheduler.
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
@@ -33,7 +32,7 @@ function buildFocusUrl(path: string | undefined, ambiente: string): string | und
   return `${baseUrl}${path}`;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log("[fiscal-webhook] ========== WEBHOOK RECEIVED ==========");
   console.log("[fiscal-webhook] Method:", req.method);
   console.log("[fiscal-webhook] URL:", req.url);

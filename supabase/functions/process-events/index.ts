@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendCapiPurchase, getMetaCapiConfig } from "../_shared/meta-capi-sender.ts";
 import { errorResponse } from "../_shared/error-response.ts";
@@ -355,7 +354,7 @@ function renderTemplate(template: string | null, variables: Record<string, unkno
   });
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

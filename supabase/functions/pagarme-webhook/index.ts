@@ -3,8 +3,6 @@
 // With proper idempotency via payment_events table
 // v2.1 - PCI log redaction + tenant-aware HMAC verification (log mode)
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 import { verifyPagarmeHmac, handleHmacResult } from "../_shared/webhook-hmac.ts";
@@ -19,7 +17,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-hub-signature',
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

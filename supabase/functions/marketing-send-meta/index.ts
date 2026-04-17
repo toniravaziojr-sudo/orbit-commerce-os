@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
@@ -56,7 +55,7 @@ function getUserAgent(req: Request): string | null {
   return req.headers.get('user-agent') || null;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

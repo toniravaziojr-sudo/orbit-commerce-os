@@ -3,8 +3,6 @@
 // Accepts text/plain to avoid CORS preflight
 // Resolves tenant from store_host in body (primary) or headers (fallback)
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -72,7 +70,7 @@ async function resolveTenantFromHost(
   return null;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });

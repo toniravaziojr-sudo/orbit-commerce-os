@@ -3,8 +3,6 @@
 // Replaces direct anonymous SELECT on orders/order_items
 // Uses service_role to bypass RLS, validates auth JWT
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -22,7 +20,7 @@ interface OrderLookupRequest {
   order_id?: string;        // for 'get' (UUID or order_number)
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

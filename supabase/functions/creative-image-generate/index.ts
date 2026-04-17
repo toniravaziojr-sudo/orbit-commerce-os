@@ -6,8 +6,6 @@
  * 
  * PIPELINE: GPT Image 1 → Gemini Nativa → OpenAI → Lovable Gateway
  */
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { getFalApiKey } from "../_shared/fal-client.ts";
@@ -160,7 +158,7 @@ function getCostBucketFromProvider(provider: ActualProvider): string {
 
 // ========== MAIN HANDLER ==========
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

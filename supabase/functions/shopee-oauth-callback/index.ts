@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { createHmac } from "https://deno.land/std@0.177.0/node/crypto.ts";
@@ -12,7 +11,7 @@ import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts
  * 
  * Docs: https://open.shopee.com/documents/v2/v2.auth.token.get
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
   await loadPlatformCredentials();
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

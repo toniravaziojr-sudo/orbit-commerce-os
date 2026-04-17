@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -14,7 +13,7 @@ interface SetupRequest {
   tenant_id: string;
 }
 
-serve(async (req: Request): Promise<Response> => {
+Deno.serve(async (req: Request): Promise<Response> => {
   console.log('=== SENDGRID INBOUND SETUP ===');
   
   if (req.method === 'OPTIONS') {

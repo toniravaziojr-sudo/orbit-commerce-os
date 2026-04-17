@@ -4,8 +4,6 @@
 // Same data pipeline as V7, different output format
 // For A/B comparison only (feature flag)
 // =============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
@@ -164,7 +162,7 @@ Gere o HTML + CSS completo da landing page. Lembre: retorne APENAS as seções H
 
 // ========== MAIN HANDLER ==========
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

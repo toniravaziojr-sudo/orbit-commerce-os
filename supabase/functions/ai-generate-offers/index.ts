@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
@@ -69,7 +68,7 @@ ${existingNote}
 5. REPITO: Gere EXATAMENTE ${eligibleCount} sugestões, uma por produto elegível.`;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[ai-generate-offers][${VERSION}] Request received`);
 
   if (req.method === 'OPTIONS') {

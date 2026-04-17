@@ -3,8 +3,6 @@
 // Supports PIX, Boleto, Credit Card (with installments)
 // Uses API de Pedidos (Orders)
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 import { errorResponse } from "../_shared/error-response.ts";
@@ -98,7 +96,7 @@ function formatCpf(cpf: string): string {
   return cpf.replace(/\D/g, '');
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

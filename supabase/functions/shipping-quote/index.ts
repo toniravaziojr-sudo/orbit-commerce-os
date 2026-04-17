@@ -3,8 +3,6 @@
 // Consulta todos providers ativos em paralelo e retorna opções unificadas
 // v2.0.0 — Persists quotes for server-side validation (Security Plan v3.1)
 // =============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { generateCartFingerprint } from "../_shared/cart-fingerprint.ts";
 import { errorResponse } from "../_shared/error-response.ts";
@@ -884,7 +882,7 @@ function deduplicateOptions(options: ShippingOption[]): ShippingOption[] {
 
 // ========== MAIN HANDLER ==========
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

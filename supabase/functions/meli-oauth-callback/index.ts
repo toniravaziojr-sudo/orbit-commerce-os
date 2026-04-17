@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
@@ -45,7 +44,7 @@ function redirectToIntegrations(
  * - Modo JSON (POST): usado pelo popup callback do frontend
  * - Modo Redirect (GET): fallback para navegação direta
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[meli-oauth-callback][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {

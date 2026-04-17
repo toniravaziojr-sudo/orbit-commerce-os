@@ -3,8 +3,6 @@
 // v2.0.0: Hostname-based purge (works on all Cloudflare plans)
 //         + purge_everything fallback + sequential confirmation
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
@@ -254,7 +252,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 // ── Main handler ──
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[storefront-cache-purge][${VERSION}] Request received`);
 
   if (req.method === 'OPTIONS') {

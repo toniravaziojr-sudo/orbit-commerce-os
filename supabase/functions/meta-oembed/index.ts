@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
@@ -38,7 +37,7 @@ function detectPlatform(url: string): string | null {
   return null;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[meta-oembed][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {

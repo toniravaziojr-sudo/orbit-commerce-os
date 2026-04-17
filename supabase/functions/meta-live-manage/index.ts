@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
@@ -25,7 +24,7 @@ const corsHeaders = {
  * - status: Verificar status atual + métricas
  */
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[meta-live-manage][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {

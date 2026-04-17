@@ -3,9 +3,6 @@
 // v2.0.0: Hostname-based purge with purge_everything fallback
 // Internal-only function for system pipelines
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,7 +36,7 @@ async function cloudflarePurgeRequest(
   return { success: data.success, errors: data.errors };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

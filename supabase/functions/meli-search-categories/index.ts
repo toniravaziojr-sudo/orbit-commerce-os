@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -18,7 +17,7 @@ const corsHeaders = {
  * v1.1.0: Inclui max_title_length na resposta de categoryId
  */
 const VERSION = "v1.1.0";
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

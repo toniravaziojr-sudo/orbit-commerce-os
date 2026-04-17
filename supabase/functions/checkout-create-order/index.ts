@@ -5,8 +5,6 @@
 // v2.0 — Shipping quote validation (Security Plan v3.1 Phase 2A)
 // v3.0 — Canonical price recalculation (Security Plan v3.1 Phase 2B)
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateCartFingerprint } from "../_shared/cart-fingerprint.ts";
 // Meta CAPI is now handled client-side via marketing-capi-track edge function
@@ -111,7 +109,7 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

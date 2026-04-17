@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
@@ -33,7 +32,7 @@ const TIKTOK_ADS_SCOPE_PACKS: Record<string, string[]> = {
   audience: ["audience.manage"],
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[tiktok-oauth-start][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {

@@ -3,8 +3,6 @@
 // Uses unified visual-engine.ts resilientGenerate()
 // No more local callImageModel duplicate
 // =============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
@@ -201,7 +199,7 @@ async function ensureDriveFolder(supabase: any, tenantId: string, userId: string
 
 // ========== MAIN HANDLER ==========
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -449,7 +448,7 @@ function createFallbackResult(): ClassificationResult {
   };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

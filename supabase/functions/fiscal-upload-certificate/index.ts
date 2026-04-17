@@ -2,8 +2,6 @@
 // FISCAL UPLOAD CERTIFICATE - Upload de Certificado A1
 // Valida, criptografa e armazena o certificado digital
 // =============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 // deno-lint-ignore-file no-explicit-any
@@ -68,7 +66,7 @@ async function decryptData(encryptedBase64: string, key: string): Promise<string
   return new TextDecoder().decode(decrypted);
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });

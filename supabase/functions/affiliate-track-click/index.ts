@@ -2,8 +2,6 @@
 // AFFILIATE TRACK CLICK - Register affiliate link clicks
 // Public endpoint - no auth required
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -37,7 +35,7 @@ function hashIP(ip: string): string {
   return Math.abs(hash).toString(16);
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });

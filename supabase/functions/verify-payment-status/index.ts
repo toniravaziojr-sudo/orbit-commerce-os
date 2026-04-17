@@ -3,8 +3,6 @@
 // Checks pending orders against gateway APIs with progressive intervals
 // Schedule: 0-60min every 1min, 1h-48h every 1h, 48h-5d every 12h, 5d+ every 24h
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
@@ -134,7 +132,7 @@ function mapGatewayStatus(chargeStatus: string | null): {
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
