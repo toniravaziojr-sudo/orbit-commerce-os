@@ -45,6 +45,9 @@ interface GatewayField {
   label: string;
   type: 'text' | 'password';
   placeholder: string;
+  optional?: boolean;
+  helpText?: string;
+  validatePrefix?: string[];
 }
 
 interface GatewayDefinition {
