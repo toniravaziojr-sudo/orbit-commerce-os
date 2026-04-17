@@ -107,6 +107,14 @@ Deno.serve(async (req) => {
     }
 
     if (config.token_expires_at && new Date(config.token_expires_at) < new Date()) {
+      await supabase
+        .from("whatsapp_configs")
+        .update({
+          connection_status: "token_invalid",
+          last_error: "Token expirado. Reconecte sua conta Meta para continuar.",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", config.id);
       return new Response(JSON.stringify({ success: false, error: "Token expirado. Reconecte sua conta Meta." }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -122,6 +130,47 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const graphApiVersion = credentials?.credential_value || "v21.0";
+
+    // ===== PRE-FLIGHT TOKEN VALIDATION =====
+    // Validar token contra /me ANTES de tentar register/deregister.
+    // Se o token foi invalidado (código 190), Meta rejeita silenciosamente o register
+    // e o número fica preso em "pendente" para sempre. Detectamos cedo aqui.
+    console.log(`[meta-whatsapp-register-phone][${traceId}] Pre-flight: validating token against /me...`);
+    const meCheckUrl = `https://graph.facebook.com/${graphApiVersion}/me?access_token=${config.access_token}`;
+    const meResp = await fetch(meCheckUrl);
+    const meData = await meResp.json();
+
+    if (meData.error) {
+      const code = meData.error.code;
+      const subcode = meData.error.error_subcode;
+      const isInvalidToken = code === 190;
+      const friendlyError = isInvalidToken
+        ? "Sua sessão Meta expirou ou foi invalidada (provavelmente por troca de senha ou logout). Clique em Reconectar para gerar uma nova autorização."
+        : `Token Meta rejeitado: ${meData.error.message || "erro desconhecido"}`;
+
+      await supabase
+        .from("whatsapp_configs")
+        .update({
+          connection_status: isInvalidToken ? "token_invalid" : "pending_registration",
+          last_error: `${friendlyError} [code=${code}, subcode=${subcode}]`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", config.id);
+
+      console.error(`[meta-whatsapp-register-phone][${traceId}] Pre-flight failed:`, JSON.stringify(meData.error));
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: friendlyError,
+        token_invalid: isInvalidToken,
+        meta_diagnostic: { preflight: { code, subcode, message: meData.error.message } },
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log(`[meta-whatsapp-register-phone][${traceId}] Pre-flight OK — token valid for user ${meData.id}`);
 
     // Step 1: Deregister the phone number first to clear residual state (2FA/registration)
     console.log(`[meta-whatsapp-register-phone][${traceId}] Step 1: Deregistering phone ${config.phone_number_id} to clear residual state...`);
