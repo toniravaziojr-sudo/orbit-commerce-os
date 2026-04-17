@@ -42,8 +42,7 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="broadcast">Envio Único (broadcast)</SelectItem>
-                <SelectItem value="sequence">Sequência Automatizada</SelectItem>
-                <SelectItem value="automation">Automação (avançado)</SelectItem>
+                <SelectItem value="sequence">Automação (Sequência automatizada)</SelectItem>
               </SelectContent>
             </Select>
           </div>
