@@ -789,4 +789,59 @@ No gerenciador de imagens do produto, após subir a imagem principal, o botão "
 
 ---
 
+## 33. PADRÕES OPERACIONAIS TRANSVERSAIS
+
+As regras transversais que se aplicam a múltiplos módulos estão consolidadas em `docs/especificacoes/transversais/padroes-operacionais.md`. Esse documento é leitura obrigatória junto com este e cobre:
+
+| # | Padrão | Aplicação |
+|---|--------|-----------|
+| 1 | Resposta de Edge Functions (HTTP 200 + envelope `success`) | Toda Edge Function de operação de negócio |
+| 2 | Validação de cache da vitrine (`?cb=`) | Validação técnica de qualquer alteração publicada |
+| 3 | Invalidação de prerender em mudança de compiler | Toda alteração em `_shared/block-compiler/` |
+| 4 | SendGrid como provedor mandatório de e-mail | Todos os envios de e-mail do sistema |
+| 5 | Inventário operacional do Auxiliar de Comando | Toda nova ferramenta do agente |
+| 6 | Validação técnica obrigatória pós-entrega | Toda entrega que altere comportamento |
+
+---
+
+## 34. VITRINE — ARQUITETURA "CONTEÚDO PRIMEIRO"
+
+> **Toda página pública da vitrine deve renderizar HTML útil no servidor (Edge), eliminando o efeito de "tela piscando" enquanto o React monta.**
+
+### Princípios
+
+1. O Edge (`storefront-html`) renderiza o HTML completo da página antes de devolver ao browser
+2. O React faz hidratação progressiva apenas para interatividade (carrinho, checkout, etc.)
+3. Snapshots persistidos em `storefront_prerendered_pages` são a fonte de verdade do HTML servido
+4. A invalidação segue o padrão do **§33 / Padrão 3** (mudança de compiler) e do pipeline universal de revalidação
+
+### Anti-padrão
+
+- Páginas que renderizam apenas um spinner ou skeleton no primeiro paint
+- Conteúdo que depende de fetch client-side para aparecer no SEO
+
+### Documentação detalhada
+
+- `docs/especificacoes/storefront/loja-virtual.md`
+- `docs/especificacoes/transversais/paridade-builder-publico.md`
+
+---
+
+## 35. TENANT DE TESTE PADRÃO
+
+> **Sempre que possível, validar novos ajustes ou implementações no tenant `respeiteohomem` antes de declarar "corrigido e validado".**
+
+### Regra
+
+- O tenant `respeiteohomem` funciona como ambiente de homologação informal
+- Para mudanças que afetam múltiplos tenants, executar pelo menos um teste técnico (consulta SQL, chamada de Edge, leitura de log) usando esse tenant
+- Quando o cenário não permitir teste seguro nesse tenant (ex: ação destrutiva), declarar explicitamente o motivo
+
+### Anti-padrão
+
+- Pular o teste por conveniência
+- Testar apenas em conta de plataforma sem reproduzir o contexto de tenant real
+
+---
+
 *Fim do documento.*
