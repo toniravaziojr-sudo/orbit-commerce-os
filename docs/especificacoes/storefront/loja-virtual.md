@@ -431,22 +431,24 @@ O hook `usePreviewTemplate` é responsável por carregar o conteúdo do rascunho
 ### E-commerce
 
 > **Padrão atual (v1.4.0+):** Vitrine de produtos e categorias consolidada em **dois blocos orquestradores oficiais**: `ProductShowcase` e `CategoryShowcase`. Os blocos legados continuam funcionando via aliases internos (compat retroativo) e não devem ser inseridos em novos templates.
+>
+> **Renderização pública:** os blocos só renderizam no domínio final se estiverem cobertos pelos extractors do orquestrador `storefront-html`. Contrato completo em `docs/especificacoes/storefront/builder.md` › "Pipeline de Pré-busca de Dados (Edge)" e mapa de pares em `docs/especificacoes/transversais/paridade-builder-publico.md`.
 
-| Bloco | Arquivo | Descrição | Status |
-|-------|---------|-----------|--------|
-| `ProductShowcase` | `product-showcase/ProductShowcaseBlock.tsx` | **Vitrine de Produtos unificada** — orquestra grid/carousel/coleção via props `source` (featured/newest/all/category/manual) + `layout` (grid/carousel) | ✅ Oficial |
-| `CategoryShowcase` | `category-showcase/CategoryShowcaseBlock.tsx` | **Vitrine de Categorias unificada** — orquestra cards/círculos via prop `style` (cards/circles) | ✅ Oficial |
-| `ProductGrid` | `ProductGridBlock.tsx` | Grid de produtos | 🟡 Alias → ProductShowcase |
-| `ProductCarousel` | `ProductCarouselBlock.tsx` | Carrossel de produtos | 🟡 Alias → ProductShowcase |
-| `FeaturedProducts` | `FeaturedProductsBlock.tsx` | Produtos em destaque | 🟡 Alias → ProductShowcase |
-| `CollectionSection` | `CollectionSectionBlock.tsx` | Coleção de produtos | 🟡 Alias → ProductShowcase |
-| `CategoryList` | `CategoryListBlock.tsx` | Lista de categorias | 🟡 Alias → CategoryShowcase |
-| `FeaturedCategories` | `FeaturedCategoriesBlock.tsx` | Categorias em destaque | 🟡 Alias → CategoryShowcase |
-| `BannerProducts` | `BannerProductsBlock.tsx` | Banner + produtos | ✅ |
-| `CategoryPageLayout` | `CategoryPageLayout.tsx` | Layout de categoria | ✅ |
-| `CategoryBanner` | `CategoryBannerBlock.tsx` | Banner de categoria | ✅ |
-| `Reviews` | `ReviewsBlock.tsx` | Avaliações | ✅ |
-| `TrackingLookup` | `TrackingLookupBlock.tsx` | Busca de rastreio | ✅ |
+| Bloco | Arquivo React | Compiler Edge | Descrição | Status |
+|-------|---------------|---------------|-----------|--------|
+| `ProductShowcase` | `product-showcase/ProductShowcaseBlock.tsx` | `blocks/product-showcase.ts` | **Vitrine de Produtos unificada** — `source` (featured/newest/all/category/manual) × `layout` (grid/carousel) | ✅ Oficial |
+| `CategoryShowcase` | `category-showcase/CategoryShowcaseBlock.tsx` | `blocks/category-showcase.ts` | **Vitrine de Categorias unificada** — `style` (cards/circles) | ✅ Oficial |
+| `ProductGrid` | `ProductGridBlock.tsx` | `blocks/product-grid.ts` | Grid de produtos | 🟡 Alias → ProductShowcase |
+| `ProductCarousel` | `ProductCarouselBlock.tsx` | `blocks/product-carousel.ts` | Carrossel de produtos | 🟡 Alias → ProductShowcase |
+| `FeaturedProducts` | `FeaturedProductsBlock.tsx` | `blocks/featured-products.ts` | Produtos em destaque (lista manual) | 🟡 Alias → ProductShowcase |
+| `CollectionSection` | `CollectionSectionBlock.tsx` | `blocks/collection-section.ts` | Coleção com "Ver todos" | 🟡 Alias → ProductShowcase |
+| `CategoryList` | `CategoryListBlock.tsx` | `blocks/category-list.ts` | Lista de categorias (círculos) | 🟡 Alias → CategoryShowcase |
+| `FeaturedCategories` | `FeaturedCategoriesBlock.tsx` | `blocks/featured-categories.ts` | Categorias em destaque (cards) | 🟡 Alias → CategoryShowcase |
+| `BannerProducts` | `BannerProductsBlock.tsx` | `blocks/banner-products.ts` | Banner + produtos | ✅ |
+| `CategoryPageLayout` | `CategoryPageLayout.tsx` | `blocks/category-page-layout.ts` | Layout de categoria | ✅ |
+| `CategoryBanner` | `CategoryBannerBlock.tsx` | `blocks/category-banner.ts` | Banner de categoria | ✅ |
+| `Reviews` | `ReviewsBlock.tsx` | `blocks/reviews.ts` | Avaliações | ✅ |
+| `TrackingLookup` | `TrackingLookupBlock.tsx` | — (SPA-only) | Busca de rastreio | ✅ |
 
 ### Interativos
 
