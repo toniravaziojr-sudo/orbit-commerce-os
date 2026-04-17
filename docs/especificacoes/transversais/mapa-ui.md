@@ -325,6 +325,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 | `/fiscal?tab=configuracoes` | `/fiscal/configuracoes` | Substituição do modal por página (rev 2026-04-17) |
 | `/fiscal/operation-natures` | `/fiscal/configuracoes?aba=natureza` | Consolidação na página de configurações |
 | `/system/settings?tab=fiscal` | `/fiscal/configuracoes?from=settings` | Casa oficial em Sistema→Configurações com Voltar contextual (rev 2026-04-17b) |
+| `/system/settings?tab=fiscal` (redirect) | `/system/settings?tab=fiscal` (conteúdo embutido) | Aba Fiscal passa a renderizar conteúdo na própria página, sem redirecionamento (rev 2026-04-17c) |
 | `/account/personal` | `/account/data` | Consolidação |
 | `/account/company` | `/account/data` | Consolidação |
 
