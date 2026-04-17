@@ -8,7 +8,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
-import { compileBlockTree, extractProductIds, extractCategoryIds } from '../_shared/block-compiler/index.ts';
+import { compileBlockTree, extractProductIds, extractCategoryIds, extractProductFetchSpecs } from '../_shared/block-compiler/index.ts';
 import type { CompilerContext, BlockNode } from '../_shared/block-compiler/types.ts';
 import { headerToStaticHTML } from '../_shared/block-compiler/blocks/header.ts';
 import { footerToStaticHTML } from '../_shared/block-compiler/blocks/footer.ts';
@@ -2430,21 +2430,71 @@ serve(async (req) => {
       if (homeContent) {
         const neededProductIds = extractProductIds(homeContent);
         const neededCategoryIds = extractCategoryIds(homeContent);
-        
+        const fetchSpecs = extractProductFetchSpecs(homeContent);
+
+        // Resolve dynamic product fetches (featured/newest/all/category) BEFORE
+        // compileBlockTree so each block compiler can render synchronously.
+        // We aggregate the largest limit per (source, categoryId) bucket to
+        // execute one query per bucket.
+        const dynamicBuckets = new Map<string, { source: string; categoryId?: string; limit: number }>();
+        for (const spec of fetchSpecs) {
+          const key = `${spec.source}::${spec.categoryId || ''}`;
+          const existing = dynamicBuckets.get(key);
+          dynamicBuckets.set(key, {
+            source: spec.source,
+            categoryId: spec.categoryId,
+            limit: Math.max(spec.limit, existing?.limit ?? 0),
+          });
+        }
+
+        const dynamicProductIds = new Set<string>();
+        if (dynamicBuckets.size > 0) {
+          const dynamicQueries = Array.from(dynamicBuckets.values()).map(async (bucket) => {
+            try {
+              if (bucket.source === 'category' && bucket.categoryId) {
+                const { data: rels } = await supabase
+                  .from('product_categories')
+                  .select('product_id')
+                  .eq('category_id', bucket.categoryId)
+                  .limit(bucket.limit);
+                const ids = (rels || []).map((r: any) => r.product_id).filter(Boolean);
+                ids.forEach(id => dynamicProductIds.add(id));
+                return;
+              }
+              let q = supabase
+                .from('products')
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .eq('status', 'active')
+                .is('deleted_at', null);
+              if (bucket.source === 'featured') q = q.eq('is_featured', true);
+              q = q.order('created_at', { ascending: false }).limit(bucket.limit);
+              const { data: rows } = await q;
+              (rows || []).forEach((r: any) => dynamicProductIds.add(r.id));
+            } catch (err) {
+              console.warn(`[storefront-html][${VERSION}] Dynamic product fetch failed for bucket ${bucket.source}:`, err);
+            }
+          });
+          await Promise.allSettled(dynamicQueries);
+        }
+
+        // Union: manual IDs (extractProductIds) + dynamically resolved IDs.
+        const allProductIds = Array.from(new Set([...neededProductIds, ...dynamicProductIds]));
+
         const homeDataQueries: Promise<any>[] = [];
         
-        if (neededProductIds.length > 0) {
+        if (allProductIds.length > 0) {
           homeDataQueries.push(
             supabase.from('products')
-              .select('id, name, slug, price, compare_at_price, status, free_shipping, avg_rating, review_count')
+              .select('id, name, slug, price, compare_at_price, status, free_shipping, avg_rating, review_count, is_featured, created_at')
               .eq('tenant_id', tenantId)
-              .in('id', neededProductIds)
+              .in('id', allProductIds)
               .is('deleted_at', null)
           );
           homeDataQueries.push(
             supabase.from('product_images')
               .select('product_id, url, is_primary, sort_order')
-              .in('product_id', neededProductIds)
+              .in('product_id', allProductIds)
               .order('sort_order')
           );
         } else {
