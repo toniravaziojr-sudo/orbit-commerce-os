@@ -6,10 +6,14 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { showErrorToast } from '@/lib/error-toast';
 
+export type AutomationBuilderStyle = "linear" | "visual";
+
 export interface CampaignConfig {
   name: string;
   type: "broadcast" | "automation" | "sequence";
   list_id: string;
+  /** Quando type é 'sequence' ou 'automation', define qual editor é usado */
+  builderStyle?: AutomationBuilderStyle;
 }
 
 export type SequenceStepType = "send_email" | "wait" | "condition";
@@ -40,7 +44,7 @@ export function useEmailCampaignBuilder() {
   const navigate = useNavigate();
   const { tenantId } = useEmailMarketing();
   const [step, setStep] = useState(0);
-  const [config, setConfig] = useState<CampaignConfig>({ name: "", type: "broadcast", list_id: "" });
+  const [config, setConfig] = useState<CampaignConfig>({ name: "", type: "broadcast", list_id: "", builderStyle: "linear" });
   const [content, setContent] = useState<CampaignContent>({ subject: "", previewText: "", blocks: [], sequenceSteps: [] });
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
