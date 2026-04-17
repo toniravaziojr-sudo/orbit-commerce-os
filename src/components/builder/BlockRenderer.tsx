@@ -553,15 +553,19 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     ImageGallery: ImageGalleryBlockWrapper,
     AccordionBlock: AccordionBlockBlockWrapper,
     
-    // Unified blocks
-    CustomCode: (props: any) => <CustomCodeBlockComponent {...props} />,
-    Highlights: (props: any) => <HighlightsBlockComponent {...props} />,
-    Video: (props: any) => <VideoBlockComponent {...props} />,
-    SocialProof: (props: any) => <SocialProofBlockComponent {...props} />,
-    ContentSection: (props: any) => <ContentSectionBlockComponent {...props} />,
-    NewsletterUnified: (props: any) => <NewsletterUnifiedBlockComponent {...props} />,
-    CategoryShowcase: (props: any) => <CategoryShowcaseBlockComponent {...props} />,
-    ProductShowcase: (props: any) => <ProductShowcaseBlockComponent {...props} />,
+    // Unified blocks (orquestradores consolidados)
+    // IMPORTANTE: usar referência direta ao componente, NUNCA arrow function inline.
+    // Arrow inline cria nova identidade a cada render do pai → React desmonta/remonta
+    // a subárvore inteira → useEffect/useState resetam → loop "loading → render → remount".
+    // Ver: mem://infrastructure/builder/modular-block-architecture-standard
+    CustomCode: CustomCodeBlockComponent,
+    Highlights: HighlightsBlockComponent,
+    Video: VideoBlockComponent,
+    SocialProof: SocialProofBlockComponent,
+    ContentSection: ContentSectionBlockComponent,
+    NewsletterUnified: NewsletterUnifiedBlockComponent,
+    CategoryShowcase: CategoryShowcaseBlockComponent,
+    ProductShowcase: ProductShowcaseBlockComponent,
     
     // Offer Slot Blocks - passam context para detectar pageType e evitar duplicação
     // OrderBumpSlot removed - handled internally by CheckoutContent via OrderBumpSection
