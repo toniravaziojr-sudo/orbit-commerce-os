@@ -311,15 +311,24 @@ Configuração em `email_provider_configs`:
 
 ### Abas do Dashboard (`EmailMarketing.tsx`)
 
-1. **Listas** - CRUD de listas segmentadas
-   - **Contagem de leads exibida acima do nome da lista** (ex: "8.008 leads")
-   - Clique na lista abre página dedicada de detalhes (`EmailMarketingListDetail.tsx`)
+> **Atualização 2026-04-17:** As abas **Atribuição** e **Automações** foram removidas. Atribuição de vendas por e-mail é agora um canal do módulo central `/marketing/atribuicao` (alimentado pelo trigger `trg_propagate_email_conversion_to_attribution`). Automações vivem dentro do wizard único de campanhas.
+
+1. **Campanhas** - Listagem unificada (broadcast + automação) com 6 métricas inline por linha:
+   `Enviados · Entregues · Abertura% · Clique% · Conversões · Receita`
+   Botão "Nova Campanha" abre o wizard `/email-marketing/campaign/new`.
+2. **Listas** - CRUD de listas segmentadas
+   - Contagem de leads exibida acima do nome da lista
+   - Clique abre página dedicada (`EmailMarketingListDetail.tsx`)
    - Badge com cor da tag vinculada
-   - **Detalhe da lista:** consulta `email_marketing_list_members` (fonte de verdade), paginação de 50 por página, busca por nome/email, filtro por status
-2. **Assinantes** - Visualização/busca de subscribers com filtro
-3. **Templates** - Editor de templates com preview
-4. **Campanhas** - Gerenciamento de broadcasts/automações
-5. **Automações** - Fluxos visuais com canvas drag-and-drop
+3. **Membros / Assinantes** - Visualização/busca de subscribers com filtro
+4. **Templates** - Editor de templates com preview
+5. **Formulários** - Captura de leads (newsletter, quiz, etc.)
+
+### Atribuição de Vendas (Canal E-mail)
+
+- Toda nova conversão registrada em `email_conversions` é propagada automaticamente para `order_attribution` com `attribution_source = 'email'` via trigger `trg_propagate_email_conversion_to_attribution`.
+- Escopo: **só novas conversões** (sem back-fill histórico).
+- Visualização e relatórios ficam exclusivamente no módulo `/marketing/atribuicao`.
 
 ### Popup Newsletter (Builder → Configurações do Tema)
 
