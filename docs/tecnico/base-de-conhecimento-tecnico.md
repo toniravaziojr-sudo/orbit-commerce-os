@@ -508,6 +508,69 @@ useEffect(() => {
 
 ---
 
+## 9. Storefront — Cache de Pré-Render & Registro de Compilers
+
+### 9.1 Bloco some da loja pública após mudança no registry de compilers (Abril/2026)
+
+**Problema:** Após refatorar o `FeaturedCategoriesBlock` (variante Circles) para arquitetura modular SRP e revalidar o builder, o bloco **ProductShowcase** parou de aparecer na vitrine pública (domínio final), mesmo estando presente no template publicado e renderizando corretamente no Builder.
+
+**Sintoma visível:**
+- Builder mostra o bloco renderizado normalmente.
+- HTML final servido pelo Edge (`storefront-html`) **não contém** marcadores `data-product-id` nem classes `sf-fp-…`.
+- `?_revalidate=1` não resolve — o problema persiste.
+- Apenas tenants com vitrines acessadas recentemente são afetados (cache quente).
+
+**Causa raiz (estrutural):**
+1. O renderizador Edge `storefront-html` opera em modo **prerender-first**: a primeira requisição compila o HTML completo e persiste em `public.storefront_prerendered_pages` com `status = 'active'`.
+2. Requisições subsequentes servem esse snapshot diretamente (TTL longo) **sem** re-executar o registry de compilers de blocos.
+3. Quando o registry (`supabase/functions/_shared/block-compiler/index.ts` ou `blocks/*.ts`) é alterado — bloco renomeado, novo compiler registrado, alias removido —, os snapshots antigos contêm o HTML produzido pela **versão anterior** do registry. Blocos cuja chave não existia ou foi alterada simplesmente desaparecem do HTML servido.
+4. Deploy do `storefront-html` apenas atualiza o código; **não invalida** os snapshots já materializados.
+5. `?_revalidate=1` invalida CDN/edge cache, mas **não** força recompilação dos snapshots persistidos no banco.
+
+**Solução aplicada:**
+1. **Invalidação total via SQL** (idempotente, segura):
+   ```sql
+   UPDATE public.storefront_prerendered_pages
+      SET status = 'stale'
+    WHERE status = 'active';
+   ```
+   Marca todos os snapshots como obsoletos. A próxima requisição recompila com o registry atual.
+2. **Re-deploy do `storefront-html`** para garantir que o registry mais recente está ativo no Edge.
+3. **Validação por curl** no domínio público confirmando presença dos marcadores (`data-product-id`, `sf-fp-…`) no HTML servido.
+
+**Onde ocorreu:** Pipeline Edge — `supabase/functions/storefront-html/`, tabela `public.storefront_prerendered_pages`.
+
+**Regra derivada (ANTI-REGRESSÃO MANDATÓRIA):**
+
+> **Toda alteração no registry de compilers de blocos do storefront** (em `supabase/functions/_shared/block-compiler/`) — incluindo: registrar novo compiler, remover compiler, renomear chave, alterar alias, modificar contrato de props lidas pelo compiler — **OBRIGA** a execução conjunta de:
+>
+> 1. `deploy_edge_functions(['storefront-html'])`
+> 2. `UPDATE storefront_prerendered_pages SET status='stale' WHERE status='active'` (escopo: tenants afetados ou global, conforme amplitude da mudança)
+> 3. Validação por `curl` no domínio público confirmando o HTML esperado.
+>
+> **NÃO BASTA:** revalidar pelo Builder, usar `?_revalidate=1` ou aguardar TTL. Esses caminhos não recompilam snapshots persistidos.
+
+**Sinais de regressão (red flags):**
+- Bloco visível no Builder mas ausente no HTML público.
+- HTML público com marcadores de blocos antigos que já foram removidos do código.
+- Discrepância entre `curl <dominio>?_debug=1` e o conteúdo do template publicado.
+
+**Procedimento de diagnóstico rápido:**
+```bash
+# 1. Comparar HTML servido com template salvo
+curl -s https://<dominio-tenant>/?_revalidate=1 | grep -c "data-product-id"
+# Se 0 → cache stale provável
+
+# 2. Conferir status dos snapshots
+SELECT tenant_id, page_type, status, updated_at
+  FROM public.storefront_prerendered_pages
+ WHERE tenant_id = '<uuid>' ORDER BY updated_at DESC;
+
+# 3. Se houver 'active' anteriores ao último deploy do compiler → invalidar
+```
+
+---
+
 ## Como Adicionar Novas Entradas
 
 Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entrada aqui seguindo o formato:
