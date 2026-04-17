@@ -36,7 +36,7 @@ export function StepReview({ config, content, html, onSend, isSending }: StepRev
   const getTypeLabel = () => {
     switch (config.type) {
       case "broadcast": return "Envio Único";
-      case "sequence": return "Sequência";
+      case "sequence": return "Automação (Sequência automatizada)";
       case "automation": return "Automação";
     }
   };
