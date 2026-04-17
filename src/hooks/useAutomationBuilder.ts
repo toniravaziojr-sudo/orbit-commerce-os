@@ -185,7 +185,7 @@ export function useAutomationBuilder(flowId?: string) {
   }, []);
 
   const saveFlow = useCallback(
-    async (status?: string) => {
+    async (status?: string, opts?: { skipNavigate?: boolean; onSaved?: (id: string) => void }) => {
       if (!tenantId) return;
       setIsSaving(true);
       try {
@@ -228,7 +228,6 @@ export function useAutomationBuilder(flowId?: string) {
             .eq("flow_id", flowId);
         }
 
-        // Map old IDs to new UUIDs for edges
         const idMap = new Map<string, string>();
         const dbNodes = nodes.map((n) => {
           const newId = crypto.randomUUID();
@@ -270,9 +269,11 @@ export function useAutomationBuilder(flowId?: string) {
         }
 
         toast.success("Automação salva com sucesso!");
-        if (!flowId) {
+        if (savedFlowId && opts?.onSaved) opts.onSaved(savedFlowId);
+        if (!flowId && !opts?.skipNavigate) {
           navigate(`/email-marketing/automation/${savedFlowId}`);
         }
+        return savedFlowId;
       } catch (err: any) {
         console.error("Save flow error:", err);
         showErrorToast(err, { module: 'automação', action: 'salvar' });

@@ -5573,6 +5573,7 @@ export type Database = {
           conversion_count: number
           conversion_value_cents: number
           created_at: string
+          delivered_count: number
           id: string
           list_id: string | null
           name: string
@@ -5594,6 +5595,7 @@ export type Database = {
           conversion_count?: number
           conversion_value_cents?: number
           created_at?: string
+          delivered_count?: number
           id?: string
           list_id?: string | null
           name: string
@@ -5615,6 +5617,7 @@ export type Database = {
           conversion_count?: number
           conversion_value_cents?: number
           created_at?: string
+          delivered_count?: number
           id?: string
           list_id?: string | null
           name?: string

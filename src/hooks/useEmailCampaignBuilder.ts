@@ -6,10 +6,14 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { showErrorToast } from '@/lib/error-toast';
 
+export type AutomationBuilderStyle = "linear" | "visual";
+
 export interface CampaignConfig {
   name: string;
   type: "broadcast" | "automation" | "sequence";
   list_id: string;
+  /** Quando type é 'sequence' ou 'automation', define qual editor é usado */
+  builderStyle?: AutomationBuilderStyle;
 }
 
 export type SequenceStepType = "send_email" | "wait" | "condition";
@@ -34,13 +38,15 @@ export interface CampaignContent {
   previewText: string;
   blocks: EmailBlock[];
   sequenceSteps?: SequenceStep[];
+  /** Quando type === 'automation' (estilo visual), referencia o fluxo salvo */
+  automationFlowId?: string;
 }
 
 export function useEmailCampaignBuilder() {
   const navigate = useNavigate();
   const { tenantId } = useEmailMarketing();
   const [step, setStep] = useState(0);
-  const [config, setConfig] = useState<CampaignConfig>({ name: "", type: "broadcast", list_id: "" });
+  const [config, setConfig] = useState<CampaignConfig>({ name: "", type: "broadcast", list_id: "", builderStyle: "linear" });
   const [content, setContent] = useState<CampaignContent>({ subject: "", previewText: "", blocks: [], sequenceSteps: [] });
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -141,6 +147,10 @@ export function useEmailCampaignBuilder() {
   const canGoNext = useCallback(() => {
     if (step === 0) return config.name.trim() !== "" && config.list_id !== "";
     if (step === 1) {
+      if (config.type === "automation") {
+        // Estilo visual exige fluxo já salvo
+        return !!content.automationFlowId;
+      }
       if (config.type === "sequence") {
         return (content.sequenceSteps || []).length > 0 && (content.sequenceSteps || []).some(s => s.type === "send_email");
       }

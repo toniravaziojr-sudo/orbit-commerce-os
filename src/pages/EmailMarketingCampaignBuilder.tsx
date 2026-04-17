@@ -6,18 +6,24 @@ import { StepConfig } from "@/components/email-marketing/campaign-builder/StepCo
 import { StepContent } from "@/components/email-marketing/campaign-builder/StepContent";
 import { StepReview } from "@/components/email-marketing/campaign-builder/StepReview";
 import { SequenceBuilder } from "@/components/email-marketing/campaign-builder/SequenceBuilder";
+import { VisualAutomationStep } from "@/components/email-marketing/campaign-builder/VisualAutomationStep";
 import { useEmailCampaignBuilder } from "@/hooks/useEmailCampaignBuilder";
 
 export default function EmailMarketingCampaignBuilder() {
   const navigate = useNavigate();
   const builder = useEmailCampaignBuilder();
 
+  const isVisualAutomation = builder.config.type === "automation" && builder.config.builderStyle === "visual";
+
   const canNavigateToStep = (target: number) => {
     if (target <= builder.step) return true;
     for (let i = 0; i < target; i++) {
       if (i === 0 && (builder.config.name.trim() === "" || builder.config.list_id === "")) return false;
       if (i === 1) {
-        if (builder.config.type === "sequence") {
+        if (isVisualAutomation) {
+          // Para visual, exigimos que o fluxo já tenha sido salvo (vínculo via builder.content.flowId opcional)
+          if (!builder.content.automationFlowId) return false;
+        } else if (builder.config.type === "sequence") {
           const steps = builder.content.sequenceSteps || [];
           if (steps.length === 0 || !steps.some(s => s.type === "send_email")) return false;
         } else {
@@ -53,6 +59,15 @@ export default function EmailMarketingCampaignBuilder() {
           </div>
         )}
 
+        {builder.step === 1 && isVisualAutomation && (
+          <VisualAutomationStep
+            campaignName={builder.config.name}
+            listId={builder.config.list_id}
+            currentFlowId={builder.content.automationFlowId}
+            onFlowSaved={(flowId) => builder.setContent(prev => ({ ...prev, automationFlowId: flowId }))}
+          />
+        )}
+
         {builder.step === 1 && builder.config.type === "sequence" && (
           <SequenceBuilder
             steps={builder.content.sequenceSteps || []}
@@ -62,7 +77,7 @@ export default function EmailMarketingCampaignBuilder() {
           />
         )}
 
-        {builder.step === 1 && builder.config.type !== "sequence" && (
+        {builder.step === 1 && builder.config.type === "broadcast" && (
           <StepContent
             content={builder.content}
             onContentChange={builder.setContent}

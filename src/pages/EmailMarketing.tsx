@@ -6,13 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useEmailMarketing } from "@/hooks/useEmailMarketing";
-import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit, ChevronRight, Workflow, Pause, Play, Copy, TrendingUp } from "lucide-react";
+import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit, ChevronRight, Pause, Play, Copy } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListDialog } from "@/components/email-marketing/ListDialog";
 import { TemplateDialog } from "@/components/email-marketing/TemplateDialog";
 import { CampaignDialog } from "@/components/email-marketing/CampaignDialog";
 import { SubscribersTab } from "@/components/email-marketing/SubscribersTab";
-import { AttributionsTab } from "@/components/email-marketing/AttributionsTab";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -183,8 +182,6 @@ export default function EmailMarketing() {
           <TabsTrigger value="subscribers" className="gap-2"><Users className="h-4 w-4" />Assinantes</TabsTrigger>
           <TabsTrigger value="templates" className="gap-2"><Mail className="h-4 w-4" />Templates</TabsTrigger>
           <TabsTrigger value="campaigns" className="gap-2"><Megaphone className="h-4 w-4" />Campanhas</TabsTrigger>
-          <TabsTrigger value="automations" className="gap-2"><Workflow className="h-4 w-4" />Automações</TabsTrigger>
-          <TabsTrigger value="attributions" className="gap-2"><TrendingUp className="h-4 w-4" />Atribuições</TabsTrigger>
         </TabsList>
 
         <TabsContent value="lists">
@@ -343,13 +340,15 @@ export default function EmailMarketing() {
                         <div>
                           <p className="font-medium">{camp.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {camp.type === 'broadcast' ? 'Broadcast' : 'Automação'} • {camp.sent_count || 0} enviados
+                            {camp.type === 'broadcast' ? 'Envio Único' : camp.type === 'sequence' ? 'Automação (Linear)' : 'Automação (Visual)'} • {camp.sent_count || 0} enviados
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         {(camp.sent_count || 0) > 0 && (
                           <div className="hidden md:flex items-center gap-4 text-xs text-muted-foreground">
+                            <span title="Enviados">📤 {camp.sent_count || 0}</span>
+                            <span title="Entregues">✅ {camp.delivered_count || camp.sent_count || 0}</span>
                             <span title="Aberturas">
                               📬 {camp.sent_count > 0 ? Math.round(((camp.unique_open_count || 0) / camp.sent_count) * 100) : 0}%
                             </span>
@@ -419,64 +418,6 @@ export default function EmailMarketing() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="automations">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Automações</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Crie fluxos automatizados com condições, delays e ações
-                </p>
-              </div>
-              <Button size="sm" onClick={() => navigate("/email-marketing/automation/new")}>
-                <Plus className="h-4 w-4 mr-2" />Nova Automação
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {automationFlows.length === 0 ? (
-                <EmptyState
-                  icon={Workflow}
-                  title="Nenhuma automação"
-                  description="Crie fluxos visuais para automatizar emails, tags e segmentação"
-                  action={{ label: "Criar Automação", onClick: () => navigate("/email-marketing/automation/new") }}
-                />
-              ) : (
-                <div className="space-y-2">
-                  {automationFlows.map((flow: any) => (
-                    <div
-                      key={flow.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
-                      onClick={() => navigate(`/email-marketing/automation/${flow.id}`)}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                          <Workflow className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{flow.name || "Sem nome"}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {flow.trigger_type === "list_subscription" ? "Entrada na lista" : flow.trigger_type}
-                            {" • "}{flow.node_count} blocos
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Badge variant={flow.status === "active" ? "default" : "secondary"}>
-                          {flow.status === "active" ? "Ativa" : flow.status === "draft" ? "Rascunho" : flow.status === "paused" ? "Pausada" : flow.status}
-                        </Badge>
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="attributions">
-          <AttributionsTab />
-        </TabsContent>
       </Tabs>
 
       {/* Dialogs */}
