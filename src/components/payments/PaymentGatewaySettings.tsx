@@ -72,9 +72,9 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     logo: '💰',
     description: 'Gateway completo para e-commerce com PIX, Boleto e Cartão',
     fields: [
-      { key: 'account_id', label: 'Account ID', type: 'text', placeholder: 'acc_...' },
-      { key: 'api_key', label: 'Secret Key', type: 'password', placeholder: 'sk_...' },
-      { key: 'public_key', label: 'Public Key', type: 'text', placeholder: 'pk_...' },
+      { key: 'account_id', label: 'Account ID', type: 'text', placeholder: 'acc_...', validatePrefix: ['acc_'] },
+      { key: 'api_key', label: 'Secret Key', type: 'password', placeholder: 'sk_...', validatePrefix: ['sk_'] },
+      { key: 'public_key', label: 'Public Key', type: 'text', placeholder: 'pk_... (opcional)', optional: true, helpText: 'Usada apenas para tokenização no navegador. Não é necessária para PIX, Boleto ou checkout server-side.' },
     ],
     supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
     docsUrl: 'https://docs.pagar.me',
