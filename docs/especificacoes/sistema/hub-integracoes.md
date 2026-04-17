@@ -186,7 +186,17 @@ O registro é feito em 3 etapas guiadas na UI:
 | `awaiting_verification` | Código SMS/voz solicitado, aguardando inserção |
 | `pending_registration` | Código verificado, aguardando registro com PIN |
 | `disconnected` | Desconectado pelo usuário |
-| `token_expired` | Token expirado, requer reconexão |
+| `token_expired` | Token long-lived expirou (60d) — requer reconexão |
+| `token_invalid` | Sessão Meta foi invalidada (troca de senha, logout, revogação) — requer reconexão |
+
+**Anti-regressão — Token Meta inválido (v2026-04-17):**
+Antes desta versão, quando a sessão Meta era invalidada (erro `190` da Graph API), o sistema não detectava: o status permanecia `connected` ou `pending_registration` enquanto a Meta rejeitava silenciosamente todas as chamadas `register`/`deregister`. O número ficava preso em "Pendente" no WhatsApp Manager indefinidamente.
+
+Duas defesas obrigatórias:
+1. **Pre-flight no `meta-whatsapp-register-phone`:** antes de chamar register/deregister, faz `GET /me` com o token. Se retornar code `190`, marca `connection_status = 'token_invalid'`, grava `last_error` orientando reconexão e aborta sem tocar a Meta.
+2. **Cron diário `whatsapp-token-healthcheck`:** roda 1x/dia (07:00 UTC), valida `/me` para todas as configs ativas. Tokens inválidos são marcados `token_invalid` proativamente; tokens OK têm `last_error` antigo limpo.
+
+A UI exibe badge "Reconexão necessária" (vermelho) e bloco explicativo direcionando para `Integrações → Meta → Reconectar` quando `connection_status = 'token_invalid'`.
 
 **Fluxo na UI (MetaUnifiedSettings.tsx):**
 - Localização: `Integrações → Meta → Ativos conectados → card WhatsApp`

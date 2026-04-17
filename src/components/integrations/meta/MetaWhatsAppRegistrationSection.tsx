@@ -139,6 +139,10 @@ export function MetaWhatsAppRegistrationSection() {
           <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
             <Phone className="h-3 w-3 mr-1" />Ativo
           </Badge>
+        ) : whatsappConfig.connection_status === "token_invalid" ? (
+          <Badge variant="outline" className="text-xs border-destructive text-destructive">
+            <AlertTriangle className="h-3 w-3 mr-1" />Reconexão necessária
+          </Badge>
         ) : whatsappConfig.connection_status === "awaiting_verification" ? (
           <Badge variant="outline" className="text-xs border-amber-400 text-amber-700 dark:text-amber-400">
             <AlertTriangle className="h-3 w-3 mr-1" />Aguardando código
@@ -153,6 +157,21 @@ export function MetaWhatsAppRegistrationSection() {
           </Badge>
         )}
       </div>
+
+      {/* Token invalid — bloqueio claro com CTA de reconexão */}
+      {whatsappConfig.connection_status === "token_invalid" && (
+        <div className="rounded-md bg-destructive/10 border border-destructive/30 p-2.5 space-y-2">
+          <p className="text-xs text-destructive font-medium">
+            Sua sessão Meta expirou ou foi revogada.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Isso geralmente acontece após troca de senha ou logout do Facebook. Enquanto não reconectar, o número não sai do status "Pendente" na Meta.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Vá em <strong>Integrações → Meta</strong> e clique em <strong>Reconectar</strong>.
+          </p>
+        </div>
+      )}
 
       {/* Registration flow */}
       {whatsappConfig.connection_status !== "connected" && (
