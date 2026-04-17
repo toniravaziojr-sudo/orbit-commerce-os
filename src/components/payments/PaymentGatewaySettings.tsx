@@ -335,7 +335,14 @@ export function PaymentGatewaySettings() {
                       
                       return (
                         <div key={field.key} className="space-y-2">
-                          <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
+                            {field.optional && (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+                                Opcional
+                              </Badge>
+                            )}
+                          </div>
                           <div className="relative">
                             <Input
                               id={`${gateway.id}-${field.key}`}
@@ -357,6 +364,11 @@ export function PaymentGatewaySettings() {
                               </Button>
                             )}
                           </div>
+                          {field.helpText && (
+                            <p className="text-xs text-muted-foreground leading-snug">
+                              {field.helpText}
+                            </p>
+                          )}
                         </div>
                       );
                     })}
