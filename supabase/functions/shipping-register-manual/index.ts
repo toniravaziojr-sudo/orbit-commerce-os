@@ -5,8 +5,6 @@
  * Usado quando a etiqueta foi comprada externamente (Frenet, Melhor Envio, etc).
  * Não chama API de transportadora, apenas salva no banco.
  */
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -21,7 +19,7 @@ interface RegisterManualRequest {
   carrier: string;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

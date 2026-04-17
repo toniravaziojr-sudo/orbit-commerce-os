@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -18,7 +17,7 @@ function jsonResponse(data: any) {
   });
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[meli-publish-listing][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {

@@ -2,8 +2,6 @@
 // INTEGRATION CONFIG - Server-side config management
 // Handles payment/shipping provider configs securely
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -37,7 +35,7 @@ function getEnvFallback(provider: string): Record<string, string> {
   return {};
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

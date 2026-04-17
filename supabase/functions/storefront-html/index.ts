@@ -4,8 +4,6 @@
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 import { compileBlockTree, extractProductIds, extractCategoryIds, extractProductFetchSpecs } from '../_shared/block-compiler/index.ts';
@@ -2118,7 +2116,7 @@ function buildFullPage(opts: {
 // ============================================
 // MAIN HANDLER
 // ============================================
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[storefront-html][${VERSION}] Request received — ${req.method} ${req.url}`);
   const startTime = Date.now();
 

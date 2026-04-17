@@ -4,8 +4,6 @@
 // NO sensitive data (CPF) is returned — CPF stays server-side.
 // Used by Step 5: "Tentar com outra forma de pagamento"
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -20,7 +18,7 @@ interface RetryCheckoutRequest {
   retry_token: string;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

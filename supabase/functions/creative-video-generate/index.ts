@@ -16,8 +16,6 @@
  * 4. Narration (opcional) - ElevenLabs TTS + Kling Lipsync
  * 5. Fallback - Imagem estática se vídeo falhar
  */
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateVideoWithFal, getFalApiKey, type VideoTier, type FalVideoResult } from "../_shared/fal-client.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
@@ -67,7 +65,7 @@ interface VideoJobInput {
   preset_id?: string;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

@@ -4,8 +4,6 @@
 // Server-side registry: backend resolve contrato internamente
 // Frontend envia: blockType, mode, scope, collectedData, tenantId
 // =============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { generateForRequest, uploadToStorage } from "../_shared/visual-engine.ts";
@@ -545,7 +543,7 @@ ${briefing ? `Briefing: "${briefing}"` : ''}`;
 // MAIN HANDLER
 // =============================================
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

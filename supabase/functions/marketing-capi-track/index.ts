@@ -3,8 +3,6 @@
 // Receives any marketing event from client and forwards to Meta Conversions API
 // Uses same event_id as browser pixel for automatic deduplication
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMetaCapiEvents, getMetaCapiConfig, resolveMetaContentId } from "../_shared/meta-capi-sender.ts";
 import type { MetaCapiEvent } from "../_shared/meta-capi-sender.ts";
@@ -72,7 +70,7 @@ interface TrackRequest {
   };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

@@ -585,3 +585,24 @@ Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entra
 **Regra derivada:** Regra geral para evitar recorrência
 ```
 
+
+---
+
+### N. Edge Functions: import legado `deno.land/std` quebra deploys
+
+**Problema:** Deploys de Edge Functions falhavam com `500 Internal Server Error` ao tentar resolver `https://deno.land/std@0.168.0/http/server.ts`. Como o bundler é compartilhado, **a falha de uma função quebrava o deploy de todas as outras** — incluindo correções não relacionadas (ex.: WhatsApp/Meta health-check).
+
+**Causa raiz:** Instabilidade do CDN `deno.land` + Edge Runtime atual já oferece `Deno.serve` nativo, tornando o import externo desnecessário e frágil.
+
+**Solução:** Normalização em massa de 207 funções:
+- Remoção do `import { serve } from "https://deno.land/std@.../http/server.ts"`.
+- Substituição de todas as chamadas `serve(handler)` por `Deno.serve(handler)`.
+- Preferência por especificadores `npm:` no lugar de `https://esm.sh/...` quando aplicável.
+
+**Onde ocorreu:** `supabase/functions/**/index.ts` (todas).
+
+**Regra derivada (anti-regressão — MANDATÓRIA):**
+1. **Proibido** importar `serve` de `deno.land/std` em qualquer nova Edge Function. Usar `Deno.serve(...)` nativo.
+2. Para o cliente Supabase, preferir `import { createClient } from "npm:@supabase/supabase-js@2"`.
+3. Antes de declarar uma entrega de Edge Function como concluída, executar deploy real (não apenas build do front) — o build do Vite **não** detecta erros de bundle do Edge Runtime.
+4. Se um deploy quebrar por falha de CDN externa em função alheia ao escopo, aplicar este mesmo patch antes de prosseguir (regressão conhecida).

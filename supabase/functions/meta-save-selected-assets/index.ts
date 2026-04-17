@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
@@ -16,7 +15,7 @@ const corsHeaders = {
  *
  * Recebe os ativos selecionados pelo usuário após o OAuth e sincroniza os efeitos colaterais.
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[meta-save-selected-assets][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
@@ -1365,7 +1364,7 @@ Uma ação acaba de ser executada. O resultado está no histórico como [AÇÃO_
 
 const MAX_TOOL_ROUNDS = 5;
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[command-assistant-chat][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {

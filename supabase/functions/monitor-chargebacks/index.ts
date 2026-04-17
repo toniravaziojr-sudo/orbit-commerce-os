@@ -5,8 +5,6 @@
 // payment_status → under_review | paid | refunded
 // order status   → chargeback_detected | chargeback_lost | (restored)
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
@@ -161,7 +159,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // MAIN HANDLER
 // ============================================
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

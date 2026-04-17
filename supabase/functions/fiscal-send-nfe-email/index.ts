@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -66,7 +65,7 @@ function formatDate(dateString: string | null): string {
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log("[fiscal-send-nfe-email] Request received");
 
   // Handle CORS preflight

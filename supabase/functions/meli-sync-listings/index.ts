@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -25,7 +24,7 @@ function jsonResponse(data: any) {
  * 1. **User mode** (with Authorization header): Syncs listings for a specific tenant
  * 2. **Cron mode** (without auth, body: { cronMode: true }): Syncs ALL tenants with active ML connections
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[meli-sync-listings][${VERSION}] Request received`);
 
   if (req.method === "OPTIONS") {

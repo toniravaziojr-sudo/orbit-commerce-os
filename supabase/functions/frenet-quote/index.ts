@@ -3,8 +3,6 @@
 // Resolves tenant by domain, NEVER trusts client tenant_id
 // Uses database config, falls back to Secrets
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -126,7 +124,7 @@ async function getFrenetCredentials(supabase: any, tenantId: string): Promise<{
   };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

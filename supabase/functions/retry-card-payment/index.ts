@@ -3,8 +3,6 @@
 // Validates retry_token, loads order data internally,
 // calls the active payment gateway. NO sensitive data from frontend.
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 
@@ -30,7 +28,7 @@ interface RetryRequest {
   payment_attempt_id?: string;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

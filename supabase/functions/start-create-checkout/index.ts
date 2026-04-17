@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
@@ -34,7 +33,7 @@ function generateSlug(name: string): string {
     .substring(0, 50);
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { createHmac } from "https://deno.land/std@0.177.0/node/crypto.ts";
@@ -17,7 +16,7 @@ const corsHeaders = {
  * 
  * Docs: https://open.shopee.com/documents/v2/v2.shop.auth_partner
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

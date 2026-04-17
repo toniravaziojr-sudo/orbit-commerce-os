@@ -4,8 +4,6 @@
  * Inicia um job de geração de criativo (vídeo/imagem) e enfileira para processamento.
  * Suporta 5 tipos: ugc_client_video, ugc_ai_video, short_video, tech_product_video, product_image
  */
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -43,7 +41,7 @@ const MODEL_CONFIGS: Record<string, { endpoint: string; provider: string; costEs
 // Tipos válidos
 const VALID_TYPES = ['ugc_client_video', 'ugc_ai_video', 'short_video', 'tech_product_video', 'product_image'];
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

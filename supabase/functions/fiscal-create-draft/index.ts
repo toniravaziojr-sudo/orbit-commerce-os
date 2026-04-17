@@ -2,8 +2,6 @@
 // FISCAL CREATE DRAFT - Cria rascunho de NF-e
 // Monta payload completo para preview antes de emitir
 // =============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
@@ -81,7 +79,7 @@ async function getIbgeCodigo(supabase: any, cidade: string, uf: string): Promise
   return contains?.codigo || null;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

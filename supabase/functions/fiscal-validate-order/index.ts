@@ -2,8 +2,6 @@
 // FISCAL VALIDATE ORDER - Validação pré-emissão de NF-e
 // Verifica se pedido tem todos os requisitos para emissão
 // =============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -18,7 +16,7 @@ interface ValidationResult {
   warnings: string[];
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

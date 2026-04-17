@@ -3,8 +3,6 @@
 // Uses database config first, falls back to Secrets
 // v2.0 — Canonical price validation (Security Plan v3.1 Phase 2B)
 // ============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 import { errorResponse } from "../_shared/error-response.ts";
@@ -112,7 +110,7 @@ async function isMethodEnabled(supabase: any, tenantId: string, method: string):
   return paymentMethod.is_enabled;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
@@ -256,7 +255,7 @@ async function scrapeUrl(url: string): Promise<{ success: boolean; markdown?: st
 
 // ========== MAIN HANDLER ==========
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[ai-product-description][${VERSION}] Request received`);
 
   if (req.method === 'OPTIONS') {

@@ -4,8 +4,6 @@
 // sem NF-e existente
 // Modos: CRON (all tenants) | USER (single tenant) | TRIGGER (single order)
 // =============================================
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
@@ -382,7 +380,7 @@ async function processTenanDrafts(
 // MAIN HANDLER
 // ============================
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
