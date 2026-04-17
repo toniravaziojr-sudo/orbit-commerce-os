@@ -246,7 +246,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 
 **ERP:**
 - `/fiscal` — Fiscal (abas: Pedidos em Aberto, Notas Fiscais)
-- `/fiscal/configuracoes` — Configurações Fiscais (página dedicada — abas: Configurações Fiscais, Natureza Jurídica, Outros). Acesso exclusivo via botão "Configurações" em `/fiscal`. Botão "Voltar" retorna para `/fiscal?tab=pedidos`. **Não aparece na sidebar.**
+- `/fiscal/configuracoes` — Configurações Fiscais (página dedicada — abas: Configurações Fiscais, Natureza Jurídica, Outros). **Casa oficial:** `Sistema → Configurações → aba Fiscal`. **Atalhos de acesso:** (1) botão "Configurações" em `/fiscal` e (2) aba "Fiscal" em `/system/settings`. **Botão "Voltar" contextual via `?from=`:** `?from=fiscal` retorna para `/fiscal?tab=pedidos`; `?from=settings` (ou sem param) retorna para `/system/settings?tab=fiscal`. Não aparece como item próprio na sidebar.
 - `/fiscal/products` — Config fiscal de produtos
 - `/fiscal/operation-natures` — **Redirect legado** → `/fiscal/configuracoes?aba=natureza`
 - `/finance` — Financeiro (GatedRoute: `erp_financeiro`)
@@ -268,7 +268,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 **Sistema:**
 - `/integrations` — Hub de integrações
 - `/apps-externos` — Apps externos
-- `/system/settings` — Configurações do sistema
+- `/system/settings` — Configurações do sistema (abas: **Pagamentos**, **Fiscal** — esta última redireciona para `/fiscal/configuracoes?from=settings`)
 - `/system/users` — Usuários e permissões (owner only, GatedRoute: `sistema_usuarios`)
 - `/settings` — Configurações gerais
 - `/settings/domains` — Domínios
@@ -324,6 +324,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 | `/settings/fiscal` | `/fiscal/configuracoes` | Página dedicada (rev 2026-04-17) |
 | `/fiscal?tab=configuracoes` | `/fiscal/configuracoes` | Substituição do modal por página (rev 2026-04-17) |
 | `/fiscal/operation-natures` | `/fiscal/configuracoes?aba=natureza` | Consolidação na página de configurações |
+| `/system/settings?tab=fiscal` | `/fiscal/configuracoes?from=settings` | Casa oficial em Sistema→Configurações com Voltar contextual (rev 2026-04-17b) |
 | `/account/personal` | `/account/data` | Consolidação |
 | `/account/company` | `/account/data` | Consolidação |
 

@@ -4,9 +4,14 @@
 //   1. Configurações Fiscais (Emitente)
 //   2. Natureza Jurídica (Naturezas de Operação)
 //   3. Outros (Inutilização, Automação, E-mail, Remessa, Desmembramento)
-// Botão Voltar SEMPRE retorna para /fiscal?tab=pedidos.
-// Refactor: substitui o antigo monolito FiscalSettings.tsx (era usado em /settings/fiscal,
-// mantida como redirect legado).
+//
+// Casa oficial: Sistema → Configurações → aba Fiscal.
+// Atalho mantido: botão "Configurações" no módulo Fiscal.
+//
+// Botão "Voltar" CONTEXTUAL via query param ?from=:
+//   - ?from=fiscal    -> volta para /fiscal?tab=pedidos
+//   - ?from=settings  -> volta para /system/settings?tab=fiscal
+//   - sem param       -> default = /system/settings?tab=fiscal (casa oficial)
 // =============================================
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Building2, Scale, Settings2 } from 'lucide-react';
@@ -18,21 +23,34 @@ import { OperationNaturesContent } from '@/components/fiscal/settings/OperationN
 import { OutrosSettings } from '@/components/fiscal/settings/OutrosSettings';
 
 type SettingsTab = 'emitente' | 'natureza' | 'outros';
+type Origin = 'fiscal' | 'settings';
 
 export default function FiscalSettings() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('aba') as SettingsTab | null;
+  const fromParam = searchParams.get('from') as Origin | null;
+  const origin: Origin = fromParam === 'fiscal' ? 'fiscal' : 'settings';
+
   const activeTab: SettingsTab =
     tabFromUrl === 'natureza' || tabFromUrl === 'outros' ? tabFromUrl : 'emitente';
 
   const handleTabChange = (tab: string) => {
-    setSearchParams({ aba: tab });
+    // Preservar o ?from= ao trocar de aba
+    const next = new URLSearchParams(searchParams);
+    next.set('aba', tab);
+    setSearchParams(next);
   };
 
   const handleBack = () => {
-    navigate('/fiscal?tab=pedidos');
+    if (origin === 'fiscal') {
+      navigate('/fiscal?tab=pedidos');
+    } else {
+      navigate('/system/settings?tab=fiscal');
+    }
   };
+
+  const backLabel = origin === 'fiscal' ? 'Voltar para Fiscal' : 'Voltar para Configurações';
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -42,7 +60,7 @@ export default function FiscalSettings() {
         actions={
           <Button variant="outline" onClick={handleBack} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
-            Voltar para Fiscal
+            {backLabel}
           </Button>
         }
       />
