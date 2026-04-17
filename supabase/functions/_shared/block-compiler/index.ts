@@ -263,12 +263,51 @@ function compileNode(node: BlockNode, context: CompilerContext): string {
 }
 
 /**
+ * Block types that can carry a manual list of product IDs in `props.productIds`.
+ * Includes the unified ProductShowcase (source=manual) and the legacy alias.
+ */
+const MANUAL_PRODUCT_ID_BLOCKS = new Set([
+  'FeaturedProducts',
+  'ProductShowcase',
+]);
+
+/**
+ * Block types that drive a dynamic product fetch (featured / newest / all / category).
+ * Includes the unified ProductShowcase and all legacy aliases.
+ */
+const DYNAMIC_PRODUCT_FETCH_BLOCKS = new Set([
+  'ProductShowcase',
+  'ProductGrid',
+  'ProductCarousel',
+  'CollectionSection',
+  'BannerProducts',
+]);
+
+/**
+ * Spec describing a dynamic product fetch needed by a vitrine block.
+ * The storefront orchestrator uses these to pre-load `context.products`
+ * before compileBlockTree runs.
+ */
+export interface ProductFetchSpec {
+  source: 'featured' | 'newest' | 'all' | 'category';
+  categoryId?: string;
+  limit: number;
+}
+
+/**
  * Extract all product IDs needed by blocks in the tree.
  * Used to pre-fetch product data before compilation.
+ *
+ * Recognizes both the unified `ProductShowcase` (with source=manual)
+ * and the legacy `FeaturedProducts` alias.
  */
 export function extractProductIds(node: BlockNode): string[] {
   const ids: string[] = [];
-  if (node.type === 'FeaturedProducts' && Array.isArray(node.props.productIds)) {
+  const isManual =
+    MANUAL_PRODUCT_ID_BLOCKS.has(node.type) &&
+    (node.type === 'FeaturedProducts' || node.props.source === 'manual') &&
+    Array.isArray(node.props.productIds);
+  if (isManual) {
     ids.push(...(node.props.productIds as string[]));
   }
   if (node.children) {
@@ -277,6 +316,41 @@ export function extractProductIds(node: BlockNode): string[] {
     }
   }
   return [...new Set(ids)];
+}
+
+/**
+ * Extract dynamic product fetch specs for blocks that pull products by
+ * source (featured / newest / all / category) instead of a manual ID list.
+ *
+ * The orchestrator (`storefront-html`) is responsible for executing these
+ * fetches and merging the results into `context.products` /
+ * `context.productImages` so each block compiler can render synchronously.
+ */
+export function extractProductFetchSpecs(node: BlockNode): ProductFetchSpec[] {
+  const specs: ProductFetchSpec[] = [];
+
+  if (DYNAMIC_PRODUCT_FETCH_BLOCKS.has(node.type)) {
+    const rawSource = (node.props.source as string) || 'featured';
+    // Manual mode is handled by extractProductIds — skip here.
+    if (rawSource !== 'manual') {
+      const source = (['featured', 'newest', 'all', 'category'].includes(rawSource)
+        ? rawSource
+        : 'featured') as ProductFetchSpec['source'];
+      const limit = Math.max(1, Math.min(48, (node.props.limit as number) || 8));
+      const categoryId = (node.props.categoryId as string) || undefined;
+      // Only include category fetch when we actually have an id.
+      if (source !== 'category' || categoryId) {
+        specs.push({ source, categoryId, limit });
+      }
+    }
+  }
+
+  if (node.children) {
+    for (const child of node.children) {
+      specs.push(...extractProductFetchSpecs(child));
+    }
+  }
+  return specs;
 }
 
 /**
