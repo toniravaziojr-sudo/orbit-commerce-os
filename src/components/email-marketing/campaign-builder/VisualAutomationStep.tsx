@@ -43,7 +43,7 @@ function InnerBuilder({ campaignName, listId, currentFlowId, onFlowSaved }: Prop
         <div className="flex items-center gap-2 text-sm">
           <span className="font-medium">Construtor Visual</span>
           {currentFlowId && (
-            <span className="flex items-center gap-1 text-xs text-emerald-600">
+            <span className="flex items-center gap-1 text-xs text-primary">
               <CheckCircle2 className="h-3.5 w-3.5" /> Fluxo vinculado
             </span>
           )}
@@ -51,7 +51,8 @@ function InnerBuilder({ campaignName, listId, currentFlowId, onFlowSaved }: Prop
         <Button
           size="sm"
           onClick={async () => {
-            await builder.saveFlow("draft");
+            const id = await builder.saveFlow("draft", { skipNavigate: true, onSaved: onFlowSaved });
+            if (id) onFlowSaved(id);
           }}
           disabled={builder.isSaving || !builder.flowConfig.name}
           className="gap-1.5"
