@@ -82,6 +82,7 @@ const Integrations = lazy(() => import("@/pages/Integrations"));
 const ExternalApps = lazy(() => import("@/pages/ExternalApps"));
 const Finance = lazy(() => import("@/pages/Finance"));
 const Fiscal = lazy(() => import("@/pages/Fiscal"));
+const FiscalSettings = lazy(() => import("@/pages/FiscalSettings"));
 const FiscalProductsConfig = lazy(() => import("@/pages/FiscalProductsConfig"));
 const OperationNaturesSettings = lazy(() => import("@/pages/OperationNaturesSettings"));
 const Purchases = lazy(() => import("@/pages/Purchases"));
