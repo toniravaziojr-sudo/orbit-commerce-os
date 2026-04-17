@@ -38,6 +38,8 @@ export interface CampaignContent {
   previewText: string;
   blocks: EmailBlock[];
   sequenceSteps?: SequenceStep[];
+  /** Quando type === 'automation' (estilo visual), referencia o fluxo salvo */
+  automationFlowId?: string;
 }
 
 export function useEmailCampaignBuilder() {
@@ -145,6 +147,10 @@ export function useEmailCampaignBuilder() {
   const canGoNext = useCallback(() => {
     if (step === 0) return config.name.trim() !== "" && config.list_id !== "";
     if (step === 1) {
+      if (config.type === "automation") {
+        // Estilo visual exige fluxo já salvo
+        return !!content.automationFlowId;
+      }
       if (config.type === "sequence") {
         return (content.sequenceSteps || []).length > 0 && (content.sequenceSteps || []).some(s => s.type === "send_email");
       }
