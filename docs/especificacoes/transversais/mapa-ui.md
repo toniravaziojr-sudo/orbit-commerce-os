@@ -245,9 +245,10 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/reviews` — Avaliações
 
 **ERP:**
-- `/fiscal` — Fiscal
+- `/fiscal` — Fiscal (abas: Pedidos em Aberto, Notas Fiscais)
+- `/fiscal/configuracoes` — Configurações Fiscais (página dedicada — abas: Configurações Fiscais, Natureza Jurídica, Outros). Acesso exclusivo via botão "Configurações" em `/fiscal`. Botão "Voltar" retorna para `/fiscal?tab=pedidos`. **Não aparece na sidebar.**
 - `/fiscal/products` — Config fiscal de produtos
-- `/fiscal/operation-natures` — Naturezas de operação
+- `/fiscal/operation-natures` — **Redirect legado** → `/fiscal/configuracoes?aba=natureza`
 - `/finance` — Financeiro (GatedRoute: `erp_financeiro`)
 - `/purchases` — Compras (GatedRoute: `erp_compras`)
 - `/shipping` — Dashboard de logística
@@ -320,7 +321,9 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 | `/cart-checkout` | `/abandoned-checkouts` | Consolidação |
 | `/health-monitor` | `/platform/health-monitor` | Prefixo platform |
 | `/settings/emails` | `/platform/integrations` | Reorganização |
-| `/settings/fiscal` | `/fiscal?tab=configuracoes` | Reorganização |
+| `/settings/fiscal` | `/fiscal/configuracoes` | Página dedicada (rev 2026-04-17) |
+| `/fiscal?tab=configuracoes` | `/fiscal/configuracoes` | Substituição do modal por página (rev 2026-04-17) |
+| `/fiscal/operation-natures` | `/fiscal/configuracoes?aba=natureza` | Consolidação na página de configurações |
 | `/account/personal` | `/account/data` | Consolidação |
 | `/account/company` | `/account/data` | Consolidação |
 
