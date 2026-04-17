@@ -155,7 +155,7 @@ function renderLegalPageToHtml(page: LegalPageStructure, ctx: StoreContext): str
 // MAIN
 // =============================================
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
