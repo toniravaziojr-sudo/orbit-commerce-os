@@ -129,13 +129,13 @@ Quando um bloco tem comportamento diferente entre desktop e mobile, DEVE ter pro
 | `HeroBannerBlock.tsx` | `blocks/hero-banner.ts` | Legado |
 | `AccordionBlock.tsx` | `blocks/accordion.ts` | |
 | `CategoryBannerBlock.tsx` | `blocks/category-banner.ts` | |
-| `CategoryListBlock.tsx` | `blocks/category-list.ts` | Alias de `CategoryShowcase` (style=circles) |
+| `CategoryListBlock.tsx` | `blocks/category-list.ts` | Alias de `CategoryShowcase` (style=cards) — variante "cards" |
 | `CategoryPageLayout.tsx` | `blocks/category-page-layout.ts` | Complexo |
 | `CollectionSectionBlock.tsx` | `blocks/collection-section.ts` | Alias de `ProductShowcase` (source=category + showViewAll) |
 | `ContentColumnsBlock.tsx` | `blocks/content-columns.ts` | |
 | `CountdownTimerBlock.tsx` | `blocks/countdown-timer.ts` | |
 | `FeatureListBlock.tsx` | `blocks/feature-list.ts` | |
-| `FeaturedCategoriesBlock.tsx` | `blocks/featured-categories.ts` | Alias de `CategoryShowcase` (style=cards) |
+| `FeaturedCategoriesBlock.tsx` | `blocks/featured-categories.ts` | Alias de `CategoryShowcase` (style=circles) — variante "circles" modular (`circles/CirclesVariantBlock`) |
 | `FeaturedProductsBlock.tsx` | `blocks/featured-products.ts` | Alias de `ProductShowcase` (source=manual) |
 | `HTMLSectionBlock.tsx` | `blocks/html-section.ts` | |
 | `ImageCarouselBlock.tsx` | `blocks/image-carousel.ts` | |

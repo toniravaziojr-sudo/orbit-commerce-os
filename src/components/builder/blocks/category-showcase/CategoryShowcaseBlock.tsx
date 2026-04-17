@@ -1,19 +1,20 @@
 // =============================================
 // CATEGORY SHOWCASE BLOCK - Unified orchestrator
-// Routes to: CategoryListBlock (cards) | FeaturedCategoriesBlock (circles)
+// SRP: Routes only. No data, no layout.
+// Routes to: CategoryListBlock (cards) | CirclesVariantBlock (circles)
 // =============================================
 
 import { CategoryListBlock } from '../CategoryListBlock';
-import { FeaturedCategoriesBlock } from '../FeaturedCategoriesBlock';
+import { CirclesVariantBlock } from './circles';
 import type { CategoryShowcaseBlockProps } from './types';
 
 export function CategoryShowcaseBlock(props: CategoryShowcaseBlockProps) {
   const { style = 'cards', ...rest } = props;
 
   if (style === 'circles') {
-    return <FeaturedCategoriesBlock {...rest as any} />;
+    return <CirclesVariantBlock {...(rest as any)} />;
   }
 
   // Default: cards
-  return <CategoryListBlock {...rest as any} />;
+  return <CategoryListBlock {...(rest as any)} />;
 }
