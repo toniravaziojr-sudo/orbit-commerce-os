@@ -33,7 +33,8 @@ export default function Fiscal() {
   };
 
   const handleOpenSettings = () => {
-    navigate('/fiscal/configuracoes');
+    // ?from=fiscal -> botão Voltar nas Configurações Fiscais retorna para /fiscal?tab=pedidos
+    navigate('/fiscal/configuracoes?from=fiscal');
   };
 
   return (
