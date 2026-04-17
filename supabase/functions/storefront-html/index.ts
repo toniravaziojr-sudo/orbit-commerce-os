@@ -2480,7 +2480,6 @@ serve(async (req) => {
 
         // Union: manual IDs (extractProductIds) + dynamically resolved IDs.
         const allProductIds = Array.from(new Set([...neededProductIds, ...dynamicProductIds]));
-        console.log(`[storefront-html][${VERSION}][DEBUG] HOME prefetch — manualIds=${neededProductIds.length}, dynamicIds=${dynamicProductIds.size}, total=${allProductIds.length}, fetchSpecs=${JSON.stringify(fetchSpecs)}`);
 
         const homeDataQueries: Promise<any>[] = [];
         

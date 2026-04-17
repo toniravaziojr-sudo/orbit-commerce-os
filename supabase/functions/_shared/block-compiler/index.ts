@@ -250,11 +250,7 @@ function compileNode(node: BlockNode, context: CompilerContext): string {
   // Look up compiler
   const compiler = COMPILER_REGISTRY[node.type];
   if (compiler) {
-    const out = compiler(effectiveProps, context, childrenHtml);
-    if (node.type === 'ProductShowcase' || node.type === 'FeaturedProducts' || node.type === 'ProductGrid') {
-      console.log(`[block-compiler][DEBUG] ${node.type} #${node.id} → output length=${out.length}, props.source=${(effectiveProps as any).source}, productIds=${Array.isArray((effectiveProps as any).productIds) ? (effectiveProps as any).productIds.length : 'n/a'}, context.products.size=${context.products.size}`);
-    }
-    return out;
+    return compiler(effectiveProps, context, childrenHtml);
   }
   
   // No compiler: return children directly (pass-through for layout wrappers)
