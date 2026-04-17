@@ -40,7 +40,7 @@ export default function EmailMarketing() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const emailMarketing = useEmailMarketing();
-  const { lists, templates, campaigns, queueStats, subscribersCount, listsLoading, listsError, refetchLists, automationFlows, tenantId } = emailMarketing;
+  const { lists, templates, campaigns, queueStats, subscribersCount, listsLoading, listsError, refetchLists, tenantId } = emailMarketing;
 
   const [listDialogOpen, setListDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);

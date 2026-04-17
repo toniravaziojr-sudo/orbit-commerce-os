@@ -1,7 +1,7 @@
 # Email Marketing — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-04-10
+> **Última atualização:** 2026-04-17 (unificação de builders + atribuição centralizada)
 
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Migrado de:** `docs/regras/email-marketing.md`
@@ -190,20 +190,28 @@ Tabela de junção lista↔subscriber — **fonte de verdade para exibição de 
    - Atualiza status para "sent" ou "failed"
 ```
 
-### Automation
+### Automation (Wizard Unificado)
+
+Desde 2026-04-17, automações e envios únicos compartilham o mesmo wizard em `/email-marketing/campaign/new`. Não existem mais rotas separadas para builder visual nem aba "Automações" na UI.
+
+**Passo 1 — Configuração:**
+- Tipo: `Envio Único` (broadcast) ou `Automação` (sequência por trigger)
+- Quando seleciona Automação, aparece dropdown **Estilo do builder**:
+  - `Linear (simples)` — editor sequencial passo-a-passo (padrão)
+  - `Visual (fluxograma)` — canvas ReactFlow com nós e arestas
+
+**Passo 2 — Conteúdo:**
+- Renderiza o builder escolhido (linear ou visual) embarcado no wizard
+- O fluxo visual é salvo via `useAutomationBuilder.saveFlow(status, { skipNavigate: true })` e vinculado à campanha por `content.automationFlowId`
+
+**Passo 3 — Revisão e envio.**
 
 ```
-1. Subscriber se cadastra via formulário
+1. Trigger ocorre (subscriber novo, abandono, tag aplicada, etc.)
    ↓
-2. marketing-form-submit:
-   - Upsert subscriber
-   - Adiciona a lista configurada
-   - Adiciona tags
-   - Dispara triggerAutomations()
+2. Sistema busca automações ativas com trigger correspondente
    ↓
-3. Para cada automation ativa com trigger_type="subscribed":
-   - Busca steps da campanha
-   - Agenda emails na fila com delay
+3. Executa steps (linear) ou percorre o grafo (visual) agendando emails na fila com delay
 ```
 
 ### Unsubscribe
@@ -303,15 +311,24 @@ Configuração em `email_provider_configs`:
 
 ### Abas do Dashboard (`EmailMarketing.tsx`)
 
-1. **Listas** - CRUD de listas segmentadas
-   - **Contagem de leads exibida acima do nome da lista** (ex: "8.008 leads")
-   - Clique na lista abre página dedicada de detalhes (`EmailMarketingListDetail.tsx`)
+> **Atualização 2026-04-17:** As abas **Atribuição** e **Automações** foram removidas. Atribuição de vendas por e-mail é agora um canal do módulo central `/marketing/atribuicao` (alimentado pelo trigger `trg_propagate_email_conversion_to_attribution`). Automações vivem dentro do wizard único de campanhas.
+
+1. **Campanhas** - Listagem unificada (broadcast + automação) com 6 métricas inline por linha:
+   `Enviados · Entregues · Abertura% · Clique% · Conversões · Receita`
+   Botão "Nova Campanha" abre o wizard `/email-marketing/campaign/new`.
+2. **Listas** - CRUD de listas segmentadas
+   - Contagem de leads exibida acima do nome da lista
+   - Clique abre página dedicada (`EmailMarketingListDetail.tsx`)
    - Badge com cor da tag vinculada
-   - **Detalhe da lista:** consulta `email_marketing_list_members` (fonte de verdade), paginação de 50 por página, busca por nome/email, filtro por status
-2. **Assinantes** - Visualização/busca de subscribers com filtro
-3. **Templates** - Editor de templates com preview
-4. **Campanhas** - Gerenciamento de broadcasts/automações
-5. **Automações** - Fluxos visuais com canvas drag-and-drop
+3. **Membros / Assinantes** - Visualização/busca de subscribers com filtro
+4. **Templates** - Editor de templates com preview
+5. **Formulários** - Captura de leads (newsletter, quiz, etc.)
+
+### Atribuição de Vendas (Canal E-mail)
+
+- Toda nova conversão registrada em `email_conversions` é propagada automaticamente para `order_attribution` com `attribution_source = 'email'` via trigger `trg_propagate_email_conversion_to_attribution`.
+- Escopo: **só novas conversões** (sem back-fill histórico).
+- Visualização e relatórios ficam exclusivamente no módulo `/marketing/atribuicao`.
 
 ### Popup Newsletter (Builder → Configurações do Tema)
 
