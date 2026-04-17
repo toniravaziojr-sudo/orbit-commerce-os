@@ -208,17 +208,39 @@ Ao alterar qualquer bloco, verificar TODOS os itens:
 
 ## 7. Fluxo de Deploy Obrigatório
 
-Após qualquer alteração em compiler (Edge):
+Após qualquer alteração em compiler (Edge) **OU** no registry de blocos:
 
 ```
-1. Editar arquivo em supabase/functions/_shared/block-compiler/blocks/
+1. Editar arquivo em supabase/functions/_shared/block-compiler/{blocks,index}.ts
 2. Deploy: deploy_edge_functions(['storefront-html'])
-3. Invalidar cache: UPDATE storefront_prerendered_pages SET status = 'stale' WHERE page_type IN (tipos afetados)
-4. Aguardar 2-5 min para re-render
-5. Hard refresh (Ctrl+Shift+R) para validar
+3. Invalidar snapshots persistidos:
+   UPDATE storefront_prerendered_pages
+      SET status = 'stale'
+    WHERE status = 'active'
+      AND (tenant_id = '<afetado>' OR <escopo global se aplicável>)
+4. Aguardar 2-5 min para re-render OU forçar via curl ?_revalidate=1
+5. Validar no domínio público com curl + grep dos marcadores esperados
+   (ex.: data-product-id, sf-fp-, data-block-id)
 ```
 
-**NUNCA** finalizar uma correção de compiler sem os passos 2-3.
+**NUNCA** finalizar uma correção de compiler/registry sem os passos 2-3.
+
+### 7.1 Por que `?_revalidate=1` NÃO substitui o passo 3
+- `?_revalidate=1` invalida apenas o cache de CDN/edge.
+- Os snapshots em `storefront_prerendered_pages` permanecem com `status='active'` e continuam sendo servidos.
+- Resultado: HTML servido contém compilação **antiga** do registry, e blocos renomeados/removidos somem do público.
+- Histórico do incidente registrado em `docs/tecnico/base-de-conhecimento-tecnico.md` §9.1.
+
+### 7.2 Mudanças que OBRIGAM invalidação de snapshots
+| Mudança | Exige `status='stale'` |
+|---------|------------------------|
+| Novo compiler registrado em `block-compiler/index.ts` | ✅ |
+| Compiler renomeado ou alias alterado | ✅ |
+| Compiler removido | ✅ |
+| Alteração de props lidas pelo compiler | ✅ |
+| Alteração visual interna (CSS/HTML) do compiler | ✅ |
+| Alteração apenas no React (Builder) sem tocar compiler | ❌ (não impacta público) |
+| Alteração de tema/configurações de tenant | ✅ (escopo: aquele tenant) |
 
 ---
 
@@ -239,6 +261,7 @@ Após qualquer alteração em compiler (Edge):
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-04-17 | v1.3.0 | **Hardening da invalidação de snapshots** (Seção 7.1 e 7.2): documentado que `?_revalidate=1` NÃO invalida snapshots persistidos em `storefront_prerendered_pages`. Toda mudança em compiler/registry exige `UPDATE … SET status='stale'`. Incidente registrado em base-de-conhecimento-tecnico §9.1. |
 | 2026-04-17 | v1.2.0 | **Pipeline de pré-busca documentado**: orquestradores oficiais `ProductShowcase` / `CategoryShowcase` adicionados ao mapa de paridade. Tabela de extractors (`MANUAL_PRODUCT_ID_BLOCKS`, `DYNAMIC_PRODUCT_FETCH_BLOCKS`, `extractCategoryIds`) declarada como contrato anti-regressão. Aliases legados marcados explicitamente. |
 | 2026-03-16 | v1.1.0 | **Hardening do Banner**: CTA responsivo no compiler (padding, font-size, button size adaptam mobile/desktop via @media). IDs únicos por instância em Banner e HeroBanner (evita colisões CSS). Removido min-height:400px hardcoded, usando aspect-ratio consistente. maxWidth:55% só no desktop. Validação estrutural completa em todas as famílias de página. |
 | 2026-03-10 | v1.0.0 | Criação do documento. Regra universal de paridade obrigatória entre Builder (React) e Público (Edge Compiler). Mapeamento completo de 45+ blocos. Checklist de validação. Fluxo de deploy obrigatório. |
