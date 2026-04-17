@@ -3,8 +3,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEmailMarketing } from "@/hooks/useEmailMarketing";
-import { CampaignConfig } from "@/hooks/useEmailCampaignBuilder";
-import { ListPlus, Settings } from "lucide-react";
+import { CampaignConfig, AutomationBuilderStyle } from "@/hooks/useEmailCampaignBuilder";
+import { ListPlus, Settings, Workflow, ListOrdered } from "lucide-react";
 
 interface StepConfigProps {
   config: CampaignConfig;
@@ -35,17 +35,72 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>Tipo</Label>
-            <Select value={config.type} onValueChange={v => onChange({ ...config, type: v as any })}>
+            <Label>Tipo de Campanha</Label>
+            <Select
+              value={config.type === "broadcast" ? "broadcast" : "automation"}
+              onValueChange={v => {
+                if (v === "broadcast") {
+                  onChange({ ...config, type: "broadcast" });
+                } else {
+                  // ao virar automação, mantém estilo atual ou define linear
+                  const style: AutomationBuilderStyle = config.builderStyle || "linear";
+                  onChange({
+                    ...config,
+                    type: style === "visual" ? "automation" : "sequence",
+                    builderStyle: style,
+                  });
+                }
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="broadcast">Envio Único (broadcast)</SelectItem>
-                <SelectItem value="sequence">Automação (Sequência automatizada)</SelectItem>
+                <SelectItem value="broadcast">Envio Único — dispara um e-mail agora</SelectItem>
+                <SelectItem value="automation">Automação — sequência ou fluxo automatizado</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
+          {(config.type === "sequence" || config.type === "automation") && (
+            <div className="space-y-2">
+              <Label>Estilo do Construtor</Label>
+              <Select
+                value={config.builderStyle || "linear"}
+                onValueChange={v => {
+                  const style = v as AutomationBuilderStyle;
+                  onChange({
+                    ...config,
+                    builderStyle: style,
+                    type: style === "visual" ? "automation" : "sequence",
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="linear">
+                    <div className="flex items-center gap-2">
+                      <ListOrdered className="h-4 w-4 text-muted-foreground" />
+                      Linear (simples) — passos um após o outro
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="visual">
+                    <div className="flex items-center gap-2">
+                      <Workflow className="h-4 w-4 text-muted-foreground" />
+                      Visual (avançado) — fluxograma com condições e ramificações
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {config.builderStyle === "visual"
+                  ? "Use o construtor visual para criar fluxos com gatilhos, ramificações condicionais, A/B e ações de tag/lista."
+                  : "Use a sequência linear para enviar e-mails em ordem, com tempos de espera e condições simples entre eles."}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Lista de Destino *</Label>
