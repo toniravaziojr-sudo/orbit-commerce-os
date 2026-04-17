@@ -1,7 +1,7 @@
 # Email Marketing — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-04-10
+> **Última atualização:** 2026-04-17 (unificação de builders + atribuição centralizada)
 
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Migrado de:** `docs/regras/email-marketing.md`
@@ -190,20 +190,28 @@ Tabela de junção lista↔subscriber — **fonte de verdade para exibição de 
    - Atualiza status para "sent" ou "failed"
 ```
 
-### Automation
+### Automation (Wizard Unificado)
+
+Desde 2026-04-17, automações e envios únicos compartilham o mesmo wizard em `/email-marketing/campaign/new`. Não existem mais rotas separadas para builder visual nem aba "Automações" na UI.
+
+**Passo 1 — Configuração:**
+- Tipo: `Envio Único` (broadcast) ou `Automação` (sequência por trigger)
+- Quando seleciona Automação, aparece dropdown **Estilo do builder**:
+  - `Linear (simples)` — editor sequencial passo-a-passo (padrão)
+  - `Visual (fluxograma)` — canvas ReactFlow com nós e arestas
+
+**Passo 2 — Conteúdo:**
+- Renderiza o builder escolhido (linear ou visual) embarcado no wizard
+- O fluxo visual é salvo via `useAutomationBuilder.saveFlow(status, { skipNavigate: true })` e vinculado à campanha por `content.automationFlowId`
+
+**Passo 3 — Revisão e envio.**
 
 ```
-1. Subscriber se cadastra via formulário
+1. Trigger ocorre (subscriber novo, abandono, tag aplicada, etc.)
    ↓
-2. marketing-form-submit:
-   - Upsert subscriber
-   - Adiciona a lista configurada
-   - Adiciona tags
-   - Dispara triggerAutomations()
+2. Sistema busca automações ativas com trigger correspondente
    ↓
-3. Para cada automation ativa com trigger_type="subscribed":
-   - Busca steps da campanha
-   - Agenda emails na fila com delay
+3. Executa steps (linear) ou percorre o grafo (visual) agendando emails na fila com delay
 ```
 
 ### Unsubscribe

@@ -230,11 +230,9 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/campaigns` — Gestor de tráfego IA
 - `/creatives` — Estúdio de criativos
 - `/ads` — Gestor de Tráfego Meta Ads
-- `/email-marketing` — Email Marketing
+- `/email-marketing` — Email Marketing (abas: Campanhas, Listas, Membros, Templates, Formulários)
 - `/email-marketing/list/:listId` — Detalhe de lista
-- `/email-marketing/campaign/new` — Nova campanha de email
-- `/email-marketing/automation/new` — Nova automação
-- `/email-marketing/automation/:flowId` — Editor de automação
+- `/email-marketing/campaign/new` — Wizard unificado de campanha (Envio Único OU Automação com escolha de builder Linear/Visual)
 - `/quizzes` — Quizzes interativos
 - `/quizzes/:quizId` — Editor de quiz
 
