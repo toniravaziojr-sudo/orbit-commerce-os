@@ -5,13 +5,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { FiscalInvoiceList } from '@/components/fiscal/FiscalInvoiceList';
-import { FiscalSettingsContent } from '@/components/fiscal/FiscalSettingsContent';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 type MainTab = 'pedidos' | 'notas';
 
@@ -19,20 +12,20 @@ export default function Fiscal() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab') as MainTab | null;
-  const rawTab = searchParams.get('tab');
-  const showSettings = rawTab === 'configuracoes';
   const [activeMainTab, setActiveMainTab] = useState<MainTab>(
     tabFromUrl === 'pedidos' || tabFromUrl === 'notas' ? tabFromUrl : 'pedidos'
   );
-  const [settingsOpen, setSettingsOpen] = useState(showSettings);
 
+  // Compat: rota legada `?tab=configuracoes` redireciona para a nova página dedicada.
   useEffect(() => {
-    if (rawTab === 'configuracoes') {
-      setSettingsOpen(true);
-    } else if (tabFromUrl === 'pedidos' || tabFromUrl === 'notas') {
+    if (tabFromUrl === 'configuracoes' as any) {
+      navigate('/fiscal/configuracoes', { replace: true });
+      return;
+    }
+    if (tabFromUrl === 'pedidos' || tabFromUrl === 'notas') {
       setActiveMainTab(tabFromUrl);
     }
-  }, [tabFromUrl]);
+  }, [tabFromUrl, navigate]);
 
   const handleTabChange = (tab: string) => {
     setActiveMainTab(tab as MainTab);
@@ -40,14 +33,7 @@ export default function Fiscal() {
   };
 
   const handleOpenSettings = () => {
-    setSettingsOpen(true);
-  };
-
-  const handleCloseSettings = (open: boolean) => {
-    setSettingsOpen(open);
-    if (!open && searchParams.get('tab') === 'configuracoes') {
-      setSearchParams({ tab: activeMainTab });
-    }
+    navigate('/fiscal/configuracoes');
   };
 
   return (
@@ -83,16 +69,6 @@ export default function Fiscal() {
           <FiscalInvoiceList mode="invoices" />
         </TabsContent>
       </Tabs>
-
-      {/* Settings Dialog */}
-      <Dialog open={settingsOpen} onOpenChange={handleCloseSettings}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Configurações Fiscais</DialogTitle>
-          </DialogHeader>
-          <FiscalSettingsContent />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
