@@ -211,7 +211,6 @@ export function useEmailMarketing() {
     templates, templatesLoading,
     campaigns, campaignsLoading,
     forms, formsLoading,
-    automationFlows, automationFlowsLoading,
     queueStats,
     createList, createTemplate, createCampaign, createForm,
     tenantId,
