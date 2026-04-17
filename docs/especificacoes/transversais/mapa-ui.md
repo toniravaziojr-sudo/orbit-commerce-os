@@ -246,7 +246,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 
 **ERP:**
 - `/fiscal` — Fiscal (abas: Pedidos em Aberto, Notas Fiscais)
-- `/fiscal/configuracoes` — Configurações Fiscais (página dedicada — abas: Configurações Fiscais, Natureza Jurídica, Outros). **Casa oficial:** `Sistema → Configurações → aba Fiscal`. **Atalhos de acesso:** (1) botão "Configurações" em `/fiscal` e (2) aba "Fiscal" em `/system/settings`. **Botão "Voltar" contextual via `?from=`:** `?from=fiscal` retorna para `/fiscal?tab=pedidos`; `?from=settings` (ou sem param) retorna para `/system/settings?tab=fiscal`. Não aparece como item próprio na sidebar.
+- `/fiscal/configuracoes` — Configurações Fiscais (página dedicada — abas: Configurações Fiscais, Natureza Jurídica, Outros). **Casa oficial:** `Sistema → Configurações → aba Fiscal` (conteúdo embutido na aba — sem redirecionamento desde rev 2026-04-17c). **Atalho:** botão "Configurações" em `/fiscal` abre `/fiscal/configuracoes?from=fiscal`. **Botão "Voltar" contextual via `?from=`:** `?from=fiscal` retorna para `/fiscal?tab=pedidos`; `?from=settings` (ou sem param) retorna para `/system/settings?tab=fiscal`. Não aparece como item próprio na sidebar.
 - `/fiscal/products` — Config fiscal de produtos
 - `/fiscal/operation-natures` — **Redirect legado** → `/fiscal/configuracoes?aba=natureza`
 - `/finance` — Financeiro (GatedRoute: `erp_financeiro`)
@@ -268,7 +268,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 **Sistema:**
 - `/integrations` — Hub de integrações
 - `/apps-externos` — Apps externos
-- `/system/settings` — Configurações do sistema (abas: **Pagamentos**, **Fiscal** — esta última redireciona para `/fiscal/configuracoes?from=settings`)
+- `/system/settings` — Configurações do sistema (abas: **Pagamentos**, **Fiscal** — conteúdo embutido com sub-abas Emitente/Natureza/Outros, sem redirecionamento desde rev 2026-04-17c)
 - `/system/users` — Usuários e permissões (owner only, GatedRoute: `sistema_usuarios`)
 - `/settings` — Configurações gerais
 - `/settings/domains` — Domínios

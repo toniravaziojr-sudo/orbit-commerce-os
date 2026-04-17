@@ -1,38 +1,47 @@
 // =============================================
 // SYSTEM SETTINGS — /system/settings
-// Casa oficial das configurações da loja. Hoje hospeda:
+// Casa oficial das configurações da loja. Hospeda:
 //   - Pagamentos (gateways e métodos)
-//   - Fiscal (atalho que abre a página dedicada /fiscal/configuracoes
-//             marcando ?from=settings para o botão Voltar saber retornar para cá)
+//   - Fiscal (conteúdo embutido — Emitente, Natureza Jurídica, Outros)
+//
+// A página dedicada `/fiscal/configuracoes` continua existindo e é acessada
+// pelo botão "Configurações" do módulo Fiscal (`/fiscal`). Em ambas as
+// superfícies o conteúdo é o MESMO (mesmos componentes), garantindo paridade.
 // =============================================
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/ui/page-header';
-import { CreditCard, FileText } from 'lucide-react';
+import { CreditCard, FileText, Building2, Scale, Settings2 } from 'lucide-react';
 import { PaymentSettingsTab } from '@/components/system-settings/PaymentSettingsTab';
+import { EmitenteSettings } from '@/components/fiscal/settings/EmitenteSettings';
+import { OperationNaturesContent } from '@/components/fiscal/settings/OperationNaturesContent';
+import { OutrosSettings } from '@/components/fiscal/settings/OutrosSettings';
+
+type FiscalSubTab = 'emitente' | 'natureza' | 'outros';
 
 export default function SystemSettings() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(tabFromUrl || 'payments');
+  const subFromUrl = searchParams.get('aba') as FiscalSubTab | null;
 
-  // Quando a URL chega com ?tab=fiscal, redirecionamos para a página dedicada
-  // mantendo a marcação de origem para o botão Voltar funcionar de forma contextual.
-  useEffect(() => {
-    if (tabFromUrl === 'fiscal') {
-      navigate('/fiscal/configuracoes?from=settings', { replace: true });
-    }
-  }, [tabFromUrl, navigate]);
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'payments');
+  const activeFiscalSub: FiscalSubTab =
+    subFromUrl === 'natureza' || subFromUrl === 'outros' ? subFromUrl : 'emitente';
 
   const handleTabChange = (value: string) => {
-    if (value === 'fiscal') {
-      navigate('/fiscal/configuracoes?from=settings');
-      return;
-    }
     setActiveTab(value);
-    setSearchParams({ tab: value });
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', value);
+    if (value !== 'fiscal') next.delete('aba');
+    setSearchParams(next);
+  };
+
+  const handleFiscalSubChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'fiscal');
+    next.set('aba', value);
+    setSearchParams(next);
   };
 
   return (
@@ -56,6 +65,35 @@ export default function SystemSettings() {
 
         <TabsContent value="payments" className="mt-6">
           <PaymentSettingsTab />
+        </TabsContent>
+
+        <TabsContent value="fiscal" className="mt-6 space-y-6">
+          <Tabs value={activeFiscalSub} onValueChange={handleFiscalSubChange} className="space-y-6">
+            <TabsList className="grid w-full max-w-2xl grid-cols-3">
+              <TabsTrigger value="emitente" className="gap-2">
+                <Building2 className="h-4 w-4" />
+                Configurações Fiscais
+              </TabsTrigger>
+              <TabsTrigger value="natureza" className="gap-2">
+                <Scale className="h-4 w-4" />
+                Natureza Jurídica
+              </TabsTrigger>
+              <TabsTrigger value="outros" className="gap-2">
+                <Settings2 className="h-4 w-4" />
+                Outros
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="emitente" className="space-y-6">
+              <EmitenteSettings />
+            </TabsContent>
+            <TabsContent value="natureza" className="space-y-6">
+              <OperationNaturesContent />
+            </TabsContent>
+            <TabsContent value="outros" className="space-y-6">
+              <OutrosSettings />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
     </div>
