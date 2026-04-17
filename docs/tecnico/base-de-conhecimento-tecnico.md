@@ -362,6 +362,18 @@ useEffect(() => {
 
 **Regra derivada:** **Todo bloco de vitrine novo ou renomeado precisa ser registrado nos sets `MANUAL_PRODUCT_ID_BLOCKS` / `DYNAMIC_PRODUCT_FETCH_BLOCKS` (ou em `extractCategoryIds`).** Compilers de bloco são proibidos de fazer fetch direto — toda I/O acontece no orquestrador `storefront-html`. Aliases legados não podem ser removidos dos extractors sem migração de dados (templates antigos quebram). Contrato formal em `docs/especificacoes/storefront/builder.md` › "Pipeline de Pré-busca de Dados (Edge)" e mapa em `docs/especificacoes/transversais/paridade-builder-publico.md` › "Pré-busca de dados".
 
+### 10.5 Bloco "piscando" (loop loading) no Builder após consolidação
+
+**Problema:** Após consolidar blocos em orquestradores (`CategoryShowcase`, `ProductShowcase`, `Highlights`, `Video`, `SocialProof`, `ContentSection`, `NewsletterUnified`, `CustomCode`), o bloco `CategoryShowcase` exibia loop infinito de "loading → render → remount" no canvas do Builder. No domínio público (Edge) o bug não aparecia.
+
+**Causa raiz:** No registry `getBlockComponent` (`src/components/builder/BlockRenderer.tsx`), os 8 orquestradores estavam registrados como **arrow functions inline**: `CategoryShowcase: (props: any) => <CategoryShowcaseBlockComponent {...props} />`. A cada render do componente pai, uma nova função era criada → React tratava como componente diferente → desmontava e remontava a subárvore → `useState`/`useEffect` resetavam → fetch interno disparava de novo → loop visual.
+
+**Solução:** Trocar por **referências diretas** ao componente: `CategoryShowcase: CategoryShowcaseBlockComponent`. Identidade estável → React reconcilia normalmente → estado interno preservado → fetch único.
+
+**Onde ocorreu:** `src/components/builder/BlockRenderer.tsx` (8 entradas em "Unified blocks").
+
+**Regra derivada:** **Todo bloco registrado em `getBlockComponent` deve ser uma referência direta ao componente, NUNCA arrow function inline.** Wrappers só são permitidos quando há transformação real de props (ex: `OrderBumpSlot`, `CrossSellSlot`) — e mesmo nesses casos, o wrapper deve ser declarado fora do `getBlockComponent` (módulo ou `useMemo`) para preservar identidade. Padrão consolidado em `mem://infrastructure/builder/modular-block-architecture-standard`.
+
 ---
 
 ## 11. Frete & Logística
