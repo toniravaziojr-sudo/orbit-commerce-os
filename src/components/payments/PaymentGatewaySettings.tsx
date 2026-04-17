@@ -170,11 +170,31 @@ export function PaymentGatewaySettings() {
     const data = formData[gatewayId];
     if (!data) return;
 
+    const gateway = GATEWAY_DEFINITIONS.find(g => g.id === gatewayId);
+    if (!gateway) return;
+
+    // Sanitize: trim all values and drop empty optional fields
+    const sanitized: Record<string, string> = {};
+    for (const field of gateway.fields) {
+      const raw = (data.fields[field.key] ?? '').trim();
+      if (!raw) {
+        if (field.optional) continue; // skip empty optional
+        toast.error(`Preencha o campo "${field.label}"`);
+        return;
+      }
+      // Light prefix validation (only when defined)
+      if (field.validatePrefix && !field.validatePrefix.some(p => raw.startsWith(p))) {
+        toast.error(`"${field.label}" deve começar com ${field.validatePrefix.join(' ou ')}`);
+        return;
+      }
+      sanitized[field.key] = raw;
+    }
+
     const input: PaymentProviderInput = {
       provider: gatewayId,
       is_enabled: true,
       environment: 'production',
-      credentials: data.fields,
+      credentials: sanitized,
     };
 
     await upsertProvider.mutateAsync(input);
@@ -195,7 +215,10 @@ export function PaymentGatewaySettings() {
     if (!data) return false;
     const gateway = GATEWAY_DEFINITIONS.find(g => g.id === gatewayId);
     if (!gateway) return false;
-    return gateway.fields.every(f => data.fields[f.key]?.trim() !== '');
+    // Only required (non-optional) fields must be filled
+    return gateway.fields
+      .filter(f => !f.optional)
+      .every(f => (data.fields[f.key] ?? '').trim() !== '');
   };
 
   const isConnected = (gatewayId: string) => {
