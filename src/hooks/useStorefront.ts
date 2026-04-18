@@ -154,7 +154,7 @@ export function usePublicStorefront(tenantSlug: string) {
   const customDomain = bootstrap?.custom_domain || null;
   const pages = bootstrap?.pages || [];
 
-  const isLoading = bootstrapLoading;
+  const isLoading = hasShared ? !!sharedBootstrap?.isLoading : bootstrapLoading;
   const isPublished = storeSettings?.is_published ?? false;
 
   return {
