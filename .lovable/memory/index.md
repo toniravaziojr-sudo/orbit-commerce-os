@@ -14,3 +14,4 @@ A memória deste projeto contém APENAS lembretes de comportamento da IA. Regras
 - [Working Rules](mem://governance/working-rules) — Os 5 lembretes detalhados de comportamento
 - [Documentation Governance](mem://governance/documentation-governance) — Regra de Ouro e hierarquia de 6 camadas de docs
 - [Memory Protection Rules](mem://governance/memory-protection-rules) — Escopo permitido e memórias protegidas
+- [Storefront Worker Prerender Bypass](mem://constraints/storefront-worker-prerender-bypass) — Anti-regressão: HTML <2KB do Worker = bypass do pré-render, investigar imediatamente
