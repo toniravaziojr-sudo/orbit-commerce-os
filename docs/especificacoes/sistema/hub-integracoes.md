@@ -2826,14 +2826,25 @@ Cada toggle ativo = 1 registro em `tenant_meta_integrations`. Disponibilidade de
 
 O Pixel Facebook é **vinculado à conexão Meta**:
 - **Conexão:** O Pixel ID é salvo em `marketing_integrations.meta_pixel_id` quando configurado via toggle.
-- **Desconexão (v3.0.0):** Ao desconectar a conta Meta (`meta-disconnect`), o sistema executa limpeza completa e robusta:
-  1. Revoga grant ativo em `tenant_meta_auth_grants`
-  2. Marca TODAS as integrações como `disconnected` em `tenant_meta_integrations` (bug fix: era `inactive` que violava check constraint)
-  3. Desativa WhatsApp configs vinculados à Meta
-  4. Limpa `meta_pixel_id`, `meta_enabled`, `meta_capi_enabled` e `meta_additional_pixel_ids` em `marketing_integrations`
-  5. **Dispara re-prerender automático** da loja para remover scripts de tracking do HTML publicado
+- **Desconexão (v3.2.0):** Ao desconectar a conta Meta (`meta-disconnect`), o sistema executa **limpeza cascata obrigatória** em todas as tabelas derivadas:
+  1. **`tenant_meta_auth_grants`** → grant ativo marcado como `revoked` com `revoke_reason='user_disconnect'` (best-effort revogação remota na Meta).
+  2. **`tenant_meta_integrations`** → todas as integrações marcadas como `disconnected` (status `inactive` é INVÁLIDO — viola check constraint).
+  3. **`tenant_meta_integrations.selected_assets`** → setado como `NULL` (Pixel/CAPI/Page/AdAccounts selecionados ficam inválidos sem grant ativo).
+  4. **`whatsapp_configs`** (provider=meta) → `access_token`, `token_expires_at`, `phone_number_id`, `waba_id`, `business_id`, `verified_name`, `display_phone_number` zerados; `is_enabled=false`, `connection_status='disconnected'`, `last_disconnected_at=now()`. **Token cru jamais pode persistir após revoke.**
+  5. **`marketplace_connections`** (marketplace=meta) → linha legada **DELETADA** (Meta não pertence mais a essa tabela; fonte de verdade é `tenant_meta_auth_grants`).
+  6. **`marketing_integrations`** → `meta_pixel_id`, `meta_enabled`, `meta_capi_enabled`, `meta_additional_pixel_ids` zerados; `meta_status='disconnected'`.
+  7. **Re-prerender automático** da loja para remover scripts de tracking do HTML publicado.
 - **Guard de Integridade (storefront-html):** O renderizador HTML verifica se existe um `tenant_meta_auth_grants` ativo antes de injetar qualquer script Meta. Sem grant ativo → zero scripts Meta no HTML, independentemente do estado de `marketing_integrations`.
-- **Reconexão:** Ao reconectar com outra conta/pixel, o novo ID substitui o anterior automaticamente.
+- **Reconexão:** Ao reconectar com outra conta/pixel, o novo ID substitui o anterior automaticamente. `auth_type=reauthorize` (v1.0.0 — 2026-04-18) força a Meta a apresentar a tela de permissões.
+
+#### Problema × Solução — Limpeza de Resíduos
+
+| Cenário (antes da v3.2) | Risco | Solução v3.2 |
+|---|---|---|
+| Token cru permanece em `whatsapp_configs.access_token` após desconexão | Vazamento de credencial / reuso indevido | Apagado na cascata (passo 4) |
+| Linha legada em `marketplace_connections` (`marketplace='meta'`, `is_active=true`) | Divergência entre fontes de verdade | Linha deletada (passo 5) |
+| `selected_assets` pendurado em `tenant_meta_integrations` | Ativo fantasma reaparece na próxima reconexão | NULL setado (passo 3) |
+
 
 ### Popup OAuth
 
