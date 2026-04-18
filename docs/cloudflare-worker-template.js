@@ -738,8 +738,13 @@ export default {
 
           // Store in edge cache — usa ctx.waitUntil para garantir que o put() complete
           // depois da resposta voltar ao browser. Sem waitUntil o cache fica sempre MISS.
+          // CRÍTICO: Set-Cookie/Vary/Pragma fazem o caches.default.put() rejeitar
+          // silenciosamente. Removemos do response que vai pro cache (não do browser).
           if (htmlRes.ok && !isPreview && ctx && typeof ctx.waitUntil === 'function') {
             const cacheHeaders = new Headers(resHeaders);
+            cacheHeaders.delete('set-cookie');
+            cacheHeaders.delete('vary');
+            cacheHeaders.delete('pragma');
             cacheHeaders.set('Cache-Control', `public, max-age=${HTML_CACHE_TTL}`);
             const cacheResponse = new Response(htmlBody, {
               status: 200,
