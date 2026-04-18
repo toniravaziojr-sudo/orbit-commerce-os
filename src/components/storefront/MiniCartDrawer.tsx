@@ -5,8 +5,9 @@
 // Respects cart_config settings
 // =============================================
 
-import { useState, useCallback, type ChangeEvent, type ClipboardEvent } from 'react';
+import { useState, useEffect, useCallback, type ChangeEvent, type ClipboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { prefetchCheckoutChunk } from '@/lib/storefront/prefetchCheckout';
 import {
   Sheet,
   SheetContent,
@@ -66,6 +67,11 @@ export function MiniCartDrawer({
     selectedShipping: effectiveShipping,
     discountAmount,
   });
+
+  // PERF: as soon as the mini-cart opens, warm up the checkout chunk
+  useEffect(() => {
+    if (open) void prefetchCheckoutChunk();
+  }, [open]);
 
   const handleCheckout = () => {
     onOpenChange(false);
