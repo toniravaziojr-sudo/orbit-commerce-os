@@ -1,7 +1,7 @@
 /**
  * Cloudflare Worker - Multi-tenant SaaS Router (PATH TRANSLATION + INTERNAL FOLLOW)
  *
- * v2.0.0 (2026-04-18) — Performance Hardening Round 1
+ * v2.0.1 (2026-04-18) — Fix: cache HIT real (Set-Cookie bloqueava cache.put)
  *
  * PRINCÍPIOS (alinhados com docs/REGRAS-DO-SISTEMA.md §34 + §33 Padrão 7):
  *  - Phase 4 (HTML pré-renderizado via Edge Function) é o CAMINHO PADRÃO,
