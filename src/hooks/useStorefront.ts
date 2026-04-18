@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useStorefrontBootstrapContext } from '@/contexts/StorefrontBootstrapContext';
 
 // Types
 import type { Json } from '@/integrations/supabase/types';
@@ -111,11 +112,15 @@ export interface StorefrontTemplate {
 }
 
 // Hook for public storefront data (by tenant slug) — OPTIMIZED with bootstrap
+// PERF: Reuses the bootstrap loaded by the parent layout (TenantStorefrontLayout
+// or StorefrontLayout) when available, eliminating duplicate edge-function calls.
 export function usePublicStorefront(tenantSlug: string) {
-  const { toast } = useToast();
+  const sharedBootstrap = useStorefrontBootstrapContext();
+  const hasShared = !!sharedBootstrap?.bootstrap;
 
   // Single bootstrap call that fetches everything in parallel on the server
-  const { data: bootstrap, isLoading: bootstrapLoading } = useQuery({
+  // Skipped when a parent layout already provides the data via context.
+  const { data: ownBootstrap, isLoading: bootstrapLoading } = useQuery({
     queryKey: ['storefront-bootstrap', tenantSlug],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('storefront-bootstrap', {
@@ -126,10 +131,12 @@ export function usePublicStorefront(tenantSlug: string) {
       if (!data?.success) return null;
       return data;
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && !hasShared,
     staleTime: 2 * 60 * 1000, // 2 min — storefront data rarely changes
     gcTime: 5 * 60 * 1000,    // 5 min cache
   });
+
+  const bootstrap = sharedBootstrap?.bootstrap ?? ownBootstrap;
 
   // Derive all data from the single bootstrap response
   const tenant = bootstrap?.tenant || null;
@@ -153,7 +160,7 @@ export function usePublicStorefront(tenantSlug: string) {
   const customDomain = bootstrap?.custom_domain || null;
   const pages = bootstrap?.pages || [];
 
-  const isLoading = bootstrapLoading;
+  const isLoading = hasShared ? !!sharedBootstrap?.isLoading : bootstrapLoading;
   const isPublished = storeSettings?.is_published ?? false;
 
   return {

@@ -185,6 +185,10 @@ const StorefrontQuiz = lazy(() => import("@/pages/storefront/StorefrontQuiz"));
 const StorefrontReview = lazy(() => import("@/pages/storefront/StorefrontReview"));
 const StorefrontSearch = lazy(() => import("@/pages/storefront/StorefrontSearch"));
 
+// Skeleton used as Suspense fallback while the checkout chunk loads.
+// Avoids the "blank screen → spinner → spinner" flicker.
+import { CheckoutSkeleton } from "@/components/storefront/checkout/CheckoutSkeleton";
+
 // Helper to check if we're on a tenant host (custom domain or platform subdomain)
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from "@/lib/canonicalDomainService";
 
@@ -280,7 +284,7 @@ const App = () => {
                   <Route index element={<EdgeContentReload />} />
                   <Route path="cart" element={<StorefrontCart />} />
                   <Route path="carrinho" element={<StorefrontCart />} />
-                  <Route path="checkout" element={<StorefrontCheckout />} />
+                  <Route path="checkout" element={<Suspense fallback={<CheckoutSkeleton />}><StorefrontCheckout /></Suspense>} />
                   <Route path="obrigado" element={<StorefrontThankYou />} />
                   <Route path="rastreio" element={<StorefrontTracking />} />
                   <Route path="minhas-compras" element={<StorefrontMyOrders />} />
@@ -310,7 +314,7 @@ const App = () => {
                 <Route index element={<EdgeContentReload />} />
                 <Route path="cart" element={<StorefrontCart />} />
                 <Route path="carrinho" element={<StorefrontCart />} />
-                <Route path="checkout" element={<StorefrontCheckout />} />
+                <Route path="checkout" element={<Suspense fallback={<CheckoutSkeleton />}><StorefrontCheckout /></Suspense>} />
                 <Route path="obrigado" element={<StorefrontThankYou />} />
                 <Route path="rastreio" element={<StorefrontTracking />} />
                 <Route path="minhas-compras" element={<StorefrontMyOrders />} />

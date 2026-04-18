@@ -14,7 +14,7 @@ import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeade
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 
 import { PageColorsInjector } from '@/components/storefront/PageColorsInjector';
-import { Loader2 } from 'lucide-react';
+import { CheckoutSkeleton } from '@/components/storefront/checkout/CheckoutSkeleton';
 import { isPreviewUrl } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { getStoreBaseUrl } from '@/lib/publicUrls';
@@ -152,11 +152,7 @@ export default function StorefrontCheckout() {
   }, [globalLayout?.footer_config?.props, globalLayout?.checkout_footer_config?.props]);
 
   if (isLoading || layoutLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <CheckoutSkeleton />;
   }
 
   if (!tenant) {

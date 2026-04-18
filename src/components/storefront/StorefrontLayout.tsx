@@ -11,6 +11,8 @@ import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrack
 import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 import { LcpPreloader } from '@/components/storefront/LcpPreloader';
 import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
+import { StorefrontBootstrapProvider } from '@/contexts/StorefrontBootstrapContext';
+import { useStorefrontBootstrap } from '@/hooks/useStorefrontBootstrap';
 import { useVisitorTracking } from '@/hooks/useVisitorTracking';
 import { useCartTracking } from '@/hooks/useCartTracking';
 /**
@@ -21,6 +23,9 @@ import { useCartTracking } from '@/hooks/useCartTracking';
  */
 export function StorefrontLayout() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  // Single source of truth for the bootstrap on this layout subtree.
+  // Child pages reuse it via StorefrontBootstrapProvider — no duplicate fetch.
+  const { data: bootstrap, isLoading: bootstrapLoading } = useStorefrontBootstrap(tenantSlug || '');
   const { tenant, storeSettings, isLoading, isPublished, customDomain, template: bootstrapTemplate } = usePublicStorefront(tenantSlug || '');
 
   // Check for preview mode
@@ -29,22 +34,24 @@ export function StorefrontLayout() {
 
   // CartProvider and DiscountProvider wrap EVERYTHING to persist state across navigation
   return (
-    <CartProvider tenantSlug={tenantSlug || ''}>
-      <DiscountProvider>
-        <MiniCartProvider>
-          <StorefrontLayoutContent
-            tenant={tenant}
-            tenantSlug={tenantSlug || ''}
-            storeSettings={storeSettings}
-            customDomain={customDomain}
-            bootstrapTemplate={bootstrapTemplate}
-            isLoading={isLoading}
-            isPublished={isPublished}
-            isPreview={isPreview}
-          />
-        </MiniCartProvider>
-      </DiscountProvider>
-    </CartProvider>
+    <StorefrontBootstrapProvider bootstrap={bootstrap ?? null} isLoading={bootstrapLoading}>
+      <CartProvider tenantSlug={tenantSlug || ''}>
+        <DiscountProvider>
+          <MiniCartProvider>
+            <StorefrontLayoutContent
+              tenant={tenant}
+              tenantSlug={tenantSlug || ''}
+              storeSettings={storeSettings}
+              customDomain={customDomain}
+              bootstrapTemplate={bootstrapTemplate}
+              isLoading={isLoading}
+              isPublished={isPublished}
+              isPreview={isPreview}
+            />
+          </MiniCartProvider>
+        </DiscountProvider>
+      </CartProvider>
+    </StorefrontBootstrapProvider>
   );
 }
 
