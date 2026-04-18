@@ -19909,18 +19909,22 @@ export type Database = {
           instance_token: string | null
           is_enabled: boolean | null
           last_connected_at: string | null
+          last_diagnosed_at: string | null
           last_disconnected_at: string | null
           last_error: string | null
+          last_health_payload: Json | null
           phone_number: string | null
           phone_number_id: string | null
           provider: string
           qr_code: string | null
           qr_expires_at: string | null
+          register_pin: string | null
           tenant_id: string
           token_expires_at: string | null
           updated_at: string
           verified_name: string | null
           waba_id: string | null
+          webhook_subscribed_at: string | null
           webhook_url: string | null
         }
         Insert: {
@@ -19935,18 +19939,22 @@ export type Database = {
           instance_token?: string | null
           is_enabled?: boolean | null
           last_connected_at?: string | null
+          last_diagnosed_at?: string | null
           last_disconnected_at?: string | null
           last_error?: string | null
+          last_health_payload?: Json | null
           phone_number?: string | null
           phone_number_id?: string | null
           provider?: string
           qr_code?: string | null
           qr_expires_at?: string | null
+          register_pin?: string | null
           tenant_id: string
           token_expires_at?: string | null
           updated_at?: string
           verified_name?: string | null
           waba_id?: string | null
+          webhook_subscribed_at?: string | null
           webhook_url?: string | null
         }
         Update: {
@@ -19961,18 +19969,22 @@ export type Database = {
           instance_token?: string | null
           is_enabled?: boolean | null
           last_connected_at?: string | null
+          last_diagnosed_at?: string | null
           last_disconnected_at?: string | null
           last_error?: string | null
+          last_health_payload?: Json | null
           phone_number?: string | null
           phone_number_id?: string | null
           provider?: string
           qr_code?: string | null
           qr_expires_at?: string | null
+          register_pin?: string | null
           tenant_id?: string
           token_expires_at?: string | null
           updated_at?: string
           verified_name?: string | null
           waba_id?: string | null
+          webhook_subscribed_at?: string | null
           webhook_url?: string | null
         }
         Relationships: [
