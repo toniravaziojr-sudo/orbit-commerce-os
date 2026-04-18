@@ -33,6 +33,9 @@ const defaultCategorySettings: CategorySettings = {
 export default function StorefrontCart() {
   const tenantSlug = useTenantSlug();
 
+  // PERF: warm up the checkout chunk while the user is on the cart page
+  usePrefetchCheckout();
+
   const { 
     tenant, storeSettings, headerMenu, footerMenu, categories, isLoading: storeLoading,
     globalLayout: bootstrapGlobalLayout,
