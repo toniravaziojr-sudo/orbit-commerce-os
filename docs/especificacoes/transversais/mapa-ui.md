@@ -374,7 +374,8 @@ Configurados em `src/config/module-status.ts`. Referência rápida:
 - **Permitido:** gestão de conexões (status, conectar/reconectar/desconectar) e configurações técnicas fundamentais (Pixel, CAPI)
 - **Proibido:** painéis operacionais (campanhas de ads, catálogos de shop, gerenciamento de conteúdo)
 - Painéis operacionais devem residir em seus respectivos módulos (Marketing, Marketplaces, Publicações)
-- Referência: memória `integration-hub-ui-standard`
+- **Botões válidos no card de conexão Meta:** `Reconectar` (OAuth com `auth_type=reauthorize`) e `Desconectar`. O antigo botão `Atualizar` foi removido em 2026-04-18 — apenas recarregava cache local React Query, sem comunicação real com a Meta. Renovação real é automática via cron `meta-token-refresh-daily` e detecção de invalidação via cron `meta-token-health-check-daily`.
+- Referência: memória `integration-hub-ui-standard`, memória `meta-token-lifecycle`
 
 ### 6.2 Sidebar: Sistema vs Utilitários
 
