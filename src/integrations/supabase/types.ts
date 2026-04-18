@@ -16199,6 +16199,48 @@ export type Database = {
           },
         ]
       }
+      storefront_cache_health_log: {
+        Row: {
+          active_pages: number
+          checked_at: string
+          id: string
+          notes: string | null
+          pending_pages: number
+          reprerender_status: string | null
+          stale_pages: number
+          stale_pct: number
+          tenant_id: string | null
+          total_pages: number
+          triggered_reprerender: boolean
+        }
+        Insert: {
+          active_pages?: number
+          checked_at?: string
+          id?: string
+          notes?: string | null
+          pending_pages?: number
+          reprerender_status?: string | null
+          stale_pages?: number
+          stale_pct?: number
+          tenant_id?: string | null
+          total_pages?: number
+          triggered_reprerender?: boolean
+        }
+        Update: {
+          active_pages?: number
+          checked_at?: string
+          id?: string
+          notes?: string | null
+          pending_pages?: number
+          reprerender_status?: string | null
+          stale_pages?: number
+          stale_pct?: number
+          tenant_id?: string | null
+          total_pages?: number
+          triggered_reprerender?: boolean
+        }
+        Relationships: []
+      }
       storefront_global_layout: {
         Row: {
           checkout_footer_config: Json
@@ -20629,6 +20671,7 @@ export type Database = {
         Args: { p_module_key: string; p_tenant_id: string }
         Returns: Json
       }
+      check_prerender_cache_health: { Args: never; Returns: Json }
       check_rate_limit: {
         Args: {
           p_key: string
