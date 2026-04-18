@@ -3433,3 +3433,68 @@ O token de acesso usado pelo CAPI (Conversions API) para enviar eventos server-s
 4. Históricos (chats, ações, relatórios, insights) permanecem acessíveis independentemente
 
 **Regra:** `discovered_assets` é o mapa bruto do OAuth — NUNCA deve ser usado como fonte de verdade para módulos funcionais. A fonte de verdade é sempre `tenant_meta_integrations.selected_assets`.
+
+---
+
+## Ciclo de Vida do Token Meta (v1.0.0 — 2026-04-18)
+
+> **Fonte de verdade:** `tenant_meta_auth_grants` (campos `status`, `token_expires_at`, `revoked_at`, `revoke_reason`)
+
+A integração Meta usa **long-lived tokens** com validade de ~60 dias. Para evitar quebra silenciosa, o sistema implementa três mecanismos automáticos + um botão explícito de reconexão.
+
+### Visão geral
+
+| Mecanismo | Onde roda | Frequência | Finalidade |
+|---|---|---|---|
+| **Refresh automático** | Edge function `meta-token-refresh` + cron `meta-token-refresh-daily` | Diário (03:00 UTC) | Estende tokens que expiram em <7 dias por mais 60 dias |
+| **Health check** | Edge function `meta-token-health-check` + cron `meta-token-health-check-daily` | Diário (04:00 UTC) | Detecta tokens invalidados pela Meta e marca grant como `expired` |
+| **Reauthorize forçado** | Edge function `meta-oauth-start` (parâmetro `auth_type=reauthorize`) | A cada clique em Conectar/Reconectar | Força a Meta a apresentar tela de permissões e gerar token NOVO |
+
+### Problema × Solução
+
+| Cenário | Como o sistema responde |
+|---|---|
+| **Expiração natural** (token chegando aos 60 dias) | Cron diário `meta-token-refresh` chama `fb_exchange_token` e estende validade. Usuário não percebe. |
+| **Invalidação por segurança** (usuário trocou senha do Facebook, código de erro 190 subcode 460) | Cron diário `meta-token-health-check` chama `/me` na Graph API, detecta erro 190, marca grant como `expired`. UI passa a mostrar "Expirado" em até 24h. Usuário clica Reconectar. |
+| **Revogação manual** (usuário removeu app no Business Manager, subcode 458) | Idem acima — health check detecta erro 190 e marca expired. |
+| **Reconexão pelo usuário** | OAuth URL inclui `auth_type=reauthorize`, garantindo token novo mesmo se sessão Facebook estiver ativa no navegador. |
+
+### UI
+
+A página de Integrações exibe **dois botões** quando a Meta está conectada:
+
+- **Reconectar** — dispara fluxo OAuth com `auth_type=reauthorize`. Sempre gera token novo.
+- **Desconectar** — revoga grant ativo no banco e desativa todas as integrações dependentes.
+
+> O antigo botão "Atualizar" foi **removido** em 2026-04-18 porque apenas recarregava cache local do React Query (sem comunicação real com a Meta), criando falsa sensação de validação.
+
+### Operação manual (debug / suporte)
+
+```bash
+# Forçar refresh de um tenant específico
+curl -X POST https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/meta-token-refresh \
+  -H "Authorization: Bearer <ANON_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"tenantId":"<uuid>"}'
+
+# Forçar health check de um tenant
+curl -X POST https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/meta-token-health-check \
+  -H "Authorization: Bearer <ANON_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"tenantId":"<uuid>"}'
+
+# Forçar refresh de TODOS os tenants com token expirando
+curl ... -d '{"refreshAll": true}'
+
+# Forçar health check de TODOS os grants ativos
+curl ... -d '{"checkAll": true}'
+```
+
+### Anti-regressão
+
+Toda integração OAuth com token long-lived (Meta, Google, etc.) **deve** ter os três mecanismos:
+1. Cron diário de refresh com buffer de 7 dias antes da expiração
+2. Cron diário de health check chamando endpoint `/me` (ou equivalente) para detectar invalidação
+3. URL OAuth com `auth_type=reauthorize` (Meta) ou equivalente em outros provedores
+
+Sem os três, o sistema fica vulnerável a quebra silenciosa de integração.
