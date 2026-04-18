@@ -49,8 +49,8 @@ Novo `docs/cloudflare-worker-template.js` (a ser redeployado pelo usuário no Cl
 ### Frente C — Eliminar redirect apex → www ⏳ (instrução manual no Cloudflare)
 **Ação no usuário:** no painel Cloudflare → Rules → Redirect Rules, garantir que NÃO há regra forçando redirect apex (`comandocentral.com.br`) → `www.` (ou vice-versa). O Worker já normaliza ambos. Cada redirect 301 adiciona ~50-100ms ao TTFB.
 
-### Frente 5 / Frente D — Refator do `CheckoutStepWizard.tsx` (1.795 linhas) ⏳
-Code splitting em chunks lazy. Risco maior, mantido para rodada separada após validar A+B.
+### Frente 5 / Frente D — Refator do `CheckoutStepWizard.tsx` ✅ (Rodada 2)
+Decomposto em 7 arquivos sob `src/components/storefront/checkout/wizard/` (`types`, `ProgressTimeline`, `Step1PersonalData`, `Step2Address`, `Step3Shipping`, `Step4Payment`, `OrderSummarySidebar`). Step3 e Step4 carregados via `React.lazy` + prefetch ao entrar no step anterior. Resultado: chunk principal `CheckoutStepWizard` caiu de 76,78 KB → 68,78 KB; Step3 isolado em 3 KB, Step4 em 7 KB (só baixados se o usuário avançar). Sem mudança de UI ou contrato público.
 
 ## Validação técnica executada
 
@@ -62,15 +62,28 @@ Code splitting em chunks lazy. Risco maior, mantido para rodada separada após v
 | Cron de saúde funcionando | Rodou e gravou histórico | ✅ 2 tenants checked |
 | Skeleton específico por rota no first byte | HTML diferenciando /cart, /checkout, default | ✅ index.html v2.0.0 |
 | Worker template v2.0.0 | Phase 4 padrão + waitUntil + assets/bootstrap cache | ✅ template entregue |
+| Worker v2.0.0 deployado em produção | `/_debug` reportando `strategy: edge_rendered_html_first_v2` + `usesWaitUntil: true` | ✅ confirmado em www.respeiteohomem.com.br |
+| HTML pré-renderizado entregue na home | >100KB + header `x-render-mode: prerendered` | ✅ 186KB, TTFB 728ms (1ª) / 98ms (2ª, cache HIT do Worker) |
+| Cache edge do Worker aquecendo | `x-cc-cache: MISS` → `HIT` na 2ª visita | ✅ corrigido (`ctx.waitUntil` funcional) |
+| Skeleton no /checkout no first byte | HTML <15KB com classes `cc-skeleton` | ✅ 10,5KB com 3 layouts de skeleton |
+| Refator do CheckoutStepWizard sem regressão | TypeScript sem erros + chunks lazy gerados | ✅ Step3 (3KB) e Step4 (7KB) carregando sob demanda |
 
-**O que ainda depende de validação do usuário:**
-1. **Redeploy do Worker** atualizado na Cloudflare (Frente A v2.0.0).
-2. **Verificação da regra de redirect apex→www** no Cloudflare (Frente C).
-3. Após isso, medir nas 3 lojas em produção:
-   - `curl -sI https://<dominio>/` → esperar `X-CC-Render-Mode: edge-html` + `cf-cache-status: HIT` na 2ª visita
-   - HTML > 100KB no first byte
-   - `/checkout` e `/cart` aparecem com skeleton estrutural (não tela branca) em <500ms
-4. Frente D (refator do `CheckoutStepWizard`) fica para rodada separada.
+## Resultado consolidado em produção (medido em 18/04/2026)
+
+| Métrica | Antes | Depois | Ganho |
+|---|---|---|---|
+| HTML servido no first byte (home) | 951 bytes (shell vazio) | 186.325 bytes (HTML real) | **+19.500%** de conteúdo útil |
+| TTFB home (cache HIT do Worker) | 4-6s (geração ao vivo) | 98ms | **~50x mais rápido** |
+| TTFB home (cache MISS) | 4-6s | 728ms | **~7x mais rápido** |
+| HTML do /checkout no first byte | tela branca + 951b shell | 10,5KB com skeleton estrutural | sem flash branco |
+| Bundle inicial do checkout | 76,78 KB monolítico | 68,78 KB + 2 chunks lazy (3+7KB) | **-10% no critical path** |
+| `cf-cache-status` em rotas públicas | DYNAMIC em 100% | DYNAMIC (Cloudflare), mas `x-cc-cache: HIT` no Worker | cache do Worker funcional |
+
+**Observação sobre `cf-cache-status: DYNAMIC`:** o cache do *Cloudflare* permanece DYNAMIC porque o Worker intercepta toda requisição. O cache que importa é o `x-cc-cache` (Cache API do Worker), que está aquecendo corretamente (`MISS` → `HIT`).
+
+**O que ainda depende de validação do usuário (testes funcionais):**
+1. Validar fluxo real de compra em uma loja (carrinho → 4 steps → finalizar pedido) confirmando que pagamento aprovado, pixel disparado e pedido criado normalmente.
+2. (Opcional) Verificar a regra de redirect apex→www no Cloudflare (Frente C). Já vimos que `respeiteohomem.com.br` faz 301 para `www.` em 273ms — se eliminar esse redirect, ganham mais ~250ms na primeira visita.
 
 ## Lições aprendidas
 
