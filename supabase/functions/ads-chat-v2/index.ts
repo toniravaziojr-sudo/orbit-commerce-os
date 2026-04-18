@@ -1438,10 +1438,9 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
         });
       }
       case "get_product_images": {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const q = supabase.from("product_images").select("id, image_url, position, alt_text").eq("tenant_id", tenantId);
+        const q = supabase.from("product_images").select("id, url, sort_order, alt_text").eq("tenant_id", tenantId);
         if (args.product_id) q.eq("product_id", args.product_id);
-        const { data: images } = await q.order("position", { ascending: true }).limit(20);
+        const { data: images } = await q.order("sort_order", { ascending: true }).limit(20);
         return JSON.stringify({ total: images?.length || 0, images: images || [] });
       }
       default:

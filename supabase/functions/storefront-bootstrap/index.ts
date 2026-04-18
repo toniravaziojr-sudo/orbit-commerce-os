@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
       queries.push(
         supabase
           .from('products')
-          .select('id, name, slug, price, compare_at_price, status, product_images(url, is_primary, alt_text, position)')
+          .select('id, name, slug, price, compare_at_price, status, product_images(url, is_primary, alt_text, sort_order)')
           .eq('tenant_id', tenantId)
           .eq('status', 'active')
           .order('created_at', { ascending: false })

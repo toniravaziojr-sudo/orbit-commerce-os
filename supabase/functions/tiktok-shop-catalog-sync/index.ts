@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       // Buscar produtos locais para sincronizar
       let productsQuery = supabase
         .from("products")
-        .select("id, name, slug, description, short_description, price, compare_at_price, sku, gtin, brand, weight, width, height, depth, status, images:product_images(url, is_primary, alt_text, position)")
+        .select("id, name, slug, description, short_description, price, compare_at_price, sku, gtin, brand, weight, width, height, depth, status, images:product_images(url, is_primary, alt_text, sort_order)")
         .eq("tenant_id", tenantId)
         .eq("status", "active");
 
