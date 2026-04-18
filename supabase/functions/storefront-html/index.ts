@@ -664,10 +664,10 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
       var supabaseKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
       var btn=form.querySelector("button[type=submit]");
       if(btn){btn.disabled=true;btn.textContent="Enviando...";}
-      fetch(supabaseUrl+"/functions/v1/newsletter-subscribe",{
+      fetch(supabaseUrl+"/functions/v1/marketing-form-submit",{
         method:"POST",
         headers:{"Content-Type":"application/json","apikey":supabaseKey,"Authorization":"Bearer "+supabaseKey},
-        body:JSON.stringify({tenant_id:tenantId,email:email,name:name,phone:phone,list_id:listId||null,source:"popup",popup_id:popupId})
+        body:JSON.stringify({tenant_id:tenantId,fields:{email:email,name:name,phone:phone},list_id:listId||null,source:"popup",block_id:popupId})
       }).then(function(r){return r.json()}).then(function(){
         form.style.display="none";
         popup.querySelector("[data-sf-newsletter-success]").style.display="block";
