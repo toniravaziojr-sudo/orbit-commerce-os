@@ -312,13 +312,21 @@ O grid de selos usa **duas camadas** para garantir paridade no builder e no púb
 
 | Componente | Arquivo | Responsabilidade |
 |------------|---------|------------------|
-| **FooterNewsletterForm** | `src/components/storefront/footer/FooterNewsletterForm.tsx` | Formulário horizontal de captura |
+| **FooterNewsletterForm** | `src/components/storefront/footer/FooterNewsletterForm.tsx` | Formulário horizontal — usado apenas no preview do Builder (React) |
+| **Compilador rodapé (Edge)** | `supabase/functions/_shared/block-compiler/blocks/footer.ts` | Renderiza o `<form data-sf-newsletter>` na loja pública |
 
-### Integração
+### Integração — Pipeline Unificada de Captura
 
-- Usa Edge Function `marketing-form-submit` para envio
-- Source identificado como `footer_newsletter`
-- Suporta seleção de lista via `EmailListSelector` nas configurações
+A loja pública é renderizada por Edge HTML (Content-First), não por React. Portanto o submit **não usa** o componente `FooterNewsletterForm`. Em vez disso:
+
+1. O compilador `footer.ts` emite um `<form data-sf-newsletter data-tenant-id="..." data-list-id="..." data-source="footer_newsletter">`.
+2. O Edge `storefront-html` injeta um **handler universal global** que escuta `submit` em qualquer `form[data-sf-newsletter]` e chama `POST /functions/v1/marketing-form-submit`.
+3. A função `marketing-form-submit`:
+   - Cria automaticamente a lista **"Leads Newsletter Rodapé"** (tag dedicada `#0EA5E9`) na 1ª submissão, se ainda não existir.
+   - Persiste o subscriber via RPC canônica `upsert_subscriber_only` (Lead ≠ Cliente).
+   - Vincula o lead à lista e dispara automações com `trigger_type='subscribed'`.
+
+**Anti-regressão:** É proibido emitir `<form onsubmit="event.preventDefault()">` sem handler real ou chamar endpoints inexistentes (ex.: `newsletter-subscribe`). Veja `docs/especificacoes/marketing/email-marketing.md` → "Captura de Leads na Loja Pública".
 
 ---
 
