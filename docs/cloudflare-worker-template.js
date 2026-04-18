@@ -388,11 +388,18 @@ async function serveAssetFromOrigin(request, env, ctx, ORIGIN_HOST, publicHost) 
   baseHeaders.delete('content-encoding');
 
   // Header para o cache (TTL longo)
+  // CRÍTICO: Cache API do Cloudflare REJEITA silenciosamente respostas com
+  // Set-Cookie, Vary, Authorization ou Pragma:no-cache. Removemos esses headers
+  // do response que vai pro cache (mantemos no que vai pro browser).
   const cacheHeaders = new Headers(baseHeaders);
+  cacheHeaders.delete('set-cookie');
+  cacheHeaders.delete('vary');
+  cacheHeaders.delete('pragma');
   cacheHeaders.set('Cache-Control', `public, max-age=${ASSETS_CACHE_TTL}, immutable`);
 
   // Header para o browser (também longo, imutável)
-  const responseHeaders = new Headers(cacheHeaders);
+  const responseHeaders = new Headers(baseHeaders);
+  responseHeaders.set('Cache-Control', `public, max-age=${ASSETS_CACHE_TTL}, immutable`);
   responseHeaders.set('X-CC-Cache', 'MISS');
   responseHeaders.set('X-CC-Cache-Layer', 'asset');
 
