@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
 
-const VERSION = "v1.2.0";
+const VERSION = "v1.4.0";
+// v1.4.0 — Sync fresh grant token to whatsapp_configs on WhatsApp activation (fixes silent break post-Meta reconnect)
 // v1.3.0 — Sync fresh grant token to marketing_integrations on pixel/CAPI activation
 const TRACKING_INTEGRATION_IDS = new Set(["pixel_facebook", "conversions_api"]);
 
@@ -310,6 +311,27 @@ async function executeSideEffects(
   try {
     if (integrationId.startsWith("whatsapp_") && selectedAssets.phone) {
       const phone = selectedAssets.phone;
+
+      // Get fresh token from active Meta grant for Graph API calls (send messages, register phone, templates)
+      let freshToken: string | null = null;
+      let tokenExpiresAt: string | null = null;
+      try {
+        const { getMetaConnectionForTenant } = await import("../_shared/meta-connection.ts");
+        const conn = await getMetaConnectionForTenant(adminClient, tenantId, "whatsapp-side-effect");
+        freshToken = conn?.access_token || null;
+
+        if (conn?.grant_id) {
+          const { data: grant } = await adminClient
+            .from("tenant_meta_auth_grants")
+            .select("token_expires_at")
+            .eq("id", conn.grant_id)
+            .maybeSingle();
+          tokenExpiresAt = grant?.token_expires_at || null;
+        }
+      } catch (e) {
+        console.warn(`[meta-integrations-manage] Could not get fresh token for whatsapp side-effect`);
+      }
+
       await adminClient
         .from("whatsapp_configs")
         .upsert({
@@ -320,13 +342,15 @@ async function executeSideEffects(
           display_phone_number: phone.display_phone_number || null,
           verified_name: phone.verified_name || null,
           waba_id: phone.waba_id,
+          access_token: freshToken,
+          token_expires_at: tokenExpiresAt,
           connection_status: "connected",
           is_enabled: true,
           last_connected_at: new Date().toISOString(),
           last_error: null,
         }, { onConflict: "tenant_id,provider" });
 
-      console.log(`[meta-integrations-manage] WhatsApp side-effect: phone ${phone.display_phone_number} configured`);
+      console.log(`[meta-integrations-manage] WhatsApp side-effect: phone ${phone.display_phone_number} configured (token=${freshToken ? 'OK' : 'MISSING'})`);
     }
 
     if (integrationId === "pixel_facebook" && selectedAssets.pixel) {

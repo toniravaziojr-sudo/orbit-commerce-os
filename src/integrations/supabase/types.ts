@@ -20883,6 +20883,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      hydrate_whatsapp_token_from_active_grant: {
+        Args: { p_encryption_key: string; p_tenant_id: string }
+        Returns: {
+          grant_id: string
+          token_present: boolean
+          updated_config_id: string
+        }[]
+      }
       increment_ai_metrics: {
         Args: {
           p_audio_count?: number
