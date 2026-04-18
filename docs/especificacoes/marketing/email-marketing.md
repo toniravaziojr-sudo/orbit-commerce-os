@@ -55,24 +55,85 @@ Customers ← customer_tag_assignments → Sync automático -------+
 
 ## Listas Padrão do Sistema
 
-Todo tenant recebe automaticamente 3 listas padrão ao ser criado. Essas listas são provisionadas via trigger de banco de dados (`AFTER INSERT ON tenants`) e função idempotente `ensure_default_email_marketing_lists`.
+Todo tenant recebe automaticamente 3 listas padrão ao ser criado (via trigger `AFTER INSERT ON tenants` + função idempotente `ensure_default_email_marketing_lists`). **Listas adicionais são criadas sob demanda** quando um formulário de captura é usado pela primeira vez.
+
+### Listas criadas no provisionamento do tenant
 
 | # | Tag (singular) | Cor | Lista (plural) | Descrição |
 |---|----------------|-----|-----------------|-----------|
 | 1 | Cliente | Verde `#10B981` | Clientes | Clientes com pedido aprovado |
-| 2 | Newsletter PopUp | Ciano `#06b6d4` | Newsletter PopUp | Leads capturados via popup newsletter |
+| 2 | Newsletter PopUp | Ciano `#06b6d4` | Newsletter PopUp | (Legado) — substituída por "Leads Popup" |
 | 3 | Cliente Potencial | Laranja `#f97316` | Clientes Potenciais | Clientes que abandonaram o checkout |
 
-### Regras
+### Listas criadas automaticamente pelo `marketing-form-submit`
 
-- **Criação automática**: as 3 listas são criadas junto com o tenant, sem ação manual.
-- **Idempotente**: a função pode ser executada múltiplas vezes sem duplicar dados.
-- **Marcação `is_system = true`**: listas padrão são marcadas como listas do sistema.
-- **Preenchimento automático**: cada lista é populada por triggers específicos:
-  - **Clientes**: preenchida pelo trigger `trg_recalc_customer_on_order` quando um pedido é aprovado.
-  - **Newsletter PopUp**: preenchida pelo edge function `marketing-form-submit` quando um lead se cadastra.
-  - **Clientes Potenciais**: preenchida pelo `scheduler-tick` (abandon-sweep) quando um checkout é abandonado.
-- **Nome legado**: a tag/lista "PoupUp" foi oficialmente renomeada para "Newsletter PopUp" (migração aplicada).
+A função `marketing-form-submit` é o **único ponto de entrada** para captura de leads na loja pública. Ao receber a primeira submissão de cada origem, ela cria idempotentemente a lista correspondente (via índice único `(tenant_id, name) WHERE is_system=true`) e a tag obrigatória:
+
+| Origem (`source`) | Lista criada | Tag | Cor |
+|-------------------|--------------|-----|-----|
+| `popup` | Leads Popup | Leads Popup | `#8B5CF6` |
+| `footer_newsletter` | Leads Newsletter Rodapé | Leads Newsletter Rodapé | `#0EA5E9` |
+| `support_chat` | Leads site | Leads site | `#6366F1` |
+| `block:<slug>` ou `newsletter_form` (com `page_slug`) | Leads Formulário - `<Slug>` | mesma | `#F59E0B` |
+| `newsletter_form` (sem page) | Leads Formulário | Leads Formulário | `#F59E0B` |
+
+### Regras gerais
+
+- **Idempotente:** mesma origem nunca duplica lista; condição de corrida tratada via re-fetch.
+- **`is_system = true`:** todas as listas auto-criadas são marcadas como sistema.
+- **Sem coluna `slug`:** identificação interna usa `name + is_system`. Nunca usar `eq('slug', ...)` em `email_marketing_lists` (a coluna não existe).
+- **Preenchimento contínuo:**
+  - **Clientes** → trigger `trg_recalc_customer_on_order` ao aprovar pedido.
+  - **Clientes Potenciais** → `scheduler-tick` (abandon-sweep).
+  - **Leads Popup / Leads Newsletter Rodapé / Leads Formulário** → `marketing-form-submit` (loja pública).
+  - **Leads site** → `marketing-form-submit` chamado pelo chat de suporte com IA.
+
+---
+
+## Captura de Leads na Loja Pública (Pipeline Unificada)
+
+### Princípio
+
+Todo formulário de captura na loja pública (HTML servido pelo Edge `storefront-html`) submete via **handler universal JS** que chama `marketing-form-submit`. **É proibido** usar `setTimeout` mockado, `fetch` para endpoints inexistentes ou `onsubmit="event.preventDefault()"` sem handler real.
+
+### Contrato HTML obrigatório
+
+Qualquer compilador de bloco que renderize um formulário de captura **deve** emitir:
+
+```html
+<form data-sf-newsletter
+      data-tenant-id="<tenant>"
+      data-list-id="<list_id ou vazio>"
+      data-source="popup | footer_newsletter | block:<slug> | newsletter_form"
+      data-block-id="<id opcional>">
+  <input type="email" name="email" required>
+  <button type="submit">Inscrever</button>
+</form>
+```
+
+O handler universal injetado em `storefront-html` (`document.addEventListener('submit', ...)`) intercepta qualquer `form[data-sf-newsletter]`, monta o payload e chama `POST /functions/v1/marketing-form-submit`. Mensagens de sucesso/erro são renderizadas inline.
+
+### Caso especial: popup
+
+O popup de newsletter é renderizado por `generateNewsletterPopupHtml()` no `storefront-html` e usa um handler dedicado, mas chama o **mesmo endpoint** `marketing-form-submit` com `source: "popup"`.
+
+### Componentes envolvidos
+
+| Camada | Arquivo | Papel |
+|--------|---------|-------|
+| Edge HTML | `supabase/functions/storefront-html/index.ts` | Renderiza loja + injeta handler universal + popup |
+| Compilador rodapé | `supabase/functions/_shared/block-compiler/blocks/footer.ts` | Emite `<form data-sf-newsletter data-source="footer_newsletter">` |
+| Compilador bloco | `supabase/functions/_shared/block-compiler/blocks/newsletter.ts` | Emite `<form data-sf-newsletter data-source="block:..." \| newsletter_form>` |
+| Edge captura | `supabase/functions/marketing-form-submit/index.ts` | Único ponto: cria lista, persiste subscriber, dispara automações |
+| RPC banco | `upsert_subscriber_only` | Persiste lead sem promovê-lo a cliente (Lead ≠ Cliente) |
+| React preview | `src/components/builder/blocks/interactive/NewsletterBlock.tsx` | Pré-visualização no Builder também chama `marketing-form-submit` |
+
+### Anti-regressão
+
+- ✅ Endpoint sempre existe: `marketing-form-submit` (nunca chamar `newsletter-subscribe` — não existe).
+- ✅ Filtro de lista no banco usa `name + is_system`, **nunca** `slug`.
+- ✅ Toda Edge Function de captura loga erro explícito — proibido falhar em silêncio.
+- ✅ Cada origem tem sua lista dedicada — segmentação automática por canal.
 
 ---
 
