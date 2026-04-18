@@ -134,6 +134,7 @@ O popup de newsletter é renderizado por `generateNewsletterPopupHtml()` no `sto
 - ✅ Filtro de lista no banco usa `name + is_system`, **nunca** `slug`.
 - ✅ Toda Edge Function de captura loga erro explícito — proibido falhar em silêncio.
 - ✅ Cada origem tem sua lista dedicada — segmentação automática por canal.
+- ✅ **Anti-stale automático (v8.8.0+):** o `storefront-html` compara `metadata.storefront_html_version` do snapshot com sua própria `VERSION` e ignora snapshots de versão antiga, fazendo live render. Sempre que o contrato HTML do formulário (atributos, handler, payload) mudar, **bumpar a `VERSION`** do `storefront-html` é obrigatório — é isso que invalida automaticamente todo o cache de prerender e impede o sintoma "formulário não envia em produção" causado por HTML pré-renderizado antes da correção.
 
 ---
 
