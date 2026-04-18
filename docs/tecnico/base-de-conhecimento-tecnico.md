@@ -571,6 +571,29 @@ SELECT tenant_id, page_type, status, updated_at
 
 ---
 
+### 9.2 Bug silencioso por coluna inexistente em queries de produto (Abril/2026)
+
+**Problema:** Edge functions retornavam `success: true` com listas vazias ou parciais ao consultar imagens de produtos, sem nenhum erro visível em logs.
+
+**Sintoma visível:**
+- `storefront-bootstrap` respondia OK mas com 0 produtos para tenants ativos.
+- Loja pública aparentava estar "sem catálogo" intermitentemente.
+- Sem erro nos logs porque o erro do PostgREST era silenciosamente engolido pelo bloco try/catch que retornava o envelope `success` padrão.
+
+**Causa raiz:** Queries em `product_images` referenciavam a coluna `position` (que não existe). O nome correto da coluna de ordenação é `sort_order`. O erro `PGRST204 / column product_images_1.position does not exist` ficava mascarado dentro do envelope de resposta.
+
+**Onde ocorreu:** `storefront-bootstrap`, `tiktok-shop-catalog-sync`, `ads-chat-v2` (Abril/2026).
+
+**Solução aplicada:** Substituir todas as ocorrências de `position` por `sort_order` nas queries de `product_images` nas edge functions afetadas. Após correção, `storefront-bootstrap` voltou a retornar 33 produtos em 668ms.
+
+**Regra derivada:**
+
+> Toda edge function que retorna envelope `{ success, data, error }` DEVE logar explicitamente o `error.message` do Supabase antes de mascará-lo no envelope. Erro silencioso de schema é o pior tipo de bug — quebra produção sem alerta.
+>
+> **Nome canônico da coluna de ordenação de mídias:** `sort_order` (NUNCA `position`, `order`, `seq` ou variações). Vale para `product_images`, `product_videos` e qualquer tabela de mídia.
+
+---
+
 ## Como Adicionar Novas Entradas
 
 Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entrada aqui seguindo o formato:
