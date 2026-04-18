@@ -188,6 +188,10 @@ Deno.serve(async (req) => {
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("state", stateHash);
     authUrl.searchParams.set("response_type", "code");
+    // Força reautorização: sempre que o usuário clicar Conectar/Reconectar,
+    // a Meta apresenta a tela de permissões e gera token NOVO,
+    // mesmo se a sessão Facebook estiver ativa. Resolve invalidação 190/460.
+    authUrl.searchParams.set("auth_type", "reauthorize");
 
     // V4: config_id vem do perfil no banco (meta_auth_profiles.config_id)
     // Se o perfil tem config_id → usar (Facebook Login for Business)
