@@ -223,15 +223,14 @@ export function MetaUnifiedSettings() {
                 </Alert>
               )}
 
-              {/* Actions */}
+              {/* Actions
+                  Botão "Atualizar" foi removido — UI já recarrega sozinha via React Query.
+                  Renovação real do token é automática (cron diário meta-token-refresh)
+                  e detecção de invalidação é automática (cron meta-token-health-check). */}
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => connect()} disabled={isConnecting} className="gap-1.5">
                   {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   Reconectar
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => refetchConnection()} className="gap-1.5">
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Atualizar
                 </Button>
                 <Button variant="destructive" size="sm" onClick={() => disconnect()} disabled={isDisconnecting} className="gap-1.5">
                   {isDisconnecting ? (
