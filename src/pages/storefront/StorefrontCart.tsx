@@ -14,6 +14,7 @@ import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 import { CategorySettings } from '@/hooks/usePageSettings';
+import { usePrefetchCheckout } from '@/lib/storefront/prefetchCheckout';
 
 const defaultCategorySettings: CategorySettings = {
   showCategoryName: true,
