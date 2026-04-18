@@ -5,10 +5,87 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Carregando...</title>
     <meta name="theme-color" content="#ffffff" />
+    <!--
+      First-byte skeleton. Painted instantly while the JS bundle downloads/hydrates.
+      Removed automatically when the React app mounts (#root gets children).
+      Only shown for routes the SPA actually owns; pre-rendered routes coming
+      from the Cloudflare Worker (storefront-html Edge Function) replace this entire document.
+    -->
+    <style>
+      html,body{margin:0;padding:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#0f172a}
+      #root:empty + #boot-skeleton{display:block}
+      #boot-skeleton{display:none}
+      #root:not(:empty) ~ #boot-skeleton{display:none}
+      .bs-wrap{min-height:100vh;display:flex;flex-direction:column;background:#fff}
+      .bs-header{height:64px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+      .bs-pulse{background:linear-gradient(90deg,#f1f5f9 0%,#e2e8f0 50%,#f1f5f9 100%);background-size:200% 100%;animation:bsPulse 1.4s ease-in-out infinite;border-radius:6px}
+      @keyframes bsPulse{0%{background-position:200% 0}100%{background-position:-200% 0}}
+      .bs-logo{height:32px;width:140px}
+      .bs-icon{height:32px;width:32px;border-radius:50%}
+      .bs-main{flex:1;padding:24px;max-width:1200px;margin:0 auto;width:100%;box-sizing:border-box}
+      .bs-card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin-bottom:16px}
+      .bs-row{height:44px;margin-bottom:12px}
+      .bs-row-sm{height:16px;width:60%;margin-bottom:8px}
+      .bs-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+      @media (max-width:768px){.bs-grid{grid-template-columns:1fr}}
+      .bs-grid-checkout{display:grid;grid-template-columns:1fr 380px;gap:24px;margin-top:24px}
+      @media (max-width:1024px){.bs-grid-checkout{grid-template-columns:1fr}}
+      .bs-aside .bs-row{height:64px}
+    </style>
   </head>
 
   <body>
     <div id="root"></div>
+    <div id="boot-skeleton" aria-hidden="true">
+      <div class="bs-wrap">
+        <header class="bs-header">
+          <div class="bs-pulse bs-logo"></div>
+          <div class="bs-pulse bs-icon"></div>
+        </header>
+        <main class="bs-main">
+          <div class="bs-grid-checkout">
+            <div>
+              <div class="bs-card">
+                <div class="bs-pulse bs-row-sm" style="width:40%;height:20px;margin-bottom:16px"></div>
+                <div class="bs-grid">
+                  <div class="bs-pulse bs-row"></div>
+                  <div class="bs-pulse bs-row"></div>
+                  <div class="bs-pulse bs-row"></div>
+                  <div class="bs-pulse bs-row"></div>
+                </div>
+                <div class="bs-pulse bs-row" style="margin-top:8px"></div>
+                <div class="bs-pulse bs-row"></div>
+                <div class="bs-pulse" style="height:48px;width:160px;margin-top:16px"></div>
+              </div>
+            </div>
+            <aside class="bs-aside">
+              <div class="bs-card">
+                <div class="bs-pulse bs-row-sm" style="height:18px;margin-bottom:16px"></div>
+                <div class="bs-pulse bs-row"></div>
+                <div class="bs-pulse bs-row"></div>
+                <div class="bs-pulse bs-row-sm" style="margin-top:16px"></div>
+                <div class="bs-pulse bs-row-sm"></div>
+                <div class="bs-pulse" style="height:24px;width:100%;margin-top:12px"></div>
+              </div>
+            </aside>
+          </div>
+        </main>
+      </div>
+    </div>
+    <script>
+      // Remove skeleton as soon as React mounts something into #root.
+      (function(){
+        var root=document.getElementById('root');
+        var skel=document.getElementById('boot-skeleton');
+        if(!root||!skel)return;
+        var obs=new MutationObserver(function(){
+          if(root.childNodes.length>0){skel.parentNode&&skel.parentNode.removeChild(skel);obs.disconnect();}
+        });
+        obs.observe(root,{childList:true});
+        // Safety timeout: never let the skeleton outlive 8s
+        setTimeout(function(){if(skel.parentNode)skel.parentNode.removeChild(skel);},8000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
