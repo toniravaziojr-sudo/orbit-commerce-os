@@ -1,124 +1,92 @@
 
 
-# Plano: Modo Vendas por IA no WhatsApp (Comércio Conversacional)
-
-## Resumo
-
-Transformar a IA de suporte (atualmente informativa) em um agente de vendas conversacional, capaz de buscar produtos, oferecer cupons, montar carrinho, sugerir ofertas de aumento de ticket e gerar link de checkout pré-preenchido — tudo dentro do WhatsApp. Controlado por um toggle "Modo Vendas" nas configurações de IA.
-
----
-
-## O que já existe
-
-- **Edge Function `ai-support-chat`**: IA de suporte com RAG, classificação de intenção, regras, knowledge base e envio via WhatsApp
-- **Tabela `ai_support_config`**: Configurações de personalidade, modelo, guardrails
-- **Tabela `products`**: Catálogo completo com preço, estoque, slug
-- **Tabela `discounts`**: Cupons com limites de uso, validade, valor mínimo
-- **Tabela `discount_redemptions`**: Controle de uso por cliente
-- **Tabela `checkout_links`**: Links de checkout com produto, cupom, override de preço
-- **Tabela `offer_rules`**: Regras de upsell/order bump (cross-sell, aumento de ticket)
-- **Tabela `customers`**: Cadastro completo com métricas (total gasto, tier, pedidos)
-- **Integração WhatsApp Meta Cloud API**: Webhook + envio funcionando
-
-## O que falta
-
-1. **Flag `sales_mode_enabled`** na tabela `ai_support_config`
-2. **Ferramentas (tools) de vendas** na Edge Function para a IA executar ações
-3. **Lógica de carrinho conversacional** vinculada à conversa
-4. **Geração automática de checkout link** com dados do cliente pré-preenchidos
-5. **Toggle na UI** de configurações de IA
-6. **Prompt de vendas** condicional (substituindo os guardrails informativos)
+## 📋 CHECKLIST DE CONFORMIDADE
+- ✅ Doc de Regras do Sistema considerado (Layer 2)
+- ✅ Docs formais identificados por camada
+- ✅ Fluxo afetado: Storefront público → Carrinho → Checkout
+- ✅ Fonte de verdade: Cloudflare Worker `shops-router` + `storefront_prerendered_pages` + `storefront-html`
+- ✅ Módulos impactados: Storefront, Checkout, Carrinho, Catálogo, Builder
+- ✅ Impacto cruzado: todas as lojas com domínio próprio
+- ✅ UI impactada: Não (sem mudança de tela; `mapa-ui.md` não precisa atualizar)
+- 📌 Situação: Aguardando confirmação para executar
 
 ---
 
-## Etapas de Implementação
+## 🛠️ PLANO DE CORREÇÃO (mantido)
 
-### Etapa 1 — Migração DB + Toggle UI
+**Frente 1 — Reativar entrega de HTML pronto pelo Worker [CRÍTICO]**  
+Corrigir `shops-router` para chamar a renderização antes de cair no SPA vazio. Impacto: -70-80% no tempo de exibição.
 
-**Migração SQL:**
-- Adicionar coluna `sales_mode_enabled BOOLEAN DEFAULT false` em `ai_support_config`
-- Criar tabela `whatsapp_carts` para estado de carrinho por conversa:
-  - `id`, `conversation_id`, `tenant_id`, `customer_id`, `items JSONB`, `coupon_code`, `subtotal`, `status` (active/converted/abandoned), `expires_at`, `created_at`, `updated_at`
+**Frente 2 — Recriar e manter o cache vivo [CRÍTICO]**  
+Regerar todas as páginas obsoletas + cron diário de saúde + alerta quando >20% ficar obsoleto. Impacto: elimina geração ao vivo de 3,7s.
 
-**UI (tela de configurações da IA):**
-- Adicionar toggle "Modo Vendas" com descrição explicativa
-- Quando ativado, mostrar sub-opções: habilitar sugestões de upsell, permitir cupons automáticos
+**Frente 3 — Corrigir bug silencioso da coluna inexistente [ALTO]**  
+Localizar e corrigir a consulta com referência à coluna `position` que não existe.
 
-### Etapa 2 — Tools de Vendas na Edge Function
+**Frente 4 — Esqueleto HTML para checkout/carrinho [MÉDIO]**  
+Servir esqueleto visual no primeiro byte + pré-anunciar pacote do checkout. Impacto: elimina tela branca de 1-2s.
 
-Implementar **OpenAI Function Calling** (tools) no `ai-support-chat`. Quando `sales_mode_enabled = true`, a IA recebe ferramentas adicionais:
+**Frente 5 — Otimizar componente de checkout [MÉDIO/baixo prazo, rodada separada]**  
+Quebrar em pedaços sob demanda + adiar scripts secundários. Impacto: +200-400ms na primeira interação.
 
-| Tool | O que faz |
-|------|-----------|
-| `search_products` | Busca produtos por nome/categoria (usa `search_products_fuzzy` existente) |
-| `get_product_details` | Retorna preço, estoque, descrição, imagens de um produto |
-| `check_coupon` | Valida cupom: ativo, dentro da validade, limite de uso, valor mínimo |
-| `check_customer_coupon_eligibility` | Cruza cliente + cupom (verifica `discount_redemptions`) |
-| `add_to_cart` | Adiciona produto ao carrinho da conversa (`whatsapp_carts`) |
-| `view_cart` | Mostra itens no carrinho atual |
-| `remove_from_cart` | Remove item do carrinho |
-| `apply_coupon` | Aplica cupom ao carrinho |
-| `check_upsell_offers` | Verifica `offer_rules` ativas baseado no carrinho atual |
-| `generate_checkout_link` | Cria registro em `checkout_links` com produtos + cupom + dados do cliente |
-| `lookup_customer` | Consulta cadastro do cliente (já existe parcialmente no código) |
-
-### Etapa 3 — Prompt Condicional de Vendas
-
-Quando `sales_mode_enabled = true`:
-- Substituir `INFORMATIVE_GUARDRAILS` por `SALES_AGENT_PROMPT` que instrui a IA a:
-  - Identificar intenção de compra
-  - Sugerir produtos relevantes usando as tools
-  - Oferecer cupons quando disponíveis
-  - Montar carrinho progressivamente
-  - Sugerir upsells quando requisitos forem atingidos
-  - Gerar link de checkout ao final com dados pré-preenchidos
-  - Nunca forçar venda, manter tom consultivo
-- Manter guardrails de segurança (não inventar preços, respeitar estoque)
-
-### Etapa 4 — Geração de Checkout Link Pré-preenchido
-
-Quando a IA chamar `generate_checkout_link`:
-1. Criar registro em `checkout_links` com produto(s), cupom e override se aplicável
-2. Construir URL do checkout da loja com query params do cliente:
-   - `?name=X&email=Y&phone=Z&cpf=W` (dados já conhecidos da conversa/cadastro)
-3. Retornar o link para a IA enviar ao cliente via mensagem
-4. O cliente clica, chega no checkout com tudo preenchido, só finaliza
-
-### Etapa 5 — Métricas e Conversão
-
-- Rastrear conversões originadas do carrinho WhatsApp (`whatsapp_carts.status = converted`)
-- Vincular `checkout_links.conversion_count` com pedidos efetivados
-- Log em `conversation_events` para cada ação de venda (produto sugerido, cupom aplicado, link gerado)
+**Sequência de execução:** Frente 3 → Frente 2 → Frente 1 → medição → Frente 4 → (Frente 5 em rodada separada)
 
 ---
 
-## Detalhes Técnicos
+## ✅ VALIDAÇÃO TÉCNICA OBRIGATÓRIA
 
-```text
-Fluxo da Mensagem (com Modo Vendas):
+Para cada frente, antes de declarar concluída:
 
-Cliente envia mensagem
-  → meta-whatsapp-webhook
-    → ai-support-chat
-      → Classificação de intenção (inclui "purchase_intent")
-      → Se sales_mode_enabled:
-        → Injeta SALES_AGENT_PROMPT + tools de vendas
-        → OpenAI responde com tool_calls
-        → Edge Function executa tools (busca produto, valida cupom, etc.)
-        → Retorna resultado para a IA
-        → IA formula resposta conversacional
-      → Salva mensagem + envia via WhatsApp
-```
+| Validação | Critério |
+|---|---|
+| HTML real entregue na primeira visita | >100KB (não 951b) |
+| Tempo até primeiro byte (TTFB) | <800ms |
+| Tempo até conteúdo visível | <1,5s (vs 4-6s hoje) |
+| Cache funcionando | Cabeçalho indicando modo "pré-renderizado" |
+| Checkout sem tela branca | Primeiro pixel <500ms |
+| Sem regressão | Testar 3 tenants (Respeite o Homem + 2 outros) |
+| Sem regressão no admin | Painel administrativo navegável |
+| Sem regressão em formulários | Carrinho → checkout → seleção de pagamento |
+| Logs de erro 24h | Sem aumento de taxa de erro |
 
-**Arquivos impactados:**
-- `supabase/functions/ai-support-chat/index.ts` — tools de vendas + prompt condicional
-- `src/hooks/useAiSupportConfig.ts` — novo campo `sales_mode_enabled`
-- `src/components/support/` — toggle na UI de configurações
-- Migração SQL — nova coluna + tabela `whatsapp_carts`
+**Comparativo antes/depois real:** vou medir 3 lojas em 5 páginas críticas (home, categoria, produto, carrinho, checkout) antes e depois e entregar tabela com ganhos efetivos.
 
-**Segurança:**
-- Tools executam com `service_role` (já é o caso da Edge Function)
-- Validação de estoque em tempo real antes de adicionar ao carrinho
-- Cupons validados contra `discount_redemptions` para evitar abuso
-- Carrinho expira automaticamente (24h default)
+---
+
+## 📝 DOCUMENTAÇÃO (CORRIGIDA — TUDO NOS DOCS FORMAIS)
+
+**Layer 2 — Doc de Regras do Sistema** (`docs/REGRAS-DO-SISTEMA.md`)
+- Adicionar regra macro: "Contrato Worker ↔ HTML pré-renderizado: o Worker deve sempre tentar entregar HTML pré-renderizado antes de qualquer fallback para SPA"
+- Adicionar regra macro: "Saúde do cache de pré-renderização é obrigatória — taxa de páginas obsoletas não pode ultrapassar 20% sem alerta"
+
+**Layer 3 — Especificação Storefront** (`docs/especificacoes/storefront/`)
+- Atualizar arquitetura Content-First: contrato Worker, fallbacks, ordem de tentativa
+- Atualizar Pipeline de Revalidação: incluir cron diário de saúde + critérios de alerta
+- Documentar fluxo completo: requisição → Worker → cache → fallback ao vivo → SPA
+
+**Layer 3 transversal — Padrões Operacionais** (`docs/especificacoes/transversais/padroes-operacionais.md`)
+- Adicionar padrão de monitoramento de saúde de cache (regra geral aplicável a outros caches)
+
+**Layer 5 — Base de Conhecimento Técnico** (`docs/tecnico/base-de-conhecimento-tecnico.md`)
+- Registrar lição: bug da coluna `position` inexistente → causa → solução → como evitar
+
+**Layer 5 — Incidente** (novo arquivo: `docs/tecnico/incidentes/2026-04-storefront-checkout-lentidao.md`)
+- Problema → diagnóstico → causa raiz → correção aplicada → validação técnica → métricas antes/depois → lições
+
+**Layer 6 — Memória (apenas UMA, curta, anti-regressão)**
+- `mem://constraints/storefront-worker-prerender-bypass` — lembrete curto para mim: "Nunca aceitar HTML <2KB do Worker em rota pública sem investigar bypass do pré-render. Doc oficial: ver Layer 2 e Layer 3 Storefront."
+- Atualizar `mem://index.md` referenciando essa nova memória
+
+**Mapa de UI:** sem mudança de tela → `mapa-ui.md` não precisa ser atualizado.
+
+---
+
+## ⏱️ EXECUÇÃO
+
+Frentes 1 a 4 + documentação completa em uma rodada (~45-60 min).  
+Frente 5 em rodada separada após validação das anteriores.
+
+**Risco:** Médio. Toda mudança validada antes de declarar concluída. Lojas continuam vendendo durante a correção.
+
+📌 **STATUS:** Aguardando sua confirmação para executar.
 
