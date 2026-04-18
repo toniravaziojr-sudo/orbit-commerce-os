@@ -208,12 +208,27 @@ return response;
 ### Princípio relacionado (Phase 4 padrão)
 O Worker deve sempre tentar entregar HTML pré-renderizado antes de qualquer fallback para SPA, **independente do header `Accept`**. Bots, prefetches e clientes que omitem `Accept` recebem o mesmo HTML útil que um navegador comum.
 
+### Sanitização obrigatória de headers antes do cache
+Antes de `caches.default.put(...)`, **REMOVER `Set-Cookie`, `Vary` e `Pragma`** da response clonada. A Cache API do Cloudflare rejeita silenciosamente respostas com esses headers — o `put` retorna sem erro mas nada é gravado. Sintoma idêntico ao da regra do `waitUntil` (sempre MISS), causa diferente. `Set-Cookie` costuma ser injetado pelo Supabase Gateway (`__cf_bm`) e vaza até o cache se não for filtrado.
+
+```js
+// ✅ CERTO — sanitizar antes de cachear
+const cacheable = new Response(response.body, response);
+cacheable.headers.delete('Set-Cookie');
+cacheable.headers.delete('Vary');
+cacheable.headers.delete('Pragma');
+ctx.waitUntil(caches.default.put(cacheKey, cacheable));
+```
+
 ### Anti-padrão
 - `await caches.default.put(...)` no fim do handler sem `ctx.waitUntil`
 - Confiar que a escrita do cache "vai acontecer no background" sem registrar via `waitUntil`
 - Phase 4 condicional ao header `Accept: text/html` — bots e prefetches recebem shell SPA vazio (~5KB) mesmo com cache aquecido
+- Cachear response sem remover `Set-Cookie`/`Vary`/`Pragma` — `put` falha em silêncio
+- HTML <2KB em rota pública = bypass do pré-render. Investigar imediatamente (sintoma: shell SPA vazio com `cf-cache-status: DYNAMIC` e ausência de `X-CC-Render-Mode`)
 
 ### Validação
-1. `curl -sI https://<dominio>/` — `cf-cache-status: HIT` na 2ª visita + `X-CC-Cache-Layer: html`
-2. `curl -sI https://<dominio>/assets/<arquivo>.js` — `X-CC-Cache: HIT` + `cache-control: public, max-age=2592000, immutable`
-3. Endpoint `/_debug` do Worker retorna `cache.usesWaitUntil: true`
+1. `curl -s -D - -o /dev/null https://<dominio>/` (GET real, NÃO HEAD) — Phase 4 só responde para GET. Checar `X-CC-Render-Mode`, `X-CC-Cache`, `cf-cache-status`, tamanho do body.
+2. 5 requests seguidos na MESMA URL: `X-CC-Cache` deve ir de MISS → HIT a partir da 2ª. Se ficar sempre MISS, conferir `Set-Cookie` na response.
+3. `curl -sI https://<dominio>/assets/<arquivo>.js` — `X-CC-Cache: HIT` + `cache-control: public, max-age=2592000, immutable`
+4. Endpoint `/_debug` do Worker retorna `cache.usesWaitUntil: true` e `strategy: edge_rendered_html_first_v2`
