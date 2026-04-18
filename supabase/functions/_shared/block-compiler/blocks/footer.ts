@@ -62,6 +62,9 @@ export function footerToStaticHTML(context: CompilerContext): string {
   // Newsletter
   const newsletterTitle = getString('newsletterTitle', null, 'RECEBA NOSSAS PROMOÇÕES') || 'RECEBA NOSSAS PROMOÇÕES';
   const newsletterSubtitle = getString('newsletterSubtitle', null, 'Inscreva-se para receber descontos exclusivos direto no seu e-mail!');
+  const newsletterPlaceholder = getString('newsletterPlaceholder', null, 'Seu e-mail') || 'Seu e-mail';
+  const newsletterListId = getString('newsletterListId', null, '') || '';
+  const tenantIdForForm = tenant?.id || '';
   
   // Menu names
   const footer1Name = getString('footer1Title', null) || footerMenus.footer1?.name || 'Menu Footer';
@@ -81,7 +84,7 @@ export function footerToStaticHTML(context: CompilerContext): string {
   const shippingMethods = getImageSection('shippingMethods');
   const officialStores = getImageSection('officialStores');
   
-  // Newsletter bar
+  // Newsletter bar — uses universal [data-sf-newsletter] handler injected by storefront-html
   let newsletterHtml = '';
   if (showNewsletter) {
     newsletterHtml = `
@@ -91,8 +94,8 @@ export function footerToStaticHTML(context: CompilerContext): string {
             <h3 style="font-size:18px;font-weight:700;color:${escapeHtml(footerTitlesColor)};text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">${escapeHtml(newsletterTitle)}</h3>
             ${newsletterSubtitle ? `<p style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;">${escapeHtml(newsletterSubtitle)}</p>` : ''}
           </div>
-          <form style="display:flex;gap:0;min-width:300px;max-width:500px;flex:1;" onsubmit="event.preventDefault();">
-            <input type="email" placeholder="Seu e-mail" style="flex:1;padding:10px 16px;border:1px solid rgba(255,255,255,0.2);border-right:none;border-radius:4px 0 0 4px;background:rgba(255,255,255,0.1);color:#fff;font-size:14px;outline:none;">
+          <form data-sf-newsletter data-tenant-id="${escapeHtml(tenantIdForForm)}" data-list-id="${escapeHtml(newsletterListId)}" data-source="footer_newsletter" style="display:flex;gap:0;min-width:300px;max-width:500px;flex:1;flex-wrap:wrap;">
+            <input type="email" name="email" required placeholder="${escapeHtml(newsletterPlaceholder)}" style="flex:1;padding:10px 16px;border:1px solid rgba(255,255,255,0.2);border-right:none;border-radius:4px 0 0 4px;background:rgba(255,255,255,0.1);color:#fff;font-size:14px;outline:none;min-width:0;">
             <button type="submit" class="sf-btn-primary" style="padding:10px 20px;border:none;border-radius:0 4px 4px 0;font-weight:600;cursor:pointer;">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
