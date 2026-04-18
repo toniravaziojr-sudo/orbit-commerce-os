@@ -1,5 +1,5 @@
 # Memory: constraints/storefront-worker-prerender-bypass
-Updated: 2026-04-18 (v3)
+Updated: 2026-04-18 (v4)
 
 ## Regras anti-regressão (Worker `shops-router`)
 
@@ -28,3 +28,14 @@ Updated: 2026-04-18 (v3)
 - Layer 3 transversal: Padrão 7 detalhado em `docs/especificacoes/transversais/padroes-operacionais.md`.
 - Layer 5: incidente em `docs/tecnico/incidentes/2026-04-storefront-checkout-lentidao.md`.
 - Worker template oficial: `docs/cloudflare-worker-template.js` (v2.0.1).
+
+## Anti-stale automático (v8.8.0+ — Abr/2026)
+
+**Problema recorrente:** após qualquer alteração no compilador Edge (novo bloco, mudança no handler `data-sf-newsletter`, etc.), os snapshots já gravados em `storefront_prerendered_pages` continuavam sendo servidos por horas/dias até alguém disparar `UPDATE … SET status='stale'` manualmente. Com o Worker em Phase 4 (HTML cache 15min+SWR 24h), a CDN também segurava o HTML antigo. Resultado: o usuário final via comportamento quebrado mesmo após o deploy bem-sucedido.
+
+**Mitigação implementada (regra obrigatória):**
+1. `storefront-html` compara `metadata.storefront_html_version` do snapshot com sua própria `VERSION`. Se diferirem, ignora o snapshot e força live render. O snapshot só volta a ser servido quando o `storefront-prerender` regravar com a mesma versão.
+2. Toda mudança em compiladores ou no contrato HTML de hidratação deve **bumpar `VERSION`** em `supabase/functions/storefront-html/index.ts`. Isso é o único gatilho confiável de invalidação automática.
+3. `UPDATE storefront_prerendered_pages SET status='stale'` continua sendo feito como cinto-e-suspensório quando há confiança baixa no estado dos snapshots, mas não é mais o único caminho.
+
+**Sintoma de regressão típico (já visto em Abr/2026):** captura de leads (popup, rodapé, blocos) aparenta estar quebrada na loja pública mesmo com a função `marketing-form-submit` 100% funcional. Causa raiz: HTML servido foi gerado por uma versão anterior do `storefront-html` que não injetava o handler universal `[data-sf-newsletter]` ou usava `data-source` divergente.
