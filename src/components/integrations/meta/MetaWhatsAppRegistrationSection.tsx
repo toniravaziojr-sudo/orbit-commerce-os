@@ -18,6 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { showErrorToast } from "@/lib/error-toast";
 import { sanitizeError } from "@/lib/error-sanitizer";
+import { WhatsAppDiagnosticCard } from "./WhatsAppDiagnosticCard";
 
 export function MetaWhatsAppRegistrationSection() {
   const { currentTenant } = useAuth();
@@ -131,6 +132,9 @@ export function MetaWhatsAppRegistrationSection() {
 
   return (
     <div className="space-y-3">
+      {/* Diagnóstico inteligente — detecta e repara problemas automaticamente */}
+      <WhatsAppDiagnosticCard />
+
       {/* Phone number status */}
       <div className="flex items-center gap-2">
         <MessageCircle className="h-4 w-4 text-green-600" />

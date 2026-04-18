@@ -22,3 +22,4 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Documentation Governance](mem://governance/documentation-governance) — Regra de Ouro e hierarquia de 6 camadas de docs
 - [Memory Protection Rules](mem://governance/memory-protection-rules) — Política de memória, escopo permitido e regras de rotação
 - [Recent Topics](mem://governance/recent-topics) — Cache rotativo dos 2 últimos assuntos tratados (atual + anterior)
+- [WhatsApp Meta Recovery Protocol](mem://constraints/whatsapp-meta-recovery-protocol) — 4 verificações (token/número/WABA/webhook) + diagnose/recover/monitor + cron diário
