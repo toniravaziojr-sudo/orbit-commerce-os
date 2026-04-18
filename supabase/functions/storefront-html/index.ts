@@ -2232,7 +2232,9 @@ Deno.serve(async (req) => {
       // current renderer). Serving them perpetuates broken HTML until
       // re-prerender — which can take hours/days. Treat any version
       // mismatch as stale and force a live render.
-      const snapshotVersion = (prerendered?.metadata as any)?.renderer_version || null;
+      // The prerender writer stores the version under metadata.storefront_html_version.
+      const snapshotMeta = (prerendered?.metadata as any) || {};
+      const snapshotVersion = snapshotMeta.storefront_html_version || snapshotMeta.renderer_version || null;
       const versionMismatch = !!prerendered?.html_content && snapshotVersion !== VERSION;
 
       if (versionMismatch) {
