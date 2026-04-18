@@ -3,7 +3,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
-const VERSION = "v3.1.0";
+const VERSION = "v3.2.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,11 +140,21 @@ Deno.serve(async (req) => {
     results.integrations_deactivated = deactivated?.length || 0;
     console.log(`[meta-disconnect][${VERSION}][${traceId}] Deactivated ${results.integrations_deactivated} integrations`);
 
+    // CASCATA OBRIGATÓRIA v3.2: Limpar token cru e identificadores Meta no whatsapp_configs.
+    // Token cru não pode persistir após revogação do grant (regra v4.5: "limpa configurações").
     const { error: whatsappError } = await supabase
       .from("whatsapp_configs")
       .update({
         is_enabled: false,
         connection_status: "disconnected",
+        access_token: null,
+        token_expires_at: null,
+        phone_number_id: null,
+        waba_id: null,
+        business_id: null,
+        verified_name: null,
+        display_phone_number: null,
+        last_disconnected_at: new Date().toISOString(),
         last_error: "Conta Meta desconectada",
         updated_at: new Date().toISOString(),
       })
@@ -155,6 +165,34 @@ Deno.serve(async (req) => {
       console.warn(`[meta-disconnect][${VERSION}][${traceId}] WhatsApp cleanup error:`, whatsappError.message);
     }
     results.whatsapp_cleaned = !whatsappError;
+
+    // CASCATA OBRIGATÓRIA v3.2: Remover linha legada em marketplace_connections.
+    // Meta não pertence mais a essa tabela (fonte de verdade é tenant_meta_auth_grants).
+    const { error: marketplaceError, count: marketplaceDeleted } = await supabase
+      .from("marketplace_connections")
+      .delete({ count: "exact" })
+      .eq("tenant_id", tenant_id)
+      .eq("marketplace", "meta");
+
+    if (marketplaceError) {
+      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Marketplace legacy cleanup error:`, marketplaceError.message);
+    }
+    results.marketplace_legacy_deleted = marketplaceDeleted ?? 0;
+
+    // CASCATA OBRIGATÓRIA v3.2: Limpar selected_assets dos integrations desativados.
+    // Pixel/CAPI/Page/AdAccounts selecionados ficam inválidos sem o grant ativo.
+    const { error: assetsClearError } = await supabase
+      .from("tenant_meta_integrations")
+      .update({
+        selected_assets: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("tenant_id", tenant_id);
+
+    if (assetsClearError) {
+      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Selected assets cleanup error:`, assetsClearError.message);
+    }
+    results.selected_assets_cleared = !assetsClearError;
 
     const { error: pixelClearError } = await supabase
       .from("marketing_integrations")
