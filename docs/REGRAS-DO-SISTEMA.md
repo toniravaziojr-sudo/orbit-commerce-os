@@ -801,6 +801,7 @@ As regras transversais que se aplicam a múltiplos módulos estão consolidadas 
 | 4 | SendGrid como provedor mandatório de e-mail | Todos os envios de e-mail do sistema |
 | 5 | Inventário operacional do Auxiliar de Comando | Toda nova ferramenta do agente |
 | 6 | Validação técnica obrigatória pós-entrega | Toda entrega que altere comportamento |
+| 7 | Cache edge no Cloudflare Worker exige `ctx.waitUntil` | Toda escrita na Cache API do Worker `shops-router` |
 
 ---
 
@@ -814,11 +815,14 @@ As regras transversais que se aplicam a múltiplos módulos estão consolidadas 
 2. O React faz hidratação progressiva apenas para interatividade (carrinho, checkout, etc.)
 3. Snapshots persistidos em `storefront_prerendered_pages` são a fonte de verdade do HTML servido
 4. A invalidação segue o padrão do **§33 / Padrão 3** (mudança de compiler) e do pipeline universal de revalidação
+5. **O Worker `shops-router` deve sempre tentar entregar HTML pré-renderizado antes de qualquer fallback para o shell SPA**, independente do header `Accept` da requisição. Bots, prefetches e clientes que omitem `Accept` recebem o mesmo HTML útil que um navegador comum. (Consequência operacional do §33 / Padrão 7.)
+6. Rotas SPA-only (carrinho, checkout, conta, etc.) recebem um **skeleton específico no first byte** (em `index.html`), eliminando a tela branca enquanto o bundle React baixa. O skeleton é descartado assim que o React monta `#root`.
 
 ### Anti-padrão
 
-- Páginas que renderizam apenas um spinner ou skeleton no primeiro paint
+- Páginas que renderizam apenas um spinner em branco no primeiro paint (skeleton estrutural específico é permitido e obrigatório nas SPA-only)
 - Conteúdo que depende de fetch client-side para aparecer no SEO
+- Worker condicional ao header `Accept: text/html` para decidir entregar HTML pronto — bots e prefetches caem no shell SPA vazio
 
 ### Documentação detalhada
 

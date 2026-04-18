@@ -1,27 +1,48 @@
 /**
  * Cloudflare Worker - Multi-tenant SaaS Router (PATH TRANSLATION + INTERNAL FOLLOW)
- * 
+ *
+ * v2.0.0 (2026-04-18) — Performance Hardening Round 1
+ *
+ * PRINCÍPIOS (alinhados com docs/REGRAS-DO-SISTEMA.md §34 + §33 Padrão 7):
+ *  - Phase 4 (HTML pré-renderizado via Edge Function) é o CAMINHO PADRÃO,
+ *    independente do header Accept. Bots, prefetches e qualquer GET de rota
+ *    pública passam pelo HTML pronto.
+ *  - Cache na Cache API só é confiável quando registrado com ctx.waitUntil.
+ *    Sem isso, a escrita é abortada quando a resposta termina e o cache
+ *    nunca aquece (sintoma observado em produção: cf-cache-status sempre MISS).
+ *  - Assets do Vite (`/assets/*`) têm hash no nome → cache imutável longo no edge.
+ *  - Bootstrap da SPA (`/functions/v1/storefront-bootstrap`) ganha micro-cache
+ *    de 60s para absorver picos de navegação.
+ *
  * OBJETIVO FINAL:
- * - URL LIMPA no navegador (sem /store/{tenant})
- * - Domínio custom é o canônico quando existe
- * - Subdomínio padrão redireciona 301 para o custom quando existe
- * 
+ *  - URL LIMPA no navegador (sem /store/{tenant})
+ *  - Domínio custom é o canônico quando existe
+ *  - Subdomínio padrão redireciona 301 para o custom quando existe
+ *
  * ESTRATÉGIA:
- * - Worker faz PATH TRANSLATION: browser pede /, Worker busca /store/{tenant} no origin
- * - Worker SEGUE redirects internamente (internal follow) - nunca devolve 302 com /store
- * - Browser só vê URL limpa
- * 
+ *  - Worker faz PATH TRANSLATION: browser pede /, Worker busca /store/{tenant} no origin
+ *  - Worker SEGUE redirects internamente (internal follow) - nunca devolve 302 com /store
+ *  - Browser só vê URL limpa
+ *
  * ENV VARIABLES (configure no Cloudflare):
- * - ORIGIN_HOST: origin do app (ex: orbit-commerce-os.lovable.app)
- * - SUPABASE_URL: URL do projeto Supabase
- * - SUPABASE_ANON_KEY: Anon key do Supabase
+ *  - ORIGIN_HOST: origin do app (ex: orbit-commerce-os.lovable.app)
+ *  - SUPABASE_URL: URL do projeto Supabase
+ *  - SUPABASE_ANON_KEY: Anon key do Supabase
  */
 
 const PLATFORM_SUBDOMAIN_RE = /^([a-z0-9-]+)\.shops\.comandocentral\.com\.br$/i;
 const RESOLVE_CACHE_TTL = 300;
 const MAX_INTERNAL_FOLLOWS = 5;
-const HTML_CACHE_TTL = 900; // 15 minutes edge cache for pre-rendered HTML
-const HTML_STALE_TTL = 86400; // 24h stale-while-revalidate
+
+// HTML pré-renderizado: cache edge curto (15min) + SWR longo (24h)
+const HTML_CACHE_TTL = 900;
+const HTML_STALE_TTL = 86400;
+
+// Assets do Vite têm hash imutável no nome → cache longo (30 dias)
+const ASSETS_CACHE_TTL = 60 * 60 * 24 * 30;
+
+// Bootstrap muda com publish/edição → cache curto absorvendo picos
+const BOOTSTRAP_CACHE_TTL = 60;
 
 // Paths que sempre vão para a raiz do origin (assets do Vite)
 const STATIC_PATHS = [
@@ -39,7 +60,7 @@ const STATIC_PATHS = [
 // Mapeamento de paths públicos para Edge Functions do Supabase
 // Usado para endpoints de integrações (Meta, Stripe, Shopee, etc.)
 // IMPORTANTE: Adicionar novas integrações aqui!
-// 
+//
 // SUPORTA DOIS FORMATOS:
 // 1. app.comandocentral.com.br/integrations/meta/... (legacy)
 // 2. integrations.comandocentral.com.br/meta/... (novo - subdomínio dedicado)
@@ -55,21 +76,21 @@ const EDGE_FUNCTION_ROUTES = {
   '/meta/deletion-status': 'meta-deletion-status',
   '/meta/whatsapp-callback': 'meta-whatsapp-onboarding-callback',
   '/meta/whatsapp-webhook': 'meta-whatsapp-webhook',
-  
+
   // Shopee
   '/integrations/shopee/callback': 'shopee-oauth-callback',
   '/integrations/shopee/webhook': 'shopee-webhook',
   '/shopee/callback': 'shopee-oauth-callback',
   '/shopee/webhook': 'shopee-webhook',
-  
+
   // Mercado Pago (Billing)
   '/integrations/billing/webhook': 'billing-webhook',
   '/billing/webhook': 'billing-webhook',
-  
+
   // Email (SendGrid Inbound Parse)
   '/integrations/emails/inbound': 'support-email-inbound',
   '/emails/inbound': 'support-email-inbound',
-  
+
   // Mercado Livre
   '/integrations/meli/callback': 'meli-oauth-callback',
   '/integrations/meli/webhook': 'meli-webhook',
@@ -86,6 +107,11 @@ const INTEGRATION_HOSTS = [
 function isStaticPath(pathname) {
   const p = pathname.toLowerCase();
   return STATIC_PATHS.some(prefix => p.startsWith(prefix) || p === prefix.replace(/\/$/, ''));
+}
+
+function isAssetPath(pathname) {
+  // Vite emite /assets/<hash>.<ext> — imutáveis
+  return pathname.toLowerCase().startsWith('/assets/');
 }
 
 function isApiPath(pathname) {
@@ -120,17 +146,17 @@ function buildOriginPath(pathname, tenantSlug) {
   if (isStaticPath(pathname)) {
     return pathname;
   }
-  
+
   // API também com path translation
   if (isApiPath(pathname)) {
     return `/store/${tenantSlug}${pathname}`;
   }
-  
+
   // Páginas: / -> /store/{tenant}, /p/x -> /store/{tenant}/p/x
   if (pathname === '/' || pathname === '') {
     return `/store/${tenantSlug}`;
   }
-  
+
   return `/store/${tenantSlug}${pathname}`;
 }
 
@@ -143,7 +169,7 @@ function stripStorePrefix(pathname, tenantSlug) {
 
 async function resolveTenant(hostname, env) {
   const { SUPABASE_URL, SUPABASE_ANON_KEY } = env;
-  
+
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     const match = hostname.match(PLATFORM_SUBDOMAIN_RE);
     if (match) {
@@ -256,7 +282,7 @@ async function fetchWithInternalFollow(originUrl, request, originHost, publicHos
       } else {
         const locUrl = new URL(location);
         const locHost = locUrl.hostname.toLowerCase();
-        
+
         // Só seguir internamente se for para o origin ou hosts conhecidos
         if (locHost === originHost.toLowerCase() ||
             locHost.endsWith('.lovable.app') ||
@@ -303,12 +329,12 @@ function rewriteLocationToClean(location, publicHost, originHost, tenantSlug) {
     if (knownOrigins.has(locHost) || locHost.endsWith('.lovable.app')) {
       locUrl.hostname = publicHost;
       locUrl.protocol = 'https:';
-      
+
       const stripped = stripStorePrefix(locUrl.pathname, tenantSlug);
       if (stripped !== null) {
         locUrl.pathname = stripped;
       }
-      
+
       return locUrl.toString();
     }
 
@@ -318,14 +344,127 @@ function rewriteLocationToClean(location, publicHost, originHost, tenantSlug) {
   }
 }
 
+// ============================================================================
+// Helpers — cache edge para assets e bootstrap
+// ============================================================================
+
+async function serveAssetFromOrigin(request, env, ctx, ORIGIN_HOST, publicHost) {
+  const url = new URL(request.url);
+  const cacheKey = new Request(`https://assets-cache.internal${url.pathname}`);
+
+  // Tenta cache edge primeiro — assets têm hash imutável no nome
+  try {
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set('X-CC-Cache', 'HIT');
+      headers.set('X-CC-Cache-Layer', 'asset');
+      return new Response(cached.body, {
+        status: cached.status,
+        headers,
+      });
+    }
+  } catch (e) {
+    console.error('[Worker] Asset cache read error:', e);
+  }
+
+  // MISS — busca no origin e arquiva no cache via waitUntil
+  const originUrl = `https://${ORIGIN_HOST}${url.pathname}${url.search || ''}`;
+  const originRes = await fetch(originUrl, {
+    method: request.method,
+    headers: {
+      'X-Forwarded-Host': publicHost,
+      'X-Forwarded-Proto': 'https',
+    },
+  });
+
+  if (!originRes.ok) {
+    return originRes;
+  }
+
+  const body = await originRes.arrayBuffer();
+  const baseHeaders = new Headers(originRes.headers);
+  baseHeaders.delete('content-length');
+  baseHeaders.delete('content-encoding');
+
+  // Header para o cache (TTL longo)
+  const cacheHeaders = new Headers(baseHeaders);
+  cacheHeaders.set('Cache-Control', `public, max-age=${ASSETS_CACHE_TTL}, immutable`);
+
+  // Header para o browser (também longo, imutável)
+  const responseHeaders = new Headers(cacheHeaders);
+  responseHeaders.set('X-CC-Cache', 'MISS');
+  responseHeaders.set('X-CC-Cache-Layer', 'asset');
+
+  // CRÍTICO: ctx.waitUntil garante que o put() complete depois da resposta sair
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(
+      caches.default.put(
+        cacheKey,
+        new Response(body, { status: originRes.status, headers: cacheHeaders })
+      ).catch(e => console.error('[Worker] Asset cache write error:', e))
+    );
+  }
+
+  return new Response(body, {
+    status: originRes.status,
+    headers: responseHeaders,
+  });
+}
+
+async function serveBootstrapWithCache(request, env, ctx, publicHost) {
+  // Cache curto (60s) absorve picos de navegação simultânea
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.has('preview') || url.searchParams.has('draft');
+  if (isPreview || request.method !== 'GET') {
+    return null; // sinaliza que o caller deve seguir o caminho normal
+  }
+
+  const cacheKey = new Request(`https://bootstrap-cache.internal/${publicHost}`);
+
+  try {
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set('X-CC-Cache', 'HIT');
+      headers.set('X-CC-Cache-Layer', 'bootstrap');
+      return new Response(cached.body, { status: cached.status, headers });
+    }
+  } catch (e) {
+    console.error('[Worker] Bootstrap cache read error:', e);
+  }
+
+  return null; // miss — caller faz a chamada real e usa storeBootstrapInCache abaixo
+}
+
+function storeBootstrapInCache(ctx, publicHost, response) {
+  if (!ctx || typeof ctx.waitUntil !== 'function') return;
+  if (!response.ok) return;
+
+  const cacheKey = new Request(`https://bootstrap-cache.internal/${publicHost}`);
+  const headers = new Headers(response.headers);
+  headers.set('Cache-Control', `public, max-age=${BOOTSTRAP_CACHE_TTL}`);
+
+  // clone para não consumir o body do response retornado ao browser
+  const cacheResponse = response.clone();
+  ctx.waitUntil(
+    cacheResponse.arrayBuffer().then(body =>
+      caches.default.put(
+        cacheKey,
+        new Response(body, { status: cacheResponse.status, headers })
+      )
+    ).catch(e => console.error('[Worker] Bootstrap cache write error:', e))
+  );
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const ORIGIN_HOST = env.ORIGIN_HOST || 'orbit-commerce-os.lovable.app';
     const SUPABASE_URL = env.SUPABASE_URL; // Obrigatório: configure no Cloudflare Dashboard
 
     const edgeHost = url.hostname.toLowerCase();
-    
+
     if (edgeHost.endsWith('.workers.dev')) {
       return new Response('Access via correct domain', { status: 404 });
     }
@@ -343,7 +482,7 @@ export default {
       const functionName = getEdgeFunctionName(url.pathname);
       // CRITICAL: Include query string for webhook verification (hub.mode, hub.verify_token, hub.challenge)
       const targetUrl = `${SUPABASE_URL}/functions/v1/${functionName}${url.search}`;
-      
+
       // Forward headers (exceto Host)
       const proxyHeaders = new Headers();
       for (const [key, value] of request.headers.entries()) {
@@ -352,26 +491,26 @@ export default {
           proxyHeaders.set(key, value);
         }
       }
-      
+
       // Adicionar headers de contexto
       proxyHeaders.set('X-Forwarded-Host', publicHost);
       proxyHeaders.set('X-Forwarded-Proto', 'https');
       proxyHeaders.set('X-Original-Path', url.pathname);
-      
+
       try {
         const proxyRes = await fetch(targetUrl, {
           method: request.method,
           headers: proxyHeaders,
           body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
         });
-        
+
         // Retornar resposta da Edge Function
         const resHeaders = new Headers();
         for (const [key, value] of proxyRes.headers.entries()) {
           resHeaders.set(key, value);
         }
         resHeaders.set('X-CC-Proxied-Function', functionName);
-        
+
         return new Response(proxyRes.body, {
           status: proxyRes.status,
           statusText: proxyRes.statusText,
@@ -386,10 +525,23 @@ export default {
       }
     }
 
+    // ========== STOREFRONT-BOOTSTRAP MICRO-CACHE ==========
+    // GET para /functions/v1/storefront-bootstrap recebe cache de 60s no edge.
+    // Reduz picos de chamadas idênticas (várias tabs abertas, prefetch, etc).
+    if (
+      request.method === 'GET' &&
+      (url.pathname === '/functions/v1/storefront-bootstrap' ||
+        url.pathname.startsWith('/functions/v1/storefront-bootstrap/'))
+    ) {
+      const cached = await serveBootstrapWithCache(request, env, ctx, publicHost);
+      if (cached) return cached;
+      // miss — segue fluxo padrão abaixo, response será cacheada via storeBootstrapInCache
+    }
+
     // ========== DEBUG ENDPOINT ==========
     if (url.pathname === '/_debug' || url.pathname === '/_health') {
       const resolved = await resolveTenant(publicHost, env);
-      const isCanonical = resolved?.primaryPublicHost 
+      const isCanonical = resolved?.primaryPublicHost
         ? publicHost === resolved.primaryPublicHost.toLowerCase().replace(/^www\./, '')
         : true;
 
@@ -411,21 +563,24 @@ export default {
           },
           isCanonical,
           edgeFunctionRoutes: Object.keys(EDGE_FUNCTION_ROUTES),
-          strategy: 'edge_rendered_html_first',
+          strategy: 'edge_rendered_html_first_v2',
           cache: {
             htmlCacheTTL: HTML_CACHE_TTL,
             staleTTL: HTML_STALE_TTL,
             resolverTTL: RESOLVE_CACHE_TTL,
+            assetsTTL: ASSETS_CACHE_TTL,
+            bootstrapTTL: BOOTSTRAP_CACHE_TTL,
+            usesWaitUntil: typeof ctx?.waitUntil === 'function',
           },
           status: resolved?.tenantSlug ? 'OK' : 'TENANT_NOT_FOUND',
         }, null, 2),
-        { 
-          status: 200, 
-          headers: { 
-            'Content-Type': 'application/json', 
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
             'Cache-Control': 'no-store',
             'Access-Control-Allow-Origin': '*',
-          } 
+          }
         }
       );
     }
@@ -437,7 +592,7 @@ export default {
 
     // ========== RESOLVE TENANT ==========
     const resolved = await resolveTenant(publicHost, env);
-    
+
     if (!resolved?.tenantSlug) {
       return new Response(
         JSON.stringify({
@@ -445,9 +600,9 @@ export default {
           hostname: publicHost,
           hint: 'This domain is not linked to any tenant',
         }, null, 2),
-        { 
-          status: 404, 
-          headers: { 'Content-Type': 'application/json' } 
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
         }
       );
     }
@@ -463,32 +618,38 @@ export default {
       }
     }
 
-    // ========== PHASE 4: EDGE-RENDERED HTML FIRST ==========
-    // For navigation requests (Accept: text/html), route to storefront-html Edge Function
-    // For assets, API calls, etc., continue to origin SPA
-    const acceptHeader = (request.headers.get('Accept') || '').toLowerCase();
-    const isNavigationRequest = request.method === 'GET' 
-      && acceptHeader.includes('text/html')
-      && !isStaticPath(url.pathname)
-      && !isApiPath(url.pathname);
+    // ========== ASSETS DO VITE — cache imutável longo ==========
+    if (request.method === 'GET' && isAssetPath(url.pathname)) {
+      return serveAssetFromOrigin(request, env, ctx, ORIGIN_HOST, publicHost);
+    }
 
-    // Routes that must go to SPA (require full JS interactivity)
+    // ========== PHASE 4 — EDGE-RENDERED HTML (caminho padrão) ==========
+    // v2.0.0: Phase 4 não depende mais do header `Accept`. Qualquer GET de rota
+    // pública (não estática, não API, não SPA-only) passa pelo HTML pré-renderizado.
+    // Motivo: bots, prefetches do navegador e clientes que omitem Accept eram
+    // entregues com o shell SPA vazio (~5KB), causando LCP de 4-6s em produção.
     const SPA_ONLY_ROUTES = [
-      'cart', 'carrinho', 'checkout', 'obrigado', 
-      'conta', 'minha-conta', 'rastreio', 
+      'cart', 'carrinho', 'checkout', 'obrigado',
+      'conta', 'minha-conta', 'rastreio',
       'minhas-compras', 'busca', 'quiz', 'avaliar'
     ];
     const cleanPath = url.pathname.replace(/^\/+/, '').toLowerCase();
     const isSpaOnlyRoute = SPA_ONLY_ROUTES.some(r => cleanPath === r || cleanPath.startsWith(r + '/'));
 
-    if (isNavigationRequest && !isSpaOnlyRoute && SUPABASE_URL) {
+    const isPublicGet =
+      request.method === 'GET' &&
+      !isStaticPath(url.pathname) &&
+      !isApiPath(url.pathname) &&
+      !url.pathname.startsWith('/functions/');
+
+    if (isPublicGet && !isSpaOnlyRoute && SUPABASE_URL) {
       // Check for preview mode — skip cache entirely
       const isPreview = url.searchParams.has('preview') || url.searchParams.has('draft');
-      
+
       // ========== EDGE CACHE LAYER ==========
       // Cache pre-rendered HTML at Cloudflare edge PoPs (SP/RJ) for instant TTFB
       const cacheKeyUrl = new Request(`https://html-cache.internal/${publicHost}${url.pathname}`);
-      
+
       if (!isPreview) {
         try {
           const cachedHtml = await caches.default.match(cacheKeyUrl);
@@ -496,6 +657,7 @@ export default {
             // CACHE HIT — serve directly from edge (~0ms)
             const cachedHeaders = new Headers(cachedHtml.headers);
             cachedHeaders.set('X-CC-Cache', 'HIT');
+            cachedHeaders.set('X-CC-Cache-Layer', 'html');
             cachedHeaders.set('X-CC-Tenant', tenantSlug);
             return new Response(cachedHtml.body, {
               status: cachedHtml.status,
@@ -518,7 +680,7 @@ export default {
         if (isPreview) {
           fnUrl.searchParams.set('preview', '1');
         }
-        
+
         const htmlRes = await fetch(fnUrl.toString(), {
           method: 'GET',
           headers: {
@@ -535,7 +697,7 @@ export default {
         const hasHtmlBody = htmlRes.ok || htmlRes.status === 404;
         // Check if the response is actually HTML (by our custom header or body inspection)
         const isHtmlResponse = hasHtmlBody && (
-          fnContentType.includes('text/html') || 
+          fnContentType.includes('text/html') ||
           fnContentType.includes('text/plain') || // Supabase Gateway rewrites html→plain
           htmlRes.headers.get('x-storefront-version') // Our edge function always sets this
         );
@@ -554,28 +716,28 @@ export default {
           resHeaders.set('X-CC-Render-Mode', 'edge-html');
           resHeaders.set('X-CC-Domain-Type', domainType);
           resHeaders.set('X-CC-Cache', isPreview ? 'BYPASS' : 'MISS');
+          resHeaders.set('X-CC-Cache-Layer', 'html');
           // Cache-Control: no-store for preview, normal caching for public
-          resHeaders.set('Cache-Control', isPreview 
-            ? 'no-store, no-cache, must-revalidate' 
+          resHeaders.set('Cache-Control', isPreview
+            ? 'no-store, no-cache, must-revalidate'
             : `public, max-age=60, s-maxage=${HTML_CACHE_TTL}, stale-while-revalidate=${HTML_STALE_TTL}`);
 
           // Clone body for cache storage + response
           const htmlBody = await htmlRes.text();
 
-          // Store in edge cache (non-blocking, only for 200 OK, skip preview)
-          if (htmlRes.ok && !isPreview) {
+          // Store in edge cache — usa ctx.waitUntil para garantir que o put() complete
+          // depois da resposta voltar ao browser. Sem waitUntil o cache fica sempre MISS.
+          if (htmlRes.ok && !isPreview && ctx && typeof ctx.waitUntil === 'function') {
             const cacheHeaders = new Headers(resHeaders);
             cacheHeaders.set('Cache-Control', `public, max-age=${HTML_CACHE_TTL}`);
             const cacheResponse = new Response(htmlBody, {
               status: 200,
               headers: cacheHeaders,
             });
-            // waitUntil not available in module syntax — use ctx if available, else fire-and-forget
-            try {
-              await caches.default.put(cacheKeyUrl, cacheResponse);
-            } catch (e) {
-              console.error('[Worker] Cache write error:', e);
-            }
+            ctx.waitUntil(
+              caches.default.put(cacheKeyUrl, cacheResponse)
+                .catch(e => console.error('[Worker] HTML cache write error:', e))
+            );
           }
 
           return new Response(htmlBody, {
@@ -583,7 +745,7 @@ export default {
             headers: resHeaders,
           });
         }
-        
+
         // Edge function failed — fall through to SPA
         console.error(`[Worker] Edge HTML returned ${htmlRes.status}, falling back to SPA`);
       } catch (e) {
@@ -598,10 +760,10 @@ export default {
     // ========== FETCH WITH INTERNAL FOLLOW ==========
     // Segue redirects internamente para não expor /store ao browser
     const { response: originRes, followedRedirects } = await fetchWithInternalFollow(
-      originUrl, 
-      request, 
-      ORIGIN_HOST, 
-      publicHost, 
+      originUrl,
+      request,
+      ORIGIN_HOST,
+      publicHost,
       tenantSlug
     );
 
@@ -610,7 +772,7 @@ export default {
       const location = originRes.headers.get('Location');
       if (location) {
         const cleanLocation = rewriteLocationToClean(location, publicHost, ORIGIN_HOST, tenantSlug);
-        
+
         const resHeaders = new Headers();
         for (const [key, value] of originRes.headers.entries()) {
           if (key.toLowerCase() !== 'content-length' && key.toLowerCase() !== 'content-encoding') {
@@ -621,7 +783,7 @@ export default {
         resHeaders.set('X-CC-Original-Location', location);
         resHeaders.set('X-CC-Tenant', tenantSlug);
         resHeaders.set('X-CC-Followed-Redirects', String(followedRedirects));
-        
+
         return new Response(null, {
           status: originRes.status,
           statusText: originRes.statusText,
@@ -631,14 +793,14 @@ export default {
     }
 
     // ========== SPA FALLBACK ==========
-    if (originRes.status === 404 && 
-        request.method === 'GET' && 
+    if (originRes.status === 404 &&
+        request.method === 'GET' &&
         !isStaticPath(url.pathname) &&
         !isApiPath(url.pathname)) {
-      
+
       const spaPath = `/store/${tenantSlug}`;
       const spaUrl = `https://${ORIGIN_HOST}${spaPath}`;
-      
+
       const headers = new Headers();
       for (const [key, value] of request.headers.entries()) {
         if (!['host', 'connection', 'keep-alive', 'transfer-encoding', 'upgrade'].includes(key.toLowerCase())) {
@@ -647,13 +809,13 @@ export default {
       }
       headers.set('X-Forwarded-Host', publicHost);
       headers.set('X-Tenant-Slug', tenantSlug);
-      
+
       const spaRes = await fetch(spaUrl, {
         method: 'GET',
         headers,
         redirect: 'manual',
       });
-      
+
       if (spaRes.ok) {
         const resHeaders = new Headers();
         for (const [key, value] of spaRes.headers.entries()) {
@@ -663,7 +825,7 @@ export default {
         }
         resHeaders.set('X-CC-SPA-Fallback', 'true');
         resHeaders.set('X-CC-Tenant', tenantSlug);
-        
+
         return new Response(spaRes.body, {
           status: 200,
           headers: resHeaders,
@@ -682,10 +844,21 @@ export default {
     resHeaders.set('X-CC-Origin-Path', originPath);
     resHeaders.set('X-CC-Followed-Redirects', String(followedRedirects));
 
-    return new Response(originRes.body, {
+    const passThrough = new Response(originRes.body, {
       status: originRes.status,
       statusText: originRes.statusText,
       headers: resHeaders,
     });
+
+    // Se foi um GET para storefront-bootstrap, arquiva no cache curto
+    if (
+      request.method === 'GET' &&
+      (url.pathname === '/functions/v1/storefront-bootstrap' ||
+        url.pathname.startsWith('/functions/v1/storefront-bootstrap/'))
+    ) {
+      storeBootstrapInCache(ctx, publicHost, passThrough);
+    }
+
+    return passThrough;
   },
 };

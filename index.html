@@ -6,10 +6,17 @@
     <title>Carregando...</title>
     <meta name="theme-color" content="#ffffff" />
     <!--
-      First-byte skeleton. Painted instantly while the JS bundle downloads/hydrates.
+      First-byte skeleton (v2.0.0 — 2026-04-18).
+      Painted instantly while the JS bundle downloads/hydrates.
       Removed automatically when the React app mounts (#root gets children).
-      Only shown for routes the SPA actually owns; pre-rendered routes coming
-      from the Cloudflare Worker (storefront-html Edge Function) replace this entire document.
+
+      Three layouts são selecionados via location.pathname:
+        - /checkout      → bs-layout-checkout (form + summary)
+        - /cart|/carrinho → bs-layout-cart (items list + summary)
+        - demais rotas    → bs-layout-default (header + grid simples)
+
+      Routes pré-renderizadas pelo Worker (storefront-html Edge Function)
+      substituem este documento inteiro antes do skeleton ser visto.
     -->
     <style>
       html,body{margin:0;padding:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#0f172a}
@@ -31,6 +38,19 @@
       .bs-grid-checkout{display:grid;grid-template-columns:1fr 380px;gap:24px;margin-top:24px}
       @media (max-width:1024px){.bs-grid-checkout{grid-template-columns:1fr}}
       .bs-aside .bs-row{height:64px}
+      /* Checkout-specific timeline */
+      .bs-timeline{display:flex;align-items:center;justify-content:center;gap:24px;padding:20px 0;border-bottom:1px solid #e5e7eb;background:#fff}
+      .bs-step{display:flex;align-items:center;gap:8px}
+      .bs-step-dot{height:32px;width:32px;border-radius:50%}
+      .bs-step-label{height:14px;width:64px;border-radius:4px;display:none}
+      @media (min-width:768px){.bs-step-label{display:block}}
+      /* Cart-specific item */
+      .bs-cart-item{display:grid;grid-template-columns:80px 1fr 100px;gap:16px;padding:16px 0;border-bottom:1px solid #e5e7eb;align-items:center}
+      .bs-cart-thumb{height:80px;width:80px;border-radius:6px}
+      .bs-cart-meta{display:flex;flex-direction:column;gap:8px}
+      /* Hide all layouts by default; the inline script unhides one */
+      .bs-layout{display:none}
+      .bs-layout.is-active{display:block}
     </style>
   </head>
 
@@ -42,39 +62,118 @@
           <div class="bs-pulse bs-logo"></div>
           <div class="bs-pulse bs-icon"></div>
         </header>
-        <main class="bs-main">
-          <div class="bs-grid-checkout">
-            <div>
-              <div class="bs-card">
-                <div class="bs-pulse bs-row-sm" style="width:40%;height:20px;margin-bottom:16px"></div>
-                <div class="bs-grid">
-                  <div class="bs-pulse bs-row"></div>
-                  <div class="bs-pulse bs-row"></div>
-                  <div class="bs-pulse bs-row"></div>
-                  <div class="bs-pulse bs-row"></div>
-                </div>
-                <div class="bs-pulse bs-row" style="margin-top:8px"></div>
-                <div class="bs-pulse bs-row"></div>
-                <div class="bs-pulse" style="height:48px;width:160px;margin-top:16px"></div>
-              </div>
-            </div>
-            <aside class="bs-aside">
-              <div class="bs-card">
-                <div class="bs-pulse bs-row-sm" style="height:18px;margin-bottom:16px"></div>
-                <div class="bs-pulse bs-row"></div>
-                <div class="bs-pulse bs-row"></div>
-                <div class="bs-pulse bs-row-sm" style="margin-top:16px"></div>
-                <div class="bs-pulse bs-row-sm"></div>
-                <div class="bs-pulse" style="height:24px;width:100%;margin-top:12px"></div>
-              </div>
-            </aside>
+
+        <!-- Layout 1: /checkout — form + summary + step timeline -->
+        <div class="bs-layout" data-layout="checkout">
+          <div class="bs-timeline">
+            <div class="bs-step"><div class="bs-pulse bs-step-dot"></div><div class="bs-pulse bs-step-label"></div></div>
+            <div class="bs-step"><div class="bs-pulse bs-step-dot"></div><div class="bs-pulse bs-step-label"></div></div>
+            <div class="bs-step"><div class="bs-pulse bs-step-dot"></div><div class="bs-pulse bs-step-label"></div></div>
+            <div class="bs-step"><div class="bs-pulse bs-step-dot"></div><div class="bs-pulse bs-step-label"></div></div>
           </div>
-        </main>
+          <main class="bs-main">
+            <div class="bs-grid-checkout">
+              <div>
+                <div class="bs-card">
+                  <div class="bs-pulse bs-row-sm" style="width:40%;height:20px;margin-bottom:16px"></div>
+                  <div class="bs-grid">
+                    <div class="bs-pulse bs-row"></div>
+                    <div class="bs-pulse bs-row"></div>
+                    <div class="bs-pulse bs-row"></div>
+                    <div class="bs-pulse bs-row"></div>
+                  </div>
+                  <div class="bs-pulse bs-row" style="margin-top:8px"></div>
+                  <div class="bs-pulse bs-row"></div>
+                  <div class="bs-pulse" style="height:48px;width:160px;margin-top:16px"></div>
+                </div>
+              </div>
+              <aside class="bs-aside">
+                <div class="bs-card">
+                  <div class="bs-pulse bs-row-sm" style="height:18px;margin-bottom:16px"></div>
+                  <div class="bs-pulse bs-row"></div>
+                  <div class="bs-pulse bs-row"></div>
+                  <div class="bs-pulse bs-row-sm" style="margin-top:16px"></div>
+                  <div class="bs-pulse bs-row-sm"></div>
+                  <div class="bs-pulse" style="height:24px;width:100%;margin-top:12px"></div>
+                </div>
+              </aside>
+            </div>
+          </main>
+        </div>
+
+        <!-- Layout 2: /cart — items list + summary -->
+        <div class="bs-layout" data-layout="cart">
+          <main class="bs-main">
+            <div class="bs-pulse bs-row-sm" style="width:30%;height:24px;margin-bottom:24px"></div>
+            <div class="bs-grid-checkout">
+              <div class="bs-card">
+                <div class="bs-cart-item">
+                  <div class="bs-pulse bs-cart-thumb"></div>
+                  <div class="bs-cart-meta">
+                    <div class="bs-pulse bs-row-sm" style="width:70%"></div>
+                    <div class="bs-pulse bs-row-sm" style="width:40%"></div>
+                  </div>
+                  <div class="bs-pulse bs-row-sm" style="width:100%;height:24px"></div>
+                </div>
+                <div class="bs-cart-item">
+                  <div class="bs-pulse bs-cart-thumb"></div>
+                  <div class="bs-cart-meta">
+                    <div class="bs-pulse bs-row-sm" style="width:70%"></div>
+                    <div class="bs-pulse bs-row-sm" style="width:40%"></div>
+                  </div>
+                  <div class="bs-pulse bs-row-sm" style="width:100%;height:24px"></div>
+                </div>
+                <div class="bs-cart-item" style="border-bottom:none">
+                  <div class="bs-pulse bs-cart-thumb"></div>
+                  <div class="bs-cart-meta">
+                    <div class="bs-pulse bs-row-sm" style="width:70%"></div>
+                    <div class="bs-pulse bs-row-sm" style="width:40%"></div>
+                  </div>
+                  <div class="bs-pulse bs-row-sm" style="width:100%;height:24px"></div>
+                </div>
+              </div>
+              <aside class="bs-aside">
+                <div class="bs-card">
+                  <div class="bs-pulse bs-row-sm" style="height:18px;margin-bottom:16px"></div>
+                  <div class="bs-pulse bs-row-sm"></div>
+                  <div class="bs-pulse bs-row-sm"></div>
+                  <div class="bs-pulse bs-row-sm"></div>
+                  <div class="bs-pulse" style="height:48px;width:100%;margin-top:16px;border-radius:8px"></div>
+                </div>
+              </aside>
+            </div>
+          </main>
+        </div>
+
+        <!-- Layout 3: default (home, categoria, produto) — 4-column product grid -->
+        <div class="bs-layout" data-layout="default">
+          <main class="bs-main">
+            <div class="bs-pulse" style="height:240px;width:100%;border-radius:8px;margin-bottom:24px"></div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+              <div class="bs-pulse" style="height:240px;border-radius:8px"></div>
+              <div class="bs-pulse" style="height:240px;border-radius:8px"></div>
+              <div class="bs-pulse" style="height:240px;border-radius:8px"></div>
+              <div class="bs-pulse" style="height:240px;border-radius:8px"></div>
+            </div>
+          </main>
+        </div>
       </div>
     </div>
     <script>
-      // Remove skeleton as soon as React mounts something into #root.
+      // 1) Picks the right skeleton layout for the current route.
+      // 2) Removes the entire skeleton as soon as React mounts something into #root.
       (function(){
+        var path = (location.pathname || '/').toLowerCase().replace(/\/+$/,'');
+        var layoutKey = 'default';
+        if (/(^|\/)(checkout)(\/|$)/.test(path)) layoutKey = 'checkout';
+        else if (/(^|\/)(cart|carrinho)(\/|$)/.test(path)) layoutKey = 'cart';
+        var nodes = document.querySelectorAll('#boot-skeleton [data-layout]');
+        for (var i=0;i<nodes.length;i++){
+          if (nodes[i].getAttribute('data-layout') === layoutKey) {
+            nodes[i].classList.add('is-active');
+          }
+        }
+
         var root=document.getElementById('root');
         var skel=document.getElementById('boot-skeleton');
         if(!root||!skel)return;

@@ -174,3 +174,46 @@ Sempre que possível, usar o tenant **`respeiteohomem`** para validar novos ajus
 - Declarar "corrigido" apenas com base em deploy concluído
 - Confiar em lógica teórica sem teste real
 - Pular o tenant `respeiteohomem` quando o cenário permite teste seguro
+
+---
+
+## 7. Cache Edge no Cloudflare Worker — `ctx.waitUntil` é Mandatório
+
+### Regra
+Toda escrita na **Cache API** dentro do Worker `shops-router` (HTML pré-renderizado, assets do Vite, micro-cache de bootstrap) DEVE ser registrada via `ctx.waitUntil(caches.default.put(...))`. Sem isso, o runtime do Cloudflare cancela a operação assim que a resposta termina e o cache fica permanentemente como `MISS`.
+
+### Por quê
+Sintoma observado em produção (incidente Abril/2026): `cf-cache-status: DYNAMIC` em 100% das requisições, mesmo com `caches.default.put()` "bem-sucedido". A escrita era abortada porque o handler retornava antes do `put` completar.
+
+### Como aplicar
+```js
+// ❌ ERRADO — escrita não persiste
+await caches.default.put(cacheKey, cacheResponse);
+return response;
+
+// ✅ CERTO — escrita garantida pelo runtime
+ctx.waitUntil(
+  caches.default.put(cacheKey, cacheResponse)
+    .catch(e => console.error('cache write error:', e))
+);
+return response;
+```
+
+### Onde se aplica no projeto
+`docs/cloudflare-worker-template.js`:
+- Cache de HTML pré-renderizado (`html-cache.internal/...`, TTL 15min, SWR 24h)
+- Cache de assets do Vite (`assets-cache.internal/...`, TTL 30 dias, imutável)
+- Micro-cache de `storefront-bootstrap` (`bootstrap-cache.internal/...`, TTL 60s)
+
+### Princípio relacionado (Phase 4 padrão)
+O Worker deve sempre tentar entregar HTML pré-renderizado antes de qualquer fallback para SPA, **independente do header `Accept`**. Bots, prefetches e clientes que omitem `Accept` recebem o mesmo HTML útil que um navegador comum.
+
+### Anti-padrão
+- `await caches.default.put(...)` no fim do handler sem `ctx.waitUntil`
+- Confiar que a escrita do cache "vai acontecer no background" sem registrar via `waitUntil`
+- Phase 4 condicional ao header `Accept: text/html` — bots e prefetches recebem shell SPA vazio (~5KB) mesmo com cache aquecido
+
+### Validação
+1. `curl -sI https://<dominio>/` — `cf-cache-status: HIT` na 2ª visita + `X-CC-Cache-Layer: html`
+2. `curl -sI https://<dominio>/assets/<arquivo>.js` — `X-CC-Cache: HIT` + `cache-control: public, max-age=2592000, immutable`
+3. Endpoint `/_debug` do Worker retorna `cache.usesWaitUntil: true`
