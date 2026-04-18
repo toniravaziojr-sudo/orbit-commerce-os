@@ -554,6 +554,17 @@ useEffect(() => {
 - Bloco visível no Builder mas ausente no HTML público.
 - HTML público com marcadores de blocos antigos que já foram removidos do código.
 - Discrepância entre `curl <dominio>?_debug=1` e o conteúdo do template publicado.
+- HTML servido com ~951 bytes (shell SPA vazio) e `cf-cache-status: DYNAMIC` sem `X-CC-Render-Mode` → bypass do pré-render.
+- TTFB OK (~600ms) mas LCP/conteúdo visível 4–6s.
+- `>20%` de linhas `stale` em `storefront_prerendered_pages` ao agrupar por status.
+
+**Anti-stale automático via versionamento (v8.8.0+, Abr/2026):**
+
+Para evitar que snapshots gravados por uma versão anterior do compilador continuem sendo servidos por horas após o deploy, `storefront-html` compara `metadata.storefront_html_version` do snapshot com sua própria constante `VERSION`. Se diferirem, ignora o snapshot e força live render. O snapshot só volta a ser servido quando `storefront-prerender` regravar com a mesma versão.
+
+> **Toda mudança em compiladores ou no contrato HTML de hidratação deve bumpar `VERSION`** em `supabase/functions/storefront-html/index.ts`. Esse é o único gatilho confiável de invalidação automática. O `UPDATE … SET status='stale'` continua valendo como cinto-e-suspensório quando há baixa confiança no estado dos snapshots, mas não é mais o único caminho.
+
+**Sintoma típico de regressão (Abr/2026):** captura de leads (popup, rodapé, blocos) aparenta quebrada na loja pública mesmo com `marketing-form-submit` 100% funcional. Causa: HTML servido foi gerado por uma versão anterior do `storefront-html` que não injetava o handler universal `[data-sf-newsletter]` ou usava `data-source` divergente. Solução: bumpar `VERSION` + invalidar snapshots.
 
 **Procedimento de diagnóstico rápido:**
 ```bash
