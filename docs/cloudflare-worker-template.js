@@ -1,7 +1,7 @@
 /**
  * Cloudflare Worker - Multi-tenant SaaS Router (PATH TRANSLATION + INTERNAL FOLLOW)
  *
- * v2.0.0 (2026-04-18) — Performance Hardening Round 1
+ * v2.0.1 (2026-04-18) — Fix: cache HIT real (Set-Cookie bloqueava cache.put)
  *
  * PRINCÍPIOS (alinhados com docs/REGRAS-DO-SISTEMA.md §34 + §33 Padrão 7):
  *  - Phase 4 (HTML pré-renderizado via Edge Function) é o CAMINHO PADRÃO,
@@ -388,11 +388,18 @@ async function serveAssetFromOrigin(request, env, ctx, ORIGIN_HOST, publicHost) 
   baseHeaders.delete('content-encoding');
 
   // Header para o cache (TTL longo)
+  // CRÍTICO: Cache API do Cloudflare REJEITA silenciosamente respostas com
+  // Set-Cookie, Vary, Authorization ou Pragma:no-cache. Removemos esses headers
+  // do response que vai pro cache (mantemos no que vai pro browser).
   const cacheHeaders = new Headers(baseHeaders);
+  cacheHeaders.delete('set-cookie');
+  cacheHeaders.delete('vary');
+  cacheHeaders.delete('pragma');
   cacheHeaders.set('Cache-Control', `public, max-age=${ASSETS_CACHE_TTL}, immutable`);
 
   // Header para o browser (também longo, imutável)
-  const responseHeaders = new Headers(cacheHeaders);
+  const responseHeaders = new Headers(baseHeaders);
+  responseHeaders.set('Cache-Control', `public, max-age=${ASSETS_CACHE_TTL}, immutable`);
   responseHeaders.set('X-CC-Cache', 'MISS');
   responseHeaders.set('X-CC-Cache-Layer', 'asset');
 
@@ -442,7 +449,11 @@ function storeBootstrapInCache(ctx, publicHost, response) {
   if (!response.ok) return;
 
   const cacheKey = new Request(`https://bootstrap-cache.internal/${publicHost}`);
+  // Set-Cookie/Vary/Pragma fazem o caches.default.put() rejeitar silenciosamente
   const headers = new Headers(response.headers);
+  headers.delete('set-cookie');
+  headers.delete('vary');
+  headers.delete('pragma');
   headers.set('Cache-Control', `public, max-age=${BOOTSTRAP_CACHE_TTL}`);
 
   // clone para não consumir o body do response retornado ao browser
@@ -727,8 +738,13 @@ export default {
 
           // Store in edge cache — usa ctx.waitUntil para garantir que o put() complete
           // depois da resposta voltar ao browser. Sem waitUntil o cache fica sempre MISS.
+          // CRÍTICO: Set-Cookie/Vary/Pragma fazem o caches.default.put() rejeitar
+          // silenciosamente. Removemos do response que vai pro cache (não do browser).
           if (htmlRes.ok && !isPreview && ctx && typeof ctx.waitUntil === 'function') {
             const cacheHeaders = new Headers(resHeaders);
+            cacheHeaders.delete('set-cookie');
+            cacheHeaders.delete('vary');
+            cacheHeaders.delete('pragma');
             cacheHeaders.set('Cache-Control', `public, max-age=${HTML_CACHE_TTL}`);
             const cacheResponse = new Response(htmlBody, {
               status: 200,
