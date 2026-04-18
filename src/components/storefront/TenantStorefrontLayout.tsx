@@ -23,6 +23,7 @@ import { isAppDomain } from '@/lib/canonicalDomainService';
 import { useStorefrontBootstrapByHostname } from '@/hooks/useStorefrontBootstrap';
 import { parseSocialCustom } from '@/hooks/useStorefront';
 import { useVisitorTracking } from '@/hooks/useVisitorTracking';
+import { StorefrontBootstrapProvider } from '@/contexts/StorefrontBootstrapContext';
 
 // Context to provide tenantSlug to child components when not in URL
 export const TenantSlugContext = createContext<string>('');
@@ -98,6 +99,7 @@ export function TenantStorefrontLayout() {
   const NewsletterPopupLoader = lazy(() => import('./NewsletterPopupLoader').then(m => ({ default: m.NewsletterPopupLoader })));
 
   return (
+    <StorefrontBootstrapProvider bootstrap={bootstrap ?? null} isLoading={isLoading}>
     <CartProvider tenantSlug={tenantSlug}>
       <CartTracker tenantId={tenant.id} />
       <DiscountProvider>
@@ -135,6 +137,7 @@ export function TenantStorefrontLayout() {
         </MiniCartProvider>
       </DiscountProvider>
     </CartProvider>
+    </StorefrontBootstrapProvider>
   );
 }
 
