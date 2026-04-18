@@ -45,6 +45,9 @@ interface GatewayField {
   label: string;
   type: 'text' | 'password';
   placeholder: string;
+  optional?: boolean;
+  helpText?: string;
+  validatePrefix?: string[];
 }
 
 interface GatewayDefinition {
@@ -69,9 +72,9 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     logo: '💰',
     description: 'Gateway completo para e-commerce com PIX, Boleto e Cartão',
     fields: [
-      { key: 'account_id', label: 'Account ID', type: 'text', placeholder: 'acc_...' },
-      { key: 'api_key', label: 'Secret Key', type: 'password', placeholder: 'sk_...' },
-      { key: 'public_key', label: 'Public Key', type: 'text', placeholder: 'pk_...' },
+      { key: 'account_id', label: 'Account ID', type: 'text', placeholder: 'acc_...', validatePrefix: ['acc_'] },
+      { key: 'api_key', label: 'Secret Key', type: 'password', placeholder: 'sk_...', validatePrefix: ['sk_'] },
+      { key: 'public_key', label: 'Public Key', type: 'text', placeholder: 'pk_... (opcional)', optional: true, helpText: 'Usada apenas para tokenização no navegador. Não é necessária para PIX, Boleto ou checkout server-side.' },
     ],
     supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
     docsUrl: 'https://docs.pagar.me',
@@ -167,11 +170,31 @@ export function PaymentGatewaySettings() {
     const data = formData[gatewayId];
     if (!data) return;
 
+    const gateway = GATEWAY_DEFINITIONS.find(g => g.id === gatewayId);
+    if (!gateway) return;
+
+    // Sanitize: trim all values and drop empty optional fields
+    const sanitized: Record<string, string> = {};
+    for (const field of gateway.fields) {
+      const raw = (data.fields[field.key] ?? '').trim();
+      if (!raw) {
+        if (field.optional) continue; // skip empty optional
+        toast.error(`Preencha o campo "${field.label}"`);
+        return;
+      }
+      // Light prefix validation (only when defined)
+      if (field.validatePrefix && !field.validatePrefix.some(p => raw.startsWith(p))) {
+        toast.error(`"${field.label}" deve começar com ${field.validatePrefix.join(' ou ')}`);
+        return;
+      }
+      sanitized[field.key] = raw;
+    }
+
     const input: PaymentProviderInput = {
       provider: gatewayId,
       is_enabled: true,
       environment: 'production',
-      credentials: data.fields,
+      credentials: sanitized,
     };
 
     await upsertProvider.mutateAsync(input);
@@ -192,7 +215,10 @@ export function PaymentGatewaySettings() {
     if (!data) return false;
     const gateway = GATEWAY_DEFINITIONS.find(g => g.id === gatewayId);
     if (!gateway) return false;
-    return gateway.fields.every(f => data.fields[f.key]?.trim() !== '');
+    // Only required (non-optional) fields must be filled
+    return gateway.fields
+      .filter(f => !f.optional)
+      .every(f => (data.fields[f.key] ?? '').trim() !== '');
   };
 
   const isConnected = (gatewayId: string) => {
@@ -309,7 +335,14 @@ export function PaymentGatewaySettings() {
                       
                       return (
                         <div key={field.key} className="space-y-2">
-                          <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
+                            {field.optional && (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+                                Opcional
+                              </Badge>
+                            )}
+                          </div>
                           <div className="relative">
                             <Input
                               id={`${gateway.id}-${field.key}`}
@@ -331,6 +364,11 @@ export function PaymentGatewaySettings() {
                               </Button>
                             )}
                           </div>
+                          {field.helpText && (
+                            <p className="text-xs text-muted-foreground leading-snug">
+                              {field.helpText}
+                            </p>
+                          )}
                         </div>
                       );
                     })}
