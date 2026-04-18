@@ -1,7 +1,7 @@
 // =============================================
 // NEWSLETTER BLOCK COMPILER — Email capture form
 // Mirrors: src/components/builder/blocks/interactive/NewsletterBlock.tsx
-// Static HTML with form action via JS hydration
+// Static HTML; submit handled by universal [data-sf-newsletter] handler in storefront-html.
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
@@ -9,7 +9,7 @@ import { escapeHtml } from '../utils.ts';
 
 export const newsletterToStaticHTML: BlockCompilerFn = (
   props: Record<string, unknown>,
-  _context: CompilerContext,
+  context: CompilerContext,
 ): string => {
   const title = (props.title as string) || 'Receba nossas novidades';
   const subtitle = (props.subtitle as string) || 'Cadastre-se e receba ofertas exclusivas em primeira mão!';
@@ -24,6 +24,12 @@ export const newsletterToStaticHTML: BlockCompilerFn = (
   const buttonBgColor = (props.buttonBgColor as string) || 'var(--theme-button-primary-bg, #1a1a1a)';
   const buttonTextColor = (props.buttonTextColor as string) || 'var(--theme-button-primary-text, #fff)';
 
+  // Wiring for universal capture handler
+  const tenantId = context.tenant?.id || '';
+  const listId = (props.listId as string) || '';
+  const blockId = (props.id as string) || (props.blockId as string) || '';
+  const sourceProp = (props.source as string) || (blockId ? `block:${blockId}` : 'newsletter_form');
+
   const bgStyle = backgroundColor ? `background:${backgroundColor};` : 'background:rgba(0,0,0,0.03);';
   const txtStyle = textColor ? `color:${textColor};` : '';
   const btnStyle = `background:${buttonBgColor};color:${buttonTextColor};border:none;padding:0.625rem 1.25rem;border-radius:0.375rem;font-weight:500;cursor:pointer;white-space:nowrap;`;
@@ -36,6 +42,8 @@ export const newsletterToStaticHTML: BlockCompilerFn = (
 
   const inputHtml = `<input type="email" name="email" placeholder="${escapeHtml(placeholder)}" required style="flex:1;padding:0.625rem 0.75rem;border:1px solid #d1d5db;border-radius:0.375rem;font-size:0.875rem;min-width:0;">`;
 
+  const dataAttrs = `data-sf-newsletter data-tenant-id="${escapeHtml(tenantId)}" data-list-id="${escapeHtml(listId)}" data-source="${escapeHtml(sourceProp)}" data-block-id="${escapeHtml(blockId)}"`;
+
   if (layout === 'vertical' || layout === 'card') {
     const cardExtra = layout === 'card' ? 'background:#fff;padding:2rem;border-radius:0.75rem;box-shadow:0 4px 12px rgba(0,0,0,0.08);border:1px solid #e5e7eb;' : '';
     return `<section style="padding:3rem 1rem;${bgStyle}${txtStyle}">
@@ -44,7 +52,7 @@ export const newsletterToStaticHTML: BlockCompilerFn = (
     ${title ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;">${escapeHtml(title)}</h2>` : ''}
     ${subtitle ? `<p style="color:var(--theme-text-secondary, #666);margin-bottom:1rem;">${escapeHtml(subtitle)}</p>` : ''}
     ${incentiveHtml}
-    <form data-sf-newsletter class="sf-newsletter-form" style="margin-top:1rem;">
+    <form ${dataAttrs} style="margin-top:1rem;">
       <div style="display:flex;flex-direction:column;gap:0.75rem;">
         ${inputHtml}
         <button type="submit" style="${btnStyle}width:100%;">${escapeHtml(buttonText)}</button>
@@ -67,7 +75,7 @@ export const newsletterToStaticHTML: BlockCompilerFn = (
         ${subtitle ? `<p style="color:var(--theme-text-secondary, #666);">${escapeHtml(subtitle)}</p>` : ''}
         ${incentiveHtml}
       </div>
-      <form data-sf-newsletter class="sf-newsletter-form" style="flex:1;min-width:200px;">
+      <form ${dataAttrs} style="flex:1;min-width:200px;">
         <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
           ${inputHtml}
           <button type="submit" style="${btnStyle}">${escapeHtml(buttonText)}</button>
