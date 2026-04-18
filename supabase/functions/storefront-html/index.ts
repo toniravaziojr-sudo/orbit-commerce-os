@@ -16,7 +16,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.7.0"; // PREVIEW PARITY: ?preview=1 reads draft_content for store_pages + template_sets
+const VERSION = "v8.8.0"; // FORM CAPTURE FIX: prerender snapshots auto-invalidate when renderer version differs (anti-stale)
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
@@ -2226,7 +2226,22 @@ Deno.serve(async (req) => {
         .eq('status', 'active')
         .maybeSingle();
 
-      if (prerendered?.html_content) {
+      // ANTI-STALE GUARD (v8.8.0):
+      // Snapshots persisted by an OLDER renderer version cannot reflect
+      // contract changes (e.g. data-sf-newsletter handler injected by the
+      // current renderer). Serving them perpetuates broken HTML until
+      // re-prerender — which can take hours/days. Treat any version
+      // mismatch as stale and force a live render.
+      // The prerender writer stores the version under metadata.storefront_html_version.
+      const snapshotMeta = (prerendered?.metadata as any) || {};
+      const snapshotVersion = snapshotMeta.storefront_html_version || snapshotMeta.renderer_version || null;
+      const versionMismatch = !!prerendered?.html_content && snapshotVersion !== VERSION;
+
+      if (versionMismatch) {
+        console.log(`[storefront-html][${VERSION}] Snapshot version mismatch for ${normalizedPath} (snapshot=${snapshotVersion || 'unknown'} vs current=${VERSION}). Falling back to live render.`);
+      }
+
+      if (prerendered?.html_content && !versionMismatch) {
         const totalMs = Date.now() - startTime;
         console.log(`[storefront-html][${VERSION}] PRE-RENDERED HIT: ${normalizedPath} (resolve=${resolveMs}ms, total=${totalMs}ms)`);
         return new Response(prerendered.html_content, {
