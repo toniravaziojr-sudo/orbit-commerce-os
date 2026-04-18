@@ -14,57 +14,69 @@ Lojas públicas demorando 4–6s para mostrar conteúdo. Transição para o chec
 | Tempo entregando cache pronto via `storefront-html` | ~650ms |
 | Erro silencioso em `storefront-bootstrap` | `column product_images_1.position does not exist` |
 | Headers do Worker em produção | `x-cc-followed-redirects: 1` (sem `X-CC-Render-Mode: edge-html`) |
+| `cf-cache-status` em 100% das requisições | `DYNAMIC` (cache Worker nunca aquecia) |
 
-## Causa raiz (3 problemas encadeados)
+## Causa raiz (4 problemas encadeados)
 
-1. **Worker em produção sem Phase 4** — o template oficial em `docs/cloudflare-worker-template.js` (linhas 466–592) chama `storefront-html` antes de cair no SPA, mas a versão deployada na Cloudflare não tem essa lógica e entrega direto o shell SPA vazio.
-2. **Cache 100% stale** — pipeline de revalidação parou de disparar `storefront-prerender`; ninguém regerou.
-3. **Bug silencioso em `storefront-bootstrap`** — referenciava coluna `position` em `product_images`; a correta é `sort_order`. Quebrava a query de produtos quando `include_products=true`.
+1. **Worker em produção sem Phase 4** — versão deployada caía direto no shell SPA vazio.
+2. **Cache 100% stale** — pipeline de revalidação parou de disparar `storefront-prerender`.
+3. **Bug silencioso em `storefront-bootstrap`** — referenciava coluna inexistente `position` em `product_images` (correta: `sort_order`).
+4. **Cache edge do Worker nunca aquecia** — `caches.default.put()` sem `ctx.waitUntil` era abortado pelo runtime do Cloudflare ao final da resposta.
 
 ## Correção aplicada
 
 ### Frente 3 — Bug coluna inexistente ✅
-Substituído `position` por `sort_order` em:
-- `supabase/functions/storefront-bootstrap/index.ts` (linha 206)
-- `supabase/functions/tiktok-shop-catalog-sync/index.ts` (linha 138)
-- `supabase/functions/ads-chat-v2/index.ts` (tool `get_product_images`)
-
-Edge functions redeployadas. Validação: `storefront-bootstrap` agora retorna 33 produtos com imagens em 668ms (antes: erro silencioso).
+Substituído `position` por `sort_order` em `storefront-bootstrap`, `tiktok-shop-catalog-sync`, `ads-chat-v2`. `storefront-bootstrap` agora retorna 33 produtos em 668ms.
 
 ### Frente 2 — Cache regenerado + monitoramento contínuo ✅
-- Disparado `storefront-prerender` para os 2 tenants ativos (86 páginas regeradas em ~27s).
-- Estado atual: 86 active / 3 stale.
-- Criada tabela `storefront_cache_health_log` para histórico diário.
-- Criada função `public.check_prerender_cache_health()` que verifica todas as lojas e regera automaticamente quando >20% das páginas estiverem stale.
-- Agendado cron `prerender-cache-health-daily` rodando 03:00 BRT (06:00 UTC) todos os dias.
-- Primeira execução: 2 lojas verificadas, ambas Healthy (3,23% e 3,45% stale).
+- 86 páginas regeradas em ~27s. Estado: 86 active / 3 stale.
+- Tabela `storefront_cache_health_log` + função `check_prerender_cache_health()` + cron diário 03:00 BRT.
 
-### Frente 4 — Skeleton no first byte ✅
-`index.html` enriquecido com skeleton CSS-only (~3KB) que pinta estrutura visual instantaneamente enquanto o bundle React baixa. Removido automaticamente via MutationObserver assim que React monta `#root`. Funciona como fallback universal mesmo quando o Worker não chama `storefront-html`.
+### Frente 4 — Skeleton no first byte ✅ (Rodada 1)
+`index.html` enriquecido com **3 layouts de skeleton** selecionados por rota antes do React montar:
+- `/checkout` → form + summary + step timeline
+- `/cart` ou `/carrinho` → lista de itens + resumo
+- demais → grid de produtos genérico
 
-### Frente 1 — Worker (PENDENTE — fora do projeto Lovable) ⏳
-O Worker `shops-router` roda na Cloudflare, em repositório separado. O template correto está em `docs/cloudflare-worker-template.js`. **Ação necessária pelo usuário no painel Cloudflare**: redeployar o Worker usando a versão do template (Phase 4 — chamada a `storefront-html` antes de cair no SPA).
+### Frente A (v2.0.0) — Worker robusto ✅ (Rodada 1)
+Novo `docs/cloudflare-worker-template.js` (a ser redeployado pelo usuário no Cloudflare):
+1. **Phase 4 é o caminho padrão** — qualquer GET de rota pública vai para `storefront-html`, sem depender de `Accept: text/html`. Bots e prefetches incluídos.
+2. **`ctx.waitUntil` em toda escrita de cache** — corrige o cache 0% HIT.
+3. **Cache edge para `/assets/*`** — TTL 30 dias, imutável (Vite emite arquivos com hash).
+4. **Micro-cache de 60s para `storefront-bootstrap`** — absorve picos de chamadas idênticas.
+5. **Endpoint `/_debug`** agora reporta `cache.usesWaitUntil` para diagnóstico rápido.
 
-Após esse deploy externo, o impacto esperado é redução de 70-80% no tempo até conteúdo visível (de 4-6s para <1,5s).
+### Frente C — Eliminar redirect apex → www ⏳ (instrução manual no Cloudflare)
+**Ação no usuário:** no painel Cloudflare → Rules → Redirect Rules, garantir que NÃO há regra forçando redirect apex (`comandocentral.com.br`) → `www.` (ou vice-versa). O Worker já normaliza ambos. Cada redirect 301 adiciona ~50-100ms ao TTFB.
+
+### Frente 5 / Frente D — Refator do `CheckoutStepWizard.tsx` (1.795 linhas) ⏳
+Code splitting em chunks lazy. Risco maior, mantido para rodada separada após validar A+B.
 
 ## Validação técnica executada
 
 | Validação | Critério | Resultado |
 |---|---|---|
 | `storefront-bootstrap` retorna produtos | Sem erro silencioso | ✅ 33 produtos, 668ms |
-| `storefront-html` com cache | <1s, header `x-render-mode: prerendered` | ✅ 650ms, 185KB, header presente |
+| `storefront-html` com cache | <1s, header `x-render-mode: prerendered` | ✅ 650ms, 185KB |
 | Cache regenerado | <20% stale | ✅ 3,4% stale médio |
-| Cron de saúde funcionando | Rodou 1x e gravou histórico | ✅ 2 tenants checked |
-| Skeleton renderiza no first byte | HTML <5KB com estrutura visual | ✅ index.html ~3KB |
+| Cron de saúde funcionando | Rodou e gravou histórico | ✅ 2 tenants checked |
+| Skeleton específico por rota no first byte | HTML diferenciando /cart, /checkout, default | ✅ index.html v2.0.0 |
+| Worker template v2.0.0 | Phase 4 padrão + waitUntil + assets/bootstrap cache | ✅ template entregue |
 
 **O que ainda depende de validação do usuário:**
-- Deploy do Worker atualizado na Cloudflare (Frente 1).
-- Após esse deploy: medir TTFB e LCP reais nas 3 lojas em produção.
-- Frente 5 (refator do `CheckoutStepWizard.tsx` de 1.795 linhas) ficou para rodada separada.
+1. **Redeploy do Worker** atualizado na Cloudflare (Frente A v2.0.0).
+2. **Verificação da regra de redirect apex→www** no Cloudflare (Frente C).
+3. Após isso, medir nas 3 lojas em produção:
+   - `curl -sI https://<dominio>/` → esperar `X-CC-Render-Mode: edge-html` + `cf-cache-status: HIT` na 2ª visita
+   - HTML > 100KB no first byte
+   - `/checkout` e `/cart` aparecem com skeleton estrutural (não tela branca) em <500ms
+4. Frente D (refator do `CheckoutStepWizard`) fica para rodada separada.
 
 ## Lições aprendidas
 
-1. **Bypass silencioso de pré-renderização é invisível sem instrumentação** — só descobrimos olhando bytes da resposta e ausência de headers. Memória anti-regressão criada.
-2. **Cache obsoleto degrada silenciosamente** — sem cron de saúde, ninguém percebe quando o pipeline para. Agora há monitoramento diário automático.
-3. **Workers externos exigem disciplina de deploy explícito** — código no projeto Lovable é só template, deploy real depende de ação manual no Cloudflare.
-4. **Bugs de schema (coluna inexistente) podem ficar mascarados em queries com fallback** — a query inteira falhava mas o bootstrap retornava `success:true` com produtos vazios.
+1. **Bypass silencioso de pré-renderização é invisível sem instrumentação** — só descobrimos olhando bytes da resposta.
+2. **Cache obsoleto degrada silenciosamente** — sem cron de saúde, ninguém percebe.
+3. **Workers externos exigem disciplina de deploy explícito** — código no Lovable é só template.
+4. **Bugs de schema podem ficar mascarados em queries com fallback** — bootstrap retornava `success:true` com produtos vazios.
+5. **Cache edge sem `ctx.waitUntil` é abortado silenciosamente** — sintoma é `cf-cache-status: DYNAMIC` em 100% das requisições, mesmo com `caches.default.put` "bem-sucedido". Promovido a §33 Padrão 7.
+6. **Worker condicional ao header `Accept` é frágil** — bots, prefetches e clientes que omitem `Accept` recebem shell SPA vazio. Caminho rápido deve ser sempre o padrão. Promovido a §34 Princípio 5.

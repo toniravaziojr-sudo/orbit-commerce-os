@@ -158,12 +158,15 @@ A partir da v9.0.0, o storefront público opera em **modelo segregado**:
 │    stale + CDN purge + re-prerender em background                      │
 │  • Fallback: se prerender falhar, live-render (~5s) garante acesso     │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Cloudflare Worker routing (Phase 4):                                   │
-│  • Worker verifica Accept: text/html em GET requests                   │
-│  • Rotas SPA-only (carrinho, checkout, obrigado, minha-conta) → SPA   │
-│  • Demais rotas → storefront-html Edge Function primeiro              │
-│  • Se edge function falha → fallback automático para SPA              │
-│  • Header X-CC-Render-Mode: edge-html indica modo ativo               │
+│  Cloudflare Worker routing (Phase 4 — v2.0.0, Abril/2026):              │
+│  • PADRÃO: todo GET de rota pública → storefront-html Edge Function    │
+│    (NÃO depende mais do header Accept — bots/prefetches incluídos)     │
+│  • Rotas SPA-only (carrinho, checkout, obrigado, minha-conta) → SPA    │
+│    com skeleton específico no first byte (index.html)                  │
+│  • Cache edge: HTML 15min+SWR 24h, assets 30d imutáveis, bootstrap 60s │
+│  • Toda escrita na Cache API usa ctx.waitUntil (§33 Padrão 7)          │
+│  • Se edge function falha → fallback automático para SPA               │
+│  • Headers: X-CC-Render-Mode: edge-html, X-CC-Cache, X-CC-Cache-Layer  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  LCP & Font Optimization (Phase 7 - v5.0.0):                           │
 │  • <link rel="preload" as="style"> para Google Fonts CSS               │
