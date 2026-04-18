@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
 
-const VERSION = "v1.2.0";
+const VERSION = "v1.4.0";
+// v1.4.0 — Sync fresh grant token to whatsapp_configs on WhatsApp activation (fixes silent break post-Meta reconnect)
 // v1.3.0 — Sync fresh grant token to marketing_integrations on pixel/CAPI activation
 const TRACKING_INTEGRATION_IDS = new Set(["pixel_facebook", "conversions_api"]);
 
