@@ -752,4 +752,25 @@ No admin, nomes continuam visíveis.
 
 ---
 
+## 30. Code Splitting do Wizard (Abril/2026 — v2.0)
+
+O `CheckoutStepWizard` foi decomposto em 7 arquivos sob `src/components/storefront/checkout/wizard/` (`types`, `ProgressTimeline`, `Step1PersonalData`, `Step2Address`, `Step3Shipping`, `Step4Payment`, `OrderSummarySidebar`). Os Steps 3 e 4 são carregados via `React.lazy` + prefetch ao entrar no step anterior.
+
+**Comportamento:**
+1. Cliente entra no `/checkout` → baixa apenas Step 1 (dados pessoais) + orquestrador.
+2. Avança para Step 2 (endereço) → prefetch silencioso do Step 3 começa.
+3. Avança para Step 3 (frete) → bundle do Step 3 já está em cache, render instantâneo; prefetch do Step 4 inicia.
+4. Avança para Step 4 (pagamento) → bundle do Step 4 já está em cache.
+
+**Resultado de bundle:**
+- `CheckoutStepWizard` principal: 76,78 KB → 68,78 KB (-10%).
+- `Step3Shipping`: chunk separado de ~3 KB.
+- `Step4Payment`: chunk separado de ~7 KB.
+
+**Regra derivada:** Qualquer step novo do wizard deve ser registrado como `lazy` quando contiver lógica não-crítica para o primeiro paint (validação de cartão, cálculo de frete externo, integração com gateway). Steps de coleta básica (nome, endereço) ficam no bundle principal.
+
+**Sem mudança de:** UI, contrato público do componente, comportamento funcional, persistência ou pixel.
+
+---
+
 *Fim do documento.*
