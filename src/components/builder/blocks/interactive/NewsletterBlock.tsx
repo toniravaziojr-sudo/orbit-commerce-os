@@ -1,5 +1,6 @@
 // =============================================
-// NEWSLETTER BLOCK - Email capture form
+// NEWSLETTER BLOCK - Email capture form (inline mode)
+// Real submission via marketing-form-submit edge function
 // =============================================
 
 import React, { useState } from 'react';
@@ -7,6 +8,7 @@ import { Mail, Send, Loader2, CheckCircle, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface NewsletterBlockProps {
   title?: string;
@@ -23,6 +25,10 @@ interface NewsletterBlockProps {
   buttonBgColor?: string;
   buttonTextColor?: string;
   isEditing?: boolean;
+  tenantId?: string;
+  listId?: string;
+  blockId?: string;
+  pageSlug?: string;
 }
 
 export function NewsletterBlock({
@@ -40,6 +46,10 @@ export function NewsletterBlock({
   buttonBgColor,
   buttonTextColor,
   isEditing,
+  tenantId,
+  listId,
+  blockId,
+  pageSlug,
 }: NewsletterBlockProps) {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -49,21 +59,40 @@ export function NewsletterBlock({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isEditing) return;
-    
-    if (!email || !email.includes('@')) {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
       setError('Por favor, insira um e-mail válido');
       return;
     }
-
+    if (!tenantId) {
+      setError('Configuração incompleta — tente novamente em instantes.');
+      return;
+    }
     setIsLoading(true);
     setError('');
-
-    // Simulate API call - in production, integrate with actual newsletter service
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setIsLoading(false);
-    setIsSuccess(true);
-    setEmail('');
+    try {
+      const source = blockId ? `block:${blockId}` : 'newsletter_form';
+      const { data, error: fnError } = await supabase.functions.invoke('marketing-form-submit', {
+        body: {
+          tenant_id: tenantId,
+          fields: { email: trimmedEmail },
+          list_id: listId || undefined,
+          source,
+          block_id: blockId,
+          page_slug: pageSlug,
+        },
+      });
+      if (fnError || !data?.success) {
+        throw new Error(data?.error || fnError?.message || 'Falha ao processar inscrição');
+      }
+      setIsSuccess(true);
+      setEmail('');
+    } catch (err) {
+      console.error('Newsletter inline submit error:', err);
+      setError('Erro ao processar. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const containerStyle: React.CSSProperties = {
