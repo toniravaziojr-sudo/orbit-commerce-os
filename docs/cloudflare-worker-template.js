@@ -449,7 +449,11 @@ function storeBootstrapInCache(ctx, publicHost, response) {
   if (!response.ok) return;
 
   const cacheKey = new Request(`https://bootstrap-cache.internal/${publicHost}`);
+  // Set-Cookie/Vary/Pragma fazem o caches.default.put() rejeitar silenciosamente
   const headers = new Headers(response.headers);
+  headers.delete('set-cookie');
+  headers.delete('vary');
+  headers.delete('pragma');
   headers.set('Cache-Control', `public, max-age=${BOOTSTRAP_CACHE_TTL}`);
 
   // clone para não consumir o body do response retornado ao browser
