@@ -330,6 +330,7 @@ export function WhatsAppMetaSettings() {
   if (isConnected && config) {
     return (
       <div className="space-y-4">
+        <WhatsAppOnboardingPinDialog />
         <Card className="border-2 border-green-200 dark:border-green-900">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
