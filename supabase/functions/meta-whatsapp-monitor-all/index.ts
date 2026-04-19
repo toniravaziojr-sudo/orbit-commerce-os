@@ -10,11 +10,11 @@ const corsHeaders = {
  *
  * Cron diário. Para cada WhatsApp Meta ativo:
  *  1. Roda meta-whatsapp-diagnose
- *  2. Se houver ações auto-reparáveis SEGURAS (subscribe_webhook), executa
- *  3. Loga incidentes que dependem de ação humana
- *
- * NÃO executa register_phone automaticamente (requer PIN explícito do usuário
- * para auditoria). Apenas detecta e marca para o usuário ver.
+ *  2. Auto-repara webhook (sempre seguro)
+ *  3. Auto-repara registro de número SE PIN estiver salvo no banco
+ *     (PIN salvo = consentimento explícito do usuário no onboarding/PIN manager,
+ *     então execução automática mantém auditoria via audit_log do set-pin original).
+ *  4. Loga incidentes que ainda dependem de ação humana (token revogado, billing).
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
   try {
     const { data: configs } = await supabase
       .from("whatsapp_configs")
-      .select("id, tenant_id")
+      .select("id, tenant_id, register_pin")
       .eq("provider", "meta")
       .eq("is_enabled", true)
       .not("access_token", "is", null);
@@ -60,20 +60,30 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Apenas executa subscribe_webhook automaticamente (seguro)
+        // Webhook é sempre seguro
         const safeActions = autoActions.filter((a) => a === "subscribe_webhook");
-        if (safeActions.length > 0) {
+        // Registro do número é auto-reparado APENAS se PIN está salvo
+        const canAutoRegister = autoActions.includes("register_phone") && !!cfg.register_pin;
+        const fullActions = canAutoRegister
+          ? [...safeActions, "register_phone"]
+          : safeActions;
+
+        if (fullActions.length > 0) {
           const recResp = await fetch(`${supabaseUrl}/functions/v1/meta-whatsapp-recover`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${supabaseServiceKey}`,
             },
-            body: JSON.stringify({ tenant_id: cfg.tenant_id, actions: safeActions }),
+            body: JSON.stringify({
+              tenant_id: cfg.tenant_id,
+              actions: fullActions,
+              ...(canAutoRegister ? { pin: cfg.register_pin } : {}),
+            }),
           });
           const rec = await recResp.json();
           if (rec?.data?.all_succeeded) summary.repaired++;
-          summary.details.push({ tenant_id: cfg.tenant_id, repaired: safeActions, result: rec?.data });
+          summary.details.push({ tenant_id: cfg.tenant_id, repaired: fullActions, auto_registered: canAutoRegister, result: rec?.data });
         }
 
         if (diag?.data?.user_action_required) {
