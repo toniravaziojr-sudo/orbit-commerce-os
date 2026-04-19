@@ -1,74 +1,128 @@
 
-
 ## Pensamento
 
-**Sintoma alegado:** queda nas vendas + 3 erros do Pixel desde ontem.
-
-**Dados reais (até as 16h BRT, mesma janela horária):**
-- Hoje (sáb 19/abr): 188 PageView, 9 InitiateCheckout, **2 Purchase**
-- Sábado anterior (12/abr): 239 PageView, 23 InitiateCheckout, **8 Purchase**
-- Sexta (18/abr, dia do refator): 270 PageView, 34 InitiateCheckout, 4 Purchase (dia inteiro: 7 Purchase, top da semana)
-
-**Conclusões objetivas:**
-1. **18/abr (sexta) NÃO teve queda** — foi um dos melhores dias da semana em volume e Purchase. Tracking continua disparando normal (7 Purchase capturados).
-2. **19/abr (hoje) tem queda real**: -22% PageView, -61% InitiateCheckout, -75% Purchase vs sábado anterior. Mas a queda começa **no topo do funil** (PageView), não entre carrinho e checkout. Isso afasta culpa do refator do checkout.
-3. Os **3 erros do Pixel não são de ontem** — estão registrados no changelog desde 03/abr. São antigos, conhecidos, e não bloqueiam vendas (continuam chegando 188 PageView hoje).
-4. **44 sessões de checkout dos últimos 4 dias estão com status `abandoned` ou `active` — 0 `completed`.** Isso é um bug estrutural no rastreamento de funil interno (não afeta Pixel/CAPI), mas distorce a métrica de carrinho×checkout.
-
-**Mudanças de ontem (18/abr) auditadas:**
-- Refator do `CheckoutStepWizard` em 7 arquivos, com lazy loading de Step3/Step4 → eventos `Lead`, `AddShippingInfo`, `AddPaymentInfo`, `Purchase` continuam disparando (confirmado nos logs)
-- Skeleton no `index.html` + Worker v2.0.0 → não afeta tracking
-- Prefetch do chunk de checkout no carrinho → reduz latência, não muda funil
-
-**Nada no refator de ontem quebrou Pixel/CAPI ou tracking de vendas.** A queda de hoje tem outra explicação plausível:
-- Sábado de Páscoa (19/abr/2026 = sábado de Aleluia) → tráfego naturalmente menor que sábado normal
-- Possível impacto de campanhas pausadas ou orçamento Meta (a investigar com o usuário)
+📋 CHECKLIST DE CONFORMIDADE:
+- Doc de Regras do Sistema: pendente releitura na execução
+- Doc formal do tema: `docs/especificacoes/marketing/meta-tracking.md` + memórias `infrastructure/marketing/meta-tracking-standard` (v8.26.0) e `constraints/meta-tracking-quality-strategy` — referenciados
+- Fluxo afetado: emissão Pixel + CAPI (PageView, ViewContent, AddToCart, Lead, Purchase) e ciclo de vida do evento Purchase na página de obrigado
+- Fonte de verdade: cookies `_fbp`/`_fbc` + `_sf_vid` (navegador) + `marketing_events_log` (server) + `store_settings.checkout_config.purchaseEventTiming` (configuração soberana do tenant)
+- Módulos impactados: ThankYouContent, useMarketingEvents, marketingTracker, MarketingTrackerProvider, edge `meta-capi`, edge `storefront-html`
+- Impacto cruzado: qualquer alteração em CAPI afeta TODOS os tenants (não só `respeiteohomem`) — exige cuidado anti-regressão dobrado
+- UI impactada: não
+- Situação: Plano aprovado pelo usuário — execução autorizada
 
 ---
 
-## O Plano
+## Princípio de Segurança (anti-regressão)
 
-### Frente 1 — Provar que o refator não quebrou nada (validação técnica)
-- Reproduzir compra real de ponta a ponta em loja teste: cart → step1 → step2 → step3 → step4 → pagamento aprovado
-- Verificar nos logs se os 6 eventos disparam (PageView, ViewContent, AddToCart, InitiateCheckout, Lead, AddShippingInfo, AddPaymentInfo, Purchase)
-- Confirmar deduplicação Pixel↔CAPI (mesmo `event_id`)
+**Não vou mexer em:**
+- ❌ `purchaseEventTiming` de nenhum tenant (regra soberana do dono da loja).
+- ❌ Padrão global do sistema (continua como está).
+- ❌ Lógica de quando disparar Purchase (continua governada pelo modo do tenant).
+- ❌ Estrutura de eventos existentes que já funcionam.
 
-### Frente 2 — Corrigir o bug de "0 sessões completed" (que distorce a métrica)
-- Auditar onde `completeCheckoutSession` é chamado após pagamento aprovado
-- Garantir chamada na página de "Obrigado" (Thank You) e em todos os caminhos de aprovação (cartão, PIX, redirect MercadoPago)
-- Esse é o motivo real da "queda de margem carrinho×checkout" reportada — não é menos venda, é métrica errada
-
-### Frente 3 — Resolver definitivamente os 3 erros do Pixel (4ª tentativa)
-Em vez de mais um ajuste cego, instalar diagnóstico real:
-- Coletar amostra de 30 PageViews recentes
-- Comparar `client_ip_from_browser` (que o navegador mandou) vs IP que o CAPI recebeu
-- Identificar exatamente em quais cenários o IP diverge (proxy intermediário? cookie sem persistir?)
-- Só depois propor a 4ª correção, com base em evidência, não em hipótese
-
-### Frente 4 — Verificar campanhas/anúncios (causa da queda real de hoje)
-- Confirmar com o usuário se houve mudança de orçamento, criativos pausados, ou problema na conta de anúncios da Meta
-- Comparar tráfego pago vs orgânico hoje
-- Se for sazonalidade de Páscoa, sem ação técnica necessária
+**Vou mexer apenas em:**
+- ✅ Persistência do controle de "já disparei" (memória → localStorage).
+- ✅ Formato do `event_id` (padronização sem quebrar histórico).
+- ✅ Captura/persistência de `_fbp` e `_fbc` no servidor (adição, não substituição).
+- ✅ Enriquecimento de `user_data` em ViewContent/AddToCart quando contato já existir (adição).
+- ✅ Garantia de `client_ip_address` correto (CF-Connecting-IP) e `client_user_agent` em 100% das chamadas CAPI.
 
 ---
 
-## Resultado final
-- Refator de ontem auditado e validado tecnicamente: **descartado como causa**
-- Bug do "completeCheckoutSession" corrigido → métrica de carrinho×checkout volta a refletir realidade
-- 3 erros do Pixel resolvidos com base em diagnóstico real (não tentativa #4 cega)
-- Causa da queda de hoje identificada (provavelmente sazonalidade + Páscoa, a confirmar com usuário)
+## Execução em Etapas
+
+### Etapa 1 — Frente A (persistência do dedup do Purchase)
+- Trocar `purchaseTrackedRef` (useRef) por verificação em `localStorage` no `ThankYouContent.tsx`.
+- Chave: `sf_purchase_fired_<tenant>_<orderNumber>`, valor: timestamp ISO.
+- TTL de 30 dias com limpeza automática de chaves antigas no carregamento.
+- Antes de chamar `trackPurchase`, checar se já existe a chave; se sim, log silencioso e retorno.
+- Vale tanto para Pixel (browser) quanto CAPI (server) porque ambos saem do mesmo ponto.
+
+### Etapa 2 — Frente B (normalização de `event_id`)
+- Centralizar no `generateDeterministicPurchaseEventId` o formato único: `purchase_<modo>_<numero_limpo>`.
+- `numero_limpo` = só dígitos (remove `#`, espaço, hífen).
+- Mesmo cálculo aplicado no edge `meta-capi` (server) para garantir paridade absoluta browser↔server.
+- Não alterar eventos antigos no log — só os novos passam a sair no formato único.
+
+### Etapa 3 — Frente E1+E2 (`_fbp` e `_fbc` sintéticos no edge)
+- Em `storefront-html`, ao renderizar a primeira página da sessão:
+  - Ler cookie `_fbp` da request. Se vazio, gerar sintético `fb.1.<timestamp_ms>.<random>` e gravar via `Set-Cookie` (Path=/, HttpOnly=false, SameSite=Lax, Max-Age=90 dias).
+  - Detectar `?fbclid=` na URL; se presente, montar `_fbc` no formato `fb.1.<timestamp_ms>.<fbclid>` e gravar via `Set-Cookie` com mesmas regras.
+- O navegador encontra os cookies já prontos no primeiro carregamento → `fbq('init')` respeita → todas as chamadas CAPI subsequentes têm `_fbp`/`_fbc` reais.
+
+### Etapa 4 — Frente E3 (enriquecimento `user_data` em meio de funil)
+- No `useMarketingEvents`, quando `ViewContent` ou `AddToCart` for disparado e o cliente já tiver contato capturado em `checkout_sessions` ou estiver logado:
+  - Passar `userData` (email, phone, name, city, state, zip) hashed via SHA-256 no edge `meta-capi`.
+- Se não houver contato, comportamento atual permanece (sem `user_data`).
+- Lead e Purchase já fazem isso — só estendendo para os 2 eventos de meio de funil.
+
+### Etapa 5 — Frente E4 (IP e User-Agent corretos no CAPI)
+- No edge `meta-capi`, garantir extração de:
+  - `client_ip_address` = `req.headers.get('CF-Connecting-IP')` (fallback `X-Forwarded-For` primeira parte, fallback `X-Real-IP`).
+  - `client_user_agent` = `req.headers.get('User-Agent')` da request original (não do servidor).
+- Validar que ambos vão em 100% das chamadas, sem exceção.
+
+### Etapa 6 — Validação Técnica Final (obrigatória)
+Vou executar (no tenant `respeiteohomem`):
+1. Consulta SQL: contar pedidos reais hoje em fuso BRT, conferir contagem 1:1 com painel.
+2. Consulta SQL: verificar últimos 20 eventos no `marketing_events_log` após deploy — confirmar formato único de `event_id` e presença de `_fbp` no payload.
+3. Simular reabertura da página de obrigado de um pedido recente — confirmar que NÃO gera novo registro no log.
+4. Conferir logs do edge `meta-capi` — confirmar `client_ip_address` (formato Cloudflare) e `client_user_agent` (string de browser real) em 100% das requests.
+5. Conferir logs do edge `storefront-html` — confirmar Set-Cookie de `_fbp`/`_fbc` em primeira visita.
+
+Bloco obrigatório:
+```
+🔍 VALIDAÇÃO TÉCNICA EXECUTADA:
+- [item testado]
+- [resultado: ✅ | ❌]
+- [pendência do usuário, se aplicável]
+```
+
+### Etapa 7 — Documentação completa (governança)
+1. **`docs/especificacoes/marketing/meta-tracking.md`** (Layer 3):
+   - Nova seção: "Regras de Emissão do Evento Purchase" — ambos os modos válidos, persistência 30d obrigatória, formato único de `event_id`.
+   - Nova seção: "Estratégia de Cobertura de Identificadores" — `_fbp`/`_fbc` sintéticos no edge, `user_data` em meio de funil, IP/UA corretos.
+   - Nova seção: "Tabela de Causas Comuns de Inflação Aparente vs Real".
+   - Changelog: registrar correção de hoje (data, sintoma, causa, fix, impacto medido).
+
+2. **`docs/especificacoes/storefront/pagina-obrigado.md`** (Layer 3):
+   - Contrato "1 disparo por pedido por dispositivo (30d)".
+
+3. **`.lovable/memory/constraints/purchase-event-emission-rules.md`** (memória anti-regressão NOVA):
+   - Regra 1: persistência 30d obrigatória no `localStorage`.
+   - Regra 2: `event_id` formato único `purchase_<modo>_<numero_limpo>`.
+   - Regra 3: `purchaseEventTiming` é soberania do tenant — proibido alterar sem autorização explícita.
+   - Regra 4: antes de declarar inflação, conferir BRT e dedup Pixel↔CAPI (2 eventos = 1 conversão).
+
+4. **`.lovable/memory/constraints/meta-tracking-quality-strategy.md`** (atualização):
+   - Adicionar as 4 técnicas: cookie sintético `_fbp`, captura `fbclid`, `user_data` em meio de funil, `CF-Connecting-IP` obrigatório.
+
+5. **`.lovable/memory/infrastructure/marketing/meta-tracking-standard.md`** (bump versão):
+   - v8.26.0 → v8.27.0 com referência às novas regras.
+
+6. **`.lovable/memory/governance/recent-topics.md`**: rotacionar slot (auditando antes se já está nos docs).
+
+7. **`docs/REGRAS-DO-SISTEMA.md`** (Layer 2):
+   - Regra macro nova: "Eventos de marketing devem ter cobertura ≥95% de identificadores próprios da plataforma (`_fbp`/`_fbc` para Meta) — IP é sinal complementar, nunca primário."
 
 ---
 
-## Ordem de execução recomendada
-1. Frente 2 (bug do completed) — **crítico, distorce todas as métricas de funil**
-2. Frente 1 (validar refator) — rápido, dá tranquilidade
-3. Frente 3 (Pixel) — requer coleta de amostra antes
-4. Frente 4 (campanhas) — pergunta executiva ao usuário
+## Bloco de fechamento obrigatório
+
+Ao final, vou entregar:
+- Bloco `🔍 VALIDAÇÃO TÉCNICA EXECUTADA` preenchido.
+- Bloco `📝 DOCUMENTAÇÃO NECESSÁRIA` ou `✅ Sem atualização documental necessária` (será o primeiro).
+- `📌 STATUS DA ENTREGA`: avançando de "Diagnóstico" → "Ajuste aplicado — pendente de validação" → "Corrigido e validado" só após validação técnica passar.
 
 ---
 
-**Estimativa:** 1-2 horas para Frentes 1+2. Frente 3 fica para um segundo loop depois da coleta de amostras (24h). Frente 4 é validação não técnica.
+## Ordem de execução
+1. Etapas 1+2 (código frontend — A+B)
+2. Etapas 3+4+5 (edges — E1/E2/E3/E4)
+3. Deploy e Etapa 6 (validação técnica)
+4. Etapa 7 (documentação completa + memórias)
 
-📌 STATUS: Plano consolidado — aguardando aprovação para sair do modo Plan e executar.
+**Estimativa:** 1 loop completo. Tudo junto, sem mexer em nada que possa regredir.
 
+📌 STATUS: Plano aprovado — pronto para sair do modo Plan e executar.
