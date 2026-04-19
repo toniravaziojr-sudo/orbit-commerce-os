@@ -25,6 +25,8 @@ import { SocialShareButtons } from '@/components/storefront/SocialShareButtons';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { useMarketingTracker } from '@/components/storefront/MarketingTrackerProvider';
 import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
+import { hasPurchaseAlreadyFired, markPurchaseAsFired, cleanupExpiredPurchaseDedup } from '@/lib/purchaseDedup';
+import { generateDeterministicPurchaseEventId } from '@/lib/marketingTracker';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -59,6 +61,8 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
   const { tracker } = useMarketingTracker();
   const { config: checkoutConfig } = useCheckoutConfig();
   const purchaseTrackedRef = useRef<string | null>(null);
+  // Best-effort sweep of expired dedup records on mount (non-blocking)
+  useEffect(() => { cleanupExpiredPurchaseDedup(); }, []);
   
   // Declined state
   const statusParam = searchParams.get('status');
@@ -95,23 +99,35 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
   // Determine effective state: if retry approved or order updated to approved, show success
   const effectiveDeclined = isDeclined && !retryApproved && order?.payment_status !== 'approved';
 
-  // MARKETING: Track Purchase event when order loads (with deduplication)
+  // MARKETING: Track Purchase event when order loads (with persistent deduplication)
+  // Frente A (anti re-fire): localStorage-based guard with 30-day TTL.
+  // Reabertura/refresh/back-button NEVER re-fire the same Purchase for the same device+order.
+  // Frente B (event_id normalization): event_id format is purchase_<mode>_<digits-only>.
   useEffect(() => {
     if (!order || !order.order_number || isLoading || isPreview) return;
     if (purchaseTrackedRef.current === order.order_number) return;
     if (!tracker) return;
-    
+    if (!tenant?.id) return;
+
     // all_orders: fire Purchase for EVERY order created, regardless of payment status
     // paid_only: fire only for approved/paid orders
     if (checkoutConfig.purchaseEventTiming === 'paid_only') {
       const isPaid = order.payment_status === 'approved' || order.payment_status === 'paid';
       if (!isPaid) return;
     }
-    
-    // v8.23.0: Strip # from order_number to match server-side event_id// Server (process-events) uses cleanOrderNumber.replace(/^#/, '') → purchase_paid_141
-    // Browser must use the samefor deduplication to work
+
+    // PERSISTENT DEDUP — protects against re-fire when the user reopens the link.
+    // The same tenant+order on the same device fires Purchase at most ONCE per 30 days.
+    if (hasPurchaseAlreadyFired(tenant.id, order.order_number)) {
+      purchaseTrackedRef.current = order.order_number;
+      console.log('[ThankYou] Purchase already fired for', order.order_number, '— skipping (persistent dedup)');
+      return;
+    }
+
+    // Normalized order id keeps event_id stable across browser/server even if
+    // the user reopens with #, spaces or different casing in the URL.
     const cleanOrderNumber = order.order_number.replace(/^#/, '').trim();
-    
+
     trackPurchase({
       order_id: cleanOrderNumber,
       value: order.total,
@@ -133,10 +149,17 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
         zip: order.shipping_postal_code,
       },
     });
-    
+
+    // Mark as fired AFTER trackPurchase enqueued the request.
+    const eventId = generateDeterministicPurchaseEventId(
+      checkoutConfig.purchaseEventTiming || 'all_orders',
+      cleanOrderNumber
+    );
+    markPurchaseAsFired(tenant.id, order.order_number, eventId);
+
     purchaseTrackedRef.current = order.order_number;
-    console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
-  }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming]);
+    console.log('[ThankYou] Purchase event tracked for order:', order.order_number, 'event_id:', eventId);
+  }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming, tenant?.id]);
 
   // =============================================
   // PIX POLLING — check payment status every 5s for up to 10 minutes

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendCapiPurchase, getMetaCapiConfig } from "../_shared/meta-capi-sender.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { buildDeterministicPurchaseEventId } from "../_shared/purchase-event-id.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -52,7 +53,8 @@ async function handlePurchaseCapiForPaidOnly(
 
     const orderNumber = (payload.order_number as string) || '';
     const cleanOrderNumber = orderNumber.replace(/^#/, '').trim() || orderId;
-    const deterministicEventId = 'purchase_paid_' + cleanOrderNumber;
+    // Frente B: normalized format — must match browser exactly for Meta dedup
+    const deterministicEventId = buildDeterministicPurchaseEventId('paid_only', cleanOrderNumber);
 
     // Idempotency: check if already sent
     const { data: existingLog } = await supabase
