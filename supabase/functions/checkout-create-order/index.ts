@@ -519,6 +519,28 @@ Deno.serve(async (req) => {
     const orderId = order.id;
     console.log('[checkout-create-order] Order created:', orderId);
 
+    // === ATOMIC SESSION LINK (v2026-04-19) ===
+    // Vincula a sessão ao pedido IMEDIATAMENTE para evitar race com o cron de abandono.
+    // checkout-session-complete é chamada depois para tratar reverted/recovered/converted,
+    // mas o vínculo bruto session.order_id precisa existir já agora.
+    if (payload.checkout_session_id) {
+      try {
+        const { error: linkSessionErr } = await supabase
+          .from('checkout_sessions')
+          .update({ order_id: orderId, last_seen_at: new Date().toISOString() })
+          .eq('id', payload.checkout_session_id)
+          .eq('tenant_id', payload.tenant_id)
+          .is('order_id', null);
+        if (linkSessionErr) {
+          console.warn('[checkout-create-order] Non-blocking session link error:', linkSessionErr);
+        } else {
+          console.log('[checkout-create-order] Session linked atomically to order:', payload.checkout_session_id);
+        }
+      } catch (e) {
+        console.warn('[checkout-create-order] Session link exception (non-blocking):', e);
+      }
+    }
+
     // === LINK SHIPPING QUOTE TO ORDER (Security Plan v3.1) ===
     if (validatedQuoteId) {
       try {
