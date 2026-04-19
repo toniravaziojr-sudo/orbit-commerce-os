@@ -41,6 +41,10 @@ interface TrackRequest {
   user_data?: {
     email?: string;
     phone?: string;
+    // v8.27.0: Pre-hashed PII (already SHA-256). Used to enrich
+    // ViewContent/AddToCart with PII captured in earlier Lead/Purchase.
+    email_hashed?: string;
+    phone_hashed?: string;
     name?: string;
     city?: string;
     state?: string;
