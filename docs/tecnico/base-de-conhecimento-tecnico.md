@@ -313,6 +313,27 @@ useEffect(() => {
 
 **Solução:** Atualizar IDs no banco (`whatsapp_configs`) para refletir o WABA e Phone Number ID corretos da produção.
 
+### 9.3 Drift entre `whatsapp_configs.connection_status` e estado real na Meta (v2026-04-19)
+
+**Problema:** Tenant `respeiteohomem` tinha `connection_status='connected'` e PIN salvo, mas a Meta retornava `can_send_message: BLOCKED` e o número aparecia "Pendente" no WhatsApp Manager. Mensagens de teste falhavam silenciosamente. O botão "Salvar PIN" salvava o PIN mas não disparava o registro do número (porque o banco já dizia "connected").
+
+**Causa raiz:**
+1. O registro automático no callback do Embedded Signup falhou silenciosamente (provavelmente token ainda propagando ou WABA não-aprovada).
+2. O `connection_status` foi marcado `connected` pelo callback otimista, sem validar com a Meta.
+3. A função `meta-whatsapp-set-pin` confiava no `connection_status` do banco para decidir se precisava registrar — então PIN era salvo e nada mais acontecia.
+4. O cron `meta-whatsapp-monitor-all` não auto-reparava `register_phone` por design (exigia ação manual).
+
+**Solução implementada:**
+1. **`meta-whatsapp-set-pin` agora probeia a Meta:** após salvar o PIN, faz `GET /{phone_id}?fields=status,code_verification_status`. Se Meta diz não-verificado, força `register_phone` mesmo que o banco diga "connected".
+2. **`meta-whatsapp-monitor-all` agora auto-registra:** se `register_pin` está salvo (= consentimento prévio do usuário) E o diagnose detectar `NUMBER_NOT_REGISTERED`, executa `register_phone` automaticamente. Sem PIN salvo → apenas marca para ação humana.
+
+**Regras derivadas (anti-regressão universal):**
+- **Meta é a fonte de verdade do estado do número.** `connection_status` no banco é cache local e PODE divergir.
+- **Nunca decidir sobre registro só com base no banco** — sempre validar Graph API antes de tomar decisão de escrita.
+- **PIN salvo = consentimento explícito.** Cron pode auto-registrar sem perguntar de novo (auditoria preservada via `audit_log` original).
+- **Salvar PIN deve produzir efeito visível:** se número não está realmente conectado, o ato de salvar PIN deve disparar registro automático na mesma ação (não deixar para próxima execução do cron).
+- Toda nova função que tomar decisão sobre estado do WhatsApp deve seguir esse padrão: validar Meta → decidir → escrever.
+
 ---
 
 ## 10. Storefront & Builder — Lições de UI
