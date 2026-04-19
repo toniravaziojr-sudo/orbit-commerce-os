@@ -517,12 +517,66 @@ Abas por gateway ativo. Se nenhum gateway ativo, exibe alerta com link para Inte
 | Persistência | `checkout-create-order` grava `affiliate_id` |
 | Limpeza | `clearStoredAffiliateData()` após sucesso |
 
-### Checkout Session (Abandono)
+### Checkout Session — Ciclo de Vida e Métrica de Funil
 
-| Regra | Descrição |
-|-------|-----------|
-| Criação | `useCheckoutSession()` cria sessão ao entrar |
-| Atualização | `checkout-create-order` marca como `converted` |
+> Atualizado em 2026-04-19 (v8.27.0) — consolidação após investigação de queda aparente de margem carrinho×checkout.
+
+#### Estados oficiais da sessão
+
+| Status | Significado | Quando entra |
+|--------|-------------|--------------|
+| `active` | Usuário entrou no checkout, sessão viva | Ao montar `<CheckoutContent>` (`startCheckoutSession`) |
+| `abandoned` | Sem heartbeat há > 30 min | Cron `expire-checkout-sessions` |
+| `converted` | Mesmo carrinho virou pedido | `completeCheckoutSession` chamado em `<CheckoutStepWizard>` quando `processPayment` retorna `orderId` |
+| `recovered` | Sessão estava `abandoned` e o cliente voltou (cruzamento por email/phone) — **pedido novo, carrinho diferente** | Fallback de `checkout-session-complete` por email/phone |
+| `reverted` | Sessão estava `abandoned` e a **mesma sessão** foi finalizada | Mesma sessão recuperada via `session_id` |
+| `canceled` | Reservado p/ cancelamento manual | — |
+
+#### Regra de marcação de contato
+
+`contact_captured_at` só é preenchido quando o cliente digita email **ou** telefone no Step 1. Sessões sem contato **não devem ser exibidas** na lista de carrinhos abandonados nem entrar no denominador da métrica de recuperação — são "abandonos sem identidade", inúteis para retomada.
+
+#### Regra de leitura da métrica "carrinho × checkout"
+
+A métrica oficial de funil considera **apenas o universo de abandono real** (sessões com contato capturado):
+
+```
+Universo = sessions WHERE contact_captured_at IS NOT NULL
+         AND status IN ('abandoned', 'recovered', 'reverted', 'converted')
+
+Taxa de conversão = converted / Universo
+Taxa de recuperação = (recovered + reverted) / (abandoned + recovered + reverted)
+```
+
+**Não incluir** no denominador:
+- Sessões `active` ou `abandoned` **sem** `contact_captured_at` (visitantes que nem chegaram a se identificar);
+- Pedidos via Link Checkout (Sender/Receiver) — não passam pelo wizard, não criam sessão por design.
+
+> ⚠️ Comparações **dia × dia** devem usar a **mesma janela horária** (até as N horas de hoje vs. até as N horas do dia comparável). Comparar dia incompleto contra dia completo gera ilusão de queda.
+
+#### Caminhos onde `completeCheckoutSession` deve ser chamado
+
+| Caminho | Onde | Comportamento |
+|---------|------|---------------|
+| Cartão / PIX / Boleto criados pelo wizard | `CheckoutStepWizard.handleSuccess` | Chama com `orderId` e limpa `cc_checkout_session` do localStorage |
+| Pagamento aprovado por webhook (cartão recusado depois aprovado, retry) | `checkout-create-order` (server-side) | Marca como `converted` no momento da criação do pedido |
+| Redirect MercadoPago (pedido nasce só após webhook) | Webhook `mercadopago-webhook` → `complete` por `email`/`phone` fallback | Marca `recovered` se sessão era `abandoned`, `converted` caso contrário |
+| Link Checkout (Sender/Receiver) | — | Não há sessão por design — não conta na métrica |
+
+#### Bug semântico vs. bug de código
+
+A **ausência aparente** de sessões `completed` em janelas curtas é normalmente:
+1. Universo dominado por sessões sem contato (45 vs. 16 com contato em 7 dias é cenário comum);
+2. Comparação de janelas desiguais;
+3. Vendas via Link Checkout (sem sessão por design).
+
+**Não é bug** se a contagem cruzada `orders LEFT JOIN checkout_sessions ON cs.order_id = o.id` mostrar > 80% dos pedidos com sessão `converted` vinculada. Verificação rápida:
+
+```sql
+SELECT COUNT(*) total, COUNT(cs.id) com_sessao
+FROM orders o LEFT JOIN checkout_sessions cs ON cs.order_id = o.id
+WHERE o.tenant_id = '<tenant>' AND o.created_at > NOW() - INTERVAL '7 days';
+```
 
 ---
 
