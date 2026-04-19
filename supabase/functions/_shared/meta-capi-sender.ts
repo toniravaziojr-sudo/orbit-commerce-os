@@ -117,14 +117,18 @@ function splitName(fullName: string | undefined): { first: string | null; last: 
 async function buildHashedUserData(userData: MetaUserData): Promise<Record<string, unknown>> {
   const hashed: Record<string, unknown> = {};
 
-  // Email (em) - hash required
-  if (userData.email) {
+  // Email (em) - hash required. v8.27.0: prefer pre-hashed when provided.
+  if (userData.email_hashed) {
+    hashed.em = [userData.email_hashed.toLowerCase()];
+  } else if (userData.email) {
     const h = await hashForMeta(userData.email);
     if (h) hashed.em = [h];
   }
 
-  // Phone (ph) - normalize and hash
-  if (userData.phone) {
+  // Phone (ph) - normalize and hash. v8.27.0: prefer pre-hashed when provided.
+  if (userData.phone_hashed) {
+    hashed.ph = [userData.phone_hashed.toLowerCase()];
+  } else if (userData.phone) {
     const normalized = normalizePhone(userData.phone);
     if (normalized) {
       const h = await hashForMeta(normalized);
