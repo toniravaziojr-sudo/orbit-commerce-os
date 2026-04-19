@@ -16,7 +16,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.8.0"; // FORM CAPTURE FIX: prerender snapshots auto-invalidate when renderer version differs (anti-stale)
+const VERSION = "v8.27.0"; // FRENTE E1+E2: synthetic _fbp/_fbc cookies via Set-Cookie (server-side fallback for race-condition fix)
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
@@ -2325,18 +2325,18 @@ Deno.serve(async (req) => {
       if (prerendered?.html_content && !versionMismatch) {
         const totalMs = Date.now() - startTime;
         console.log(`[storefront-html][${VERSION}] PRE-RENDERED HIT: ${normalizedPath} (resolve=${resolveMs}ms, total=${totalMs}ms)`);
-        return new Response(prerendered.html_content, {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800, max-age=120',
-            'Server-Timing': `resolve;dur=${resolveMs}, total;dur=${totalMs}`,
-            'X-Storefront-Version': VERSION,
-            'X-Tenant': tenantSlug,
-            'X-Render-Mode': 'prerendered',
-            'X-Prerender-At': prerendered.generated_at || '',
-          },
+        const responseHeaders = new Headers({
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800, max-age=120',
+          'Server-Timing': `resolve;dur=${resolveMs}, total;dur=${totalMs}`,
+          'X-Storefront-Version': VERSION,
+          'X-Tenant': tenantSlug,
+          'X-Render-Mode': 'prerendered',
+          'X-Prerender-At': prerendered.generated_at || '',
         });
+        // Frente E1+E2: synthetic _fbp / _fbc cookies (server-side fallback)
+        applyMetaCookies(responseHeaders, decideMetaCookies(req, url));
+        return new Response(prerendered.html_content, { status: 200, headers: responseHeaders });
       }
     }
 
@@ -3193,16 +3193,21 @@ Deno.serve(async (req) => {
 
     return new Response(html, {
       status: 200,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': isPreviewMode ? 'no-store, no-cache' : 'public, s-maxage=600, stale-while-revalidate=1200, max-age=120',
-        'Server-Timing': `resolve;dur=${resolveMs}, queries;dur=${queryMs}, total;dur=${totalMs}`,
-        'X-Storefront-Version': VERSION,
-        'X-Tenant': tenantSlug,
-        'X-Route': `${route.type}${route.slug ? '/' + route.slug : ''}`,
-        'X-CC-Cache': isPreviewMode ? 'BYPASS' : 'LIVE',
-        ...(isPreviewMode ? { 'X-Render-Mode': 'preview-draft' } : {}),
-      },
+      headers: (() => {
+        const h = new Headers({
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': isPreviewMode ? 'no-store, no-cache' : 'public, s-maxage=600, stale-while-revalidate=1200, max-age=120',
+          'Server-Timing': `resolve;dur=${resolveMs}, queries;dur=${queryMs}, total;dur=${totalMs}`,
+          'X-Storefront-Version': VERSION,
+          'X-Tenant': tenantSlug,
+          'X-Route': `${route.type}${route.slug ? '/' + route.slug : ''}`,
+          'X-CC-Cache': isPreviewMode ? 'BYPASS' : 'LIVE',
+          ...(isPreviewMode ? { 'X-Render-Mode': 'preview-draft' } : {}),
+        });
+        // Frente E1+E2: synthetic _fbp / _fbc cookies (server-side fallback)
+        applyMetaCookies(h, decideMetaCookies(req, url));
+        return h;
+      })(),
     });
 
   } catch (error) {
