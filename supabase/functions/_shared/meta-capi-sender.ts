@@ -13,6 +13,11 @@ interface MetaCapiConfig {
 interface MetaUserData {
   email?: string;
   phone?: string;
+  // v8.27.0: Pre-hashed PII (already SHA-256 hashed by browser).
+  // When provided, used as-is without re-hashing. Used to enrich
+  // ViewContent/AddToCart with PII captured in earlier Lead/Purchase.
+  email_hashed?: string;
+  phone_hashed?: string;
   first_name?: string;
   last_name?: string;
   city?: string;
