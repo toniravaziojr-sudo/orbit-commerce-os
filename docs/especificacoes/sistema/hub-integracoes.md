@@ -239,6 +239,31 @@ Diariamente (9h BRT), se `register_phone` estiver na lista de ações automátic
 
 **Regra de ouro:** A Meta é a fonte de verdade do estado do número. `connection_status` no banco é cache local e PODE divergir. Nunca decidir sobre registro sem validar Graph API.
 
+#### Guia visual de ativação WhatsApp (v2026-04-19)
+
+O modelo comercial vigente é **BYOA (Bring Your Own Account)**: a Meta cobra diretamente o tenant pelo envio das mensagens. Isso obriga 4 passos manuais que muitos usuários desconhecem, levando o número a travar em "Pendente". O `WhatsAppActivationGuide` cobre esse gap com um checklist didático sempre acessível.
+
+**Os 4 passos obrigatórios (didático com porquê):**
+
+| # | Passo | Por que é obrigatório |
+|---|-------|------------------------|
+| 1 | Autorizar a conta Meta | Cria a WABA e libera o vínculo do número à API oficial |
+| 2 | Cadastrar forma de pagamento na Meta | A Meta cobra o tenant direto (modelo BYOA). Sem cartão ativo → WABA bloqueada (erro 141006) |
+| 3 | Definir o PIN de 6 dígitos | Exigido pela Meta no `/register`. Salvo no sistema viabiliza auto-reparo futuro |
+| 4 | Aguardar verificação do número | Etapa final controlada pela Meta — `status=CONNECTED` + `code_verification_status=VERIFIED` |
+
+**Fonte de verdade dos passos:** hook `useWhatsAppActivationSteps` cruza o snapshot da Meta (via `meta-whatsapp-diagnose`) com o estado salvo em `whatsapp_configs`. Cada passo só é marcado ✅ quando a Meta confirma — drift banco↔Meta derruba o passo, mesmo com `connection_status='connected'`.
+
+**Onde aparece:**
+| Local | Variant | Comportamento |
+|-------|---------|---------------|
+| Card WhatsApp em `/integrations` (acima do `MetaWhatsAppRegistrationSection`) | `full` | Sempre visível. Mostra os 4 passos com explicação, link para Business Manager (passo 2) e progresso |
+| Banner no topo do Dashboard `/index` | `compact` | Some automaticamente quando `completedCount === 4`. Botão "Continuar ativação" leva a `/integrations` |
+
+**Tom de voz:** Linguagem de negócio, simples e didática. Cada passo traz "Por que: [explicação curta]" — usuário entende a razão, não só a ação.
+
+**Integração com componentes existentes:** O guia é informativo e não duplica funcionalidades. Os botões técnicos (`WhatsAppDiagnosticCard`, `WhatsAppPinManager`, "Enviar mensagem de teste") permanecem visíveis no card abaixo, conforme decisão de UX.
+
 #### Modo Teste – WhatsApp Cloud API (Meta)
 
 Disponível em **Integrações → WhatsApp → Meta Oficial** (apenas platform admin).
