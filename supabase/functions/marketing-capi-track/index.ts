@@ -41,6 +41,10 @@ interface TrackRequest {
   user_data?: {
     email?: string;
     phone?: string;
+    // v8.27.0: Pre-hashed PII (already SHA-256). Used to enrich
+    // ViewContent/AddToCart with PII captured in earlier Lead/Purchase.
+    email_hashed?: string;
+    phone_hashed?: string;
     name?: string;
     city?: string;
     state?: string;
@@ -157,6 +161,9 @@ Deno.serve(async (req) => {
       user_data: {
         email: payload.user_data?.email,
         phone: payload.user_data?.phone,
+        // v8.27.0: pre-hashed PII passthrough (used in mid-funnel enrichment)
+        email_hashed: payload.user_data?.email_hashed,
+        phone_hashed: payload.user_data?.phone_hashed,
         first_name: firstName,
         last_name: lastName,
         city: payload.user_data?.city,

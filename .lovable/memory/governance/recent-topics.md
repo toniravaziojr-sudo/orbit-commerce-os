@@ -8,36 +8,37 @@ type: preference
 
 ## Slot 1 — Assunto ATUAL
 
-**Tema:** Consolidação do fluxo de checkout/funil + leitura correta da métrica carrinho×checkout
+**Tema:** Estabilização completa do rastreamento Meta (Pixel + CAPI) v8.27.0
 
 **Resumo:**
-- Investigação de "queda aparente de margem carrinho×checkout" e 3 erros do Pixel concluiu: refator de 18/abr (CheckoutStepWizard com lazy loading + prefetch) **não quebrou nada**.
-- Validação técnica via banco: 27 sessões `converted` com pedido vinculado em 7 dias; 87% dos pedidos com sessão associada; 9 eventos do funil disparando (PageView, ViewCategory, ViewContent, AddToCart, InitiateCheckout, Lead, AddShippingInfo, AddPaymentInfo, Purchase).
-- "Bug das 0 sessões completed" não existe — é leitura errada da métrica: o universo correto exclui sessões sem `contact_captured_at` (45 vs. 16 com contato em 7 dias).
-- Queda real de 19/abr começa no topo do funil (-22% PageView), provável sazonalidade de Páscoa (sábado de Aleluia) + possível mudança de campanhas Meta.
-- 3 erros do Pixel (Shared IPs, IPv6, Mismatched IPs) são antigos (desde 03/abr) e não bloqueiam vendas — adiados para 2º loop com coleta real de amostras.
+- 4 frentes implementadas: (A) persistência 30d do dedup do Purchase via `localStorage` em `src/lib/purchaseDedup.ts`; (B) `event_id` determinístico normalizado `purchase_<mode>_<order_normalizado>` byte-a-byte idêntico em browser e server; (C/E1+E2) cookies sintéticos `_fbp`/`_fbc` no edge `storefront-html` (v8.27.0) via `Set-Cookie`, resolvendo race condition `fbq('init')` vs CAPI; (E3) enriquecimento de `ViewContent`/`AddToCart` com `email_hashed`/`phone_hashed` do `localStorage` (PII capturada em Lead/Purchase anteriores).
+- **Bug crítico corrigido**: código anterior passava hash em campo `email` cru, backend re-hasheava (hash de hash → match quebrado). Solução: novos campos `email_hashed`/`phone_hashed` passados sem re-hash.
+- Validação técnica: `X-Storefront-Version: v8.27.0` ativo, `Set-Cookie: _fbp=fb.1.<ts>.<rnd>` confirmado em response real, banco mostra `event_id` normalizado (`purchase_created_305`), edge `marketing-capi-track` deployada, IP via `cf-connecting-ip` em 100%.
+- Soberania do tenant `respeite-o-homem` preservada: `purchaseEventTiming = all_orders` mantido (decisão de negócio).
 
 **Docs formais relacionados:**
-- `docs/especificacoes/storefront/checkout.md` §19 — atualizado com seção "Checkout Session — Ciclo de Vida e Métrica de Funil" (estados oficiais, regra de contato, fórmula do universo, caminhos de `completeCheckoutSession`, bug semântico vs. código).
-- `.lovable/memory/constraints/checkout-session-funnel-metric-reading.md` — memória anti-regressão criada com as 5 regras de leitura.
-- `docs/meta-tracking-changelog.md` — registro histórico dos 3 erros do Pixel (sem nova entrada por enquanto, próximo loop).
+- `docs/especificacoes/marketing/meta-tracking.md` — doc Layer 3 oficial criado (regras de emissão Purchase, estratégia de cobertura ≥95%, tabela inflação aparente vs real, cobertura mínima por evento)
+- `docs/meta-tracking-changelog.md` — Registro #3 (19/abr/2026 — v8.27.0) adicionado
+- `docs/especificacoes/storefront/pagina-obrigado.md` — seção "Disparo do Evento Purchase" adicionada
+- `.lovable/memory/constraints/purchase-event-emission-rules.md` — 4 regras anti-regressão (persistência 30d, event_id normalizado, soberania do tenant, leitura correta de inflação)
+- `.lovable/memory/constraints/meta-tracking-quality-strategy.md` — 5 regras de qualidade (`_fbp` sintético, `fbclid` capture, IP via Cloudflare, `user_data` em meio de funil, cobertura mínima ≥95%)
 
 ---
 
 ## Slot 2 — Assunto ANTERIOR
 
-**Tema:** Reorganização da política de memória da IA + auditoria contra docs
+**Tema:** Consolidação do fluxo de checkout/funil + leitura correta da métrica carrinho×checkout
 
 **Resumo:**
-- Memória passou a aceitar apenas governança + cache rotativo dos 2 últimos assuntos.
-- Toda regra técnica na memória precisa estar também nos docs formais (Layer 2/3/4).
-- Auditoria executada: a regra técnica do Worker `shops-router` (sanitização de `Set-Cookie`/`Vary`/`Pragma` antes do cache, HTML <2KB = bypass, anti-stale via `metadata.storefront_html_version`) foi migrada para os docs antes de a memória técnica ser removida.
-- Knowledge atualizado com a seção "POLÍTICA DA MEMÓRIA OPERACIONAL DA IA".
+- Investigação de "queda aparente de margem carrinho×checkout" e 3 erros do Pixel concluiu: refator de 18/abr (CheckoutStepWizard com lazy loading + prefetch) **não quebrou nada**.
+- Validação técnica via banco: 27 sessões `converted` com pedido vinculado em 7 dias; 87% dos pedidos com sessão associada; 9 eventos do funil disparando.
+- "Bug das 0 sessões completed" não existe — leitura errada da métrica: o universo correto exclui sessões sem `contact_captured_at`.
+- Queda real de 19/abr começa no topo do funil (-22% PageView), provável sazonalidade de Páscoa + mudanças de campanhas Meta.
+- 3 erros do Pixel (Shared IPs, IPv6, Mismatched IPs) tratados no Slot 1 atual (v8.27.0).
 
 **Docs formais relacionados:**
-- `docs/especificacoes/transversais/padroes-operacionais.md` §7 (Padrão Cache Edge no Worker — atualizado com sanitização de headers e validação MISS→HIT)
-- `docs/tecnico/base-de-conhecimento-tecnico.md` §9.1 (anti-stale automático via `VERSION` bump)
-- `.lovable/memory/governance/memory-protection-rules.md` (nova política)
+- `docs/especificacoes/storefront/checkout.md` §19 — atualizado
+- `.lovable/memory/constraints/checkout-session-funnel-metric-reading.md`
 
 ---
 
