@@ -352,12 +352,14 @@ function sendServerEvent(tenantId: string, payload: {
     // Phase 4: Include external_id + identity
     const metaIds = getMetaIdentifiers();
     
-    // Phase 10: Include stored advanced matching PII
-    let storedEmail: string | undefined;
-    let storedPhone: string | undefined;
+    // Phase 10 / v8.27.0: Include stored advanced matching PII (already hashed).
+    // Used to enrich ALL Meta events (not just Lead/Purchase) with PII captured
+    // earlier in the funnel — improves Match Quality on ViewContent/AddToCart.
+    let storedEmailHashed: string | undefined;
+    let storedPhoneHashed: string | undefined;
     try {
-      storedEmail = localStorage.getItem('_sf_am_em') || undefined;
-      storedPhone = localStorage.getItem('_sf_am_ph') || undefined;
+      storedEmailHashed = localStorage.getItem('_sf_am_em') || undefined;
+      storedPhoneHashed = localStorage.getItem('_sf_am_ph') || undefined;
     } catch {}
 
     const userData = {
@@ -365,8 +367,13 @@ function sendServerEvent(tenantId: string, payload: {
       fbp: resolvedFbp || metaIds.fbp || undefined,
       fbc: metaIds.fbc || undefined,
       external_id: metaIds.external_id || undefined,
-      ...(storedEmail && !payload.user_data?.email ? { email: storedEmail } : {}),
-      ...(storedPhone && !payload.user_data?.phone ? { phone: storedPhone } : {}),
+      // Pass pre-hashed PII when not already provided (avoids double-hashing on server)
+      ...(storedEmailHashed && !payload.user_data?.email && !payload.user_data?.email_hashed
+        ? { email_hashed: storedEmailHashed }
+        : {}),
+      ...(storedPhoneHashed && !payload.user_data?.phone && !payload.user_data?.phone_hashed
+        ? { phone_hashed: storedPhoneHashed }
+        : {}),
     };
 
     const body = JSON.stringify({
