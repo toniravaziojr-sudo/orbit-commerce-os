@@ -20,6 +20,7 @@ import { IntegrationAlerts } from "@/components/dashboard/IntegrationAlerts";
 import { CommunicationsWidget } from "@/components/dashboard/CommunicationsWidget";
 import { FiscalAlertsWidget } from "@/components/dashboard/FiscalAlertsWidget";
 import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
+import { WhatsAppActivationGuide } from "@/components/integrations/meta/WhatsAppActivationGuide";
 
 // Demo data - clearly marked
 const DEMO_RECENT_ORDERS = [
@@ -94,6 +95,9 @@ export default function Dashboard() {
       
       {/* Order Limit Warning */}
       <OrderLimitWarning />
+
+      {/* Banner de ativação WhatsApp — some quando os 4 passos estão concluídos */}
+      <WhatsAppActivationGuide variant="compact" />
 
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
