@@ -206,6 +206,39 @@ A UI exibe badge "Reconexão necessária" (vermelho) e bloco explicativo direcio
 - Estado `connected`: Botão discreto "Re-registrar número" reinicia o fluxo
 - NÃO existe tela separada de Integrações > WhatsApp — tudo fica dentro da aba Meta
 
+#### Ciclo de vida do PIN e Auto-Recovery (v2026-04-19)
+
+O PIN de 6 dígitos exigido pela Meta no `/register` é a chave do auto-reparo. O sistema implementa 4 camadas para garantir que toda integração WhatsApp esteja sempre protegida:
+
+**1. Onboarding obrigatório (`WhatsAppOnboardingPinDialog`):**
+Logo após o Embedded Signup, se `whatsapp_configs.register_pin` estiver null e o número estiver com `phone_number_id` populado, abre modal automático pedindo PIN inicial. URL gatilho: `?whatsapp_connected=true`.
+
+**2. Gerenciamento contínuo (`WhatsAppPinManager`):**
+Botão "Definir PIN" / "Atualizar PIN" sempre visível ao lado do número conectado em `MetaWhatsAppRegistrationSection`, mesmo em estado saudável. Permite definir (primeiro PIN), atualizar preventivamente, ou trocar quando esquecido (após reset no Gerenciador da Meta).
+
+**3. Probe obrigatório no `meta-whatsapp-set-pin`:**
+Após salvar o PIN, a edge function valida o estado real do número direto na Graph API (`status` + `code_verification_status`). Se a Meta indicar não-verificado (mesmo que o banco diga `connected`), dispara `register_phone` automaticamente. Elimina o cenário "drift banco↔Meta" — quando o banco está otimista mas a Meta ainda bloqueia.
+
+**4. Auto-reparo no cron (`meta-whatsapp-monitor-all`):**
+Diariamente (9h BRT), se `register_phone` estiver na lista de ações automáticas E o tenant tiver `register_pin` salvo, executa o registro sozinho. Sem PIN salvo → apenas marca `needs_user_action`. Com PIN salvo = consentimento; auditoria preservada via `audit_log` da gravação original.
+
+**Edge Functions envolvidas:**
+| Função | Papel |
+|--------|-------|
+| `meta-whatsapp-set-pin` | Salva/atualiza PIN, probeia Meta e força registro se houver drift |
+| `meta-whatsapp-recover` | Executa `subscribe_webhook` e/ou `register_phone` (com PIN) |
+| `meta-whatsapp-diagnose` | Roda os 4 checks (token/número/WABA/webhook) |
+| `meta-whatsapp-monitor-all` | Cron diário; auto-repara webhook sempre, registro só com PIN salvo |
+
+**Componentes UI:**
+| Componente | Onde aparece | Quando |
+|------------|--------------|--------|
+| `WhatsAppOnboardingPinDialog` | Após Embedded Signup | Automático se PIN null |
+| `WhatsAppPinManager` | `MetaWhatsAppRegistrationSection` | Sempre visível |
+| `WhatsAppDiagnosticCard` | `MetaWhatsAppRegistrationSection` | Sempre visível |
+
+**Regra de ouro:** A Meta é a fonte de verdade do estado do número. `connection_status` no banco é cache local e PODE divergir. Nunca decidir sobre registro sem validar Graph API.
+
 #### Modo Teste – WhatsApp Cloud API (Meta)
 
 Disponível em **Integrações → WhatsApp → Meta Oficial** (apenas platform admin).
