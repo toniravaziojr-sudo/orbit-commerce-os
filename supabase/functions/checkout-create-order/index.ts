@@ -103,6 +103,15 @@ interface CreateOrderRequest {
   retry_token?: string;
   // Idempotency key to prevent duplicate order creation on double-click
   checkout_attempt_id?: string;
+  // === GATEWAY-FIRST FLOW (v2026-04-19) ===
+  // Mandatory: order is only created AFTER gateway response.
+  // Prevents ghost orders consuming order_number sequence.
+  payment_gateway?: 'pagarme' | 'mercadopago';
+  payment_gateway_id?: string;
+  payment_gateway_status?: 'paid' | 'pending' | 'processing' | 'failed' | 'declined' | 'awaiting_payment';
+  payment_gateway_payload?: Record<string, unknown>;
+  // Session linking (atomic update to prevent abandon-sweep race condition)
+  checkout_session_id?: string;
 }
 
 function normalizeEmail(email: string): string {
@@ -124,6 +133,21 @@ Deno.serve(async (req) => {
         success: false,
         error: 'Dados obrigatórios ausentes: tenant_id, email ou itens',
         code: 'MISSING_REQUIRED_FIELDS',
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // === GHOST ORDER GUARD (v2026-04-19) ===
+    // Pedido só pode ser criado APÓS resposta do gateway.
+    // Sem payment_gateway_id, recusamos a criação para preservar a numeração.
+    if (!payload.payment_gateway_id || !payload.payment_gateway) {
+      console.error('[checkout-create-order] BLOCKED: missing payment_gateway_id — order creation requires confirmed gateway response');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Pedido só pode ser criado após confirmação do gateway de pagamento.',
+        code: 'GATEWAY_CONFIRMATION_REQUIRED',
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -434,9 +458,18 @@ Deno.serve(async (req) => {
         customer_email: normalizedEmail,
         customer_phone: payload.customer.phone,
         customer_cpf: payload.customer.cpf || null,
-        status: 'pending',
-        payment_status: 'pending',
+        status: payload.payment_gateway_status === 'paid' ? 'paid'
+              : payload.payment_gateway_status === 'declined' || payload.payment_gateway_status === 'failed' ? 'pending'
+              : payload.payment_gateway_status === 'pending' || payload.payment_gateway_status === 'processing' || payload.payment_gateway_status === 'awaiting_payment' ? 'awaiting_payment'
+              : 'pending',
+        payment_status: payload.payment_gateway_status === 'paid' ? 'approved'
+                      : payload.payment_gateway_status === 'declined' || payload.payment_gateway_status === 'failed' ? 'declined'
+                      : 'pending',
         payment_method: payload.payment_method,
+        // === GATEWAY-FIRST FLOW (v2026-04-19) ===
+        payment_gateway: payload.payment_gateway,
+        payment_gateway_id: payload.payment_gateway_id,
+        paid_at: payload.payment_gateway_status === 'paid' ? new Date().toISOString() : null,
         // === CANONICAL SNAPSHOT: use server-calculated values ===
         subtotal: canonicalSubtotal,
         shipping_total: canonicalShipping,
@@ -485,6 +518,28 @@ Deno.serve(async (req) => {
 
     const orderId = order.id;
     console.log('[checkout-create-order] Order created:', orderId);
+
+    // === ATOMIC SESSION LINK (v2026-04-19) ===
+    // Vincula a sessão ao pedido IMEDIATAMENTE para evitar race com o cron de abandono.
+    // checkout-session-complete é chamada depois para tratar reverted/recovered/converted,
+    // mas o vínculo bruto session.order_id precisa existir já agora.
+    if (payload.checkout_session_id) {
+      try {
+        const { error: linkSessionErr } = await supabase
+          .from('checkout_sessions')
+          .update({ order_id: orderId, last_seen_at: new Date().toISOString() })
+          .eq('id', payload.checkout_session_id)
+          .eq('tenant_id', payload.tenant_id)
+          .is('order_id', null);
+        if (linkSessionErr) {
+          console.warn('[checkout-create-order] Non-blocking session link error:', linkSessionErr);
+        } else {
+          console.log('[checkout-create-order] Session linked atomically to order:', payload.checkout_session_id);
+        }
+      } catch (e) {
+        console.warn('[checkout-create-order] Session link exception (non-blocking):', e);
+      }
+    }
 
     // === LINK SHIPPING QUOTE TO ORDER (Security Plan v3.1) ===
     if (validatedQuoteId) {

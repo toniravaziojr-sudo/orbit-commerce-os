@@ -271,156 +271,156 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       }
 
       // === TRANSPARENT FLOW (PIX, Boleto, Credit Card) ===
-      // Resolve which gateway handles this method
+      // GATEWAY-FIRST FLOW (v2026-04-19):
+      //   - Mercado Pago: order is created by webhook (already correct)
+      //   - Pagar.me: edge function orchestrates — charges first, then creates order
+      // No order is created on the client. If gateway fails or times out, no order
+      // exists, no order_number is consumed, and the session becomes "abandoned"
+      // via the standard 30-min sweep.
       const gateway = resolveGateway(method);
       console.log(`[Checkout] Resolved gateway for ${method}: ${gateway}`);
 
-      // 1. Create order
-      console.log('[Checkout] Step 1: Creating order via edge function');
-      const { data: orderData, error: orderError } = await supabase.functions.invoke('checkout-create-order', {
-        body: {
-          tenant_id: tenantId,
-          checkout_session_id: checkoutSessionId,
-          customer: {
-            name: customer.name,
-            email: customer.email,
-            phone: customer.phone,
-            cpf: customer.cpf,
-          },
-          shipping: {
-            street: shipping.street,
-            number: shipping.number,
-            complement: shipping.complement,
-            neighborhood: shipping.neighborhood,
-            city: shipping.city,
-            state: shipping.state,
-            postal_code: shipping.postalCode,
-            carrier: shippingOption?.carrier || shippingOption?.label || 'Frenet',
-            service_code: shippingOption?.code,
-            service_name: shippingOption?.label,
-            estimated_days: shippingOption?.deliveryDays,
-          },
-          items: items.map(item => ({
-            product_id: item.product_id,
-            variant_id: item.variant_id || undefined,
-            product_name: item.name,
-            sku: item.sku,
-            quantity: item.quantity,
-            unit_price: item.price,
-            image_url: item.image_url,
-          })),
-          payment_method: method,
-          subtotal,
-          shipping_total: effectiveShippingTotal,
-          discount_total: discountAmount,
-          payment_method_discount: pmDiscountAmount,
-          total,
-          installments: installments || 1,
-          discount: discount ? {
-            discount_id: discount.discount_id,
-            discount_code: discount.discount_code,
-            discount_name: discount.discount_name,
-            discount_type: discount.discount_type,
-            discount_amount: discount.discount_amount,
-            free_shipping: discount.free_shipping,
-          } : undefined,
-          attribution: attribution ? {
-            utm_source: attribution.utm_source,
-            utm_medium: attribution.utm_medium,
-            utm_campaign: attribution.utm_campaign,
-            utm_content: attribution.utm_content,
-            utm_term: attribution.utm_term,
-            gclid: attribution.gclid,
-            fbclid: attribution.fbclid,
-            ttclid: attribution.ttclid,
-            msclkid: attribution.msclkid,
-            referrer_url: attribution.referrer_url,
-            referrer_domain: attribution.referrer_domain,
-            landing_page: attribution.landing_page,
-            attribution_source: attribution.attribution_source,
-            attribution_medium: attribution.attribution_medium,
-            session_id: attribution.session_id,
-            first_touch_at: attribution.first_touch_at,
-          } : undefined,
-          affiliate: affiliate ? {
-            affiliate_code: affiliate.affiliate_code,
-            captured_at: affiliate.captured_at,
-          } : undefined,
-          shipping_quote_id: shippingQuoteId || undefined,
-          retry_from_order_id: retryFromOrderId || undefined,
-          retry_token: retryToken || undefined,
-          checkout_attempt_id: checkoutAttemptId || undefined,
-        },
-      });
+      const gatewayAmount = Math.round(total * 100);
 
-      if (orderError || !orderData?.success) {
-        console.error('[Checkout] Step 1 FAILED:', orderError || orderData?.error);
-        throw new Error(orderError?.message || orderData?.error || 'Erro ao criar pedido');
+      // Build checkout_payload that pagarme-create-charge will forward to checkout-create-order
+      // after a successful gateway response.
+      const checkoutPayloadForOrder = {
+        tenant_id: tenantId,
+        checkout_session_id: checkoutSessionId,
+        customer: {
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
+          cpf: customer.cpf,
+        },
+        shipping: {
+          street: shipping.street,
+          number: shipping.number,
+          complement: shipping.complement,
+          neighborhood: shipping.neighborhood,
+          city: shipping.city,
+          state: shipping.state,
+          postal_code: shipping.postalCode,
+          carrier: shippingOption?.carrier || shippingOption?.label || 'Frenet',
+          service_code: shippingOption?.code,
+          service_name: shippingOption?.label,
+          estimated_days: shippingOption?.deliveryDays,
+        },
+        items: items.map(item => ({
+          product_id: item.product_id,
+          variant_id: item.variant_id || undefined,
+          product_name: item.name,
+          sku: item.sku,
+          quantity: item.quantity,
+          unit_price: item.price,
+          image_url: item.image_url,
+        })),
+        payment_method: method,
+        subtotal,
+        shipping_total: effectiveShippingTotal,
+        discount_total: discountAmount,
+        payment_method_discount: pmDiscountAmount,
+        total,
+        installments: installments || 1,
+        discount: discount ? {
+          discount_id: discount.discount_id,
+          discount_code: discount.discount_code,
+          discount_name: discount.discount_name,
+          discount_type: discount.discount_type,
+          discount_amount: discount.discount_amount,
+          free_shipping: discount.free_shipping,
+        } : undefined,
+        attribution: attribution ? {
+          utm_source: attribution.utm_source,
+          utm_medium: attribution.utm_medium,
+          utm_campaign: attribution.utm_campaign,
+          utm_content: attribution.utm_content,
+          utm_term: attribution.utm_term,
+          gclid: attribution.gclid,
+          fbclid: attribution.fbclid,
+          ttclid: attribution.ttclid,
+          msclkid: attribution.msclkid,
+          referrer_url: attribution.referrer_url,
+          referrer_domain: attribution.referrer_domain,
+          landing_page: attribution.landing_page,
+          attribution_source: attribution.attribution_source,
+          attribution_medium: attribution.attribution_medium,
+          session_id: attribution.session_id,
+          first_touch_at: attribution.first_touch_at,
+        } : undefined,
+        affiliate: affiliate ? {
+          affiliate_code: affiliate.affiliate_code,
+          captured_at: affiliate.captured_at,
+        } : undefined,
+        shipping_quote_id: shippingQuoteId || undefined,
+        retry_from_order_id: retryFromOrderId || undefined,
+        retry_token: retryToken || undefined,
+        checkout_attempt_id: checkoutAttemptId || undefined,
+      };
+
+      // === Mercado Pago: keep current behavior (order created on webhook) ===
+      // === Pagar.me: gateway-first orchestration ===
+      const gatewayFunction = gateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
+      console.log(`[Checkout] Processing payment via ${gatewayFunction} (gateway-first)`);
+
+      const gatewayBody: Record<string, unknown> = {
+        tenant_id: tenantId,
+        method,
+        amount: gatewayAmount,
+        customer: {
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone.replace(/\D/g, ''),
+          document: customer.cpf.replace(/\D/g, ''),
+        },
+        billing_address: {
+          street: shipping.street,
+          number: shipping.number,
+          complement: shipping.complement || '',
+          neighborhood: shipping.neighborhood,
+          city: shipping.city,
+          state: shipping.state,
+          postal_code: sanitizeCep(shipping.postalCode),
+          country: 'BR',
+        },
+        card: card ? {
+          number: card.number.replace(/\D/g, ''),
+          holder_name: card.holderName,
+          exp_month: parseInt(card.expMonth, 10),
+          exp_year: parseInt(card.expYear, 10),
+          cvv: card.cvv,
+        } : undefined,
+        installments: method === 'credit_card' ? (installments || 1) : 1,
+        payment_attempt_id: paymentAttemptId || undefined,
+      };
+
+      // Pagar.me orchestrates order creation — pass the full checkout payload.
+      // Mercado Pago keeps its current contract.
+      if (gateway === 'pagarme') {
+        gatewayBody.checkout_payload = checkoutPayloadForOrder;
       }
 
-      const orderId = orderData.order_id;
-      const orderNumber = orderData.order_number;
-      const newRetryToken = orderData.retry_token || undefined;
-      console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
-
-      // 2. Process payment via resolved gateway
-      const canonicalTotal = orderData.canonical_total;
-      const gatewayAmount = canonicalTotal != null
-        ? Math.round(Number(canonicalTotal) * 100)
-        : Math.round(total * 100);
-      console.log(`[Checkout] Using ${canonicalTotal != null ? 'canonical' : 'frontend'} total for gateway: ${gatewayAmount} cents`);
-
-      const gatewayFunction = gateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
-      console.log(`[Checkout] Step 2: Processing payment via ${gatewayFunction}`);
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke(gatewayFunction, {
-        body: {
-          tenant_id: tenantId,
-          order_id: orderId,
-          method,
-          amount: gatewayAmount,
-          customer: {
-            name: customer.name,
-            email: customer.email,
-            phone: customer.phone.replace(/\D/g, ''),
-            document: customer.cpf.replace(/\D/g, ''),
-          },
-          billing_address: {
-            street: shipping.street,
-            number: shipping.number,
-            complement: shipping.complement || '',
-            neighborhood: shipping.neighborhood,
-            city: shipping.city,
-            state: shipping.state,
-            postal_code: sanitizeCep(shipping.postalCode),
-            country: 'BR',
-          },
-          card: card ? {
-            number: card.number.replace(/\D/g, ''),
-            holder_name: card.holderName,
-            exp_month: parseInt(card.expMonth, 10),
-            exp_year: parseInt(card.expYear, 10),
-            cvv: card.cvv,
-          } : undefined,
-          installments: method === 'credit_card' ? (installments || 1) : 1,
-          payment_attempt_id: paymentAttemptId || undefined,
-        },
+        body: gatewayBody,
       });
 
       if (paymentError) {
-        console.error('[Checkout] Step 2 FAILED (invoke error):', paymentError);
+        console.error('[Checkout] Gateway invoke FAILED (technical):', paymentError);
         const result: PaymentResult = {
           success: false,
           error: paymentError.message || 'Erro ao processar pagamento',
-          orderId,
-          orderNumber,
           technicalError: true,
         };
         setPaymentResult(result);
         return result;
       }
 
+      const orderId: string | undefined = paymentData?.order_id;
+      const orderNumber: string | undefined = paymentData?.order_number;
+      const newRetryToken: string | undefined = paymentData?.retry_token || undefined;
+
       if (paymentData?.success === false) {
-        console.error('[Checkout] Step 2 FAILED (gateway rejection):', paymentData.error);
+        console.error('[Checkout] Gateway rejected payment:', paymentData.error);
         const result: PaymentResult = {
           success: false,
           error: paymentData.error || 'Pagamento recusado pela operadora.',
@@ -432,8 +432,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
         setPaymentResult(result);
         return result;
       }
-      
-      console.log('[Checkout] Step 2 OK - Payment processed');
+
+      console.log('[Checkout] Payment processed successfully — order:', orderId, orderNumber);
 
       const result: PaymentResult = {
         success: true,

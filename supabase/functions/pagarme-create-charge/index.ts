@@ -22,7 +22,7 @@ let ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
 
 interface ChargeRequest {
   checkout_id?: string;
-  order_id?: string; // NEW: order_id for linking payment to order
+  order_id?: string; // LEGACY (retry flow): when provided, skip order creation and just charge
   tenant_id: string;
   method: 'pix' | 'boleto' | 'credit_card';
   amount: number; // in cents
@@ -52,6 +52,13 @@ interface ChargeRequest {
   installments?: number;
   // Idempotency key for gateway charge (prevents duplicate charges on same click)
   payment_attempt_id?: string;
+  // === GATEWAY-FIRST FLOW (v2026-04-19) ===
+  // When provided, this edge becomes the orchestrator:
+  //   1) charges Pagar.me first
+  //   2) only then invokes checkout-create-order with payment_gateway_id
+  // Order is NEVER created if gateway call fails — session stays active and
+  // becomes "abandoned" via the standard 30-min sweep.
+  checkout_payload?: Record<string, unknown>;
 }
 
 // Get Pagar.me credentials from database or fallback to Secrets
@@ -312,7 +319,60 @@ Deno.serve(async (req) => {
       console.error(`[Pagar.me] Failure reason: ${failureReason}`);
     }
 
-    // Save transaction to database with order_id only
+    // === GATEWAY-FIRST FLOW (v2026-04-19) ===
+    // If checkout_payload is present and order_id is not, this is the new flow:
+    // create the order NOW, after gateway response, with payment_gateway_id already set.
+    let resolvedOrderId: string | null = payload.order_id || null;
+    let resolvedOrderNumber: string | null = null;
+    let resolvedCanonicalTotal: number | null = null;
+    let resolvedRetryToken: string | null = null;
+
+    if (!resolvedOrderId && payload.checkout_payload) {
+      const gatewayStatusMap: Record<string, string> = {
+        paid: 'paid',
+        pending: 'pending',
+        processing: 'processing',
+        failed: 'failed',
+        canceled: 'failed',
+      };
+      const mappedStatus = gatewayStatusMap[firstCharge?.status as string] || 'pending';
+
+      console.log(`[Pagar.me] GATEWAY-FIRST: creating order with payment_gateway_id=${pagarmeResponse.id}, status=${mappedStatus}`);
+
+      const orderInvokeBody = {
+        ...payload.checkout_payload,
+        payment_gateway: 'pagarme' as const,
+        payment_gateway_id: String(pagarmeResponse.id),
+        payment_gateway_status: mappedStatus,
+      };
+
+      const { data: orderData, error: orderInvokeError } = await supabase.functions.invoke(
+        'checkout-create-order',
+        { body: orderInvokeBody }
+      );
+
+      if (orderInvokeError || !orderData?.success) {
+        console.error('[Pagar.me] GATEWAY-FIRST: order creation FAILED after successful gateway charge:', orderInvokeError || orderData?.error);
+        // Charge already happened on gateway side. Webhook will reconcile and create order via fallback.
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Pagamento processado mas houve falha ao gravar o pedido. Você receberá uma confirmação em instantes.',
+          code: 'ORDER_CREATION_FAILED_AFTER_CHARGE',
+          provider_id: pagarmeResponse.id,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      resolvedOrderId = orderData.order_id;
+      resolvedOrderNumber = orderData.order_number;
+      resolvedCanonicalTotal = orderData.canonical_total ?? null;
+      resolvedRetryToken = orderData.retry_token ?? null;
+      console.log(`[Pagar.me] GATEWAY-FIRST: order created — id=${resolvedOrderId}, number=${resolvedOrderNumber}`);
+    }
+
+    // Save transaction to database with resolved order_id
     // Note: checkout_id is NOT used here because it has FK to checkouts table
     // and we're now linking via order_id (FK to orders table)
     const charge = firstCharge || pagarmeResponse.charges?.[0];
@@ -328,7 +388,7 @@ Deno.serve(async (req) => {
 
     const transactionData = {
       tenant_id: payload.tenant_id,
-      order_id: payload.order_id || null, // Link to order for get-order lookup
+      order_id: resolvedOrderId, // Link to order for get-order lookup
       checkout_id: null, // Explicitly null - don't use checkout_id as it may cause FK errors
       provider: 'pagarme',
       provider_transaction_id: pagarmeResponse.id,
@@ -367,7 +427,10 @@ Deno.serve(async (req) => {
     // ==== SYNC ORDER STATUS for synchronous payments (credit card) ====
     // When charge is immediately paid/failed, update order right away
     // Don't rely solely on webhook which may arrive late or with incomplete payload
-    if (payload.order_id) {
+    // NOTE: in gateway-first flow, order was already created with correct status,
+    // but we still run this for legacy retry flow (payload.order_id present from frontend)
+    // and as a safety net to ensure payment_gateway_id is always set.
+    if (resolvedOrderId) {
       const orderUpdate: Record<string, any> = { 
         updated_at: new Date().toISOString(),
         payment_gateway: 'pagarme',
@@ -378,22 +441,22 @@ Deno.serve(async (req) => {
         orderUpdate.payment_status = 'approved';
         orderUpdate.status = 'paid';
         orderUpdate.paid_at = new Date().toISOString();
-        console.log(`[Pagar.me] Syncing order ${payload.order_id} → paid (synchronous)`);
+        console.log(`[Pagar.me] Syncing order ${resolvedOrderId} → paid (synchronous)`);
       } else if (charge?.status === 'failed') {
         orderUpdate.payment_status = 'declined';
-        console.log(`[Pagar.me] Syncing order ${payload.order_id} → declined (synchronous)`);
+        console.log(`[Pagar.me] Syncing order ${resolvedOrderId} → declined (synchronous)`);
       } else if (charge?.status === 'pending' || charge?.status === 'processing') {
         orderUpdate.payment_status = 'pending';
         orderUpdate.status = 'awaiting_payment';
-        console.log(`[Pagar.me] Syncing order ${payload.order_id} → awaiting_payment`);
+        console.log(`[Pagar.me] Syncing order ${resolvedOrderId} → awaiting_payment`);
       }
-      console.log(`[Pagar.me] Setting payment_gateway_id=${pagarmeResponse.id} on order ${payload.order_id}`);
+      console.log(`[Pagar.me] Setting payment_gateway_id=${pagarmeResponse.id} on order ${resolvedOrderId}`);
 
       if (Object.keys(orderUpdate).length > 1) {
         const { error: orderUpdateError } = await supabase
           .from('orders')
           .update(orderUpdate)
-          .eq('id', payload.order_id);
+          .eq('id', resolvedOrderId);
         
         if (orderUpdateError) {
           console.error('[Pagar.me] Error syncing order status:', orderUpdateError);
@@ -402,15 +465,15 @@ Deno.serve(async (req) => {
     }
 
     // ==== EMIT CANONICAL EVENT for notifications (pix_generated / boleto_generated) ====
-    if (payload.order_id && (payload.method === 'pix' || payload.method === 'boleto')) {
+    if (resolvedOrderId && (payload.method === 'pix' || payload.method === 'boleto')) {
       const eventNewStatus = payload.method === 'pix' ? 'pix_generated' : 'boleto_generated';
-      const idempotencyKey = `payment_${eventNewStatus}_${payload.order_id}_${pagarmeResponse.id}`;
+      const idempotencyKey = `payment_${eventNewStatus}_${resolvedOrderId}_${pagarmeResponse.id}`;
       
       // Fetch order details for notification payload
       const { data: orderData } = await supabase
         .from('orders')
         .select('order_number, customer_name, customer_email, customer_phone, total')
-        .eq('id', payload.order_id)
+        .eq('id', resolvedOrderId)
         .single();
 
       const { error: emitError } = await supabase
@@ -422,8 +485,8 @@ Deno.serve(async (req) => {
           idempotency_key: idempotencyKey,
           occurred_at: new Date().toISOString(),
           payload_normalized: {
-            order_id: payload.order_id,
-            order_number: orderData?.order_number || '',
+            order_id: resolvedOrderId,
+            order_number: orderData?.order_number || resolvedOrderNumber || '',
             customer_name: orderData?.customer_name || '',
             customer_email: orderData?.customer_email || '',
             customer_phone: orderData?.customer_phone || '',
@@ -441,7 +504,7 @@ Deno.serve(async (req) => {
       if (emitError && !emitError.message?.includes('duplicate')) {
         console.error('[Pagar.me] Error emitting payment event:', emitError);
       } else if (!emitError) {
-        console.log(`[Pagar.me] Emitted payment_status_changed event (${eventNewStatus}) for order ${payload.order_id}`);
+        console.log(`[Pagar.me] Emitted payment_status_changed event (${eventNewStatus}) for order ${resolvedOrderId}`);
       }
     }
 
@@ -459,6 +522,10 @@ Deno.serve(async (req) => {
         transaction_id: transaction?.id,
         provider_id: pagarmeResponse.id,
         payment_data: transactionData.payment_data,
+        order_id: resolvedOrderId,
+        order_number: resolvedOrderNumber,
+        retry_token: resolvedRetryToken,
+        canonical_total: resolvedCanonicalTotal,
       }), {
         status: 200, // HTTP 200 but success:false (follows edge-functions.md pattern)
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -472,6 +539,10 @@ Deno.serve(async (req) => {
       status: charge?.status,
       payment_data: transactionData.payment_data,
       credential_source: credentials.source,
+      order_id: resolvedOrderId,
+      order_number: resolvedOrderNumber,
+      retry_token: resolvedRetryToken,
+      canonical_total: resolvedCanonicalTotal,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
