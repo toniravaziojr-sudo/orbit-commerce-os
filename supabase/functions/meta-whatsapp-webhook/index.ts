@@ -253,13 +253,13 @@ Deno.serve(async (req) => {
                 } catch (agendaError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
                 }
-                // Audit loop: mark inbound as processed (or failed) so we can audit downtime
+                // Audit loop: mark inbound as processed so we can audit downtime
                 if (inboundId) {
                   await supabase
                     .from("whatsapp_inbound_messages")
                     .update({
                       processed_at: new Date().toISOString(),
-                      processing_status: agendaOk ? "processed_agenda" : "failed_agenda",
+                      processed_by: agendaOk ? "agenda_agent" : "agenda_failed",
                     })
                     .eq("id", inboundId);
                 }
@@ -390,7 +390,8 @@ Deno.serve(async (req) => {
                       .from("whatsapp_inbound_messages")
                       .update({
                         processed_at: new Date().toISOString(),
-                        processing_status: aiEnabled ? (aiOk ? "processed_ai" : "failed_ai") : "queued_human",
+                        processed_by: aiEnabled ? (aiOk ? "ai_support" : "ai_failed") : "human_queue",
+                        conversation_id: conversationId,
                       })
                       .eq("id", inboundId);
                   }
