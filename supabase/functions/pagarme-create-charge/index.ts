@@ -22,7 +22,7 @@ let ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
 
 interface ChargeRequest {
   checkout_id?: string;
-  order_id?: string; // NEW: order_id for linking payment to order
+  order_id?: string; // LEGACY (retry flow): when provided, skip order creation and just charge
   tenant_id: string;
   method: 'pix' | 'boleto' | 'credit_card';
   amount: number; // in cents
@@ -52,6 +52,13 @@ interface ChargeRequest {
   installments?: number;
   // Idempotency key for gateway charge (prevents duplicate charges on same click)
   payment_attempt_id?: string;
+  // === GATEWAY-FIRST FLOW (v2026-04-19) ===
+  // When provided, this edge becomes the orchestrator:
+  //   1) charges Pagar.me first
+  //   2) only then invokes checkout-create-order with payment_gateway_id
+  // Order is NEVER created if gateway call fails — session stays active and
+  // becomes "abandoned" via the standard 30-min sweep.
+  checkout_payload?: Record<string, unknown>;
 }
 
 // Get Pagar.me credentials from database or fallback to Secrets
