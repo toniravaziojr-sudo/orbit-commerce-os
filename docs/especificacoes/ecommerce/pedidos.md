@@ -11,7 +11,9 @@
 
 O módulo de Pedidos gerencia todo o ciclo de vida de uma venda, desde a criação até a entrega. Implementa uma máquina de estados para status do pedido, pagamento e envio, garantindo transições válidas. Todas as operações passam pela Edge Function `core-orders` para auditoria e consistência.
 
-**REGRA FUNDAMENTAL (v2026-04-04):** Pedidos só são criados após resposta da operadora de pagamento. Não existem mais "ghost orders". A numeração da loja só é consumida para pedidos reais.
+**REGRA FUNDAMENTAL (v2026-04-04, reforçada em v2026-04-19):** Pedidos só são criados após resposta da operadora de pagamento. Não existem mais "ghost orders". A numeração da loja só é consumida para pedidos reais.
+
+> **v2026-04-19 — Pagar.me alinhado à regra:** A edge `pagarme-create-charge` agora opera como orquestrador (gateway-first): chama a Pagar.me primeiro e, somente após resposta, invoca `checkout-create-order` com `payment_gateway_id` já preenchido. A edge `checkout-create-order` rejeita qualquer criação de pedido sem `payment_gateway_id` (código `GATEWAY_CONFIRMATION_REQUIRED`). Falha técnica antes da resposta do gateway = nenhum pedido criado, nenhuma numeração consumida, sessão segue para o fluxo padrão de checkout abandonado em 30 min. Mercado Pago já seguia a regra (criação só via webhook).
 
 ---
 
