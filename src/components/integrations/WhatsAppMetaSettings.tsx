@@ -252,6 +252,7 @@ export function WhatsAppMetaSettings() {
   if (isPendingRegistration && config) {
     return (
       <div className="space-y-4">
+        <WhatsAppOnboardingPinDialog />
         <Card className="border-2 border-amber-200 dark:border-amber-900">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
