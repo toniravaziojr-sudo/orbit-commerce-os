@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { showErrorToast } from "@/lib/error-toast";
 import { sanitizeError } from "@/lib/error-sanitizer";
 import { WhatsAppDiagnosticCard } from "./WhatsAppDiagnosticCard";
+import { WhatsAppPinManager } from "./WhatsAppPinManager";
 
 export function MetaWhatsAppRegistrationSection() {
   const { currentTenant } = useAuth();
@@ -134,6 +135,17 @@ export function MetaWhatsAppRegistrationSection() {
     <div className="space-y-3">
       {/* Diagnóstico inteligente — detecta e repara problemas automaticamente */}
       <WhatsAppDiagnosticCard />
+
+      {/* Gerenciador de PIN — sempre visível, preventivo + corretivo */}
+      <div className="flex items-center justify-between rounded-md border border-border/50 bg-muted/20 p-3">
+        <div className="space-y-0.5">
+          <p className="text-sm font-semibold">PIN de segurança do número</p>
+          <p className="text-xs text-muted-foreground">
+            Necessário para reparos automáticos. Defina ou atualize quando quiser.
+          </p>
+        </div>
+        <WhatsAppPinManager compact />
+      </div>
 
       {/* Phone number status */}
       <div className="flex items-center gap-2">

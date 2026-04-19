@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { showErrorToast } from '@/lib/error-toast';
+import { WhatsAppOnboardingPinDialog } from './meta/WhatsAppOnboardingPinDialog';
 
 interface MetaWhatsAppConfig {
   id: string;
