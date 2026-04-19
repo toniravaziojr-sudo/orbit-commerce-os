@@ -264,7 +264,8 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/marketplaces/tiktokshop` — TikTok Shop (FeatureGated)
 
 **Sistema:**
-- `/integrations` — Hub de integrações (cards de status; configuração detalhada do WhatsApp/Meta dentro do card "Meta" → seção "Registro do número Cloud API" com `WhatsAppDiagnosticCard` + `WhatsAppPinManager` + `WhatsAppOnboardingPinDialog` automático após Embedded Signup, conforme v2026-04-19)
+- `/integrations` — Hub de integrações (cards de status; card WhatsApp inclui `WhatsAppActivationGuide` (variant `full`) acima da seção "Registro do número Cloud API" com `WhatsAppDiagnosticCard` + `WhatsAppPinManager` + `WhatsAppOnboardingPinDialog` automático após Embedded Signup, conforme v2026-04-19)
+- `/index` (Dashboard) — Inclui `WhatsAppActivationGuide` (variant `compact`) como banner no topo, abaixo do `OrderLimitWarning`. Some automaticamente quando os 4 passos do onboarding WhatsApp estão concluídos
 - `/apps-externos` — Apps externos
 - `/system/settings` — Configurações do sistema (abas: **Pagamentos**, **Fiscal** — conteúdo embutido com sub-abas Emitente/Natureza/Outros, sem redirecionamento desde rev 2026-04-17c)
 - `/system/users` — Usuários e permissões (owner only, GatedRoute: `sistema_usuarios`)
