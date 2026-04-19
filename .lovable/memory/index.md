@@ -22,4 +22,6 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Documentation Governance](mem://governance/documentation-governance) — Regra de Ouro e hierarquia de 6 camadas de docs
 - [Memory Protection Rules](mem://governance/memory-protection-rules) — Política de memória, escopo permitido e regras de rotação
 - [Recent Topics](mem://governance/recent-topics) — Cache rotativo dos 2 últimos assuntos tratados (atual + anterior)
+- [Working Rules](mem://governance/working-rules) — Os 5 lembretes detalhados de comportamento
 - [WhatsApp Meta Recovery Protocol](mem://constraints/whatsapp-meta-recovery-protocol) — 4 verificações (token/número/WABA/webhook) + diagnose/recover/monitor + cron diário
+- [Order Creation After Gateway Only](mem://constraints/order-creation-after-gateway-only) — Pedido só pode ser criado após resposta do gateway. checkout-create-order rejeita sem payment_gateway_id. Vale para todos os provedores.
