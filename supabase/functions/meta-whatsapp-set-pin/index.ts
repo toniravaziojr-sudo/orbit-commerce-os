@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
 
     const { data: config } = await supabase
       .from("whatsapp_configs")
-      .select("id, register_pin")
+      .select("id, register_pin, phone_number_id, access_token, connection_status")
       .eq("tenant_id", tenant_id).eq("provider", "meta").maybeSingle();
 
     if (!config?.id) {
@@ -98,6 +98,33 @@ Deno.serve(async (req) => {
     }
 
     const wasFirstTime = !config.register_pin;
+
+    // ---------------------------------------------------------------
+    // FONTE DE VERDADE = META, NÃO O BANCO.
+    // Mesmo que connection_status='connected', se a Meta indicar que o
+    // número NÃO está realmente registrado/verificado na Cloud API
+    // (status != CONNECTED ou code_verification_status != VERIFIED),
+    // disparamos o recover. Isso evita o cenário "PIN salvo mas nada acontece"
+    // observado em tenants antigos que conectaram antes do dialog de onboarding.
+    // ---------------------------------------------------------------
+    let mustRegister = !!register_now;
+    if (config.phone_number_id && config.access_token) {
+      try {
+        const metaResp = await fetch(
+          `https://graph.facebook.com/v21.0/${config.phone_number_id}?fields=status,code_verification_status&access_token=${config.access_token}`
+        );
+        const metaData = await metaResp.json();
+        const metaStatus = String(metaData?.status || "").toUpperCase();
+        const verifStatus = String(metaData?.code_verification_status || "").toUpperCase();
+        const reallyConnected = metaStatus === "CONNECTED" && verifStatus === "VERIFIED";
+        if (!reallyConnected) {
+          mustRegister = true;
+          console.log(`[meta-whatsapp-set-pin][${traceId}] Meta says not verified (status=${metaStatus} verif=${verifStatus}) → forcing register`);
+        }
+      } catch (e) {
+        console.log(`[meta-whatsapp-set-pin][${traceId}] meta probe failed:`, (e as Error).message);
+      }
+    }
 
     const { error: updateError } = await supabase
       .from("whatsapp_configs")
