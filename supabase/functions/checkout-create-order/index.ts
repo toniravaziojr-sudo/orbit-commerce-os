@@ -458,9 +458,18 @@ Deno.serve(async (req) => {
         customer_email: normalizedEmail,
         customer_phone: payload.customer.phone,
         customer_cpf: payload.customer.cpf || null,
-        status: 'pending',
-        payment_status: 'pending',
+        status: payload.payment_gateway_status === 'paid' ? 'paid'
+              : payload.payment_gateway_status === 'declined' || payload.payment_gateway_status === 'failed' ? 'pending'
+              : payload.payment_gateway_status === 'pending' || payload.payment_gateway_status === 'processing' || payload.payment_gateway_status === 'awaiting_payment' ? 'awaiting_payment'
+              : 'pending',
+        payment_status: payload.payment_gateway_status === 'paid' ? 'approved'
+                      : payload.payment_gateway_status === 'declined' || payload.payment_gateway_status === 'failed' ? 'declined'
+                      : 'pending',
         payment_method: payload.payment_method,
+        // === GATEWAY-FIRST FLOW (v2026-04-19) ===
+        payment_gateway: payload.payment_gateway,
+        payment_gateway_id: payload.payment_gateway_id,
+        paid_at: payload.payment_gateway_status === 'paid' ? new Date().toISOString() : null,
         // === CANONICAL SNAPSHOT: use server-calculated values ===
         subtotal: canonicalSubtotal,
         shipping_total: canonicalShipping,
