@@ -1,81 +1,74 @@
 
 
-📋 CHECKLIST DE CONFORMIDADE:
-- Doc de Regras do Sistema: ✅ lido (governance/working-rules + memórias auth/meta/unified-v4-5)
-- Doc formal do tema: ⚠️ Lacuna parcial — `docs/especificacoes/sistema/hub-integracoes.md` cobre estrutura, mas **não documenta ciclo de vida do token Meta** (refresh, expiração, invalidação 190/460). Será criado.
-- Fluxo afetado: OAuth Meta → Long-lived token → Refresh automático → Detecção de invalidação
-- Fonte de verdade: `tenant_meta_auth_grants` (status, token_expires_at)
-- Módulos impactados: Integrações Meta, WhatsApp, Pixel, CAPI, Publicação FB/IG, Anúncios
-- Impacto cruzado: todas as integrações que dependem do token Meta caem juntas se o token invalidar
-- mapa-ui.md: ✅ a atualizar (remoção do botão "Atualizar")
-- Situação: Aguardando confirmação do usuário
+## Pensamento
+
+**Sintoma alegado:** queda nas vendas + 3 erros do Pixel desde ontem.
+
+**Dados reais (até as 16h BRT, mesma janela horária):**
+- Hoje (sáb 19/abr): 188 PageView, 9 InitiateCheckout, **2 Purchase**
+- Sábado anterior (12/abr): 239 PageView, 23 InitiateCheckout, **8 Purchase**
+- Sexta (18/abr, dia do refator): 270 PageView, 34 InitiateCheckout, 4 Purchase (dia inteiro: 7 Purchase, top da semana)
+
+**Conclusões objetivas:**
+1. **18/abr (sexta) NÃO teve queda** — foi um dos melhores dias da semana em volume e Purchase. Tracking continua disparando normal (7 Purchase capturados).
+2. **19/abr (hoje) tem queda real**: -22% PageView, -61% InitiateCheckout, -75% Purchase vs sábado anterior. Mas a queda começa **no topo do funil** (PageView), não entre carrinho e checkout. Isso afasta culpa do refator do checkout.
+3. Os **3 erros do Pixel não são de ontem** — estão registrados no changelog desde 03/abr. São antigos, conhecidos, e não bloqueiam vendas (continuam chegando 188 PageView hoje).
+4. **44 sessões de checkout dos últimos 4 dias estão com status `abandoned` ou `active` — 0 `completed`.** Isso é um bug estrutural no rastreamento de funil interno (não afeta Pixel/CAPI), mas distorce a métrica de carrinho×checkout.
+
+**Mudanças de ontem (18/abr) auditadas:**
+- Refator do `CheckoutStepWizard` em 7 arquivos, com lazy loading de Step3/Step4 → eventos `Lead`, `AddShippingInfo`, `AddPaymentInfo`, `Purchase` continuam disparando (confirmado nos logs)
+- Skeleton no `index.html` + Worker v2.0.0 → não afeta tracking
+- Prefetch do chunk de checkout no carrinho → reduz latência, não muda funil
+
+**Nada no refator de ontem quebrou Pixel/CAPI ou tracking de vendas.** A queda de hoje tem outra explicação plausível:
+- Sábado de Páscoa (19/abr/2026 = sábado de Aleluia) → tráfego naturalmente menor que sábado normal
+- Possível impacto de campanhas pausadas ou orçamento Meta (a investigar com o usuário)
 
 ---
 
-## 🎯 Diagnóstico
+## O Plano
 
-**Sintoma:** Tenant respeiteohomem com WhatsApp pendente. Reconectar não resolve. Token Meta de 31/03 ainda marcado `active` no banco, mas Meta retorna erro 190/460 (sessão invalidada).
+### Frente 1 — Provar que o refator não quebrou nada (validação técnica)
+- Reproduzir compra real de ponta a ponta em loja teste: cart → step1 → step2 → step3 → step4 → pagamento aprovado
+- Verificar nos logs se os 6 eventos disparam (PageView, ViewContent, AddToCart, InitiateCheckout, Lead, AddShippingInfo, AddPaymentInfo, Purchase)
+- Confirmar deduplicação Pixel↔CAPI (mesmo `event_id`)
 
-**Causa raiz (3 problemas combinados):**
+### Frente 2 — Corrigir o bug de "0 sessões completed" (que distorce a métrica)
+- Auditar onde `completeCheckoutSession` é chamado após pagamento aprovado
+- Garantir chamada na página de "Obrigado" (Thank You) e em todos os caminhos de aprovação (cartão, PIX, redirect MercadoPago)
+- Esse é o motivo real da "queda de margem carrinho×checkout" reportada — não é menos venda, é métrica errada
 
-1. **Não há refresh automático rodando.** Existe a função `meta-token-refresh` pronta para renovar tokens long-lived (60 dias), mas **nenhum cron está agendando ela**. Tokens vencem ou ficam stale silenciosamente.
-2. **O botão "Reconectar" não força nova autorização.** A URL OAuth não envia `auth_type=reauthorize`, então o Facebook reusa a sessão antiga em vez de gerar token novo. Por isso "reconectar" várias vezes não trocou o grant ativo (último é de 18 dias atrás).
-3. **Sistema não detecta token invalidado.** Quando a Meta invalida (troca de senha, revogação, mudança de segurança), o banco continua marcando como `active`. O usuário só descobre quando algo para de funcionar.
+### Frente 3 — Resolver definitivamente os 3 erros do Pixel (4ª tentativa)
+Em vez de mais um ajuste cego, instalar diagnóstico real:
+- Coletar amostra de 30 PageViews recentes
+- Comparar `client_ip_from_browser` (que o navegador mandou) vs IP que o CAPI recebeu
+- Identificar exatamente em quais cenários o IP diverge (proxy intermediário? cookie sem persistir?)
+- Só depois propor a 4ª correção, com base em evidência, não em hipótese
 
-**Por que "Atualizar" não faz nada visível:** ele só recarrega o cache local do React. Não chama a Meta. Como o banco diz "active", a tela continua mostrando "Conectado". É um botão inútil que confunde.
-
----
-
-## 🛠️ Plano de Solução (definitivo, sem remendo)
-
-### 1. Refresh automático real (resolve 90% dos casos)
-- Ativar **cron diário** chamando `meta-token-refresh` com `refreshAll: true`.
-- A função já existe e renova qualquer grant que expira nos próximos 7 dias, estendendo por mais 60 dias.
-- **Resultado:** enquanto o token estiver válido na Meta, ele se renova sozinho indefinidamente. Usuário nunca mais precisa reconectar por expiração natural.
-
-### 2. Detecção ativa de token inválido (resolve troca de senha / revogação)
-- Criar **health check diário** (cron) que chama `/me` na Graph API para todo grant ativo.
-- Se Meta responder com erro 190 (qualquer subcode: 460 senha trocada, 458 app removido, etc.), marcar grant como `expired` no banco automaticamente.
-- **Resultado:** banco reflete a realidade. UI mostra "Expirado" assim que detectar, com instrução clara de reconectar.
-
-### 3. Reconexão que realmente funciona
-- Adicionar `auth_type=reauthorize` na URL OAuth quando o usuário clicar "Reconectar".
-- Isso força o Facebook a apresentar a tela de permissões de novo e gerar token fresco, mesmo com sessão Facebook ativa.
-- **Resultado:** um clique em "Reconectar" sempre resolve. Sem precisar remover app no Business Manager.
-
-### 4. UI limpa (sem botões inúteis)
-- **Remover** o botão "Atualizar" (não tem função real — UI já recarrega sozinha).
-- **Manter** "Reconectar" e "Desconectar".
-- Quando grant for marcado `expired`, exibir alerta destacado com botão "Reconectar" único e claro.
-- Mostrar status de saúde do token (última verificação, próxima renovação).
-
-### 5. Validação técnica + E2E (obrigatório antes de fechar)
-- **Validação técnica (eu executo):**
-  - Confirmar cron criado e ativo.
-  - Disparar `meta-token-refresh` manual no tenant problema → confirmar grant atualizado.
-  - Disparar health check manual → confirmar que detecta o erro 190 atual e marca grant como expired.
-  - Validar que nova URL OAuth contém `auth_type=reauthorize`.
-- **E2E (você executa, eu instruo):**
-  - Reconectar Meta no respeiteohomem → confirmar grant novo no banco (granted_at = hoje).
-  - Reativar WhatsApp → confirmar status connected.
-  - Enviar mensagem teste pela API.
-
-### 6. Documentação completa
-- Atualizar `docs/especificacoes/sistema/hub-integracoes.md` com seção nova: **"Ciclo de Vida do Token Meta"** (refresh, health check, invalidação, reconexão).
-- Criar memória anti-regressão `mem://constraints/meta-token-lifecycle` com a regra: *"Toda integração OAuth long-lived precisa de cron de refresh + health check + auth_type=reauthorize no botão de reconectar"*.
-- Atualizar `mapa-ui.md` registrando remoção do botão "Atualizar".
-- Bloco "Problema × Solução" no doc do hub explicando os 3 cenários (expiração natural, invalidação por segurança, revogação manual) e como o sistema responde a cada um.
+### Frente 4 — Verificar campanhas/anúncios (causa da queda real de hoje)
+- Confirmar com o usuário se houve mudança de orçamento, criativos pausados, ou problema na conta de anúncios da Meta
+- Comparar tráfego pago vs orgânico hoje
+- Se for sazonalidade de Páscoa, sem ação técnica necessária
 
 ---
 
-## 📦 Resultado final
+## Resultado final
+- Refator de ontem auditado e validado tecnicamente: **descartado como causa**
+- Bug do "completeCheckoutSession" corrigido → métrica de carrinho×checkout volta a refletir realidade
+- 3 erros do Pixel resolvidos com base em diagnóstico real (não tentativa #4 cega)
+- Causa da queda de hoje identificada (provavelmente sazonalidade + Páscoa, a confirmar com usuário)
 
-| Cenário | Hoje | Depois |
-|---|---|---|
-| Token vai expirar em <7 dias | Quebra silenciosa | Renovado automaticamente |
-| Usuário troca senha do Facebook | UI mostra "conectado" mas tudo quebra | Detectado em <24h, badge "Expirado", botão claro |
-| Usuário clica "Reconectar" | Reusa sessão velha, não troca token | Sempre força token novo |
-| Usuário clica "Atualizar" | Não faz nada útil | Botão removido |
+---
 
-**Confirma que aplico esse plano completo (1+2+3+4+5+6)?**
+## Ordem de execução recomendada
+1. Frente 2 (bug do completed) — **crítico, distorce todas as métricas de funil**
+2. Frente 1 (validar refator) — rápido, dá tranquilidade
+3. Frente 3 (Pixel) — requer coleta de amostra antes
+4. Frente 4 (campanhas) — pergunta executiva ao usuário
+
+---
+
+**Estimativa:** 1-2 horas para Frentes 1+2. Frente 3 fica para um segundo loop depois da coleta de amostras (24h). Frente 4 é validação não técnica.
+
+📌 STATUS: Plano consolidado — aguardando aprovação para sair do modo Plan e executar.
 
