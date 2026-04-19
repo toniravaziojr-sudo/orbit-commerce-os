@@ -357,6 +357,7 @@ Deno.serve(async (req) => {
 
                   const aiEnabled = aiConfig?.is_enabled && (channelAiConfig?.is_enabled !== false);
 
+                  let aiOk = false;
                   if (aiEnabled) {
                     console.log(`[meta-whatsapp-webhook][${traceId}] AI enabled, invoking ai-support-chat...`);
                     try {
@@ -375,12 +376,23 @@ Deno.serve(async (req) => {
                         }
                       );
                       const aiResult = await aiResponse.text();
+                      aiOk = aiResponse.ok;
                       console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiResponse.status}):`, aiResult.substring(0, 300));
                     } catch (aiError) {
                       console.error(`[meta-whatsapp-webhook][${traceId}] AI invocation error:`, aiError);
                     }
                   } else {
                     console.log(`[meta-whatsapp-webhook][${traceId}] AI not enabled for this tenant/channel`);
+                  }
+                  // Audit loop: mark inbound as processed
+                  if (inboundId) {
+                    await supabase
+                      .from("whatsapp_inbound_messages")
+                      .update({
+                        processed_at: new Date().toISOString(),
+                        processing_status: aiEnabled ? (aiOk ? "processed_ai" : "failed_ai") : "queued_human",
+                      })
+                      .eq("id", inboundId);
                   }
                 }
               }
