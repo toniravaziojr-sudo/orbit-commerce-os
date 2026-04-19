@@ -17,17 +17,31 @@ export function generateEventId(): string {
 }
 
 /**
+ * Normalize an order identifier so the same order always produces the same key,
+ * regardless of formatting variations (#, spaces, dashes, casing).
+ * Falls back to original (lowercased) if no alphanumerics found, so we never return ''.
+ */
+export function normalizeOrderIdForEventId(orderId: string): string {
+  if (!orderId) return '';
+  const stripped = String(orderId).replace(/[^a-z0-9]/gi, '');
+  return (stripped || String(orderId)).toLowerCase();
+}
+
+/**
  * Generate a deterministic event ID for Purchase events.
- * Ensures browser, CAPI and ThankYou page all share the same event_id for dedup.
+ * Format: purchase_<mode>_<normalized_order_id>
+ * Same value MUST be produced by browser (this fn) and server (process-events / meta-capi-sender).
+ * Ensures browser, CAPI and ThankYou page all share the same event_id for Meta dedup.
  */
 export function generateDeterministicPurchaseEventId(
   mode: 'all_orders' | 'paid_only',
   orderId: string
 ): string {
+  const normalized = normalizeOrderIdForEventId(orderId);
   if (mode === 'paid_only') {
-    return `purchase_paid_${orderId}`;
+    return `purchase_paid_${normalized}`;
   }
-  return `purchase_created_${orderId}`;
+  return `purchase_created_${normalized}`;
 }
 
 // SHA-256 hash for PII (email, phone) - used for advanced matching
