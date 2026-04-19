@@ -487,14 +487,18 @@ async function sendWhatsApp(
   if (ruleId) {
     const { data: ruleData } = await supabase
       .from('notification_rules')
-      .select('meta_template_name, meta_template_status')
+      .select('meta_template_name, meta_template_status, whatsapp_message')
       .eq('id', ruleId)
       .single();
 
     if (ruleData?.meta_template_name && ruleData?.meta_template_status === 'approved') {
       console.log(`[RunNotifications] Using approved template: ${ruleData.meta_template_name}`);
+      // CRITICAL: pass the RAW whatsapp_message (with {{vars}}) so the template
+      // can extract positional parameters. The `message` arg is already rendered
+      // and would result in 0 parameters → Meta error #132000.
+      const rawTemplate = ruleData.whatsapp_message || message;
       return await sendWhatsAppViaMetaTemplate(
-        supabase, tenantId, cleanPhone, ruleData.meta_template_name, message, payload, config
+        supabase, tenantId, cleanPhone, ruleData.meta_template_name, rawTemplate, payload, config
       );
     }
   }
@@ -543,9 +547,19 @@ async function sendWhatsAppViaMetaTemplate(
       const varName = match[1];
       if (!seenVars.includes(varName)) {
         seenVars.push(varName);
-        const value = (payload as Record<string, unknown>)?.[varName] as string || '';
-        variableValues.push(value || varName);
+        const rawValue = (payload as Record<string, unknown>)?.[varName];
+        // Coerce to non-empty string. Meta rejects empty strings ("") in template params (#132000).
+        const stringValue = rawValue == null ? "" : String(rawValue).trim();
+        variableValues.push(stringValue.length > 0 ? stringValue : "—");
       }
+    }
+
+    // Defensive log: if we end up with 0 vars but the template was supposed to have them,
+    // it usually means caller passed an already-rendered message (bug elsewhere).
+    if (variableValues.length === 0) {
+      console.warn(`[RunNotifications] Template "${templateName}" extracted 0 variables from message. Sending without components — Meta will reject if template has BODY placeholders.`);
+    } else {
+      console.log(`[RunNotifications] Template "${templateName}" filled with ${variableValues.length} vars: ${seenVars.join(", ")}`);
     }
 
     // Build template components with parameters

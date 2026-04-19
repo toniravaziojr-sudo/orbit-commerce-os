@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
               }
 
               // Save inbound message (for audit/logs)
-              const { error: insertError } = await supabase
+              const { data: inboundRow, error: insertError } = await supabase
                 .from("whatsapp_inbound_messages")
                 .insert({
                   tenant_id: tenantId,
@@ -207,11 +207,14 @@ Deno.serve(async (req) => {
                   media_url: mediaUrl,
                   timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
                   raw_payload: message,
-                });
+                })
+                .select("id")
+                .single();
 
               if (insertError) {
                 console.error(`[meta-whatsapp-webhook][${traceId}] Failed to save inbound message:`, insertError);
               }
+              const inboundId = inboundRow?.id || null;
 
               // ═══ ROUTING DECISION: Admin (Agenda) vs Customer (Support) ═══
               const { data: authorizedPhone } = await supabase
@@ -225,6 +228,7 @@ Deno.serve(async (req) => {
               if (authorizedPhone) {
                 // ── ROUTE TO AGENDA AGENT ──
                 console.log(`[meta-whatsapp-webhook][${traceId}] Admin phone detected, routing to Agenda agent`);
+                let agendaOk = false;
                 try {
                   const agendaResponse = await fetch(
                     `${supabaseUrl}/functions/v1/agenda-process-command`,
@@ -244,9 +248,20 @@ Deno.serve(async (req) => {
                     }
                   );
                   const agendaResult = await agendaResponse.text();
+                  agendaOk = agendaResponse.ok;
                   console.log(`[meta-whatsapp-webhook][${traceId}] Agenda response (${agendaResponse.status}):`, agendaResult.substring(0, 300));
                 } catch (agendaError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
+                }
+                // Audit loop: mark inbound as processed so we can audit downtime
+                if (inboundId) {
+                  await supabase
+                    .from("whatsapp_inbound_messages")
+                    .update({
+                      processed_at: new Date().toISOString(),
+                      processed_by: agendaOk ? "agenda_agent" : "agenda_failed",
+                    })
+                    .eq("id", inboundId);
                 }
                 // Admin messages do NOT create support conversations
                 continue;
@@ -342,6 +357,7 @@ Deno.serve(async (req) => {
 
                   const aiEnabled = aiConfig?.is_enabled && (channelAiConfig?.is_enabled !== false);
 
+                  let aiOk = false;
                   if (aiEnabled) {
                     console.log(`[meta-whatsapp-webhook][${traceId}] AI enabled, invoking ai-support-chat...`);
                     try {
@@ -360,12 +376,24 @@ Deno.serve(async (req) => {
                         }
                       );
                       const aiResult = await aiResponse.text();
+                      aiOk = aiResponse.ok;
                       console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiResponse.status}):`, aiResult.substring(0, 300));
                     } catch (aiError) {
                       console.error(`[meta-whatsapp-webhook][${traceId}] AI invocation error:`, aiError);
                     }
                   } else {
                     console.log(`[meta-whatsapp-webhook][${traceId}] AI not enabled for this tenant/channel`);
+                  }
+                  // Audit loop: mark inbound as processed
+                  if (inboundId) {
+                    await supabase
+                      .from("whatsapp_inbound_messages")
+                      .update({
+                        processed_at: new Date().toISOString(),
+                        processed_by: aiEnabled ? (aiOk ? "ai_support" : "ai_failed") : "human_queue",
+                        conversation_id: conversationId,
+                      })
+                      .eq("id", inboundId);
                   }
                 }
               }
