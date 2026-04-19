@@ -211,6 +211,30 @@ incluindo as notas de qualidade antes e depois, para permitir comparação e evi
 
 ---
 
+---
+
+## Registro #3 — Ajuste de 19/abr/2026 (v8.27.0)
+
+**O que foi feito:**
+1. **Persistência 30d do dedup do Purchase** (`src/lib/purchaseDedup.ts`): trocado `useRef` por `localStorage` com TTL 30d. Chave `sf_purchase_fired_<tenant>_<order>`. Resolve re-fire ao reabrir/refresh/back-button.
+2. **`event_id` determinístico normalizado**: formato único `purchase_<mode>_<order_normalizado>` (apenas `[a-z0-9]` lowercase). Browser e server byte-a-byte idênticos.
+3. **Cookies sintéticos `_fbp`/`_fbc` no edge** (`storefront-html` v8.27.0): toda renderização sem `_fbp` gera sintético `fb.1.<ts>.<rnd>` via `Set-Cookie` (Path=/, Max-Age=90d). Quando há `?fbclid=` na URL, monta `_fbc=fb.1.<ts>.<fbclid>`. Resolve race condition `fbq('init')` vs CAPI.
+4. **Enriquecimento de `user_data` em meio de funil**: ViewContent/AddToCart carregam `email_hashed`/`phone_hashed` do `localStorage` (capturados em Lead/Purchase anteriores). Backend aceita campos pré-hashed sem re-hashear. **Bug crítico corrigido**: código antigo passava hash em campo `email`, e backend re-hasheava (hash de hash → match quebrado).
+
+**Doc Layer 3 oficial criado:** `docs/especificacoes/marketing/meta-tracking.md`.
+
+**Validação técnica executada:**
+- ✅ `X-Storefront-Version: v8.27.0` ativa em produção
+- ✅ `Set-Cookie: _fbp=fb.1.<ts>.<rnd>; Path=/; Max-Age=7776000; SameSite=Lax` confirmado em response real
+- ✅ Banco mostra `event_id` normalizado: `purchase_created_305`, `_304`, `_303`
+- ✅ Edge `marketing-capi-track` deployada com suporte a `email_hashed`/`phone_hashed`
+- ✅ Logs CAPI confirmam `client_ip_address` IPv4 via `cf-connecting-ip`
+
+**Notas ANTES (03/abr/2026):** PageView 4.8 / ViewContent 3.9 / AddToCart 3.9 / `_fbp` 0%–48%.
+**Notas APÓS:** a coletar pelo usuário em 22/abr/2026 (após 48h de tráfego).
+
+---
+
 ## Template para próximos registros
 
 ```

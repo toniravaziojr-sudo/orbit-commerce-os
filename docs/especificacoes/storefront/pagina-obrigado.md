@@ -403,6 +403,28 @@ O componente `CardRetrySection` usa `useRef(false)` como guard síncrono no `han
 
 ---
 
+## Disparo do Evento Purchase (Marketing)
+
+A página de obrigado é o **único ponto de emissão** do evento `Purchase` para Meta Pixel + CAPI.
+
+### Contrato de emissão (v8.27.0)
+
+- **1 disparo por pedido por dispositivo, com janela de 30 dias.**
+- Persistência via `localStorage` (`src/lib/purchaseDedup.ts`).
+- Chave: `sf_purchase_fired_<tenant_id>_<order_normalizado>`.
+- Cobre: refresh, reabertura do link, botão voltar, compartilhamento do URL.
+- `event_id` determinístico no formato `purchase_<mode>_<order_normalizado>` — Browser e CAPI idênticos para dedup na Meta.
+
+### Modo de disparo (soberania do tenant)
+
+- `purchaseEventTiming = 'all_orders'` (padrão): dispara no momento da criação do pedido, qualquer status.
+- `purchaseEventTiming = 'paid_only'`: dispara apenas após confirmação de pagamento.
+- **Proibido alterar sem autorização explícita do dono da loja.**
+
+Doc completo: `docs/especificacoes/marketing/meta-tracking.md`.
+
+---
+
 ## Pendências
 
 - [ ] Upsell 1-click funcional
