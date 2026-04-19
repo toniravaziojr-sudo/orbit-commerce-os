@@ -139,6 +139,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    // === GHOST ORDER GUARD (v2026-04-19) ===
+    // Pedido só pode ser criado APÓS resposta do gateway.
+    // Sem payment_gateway_id, recusamos a criação para preservar a numeração.
+    if (!payload.payment_gateway_id || !payload.payment_gateway) {
+      console.error('[checkout-create-order] BLOCKED: missing payment_gateway_id — order creation requires confirmed gateway response');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Pedido só pode ser criado após confirmação do gateway de pagamento.',
+        code: 'GATEWAY_CONFIRMATION_REQUIRED',
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Create Supabase client with service role (bypasses RLS)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
