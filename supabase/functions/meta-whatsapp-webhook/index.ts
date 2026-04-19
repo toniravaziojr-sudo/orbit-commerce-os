@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
               }
 
               // Save inbound message (for audit/logs)
-              const { error: insertError } = await supabase
+              const { data: inboundRow, error: insertError } = await supabase
                 .from("whatsapp_inbound_messages")
                 .insert({
                   tenant_id: tenantId,
@@ -207,11 +207,14 @@ Deno.serve(async (req) => {
                   media_url: mediaUrl,
                   timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
                   raw_payload: message,
-                });
+                })
+                .select("id")
+                .single();
 
               if (insertError) {
                 console.error(`[meta-whatsapp-webhook][${traceId}] Failed to save inbound message:`, insertError);
               }
+              const inboundId = inboundRow?.id || null;
 
               // ═══ ROUTING DECISION: Admin (Agenda) vs Customer (Support) ═══
               const { data: authorizedPhone } = await supabase
