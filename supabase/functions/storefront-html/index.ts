@@ -58,6 +58,87 @@ function escapeHtml(str: string): string {
 }
 
 // ============================================
+// META IDENTITY COOKIES — synthetic _fbp / _fbc (Frente E1+E2)
+// Server-side fallback so CAPI calls always have identity even before
+// Meta Pixel JS loads (race condition fix). Browser will overwrite with
+// the official Pixel-generated value when fbevents.js eventually runs.
+// ============================================
+function readCookie(cookieHeader: string | null, name: string): string | null {
+  if (!cookieHeader) return null;
+  const parts = cookieHeader.split(';');
+  for (const p of parts) {
+    const idx = p.indexOf('=');
+    if (idx === -1) continue;
+    const k = p.slice(0, idx).trim();
+    if (k === name) return decodeURIComponent(p.slice(idx + 1).trim());
+  }
+  return null;
+}
+
+function buildSyntheticFbp(): string {
+  // Format per Meta spec: fb.<subdomain_index>.<creation_unix_ms>.<random>
+  const ts = Date.now();
+  const rnd = Math.floor(Math.random() * 1e10).toString();
+  return `fb.1.${ts}.${rnd}`;
+}
+
+function buildFbcFromFbclid(fbclid: string): string {
+  // Format per Meta spec: fb.<subdomain_index>.<creation_unix_ms>.<fbclid>
+  return `fb.1.${Date.now()}.${fbclid}`;
+}
+
+interface MetaCookieDecision {
+  setFbp: string | null;
+  setFbc: string | null;
+}
+
+/**
+ * Decide whether we need to set _fbp / _fbc cookies on this response.
+ * - Always preserves existing cookies (browser is the source of truth)
+ * - Sets a synthetic _fbp ONLY if the request had no _fbp at all
+ * - Sets _fbc whenever ?fbclid= is present in the URL (refreshes attribution window)
+ */
+function decideMetaCookies(req: Request, url: URL): MetaCookieDecision {
+  const cookieHeader = req.headers.get('cookie');
+  const existingFbp = readCookie(cookieHeader, '_fbp');
+  const fbclid = url.searchParams.get('fbclid');
+
+  return {
+    setFbp: existingFbp ? null : buildSyntheticFbp(),
+    setFbc: fbclid ? buildFbcFromFbclid(fbclid) : null,
+  };
+}
+
+/**
+ * Build Set-Cookie header values for the meta identity cookies.
+ * Returns an array because a single response may emit multiple Set-Cookie lines.
+ * - 90-day Max-Age (Meta spec)
+ * - SameSite=Lax (works across redirects, blocks third-party CSRF)
+ * - Path=/ (available everywhere on the storefront)
+ * - NOT HttpOnly (Meta Pixel JS needs to read it from document.cookie)
+ */
+function buildMetaCookieHeaders(decision: MetaCookieDecision): string[] {
+  const out: string[] = [];
+  const maxAge = 90 * 24 * 60 * 60; // 90 days in seconds
+  if (decision.setFbp) {
+    out.push(`_fbp=${decision.setFbp}; Path=/; Max-Age=${maxAge}; SameSite=Lax`);
+  }
+  if (decision.setFbc) {
+    out.push(`_fbc=${decision.setFbc}; Path=/; Max-Age=${maxAge}; SameSite=Lax`);
+  }
+  return out;
+}
+
+/**
+ * Apply meta identity cookies to a Headers object (mutates in place).
+ * Uses Headers.append so multiple Set-Cookie lines coexist.
+ */
+function applyMetaCookies(headers: Headers, decision: MetaCookieDecision): void {
+  const cookies = buildMetaCookieHeaders(decision);
+  for (const c of cookies) headers.append('Set-Cookie', c);
+}
+
+// ============================================
 // ROUTE PARSER
 // ============================================
 interface ParsedRoute {
