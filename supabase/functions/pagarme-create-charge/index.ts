@@ -427,7 +427,10 @@ Deno.serve(async (req) => {
     // ==== SYNC ORDER STATUS for synchronous payments (credit card) ====
     // When charge is immediately paid/failed, update order right away
     // Don't rely solely on webhook which may arrive late or with incomplete payload
-    if (payload.order_id) {
+    // NOTE: in gateway-first flow, order was already created with correct status,
+    // but we still run this for legacy retry flow (payload.order_id present from frontend)
+    // and as a safety net to ensure payment_gateway_id is always set.
+    if (resolvedOrderId) {
       const orderUpdate: Record<string, any> = { 
         updated_at: new Date().toISOString(),
         payment_gateway: 'pagarme',
@@ -438,22 +441,22 @@ Deno.serve(async (req) => {
         orderUpdate.payment_status = 'approved';
         orderUpdate.status = 'paid';
         orderUpdate.paid_at = new Date().toISOString();
-        console.log(`[Pagar.me] Syncing order ${payload.order_id} → paid (synchronous)`);
+        console.log(`[Pagar.me] Syncing order ${resolvedOrderId} → paid (synchronous)`);
       } else if (charge?.status === 'failed') {
         orderUpdate.payment_status = 'declined';
-        console.log(`[Pagar.me] Syncing order ${payload.order_id} → declined (synchronous)`);
+        console.log(`[Pagar.me] Syncing order ${resolvedOrderId} → declined (synchronous)`);
       } else if (charge?.status === 'pending' || charge?.status === 'processing') {
         orderUpdate.payment_status = 'pending';
         orderUpdate.status = 'awaiting_payment';
-        console.log(`[Pagar.me] Syncing order ${payload.order_id} → awaiting_payment`);
+        console.log(`[Pagar.me] Syncing order ${resolvedOrderId} → awaiting_payment`);
       }
-      console.log(`[Pagar.me] Setting payment_gateway_id=${pagarmeResponse.id} on order ${payload.order_id}`);
+      console.log(`[Pagar.me] Setting payment_gateway_id=${pagarmeResponse.id} on order ${resolvedOrderId}`);
 
       if (Object.keys(orderUpdate).length > 1) {
         const { error: orderUpdateError } = await supabase
           .from('orders')
           .update(orderUpdate)
-          .eq('id', payload.order_id);
+          .eq('id', resolvedOrderId);
         
         if (orderUpdateError) {
           console.error('[Pagar.me] Error syncing order status:', orderUpdateError);
@@ -462,15 +465,15 @@ Deno.serve(async (req) => {
     }
 
     // ==== EMIT CANONICAL EVENT for notifications (pix_generated / boleto_generated) ====
-    if (payload.order_id && (payload.method === 'pix' || payload.method === 'boleto')) {
+    if (resolvedOrderId && (payload.method === 'pix' || payload.method === 'boleto')) {
       const eventNewStatus = payload.method === 'pix' ? 'pix_generated' : 'boleto_generated';
-      const idempotencyKey = `payment_${eventNewStatus}_${payload.order_id}_${pagarmeResponse.id}`;
+      const idempotencyKey = `payment_${eventNewStatus}_${resolvedOrderId}_${pagarmeResponse.id}`;
       
       // Fetch order details for notification payload
       const { data: orderData } = await supabase
         .from('orders')
         .select('order_number, customer_name, customer_email, customer_phone, total')
-        .eq('id', payload.order_id)
+        .eq('id', resolvedOrderId)
         .single();
 
       const { error: emitError } = await supabase
@@ -482,8 +485,8 @@ Deno.serve(async (req) => {
           idempotency_key: idempotencyKey,
           occurred_at: new Date().toISOString(),
           payload_normalized: {
-            order_id: payload.order_id,
-            order_number: orderData?.order_number || '',
+            order_id: resolvedOrderId,
+            order_number: orderData?.order_number || resolvedOrderNumber || '',
             customer_name: orderData?.customer_name || '',
             customer_email: orderData?.customer_email || '',
             customer_phone: orderData?.customer_phone || '',
@@ -501,7 +504,7 @@ Deno.serve(async (req) => {
       if (emitError && !emitError.message?.includes('duplicate')) {
         console.error('[Pagar.me] Error emitting payment event:', emitError);
       } else if (!emitError) {
-        console.log(`[Pagar.me] Emitted payment_status_changed event (${eventNewStatus}) for order ${payload.order_id}`);
+        console.log(`[Pagar.me] Emitted payment_status_changed event (${eventNewStatus}) for order ${resolvedOrderId}`);
       }
     }
 
@@ -519,6 +522,10 @@ Deno.serve(async (req) => {
         transaction_id: transaction?.id,
         provider_id: pagarmeResponse.id,
         payment_data: transactionData.payment_data,
+        order_id: resolvedOrderId,
+        order_number: resolvedOrderNumber,
+        retry_token: resolvedRetryToken,
+        canonical_total: resolvedCanonicalTotal,
       }), {
         status: 200, // HTTP 200 but success:false (follows edge-functions.md pattern)
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -532,6 +539,10 @@ Deno.serve(async (req) => {
       status: charge?.status,
       payment_data: transactionData.payment_data,
       credential_source: credentials.source,
+      order_id: resolvedOrderId,
+      order_number: resolvedOrderNumber,
+      retry_token: resolvedRetryToken,
+      canonical_total: resolvedCanonicalTotal,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
