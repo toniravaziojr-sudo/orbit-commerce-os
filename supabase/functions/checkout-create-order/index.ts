@@ -103,6 +103,15 @@ interface CreateOrderRequest {
   retry_token?: string;
   // Idempotency key to prevent duplicate order creation on double-click
   checkout_attempt_id?: string;
+  // === GATEWAY-FIRST FLOW (v2026-04-19) ===
+  // Mandatory: order is only created AFTER gateway response.
+  // Prevents ghost orders consuming order_number sequence.
+  payment_gateway?: 'pagarme' | 'mercadopago';
+  payment_gateway_id?: string;
+  payment_gateway_status?: 'paid' | 'pending' | 'processing' | 'failed' | 'declined' | 'awaiting_payment';
+  payment_gateway_payload?: Record<string, unknown>;
+  // Session linking (atomic update to prevent abandon-sweep race condition)
+  checkout_session_id?: string;
 }
 
 function normalizeEmail(email: string): string {
