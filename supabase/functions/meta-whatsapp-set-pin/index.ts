@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
     }
 
     let recoverResult: unknown = null;
-    if (register_now) {
+    if (mustRegister) {
       try {
         const recResp = await fetch(`${supabaseUrl}/functions/v1/meta-whatsapp-recover`, {
           method: "POST",
@@ -175,7 +175,8 @@ Deno.serve(async (req) => {
       success: true,
       data: {
         was_first_time: wasFirstTime,
-        registered: register_now ? recoverResult : null,
+        forced_register: mustRegister && !register_now,
+        registered: mustRegister ? recoverResult : null,
       },
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
