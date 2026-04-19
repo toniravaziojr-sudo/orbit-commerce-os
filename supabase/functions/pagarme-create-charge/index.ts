@@ -319,7 +319,60 @@ Deno.serve(async (req) => {
       console.error(`[Pagar.me] Failure reason: ${failureReason}`);
     }
 
-    // Save transaction to database with order_id only
+    // === GATEWAY-FIRST FLOW (v2026-04-19) ===
+    // If checkout_payload is present and order_id is not, this is the new flow:
+    // create the order NOW, after gateway response, with payment_gateway_id already set.
+    let resolvedOrderId: string | null = payload.order_id || null;
+    let resolvedOrderNumber: string | null = null;
+    let resolvedCanonicalTotal: number | null = null;
+    let resolvedRetryToken: string | null = null;
+
+    if (!resolvedOrderId && payload.checkout_payload) {
+      const gatewayStatusMap: Record<string, string> = {
+        paid: 'paid',
+        pending: 'pending',
+        processing: 'processing',
+        failed: 'failed',
+        canceled: 'failed',
+      };
+      const mappedStatus = gatewayStatusMap[firstCharge?.status as string] || 'pending';
+
+      console.log(`[Pagar.me] GATEWAY-FIRST: creating order with payment_gateway_id=${pagarmeResponse.id}, status=${mappedStatus}`);
+
+      const orderInvokeBody = {
+        ...payload.checkout_payload,
+        payment_gateway: 'pagarme' as const,
+        payment_gateway_id: String(pagarmeResponse.id),
+        payment_gateway_status: mappedStatus,
+      };
+
+      const { data: orderData, error: orderInvokeError } = await supabase.functions.invoke(
+        'checkout-create-order',
+        { body: orderInvokeBody }
+      );
+
+      if (orderInvokeError || !orderData?.success) {
+        console.error('[Pagar.me] GATEWAY-FIRST: order creation FAILED after successful gateway charge:', orderInvokeError || orderData?.error);
+        // Charge already happened on gateway side. Webhook will reconcile and create order via fallback.
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Pagamento processado mas houve falha ao gravar o pedido. Você receberá uma confirmação em instantes.',
+          code: 'ORDER_CREATION_FAILED_AFTER_CHARGE',
+          provider_id: pagarmeResponse.id,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      resolvedOrderId = orderData.order_id;
+      resolvedOrderNumber = orderData.order_number;
+      resolvedCanonicalTotal = orderData.canonical_total ?? null;
+      resolvedRetryToken = orderData.retry_token ?? null;
+      console.log(`[Pagar.me] GATEWAY-FIRST: order created — id=${resolvedOrderId}, number=${resolvedOrderNumber}`);
+    }
+
+    // Save transaction to database with resolved order_id
     // Note: checkout_id is NOT used here because it has FK to checkouts table
     // and we're now linking via order_id (FK to orders table)
     const charge = firstCharge || pagarmeResponse.charges?.[0];
@@ -335,7 +388,7 @@ Deno.serve(async (req) => {
 
     const transactionData = {
       tenant_id: payload.tenant_id,
-      order_id: payload.order_id || null, // Link to order for get-order lookup
+      order_id: resolvedOrderId, // Link to order for get-order lookup
       checkout_id: null, // Explicitly null - don't use checkout_id as it may cause FK errors
       provider: 'pagarme',
       provider_transaction_id: pagarmeResponse.id,
