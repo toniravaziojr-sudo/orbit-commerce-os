@@ -487,14 +487,18 @@ async function sendWhatsApp(
   if (ruleId) {
     const { data: ruleData } = await supabase
       .from('notification_rules')
-      .select('meta_template_name, meta_template_status')
+      .select('meta_template_name, meta_template_status, whatsapp_message')
       .eq('id', ruleId)
       .single();
 
     if (ruleData?.meta_template_name && ruleData?.meta_template_status === 'approved') {
       console.log(`[RunNotifications] Using approved template: ${ruleData.meta_template_name}`);
+      // CRITICAL: pass the RAW whatsapp_message (with {{vars}}) so the template
+      // can extract positional parameters. The `message` arg is already rendered
+      // and would result in 0 parameters → Meta error #132000.
+      const rawTemplate = ruleData.whatsapp_message || message;
       return await sendWhatsAppViaMetaTemplate(
-        supabase, tenantId, cleanPhone, ruleData.meta_template_name, message, payload, config
+        supabase, tenantId, cleanPhone, ruleData.meta_template_name, rawTemplate, payload, config
       );
     }
   }
