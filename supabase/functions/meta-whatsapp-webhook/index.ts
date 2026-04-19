@@ -228,6 +228,7 @@ Deno.serve(async (req) => {
               if (authorizedPhone) {
                 // ── ROUTE TO AGENDA AGENT ──
                 console.log(`[meta-whatsapp-webhook][${traceId}] Admin phone detected, routing to Agenda agent`);
+                let agendaOk = false;
                 try {
                   const agendaResponse = await fetch(
                     `${supabaseUrl}/functions/v1/agenda-process-command`,
@@ -247,9 +248,20 @@ Deno.serve(async (req) => {
                     }
                   );
                   const agendaResult = await agendaResponse.text();
+                  agendaOk = agendaResponse.ok;
                   console.log(`[meta-whatsapp-webhook][${traceId}] Agenda response (${agendaResponse.status}):`, agendaResult.substring(0, 300));
                 } catch (agendaError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
+                }
+                // Audit loop: mark inbound as processed (or failed) so we can audit downtime
+                if (inboundId) {
+                  await supabase
+                    .from("whatsapp_inbound_messages")
+                    .update({
+                      processed_at: new Date().toISOString(),
+                      processing_status: agendaOk ? "processed_agenda" : "failed_agenda",
+                    })
+                    .eq("id", inboundId);
                 }
                 // Admin messages do NOT create support conversations
                 continue;
