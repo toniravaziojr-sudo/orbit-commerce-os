@@ -661,3 +661,27 @@ Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entra
 2. Para o cliente Supabase, preferir `import { createClient } from "npm:@supabase/supabase-js@2"`.
 3. Antes de declarar uma entrega de Edge Function como concluída, executar deploy real (não apenas build do front) — o build do Vite **não** detecta erros de bundle do Edge Runtime.
 4. Se um deploy quebrar por falha de CDN externa em função alheia ao escopo, aplicar este mesmo patch antes de prosseguir (regressão conhecida).
+
+---
+
+### N+1. WhatsApp: troca de WABA tratada como saúde operacional
+
+**Problema:** Após troca de WABA / Phone Number ID em um tenant (`respeiteohomem`), o sistema continuava reportando o canal como "conectado" / "saudável" mesmo sem nenhuma mensagem inbound chegando ao novo número. O hub de integrações, o card de saúde e o `useWhatsAppStatus` liam apenas `connection_status='connected'` e tratavam isso como prova de operação. Resultado: ciclos de diagnóstico que voltavam à mesma hipótese externa (display name, billing, aprovação Meta) sem evidência operacional.
+
+**Causa raiz:** A leitura pública do canal era binária ("conectado/desconectado"). Não existia distinção entre **vínculo técnico** (token + WABA + webhook OK) e **operação real** (inbound recente). Salvar novos identificadores em `whatsapp_configs` era tratado como sucesso completo, e nada rebaixava o status enquanto o novo número não comprovasse recepção.
+
+**Solução aplicada (v2026-04-20):**
+1. Migração: novas colunas em `whatsapp_configs` — `previous_phone_number_id`, `previous_waba_id`, `linked_at`, `migration_observation_until`, `last_inbound_at`.
+2. Trigger `whatsapp_configs_track_migration`: ao mudar `phone_number_id` ou `waba_id`, captura o anterior, reseta `linked_at`, abre janela `migration_observation_until = now()+24h` e zera `last_inbound_at`.
+3. `meta-whatsapp-webhook`: na primeira inbound do novo número grava `last_inbound_at = now()` e zera `migration_observation_until` — só então o canal pode voltar a "saudável".
+4. `whatsapp-health-summary`: passou a retornar `link_status` (vínculo) e `operational_status` (operação) separados, com rótulos prontos em PT-BR.
+5. `useWhatsAppStatus`, `useIntegrationStatus` e `WhatsAppHealthCard`: consomem ambas as camadas. O canal só aparece como "Recebendo normalmente" quando os dois estiverem OK simultaneamente. UI do card mostra "Vínculo técnico" e "Operação real" lado a lado e exibe banner amarelo "Vínculo trocado, em observação" durante a janela.
+
+**Onde ocorreu:** `whatsapp_configs`, `meta-whatsapp-webhook`, `whatsapp-health-summary`, `useWhatsAppStatus`, `useIntegrationStatus`, `WhatsAppHealthCard`.
+
+**Regra derivada (anti-regressão — MANDATÓRIA):**
+1. **Proibido** reportar o canal WhatsApp como "saudável" / "conectado" / "ok" baseando-se apenas em `connection_status`. Sempre validar `link_status` + `operational_status`.
+2. **Proibido** considerar troca de WABA / Phone Number ID concluída sem janela de observação de 24h ativa.
+3. **Proibido** voltar a hipóteses externas (display name, billing, aprovação Meta) antes de confirmar `link_status=connected` e `operational_status` em `observation` ou `degraded` por causa real.
+4. Toda nova UI que exibir status do WhatsApp DEVE consumir as duas camadas. Telas que mostrarem apenas "conectado/desconectado" são bug e devem ser corrigidas.
+5. Doc formal vivo: `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` v1.1.
