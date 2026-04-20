@@ -1,0 +1,1 @@
+DELETE FROM whatsapp_inbound_messages WHERE external_message_id='TEST-ORPHAN-VALIDATION'; UPDATE whatsapp_health_incidents SET status='resolved', resolved_at=now() WHERE incident_type='orphan_messages' AND tenant_id='d1a4d0ed-8842-495e-b741-540a9a345b25' AND status='open';
