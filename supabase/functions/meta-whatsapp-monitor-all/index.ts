@@ -55,6 +55,27 @@ Deno.serve(async (req) => {
         const status = diag?.data?.status;
         const autoActions = (diag?.data?.auto_actions || []) as string[];
 
+        // Manutenção preventiva: re-postar subscribed_fields todo dia mesmo se "healthy".
+        // Custo zero (POST idempotente) e elimina a janela de risco onde a Meta
+        // perde silenciosamente a inscrição de campo após troca de App ou política interna.
+        if (status === "healthy" && !autoActions.includes("subscribe_webhook")) {
+          autoActions.push("subscribe_webhook");
+        }
+
+        if (status === "healthy" && autoActions.length === 1 && autoActions[0] === "subscribe_webhook") {
+          // Healthy + manutenção preventiva: roda subscribe e conta como saudável.
+          await fetch(`${supabaseUrl}/functions/v1/meta-whatsapp-recover`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ tenant_id: cfg.tenant_id, actions: ["subscribe_webhook"] }),
+          });
+          summary.healthy++;
+          continue;
+        }
+
         if (status === "healthy") {
           summary.healthy++;
           continue;

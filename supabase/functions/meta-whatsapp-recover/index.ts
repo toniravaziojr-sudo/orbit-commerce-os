@@ -125,6 +125,8 @@ Deno.serve(async (req) => {
     const executed: Array<{ action: string; success: boolean; detail?: string }> = [];
 
     // === Action: subscribe_webhook ===
+    // CRÍTICO: precisa enviar subscribed_fields explicitamente, senão o app
+    // fica vinculado à WABA mas sem nenhum campo de evento → recebimento quebra silenciosamente.
     if (actions.includes("subscribe_webhook")) {
       try {
         const subResp = await fetch(
@@ -135,6 +137,15 @@ Deno.serve(async (req) => {
               "Authorization": `Bearer ${config.access_token}`,
               "Content-Type": "application/json",
             },
+            body: JSON.stringify({
+              subscribed_fields: [
+                "messages",
+                "message_template_status_update",
+                "account_update",
+                "phone_number_quality_update",
+                "phone_number_name_update",
+              ],
+            }),
           },
         );
         const subData = await subResp.json();

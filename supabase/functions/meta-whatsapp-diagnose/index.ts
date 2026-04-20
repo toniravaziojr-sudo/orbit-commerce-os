@@ -190,14 +190,27 @@ Deno.serve(async (req) => {
     checks.phone = phoneData;
 
     // === Check 3: Webhook subscription ===
+    // IMPORTANTE: existir entry em subscribed_apps NÃO garante que os campos
+    // (messages, etc.) estão inscritos. A Graph API v21 não retorna subscribed_fields
+    // para apps comuns, então a única forma confiável de garantir entrega é
+    // re-postar a inscrição com subscribed_fields explícitos sempre que houver
+    // qualquer suspeita (ou periodicamente via monitor).
     const subsResp = await fetch(
       `https://graph.facebook.com/${apiVersion}/${config.waba_id}/subscribed_apps`,
       { headers: { "Authorization": `Bearer ${config.access_token}` } },
     );
     const subsData = await subsResp.json();
-    const isSubscribed = Array.isArray(subsData?.data) && subsData.data.length > 0;
-    checks.webhook = { subscribed: isSubscribed, raw: subsData };
+    const subsList = Array.isArray(subsData?.data) ? subsData.data : [];
+    const isSubscribed = subsList.length > 0;
+    // Tenta detectar se algum app retornou subscribed_fields (alguns apps com permissão retornam).
+    const anyWithFields = subsList.some((a: Record<string, unknown>) => {
+      const fields = (a as { subscribed_fields?: unknown[] }).subscribed_fields;
+      return Array.isArray(fields) && fields.length > 0;
+    });
+    checks.webhook = { subscribed: isSubscribed, has_fields: anyWithFields, raw: subsData };
 
+    // Se não está inscrito OU está inscrito sem fields visíveis há mais de 1 hora sem mensagens,
+    // forçar re-inscrição com fields explícitos.
     if (!isSubscribed) {
       issues.push({
         code: "WEBHOOK_NOT_SUBSCRIBED",
@@ -207,6 +220,19 @@ Deno.serve(async (req) => {
         cause: "A inscrição foi perdida (desconexão, recriação da WABA ou primeira conexão incompleta).",
         action_type: "auto",
         action_label: "Assinar webhook automaticamente",
+      });
+      autoActions.push("subscribe_webhook");
+    } else if (!anyWithFields) {
+      // Inscrição existe mas sem campos visíveis — re-postar para garantir messages está ativo.
+      // Esse é o cenário "saída funciona / entrada não chega" pós-aprovação.
+      issues.push({
+        code: "WEBHOOK_FIELDS_MISSING",
+        severity: "critical",
+        title: "Inscrição de mensagens incompleta",
+        description: "O app está vinculado à conta WhatsApp, mas o campo 'messages' pode não estar ativo. Mensagens recebidas não chegam ao atendimento.",
+        cause: "Pós-migração teste→produção ou troca de App, a inscrição precisa ser re-postada com os campos explícitos.",
+        action_type: "auto",
+        action_label: "Re-inscrever campos automaticamente",
       });
       autoActions.push("subscribe_webhook");
     }
