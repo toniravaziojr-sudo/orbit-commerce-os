@@ -8,6 +8,25 @@ type: preference
 
 ## Slot 1 — Assunto ATUAL
 
+**Tema:** Diagnóstico do webhook do WhatsApp Meta — evidências já confirmadas pelo usuário
+
+**Resumo:**
+- O usuário já enviou repetidas vezes prints da tela oficial de configuração do webhook no painel de developers da Meta e não deve ser solicitado novamente a reenviar a mesma evidência sem fato novo.
+- Evidência visual já confirmada pelo usuário em `developers.facebook.com/.../whatsapp-business/.../wa-settings/`:
+  - URL de callback configurada: `https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/meta-whatsapp-webhook`
+  - Verify token preenchido na tela
+  - Campo `messages` está **assinado/ativado**
+  - Campo `messages` apareceu em **v24.0** no print; vários outros campos estavam em `v25.0`
+- Essa evidência deve ser tratada como já conhecida durante esta linha de investigação, salvo se o usuário informar que mudou algo.
+- Próximos diagnósticos não devem voltar para a etapa de pedir URL/token/messages por print, a menos que haja mudança declarada pelo usuário.
+
+**Docs formais relacionados:**
+- Lacuna documental declarada: não existe doc formal específico consolidando o estado factual confirmado por prints desta investigação; isso é apenas cache operacional do assunto atual.
+
+---
+
+## Slot 2 — Assunto ANTERIOR
+
 **Tema:** Estabilização completa do rastreamento Meta (Pixel + CAPI) v8.27.0
 
 **Resumo:**
@@ -22,23 +41,6 @@ type: preference
 - `docs/especificacoes/storefront/pagina-obrigado.md` — seção "Disparo do Evento Purchase" adicionada
 - `.lovable/memory/constraints/purchase-event-emission-rules.md` — 4 regras anti-regressão (persistência 30d, event_id normalizado, soberania do tenant, leitura correta de inflação)
 - `.lovable/memory/constraints/meta-tracking-quality-strategy.md` — 5 regras de qualidade (`_fbp` sintético, `fbclid` capture, IP via Cloudflare, `user_data` em meio de funil, cobertura mínima ≥95%)
-
----
-
-## Slot 2 — Assunto ANTERIOR
-
-**Tema:** Consolidação do fluxo de checkout/funil + leitura correta da métrica carrinho×checkout
-
-**Resumo:**
-- Investigação de "queda aparente de margem carrinho×checkout" e 3 erros do Pixel concluiu: refator de 18/abr (CheckoutStepWizard com lazy loading + prefetch) **não quebrou nada**.
-- Validação técnica via banco: 27 sessões `converted` com pedido vinculado em 7 dias; 87% dos pedidos com sessão associada; 9 eventos do funil disparando.
-- "Bug das 0 sessões completed" não existe — leitura errada da métrica: o universo correto exclui sessões sem `contact_captured_at`.
-- Queda real de 19/abr começa no topo do funil (-22% PageView), provável sazonalidade de Páscoa + mudanças de campanhas Meta.
-- 3 erros do Pixel (Shared IPs, IPv6, Mismatched IPs) tratados no Slot 1 atual (v8.27.0).
-
-**Docs formais relacionados:**
-- `docs/especificacoes/storefront/checkout.md` §19 — atualizado
-- `.lovable/memory/constraints/checkout-session-funnel-metric-reading.md`
 
 ---
 
