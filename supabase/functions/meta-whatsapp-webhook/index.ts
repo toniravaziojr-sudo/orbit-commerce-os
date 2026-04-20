@@ -135,6 +135,20 @@ Deno.serve(async (req) => {
           if (config) {
             tenantId = config.tenant_id;
             console.log(`[meta-whatsapp-webhook][${traceId}] Routed via whatsapp_configs to tenant: ${tenantId}`);
+
+            // Operational evidence: cache last inbound timestamp + close any post-migration observation window
+            try {
+              await supabase
+                .from("whatsapp_configs")
+                .update({
+                  last_inbound_at: new Date().toISOString(),
+                  migration_observation_until: null,
+                })
+                .eq("tenant_id", tenantId)
+                .eq("provider", "meta");
+            } catch (e) {
+              console.warn(`[meta-whatsapp-webhook][${traceId}] Failed to update last_inbound_at`, e);
+            }
           }
 
           // Second try: test mode - check platform_credentials for test tenant
