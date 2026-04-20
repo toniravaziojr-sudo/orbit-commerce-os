@@ -9,6 +9,7 @@ import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
 import { PaymentMethodBanner } from "@/components/billing/PaymentMethodBanner";
 import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
 import { getComparisonLabel } from "@/lib/date-presets";
+import { WhatsAppHealthCard } from "@/components/command-center/WhatsAppHealthCard";
 
 export function DashboardTab() {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -43,6 +44,8 @@ export function DashboardTab() {
         isLoading={metricsLoading}
         trendLabel={trendLabel}
       />
+
+      <WhatsAppHealthCard />
     </div>
   );
 }
