@@ -1,107 +1,70 @@
 
 
-## Plano de Estabilização — Recepção WhatsApp Meta (foco no presente)
+# Plano: identificar e corrigir o silêncio total de mensagens recebidas
 
-📋 CHECKLIST DE CONFORMIDADE
-- Doc de Regras do Sistema: pendente releitura na execução
-- Doc formal do tema: `infrastructure/whatsapp-meta-integration-standard-v3-2` + `infrastructure/whatsapp/template-approval-workflow-v2` — referenciados; lacuna documental do **Fluxo de Recepção** será criada nesta entrega
-- Fluxo afetado: Webhook Meta → Auditoria → Roteamento por tenant → Conversa → IA (Suporte/Agenda) → Resposta
-- Fonte de verdade: assinatura ativa do webhook na Meta + auditoria de mensagens + token Meta válido
-- Módulos impactados: WhatsApp (recepção), IA Atendimento, IA Agenda, Central de Comando (alertas)
-- Impacto cruzado: qualquer tenant Meta ativo se beneficia (não é específico do Respeite o Homem)
-- UI impactada: card de alerta na Central de Comando — `mapa-ui.md` será atualizado
-- Situação: Aguardando confirmação do usuário
+## Diagnóstico atualizado (com base no cruzamento de hoje)
 
----
+O que está **comprovado funcionando**:
+- Conexão do número ativa, qualidade verde, modo de produção
+- Nosso receptor (webhook) responde corretamente quando a Meta testa
+- O App está inscrito no canal de mensagens com a URL correta
+- Token do tenant válido até junho/2026
 
-## Princípio (anti-regressão)
+O que está **comprovadamente quebrado**:
+- Última mensagem real entrando no nosso sistema foi em **13/02/2026** (2 meses atrás)
+- O painel de análise da própria Meta confirma **zero conversas iniciadas por cliente** nos últimos 7 dias para esse número
+- Ou seja: a Meta também não vê inbound — não é nosso receptor que está perdendo
 
-**Foco:** garantir que **a partir de agora** toda mensagem que entrar seja recebida, roteada e respondida — sem mexer em histórico antigo, sem reprocessar nada de jan/fev. Mensagens órfãs ficam arquivadas como histórico.
+## A hipótese real (nova, ainda não testada)
 
-**Não vou mexer em:**
-- ❌ Mensagens antigas (não reprocessar, não recriar conversa retroativa)
-- ❌ Configuração da Meta do lado do cliente (token, número, billing)
-- ❌ Lógica da IA (Suporte e Agenda continuam como estão)
-- ❌ Versão da API Meta (mantém v25.0 que está funcionando hoje)
+Existe uma camada de inscrição que vive **na conta WhatsApp Business (WABA)**, separada da inscrição do App. Essa camada pode ficar "fantasma": aparece como conectada mas não entrega mais nada. Os sintomas batem 100% com isso:
+- Outbound funciona (não depende dessa camada)
+- Inbound desaparece silenciosamente
+- Diagnóstico interno marca tudo verde porque só checa o nível App
 
-**Vou mexer apenas em:**
-- ✅ Defesas automáticas que detectam quando o fluxo quebra
-- ✅ Auto-reparo da assinatura do webhook (já existe parcialmente, vou completar)
-- ✅ Alarme visível quando algo travar
-- ✅ Documentação do fluxo
+A correção exige re-criar essa inscrição na WABA do zero (não apenas re-postar) e instalar um teste real de "ping inbound" para nunca mais ficar 2 meses no escuro.
 
----
+## O que vou fazer
 
-## Etapas
+### Etapa 1 — Reset cirúrgico da inscrição WhatsApp (sem mexer em código)
+1. **Remover** o vínculo atual do App com a WABA do tenant (DELETE em subscribed_apps)
+2. **Aguardar 30s** para a Meta limpar o cache interno
+3. **Recriar** o vínculo enviando explicitamente o campo `messages` no body
+4. **Confirmar** consultando o endpoint de override (que mostra fields ativos)
 
-### Etapa 1 — Healthcheck completo da assinatura do webhook
-Hoje já existe rotina diária que testa se o token Meta está vivo. Falta a peça crítica: **verificar se a Meta ainda está com o nosso webhook assinado para o campo `messages`**. Foi exatamente isso que silenciou o fluxo por 2 meses.
+Esse passo é reversível e não altera nada do tenant nem do nosso código. Se a hipótese estiver certa, mensagens voltam a chegar imediatamente.
 
-- Estender o healthcheck diário para, em cada tenant Meta ativo, perguntar à Meta: "você ainda está me entregando mensagens?"
-- Se a resposta for não, **reassinar automaticamente** (ação segura, idempotente, já existe no auto-reparo).
-- Se a reassinatura falhar, marcar o tenant como "recepção comprometida" e gerar alerta.
+### Etapa 2 — Teste end-to-end real
+- Disparar template aprovado para o seu número (reabre janela 24h)
+- Você responde "oi"
+- Eu verifico em tempo real se chegou na auditoria bruta
 
-### Etapa 2 — Alarme de mensagem órfã
-Quando uma mensagem cai na auditoria mas não vira conversa em até 5 minutos, isso é um sintoma de bug crítico (foi o que aconteceu em jan/fev).
+### Etapa 3 — Se Etapa 1 não resolver: investigar Business Manager
+A última camada possível é o status do **Business Manager** (nível acima da WABA). Há um caso documentado em que uma alteração no Business Manager pausa silenciosamente as entregas. Vou consultar via Graph API:
+- Status de verificação do business
+- Se há alguma restrição/pause aplicada
+- Se o número foi recentemente migrado entre WABAs (causa conhecida de silêncio)
 
-- Rotina de vigilância a cada 15 minutos: conta mensagens recebidas nas últimas 2h sem processamento.
-- Se houver qualquer uma, gerar incidente visível na Central de Comando do tenant afetado, com nome do número, horário e quantidade.
-- Sem auto-reprocessamento (proibido por princípio nesta entrega) — só visibilidade para decisão humana.
+Se encontrarmos algo aqui, será resolvido no painel da Meta com instruções claras.
 
-### Etapa 3 — Sinal de saúde do fluxo na Central de Comando
-Card simples no painel do tenant mostrando:
-- Última mensagem recebida (data/hora)
-- Última resposta da IA (data/hora)
-- Status da assinatura do webhook (verde/amarelo/vermelho)
-- Se houver órfãs nas últimas 24h, número e botão "ver detalhes"
+### Etapa 4 — Defesa permanente (após confirmação de que voltou)
+Instalar um **canário de inbound**: a cada 6h, um job verifica se houve QUALQUER mensagem recebida no sistema (qualquer tenant). Se ficar mais de 24h sem nenhuma, abre incidente automaticamente. Isso evita que o silêncio se prolongue por meses como aconteceu agora.
 
-Se o número ficar mais de 12h sem receber nada e o tenant tiver volume normal, alerta amarelo. Mais de 24h, vermelho.
+## Por que esse plano é diferente das tentativas anteriores
 
-### Etapa 4 — Validação técnica obrigatória
-Antes de declarar entrega:
-1. Forçar uma derrubada simulada da assinatura e confirmar que o healthcheck detecta + reassina sozinho.
-2. Inserir uma mensagem fake na auditoria sem processamento e confirmar que o alarme dispara em até 15 min.
-3. Confirmar que o card da Central de Comando mostra dados reais do Respeite o Homem (última mensagem, status verde).
-4. Conferir que crons novos estão registrados e ativos.
+| Tentativa anterior | Este plano |
+|---|---|
+| Re-postar inscrição no nível App | Resetar inscrição no nível WABA (camada diferente) |
+| Confiar em "está verde" no diagnóstico | Provar com analytics da própria Meta que ela não vê inbound |
+| Pedir aprovação de display name | Descartado — não bloqueia inbound, só limita outbound |
+| Endurecer monitor existente | Adicionar canário de inbound real (não confia em status, confia em fato) |
 
-Bloco obrigatório:
-```
-🔍 VALIDAÇÃO TÉCNICA EXECUTADA:
-- [item testado]
-- [resultado: ✅ | ❌]
-- [pendência do usuário, se aplicável]
-```
+## O que preciso de você
+Apenas **confirmar** que posso executar a Etapa 1 (reset da inscrição). Ela não interrompe o serviço — outbound continua normal, e se inbound estiver mesmo "fantasma", ele só pode melhorar.
 
-### Etapa 5 — Teste E2E real (você + eu)
-- Você manda "oi" do seu celular (73991681425) para o número da loja.
-- Eu acompanho em tempo real: chegou na auditoria → criou conversa → IA respondeu → status final ok.
-- Repetir com 1 áudio curto e 1 imagem para cobrir os tipos mais comuns.
-
-### Etapa 6 — Documentação
-1. **Criar doc Layer 3:** `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` — fluxo completo Webhook → Auditoria → Roteamento → IA → Resposta, com contratos, gatilhos e mecanismos de defesa.
-2. **Atualizar memória** `infrastructure/whatsapp-meta-integration-standard-v3-2` para a v3.3 incluindo: healthcheck de assinatura obrigatório, alarme de órfã, card de saúde.
-3. **Criar memória anti-regressão** `constraints/whatsapp-inbound-pipeline-must-never-be-silent`: regra "mensagem na auditoria sem processamento em 5 min = incidente crítico" + "assinatura do webhook precisa ser verificada diariamente, não só o token".
-4. **Atualizar** `docs/especificacoes/transversais/mapa-ui.md` com o novo card da Central de Comando.
-5. **Atualizar `recent-topics.md`** rotacionando slot conforme política de memória.
-
----
-
-## Bloco de fechamento obrigatório
-Ao final entrego:
-- 🔍 VALIDAÇÃO TÉCNICA EXECUTADA preenchido
-- 📝 DOCUMENTAÇÃO NECESSÁRIA preenchido
-- 📌 STATUS: avançando de "Diagnóstico" → "Ajuste aplicado — pendente de validação" → "Corrigido e validado" só após teste E2E com você
-
----
-
-## Ordem de execução
-1. Etapas 1+2+3 (defesas + alarme + card)
-2. Deploy
-3. Etapa 4 (validação técnica)
-4. Etapa 5 (teste E2E com você)
-5. Etapa 6 (documentação)
-
-**Estimativa:** 1 loop completo. Sem tocar em mensagens antigas, sem reprocessamento, sem regressão.
-
-📌 STATUS: Aguardando sua confirmação para sair do modo Plan e executar.
+## Bloco técnico (opcional)
+- DELETE → POST sequence em `/{WABA_ID}/subscribed_apps` com `subscribed_fields=["messages",...]` no body
+- Consulta a `conversation_analytics` da WABA para validação independente
+- Verificação do Business Manager via `/{BUSINESS_ID}?fields=verification_status,primary_page,is_disabled_for_integrity_reasons`
+- Novo cron `whatsapp-inbound-canary-6h` checando `MAX(timestamp) FROM whatsapp_inbound_messages` global
 
