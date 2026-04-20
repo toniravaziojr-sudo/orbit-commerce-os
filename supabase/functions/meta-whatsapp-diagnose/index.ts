@@ -209,7 +209,18 @@ Deno.serve(async (req) => {
       const waAppSub = appSubsList.find((sub: Record<string, unknown>) => sub.object === "whatsapp_business_account") as Record<string, unknown> | undefined;
       const callbackUrl = typeof waAppSub?.callback_url === "string" ? waAppSub.callback_url : null;
       const callbackMatches = !!callbackUrl && callbackUrl.replace(/\/$/, "") === expectedCallbackUrl.replace(/\/$/, "");
-      const fields = Array.isArray(waAppSub?.fields) ? waAppSub.fields.map(String) : [];
+      const fields = Array.isArray(waAppSub?.fields)
+        ? waAppSub.fields
+            .map((field) => {
+              if (typeof field === "string") return field;
+              if (field && typeof field === "object" && "name" in field) {
+                const name = (field as { name?: unknown }).name;
+                return typeof name === "string" ? name : null;
+              }
+              return null;
+            })
+            .filter((field): field is string => !!field)
+        : [];
       const hasMessagesField = fields.length > 0 ? fields.includes("messages") : null;
       const active = waAppSub?.active === true;
 
@@ -220,6 +231,7 @@ Deno.serve(async (req) => {
         expected_callback_url: expectedCallbackUrl,
         callback_matches: callbackMatches,
         has_messages_field: hasMessagesField,
+        fields,
         raw: appSubsData,
       };
 
@@ -368,6 +380,7 @@ Deno.serve(async (req) => {
     await supabase.from("whatsapp_configs").update({
       last_diagnosed_at: new Date().toISOString(),
       last_health_payload: {
+        diagnosis_status: overallStatus,
         phone: phoneData?.health_status,
         webhook: checks.webhook,
         app_webhook: checks.app_webhook,

@@ -49,6 +49,10 @@ interface WhatsAppWebhookPayload {
   entry: WhatsAppWebhookEntry[];
 }
 
+function normalizePhone(phone?: string | null) {
+  return phone ? phone.replace(/\D/g, "") : "";
+}
+
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
   console.log(`[meta-whatsapp-webhook][${traceId}] Request received: ${req.method}`);
@@ -167,8 +171,9 @@ Deno.serve(async (req) => {
           if (value.messages && value.messages.length > 0) {
             for (const message of value.messages) {
               const contact = value.contacts?.[0];
-              const customerPhone = message.from;
+              const customerPhone = normalizePhone(message.from);
               const customerName = contact?.profile?.name || customerPhone;
+              const destinationPhone = normalizePhone(value.metadata.display_phone_number);
               
               let messageContent = "";
               let messageType = message.type;
@@ -201,7 +206,7 @@ Deno.serve(async (req) => {
                   provider: "meta",
                   external_message_id: message.id,
                   from_phone: customerPhone,
-                  to_phone: value.metadata.display_phone_number,
+                  to_phone: destinationPhone,
                   message_type: messageType,
                   message_content: messageContent,
                   media_url: mediaUrl,
@@ -217,13 +222,15 @@ Deno.serve(async (req) => {
               const inboundId = inboundRow?.id || null;
 
               // ═══ ROUTING DECISION: Admin (Agenda) vs Customer (Support) ═══
-              const { data: authorizedPhone } = await supabase
+              const { data: authorizedPhones } = await supabase
                 .from("agenda_authorized_phones")
-                .select("id")
+                .select("id, phone")
                 .eq("tenant_id", tenantId)
-                .eq("phone", customerPhone)
-                .eq("is_active", true)
-                .maybeSingle();
+                .eq("is_active", true);
+
+              const authorizedPhone = (authorizedPhones || []).find(
+                (phone) => normalizePhone(phone.phone) === customerPhone,
+              );
 
               if (authorizedPhone) {
                 // ── ROUTE TO AGENDA AGENT ──
