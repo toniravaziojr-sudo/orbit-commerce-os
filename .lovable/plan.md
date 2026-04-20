@@ -1,70 +1,127 @@
+📋 CHECKLIST DE CONFORMIDADE:
+- Doc de Regras do Sistema lido
+- Doc formal do tema lido
+- Fluxo afetado identificado
+- Fonte de verdade identificada
+- Módulos impactados listados
+- Impacto cruzado mapeado
+- UI impactada? mapa-ui.md atualizado (ou lacuna declarada): deverá ser atualizado
+- Situação: Sem ação de escrita proposta ainda
 
+📌 STATUS DA ENTREGA: Proposta
 
-# Plano: identificar e corrigir o silêncio total de mensagens recebidas
+## Como funciona hoje
+Hoje o sistema separa parcialmente duas coisas:
+1. ativação técnica do canal;
+2. saúde operacional do recebimento.
 
-## Diagnóstico atualizado (com base no cruzamento de hoje)
+Mas ainda existe um ponto crítico: quando a troca de WABA acontece, o sistema passa a tratar o novo vínculo como “conectado” cedo demais. Em paralelo, outras partes do produto continuam lendo esse sinal binário de conexão como se ele significasse “está funcionando de ponta a ponta”.
 
-O que está **comprovado funcionando**:
-- Conexão do número ativa, qualidade verde, modo de produção
-- Nosso receptor (webhook) responde corretamente quando a Meta testa
-- O App está inscrito no canal de mensagens com a URL correta
-- Token do tenant válido até junho/2026
+Além disso, as regras anti-regressão hoje existem em mais de um lugar, mas não como uma única regra formal e obrigatória do fluxo. Por isso elas não estão impedindo o retorno ao mesmo diagnóstico.
 
-O que está **comprovadamente quebrado**:
-- Última mensagem real entrando no nosso sistema foi em **13/02/2026** (2 meses atrás)
-- O painel de análise da própria Meta confirma **zero conversas iniciadas por cliente** nos últimos 7 dias para esse número
-- Ou seja: a Meta também não vê inbound — não é nosso receptor que está perdendo
+## O problema
+O seu caso confirma um padrão estrutural:
 
-## A hipótese real (nova, ainda não testada)
+- antes da troca de WABA, o atendimento funcionava;
+- depois da troca, o sistema manteve sinais de “conectado”;
+- isso permite regressão de leitura e volta ao mesmo loop de hipótese já vencida.
 
-Existe uma camada de inscrição que vive **na conta WhatsApp Business (WABA)**, separada da inscrição do App. Essa camada pode ficar "fantasma": aparece como conectada mas não entrega mais nada. Os sintomas batem 100% com isso:
-- Outbound funciona (não depende dessa camada)
-- Inbound desaparece silenciosamente
-- Diagnóstico interno marca tudo verde porque só checa o nível App
+Também identifiquei uma segunda falha de governança:
+- a memória não pode ser a fonte principal dessas regras;
+- se a regra anti-regressão ficar só como reforço comportamental, ela não blinda o fluxo;
+- ela precisa existir nos documentos formais e no diagnóstico operacional do produto.
 
-A correção exige re-criar essa inscrição na WABA do zero (não apenas re-postar) e instalar um teste real de "ping inbound" para nunca mais ficar 2 meses no escuro.
+Em termos práticos, hoje falta uma proteção específica para o cenário “migração/troca de WABA”: o sistema não rebaixa automaticamente o status para “vínculo trocado, operação ainda não comprovada”.
 
-## O que vou fazer
+## O que eu faria
+### 1) Corrigir a lógica do pós-troca de WABA
+Criar um estado operacional específico para troca/migração de WABA, algo na linha de:
+- vinculado, mas sem operação comprovada;
+- vinculado, em observação pós-migração;
+- recepção comprometida após troca de conta;
+- operando normalmente.
 
-### Etapa 1 — Reset cirúrgico da inscrição WhatsApp (sem mexer em código)
-1. **Remover** o vínculo atual do App com a WABA do tenant (DELETE em subscribed_apps)
-2. **Aguardar 30s** para a Meta limpar o cache interno
-3. **Recriar** o vínculo enviando explicitamente o campo `messages` no body
-4. **Confirmar** consultando o endpoint de override (que mostra fields ativos)
+Objetivo: impedir que a troca de WABA seja tratada como sucesso completo só porque os identificadores foram salvos.
 
-Esse passo é reversível e não altera nada do tenant nem do nosso código. Se a hipótese estiver certa, mensagens voltam a chegar imediatamente.
+### 2) Separar de vez “vínculo” de “operação real”
+Padronizar a leitura do WhatsApp em duas camadas obrigatórias:
+- camada 1: vínculo/configuração
+- camada 2: operação real de recepção
 
-### Etapa 2 — Teste end-to-end real
-- Disparar template aprovado para o seu número (reabre janela 24h)
-- Você responde "oi"
-- Eu verifico em tempo real se chegou na auditoria bruta
+A interface e os alertas passariam a usar sempre as duas camadas juntas, nunca apenas “conectado/desconectado”.
 
-### Etapa 3 — Se Etapa 1 não resolver: investigar Business Manager
-A última camada possível é o status do **Business Manager** (nível acima da WABA). Há um caso documentado em que uma alteração no Business Manager pausa silenciosamente as entregas. Vou consultar via Graph API:
-- Status de verificação do business
-- Se há alguma restrição/pause aplicada
-- Se o número foi recentemente migrado entre WABAs (causa conhecida de silêncio)
+Objetivo: parar de chamar de saudável um canal que só está tecnicamente vinculado.
 
-Se encontrarmos algo aqui, será resolvido no painel da Meta com instruções claras.
+### 3) Instalar uma regra anti-regressão formal no lugar certo
+Essa regra deve ser armazenada em 3 níveis com papéis diferentes:
 
-### Etapa 4 — Defesa permanente (após confirmação de que voltou)
-Instalar um **canário de inbound**: a cada 6h, um job verifica se houve QUALQUER mensagem recebida no sistema (qualquer tenant). Se ficar mais de 24h sem nenhuma, abre incidente automaticamente. Isso evita que o silêncio se prolongue por meses como aconteceu agora.
+- Documento formal do módulo: regra funcional do fluxo de troca de WABA e validação do canal
+- Base de conhecimento técnico: lição anti-regressão do bug e padrão proibido
+- Memória: apenas reforço curto para evitar repetição imediata nas próximas sessões
 
-## Por que esse plano é diferente das tentativas anteriores
+Resposta direta à sua pergunta: a regra não deve depender só da memória. O lugar principal é a documentação formal do sistema e a base técnica. A memória entra só como lembrete complementar.
 
-| Tentativa anterior | Este plano |
-|---|---|
-| Re-postar inscrição no nível App | Resetar inscrição no nível WABA (camada diferente) |
-| Confiar em "está verde" no diagnóstico | Provar com analytics da própria Meta que ela não vê inbound |
-| Pedir aprovação de display name | Descartado — não bloqueia inbound, só limita outbound |
-| Endurecer monitor existente | Adicionar canário de inbound real (não confia em status, confia em fato) |
+### 4) Ajustar os pontos da interface que hoje leem só “conectado”
+Atualizar os pontos que hoje resumem WhatsApp como pronto/não pronto para que passem a mostrar:
+- vinculado
+- aguardando comprovação operacional
+- recepção instável
+- recepção comprometida
+- saudável
 
-## O que preciso de você
-Apenas **confirmar** que posso executar a Etapa 1 (reset da inscrição). Ela não interrompe o serviço — outbound continua normal, e se inbound estiver mesmo "fantasma", ele só pode melhorar.
+Objetivo: evitar leitura falsa de normalidade no hub de integrações, alertas e painel principal.
 
-## Bloco técnico (opcional)
-- DELETE → POST sequence em `/{WABA_ID}/subscribed_apps` com `subscribed_fields=["messages",...]` no body
-- Consulta a `conversation_analytics` da WABA para validação independente
-- Verificação do Business Manager via `/{BUSINESS_ID}?fields=verification_status,primary_page,is_disabled_for_integrity_reasons`
-- Novo cron `whatsapp-inbound-canary-6h` checando `MAX(timestamp) FROM whatsapp_inbound_messages` global
+### 5) Criar detecção automática para “troca de WABA sem validação operacional”
+Sempre que houver mudança de conta/número vinculados, o sistema deve:
+- abrir um período de observação;
+- exigir nova evidência operacional;
+- gerar alerta se não houver confirmação de recebimento;
+- impedir que o status final volte para “saudável” só com vínculo técnico.
 
+Objetivo: tornar esse tipo de quebra visível e tratável sem depender de interpretação manual.
+
+## Resultado final
+Depois do ajuste, o sistema vai:
+- reconhecer troca de WABA como evento sensível;
+- parar de marcar o canal como plenamente saudável cedo demais;
+- mostrar claramente a diferença entre “está vinculado” e “está funcionando”;
+- registrar a anti-regressão no lugar correto;
+- reduzir muito a chance de voltar ao mesmo diagnóstico já vencido.
+
+## Onde a regra anti-regressão deve ficar
+Fonte principal:
+- documentação formal do fluxo de WhatsApp/atendimento e integrações
+
+Reforço técnico obrigatório:
+- base de conhecimento técnico do projeto
+
+Reforço operacional temporário:
+- memória da IA
+
+Regra prática:
+- se estiver só na memória, não está blindado o suficiente
+- se estiver no doc formal + base técnica, aí vira regra de verdade do sistema
+
+## Implementação proposta
+1. Revisar o fluxo de troca de WABA e criar estado de observação pós-migração
+2. Reclassificar os status públicos do WhatsApp em vínculo vs operação
+3. Atualizar os pontos da interface que ainda usam leitura binária
+4. Registrar a anti-regressão no doc formal do módulo
+5. Registrar o caso na base de conhecimento técnico
+6. Atualizar o mapa de UI, porque haverá mudança de estados e mensagens visíveis
+7. Validar o cenário completo de troca de WABA até recepção real
+
+## Validação técnica prevista após implementação
+- Confirmar que uma troca de WABA não deixa mais o canal aparecer como saudável imediatamente
+- Confirmar que o painel principal, integrações e atendimento exibem o mesmo estado
+- Confirmar que ausência de recepção após migração gera alerta operacional
+- Confirmar que a presença de vínculo técnico sem operação cai em estado intermediário, não em “ok”
+- Confirmar que o fluxo volta para saudável somente após evidência real de operação
+
+## Documentação necessária
+📝 DOCUMENTAÇÃO NECESSÁRIA:
+- Documento de integrações: incluir regra de troca de WABA e estado pós-migração
+- Documento de CRM/atendimento: incluir distinção obrigatória entre vínculo e operação real
+- Base de conhecimento técnico: registrar este bug como anti-regressão estrutural
+- Mapa de UI: atualizar estados e mensagens visíveis do WhatsApp
+- Memória: manter apenas como reforço, nunca como fonte principal
