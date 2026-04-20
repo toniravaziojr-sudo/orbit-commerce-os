@@ -78,11 +78,14 @@ export function useIntegrationStatus() {
     },
     whatsapp: {
       name: "WhatsApp",
-      isConfigured: whatsappStatus.isConfigured,
+      // Linked: technical connection exists. Connected: ALSO has operational evidence.
+      isConfigured: whatsappStatus.isLinked,
       isConnected: whatsappStatus.isConnected,
       isLoading: whatsappLoading,
       redirectPath: "/integrations",
-      buttonText: "Configurar WhatsApp",
+      buttonText: whatsappStatus.isLinked && !whatsappStatus.isOperational
+        ? "Validar recepção do WhatsApp"
+        : "Configurar WhatsApp",
     },
     redes_sociais: {
       name: "Redes Sociais",
