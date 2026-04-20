@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       .from("messages")
       .select("created_at, sender_type")
       .eq("tenant_id", tenant_id)
-      .in("sender_type", ["bot", "ai", "agent_ai"])
+      .eq("sender_type", "bot")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
