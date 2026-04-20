@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     // Config do WhatsApp
     const { data: cfg } = await supabase
       .from("whatsapp_configs")
-      .select("provider, is_enabled, connection_status, webhook_subscribed_at, last_diagnosed_at, last_error, display_phone_number")
+      .select("provider, is_enabled, connection_status, webhook_subscribed_at, last_diagnosed_at, last_error, display_phone_number, last_health_payload")
       .eq("tenant_id", tenant_id)
       .eq("provider", "meta")
       .maybeSingle();
@@ -82,9 +82,17 @@ Deno.serve(async (req) => {
     // Última resposta da IA (mensagem outbound do tipo bot)
     const { data: lastOut } = await supabase
       .from("messages")
-      .select("created_at, sender_type")
+      .select("created_at, sender_type, conversation_id")
       .eq("tenant_id", tenant_id)
       .eq("sender_type", "bot")
+      .in("conversation_id", await (async () => {
+        const { data: botConversations } = await supabase
+          .from("conversations")
+          .select("id")
+          .eq("tenant_id", tenant_id)
+          .eq("channel_type", "whatsapp");
+        return (botConversations || []).map((row) => row.id);
+      })())
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -98,8 +106,25 @@ Deno.serve(async (req) => {
       .order("detected_at", { ascending: false });
 
     // Status da assinatura
+    const healthPayload = (cfg.last_health_payload || {}) as Record<string, any>;
+    const diagnosisStatus = healthPayload?.diagnosis_status as string | undefined;
+    const hasCriticalIssues = Array.isArray(healthPayload?.issues)
+      ? healthPayload.issues.some((issue: Record<string, unknown>) => issue?.severity === "critical")
+      : false;
+    const appWebhookMatches = healthPayload?.app_webhook?.callback_matches === true;
+    const appWebhookMessages = healthPayload?.app_webhook?.has_messages_field === true;
+    const wabaSubscribed = healthPayload?.webhook?.subscribed === true;
+
     let subscriptionStatus: "green" | "yellow" | "red" = "green";
-    if (cfg.connection_status === "token_invalid" || cfg.connection_status === "disconnected") {
+    if (
+      cfg.connection_status === "token_invalid" ||
+      cfg.connection_status === "disconnected" ||
+      diagnosisStatus === "needs_attention" ||
+      hasCriticalIssues ||
+      !appWebhookMatches ||
+      !appWebhookMessages ||
+      !wabaSubscribed
+    ) {
       subscriptionStatus = "red";
     } else if (!cfg.webhook_subscribed_at) {
       subscriptionStatus = "yellow";
@@ -135,6 +160,7 @@ Deno.serve(async (req) => {
         last_error: cfg.last_error,
         webhook_subscribed_at: cfg.webhook_subscribed_at,
         last_diagnosed_at: cfg.last_diagnosed_at,
+        diagnosis_status: diagnosisStatus || null,
         last_inbound_at: lastIn?.timestamp || null,
         last_inbound_processed: lastIn?.processed_at !== null,
         last_ai_reply_at: lastOut?.created_at || null,
