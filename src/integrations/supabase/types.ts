@@ -20286,6 +20286,51 @@ export type Database = {
           },
         ]
       }
+      whatsapp_webhook_raw_audit: {
+        Row: {
+          body_preview: string | null
+          body_sha256: string | null
+          content_length: number | null
+          headers_json: Json | null
+          id: string
+          method: string | null
+          query_string: string | null
+          received_at: string
+          remote_ip: string | null
+          signature_header: string | null
+          trace_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          body_preview?: string | null
+          body_sha256?: string | null
+          content_length?: number | null
+          headers_json?: Json | null
+          id?: string
+          method?: string | null
+          query_string?: string | null
+          received_at?: string
+          remote_ip?: string | null
+          signature_header?: string | null
+          trace_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          body_preview?: string | null
+          body_sha256?: string | null
+          content_length?: number | null
+          headers_json?: Json | null
+          id?: string
+          method?: string | null
+          query_string?: string | null
+          received_at?: string
+          remote_ip?: string | null
+          signature_header?: string | null
+          trace_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       wms_pratika_configs: {
         Row: {
           auto_send_label: boolean
