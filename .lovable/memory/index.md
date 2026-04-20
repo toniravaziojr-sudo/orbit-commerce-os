@@ -17,6 +17,7 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 7. **Memória limitada a governança + 2 últimos assuntos** — Rotação obrigatória; nunca guardar regra de sistema que não esteja nos docs.
 
 ## Memories
+- [WhatsApp Diagnóstico respeiteohomem](mem://constraints/whatsapp-respeiteohomem-connection-over-meta) — Não voltar a priorizar Meta/display name sem evidência nova; investigar conexão/pipeline primeiro
 
 - [Working Rules](mem://governance/working-rules) — Os 5 lembretes detalhados de comportamento
 - [Documentation Governance](mem://governance/documentation-governance) — Regra de Ouro e hierarquia de 6 camadas de docs
