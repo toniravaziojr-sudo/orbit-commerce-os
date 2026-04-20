@@ -19913,8 +19913,13 @@ export type Database = {
           last_disconnected_at: string | null
           last_error: string | null
           last_health_payload: Json | null
+          last_inbound_at: string | null
+          linked_at: string | null
+          migration_observation_until: string | null
           phone_number: string | null
           phone_number_id: string | null
+          previous_phone_number_id: string | null
+          previous_waba_id: string | null
           provider: string
           qr_code: string | null
           qr_expires_at: string | null
@@ -19943,8 +19948,13 @@ export type Database = {
           last_disconnected_at?: string | null
           last_error?: string | null
           last_health_payload?: Json | null
+          last_inbound_at?: string | null
+          linked_at?: string | null
+          migration_observation_until?: string | null
           phone_number?: string | null
           phone_number_id?: string | null
+          previous_phone_number_id?: string | null
+          previous_waba_id?: string | null
           provider?: string
           qr_code?: string | null
           qr_expires_at?: string | null
@@ -19973,8 +19983,13 @@ export type Database = {
           last_disconnected_at?: string | null
           last_error?: string | null
           last_health_payload?: Json | null
+          last_inbound_at?: string | null
+          linked_at?: string | null
+          migration_observation_until?: string | null
           phone_number?: string | null
           phone_number_id?: string | null
+          previous_phone_number_id?: string | null
+          previous_waba_id?: string | null
           provider?: string
           qr_code?: string | null
           qr_expires_at?: string | null

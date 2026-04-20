@@ -39,19 +39,26 @@ export function WhatsAppHealthCard() {
     return null;
   }
 
-  const subColor =
-    data.subscription_status === "red"
-      ? "bg-destructive text-destructive-foreground"
-      : data.subscription_status === "yellow"
-      ? "bg-yellow-500 text-white"
-      : "bg-emerald-500 text-white";
+  const link = data.link_status ?? "broken";
+  const op = data.operational_status ?? "unknown";
 
-  const subLabel =
-    data.subscription_status === "red"
-      ? "Recepção comprometida"
-      : data.subscription_status === "yellow"
-      ? "Atenção"
-      : "Recebendo normalmente";
+  const badgeColor =
+    link === "broken" || op === "no_delivery"
+      ? "bg-destructive text-destructive-foreground"
+      : link === "incomplete" || op === "observation" || op === "degraded"
+      ? "bg-yellow-500 text-white"
+      : op === "healthy"
+      ? "bg-emerald-500 text-white"
+      : "bg-muted text-foreground";
+
+  const badgeLabel =
+    link === "broken" ? "Vínculo com defeito"
+    : link === "incomplete" ? "Vínculo incompleto"
+    : op === "healthy" ? "Recebendo normalmente"
+    : op === "observation" ? (data.in_post_migration_observation ? "Em observação pós-migração" : "Aguardando comprovação")
+    : op === "degraded" ? "Recepção instável"
+    : op === "no_delivery" ? "Recepção comprometida"
+    : "Operação não comprovada";
 
   const hasIncidents = (data.open_incidents?.length || 0) > 0;
   const showSilenceAlert = data.silence_alert && data.silence_alert !== "none";
@@ -69,10 +76,25 @@ export function WhatsAppHealthCard() {
               </span>
             )}
           </CardTitle>
-          <Badge className={subColor}>{subLabel}</Badge>
+          <Badge className={badgeColor}>{badgeLabel}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Vínculo técnico</div>
+            <div className="mt-1 font-medium">
+              {data.link_label ?? (link === "connected" ? "Ativo" : link === "incomplete" ? "Incompleto" : "Com defeito")}
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Operação real</div>
+            <div className="mt-1 font-medium">
+              {data.operational_label ?? "Não comprovada"}
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-lg border p-3">
             <div className="text-xs text-muted-foreground">Última mensagem recebida</div>
@@ -84,7 +106,24 @@ export function WhatsAppHealthCard() {
           </div>
         </div>
 
-        {showSilenceAlert && (
+        {data.in_post_migration_observation && (
+          <div className="flex items-start gap-2 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm dark:bg-yellow-950/30">
+            <Clock className="mt-0.5 h-4 w-4 text-yellow-600" />
+            <div>
+              <div className="font-medium text-yellow-900 dark:text-yellow-200">
+                Vínculo trocado — operação ainda não comprovada
+              </div>
+              <div className="text-xs text-yellow-800 dark:text-yellow-300">
+                A conta ou o número do WhatsApp foi alterado. O canal só voltará a "saudável" após o sistema confirmar uma mensagem real chegando neste número.
+                {data.previous_phone_number_id && (
+                  <> Número anterior: <span className="font-mono">{data.previous_phone_number_id}</span>.</>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showSilenceAlert && !data.in_post_migration_observation && (
           <div className="flex items-start gap-2 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm dark:bg-yellow-950/30">
             <Clock className="mt-0.5 h-4 w-4 text-yellow-600" />
             <div>

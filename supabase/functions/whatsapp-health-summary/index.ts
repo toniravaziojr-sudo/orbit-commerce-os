@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     // Config do WhatsApp
     const { data: cfg } = await supabase
       .from("whatsapp_configs")
-      .select("provider, is_enabled, connection_status, webhook_subscribed_at, last_diagnosed_at, last_error, display_phone_number, last_health_payload")
+      .select("provider, is_enabled, connection_status, webhook_subscribed_at, last_diagnosed_at, last_error, display_phone_number, last_health_payload, phone_number_id, waba_id, previous_phone_number_id, previous_waba_id, linked_at, migration_observation_until, last_inbound_at")
       .eq("tenant_id", tenant_id)
       .eq("provider", "meta")
       .maybeSingle();
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       .eq("status", "open")
       .order("detected_at", { ascending: false });
 
-    // Status da assinatura
+    // === LAYER 1: vínculo técnico ===
     const healthPayload = (cfg.last_health_payload || {}) as Record<string, any>;
     const diagnosisStatus = healthPayload?.diagnosis_status as string | undefined;
     const hasCriticalIssues = Array.isArray(healthPayload?.issues)
@@ -115,30 +115,72 @@ Deno.serve(async (req) => {
     const appWebhookMessages = healthPayload?.app_webhook?.has_messages_field === true;
     const wabaSubscribed = healthPayload?.webhook?.subscribed === true;
 
-    let subscriptionStatus: "green" | "yellow" | "red" = "green";
-    if (
-      cfg.connection_status === "token_invalid" ||
-      cfg.connection_status === "disconnected" ||
-      diagnosisStatus === "needs_attention" ||
-      hasCriticalIssues ||
-      !appWebhookMatches ||
-      !appWebhookMessages ||
-      !wabaSubscribed
-    ) {
-      subscriptionStatus = "red";
+    const tokenBroken = cfg.connection_status === "token_invalid" || cfg.connection_status === "disconnected";
+    const linkBroken = tokenBroken || diagnosisStatus === "needs_attention" || hasCriticalIssues
+      || !appWebhookMatches || !appWebhookMessages || !wabaSubscribed;
+
+    let linkStatus: "connected" | "incomplete" | "broken" = "connected";
+    let linkLabel = "Vínculo técnico ativo";
+    if (tokenBroken) {
+      linkStatus = "broken";
+      linkLabel = "Conta Meta desconectada";
+    } else if (linkBroken) {
+      linkStatus = "broken";
+      linkLabel = "Vínculo com defeito";
     } else if (!cfg.webhook_subscribed_at) {
-      subscriptionStatus = "yellow";
-    } else {
-      const ageHours = (Date.now() - new Date(cfg.webhook_subscribed_at).getTime()) / 36e5;
-      if (ageHours > 48) subscriptionStatus = "yellow"; // monitor diário deveria refrescar
+      linkStatus = "incomplete";
+      linkLabel = "Vínculo incompleto";
     }
 
-    // Alerta de silêncio (sem mensagem nas últimas N horas)
+    // === LAYER 2: operação real ===
+    const lastInboundAt = lastIn?.timestamp || cfg.last_inbound_at || null;
+    const observationUntil = cfg.migration_observation_until ? new Date(cfg.migration_observation_until).getTime() : null;
+    const inObservation = observationUntil !== null && observationUntil > Date.now();
+    const justSwapped = !!cfg.previous_phone_number_id || !!cfg.previous_waba_id;
+
+    const hoursSinceInbound = lastInboundAt
+      ? (Date.now() - new Date(lastInboundAt).getTime()) / 36e5
+      : null;
+
+    let operationalStatus: "healthy" | "observation" | "degraded" | "no_delivery" | "unknown" = "unknown";
+    let operationalLabel = "Operação ainda não comprovada";
+
+    if (linkStatus === "broken") {
+      operationalStatus = "no_delivery";
+      operationalLabel = "Recepção comprometida";
+    } else if (inObservation && hoursSinceInbound === null) {
+      operationalStatus = "observation";
+      operationalLabel = justSwapped
+        ? "Vínculo trocado, aguardando primeira mensagem"
+        : "Aguardando comprovação operacional";
+    } else if (hoursSinceInbound !== null && hoursSinceInbound < 12) {
+      operationalStatus = "healthy";
+      operationalLabel = "Recebendo normalmente";
+    } else if (hoursSinceInbound !== null && hoursSinceInbound < 24) {
+      operationalStatus = "degraded";
+      operationalLabel = "Recepção instável";
+    } else if (hoursSinceInbound !== null) {
+      operationalStatus = "no_delivery";
+      operationalLabel = "Sem mensagens há mais de 24h";
+    } else if (!inObservation) {
+      // No inbound ever and outside observation window
+      operationalStatus = "no_delivery";
+      operationalLabel = "Nunca recebeu mensagens";
+    }
+
+    // === Status público combinado (semáforo legacy mantido p/ compatibilidade) ===
+    let subscriptionStatus: "green" | "yellow" | "red" = "green";
+    if (linkStatus === "broken" || operationalStatus === "no_delivery") {
+      subscriptionStatus = "red";
+    } else if (linkStatus === "incomplete" || operationalStatus === "observation" || operationalStatus === "degraded") {
+      subscriptionStatus = "yellow";
+    }
+
+    // Alerta de silêncio
     let silenceAlert: "none" | "yellow" | "red" = "none";
-    if (lastIn?.timestamp) {
-      const hoursSilent = (Date.now() - new Date(lastIn.timestamp).getTime()) / 36e5;
-      if (hoursSilent > 24) silenceAlert = "red";
-      else if (hoursSilent > 12) silenceAlert = "yellow";
+    if (hoursSinceInbound !== null) {
+      if (hoursSinceInbound > 24) silenceAlert = "red";
+      else if (hoursSinceInbound > 12) silenceAlert = "yellow";
     }
 
     // Contagem de órfãs nas últimas 24h
@@ -161,9 +203,20 @@ Deno.serve(async (req) => {
         webhook_subscribed_at: cfg.webhook_subscribed_at,
         last_diagnosed_at: cfg.last_diagnosed_at,
         diagnosis_status: diagnosisStatus || null,
-        last_inbound_at: lastIn?.timestamp || null,
+        last_inbound_at: lastInboundAt,
         last_inbound_processed: lastIn?.processed_at !== null,
         last_ai_reply_at: lastOut?.created_at || null,
+        // Layered status (new)
+        link_status: linkStatus,
+        link_label: linkLabel,
+        operational_status: operationalStatus,
+        operational_label: operationalLabel,
+        in_post_migration_observation: inObservation,
+        observation_until: cfg.migration_observation_until || null,
+        previous_phone_number_id: cfg.previous_phone_number_id || null,
+        previous_waba_id: cfg.previous_waba_id || null,
+        linked_at: cfg.linked_at || null,
+        // Legacy
         subscription_status: subscriptionStatus,
         silence_alert: silenceAlert,
         orphan_count_24h: orphanCount || 0,

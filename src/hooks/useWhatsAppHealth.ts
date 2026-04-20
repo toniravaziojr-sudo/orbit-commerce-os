@@ -2,6 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
+export type WhatsAppLinkStatus = "connected" | "incomplete" | "broken";
+export type WhatsAppOperationalStatus =
+  | "healthy"
+  | "observation"
+  | "degraded"
+  | "no_delivery"
+  | "unknown";
+
 export interface WhatsAppHealthSummary {
   configured: boolean;
   is_enabled?: boolean;
@@ -13,6 +21,17 @@ export interface WhatsAppHealthSummary {
   last_inbound_at?: string | null;
   last_inbound_processed?: boolean;
   last_ai_reply_at?: string | null;
+  // Layered status
+  link_status?: WhatsAppLinkStatus;
+  link_label?: string;
+  operational_status?: WhatsAppOperationalStatus;
+  operational_label?: string;
+  in_post_migration_observation?: boolean;
+  observation_until?: string | null;
+  previous_phone_number_id?: string | null;
+  previous_waba_id?: string | null;
+  linked_at?: string | null;
+  // Legacy
   subscription_status?: "green" | "yellow" | "red";
   silence_alert?: "none" | "yellow" | "red";
   orphan_count_24h?: number;
