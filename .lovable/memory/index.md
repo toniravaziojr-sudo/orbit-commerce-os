@@ -25,4 +25,5 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Working Rules](mem://governance/working-rules) — Os 5 lembretes detalhados de comportamento
 - [WhatsApp Meta Recovery Protocol](mem://constraints/whatsapp-meta-recovery-protocol) — 4 verificações (token/número/WABA/webhook) + diagnose/recover/monitor + cron diário
 - [WhatsApp Meta Webhook Fields Mandatory](mem://constraints/whatsapp-meta-webhook-fields-mandatory) — POST subscribed_apps SEMPRE com subscribed_fields. Sem isso recebimento quebra silenciosamente pós produção.
+- [WhatsApp Meta Webhook Troubleshooting Runbook](mem://infrastructure/whatsapp-meta-webhook-troubleshooting-runbook) — Runbook de 6 camadas para diagnóstico "envio ok / recebimento não chega". Lista hipóteses já descartadas e aponta recipient allowlist como causa raiz mais comum pós teste→produção.
 - [Order Creation After Gateway Only](mem://constraints/order-creation-after-gateway-only) — Pedido só pode ser criado após resposta do gateway. checkout-create-order rejeita sem payment_gateway_id. Vale para todos os provedores.
