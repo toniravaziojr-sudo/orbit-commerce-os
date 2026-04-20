@@ -25,22 +25,24 @@ processed_at = now() na linha de auditoria
 ```
 
 ## Fonte de verdade
-1. Assinatura ativa do webhook na Meta (campo `messages` em `subscribed_apps`).
-2. Tabela `whatsapp_inbound_messages` (auditoria de tudo que entra).
-3. `whatsapp_configs.connection_status` + `last_error`.
+1. Assinatura do **app Meta** para `whatsapp_business_account` apontando para o callback oficial `.../functions/v1/meta-whatsapp-webhook`.
+2. Vínculo da WABA com o app em `subscribed_apps`.
+3. Tabela `whatsapp_inbound_messages` (auditoria de tudo que entra).
+4. `whatsapp_configs.connection_status` + `last_error`.
 
 ## Mecanismos de defesa (anti-regressão)
 
 | Defesa | Onde | Frequência | O que faz |
 |---|---|---|---|
 | Healthcheck token Meta | `whatsapp-token-healthcheck` | diário | Detecta token invalidado (erro 190) |
-| Monitor + auto-reparo | `meta-whatsapp-monitor-all` | diário (03:17 UTC) | Re-posta `subscribed_fields=[messages,...]` mesmo quando saudável; auto-registra número se PIN salvo |
+| Diagnóstico completo | `meta-whatsapp-diagnose` | sob demanda + monitor | Valida token, número, callback real do app Meta e vínculo da WABA |
+| Monitor + auto-reparo | `meta-whatsapp-monitor-all` | diário (03:17 UTC) | Re-posta `subscribed_fields=[messages,...]` quando necessário; auto-registra número se PIN salvo |
 | Vigia de órfãs | `whatsapp-orphan-watcher` | a cada 15 min | Detecta `whatsapp_inbound_messages` com `processed_at IS NULL` há ≥5 min e abre incidente em `whatsapp_health_incidents` |
 | Card de saúde | `WhatsAppHealthCard` na Central | tempo real (60s polling) | Mostra última msg recebida, última resposta IA, status assinatura, órfãs 24h, incidentes abertos |
 
 ## Regras invioláveis
 - Mensagem na auditoria sem processamento por mais de 5 min = **incidente crítico**, sempre.
-- Assinatura do webhook precisa ser **verificada e re-postada diariamente**, não só o token.
+- Não basta checar `subscribed_apps`: o **callback do app Meta** precisa apontar para o receptor oficial.
 - Sem reprocessamento automático de órfãs — só visibilidade. Reprocessamento exige decisão humana.
 - Versão Meta: **v25.0** (validada). Não trocar sem testar recepção end-to-end.
 

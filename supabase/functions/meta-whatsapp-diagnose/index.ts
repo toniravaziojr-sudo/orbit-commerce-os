@@ -135,13 +135,22 @@ Deno.serve(async (req) => {
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Graph API version
-    const { data: ver } = await supabase
+    // Graph API version + app credentials
+    const { data: credentials } = await supabase
       .from("platform_credentials")
-      .select("credential_value")
-      .eq("credential_key", "META_GRAPH_API_VERSION")
-      .eq("is_active", true).maybeSingle();
-    const apiVersion = ver?.credential_value || "v21.0";
+      .select("credential_key, credential_value")
+      .in("credential_key", ["META_GRAPH_API_VERSION", "META_APP_ID", "META_APP_SECRET"])
+      .eq("is_active", true);
+
+    const credMap: Record<string, string> = {};
+    credentials?.forEach((c) => {
+      credMap[c.credential_key] = c.credential_value;
+    });
+
+    const apiVersion = credMap["META_GRAPH_API_VERSION"] || "v25.0";
+    const metaAppId = credMap["META_APP_ID"];
+    const metaAppSecret = credMap["META_APP_SECRET"];
+    const appAccessToken = metaAppId && metaAppSecret ? `${metaAppId}|${metaAppSecret}` : null;
 
     const issues: Issue[] = [];
     const autoActions: string[] = [];
@@ -189,12 +198,63 @@ Deno.serve(async (req) => {
     const phoneData = await phoneResp.json();
     checks.phone = phoneData;
 
-    // === Check 3: Webhook subscription ===
-    // IMPORTANTE: existir entry em subscribed_apps NÃO garante que os campos
-    // (messages, etc.) estão inscritos. A Graph API v21 não retorna subscribed_fields
-    // para apps comuns, então a única forma confiável de garantir entrega é
-    // re-postar a inscrição com subscribed_fields explícitos sempre que houver
-    // qualquer suspeita (ou periodicamente via monitor).
+    // === Check 3A: App webhook real (callback URL + ativo) ===
+    const expectedCallbackUrl = `${supabaseUrl}/functions/v1/meta-whatsapp-webhook`;
+    if (appAccessToken && metaAppId) {
+      const appSubsResp = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${metaAppId}/subscriptions?access_token=${encodeURIComponent(appAccessToken)}`,
+      );
+      const appSubsData = await appSubsResp.json();
+      const appSubsList = Array.isArray(appSubsData?.data) ? appSubsData.data : [];
+      const waAppSub = appSubsList.find((sub: Record<string, unknown>) => sub.object === "whatsapp_business_account") as Record<string, unknown> | undefined;
+      const callbackUrl = typeof waAppSub?.callback_url === "string" ? waAppSub.callback_url : null;
+      const callbackMatches = !!callbackUrl && callbackUrl.replace(/\/$/, "") === expectedCallbackUrl.replace(/\/$/, "");
+      const fields = Array.isArray(waAppSub?.fields) ? waAppSub.fields.map(String) : [];
+      const hasMessagesField = fields.length > 0 ? fields.includes("messages") : null;
+      const active = waAppSub?.active === true;
+
+      checks.app_webhook = {
+        configured: !!waAppSub,
+        active,
+        callback_url: callbackUrl,
+        expected_callback_url: expectedCallbackUrl,
+        callback_matches: callbackMatches,
+        has_messages_field: hasMessagesField,
+        raw: appSubsData,
+      };
+
+      if (!waAppSub || !active || !callbackMatches) {
+        issues.push({
+          code: "APP_WEBHOOK_MISCONFIGURED",
+          severity: "critical",
+          title: "Webhook do app Meta não está apontando para o receptor correto",
+          description: "A conta pode até estar vinculada ao WhatsApp, mas o app da Meta não está entregue no endpoint oficial de recepção.",
+          cause: "Assinatura do app no painel da Meta ausente, inativa ou apontando para outra URL de callback.",
+          action_type: "support",
+          action_label: "Corrigir assinatura do app",
+          user_instruction: "O webhook do app precisa ser conferido no painel da Meta para apontar para o endpoint oficial de recepção.",
+        });
+      } else if (hasMessagesField === false) {
+        issues.push({
+          code: "APP_WEBHOOK_MESSAGES_MISSING",
+          severity: "critical",
+          title: "Webhook do app sem campo de mensagens",
+          description: "O app da Meta está ativo, mas não está inscrito no campo de mensagens do WhatsApp.",
+          cause: "A configuração de campos do webhook no app foi salva incompleta.",
+          action_type: "support",
+          action_label: "Corrigir campos do webhook do app",
+          user_instruction: "É necessário revisar a configuração do objeto WhatsApp no app Meta e garantir o campo messages.",
+        });
+      }
+    } else {
+      checks.app_webhook = {
+        configured: false,
+        error: "META_APP_ID ou META_APP_SECRET ausente",
+        expected_callback_url: expectedCallbackUrl,
+      };
+    }
+
+    // === Check 3B: Vínculo da WABA com o app ===
     const subsResp = await fetch(
       `https://graph.facebook.com/${apiVersion}/${config.waba_id}/subscribed_apps`,
       { headers: { "Authorization": `Bearer ${config.access_token}` } },
@@ -202,37 +262,25 @@ Deno.serve(async (req) => {
     const subsData = await subsResp.json();
     const subsList = Array.isArray(subsData?.data) ? subsData.data : [];
     const isSubscribed = subsList.length > 0;
-    // Tenta detectar se algum app retornou subscribed_fields (alguns apps com permissão retornam).
     const anyWithFields = subsList.some((a: Record<string, unknown>) => {
       const fields = (a as { subscribed_fields?: unknown[] }).subscribed_fields;
       return Array.isArray(fields) && fields.length > 0;
     });
-    checks.webhook = { subscribed: isSubscribed, has_fields: anyWithFields, raw: subsData };
+    checks.webhook = {
+      subscribed: isSubscribed,
+      has_visible_fields: anyWithFields,
+      raw: subsData,
+    };
 
-    // Se não está inscrito OU está inscrito sem fields visíveis há mais de 1 hora sem mensagens,
-    // forçar re-inscrição com fields explícitos.
     if (!isSubscribed) {
       issues.push({
         code: "WEBHOOK_NOT_SUBSCRIBED",
         severity: "critical",
-        title: "Webhook não assinado",
-        description: "O sistema não está inscrito para receber mensagens deste número.",
-        cause: "A inscrição foi perdida (desconexão, recriação da WABA ou primeira conexão incompleta).",
+        title: "Conta WhatsApp não está vinculada ao app",
+        description: "A WABA não está inscrita no app que recebe as mensagens.",
+        cause: "A inscrição foi perdida ou nunca foi concluída para esta conta WhatsApp.",
         action_type: "auto",
         action_label: "Assinar webhook automaticamente",
-      });
-      autoActions.push("subscribe_webhook");
-    } else if (!anyWithFields) {
-      // Inscrição existe mas sem campos visíveis — re-postar para garantir messages está ativo.
-      // Esse é o cenário "saída funciona / entrada não chega" pós-aprovação.
-      issues.push({
-        code: "WEBHOOK_FIELDS_MISSING",
-        severity: "critical",
-        title: "Inscrição de mensagens incompleta",
-        description: "O app está vinculado à conta WhatsApp, mas o campo 'messages' pode não estar ativo. Mensagens recebidas não chegam ao atendimento.",
-        cause: "Pós-migração teste→produção ou troca de App, a inscrição precisa ser re-postada com os campos explícitos.",
-        action_type: "auto",
-        action_label: "Re-inscrever campos automaticamente",
       });
       autoActions.push("subscribe_webhook");
     }
@@ -241,7 +289,6 @@ Deno.serve(async (req) => {
     if (phoneData?.health_status?.entities) {
       const entities = phoneData.health_status.entities as Array<Record<string, unknown>>;
 
-      // WABA health (billing, account_review)
       const wabaEntity = entities.find((e) => e.entity_type === "WABA");
       if (wabaEntity?.can_send_message === "BLOCKED") {
         const errs = (wabaEntity.errors as Array<Record<string, unknown>>) || [];
@@ -270,7 +317,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Phone number health
       const phoneEntity = entities.find((e) => e.entity_type === "PHONE_NUMBER");
       if (phoneEntity?.can_send_message === "BLOCKED") {
         const errs = (phoneEntity.errors as Array<Record<string, unknown>>) || [];
@@ -303,7 +349,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // === Status do número (PENDING) ===
     if (phoneData?.status === "PENDING" && issues.length === 0) {
       issues.push({
         code: "PENDING_NORMAL",
@@ -320,10 +365,14 @@ Deno.serve(async (req) => {
       ? "needs_attention"
       : issues.length > 0 ? "warning" : "healthy";
 
-    // Persistir snapshot
     await supabase.from("whatsapp_configs").update({
       last_diagnosed_at: new Date().toISOString(),
-      last_health_payload: { phone: phoneData?.health_status, webhook: checks.webhook, issues },
+      last_health_payload: {
+        phone: phoneData?.health_status,
+        webhook: checks.webhook,
+        app_webhook: checks.app_webhook,
+        issues,
+      },
       webhook_subscribed_at: isSubscribed ? new Date().toISOString() : null,
     }).eq("id", config.id);
 
