@@ -53,6 +53,12 @@ function normalizePhone(phone?: string | null) {
   return phone ? phone.replace(/\D/g, "") : "";
 }
 
+async function sha256Hex(input: string): Promise<string> {
+  const buf = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
   console.log(`[meta-whatsapp-webhook][${traceId}] Request received: ${req.method}`);
@@ -65,6 +71,33 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // === RAW AUDIT (anti-regressão): registra TODO POST antes de qualquer parsing ===
+  let rawBodyText: string | null = null;
+  if (req.method === "POST") {
+    try {
+      const cloned = req.clone();
+      rawBodyText = await cloned.text();
+      const headersObj: Record<string, string> = {};
+      req.headers.forEach((v, k) => { headersObj[k] = v; });
+      const url = new URL(req.url);
+      await supabase.from("whatsapp_webhook_raw_audit").insert({
+        trace_id: traceId,
+        method: req.method,
+        remote_ip: req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || null,
+        user_agent: req.headers.get("user-agent"),
+        signature_header: req.headers.get("x-hub-signature-256") || req.headers.get("x-hub-signature"),
+        content_length: rawBodyText.length,
+        body_sha256: await sha256Hex(rawBodyText),
+        body_preview: rawBodyText.substring(0, 4000),
+        headers_json: headersObj,
+        query_string: url.search,
+      });
+      console.log(`[meta-whatsapp-webhook][${traceId}] RAW AUDIT logged (${rawBodyText.length} bytes)`);
+    } catch (auditErr) {
+      console.error(`[meta-whatsapp-webhook][${traceId}] RAW AUDIT failed:`, auditErr);
+    }
+  }
 
   try {
     // GET request: Webhook verification (Meta challenge)
