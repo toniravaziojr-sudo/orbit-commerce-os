@@ -2652,13 +2652,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // BUG FIX: Se a tool de handoff comercial foi chamada com sucesso,
           // forçar shouldHandoff para impedir que o status da conversa seja
           // revertido para 'bot' no final do fluxo.
+          // GUARDRAIL: se a tool retornou blocked=true, NÃO forçar handoff.
           if (fnName === "request_human_handoff") {
             try {
               const parsed = JSON.parse(result);
-              if (parsed?.success) {
+              if (parsed?.success === true && !parsed?.blocked) {
                 shouldHandoff = true;
                 handoffReason = (fnArgs.reason as string) || "sales_handoff_tool";
                 console.log(`[ai-support-chat] Handoff tool acionada — forçando waiting_agent (reason=${handoffReason})`);
+              } else if (parsed?.blocked) {
+                console.warn(`[ai-support-chat] Handoff BLOQUEADO pelo guardrail — mantendo status 'bot' e instruindo modelo a usar tools de venda.`);
               }
             } catch { /* ignore parse errors */ }
           }
