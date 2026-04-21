@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, ArrowLeftRight, XCircle, MessageSquare, StickyNote, Paperclip, Image, Mic } from "lucide-react";
+import { Send, Bot, User, ArrowLeftRight, XCircle, MessageSquare, StickyNote, Paperclip, Image, Mic, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -238,6 +238,27 @@ export function ChatWindow({
             const isBot = msg.sender_type === 'bot';
             const isSystem = msg.sender_type === 'system';
             const isNote = msg.is_note;
+            const isInternal = msg.is_internal;
+
+            // PHASE 3: Eventos internos do sistema (renderização bloqueada,
+            // falhas de envio, ações automáticas) NÃO aparecem como balão de
+            // conversa. Aparecem como chip discreto centralizado.
+            if (isInternal) {
+              return (
+                <div key={msg.id} className="flex justify-center">
+                  <div className="bg-muted/50 border border-border/60 px-3 py-2 rounded-lg max-w-md">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                      <Info className="h-3 w-3" />
+                      <span>Evento interno do sistema</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{msg.content}</p>
+                    <div className="text-[10px] text-muted-foreground/70 mt-1">
+                      {formatTimeBR(new Date(msg.created_at))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
 
             if (isSystem) {
               return (

@@ -1,7 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
+import {
+  renderTemplate,
+  assertNoPlaceholders,
+  renderForInternalLog,
+  TemplateRenderError,
+} from "../_shared/template-renderer.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Fixed column names for whatsapp_messages
+const VERSION = "v1.2.0"; // Phase 3 — strict template render + no [Template:] leakage
 // ===========================================================
 
 const corsHeaders = {
@@ -16,11 +22,15 @@ interface SendMessageParams {
   template_name?: string;
   template_language?: string;
   template_components?: any[];
+  /** Optional raw template body (with {{vars}}) used to render the final visible content. */
+  template_body?: string;
+  /** Optional payload of variables to render `template_body` with. */
+  template_payload?: Record<string, unknown>;
 }
 
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
-  console.log(`[meta-whatsapp-send][${traceId}] Request received`);
+  console.log(`[meta-whatsapp-send][${traceId}] Request received (v${VERSION})`);
 
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -39,7 +49,7 @@ Deno.serve(async (req) => {
 
   try {
     const params: SendMessageParams = await req.json();
-    const { tenant_id, phone, message, template_name, template_language, template_components } = params;
+    const { tenant_id, phone, message, template_name, template_language, template_components, template_body, template_payload } = params;
 
     if (!tenant_id || !phone) {
       return new Response(JSON.stringify({ success: false, error: "tenant_id e phone são obrigatórios" }), {
@@ -86,16 +96,62 @@ Deno.serve(async (req) => {
     // Check if token is expired
     if (token_expires_at && new Date(token_expires_at) < new Date()) {
       console.error(`[meta-whatsapp-send][${traceId}] Token expired`);
-      // Update status
       await supabase
         .from("whatsapp_configs")
         .update({ connection_status: "token_expired", last_error: "Token expirado" })
         .eq("id", config.id);
-      
+
       return new Response(JSON.stringify({ success: false, error: "Token do WhatsApp expirado. Reconecte sua conta." }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ============= PHASE 3: Render final visible content (no placeholders!) =============
+    // For text messages: render `message` against `template_payload` if vars exist.
+    // For template messages: render `template_body` to build the timeline-visible content.
+    let visibleContent: string;
+    try {
+      if (template_name) {
+        // Template path — Meta API receives the template name + params; the timeline must
+        // show the rendered body (or a clean fallback if no body was provided).
+        const source = template_body && template_body.length > 0 ? template_body : (message ?? "");
+        if (source && source.length > 0) {
+          const rendered = renderTemplate(source, template_payload ?? {}, { mode: "strict" });
+          assertNoPlaceholders(rendered.text, { stage: "meta-whatsapp-send/template", templateName: template_name });
+          visibleContent = rendered.text;
+        } else {
+          visibleContent = "Mensagem do sistema";
+        }
+      } else {
+        // Plain text path
+        const rendered = renderTemplate(message ?? "", template_payload ?? {}, { mode: "strict" });
+        assertNoPlaceholders(rendered.text, { stage: "meta-whatsapp-send/text" });
+        visibleContent = rendered.text;
+      }
+    } catch (err) {
+      if (err instanceof TemplateRenderError) {
+        console.error(`[meta-whatsapp-send][${traceId}] Template render blocked:`, err.message);
+        // Internal traceable record — DO NOT send to customer, DO NOT pollute timeline as bubble
+        const safeForLog = renderForInternalLog(template_body ?? message ?? "", template_payload ?? {});
+        await supabase.from("whatsapp_messages").insert({
+          tenant_id,
+          recipient_phone: phone,
+          message_type: template_name ? "template" : "text",
+          message_content: safeForLog.text.substring(0, 500),
+          status: "failed",
+          error_message: `Template render blocked (missing: ${err.missing.join(", ") || "—"})`,
+        });
+        return new Response(JSON.stringify({
+          success: false,
+          error: "Mensagem bloqueada: variáveis obrigatórias ausentes no template",
+          missing: err.missing,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw err;
     }
 
     // Get graph API version from platform credentials
@@ -122,12 +178,10 @@ Deno.serve(async (req) => {
     let messagePayload: any;
 
     if (template_name) {
-      // Template message
       const templateObj: any = {
         name: template_name,
         language: { code: template_language || "pt_BR" },
       };
-      // Only include components if non-empty
       if (template_components && template_components.length > 0) {
         templateObj.components = template_components;
       }
@@ -139,21 +193,19 @@ Deno.serve(async (req) => {
         template: templateObj,
       };
     } else {
-      // Text message (only allowed within 24h service window)
       messagePayload = {
         messaging_product: "whatsapp",
         recipient_type: "individual",
         to: formattedPhone,
         type: "text",
-        text: { body: message },
+        text: { body: visibleContent },
       };
     }
 
     // Send message via Meta Graph API
     const sendUrl = `https://graph.facebook.com/${graphApiVersion}/${phone_number_id}/messages`;
-    
+
     console.log(`[meta-whatsapp-send][${traceId}] URL: ${sendUrl}`);
-    console.log(`[meta-whatsapp-send][${traceId}] Payload:`, JSON.stringify(messagePayload));
 
     const sendResponse = await fetch(sendUrl, {
       method: "POST",
@@ -168,13 +220,12 @@ Deno.serve(async (req) => {
 
     if (sendResult.error) {
       console.error(`[meta-whatsapp-send][${traceId}] Send error:`, sendResult.error);
-      
-      // Log failed message (use correct column names from schema)
+
       await supabase.from("whatsapp_messages").insert({
         tenant_id,
         recipient_phone: formattedPhone,
         message_type: template_name ? "template" : "text",
-        message_content: message || `[Template: ${template_name}]`,
+        message_content: visibleContent.substring(0, 500),
         status: "failed",
         error_message: sendResult.error.message,
       });
@@ -185,12 +236,12 @@ Deno.serve(async (req) => {
     const messageId = sendResult.messages?.[0]?.id;
     console.log(`[meta-whatsapp-send][${traceId}] Message sent - ID: ${messageId}`);
 
-    // Log successful message (use correct column names from schema)
+    // Log successful message — RENDERED content only, no [Template: ...] prefix
     await supabase.from("whatsapp_messages").insert({
       tenant_id,
       recipient_phone: formattedPhone,
       message_type: template_name ? "template" : "text",
-      message_content: message || `[Template: ${template_name}]`,
+      message_content: visibleContent.substring(0, 500),
       status: "sent",
       sent_at: new Date().toISOString(),
       provider_message_id: messageId,
@@ -201,6 +252,7 @@ Deno.serve(async (req) => {
       data: {
         message_id: messageId,
         phone: formattedPhone,
+        rendered_content: visibleContent,
       }
     }), {
       status: 200,

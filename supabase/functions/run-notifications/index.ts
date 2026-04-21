@@ -1,9 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import {
+  renderTemplate,
+  assertNoPlaceholders,
+  renderForInternalLog,
+  TemplateRenderError,
+} from "../_shared/template-renderer.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.4.0"; // Template support for WhatsApp notifications
+const VERSION = "v1.5.0"; // Phase 3 — strict template rendering, no [Template:] in timeline
 // ===========================================================
 
 const corsHeaders = {
@@ -288,15 +294,16 @@ async function registerInAttendanceTimeline(
   phone: string,
   message: string,
   providerMessageId: string | null,
-  notificationType: string = 'notification'
+  notificationType: string = 'notification',
+  options: { isInternal?: boolean; metadata?: Record<string, unknown> } = {},
 ): Promise<void> {
   try {
-    console.log(`[RunNotifications] Registering in timeline for ${phone}`);
-    
+    const isInternal = options.isInternal === true;
+    console.log(`[RunNotifications] Registering in timeline for ${phone} (internal=${isInternal})`);
+
     // 1) Find or create conversation for this phone
     let conversationId: string | null = null;
-    
-    // First check if there's an existing open conversation with this phone
+
     const { data: existingConv } = await supabase
       .from('conversations')
       .select('id')
@@ -307,12 +314,11 @@ async function registerInAttendanceTimeline(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    
+
     if (existingConv) {
       conversationId = existingConv.id;
       console.log(`[RunNotifications] Found existing conversation: ${conversationId}`);
     } else {
-      // Try to find customer by phone
       const { data: customer } = await supabase
         .from('customers')
         .select('id, full_name, email')
@@ -320,8 +326,7 @@ async function registerInAttendanceTimeline(
         .eq('phone', phone)
         .is('deleted_at', null)
         .maybeSingle();
-      
-      // Create new conversation
+
       const { data: newConv, error: convError } = await supabase
         .from('conversations')
         .insert({
@@ -331,7 +336,7 @@ async function registerInAttendanceTimeline(
           customer_name: customer?.full_name || phone,
           customer_phone: phone,
           customer_email: customer?.email || null,
-          status: 'bot', // Notification-initiated conversations start as bot
+          status: 'bot',
           priority: 0,
           message_count: 0,
           unread_count: 0,
@@ -340,17 +345,19 @@ async function registerInAttendanceTimeline(
         })
         .select('id')
         .single();
-      
+
       if (convError) {
         console.error(`[RunNotifications] Error creating conversation:`, convError);
         return;
       }
-      
+
       conversationId = newConv.id;
       console.log(`[RunNotifications] Created new conversation: ${conversationId}`);
     }
-    
+
     // 2) Insert message into unified timeline
+    //    - is_internal=true para eventos sistêmicos (ex.: falha de render)
+    //    - sender_type='system' para mensagens enviadas pelo motor de notificações
     const { error: msgError } = await supabase
       .from('messages')
       .insert({
@@ -361,31 +368,30 @@ async function registerInAttendanceTimeline(
         sender_name: 'Sistema',
         content: message,
         content_type: 'text',
-        delivery_status: 'sent',
+        delivery_status: isInternal ? 'delivered' : 'sent',
         is_ai_generated: false,
-        is_internal: false,
+        is_internal: isInternal,
         is_note: false,
-        external_message_id: providerMessageId, // Corrigido: era external_id
+        external_message_id: providerMessageId,
+        metadata: options.metadata ?? null,
       });
-    
+
     if (msgError) {
       console.error(`[RunNotifications] Error inserting message:`, msgError);
       return;
     }
-    
-    // 3) Update conversation counters
+
     await supabase
       .from('conversations')
       .update({
-        message_count: supabase.rpc ? undefined : 1, // Will be handled by trigger
+        message_count: supabase.rpc ? undefined : 1,
         last_message_at: new Date().toISOString(),
       })
       .eq('id', conversationId);
-    
+
     console.log(`[RunNotifications] Message registered in timeline for conversation ${conversationId}`);
-    
+
   } catch (error) {
-    // Non-fatal - log and continue (notification was already sent successfully)
     console.error(`[RunNotifications] Error registering in timeline:`, error);
   }
 }
@@ -526,6 +532,32 @@ async function sendWhatsAppViaMetaTemplate(
     };
   }
 
+  // ===== PHASE 3: Render the visible/timeline content STRICTLY first =====
+  // The Meta template body uses positional parameters; we still render the same
+  // template body locally so the timeline shows the final human-readable text.
+  let renderedVisibleText: string;
+  let referencedVars: string[] = [];
+  try {
+    const rendered = renderTemplate(originalMessage, payload ?? {}, { mode: "strict" });
+    assertNoPlaceholders(rendered.text, { stage: "run-notifications/template", templateName });
+    renderedVisibleText = rendered.text;
+    referencedVars = rendered.referencedVars;
+  } catch (err) {
+    if (err instanceof TemplateRenderError) {
+      console.error(`[RunNotifications] Template render BLOCKED for "${templateName}":`, err.message);
+      // Internal traceable event in timeline (NOT sent to customer)
+      const safe = renderForInternalLog(originalMessage, payload ?? {});
+      await registerInAttendanceTimeline(
+        supabase, tenantId, cleanPhone,
+        `[Notificação não enviada] Template "${templateName}" — variáveis ausentes: ${err.missing.join(", ") || "—"}\nPrévia: ${safe.text.substring(0, 200)}`,
+        null, 'notification',
+        { isInternal: true, metadata: { template: templateName, missing: err.missing, stage: "render" } },
+      );
+      return { success: false, error: `Template render bloqueado: variáveis ausentes (${err.missing.join(", ")})` };
+    }
+    throw err;
+  }
+
   try {
     const { data: versionCred } = await supabase
       .from("platform_credentials")
@@ -535,34 +567,14 @@ async function sendWhatsAppViaMetaTemplate(
       .single();
     const graphApiVersion = versionCred?.credential_value || "v21.0";
 
-    // Extract variables from the original message to fill template parameters
-    const variableValues: string[] = [];
-    const variablePattern = /\{\{(\w+)\}\}/g;
-    const seenVars: string[] = [];
-    let match;
-    
-    // We need to match the original whatsapp_message template (with {{var}} placeholders)
-    // and fill with actual payload values
-    while ((match = variablePattern.exec(originalMessage)) !== null) {
-      const varName = match[1];
-      if (!seenVars.includes(varName)) {
-        seenVars.push(varName);
-        const rawValue = (payload as Record<string, unknown>)?.[varName];
-        // Coerce to non-empty string. Meta rejects empty strings ("") in template params (#132000).
-        const stringValue = rawValue == null ? "" : String(rawValue).trim();
-        variableValues.push(stringValue.length > 0 ? stringValue : "—");
-      }
-    }
+    // Build positional parameters from referencedVars (already validated above)
+    const variableValues: string[] = referencedVars.map((varName) => {
+      const raw = (payload as Record<string, unknown>)?.[varName];
+      const stringValue = raw == null ? "" : String(raw).trim();
+      // strict already ensured non-empty; "—" guard remains for Meta #132000 safety
+      return stringValue.length > 0 ? stringValue : "—";
+    });
 
-    // Defensive log: if we end up with 0 vars but the template was supposed to have them,
-    // it usually means caller passed an already-rendered message (bug elsewhere).
-    if (variableValues.length === 0) {
-      console.warn(`[RunNotifications] Template "${templateName}" extracted 0 variables from message. Sending without components — Meta will reject if template has BODY placeholders.`);
-    } else {
-      console.log(`[RunNotifications] Template "${templateName}" filled with ${variableValues.length} vars: ${seenVars.join(", ")}`);
-    }
-
-    // Build template components with parameters
     const components: any[] = [];
     if (variableValues.length > 0) {
       components.push({
@@ -601,10 +613,17 @@ async function sendWhatsAppViaMetaTemplate(
         tenant_id: tenantId,
         recipient_phone: cleanPhone,
         message_type: 'template',
-        message_content: `[Template: ${templateName}]`,
+        message_content: renderedVisibleText.substring(0, 500),
         status: 'failed',
         error_message: sendResult.error.message,
       });
+      // Internal traceable event in timeline so operator sees what failed
+      await registerInAttendanceTimeline(
+        supabase, tenantId, cleanPhone,
+        `[Falha no envio] ${sendResult.error.message || "Erro ao enviar template"}`,
+        null, 'notification',
+        { isInternal: true, metadata: { template: templateName, stage: "meta-api" } },
+      );
       return { success: false, error: sendResult.error?.message || 'Erro ao enviar template via WhatsApp', response: sendResult };
     }
 
@@ -615,13 +634,14 @@ async function sendWhatsAppViaMetaTemplate(
       tenant_id: tenantId,
       recipient_phone: cleanPhone,
       message_type: 'template',
-      message_content: `[Template: ${templateName}]`,
+      message_content: renderedVisibleText.substring(0, 500),
       status: 'sent',
       sent_at: new Date().toISOString(),
       provider_message_id: messageId,
     });
 
-    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, `[Template: ${templateName}] ${originalMessage}`, messageId, 'notification');
+    // Timeline gets the FINAL rendered text — no [Template: ...] prefix, no {{vars}}
+    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, renderedVisibleText, messageId, 'notification');
 
     return {
       success: true,
@@ -653,6 +673,34 @@ async function sendWhatsAppViaMeta(
     };
   }
 
+  // ===== PHASE 3: Strict render of free-form text messages =====
+  // The caller may pass a string with `{{vars}}` (free-form WhatsApp rules).
+  // We render it once with the original payload-less context (caller already
+  // resolved most fields). If `{{ }}` survived, we BLOCK and log internal event.
+  let safeMessage: string;
+  try {
+    // Free-form text path has no positional payload; we just defend against
+    // accidental `{{vars}}` leftovers. If anything is unresolved, fail fast.
+    const rendered = renderTemplate(message, {}, { mode: "lenient" });
+    if (rendered.hasMissing) {
+      assertNoPlaceholders(rendered.text, { stage: "run-notifications/text-leftover" });
+    }
+    assertNoPlaceholders(rendered.text, { stage: "run-notifications/text" });
+    safeMessage = rendered.text;
+  } catch (err) {
+    if (err instanceof TemplateRenderError) {
+      console.error(`[RunNotifications] Free-text render BLOCKED:`, err.message);
+      await registerInAttendanceTimeline(
+        supabase, tenantId, cleanPhone,
+        `[Notificação não enviada] Texto contém variáveis não resolvidas — envio bloqueado.\nPrévia: ${message.substring(0, 200)}`,
+        null, 'notification',
+        { isInternal: true, metadata: { stage: "render-text", missing: err.missing } },
+      );
+      return { success: false, error: "Texto contém variáveis não resolvidas — envio bloqueado." };
+    }
+    throw err;
+  }
+
   try {
     // Get graph API version from platform credentials
     const { data: versionCred } = await supabase
@@ -664,17 +712,16 @@ async function sendWhatsAppViaMeta(
 
     const graphApiVersion = versionCred?.credential_value || "v21.0";
 
-    // Build message payload (text message within 24h window, or use template for notifications)
     const messagePayload = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to: cleanPhone,
       type: "text",
-      text: { body: message },
+      text: { body: safeMessage },
     };
 
     const sendUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/messages`;
-    
+
     const sendResponse = await fetch(sendUrl, {
       method: "POST",
       headers: {
@@ -688,13 +735,12 @@ async function sendWhatsAppViaMeta(
 
     if (sendResult.error) {
       console.error(`[RunNotifications] Meta WhatsApp error:`, sendResult.error);
-      
-      // Log failed message (use correct column names from schema)
+
       await supabase.from('whatsapp_messages').insert({
         tenant_id: tenantId,
         recipient_phone: cleanPhone,
         message_type: 'text',
-        message_content: message.substring(0, 500),
+        message_content: safeMessage.substring(0, 500),
         status: 'failed',
         error_message: sendResult.error.message,
       });
@@ -709,19 +755,18 @@ async function sendWhatsAppViaMeta(
     const messageId = sendResult.messages?.[0]?.id;
     console.log(`[RunNotifications] Meta WhatsApp sent - ID: ${messageId}`);
 
-    // Log successful message (use correct column names from schema)
     await supabase.from('whatsapp_messages').insert({
       tenant_id: tenantId,
       recipient_phone: cleanPhone,
       message_type: 'text',
-      message_content: message.substring(0, 500),
+      message_content: safeMessage.substring(0, 500),
       status: 'sent',
       sent_at: new Date().toISOString(),
       provider_message_id: messageId,
     });
 
-    // Register in unified Atendimento timeline
-    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, message, messageId, 'notification');
+    // Register in unified Atendimento timeline — RENDERED text only
+    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, safeMessage, messageId, 'notification');
 
     return {
       success: true,
