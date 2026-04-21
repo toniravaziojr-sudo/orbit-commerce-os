@@ -238,7 +238,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 
 **CRM:**
 - `/notifications` — Notificações WhatsApp (FeatureGated: `whatsapp_notifications`)
-- `/support` — Atendimento (FeatureGated: `support_chat`)
+- `/support` — Atendimento (FeatureGated: `support_chat`). Aba **Canais de Atendimento**: cada canal tem ações **Desativar** (toggle `is_active=false`, preserva o registro como fonte de verdade do gate) e **Reativar** (volta `is_active=true`). **Remover Permanentemente** existe como ação secundária com confirmação obrigatória. Desativar bloqueia imediatamente respostas da IA naquele canal (gate universal — ver `docs/especificacoes/crm/crm-atendimento.md` §5.1).
 - `/emails` — Emails (FeatureGated: `emails`)
 - `/reviews` — Avaliações
 
