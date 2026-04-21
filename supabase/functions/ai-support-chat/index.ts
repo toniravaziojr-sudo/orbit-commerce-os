@@ -726,11 +726,12 @@ async function executeSalesTool(
       case "add_to_cart": {
         const productId = args.product_id as string;
         const quantity = (args.quantity as number) || 1;
+        const variantId = (args.variant_id as string | undefined) || undefined;
 
-        // Get product info
+        // Get product info (com flags de variante/estoque)
         const { data: product } = await supabase
           .from("products")
-          .select("id, name, price, stock_quantity, status")
+          .select("id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
@@ -738,7 +739,51 @@ async function executeSalesTool(
 
         if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado" });
         if (product.status !== "active") return JSON.stringify({ success: false, error: "Produto indisponível" });
-        if ((product.stock_quantity ?? 0) < quantity) return JSON.stringify({ success: false, error: `Estoque insuficiente. Disponível: ${product.stock_quantity}` });
+
+        // Se produto tem variantes, exigir variant_id
+        let unitPrice = Number(product.price);
+        let variantLabel: string | null = null;
+        let sku: string | null = null;
+        let stockToCheck = Number(product.stock_quantity ?? 0);
+        let manageStock = Boolean(product.manage_stock ?? true);
+        let allowBackorder = Boolean(product.allow_backorder ?? false);
+
+        if (product.has_variants) {
+          if (!variantId) {
+            return JSON.stringify({
+              success: false,
+              error: "VARIANT_REQUIRED",
+              message: "Este produto tem variações. Use get_product_variants para listar as opções e peça ao cliente para escolher antes de adicionar ao carrinho.",
+            });
+          }
+          const { data: variant } = await supabase
+            .from("product_variants")
+            .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
+            .eq("id", variantId)
+            .eq("product_id", productId)
+            .maybeSingle();
+
+          if (!variant || !variant.is_active) {
+            return JSON.stringify({ success: false, error: "Variação não encontrada ou inativa" });
+          }
+          unitPrice = Number(variant.price ?? product.price);
+          stockToCheck = Number(variant.stock_quantity ?? 0);
+          sku = variant.sku ?? null;
+          variantLabel = [
+            variant.option1_value && `${variant.option1_name}: ${variant.option1_value}`,
+            variant.option2_value && `${variant.option2_name}: ${variant.option2_value}`,
+            variant.option3_value && `${variant.option3_name}: ${variant.option3_value}`,
+          ].filter(Boolean).join(" / ") || variant.name || null;
+        }
+
+        // Validar estoque (respeita manage_stock + allow_backorder)
+        if (manageStock && !allowBackorder && stockToCheck < quantity) {
+          return JSON.stringify({
+            success: false,
+            error: `Estoque insuficiente. Disponível: ${stockToCheck}`,
+            stock_available: stockToCheck,
+          });
+        }
 
         // Get or create cart
         let { data: cart } = await supabase
@@ -750,18 +795,24 @@ async function executeSalesTool(
           .maybeSingle();
 
         const items = cart?.items as any[] || [];
-        const existingIdx = items.findIndex((i: any) => i.product_id === productId);
+        // Identificar item igual também por variant_id
+        const existingIdx = items.findIndex((i: any) =>
+          i.product_id === productId && (i.variant_id ?? null) === (variantId ?? null)
+        );
 
         if (existingIdx >= 0) {
           items[existingIdx].quantity += quantity;
-          items[existingIdx].subtotal = items[existingIdx].quantity * product.price;
+          items[existingIdx].subtotal = items[existingIdx].quantity * unitPrice;
         } else {
           items.push({
             product_id: productId,
+            variant_id: variantId ?? null,
+            variant_label: variantLabel,
+            sku,
             name: product.name,
-            price: product.price,
+            price: unitPrice,
             quantity,
-            subtotal: quantity * product.price,
+            subtotal: quantity * unitPrice,
           });
         }
 
@@ -786,11 +837,14 @@ async function executeSalesTool(
             });
         }
 
+        const labelSuffix = variantLabel ? ` (${variantLabel})` : "";
         return JSON.stringify({
           success: true,
-          message: `${product.name} (x${quantity}) adicionado ao carrinho`,
+          message: `${product.name}${labelSuffix} (x${quantity}) adicionado ao carrinho`,
           cart_total: `R$ ${(subtotalCents / 100).toFixed(2)}`,
           items_count: items.length,
+          variant_label: variantLabel,
+          sku,
         });
       }
 
