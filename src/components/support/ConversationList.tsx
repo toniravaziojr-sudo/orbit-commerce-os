@@ -9,6 +9,7 @@ import { differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation, ConversationStatus, SupportChannelType } from "@/hooks/useConversations";
 import { cn } from "@/lib/utils";
+import { countByQueue, getConversationQueue, type SupportQueue } from "@/lib/support-queues";
 
 import { formatDateBR } from "@/lib/date-format";
 
@@ -16,8 +17,8 @@ interface ConversationListProps {
   conversations: Conversation[];
   selectedId: string | null;
   onSelect: (conversation: Conversation) => void;
-  filter: 'needs_attention' | 'in_progress' | 'bot' | 'resolved' | 'all';
-  onFilterChange: (filter: 'needs_attention' | 'in_progress' | 'bot' | 'resolved' | 'all') => void;
+  filter: SupportQueue;
+  onFilterChange: (filter: SupportQueue) => void;
 }
 
 // Channel icon components for visual distinction
