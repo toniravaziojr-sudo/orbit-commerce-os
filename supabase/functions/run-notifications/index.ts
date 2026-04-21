@@ -294,15 +294,16 @@ async function registerInAttendanceTimeline(
   phone: string,
   message: string,
   providerMessageId: string | null,
-  notificationType: string = 'notification'
+  notificationType: string = 'notification',
+  options: { isInternal?: boolean; metadata?: Record<string, unknown> } = {},
 ): Promise<void> {
   try {
-    console.log(`[RunNotifications] Registering in timeline for ${phone}`);
-    
+    const isInternal = options.isInternal === true;
+    console.log(`[RunNotifications] Registering in timeline for ${phone} (internal=${isInternal})`);
+
     // 1) Find or create conversation for this phone
     let conversationId: string | null = null;
-    
-    // First check if there's an existing open conversation with this phone
+
     const { data: existingConv } = await supabase
       .from('conversations')
       .select('id')
@@ -313,12 +314,11 @@ async function registerInAttendanceTimeline(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    
+
     if (existingConv) {
       conversationId = existingConv.id;
       console.log(`[RunNotifications] Found existing conversation: ${conversationId}`);
     } else {
-      // Try to find customer by phone
       const { data: customer } = await supabase
         .from('customers')
         .select('id, full_name, email')
@@ -326,8 +326,7 @@ async function registerInAttendanceTimeline(
         .eq('phone', phone)
         .is('deleted_at', null)
         .maybeSingle();
-      
-      // Create new conversation
+
       const { data: newConv, error: convError } = await supabase
         .from('conversations')
         .insert({
@@ -337,7 +336,7 @@ async function registerInAttendanceTimeline(
           customer_name: customer?.full_name || phone,
           customer_phone: phone,
           customer_email: customer?.email || null,
-          status: 'bot', // Notification-initiated conversations start as bot
+          status: 'bot',
           priority: 0,
           message_count: 0,
           unread_count: 0,
@@ -346,17 +345,19 @@ async function registerInAttendanceTimeline(
         })
         .select('id')
         .single();
-      
+
       if (convError) {
         console.error(`[RunNotifications] Error creating conversation:`, convError);
         return;
       }
-      
+
       conversationId = newConv.id;
       console.log(`[RunNotifications] Created new conversation: ${conversationId}`);
     }
-    
+
     // 2) Insert message into unified timeline
+    //    - is_internal=true para eventos sistêmicos (ex.: falha de render)
+    //    - sender_type='system' para mensagens enviadas pelo motor de notificações
     const { error: msgError } = await supabase
       .from('messages')
       .insert({
@@ -367,31 +368,30 @@ async function registerInAttendanceTimeline(
         sender_name: 'Sistema',
         content: message,
         content_type: 'text',
-        delivery_status: 'sent',
+        delivery_status: isInternal ? 'delivered' : 'sent',
         is_ai_generated: false,
-        is_internal: false,
+        is_internal: isInternal,
         is_note: false,
-        external_message_id: providerMessageId, // Corrigido: era external_id
+        external_message_id: providerMessageId,
+        metadata: options.metadata ?? null,
       });
-    
+
     if (msgError) {
       console.error(`[RunNotifications] Error inserting message:`, msgError);
       return;
     }
-    
-    // 3) Update conversation counters
+
     await supabase
       .from('conversations')
       .update({
-        message_count: supabase.rpc ? undefined : 1, // Will be handled by trigger
+        message_count: supabase.rpc ? undefined : 1,
         last_message_at: new Date().toISOString(),
       })
       .eq('id', conversationId);
-    
+
     console.log(`[RunNotifications] Message registered in timeline for conversation ${conversationId}`);
-    
+
   } catch (error) {
-    // Non-fatal - log and continue (notification was already sent successfully)
     console.error(`[RunNotifications] Error registering in timeline:`, error);
   }
 }
