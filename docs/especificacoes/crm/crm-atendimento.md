@@ -379,6 +379,35 @@ if (aiEnabled) {
 
 ---
 
+## 5.1. Gate Universal de Canal (Fonte de Verdade)
+
+### Regra
+A tabela `channel_accounts` é a **fonte única de verdade** para "canal habilitado". A IA de atendimento (`ai-support-chat`) executa um gate obrigatório no início do fluxo, antes de qualquer chamada ao LLM, RAG ou ferramenta de venda.
+
+### Comportamento
+Para cada conversa recebida, o motor consulta `channel_accounts` filtrando por `tenant_id` + `channel_type` da conversa. A IA **só responde** quando existe registro **e** `is_active = true`. Caso contrário, retorna imediatamente o código `CHANNEL_DISABLED` e encerra a execução.
+
+| Estado em `channel_accounts` | Comportamento da IA |
+|------------------------------|---------------------|
+| Registro existe, `is_active = true`  | IA responde normalmente (sujeita às demais regras) |
+| Registro existe, `is_active = false` | IA bloqueada → `CHANNEL_DISABLED` |
+| Registro inexistente                  | IA bloqueada → `CHANNEL_DISABLED` (ausência = inativo) |
+
+### Persistência (UI Desativar/Reativar vs. Remover)
+A ação **Desativar** na tela de Canais de Atendimento **não exclui** o registro: apenas alterna `is_active = false`. Isso preserva a fonte de verdade do gate e permite Reativar com 1 clique. A ação **Remover Permanentemente** existe como ação secundária explícita, com confirmação obrigatória.
+
+### Ordem de Verificação no Motor
+1. Conversa existe? (senão → `CONVERSATION_NOT_FOUND`)
+2. **Gate Universal**: `channel_accounts.is_active`? (senão → `CHANNEL_DISABLED`)
+3. Config por canal `ai_channel_config.is_enabled`? (senão → `CHANNEL_AI_DISABLED`)
+4. Config global `ai_support_config.is_enabled`? (senão → desabilitado)
+5. Demais regras (horário de atendimento, handoff, RAG, etc.)
+
+### Por que esse gate é obrigatório
+Antes do gate universal, cada webhook (`meta-whatsapp-webhook`, `instagram-webhook`, chat do site) verificava apenas `ai_support_config` global e `ai_channel_config`. A tabela `channel_accounts` era usada só para credenciais. Resultado: ao "desativar" um canal pela UI o registro era apagado, mas como o motor não consultava `channel_accounts`, a IA continuava respondendo. O gate universal centraliza a verificação no motor (entrada única para todos os webhooks) e elimina a divergência.
+
+---
+
 ## 6. Edge Function `ai-support-chat`
 
 ### Responsabilidades

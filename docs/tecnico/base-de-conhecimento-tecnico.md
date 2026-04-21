@@ -685,3 +685,33 @@ Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entra
 3. **Proibido** voltar a hipóteses externas (display name, billing, aprovação Meta) antes de confirmar `link_status=connected` e `operational_status` em `observation` ou `degraded` por causa real.
 4. Toda nova UI que exibir status do WhatsApp DEVE consumir as duas camadas. Telas que mostrarem apenas "conectado/desconectado" são bug e devem ser corrigidas.
 5. Doc formal vivo: `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` v1.1.
+
+---
+
+### 8.X IA continua respondendo após "desativar canal" pela UI
+
+**Problema:** Após desativar um canal de atendimento (WhatsApp / Chat do Site / Instagram DM / E-mail) na tela `/support` aba **Canais**, a IA continuava respondendo conversas inbound. Confirmado em produção no tenant `respeite-o-homem` em 2026-04-21.
+
+**Sintoma:** Mesmo com todos os canais "desativados" pelo usuário, mensagens recebidas via webhook (Meta WhatsApp) e via Chat do Site continuavam sendo respondidas pela IA, inclusive com conteúdo fora do escopo do tenant (loja de cosméticos respondendo sobre "cueca").
+
+**Causa raiz (dupla):**
+1. **Ação "Desativar" deletava o registro** em `channel_accounts` em vez de marcar `is_active = false`. Como os webhooks usavam fallback `is_active ?? true`, a ausência do registro era interpretada como "ativo".
+2. **Motor `ai-support-chat` não consultava `channel_accounts`** — verificava só `ai_support_config` (global) e `ai_channel_config` (por canal). Webhooks individuais tinham gates inconsistentes entre si. `channel_accounts` era usada apenas como repositório de credenciais, não como fonte de verdade de "canal habilitado".
+
+**Solução aplicada (v2026-04-21):**
+1. **Gate Universal no motor** (`supabase/functions/ai-support-chat/index.ts`): logo após carregar a conversa, antes de qualquer LLM/RAG/tool, consulta `channel_accounts` por `tenant_id` + `channel_type`. Se registro ausente OU `is_active=false` → retorna `CHANNEL_DISABLED` e encerra. Centraliza a verificação para todos os webhooks que invocam a IA.
+2. **UI corrigida** (`src/components/support/ChannelIntegrations.tsx`): botão padrão agora é toggle **Desativar / Reativar** (atualiza `is_active`). **Remover Permanentemente** virou ação secundária com confirmação dupla.
+3. **Backfill de dados**: para tenants onde os registros já tinham sido deletados, recriados com `is_active=false` para que o gate tenha estado explícito.
+
+**Onde ocorreu:** `channel_accounts`, `ai-support-chat`, `ChannelIntegrations.tsx`, todos os webhooks de canal (`meta-whatsapp-webhook`, `instagram-webhook`, chat do site).
+
+**Validação técnica:**
+- Banco: 12 registros em `channel_accounts` para `respeite-o-homem*` com `is_active=false` em todos os canais de IA. ✅
+- Edge function: chamada real ao `ai-support-chat` com conversa do tenant retornou `{success:false, code:"CHANNEL_DISABLED"}` — sem invocar LLM. ✅
+
+**Regra derivada (anti-regressão — MANDATÓRIA):**
+1. **`channel_accounts` é a única fonte de verdade** para "canal habilitado". Ausência de registro = inativo (sem fallback para `true`).
+2. **Proibido** que a UI delete registros de `channel_accounts` como ação primária. Deletar é ação secundária com confirmação. Padrão é toggle `is_active`.
+3. **Proibido** que qualquer novo motor/agente de IA responda em um canal sem antes consultar `channel_accounts.is_active` para o `tenant_id` + `channel_type` corretos.
+4. **Proibido** confiar apenas em `ai_support_config` ou `ai_channel_config` para decidir se a IA responde — esses dois são camadas adicionais (ON/OFF lógico da IA), não substituem o gate de canal.
+5. Doc formal vivo: `docs/especificacoes/crm/crm-atendimento.md` §5.1 "Gate Universal de Canal".
