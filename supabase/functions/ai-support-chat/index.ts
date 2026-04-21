@@ -2592,8 +2592,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           model: usedModel,
           messages: currentMessages,
           ...tokenParams,
-          temperature: 0.7,
+          temperature: 0.3,
           tools: SALES_TOOLS,
+          tool_choice: "auto",
+          parallel_tool_calls: false,
         };
 
         const followUpResp = await fetch("https://api.openai.com/v1/chat/completions", {
