@@ -1,9 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import {
+  renderTemplate,
+  assertNoPlaceholders,
+  renderForInternalLog,
+  TemplateRenderError,
+} from "../_shared/template-renderer.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.4.0"; // Template support for WhatsApp notifications
+const VERSION = "v1.5.0"; // Phase 3 — strict template rendering, no [Template:] in timeline
 // ===========================================================
 
 const corsHeaders = {
