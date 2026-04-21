@@ -17356,6 +17356,68 @@ export type Database = {
           },
         ]
       }
+      tenant_ai_context_snapshot: {
+        Row: {
+          build_error: string | null
+          business_summary: Json | null
+          commercial_signals: Json | null
+          created_at: string
+          expires_at: string | null
+          generated_at: string | null
+          is_stale: boolean
+          niche_confidence: number | null
+          niche_label: string | null
+          policies_summary: Json | null
+          source_hash: string | null
+          tenant_id: string
+          top_categories: Json | null
+          top_products: Json | null
+          updated_at: string
+        }
+        Insert: {
+          build_error?: string | null
+          business_summary?: Json | null
+          commercial_signals?: Json | null
+          created_at?: string
+          expires_at?: string | null
+          generated_at?: string | null
+          is_stale?: boolean
+          niche_confidence?: number | null
+          niche_label?: string | null
+          policies_summary?: Json | null
+          source_hash?: string | null
+          tenant_id: string
+          top_categories?: Json | null
+          top_products?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          build_error?: string | null
+          business_summary?: Json | null
+          commercial_signals?: Json | null
+          created_at?: string
+          expires_at?: string | null
+          generated_at?: string | null
+          is_stale?: boolean
+          niche_confidence?: number | null
+          niche_label?: string | null
+          policies_summary?: Json | null
+          source_hash?: string | null
+          tenant_id?: string
+          top_categories?: Json | null
+          top_products?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_ai_context_snapshot_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_ai_subscriptions: {
         Row: {
           created_at: string
