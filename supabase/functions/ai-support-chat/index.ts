@@ -462,6 +462,42 @@ const SALES_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "request_human_handoff",
+      description: "Encaminha a conversa para um vendedor humano e cria um ticket comercial com o contexto do carrinho. Use APENAS nos casos descritos nas regras de handoff (atacado/B2B, negociação fora da política, reclamação grave, cliente irritado, dado/pedido sensível, problema técnico que você não consegue resolver). NUNCA use para perguntas comuns de venda que você consegue resolver com as outras ferramentas.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: {
+            type: "string",
+            enum: [
+              "wholesale_b2b",
+              "custom_negotiation",
+              "complaint",
+              "angry_customer",
+              "sensitive_issue",
+              "out_of_scope",
+              "technical_blocker",
+              "other",
+            ],
+            description: "Motivo categorizado do handoff",
+          },
+          summary: {
+            type: "string",
+            description: "Resumo curto (até 200 chars) do que o cliente quer e por que precisa de humano",
+          },
+          last_intent: {
+            type: "string",
+            description: "Última intenção/tópico da conversa (ex: 'orçamento atacado', 'troca de produto')",
+          },
+        },
+        required: ["reason", "summary"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // Intent classification tool definition (updated with purchase_intent)
