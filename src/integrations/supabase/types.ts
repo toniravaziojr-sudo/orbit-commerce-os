@@ -20884,15 +20884,7 @@ export type Database = {
           tenant_id: string | null
           total_carts: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_carts_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Functions: {
