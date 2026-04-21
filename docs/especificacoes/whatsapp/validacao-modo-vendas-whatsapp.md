@@ -16,6 +16,7 @@ Antes de rodar qualquer cenário, confirmar:
 - [ ] Pelo menos 1 produto **sem variantes** ativo no catálogo.
 - [ ] Pelo menos 1 produto **com variantes** ativo no catálogo, com pelo menos 1 variante com estoque > 0.
 - [ ] Telefone de teste com janela de 24h aberta (mensagem inbound recente).
+- [ ] Tabelas `tenant_learning_events` e `tenant_learning_memory` existem (Fase 1 da Memória de Aprendizado deployada).
 
 Comando rápido de pré-checagem:
 ```sql
@@ -191,15 +192,139 @@ curl -sS -X POST \
 
 ---
 
+## CHECKLIST TRANSVERSAL — MEMÓRIA DE APRENDIZADO POR TENANT (Fase 1)
+
+> **Aplicar este bloco em TODOS os cenários acima (1 a 6).**
+> A Memória de Aprendizado é uma camada nativa que captura padrões automaticamente. A validação não é um cenário separado: é uma checagem extra que roda em paralelo a cada teste real.
+
+### O que validar em cada cenário
+
+Após executar o cenário (Cenário 1, 2, 3, 4...), rodar a validação abaixo **antes** de declarar o cenário ✅:
+
+#### A. Captura do evento bruto (`tenant_learning_events`)
+
+```sql
+SELECT id, event_type, weight, conversation_id,
+       LEFT(customer_message, 80) AS msg,
+       LEFT(ai_response, 80) AS resp,
+       created_at
+FROM tenant_learning_events
+WHERE tenant_id = 'd1a4d0ed-8842-495e-b741-540a9a345b25'
+  AND created_at >= now() - interval '15 minutes'
+ORDER BY created_at DESC;
+```
+
+**Critério:** o `event_type` esperado para o cenário deve aparecer.
+
+| Cenário | Evento esperado | Peso |
+|---------|----------------|------|
+| 1 — Venda sem variante | `cart_created` (+5), `checkout_generated` (+10), `continuity` (+1) por turno | — |
+| 2 — Venda com variante | igual ao 1, mas com `metadata.has_variant = true` | — |
+| 3 — Recomendação cruzada | `continuity` (+1) por turno; `cart_created` se aceita | — |
+| 4 — Handoff atacado | `handoff_success` (+8) | — |
+| 5 — Janela 24h | nenhum evento de aprendizado (mensagem falhou antes) | — |
+| 6 — UI Funil | nenhum evento (só leitura) | — |
+
+#### B. Agregação para `tenant_learning_memory`
+
+A agregação roda via cron `ai-learning-aggregator-6h`. Para validar imediatamente, disparar manualmente:
+
+```bash
+curl -sS -X POST \
+  "https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/ai-learning-aggregator" \
+  -H "Authorization: Bearer <ANON_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"tenant_id": "d1a4d0ed-8842-495e-b741-540a9a345b25"}'
+```
+
+Depois conferir:
+```sql
+SELECT id, learning_type, status,
+       LEFT(pattern_text, 80) AS pattern,
+       LEFT(response_text, 80) AS response,
+       success_score, evidence_count,
+       category_sensitivity, created_at, updated_at
+FROM tenant_learning_memory
+WHERE tenant_id = 'd1a4d0ed-8842-495e-b741-540a9a345b25'
+ORDER BY updated_at DESC
+LIMIT 10;
+```
+
+#### C. Critérios de aceite por linha encontrada
+
+Para cada registro novo em `tenant_learning_memory`:
+
+- [ ] **`learning_type`** está em `('faq','objection','winning_response')` (Fase 1 só aceita esses 3).
+- [ ] **`success_score`** > 0 e coerente (não inflado por evento único).
+- [ ] **`evidence_count`** ≥ 3 se `status='active'`. Se < 3, deve estar em `pending_review` ou ainda não promovido.
+- [ ] **`status`**:
+  - `safe` + score ≥ 70 → `active`
+  - `commercial` + score ≥ 85 → `active`
+  - `sensitive` ou abaixo do limite → `pending_review`
+- [ ] **Guardrails**: `pattern_text` e `response_text` NÃO podem conter:
+  - preço numérico (R$, %, "reais")
+  - claims ("garantido", "cura", "100%", "milagroso")
+  - promessa de prazo específico
+  - dados pessoais (CPF, CNPJ, telefone)
+
+  Validar com:
+  ```sql
+  SELECT id, learning_type, pattern_text, response_text
+  FROM tenant_learning_memory
+  WHERE tenant_id = 'd1a4d0ed-8842-495e-b741-540a9a345b25'
+    AND status = 'active'
+    AND (
+      pattern_text ~* '(r\$|garantid|100%|cura|milagr|cpf|cnpj)'
+      OR response_text ~* '(r\$|garantid|100%|cura|milagr|cpf|cnpj)'
+    );
+  ```
+  **Esperado: 0 linhas.** Qualquer linha aqui é falha de guardrail crítica.
+
+#### D. Influência no `ai-support-chat` (a partir do 2º cenário relevante)
+
+Após pelo menos 1 aprendizado `status='active'` existir, executar novamente um cenário equivalente (ex: repetir Cenário 1 com mensagem similar à que gerou o aprendizado). Validar:
+
+- [ ] Resposta da IA referencia/aproxima do `response_text` aprendido (sem copiar literal).
+- [ ] `tenant_learning_memory.usage_count` incrementou para o registro relevante:
+  ```sql
+  SELECT id, learning_type, usage_count, last_used_at
+  FROM tenant_learning_memory
+  WHERE tenant_id = 'd1a4d0ed-8842-495e-b741-540a9a345b25'
+    AND status = 'active'
+  ORDER BY last_used_at DESC NULLS LAST
+  LIMIT 5;
+  ```
+
+#### E. Isolamento por tenant (anti-vazamento)
+
+Após qualquer cenário, confirmar que NENHUM evento ou aprendizado vazou para outro tenant:
+```sql
+SELECT tenant_id, COUNT(*)
+FROM tenant_learning_events
+WHERE created_at >= now() - interval '1 hour'
+GROUP BY tenant_id;
+```
+**Esperado:** apenas o tenant `d1a4d0ed-8842-495e-b741-540a9a345b25`.
+
+---
+
 ## CHECKLIST DE FECHAMENTO
 
-| Cenário | Status esperado após execução |
-|---------|-------------------------------|
-| 1 — Venda sem variante | ✅ Carrinho + checkout + funil |
-| 2 — Venda com variante | ✅ IA pergunta opção, grava `variant_id`/`label`/`sku` |
-| 3 — Recomendação cruzada | ✅ Tool real chamada |
-| 4 — Handoff atacado | ✅ Ticket + `waiting_agent` mantido + funil |
-| 5 — Janela 24h | ✅ `OUTSIDE_24H_WINDOW` |
-| 6 — UI Funil | ✅ Cards e tabela coerentes |
+| Cenário | Status esperado após execução | Memória de Aprendizado (transversal) |
+|---------|-------------------------------|--------------------------------------|
+| 1 — Venda sem variante | ✅ Carrinho + checkout + funil | ✅ Eventos `cart_created` + `checkout_generated` capturados |
+| 2 — Venda com variante | ✅ IA pergunta opção, grava `variant_id`/`label`/`sku` | ✅ Eventos capturados com metadata variante |
+| 3 — Recomendação cruzada | ✅ Tool real chamada | ✅ Eventos `continuity` + (se aceita) `cart_created` |
+| 4 — Handoff atacado | ✅ Ticket + `waiting_agent` mantido + funil | ✅ Evento `handoff_success` capturado |
+| 5 — Janela 24h | ✅ `OUTSIDE_24H_WINDOW` | ✅ Nenhum evento de aprendizado gerado |
+| 6 — UI Funil | ✅ Cards e tabela coerentes | ✅ Nenhum evento (só leitura) |
 
-Quando todos os 6 cenários estiverem ✅, a Fase 5 está **comercialmente validada ponta a ponta**.
+**Validações finais transversais (após executar todos os cenários):**
+
+- [ ] Agregação manual rodada com sucesso.
+- [ ] Pelo menos 1 registro em `tenant_learning_memory` com `learning_type` válido.
+- [ ] Nenhum aprendizado `active` viola guardrails (query D retorna 0 linhas).
+- [ ] Nenhum vazamento entre tenants (query E mostra só o tenant testado).
+- [ ] Se houve repetição de cenário, `usage_count` incrementou.
+
+Quando todos os 6 cenários estiverem ✅ **e** as 5 validações transversais da Memória de Aprendizado passarem, a Fase 5 + Fase 1 da Memória estão **comercialmente validadas ponta a ponta**.
