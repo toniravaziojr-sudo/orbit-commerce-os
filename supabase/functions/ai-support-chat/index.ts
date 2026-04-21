@@ -462,6 +462,23 @@ const SALES_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "request_human_handoff",
+      description: "Transfere a conversa para um atendente humano e cria um ticket comercial. Use APENAS quando: (a) cliente solicitar atendente, (b) reclamação grave/agressividade, (c) caso comercial complexo que você não consegue resolver, (d) cliente pedir cancelamento/reembolso/estorno. Sempre passe um resumo claro.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: { type: "string", description: "Motivo curto do handoff (ex: 'reclamação grave', 'cliente pediu humano', 'cancelamento')" },
+          summary: { type: "string", description: "Resumo do que foi conversado e do que o cliente precisa" },
+          last_intent: { type: "string", description: "Última intenção identificada (compra, dúvida, reclamação, cancelamento, etc.)" },
+        },
+        required: ["reason", "summary"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // Intent classification tool definition (updated with purchase_intent)
@@ -575,7 +592,7 @@ async function executeSalesTool(
         const productId = args.product_id as string;
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, slug, description, price, compare_at_price, stock_quantity, status, images, weight, sku")
+          .select("id, name, slug, description, price, compare_at_price, stock_quantity, status, images, weight, sku, has_variants, manage_stock, allow_backorder")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
@@ -583,14 +600,43 @@ async function executeSalesTool(
 
         if (error || !data) return JSON.stringify({ error: "Produto não encontrado" });
 
+        // Variants summary (count + min/max price + total stock)
+        let variantsSummary: any = null;
+        if (data.has_variants) {
+          const { data: vs } = await supabase
+            .from("product_variants")
+            .select("id, name, price, stock_quantity, is_active")
+            .eq("product_id", productId)
+            .eq("is_active", true);
+          if (vs && vs.length > 0) {
+            const prices = vs.map((v: any) => Number(v.price ?? data.price)).filter((n: number) => !isNaN(n));
+            variantsSummary = {
+              count: vs.length,
+              min_price: prices.length ? Math.min(...prices) : data.price,
+              max_price: prices.length ? Math.max(...prices) : data.price,
+              total_stock: vs.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0),
+              sample_options: vs.slice(0, 5).map((v: any) => v.name),
+            };
+          }
+        }
+
+        const manageStock = data.manage_stock ?? true;
+        const allowBackorder = data.allow_backorder ?? false;
+        const hasStock = !manageStock || allowBackorder || (data.stock_quantity ?? 0) > 0;
+
         return JSON.stringify({
           id: data.id, name: data.name, slug: data.slug,
           description: data.description?.slice(0, 500),
           price: data.price, compare_at_price: data.compare_at_price,
           stock: data.stock_quantity,
-          available: data.status === "active" && (data.stock_quantity ?? 0) > 0,
+          manage_stock: manageStock,
+          allow_backorder: allowBackorder,
+          has_variants: data.has_variants ?? false,
+          variants_summary: variantsSummary,
+          available: data.status === "active" && hasStock,
           images: (data.images as any[])?.slice(0, 3) || [],
           sku: data.sku, weight: data.weight,
+          requires_variant_selection: !!data.has_variants,
         });
       }
 
@@ -653,12 +699,13 @@ async function executeSalesTool(
 
       case "add_to_cart": {
         const productId = args.product_id as string;
+        const variantId = (args.variant_id as string) || null;
         const quantity = (args.quantity as number) || 1;
 
         // Get product info
         const { data: product } = await supabase
           .from("products")
-          .select("id, name, price, stock_quantity, status")
+          .select("id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder, sku")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
@@ -666,10 +713,59 @@ async function executeSalesTool(
 
         if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado" });
         if (product.status !== "active") return JSON.stringify({ success: false, error: "Produto indisponível" });
-        if ((product.stock_quantity ?? 0) < quantity) return JSON.stringify({ success: false, error: `Estoque insuficiente. Disponível: ${product.stock_quantity}` });
+
+        // If product has variants, variant_id is REQUIRED
+        if (product.has_variants && !variantId) {
+          return JSON.stringify({
+            success: false,
+            requires_variant: true,
+            error: "Este produto tem variações. Use get_product_variants para listar e pergunte ao cliente qual variante deseja antes de adicionar ao carrinho.",
+          });
+        }
+
+        let unitPrice = Number(product.price);
+        let variantLabel: string | null = null;
+        let sku: string | null = product.sku || null;
+
+        if (variantId) {
+          const { data: variant } = await supabase
+            .from("product_variants")
+            .select("id, name, price, stock_quantity, is_active, sku, product_id")
+            .eq("id", variantId)
+            .eq("product_id", productId)
+            .single();
+          if (!variant || !variant.is_active) {
+            return JSON.stringify({ success: false, error: "Variação não disponível" });
+          }
+          unitPrice = Number(variant.price ?? product.price);
+          variantLabel = variant.name;
+          sku = variant.sku || sku;
+
+          // Variant-level stock check
+          const manageStock = product.manage_stock ?? true;
+          const allowBackorder = product.allow_backorder ?? false;
+          if (manageStock && !allowBackorder && (variant.stock_quantity ?? 0) < quantity) {
+            return JSON.stringify({
+              success: false,
+              error: `Estoque insuficiente para a variação ${variant.name}. Disponível: ${variant.stock_quantity ?? 0}`,
+              available_stock: variant.stock_quantity ?? 0,
+            });
+          }
+        } else {
+          // Product-level stock check (only when manage_stock and !allow_backorder)
+          const manageStock = product.manage_stock ?? true;
+          const allowBackorder = product.allow_backorder ?? false;
+          if (manageStock && !allowBackorder && (product.stock_quantity ?? 0) < quantity) {
+            return JSON.stringify({
+              success: false,
+              error: `Estoque insuficiente. Disponível: ${product.stock_quantity ?? 0}`,
+              available_stock: product.stock_quantity ?? 0,
+            });
+          }
+        }
 
         // Get or create cart
-        let { data: cart } = await supabase
+        const { data: cart } = await supabase
           .from("whatsapp_carts")
           .select("*")
           .eq("conversation_id", conversationId)
@@ -677,19 +773,25 @@ async function executeSalesTool(
           .eq("status", "active")
           .maybeSingle();
 
-        const items = cart?.items as any[] || [];
-        const existingIdx = items.findIndex((i: any) => i.product_id === productId);
+        const items = (cart?.items as any[]) || [];
+        // Match by both product and variant
+        const existingIdx = items.findIndex((i: any) =>
+          i.product_id === productId && (i.variant_id || null) === variantId
+        );
 
         if (existingIdx >= 0) {
           items[existingIdx].quantity += quantity;
-          items[existingIdx].subtotal = items[existingIdx].quantity * product.price;
+          items[existingIdx].subtotal = items[existingIdx].quantity * unitPrice;
         } else {
           items.push({
             product_id: productId,
-            name: product.name,
-            price: product.price,
+            variant_id: variantId,
+            variant_label: variantLabel,
+            sku,
+            name: variantLabel ? `${product.name} — ${variantLabel}` : product.name,
+            price: unitPrice,
             quantity,
-            subtotal: quantity * product.price,
+            subtotal: quantity * unitPrice,
           });
         }
 
@@ -716,7 +818,7 @@ async function executeSalesTool(
 
         return JSON.stringify({
           success: true,
-          message: `${product.name} (x${quantity}) adicionado ao carrinho`,
+          message: `${variantLabel ? product.name + " (" + variantLabel + ")" : product.name} (x${quantity}) adicionado ao carrinho`,
           cart_total: `R$ ${(subtotalCents / 100).toFixed(2)}`,
           items_count: items.length,
         });
@@ -910,10 +1012,13 @@ async function executeSalesTool(
             coupon_code: cart.coupon_code || null,
             additional_products: additionalItems.map((i: any) => ({
               product_id: i.product_id,
+              variant_id: i.variant_id || null,
               quantity: i.quantity,
             })),
             is_active: true,
             expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+            // Phase 5 — funnel traceability
+            source_conversation_id: conversationId,
           })
           .select()
           .single();
@@ -947,10 +1052,13 @@ async function executeSalesTool(
 
         const checkoutUrl = `${storeUrl}/checkout?${params.toString()}`;
 
-        // Mark cart as converted
+        // Mark cart as converted (order_id will be filled by trigger when paid order arrives)
         await supabase
           .from("whatsapp_carts")
-          .update({ status: "converted", updated_at: new Date().toISOString() })
+          .update({
+            status: "converted",
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", cart.id);
 
         return JSON.stringify({
@@ -959,8 +1067,264 @@ async function executeSalesTool(
           items_count: items.length,
           total: `R$ ${(cart.subtotal_cents / 100).toFixed(2)}`,
           coupon: cart.coupon_code || null,
+          checkout_link_id: checkoutLink.id,
         });
       }
+
+      case "get_product_variants": {
+        const productId = args.product_id as string;
+        const { data: product } = await supabase
+          .from("products")
+          .select("id, name, price, has_variants, manage_stock, allow_backorder")
+          .eq("id", productId)
+          .eq("tenant_id", tenantId)
+          .is("deleted_at", null)
+          .single();
+
+        if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado" });
+        if (!product.has_variants) {
+          return JSON.stringify({
+            success: true,
+            has_variants: false,
+            message: "Este produto não possui variações. Use add_to_cart diretamente.",
+          });
+        }
+
+        const { data: variants } = await supabase
+          .from("product_variants")
+          .select("id, sku, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active")
+          .eq("product_id", productId)
+          .eq("is_active", true)
+          .order("position", { ascending: true });
+
+        const manageStock = product.manage_stock ?? true;
+        const allowBackorder = product.allow_backorder ?? false;
+
+        const list = (variants || []).map((v: any) => {
+          const opts: Record<string, string> = {};
+          if (v.option1_name) opts[v.option1_name] = v.option1_value;
+          if (v.option2_name) opts[v.option2_name] = v.option2_value;
+          if (v.option3_name) opts[v.option3_name] = v.option3_value;
+          const stock = v.stock_quantity ?? 0;
+          const available = !manageStock || allowBackorder || stock > 0;
+          return {
+            variant_id: v.id,
+            label: v.name,
+            sku: v.sku,
+            options: opts,
+            price: Number(v.price ?? product.price),
+            stock,
+            available,
+          };
+        });
+
+        return JSON.stringify({
+          success: true,
+          product_id: productId,
+          product_name: product.name,
+          has_variants: true,
+          variants: list,
+          message: list.length > 0
+            ? "Pergunte ao cliente qual variação ele deseja antes de chamar add_to_cart com variant_id."
+            : "Nenhuma variação ativa disponível no momento.",
+        });
+      }
+
+      case "recommend_related_products": {
+        const limit = (args.limit as number) || 3;
+
+        // Get cart to know what was added
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("items")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        const cartItems = (cart?.items as any[]) || [];
+        if (cartItems.length === 0) {
+          return JSON.stringify({ success: true, recommendations: [], message: "Carrinho vazio. Adicione um produto antes de recomendar." });
+        }
+
+        const cartProductIds = cartItems.map((i: any) => i.product_id);
+        const mainProductId = cartItems[0].product_id;
+
+        // Find categories of the main product
+        const { data: cats } = await supabase
+          .from("product_categories")
+          .select("category_id")
+          .eq("product_id", mainProductId);
+
+        const categoryIds = (cats || []).map((c: any) => c.category_id);
+
+        let related: any[] = [];
+
+        if (categoryIds.length > 0) {
+          // Same-category products, excluding what's already in the cart
+          const { data: catProducts } = await supabase
+            .from("product_categories")
+            .select("product_id")
+            .in("category_id", categoryIds);
+
+          const candidateIds = [...new Set((catProducts || []).map((p: any) => p.product_id))]
+            .filter((id: string) => !cartProductIds.includes(id));
+
+          if (candidateIds.length > 0) {
+            const { data: prods } = await supabase
+              .from("products")
+              .select("id, name, slug, price, compare_at_price, stock_quantity, images, manage_stock, allow_backorder")
+              .in("id", candidateIds.slice(0, 30))
+              .eq("tenant_id", tenantId)
+              .eq("status", "active")
+              .is("deleted_at", null)
+              .order("created_at", { ascending: false })
+              .limit(limit);
+
+            related = (prods || []).filter((p: any) => {
+              const ms = p.manage_stock ?? true;
+              const ab = p.allow_backorder ?? false;
+              return !ms || ab || (p.stock_quantity ?? 0) > 0;
+            }).slice(0, limit);
+          }
+        }
+
+        // Fallback: latest active products of the tenant (same niche by snapshot grounding)
+        if (related.length === 0) {
+          const { data: latest } = await supabase
+            .from("products")
+            .select("id, name, slug, price, compare_at_price, stock_quantity, images")
+            .eq("tenant_id", tenantId)
+            .eq("status", "active")
+            .is("deleted_at", null)
+            .not("id", "in", `(${cartProductIds.join(",")})`)
+            .order("created_at", { ascending: false })
+            .limit(limit);
+          related = latest || [];
+        }
+
+        return JSON.stringify({
+          success: true,
+          based_on_cart_item: cartItems[0].name,
+          recommendations: related.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            compare_at_price: p.compare_at_price,
+            image: (p.images as any)?.[0] || null,
+            stock: p.stock_quantity,
+          })),
+        });
+      }
+
+      case "request_human_handoff": {
+        const reason = (args.reason as string) || "Cliente solicitou atendimento humano";
+        const summary = (args.summary as string) || "";
+        const lastIntent = (args.last_intent as string) || null;
+
+        // Get current cart (if any)
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("id, items, subtotal_cents, customer_data")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        // Resolve a created_by user (any tenant member, since the system itself is opening)
+        let createdBy: string | null = null;
+        const { data: anyMember } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("tenant_id", tenantId)
+          .limit(1)
+          .maybeSingle();
+        createdBy = anyMember?.user_id || null;
+
+        if (!createdBy) {
+          // No tenant member found — log only, don't fail the conversation
+          console.error("[sales-tool] handoff: no tenant member to set created_by");
+        }
+
+        const subject = `Handoff comercial WhatsApp — ${reason}`.slice(0, 200);
+
+        // Build ticket metadata
+        const metadata: Record<string, any> = {
+          source: "whatsapp_sales",
+          channel_type: "whatsapp",
+          handoff_reason: reason,
+          last_intent: lastIntent,
+          ai_summary: summary,
+          customer_phone: customerPhone || null,
+          customer_email: customerEmail || null,
+          customer_name: customerName || null,
+        };
+        if (cart) {
+          metadata.cart_id = cart.id;
+          metadata.cart_items = (cart.items as any[]) || [];
+          metadata.cart_subtotal_cents = cart.subtotal_cents;
+        }
+
+        let ticketId: string | null = null;
+        if (createdBy) {
+          const { data: ticket, error: ticketError } = await supabase
+            .from("support_tickets")
+            .insert({
+              tenant_id: tenantId,
+              created_by: createdBy,
+              subject,
+              category: "sales",
+              priority: "high",
+              status: "open",
+              source_conversation_id: conversationId,
+              metadata,
+            })
+            .select("id")
+            .single();
+
+          if (ticketError) {
+            console.error("[sales-tool] handoff ticket error:", ticketError);
+          } else {
+            ticketId = ticket?.id || null;
+
+            // First message of the ticket = the AI summary
+            if (ticketId && summary) {
+              await supabase.from("support_ticket_messages").insert({
+                ticket_id: ticketId,
+                tenant_id: tenantId,
+                sender_type: "platform",
+                sender_user_id: createdBy,
+                content: `[Handoff automático WhatsApp]\nMotivo: ${reason}\n\nResumo da IA:\n${summary}`,
+              });
+            }
+          }
+        }
+
+        // Mark cart with handoff (do not change status if it was already converted)
+        if (cart) {
+          await supabase
+            .from("whatsapp_carts")
+            .update({
+              handoff_reason: reason,
+              handoff_ticket_id: ticketId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", cart.id);
+        }
+
+        // Mark conversation as needing agent
+        await supabase
+          .from("conversations")
+          .update({ status: "waiting_agent", updated_at: new Date().toISOString() })
+          .eq("id", conversationId);
+
+        return JSON.stringify({
+          success: true,
+          ticket_id: ticketId,
+          message: "Atendimento transferido para um humano. Um atendente assumirá em breve.",
+        });
+      }
+
 
       case "lookup_customer": {
         const phone = args.phone as string | undefined;
