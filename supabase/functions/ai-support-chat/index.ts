@@ -1036,10 +1036,12 @@ async function executeSalesTool(
             coupon_code: cart.coupon_code || null,
             additional_products: additionalItems.map((i: any) => ({
               product_id: i.product_id,
+              variant_id: i.variant_id ?? null,
               quantity: i.quantity,
             })),
             is_active: true,
             expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+            source_conversation_id: conversationId,
           })
           .select()
           .single();
