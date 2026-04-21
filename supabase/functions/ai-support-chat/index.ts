@@ -1578,6 +1578,36 @@ async function executeSalesTool(
         const summary = (args.summary as string) || "Cliente solicitou atendimento humano.";
         const lastIntent = (args.last_intent as string) || null;
 
+        // ====== GUARDRAIL SERVER-SIDE ======
+        // Bloquear handoff abusivo (saudação, pergunta de catálogo, intenção de compra).
+        // Critérios cumulativos:
+        //  - Motivos válidos: lista fechada
+        //  - Se a última msg do cliente é só saudação curta, BLOQUEAR
+        //  - Se NÃO há carrinho ativo E NÃO há sinal de reclamação/negociação no summary, BLOQUEAR
+        const VALID_REASONS = new Set([
+          "wholesale_b2b",
+          "custom_negotiation",
+          "complaint",
+          "angry_customer",
+          "sensitive_issue",
+          "technical_blocker",
+        ]);
+
+        const lastCustomerMsg = (lastUserMessageContentForTools || "").trim().toLowerCase();
+        const isJustGreeting = lastCustomerMsg.length <= 20 && /^(oi+|ol[áa]+|opa+|bom dia|boa tarde|boa noite|hey|hello|hi)\b/i.test(lastCustomerMsg);
+        const summaryLc = (summary || "").toLowerCase();
+        const summarySuggestsCommercial = /(atacado|b2b|revend|negoci|desconto|orcament|orçament|reclama|atras|defeit|n[ãa]o chegou|cobranca|cobrança|chargeb|estorn|nota fiscal|trocar produto|devolver|judicial)/i.test(summaryLc);
+
+        if (!VALID_REASONS.has(reason) || isJustGreeting || (!summarySuggestsCommercial && reason === "other")) {
+          console.warn(`[sales-tool] handoff BLOCKED by guardrail. reason="${reason}" greeting=${isJustGreeting} commercial=${summarySuggestsCommercial} lastMsg="${lastCustomerMsg.slice(0,40)}"`);
+          return JSON.stringify({
+            success: false,
+            blocked: true,
+            error: "HANDOFF_NAO_PERMITIDO",
+            message: "Esta situação não justifica handoff humano. Use search_products / get_product_details / add_to_cart para atender o cliente. Saudação simples ou dúvida de catálogo NÃO são motivos válidos de handoff.",
+          });
+        }
+
         // Carregar carrinho ativo (se existir) para anexar contexto
         const { data: cart } = await supabase
           .from("whatsapp_carts")
