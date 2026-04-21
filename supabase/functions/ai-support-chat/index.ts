@@ -2350,6 +2350,61 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
 
     // ============================================
+    // SALES MODE: Detector de produto nominal
+    // Se o cliente cita um produto que existe no catálogo, injetamos um
+    // hint imperativo final para forçar tool-calling. Isto é crítico para
+    // evitar loop de qualificação quando a intenção já é clara.
+    // ============================================
+    if (salesModeEnabled && lastMessageContent) {
+      try {
+        const lc = lastMessageContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        // Heurísticas de intenção
+        const isNamingProduct = /(kit|shampoo|balm|locao|loc[aã]o|creme|s[ée]rum|m[áa]scara|perfume|sabonete|condicionador|gel|p[óo]|tonico|t[ôo]nico)\s+\w/i.test(lastMessageContent);
+        const isWantToBuy = /\b(quero comprar|pode adicionar|adiciona no carrinho|coloca no carrinho|vou levar|fechar o pedido|finaliza|manda o link|gera o link)\b/i.test(lc);
+        const isWantDetails = /\b(me fala mais|me conta mais|detalh|quanto custa|qual o preco|qual o pre[çc]o|tem em estoque)\b/i.test(lc);
+
+        // Match com top_products do snapshot (case-insensitive, sem acento)
+        let matchedProductHint = "";
+        if (tenantSnapshot?.top_products?.length) {
+          const matches = tenantSnapshot.top_products.filter((p: any) => {
+            if (!p?.name) return false;
+            const pn = p.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            // Match: produto inteiro contido na mensagem OU 2+ tokens significativos do produto na mensagem
+            if (lc.includes(pn)) return true;
+            const tokens = pn.split(/\s+/).filter((t: string) => t.length >= 4);
+            const hits = tokens.filter((t: string) => lc.includes(t)).length;
+            return tokens.length >= 2 && hits >= 2;
+          }).slice(0, 5);
+
+          if (matches.length) {
+            matchedProductHint = `\nProdutos do catálogo que casam com a mensagem do cliente: ${matches.map((m: any) => `"${m.name}"`).join(", ")}.`;
+          }
+        }
+
+        const triggers: string[] = [];
+        if (isNamingProduct || matchedProductHint) {
+          triggers.push("O cliente CITOU um produto. VOCÊ DEVE chamar `search_products` AGORA com o nome citado, antes de responder.");
+        }
+        if (isWantDetails) {
+          triggers.push("O cliente pediu DETALHES. VOCÊ DEVE chamar `search_products` + `get_product_details` antes de responder.");
+        }
+        if (isWantToBuy) {
+          triggers.push("O cliente quer COMPRAR. VOCÊ DEVE chamar `search_products` (se ainda não souber o id) e em seguida `add_to_cart`. Não pergunte de novo o que ele quer.");
+        }
+
+        if (triggers.length || matchedProductHint) {
+          aiMessages.push({
+            role: "system",
+            content: `### AÇÃO OBRIGATÓRIA NESTE TURNO\n${triggers.join("\n")}${matchedProductHint}\n\nPROIBIDO responder apenas com texto se algum gatilho acima foi acionado. Chame as tools primeiro.`,
+          });
+          console.log(`[ai-support-chat] sales-mode trigger injected — naming=${isNamingProduct} buy=${isWantToBuy} details=${isWantDetails} matches=${matchedProductHint ? "yes" : "no"}`);
+        }
+      } catch (e) {
+        console.error("[ai-support-chat] sales trigger detection error:", e);
+      }
+    }
+
+    // ============================================
     // STEP 7: CALL OPENAI API (with tool call loop for sales mode)
     // ============================================
     let aiContent: string;
