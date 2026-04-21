@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaConnectionForTenant, findTenantByPageIdV4, PAGE_BEARING_INTEGRATIONS } from "../_shared/meta-connection.ts";
+import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v2.0.0"; // Phase 7: V4-first tenant resolution + helper for token/assets
@@ -194,21 +195,27 @@ async function handleInstagramDM(
 
   const externalConvId = `ig_dm_${senderId}_${igUserId}`;
 
+  // Phase 1: localizar conversa SEM filtrar por status (evita re-criar quando aberta)
   const { data: existingConv } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, status, assigned_to")
     .eq("tenant_id", tenantId)
     .eq("external_conversation_id", externalConvId)
-    .in("status", ["new", "open", "waiting_customer", "waiting_agent", "bot"])
+    .not("status", "in", "(resolved,spam)")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   let conversationId: string;
+  let convStatus: string | null = null;
+  let convAssigned: string | null = null;
 
   if (existingConv) {
     conversationId = existingConv.id;
+    convStatus = existingConv.status;
+    convAssigned = existingConv.assigned_to;
   } else {
+    const initialDecision = await shouldAiRespond({ supabase, tenant_id: tenantId, channel_type: "instagram_dm" });
     const { data: newConv, error: convError } = await supabase
       .from("conversations")
       .insert({
@@ -217,13 +224,13 @@ async function handleInstagramDM(
         customer_name: senderName,
         external_conversation_id: externalConvId,
         external_thread_id: senderId,
-        status: "new",
+        status: initialDecision.initial_status_for_new_conversation,
         priority: 1,
         subject: `Instagram DM - ${senderName}`,
         last_message_at: new Date().toISOString(),
         metadata: { ig_user_id: igUserId, sender_id: senderId, page_id: pageId },
       })
-      .select("id")
+      .select("id, status")
       .single();
 
     if (convError) {
@@ -231,6 +238,7 @@ async function handleInstagramDM(
       return;
     }
     conversationId = newConv.id;
+    convStatus = newConv.status;
   }
 
   await supabase.from("messages").insert({
@@ -248,12 +256,13 @@ async function handleInstagramDM(
     external_message_id: messageId,
   });
 
+  // CRITICAL (Phase 1): NEVER overwrite status. Only update timestamps.
   await supabase
     .from("conversations")
-    .update({ last_message_at: new Date().toISOString(), status: "new" })
+    .update({ last_message_at: new Date().toISOString(), last_customer_message_at: new Date().toISOString() })
     .eq("id", conversationId);
 
-  await triggerAiIfEnabled(supabase, traceId, tenantId, conversationId, "instagram_dm");
+  await triggerAiIfEnabled(supabase, traceId, tenantId, conversationId, "instagram_dm", convStatus, convAssigned);
 }
 
 /**
@@ -343,36 +352,27 @@ async function triggerAiIfEnabled(
   traceId: string,
   tenantId: string,
   conversationId: string,
-  channelType: string
+  channelType: string,
+  convStatus: string | null = null,
+  convAssigned: string | null = null,
 ) {
-  const { data: aiConfig } = await supabase
-    .from("ai_support_config")
-    .select("is_enabled")
-    .eq("tenant_id", tenantId)
-    .single();
+  const decision = await shouldAiRespond({
+    supabase,
+    tenant_id: tenantId,
+    channel_type: channelType,
+    conversation: { id: conversationId, status: convStatus, assigned_to: convAssigned },
+  });
 
-  const { data: channelAiConfig } = await supabase
-    .from("ai_channel_config")
-    .select("is_enabled")
-    .eq("tenant_id", tenantId)
-    .eq("channel_type", channelType)
-    .single();
-
-  const aiEnabled = aiConfig?.is_enabled && (channelAiConfig?.is_enabled !== false);
-
-  if (aiEnabled) {
-    console.log(`[meta-instagram-webhook][${traceId}] AI enabled, invoking...`);
-    try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-support-chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({ conversation_id: conversationId, tenant_id: tenantId }),
-      });
-    } catch (e) {
-      console.error(`[meta-instagram-webhook][${traceId}] AI error:`, e);
-    }
+  if (!decision.should_respond) {
+    console.log(`[meta-instagram-webhook][${traceId}] AI gate=BLOCKED (${decision.reason})`);
+    return;
   }
+
+  console.log(`[meta-instagram-webhook][${traceId}] AI gate=GREEN, invoking...`);
+  const res = await invokeAiSupportChat(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { conversation_id: conversationId, tenant_id: tenantId },
+  );
+  console.log(`[meta-instagram-webhook][${traceId}] AI response (${res.status}):`, res.bodyText);
 }

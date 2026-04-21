@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { errorResponse } from "../_shared/error-response.ts";
+import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -210,16 +211,19 @@ Deno.serve(async (req) => {
       externalMessageId
     });
 
-    // Find or create conversation
+    // Phase 1 — inbound desacoplado da decisão de IA.
+    // Ordem: localizar/criar conversa SEM forçar status -> persistir mensagem
+    // -> atualizar timestamps -> só então decidir IA via shared gate.
     let conversationId: string | null = null;
+    let conversationStatus: string | null = null;
+    let assignedTo: string | null = null;
 
-    // Try to find existing conversation
     let conversationQuery = supabase
       .from("conversations")
       .select("id, status, assigned_to")
       .eq("tenant_id", tenantId)
       .eq("channel_type", channelType)
-      .neq("status", "resolved");
+      .not("status", "in", "(resolved,spam)");
 
     if (externalConversationId) {
       conversationQuery = conversationQuery.eq("external_conversation_id", externalConversationId);
@@ -232,18 +236,21 @@ Deno.serve(async (req) => {
     const { data: existingConv } = await conversationQuery
       .order("last_message_at", { ascending: false })
       .limit(1)
-      .single();
-
-    let conversationStatus = "new";
-    let assignedTo: string | null = null;
+      .maybeSingle();
 
     if (existingConv) {
       conversationId = existingConv.id;
       conversationStatus = existingConv.status;
       assignedTo = existingConv.assigned_to;
-      console.log(`[support-webhook] Found existing conversation: ${conversationId}, status: ${conversationStatus}`);
+      console.log(`[support-webhook] Found existing conversation: ${conversationId}, status: ${conversationStatus}, assigned: ${!!assignedTo}`);
     } else {
-      // Create new conversation
+      // NEW conversation: decide initial status using shared gate
+      const initialDecision = await shouldAiRespond({
+        supabase,
+        tenant_id: tenantId,
+        channel_type: channelType,
+      });
+
       const { data: newConv, error: convError } = await supabase
         .from("conversations")
         .insert({
@@ -253,10 +260,10 @@ Deno.serve(async (req) => {
           customer_email: customerEmail,
           customer_name: customerName,
           external_conversation_id: externalConversationId,
-          status: "new",
+          status: initialDecision.initial_status_for_new_conversation,
           priority: 0,
         })
-        .select("id")
+        .select("id, status")
         .single();
 
       if (convError) {
@@ -265,9 +272,9 @@ Deno.serve(async (req) => {
       }
 
       conversationId = newConv.id;
-      console.log(`[support-webhook] Created new conversation: ${conversationId}`);
+      conversationStatus = newConv.status;
+      console.log(`[support-webhook] Created new conversation: ${conversationId} status=${conversationStatus}`);
 
-      // Log conversation created event
       await supabase.from("conversation_events").insert({
         conversation_id: conversationId,
         tenant_id: tenantId,
@@ -277,13 +284,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check for duplicate message
+    // Idempotência por external_message_id
     if (externalMessageId) {
       const { data: existingMsg } = await supabase
         .from("messages")
         .select("id")
         .eq("external_message_id", externalMessageId)
-        .single();
+        .maybeSingle();
 
       if (existingMsg) {
         console.log(`[support-webhook] Duplicate message ignored: ${externalMessageId}`);
@@ -294,7 +301,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create message
+    // Persistir mensagem inbound (sempre — não depende de IA)
     const { data: newMessage, error: msgError } = await supabase
       .from("messages")
       .insert({
@@ -320,76 +327,38 @@ Deno.serve(async (req) => {
 
     console.log(`[support-webhook] Message created: ${newMessage.id}`);
 
-    // Update conversation last_message_at
+    // CRITICAL (Phase 1): NEVER reset status here. Only update timestamps.
     await supabase
       .from("conversations")
-      .update({ 
+      .update({
         last_message_at: new Date().toISOString(),
         last_customer_message_at: new Date().toISOString(),
       })
       .eq("id", conversationId);
 
-    // Check if AI auto-response is enabled
-    const { data: aiConfig } = await supabase
-      .from("ai_support_config")
-      .select("is_enabled")
-      .eq("tenant_id", tenantId)
-      .single();
+    // === Decisão de IA via shared gate ===
+    const decision = await shouldAiRespond({
+      supabase,
+      tenant_id: tenantId,
+      channel_type: channelType,
+      conversation: {
+        id: conversationId,
+        status: conversationStatus,
+        assigned_to: assignedTo,
+      },
+    });
 
-    console.log(`[support-webhook] AI config:`, aiConfig);
-
-    // Check if channel is active in channel_accounts
-    const { data: channelAccount } = await supabase
-      .from("channel_accounts")
-      .select("is_active")
-      .eq("tenant_id", tenantId)
-      .eq("channel_type", channelType)
-      .single();
-
-    const channelActive = channelAccount?.is_active ?? true; // Default to true if no channel_account exists
-    console.log(`[support-webhook] Channel account active:`, channelActive);
-
-    // Trigger AI response if:
-    // - AI is enabled (global)
-    // - Channel is active (toggle in Canais)
-    // - Conversation is not assigned to human agent
-    // - Conversation status is new or bot
-    if (
-      aiConfig?.is_enabled &&
-      channelActive &&
-      !assignedTo &&
-      ["new", "bot"].includes(conversationStatus)
-    ) {
-      console.log("[support-webhook] Triggering AI response...");
-      
-      // Call AI chat function - use fetch to ensure it runs
+    if (decision.should_respond) {
+      console.log("[support-webhook] AI gate=GREEN, invoking ai-support-chat...");
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      
-      try {
-        const aiResponse = await fetch(`${supabaseUrl}/functions/v1/ai-support-chat`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${serviceRoleKey}`,
-          },
-          body: JSON.stringify({
-            conversation_id: conversationId,
-            tenant_id: tenantId,
-          }),
-        });
-        
-        const aiResult = await aiResponse.text();
-        console.log(`[support-webhook] AI response result (${aiResponse.status}):`, aiResult.substring(0, 300));
-      } catch (aiError) {
-        console.error("[support-webhook] AI call error:", aiError);
-      }
-    } else {
-      console.log("[support-webhook] AI not triggered:", { 
-        aiEnabled: aiConfig?.is_enabled, 
-        assignedTo, 
-        status: conversationStatus 
+      const aiRes = await invokeAiSupportChat(supabaseUrl, serviceRoleKey, {
+        conversation_id: conversationId,
+        tenant_id: tenantId,
       });
+      console.log(`[support-webhook] AI response (${aiRes.status}):`, aiRes.bodyText);
+    } else {
+      console.log(`[support-webhook] AI gate=BLOCKED reason=${decision.reason}`);
     }
 
     return new Response(
