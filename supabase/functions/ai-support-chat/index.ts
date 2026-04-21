@@ -2275,6 +2275,22 @@ DIRETRIZES IMPORTANTES:
       console.error("[ai-support-chat] Memory fetch error:", e);
     }
 
+    // ============================================
+    // TENANT LEARNING MEMORY (Fase 1) — leitura
+    // Injeta padrões aprendidos (FAQ/objeção/winning) relevantes à pergunta atual
+    // ============================================
+    let learningHits: LearningHit[] = [];
+    try {
+      learningHits = await getRelevantLearning(supabase, tenant_id, lastMessageContent, "support", 5);
+      if (learningHits.length > 0) {
+        systemPrompt += formatLearningForPrompt(learningHits);
+        console.log(`[ai-support-chat] Learning context injected (${learningHits.length} hits)`);
+        markLearningUsed(supabase, learningHits.map(h => h.id)).catch(() => {});
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] Learning fetch error:", e);
+    }
+
     // Add custom knowledge from config
     if (effectiveConfig.custom_knowledge) {
       systemPrompt += `\n\n### Conhecimento adicional:\n${effectiveConfig.custom_knowledge}`;
