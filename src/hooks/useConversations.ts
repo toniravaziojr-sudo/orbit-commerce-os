@@ -92,12 +92,16 @@ export function useConversations(filters?: ConversationFilters) {
 
   const assignConversation = useMutation({
     mutationFn: async ({ conversationId, userId }: { conversationId: string; userId: string | null }) => {
+      // Phase 2: NÃO escrever status no front. O trigger
+      // `conversations_assignment_status` (Fase 1) cuida da transição:
+      //   assigned_to setado   → status = 'open'
+      //   assigned_to limpo    → status = 'waiting_agent'
+      // Mantemos apenas a fonte de verdade (assigned_to + assigned_at).
       const { error } = await supabase
         .from('conversations')
         .update({
           assigned_to: userId,
           assigned_at: userId ? new Date().toISOString() : null,
-          status: userId ? 'open' : 'waiting_agent',
         })
         .eq('id', conversationId);
 

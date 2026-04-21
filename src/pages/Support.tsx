@@ -45,8 +45,9 @@ export default function Support() {
   }, [conversations]);
 
   // Count of active conversations for badge
+  // Count of conversations across the 3 official queues (excludes resolved/spam)
   const activeConversationCount = useMemo(() => {
-    return conversations.filter(c => c.status !== 'resolved' && c.status !== 'spam').length;
+    return conversations.filter(c => getConversationQueue(c) !== null).length;
   }, [conversations]);
 
   const handleSelectConversation = (conv: Conversation) => {
