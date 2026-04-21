@@ -159,7 +159,7 @@ export default function Support() {
 
         <TabsContent value="inbox" className="flex-1 m-0 overflow-hidden">
           <div className="flex h-full">
-            <div className="w-80 shrink-0">
+            <div className="w-96 shrink-0">
               <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
@@ -179,7 +179,7 @@ export default function Support() {
               onTransfer={() => setShowTransferDialog(true)}
               onAiRespond={() => sendAiResponse.mutate()}
             />
-            <div className="w-72 shrink-0 border-l flex flex-col">
+            <div className="w-64 shrink-0 border-l flex flex-col">
               <CustomerInfoPanel conversation={selectedConversation} />
               
               {/* Events Panel Toggle */}
