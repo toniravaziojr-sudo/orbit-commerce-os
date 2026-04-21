@@ -2402,6 +2402,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // hint imperativo final para forçar tool-calling. Isto é crítico para
     // evitar loop de qualificação quando a intenção já é clara.
     // ============================================
+    let salesTriggerFired = false;
     if (salesModeEnabled && lastMessageContent) {
       try {
         const lc = lastMessageContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -2440,6 +2441,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         }
 
         if (triggers.length || matchedProductHint) {
+          salesTriggerFired = true;
           aiMessages.push({
             role: "system",
             content: `### AÇÃO OBRIGATÓRIA NESTE TURNO\n${triggers.join("\n")}${matchedProductHint}\n\nPROIBIDO responder apenas com texto se algum gatilho acima foi acionado. Chame as tools primeiro.`,
@@ -2456,7 +2458,13 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     let aiContent: string;
     
+    // Em sales mode, exigir modelo forte (gpt-5/5.2) para tool-calling confiável.
+    // gpt-5-mini falha em chamar tools mesmo com prompts imperativos.
     let configuredModel = effectiveConfig.ai_model || "gpt-5.2";
+    if (salesModeEnabled && (configuredModel.includes("mini") || configuredModel.includes("nano") || configuredModel.includes("flash"))) {
+      console.log(`[ai-support-chat] sales-mode: upgrading model from ${configuredModel} to gpt-5 for reliable tool-calling`);
+      configuredModel = "gpt-5";
+    }
     
     const modelMapping: Record<string, string> = {
       "google/gemini-2.5-flash": "gpt-5-mini",
@@ -2515,10 +2523,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             temperature: salesModeEnabled ? 0.3 : 0.7,
           };
 
-          // Add sales tools only in sales mode
+          // Add sales tools only in sales mode.
+          // Quando heurística disparou, FORÇAR tool-calling ("required") para
+          // impedir que o modelo responda apenas com texto repetido.
           if (salesModeEnabled) {
             requestBody.tools = SALES_TOOLS;
-            requestBody.tool_choice = "auto";
+            requestBody.tool_choice = salesTriggerFired ? "required" : "auto";
             requestBody.parallel_tool_calls = false;
           }
 
