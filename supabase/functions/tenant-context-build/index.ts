@@ -141,30 +141,54 @@ async function buildForTenant(
   const categories = categoriesRaw ?? [];
 
   // Produtos ativos (top 30 por recência — proxy simples)
-  const { data: productsRaw } = await supabase
+  const { data: productsRaw, error: productsErr } = await supabase
     .from("products")
-    .select("id, name, slug, description, price, tags, category_id, status, deleted_at")
+    .select("id, name, slug, description, price, tags, status, deleted_at, created_at")
     .eq("tenant_id", tenantId)
     .eq("status", "active")
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(30);
 
+  if (productsErr) {
+    console.error(`[tenant-context-build] products query error:`, productsErr);
+  }
+
   const products = productsRaw ?? [];
+
+  // Categorias por produto (relacionamento N:N via product_categories)
+  const productIds = products.map((p: any) => p.id);
+  const productCatMap = new Map<string, string[]>();
+  if (productIds.length > 0) {
+    const { data: pcRows } = await supabase
+      .from("product_categories")
+      .select("product_id, category_id")
+      .in("product_id", productIds);
+    for (const row of pcRows ?? []) {
+      const list = productCatMap.get(row.product_id) ?? [];
+      list.push(row.category_id);
+      productCatMap.set(row.product_id, list);
+    }
+  }
 
   // Mapa de categorias por id
   const catById = new Map<string, string>();
   for (const c of categories) catById.set(c.id, c.name);
 
-  // Top produtos enriquecidos com nome de categoria
-  const topProducts = products.map((p: any) => ({
-    id: p.id,
-    name: p.name,
-    slug: p.slug,
-    price: p.price ? Number(p.price) : undefined,
-    category: p.category_id ? catById.get(p.category_id) : undefined,
-    tags: Array.isArray(p.tags) ? p.tags : [],
-  }));
+  // Top produtos enriquecidos com nome de categoria principal
+  const topProducts = products.map((p: any) => {
+    const catIds = productCatMap.get(p.id) ?? [];
+    const catNames = catIds.map((cid) => catById.get(cid)).filter(Boolean);
+    return {
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      price: p.price ? Number(p.price) : undefined,
+      category: catNames[0],
+      categories: catNames,
+      tags: Array.isArray(p.tags) ? p.tags : [],
+    };
+  });
 
   // Top categorias (até 8)
   const topCategories = categories.slice(0, 8).map((c: any) => ({ name: c.name }));
