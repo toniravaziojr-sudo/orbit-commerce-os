@@ -2377,7 +2377,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
 
     if (messages?.length) {
-      for (const msg of messages) {
+      // Em sales mode, filtrar histórico para evitar contaminação por turnos
+      // antigos (ex.: bot informativo que ensinava "Como posso ajudar?").
+      // Mantém só os últimos 8 turnos do "burst" atual (últimas 2h).
+      let usableMessages = messages;
+      if (salesModeEnabled) {
+        const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2h
+        const recent = messages.filter(m => new Date(m.created_at).getTime() >= cutoff);
+        usableMessages = recent.length >= 2 ? recent.slice(-10) : messages.slice(-6);
+        console.log(`[ai-support-chat] sales-mode history filter: ${messages.length} → ${usableMessages.length}`);
+      }
+      for (const msg of usableMessages) {
         if (msg.is_internal || msg.is_note) continue;
         aiMessages.push({
           role: msg.sender_type === "customer" ? "user" : "assistant",
