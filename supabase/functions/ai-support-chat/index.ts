@@ -479,7 +479,7 @@ const SALES_TOOLS = [
       },
     },
   },
-
+];
 
 // Intent classification tool definition (updated with purchase_intent)
 const INTENT_CLASSIFICATION_TOOL = {
