@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -328,25 +329,38 @@ Deno.serve(async (req) => {
                 continue;
               }
 
-              // ── ROUTE TO SUPPORT FLOW (existing logic) ──
-              // Find or create conversation for this customer
+              // ── ROUTE TO SUPPORT FLOW (Phase 1: inbound desacoplado da IA) ──
+              // Ordem: (1) localizar/criar conversa SEM sobrescrever status,
+              //        (2) persistir mensagem inbound,
+              //        (3) só então decidir se IA responde via shared gate.
               let conversationId: string | null = null;
+              let existingStatus: string | null = null;
+              let existingAssignedTo: string | null = null;
 
               const { data: existingConv } = await supabase
                 .from("conversations")
-                .select("id")
+                .select("id, status, assigned_to")
                 .eq("tenant_id", tenantId)
                 .eq("customer_phone", customerPhone)
                 .eq("channel_type", "whatsapp")
-                .in("status", ["new", "open", "waiting_customer", "waiting_agent", "bot"])
+                .not("status", "in", "(resolved,spam)")
                 .order("created_at", { ascending: false })
                 .limit(1)
-                .single();
+                .maybeSingle();
 
               if (existingConv) {
                 conversationId = existingConv.id;
-                console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId}`);
+                existingStatus = existingConv.status;
+                existingAssignedTo = existingConv.assigned_to;
+                console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId} status=${existingStatus} assigned=${!!existingAssignedTo}`);
               } else {
+                // Decide initial status using the shared gate (NEW conversations only)
+                const initialDecision = await shouldAiRespond({
+                  supabase,
+                  tenant_id: tenantId,
+                  channel_type: "whatsapp",
+                });
+
                 const { data: newConv, error: convError } = await supabase
                   .from("conversations")
                   .insert({
@@ -355,19 +369,20 @@ Deno.serve(async (req) => {
                     customer_phone: customerPhone,
                     customer_name: customerName,
                     external_conversation_id: `meta_${customerPhone}`,
-                    status: "new",
+                    status: initialDecision.initial_status_for_new_conversation,
                     priority: 1,
                     subject: `WhatsApp - ${customerName}`,
                     last_message_at: new Date().toISOString(),
                   })
-                  .select("id")
+                  .select("id, status")
                   .single();
 
                 if (convError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Failed to create conversation:`, convError);
                 } else {
                   conversationId = newConv.id;
-                  console.log(`[meta-whatsapp-webhook][${traceId}] Created new conversation: ${conversationId}`);
+                  existingStatus = newConv.status;
+                  console.log(`[meta-whatsapp-webhook][${traceId}] Created new conversation: ${conversationId} status=${existingStatus}`);
                 }
               }
 
@@ -384,6 +399,7 @@ Deno.serve(async (req) => {
                     content: messageContent,
                     content_type: messageType === "text" ? "text" : messageType,
                     delivery_status: "delivered",
+                    external_message_id: message.id,
                     is_ai_generated: false,
                     is_internal: false,
                     is_note: false,
@@ -392,66 +408,51 @@ Deno.serve(async (req) => {
                 if (msgError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Failed to create message:`, msgError);
                 } else {
-                  console.log(`[meta-whatsapp-webhook][${traceId}] Message created in support module`);
-                  
+                  console.log(`[meta-whatsapp-webhook][${traceId}] Message persisted in support module`);
+
+                  // CRITICAL (Phase 1): NEVER reset status here. Only update timestamps.
                   await supabase
                     .from("conversations")
-                    .update({ 
+                    .update({
                       last_message_at: new Date().toISOString(),
-                      status: "new"
+                      last_customer_message_at: new Date().toISOString(),
                     })
                     .eq("id", conversationId);
 
-                  // === TRIGGER AI RESPONSE ===
-                  const { data: aiConfig } = await supabase
-                    .from("ai_support_config")
-                    .select("is_enabled")
-                    .eq("tenant_id", tenantId)
-                    .single();
-
-                  const { data: channelAiConfig } = await supabase
-                    .from("ai_channel_config")
-                    .select("is_enabled")
-                    .eq("tenant_id", tenantId)
-                    .eq("channel_type", "whatsapp")
-                    .single();
-
-                  const aiEnabled = aiConfig?.is_enabled && (channelAiConfig?.is_enabled !== false);
+                  // === Decisão de IA via shared gate (com snapshot da conversa) ===
+                  const decision = await shouldAiRespond({
+                    supabase,
+                    tenant_id: tenantId,
+                    channel_type: "whatsapp",
+                    conversation: {
+                      id: conversationId,
+                      status: existingStatus,
+                      assigned_to: existingAssignedTo,
+                    },
+                  });
 
                   let aiOk = false;
-                  if (aiEnabled) {
-                    console.log(`[meta-whatsapp-webhook][${traceId}] AI enabled, invoking ai-support-chat...`);
-                    try {
-                      const aiResponse = await fetch(
-                        `${supabaseUrl}/functions/v1/ai-support-chat`,
-                        {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${supabaseServiceKey}`,
-                          },
-                          body: JSON.stringify({
-                            conversation_id: conversationId,
-                            tenant_id: tenantId,
-                          }),
-                        }
-                      );
-                      const aiResult = await aiResponse.text();
-                      aiOk = aiResponse.ok;
-                      console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiResponse.status}):`, aiResult.substring(0, 300));
-                    } catch (aiError) {
-                      console.error(`[meta-whatsapp-webhook][${traceId}] AI invocation error:`, aiError);
-                    }
+                  if (decision.should_respond) {
+                    console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=GREEN, invoking ai-support-chat...`);
+                    const aiRes = await invokeAiSupportChat(
+                      supabaseUrl,
+                      supabaseServiceKey,
+                      { conversation_id: conversationId, tenant_id: tenantId },
+                    );
+                    aiOk = aiRes.ok;
+                    console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiRes.status}):`, aiRes.bodyText);
                   } else {
-                    console.log(`[meta-whatsapp-webhook][${traceId}] AI not enabled for this tenant/channel`);
+                    console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=BLOCKED (${decision.reason})`);
                   }
-                  // Audit loop: mark inbound as processed
+
                   if (inboundId) {
                     await supabase
                       .from("whatsapp_inbound_messages")
                       .update({
                         processed_at: new Date().toISOString(),
-                        processed_by: aiEnabled ? (aiOk ? "ai_support" : "ai_failed") : "human_queue",
+                        processed_by: decision.should_respond
+                          ? (aiOk ? "ai_support" : "ai_failed")
+                          : `gate:${decision.reason}`,
                         conversation_id: conversationId,
                       })
                       .eq("id", inboundId);
