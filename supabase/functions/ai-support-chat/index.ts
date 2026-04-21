@@ -10,6 +10,13 @@ import {
   formatRelevantCatalogForPrompt,
   hasEnoughGrounding,
 } from "../_shared/tenant-context.ts";
+import {
+  captureLearningEvent,
+  getRelevantLearning,
+  formatLearningForPrompt,
+  markLearningUsed,
+  type LearningHit,
+} from "../_shared/tenant-learning.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
