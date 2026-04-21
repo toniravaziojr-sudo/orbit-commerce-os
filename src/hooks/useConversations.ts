@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { countByQueue } from "@/lib/support-queues";
 
 export type ConversationStatus = 'new' | 'open' | 'waiting_customer' | 'waiting_agent' | 'bot' | 'resolved' | 'spam';
 export type SupportChannelType = 'whatsapp' | 'email' | 'facebook_messenger' | 'instagram_dm' | 'instagram_comments' | 'facebook_comments' | 'mercadolivre' | 'shopee' | 'tiktokshop' | 'chat';
@@ -92,12 +93,16 @@ export function useConversations(filters?: ConversationFilters) {
 
   const assignConversation = useMutation({
     mutationFn: async ({ conversationId, userId }: { conversationId: string; userId: string | null }) => {
+      // Phase 2: NÃO escrever status no front. O trigger
+      // `conversations_assignment_status` (Fase 1) cuida da transição:
+      //   assigned_to setado   → status = 'open'
+      //   assigned_to limpo    → status = 'waiting_agent'
+      // Mantemos apenas a fonte de verdade (assigned_to + assigned_at).
       const { error } = await supabase
         .from('conversations')
         .update({
           assigned_to: userId,
           assigned_at: userId ? new Date().toISOString() : null,
-          status: userId ? 'open' : 'waiting_agent',
         })
         .eq('id', conversationId);
 
@@ -170,7 +175,7 @@ export function useConversations(filters?: ConversationFilters) {
     },
   });
 
-  // Stats for dashboard
+  // Stats for dashboard — aligned with the 3 official queues (Phase 2)
   const statsQuery = useQuery({
     queryKey: ['conversation-stats', currentTenant?.id],
     queryFn: async () => {
@@ -183,26 +188,12 @@ export function useConversations(filters?: ConversationFilters) {
 
       if (error) throw error;
 
-      const stats = {
-        needsAttention: 0,
-        inProgress: 0,
-        botActive: 0,
-        resolvedToday: 0,
-      };
+      const queues = countByQueue(
+        (data ?? []) as Array<{ status: ConversationStatus; assigned_to: string | null }>
+      );
 
+      // Resolved today (uses resolved_at to avoid counting old resolved rows)
       const today = new Date().toISOString().split('T')[0];
-
-      data.forEach((c) => {
-        if (c.status === 'new' || c.status === 'waiting_agent') {
-          stats.needsAttention++;
-        } else if (c.status === 'open' || c.status === 'waiting_customer') {
-          stats.inProgress++;
-        } else if (c.status === 'bot') {
-          stats.botActive++;
-        }
-      });
-
-      // Count resolved today
       const { count } = await supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
@@ -210,9 +201,17 @@ export function useConversations(filters?: ConversationFilters) {
         .eq('status', 'resolved')
         .gte('resolved_at', today);
 
-      stats.resolvedToday = count || 0;
-
-      return stats;
+      return {
+        // legacy aliases preserved so existing widgets keep working
+        needsAttention: queues.open,
+        inProgress: queues.in_service,
+        botActive: queues.ai,
+        resolvedToday: count || 0,
+        // canonical names (Phase 2)
+        openQueue: queues.open,
+        inServiceQueue: queues.in_service,
+        aiQueue: queues.ai,
+      };
     },
     enabled: !!currentTenant?.id,
   });

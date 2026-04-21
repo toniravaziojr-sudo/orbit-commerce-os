@@ -21,11 +21,12 @@ import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getConversationQueue, type SupportQueue } from "@/lib/support-queues";
 
 export default function Support() {
   const { user, currentTenant } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [listFilter, setListFilter] = useState<'needs_attention' | 'in_progress' | 'bot' | 'resolved' | 'all'>('needs_attention');
+  const [listFilter, setListFilter] = useState<SupportQueue>('open');
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showEventsPanel, setShowEventsPanel] = useState(false);
   const [activeTab, setActiveTab] = useState("inbox");
@@ -44,8 +45,9 @@ export default function Support() {
   }, [conversations]);
 
   // Count of active conversations for badge
+  // Count of conversations across the 3 official queues (excludes resolved/spam)
   const activeConversationCount = useMemo(() => {
-    return conversations.filter(c => c.status !== 'resolved' && c.status !== 'spam').length;
+    return conversations.filter(c => getConversationQueue(c) !== null).length;
   }, [conversations]);
 
   const handleSelectConversation = (conv: Conversation) => {

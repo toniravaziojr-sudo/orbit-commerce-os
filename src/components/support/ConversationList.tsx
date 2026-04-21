@@ -9,6 +9,7 @@ import { differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation, ConversationStatus, SupportChannelType } from "@/hooks/useConversations";
 import { cn } from "@/lib/utils";
+import { countByQueue, getConversationQueue, type SupportQueue } from "@/lib/support-queues";
 
 import { formatDateBR } from "@/lib/date-format";
 
@@ -16,8 +17,8 @@ interface ConversationListProps {
   conversations: Conversation[];
   selectedId: string | null;
   onSelect: (conversation: Conversation) => void;
-  filter: 'needs_attention' | 'in_progress' | 'bot' | 'resolved' | 'all';
-  onFilterChange: (filter: 'needs_attention' | 'in_progress' | 'bot' | 'resolved' | 'all') => void;
+  filter: SupportQueue;
+  onFilterChange: (filter: SupportQueue) => void;
 }
 
 // Channel icon components for visual distinction
@@ -91,18 +92,8 @@ export function ConversationList({
   const [channelFilter, setChannelFilter] = useState<SupportChannelType | 'all'>('all');
 
   const filteredConversations = useMemo(() => {
-    let filtered = conversations;
-
-    // Filter by tab
-    if (filter === 'needs_attention') {
-      filtered = filtered.filter(c => c.status === 'new' || c.status === 'waiting_agent');
-    } else if (filter === 'in_progress') {
-      filtered = filtered.filter(c => c.status === 'open' || c.status === 'waiting_customer');
-    } else if (filter === 'bot') {
-      filtered = filtered.filter(c => c.status === 'bot' || c.status === 'resolved');
-    } else if (filter === 'resolved') {
-      filtered = filtered.filter(c => c.status === 'resolved');
-    }
+    // Fila oficial (regra única em src/lib/support-queues.ts)
+    let filtered = conversations.filter((c) => getConversationQueue(c) === filter);
 
     // Filter by channel
     if (channelFilter !== 'all') {
@@ -122,15 +113,7 @@ export function ConversationList({
     return filtered;
   }, [conversations, filter, channelFilter, search]);
 
-  const counts = useMemo(() => {
-    return {
-      needs_attention: conversations.filter(c => c.status === 'new' || c.status === 'waiting_agent').length,
-      in_progress: conversations.filter(c => c.status === 'open' || c.status === 'waiting_customer').length,
-      bot: conversations.filter(c => c.status === 'bot' || c.status === 'resolved').length,
-      resolved: conversations.filter(c => c.status === 'resolved').length,
-      all: conversations.length,
-    };
-  }, [conversations]);
+  const counts = useMemo(() => countByQueue(conversations), [conversations]);
 
   return (
     <div className="flex flex-col h-full border-r">
@@ -164,50 +147,50 @@ export function ConversationList({
         </Select>
       </div>
 
-      {/* Tabs — rótulos sempre visíveis (Fase 0) */}
+      {/* Tabs — fila oficial (Fase 2) */}
       <div className="flex border-b">
         <button
-          onClick={() => onFilterChange('needs_attention')}
+          onClick={() => onFilterChange('open')}
           className={cn(
             "flex-1 min-w-0 py-2 px-1.5 text-[13px] font-medium flex items-center justify-center gap-1 border-b-2 transition-colors",
-            filter === 'needs_attention' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            filter === 'open' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
           <Inbox className="h-4 w-4 shrink-0" />
           <span>Em aberto</span>
-          {counts.needs_attention > 0 && (
+          {counts.open > 0 && (
             <Badge variant="destructive" className="ml-0.5 h-4 px-1 text-[10px] leading-none shrink-0">
-              {counts.needs_attention}
+              {counts.open}
             </Badge>
           )}
         </button>
         <button
-          onClick={() => onFilterChange('in_progress')}
+          onClick={() => onFilterChange('in_service')}
           className={cn(
             "flex-1 min-w-0 py-2 px-1.5 text-[13px] font-medium flex items-center justify-center gap-1 border-b-2 transition-colors",
-            filter === 'in_progress' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            filter === 'in_service' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
           <User className="h-4 w-4 shrink-0" />
           <span>Atendimento</span>
-          {counts.in_progress > 0 && (
+          {counts.in_service > 0 && (
             <Badge variant="secondary" className="ml-0.5 h-4 px-1 text-[10px] leading-none shrink-0">
-              {counts.in_progress}
+              {counts.in_service}
             </Badge>
           )}
         </button>
         <button
-          onClick={() => onFilterChange('bot')}
+          onClick={() => onFilterChange('ai')}
           className={cn(
             "flex-1 min-w-0 py-2 px-1.5 text-[13px] font-medium flex items-center justify-center gap-1 border-b-2 transition-colors",
-            filter === 'bot' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            filter === 'ai' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
           <Bot className="h-4 w-4 shrink-0" />
           <span>IA</span>
-          {counts.bot > 0 && (
+          {counts.ai > 0 && (
             <Badge className="ml-0.5 h-4 px-1 text-[10px] leading-none bg-purple-500 shrink-0">
-              {counts.bot}
+              {counts.ai}
             </Badge>
           )}
         </button>
