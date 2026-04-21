@@ -17804,6 +17804,139 @@ export type Database = {
           },
         ]
       }
+      tenant_learning_events: {
+        Row: {
+          ai_agent: string
+          ai_response: string | null
+          context_snapshot: Json | null
+          conversation_id: string | null
+          created_at: string
+          customer_message: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          processed: boolean
+          processed_at: string | null
+          tenant_id: string
+          weight: number
+        }
+        Insert: {
+          ai_agent?: string
+          ai_response?: string | null
+          context_snapshot?: Json | null
+          conversation_id?: string | null
+          created_at?: string
+          customer_message?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          processed?: boolean
+          processed_at?: string | null
+          tenant_id: string
+          weight?: number
+        }
+        Update: {
+          ai_agent?: string
+          ai_response?: string | null
+          context_snapshot?: Json | null
+          conversation_id?: string | null
+          created_at?: string
+          customer_message?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          processed?: boolean
+          processed_at?: string | null
+          tenant_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_learning_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_learning_memory: {
+        Row: {
+          ai_agent: string
+          category_sensitivity: string
+          created_at: string
+          evidence_count: number
+          id: string
+          last_seen_at: string
+          last_success_at: string | null
+          last_used_at: string | null
+          learning_type: string
+          pattern_normalized: string
+          pattern_text: string
+          rejection_reason: string | null
+          response_text: string | null
+          source_evidence: Json
+          status: string
+          success_score: number
+          tenant_id: string
+          updated_at: string
+          usage_count: number
+          weight_sum: number
+        }
+        Insert: {
+          ai_agent?: string
+          category_sensitivity?: string
+          created_at?: string
+          evidence_count?: number
+          id?: string
+          last_seen_at?: string
+          last_success_at?: string | null
+          last_used_at?: string | null
+          learning_type: string
+          pattern_normalized: string
+          pattern_text: string
+          rejection_reason?: string | null
+          response_text?: string | null
+          source_evidence?: Json
+          status?: string
+          success_score?: number
+          tenant_id: string
+          updated_at?: string
+          usage_count?: number
+          weight_sum?: number
+        }
+        Update: {
+          ai_agent?: string
+          category_sensitivity?: string
+          created_at?: string
+          evidence_count?: number
+          id?: string
+          last_seen_at?: string
+          last_success_at?: string | null
+          last_used_at?: string | null
+          learning_type?: string
+          pattern_normalized?: string
+          pattern_text?: string
+          rejection_reason?: string | null
+          response_text?: string | null
+          source_evidence?: Json
+          status?: string
+          success_score?: number
+          tenant_id?: string
+          updated_at?: string
+          usage_count?: number
+          weight_sum?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_learning_memory_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_meta_auth_grants: {
         Row: {
           access_token_encrypted: string | null
@@ -20922,6 +21055,10 @@ export type Database = {
           has_balance: boolean
         }[]
       }
+      check_learning_content_safety: {
+        Args: { p_pattern: string; p_response: string }
+        Returns: Json
+      }
       check_module_access: {
         Args: { p_module_key: string; p_tenant_id: string }
         Returns: Json
@@ -21110,6 +21247,23 @@ export type Database = {
           summary: string
         }[]
       }
+      get_relevant_tenant_learning: {
+        Args: {
+          p_ai_agent?: string
+          p_limit?: number
+          p_query_text: string
+          p_tenant_id: string
+        }
+        Returns: {
+          evidence_count: number
+          id: string
+          learning_type: string
+          pattern_text: string
+          response_text: string
+          similarity: number
+          success_score: number
+        }[]
+      }
       get_security_flag: { Args: { p_flag_key: string }; Returns: boolean }
       get_tenant_module_access: { Args: { p_tenant_id: string }; Returns: Json }
       get_whatsapp_config_for_tenant: {
@@ -21208,8 +21362,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_learning_used: {
+        Args: { p_learning_ids: string[] }
+        Returns: undefined
+      }
       migrate_existing_templates_to_sets: { Args: never; Returns: undefined }
       normalize_email: { Args: { p_email: string }; Returns: string }
+      promote_learning_candidate: {
+        Args: { p_learning_id: string }
+        Returns: Json
+      }
       recalc_customer_metrics: {
         Args: { p_customer_email: string; p_tenant_id: string }
         Returns: undefined
