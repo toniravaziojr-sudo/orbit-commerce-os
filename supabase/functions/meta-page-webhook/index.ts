@@ -389,44 +389,5 @@ async function handleFacebookComment(
   }
 }
 
-/**
- * Trigger AI support chat if enabled for tenant/channel
- */
-async function triggerAiIfEnabled(
-  supabase: any,
-  traceId: string,
-  tenantId: string,
-  conversationId: string,
-  channelType: string
-) {
-  const { data: aiConfig } = await supabase
-    .from("ai_support_config")
-    .select("is_enabled")
-    .eq("tenant_id", tenantId)
-    .single();
-
-  const { data: channelAiConfig } = await supabase
-    .from("ai_channel_config")
-    .select("is_enabled")
-    .eq("tenant_id", tenantId)
-    .eq("channel_type", channelType)
-    .single();
-
-  const aiEnabled = aiConfig?.is_enabled && (channelAiConfig?.is_enabled !== false);
-
-  if (aiEnabled) {
-    console.log(`[meta-page-webhook][${traceId}] AI enabled, invoking ai-support-chat...`);
-    try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-support-chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({ conversation_id: conversationId, tenant_id: tenantId }),
-      });
-    } catch (e) {
-      console.error(`[meta-page-webhook][${traceId}] AI invocation error:`, e);
-    }
-  }
-}
+// Phase 1: legacy triggerAiIfEnabled removed — both Messenger and Comments now
+// use the shared `shouldAiRespond` + `invokeAiSupportChat` helpers above.
