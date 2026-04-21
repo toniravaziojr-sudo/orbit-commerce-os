@@ -2252,20 +2252,14 @@ DIRETRIZES IMPORTANTES:
       const grounded = hasEnoughGrounding(tenantSnapshot);
       if (tenantSnapshot) {
         systemPrompt += formatTenantContextForPrompt(tenantSnapshot);
-        // Em sales_mode, NÃO injetamos lista de produtos no prompt: a IA deve
-        // chamar search_products. Lista no prompt induz resposta de cabeça
-        // e bloqueia tool-calling. Em modo informativo, mantemos a lista.
-        if (!salesModeEnabled) {
-          const relevant = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
-          systemPrompt += formatRelevantCatalogForPrompt(relevant);
-          console.log(
-            `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevant.length}`
-          );
-        } else {
-          console.log(
-            `[ai-support-chat] tenant-context injected (sales mode, NO product list) — niche="${tenantSnapshot.niche_label}" grounded=${grounded}`
-          );
-        }
+        // Catálogo enxuto SEMPRE — incluindo modo vendas. Sem catálogo o modelo
+        // não sabe que produtos buscar e cai em loop de qualificação. A regra
+        // "preço/estoque vem da tool" continua válida via prompt SALES_AGENT.
+        const relevant = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
+        systemPrompt += formatRelevantCatalogForPrompt(relevant);
+        console.log(
+          `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevant.length} sales_mode=${salesModeEnabled}`
+        );
       }
       // Soltar handoff cego: se KB vazia mas snapshot tem grounding, não escalar
       if (noEvidenceHandoff && grounded) {
