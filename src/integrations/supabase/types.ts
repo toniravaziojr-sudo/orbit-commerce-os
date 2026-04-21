@@ -19900,6 +19900,7 @@ export type Database = {
         Row: {
           access_token: string | null
           business_id: string | null
+          channel_state: string | null
           client_token: string | null
           connection_status: string | null
           created_at: string
@@ -19914,6 +19915,8 @@ export type Database = {
           last_error: string | null
           last_health_payload: Json | null
           last_inbound_at: string | null
+          last_inbound_validated_at: string | null
+          last_validation_attempt_at: string | null
           linked_at: string | null
           migration_observation_until: string | null
           phone_number: string | null
@@ -19927,6 +19930,8 @@ export type Database = {
           tenant_id: string
           token_expires_at: string | null
           updated_at: string
+          v2_ui_active_at: string | null
+          validation_window_opened_at: string | null
           verified_name: string | null
           waba_id: string | null
           webhook_subscribed_at: string | null
@@ -19935,6 +19940,7 @@ export type Database = {
         Insert: {
           access_token?: string | null
           business_id?: string | null
+          channel_state?: string | null
           client_token?: string | null
           connection_status?: string | null
           created_at?: string
@@ -19949,6 +19955,8 @@ export type Database = {
           last_error?: string | null
           last_health_payload?: Json | null
           last_inbound_at?: string | null
+          last_inbound_validated_at?: string | null
+          last_validation_attempt_at?: string | null
           linked_at?: string | null
           migration_observation_until?: string | null
           phone_number?: string | null
@@ -19962,6 +19970,8 @@ export type Database = {
           tenant_id: string
           token_expires_at?: string | null
           updated_at?: string
+          v2_ui_active_at?: string | null
+          validation_window_opened_at?: string | null
           verified_name?: string | null
           waba_id?: string | null
           webhook_subscribed_at?: string | null
@@ -19970,6 +19980,7 @@ export type Database = {
         Update: {
           access_token?: string | null
           business_id?: string | null
+          channel_state?: string | null
           client_token?: string | null
           connection_status?: string | null
           created_at?: string
@@ -19984,6 +19995,8 @@ export type Database = {
           last_error?: string | null
           last_health_payload?: Json | null
           last_inbound_at?: string | null
+          last_inbound_validated_at?: string | null
+          last_validation_attempt_at?: string | null
           linked_at?: string | null
           migration_observation_until?: string | null
           phone_number?: string | null
@@ -19997,6 +20010,8 @@ export type Database = {
           tenant_id?: string
           token_expires_at?: string | null
           updated_at?: string
+          v2_ui_active_at?: string | null
+          validation_window_opened_at?: string | null
           verified_name?: string | null
           waba_id?: string | null
           webhook_subscribed_at?: string | null
