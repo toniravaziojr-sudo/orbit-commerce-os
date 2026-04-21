@@ -462,7 +462,24 @@ const SALES_TOOLS = [
       },
     },
   },
-];
+  {
+    type: "function",
+    function: {
+      name: "request_human_handoff",
+      description: "Transfere a conversa para um atendente humano e cria um ticket comercial. Use APENAS quando: (a) cliente solicitar atendente, (b) reclamação grave/agressividade, (c) caso comercial complexo que você não consegue resolver, (d) cliente pedir cancelamento/reembolso/estorno. Sempre passe um resumo claro.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: { type: "string", description: "Motivo curto do handoff (ex: 'reclamação grave', 'cliente pediu humano', 'cancelamento')" },
+          summary: { type: "string", description: "Resumo do que foi conversado e do que o cliente precisa" },
+          last_intent: { type: "string", description: "Última intenção identificada (compra, dúvida, reclamação, cancelamento, etc.)" },
+        },
+        required: ["reason", "summary"],
+        additionalProperties: false,
+      },
+    },
+  },
+
 
 // Intent classification tool definition (updated with purchase_intent)
 const INTENT_CLASSIFICATION_TOOL = {
