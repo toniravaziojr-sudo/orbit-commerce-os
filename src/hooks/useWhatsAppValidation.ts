@@ -50,14 +50,21 @@ export function usePlatformPartnerBusinessId() {
   return useQuery({
     queryKey: ["platform-partner-business-id"],
     queryFn: async () => {
+      // Tenta a chave canônica (UI de admin grava em maiúsculo) e cai para a antiga em minúsculo.
       const { data, error } = await supabase
         .from("platform_credentials")
-        .select("credential_value, is_active")
-        .eq("credential_key", "whatsapp_meta_partner_business_id")
-        .maybeSingle();
-      if (error) return null;
-      if (!data?.is_active || !data.credential_value) return null;
-      return data.credential_value as string;
+        .select("credential_key, credential_value, is_active")
+        .in("credential_key", [
+          "WHATSAPP_META_PARTNER_BUSINESS_ID",
+          "whatsapp_meta_partner_business_id",
+        ]);
+      if (error || !data?.length) return null;
+      const upper = data.find((d: any) => d.credential_key === "WHATSAPP_META_PARTNER_BUSINESS_ID");
+      const lower = data.find((d: any) => d.credential_key === "whatsapp_meta_partner_business_id");
+      const pick = (upper?.is_active && upper.credential_value)
+        ? upper
+        : (lower?.is_active && lower.credential_value ? lower : null);
+      return pick ? (pick.credential_value as string) : null;
     },
     staleTime: 5 * 60_000,
   });
