@@ -673,6 +673,34 @@ async function sendWhatsAppViaMeta(
     };
   }
 
+  // ===== PHASE 3: Strict render of free-form text messages =====
+  // The caller may pass a string with `{{vars}}` (free-form WhatsApp rules).
+  // We render it once with the original payload-less context (caller already
+  // resolved most fields). If `{{ }}` survived, we BLOCK and log internal event.
+  let safeMessage: string;
+  try {
+    // Free-form text path has no positional payload; we just defend against
+    // accidental `{{vars}}` leftovers. If anything is unresolved, fail fast.
+    const rendered = renderTemplate(message, {}, { mode: "lenient" });
+    if (rendered.hasMissing) {
+      assertNoPlaceholders(rendered.text, { stage: "run-notifications/text-leftover" });
+    }
+    assertNoPlaceholders(rendered.text, { stage: "run-notifications/text" });
+    safeMessage = rendered.text;
+  } catch (err) {
+    if (err instanceof TemplateRenderError) {
+      console.error(`[RunNotifications] Free-text render BLOCKED:`, err.message);
+      await registerInAttendanceTimeline(
+        supabase, tenantId, cleanPhone,
+        `[Notificação não enviada] Texto contém variáveis não resolvidas — envio bloqueado.\nPrévia: ${message.substring(0, 200)}`,
+        null, 'notification',
+        { isInternal: true, metadata: { stage: "render-text", missing: err.missing } },
+      );
+      return { success: false, error: "Texto contém variáveis não resolvidas — envio bloqueado." };
+    }
+    throw err;
+  }
+
   try {
     // Get graph API version from platform credentials
     const { data: versionCred } = await supabase
@@ -684,17 +712,16 @@ async function sendWhatsAppViaMeta(
 
     const graphApiVersion = versionCred?.credential_value || "v21.0";
 
-    // Build message payload (text message within 24h window, or use template for notifications)
     const messagePayload = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to: cleanPhone,
       type: "text",
-      text: { body: message },
+      text: { body: safeMessage },
     };
 
     const sendUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/messages`;
-    
+
     const sendResponse = await fetch(sendUrl, {
       method: "POST",
       headers: {
@@ -708,13 +735,12 @@ async function sendWhatsAppViaMeta(
 
     if (sendResult.error) {
       console.error(`[RunNotifications] Meta WhatsApp error:`, sendResult.error);
-      
-      // Log failed message (use correct column names from schema)
+
       await supabase.from('whatsapp_messages').insert({
         tenant_id: tenantId,
         recipient_phone: cleanPhone,
         message_type: 'text',
-        message_content: message.substring(0, 500),
+        message_content: safeMessage.substring(0, 500),
         status: 'failed',
         error_message: sendResult.error.message,
       });
@@ -729,19 +755,18 @@ async function sendWhatsAppViaMeta(
     const messageId = sendResult.messages?.[0]?.id;
     console.log(`[RunNotifications] Meta WhatsApp sent - ID: ${messageId}`);
 
-    // Log successful message (use correct column names from schema)
     await supabase.from('whatsapp_messages').insert({
       tenant_id: tenantId,
       recipient_phone: cleanPhone,
       message_type: 'text',
-      message_content: message.substring(0, 500),
+      message_content: safeMessage.substring(0, 500),
       status: 'sent',
       sent_at: new Date().toISOString(),
       provider_message_id: messageId,
     });
 
-    // Register in unified Atendimento timeline
-    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, message, messageId, 'notification');
+    // Register in unified Atendimento timeline — RENDERED text only
+    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, safeMessage, messageId, 'notification');
 
     return {
       success: true,
