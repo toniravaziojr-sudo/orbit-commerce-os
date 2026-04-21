@@ -209,8 +209,13 @@ ANTES de \`generate_checkout_link\`:
 🤝 HANDOFF COMERCIAL (request_human_handoff)
 ═══════════════════════════════════════════════════════
 
-Use APENAS quando: atacado/B2B, negociação fora da política, reclamação grave, cliente irritado, dado sensível, fora de escopo, erro técnico repetido.
-NUNCA use para: dúvida comum de produto/preço/frete/cupom, cliente comprando, "quero falar com humano" sem motivo claro (pergunte primeiro).
+Use APENAS quando: atacado/B2B, negociação fora da política, reclamação grave de pedido já feito, cliente irritado/agressivo, dado sensível, erro técnico repetido que você não consegue resolver.
+
+❌ NUNCA use para: saudação ("oi", "olá", "bom dia"), pergunta sobre catálogo, "me fala mais sobre X", intenção de compra, dúvida de preço/frete/cupom, cliente ainda não disse o que quer.
+❌ NUNCA use no PRIMEIRO turno do dia.
+❌ Se o cliente só cumprimentou ("oi"), pergunte gentilmente o que ele procura — NÃO acione handoff.
+❌ Se o cliente citou um produto do catálogo, chame search_products / get_product_details — NÃO acione handoff.
+✅ O servidor BLOQUEIA handoff abusivo. Se você chamar errado, recebe HANDOFF_NAO_PERMITIDO e deve usar tools de venda em vez disso.
 
 ═══════════════════════════════════════════════════════
 🛡️ SEGURANÇA
@@ -484,7 +489,7 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "request_human_handoff",
-      description: "Encaminha a conversa para um vendedor humano e cria um ticket comercial com o contexto do carrinho. Use APENAS nos casos descritos nas regras de handoff (atacado/B2B, negociação fora da política, reclamação grave, cliente irritado, dado/pedido sensível, problema técnico que você não consegue resolver). NUNCA use para perguntas comuns de venda que você consegue resolver com as outras ferramentas.",
+      description: "Encaminha a conversa para um vendedor humano e cria um ticket comercial. USE APENAS quando: (a) cliente pediu atacado/B2B/orçamento grande, (b) cliente quer negociar condição fora da política (desconto além do cupom, parcelamento extra), (c) cliente fez reclamação grave de pedido já realizado, (d) cliente está irritado/agressivo, (e) cliente compartilhou dado sensível que exige humano, (f) erro técnico repetido que você não consegue resolver. NUNCA USE para: saudação ('oi', 'olá', 'bom dia'), pergunta sobre catálogo, pedido de detalhe de produto, dúvida de preço/frete/cupom, intenção de compra. Para essas situações, use search_products / get_product_details / add_to_cart. Se o cliente só cumprimentou ou ainda não pediu nada concreto, NÃO chame esta tool — pergunte gentilmente o que ele procura.",
       parameters: {
         type: "object",
         properties: {
@@ -496,11 +501,9 @@ const SALES_TOOLS = [
               "complaint",
               "angry_customer",
               "sensitive_issue",
-              "out_of_scope",
               "technical_blocker",
-              "other",
             ],
-            description: "Motivo categorizado do handoff",
+            description: "Motivo categorizado do handoff. Apenas valores comerciais reais — saudação ou pergunta de catálogo NÃO são motivos válidos.",
           },
           summary: {
             type: "string",
@@ -577,9 +580,11 @@ async function executeSalesTool(
     customerPhone: string | null;
     customerEmail: string | null;
     customerName: string | null;
+    lastUserMessage?: string | null;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
+  const lastUserMessageContentForTools = ctx.lastUserMessage || "";
 
   try {
     switch (toolName) {
@@ -1580,6 +1585,36 @@ async function executeSalesTool(
         const summary = (args.summary as string) || "Cliente solicitou atendimento humano.";
         const lastIntent = (args.last_intent as string) || null;
 
+        // ====== GUARDRAIL SERVER-SIDE ======
+        // Bloquear handoff abusivo (saudação, pergunta de catálogo, intenção de compra).
+        // Critérios cumulativos:
+        //  - Motivos válidos: lista fechada
+        //  - Se a última msg do cliente é só saudação curta, BLOQUEAR
+        //  - Se NÃO há carrinho ativo E NÃO há sinal de reclamação/negociação no summary, BLOQUEAR
+        const VALID_REASONS = new Set([
+          "wholesale_b2b",
+          "custom_negotiation",
+          "complaint",
+          "angry_customer",
+          "sensitive_issue",
+          "technical_blocker",
+        ]);
+
+        const lastCustomerMsg = (lastUserMessageContentForTools || "").trim().toLowerCase();
+        const isJustGreeting = lastCustomerMsg.length <= 20 && /^(oi+|ol[áa]+|opa+|bom dia|boa tarde|boa noite|hey|hello|hi)\b/i.test(lastCustomerMsg);
+        const summaryLc = (summary || "").toLowerCase();
+        const summarySuggestsCommercial = /(atacado|b2b|revend|negoci|desconto|orcament|orçament|reclama|atras|defeit|n[ãa]o chegou|cobranca|cobrança|chargeb|estorn|nota fiscal|trocar produto|devolver|judicial)/i.test(summaryLc);
+
+        if (!VALID_REASONS.has(reason) || isJustGreeting || (!summarySuggestsCommercial && reason === "other")) {
+          console.warn(`[sales-tool] handoff BLOCKED by guardrail. reason="${reason}" greeting=${isJustGreeting} commercial=${summarySuggestsCommercial} lastMsg="${lastCustomerMsg.slice(0,40)}"`);
+          return JSON.stringify({
+            success: false,
+            blocked: true,
+            error: "HANDOFF_NAO_PERMITIDO",
+            message: "Esta situação não justifica handoff humano. Use search_products / get_product_details / add_to_cart para atender o cliente. Saudação simples ou dúvida de catálogo NÃO são motivos válidos de handoff.",
+          });
+        }
+
         // Carregar carrinho ativo (se existir) para anexar contexto
         const { data: cart } = await supabase
           .from("whatsapp_carts")
@@ -2495,6 +2530,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         customerPhone: conversation.customer_phone || null,
         customerEmail: conversation.customer_email || null,
         customerName: conversation.customer_name || null,
+        lastUserMessage: lastMessageContent || null,
       };
 
       let response: Response | null = null;
@@ -2621,13 +2657,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // BUG FIX: Se a tool de handoff comercial foi chamada com sucesso,
           // forçar shouldHandoff para impedir que o status da conversa seja
           // revertido para 'bot' no final do fluxo.
+          // GUARDRAIL: se a tool retornou blocked=true, NÃO forçar handoff.
           if (fnName === "request_human_handoff") {
             try {
               const parsed = JSON.parse(result);
-              if (parsed?.success) {
+              if (parsed?.success === true && !parsed?.blocked) {
                 shouldHandoff = true;
                 handoffReason = (fnArgs.reason as string) || "sales_handoff_tool";
                 console.log(`[ai-support-chat] Handoff tool acionada — forçando waiting_agent (reason=${handoffReason})`);
+              } else if (parsed?.blocked) {
+                console.warn(`[ai-support-chat] Handoff BLOQUEADO pelo guardrail — mantendo status 'bot' e instruindo modelo a usar tools de venda.`);
               }
             } catch { /* ignore parse errors */ }
           }
