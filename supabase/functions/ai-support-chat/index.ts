@@ -10,6 +10,13 @@ import {
   formatRelevantCatalogForPrompt,
   hasEnoughGrounding,
 } from "../_shared/tenant-context.ts";
+import {
+  captureLearningEvent,
+  getRelevantLearning,
+  formatLearningForPrompt,
+  markLearningUsed,
+  type LearningHit,
+} from "../_shared/tenant-learning.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -887,6 +894,16 @@ async function executeSalesTool(
             });
         }
 
+        // [learning] cart_created event
+        captureLearningEvent(supabase, {
+          tenant_id: tenantId,
+          conversation_id: conversationId,
+          event_type: "cart_created",
+          customer_message: lastMessageContent,
+          ai_response: `add_to_cart: ${product.name}`,
+          metadata: { product_id: productId, quantity },
+        }).catch(() => {});
+
         const labelSuffix = variantLabel ? ` (${variantLabel})` : "";
         return JSON.stringify({
           success: true,
@@ -1130,6 +1147,16 @@ async function executeSalesTool(
           .from("whatsapp_carts")
           .update({ status: "converted", updated_at: new Date().toISOString() })
           .eq("id", cart.id);
+
+        // [learning] checkout_generated event
+        captureLearningEvent(supabase, {
+          tenant_id: tenantId,
+          conversation_id: conversationId,
+          event_type: "checkout_generated",
+          customer_message: lastMessageContent,
+          ai_response: "generate_checkout_link",
+          metadata: { cart_id: cart.id },
+        }).catch(() => {});
 
         return JSON.stringify({
           success: true,
@@ -2268,6 +2295,22 @@ DIRETRIZES IMPORTANTES:
       console.error("[ai-support-chat] Memory fetch error:", e);
     }
 
+    // ============================================
+    // TENANT LEARNING MEMORY (Fase 1) — leitura
+    // Injeta padrões aprendidos (FAQ/objeção/winning) relevantes à pergunta atual
+    // ============================================
+    let learningHits: LearningHit[] = [];
+    try {
+      learningHits = await getRelevantLearning(supabase, tenant_id, lastMessageContent, "support", 5);
+      if (learningHits.length > 0) {
+        systemPrompt += formatLearningForPrompt(learningHits);
+        console.log(`[ai-support-chat] Learning context injected (${learningHits.length} hits)`);
+        markLearningUsed(supabase, learningHits.map(h => h.id)).catch(() => {});
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] Learning fetch error:", e);
+    }
+
     // Add custom knowledge from config
     if (effectiveConfig.custom_knowledge) {
       systemPrompt += `\n\n### Conhecimento adicional:\n${effectiveConfig.custom_knowledge}`;
@@ -2730,6 +2773,20 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         customer_id: customerId || conversation.customer_id,
       })
       .eq("id", conversation_id);
+
+    // [learning] capture event for aggregator (continuity OR handoff_success)
+    captureLearningEvent(supabase, {
+      tenant_id,
+      conversation_id,
+      event_type: shouldHandoff ? "handoff_success" : "continuity",
+      customer_message: lastMessageContent,
+      ai_response: aiContent,
+      metadata: {
+        intent: intentClassification?.intent,
+        sales_mode: salesModeEnabled,
+        handoff_reason: handoffReason || null,
+      },
+    }).catch(() => {});
 
     // Log event
     await supabase.from("conversation_events").insert({
