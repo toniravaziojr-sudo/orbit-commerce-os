@@ -16,6 +16,7 @@ Antes de rodar qualquer cenário, confirmar:
 - [ ] Pelo menos 1 produto **sem variantes** ativo no catálogo.
 - [ ] Pelo menos 1 produto **com variantes** ativo no catálogo, com pelo menos 1 variante com estoque > 0.
 - [ ] Telefone de teste com janela de 24h aberta (mensagem inbound recente).
+- [ ] Tabelas `tenant_learning_events` e `tenant_learning_memory` existem (Fase 1 da Memória de Aprendizado deployada).
 
 Comando rápido de pré-checagem:
 ```sql
