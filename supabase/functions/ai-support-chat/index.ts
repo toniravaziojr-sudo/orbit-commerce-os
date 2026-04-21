@@ -2252,20 +2252,14 @@ DIRETRIZES IMPORTANTES:
       const grounded = hasEnoughGrounding(tenantSnapshot);
       if (tenantSnapshot) {
         systemPrompt += formatTenantContextForPrompt(tenantSnapshot);
-        // Em sales_mode, NÃO injetamos lista de produtos no prompt: a IA deve
-        // chamar search_products. Lista no prompt induz resposta de cabeça
-        // e bloqueia tool-calling. Em modo informativo, mantemos a lista.
-        if (!salesModeEnabled) {
-          const relevant = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
-          systemPrompt += formatRelevantCatalogForPrompt(relevant);
-          console.log(
-            `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevant.length}`
-          );
-        } else {
-          console.log(
-            `[ai-support-chat] tenant-context injected (sales mode, NO product list) — niche="${tenantSnapshot.niche_label}" grounded=${grounded}`
-          );
-        }
+        // Catálogo enxuto SEMPRE — incluindo modo vendas. Sem catálogo o modelo
+        // não sabe que produtos buscar e cai em loop de qualificação. A regra
+        // "preço/estoque vem da tool" continua válida via prompt SALES_AGENT.
+        const relevant = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
+        systemPrompt += formatRelevantCatalogForPrompt(relevant);
+        console.log(
+          `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevant.length} sales_mode=${salesModeEnabled}`
+        );
       }
       // Soltar handoff cego: se KB vazia mas snapshot tem grounding, não escalar
       if (noEvidenceHandoff && grounded) {
@@ -2383,7 +2377,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
 
     if (messages?.length) {
-      for (const msg of messages) {
+      // Em sales mode, filtrar histórico para evitar contaminação por turnos
+      // antigos (ex.: bot informativo que ensinava "Como posso ajudar?").
+      // Mantém só os últimos 8 turnos do "burst" atual (últimas 2h).
+      let usableMessages = messages;
+      if (salesModeEnabled) {
+        const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2h
+        const recent = messages.filter(m => new Date(m.created_at).getTime() >= cutoff);
+        usableMessages = recent.length >= 2 ? recent.slice(-10) : messages.slice(-6);
+        console.log(`[ai-support-chat] sales-mode history filter: ${messages.length} → ${usableMessages.length}`);
+      }
+      for (const msg of usableMessages) {
         if (msg.is_internal || msg.is_note) continue;
         aiMessages.push({
           role: msg.sender_type === "customer" ? "user" : "assistant",
@@ -2398,6 +2402,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // hint imperativo final para forçar tool-calling. Isto é crítico para
     // evitar loop de qualificação quando a intenção já é clara.
     // ============================================
+    let salesTriggerFired = false;
     if (salesModeEnabled && lastMessageContent) {
       try {
         const lc = lastMessageContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -2436,6 +2441,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         }
 
         if (triggers.length || matchedProductHint) {
+          salesTriggerFired = true;
           aiMessages.push({
             role: "system",
             content: `### AÇÃO OBRIGATÓRIA NESTE TURNO\n${triggers.join("\n")}${matchedProductHint}\n\nPROIBIDO responder apenas com texto se algum gatilho acima foi acionado. Chame as tools primeiro.`,
@@ -2452,7 +2458,13 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     let aiContent: string;
     
+    // Em sales mode, exigir modelo forte (gpt-5/5.2) para tool-calling confiável.
+    // gpt-5-mini falha em chamar tools mesmo com prompts imperativos.
     let configuredModel = effectiveConfig.ai_model || "gpt-5.2";
+    if (salesModeEnabled && (configuredModel.includes("mini") || configuredModel.includes("nano") || configuredModel.includes("flash"))) {
+      console.log(`[ai-support-chat] sales-mode: upgrading model from ${configuredModel} to gpt-5 for reliable tool-calling`);
+      configuredModel = "gpt-5";
+    }
     
     const modelMapping: Record<string, string> = {
       "google/gemini-2.5-flash": "gpt-5-mini",
@@ -2511,10 +2523,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             temperature: salesModeEnabled ? 0.3 : 0.7,
           };
 
-          // Add sales tools only in sales mode
+          // Add sales tools only in sales mode.
+          // Quando heurística disparou, FORÇAR tool-calling ("required") para
+          // impedir que o modelo responda apenas com texto repetido.
           if (salesModeEnabled) {
             requestBody.tools = SALES_TOOLS;
-            requestBody.tool_choice = "auto";
+            requestBody.tool_choice = salesTriggerFired ? "required" : "auto";
             requestBody.parallel_tool_calls = false;
           }
 
