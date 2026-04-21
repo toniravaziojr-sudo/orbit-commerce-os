@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, Settings, Trash2, CheckCircle, XCircle, AlertCircle, ExternalLink, Bot, ShoppingCart } from "lucide-react";
+import { Plus, Settings, Trash2, CheckCircle, XCircle, AlertCircle, ExternalLink, Bot, ShoppingCart, Power, PowerOff } from "lucide-react";
 import { useChannelAccounts, type ChannelAccount } from "@/hooks/useChannelAccounts";
 import type { SupportChannelType } from "@/hooks/useConversations";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -484,7 +484,24 @@ export function ChannelIntegrations() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => deleteChannel.mutate(channel.id)}
+                          title={channel.is_active ? "Desativar canal (a IA para de responder)" : "Reativar canal"}
+                          onClick={() => updateChannel.mutate({ id: channel.id, is_active: !channel.is_active })}
+                        >
+                          {channel.is_active ? (
+                            <PowerOff className="h-4 w-4 text-destructive" />
+                          ) : (
+                            <Power className="h-4 w-4 text-emerald-600" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Remover canal permanentemente"
+                          onClick={() => {
+                            if (confirm("Remover este canal permanentemente? Para apenas pausar a IA, use Desativar.")) {
+                              deleteChannel.mutate(channel.id);
+                            }
+                          }}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
