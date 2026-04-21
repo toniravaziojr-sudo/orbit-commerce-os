@@ -2496,6 +2496,20 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
           console.log(`[ai-support-chat] Tool result (${fnName}):`, result.slice(0, 200));
 
+          // BUG FIX: Se a tool de handoff comercial foi chamada com sucesso,
+          // forçar shouldHandoff para impedir que o status da conversa seja
+          // revertido para 'bot' no final do fluxo.
+          if (fnName === "request_human_handoff") {
+            try {
+              const parsed = JSON.parse(result);
+              if (parsed?.success) {
+                shouldHandoff = true;
+                handoffReason = (fnArgs.reason as string) || "sales_handoff_tool";
+                console.log(`[ai-support-chat] Handoff tool acionada — forçando waiting_agent (reason=${handoffReason})`);
+              }
+            } catch { /* ignore parse errors */ }
+          }
+
           currentMessages.push({
             role: "tool",
             tool_call_id: toolCall.id,
