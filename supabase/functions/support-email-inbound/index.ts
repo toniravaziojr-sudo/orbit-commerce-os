@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -152,6 +153,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.log('=== ROUTING TO SUPPORT/ATENDIMENTO ===');
 
       let conversationId: string | null = null;
+      let conversationSnapshot: { id: string; status: string | null; assigned_to: string | null } | null = null;
       
       // Find existing conversation by thread
       if (inReplyTo || references) {
@@ -159,7 +161,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         
         const { data: existingConv } = await supabase
           .from('conversations')
-          .select('id')
+          .select('id, status, assigned_to')
           .eq('tenant_id', tenantId)
           .eq('channel_type', 'email')
           .or(threadIds.map(id => `external_thread_id.eq.${id}`).join(','))
@@ -167,7 +169,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           .single();
 
         if (existingConv) {
-          conversationId = (existingConv as { id: string }).id;
+          conversationId = (existingConv as any).id;
+          conversationSnapshot = existingConv as any;
           console.log('Found existing conversation:', conversationId);
         }
       }
@@ -176,17 +179,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (!conversationId) {
         const { data: existingConv } = await supabase
           .from('conversations')
-          .select('id')
+          .select('id, status, assigned_to')
           .eq('tenant_id', tenantId)
           .eq('channel_type', 'email')
           .eq('customer_email', fromEmail)
-          .in('status', ['new', 'open', 'bot'])
+          .in('status', ['new', 'open', 'bot', 'waiting_customer', 'waiting_agent'])
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
 
         if (existingConv) {
-          conversationId = (existingConv as { id: string }).id;
+          conversationId = (existingConv as any).id;
+          conversationSnapshot = existingConv as any;
           console.log('Found existing open conversation by email:', conversationId);
         }
       }
@@ -201,34 +205,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       const customerData = customer as { id: string; full_name: string } | null;
 
-      // Check if AI is enabled BEFORE creating conversation
-      const { data: aiConfigCheck } = await supabase
-        .from('ai_support_config')
-        .select('is_enabled')
-        .eq('tenant_id', tenantId)
-        .single();
+      // ===== Phase 1: shared AI gate (single source of truth) =====
+      const decision = await shouldAiRespond({
+        supabase,
+        tenant_id: tenantId,
+        channel_type: 'email',
+        conversation: conversationSnapshot,
+      });
+      console.log('AI gate decision:', { should_respond: decision.should_respond, reason: decision.reason });
 
-      // Check if email channel is active in channel_accounts
-      const { data: emailChannelAccount } = await supabase
-        .from('channel_accounts')
-        .select('is_active')
-        .eq('tenant_id', tenantId)
-        .eq('channel_type', 'email')
-        .single();
-
-      const channelActive = (emailChannelAccount as { is_active: boolean } | null)?.is_active ?? true; // Default to true if no channel_account exists
-      const aiEnabled = (aiConfigCheck as { is_enabled: boolean } | null)?.is_enabled === true && channelActive;
-      const initialStatus = aiEnabled ? 'bot' : 'new';
-      console.log('AI check:', { globalAiEnabled: (aiConfigCheck as { is_enabled: boolean } | null)?.is_enabled, channelActive, effectiveAiEnabled: aiEnabled });
-
-      // Create new conversation if needed
+      // Create new conversation if needed (uses gate-decided initial status)
       if (!conversationId) {
         const { data: newConv, error: convError } = await supabase
           .from('conversations')
           .insert({
             tenant_id: tenantId,
             channel_type: 'email',
-            status: initialStatus,
+            status: decision.initial_status_for_new_conversation,
             customer_id: customerData?.id || null,
             customer_name: customerData?.full_name || fromName,
             customer_email: fromEmail,
@@ -236,7 +229,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             external_conversation_id: messageId,
             external_thread_id: messageId,
           })
-          .select('id')
+          .select('id, status, assigned_to')
           .single();
 
         if (convError) {
@@ -244,8 +237,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
           throw convError;
         }
 
-        conversationId = (newConv as { id: string }).id;
-        console.log('Created new conversation with status:', initialStatus, 'id:', conversationId);
+        conversationId = (newConv as any).id;
+        conversationSnapshot = newConv as any;
+        console.log('Created new conversation with status:', decision.initial_status_for_new_conversation, 'id:', conversationId);
       }
 
       // Check for duplicate message
@@ -266,7 +260,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
       }
 
-      // Create message
+      // Create message — ALWAYS persist inbound (independent of AI/channel toggles)
       const { data: newMessage, error: msgError } = await supabase
         .from('messages')
         .insert({
@@ -340,11 +334,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
       }
 
-      // Update conversation - keep status as 'bot' if AI is enabled, otherwise 'new'
+      // Update conversation timestamp ONLY — never overwrite operational status of existing conversations
       await supabase
         .from('conversations')
         .update({
-          status: initialStatus,
           last_message_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -361,17 +354,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
         metadata: { from: fromEmail, subject: payload.subject },
       });
 
-      // Invoke AI if enabled
-      if (aiEnabled) {
-        console.log('AI is enabled, invoking ai-support-chat...');
-        try {
-          const aiResponse = await supabase.functions.invoke('ai-support-chat', {
-            body: { conversation_id: conversationId, tenant_id: tenantId },
-          });
-          console.log('AI response:', aiResponse);
-        } catch (aiError) {
-          console.error('AI invocation error:', aiError);
+      // Re-evaluate AI gate with persisted snapshot before invoking
+      const finalDecision = await shouldAiRespond({
+        supabase,
+        tenant_id: tenantId,
+        channel_type: 'email',
+        conversation: conversationSnapshot,
+      });
+
+      if (finalDecision.should_respond) {
+        console.log('AI gate OK, invoking ai-support-chat...');
+        const result = await invokeAiSupportChat(
+          supabaseUrl,
+          supabaseServiceKey,
+          { conversation_id: conversationId!, tenant_id: tenantId },
+        );
+        if (!result.ok) {
+          console.error('AI invocation failed:', result.bodyText);
         }
+      } else {
+        console.log('AI gate blocked response. reason=', finalDecision.reason);
       }
 
       return new Response(

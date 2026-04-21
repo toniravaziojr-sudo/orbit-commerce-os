@@ -168,11 +168,12 @@ async function handleMessengerMessage(
     console.warn(`[meta-page-webhook][${traceId}] Could not fetch sender profile`);
   }
 
-  // Find or create conversation
+  // ===== Phase 1: structural inbound pipeline =====
+  // (1) locate/create conversation  (2) persist inbound  (3) only then decide AI
   const externalConvId = `messenger_${senderId}_${pageId}`;
   const { data: existingConv } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, status, assigned_to")
     .eq("tenant_id", tenantId)
     .eq("external_conversation_id", externalConvId)
     .in("status", ["new", "open", "waiting_customer", "waiting_agent", "bot"])
@@ -180,10 +181,20 @@ async function handleMessengerMessage(
     .limit(1)
     .maybeSingle();
 
+  // Decide AI gate up-front so we know which initial status to use for NEW conversations
+  const decision = await shouldAiRespond({
+    supabase,
+    tenant_id: tenantId,
+    channel_type: "facebook_messenger",
+    conversation: existingConv ?? null,
+  });
+
   let conversationId: string;
+  let conversationSnapshot: { id: string; status: string | null; assigned_to: string | null } | null = null;
 
   if (existingConv) {
     conversationId = existingConv.id;
+    conversationSnapshot = existingConv as any;
   } else {
     const { data: newConv, error: convError } = await supabase
       .from("conversations")
@@ -193,13 +204,13 @@ async function handleMessengerMessage(
         customer_name: senderName,
         external_conversation_id: externalConvId,
         external_thread_id: senderId,
-        status: "new",
+        status: decision.initial_status_for_new_conversation,
         priority: 1,
         subject: `Messenger - ${senderName}`,
         last_message_at: new Date().toISOString(),
         metadata: { page_id: pageId, sender_id: senderId },
       })
-      .select("id")
+      .select("id, status, assigned_to")
       .single();
 
     if (convError) {
@@ -207,9 +218,10 @@ async function handleMessengerMessage(
       return;
     }
     conversationId = newConv.id;
+    conversationSnapshot = newConv as any;
   }
 
-  // Insert message
+  // Persist inbound message ALWAYS (independent of AI/channel toggles)
   const { error: msgError } = await supabase.from("messages").insert({
     conversation_id: conversationId,
     tenant_id: tenantId,
@@ -230,14 +242,32 @@ async function handleMessengerMessage(
     return;
   }
 
-  // Update conversation timestamp
+  // Update only timestamp — NEVER reset operational status of an existing conversation
   await supabase
     .from("conversations")
-    .update({ last_message_at: new Date().toISOString(), status: "new" })
+    .update({ last_message_at: new Date().toISOString() })
     .eq("id", conversationId);
 
-  // Trigger AI if enabled
-  await triggerAiIfEnabled(supabase, traceId, tenantId, conversationId, "facebook_messenger");
+  // Re-evaluate gate now that we have the persisted conversation snapshot
+  const finalDecision = await shouldAiRespond({
+    supabase,
+    tenant_id: tenantId,
+    channel_type: "facebook_messenger",
+    conversation: conversationSnapshot,
+  });
+
+  console.log(`[meta-page-webhook][${traceId}] AI gate: should_respond=${finalDecision.should_respond} reason=${finalDecision.reason}`);
+
+  if (finalDecision.should_respond) {
+    const result = await invokeAiSupportChat(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { conversation_id: conversationId, tenant_id: tenantId },
+    );
+    if (!result.ok) {
+      console.error(`[meta-page-webhook][${traceId}] AI invoke failed:`, result.bodyText);
+    }
+  }
 }
 
 /**
@@ -263,12 +293,12 @@ async function handleFacebookComment(
 
   console.log(`[meta-page-webhook][${traceId}] FB comment from ${senderName}: ${content.substring(0, 100)}`);
 
-  // Use post as conversation grouping
+  // ===== Phase 1: structural inbound pipeline =====
   const externalConvId = `fb_comment_${post_id}`;
 
   const { data: existingConv } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, status, assigned_to")
     .eq("tenant_id", tenantId)
     .eq("external_conversation_id", externalConvId)
     .in("status", ["new", "open", "waiting_customer", "waiting_agent", "bot"])
@@ -276,26 +306,35 @@ async function handleFacebookComment(
     .limit(1)
     .maybeSingle();
 
+  const decision = await shouldAiRespond({
+    supabase,
+    tenant_id: tenantId,
+    channel_type: "facebook_comments",
+    conversation: existingConv ?? null,
+  });
+
   let conversationId: string;
+  let conversationSnapshot: { id: string; status: string | null; assigned_to: string | null } | null = null;
 
   if (existingConv) {
     conversationId = existingConv.id;
+    conversationSnapshot = existingConv as any;
   } else {
     const { data: newConv, error: convError } = await supabase
       .from("conversations")
       .insert({
         tenant_id: tenantId,
-        channel_type: "facebook_messenger", // Uses messenger channel for FB comments (same API)
+        channel_type: "facebook_comments",
         customer_name: senderName,
         external_conversation_id: externalConvId,
         external_thread_id: post_id,
-        status: "new",
+        status: decision.initial_status_for_new_conversation,
         priority: 1,
         subject: `Comentário FB - ${senderName}`,
         last_message_at: new Date().toISOString(),
         metadata: { page_id: pageId, post_id, comment_id, is_comment: true },
       })
-      .select("id")
+      .select("id, status, assigned_to")
       .single();
 
     if (convError) {
@@ -303,9 +342,10 @@ async function handleFacebookComment(
       return;
     }
     conversationId = newConv.id;
+    conversationSnapshot = newConv as any;
   }
 
-  // Insert comment as message
+  // Persist comment ALWAYS
   await supabase.from("messages").insert({
     conversation_id: conversationId,
     tenant_id: tenantId,
@@ -322,51 +362,32 @@ async function handleFacebookComment(
     metadata: { post_id, parent_id, sender_id: senderId, is_comment: true },
   });
 
-  // Update conversation
+  // Update timestamp only — never overwrite operational status
   await supabase
     .from("conversations")
-    .update({ last_message_at: new Date().toISOString(), status: "new" })
+    .update({ last_message_at: new Date().toISOString() })
     .eq("id", conversationId);
-}
 
-/**
- * Trigger AI support chat if enabled for tenant/channel
- */
-async function triggerAiIfEnabled(
-  supabase: any,
-  traceId: string,
-  tenantId: string,
-  conversationId: string,
-  channelType: string
-) {
-  const { data: aiConfig } = await supabase
-    .from("ai_support_config")
-    .select("is_enabled")
-    .eq("tenant_id", tenantId)
-    .single();
+  const finalDecision = await shouldAiRespond({
+    supabase,
+    tenant_id: tenantId,
+    channel_type: "facebook_comments",
+    conversation: conversationSnapshot,
+  });
 
-  const { data: channelAiConfig } = await supabase
-    .from("ai_channel_config")
-    .select("is_enabled")
-    .eq("tenant_id", tenantId)
-    .eq("channel_type", channelType)
-    .single();
+  console.log(`[meta-page-webhook][${traceId}] AI gate (comment): should_respond=${finalDecision.should_respond} reason=${finalDecision.reason}`);
 
-  const aiEnabled = aiConfig?.is_enabled && (channelAiConfig?.is_enabled !== false);
-
-  if (aiEnabled) {
-    console.log(`[meta-page-webhook][${traceId}] AI enabled, invoking ai-support-chat...`);
-    try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-support-chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({ conversation_id: conversationId, tenant_id: tenantId }),
-      });
-    } catch (e) {
-      console.error(`[meta-page-webhook][${traceId}] AI invocation error:`, e);
+  if (finalDecision.should_respond) {
+    const result = await invokeAiSupportChat(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { conversation_id: conversationId, tenant_id: tenantId },
+    );
+    if (!result.ok) {
+      console.error(`[meta-page-webhook][${traceId}] AI invoke (comment) failed:`, result.bodyText);
     }
   }
 }
+
+// Phase 1: legacy triggerAiIfEnabled removed — both Messenger and Comments now
+// use the shared `shouldAiRespond` + `invokeAiSupportChat` helpers above.

@@ -217,12 +217,14 @@ export function useConversations(filters?: ConversationFilters) {
     enabled: !!currentTenant?.id,
   });
 
-  // Realtime subscription for conversations
+  // Realtime subscription for conversations + messages
+  // Phase 1: also subscribe to messages so the inbox refreshes even for
+  // conversations not currently selected (no masked inbound messages).
   useEffect(() => {
     if (!currentTenant?.id) return;
 
     const channel = supabase
-      .channel('conversations-changes')
+      .channel(`conversations-changes-${currentTenant.id}`)
       .on(
         'postgres_changes',
         {
@@ -232,6 +234,20 @@ export function useConversations(filters?: ConversationFilters) {
           filter: `tenant_id=eq.${currentTenant.id}`,
         },
         () => {
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['conversation-stats'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `tenant_id=eq.${currentTenant.id}`,
+        },
+        () => {
+          // New inbound/outbound message: refresh list + stats immediately
           queryClient.invalidateQueries({ queryKey: ['conversations'] });
           queryClient.invalidateQueries({ queryKey: ['conversation-stats'] });
         }
