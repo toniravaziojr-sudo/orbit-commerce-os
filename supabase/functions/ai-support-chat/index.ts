@@ -579,9 +579,19 @@ async function executeSalesTool(
   try {
     switch (toolName) {
       case "search_products": {
-        const query = (args.query as string) || "";
+        const rawQuery = (args.query as string) || "";
         const limit = (args.limit as number) || 5;
-        
+        // Normaliza Unicode (NFC) e remove ruído típico que a IA inclui (preço, travessões, parênteses)
+        const query = rawQuery
+          .normalize("NFC")
+          .replace(/[—–-]\s*R\$.*$/i, "")
+          .replace(/R\$\s*[\d.,]+/gi, "")
+          .replace(/\s{2,}/g, " ")
+          .trim();
+        // Quebra em tokens significativos (>=3 chars) para fallback flexível
+        const tokens = query.split(/\s+/).filter(t => t.length >= 3).slice(0, 5);
+
+        // 1) ILIKE direto pelo nome
         const { data, error } = await supabase
           .from("products")
           .select("id, name, slug, price, compare_at_price, stock_quantity, status, images, has_variants, manage_stock, allow_backorder")
@@ -591,33 +601,58 @@ async function executeSalesTool(
           .ilike("name", `%${query}%`)
           .limit(limit);
 
-        if (error) {
-          const { data: fuzzyData } = await (supabase as any).rpc("search_products_fuzzy", {
-            p_tenant_id: tenantId,
-            p_query: query,
-            p_limit: limit,
-          });
-          if (fuzzyData?.length) {
-            return JSON.stringify(fuzzyData.map((p: any) => ({
-              id: p.id, name: p.name, price: p.price, stock: p.stock_quantity,
-              image: p.images?.[0] || null,
-              has_variants: p.has_variants ?? false,
-            })));
-          }
-          return JSON.stringify({ error: "Nenhum produto encontrado", query });
+        if (!error && data?.length) {
+          return JSON.stringify(data.map(p => ({
+            id: p.id, name: p.name, slug: p.slug,
+            price: p.price, compare_at_price: p.compare_at_price,
+            stock: p.stock_quantity,
+            image: (p.images as any)?.[0] || null,
+            has_variants: p.has_variants ?? false,
+            manage_stock: p.manage_stock ?? true,
+            allow_backorder: p.allow_backorder ?? false,
+          })));
         }
 
-        if (!data?.length) return JSON.stringify({ message: "Nenhum produto encontrado para a busca.", query });
+        // 2) Fallback: busca por tokens combinados (OR), mantendo escopo do tenant
+        if (tokens.length) {
+          const orFilter = tokens.map(t => `name.ilike.%${t}%`).join(",");
+          const { data: tokenData } = await supabase
+            .from("products")
+            .select("id, name, slug, price, compare_at_price, stock_quantity, status, images, has_variants, manage_stock, allow_backorder")
+            .eq("tenant_id", tenantId)
+            .eq("status", "active")
+            .is("deleted_at", null)
+            .or(orFilter)
+            .limit(limit);
+          if (tokenData?.length) {
+            return JSON.stringify(tokenData.map(p => ({
+              id: p.id, name: p.name, slug: p.slug,
+              price: p.price, compare_at_price: p.compare_at_price,
+              stock: p.stock_quantity,
+              image: (p.images as any)?.[0] || null,
+              has_variants: p.has_variants ?? false,
+              manage_stock: p.manage_stock ?? true,
+              allow_backorder: p.allow_backorder ?? false,
+            })));
+          }
+        }
 
-        return JSON.stringify(data.map(p => ({
-          id: p.id, name: p.name, slug: p.slug,
-          price: p.price, compare_at_price: p.compare_at_price,
-          stock: p.stock_quantity,
-          image: (p.images as any)?.[0] || null,
-          has_variants: p.has_variants ?? false,
-          manage_stock: p.manage_stock ?? true,
-          allow_backorder: p.allow_backorder ?? false,
-        })));
+        // 3) Fallback final: RPC fuzzy SEM excluir kits (catálogo do tenant pode ser todo "kit")
+        const { data: fuzzyData } = await (supabase as any).rpc("search_products_fuzzy", {
+          p_tenant_id: tenantId,
+          p_query: query || rawQuery,
+          p_limit: limit,
+          p_exclude_kits: false,
+        });
+        if (fuzzyData?.length) {
+          return JSON.stringify(fuzzyData.map((p: any) => ({
+            id: p.id, name: p.name, price: p.price, stock: p.stock_quantity,
+            image: p.images?.[0] || null,
+            has_variants: p.has_variants ?? false,
+          })));
+        }
+
+        return JSON.stringify({ message: "Nenhum produto encontrado para a busca.", query: query || rawQuery });
       }
 
       case "get_product_details": {
@@ -737,21 +772,25 @@ async function executeSalesTool(
       }
 
       case "add_to_cart": {
-        const productId = args.product_id as string;
+        const productIdOrSlug = args.product_id as string;
         const quantity = (args.quantity as number) || 1;
         const variantId = (args.variant_id as string | undefined) || undefined;
 
-        // Get product info (com flags de variante/estoque)
-        const { data: product } = await supabase
+        // Aceita UUID ou slug (a IA às vezes manda slug)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productIdOrSlug || "");
+        const productQuery = supabase
           .from("products")
           .select("id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder")
-          .eq("id", productId)
           .eq("tenant_id", tenantId)
-          .is("deleted_at", null)
-          .single();
+          .is("deleted_at", null);
+        const { data: product } = isUuid
+          ? await productQuery.eq("id", productIdOrSlug).maybeSingle()
+          : await productQuery.eq("slug", productIdOrSlug).maybeSingle();
+        const productId = product?.id ?? productIdOrSlug;
 
-        if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado" });
+        if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado", hint: "Use search_products primeiro para obter o id correto." });
         if (product.status !== "active") return JSON.stringify({ success: false, error: "Produto indisponível" });
+
 
         // Se produto tem variantes, exigir variant_id
         let unitPrice = Number(product.price);
