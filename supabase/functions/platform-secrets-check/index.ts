@@ -106,6 +106,8 @@ Deno.serve(async (req) => {
     const metaGraphApiVersion = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_GRAPH_API_VERSION');
     const metaWebhookVerifyToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_WEBHOOK_VERIFY_TOKEN');
     // META_CONFIG_ID removido na V4 — config_id agora vive em meta_auth_profiles
+    // WhatsApp Cross-Business — Business ID parceiro da plataforma (Fase 1 híbrido)
+    const whatsappPartnerBusinessId = await checkCredential(supabaseUrl, supabaseServiceKey, 'WHATSAPP_META_PARTNER_BUSINESS_ID');
     const lateApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LATE_API_KEY');
     const meliAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_APP_ID');
     const meliClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_CLIENT_SECRET');
@@ -381,18 +383,21 @@ Deno.serve(async (req) => {
           META_APP_SECRET: metaAppSecret.exists,
           META_GRAPH_API_VERSION: metaGraphApiVersion.exists,
           META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.exists,
+          WHATSAPP_META_PARTNER_BUSINESS_ID: whatsappPartnerBusinessId.exists,
         },
         previews: {
           META_APP_ID: metaAppId.preview || '',
           META_APP_SECRET: metaAppSecret.preview || '',
           META_GRAPH_API_VERSION: metaGraphApiVersion.preview || '',
           META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.preview || '',
+          WHATSAPP_META_PARTNER_BUSINESS_ID: whatsappPartnerBusinessId.preview || '',
         },
         sources: {
           META_APP_ID: metaAppId.source || '',
           META_APP_SECRET: metaAppSecret.source || '',
           META_GRAPH_API_VERSION: metaGraphApiVersion.source || '',
           META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.source || '',
+          WHATSAPP_META_PARTNER_BUSINESS_ID: whatsappPartnerBusinessId.source || '',
         },
       },
       google_platform: {
