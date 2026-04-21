@@ -2525,6 +2525,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         customerPhone: conversation.customer_phone || null,
         customerEmail: conversation.customer_email || null,
         customerName: conversation.customer_name || null,
+        lastUserMessage: lastMessageContent || null,
       };
 
       let response: Response | null = null;
