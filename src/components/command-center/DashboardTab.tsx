@@ -7,6 +7,7 @@ import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { DashboardMetricsGrid } from "@/components/dashboard/DashboardMetricsGrid";
 import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
 import { PaymentMethodBanner } from "@/components/billing/PaymentMethodBanner";
+import { WhatsAppRealReceptionPendingBanner } from "@/components/dashboard/WhatsAppRealReceptionPendingBanner";
 import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
 import { getComparisonLabel } from "@/lib/date-presets";
 import { WhatsAppHealthCard } from "@/components/command-center/WhatsAppHealthCard";
@@ -27,6 +28,7 @@ export function DashboardTab() {
   return (
     <div className="space-y-8 animate-fade-in">
       <PaymentMethodBanner />
+      <WhatsAppRealReceptionPendingBanner />
 
       <div className="flex justify-end">
         <DateRangeFilter
