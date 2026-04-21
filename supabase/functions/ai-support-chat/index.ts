@@ -575,9 +575,11 @@ async function executeSalesTool(
     customerPhone: string | null;
     customerEmail: string | null;
     customerName: string | null;
+    lastUserMessage?: string | null;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
+  const lastUserMessageContentForTools = ctx.lastUserMessage || "";
 
   try {
     switch (toolName) {
