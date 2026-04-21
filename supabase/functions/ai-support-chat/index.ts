@@ -3,6 +3,13 @@ import { redactPII } from "../_shared/redact-pii.ts";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import {
+  getOrBuildTenantContext,
+  formatTenantContextForPrompt,
+  pickRelevantProducts,
+  formatRelevantCatalogForPrompt,
+  hasEnoughGrounding,
+} from "../_shared/tenant-context.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
