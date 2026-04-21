@@ -575,7 +575,7 @@ async function executeSalesTool(
         const productId = args.product_id as string;
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, slug, description, price, compare_at_price, stock_quantity, status, images, weight, sku")
+          .select("id, name, slug, description, price, compare_at_price, stock_quantity, status, images, weight, sku, has_variants, manage_stock, allow_backorder")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
@@ -583,14 +583,43 @@ async function executeSalesTool(
 
         if (error || !data) return JSON.stringify({ error: "Produto não encontrado" });
 
+        // Variants summary (count + min/max price + total stock)
+        let variantsSummary: any = null;
+        if (data.has_variants) {
+          const { data: vs } = await supabase
+            .from("product_variants")
+            .select("id, name, price, stock_quantity, is_active")
+            .eq("product_id", productId)
+            .eq("is_active", true);
+          if (vs && vs.length > 0) {
+            const prices = vs.map((v: any) => Number(v.price ?? data.price)).filter((n: number) => !isNaN(n));
+            variantsSummary = {
+              count: vs.length,
+              min_price: prices.length ? Math.min(...prices) : data.price,
+              max_price: prices.length ? Math.max(...prices) : data.price,
+              total_stock: vs.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0),
+              sample_options: vs.slice(0, 5).map((v: any) => v.name),
+            };
+          }
+        }
+
+        const manageStock = data.manage_stock ?? true;
+        const allowBackorder = data.allow_backorder ?? false;
+        const hasStock = !manageStock || allowBackorder || (data.stock_quantity ?? 0) > 0;
+
         return JSON.stringify({
           id: data.id, name: data.name, slug: data.slug,
           description: data.description?.slice(0, 500),
           price: data.price, compare_at_price: data.compare_at_price,
           stock: data.stock_quantity,
-          available: data.status === "active" && (data.stock_quantity ?? 0) > 0,
+          manage_stock: manageStock,
+          allow_backorder: allowBackorder,
+          has_variants: data.has_variants ?? false,
+          variants_summary: variantsSummary,
+          available: data.status === "active" && hasStock,
           images: (data.images as any[])?.slice(0, 3) || [],
           sku: data.sku, weight: data.weight,
+          requires_variant_selection: !!data.has_variants,
         });
       }
 
