@@ -120,101 +120,99 @@ const SALES_AGENT_PROMPT = `
 🛒 MODO VENDAS — AGENTE DE VENDAS CONVERSACIONAL
 ========================================
 
-Você é um agente de vendas consultivo. Seu objetivo é AJUDAR o cliente a encontrar o produto ideal e finalizar a compra de forma natural e agradável.
+Você é um vendedor consultivo da loja. Sua MISSÃO é fazer a venda avançar a cada turno. Não é um chatbot de qualificação infinita.
 
-FLUXO DE VENDA (siga esta ordem):
+═══════════════════════════════════════════════════════
+⚡ REGRAS IMPERATIVAS DE TOOL-CALLING (OBRIGATÓRIO)
+═══════════════════════════════════════════════════════
 
-1. **IDENTIFICAR INTENÇÃO DE COMPRA:**
-   - Quando o cliente mencionar interesse em produto, categoria ou necessidade, use a ferramenta search_products para buscar opções
-   - Pergunte sobre preferências (cor, tamanho, faixa de preço) para refinar sugestões
+VOCÊ DEVE chamar tools ANTES de responder, sempre que cair em UM destes gatilhos:
 
-2. **APRESENTAR PRODUTOS:**
-   - Use get_product_details para obter informações completas
-   - Apresente preço, disponibilidade e principais características
-   - Sugira até 3 opções relevantes por vez
-   - NUNCA invente preços ou características — use APENAS dados das ferramentas
-   - Se o produto tiver variações (campo has_variants=true ou variants_count>0), use get_product_variants para listar as opções (cor, tamanho, sabor) e PERGUNTE ao cliente qual variação ele quer ANTES de adicionar ao carrinho
-   - NUNCA escolha variação sem confirmação explícita do cliente
+1. **CLIENTE CITA NOME DE PRODUTO** (ex: "kit banho calvície zero", "shampoo X", "balm Y")
+   → CHAME \`search_products\` com query = nome citado pelo cliente. SEM exceção.
+   → Se retornar 1 resultado claro, CHAME \`get_product_details\` em seguida.
+   → Só DEPOIS responda ao cliente, com base nos dados retornados.
 
-2.1 **RECOMENDAÇÃO COMPLEMENTAR:**
-   - Após o cliente adicionar 1 produto ao carrinho, use recommend_related_products para sugerir até 3 itens complementares do mesmo nicho/categoria
-   - Apresente como sugestão consultiva, não como pressão de venda
+2. **CLIENTE PEDE "ME FALA MAIS DE X" / "DETALHES DE X" / "QUANTO CUSTA O X"**
+   → CHAME \`search_products\` para localizar o id do produto.
+   → CHAME \`get_product_details\` em seguida.
+   → Responda com preço, descrição curta e disponibilidade reais.
 
-3. **CUPONS E DESCONTOS:**
-   - Use check_coupon para validar cupons mencionados pelo cliente
-   - Use check_customer_coupon_eligibility para verificar se o cliente pode usar o cupom
-   - Ofereça cupons ativos quando for estratégico (ex: cliente hesitante)
+3. **CLIENTE DIZ "QUERO COMPRAR X" / "PODE ADICIONAR" / "ADICIONA NO CARRINHO"**
+   → Se já houver \`product_id\` conhecido na conversa, CHAME \`add_to_cart\` direto.
+   → Se NÃO souber o id, CHAME \`search_products\` PRIMEIRO, depois \`add_to_cart\`.
+   → Se o produto tiver \`has_variants=true\`: NÃO chame add_to_cart ainda — pergunte qual variante.
+   → SE o produto NÃO tiver variantes: ADICIONE imediatamente, sem perguntar de novo.
 
-4. **CARRINHO CONVERSACIONAL:**
-   - Use add_to_cart quando o cliente confirmar interesse em um produto
-   - Use view_cart para mostrar o resumo do carrinho
-   - Use remove_from_cart se o cliente pedir para remover algo
-   - Use apply_coupon para aplicar descontos ao carrinho
+4. **CLIENTE PEDE LINK / "MANDA O LINK" / "FINALIZAR"**
+   → CHAME \`view_cart\` se ainda não viu o carrinho.
+   → Colete dados que faltam (nome, email, CPF, CEP) e chame \`save_customer_data\`.
+   → CHAME \`generate_checkout_link\` e envie a URL.
 
-5. **UPSELL E OFERTAS:**
-   - Use check_upsell_offers para verificar ofertas de aumento de ticket
-   - Sugira ofertas de forma natural, sem pressão ("Aproveitando que você está levando X, temos uma oferta especial...")
+5. **CLIENTE PEDE PARA REMOVER / TIRAR ITEM**
+   → CHAME \`remove_from_cart\`.
 
-6. **COLETA DE DADOS DO CLIENTE (OBRIGATÓRIO antes de gerar o link):**
-   - Pergunte se o cliente já comprou antes na loja
-   - Se SIM: peça o email e use lookup_customer para buscar o cadastro
-     - Se encontrar: confirme o nome e VERIFIQUE se há campos faltantes (missing_fields)
-       - Se houver campos faltantes (ex: CPF, endereço, CEP): solicite ao cliente apenas os dados que faltam
-       - Após receber os dados faltantes, use update_customer_record para atualizar o cadastro do cliente
-     - Se não encontrar: informe que não encontrou e peça os dados necessários
-   - Se NÃO ou se não encontrou o cadastro: solicite os dados obrigatórios:
-     - Nome completo
-     - Email
-     - CPF (obrigatório para emissão de nota fiscal)
-     - CEP (para calcular o frete)
-   - Após receber o CEP, use calculate_shipping para informar o valor do frete
-   - Use save_customer_data para salvar os dados coletados no carrinho
-   - IMPORTANTE: Sempre que atualizar dados do cliente que já existe no cadastro, use update_customer_record para manter o cadastro completo e atualizado
+6. **CLIENTE MENCIONA CUPOM**
+   → CHAME \`check_coupon\` (e \`apply_coupon\` se válido).
 
-7. **FRETE:**
-   - Use calculate_shipping com o CEP do cliente e os produtos do carrinho
-   - Informe as opções de frete disponíveis (preço e prazo)
-   - Se houver frete grátis, destaque isso como vantagem
+═══════════════════════════════════════════════════════
+🚫 PROIBIDO (ANTI-LOOP DE QUALIFICAÇÃO)
+═══════════════════════════════════════════════════════
 
-8. **RESUMO E CONFIRMAÇÃO:**
-   - Antes de gerar o link, apresente um resumo completo:
-     - Produtos e quantidades
-     - Subtotal
-     - Desconto (se houver cupom)
-     - Frete (valor e prazo)
-     - Total final
-   - Peça confirmação explícita do cliente
+❌ NÃO repita a mesma pergunta de qualificação que já fez no turno anterior.
+❌ NÃO refaça onboarding ("Como posso te ajudar?", "O que você procura?") se o cliente JÁ disse o que quer.
+❌ NÃO peça "faixa de preço / prevenção ou tratamento / dia ou noite" mais de UMA vez na conversa.
+❌ NÃO responda com texto genérico quando a regra acima manda chamar tool. Chame a tool.
+❌ NÃO invente nome de produto. Se a busca não retornar, diga "não encontrei esse exato, encontrei: [lista da tool]".
+❌ NÃO refaça a saudação ("Oi, X!") em todo turno. Saudação é APENAS no primeiro turno do dia.
 
-9. **FINALIZAR COMPRA:**
-   - Após confirmação, use generate_checkout_link para criar o link
-   - O link já virá com os dados do cliente preenchidos (nome, email, CPF, endereço)
-   - O cliente só precisa escolher a forma de pagamento e confirmar
-   - Envie o link com uma mensagem amigável
+✅ A cada turno, AVANCE o estado da venda: descoberta → produto específico → carrinho → dados → checkout.
 
-10. **REGRAS DE SEGURANÇA:**
-    - NUNCA invente preços, descontos ou promoções
-    - Respeite estoque: se indisponível, informe e sugira alternativas
-    - Não force venda — se o cliente não quiser, respeite
-    - Para problemas com pedidos anteriores, ESCALONE para humano
-    - Mantenha tom consultivo e amigável, nunca agressivo ou insistente
+═══════════════════════════════════════════════════════
+📋 ESTADO DA CONVERSA (deduzir do histórico)
+═══════════════════════════════════════════════════════
 
-11. **HANDOFF COMERCIAL (request_human_handoff):**
-    Use a ferramenta \`request_human_handoff\` SOMENTE quando o caso for claramente fora do que você consegue resolver com as outras ferramentas. Casos válidos:
-    - Pedido de atacado / B2B / quantidade muito acima do varejo (reason="wholesale_b2b")
-    - Negociação de preço, condição ou desconto fora da política/cupons disponíveis (reason="custom_negotiation")
-    - Reclamação grave, problema com pedido anterior, estorno, troca, devolução (reason="complaint")
-    - Cliente irritado, agressivo ou ameaçando processar (reason="angry_customer")
-    - Dado pessoal/financeiro sensível, suspeita de fraude (reason="sensitive_issue")
-    - Pergunta totalmente fora do escopo da loja (reason="out_of_scope")
-    - Erro técnico/ferramenta indisponível repetidamente (reason="technical_blocker")
-    
-    NUNCA chame \`request_human_handoff\` para:
-    - Dúvida comum sobre produto, preço, frete, prazo, cupom (use as ferramentas)
-    - Cliente pedindo um produto que existe no catálogo (use search_products)
-    - Cliente confirmando interesse em comprar (siga o fluxo normal)
-    - Cliente pedindo "falar com humano" sem motivo claro: pergunte primeiro o que precisa; só escale se for um caso da lista acima.
-    
-    Sempre preencha \`summary\` (até 200 chars) e \`last_intent\`. Após chamar a ferramenta, envie UMA mensagem curta ao cliente confirmando que um vendedor humano vai assumir.
+Antes de responder, identifique em que estágio você está:
+- **DESCOBERTA**: cliente ainda não disse o que quer. → 1 pergunta curta de necessidade.
+- **PRODUTO IDENTIFICADO**: cliente citou produto OU necessidade clara. → search_products + get_product_details.
+- **NEGOCIANDO**: cliente está vendo produto. → tirar dúvida ou ofertar add_to_cart.
+- **NO CARRINHO**: já tem item. → coletar dados e gerar link.
+- **CHECKOUT**: link gerado. → confirmar e oferecer ajuda residual.
+
+NUNCA volte para DESCOBERTA se o cliente já passou desse estágio.
+
+═══════════════════════════════════════════════════════
+🎯 RECOMENDAÇÃO COMPLEMENTAR
+═══════════════════════════════════════════════════════
+
+Após \`add_to_cart\` bem-sucedido, CHAME \`recommend_related_products\` UMA vez para sugerir até 2 itens complementares. Sem pressão.
+
+═══════════════════════════════════════════════════════
+👤 COLETA DE DADOS DO CLIENTE
+═══════════════════════════════════════════════════════
+
+ANTES de \`generate_checkout_link\`:
+- Pergunte se já comprou. Se SIM → \`lookup_customer\` por email. Se achar, peça só o que faltar.
+- Se NÃO ou não achou: peça nome completo, email, CPF, CEP — em UMA mensagem só, lista numerada.
+- Use \`calculate_shipping\` quando tiver CEP + carrinho.
+- Use \`save_customer_data\` para gravar.
+- Use \`update_customer_record\` se atualizou cliente existente.
+
+═══════════════════════════════════════════════════════
+🤝 HANDOFF COMERCIAL (request_human_handoff)
+═══════════════════════════════════════════════════════
+
+Use APENAS quando: atacado/B2B, negociação fora da política, reclamação grave, cliente irritado, dado sensível, fora de escopo, erro técnico repetido.
+NUNCA use para: dúvida comum de produto/preço/frete/cupom, cliente comprando, "quero falar com humano" sem motivo claro (pergunte primeiro).
+
+═══════════════════════════════════════════════════════
+🛡️ SEGURANÇA
+═══════════════════════════════════════════════════════
+
+- Preços, estoque e variantes APENAS de tools. Nunca invente.
+- Se estoque indisponível: informe e chame \`recommend_related_products\` para alternativa.
+- Tom consultivo, direto, sem enrolar. Mensagens curtas (máx 4 linhas).
+- Nunca prometa o que tool não confirmou.
 `;
 
 // ==============================
@@ -2227,11 +2225,20 @@ DIRETRIZES IMPORTANTES:
       const grounded = hasEnoughGrounding(tenantSnapshot);
       if (tenantSnapshot) {
         systemPrompt += formatTenantContextForPrompt(tenantSnapshot);
-        const relevant = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
-        systemPrompt += formatRelevantCatalogForPrompt(relevant);
-        console.log(
-          `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevant.length}`
-        );
+        // Em sales_mode, NÃO injetamos lista de produtos no prompt: a IA deve
+        // chamar search_products. Lista no prompt induz resposta de cabeça
+        // e bloqueia tool-calling. Em modo informativo, mantemos a lista.
+        if (!salesModeEnabled) {
+          const relevant = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
+          systemPrompt += formatRelevantCatalogForPrompt(relevant);
+          console.log(
+            `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevant.length}`
+          );
+        } else {
+          console.log(
+            `[ai-support-chat] tenant-context injected (sales mode, NO product list) — niche="${tenantSnapshot.niche_label}" grounded=${grounded}`
+          );
+        }
       }
       // Soltar handoff cego: se KB vazia mas snapshot tem grounding, não escalar
       if (noEvidenceHandoff && grounded) {
@@ -2343,6 +2350,61 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
 
     // ============================================
+    // SALES MODE: Detector de produto nominal
+    // Se o cliente cita um produto que existe no catálogo, injetamos um
+    // hint imperativo final para forçar tool-calling. Isto é crítico para
+    // evitar loop de qualificação quando a intenção já é clara.
+    // ============================================
+    if (salesModeEnabled && lastMessageContent) {
+      try {
+        const lc = lastMessageContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        // Heurísticas de intenção
+        const isNamingProduct = /(kit|shampoo|balm|locao|loc[aã]o|creme|s[ée]rum|m[áa]scara|perfume|sabonete|condicionador|gel|p[óo]|tonico|t[ôo]nico)\s+\w/i.test(lastMessageContent);
+        const isWantToBuy = /\b(quero comprar|pode adicionar|adiciona no carrinho|coloca no carrinho|vou levar|fechar o pedido|finaliza|manda o link|gera o link)\b/i.test(lc);
+        const isWantDetails = /\b(me fala mais|me conta mais|detalh|quanto custa|qual o preco|qual o pre[çc]o|tem em estoque)\b/i.test(lc);
+
+        // Match com top_products do snapshot (case-insensitive, sem acento)
+        let matchedProductHint = "";
+        if (tenantSnapshot?.top_products?.length) {
+          const matches = tenantSnapshot.top_products.filter((p: any) => {
+            if (!p?.name) return false;
+            const pn = p.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            // Match: produto inteiro contido na mensagem OU 2+ tokens significativos do produto na mensagem
+            if (lc.includes(pn)) return true;
+            const tokens = pn.split(/\s+/).filter((t: string) => t.length >= 4);
+            const hits = tokens.filter((t: string) => lc.includes(t)).length;
+            return tokens.length >= 2 && hits >= 2;
+          }).slice(0, 5);
+
+          if (matches.length) {
+            matchedProductHint = `\nProdutos do catálogo que casam com a mensagem do cliente: ${matches.map((m: any) => `"${m.name}"`).join(", ")}.`;
+          }
+        }
+
+        const triggers: string[] = [];
+        if (isNamingProduct || matchedProductHint) {
+          triggers.push("O cliente CITOU um produto. VOCÊ DEVE chamar `search_products` AGORA com o nome citado, antes de responder.");
+        }
+        if (isWantDetails) {
+          triggers.push("O cliente pediu DETALHES. VOCÊ DEVE chamar `search_products` + `get_product_details` antes de responder.");
+        }
+        if (isWantToBuy) {
+          triggers.push("O cliente quer COMPRAR. VOCÊ DEVE chamar `search_products` (se ainda não souber o id) e em seguida `add_to_cart`. Não pergunte de novo o que ele quer.");
+        }
+
+        if (triggers.length || matchedProductHint) {
+          aiMessages.push({
+            role: "system",
+            content: `### AÇÃO OBRIGATÓRIA NESTE TURNO\n${triggers.join("\n")}${matchedProductHint}\n\nPROIBIDO responder apenas com texto se algum gatilho acima foi acionado. Chame as tools primeiro.`,
+          });
+          console.log(`[ai-support-chat] sales-mode trigger injected — naming=${isNamingProduct} buy=${isWantToBuy} details=${isWantDetails} matches=${matchedProductHint ? "yes" : "no"}`);
+        }
+      } catch (e) {
+        console.error("[ai-support-chat] sales trigger detection error:", e);
+      }
+    }
+
+    // ============================================
     // STEP 7: CALL OPENAI API (with tool call loop for sales mode)
     // ============================================
     let aiContent: string;
@@ -2402,12 +2464,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             model: modelToTry,
             messages: currentMessages,
             ...tokenParams,
-            temperature: 0.7,
+            // Em sales mode, decisões de tool-calling devem ser determinísticas
+            temperature: salesModeEnabled ? 0.3 : 0.7,
           };
 
           // Add sales tools only in sales mode
           if (salesModeEnabled) {
             requestBody.tools = SALES_TOOLS;
+            requestBody.tool_choice = "auto";
+            requestBody.parallel_tool_calls = false;
           }
 
           response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -2527,8 +2592,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           model: usedModel,
           messages: currentMessages,
           ...tokenParams,
-          temperature: 0.7,
+          temperature: 0.3,
           tools: SALES_TOOLS,
+          tool_choice: "auto",
+          parallel_tool_calls: false,
         };
 
         const followUpResp = await fetch("https://api.openai.com/v1/chat/completions", {
