@@ -535,7 +535,7 @@ async function executeSalesTool(
         
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, slug, price, compare_at_price, stock_quantity, status, images")
+          .select("id, name, slug, price, compare_at_price, stock_quantity, status, images, has_variants, manage_stock, allow_backorder")
           .eq("tenant_id", tenantId)
           .eq("status", "active")
           .is("deleted_at", null)
@@ -543,7 +543,6 @@ async function executeSalesTool(
           .limit(limit);
 
         if (error) {
-          // Fallback: try fuzzy search via RPC if available
           const { data: fuzzyData } = await (supabase as any).rpc("search_products_fuzzy", {
             p_tenant_id: tenantId,
             p_query: query,
@@ -553,6 +552,7 @@ async function executeSalesTool(
             return JSON.stringify(fuzzyData.map((p: any) => ({
               id: p.id, name: p.name, price: p.price, stock: p.stock_quantity,
               image: p.images?.[0] || null,
+              has_variants: p.has_variants ?? false,
             })));
           }
           return JSON.stringify({ error: "Nenhum produto encontrado", query });
@@ -565,6 +565,9 @@ async function executeSalesTool(
           price: p.price, compare_at_price: p.compare_at_price,
           stock: p.stock_quantity,
           image: (p.images as any)?.[0] || null,
+          has_variants: p.has_variants ?? false,
+          manage_stock: p.manage_stock ?? true,
+          allow_backorder: p.allow_backorder ?? false,
         })));
       }
 
