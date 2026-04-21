@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
+import { canonicalizeBrazilPhone, phoneVariants } from "../_shared/phone-br.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,8 +51,12 @@ interface WhatsAppWebhookPayload {
   entry: WhatsAppWebhookEntry[];
 }
 
+// Wrapper legado mantido por compatibilidade com chamadas internas
+// (ex.: lookup de telefones autorizados da Agenda). Agora delega para o
+// helper compartilhado, garantindo que a forma canônica brasileira seja
+// usada de ponta a ponta.
 function normalizePhone(phone?: string | null) {
-  return phone ? phone.replace(/\D/g, "") : "";
+  return canonicalizeBrazilPhone(phone);
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -333,17 +338,27 @@ Deno.serve(async (req) => {
               // Ordem: (1) localizar/criar conversa SEM sobrescrever status,
               //        (2) persistir mensagem inbound,
               //        (3) só então decidir se IA responde via shared gate.
+              //
+              // BUG FIX (estrutural):
+              //  - Lookup agora considera variantes BR (com/sem 9º dígito)
+              //    para impedir conversas duplicadas pelo mesmo cliente.
+              //  - Lookup INCLUI conversas resolvidas/encerradas, porque
+              //    nova mensagem do cliente DEVE reabrir a conversa em vez
+              //    de criar uma nova.
+              //  - Spam continua excluído (intencional: silencia o contato).
               let conversationId: string | null = null;
               let existingStatus: string | null = null;
               let existingAssignedTo: string | null = null;
 
+              const lookupPhones = phoneVariants(message.from);
               const { data: existingConv } = await supabase
                 .from("conversations")
-                .select("id, status, assigned_to")
+                .select("id, status, assigned_to, customer_phone")
                 .eq("tenant_id", tenantId)
-                .eq("customer_phone", customerPhone)
                 .eq("channel_type", "whatsapp")
-                .not("status", "in", "(resolved,spam)")
+                .in("customer_phone", lookupPhones.length ? lookupPhones : [customerPhone])
+                .not("status", "in", "(spam)")
+                .order("last_message_at", { ascending: false, nullsFirst: false })
                 .order("created_at", { ascending: false })
                 .limit(1)
                 .maybeSingle();
@@ -352,7 +367,47 @@ Deno.serve(async (req) => {
                 conversationId = existingConv.id;
                 existingStatus = existingConv.status;
                 existingAssignedTo = existingConv.assigned_to;
-                console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId} status=${existingStatus} assigned=${!!existingAssignedTo}`);
+                console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId} status=${existingStatus} assigned=${!!existingAssignedTo} stored_phone=${existingConv.customer_phone}`);
+
+                // Regra de reabertura: se a conversa estava resolvida ou
+                // encerrada, nova mensagem do cliente reabre a conversa.
+                // - bot: se a IA pode responder agora
+                // - waiting_agent: caso contrário (humano assume)
+                // Atualização do telefone para o canônico também ocorre
+                // quando o registro estava no formato legacy.
+                const isClosed = existingStatus === "resolved" || existingStatus === "closed";
+                const phoneNeedsUpgrade = existingConv.customer_phone !== customerPhone;
+                if (isClosed || phoneNeedsUpgrade) {
+                  const reopenDecision = await shouldAiRespond({
+                    supabase,
+                    tenant_id: tenantId,
+                    channel_type: "whatsapp",
+                  });
+                  const reopenStatus: "bot" | "waiting_agent" = isClosed
+                    ? (reopenDecision.should_respond ? "bot" : "waiting_agent")
+                    : (existingStatus as "bot" | "waiting_agent");
+
+                  const updatePayload: Record<string, unknown> = {
+                    customer_phone: customerPhone,
+                  };
+                  if (isClosed) {
+                    updatePayload.status = reopenStatus;
+                    updatePayload.assigned_to = null;
+                    existingStatus = reopenStatus;
+                    existingAssignedTo = null;
+                  }
+                  const { error: reopenErr } = await supabase
+                    .from("conversations")
+                    .update(updatePayload)
+                    .eq("id", conversationId);
+                  if (reopenErr) {
+                    console.error(`[meta-whatsapp-webhook][${traceId}] Failed to reopen/upgrade conversation:`, reopenErr);
+                  } else if (isClosed) {
+                    console.log(`[meta-whatsapp-webhook][${traceId}] Reopened conversation ${conversationId} -> ${reopenStatus}`);
+                  } else {
+                    console.log(`[meta-whatsapp-webhook][${traceId}] Upgraded stored phone for ${conversationId} to canonical`);
+                  }
+                }
               } else {
                 // Decide initial status using the shared gate (NEW conversations only)
                 const initialDecision = await shouldAiRespond({
