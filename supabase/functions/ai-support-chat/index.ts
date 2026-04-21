@@ -133,6 +133,12 @@ FLUXO DE VENDA (siga esta ordem):
    - Apresente preço, disponibilidade e principais características
    - Sugira até 3 opções relevantes por vez
    - NUNCA invente preços ou características — use APENAS dados das ferramentas
+   - Se o produto tiver variações (campo has_variants=true ou variants_count>0), use get_product_variants para listar as opções (cor, tamanho, sabor) e PERGUNTE ao cliente qual variação ele quer ANTES de adicionar ao carrinho
+   - NUNCA escolha variação sem confirmação explícita do cliente
+
+2.1 **RECOMENDAÇÃO COMPLEMENTAR:**
+   - Após o cliente adicionar 1 produto ao carrinho, use recommend_related_products para sugerir até 3 itens complementares do mesmo nicho/categoria
+   - Apresente como sugestão consultiva, não como pressão de venda
 
 3. **CUPONS E DESCONTOS:**
    - Use check_coupon para validar cupons mencionados pelo cliente
@@ -268,11 +274,12 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "add_to_cart",
-      description: "Adiciona um produto ao carrinho da conversa.",
+      description: "Adiciona um produto ao carrinho da conversa. Se o produto tiver variações, é OBRIGATÓRIO informar variant_id (obtido via get_product_variants).",
       parameters: {
         type: "object",
         properties: {
           product_id: { type: "string", description: "UUID do produto" },
+          variant_id: { type: "string", description: "UUID da variante específica (obrigatório se o produto tem variações)" },
           quantity: { type: "number", description: "Quantidade (default: 1)" },
         },
         required: ["product_id"],
@@ -426,6 +433,35 @@ const SALES_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "get_product_variants",
+      description: "Lista as variações disponíveis (cor, tamanho, sabor, etc.) de um produto, com preço e estoque real de cada variante. Usar SEMPRE que o produto tem has_variants=true antes de adicionar ao carrinho.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "string", description: "UUID do produto" },
+        },
+        required: ["product_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "recommend_related_products",
+      description: "Recomenda produtos complementares para o item principal do carrinho com base nas categorias do produto. Retorna até 3 sugestões coerentes do mesmo nicho.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Máximo de recomendações (default: 3)" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // Intent classification tool definition (updated with purchase_intent)
@@ -499,7 +535,7 @@ async function executeSalesTool(
         
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, slug, price, compare_at_price, stock_quantity, status, images")
+          .select("id, name, slug, price, compare_at_price, stock_quantity, status, images, has_variants, manage_stock, allow_backorder")
           .eq("tenant_id", tenantId)
           .eq("status", "active")
           .is("deleted_at", null)
@@ -507,7 +543,6 @@ async function executeSalesTool(
           .limit(limit);
 
         if (error) {
-          // Fallback: try fuzzy search via RPC if available
           const { data: fuzzyData } = await (supabase as any).rpc("search_products_fuzzy", {
             p_tenant_id: tenantId,
             p_query: query,
@@ -517,6 +552,7 @@ async function executeSalesTool(
             return JSON.stringify(fuzzyData.map((p: any) => ({
               id: p.id, name: p.name, price: p.price, stock: p.stock_quantity,
               image: p.images?.[0] || null,
+              has_variants: p.has_variants ?? false,
             })));
           }
           return JSON.stringify({ error: "Nenhum produto encontrado", query });
@@ -529,6 +565,9 @@ async function executeSalesTool(
           price: p.price, compare_at_price: p.compare_at_price,
           stock: p.stock_quantity,
           image: (p.images as any)?.[0] || null,
+          has_variants: p.has_variants ?? false,
+          manage_stock: p.manage_stock ?? true,
+          allow_backorder: p.allow_backorder ?? false,
         })));
       }
 

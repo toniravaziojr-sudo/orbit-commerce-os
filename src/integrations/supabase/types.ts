@@ -2885,6 +2885,7 @@ export type Database = {
           quantity: number
           shipping_override: number | null
           slug: string
+          source_conversation_id: string | null
           tenant_id: string
           updated_at: string
         }
@@ -2903,6 +2904,7 @@ export type Database = {
           quantity?: number
           shipping_override?: number | null
           slug: string
+          source_conversation_id?: string | null
           tenant_id: string
           updated_at?: string
         }
@@ -2921,6 +2923,7 @@ export type Database = {
           quantity?: number
           shipping_override?: number | null
           slug?: string
+          source_conversation_id?: string | null
           tenant_id?: string
           updated_at?: string
         }
@@ -12575,6 +12578,7 @@ export type Database = {
           chargeback_deadline_at: string | null
           chargeback_detected_at: string | null
           checkout_attempt_id: string | null
+          checkout_link_id: string | null
           created_at: string
           currency: string | null
           customer_cnpj: string | null
@@ -12661,6 +12665,7 @@ export type Database = {
           chargeback_deadline_at?: string | null
           chargeback_detected_at?: string | null
           checkout_attempt_id?: string | null
+          checkout_link_id?: string | null
           created_at?: string
           currency?: string | null
           customer_cnpj?: string | null
@@ -12747,6 +12752,7 @@ export type Database = {
           chargeback_deadline_at?: string | null
           chargeback_detected_at?: string | null
           checkout_attempt_id?: string | null
+          checkout_link_id?: string | null
           created_at?: string
           currency?: string | null
           customer_cnpj?: string | null
@@ -12819,6 +12825,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_checkout_link_id_fkey"
+            columns: ["checkout_link_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_links"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_customer_id_fkey"
             columns: ["customer_id"]
@@ -17027,7 +17040,9 @@ export type Database = {
           created_by: string
           id: string
           last_message_at: string | null
+          metadata: Json
           priority: string
+          source_conversation_id: string | null
           status: string
           subject: string
           tenant_id: string
@@ -17039,7 +17054,9 @@ export type Database = {
           created_by: string
           id?: string
           last_message_at?: string | null
+          metadata?: Json
           priority?: string
+          source_conversation_id?: string | null
           status?: string
           subject: string
           tenant_id: string
@@ -17051,7 +17068,9 @@ export type Database = {
           created_by?: string
           id?: string
           last_message_at?: string | null
+          metadata?: Json
           priority?: string
+          source_conversation_id?: string | null
           status?: string
           subject?: string
           tenant_id?: string
@@ -19899,8 +19918,11 @@ export type Database = {
           customer_data: Json | null
           customer_id: string | null
           expires_at: string
+          handoff_reason: string | null
+          handoff_ticket_id: string | null
           id: string
           items: Json
+          order_id: string | null
           status: string
           subtotal_cents: number
           tenant_id: string
@@ -19913,8 +19935,11 @@ export type Database = {
           customer_data?: Json | null
           customer_id?: string | null
           expires_at?: string
+          handoff_reason?: string | null
+          handoff_ticket_id?: string | null
           id?: string
           items?: Json
+          order_id?: string | null
           status?: string
           subtotal_cents?: number
           tenant_id: string
@@ -19927,8 +19952,11 @@ export type Database = {
           customer_data?: Json | null
           customer_id?: string | null
           expires_at?: string
+          handoff_reason?: string | null
+          handoff_ticket_id?: string | null
           id?: string
           items?: Json
+          order_id?: string | null
           status?: string
           subtotal_cents?: number
           tenant_id?: string
@@ -19947,6 +19975,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_carts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {
@@ -20838,7 +20873,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      whatsapp_sales_funnel_view: {
+        Row: {
+          carts_converted: number | null
+          carts_handoff: number | null
+          carts_with_items: number | null
+          day: string | null
+          orders_generated: number | null
+          revenue: number | null
+          tenant_id: string | null
+          total_carts: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_carts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_invitation: {
