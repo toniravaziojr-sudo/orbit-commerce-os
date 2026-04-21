@@ -274,11 +274,12 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "add_to_cart",
-      description: "Adiciona um produto ao carrinho da conversa.",
+      description: "Adiciona um produto ao carrinho da conversa. Se o produto tiver variações, é OBRIGATÓRIO informar variant_id (obtido via get_product_variants).",
       parameters: {
         type: "object",
         properties: {
           product_id: { type: "string", description: "UUID do produto" },
+          variant_id: { type: "string", description: "UUID da variante específica (obrigatório se o produto tem variações)" },
           quantity: { type: "number", description: "Quantidade (default: 1)" },
         },
         required: ["product_id"],
