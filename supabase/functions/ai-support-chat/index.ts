@@ -611,7 +611,7 @@ async function executeSalesTool(
         const productId = args.product_id as string;
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, slug, description, price, compare_at_price, stock_quantity, status, images, weight, sku")
+          .select("id, name, slug, description, price, compare_at_price, stock_quantity, status, images, weight, sku, has_variants, manage_stock, allow_backorder")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
@@ -619,14 +619,50 @@ async function executeSalesTool(
 
         if (error || !data) return JSON.stringify({ error: "Produto não encontrado" });
 
+        // If has variants, also bring summary
+        let variantsSummary: any = null;
+        if (data.has_variants) {
+          const { data: variants } = await supabase
+            .from("product_variants")
+            .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
+            .eq("product_id", productId)
+            .eq("is_active", true);
+          if (variants?.length) {
+            const prices = variants.map((v: any) => Number(v.price ?? data.price)).filter((n: number) => !isNaN(n));
+            const totalStock = variants.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0);
+            variantsSummary = {
+              count: variants.length,
+              price_min: prices.length ? Math.min(...prices) : data.price,
+              price_max: prices.length ? Math.max(...prices) : data.price,
+              total_stock: totalStock,
+              option_names: [
+                variants[0]?.option1_name,
+                variants[0]?.option2_name,
+                variants[0]?.option3_name,
+              ].filter(Boolean),
+            };
+          }
+        }
+
+        const baseStock = data.stock_quantity ?? 0;
+        const available = data.status === "active" && (
+          !data.manage_stock ||
+          data.allow_backorder ||
+          (data.has_variants ? (variantsSummary?.total_stock ?? 0) > 0 : baseStock > 0)
+        );
+
         return JSON.stringify({
           id: data.id, name: data.name, slug: data.slug,
           description: data.description?.slice(0, 500),
           price: data.price, compare_at_price: data.compare_at_price,
-          stock: data.stock_quantity,
-          available: data.status === "active" && (data.stock_quantity ?? 0) > 0,
+          stock: baseStock,
+          available,
           images: (data.images as any[])?.slice(0, 3) || [],
           sku: data.sku, weight: data.weight,
+          has_variants: data.has_variants ?? false,
+          manage_stock: data.manage_stock ?? true,
+          allow_backorder: data.allow_backorder ?? false,
+          variants_summary: variantsSummary,
         });
       }
 
