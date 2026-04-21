@@ -92,18 +92,8 @@ export function ConversationList({
   const [channelFilter, setChannelFilter] = useState<SupportChannelType | 'all'>('all');
 
   const filteredConversations = useMemo(() => {
-    let filtered = conversations;
-
-    // Filter by tab
-    if (filter === 'needs_attention') {
-      filtered = filtered.filter(c => c.status === 'new' || c.status === 'waiting_agent');
-    } else if (filter === 'in_progress') {
-      filtered = filtered.filter(c => c.status === 'open' || c.status === 'waiting_customer');
-    } else if (filter === 'bot') {
-      filtered = filtered.filter(c => c.status === 'bot' || c.status === 'resolved');
-    } else if (filter === 'resolved') {
-      filtered = filtered.filter(c => c.status === 'resolved');
-    }
+    // Fila oficial (regra única em src/lib/support-queues.ts)
+    let filtered = conversations.filter((c) => getConversationQueue(c) === filter);
 
     // Filter by channel
     if (channelFilter !== 'all') {
@@ -123,15 +113,7 @@ export function ConversationList({
     return filtered;
   }, [conversations, filter, channelFilter, search]);
 
-  const counts = useMemo(() => {
-    return {
-      needs_attention: conversations.filter(c => c.status === 'new' || c.status === 'waiting_agent').length,
-      in_progress: conversations.filter(c => c.status === 'open' || c.status === 'waiting_customer').length,
-      bot: conversations.filter(c => c.status === 'bot' || c.status === 'resolved').length,
-      resolved: conversations.filter(c => c.status === 'resolved').length,
-      all: conversations.length,
-    };
-  }, [conversations]);
+  const counts = useMemo(() => countByQueue(conversations), [conversations]);
 
   return (
     <div className="flex flex-col h-full border-r">
