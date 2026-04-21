@@ -68,7 +68,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 37 | Utilitários | Importar Dados | `/import` | central | `sistema_importacao` | — | Badge "Upgrade" se bloqueado |
 | 38 | Utilitários | Meu Drive | `/files` | central | — | — | — |
 | 39 | Utilitários | Relatórios | `/reports` | central | `reports` | — | Badge "Upgrade" se bloqueado |
-| 40 | Suporte | Suporte | `/support-center` | suporte | — | — | — |
+| 40 | Suporte | Suporte | `/support-center` | suporte | — | — | Inclui aba "Funil WhatsApp" (Modo Vendas WhatsApp — Fase 5) |
 | 41 | Suporte | Pacotes IA | `/ai-packages` | suporte | — | — | — |
 
 **Grupos colapsáveis:** E-commerce, Loja Online, Marketing Básico, Marketing Avançado, Central de Conteúdo, CRM, ERP, Parcerias, Marketplaces, Sistema, Utilitários.  
@@ -287,7 +287,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/chatgpt` — ChatGPT (FeatureGated: `assistant`)
 - `/ai-memories` — Memórias de IA
 - `/ai-packages` — Pacotes IA
-- `/support-center` — Central de suporte
+- `/support-center` — Central de suporte. **Abas oficiais:** Tickets, AI Config (com toggle Modo Vendas), Conversas, **Funil WhatsApp** (`WhatsappSalesFunnel.tsx`, consome `whatsapp_sales_funnel_view`: carrinhos, convertidos, handoffs, pedidos, receita, taxa de conversão). Doc funcional: `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md`.
 - `/getting-started` — Guia inicial
 
 **Dev:**
