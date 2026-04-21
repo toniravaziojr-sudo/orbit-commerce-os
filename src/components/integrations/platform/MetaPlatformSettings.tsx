@@ -159,6 +159,7 @@ export function MetaPlatformSettings() {
 
   const appIdConfigured = !!secretsStatus?.secrets?.META_APP_ID;
   const appSecretConfigured = !!secretsStatus?.secrets?.META_APP_SECRET;
+  const partnerBusinessIdConfigured = !!secretsStatus?.secrets?.WHATSAPP_META_PARTNER_BUSINESS_ID;
   const allCredentialsConfigured = appIdConfigured && appSecretConfigured;
 
   const isLoading = secretsLoading || profilesLoading;
@@ -235,6 +236,50 @@ export function MetaPlatformSettings() {
             isConfigured={appSecretConfigured}
             preview={secretsStatus?.previews?.META_APP_SECRET}
             source={secretsStatus?.sources?.META_APP_SECRET as 'db' | 'env' | null}
+          />
+        </CardContent>
+      </Card>
+
+      {/* WhatsApp — Business ID parceiro (Fase 1 híbrido cross-business) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <Shield className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">WhatsApp — Business ID parceiro</CardTitle>
+                <CardDescription>
+                  ID do nosso Business Manager que os tenants precisam adicionar como parceiro na WABA deles (caminho residual cross-business). Aparece preenchido no passo a passo da Meta.
+                </CardDescription>
+              </div>
+            </div>
+            <Badge
+              variant={partnerBusinessIdConfigured ? "default" : "outline"}
+              className={partnerBusinessIdConfigured ? "bg-green-500/10 text-green-600" : ""}
+            >
+              {partnerBusinessIdConfigured ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <AlertCircle className="h-3 w-3 mr-1" />}
+              {partnerBusinessIdConfigured ? "Configurado" : "Pendente"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Para encontrar: Meta Business Suite → Configurações da empresa → Informações da empresa → ID da empresa.
+              Este ID é exibido no wizard <strong>"Autorizar recepção real"</strong> que aparece para tenants com WABA pré-existente, migrada ou de outro Business.
+            </AlertDescription>
+          </Alert>
+          <CredentialEditor
+            credentialKey="WHATSAPP_META_PARTNER_BUSINESS_ID"
+            label="Business ID parceiro"
+            description="Ex.: 123456789012345 — apenas dígitos"
+            isConfigured={partnerBusinessIdConfigured}
+            preview={secretsStatus?.previews?.WHATSAPP_META_PARTNER_BUSINESS_ID}
+            source={secretsStatus?.sources?.WHATSAPP_META_PARTNER_BUSINESS_ID as 'db' | 'env' | null}
+            placeholder="Cole aqui o ID do Business Manager"
           />
         </CardContent>
       </Card>

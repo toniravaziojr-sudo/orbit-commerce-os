@@ -37,6 +37,8 @@ const EDITABLE_CREDENTIALS = [
   'META_APP_ID',
   'META_APP_SECRET',
   // META_CONFIG_ID removido na V4 — config_id agora vive em meta_auth_profiles
+  // WhatsApp Cross-Business — Business ID parceiro da plataforma (Fase 1 híbrido)
+  'WHATSAPP_META_PARTNER_BUSINESS_ID',
   // Fal.AI (Geração de Imagens e Vídeos)
   'FAL_API_KEY',
   // Google Gemini (Geração de Imagens Nativa)
