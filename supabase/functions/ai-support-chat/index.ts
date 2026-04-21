@@ -484,7 +484,7 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "request_human_handoff",
-      description: "Encaminha a conversa para um vendedor humano e cria um ticket comercial com o contexto do carrinho. Use APENAS nos casos descritos nas regras de handoff (atacado/B2B, negociação fora da política, reclamação grave, cliente irritado, dado/pedido sensível, problema técnico que você não consegue resolver). NUNCA use para perguntas comuns de venda que você consegue resolver com as outras ferramentas.",
+      description: "Encaminha a conversa para um vendedor humano e cria um ticket comercial. USE APENAS quando: (a) cliente pediu atacado/B2B/orçamento grande, (b) cliente quer negociar condição fora da política (desconto além do cupom, parcelamento extra), (c) cliente fez reclamação grave de pedido já realizado, (d) cliente está irritado/agressivo, (e) cliente compartilhou dado sensível que exige humano, (f) erro técnico repetido que você não consegue resolver. NUNCA USE para: saudação ('oi', 'olá', 'bom dia'), pergunta sobre catálogo, pedido de detalhe de produto, dúvida de preço/frete/cupom, intenção de compra. Para essas situações, use search_products / get_product_details / add_to_cart. Se o cliente só cumprimentou ou ainda não pediu nada concreto, NÃO chame esta tool — pergunte gentilmente o que ele procura.",
       parameters: {
         type: "object",
         properties: {
@@ -496,11 +496,9 @@ const SALES_TOOLS = [
               "complaint",
               "angry_customer",
               "sensitive_issue",
-              "out_of_scope",
               "technical_blocker",
-              "other",
             ],
-            description: "Motivo categorizado do handoff",
+            description: "Motivo categorizado do handoff. Apenas valores comerciais reais — saudação ou pergunta de catálogo NÃO são motivos válidos.",
           },
           summary: {
             type: "string",
