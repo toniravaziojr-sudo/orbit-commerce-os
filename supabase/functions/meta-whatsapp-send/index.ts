@@ -107,6 +107,49 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ============= 24h WINDOW AUDIT (Phase 5 — Sales Mode) =============
+    // Mensagem livre (sem template) só pode ser enviada se houver mensagem do cliente nas últimas 24h.
+    if (!template_name) {
+      try {
+        const { data: convo } = await supabase
+          .from("conversations")
+          .select("id, last_customer_message_at")
+          .eq("tenant_id", tenant_id)
+          .eq("channel_type", "whatsapp")
+          .eq("customer_phone", phone)
+          .order("last_customer_message_at", { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+
+        const lastInbound = convo?.last_customer_message_at ? new Date(convo.last_customer_message_at) : null;
+        const ageMs = lastInbound ? Date.now() - lastInbound.getTime() : Infinity;
+        const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+        if (ageMs > WINDOW_MS) {
+          console.warn(`[meta-whatsapp-send][${traceId}] Outside 24h window (last_inbound=${lastInbound?.toISOString() ?? "never"}). Free text BLOCKED.`);
+          await supabase.from("whatsapp_messages").insert({
+            tenant_id,
+            recipient_phone: phone,
+            message_type: "text",
+            message_content: (message ?? "").substring(0, 500),
+            status: "failed",
+            error_message: "Fora da janela de 24h: só é permitido enviar template aprovado.",
+          });
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Fora da janela de 24h do WhatsApp. Use um template aprovado para reabrir a conversa.",
+            code: "OUTSIDE_24H_WINDOW",
+            last_customer_message_at: lastInbound?.toISOString() ?? null,
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } catch (winErr) {
+        console.warn(`[meta-whatsapp-send][${traceId}] 24h window check failed (non-fatal):`, winErr);
+      }
+    }
+
     // ============= PHASE 3: Render final visible content (no placeholders!) =============
     // For text messages: render `message` against `template_payload` if vars exist.
     // For template messages: render `template_body` to build the timeline-visible content.

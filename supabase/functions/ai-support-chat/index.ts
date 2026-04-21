@@ -198,10 +198,23 @@ FLUXO DE VENDA (siga esta ordem):
     - Para problemas com pedidos anteriores, ESCALONE para humano
     - Mantenha tom consultivo e amigável, nunca agressivo ou insistente
 
-11. **ESCALONAMENTO:**
-    - Reclamações, problemas com pedidos, estornos → ESCALONE para humano
-    - Cliente irritado ou agressivo → ESCALONE para humano
-    - Dúvidas que não envolvem venda e não estão na base → ESCALONE para humano
+11. **HANDOFF COMERCIAL (request_human_handoff):**
+    Use a ferramenta `request_human_handoff` SOMENTE quando o caso for claramente fora do que você consegue resolver com as outras ferramentas. Casos válidos:
+    - Pedido de atacado / B2B / quantidade muito acima do varejo (reason="wholesale_b2b")
+    - Negociação de preço, condição ou desconto fora da política/cupons disponíveis (reason="custom_negotiation")
+    - Reclamação grave, problema com pedido anterior, estorno, troca, devolução (reason="complaint")
+    - Cliente irritado, agressivo ou ameaçando processar (reason="angry_customer")
+    - Dado pessoal/financeiro sensível, suspeita de fraude (reason="sensitive_issue")
+    - Pergunta totalmente fora do escopo da loja (reason="out_of_scope")
+    - Erro técnico/ferramenta indisponível repetidamente (reason="technical_blocker")
+    
+    NUNCA chame `request_human_handoff` para:
+    - Dúvida comum sobre produto, preço, frete, prazo, cupom (use as ferramentas)
+    - Cliente pedindo um produto que existe no catálogo (use search_products)
+    - Cliente confirmando interesse em comprar (siga o fluxo normal)
+    - Cliente pedindo "falar com humano" sem motivo claro: pergunte primeiro o que precisa; só escale se for um caso da lista acima.
+    
+    Sempre preencha `summary` (até 200 chars) e `last_intent`. Após chamar a ferramenta, envie UMA mensagem curta ao cliente confirmando que um vendedor humano vai assumir.
 `;
 
 // ==============================
@@ -466,13 +479,32 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "request_human_handoff",
-      description: "Transfere a conversa para um atendente humano e cria um ticket comercial. Use APENAS quando: (a) cliente solicitar atendente, (b) reclamação grave/agressividade, (c) caso comercial complexo que você não consegue resolver, (d) cliente pedir cancelamento/reembolso/estorno. Sempre passe um resumo claro.",
+      description: "Encaminha a conversa para um vendedor humano e cria um ticket comercial com o contexto do carrinho. Use APENAS nos casos descritos nas regras de handoff (atacado/B2B, negociação fora da política, reclamação grave, cliente irritado, dado/pedido sensível, problema técnico que você não consegue resolver). NUNCA use para perguntas comuns de venda que você consegue resolver com as outras ferramentas.",
       parameters: {
         type: "object",
         properties: {
-          reason: { type: "string", description: "Motivo curto do handoff (ex: 'reclamação grave', 'cliente pediu humano', 'cancelamento')" },
-          summary: { type: "string", description: "Resumo do que foi conversado e do que o cliente precisa" },
-          last_intent: { type: "string", description: "Última intenção identificada (compra, dúvida, reclamação, cancelamento, etc.)" },
+          reason: {
+            type: "string",
+            enum: [
+              "wholesale_b2b",
+              "custom_negotiation",
+              "complaint",
+              "angry_customer",
+              "sensitive_issue",
+              "out_of_scope",
+              "technical_blocker",
+              "other",
+            ],
+            description: "Motivo categorizado do handoff",
+          },
+          summary: {
+            type: "string",
+            description: "Resumo curto (até 200 chars) do que o cliente quer e por que precisa de humano",
+          },
+          last_intent: {
+            type: "string",
+            description: "Última intenção/tópico da conversa (ex: 'orçamento atacado', 'troca de produto')",
+          },
         },
         required: ["reason", "summary"],
         additionalProperties: false,
@@ -600,43 +632,50 @@ async function executeSalesTool(
 
         if (error || !data) return JSON.stringify({ error: "Produto não encontrado" });
 
-        // Variants summary (count + min/max price + total stock)
+        // If has variants, also bring summary
         let variantsSummary: any = null;
         if (data.has_variants) {
-          const { data: vs } = await supabase
+          const { data: variants } = await supabase
             .from("product_variants")
-            .select("id, name, price, stock_quantity, is_active")
+            .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
             .eq("product_id", productId)
             .eq("is_active", true);
-          if (vs && vs.length > 0) {
-            const prices = vs.map((v: any) => Number(v.price ?? data.price)).filter((n: number) => !isNaN(n));
+          if (variants?.length) {
+            const prices = variants.map((v: any) => Number(v.price ?? data.price)).filter((n: number) => !isNaN(n));
+            const totalStock = variants.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0);
             variantsSummary = {
-              count: vs.length,
-              min_price: prices.length ? Math.min(...prices) : data.price,
-              max_price: prices.length ? Math.max(...prices) : data.price,
-              total_stock: vs.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0),
-              sample_options: vs.slice(0, 5).map((v: any) => v.name),
+              count: variants.length,
+              price_min: prices.length ? Math.min(...prices) : data.price,
+              price_max: prices.length ? Math.max(...prices) : data.price,
+              total_stock: totalStock,
+              option_names: [
+                variants[0]?.option1_name,
+                variants[0]?.option2_name,
+                variants[0]?.option3_name,
+              ].filter(Boolean),
             };
           }
         }
 
-        const manageStock = data.manage_stock ?? true;
-        const allowBackorder = data.allow_backorder ?? false;
-        const hasStock = !manageStock || allowBackorder || (data.stock_quantity ?? 0) > 0;
+        const baseStock = data.stock_quantity ?? 0;
+        const available = data.status === "active" && (
+          !data.manage_stock ||
+          data.allow_backorder ||
+          (data.has_variants ? (variantsSummary?.total_stock ?? 0) > 0 : baseStock > 0)
+        );
 
         return JSON.stringify({
           id: data.id, name: data.name, slug: data.slug,
           description: data.description?.slice(0, 500),
           price: data.price, compare_at_price: data.compare_at_price,
-          stock: data.stock_quantity,
-          manage_stock: manageStock,
-          allow_backorder: allowBackorder,
-          has_variants: data.has_variants ?? false,
-          variants_summary: variantsSummary,
-          available: data.status === "active" && hasStock,
+          stock: baseStock,
+          available,
           images: (data.images as any[])?.slice(0, 3) || [],
           sku: data.sku, weight: data.weight,
-          requires_variant_selection: !!data.has_variants,
+          has_variants: data.has_variants ?? false,
+          manage_stock: data.manage_stock ?? true,
+          allow_backorder: data.allow_backorder ?? false,
+          variants_summary: variantsSummary,
         });
       }
 
@@ -699,13 +738,13 @@ async function executeSalesTool(
 
       case "add_to_cart": {
         const productId = args.product_id as string;
-        const variantId = (args.variant_id as string) || null;
         const quantity = (args.quantity as number) || 1;
+        const variantId = (args.variant_id as string | undefined) || undefined;
 
-        // Get product info
+        // Get product info (com flags de variante/estoque)
         const { data: product } = await supabase
           .from("products")
-          .select("id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder, sku")
+          .select("id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
@@ -714,58 +753,53 @@ async function executeSalesTool(
         if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado" });
         if (product.status !== "active") return JSON.stringify({ success: false, error: "Produto indisponível" });
 
-        // If product has variants, variant_id is REQUIRED
-        if (product.has_variants && !variantId) {
+        // Se produto tem variantes, exigir variant_id
+        let unitPrice = Number(product.price);
+        let variantLabel: string | null = null;
+        let sku: string | null = null;
+        let stockToCheck = Number(product.stock_quantity ?? 0);
+        let manageStock = Boolean(product.manage_stock ?? true);
+        let allowBackorder = Boolean(product.allow_backorder ?? false);
+
+        if (product.has_variants) {
+          if (!variantId) {
+            return JSON.stringify({
+              success: false,
+              error: "VARIANT_REQUIRED",
+              message: "Este produto tem variações. Use get_product_variants para listar as opções e peça ao cliente para escolher antes de adicionar ao carrinho.",
+            });
+          }
+          const { data: variant } = await supabase
+            .from("product_variants")
+            .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
+            .eq("id", variantId)
+            .eq("product_id", productId)
+            .maybeSingle();
+
+          if (!variant || !variant.is_active) {
+            return JSON.stringify({ success: false, error: "Variação não encontrada ou inativa" });
+          }
+          unitPrice = Number(variant.price ?? product.price);
+          stockToCheck = Number(variant.stock_quantity ?? 0);
+          sku = variant.sku ?? null;
+          variantLabel = [
+            variant.option1_value && `${variant.option1_name}: ${variant.option1_value}`,
+            variant.option2_value && `${variant.option2_name}: ${variant.option2_value}`,
+            variant.option3_value && `${variant.option3_name}: ${variant.option3_value}`,
+          ].filter(Boolean).join(" / ") || variant.name || null;
+        }
+
+        // Validar estoque (respeita manage_stock + allow_backorder)
+        if (manageStock && !allowBackorder && stockToCheck < quantity) {
           return JSON.stringify({
             success: false,
-            requires_variant: true,
-            error: "Este produto tem variações. Use get_product_variants para listar e pergunte ao cliente qual variante deseja antes de adicionar ao carrinho.",
+            error: `Estoque insuficiente. Disponível: ${stockToCheck}`,
+            stock_available: stockToCheck,
           });
         }
 
-        let unitPrice = Number(product.price);
-        let variantLabel: string | null = null;
-        let sku: string | null = product.sku || null;
-
-        if (variantId) {
-          const { data: variant } = await supabase
-            .from("product_variants")
-            .select("id, name, price, stock_quantity, is_active, sku, product_id")
-            .eq("id", variantId)
-            .eq("product_id", productId)
-            .single();
-          if (!variant || !variant.is_active) {
-            return JSON.stringify({ success: false, error: "Variação não disponível" });
-          }
-          unitPrice = Number(variant.price ?? product.price);
-          variantLabel = variant.name;
-          sku = variant.sku || sku;
-
-          // Variant-level stock check
-          const manageStock = product.manage_stock ?? true;
-          const allowBackorder = product.allow_backorder ?? false;
-          if (manageStock && !allowBackorder && (variant.stock_quantity ?? 0) < quantity) {
-            return JSON.stringify({
-              success: false,
-              error: `Estoque insuficiente para a variação ${variant.name}. Disponível: ${variant.stock_quantity ?? 0}`,
-              available_stock: variant.stock_quantity ?? 0,
-            });
-          }
-        } else {
-          // Product-level stock check (only when manage_stock and !allow_backorder)
-          const manageStock = product.manage_stock ?? true;
-          const allowBackorder = product.allow_backorder ?? false;
-          if (manageStock && !allowBackorder && (product.stock_quantity ?? 0) < quantity) {
-            return JSON.stringify({
-              success: false,
-              error: `Estoque insuficiente. Disponível: ${product.stock_quantity ?? 0}`,
-              available_stock: product.stock_quantity ?? 0,
-            });
-          }
-        }
-
         // Get or create cart
-        const { data: cart } = await supabase
+        let { data: cart } = await supabase
           .from("whatsapp_carts")
           .select("*")
           .eq("conversation_id", conversationId)
@@ -773,10 +807,10 @@ async function executeSalesTool(
           .eq("status", "active")
           .maybeSingle();
 
-        const items = (cart?.items as any[]) || [];
-        // Match by both product and variant
+        const items = cart?.items as any[] || [];
+        // Identificar item igual também por variant_id
         const existingIdx = items.findIndex((i: any) =>
-          i.product_id === productId && (i.variant_id || null) === variantId
+          i.product_id === productId && (i.variant_id ?? null) === (variantId ?? null)
         );
 
         if (existingIdx >= 0) {
@@ -785,10 +819,10 @@ async function executeSalesTool(
         } else {
           items.push({
             product_id: productId,
-            variant_id: variantId,
+            variant_id: variantId ?? null,
             variant_label: variantLabel,
             sku,
-            name: variantLabel ? `${product.name} — ${variantLabel}` : product.name,
+            name: product.name,
             price: unitPrice,
             quantity,
             subtotal: quantity * unitPrice,
@@ -816,11 +850,14 @@ async function executeSalesTool(
             });
         }
 
+        const labelSuffix = variantLabel ? ` (${variantLabel})` : "";
         return JSON.stringify({
           success: true,
-          message: `${variantLabel ? product.name + " (" + variantLabel + ")" : product.name} (x${quantity}) adicionado ao carrinho`,
+          message: `${product.name}${labelSuffix} (x${quantity}) adicionado ao carrinho`,
           cart_total: `R$ ${(subtotalCents / 100).toFixed(2)}`,
           items_count: items.length,
+          variant_label: variantLabel,
+          sku,
         });
       }
 
@@ -1012,12 +1049,11 @@ async function executeSalesTool(
             coupon_code: cart.coupon_code || null,
             additional_products: additionalItems.map((i: any) => ({
               product_id: i.product_id,
-              variant_id: i.variant_id || null,
+              variant_id: i.variant_id ?? null,
               quantity: i.quantity,
             })),
             is_active: true,
             expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
-            // Phase 5 — funnel traceability
             source_conversation_id: conversationId,
           })
           .select()
@@ -1052,13 +1088,10 @@ async function executeSalesTool(
 
         const checkoutUrl = `${storeUrl}/checkout?${params.toString()}`;
 
-        // Mark cart as converted (order_id will be filled by trigger when paid order arrives)
+        // Mark cart as converted
         await supabase
           .from("whatsapp_carts")
-          .update({
-            status: "converted",
-            updated_at: new Date().toISOString(),
-          })
+          .update({ status: "converted", updated_at: new Date().toISOString() })
           .eq("id", cart.id);
 
         return JSON.stringify({
@@ -1067,264 +1100,8 @@ async function executeSalesTool(
           items_count: items.length,
           total: `R$ ${(cart.subtotal_cents / 100).toFixed(2)}`,
           coupon: cart.coupon_code || null,
-          checkout_link_id: checkoutLink.id,
         });
       }
-
-      case "get_product_variants": {
-        const productId = args.product_id as string;
-        const { data: product } = await supabase
-          .from("products")
-          .select("id, name, price, has_variants, manage_stock, allow_backorder")
-          .eq("id", productId)
-          .eq("tenant_id", tenantId)
-          .is("deleted_at", null)
-          .single();
-
-        if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado" });
-        if (!product.has_variants) {
-          return JSON.stringify({
-            success: true,
-            has_variants: false,
-            message: "Este produto não possui variações. Use add_to_cart diretamente.",
-          });
-        }
-
-        const { data: variants } = await supabase
-          .from("product_variants")
-          .select("id, sku, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active")
-          .eq("product_id", productId)
-          .eq("is_active", true)
-          .order("position", { ascending: true });
-
-        const manageStock = product.manage_stock ?? true;
-        const allowBackorder = product.allow_backorder ?? false;
-
-        const list = (variants || []).map((v: any) => {
-          const opts: Record<string, string> = {};
-          if (v.option1_name) opts[v.option1_name] = v.option1_value;
-          if (v.option2_name) opts[v.option2_name] = v.option2_value;
-          if (v.option3_name) opts[v.option3_name] = v.option3_value;
-          const stock = v.stock_quantity ?? 0;
-          const available = !manageStock || allowBackorder || stock > 0;
-          return {
-            variant_id: v.id,
-            label: v.name,
-            sku: v.sku,
-            options: opts,
-            price: Number(v.price ?? product.price),
-            stock,
-            available,
-          };
-        });
-
-        return JSON.stringify({
-          success: true,
-          product_id: productId,
-          product_name: product.name,
-          has_variants: true,
-          variants: list,
-          message: list.length > 0
-            ? "Pergunte ao cliente qual variação ele deseja antes de chamar add_to_cart com variant_id."
-            : "Nenhuma variação ativa disponível no momento.",
-        });
-      }
-
-      case "recommend_related_products": {
-        const limit = (args.limit as number) || 3;
-
-        // Get cart to know what was added
-        const { data: cart } = await supabase
-          .from("whatsapp_carts")
-          .select("items")
-          .eq("conversation_id", conversationId)
-          .eq("tenant_id", tenantId)
-          .eq("status", "active")
-          .maybeSingle();
-
-        const cartItems = (cart?.items as any[]) || [];
-        if (cartItems.length === 0) {
-          return JSON.stringify({ success: true, recommendations: [], message: "Carrinho vazio. Adicione um produto antes de recomendar." });
-        }
-
-        const cartProductIds = cartItems.map((i: any) => i.product_id);
-        const mainProductId = cartItems[0].product_id;
-
-        // Find categories of the main product
-        const { data: cats } = await supabase
-          .from("product_categories")
-          .select("category_id")
-          .eq("product_id", mainProductId);
-
-        const categoryIds = (cats || []).map((c: any) => c.category_id);
-
-        let related: any[] = [];
-
-        if (categoryIds.length > 0) {
-          // Same-category products, excluding what's already in the cart
-          const { data: catProducts } = await supabase
-            .from("product_categories")
-            .select("product_id")
-            .in("category_id", categoryIds);
-
-          const candidateIds = [...new Set((catProducts || []).map((p: any) => p.product_id))]
-            .filter((id: string) => !cartProductIds.includes(id));
-
-          if (candidateIds.length > 0) {
-            const { data: prods } = await supabase
-              .from("products")
-              .select("id, name, slug, price, compare_at_price, stock_quantity, images, manage_stock, allow_backorder")
-              .in("id", candidateIds.slice(0, 30))
-              .eq("tenant_id", tenantId)
-              .eq("status", "active")
-              .is("deleted_at", null)
-              .order("created_at", { ascending: false })
-              .limit(limit);
-
-            related = (prods || []).filter((p: any) => {
-              const ms = p.manage_stock ?? true;
-              const ab = p.allow_backorder ?? false;
-              return !ms || ab || (p.stock_quantity ?? 0) > 0;
-            }).slice(0, limit);
-          }
-        }
-
-        // Fallback: latest active products of the tenant (same niche by snapshot grounding)
-        if (related.length === 0) {
-          const { data: latest } = await supabase
-            .from("products")
-            .select("id, name, slug, price, compare_at_price, stock_quantity, images")
-            .eq("tenant_id", tenantId)
-            .eq("status", "active")
-            .is("deleted_at", null)
-            .not("id", "in", `(${cartProductIds.join(",")})`)
-            .order("created_at", { ascending: false })
-            .limit(limit);
-          related = latest || [];
-        }
-
-        return JSON.stringify({
-          success: true,
-          based_on_cart_item: cartItems[0].name,
-          recommendations: related.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            price: p.price,
-            compare_at_price: p.compare_at_price,
-            image: (p.images as any)?.[0] || null,
-            stock: p.stock_quantity,
-          })),
-        });
-      }
-
-      case "request_human_handoff": {
-        const reason = (args.reason as string) || "Cliente solicitou atendimento humano";
-        const summary = (args.summary as string) || "";
-        const lastIntent = (args.last_intent as string) || null;
-
-        // Get current cart (if any)
-        const { data: cart } = await supabase
-          .from("whatsapp_carts")
-          .select("id, items, subtotal_cents, customer_data")
-          .eq("conversation_id", conversationId)
-          .eq("tenant_id", tenantId)
-          .eq("status", "active")
-          .maybeSingle();
-
-        // Resolve a created_by user (any tenant member, since the system itself is opening)
-        let createdBy: string | null = null;
-        const { data: anyMember } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("tenant_id", tenantId)
-          .limit(1)
-          .maybeSingle();
-        createdBy = anyMember?.user_id || null;
-
-        if (!createdBy) {
-          // No tenant member found — log only, don't fail the conversation
-          console.error("[sales-tool] handoff: no tenant member to set created_by");
-        }
-
-        const subject = `Handoff comercial WhatsApp — ${reason}`.slice(0, 200);
-
-        // Build ticket metadata
-        const metadata: Record<string, any> = {
-          source: "whatsapp_sales",
-          channel_type: "whatsapp",
-          handoff_reason: reason,
-          last_intent: lastIntent,
-          ai_summary: summary,
-          customer_phone: customerPhone || null,
-          customer_email: customerEmail || null,
-          customer_name: customerName || null,
-        };
-        if (cart) {
-          metadata.cart_id = cart.id;
-          metadata.cart_items = (cart.items as any[]) || [];
-          metadata.cart_subtotal_cents = cart.subtotal_cents;
-        }
-
-        let ticketId: string | null = null;
-        if (createdBy) {
-          const { data: ticket, error: ticketError } = await supabase
-            .from("support_tickets")
-            .insert({
-              tenant_id: tenantId,
-              created_by: createdBy,
-              subject,
-              category: "sales",
-              priority: "high",
-              status: "open",
-              source_conversation_id: conversationId,
-              metadata,
-            })
-            .select("id")
-            .single();
-
-          if (ticketError) {
-            console.error("[sales-tool] handoff ticket error:", ticketError);
-          } else {
-            ticketId = ticket?.id || null;
-
-            // First message of the ticket = the AI summary
-            if (ticketId && summary) {
-              await supabase.from("support_ticket_messages").insert({
-                ticket_id: ticketId,
-                tenant_id: tenantId,
-                sender_type: "platform",
-                sender_user_id: createdBy,
-                content: `[Handoff automático WhatsApp]\nMotivo: ${reason}\n\nResumo da IA:\n${summary}`,
-              });
-            }
-          }
-        }
-
-        // Mark cart with handoff (do not change status if it was already converted)
-        if (cart) {
-          await supabase
-            .from("whatsapp_carts")
-            .update({
-              handoff_reason: reason,
-              handoff_ticket_id: ticketId,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", cart.id);
-        }
-
-        // Mark conversation as needing agent
-        await supabase
-          .from("conversations")
-          .update({ status: "waiting_agent", updated_at: new Date().toISOString() })
-          .eq("id", conversationId);
-
-        return JSON.stringify({
-          success: true,
-          ticket_id: ticketId,
-          message: "Atendimento transferido para um humano. Um atendente assumirá em breve.",
-        });
-      }
-
 
       case "lookup_customer": {
         const phone = args.phone as string | undefined;
@@ -1615,6 +1392,207 @@ async function executeSalesTool(
           success: true,
           message: "Cadastro do cliente atualizado com sucesso.",
           updated_fields: [...Object.keys(customerUpdate).filter(k => k !== "updated_at"), ...(hasAddr ? ["address"] : [])],
+        });
+      }
+
+      case "get_product_variants": {
+        const productId = args.product_id as string;
+        if (!productId) return JSON.stringify({ error: "product_id é obrigatório" });
+
+        const { data: product } = await supabase
+          .from("products")
+          .select("id, name, has_variants, manage_stock, allow_backorder")
+          .eq("id", productId)
+          .eq("tenant_id", tenantId)
+          .is("deleted_at", null)
+          .maybeSingle();
+
+        if (!product) return JSON.stringify({ error: "Produto não encontrado" });
+        if (!product.has_variants) {
+          return JSON.stringify({ has_variants: false, message: "Este produto não tem variações." });
+        }
+
+        const { data: variants } = await supabase
+          .from("product_variants")
+          .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
+          .eq("product_id", productId)
+          .eq("is_active", true)
+          .order("position", { ascending: true });
+
+        const formatted = (variants ?? []).map((v: any) => {
+          const label = [
+            v.option1_value && `${v.option1_name}: ${v.option1_value}`,
+            v.option2_value && `${v.option2_name}: ${v.option2_value}`,
+            v.option3_value && `${v.option3_name}: ${v.option3_value}`,
+          ].filter(Boolean).join(" / ") || v.name;
+          const stock = v.stock_quantity ?? 0;
+          const available = !product.manage_stock || product.allow_backorder || stock > 0;
+          return {
+            variant_id: v.id,
+            label,
+            sku: v.sku,
+            price: Number(v.price),
+            stock,
+            available,
+          };
+        });
+
+        return JSON.stringify({
+          has_variants: true,
+          product_name: product.name,
+          variants: formatted,
+          message: formatted.length === 0 ? "Nenhuma variação ativa encontrada." : null,
+        });
+      }
+
+      case "recommend_related_products": {
+        const limit = (args.limit as number) || 3;
+
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("items")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        const cartItems = (cart?.items as any[]) || [];
+        if (!cartItems.length) {
+          return JSON.stringify({ recommendations: [], message: "Carrinho vazio — sem base para recomendar." });
+        }
+
+        const mainProductId = cartItems[0].product_id;
+        const cartIds = cartItems.map((i: any) => i.product_id);
+
+        // Buscar categorias do produto principal
+        const { data: pcs } = await supabase
+          .from("product_categories")
+          .select("category_id")
+          .eq("product_id", mainProductId);
+
+        const categoryIds = (pcs ?? []).map((r: any) => r.category_id);
+
+        let related: any[] = [];
+        if (categoryIds.length) {
+          const { data: rel } = await supabase
+            .from("product_categories")
+            .select("product_id, products!inner(id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder, deleted_at, tenant_id, images)")
+            .in("category_id", categoryIds)
+            .neq("product_id", mainProductId);
+
+          const seen = new Set<string>();
+          for (const row of (rel ?? [])) {
+            const p: any = row.products;
+            if (!p) continue;
+            if (p.tenant_id !== tenantId) continue;
+            if (p.deleted_at) continue;
+            if (p.status !== "active") continue;
+            if (cartIds.includes(p.id)) continue;
+            if (seen.has(p.id)) continue;
+            const stock = p.stock_quantity ?? 0;
+            const available = !p.manage_stock || p.allow_backorder || p.has_variants || stock > 0;
+            if (!available) continue;
+            seen.add(p.id);
+            related.push({
+              id: p.id,
+              name: p.name,
+              price: Number(p.price),
+              has_variants: p.has_variants ?? false,
+              image: (p.images as any)?.[0] || null,
+            });
+            if (related.length >= limit) break;
+          }
+        }
+
+        return JSON.stringify({
+          recommendations: related,
+          based_on: mainProductId,
+          message: related.length === 0 ? "Sem recomendações coerentes encontradas no catálogo." : null,
+        });
+      }
+
+      case "request_human_handoff": {
+        const reason = (args.reason as string) || "other";
+        const summary = (args.summary as string) || "Cliente solicitou atendimento humano.";
+        const lastIntent = (args.last_intent as string) || null;
+
+        // Carregar carrinho ativo (se existir) para anexar contexto
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("id, items, subtotal_cents, coupon_code, customer_data")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        const cartSummary = cart ? {
+          cart_id: cart.id,
+          items: (cart.items as any[])?.map((i: any) => ({
+            name: i.name,
+            variant_label: i.variant_label ?? null,
+            quantity: i.quantity,
+            subtotal: i.subtotal,
+          })) || [],
+          subtotal: ((cart.subtotal_cents ?? 0) / 100).toFixed(2),
+          coupon: cart.coupon_code || null,
+        } : null;
+
+        // Criar ticket de suporte (categoria sales)
+        const subject = `[Vendas WhatsApp] ${summary.slice(0, 80)}`;
+        const { data: ticket, error: ticketErr } = await supabase
+          .from("support_tickets")
+          .insert({
+            tenant_id: tenantId,
+            created_by: customerId || "00000000-0000-0000-0000-000000000000",
+            subject,
+            category: "sales",
+            priority: reason === "angry_customer" || reason === "complaint" ? "high" : "normal",
+            status: "open",
+            source_conversation_id: conversationId,
+            metadata: {
+              source: "whatsapp_sales",
+              handoff_reason: reason,
+              last_intent: lastIntent,
+              ai_summary: summary,
+              customer: {
+                id: customerId,
+                name: customerName,
+                phone: customerPhone,
+                email: customerEmail,
+              },
+              cart: cartSummary,
+            },
+          })
+          .select()
+          .single();
+
+        if (ticketErr) {
+          console.error("[sales-tool] handoff ticket error:", ticketErr);
+        }
+
+        // Marcar carrinho com handoff
+        if (cart) {
+          await supabase
+            .from("whatsapp_carts")
+            .update({
+              status: "handoff",
+              handoff_reason: reason,
+              handoff_ticket_id: ticket?.id ?? null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", cart.id);
+        }
+
+        // Marcar conversa como aguardando agente
+        await supabase
+          .from("conversations")
+          .update({ status: "waiting_agent", updated_at: new Date().toISOString() })
+          .eq("id", conversationId);
+
+        return JSON.stringify({
+          success: true,
+          ticket_id: ticket?.id ?? null,
+          message: "Handoff solicitado. Um vendedor humano vai assumir a conversa em breve.",
         });
       }
 

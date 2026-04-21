@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { QueryErrorState } from "@/components/ui/query-error-state";
-import { MessageSquare, Plug, History, Settings } from "lucide-react";
+import { MessageSquare, Plug, History, Settings, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -11,6 +11,7 @@ import {
   ChannelIntegrations,
   ConversationEventsPanel,
   TransferDialog,
+  WhatsappSalesFunnel,
 } from "@/components/support";
 import { useConversations, type Conversation } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
@@ -156,6 +157,10 @@ export default function Support() {
               <Plug className="h-4 w-4" />
               Canais
             </TabsTrigger>
+            <TabsTrigger value="whatsapp-funnel" className="gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Funil WhatsApp
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -218,6 +223,10 @@ export default function Support() {
 
         <TabsContent value="channels" className="flex-1 m-0 overflow-auto">
           <ChannelIntegrations />
+        </TabsContent>
+
+        <TabsContent value="whatsapp-funnel" className="flex-1 m-0 overflow-auto">
+          <WhatsappSalesFunnel />
         </TabsContent>
       </Tabs>
 
