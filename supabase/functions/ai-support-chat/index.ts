@@ -2464,12 +2464,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             model: modelToTry,
             messages: currentMessages,
             ...tokenParams,
-            temperature: 0.7,
+            // Em sales mode, decisões de tool-calling devem ser determinísticas
+            temperature: salesModeEnabled ? 0.3 : 0.7,
           };
 
           // Add sales tools only in sales mode
           if (salesModeEnabled) {
             requestBody.tools = SALES_TOOLS;
+            requestBody.tool_choice = "auto";
+            requestBody.parallel_tool_calls = false;
           }
 
           response = await fetch("https://api.openai.com/v1/chat/completions", {
