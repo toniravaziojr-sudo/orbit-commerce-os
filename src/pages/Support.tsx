@@ -159,7 +159,7 @@ export default function Support() {
 
         <TabsContent value="inbox" className="flex-1 m-0 overflow-hidden">
           <div className="flex h-full">
-            <div className="w-80 shrink-0">
+            <div className="w-96 shrink-0">
               <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
