@@ -169,18 +169,25 @@ Deno.serve(async (req) => {
             tenantId = config.tenant_id;
             console.log(`[meta-whatsapp-webhook][${traceId}] Routed via whatsapp_configs to tenant: ${tenantId}`);
 
-            // Operational evidence: cache last inbound timestamp + close any post-migration observation window
+            // === EVIDÊNCIA OPERACIONAL CANÔNICA (Fase 1 v2) ===
+            // POST real chegou e foi roteado para tenant correto -> promove last_inbound_validated_at.
+            // Também fecha janela de validação manual e janela de observação pós-migração.
             try {
+              const nowIso = new Date().toISOString();
               await supabase
                 .from("whatsapp_configs")
                 .update({
-                  last_inbound_at: new Date().toISOString(),
+                  last_inbound_at: nowIso,
+                  last_inbound_validated_at: nowIso,
+                  validation_window_opened_at: null,
                   migration_observation_until: null,
+                  channel_state: "operational_validated",
                 })
                 .eq("tenant_id", tenantId)
                 .eq("provider", "meta");
+              console.log(`[meta-whatsapp-webhook][${traceId}] Promoted to operational_validated for tenant ${tenantId}`);
             } catch (e) {
-              console.warn(`[meta-whatsapp-webhook][${traceId}] Failed to update last_inbound_at`, e);
+              console.warn(`[meta-whatsapp-webhook][${traceId}] Failed to promote channel_state`, e);
             }
           }
 

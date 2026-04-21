@@ -1,8 +1,55 @@
 # Fluxo de Recepção WhatsApp Meta (Layer 3)
 
-**Versão:** v1.1 — 2026-04-20
-**Status:** Estabilizado com defesas anti-regressão + status em camadas (vínculo vs operação)
+**Versão:** v2.0 — 2026-04-21
+**Status:** Modelo híbrido oficial + máquina de estados de 5 valores + validação canônica por mensagem real + detector refinado
 **Módulos:** WhatsApp (recepção), IA Suporte, IA Agenda, Central de Comando, Hub de Integrações
+
+## v2 — Padrão híbrido oficial (Fase 1)
+
+### Modelo
+- **Caminho feliz:** WABA criada no Embedded Signup → 100% automático.
+- **Caminho residual:** WABA pré-existente / cross-business → exige autorização administrativa manual no painel Meta. **Não é automatizável** — Meta não expõe API pública para um terceiro se autoadicionar a um portfólio (regra de segurança da Meta).
+
+### Máquina de estados (`whatsapp_configs.channel_state`)
+| Estado | Quando |
+|---|---|
+| `disconnected` | Token quebrado/inválido |
+| `technically_connected` | Técnico OK, sem inbound real ainda |
+| `real_reception_pending` | Nunca validado OU validação canônica pendente (`last_inbound_validated_at IS NULL`) |
+| `operational_validated` | Inbound real comprovado < 24h |
+| `no_recent_evidence` | Já validado, silêncio 24-72h OU > 72h sem sinais (estado conservador) |
+| `degraded_after_validation` | Já validado, silêncio > 72h + ≥ 1 sinal objetivo |
+
+### 5 sinais objetivos (detector)
+1. `last_error` com padrão crítico nas últimas 72h (`131031/131047/131051/190/200/(#10)/OAuthException/"Application does not have permission"/"subscription"`).
+2. `last_diagnosed_at` < 24h e `diagnosis_status != 'healthy'`.
+3. `previous_phone_number_id` ou `previous_waba_id` presente.
+4. POST real recente da mesma WABA roteado para outro tenant (placeholder).
+5. `validation_window_opened_at` < 24h sem `last_inbound_validated_at` posterior.
+
+### Validação canônica
+- "Validar agora" → `whatsapp-open-validation-window` abre janela de 10 min.
+- Tenant envia mensagem real → webhook escreve `last_inbound_validated_at` + promove `operational_validated`.
+- Janela expira **nunca-validado** → mantém pendente + sugere wizard (hipótese principal cross-business).
+- Janela expira **já-validado** → mantém `no_recent_evidence`, sem promover hipótese cross-business.
+- **Teste técnico do webhook NÃO comprova operação real.**
+
+### Rollout informativo (7 dias)
+- Detector marca `v2_ui_active_at = now() + 7 dias` na primeira passagem.
+- Durante esse período UI v2 calcula tudo mas suprime amarelos no card e banner no Dashboard.
+
+### Linguagem obrigatória
+"Hipótese principal", "possível", "recomendamos validar". **Nunca** afirmar causa para tenant já validado.
+
+### Componentes
+- Edges: `meta-whatsapp-webhook` (promoção), `whatsapp-open-validation-window`, `whatsapp-cross-business-detector` (cron diário 06:30 UTC), `whatsapp-health-summary` (3 sinais + estado oficial).
+- UI: `WhatsAppChannelStatusCard`, `CrossBusinessAuthorizationWizard`, `WhatsAppRealReceptionPendingBanner`.
+- Credencial plataforma: `whatsapp_meta_partner_business_id` (admin preenche).
+
+---
+
+## v1 (legado, mantido para histórico)
+
 
 ## Fluxo principal
 
