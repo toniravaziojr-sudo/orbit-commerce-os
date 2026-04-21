@@ -432,6 +432,35 @@ const SALES_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "get_product_variants",
+      description: "Lista as variações disponíveis (cor, tamanho, sabor, etc.) de um produto, com preço e estoque real de cada variante. Usar SEMPRE que o produto tem has_variants=true antes de adicionar ao carrinho.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "string", description: "UUID do produto" },
+        },
+        required: ["product_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "recommend_related_products",
+      description: "Recomenda produtos complementares para o item principal do carrinho com base nas categorias do produto. Retorna até 3 sugestões coerentes do mesmo nicho.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Máximo de recomendações (default: 3)" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // Intent classification tool definition (updated with purchase_intent)
