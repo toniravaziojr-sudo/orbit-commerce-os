@@ -3,6 +3,13 @@ import { redactPII } from "../_shared/redact-pii.ts";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import {
+  getOrBuildTenantContext,
+  formatTenantContextForPrompt,
+  pickRelevantProducts,
+  formatRelevantCatalogForPrompt,
+  hasEnoughGrounding,
+} from "../_shared/tenant-context.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1788,6 +1795,37 @@ DIRETRIZES IMPORTANTES:
 
     // Add store and customer context
     systemPrompt += storeContext;
+
+    // ============================================
+    // TENANT-AWARE GROUNDING (Fase 4)
+    // ============================================
+    let tenantSnapshot = null as Awaited<ReturnType<typeof getOrBuildTenantContext>>;
+    try {
+      tenantSnapshot = await getOrBuildTenantContext(supabase, tenant_id, {
+        forceSyncIfMissing: true,
+      });
+      const grounded = hasEnoughGrounding(tenantSnapshot);
+      if (tenantSnapshot) {
+        systemPrompt += formatTenantContextForPrompt(tenantSnapshot);
+        const relevant = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
+        systemPrompt += formatRelevantCatalogForPrompt(relevant);
+        console.log(
+          `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevant.length}`
+        );
+      }
+      // Soltar handoff cego: se KB vazia mas snapshot tem grounding, não escalar
+      if (noEvidenceHandoff && grounded) {
+        noEvidenceHandoff = false;
+        if (handoffReason === "Base de conhecimento insuficiente para responder") {
+          shouldHandoff = false;
+          handoffReason = "";
+          console.log("[ai-support-chat] handoff suppressed — tenant snapshot provides grounding");
+        }
+      }
+    } catch (err) {
+      console.error("[ai-support-chat] tenant-context error:", err);
+    }
+
     if (customerContext) {
       systemPrompt += customerContext;
     }
