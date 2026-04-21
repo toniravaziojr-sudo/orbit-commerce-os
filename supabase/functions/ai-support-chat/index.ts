@@ -1382,6 +1382,207 @@ async function executeSalesTool(
         });
       }
 
+      case "get_product_variants": {
+        const productId = args.product_id as string;
+        if (!productId) return JSON.stringify({ error: "product_id é obrigatório" });
+
+        const { data: product } = await supabase
+          .from("products")
+          .select("id, name, has_variants, manage_stock, allow_backorder")
+          .eq("id", productId)
+          .eq("tenant_id", tenantId)
+          .is("deleted_at", null)
+          .maybeSingle();
+
+        if (!product) return JSON.stringify({ error: "Produto não encontrado" });
+        if (!product.has_variants) {
+          return JSON.stringify({ has_variants: false, message: "Este produto não tem variações." });
+        }
+
+        const { data: variants } = await supabase
+          .from("product_variants")
+          .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
+          .eq("product_id", productId)
+          .eq("is_active", true)
+          .order("position", { ascending: true });
+
+        const formatted = (variants ?? []).map((v: any) => {
+          const label = [
+            v.option1_value && `${v.option1_name}: ${v.option1_value}`,
+            v.option2_value && `${v.option2_name}: ${v.option2_value}`,
+            v.option3_value && `${v.option3_name}: ${v.option3_value}`,
+          ].filter(Boolean).join(" / ") || v.name;
+          const stock = v.stock_quantity ?? 0;
+          const available = !product.manage_stock || product.allow_backorder || stock > 0;
+          return {
+            variant_id: v.id,
+            label,
+            sku: v.sku,
+            price: Number(v.price),
+            stock,
+            available,
+          };
+        });
+
+        return JSON.stringify({
+          has_variants: true,
+          product_name: product.name,
+          variants: formatted,
+          message: formatted.length === 0 ? "Nenhuma variação ativa encontrada." : null,
+        });
+      }
+
+      case "recommend_related_products": {
+        const limit = (args.limit as number) || 3;
+
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("items")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        const cartItems = (cart?.items as any[]) || [];
+        if (!cartItems.length) {
+          return JSON.stringify({ recommendations: [], message: "Carrinho vazio — sem base para recomendar." });
+        }
+
+        const mainProductId = cartItems[0].product_id;
+        const cartIds = cartItems.map((i: any) => i.product_id);
+
+        // Buscar categorias do produto principal
+        const { data: pcs } = await supabase
+          .from("product_categories")
+          .select("category_id")
+          .eq("product_id", mainProductId);
+
+        const categoryIds = (pcs ?? []).map((r: any) => r.category_id);
+
+        let related: any[] = [];
+        if (categoryIds.length) {
+          const { data: rel } = await supabase
+            .from("product_categories")
+            .select("product_id, products!inner(id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder, deleted_at, tenant_id, images)")
+            .in("category_id", categoryIds)
+            .neq("product_id", mainProductId);
+
+          const seen = new Set<string>();
+          for (const row of (rel ?? [])) {
+            const p: any = row.products;
+            if (!p) continue;
+            if (p.tenant_id !== tenantId) continue;
+            if (p.deleted_at) continue;
+            if (p.status !== "active") continue;
+            if (cartIds.includes(p.id)) continue;
+            if (seen.has(p.id)) continue;
+            const stock = p.stock_quantity ?? 0;
+            const available = !p.manage_stock || p.allow_backorder || p.has_variants || stock > 0;
+            if (!available) continue;
+            seen.add(p.id);
+            related.push({
+              id: p.id,
+              name: p.name,
+              price: Number(p.price),
+              has_variants: p.has_variants ?? false,
+              image: (p.images as any)?.[0] || null,
+            });
+            if (related.length >= limit) break;
+          }
+        }
+
+        return JSON.stringify({
+          recommendations: related,
+          based_on: mainProductId,
+          message: related.length === 0 ? "Sem recomendações coerentes encontradas no catálogo." : null,
+        });
+      }
+
+      case "request_human_handoff": {
+        const reason = (args.reason as string) || "other";
+        const summary = (args.summary as string) || "Cliente solicitou atendimento humano.";
+        const lastIntent = (args.last_intent as string) || null;
+
+        // Carregar carrinho ativo (se existir) para anexar contexto
+        const { data: cart } = await supabase
+          .from("whatsapp_carts")
+          .select("id, items, subtotal_cents, coupon_code, customer_data")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        const cartSummary = cart ? {
+          cart_id: cart.id,
+          items: (cart.items as any[])?.map((i: any) => ({
+            name: i.name,
+            variant_label: i.variant_label ?? null,
+            quantity: i.quantity,
+            subtotal: i.subtotal,
+          })) || [],
+          subtotal: ((cart.subtotal_cents ?? 0) / 100).toFixed(2),
+          coupon: cart.coupon_code || null,
+        } : null;
+
+        // Criar ticket de suporte (categoria sales)
+        const subject = `[Vendas WhatsApp] ${summary.slice(0, 80)}`;
+        const { data: ticket, error: ticketErr } = await supabase
+          .from("support_tickets")
+          .insert({
+            tenant_id: tenantId,
+            created_by: customerId || "00000000-0000-0000-0000-000000000000",
+            subject,
+            category: "sales",
+            priority: reason === "angry_customer" || reason === "complaint" ? "high" : "normal",
+            status: "open",
+            source_conversation_id: conversationId,
+            metadata: {
+              source: "whatsapp_sales",
+              handoff_reason: reason,
+              last_intent: lastIntent,
+              ai_summary: summary,
+              customer: {
+                id: customerId,
+                name: customerName,
+                phone: customerPhone,
+                email: customerEmail,
+              },
+              cart: cartSummary,
+            },
+          })
+          .select()
+          .single();
+
+        if (ticketErr) {
+          console.error("[sales-tool] handoff ticket error:", ticketErr);
+        }
+
+        // Marcar carrinho com handoff
+        if (cart) {
+          await supabase
+            .from("whatsapp_carts")
+            .update({
+              status: "handoff",
+              handoff_reason: reason,
+              handoff_ticket_id: ticket?.id ?? null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", cart.id);
+        }
+
+        // Marcar conversa como aguardando agente
+        await supabase
+          .from("conversations")
+          .update({ status: "waiting_agent", updated_at: new Date().toISOString() })
+          .eq("id", conversationId);
+
+        return JSON.stringify({
+          success: true,
+          ticket_id: ticket?.id ?? null,
+          message: "Handoff solicitado. Um vendedor humano vai assumir a conversa em breve.",
+        });
+      }
+
       default:
         return JSON.stringify({ error: `Ferramenta desconhecida: ${toolName}` });
     }
