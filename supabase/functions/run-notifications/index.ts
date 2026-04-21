@@ -532,6 +532,32 @@ async function sendWhatsAppViaMetaTemplate(
     };
   }
 
+  // ===== PHASE 3: Render the visible/timeline content STRICTLY first =====
+  // The Meta template body uses positional parameters; we still render the same
+  // template body locally so the timeline shows the final human-readable text.
+  let renderedVisibleText: string;
+  let referencedVars: string[] = [];
+  try {
+    const rendered = renderTemplate(originalMessage, payload ?? {}, { mode: "strict" });
+    assertNoPlaceholders(rendered.text, { stage: "run-notifications/template", templateName });
+    renderedVisibleText = rendered.text;
+    referencedVars = rendered.referencedVars;
+  } catch (err) {
+    if (err instanceof TemplateRenderError) {
+      console.error(`[RunNotifications] Template render BLOCKED for "${templateName}":`, err.message);
+      // Internal traceable event in timeline (NOT sent to customer)
+      const safe = renderForInternalLog(originalMessage, payload ?? {});
+      await registerInAttendanceTimeline(
+        supabase, tenantId, cleanPhone,
+        `[Notificação não enviada] Template "${templateName}" — variáveis ausentes: ${err.missing.join(", ") || "—"}\nPrévia: ${safe.text.substring(0, 200)}`,
+        null, 'notification',
+        { isInternal: true, metadata: { template: templateName, missing: err.missing, stage: "render" } },
+      );
+      return { success: false, error: `Template render bloqueado: variáveis ausentes (${err.missing.join(", ")})` };
+    }
+    throw err;
+  }
+
   try {
     const { data: versionCred } = await supabase
       .from("platform_credentials")
@@ -541,34 +567,14 @@ async function sendWhatsAppViaMetaTemplate(
       .single();
     const graphApiVersion = versionCred?.credential_value || "v21.0";
 
-    // Extract variables from the original message to fill template parameters
-    const variableValues: string[] = [];
-    const variablePattern = /\{\{(\w+)\}\}/g;
-    const seenVars: string[] = [];
-    let match;
-    
-    // We need to match the original whatsapp_message template (with {{var}} placeholders)
-    // and fill with actual payload values
-    while ((match = variablePattern.exec(originalMessage)) !== null) {
-      const varName = match[1];
-      if (!seenVars.includes(varName)) {
-        seenVars.push(varName);
-        const rawValue = (payload as Record<string, unknown>)?.[varName];
-        // Coerce to non-empty string. Meta rejects empty strings ("") in template params (#132000).
-        const stringValue = rawValue == null ? "" : String(rawValue).trim();
-        variableValues.push(stringValue.length > 0 ? stringValue : "—");
-      }
-    }
+    // Build positional parameters from referencedVars (already validated above)
+    const variableValues: string[] = referencedVars.map((varName) => {
+      const raw = (payload as Record<string, unknown>)?.[varName];
+      const stringValue = raw == null ? "" : String(raw).trim();
+      // strict already ensured non-empty; "—" guard remains for Meta #132000 safety
+      return stringValue.length > 0 ? stringValue : "—";
+    });
 
-    // Defensive log: if we end up with 0 vars but the template was supposed to have them,
-    // it usually means caller passed an already-rendered message (bug elsewhere).
-    if (variableValues.length === 0) {
-      console.warn(`[RunNotifications] Template "${templateName}" extracted 0 variables from message. Sending without components — Meta will reject if template has BODY placeholders.`);
-    } else {
-      console.log(`[RunNotifications] Template "${templateName}" filled with ${variableValues.length} vars: ${seenVars.join(", ")}`);
-    }
-
-    // Build template components with parameters
     const components: any[] = [];
     if (variableValues.length > 0) {
       components.push({
@@ -607,10 +613,17 @@ async function sendWhatsAppViaMetaTemplate(
         tenant_id: tenantId,
         recipient_phone: cleanPhone,
         message_type: 'template',
-        message_content: `[Template: ${templateName}]`,
+        message_content: renderedVisibleText.substring(0, 500),
         status: 'failed',
         error_message: sendResult.error.message,
       });
+      // Internal traceable event in timeline so operator sees what failed
+      await registerInAttendanceTimeline(
+        supabase, tenantId, cleanPhone,
+        `[Falha no envio] ${sendResult.error.message || "Erro ao enviar template"}`,
+        null, 'notification',
+        { isInternal: true, metadata: { template: templateName, stage: "meta-api" } },
+      );
       return { success: false, error: sendResult.error?.message || 'Erro ao enviar template via WhatsApp', response: sendResult };
     }
 
@@ -621,13 +634,14 @@ async function sendWhatsAppViaMetaTemplate(
       tenant_id: tenantId,
       recipient_phone: cleanPhone,
       message_type: 'template',
-      message_content: `[Template: ${templateName}]`,
+      message_content: renderedVisibleText.substring(0, 500),
       status: 'sent',
       sent_at: new Date().toISOString(),
       provider_message_id: messageId,
     });
 
-    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, `[Template: ${templateName}] ${originalMessage}`, messageId, 'notification');
+    // Timeline gets the FINAL rendered text — no [Template: ...] prefix, no {{vars}}
+    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, renderedVisibleText, messageId, 'notification');
 
     return {
       success: true,
