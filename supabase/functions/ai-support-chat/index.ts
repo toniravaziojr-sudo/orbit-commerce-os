@@ -772,21 +772,25 @@ async function executeSalesTool(
       }
 
       case "add_to_cart": {
-        const productId = args.product_id as string;
+        const productIdOrSlug = args.product_id as string;
         const quantity = (args.quantity as number) || 1;
         const variantId = (args.variant_id as string | undefined) || undefined;
 
-        // Get product info (com flags de variante/estoque)
-        const { data: product } = await supabase
+        // Aceita UUID ou slug (a IA às vezes manda slug)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productIdOrSlug || "");
+        const productQuery = supabase
           .from("products")
           .select("id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder")
-          .eq("id", productId)
           .eq("tenant_id", tenantId)
-          .is("deleted_at", null)
-          .single();
+          .is("deleted_at", null);
+        const { data: product } = isUuid
+          ? await productQuery.eq("id", productIdOrSlug).maybeSingle()
+          : await productQuery.eq("slug", productIdOrSlug).maybeSingle();
+        const productId = product?.id ?? productIdOrSlug;
 
-        if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado" });
+        if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado", hint: "Use search_products primeiro para obter o id correto." });
         if (product.status !== "active") return JSON.stringify({ success: false, error: "Produto indisponível" });
+
 
         // Se produto tem variantes, exigir variant_id
         let unitPrice = Number(product.price);
