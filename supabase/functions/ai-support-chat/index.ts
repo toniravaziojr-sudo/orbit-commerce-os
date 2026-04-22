@@ -3356,7 +3356,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         tools_available: salesModeEnabled ? ["filtered_by_state"] : [],
         tools_called: toolsCalledArr,
         model_used: modelUsed,
-        temperature_sent: modelUsed?.startsWith("gpt-5") ? null : (salesModeEnabled ? 0.3 : 0.7),
+        temperature_sent: modelUsed?.startsWith("gpt-5") ? null : (isGreetingOnlyTurn ? 0.95 : (salesModeEnabled ? 0.3 : 0.7)),
         response_hash: responseHash,
         response_length: (aiContent || "").length,
         anti_greeting_blocked: isGreetingOnlyTurn,
