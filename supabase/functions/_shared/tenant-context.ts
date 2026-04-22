@@ -182,9 +182,33 @@ export function formatTenantContextForPrompt(
 }
 
 /**
+ * Normaliza texto para matching: minúsculas, sem acentos, sem pontuação,
+ * com plural simples removido (final "s") em tokens longos.
+ * Exportada para reuso (log canônico, gatilhos comerciais).
+ */
+export function normalizeForMatch(input: string): string {
+  return (input || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenize(input: string, minLen = 3): string[] {
+  return normalizeForMatch(input)
+    .split(" ")
+    .filter((t) => t.length >= minLen)
+    // remoção de plural simples para tokens >= 4
+    .map((t) => (t.length >= 4 && t.endsWith("s") ? t.slice(0, -1) : t));
+}
+
+/**
  * Seleciona produtos do snapshot que sejam relevantes à mensagem do cliente.
- * Busca textual leve por nome, categoria e tags. Não substitui a tool de
- * busca real do agente de vendas — é grounding aditivo no prompt.
+ * Match tolerante a acentos, plural e ordem; com fallback de match parcial
+ * (substring) quando nenhum token bate cheio. Não substitui a tool de busca
+ * real do agente — é grounding aditivo no prompt.
  */
 export function pickRelevantProducts(
   snapshot: TenantContextSnapshot | null,
@@ -192,28 +216,37 @@ export function pickRelevantProducts(
   limit = 8
 ): Array<{ name: string; price?: number; category?: string }> {
   if (!snapshot || !Array.isArray(snapshot.top_products)) return [];
-  const normalized = (userMessage || "").toLowerCase();
-  if (!normalized.trim()) return [];
+  const normalizedMsg = normalizeForMatch(userMessage);
+  if (!normalizedMsg) return [];
 
-  const tokens = normalized
-    .split(/\s+/)
-    .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ""))
-    .filter((t) => t.length >= 3);
-
+  const tokens = tokenize(userMessage, 3);
   if (!tokens.length) return [];
 
   const scored = snapshot.top_products.map((p) => {
-    const haystack = [
+    const haystackRaw = [
       p.name,
       p.category ?? "",
       ...(p.tags ?? []),
-    ]
-      .join(" ")
-      .toLowerCase();
+    ].join(" ");
+    const haystack = normalizeForMatch(haystackRaw);
+    const haystackTokens = tokenize(haystackRaw, 3);
+
     let score = 0;
+    // 1) match cheio por token (com plural removido nos dois lados)
     for (const tok of tokens) {
-      if (haystack.includes(tok)) score += 1;
+      if (haystackTokens.includes(tok)) score += 2;
+      else if (haystack.includes(tok)) score += 1; // substring fallback
     }
+    // 2) bônus se nome do produto inteiro aparece na mensagem
+    const productNameNorm = normalizeForMatch(p.name || "");
+    if (productNameNorm && normalizedMsg.includes(productNameNorm)) {
+      score += 5;
+    }
+    // 3) bônus se 2+ tokens significativos do nome do produto aparecem na msg
+    const nameTokens = tokenize(p.name || "", 4);
+    const nameHits = nameTokens.filter((t) => normalizedMsg.includes(t)).length;
+    if (nameTokens.length >= 2 && nameHits >= 2) score += 3;
+
     return { product: p, score };
   });
 

@@ -1957,22 +1957,35 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get recent messages for context
-    const { data: messages } = await supabase
+    // [Fase A] Janela de histórico CORRIGIDA:
+    // Antes: .order(asc).limit(20) → pegava os 20 PRIMEIROS turnos. Em conversas
+    // longas, a mensagem atual do cliente NUNCA entrava no contexto, e a IA
+    // operava sobre histórico antigo (loop de onboarding).
+    // Agora: pega os 30 mais RECENTES (desc) + reordena ascendente em memória,
+    // garantindo que o turno atual esteja sempre incluído.
+    const HISTORY_WINDOW = 30;
+    const { data: messagesDesc } = await supabase
       .from("messages")
       .select("*")
       .eq("conversation_id", conversation_id)
-      .order("created_at", { ascending: true })
-      .limit(20);
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(HISTORY_WINDOW);
 
-    const lastCustomerMessage = messages?.filter(m => m.sender_type === "customer").pop();
+    const messages = (messagesDesc ?? []).slice().reverse();
+
+    // Última mensagem REAL do cliente (último item de sender_type=customer na
+    // ordem cronológica final, ignorando notas internas).
+    const lastCustomerMessage = [...messages]
+      .filter(m => m.sender_type === "customer" && !m.is_internal && !m.is_note)
+      .pop();
     const lastMessageContent = lastCustomerMessage?.content || "";
-    
-    // Build conversation context for classification
+
+    // Build conversation context for classification (últimos 5 reais)
     const conversationContext = messages
-      ?.slice(-5)
+      .slice(-5)
       .map(m => `${m.sender_type === "customer" ? "Cliente" : "Atendente"}: ${m.content?.slice(0, 200)}`)
-      .join("\n") || "";
+      .join("\n");
 
     // ============================================
     // STEP 1: INTENT CLASSIFICATION (Tool Calling)
@@ -2280,6 +2293,7 @@ DIRETRIZES IMPORTANTES:
     // TENANT-AWARE GROUNDING (Fase 4)
     // ============================================
     let tenantSnapshot = null as Awaited<ReturnType<typeof getOrBuildTenantContext>>;
+    let relevantProducts: Array<{ name: string; price?: number; category?: string }> = [];
     try {
       tenantSnapshot = await getOrBuildTenantContext(supabase, tenant_id, {
         forceSyncIfMissing: true,
@@ -2290,10 +2304,10 @@ DIRETRIZES IMPORTANTES:
         // Catálogo enxuto SEMPRE — incluindo modo vendas. Sem catálogo o modelo
         // não sabe que produtos buscar e cai em loop de qualificação. A regra
         // "preço/estoque vem da tool" continua válida via prompt SALES_AGENT.
-        const relevant = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
-        systemPrompt += formatRelevantCatalogForPrompt(relevant);
+        relevantProducts = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
+        systemPrompt += formatRelevantCatalogForPrompt(relevantProducts);
         console.log(
-          `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevant.length} sales_mode=${salesModeEnabled}`
+          `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevantProducts.length} sales_mode=${salesModeEnabled}`
         );
       }
       // Soltar handoff cego: se KB vazia mas snapshot tem grounding, não escalar
@@ -2411,10 +2425,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       });
     }
 
+    let historySizeUsed = 0;
     if (messages?.length) {
       // Em sales mode, filtrar histórico para evitar contaminação por turnos
       // antigos (ex.: bot informativo que ensinava "Como posso ajudar?").
-      // Mantém só os últimos 8 turnos do "burst" atual (últimas 2h).
+      // Mantém só os últimos 10 turnos do "burst" atual (últimas 2h).
       let usableMessages = messages;
       if (salesModeEnabled) {
         const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2h
@@ -2422,6 +2437,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         usableMessages = recent.length >= 2 ? recent.slice(-10) : messages.slice(-6);
         console.log(`[ai-support-chat] sales-mode history filter: ${messages.length} → ${usableMessages.length}`);
       }
+      historySizeUsed = usableMessages.length;
       for (const msg of usableMessages) {
         if (msg.is_internal || msg.is_note) continue;
         aiMessages.push({
@@ -2438,6 +2454,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // evitar loop de qualificação quando a intenção já é clara.
     // ============================================
     let salesTriggerFired = false;
+    let salesIntentFlags = { naming: false, buy: false, details: false, matchedNames: [] as string[] };
     if (salesModeEnabled && lastMessageContent) {
       try {
         const lc = lastMessageContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -2448,6 +2465,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
         // Match com top_products do snapshot (case-insensitive, sem acento)
         let matchedProductHint = "";
+        let matchedNames: string[] = [];
         if (tenantSnapshot?.top_products?.length) {
           const matches = tenantSnapshot.top_products.filter((p: any) => {
             if (!p?.name) return false;
@@ -2460,6 +2478,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           }).slice(0, 5);
 
           if (matches.length) {
+            matchedNames = matches.map((m: any) => m.name);
             matchedProductHint = `\nProdutos do catálogo que casam com a mensagem do cliente: ${matches.map((m: any) => `"${m.name}"`).join(", ")}.`;
           }
         }
@@ -2475,6 +2494,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           triggers.push("O cliente quer COMPRAR. VOCÊ DEVE chamar `search_products` (se ainda não souber o id) e em seguida `add_to_cart`. Não pergunte de novo o que ele quer.");
         }
 
+        salesIntentFlags = { naming: isNamingProduct, buy: isWantToBuy, details: isWantDetails, matchedNames };
+
         if (triggers.length || matchedProductHint) {
           salesTriggerFired = true;
           aiMessages.push({
@@ -2487,6 +2508,42 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         console.error("[ai-support-chat] sales trigger detection error:", e);
       }
     }
+
+    // ============================================
+    // [Fase A] LOG CANÔNICO MÍNIMO POR TURNO
+    // Permite enxergar exatamente o que o motor recebeu e decidiu antes de
+    // chamar o modelo. Linha única JSON para facilitar grep/parse nos logs.
+    // ============================================
+    const toolChoiceApplied = salesModeEnabled ? (salesTriggerFired ? "required" : "auto") : "none";
+    const inferredIntent =
+      salesIntentFlags.buy ? "purchase" :
+      salesIntentFlags.details ? "product_details" :
+      salesIntentFlags.naming || salesIntentFlags.matchedNames.length ? "product_named" :
+      (intentClassification?.intent ?? "unknown");
+    const inferredStage =
+      salesIntentFlags.buy ? "intent_to_buy" :
+      salesIntentFlags.details || salesIntentFlags.matchedNames.length ? "product_detail" :
+      historySizeUsed <= 2 ? "greeting" : "discovery";
+    const guardrailBlock = shouldHandoff ? `handoff:${handoffReason || "unspecified"}` : null;
+
+    console.log("[ai-support-chat] CANONICAL_TURN_LOG " + JSON.stringify({
+      conversation_id,
+      tenant_id,
+      sales_mode: salesModeEnabled,
+      last_message_content: (lastMessageContent || "").slice(0, 200),
+      last_message_id: lastCustomerMessage?.id ?? null,
+      last_message_at: lastCustomerMessage?.created_at ?? null,
+      history_window_fetched: messages.length,
+      history_size_used: historySizeUsed,
+      relevant_products_count: relevantProducts.length,
+      relevant_products: relevantProducts.map(p => p.name).slice(0, 5),
+      sales_matched_products: salesIntentFlags.matchedNames,
+      inferred_intent: inferredIntent,
+      inferred_stage: inferredStage,
+      tool_choice_applied: toolChoiceApplied,
+      sales_trigger_fired: salesTriggerFired,
+      guardrail_block: guardrailBlock,
+    }));
 
     // ============================================
     // STEP 7: CALL OPENAI API (with tool call loop for sales mode)
