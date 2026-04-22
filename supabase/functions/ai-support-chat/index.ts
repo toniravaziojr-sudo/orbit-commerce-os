@@ -620,6 +620,8 @@ async function executeSalesTool(
     customerEmail: string | null;
     customerName: string | null;
     lastUserMessage?: string | null;
+    salesState?: SalesState;
+    imagesSentMap?: Record<string, number>;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
@@ -1756,6 +1758,36 @@ async function executeSalesTool(
           return JSON.stringify({ success: false, error: "Sem telefone do cliente — não é possível enviar imagem." });
         }
 
+        // [F1] POLÍTICA CONSERVADORA DE IMAGEM
+        // Bloqueio server-side antes de qualquer custo (DB/WhatsApp).
+        // Regras:
+        //   1) Em greeting/discovery: SÓ se cliente pediu explicitamente
+        //   2) Em consideration/decision: liberado
+        //   3) Sempre proibido se já enviada para este produto
+        const stateForImage: SalesState = ctx.salesState || "greeting";
+        const customerAsked = isExplicitImageRequest(lastUserMessageContentForTools);
+        const alreadySentForProduct = (ctx.imagesSentMap?.[productId] ?? 0) > 0;
+
+        const policy = evaluateImagePolicy({
+          salesState: stateForImage,
+          intent: customerAsked ? "image_request" : "other",
+          productAlreadySent: alreadySentForProduct,
+          customerExplicitlyAsked: customerAsked,
+        });
+
+        if (!policy.allowed) {
+          console.log(`[send_product_image] [F1] BLOCKED — state=${stateForImage} reason=${policy.reason} asked=${customerAsked}`);
+          return JSON.stringify({
+            success: false,
+            blocked: true,
+            error: "Envio de imagem bloqueado pela política da pipeline básica.",
+            reason: policy.reason,
+            instruction: stateForImage === "greeting" || stateForImage === "discovery"
+              ? "Continue a conversa em texto. Só envie imagem quando o cliente pedir ou quando estiverem em fase avançada de decisão."
+              : "Imagem deste produto já foi enviada nesta conversa.",
+          });
+        }
+
         // Look up product (must belong to tenant)
         const { data: product, error: prodErr } = await supabase
           .from("products")
@@ -1825,6 +1857,10 @@ async function executeSalesTool(
               error: result?.error || "Falha ao enviar imagem",
               code: result?.code || null,
             });
+          }
+          // [F1] Marca cota usada (in-memory, persistido no fim do turno)
+          if (ctx.imagesSentMap) {
+            ctx.imagesSentMap[productId] = (ctx.imagesSentMap[productId] ?? 0) + 1;
           }
           return JSON.stringify({
             success: true,
@@ -2734,7 +2770,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     let salesTriggerFired = false;
     let salesIntentFlags = { naming: false, buy: false, details: false, matchedNames: [] as string[] };
-    if (salesModeEnabled && lastMessageContent) {
+
+    // [F1] CURTO-CIRCUITO DE SAUDAÇÃO PURA
+    // Se a última mensagem do cliente é APENAS um cumprimento ("oi", "bom dia"),
+    // NUNCA injetar gatilhos de tool. A IA deve responder com uma saudação curta
+    // + 1 pergunta aberta. Sem produto, sem imagem, sem busca.
+    const isGreetingOnlyTurn = isPureGreeting(lastMessageContent);
+    if (isGreetingOnlyTurn) {
+      console.log(`[ai-support-chat] [F1] Pure greeting detected — tool triggers DISABLED for this turn.`);
+    }
+
+    if (salesModeEnabled && lastMessageContent && !isGreetingOnlyTurn) {
       try {
         const lc = lastMessageContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         // Heurísticas de intenção
@@ -2749,7 +2795,6 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           const matches = tenantSnapshot.top_products.filter((p: any) => {
             if (!p?.name) return false;
             const pn = p.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            // Match: produto inteiro contido na mensagem OU 2+ tokens significativos do produto na mensagem
             if (lc.includes(pn)) return true;
             const tokens = pn.split(/\s+/).filter((t: string) => t.length >= 4);
             const hits = tokens.filter((t: string) => lc.includes(t)).length;
@@ -2786,6 +2831,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       } catch (e) {
         console.error("[ai-support-chat] sales trigger detection error:", e);
       }
+    }
+
+    // [F1] Em saudação pura, injetar instrução explícita de resposta curta
+    if (isGreetingOnlyTurn && salesModeEnabled) {
+      aiMessages.push({
+        role: "system",
+        content: `### TURNO DE SAUDAÇÃO PURA\nO cliente apenas cumprimentou. Responda em UMA linha com saudação calorosa + UMA pergunta aberta de necessidade (ex.: "Oi! Tudo bem? Como posso te ajudar hoje?"). PROIBIDO: chamar tools, mostrar produto, enviar imagem, fazer transferência. PROIBIDO repetir saudação se já houve resposta do bot antes.`,
+      });
     }
 
     // ============================================
@@ -2850,6 +2903,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     const aiModel = modelMapping[configuredModel] || configuredModel;
     modelUsed = aiModel;
 
+    // [F1] Rastreio de tools chamadas no turno (escopo do handler, alimenta máquina de estado)
+    const toolsCalledThisTurn: string[] = [];
+
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
       console.log(`[ai-support-chat] Using rule-based response for rule: ${matchedRule.id}`);
@@ -2867,6 +2923,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         customerEmail: conversation.customer_email || null,
         customerName: conversation.customer_name || null,
         lastUserMessage: lastMessageContent || null,
+        salesState: currentSalesState,
+        imagesSentMap,
       };
 
       let response: Response | null = null;
@@ -2891,9 +2949,13 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             model: modelToTry,
             messages: currentMessages,
             ...tokenParams,
-            // Em sales mode, decisões de tool-calling devem ser determinísticas
-            temperature: salesModeEnabled ? 0.3 : 0.7,
           };
+
+          // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
+          // silencioso para o default. Só enviar temperature em modelos não-gpt5.
+          if (!isGpt5Model) {
+            requestBody.temperature = salesModeEnabled ? 0.3 : 0.7;
+          }
 
           // Add sales tools only in sales mode.
           // Quando heurística disparou, FORÇAR tool-calling ("required") para
@@ -2961,6 +3023,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // ============================================
       // TOOL CALL LOOP (sales mode only)
       // ============================================
+      // [F1] toolsCalledThisTurn já declarado no escopo externo
+
       while (
         salesModeEnabled &&
         aiData.choices?.[0]?.message?.tool_calls?.length &&
@@ -2988,6 +3052,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
           const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
+          toolsCalledThisTurn.push(fnName);
           console.log(`[ai-support-chat] Tool result (${fnName}):`, result.slice(0, 200));
 
           // BUG FIX: Se a tool de handoff comercial foi chamada com sucesso,
@@ -3014,21 +3079,23 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           } as any);
         }
 
-        // Call OpenAI again with tool results
-        const isGpt5Model = usedModel.startsWith("gpt-5");
-        const tokenParams = isGpt5Model 
+        const isGpt5ModelFollow = usedModel.startsWith("gpt-5");
+        const tokenParamsFollow = isGpt5ModelFollow 
           ? { max_completion_tokens: 1024 }
           : { max_tokens: 1024 };
 
         const followUpBody: any = {
           model: usedModel,
           messages: currentMessages,
-          ...tokenParams,
-          temperature: 0.3,
+          ...tokenParamsFollow,
           tools: SALES_TOOLS,
           tool_choice: "auto",
           parallel_tool_calls: false,
         };
+        // [F1] Mesmo guard: gpt-5 não aceita temperature
+        if (!isGpt5ModelFollow) {
+          followUpBody.temperature = 0.3;
+        }
 
         const followUpResp = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
@@ -3152,16 +3219,74 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       );
     }
 
-    // Update conversation status
+    // [F1] Calcula próximo estado comercial (servidor, não modelo)
+    const intentForState: Intent =
+      shouldHandoff ? "complaint" :
+      isGreetingOnlyTurn ? "greeting" :
+      salesIntentFlags.buy ? "buy" :
+      salesIntentFlags.details || salesIntentFlags.naming ? "question" :
+      (intentClassification?.intent === "complaint" ? "complaint" : "other");
+
+    const toolsCalledArr: string[] = toolsCalledThisTurn;
+    const hasActiveCart = toolsCalledArr.includes("add_to_cart");
+    const hasCheckout = toolsCalledArr.includes("generate_checkout_link");
+
+    const nextState: SalesState = shouldHandoff
+      ? "handoff"
+      : nextSalesState({
+          current: currentSalesState,
+          intent: intentForState,
+          toolsCalled: toolsCalledArr,
+          hasActiveCart,
+          hasCheckoutLink: hasCheckout,
+        });
+
+    // Hash da resposta (anti-repetição na próxima rodada)
+    const responseHash = await hashResponse(aiContent || "");
+
+    // Update conversation status + estado comercial
     const newStatus = shouldHandoff ? "waiting_agent" : "bot";
+    const conversationUpdate: Record<string, unknown> = {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+      customer_id: customerId || conversation.customer_id,
+      sales_state: nextState,
+      last_intent: intentForState,
+      last_bot_response_hash: responseHash,
+      images_sent_per_product: imagesSentMap,
+    };
+    if (nextState !== currentSalesState) {
+      conversationUpdate.sales_state_updated_at = new Date().toISOString();
+    }
     await supabase
       .from("conversations")
-      .update({
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-        customer_id: customerId || conversation.customer_id,
-      })
+      .update(conversationUpdate)
       .eq("id", conversation_id);
+
+    // [F1] LOG CANÔNICO POR TURNO — uma linha em ai_support_turn_log
+    try {
+      await supabase.from("ai_support_turn_log").insert({
+        conversation_id,
+        tenant_id,
+        sales_state_before: stateBefore,
+        sales_state_after: nextState,
+        last_user_message: (lastMessageContent || "").slice(0, 500),
+        intent_classified: intentForState,
+        sentiment: intentClassification?.sentiment ?? null,
+        is_pure_greeting: isGreetingOnlyTurn,
+        history_messages_count: messages.length,
+        history_scope_validated: true,
+        tools_available: salesModeEnabled ? ["filtered_by_state"] : [],
+        tools_called: toolsCalledArr,
+        model_used: modelUsed,
+        temperature_sent: modelUsed?.startsWith("gpt-5") ? null : (salesModeEnabled ? 0.3 : 0.7),
+        response_hash: responseHash,
+        anti_greeting_blocked: isGreetingOnlyTurn,
+        duration_ms: latencyMs,
+      });
+    } catch (logErr) {
+      console.error("[ai-support-chat] [F1] turn log insert failed:", logErr);
+    }
 
     // [learning] capture event for aggregator (continuity OR handoff_success)
     captureLearningEvent(supabase, {
