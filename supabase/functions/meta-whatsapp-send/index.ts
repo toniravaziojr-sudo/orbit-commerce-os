@@ -113,6 +113,7 @@ Deno.serve(async (req) => {
 
     // ============= 24h WINDOW AUDIT (Phase 5 — Sales Mode) =============
     // Mensagem livre (sem template) só pode ser enviada se houver mensagem do cliente nas últimas 24h.
+    // Aplica-se também a imagens livres (image_url sem template).
     if (!template_name) {
       try {
         const { data: convo } = await supabase
