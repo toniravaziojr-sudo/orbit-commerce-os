@@ -2484,7 +2484,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       salesIntentFlags.buy ? "purchase" :
       salesIntentFlags.details ? "product_details" :
       salesIntentFlags.naming || salesIntentFlags.matchedNames.length ? "product_named" :
-      (intentClassification?.primary_intent ?? "unknown");
+      (intentClassification?.intent ?? "unknown");
     const inferredStage =
       salesIntentFlags.buy ? "intent_to_buy" :
       salesIntentFlags.details || salesIntentFlags.matchedNames.length ? "product_detail" :
