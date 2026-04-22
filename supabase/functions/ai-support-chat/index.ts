@@ -598,13 +598,57 @@ async function executeSalesTool(
           .replace(/R\$\s*[\d.,]+/gi, "")
           .replace(/\s{2,}/g, " ")
           .trim();
-        // Quebra em tokens significativos (>=3 chars) para fallback flexível
         const tokens = query.split(/\s+/).filter(t => t.length >= 3).slice(0, 5);
+
+        const PRODUCT_COLS = "id, name, slug, price, compare_at_price, stock_quantity, status, has_variants, manage_stock, allow_backorder";
+
+        // Helper: enrich a list of products with primary image + kit indicator (single batched query each)
+        const enrichList = async (rows: any[]) => {
+          if (!rows?.length) return [];
+          const ids = rows.map(r => r.id);
+
+          // Primary image per product (is_primary first, then lowest sort_order)
+          const { data: imgRows } = await supabase
+            .from("product_images")
+            .select("product_id, url, alt_text, is_primary, sort_order")
+            .in("product_id", ids)
+            .order("is_primary", { ascending: false })
+            .order("sort_order", { ascending: true });
+
+          const primaryImageByProduct = new Map<string, { url: string; alt: string | null }>();
+          for (const img of (imgRows ?? [])) {
+            if (!primaryImageByProduct.has(img.product_id)) {
+              primaryImageByProduct.set(img.product_id, { url: img.url, alt: img.alt_text ?? null });
+            }
+          }
+
+          // Kit indicator (any component row makes it a kit)
+          const { data: compRows } = await supabase
+            .from("product_components")
+            .select("parent_product_id")
+            .in("parent_product_id", ids);
+          const kitSet = new Set((compRows ?? []).map((r: any) => r.parent_product_id));
+
+          return rows.map(p => ({
+            id: p.id,
+            name: p.name,
+            slug: p.slug,
+            price: p.price,
+            compare_at_price: p.compare_at_price,
+            stock: p.stock_quantity,
+            image: primaryImageByProduct.get(p.id)?.url ?? null,
+            image_alt: primaryImageByProduct.get(p.id)?.alt ?? null,
+            is_kit: kitSet.has(p.id),
+            has_variants: p.has_variants ?? false,
+            manage_stock: p.manage_stock ?? true,
+            allow_backorder: p.allow_backorder ?? false,
+          }));
+        };
 
         // 1) ILIKE direto pelo nome
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, slug, price, compare_at_price, stock_quantity, status, images, has_variants, manage_stock, allow_backorder")
+          .select(PRODUCT_COLS)
           .eq("tenant_id", tenantId)
           .eq("status", "active")
           .is("deleted_at", null)
@@ -612,42 +656,26 @@ async function executeSalesTool(
           .limit(limit);
 
         if (!error && data?.length) {
-          return JSON.stringify(data.map(p => ({
-            id: p.id, name: p.name, slug: p.slug,
-            price: p.price, compare_at_price: p.compare_at_price,
-            stock: p.stock_quantity,
-            image: (p.images as any)?.[0] || null,
-            has_variants: p.has_variants ?? false,
-            manage_stock: p.manage_stock ?? true,
-            allow_backorder: p.allow_backorder ?? false,
-          })));
+          return JSON.stringify(await enrichList(data));
         }
 
-        // 2) Fallback: busca por tokens combinados (OR), mantendo escopo do tenant
+        // 2) Fallback: busca por tokens combinados (OR)
         if (tokens.length) {
           const orFilter = tokens.map(t => `name.ilike.%${t}%`).join(",");
           const { data: tokenData } = await supabase
             .from("products")
-            .select("id, name, slug, price, compare_at_price, stock_quantity, status, images, has_variants, manage_stock, allow_backorder")
+            .select(PRODUCT_COLS)
             .eq("tenant_id", tenantId)
             .eq("status", "active")
             .is("deleted_at", null)
             .or(orFilter)
             .limit(limit);
           if (tokenData?.length) {
-            return JSON.stringify(tokenData.map(p => ({
-              id: p.id, name: p.name, slug: p.slug,
-              price: p.price, compare_at_price: p.compare_at_price,
-              stock: p.stock_quantity,
-              image: (p.images as any)?.[0] || null,
-              has_variants: p.has_variants ?? false,
-              manage_stock: p.manage_stock ?? true,
-              allow_backorder: p.allow_backorder ?? false,
-            })));
+            return JSON.stringify(await enrichList(tokenData));
           }
         }
 
-        // 3) Fallback final: RPC fuzzy SEM excluir kits (catálogo do tenant pode ser todo "kit")
+        // 3) Fallback final: RPC fuzzy SEM excluir kits
         const { data: fuzzyData } = await (supabase as any).rpc("search_products_fuzzy", {
           p_tenant_id: tenantId,
           p_query: query || rawQuery,
@@ -655,11 +683,16 @@ async function executeSalesTool(
           p_exclude_kits: false,
         });
         if (fuzzyData?.length) {
-          return JSON.stringify(fuzzyData.map((p: any) => ({
-            id: p.id, name: p.name, price: p.price, stock: p.stock_quantity,
-            image: p.images?.[0] || null,
-            has_variants: p.has_variants ?? false,
-          })));
+          // Fuzzy returns a different shape — refetch canonical rows and enrich
+          const fuzzyIds = fuzzyData.map((p: any) => p.id);
+          const { data: refetched } = await supabase
+            .from("products")
+            .select(PRODUCT_COLS)
+            .in("id", fuzzyIds)
+            .eq("tenant_id", tenantId);
+          if (refetched?.length) {
+            return JSON.stringify(await enrichList(refetched));
+          }
         }
 
         return JSON.stringify({ message: "Nenhum produto encontrado para a busca.", query: query || rawQuery });
@@ -669,22 +702,38 @@ async function executeSalesTool(
         const productId = args.product_id as string;
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, slug, description, price, compare_at_price, stock_quantity, status, images, weight, sku, has_variants, manage_stock, allow_backorder")
+          .select("id, name, slug, description, short_description, price, compare_at_price, promotion_start_date, promotion_end_date, stock_quantity, status, weight, width, height, depth, sku, gtin, brand, has_variants, manage_stock, allow_backorder, free_shipping, avg_rating, review_count")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
-          .single();
+          .maybeSingle();
 
-        if (error || !data) return JSON.stringify({ error: "Produto não encontrado" });
+        if (error) {
+          console.error(`[ai-support-chat] get_product_details DB error:`, error);
+          return JSON.stringify({ success: false, error: "Falha ao consultar o produto", db_error: error.message });
+        }
+        if (!data) return JSON.stringify({ success: false, error: "Produto não encontrado", hint: "Use search_products primeiro." });
 
-        // If has variants, also bring summary
+        // Primary image (is_primary first, then sort_order)
+        const { data: imgRows } = await supabase
+          .from("product_images")
+          .select("url, alt_text, is_primary, sort_order")
+          .eq("product_id", productId)
+          .order("is_primary", { ascending: false })
+          .order("sort_order", { ascending: true })
+          .limit(1);
+        const primaryImage = imgRows?.[0] ? { url: imgRows[0].url, alt: imgRows[0].alt_text ?? null } : null;
+
+        // Variants summary + list
         let variantsSummary: any = null;
+        let variantsList: any[] = [];
         if (data.has_variants) {
           const { data: variants } = await supabase
             .from("product_variants")
-            .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
+            .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku, weight")
             .eq("product_id", productId)
-            .eq("is_active", true);
+            .eq("is_active", true)
+            .order("position", { ascending: true });
           if (variants?.length) {
             const prices = variants.map((v: any) => Number(v.price ?? data.price)).filter((n: number) => !isNaN(n));
             const totalStock = variants.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0);
@@ -693,14 +742,52 @@ async function executeSalesTool(
               price_min: prices.length ? Math.min(...prices) : data.price,
               price_max: prices.length ? Math.max(...prices) : data.price,
               total_stock: totalStock,
-              option_names: [
-                variants[0]?.option1_name,
-                variants[0]?.option2_name,
-                variants[0]?.option3_name,
-              ].filter(Boolean),
+              option_names: [variants[0]?.option1_name, variants[0]?.option2_name, variants[0]?.option3_name].filter(Boolean),
             };
+            variantsList = variants.map((v: any) => ({
+              variant_id: v.id,
+              label: [
+                v.option1_value && `${v.option1_name}: ${v.option1_value}`,
+                v.option2_value && `${v.option2_name}: ${v.option2_value}`,
+                v.option3_value && `${v.option3_name}: ${v.option3_value}`,
+              ].filter(Boolean).join(" / ") || v.name,
+              sku: v.sku,
+              price: Number(v.price ?? data.price),
+              stock: v.stock_quantity ?? 0,
+              weight: v.weight,
+            }));
           }
         }
+
+        // Kit composition (if any product_components)
+        const { data: compRows } = await supabase
+          .from("product_components")
+          .select("component_product_id, quantity, sort_order, products:component_product_id (id, name, sku, weight)")
+          .eq("parent_product_id", productId)
+          .order("sort_order", { ascending: true });
+        const components = (compRows ?? []).map((c: any) => ({
+          component_product_id: c.component_product_id,
+          name: c.products?.name ?? null,
+          sku: c.products?.sku ?? null,
+          unit_weight: c.products?.weight ?? null,
+          quantity: Number(c.quantity ?? 1),
+        }));
+        const isKit = components.length > 0;
+
+        // Categories
+        const { data: catRows } = await supabase
+          .from("product_categories")
+          .select("categories:category_id (id, name)")
+          .eq("product_id", productId);
+        const categories = (catRows ?? []).map((r: any) => r.categories?.name).filter(Boolean);
+
+        // Promotion active?
+        const now = new Date();
+        const promoActive = !!(
+          data.compare_at_price &&
+          (!data.promotion_start_date || new Date(data.promotion_start_date) <= now) &&
+          (!data.promotion_end_date || new Date(data.promotion_end_date) >= now)
+        );
 
         const baseStock = data.stock_quantity ?? 0;
         const available = data.status === "active" && (
@@ -710,17 +797,38 @@ async function executeSalesTool(
         );
 
         return JSON.stringify({
-          id: data.id, name: data.name, slug: data.slug,
-          description: data.description?.slice(0, 500),
-          price: data.price, compare_at_price: data.compare_at_price,
+          success: true,
+          id: data.id,
+          name: data.name,
+          slug: data.slug,
+          description: data.description ?? null,
+          short_description: data.short_description ?? null,
+          brand: data.brand ?? null,
+          sku: data.sku ?? null,
+          gtin: data.gtin ?? null,
+          price: data.price,
+          compare_at_price: data.compare_at_price,
+          promotion_active: promoActive,
           stock: baseStock,
           available,
-          images: (data.images as any[])?.slice(0, 3) || [],
-          sku: data.sku, weight: data.weight,
+          free_shipping: data.free_shipping ?? false,
+          avg_rating: data.avg_rating ?? null,
+          review_count: data.review_count ?? 0,
+          physical: {
+            weight_g: data.weight,
+            width_cm: data.width,
+            height_cm: data.height,
+            depth_cm: data.depth,
+          },
+          primary_image: primaryImage,
+          categories,
           has_variants: data.has_variants ?? false,
           manage_stock: data.manage_stock ?? true,
           allow_backorder: data.allow_backorder ?? false,
           variants_summary: variantsSummary,
+          variants: variantsList,
+          is_kit: isKit,
+          kit_components: components,
         });
       }
 
