@@ -2643,6 +2643,13 @@ Cliente: "vocês entregam em SP?"
       conversation.sales_state as string | null
     );
 
+    // [F2-FIX] Detecta saudação pura ANTES da pré-transição (decideNextState
+    // precisa desse flag). A declaração antiga na ~linha 2896 foi removida.
+    const isGreetingOnlyTurn = isPureGreeting(lastMessageContent);
+    if (isGreetingOnlyTurn) {
+      console.log(`[ai-support-chat] [F1] Pure greeting detected — tool triggers DISABLED for this turn.`);
+    }
+
     // [F2-FIX] PRÉ-TRANSIÇÃO: decidir o estado do TURNO ATUAL antes de montar o
     // prompt e o filtro de tools. Sem isso, um cliente que diz "preciso de um
     // shampoo" ficava preso em greeting (0 tools) e não conseguia avançar.
