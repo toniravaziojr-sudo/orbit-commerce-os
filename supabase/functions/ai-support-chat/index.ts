@@ -26,6 +26,17 @@ import {
   type SalesState,
   type Intent,
 } from "../_shared/sales-state-machine.ts";
+// [F2] Pipeline modular por estado comercial
+import {
+  buildPromptForState,
+  decideNextState,
+  isToolAllowedInState,
+  normalizeLegacyState,
+  toLegacyState,
+  TOOLS_BY_STATE,
+  type PipelineState,
+  type TransitionReason,
+} from "../_shared/sales-pipeline/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
