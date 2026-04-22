@@ -2734,7 +2734,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     let salesTriggerFired = false;
     let salesIntentFlags = { naming: false, buy: false, details: false, matchedNames: [] as string[] };
-    if (salesModeEnabled && lastMessageContent) {
+
+    // [F1] CURTO-CIRCUITO DE SAUDAÇÃO PURA
+    // Se a última mensagem do cliente é APENAS um cumprimento ("oi", "bom dia"),
+    // NUNCA injetar gatilhos de tool. A IA deve responder com uma saudação curta
+    // + 1 pergunta aberta. Sem produto, sem imagem, sem busca.
+    const isGreetingOnlyTurn = isPureGreeting(lastMessageContent);
+    if (isGreetingOnlyTurn) {
+      console.log(`[ai-support-chat] [F1] Pure greeting detected — tool triggers DISABLED for this turn.`);
+    }
+
+    if (salesModeEnabled && lastMessageContent && !isGreetingOnlyTurn) {
       try {
         const lc = lastMessageContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         // Heurísticas de intenção
@@ -2749,7 +2759,6 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           const matches = tenantSnapshot.top_products.filter((p: any) => {
             if (!p?.name) return false;
             const pn = p.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            // Match: produto inteiro contido na mensagem OU 2+ tokens significativos do produto na mensagem
             if (lc.includes(pn)) return true;
             const tokens = pn.split(/\s+/).filter((t: string) => t.length >= 4);
             const hits = tokens.filter((t: string) => lc.includes(t)).length;
@@ -2786,6 +2795,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       } catch (e) {
         console.error("[ai-support-chat] sales trigger detection error:", e);
       }
+    }
+
+    // [F1] Em saudação pura, injetar instrução explícita de resposta curta
+    if (isGreetingOnlyTurn && salesModeEnabled) {
+      aiMessages.push({
+        role: "system",
+        content: `### TURNO DE SAUDAÇÃO PURA\nO cliente apenas cumprimentou. Responda em UMA linha com saudação calorosa + UMA pergunta aberta de necessidade (ex.: "Oi! Tudo bem? Como posso te ajudar hoje?"). PROIBIDO: chamar tools, mostrar produto, enviar imagem, fazer transferência. PROIBIDO repetir saudação se já houve resposta do bot antes.`,
+      });
     }
 
     // ============================================
