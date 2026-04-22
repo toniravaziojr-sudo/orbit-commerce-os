@@ -158,6 +158,7 @@ Deno.serve(async (req) => {
     // ============= PHASE 3: Render final visible content (no placeholders!) =============
     // For text messages: render `message` against `template_payload` if vars exist.
     // For template messages: render `template_body` to build the timeline-visible content.
+    // For image messages: visible content is the caption (or "[imagem]" placeholder).
     let visibleContent: string;
     try {
       if (template_name) {
@@ -171,6 +172,9 @@ Deno.serve(async (req) => {
         } else {
           visibleContent = "Mensagem do sistema";
         }
+      } else if (image_url) {
+        // Image path — caption is optional; do not render placeholders inside caption.
+        visibleContent = (image_caption ?? "").substring(0, 1024) || "[imagem]";
       } else {
         // Plain text path
         const rendered = renderTemplate(message ?? "", template_payload ?? {}, { mode: "strict" });
