@@ -227,9 +227,10 @@ Deno.serve(async (req) => {
     console.log(`[meta-whatsapp-send][${traceId}] Sending to: ${formattedPhone}`);
 
     // Build message payload
+    const messageType: "template" | "image" | "text" = template_name ? "template" : (image_url ? "image" : "text");
     let messagePayload: any;
 
-    if (template_name) {
+    if (messageType === "template") {
       const templateObj: any = {
         name: template_name,
         language: { code: template_language || "pt_BR" },
@@ -243,6 +244,18 @@ Deno.serve(async (req) => {
         to: formattedPhone,
         type: "template",
         template: templateObj,
+      };
+    } else if (messageType === "image") {
+      const imageObj: any = { link: image_url };
+      if (image_caption && image_caption.length > 0) {
+        imageObj.caption = image_caption.substring(0, 1024);
+      }
+      messagePayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "image",
+        image: imageObj,
       };
     } else {
       messagePayload = {
