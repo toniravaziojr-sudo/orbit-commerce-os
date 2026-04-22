@@ -26,6 +26,10 @@ interface SendMessageParams {
   template_body?: string;
   /** Optional payload of variables to render `template_body` with. */
   template_payload?: Record<string, unknown>;
+  /** Optional: when set, sends an image message (link + optional caption). Requires 24h window like text. */
+  image_url?: string;
+  /** Optional caption for the image (max 1024 chars per WhatsApp). */
+  image_caption?: string;
 }
 
 Deno.serve(async (req) => {
