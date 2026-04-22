@@ -1722,6 +1722,100 @@ async function executeSalesTool(
         });
       }
 
+      case "send_product_image": {
+        const productId = args.product_id as string;
+        const caption = (args.caption as string | undefined)?.substring(0, 300) ?? "";
+
+        if (!productId) {
+          return JSON.stringify({ success: false, error: "product_id é obrigatório" });
+        }
+        if (!customerPhone) {
+          return JSON.stringify({ success: false, error: "Sem telefone do cliente — não é possível enviar imagem." });
+        }
+
+        // Look up product (must belong to tenant)
+        const { data: product, error: prodErr } = await supabase
+          .from("products")
+          .select("id, name, status, deleted_at, tenant_id")
+          .eq("id", productId)
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
+        if (prodErr || !product || product.deleted_at) {
+          return JSON.stringify({ success: false, error: "Produto não encontrado ou indisponível." });
+        }
+
+        // Primary image
+        const { data: imgRows } = await supabase
+          .from("product_images")
+          .select("url, alt_text, is_primary, sort_order")
+          .eq("product_id", productId)
+          .order("is_primary", { ascending: false })
+          .order("sort_order", { ascending: true })
+          .limit(1);
+        const primary = imgRows?.[0];
+        if (!primary?.url) {
+          return JSON.stringify({
+            success: false,
+            error: "Este produto ainda não tem imagem cadastrada. Descreva-o em texto.",
+          });
+        }
+
+        // Anti-spam: at most 1 image per product per conversation
+        const { data: alreadySent } = await supabase
+          .from("whatsapp_messages")
+          .select("id, message_content")
+          .eq("tenant_id", tenantId)
+          .eq("recipient_phone", customerPhone)
+          .eq("message_type", "image")
+          .eq("status", "sent")
+          .ilike("message_content", `%${product.name}%`)
+          .limit(1);
+        if (alreadySent && alreadySent.length > 0) {
+          return JSON.stringify({
+            success: false,
+            error: "A imagem deste produto já foi enviada nesta conversa. Não envie de novo.",
+            already_sent: true,
+          });
+        }
+
+        // Send via meta-whatsapp-send
+        try {
+          const sendUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/meta-whatsapp-send`;
+          const resp = await fetch(sendUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              tenant_id: tenantId,
+              phone: customerPhone,
+              message: product.name,
+              image_url: primary.url,
+              image_caption: caption || product.name,
+            }),
+          });
+          const result = await resp.json();
+          if (!result?.success) {
+            return JSON.stringify({
+              success: false,
+              error: result?.error || "Falha ao enviar imagem",
+              code: result?.code || null,
+            });
+          }
+          return JSON.stringify({
+            success: true,
+            sent: true,
+            product_name: product.name,
+            image_url: primary.url,
+            message: "Imagem enviada ao cliente. NÃO duplique no texto da resposta — apenas comente brevemente.",
+          });
+        } catch (e: any) {
+          console.error("[send_product_image] error:", e);
+          return JSON.stringify({ success: false, error: "Erro técnico ao enviar imagem", detail: e?.message });
+        }
+      }
+
       case "request_human_handoff": {
         const reason = (args.reason as string) || "other";
         const summary = (args.summary as string) || "Cliente solicitou atendimento humano.";
