@@ -1758,6 +1758,36 @@ async function executeSalesTool(
           return JSON.stringify({ success: false, error: "Sem telefone do cliente — não é possível enviar imagem." });
         }
 
+        // [F1] POLÍTICA CONSERVADORA DE IMAGEM
+        // Bloqueio server-side antes de qualquer custo (DB/WhatsApp).
+        // Regras:
+        //   1) Em greeting/discovery: SÓ se cliente pediu explicitamente
+        //   2) Em consideration/decision: liberado
+        //   3) Sempre proibido se já enviada para este produto
+        const stateForImage: SalesState = ctx.salesState || "greeting";
+        const customerAsked = isExplicitImageRequest(lastUserMessageContentForTools);
+        const alreadySentForProduct = (ctx.imagesSentMap?.[productId] ?? 0) > 0;
+
+        const policy = evaluateImagePolicy({
+          salesState: stateForImage,
+          intent: customerAsked ? "image_request" : "other",
+          productAlreadySent: alreadySentForProduct,
+          customerExplicitlyAsked: customerAsked,
+        });
+
+        if (!policy.allowed) {
+          console.log(`[send_product_image] [F1] BLOCKED — state=${stateForImage} reason=${policy.reason} asked=${customerAsked}`);
+          return JSON.stringify({
+            success: false,
+            blocked: true,
+            error: "Envio de imagem bloqueado pela política da pipeline básica.",
+            reason: policy.reason,
+            instruction: stateForImage === "greeting" || stateForImage === "discovery"
+              ? "Continue a conversa em texto. Só envie imagem quando o cliente pedir ou quando estiverem em fase avançada de decisão."
+              : "Imagem deste produto já foi enviada nesta conversa.",
+          });
+        }
+
         // Look up product (must belong to tenant)
         const { data: product, error: prodErr } = await supabase
           .from("products")
