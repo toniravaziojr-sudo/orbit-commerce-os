@@ -7,7 +7,7 @@ import {
   TemplateRenderError,
 } from "../_shared/template-renderer.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.2.0"; // Phase 3 — strict template render + no [Template:] leakage
+const VERSION = "v1.3.0"; // Phase B Sales — image message support (image_url + caption)
 // ===========================================================
 
 const corsHeaders = {
