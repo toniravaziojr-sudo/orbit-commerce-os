@@ -3184,6 +3184,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     const toolsCalledThisTurn: string[] = [];
     // [F2] Tools que o modelo tentou chamar mas foram bloqueadas pelo filtro de estado
     const pipelineBlockedTools: string[] = [];
+    // [F2-FIX] Sinaliza se o fallback de resposta vazia foi acionado (vai para o log)
+    let emptyResponseFallbackApplied = false;
 
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
