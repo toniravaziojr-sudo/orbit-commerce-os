@@ -3227,7 +3227,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       salesIntentFlags.details || salesIntentFlags.naming ? "question" :
       (intentClassification?.intent === "complaint" ? "complaint" : "other");
 
-    const toolsCalledArr = (typeof toolsCalledThisTurn !== "undefined" ? toolsCalledThisTurn : []) as string[];
+    const toolsCalledArr: string[] = toolsCalledThisTurn;
     const hasActiveCart = toolsCalledArr.includes("add_to_cart");
     const hasCheckout = toolsCalledArr.includes("generate_checkout_link");
 
