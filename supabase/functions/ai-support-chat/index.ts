@@ -3274,7 +3274,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         is_pure_greeting: isGreetingOnlyTurn,
         history_messages_count: messages.length,
         history_scope_validated: true,
-        tools_available: salesModeEnabled ? "filtered_by_state" : "none",
+        tools_available: salesModeEnabled ? ["filtered_by_state"] : [],
         tools_called: toolsCalledArr,
         model_used: modelUsed,
         temperature_sent: modelUsed?.startsWith("gpt-5") ? null : (salesModeEnabled ? 0.3 : 0.7),
