@@ -2866,7 +2866,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
 
     // [F1] Em saudação pura, injetar instrução explícita de resposta curta e NATURAL em PT-BR.
-    // Objetivo: soar como pessoa de verdade respondendo no WhatsApp, não como bot de FAQ.
+    // Objetivo: soar como atendente comercial real no WhatsApp BR (loja → cliente),
+    // não como bot de FAQ nem como bate-papo entre amigos.
     if (isGreetingOnlyTurn && salesModeEnabled) {
       // Período do dia em horário de Brasília (BRT, UTC-3)
       const brtHour = (new Date().getUTCHours() - 3 + 24) % 24;
@@ -2875,40 +2876,76 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         brtHour >= 12 && brtHour < 18 ? "tarde (você pode dizer \"Boa tarde\")" :
         "noite (você pode dizer \"Boa noite\")";
 
-      aiMessages.push({
-        role: "system",
-        content: [
-          "### ESTE É UM TURNO DE SAUDAÇÃO PURA",
-          "",
-          `O cliente apenas cumprimentou (ex.: "oi", "olá", "bom dia"). Período atual no Brasil: ${periodHint}.`,
-          "",
-          "Sua resposta deve ser:",
-          "- 1 frase curta, no máximo 2 frases curtas.",
-          "- Cumprimento simples + uma pergunta aberta convidando o cliente a contar o que precisa.",
-          "- Tom: pessoa de verdade no WhatsApp, educada, natural. Nada de bot.",
-          "",
-          "PROIBIDO neste turno:",
-          "- Chamar qualquer ferramenta, citar produto, enviar imagem, escalar para humano.",
-          "- Listar categorias, benefícios, dores ou nicho. Você AINDA não sabe o que ele quer.",
-          "- Assumir o tema do cliente (NÃO diga \"para seu cuidado com X\", \"sobre seu tratamento de Y\", \"para combater Z\").",
-          "- Vocativo no início (\"Comando Central, ...\", \"Cliente, ...\") — comece pela saudação.",
-          "- As fórmulas banidas da persona principal: \"como posso te ajudar hoje\", \"em que posso ser útil\", \"estou à disposição\", \"perfeito!\", \"ótimo!\", \"com prazer\".",
-          "- Markdown, emojis em excesso, múltiplos pontos de exclamação.",
-          "",
-          "EXEMPLOS de respostas válidas (use como referência de tom, NÃO copie literal — varie):",
-          "- \"Oi! Tudo bem? Me conta o que você precisa.\"",
-          "- \"Olá! O que você está procurando?\"",
-          "- \"Oi! Tudo certo? Em que posso ajudar?\"",
-          "- \"Oi, tudo bem? Me fala o que você precisa, vou te ajudar.\"",
-          "- \"Bom dia! O que você gostaria de saber?\" (se for manhã)",
-          "- \"Boa tarde! Me diz o que você procura.\" (se for tarde)",
-          "- \"Boa noite! Em que posso ajudar?\" (se for noite)",
-          "- \"Oi! Estou aqui, é só me falar o que precisa.\"",
-          "",
-          "Escolha UMA variação, ajuste com naturalidade ao período do dia, e pare.",
-          "Se o bot já tiver cumprimentado o cliente antes nesta mesma conversa, NÃO repita a saudação — vá direto à pergunta (\"Me conta o que você precisa.\").",
-        ].join("\n"),
-      });
+      // Detectar se a IA já se apresentou antes nesta conversa (reabertura vs primeiro contato)
+      const botAlreadyGreeted = (messages || []).some(m =>
+        m.sender_type !== "customer" &&
+        !m.is_internal &&
+        !m.is_note &&
+        typeof m.content === "string" &&
+        /\b(aqui é (a |o )?(assistente|atendente|da )|tudo bem\?|bom dia|boa tarde|boa noite)\b/i.test(m.content)
+      );
+
+      if (!botAlreadyGreeted) {
+        // PRIMEIRO CONTATO — saudação comercial completa: cumprimento + identificação da loja + oferta de ajuda
+        aiMessages.push({
+          role: "system",
+          content: [
+            "### ESTE É UM TURNO DE SAUDAÇÃO PURA — PRIMEIRO CONTATO",
+            "",
+            `O cliente apenas cumprimentou (ex.: "oi", "olá", "bom dia"). É a primeira vez que você fala com ele nesta conversa. Período atual no Brasil: ${periodHint}.`,
+            `Nome da loja: ${storeName}.`,
+            "",
+            "Sua resposta DEVE seguir EXATAMENTE este padrão de atendimento comercial brasileiro no WhatsApp:",
+            `[cumprimento curto] + [identificação da loja "${storeName}"] + [oferta de ajuda em uma pergunta curta]`,
+            "",
+            "Tudo em UMA frase só (no máximo duas frases curtas).",
+            "",
+            "EXEMPLOS de respostas válidas (use como referência de estrutura, varie a forma — NÃO copie literal):",
+            `- "Oi, tudo bem? Aqui é a assistente virtual da ${storeName}, como posso ajudar?"`,
+            `- "Oi, tudo bem? Aqui é da ${storeName}, me diga em poucas palavras como posso ajudar."`,
+            `- "Oi, tudo bem? Aqui é da ${storeName}, como posso ajudar?"`,
+            `- "Olá, tudo bem? Aqui é a assistente virtual da ${storeName}. Em que posso te ajudar?"`,
+            `- "Bom dia! Aqui é da ${storeName}, como posso ajudar?" (se for manhã)`,
+            `- "Boa tarde! Aqui é da ${storeName}, me diz como posso ajudar." (se for tarde)`,
+            `- "Boa noite! Aqui é a assistente virtual da ${storeName}, em que posso ajudar?" (se for noite)`,
+            "",
+            "PROIBIDO neste turno:",
+            "- Chamar qualquer ferramenta, citar produto, enviar imagem, escalar para humano.",
+            "- Listar categorias, benefícios, dores ou nicho. Você AINDA não sabe o que ele quer.",
+            "- Assumir o tema do cliente (NÃO diga \"para seu cuidado com X\", \"sobre seu tratamento de Y\", \"para combater Z\").",
+            "- Vocativo no início (\"Comando Central, ...\", \"Cliente, ...\") — comece pela saudação.",
+            "- As fórmulas banidas da persona principal: \"como posso te ajudar hoje\", \"em que posso ser útil\", \"estou à disposição\", \"perfeito!\", \"ótimo!\", \"com prazer\".",
+            "- Omitir o nome da loja. A identificação da loja é OBRIGATÓRIA no primeiro contato.",
+            "- Markdown, emojis em excesso, múltiplos pontos de exclamação.",
+          ].join("\n"),
+        });
+      } else {
+        // REABERTURA — cliente voltou, já sabe com quem está falando: NÃO repete a identificação
+        aiMessages.push({
+          role: "system",
+          content: [
+            "### ESTE É UM TURNO DE SAUDAÇÃO PURA — CLIENTE RETOMANDO A CONVERSA",
+            "",
+            `O cliente apenas cumprimentou de novo, mas você JÁ se apresentou antes nesta conversa. Período atual no Brasil: ${periodHint}.`,
+            "",
+            "Sua resposta deve ser:",
+            "- 1 frase curta. NÃO repita a identificação da loja, NÃO se apresente de novo.",
+            "- Apenas retome a conversa de forma natural, perguntando o que ele precisa agora.",
+            "",
+            "EXEMPLOS de respostas válidas (varie, NÃO copie literal):",
+            "- \"Oi! Em que posso ajudar agora?\"",
+            "- \"Oi, voltou! Me conta o que você precisa.\"",
+            "- \"Oi! Pode mandar o que você procura.\"",
+            "- \"Oi! Tô por aqui, em que posso ajudar?\"",
+            "",
+            "PROIBIDO neste turno:",
+            "- Repetir \"Aqui é da [loja]\" / \"Aqui é a assistente virtual\" — você já se apresentou.",
+            "- Chamar qualquer ferramenta, citar produto, enviar imagem, escalar para humano.",
+            "- Assumir o tema do cliente.",
+            "- Markdown, emojis em excesso, múltiplos pontos de exclamação.",
+          ].join("\n"),
+        });
+      }
     }
 
     // ============================================
@@ -3342,7 +3379,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       const { error: turnLogErr } = await supabase.from("ai_support_turn_log").insert({
         conversation_id,
         tenant_id,
-        message_id: aiMessage?.id ?? null,
+        message_id: newMessage?.id ?? null,
         sales_state_before: stateBefore,
         sales_state_after: nextState,
         last_user_message: (lastMessageContent || "").slice(0, 500),
