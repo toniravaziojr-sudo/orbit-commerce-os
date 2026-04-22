@@ -2258,6 +2258,7 @@ DIRETRIZES IMPORTANTES:
     // TENANT-AWARE GROUNDING (Fase 4)
     // ============================================
     let tenantSnapshot = null as Awaited<ReturnType<typeof getOrBuildTenantContext>>;
+    let relevantProducts: Array<{ name: string; price?: number; category?: string }> = [];
     try {
       tenantSnapshot = await getOrBuildTenantContext(supabase, tenant_id, {
         forceSyncIfMissing: true,
@@ -2268,10 +2269,10 @@ DIRETRIZES IMPORTANTES:
         // Catálogo enxuto SEMPRE — incluindo modo vendas. Sem catálogo o modelo
         // não sabe que produtos buscar e cai em loop de qualificação. A regra
         // "preço/estoque vem da tool" continua válida via prompt SALES_AGENT.
-        const relevant = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
-        systemPrompt += formatRelevantCatalogForPrompt(relevant);
+        relevantProducts = pickRelevantProducts(tenantSnapshot, lastMessageContent, 8);
+        systemPrompt += formatRelevantCatalogForPrompt(relevantProducts);
         console.log(
-          `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevant.length} sales_mode=${salesModeEnabled}`
+          `[ai-support-chat] tenant-context injected — niche="${tenantSnapshot.niche_label}" grounded=${grounded} relevant=${relevantProducts.length} sales_mode=${salesModeEnabled}`
         );
       }
       // Soltar handoff cego: se KB vazia mas snapshot tem grounding, não escalar
