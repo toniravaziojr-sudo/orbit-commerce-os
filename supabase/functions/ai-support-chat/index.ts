@@ -2903,6 +2903,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     const aiModel = modelMapping[configuredModel] || configuredModel;
     modelUsed = aiModel;
 
+    // [F1] Rastreio de tools chamadas no turno (escopo do handler, alimenta máquina de estado)
+    const toolsCalledThisTurn: string[] = [];
+
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
       console.log(`[ai-support-chat] Using rule-based response for rule: ${matchedRule.id}`);
