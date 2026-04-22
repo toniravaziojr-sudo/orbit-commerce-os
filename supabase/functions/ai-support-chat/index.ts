@@ -1166,7 +1166,7 @@ async function executeSalesTool(
           if (offer.offer_product_id) {
             const { data: offerProduct } = await supabase
               .from("products")
-              .select("id, name, price, images")
+              .select("id, name, price")
               .eq("id", offer.offer_product_id)
               .single();
 
@@ -1653,11 +1653,12 @@ async function executeSalesTool(
         if (categoryIds.length) {
           const { data: rel } = await supabase
             .from("product_categories")
-            .select("product_id, products!inner(id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder, deleted_at, tenant_id, images)")
+            .select("product_id, products!inner(id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder, deleted_at, tenant_id)")
             .in("category_id", categoryIds)
             .neq("product_id", mainProductId);
 
           const seen = new Set<string>();
+          const candidates: any[] = [];
           for (const row of (rel ?? [])) {
             const p: any = row.products;
             if (!p) continue;
@@ -1670,15 +1671,32 @@ async function executeSalesTool(
             const available = !p.manage_stock || p.allow_backorder || p.has_variants || stock > 0;
             if (!available) continue;
             seen.add(p.id);
-            related.push({
-              id: p.id,
-              name: p.name,
-              price: Number(p.price),
-              has_variants: p.has_variants ?? false,
-              image: (p.images as any)?.[0] || null,
-            });
-            if (related.length >= limit) break;
+            candidates.push(p);
+            if (candidates.length >= limit) break;
           }
+
+          // Fetch primary images in a single batch
+          const candidateIds = candidates.map(c => c.id);
+          const imageMap = new Map<string, string>();
+          if (candidateIds.length) {
+            const { data: imgRows } = await supabase
+              .from("product_images")
+              .select("product_id, url, is_primary, sort_order")
+              .in("product_id", candidateIds)
+              .order("is_primary", { ascending: false })
+              .order("sort_order", { ascending: true });
+            for (const img of (imgRows ?? [])) {
+              if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
+            }
+          }
+
+          related = candidates.map(p => ({
+            id: p.id,
+            name: p.name,
+            price: Number(p.price),
+            has_variants: p.has_variants ?? false,
+            image: imageMap.get(p.id) ?? null,
+          }));
         }
 
         return JSON.stringify({
