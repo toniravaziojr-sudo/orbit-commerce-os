@@ -3023,8 +3023,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // ============================================
       // TOOL CALL LOOP (sales mode only)
       // ============================================
-      // [F1] Rastreio de tools chamadas no turno (alimenta máquina de estado)
-      const toolsCalledThisTurn: string[] = [];
+      // [F1] toolsCalledThisTurn já declarado no escopo externo
 
       while (
         salesModeEnabled &&
