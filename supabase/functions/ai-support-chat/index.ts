@@ -488,6 +488,22 @@ const SALES_TOOLS = [
   {
     type: "function",
     function: {
+      name: "send_product_image",
+      description: "Envia a IMAGEM PRINCIPAL do produto pelo WhatsApp. USE quando: (a) o cliente pediu explicitamente uma foto/imagem ('me mostra', 'tem foto?', 'manda a imagem'), OU (b) você está apresentando um produto pela primeira vez e tem uma imagem disponível, OU (c) o cliente está prestes a confirmar a compra e ainda não viu o produto. NÃO use mais de 1 vez por produto na mesma conversa. NÃO use se o produto não tiver imagem cadastrada — nesse caso apenas descreva.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "string", description: "UUID do produto cuja imagem principal será enviada" },
+          caption: { type: "string", description: "Legenda curta opcional (até 300 chars) — ex: 'Esse é o Shampoo Calvície Zero'" },
+        },
+        required: ["product_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "request_human_handoff",
       description: "Encaminha a conversa para um vendedor humano e cria um ticket comercial. USE APENAS quando: (a) cliente pediu atacado/B2B/orçamento grande, (b) cliente quer negociar condição fora da política (desconto além do cupom, parcelamento extra), (c) cliente fez reclamação grave de pedido já realizado, (d) cliente está irritado/agressivo, (e) cliente compartilhou dado sensível que exige humano, (f) erro técnico repetido que você não consegue resolver. NUNCA USE para: saudação ('oi', 'olá', 'bom dia'), pergunta sobre catálogo, pedido de detalhe de produto, dúvida de preço/frete/cupom, intenção de compra. Para essas situações, use search_products / get_product_details / add_to_cart. Se o cliente só cumprimentou ou ainda não pediu nada concreto, NÃO chame esta tool — pergunte gentilmente o que ele procura.",
       parameters: {
