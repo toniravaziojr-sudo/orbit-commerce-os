@@ -2885,31 +2885,61 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         /\b(aqui é (a |o )?(assistente|atendente|da )|tudo bem\?|bom dia|boa tarde|boa noite)\b/i.test(m.content)
       );
 
+      // [ECO] Detectar o cumprimento exato usado pelo cliente para devolver na mesma forma
+      const lcGreet = (lastMessageContent || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      let echoHint = "";
+      let echoExample = "";
+      if (/\bbom dia\b/.test(lcGreet)) {
+        echoHint = `O cliente disse "Bom dia". COMECE devolvendo "Bom dia!" antes de se identificar.`;
+        echoExample = `"Bom dia! Aqui é da ${storeName}, como posso ajudar?"`;
+      } else if (/\bboa tarde\b/.test(lcGreet)) {
+        echoHint = `O cliente disse "Boa tarde". COMECE devolvendo "Boa tarde!" antes de se identificar.`;
+        echoExample = `"Boa tarde! Aqui é da ${storeName}, como posso ajudar?"`;
+      } else if (/\bboa noite\b/.test(lcGreet)) {
+        echoHint = `O cliente disse "Boa noite". COMECE devolvendo "Boa noite!" antes de se identificar.`;
+        echoExample = `"Boa noite! Aqui é da ${storeName}, como posso ajudar?"`;
+      } else if (/\bola\b/.test(lcGreet)) {
+        echoHint = `O cliente disse "Olá". COMECE devolvendo "Olá!" antes de se identificar.`;
+        echoExample = `"Olá! Aqui é da ${storeName}, como posso ajudar?"`;
+      } else if (/\b(oi|opa|eai|e ai|hey|hi|hello|alo|alo\?|tudo bem)\b/.test(lcGreet)) {
+        echoHint = `O cliente disse "Oi" (ou variação informal). COMECE devolvendo "Oi!" antes de se identificar.`;
+        echoExample = `"Oi! Aqui é da ${storeName}, como posso ajudar?"`;
+      } else {
+        echoHint = `O cliente cumprimentou de forma curta. COMECE com "Oi!" antes de se identificar.`;
+        echoExample = `"Oi! Aqui é da ${storeName}, como posso ajudar?"`;
+      }
+
       if (!botAlreadyGreeted) {
-        // PRIMEIRO CONTATO — saudação comercial completa: cumprimento + identificação da loja + oferta de ajuda
+        // PRIMEIRO CONTATO — saudação comercial completa: ECO do cumprimento + identificação da loja + oferta de ajuda
         aiMessages.push({
           role: "system",
           content: [
             "### ESTE É UM TURNO DE SAUDAÇÃO PURA — PRIMEIRO CONTATO",
             "",
-            `O cliente apenas cumprimentou (ex.: "oi", "olá", "bom dia"). É a primeira vez que você fala com ele nesta conversa. Período atual no Brasil: ${periodHint}.`,
+            `O cliente apenas cumprimentou. É a primeira vez que você fala com ele nesta conversa. Período atual no Brasil: ${periodHint}.`,
             `Nome da loja: ${storeName}.`,
             "",
-            "Sua resposta DEVE seguir EXATAMENTE este padrão de atendimento comercial brasileiro no WhatsApp:",
-            `[cumprimento curto] + [identificação da loja "${storeName}"] + [oferta de ajuda em uma pergunta curta]`,
+            "### REGRA OBRIGATÓRIA DO ECO DE CUMPRIMENTO",
+            echoHint,
+            "Devolver o cumprimento do cliente na MESMA forma é o que faz a conversa parecer humana. Pular essa etapa soa frio e robótico.",
+            "",
+            "Estrutura obrigatória da resposta:",
+            `[ECO do cumprimento do cliente] + [identificação da loja "${storeName}"] + [oferta de ajuda em uma pergunta curta]`,
             "",
             "Tudo em UMA frase só (no máximo duas frases curtas).",
             "",
-            "EXEMPLOS de respostas válidas (use como referência de estrutura, varie a forma — NÃO copie literal):",
+            "EXEMPLO ALINHADO AO QUE O CLIENTE DISSE AGORA:",
+            `- ${echoExample}`,
+            "",
+            "OUTROS EXEMPLOS de estrutura válida (varie a forma — NÃO copie literal):",
             `- "Oi, tudo bem? Aqui é a assistente virtual da ${storeName}, como posso ajudar?"`,
-            `- "Oi, tudo bem? Aqui é da ${storeName}, me diga em poucas palavras como posso ajudar."`,
-            `- "Oi, tudo bem? Aqui é da ${storeName}, como posso ajudar?"`,
-            `- "Olá, tudo bem? Aqui é a assistente virtual da ${storeName}. Em que posso te ajudar?"`,
-            `- "Bom dia! Aqui é da ${storeName}, como posso ajudar?" (se for manhã)`,
-            `- "Boa tarde! Aqui é da ${storeName}, me diz como posso ajudar." (se for tarde)`,
-            `- "Boa noite! Aqui é a assistente virtual da ${storeName}, em que posso ajudar?" (se for noite)`,
+            `- "Oi! Aqui é da ${storeName}, me diga em poucas palavras como posso ajudar."`,
+            `- "Olá! Tudo bem? Aqui é a assistente virtual da ${storeName}. Em que posso te ajudar?"`,
+            `- "Oi, boa tarde! Aqui é da ${storeName}, como posso ajudar?"`,
+            `- "Oi, boa noite! Aqui é a assistente virtual da ${storeName}, em que posso ajudar?"`,
             "",
             "PROIBIDO neste turno:",
+            "- Começar direto por \"Bom dia/Boa tarde/Boa noite\" SEM antes ecoar o cumprimento que o cliente usou (a não ser que o cliente já tenha dito exatamente isso).",
             "- Chamar qualquer ferramenta, citar produto, enviar imagem, escalar para humano.",
             "- Listar categorias, benefícios, dores ou nicho. Você AINDA não sabe o que ele quer.",
             "- Assumir o tema do cliente (NÃO diga \"para seu cuidado com X\", \"sobre seu tratamento de Y\", \"para combater Z\").",
