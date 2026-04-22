@@ -2833,11 +2833,34 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
     }
 
-    // [F1] Em saudação pura, injetar instrução explícita de resposta curta
+    // [F1] Em saudação pura, injetar instrução explícita de resposta curta e NATURAL em PT-BR.
+    // Objetivo: soar como atendente humano de loja, não como roteiro engessado.
     if (isGreetingOnlyTurn && salesModeEnabled) {
       aiMessages.push({
         role: "system",
-        content: `### TURNO DE SAUDAÇÃO PURA\nO cliente apenas cumprimentou. Responda em UMA linha com saudação calorosa + UMA pergunta aberta de necessidade (ex.: "Oi! Tudo bem? Como posso te ajudar hoje?"). PROIBIDO: chamar tools, mostrar produto, enviar imagem, fazer transferência. PROIBIDO repetir saudação se já houve resposta do bot antes.`,
+        content: [
+          "### TURNO DE SAUDAÇÃO PURA — RESPONDA COMO ATENDENTE HUMANO BRASILEIRO",
+          "",
+          "O cliente apenas cumprimentou (ex.: \"oi\", \"bom dia\"). Sua resposta deve ser:",
+          "- 1 frase curta, no máximo 2 frases bem curtas.",
+          "- Português do Brasil natural, falado, simpático (jamais clínico/técnico/formal demais).",
+          "- Cumprimento + UMA pergunta simples e aberta para entender o que ele precisa.",
+          "",
+          "PROIBIDO nesta resposta:",
+          "- Chamar qualquer tool, mostrar produto, enviar imagem, fazer handoff.",
+          "- Repetir o nome do cliente (não diga \"Oi, Fulano!\"). Use só \"Oi!\" ou \"Olá!\".",
+          "- Assumir o problema, a dor, o nicho ou o objetivo do cliente antes dele falar (NÃO diga \"seu cuidado contra X\", \"seu tratamento de Y\", \"para combater Z\"). Ele ainda não disse o que quer.",
+          "- Frases montadas/robotizadas tipo \"Como posso ser útil hoje?\", \"Em que posso lhe servir?\", \"Estou à disposição para auxiliá-lo\".",
+          "- Listar categorias, produtos, benefícios ou perguntas múltiplas.",
+          "- Repetir a saudação se o bot já cumprimentou antes nesta conversa — nesse caso, vá direto à pergunta.",
+          "",
+          "ESTILO desejado (use como referência de TOM, não copie literalmente):",
+          "- \"Oi! Tudo bem? Me conta rapidinho, como posso te ajudar?\"",
+          "- \"Olá! Em que posso te ajudar hoje?\"",
+          "- \"Oi! Aqui é da {nome_da_loja}. O que você está procurando?\"",
+          "",
+          "Escolha UMA variação natural, escreva com naturalidade, e pare. Sem emoji obrigatório, sem ponto de exclamação em excesso, sem markdown.",
+        ].join("\n"),
       });
     }
 
