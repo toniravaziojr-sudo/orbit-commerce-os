@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
   try {
     const params: SendMessageParams = await req.json();
-    const { tenant_id, phone, message, template_name, template_language, template_components, template_body, template_payload } = params;
+    const { tenant_id, phone, message, template_name, template_language, template_components, template_body, template_payload, image_url, image_caption } = params;
 
     if (!tenant_id || !phone) {
       return new Response(JSON.stringify({ success: false, error: "tenant_id e phone são obrigatórios" }), {
@@ -62,8 +62,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!message && !template_name) {
-      return new Response(JSON.stringify({ success: false, error: "message ou template_name é obrigatório" }), {
+    if (!message && !template_name && !image_url) {
+      return new Response(JSON.stringify({ success: false, error: "message, template_name ou image_url é obrigatório" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
