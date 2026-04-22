@@ -1992,6 +1992,113 @@ export type Database = {
           },
         ]
       }
+      ai_support_turn_log: {
+        Row: {
+          anti_greeting_blocked: boolean
+          anti_repetition_blocked: boolean
+          context_blocks_included: Json
+          conversation_id: string
+          created_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          history_messages_count: number
+          history_scope_validated: boolean
+          id: string
+          image_block_reason: string | null
+          image_send_blocked: boolean
+          intent_classified: string | null
+          last_user_message: string | null
+          last_user_message_at: string | null
+          message_id: string | null
+          metadata: Json
+          model_used: string | null
+          response_hash: string | null
+          response_length: number | null
+          sales_state_after: string | null
+          sales_state_before: string | null
+          sentiment: string | null
+          temperature_sent: number | null
+          tenant_id: string
+          tools_available: Json
+          tools_called: Json
+          turn_number: number
+          urgency: string | null
+        }
+        Insert: {
+          anti_greeting_blocked?: boolean
+          anti_repetition_blocked?: boolean
+          context_blocks_included?: Json
+          conversation_id: string
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          history_messages_count?: number
+          history_scope_validated?: boolean
+          id?: string
+          image_block_reason?: string | null
+          image_send_blocked?: boolean
+          intent_classified?: string | null
+          last_user_message?: string | null
+          last_user_message_at?: string | null
+          message_id?: string | null
+          metadata?: Json
+          model_used?: string | null
+          response_hash?: string | null
+          response_length?: number | null
+          sales_state_after?: string | null
+          sales_state_before?: string | null
+          sentiment?: string | null
+          temperature_sent?: number | null
+          tenant_id: string
+          tools_available?: Json
+          tools_called?: Json
+          turn_number?: number
+          urgency?: string | null
+        }
+        Update: {
+          anti_greeting_blocked?: boolean
+          anti_repetition_blocked?: boolean
+          context_blocks_included?: Json
+          conversation_id?: string
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          history_messages_count?: number
+          history_scope_validated?: boolean
+          id?: string
+          image_block_reason?: string | null
+          image_send_blocked?: boolean
+          intent_classified?: string | null
+          last_user_message?: string | null
+          last_user_message_at?: string | null
+          message_id?: string | null
+          metadata?: Json
+          model_used?: string | null
+          response_hash?: string | null
+          response_length?: number | null
+          sales_state_after?: string | null
+          sales_state_before?: string | null
+          sentiment?: string | null
+          temperature_sent?: number | null
+          tenant_id?: string
+          tools_available?: Json
+          tools_called?: Json
+          turn_number?: number
+          urgency?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_support_turn_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audience_sync_logs: {
         Row: {
           action: string
@@ -3628,18 +3735,24 @@ export type Database = {
           customer_id: string | null
           customer_name: string | null
           customer_phone: string | null
+          discovery_questions_asked: number
           external_conversation_id: string | null
           external_thread_id: string | null
           first_response_at: string | null
           id: string
+          images_sent_per_product: Json
           last_agent_message_at: string | null
+          last_bot_response_hash: string | null
           last_customer_message_at: string | null
+          last_intent: string | null
           last_message_at: string | null
           message_count: number | null
           metadata: Json | null
           order_id: string | null
           priority: number | null
           resolved_at: string | null
+          sales_state: string
+          sales_state_updated_at: string
           status: Database["public"]["Enums"]["conversation_status"] | null
           subject: string | null
           summary: string | null
@@ -3661,18 +3774,24 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          discovery_questions_asked?: number
           external_conversation_id?: string | null
           external_thread_id?: string | null
           first_response_at?: string | null
           id?: string
+          images_sent_per_product?: Json
           last_agent_message_at?: string | null
+          last_bot_response_hash?: string | null
           last_customer_message_at?: string | null
+          last_intent?: string | null
           last_message_at?: string | null
           message_count?: number | null
           metadata?: Json | null
           order_id?: string | null
           priority?: number | null
           resolved_at?: string | null
+          sales_state?: string
+          sales_state_updated_at?: string
           status?: Database["public"]["Enums"]["conversation_status"] | null
           subject?: string | null
           summary?: string | null
@@ -3694,18 +3813,24 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          discovery_questions_asked?: number
           external_conversation_id?: string | null
           external_thread_id?: string | null
           first_response_at?: string | null
           id?: string
+          images_sent_per_product?: Json
           last_agent_message_at?: string | null
+          last_bot_response_hash?: string | null
           last_customer_message_at?: string | null
+          last_intent?: string | null
           last_message_at?: string | null
           message_count?: number | null
           metadata?: Json | null
           order_id?: string | null
           priority?: number | null
           resolved_at?: string | null
+          sales_state?: string
+          sales_state_updated_at?: string
           status?: Database["public"]["Enums"]["conversation_status"] | null
           subject?: string | null
           summary?: string | null
