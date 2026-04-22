@@ -3701,14 +3701,24 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           handoff: shouldHandoff,
           handoff_reason: handoffReason || null,
           // [F2] Observabilidade da pipeline modular
-          pipeline_state_before: pipelineState,
+          pipeline_state_before: pipelineStateBefore,
+          pipeline_state_pre_routing: pipelineState,
           pipeline_state_after: nextPipelineState,
+          pre_transition_reason: preTransition.reason,
           state_transition_reason: transitionReason,
           state_transition_forced: shouldHandoff ? true : transition.forced,
           prompt_module_used: pipelinePromptModule,
           tools_exposed_for_state: pipelineToolsExposed,
           pipeline_blocked_tools: pipelineBlockedTools,
           discovery_turns_so_far: discoveryTurnsSoFar,
+          // [F2-FIX] Indicadores de saúde da resposta
+          empty_response_fallback_applied: emptyResponseFallbackApplied,
+          state_max_tokens: salesModeEnabled
+            ? (["greeting", "discovery"].includes(pipelineState) ? 800 : 4096)
+            : null,
+          state_reasoning_effort: salesModeEnabled
+            ? (["greeting", "discovery"].includes(pipelineState) ? "minimal" : "low")
+            : null,
         },
       });
       if (turnLogErr) {
