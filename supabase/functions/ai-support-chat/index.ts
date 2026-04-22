@@ -3193,11 +3193,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
               : (salesModeEnabled ? 0.3 : 0.7);
           }
 
-          // Add sales tools only in sales mode.
-          // Quando heurística disparou, FORÇAR tool-calling ("required") para
-          // impedir que o modelo responda apenas com texto repetido.
-          if (salesModeEnabled) {
-            requestBody.tools = SALES_TOOLS;
+          // [F2] Tools filtradas pelo estado comercial atual.
+          // Em greeting, pipelineFilteredTools fica vazio → não enviamos `tools`
+          // para a API (modelo não tenta chamar nada). Em outros estados, só as
+          // permitidas vão para o modelo.
+          if (salesModeEnabled && pipelineFilteredTools.length > 0) {
+            requestBody.tools = pipelineFilteredTools;
             requestBody.tool_choice = salesTriggerFired ? "required" : "auto";
             requestBody.parallel_tool_calls = false;
           }
@@ -3279,12 +3280,32 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         });
 
         // Execute each tool call and add results
+        const pipelineBlockedThisLoop: string[] = [];
         for (const toolCall of assistantMsg.tool_calls) {
           const fnName = toolCall.function.name;
           let fnArgs: Record<string, unknown> = {};
           try {
             fnArgs = JSON.parse(toolCall.function.arguments || "{}");
           } catch { /* empty args */ }
+
+          // [F2] Defesa em profundidade: bloqueia tool chamada fora do estado.
+          // Mesmo se o modelo "alucinar" uma tool, o servidor não executa.
+          if (!isToolAllowedInState(fnName, pipelineState)) {
+            console.warn(
+              `[ai-support-chat] [F2] tool ${fnName} BLOQUEADA — não permitida no estado ${pipelineState}`
+            );
+            pipelineBlockedThisLoop.push(fnName);
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: JSON.stringify({
+                blocked: true,
+                reason: `tool_not_allowed_in_state_${pipelineState}`,
+                allowed_tools: TOOLS_BY_STATE[pipelineState],
+              }),
+            } as any);
+            continue;
+          }
 
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
           const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
@@ -3313,6 +3334,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             tool_call_id: toolCall.id,
             content: result,
           } as any);
+        }
+        if (pipelineBlockedThisLoop.length > 0) {
+          (globalThis as any).__pipelineBlockedTools = pipelineBlockedThisLoop;
         }
 
         const isGpt5ModelFollow = usedModel.startsWith("gpt-5");
