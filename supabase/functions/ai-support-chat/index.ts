@@ -3050,6 +3050,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
           const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
+          toolsCalledThisTurn.push(fnName);
           console.log(`[ai-support-chat] Tool result (${fnName}):`, result.slice(0, 200));
 
           // BUG FIX: Se a tool de handoff comercial foi chamada com sucesso,
