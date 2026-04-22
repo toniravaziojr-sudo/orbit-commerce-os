@@ -289,7 +289,7 @@ Deno.serve(async (req) => {
       await supabase.from("whatsapp_messages").insert({
         tenant_id,
         recipient_phone: formattedPhone,
-        message_type: template_name ? "template" : "text",
+        message_type: messageType,
         message_content: visibleContent.substring(0, 500),
         status: "failed",
         error_message: sendResult.error.message,
@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
     await supabase.from("whatsapp_messages").insert({
       tenant_id,
       recipient_phone: formattedPhone,
-      message_type: template_name ? "template" : "text",
+      message_type: messageType,
       message_content: visibleContent.substring(0, 500),
       status: "sent",
       sent_at: new Date().toISOString(),
