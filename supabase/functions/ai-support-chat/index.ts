@@ -3215,20 +3215,37 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       let toolCallIterations = 0;
       const MAX_TOOL_ITERATIONS = 5;
 
+      // [F2-FIX] Parâmetros de saída e raciocínio por estado comercial.
+      // Em greeting/discovery, limitamos esforço de raciocínio (modelo não pode
+      // gastar todo o budget pensando) e damos saída suficiente para uma
+      // resposta curta e natural. Em estados mais complexos (decisão, checkout,
+      // detalhe, suporte), liberamos mais espaço para tools + texto final.
+      const SIMPLE_STATES: PipelineState[] = ["greeting", "discovery"];
+      const isSimpleState = salesModeEnabled && SIMPLE_STATES.includes(pipelineState);
+      const stateMaxTokens = isSimpleState ? 800 : 4096;
+      const stateReasoningEffort: "minimal" | "low" | "medium" = isSimpleState ? "minimal" : "low";
+
       // Outer loop for model fallback
       let modelFound = false;
       for (const modelToTry of modelsToTry) {
         try {
           const isGpt5Model = modelToTry.startsWith("gpt-5");
           const tokenParams = isGpt5Model 
-            ? { max_completion_tokens: 1024 }
-            : { max_tokens: 1024 };
+            ? { max_completion_tokens: stateMaxTokens }
+            : { max_tokens: stateMaxTokens };
 
           const requestBody: any = {
             model: modelToTry,
             messages: currentMessages,
             ...tokenParams,
           };
+
+          // [F2-FIX] Controle de reasoning para modelos gpt-5* (suportam o campo).
+          // Evita que o modelo consuma todo o orçamento de tokens em reasoning
+          // interno e devolva content vazio (finish_reason="length").
+          if (isGpt5Model) {
+            requestBody.reasoning = { effort: stateReasoningEffort };
+          }
 
           // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
           // silencioso para o default. Só enviar temperature em modelos não-gpt5.
