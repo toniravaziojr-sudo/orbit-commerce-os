@@ -1858,6 +1858,10 @@ async function executeSalesTool(
               code: result?.code || null,
             });
           }
+          // [F1] Marca cota usada (in-memory, persistido no fim do turno)
+          if (ctx.imagesSentMap) {
+            ctx.imagesSentMap[productId] = (ctx.imagesSentMap[productId] ?? 0) + 1;
+          }
           return JSON.stringify({
             success: true,
             sent: true,
