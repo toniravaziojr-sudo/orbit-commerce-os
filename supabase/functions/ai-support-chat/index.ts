@@ -620,6 +620,8 @@ async function executeSalesTool(
     customerEmail: string | null;
     customerName: string | null;
     lastUserMessage?: string | null;
+    salesState?: SalesState;
+    imagesSentMap?: Record<string, number>;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
@@ -2884,6 +2886,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         customerEmail: conversation.customer_email || null,
         customerName: conversation.customer_name || null,
         lastUserMessage: lastMessageContent || null,
+        salesState: currentSalesState,
+        imagesSentMap,
       };
 
       let response: Response | null = null;
@@ -2908,9 +2912,13 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             model: modelToTry,
             messages: currentMessages,
             ...tokenParams,
-            // Em sales mode, decisões de tool-calling devem ser determinísticas
-            temperature: salesModeEnabled ? 0.3 : 0.7,
           };
+
+          // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
+          // silencioso para o default. Só enviar temperature em modelos não-gpt5.
+          if (!isGpt5Model) {
+            requestBody.temperature = salesModeEnabled ? 0.3 : 0.7;
+          }
 
           // Add sales tools only in sales mode.
           // Quando heurística disparou, FORÇAR tool-calling ("required") para
@@ -3031,21 +3039,23 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           } as any);
         }
 
-        // Call OpenAI again with tool results
-        const isGpt5Model = usedModel.startsWith("gpt-5");
-        const tokenParams = isGpt5Model 
+        const isGpt5ModelFollow = usedModel.startsWith("gpt-5");
+        const tokenParamsFollow = isGpt5ModelFollow 
           ? { max_completion_tokens: 1024 }
           : { max_tokens: 1024 };
 
         const followUpBody: any = {
           model: usedModel,
           messages: currentMessages,
-          ...tokenParams,
-          temperature: 0.3,
+          ...tokenParamsFollow,
           tools: SALES_TOOLS,
           tool_choice: "auto",
           parallel_tool_calls: false,
         };
+        // [F1] Mesmo guard: gpt-5 não aceita temperature
+        if (!isGpt5ModelFollow) {
+          followUpBody.temperature = 0.3;
+        }
 
         const followUpResp = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
