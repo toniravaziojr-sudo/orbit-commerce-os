@@ -2639,9 +2639,54 @@ Cliente: "vocês entregam em SP?"
     // Guardrails estruturais (tools por estado, anti-loop, política de imagem,
     // máquina de estados) continuam acima de qualquer customização do tenant.
     // ============================================
-    const pipelineState: PipelineState = normalizeLegacyState(
+    const pipelineStateBefore: PipelineState = normalizeLegacyState(
       conversation.sales_state as string | null
     );
+
+    // [F2-FIX] PRÉ-TRANSIÇÃO: decidir o estado do TURNO ATUAL antes de montar o
+    // prompt e o filtro de tools. Sem isso, um cliente que diz "preciso de um
+    // shampoo" ficava preso em greeting (0 tools) e não conseguia avançar.
+    // Pós-tools, a transição é re-avaliada (linha ~3521) para refletir add_to_cart,
+    // checkout link gerado, etc.
+    let discoveryTurnsSoFarPre = 0;
+    if (pipelineStateBefore === "discovery") {
+      try {
+        const { data: recentTurns } = await supabase
+          .from("ai_support_turn_log")
+          .select("sales_state_after")
+          .eq("conversation_id", conversation_id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        for (const t of recentTurns || []) {
+          if (normalizeLegacyState(t.sales_state_after as string) === "discovery") {
+            discoveryTurnsSoFarPre++;
+          } else {
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [F2-FIX] discovery pre-counter failed:", e);
+      }
+    }
+
+    const preTransition = salesModeEnabled
+      ? decideNextState({
+          current: pipelineStateBefore,
+          message: lastMessageContent || "",
+          isPureGreeting: isGreetingOnlyTurn,
+          hasActiveCart: false, // ainda não sabemos
+          hasCheckoutLink: false,
+          toolsCalled: [], // tools só rodam depois
+          discoveryTurnsSoFar: discoveryTurnsSoFarPre,
+          productNamesHint: [],
+        })
+      : { next: pipelineStateBefore, reason: "no_change_keep_state" as const, forced: false };
+
+    const pipelineState: PipelineState = preTransition.next;
+    console.log(
+      `[ai-support-chat] [F2-FIX] pre-transition ${pipelineStateBefore} → ${pipelineState} (reason=${preTransition.reason})`
+    );
+
     let pipelinePromptModule: string | null = null;
     let pipelineToolsExposed: string[] = [];
     let pipelineFilteredTools: typeof SALES_TOOLS = [];
