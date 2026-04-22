@@ -7,7 +7,7 @@ import {
   TemplateRenderError,
 } from "../_shared/template-renderer.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.2.0"; // Phase 3 — strict template render + no [Template:] leakage
+const VERSION = "v1.3.0"; // Phase B Sales — image message support (image_url + caption)
 // ===========================================================
 
 const corsHeaders = {
@@ -26,6 +26,10 @@ interface SendMessageParams {
   template_body?: string;
   /** Optional payload of variables to render `template_body` with. */
   template_payload?: Record<string, unknown>;
+  /** Optional: when set, sends an image message (link + optional caption). Requires 24h window like text. */
+  image_url?: string;
+  /** Optional caption for the image (max 1024 chars per WhatsApp). */
+  image_caption?: string;
 }
 
 Deno.serve(async (req) => {
@@ -49,7 +53,7 @@ Deno.serve(async (req) => {
 
   try {
     const params: SendMessageParams = await req.json();
-    const { tenant_id, phone, message, template_name, template_language, template_components, template_body, template_payload } = params;
+    const { tenant_id, phone, message, template_name, template_language, template_components, template_body, template_payload, image_url, image_caption } = params;
 
     if (!tenant_id || !phone) {
       return new Response(JSON.stringify({ success: false, error: "tenant_id e phone são obrigatórios" }), {
@@ -58,8 +62,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!message && !template_name) {
-      return new Response(JSON.stringify({ success: false, error: "message ou template_name é obrigatório" }), {
+    if (!message && !template_name && !image_url) {
+      return new Response(JSON.stringify({ success: false, error: "message, template_name ou image_url é obrigatório" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -109,6 +113,7 @@ Deno.serve(async (req) => {
 
     // ============= 24h WINDOW AUDIT (Phase 5 — Sales Mode) =============
     // Mensagem livre (sem template) só pode ser enviada se houver mensagem do cliente nas últimas 24h.
+    // Aplica-se também a imagens livres (image_url sem template).
     if (!template_name) {
       try {
         const { data: convo } = await supabase
@@ -153,6 +158,7 @@ Deno.serve(async (req) => {
     // ============= PHASE 3: Render final visible content (no placeholders!) =============
     // For text messages: render `message` against `template_payload` if vars exist.
     // For template messages: render `template_body` to build the timeline-visible content.
+    // For image messages: visible content is the caption (or "[imagem]" placeholder).
     let visibleContent: string;
     try {
       if (template_name) {
@@ -166,6 +172,9 @@ Deno.serve(async (req) => {
         } else {
           visibleContent = "Mensagem do sistema";
         }
+      } else if (image_url) {
+        // Image path — caption is optional; do not render placeholders inside caption.
+        visibleContent = (image_caption ?? "").substring(0, 1024) || "[imagem]";
       } else {
         // Plain text path
         const rendered = renderTemplate(message ?? "", template_payload ?? {}, { mode: "strict" });
@@ -218,9 +227,10 @@ Deno.serve(async (req) => {
     console.log(`[meta-whatsapp-send][${traceId}] Sending to: ${formattedPhone}`);
 
     // Build message payload
+    const messageType: "template" | "image" | "text" = template_name ? "template" : (image_url ? "image" : "text");
     let messagePayload: any;
 
-    if (template_name) {
+    if (messageType === "template") {
       const templateObj: any = {
         name: template_name,
         language: { code: template_language || "pt_BR" },
@@ -234,6 +244,18 @@ Deno.serve(async (req) => {
         to: formattedPhone,
         type: "template",
         template: templateObj,
+      };
+    } else if (messageType === "image") {
+      const imageObj: any = { link: image_url };
+      if (image_caption && image_caption.length > 0) {
+        imageObj.caption = image_caption.substring(0, 1024);
+      }
+      messagePayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "image",
+        image: imageObj,
       };
     } else {
       messagePayload = {
@@ -267,7 +289,7 @@ Deno.serve(async (req) => {
       await supabase.from("whatsapp_messages").insert({
         tenant_id,
         recipient_phone: formattedPhone,
-        message_type: template_name ? "template" : "text",
+        message_type: messageType,
         message_content: visibleContent.substring(0, 500),
         status: "failed",
         error_message: sendResult.error.message,
@@ -283,7 +305,7 @@ Deno.serve(async (req) => {
     await supabase.from("whatsapp_messages").insert({
       tenant_id,
       recipient_phone: formattedPhone,
-      message_type: template_name ? "template" : "text",
+      message_type: messageType,
       message_content: visibleContent.substring(0, 500),
       status: "sent",
       sent_at: new Date().toISOString(),

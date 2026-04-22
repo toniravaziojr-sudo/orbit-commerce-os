@@ -195,6 +195,20 @@ NUNCA volte para DESCOBERTA se o cliente já passou desse estágio.
 Após \`add_to_cart\` bem-sucedido, CHAME \`recommend_related_products\` UMA vez para sugerir até 2 itens complementares. Sem pressão.
 
 ═══════════════════════════════════════════════════════
+🖼️ ENVIO DE IMAGEM DO PRODUTO
+═══════════════════════════════════════════════════════
+
+CHAME \`send_product_image\` quando:
+- O cliente pedir explicitamente foto/imagem ("me mostra", "tem foto?", "manda a imagem").
+- Você apresentar um produto pela primeira vez na conversa E o resultado de \`get_product_details\` trouxer \`primary_image\` não-nulo.
+- O cliente estiver prestes a confirmar a compra e ainda não viu o produto.
+
+REGRAS:
+- 1 imagem por produto por conversa. Se o servidor retornar \`already_sent: true\`, NÃO tente de novo.
+- Se o produto não tiver imagem cadastrada (tool retorna erro), apenas descreva em texto. NÃO peça desculpas longas.
+- A imagem é entregue pelo WhatsApp em separado. NO TEXTO da resposta, comente brevemente ("Te mandei a foto") e siga a venda.
+
+═══════════════════════════════════════════════════════
 👤 COLETA DE DADOS DO CLIENTE
 ═══════════════════════════════════════════════════════
 
@@ -488,6 +502,22 @@ const SALES_TOOLS = [
   {
     type: "function",
     function: {
+      name: "send_product_image",
+      description: "Envia a IMAGEM PRINCIPAL do produto pelo WhatsApp. USE quando: (a) o cliente pediu explicitamente uma foto/imagem ('me mostra', 'tem foto?', 'manda a imagem'), OU (b) você está apresentando um produto pela primeira vez e tem uma imagem disponível, OU (c) o cliente está prestes a confirmar a compra e ainda não viu o produto. NÃO use mais de 1 vez por produto na mesma conversa. NÃO use se o produto não tiver imagem cadastrada — nesse caso apenas descreva.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "string", description: "UUID do produto cuja imagem principal será enviada" },
+          caption: { type: "string", description: "Legenda curta opcional (até 300 chars) — ex: 'Esse é o Shampoo Calvície Zero'" },
+        },
+        required: ["product_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "request_human_handoff",
       description: "Encaminha a conversa para um vendedor humano e cria um ticket comercial. USE APENAS quando: (a) cliente pediu atacado/B2B/orçamento grande, (b) cliente quer negociar condição fora da política (desconto além do cupom, parcelamento extra), (c) cliente fez reclamação grave de pedido já realizado, (d) cliente está irritado/agressivo, (e) cliente compartilhou dado sensível que exige humano, (f) erro técnico repetido que você não consegue resolver. NUNCA USE para: saudação ('oi', 'olá', 'bom dia'), pergunta sobre catálogo, pedido de detalhe de produto, dúvida de preço/frete/cupom, intenção de compra. Para essas situações, use search_products / get_product_details / add_to_cart. Se o cliente só cumprimentou ou ainda não pediu nada concreto, NÃO chame esta tool — pergunte gentilmente o que ele procura.",
       parameters: {
@@ -598,13 +628,57 @@ async function executeSalesTool(
           .replace(/R\$\s*[\d.,]+/gi, "")
           .replace(/\s{2,}/g, " ")
           .trim();
-        // Quebra em tokens significativos (>=3 chars) para fallback flexível
         const tokens = query.split(/\s+/).filter(t => t.length >= 3).slice(0, 5);
+
+        const PRODUCT_COLS = "id, name, slug, price, compare_at_price, stock_quantity, status, has_variants, manage_stock, allow_backorder";
+
+        // Helper: enrich a list of products with primary image + kit indicator (single batched query each)
+        const enrichList = async (rows: any[]) => {
+          if (!rows?.length) return [];
+          const ids = rows.map(r => r.id);
+
+          // Primary image per product (is_primary first, then lowest sort_order)
+          const { data: imgRows } = await supabase
+            .from("product_images")
+            .select("product_id, url, alt_text, is_primary, sort_order")
+            .in("product_id", ids)
+            .order("is_primary", { ascending: false })
+            .order("sort_order", { ascending: true });
+
+          const primaryImageByProduct = new Map<string, { url: string; alt: string | null }>();
+          for (const img of (imgRows ?? [])) {
+            if (!primaryImageByProduct.has(img.product_id)) {
+              primaryImageByProduct.set(img.product_id, { url: img.url, alt: img.alt_text ?? null });
+            }
+          }
+
+          // Kit indicator (any component row makes it a kit)
+          const { data: compRows } = await supabase
+            .from("product_components")
+            .select("parent_product_id")
+            .in("parent_product_id", ids);
+          const kitSet = new Set((compRows ?? []).map((r: any) => r.parent_product_id));
+
+          return rows.map(p => ({
+            id: p.id,
+            name: p.name,
+            slug: p.slug,
+            price: p.price,
+            compare_at_price: p.compare_at_price,
+            stock: p.stock_quantity,
+            image: primaryImageByProduct.get(p.id)?.url ?? null,
+            image_alt: primaryImageByProduct.get(p.id)?.alt ?? null,
+            is_kit: kitSet.has(p.id),
+            has_variants: p.has_variants ?? false,
+            manage_stock: p.manage_stock ?? true,
+            allow_backorder: p.allow_backorder ?? false,
+          }));
+        };
 
         // 1) ILIKE direto pelo nome
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, slug, price, compare_at_price, stock_quantity, status, images, has_variants, manage_stock, allow_backorder")
+          .select(PRODUCT_COLS)
           .eq("tenant_id", tenantId)
           .eq("status", "active")
           .is("deleted_at", null)
@@ -612,42 +686,26 @@ async function executeSalesTool(
           .limit(limit);
 
         if (!error && data?.length) {
-          return JSON.stringify(data.map(p => ({
-            id: p.id, name: p.name, slug: p.slug,
-            price: p.price, compare_at_price: p.compare_at_price,
-            stock: p.stock_quantity,
-            image: (p.images as any)?.[0] || null,
-            has_variants: p.has_variants ?? false,
-            manage_stock: p.manage_stock ?? true,
-            allow_backorder: p.allow_backorder ?? false,
-          })));
+          return JSON.stringify(await enrichList(data));
         }
 
-        // 2) Fallback: busca por tokens combinados (OR), mantendo escopo do tenant
+        // 2) Fallback: busca por tokens combinados (OR)
         if (tokens.length) {
           const orFilter = tokens.map(t => `name.ilike.%${t}%`).join(",");
           const { data: tokenData } = await supabase
             .from("products")
-            .select("id, name, slug, price, compare_at_price, stock_quantity, status, images, has_variants, manage_stock, allow_backorder")
+            .select(PRODUCT_COLS)
             .eq("tenant_id", tenantId)
             .eq("status", "active")
             .is("deleted_at", null)
             .or(orFilter)
             .limit(limit);
           if (tokenData?.length) {
-            return JSON.stringify(tokenData.map(p => ({
-              id: p.id, name: p.name, slug: p.slug,
-              price: p.price, compare_at_price: p.compare_at_price,
-              stock: p.stock_quantity,
-              image: (p.images as any)?.[0] || null,
-              has_variants: p.has_variants ?? false,
-              manage_stock: p.manage_stock ?? true,
-              allow_backorder: p.allow_backorder ?? false,
-            })));
+            return JSON.stringify(await enrichList(tokenData));
           }
         }
 
-        // 3) Fallback final: RPC fuzzy SEM excluir kits (catálogo do tenant pode ser todo "kit")
+        // 3) Fallback final: RPC fuzzy SEM excluir kits
         const { data: fuzzyData } = await (supabase as any).rpc("search_products_fuzzy", {
           p_tenant_id: tenantId,
           p_query: query || rawQuery,
@@ -655,11 +713,16 @@ async function executeSalesTool(
           p_exclude_kits: false,
         });
         if (fuzzyData?.length) {
-          return JSON.stringify(fuzzyData.map((p: any) => ({
-            id: p.id, name: p.name, price: p.price, stock: p.stock_quantity,
-            image: p.images?.[0] || null,
-            has_variants: p.has_variants ?? false,
-          })));
+          // Fuzzy returns a different shape — refetch canonical rows and enrich
+          const fuzzyIds = fuzzyData.map((p: any) => p.id);
+          const { data: refetched } = await supabase
+            .from("products")
+            .select(PRODUCT_COLS)
+            .in("id", fuzzyIds)
+            .eq("tenant_id", tenantId);
+          if (refetched?.length) {
+            return JSON.stringify(await enrichList(refetched));
+          }
         }
 
         return JSON.stringify({ message: "Nenhum produto encontrado para a busca.", query: query || rawQuery });
@@ -669,22 +732,38 @@ async function executeSalesTool(
         const productId = args.product_id as string;
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, slug, description, price, compare_at_price, stock_quantity, status, images, weight, sku, has_variants, manage_stock, allow_backorder")
+          .select("id, name, slug, description, short_description, price, compare_at_price, promotion_start_date, promotion_end_date, stock_quantity, status, weight, width, height, depth, sku, gtin, brand, has_variants, manage_stock, allow_backorder, free_shipping, avg_rating, review_count")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
-          .single();
+          .maybeSingle();
 
-        if (error || !data) return JSON.stringify({ error: "Produto não encontrado" });
+        if (error) {
+          console.error(`[ai-support-chat] get_product_details DB error:`, error);
+          return JSON.stringify({ success: false, error: "Falha ao consultar o produto", db_error: error.message });
+        }
+        if (!data) return JSON.stringify({ success: false, error: "Produto não encontrado", hint: "Use search_products primeiro." });
 
-        // If has variants, also bring summary
+        // Primary image (is_primary first, then sort_order)
+        const { data: imgRows } = await supabase
+          .from("product_images")
+          .select("url, alt_text, is_primary, sort_order")
+          .eq("product_id", productId)
+          .order("is_primary", { ascending: false })
+          .order("sort_order", { ascending: true })
+          .limit(1);
+        const primaryImage = imgRows?.[0] ? { url: imgRows[0].url, alt: imgRows[0].alt_text ?? null } : null;
+
+        // Variants summary + list
         let variantsSummary: any = null;
+        let variantsList: any[] = [];
         if (data.has_variants) {
           const { data: variants } = await supabase
             .from("product_variants")
-            .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
+            .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku, weight")
             .eq("product_id", productId)
-            .eq("is_active", true);
+            .eq("is_active", true)
+            .order("position", { ascending: true });
           if (variants?.length) {
             const prices = variants.map((v: any) => Number(v.price ?? data.price)).filter((n: number) => !isNaN(n));
             const totalStock = variants.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0);
@@ -693,14 +772,52 @@ async function executeSalesTool(
               price_min: prices.length ? Math.min(...prices) : data.price,
               price_max: prices.length ? Math.max(...prices) : data.price,
               total_stock: totalStock,
-              option_names: [
-                variants[0]?.option1_name,
-                variants[0]?.option2_name,
-                variants[0]?.option3_name,
-              ].filter(Boolean),
+              option_names: [variants[0]?.option1_name, variants[0]?.option2_name, variants[0]?.option3_name].filter(Boolean),
             };
+            variantsList = variants.map((v: any) => ({
+              variant_id: v.id,
+              label: [
+                v.option1_value && `${v.option1_name}: ${v.option1_value}`,
+                v.option2_value && `${v.option2_name}: ${v.option2_value}`,
+                v.option3_value && `${v.option3_name}: ${v.option3_value}`,
+              ].filter(Boolean).join(" / ") || v.name,
+              sku: v.sku,
+              price: Number(v.price ?? data.price),
+              stock: v.stock_quantity ?? 0,
+              weight: v.weight,
+            }));
           }
         }
+
+        // Kit composition (if any product_components)
+        const { data: compRows } = await supabase
+          .from("product_components")
+          .select("component_product_id, quantity, sort_order, products:component_product_id (id, name, sku, weight)")
+          .eq("parent_product_id", productId)
+          .order("sort_order", { ascending: true });
+        const components = (compRows ?? []).map((c: any) => ({
+          component_product_id: c.component_product_id,
+          name: c.products?.name ?? null,
+          sku: c.products?.sku ?? null,
+          unit_weight: c.products?.weight ?? null,
+          quantity: Number(c.quantity ?? 1),
+        }));
+        const isKit = components.length > 0;
+
+        // Categories
+        const { data: catRows } = await supabase
+          .from("product_categories")
+          .select("categories:category_id (id, name)")
+          .eq("product_id", productId);
+        const categories = (catRows ?? []).map((r: any) => r.categories?.name).filter(Boolean);
+
+        // Promotion active?
+        const now = new Date();
+        const promoActive = !!(
+          data.compare_at_price &&
+          (!data.promotion_start_date || new Date(data.promotion_start_date) <= now) &&
+          (!data.promotion_end_date || new Date(data.promotion_end_date) >= now)
+        );
 
         const baseStock = data.stock_quantity ?? 0;
         const available = data.status === "active" && (
@@ -710,17 +827,38 @@ async function executeSalesTool(
         );
 
         return JSON.stringify({
-          id: data.id, name: data.name, slug: data.slug,
-          description: data.description?.slice(0, 500),
-          price: data.price, compare_at_price: data.compare_at_price,
+          success: true,
+          id: data.id,
+          name: data.name,
+          slug: data.slug,
+          description: data.description ?? null,
+          short_description: data.short_description ?? null,
+          brand: data.brand ?? null,
+          sku: data.sku ?? null,
+          gtin: data.gtin ?? null,
+          price: data.price,
+          compare_at_price: data.compare_at_price,
+          promotion_active: promoActive,
           stock: baseStock,
           available,
-          images: (data.images as any[])?.slice(0, 3) || [],
-          sku: data.sku, weight: data.weight,
+          free_shipping: data.free_shipping ?? false,
+          avg_rating: data.avg_rating ?? null,
+          review_count: data.review_count ?? 0,
+          physical: {
+            weight_g: data.weight,
+            width_cm: data.width,
+            height_cm: data.height,
+            depth_cm: data.depth,
+          },
+          primary_image: primaryImage,
+          categories,
           has_variants: data.has_variants ?? false,
           manage_stock: data.manage_stock ?? true,
           allow_backorder: data.allow_backorder ?? false,
           variants_summary: variantsSummary,
+          variants: variantsList,
+          is_kit: isKit,
+          kit_components: components,
         });
       }
 
@@ -1058,7 +1196,7 @@ async function executeSalesTool(
           if (offer.offer_product_id) {
             const { data: offerProduct } = await supabase
               .from("products")
-              .select("id, name, price, images")
+              .select("id, name, price")
               .eq("id", offer.offer_product_id)
               .single();
 
@@ -1545,11 +1683,12 @@ async function executeSalesTool(
         if (categoryIds.length) {
           const { data: rel } = await supabase
             .from("product_categories")
-            .select("product_id, products!inner(id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder, deleted_at, tenant_id, images)")
+            .select("product_id, products!inner(id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder, deleted_at, tenant_id)")
             .in("category_id", categoryIds)
             .neq("product_id", mainProductId);
 
           const seen = new Set<string>();
+          const candidates: any[] = [];
           for (const row of (rel ?? [])) {
             const p: any = row.products;
             if (!p) continue;
@@ -1562,15 +1701,32 @@ async function executeSalesTool(
             const available = !p.manage_stock || p.allow_backorder || p.has_variants || stock > 0;
             if (!available) continue;
             seen.add(p.id);
-            related.push({
-              id: p.id,
-              name: p.name,
-              price: Number(p.price),
-              has_variants: p.has_variants ?? false,
-              image: (p.images as any)?.[0] || null,
-            });
-            if (related.length >= limit) break;
+            candidates.push(p);
+            if (candidates.length >= limit) break;
           }
+
+          // Fetch primary images in a single batch
+          const candidateIds = candidates.map(c => c.id);
+          const imageMap = new Map<string, string>();
+          if (candidateIds.length) {
+            const { data: imgRows } = await supabase
+              .from("product_images")
+              .select("product_id, url, is_primary, sort_order")
+              .in("product_id", candidateIds)
+              .order("is_primary", { ascending: false })
+              .order("sort_order", { ascending: true });
+            for (const img of (imgRows ?? [])) {
+              if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, img.url);
+            }
+          }
+
+          related = candidates.map(p => ({
+            id: p.id,
+            name: p.name,
+            price: Number(p.price),
+            has_variants: p.has_variants ?? false,
+            image: imageMap.get(p.id) ?? null,
+          }));
         }
 
         return JSON.stringify({
@@ -1578,6 +1734,100 @@ async function executeSalesTool(
           based_on: mainProductId,
           message: related.length === 0 ? "Sem recomendações coerentes encontradas no catálogo." : null,
         });
+      }
+
+      case "send_product_image": {
+        const productId = args.product_id as string;
+        const caption = (args.caption as string | undefined)?.substring(0, 300) ?? "";
+
+        if (!productId) {
+          return JSON.stringify({ success: false, error: "product_id é obrigatório" });
+        }
+        if (!customerPhone) {
+          return JSON.stringify({ success: false, error: "Sem telefone do cliente — não é possível enviar imagem." });
+        }
+
+        // Look up product (must belong to tenant)
+        const { data: product, error: prodErr } = await supabase
+          .from("products")
+          .select("id, name, status, deleted_at, tenant_id")
+          .eq("id", productId)
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
+        if (prodErr || !product || product.deleted_at) {
+          return JSON.stringify({ success: false, error: "Produto não encontrado ou indisponível." });
+        }
+
+        // Primary image
+        const { data: imgRows } = await supabase
+          .from("product_images")
+          .select("url, alt_text, is_primary, sort_order")
+          .eq("product_id", productId)
+          .order("is_primary", { ascending: false })
+          .order("sort_order", { ascending: true })
+          .limit(1);
+        const primary = imgRows?.[0];
+        if (!primary?.url) {
+          return JSON.stringify({
+            success: false,
+            error: "Este produto ainda não tem imagem cadastrada. Descreva-o em texto.",
+          });
+        }
+
+        // Anti-spam: at most 1 image per product per conversation
+        const { data: alreadySent } = await supabase
+          .from("whatsapp_messages")
+          .select("id, message_content")
+          .eq("tenant_id", tenantId)
+          .eq("recipient_phone", customerPhone)
+          .eq("message_type", "image")
+          .eq("status", "sent")
+          .ilike("message_content", `%${product.name}%`)
+          .limit(1);
+        if (alreadySent && alreadySent.length > 0) {
+          return JSON.stringify({
+            success: false,
+            error: "A imagem deste produto já foi enviada nesta conversa. Não envie de novo.",
+            already_sent: true,
+          });
+        }
+
+        // Send via meta-whatsapp-send
+        try {
+          const sendUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/meta-whatsapp-send`;
+          const resp = await fetch(sendUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              tenant_id: tenantId,
+              phone: customerPhone,
+              message: product.name,
+              image_url: primary.url,
+              image_caption: caption || product.name,
+            }),
+          });
+          const result = await resp.json();
+          if (!result?.success) {
+            return JSON.stringify({
+              success: false,
+              error: result?.error || "Falha ao enviar imagem",
+              code: result?.code || null,
+            });
+          }
+          return JSON.stringify({
+            success: true,
+            sent: true,
+            product_name: product.name,
+            image_url: primary.url,
+            message: "Imagem enviada ao cliente. NÃO duplique no texto da resposta — apenas comente brevemente.",
+          });
+        } catch (e: any) {
+          console.error("[send_product_image] error:", e);
+          return JSON.stringify({ success: false, error: "Erro técnico ao enviar imagem", detail: e?.message });
+        }
       }
 
       case "request_human_handoff": {

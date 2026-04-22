@@ -185,3 +185,4 @@ A Meta exige que mensagens livres (sem template aprovado) só sejam enviadas se 
 - `docs/REGRAS-DO-SISTEMA.md` — regras macro do sistema.
 - `mem://features/ai/sales-mode-conversational-commerce` — memória operacional resumida.
 - `mem://infrastructure/whatsapp-meta-integration-standard-v3-2` — padrão UI/arquitetura WhatsApp.
+| 2026-04-22 | v1.1 | Fase B (Pipeline básica de produto): get_product_details enriquecido (descrição completa, peso/dim, kit_components, primary_image, categorias, variantes); search_products com primary_image+is_kit; recommend_related_products usa product_images em batch; nova tool send_product_image (1/produto/conversa); meta-whatsapp-send v1.3.0 aceita image_url+caption respeitando janela 24h; correção de causa raiz: 6 SELECTs liam coluna `images` inexistente em products (erro 42703 → handoff técnico indevido). |
