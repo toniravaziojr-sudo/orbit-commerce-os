@@ -2626,15 +2626,45 @@ Cliente: "vocês entregam em SP?"
 - Se não souber algo (preço, estoque, prazo, política), busque com as ferramentas. Nunca invente.
 - Se não conseguir resolver, escale para um atendente humano de forma natural ("Vou te passar pra alguém da equipe que resolve isso, tá?").`;
 
-    // Channel-specific override
+    // Channel-specific override (mantém compatibilidade com prompt manual de canal)
     if (channelConfig?.system_prompt_override) {
       systemPrompt = channelConfig.system_prompt_override;
     }
 
-    // Add guardrails — sales mode or informative mode
+    // ============================================
+    // [F2] PIPELINE BÁSICA — PROMPT POR ESTADO COMERCIAL
+    // Quando sales_mode_enabled = true, a pipeline estrutural F2 vira a BASE
+    // do prompt. O texto vindo do tenant (effectiveConfig.system_prompt) e do
+    // canal (custom_instructions) passa a COMPLEMENTAR — não substitui mais.
+    // Guardrails estruturais (tools por estado, anti-loop, política de imagem,
+    // máquina de estados) continuam acima de qualquer customização do tenant.
+    // ============================================
+    const pipelineState: PipelineState = normalizeLegacyState(
+      conversation.sales_state as string | null
+    );
+    let pipelinePromptModule: string | null = null;
+    let pipelineToolsExposed: string[] = [];
+    let pipelineFilteredTools: typeof SALES_TOOLS = [];
+
     if (salesModeEnabled) {
-      systemPrompt += SALES_AGENT_PROMPT;
-      console.log("[ai-support-chat] Sales mode ENABLED — injecting sales tools and prompt");
+      const routed = buildPromptForState({
+        state: pipelineState,
+        allTools: SALES_TOOLS,
+        tenant: {
+          systemPromptComplement: effectiveConfig.system_prompt || null,
+          channelCustomInstructions: channelConfig?.custom_instructions || null,
+          personalityName,
+          storeName,
+        },
+        contextualBlocks: [],
+      });
+      systemPrompt = routed.systemPrompt;
+      pipelineFilteredTools = routed.tools;
+      pipelineToolsExposed = routed.toolsExposed;
+      pipelinePromptModule = routed.promptModule;
+      console.log(
+        `[ai-support-chat] [F2] state=${pipelineState} module=${routed.promptModule} tools_exposed=${routed.toolsExposed.length}`
+      );
     } else {
       systemPrompt += INFORMATIVE_GUARDRAILS;
     }
