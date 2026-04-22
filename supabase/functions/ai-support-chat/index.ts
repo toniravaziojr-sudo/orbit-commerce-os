@@ -1922,22 +1922,35 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get recent messages for context
-    const { data: messages } = await supabase
+    // [Fase A] Janela de histórico CORRIGIDA:
+    // Antes: .order(asc).limit(20) → pegava os 20 PRIMEIROS turnos. Em conversas
+    // longas, a mensagem atual do cliente NUNCA entrava no contexto, e a IA
+    // operava sobre histórico antigo (loop de onboarding).
+    // Agora: pega os 30 mais RECENTES (desc) + reordena ascendente em memória,
+    // garantindo que o turno atual esteja sempre incluído.
+    const HISTORY_WINDOW = 30;
+    const { data: messagesDesc } = await supabase
       .from("messages")
       .select("*")
       .eq("conversation_id", conversation_id)
-      .order("created_at", { ascending: true })
-      .limit(20);
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(HISTORY_WINDOW);
 
-    const lastCustomerMessage = messages?.filter(m => m.sender_type === "customer").pop();
+    const messages = (messagesDesc ?? []).slice().reverse();
+
+    // Última mensagem REAL do cliente (último item de sender_type=customer na
+    // ordem cronológica final, ignorando notas internas).
+    const lastCustomerMessage = [...messages]
+      .filter(m => m.sender_type === "customer" && !m.is_internal && !m.is_note)
+      .pop();
     const lastMessageContent = lastCustomerMessage?.content || "";
-    
-    // Build conversation context for classification
+
+    // Build conversation context for classification (últimos 5 reais)
     const conversationContext = messages
-      ?.slice(-5)
+      .slice(-5)
       .map(m => `${m.sender_type === "customer" ? "Cliente" : "Atendente"}: ${m.content?.slice(0, 200)}`)
-      .join("\n") || "";
+      .join("\n");
 
     // ============================================
     // STEP 1: INTENT CLASSIFICATION (Tool Calling)
