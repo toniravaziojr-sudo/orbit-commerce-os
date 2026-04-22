@@ -2639,9 +2639,54 @@ Cliente: "vocês entregam em SP?"
     // Guardrails estruturais (tools por estado, anti-loop, política de imagem,
     // máquina de estados) continuam acima de qualquer customização do tenant.
     // ============================================
-    const pipelineState: PipelineState = normalizeLegacyState(
+    const pipelineStateBefore: PipelineState = normalizeLegacyState(
       conversation.sales_state as string | null
     );
+
+    // [F2-FIX] PRÉ-TRANSIÇÃO: decidir o estado do TURNO ATUAL antes de montar o
+    // prompt e o filtro de tools. Sem isso, um cliente que diz "preciso de um
+    // shampoo" ficava preso em greeting (0 tools) e não conseguia avançar.
+    // Pós-tools, a transição é re-avaliada (linha ~3521) para refletir add_to_cart,
+    // checkout link gerado, etc.
+    let discoveryTurnsSoFarPre = 0;
+    if (pipelineStateBefore === "discovery") {
+      try {
+        const { data: recentTurns } = await supabase
+          .from("ai_support_turn_log")
+          .select("sales_state_after")
+          .eq("conversation_id", conversation_id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        for (const t of recentTurns || []) {
+          if (normalizeLegacyState(t.sales_state_after as string) === "discovery") {
+            discoveryTurnsSoFarPre++;
+          } else {
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [F2-FIX] discovery pre-counter failed:", e);
+      }
+    }
+
+    const preTransition = salesModeEnabled
+      ? decideNextState({
+          current: pipelineStateBefore,
+          message: lastMessageContent || "",
+          isPureGreeting: isGreetingOnlyTurn,
+          hasActiveCart: false, // ainda não sabemos
+          hasCheckoutLink: false,
+          toolsCalled: [], // tools só rodam depois
+          discoveryTurnsSoFar: discoveryTurnsSoFarPre,
+          productNamesHint: [],
+        })
+      : { next: pipelineStateBefore, reason: "no_change_keep_state" as const, forced: false };
+
+    const pipelineState: PipelineState = preTransition.next;
+    console.log(
+      `[ai-support-chat] [F2-FIX] pre-transition ${pipelineStateBefore} → ${pipelineState} (reason=${preTransition.reason})`
+    );
+
     let pipelinePromptModule: string | null = null;
     let pipelineToolsExposed: string[] = [];
     let pipelineFilteredTools: typeof SALES_TOOLS = [];
@@ -3139,6 +3184,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     const toolsCalledThisTurn: string[] = [];
     // [F2] Tools que o modelo tentou chamar mas foram bloqueadas pelo filtro de estado
     const pipelineBlockedTools: string[] = [];
+    // [F2-FIX] Sinaliza se o fallback de resposta vazia foi acionado (vai para o log)
+    let emptyResponseFallbackApplied = false;
 
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
@@ -3170,20 +3217,37 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       let toolCallIterations = 0;
       const MAX_TOOL_ITERATIONS = 5;
 
+      // [F2-FIX] Parâmetros de saída e raciocínio por estado comercial.
+      // Em greeting/discovery, limitamos esforço de raciocínio (modelo não pode
+      // gastar todo o budget pensando) e damos saída suficiente para uma
+      // resposta curta e natural. Em estados mais complexos (decisão, checkout,
+      // detalhe, suporte), liberamos mais espaço para tools + texto final.
+      const SIMPLE_STATES: PipelineState[] = ["greeting", "discovery"];
+      const isSimpleState = salesModeEnabled && SIMPLE_STATES.includes(pipelineState);
+      const stateMaxTokens = isSimpleState ? 800 : 4096;
+      const stateReasoningEffort: "minimal" | "low" | "medium" = isSimpleState ? "minimal" : "low";
+
       // Outer loop for model fallback
       let modelFound = false;
       for (const modelToTry of modelsToTry) {
         try {
           const isGpt5Model = modelToTry.startsWith("gpt-5");
           const tokenParams = isGpt5Model 
-            ? { max_completion_tokens: 1024 }
-            : { max_tokens: 1024 };
+            ? { max_completion_tokens: stateMaxTokens }
+            : { max_tokens: stateMaxTokens };
 
           const requestBody: any = {
             model: modelToTry,
             messages: currentMessages,
             ...tokenParams,
           };
+
+          // [F2-FIX] Controle de reasoning para modelos gpt-5* (suportam o campo).
+          // Evita que o modelo consuma todo o orçamento de tokens em reasoning
+          // interno e devolva content vazio (finish_reason="length").
+          if (isGpt5Model) {
+            requestBody.reasoning = { effort: stateReasoningEffort };
+          }
 
           // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
           // silencioso para o default. Só enviar temperature em modelos não-gpt5.
@@ -3343,8 +3407,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
         const isGpt5ModelFollow = usedModel.startsWith("gpt-5");
         const tokenParamsFollow = isGpt5ModelFollow 
-          ? { max_completion_tokens: 1024 }
-          : { max_tokens: 1024 };
+          ? { max_completion_tokens: stateMaxTokens }
+          : { max_tokens: stateMaxTokens };
 
         const followUpBody: any = {
           model: usedModel,
@@ -3355,6 +3419,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           tool_choice: pipelineFilteredTools.length > 0 ? "auto" : undefined,
           parallel_tool_calls: false,
         };
+        // [F2-FIX] Mesmo controle de reasoning no follow-up
+        if (isGpt5ModelFollow) {
+          followUpBody.reasoning = { effort: stateReasoningEffort };
+        }
         // [F1] Mesmo guard: gpt-5 não aceita temperature
         if (!isGpt5ModelFollow) {
           followUpBody.temperature = 0.3;
@@ -3384,11 +3452,53 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
       aiContent = aiData.choices?.[0]?.message?.content;
 
-      if (!aiContent) {
-        console.error("[ai-support-chat] No content in AI response:", aiData);
-        return new Response(
-          JSON.stringify({ success: false, error: "AI did not return a response", code: "EMPTY_RESPONSE" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      // [F2-FIX] Observabilidade: log de consumo excessivo de reasoning
+      // (modelos gpt-5*). Se mais de 50% do completion budget foi para
+      // reasoning interno, logamos para podermos ajustar effort por estado.
+      try {
+        const compTokens = aiData.usage?.completion_tokens || 0;
+        const reasoningTokens =
+          aiData.usage?.completion_tokens_details?.reasoning_tokens || 0;
+        if (compTokens > 0 && reasoningTokens / compTokens >= 0.5) {
+          console.warn(
+            `[ai-support-chat] [F2-FIX] reasoning excessivo state=${pipelineState} ` +
+            `model=${usedModel} reasoning=${reasoningTokens}/${compTokens} ` +
+            `(${Math.round((reasoningTokens / compTokens) * 100)}%) ` +
+            `effort=${stateReasoningEffort} max=${stateMaxTokens}`
+          );
+        }
+      } catch { /* ignore */ }
+
+      // [F2-FIX] Fallback de resposta vazia. Antes, devolvíamos erro e o cliente
+      // ficava sem resposta no WhatsApp. Agora, logamos o motivo (finish_reason,
+      // tokens) e geramos uma mensagem curta natural por estado, para não perder
+      // o turno. O log fica em ai_support_turn_log via fields existentes.
+      if (!aiContent || !aiContent.trim()) {
+        const finishReason = aiData.choices?.[0]?.finish_reason || "unknown";
+        const compTokens = aiData.usage?.completion_tokens || 0;
+        const reasoningTokens =
+          aiData.usage?.completion_tokens_details?.reasoning_tokens || 0;
+        console.error(
+          `[ai-support-chat] [F2-FIX] RESPOSTA VAZIA state=${pipelineState} ` +
+          `model=${usedModel} finish=${finishReason} ` +
+          `completion=${compTokens} reasoning=${reasoningTokens} ` +
+          `max_tokens=${stateMaxTokens} effort=${stateReasoningEffort}`
+        );
+
+        const FALLBACK_BY_STATE: Record<PipelineState, string> = {
+          greeting:        "Oi! Tudo bem? Me conta o que você está procurando.",
+          discovery:       "Deixa eu entender melhor. Você procura algo específico ou quer ver opções?",
+          recommendation:  "Só um instante, deixa eu ver as opções aqui pra você.",
+          product_detail:  "Deixa eu confirmar essa informação aqui pra você, um segundo.",
+          decision:        "Perfeito, vou organizar isso pra você. Me dá um minutinho.",
+          checkout_assist: "Deixa eu verificar o seu carrinho e já te respondo.",
+          support:         "Entendi. Deixa eu olhar isso pra você, um instante.",
+          handoff:         "Vou te passar pra alguém da equipe que resolve isso, tá?",
+        };
+        aiContent = FALLBACK_BY_STATE[pipelineState] || "Só um instante, já te respondo.";
+        emptyResponseFallbackApplied = true;
+        console.warn(
+          `[ai-support-chat] [F2-FIX] fallback aplicado state=${pipelineState} text="${aiContent}"`
         );
       }
     }
@@ -3591,14 +3701,24 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           handoff: shouldHandoff,
           handoff_reason: handoffReason || null,
           // [F2] Observabilidade da pipeline modular
-          pipeline_state_before: pipelineState,
+          pipeline_state_before: pipelineStateBefore,
+          pipeline_state_pre_routing: pipelineState,
           pipeline_state_after: nextPipelineState,
+          pre_transition_reason: preTransition.reason,
           state_transition_reason: transitionReason,
           state_transition_forced: shouldHandoff ? true : transition.forced,
           prompt_module_used: pipelinePromptModule,
           tools_exposed_for_state: pipelineToolsExposed,
           pipeline_blocked_tools: pipelineBlockedTools,
           discovery_turns_so_far: discoveryTurnsSoFar,
+          // [F2-FIX] Indicadores de saúde da resposta
+          empty_response_fallback_applied: emptyResponseFallbackApplied,
+          state_max_tokens: salesModeEnabled
+            ? (["greeting", "discovery"].includes(pipelineState) ? 800 : 4096)
+            : null,
+          state_reasoning_effort: salesModeEnabled
+            ? (["greeting", "discovery"].includes(pipelineState) ? "minimal" : "low")
+            : null,
         },
       });
       if (turnLogErr) {
