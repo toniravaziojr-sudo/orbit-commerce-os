@@ -3405,8 +3405,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
         const isGpt5ModelFollow = usedModel.startsWith("gpt-5");
         const tokenParamsFollow = isGpt5ModelFollow 
-          ? { max_completion_tokens: 1024 }
-          : { max_tokens: 1024 };
+          ? { max_completion_tokens: stateMaxTokens }
+          : { max_tokens: stateMaxTokens };
 
         const followUpBody: any = {
           model: usedModel,
@@ -3417,6 +3417,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           tool_choice: pipelineFilteredTools.length > 0 ? "auto" : undefined,
           parallel_tool_calls: false,
         };
+        // [F2-FIX] Mesmo controle de reasoning no follow-up
+        if (isGpt5ModelFollow) {
+          followUpBody.reasoning = { effort: stateReasoningEffort };
+        }
         // [F1] Mesmo guard: gpt-5 não aceita temperature
         if (!isGpt5ModelFollow) {
           followUpBody.temperature = 0.3;
