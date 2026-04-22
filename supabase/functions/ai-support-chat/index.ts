@@ -3217,16 +3217,74 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       );
     }
 
-    // Update conversation status
+    // [F1] Calcula próximo estado comercial (servidor, não modelo)
+    const intentForState: Intent =
+      shouldHandoff ? "complaint" :
+      isGreetingOnlyTurn ? "greeting" :
+      salesIntentFlags.buy ? "buy" :
+      salesIntentFlags.details || salesIntentFlags.naming ? "question" :
+      (intentClassification?.intent === "complaint" ? "complaint" : "other");
+
+    const toolsCalledArr = (typeof toolsCalledThisTurn !== "undefined" ? toolsCalledThisTurn : []) as string[];
+    const hasActiveCart = toolsCalledArr.includes("add_to_cart");
+    const hasCheckout = toolsCalledArr.includes("generate_checkout_link");
+
+    const nextState: SalesState = shouldHandoff
+      ? "handoff"
+      : nextSalesState({
+          current: currentSalesState,
+          intent: intentForState,
+          toolsCalled: toolsCalledArr,
+          hasActiveCart,
+          hasCheckoutLink: hasCheckout,
+        });
+
+    // Hash da resposta (anti-repetição na próxima rodada)
+    const responseHash = await hashResponse(aiContent || "");
+
+    // Update conversation status + estado comercial
     const newStatus = shouldHandoff ? "waiting_agent" : "bot";
+    const conversationUpdate: Record<string, unknown> = {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+      customer_id: customerId || conversation.customer_id,
+      sales_state: nextState,
+      last_intent: intentForState,
+      last_bot_response_hash: responseHash,
+      images_sent_per_product: imagesSentMap,
+    };
+    if (nextState !== currentSalesState) {
+      conversationUpdate.sales_state_updated_at = new Date().toISOString();
+    }
     await supabase
       .from("conversations")
-      .update({
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-        customer_id: customerId || conversation.customer_id,
-      })
+      .update(conversationUpdate)
       .eq("id", conversation_id);
+
+    // [F1] LOG CANÔNICO POR TURNO — uma linha em ai_support_turn_log
+    try {
+      await supabase.from("ai_support_turn_log").insert({
+        conversation_id,
+        tenant_id,
+        sales_state_before: stateBefore,
+        sales_state_after: nextState,
+        last_user_message: (lastMessageContent || "").slice(0, 500),
+        intent_classified: intentForState,
+        sentiment: intentClassification?.sentiment ?? null,
+        is_pure_greeting: isGreetingOnlyTurn,
+        history_messages_count: messages.length,
+        history_scope_validated: true,
+        tools_available: salesModeEnabled ? "filtered_by_state" : "none",
+        tools_called: toolsCalledArr,
+        model_used: modelUsed,
+        temperature_sent: modelUsed?.startsWith("gpt-5") ? null : (salesModeEnabled ? 0.3 : 0.7),
+        response_hash: responseHash,
+        anti_greeting_blocked: isGreetingOnlyTurn,
+        duration_ms: latencyMs,
+      });
+    } catch (logErr) {
+      console.error("[ai-support-chat] [F1] turn log insert failed:", logErr);
+    }
 
     // [learning] capture event for aggregator (continuity OR handoff_success)
     captureLearningEvent(supabase, {
