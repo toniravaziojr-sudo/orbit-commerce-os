@@ -2890,27 +2890,27 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       let echoHint = "";
       let echoExample = "";
       if (/\bbom dia\b/.test(lcGreet)) {
-        echoHint = `O cliente disse "Bom dia". COMECE devolvendo "Bom dia!" antes de se identificar.`;
-        echoExample = `"Bom dia! Aqui é da ${storeName}, como posso ajudar?"`;
+        echoHint = `O cliente disse "Bom dia". COMECE OBRIGATORIAMENTE devolvendo "Bom dia!" como PRIMEIRA palavra, antes de qualquer outra coisa.`;
+        echoExample = `"Bom dia! Aqui é da ${storeName}, me conta como posso ajudar, estou à disposição."`;
       } else if (/\bboa tarde\b/.test(lcGreet)) {
-        echoHint = `O cliente disse "Boa tarde". COMECE devolvendo "Boa tarde!" antes de se identificar.`;
-        echoExample = `"Boa tarde! Aqui é da ${storeName}, como posso ajudar?"`;
+        echoHint = `O cliente disse "Boa tarde". COMECE OBRIGATORIAMENTE devolvendo "Boa tarde!" como PRIMEIRA palavra, antes de qualquer outra coisa.`;
+        echoExample = `"Boa tarde! Aqui é da ${storeName}, me conta como posso ajudar, estou à disposição."`;
       } else if (/\bboa noite\b/.test(lcGreet)) {
-        echoHint = `O cliente disse "Boa noite". COMECE devolvendo "Boa noite!" antes de se identificar.`;
-        echoExample = `"Boa noite! Aqui é da ${storeName}, como posso ajudar?"`;
+        echoHint = `O cliente disse "Boa noite". COMECE OBRIGATORIAMENTE devolvendo "Boa noite!" como PRIMEIRA palavra, antes de qualquer outra coisa.`;
+        echoExample = `"Boa noite! Aqui é da ${storeName}, me conta como posso ajudar, estou à disposição."`;
       } else if (/\bola\b/.test(lcGreet)) {
-        echoHint = `O cliente disse "Olá". COMECE devolvendo "Olá!" antes de se identificar.`;
-        echoExample = `"Olá! Aqui é da ${storeName}, como posso ajudar?"`;
+        echoHint = `O cliente disse "Olá". COMECE OBRIGATORIAMENTE devolvendo "Olá!" como PRIMEIRA palavra, antes de qualquer outra coisa.`;
+        echoExample = `"Olá! Aqui é da ${storeName}, me conta como posso ajudar, estou à disposição."`;
       } else if (/\b(oi|opa|eai|e ai|hey|hi|hello|alo|alo\?|tudo bem)\b/.test(lcGreet)) {
-        echoHint = `O cliente disse "Oi" (ou variação informal). COMECE devolvendo "Oi!" antes de se identificar.`;
-        echoExample = `"Oi! Aqui é da ${storeName}, como posso ajudar?"`;
+        echoHint = `O cliente disse "Oi" (ou variação informal). COMECE OBRIGATORIAMENTE devolvendo "Oi!" como PRIMEIRA palavra, antes de qualquer outra coisa.`;
+        echoExample = `"Oi! Aqui é da ${storeName}, me conta como posso ajudar, estou à disposição."`;
       } else {
-        echoHint = `O cliente cumprimentou de forma curta. COMECE com "Oi!" antes de se identificar.`;
-        echoExample = `"Oi! Aqui é da ${storeName}, como posso ajudar?"`;
+        echoHint = `O cliente cumprimentou de forma curta. COMECE OBRIGATORIAMENTE com "Oi!" como PRIMEIRA palavra.`;
+        echoExample = `"Oi! Aqui é da ${storeName}, me conta como posso ajudar, estou à disposição."`;
       }
 
       if (!botAlreadyGreeted) {
-        // PRIMEIRO CONTATO — saudação comercial completa: ECO do cumprimento + identificação da loja + oferta de ajuda
+        // PRIMEIRO CONTATO — saudação comercial completa: ECO + identificação + oferta + FECHAMENTO CORDIAL
         aiMessages.push({
           role: "system",
           content: [
@@ -2919,32 +2919,59 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             `O cliente apenas cumprimentou. É a primeira vez que você fala com ele nesta conversa. Período atual no Brasil: ${periodHint}.`,
             `Nome da loja: ${storeName}.`,
             "",
-            "### REGRA OBRIGATÓRIA DO ECO DE CUMPRIMENTO",
+            "### REGRA 1 — ECO OBRIGATÓRIO DO CUMPRIMENTO (não negociável)",
             echoHint,
             "Devolver o cumprimento do cliente na MESMA forma é o que faz a conversa parecer humana. Pular essa etapa soa frio e robótico.",
             "",
-            "Estrutura obrigatória da resposta:",
-            `[ECO do cumprimento do cliente] + [identificação da loja "${storeName}"] + [oferta de ajuda em uma pergunta curta]`,
+            `### REGRA 2 — IDENTIFICAÇÃO OBRIGATÓRIA DA LOJA (não negociável)`,
+            `Toda primeira resposta DEVE conter "Aqui é da ${storeName}" (ou variação equivalente como "Aqui é a assistente virtual da ${storeName}"). NÃO é opcional. Sem isso, a resposta está errada.`,
             "",
-            "Tudo em UMA frase só (no máximo duas frases curtas).",
+            "### REGRA 3 — FECHAMENTO CORDIAL E ABERTO (não negociável)",
+            "A resposta NUNCA pode terminar de forma seca ou cortada. SEMPRE precisa terminar com um fechamento acolhedor que demonstre disponibilidade.",
+            "",
+            "Você PODE usar formulações como \"me diz\", \"me conta\", \"me fala\" — DESDE QUE venham acompanhadas de um fechamento cordial logo em seguida.",
+            "",
+            "Exemplos de fechamentos cordiais válidos (varie, não repita literal):",
+            "- \"...estou aqui para ajudar.\"",
+            "- \"...estou à disposição.\"",
+            "- \"...fico à disposição.\"",
+            "- \"...pode contar comigo.\"",
+            "- \"...será um prazer atender você.\"",
+            "- \"...vou te ajudar com prazer.\"",
+            "",
+            "❌ ERRADO (seco, cortado, soa rude em pt-BR):",
+            "- \"Boa noite! Me diz o que você precisa.\"",
+            "- \"Oi! O que você quer?\"",
+            "- \"Olá! Manda aí.\"",
+            "",
+            "✅ CERTO (com fechamento cordial):",
+            `- "Boa noite! Aqui é da ${storeName}, me diz o que você precisa, estou aqui para ajudar."`,
+            `- "Oi! Aqui é da ${storeName}, me conta em poucas palavras como posso ajudar, estou à disposição."`,
+            `- "Olá! Aqui é a assistente virtual da ${storeName}, em que posso te ajudar? Fico à disposição."`,
+            "",
+            "### ESTRUTURA OBRIGATÓRIA DA RESPOSTA",
+            `[ECO do cumprimento] + [identificação "Aqui é da ${storeName}"] + [pergunta/oferta de ajuda] + [FECHAMENTO CORDIAL]`,
+            "",
+            "Tudo em UMA frase só ou no máximo duas frases curtas.",
             "",
             "EXEMPLO ALINHADO AO QUE O CLIENTE DISSE AGORA:",
             `- ${echoExample}`,
             "",
             "OUTROS EXEMPLOS de estrutura válida (varie a forma — NÃO copie literal):",
-            `- "Oi, tudo bem? Aqui é a assistente virtual da ${storeName}, como posso ajudar?"`,
-            `- "Oi! Aqui é da ${storeName}, me diga em poucas palavras como posso ajudar."`,
-            `- "Olá! Tudo bem? Aqui é a assistente virtual da ${storeName}. Em que posso te ajudar?"`,
-            `- "Oi, boa tarde! Aqui é da ${storeName}, como posso ajudar?"`,
-            `- "Oi, boa noite! Aqui é a assistente virtual da ${storeName}, em que posso ajudar?"`,
+            `- "Oi, tudo bem? Aqui é a assistente virtual da ${storeName}, me conta como posso ajudar, estou à disposição."`,
+            `- "Oi! Aqui é da ${storeName}, me diz em poucas palavras como posso ajudar, fico à disposição."`,
+            `- "Olá! Tudo bem? Aqui é a assistente virtual da ${storeName}, em que posso te ajudar? Pode contar comigo."`,
+            `- "Oi, boa tarde! Aqui é da ${storeName}, me conta o que você procura, estou aqui para ajudar."`,
+            `- "Oi, boa noite! Aqui é a assistente virtual da ${storeName}, me diz como posso ajudar, será um prazer te atender."`,
             "",
             "PROIBIDO neste turno:",
             "- Começar direto por \"Bom dia/Boa tarde/Boa noite\" SEM antes ecoar o cumprimento que o cliente usou (a não ser que o cliente já tenha dito exatamente isso).",
+            "- TERMINAR a resposta de forma seca, sem fechamento cordial. Frases como \"Me diz o que você precisa.\" no fim, sozinhas, são PROIBIDAS.",
             "- Chamar qualquer ferramenta, citar produto, enviar imagem, escalar para humano.",
             "- Listar categorias, benefícios, dores ou nicho. Você AINDA não sabe o que ele quer.",
             "- Assumir o tema do cliente (NÃO diga \"para seu cuidado com X\", \"sobre seu tratamento de Y\", \"para combater Z\").",
             "- Vocativo no início (\"Comando Central, ...\", \"Cliente, ...\") — comece pela saudação.",
-            "- As fórmulas banidas da persona principal: \"como posso te ajudar hoje\", \"em que posso ser útil\", \"estou à disposição\", \"perfeito!\", \"ótimo!\", \"com prazer\".",
+            "- As fórmulas banidas da persona principal: \"como posso te ajudar hoje\", \"em que posso ser útil\", \"perfeito!\", \"ótimo!\", \"com prazer\" (sozinho como abertura).",
             "- Omitir o nome da loja. A identificação da loja é OBRIGATÓRIA no primeiro contato.",
             "- Markdown, emojis em excesso, múltiplos pontos de exclamação.",
           ].join("\n"),
