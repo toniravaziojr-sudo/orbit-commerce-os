@@ -3473,7 +3473,6 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // ficava sem resposta no WhatsApp. Agora, logamos o motivo (finish_reason,
       // tokens) e geramos uma mensagem curta natural por estado, para não perder
       // o turno. O log fica em ai_support_turn_log via fields existentes.
-      let emptyResponseFallbackApplied = false;
       if (!aiContent || !aiContent.trim()) {
         const finishReason = aiData.choices?.[0]?.finish_reason || "unknown";
         const compTokens = aiData.usage?.completion_tokens || 0;
@@ -3502,8 +3501,6 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           `[ai-support-chat] [F2-FIX] fallback aplicado state=${pipelineState} text="${aiContent}"`
         );
       }
-      // Expor para o log canônico mais abaixo
-      (globalThis as any).__lastEmptyFallback = emptyResponseFallbackApplied;
     }
 
     const latencyMs = Date.now() - startTime;
