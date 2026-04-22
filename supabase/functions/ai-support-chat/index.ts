@@ -17,6 +17,15 @@ import {
   markLearningUsed,
   type LearningHit,
 } from "../_shared/tenant-learning.ts";
+import {
+  isPureGreeting,
+  isExplicitImageRequest,
+  evaluateImagePolicy,
+  nextSalesState,
+  hashResponse,
+  type SalesState,
+  type Intent,
+} from "../_shared/sales-state-machine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
