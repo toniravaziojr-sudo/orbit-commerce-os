@@ -3137,6 +3137,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // [F1] Rastreio de tools chamadas no turno (escopo do handler, alimenta máquina de estado)
     const toolsCalledThisTurn: string[] = [];
+    // [F2] Tools que o modelo tentou chamar mas foram bloqueadas pelo filtro de estado
+    const pipelineBlockedTools: string[] = [];
 
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
@@ -3336,7 +3338,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           } as any);
         }
         if (pipelineBlockedThisLoop.length > 0) {
-          (globalThis as any).__pipelineBlockedTools = pipelineBlockedThisLoop;
+          pipelineBlockedTools.push(...pipelineBlockedThisLoop);
         }
 
         const isGpt5ModelFollow = usedModel.startsWith("gpt-5");
@@ -3348,8 +3350,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           model: usedModel,
           messages: currentMessages,
           ...tokenParamsFollow,
-          tools: SALES_TOOLS,
-          tool_choice: "auto",
+          // [F2] Mantém o filtro por estado também no follow-up
+          tools: pipelineFilteredTools.length > 0 ? pipelineFilteredTools : undefined,
+          tool_choice: pipelineFilteredTools.length > 0 ? "auto" : undefined,
           parallel_tool_calls: false,
         };
         // [F1] Mesmo guard: gpt-5 não aceita temperature
@@ -3491,15 +3494,48 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     const hasActiveCart = toolsCalledArr.includes("add_to_cart");
     const hasCheckout = toolsCalledArr.includes("generate_checkout_link");
 
-    const nextState: SalesState = shouldHandoff
-      ? "handoff"
-      : nextSalesState({
-          current: currentSalesState,
-          intent: intentForState,
-          toolsCalled: toolsCalledArr,
-          hasActiveCart,
-          hasCheckoutLink: hasCheckout,
-        });
+    // [F2] Conta turnos consecutivos em discovery (anti-loop)
+    let discoveryTurnsSoFar = 0;
+    if (pipelineState === "discovery") {
+      try {
+        const { data: recentTurns } = await supabase
+          .from("ai_support_turn_log")
+          .select("sales_state_after")
+          .eq("conversation_id", conversation_id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        for (const t of recentTurns || []) {
+          if (normalizeLegacyState(t.sales_state_after as string) === "discovery") {
+            discoveryTurnsSoFar++;
+          } else {
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [F2] discovery turn counter failed:", e);
+      }
+    }
+
+    // [F2] Decisão de transição pela pipeline modular
+    const productNamesHint = (relevantProducts || []).map(p => p.name).filter(Boolean);
+    const transition = decideNextState({
+      current: pipelineState,
+      message: lastMessageContent || "",
+      isPureGreeting: isGreetingOnlyTurn,
+      hasActiveCart,
+      hasCheckoutLink: hasCheckout,
+      toolsCalled: toolsCalledArr,
+      discoveryTurnsSoFar,
+      productNamesHint,
+    });
+
+    const nextPipelineState: PipelineState = shouldHandoff ? "handoff" : transition.next;
+    const nextState: SalesState = toLegacyState(nextPipelineState) as SalesState;
+    const transitionReason: TransitionReason = shouldHandoff ? "handoff_requested" : transition.reason;
+
+    console.log(
+      `[ai-support-chat] [F2] transition ${pipelineState} → ${nextPipelineState} (reason=${transitionReason})`
+    );
 
     // Hash da resposta (anti-repetição na próxima rodada)
     const responseHash = await hashResponse(aiContent || "");
@@ -3539,7 +3575,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         context_blocks_included: ["mode", "state", "business", "catalog", "history", "current_turn"],
         history_messages_count: messages.length,
         history_scope_validated: true,
-        tools_available: salesModeEnabled ? ["filtered_by_state"] : [],
+        tools_available: salesModeEnabled ? pipelineToolsExposed : [],
         tools_called: toolsCalledArr,
         model_used: modelUsed,
         temperature_sent: modelUsed?.startsWith("gpt-5") ? null : (isGreetingOnlyTurn ? 0.95 : (salesModeEnabled ? 0.3 : 0.7)),
@@ -3554,6 +3590,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           channel: channelType,
           handoff: shouldHandoff,
           handoff_reason: handoffReason || null,
+          // [F2] Observabilidade da pipeline modular
+          pipeline_state_before: pipelineState,
+          pipeline_state_after: nextPipelineState,
+          state_transition_reason: transitionReason,
+          state_transition_forced: shouldHandoff ? true : transition.forced,
+          prompt_module_used: pipelinePromptModule,
+          tools_exposed_for_state: pipelineToolsExposed,
+          pipeline_blocked_tools: pipelineBlockedTools,
+          discovery_turns_so_far: discoveryTurnsSoFar,
         },
       });
       if (turnLogErr) {
