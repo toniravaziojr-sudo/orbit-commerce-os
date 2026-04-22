@@ -3265,15 +3265,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // [F1] LOG CANÔNICO POR TURNO — uma linha em ai_support_turn_log
     try {
-      await supabase.from("ai_support_turn_log").insert({
+      const { error: turnLogErr } = await supabase.from("ai_support_turn_log").insert({
         conversation_id,
         tenant_id,
+        message_id: aiMessage?.id ?? null,
         sales_state_before: stateBefore,
         sales_state_after: nextState,
         last_user_message: (lastMessageContent || "").slice(0, 500),
+        last_user_message_at: conversation.last_customer_message_at ?? null,
         intent_classified: intentForState,
         sentiment: intentClassification?.sentiment ?? null,
-        is_pure_greeting: isGreetingOnlyTurn,
+        urgency: intentClassification?.urgency ?? null,
+        context_blocks_included: ["mode", "state", "business", "catalog", "history", "current_turn"],
         history_messages_count: messages.length,
         history_scope_validated: true,
         tools_available: salesModeEnabled ? ["filtered_by_state"] : [],
@@ -3281,9 +3284,21 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         model_used: modelUsed,
         temperature_sent: modelUsed?.startsWith("gpt-5") ? null : (salesModeEnabled ? 0.3 : 0.7),
         response_hash: responseHash,
+        response_length: (aiContent || "").length,
         anti_greeting_blocked: isGreetingOnlyTurn,
+        anti_repetition_blocked: false,
+        image_send_blocked: false,
         duration_ms: latencyMs,
+        metadata: {
+          sales_mode: salesModeEnabled,
+          channel: channelType,
+          handoff: shouldHandoff,
+          handoff_reason: handoffReason || null,
+        },
       });
+      if (turnLogErr) {
+        console.error("[ai-support-chat] [F1] turn log insert error:", turnLogErr);
+      }
     } catch (logErr) {
       console.error("[ai-support-chat] [F1] turn log insert failed:", logErr);
     }
