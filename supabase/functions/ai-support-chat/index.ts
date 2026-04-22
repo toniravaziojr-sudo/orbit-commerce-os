@@ -3450,13 +3450,58 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
       aiContent = aiData.choices?.[0]?.message?.content;
 
-      if (!aiContent) {
-        console.error("[ai-support-chat] No content in AI response:", aiData);
-        return new Response(
-          JSON.stringify({ success: false, error: "AI did not return a response", code: "EMPTY_RESPONSE" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      // [F2-FIX] Observabilidade: log de consumo excessivo de reasoning
+      // (modelos gpt-5*). Se mais de 50% do completion budget foi para
+      // reasoning interno, logamos para podermos ajustar effort por estado.
+      try {
+        const compTokens = aiData.usage?.completion_tokens || 0;
+        const reasoningTokens =
+          aiData.usage?.completion_tokens_details?.reasoning_tokens || 0;
+        if (compTokens > 0 && reasoningTokens / compTokens >= 0.5) {
+          console.warn(
+            `[ai-support-chat] [F2-FIX] reasoning excessivo state=${pipelineState} ` +
+            `model=${usedModel} reasoning=${reasoningTokens}/${compTokens} ` +
+            `(${Math.round((reasoningTokens / compTokens) * 100)}%) ` +
+            `effort=${stateReasoningEffort} max=${stateMaxTokens}`
+          );
+        }
+      } catch { /* ignore */ }
+
+      // [F2-FIX] Fallback de resposta vazia. Antes, devolvíamos erro e o cliente
+      // ficava sem resposta no WhatsApp. Agora, logamos o motivo (finish_reason,
+      // tokens) e geramos uma mensagem curta natural por estado, para não perder
+      // o turno. O log fica em ai_support_turn_log via fields existentes.
+      let emptyResponseFallbackApplied = false;
+      if (!aiContent || !aiContent.trim()) {
+        const finishReason = aiData.choices?.[0]?.finish_reason || "unknown";
+        const compTokens = aiData.usage?.completion_tokens || 0;
+        const reasoningTokens =
+          aiData.usage?.completion_tokens_details?.reasoning_tokens || 0;
+        console.error(
+          `[ai-support-chat] [F2-FIX] RESPOSTA VAZIA state=${pipelineState} ` +
+          `model=${usedModel} finish=${finishReason} ` +
+          `completion=${compTokens} reasoning=${reasoningTokens} ` +
+          `max_tokens=${stateMaxTokens} effort=${stateReasoningEffort}`
+        );
+
+        const FALLBACK_BY_STATE: Record<PipelineState, string> = {
+          greeting:        "Oi! Tudo bem? Me conta o que você está procurando.",
+          discovery:       "Deixa eu entender melhor. Você procura algo específico ou quer ver opções?",
+          recommendation:  "Só um instante, deixa eu ver as opções aqui pra você.",
+          product_detail:  "Deixa eu confirmar essa informação aqui pra você, um segundo.",
+          decision:        "Perfeito, vou organizar isso pra você. Me dá um minutinho.",
+          checkout_assist: "Deixa eu verificar o seu carrinho e já te respondo.",
+          support:         "Entendi. Deixa eu olhar isso pra você, um instante.",
+          handoff:         "Vou te passar pra alguém da equipe que resolve isso, tá?",
+        };
+        aiContent = FALLBACK_BY_STATE[pipelineState] || "Só um instante, já te respondo.";
+        emptyResponseFallbackApplied = true;
+        console.warn(
+          `[ai-support-chat] [F2-FIX] fallback aplicado state=${pipelineState} text="${aiContent}"`
         );
       }
+      // Expor para o log canônico mais abaixo
+      (globalThis as any).__lastEmptyFallback = emptyResponseFallbackApplied;
     }
 
     const latencyMs = Date.now() - startTime;
