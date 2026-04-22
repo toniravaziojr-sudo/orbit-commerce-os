@@ -2174,6 +2174,26 @@ Deno.serve(async (req) => {
       );
     }
 
+    // [F1] ANTI-VAZAMENTO ENTRE TENANTS: validar que a conversa pertence ao tenant
+    // do payload. Sem isto, um conversation_id de outro tenant poderia processar
+    // dados cruzados se o caller errasse o tenant_id.
+    if (conversation.tenant_id !== tenant_id) {
+      console.error(
+        `[ai-support-chat] TENANT MISMATCH: payload tenant=${tenant_id} conversation tenant=${conversation.tenant_id} conv=${conversation_id}`
+      );
+      return new Response(
+        JSON.stringify({ success: false, error: "Tenant mismatch", code: "TENANT_MISMATCH" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // [F1] Estado comercial atual (fonte de verdade: conversations.sales_state)
+    const currentSalesState: SalesState = (conversation.sales_state as SalesState) || "greeting";
+    const stateBefore: SalesState = currentSalesState;
+    const imagesSentMap: Record<string, number> =
+      (conversation.images_sent_per_product as Record<string, number>) || {};
+    const lastBotResponseHash: string | null = conversation.last_bot_response_hash || null;
+
     // Channel-specific config
     const channelType = conversation.channel_type || "chat";
 
