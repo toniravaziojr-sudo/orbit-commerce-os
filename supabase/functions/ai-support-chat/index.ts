@@ -649,6 +649,83 @@ const INTENT_CLASSIFICATION_TOOL = {
   }
 };
 
+type ToolResultSnapshot = {
+  toolName: string;
+  data: unknown;
+};
+
+function naturalJoin(values: string[]): string {
+  if (values.length <= 1) return values[0] || "";
+  if (values.length === 2) return `${values[0]} e ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")} e ${values[values.length - 1]}`;
+}
+
+function buildConclusiveFallbackFromToolResults(
+  pipelineState: PipelineState,
+  toolResults: ToolResultSnapshot[],
+): string | null {
+  try {
+    const latestResult = (toolName: string) => {
+      for (let i = toolResults.length - 1; i >= 0; i--) {
+        if (toolResults[i]?.toolName === toolName) return toolResults[i].data;
+      }
+      return null;
+    };
+
+    const latestProductDetails = latestResult("get_product_details") as Record<string, unknown> | null;
+    if (latestProductDetails?.success === true && typeof latestProductDetails.name === "string") {
+      const productName = latestProductDetails.name;
+      const productPrice = typeof latestProductDetails.price === "number"
+        ? latestProductDetails.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+        : null;
+      const hasVariants = latestProductDetails.has_variants === true;
+
+      if (pipelineState === "product_detail") {
+        return productPrice
+          ? `${productName} está em ${productPrice}.${hasVariants ? " Se quiser, eu também te mostro as variações disponíveis." : " Se quiser, eu também te explico como ele funciona ou já sigo com a compra."}`
+          : `${productName} está disponível.${hasVariants ? " Se quiser, eu te mostro as variações disponíveis." : " Se quiser, eu te explico como ele funciona ou já sigo com a compra."}`;
+      }
+
+      return `${productName}${productPrice ? ` está em ${productPrice}` : " está disponível"}. Se quiser, eu te explico rápido a diferença dele para as outras opções ou já sigo com a melhor indicação.`;
+    }
+
+    const latestSearch = latestResult("search_products");
+    if (Array.isArray(latestSearch) && latestSearch.length > 0) {
+      const productNames = Array.from(
+        new Set(
+          latestSearch
+            .map((item) => (item && typeof item === "object" && "name" in item ? String((item as { name?: unknown }).name || "").trim() : ""))
+            .filter(Boolean),
+        ),
+      ).slice(0, 4);
+
+      if (productNames.length === 1) {
+        return `Encontrei ${productNames[0]}. Se quiser, eu já te explico como ele funciona, te passo o valor ou sigo com a melhor opção pra você.`;
+      }
+
+      if (productNames.length > 1) {
+        const intro = pipelineState === "recommendation"
+          ? "Encontrei estas opções reais"
+          : "Separei estas opções reais";
+        return `${intro}: ${naturalJoin(productNames)}. Se quiser, eu te indico a melhor delas pelo objetivo que você quer tratar.`;
+      }
+    }
+
+    if (latestSearch && typeof latestSearch === "object" && "message" in latestSearch) {
+      return "Não achei esse nome exato no catálogo. Se quiser, me diz o objetivo que você quer tratar que eu te mostro a opção mais próxima.";
+    }
+
+    const latestCart = latestResult("view_cart") as Record<string, unknown> | null;
+    if (latestCart && Array.isArray(latestCart.items) && latestCart.items.length > 0) {
+      return "Seu carrinho já está com itens prontos. Se quiser, eu sigo agora para o link de pagamento.";
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // ==============================
 // SALES TOOL EXECUTORS
 // ==============================
@@ -3322,6 +3399,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     let emptyResponseFallbackApplied = false;
     // [PACOTE 1] Sinaliza se o round final forçado com tool_choice="none" foi acionado
     let forcedTextRoundApplied = false;
+    const toolResultsThisTurn: ToolResultSnapshot[] = [];
     let forcedTextRoundReason: string | null = null;
     // [PACOTE 1] iterations expostas no escopo do handler para entrar no log
     let toolCallIterations = 0;
@@ -3552,6 +3630,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
           const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
           toolsCalledThisTurn.push(fnName);
+          try {
+            toolResultsThisTurn.push({ toolName: fnName, data: JSON.parse(result) });
+          } catch {
+            toolResultsThisTurn.push({ toolName: fnName, data: null });
+          }
           console.log(`[ai-support-chat] Tool result (${fnName}):`, result.slice(0, 200));
 
           // BUG FIX: Se a tool de handoff comercial foi chamada com sucesso,
@@ -3782,13 +3865,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           support:         "Já consultei aqui. Me passa o número do pedido ou me diz o que você gostaria de fazer agora.",
           handoff:         "Vou te passar pra alguém da equipe que resolve isso.",
         };
+        const toolBackedFallback = toolsAlreadyRan
+          ? buildConclusiveFallbackFromToolResults(pipelineState, toolResultsThisTurn)
+          : null;
         const fallbackTable = toolsAlreadyRan ? FALLBACK_CONCLUSIVE_BY_STATE : FALLBACK_PROMISE_BY_STATE;
-        aiContent = fallbackTable[pipelineState] || (toolsAlreadyRan
+        aiContent = toolBackedFallback || fallbackTable[pipelineState] || (toolsAlreadyRan
           ? "Tive uma instabilidade rápida aqui. Pode me confirmar o que você gostaria de fazer agora?"
           : "Só um instante, já te respondo.");
         emptyResponseFallbackApplied = true;
         console.warn(
-          `[ai-support-chat] [F2-FIX + PACOTE 1] fallback aplicado state=${pipelineState} conclusive=${toolsAlreadyRan} text="${aiContent}"`
+          `[ai-support-chat] [F2-FIX + PACOTE 1] fallback aplicado state=${pipelineState} conclusive=${toolsAlreadyRan} tool_backed=${!!toolBackedFallback} text="${aiContent}"`
         );
       }
     }
