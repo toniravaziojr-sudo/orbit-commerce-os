@@ -328,15 +328,20 @@ Deno.serve(async (req) => {
                 } catch (agendaError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
                 }
-                // Audit loop: mark inbound as processed so we can audit downtime
+                // Audit loop (tolerante a falha — Pacote 3): nunca derruba o webhook.
                 if (inboundId) {
-                  await supabase
-                    .from("whatsapp_inbound_messages")
-                    .update({
-                      processed_at: new Date().toISOString(),
-                      processed_by: agendaOk ? "agenda_agent" : "agenda_failed",
-                    })
-                    .eq("id", inboundId);
+                  try {
+                    await supabase
+                      .from("whatsapp_inbound_messages")
+                      .update({
+                        processed_at: new Date().toISOString(),
+                        processed_by: agendaOk ? "agenda_agent" : "agenda_failed",
+                        processing_status: agendaOk ? "processed" : "failed",
+                      })
+                      .eq("id", inboundId);
+                  } catch (auditErr) {
+                    console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] agenda update failed (non-blocking):`, auditErr);
+                  }
                 }
                 // Admin messages do NOT create support conversations
                 continue;
