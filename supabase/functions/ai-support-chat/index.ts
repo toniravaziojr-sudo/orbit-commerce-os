@@ -3866,33 +3866,28 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
 
     // ============================================
-    // [PACOTE C] SCRUBBER GLOBAL DE LINGUAGEM DE SISTEMA
-    // Aplica em QUALQUER aiContent final (não só fallback).
-    // Remove frases que expõem o mecanismo ("encontrei esses produtos reais",
-    // "consultei o catálogo", "pelos dados que tenho", etc.) e troca por
-    // linguagem natural de vendedora.
+    // [PACOTE C] REDE DE SEGURANÇA — LINGUAGEM DE SISTEMA
+    // A regra principal está nos PROMPTS dos estados (causa raiz). Este
+    // scrubber é só rede de segurança mínima para os 3 padrões mais
+    // agressivos que comprometem a persona de vendedora real. Se ele
+    // disparar com frequência, é sinal de prompt ruim — corrija lá, não
+    // aqui. Mantemos enxuto pra não mascarar problemas estruturais.
     // ============================================
     if (aiContent && typeof aiContent === "string") {
       const SYSTEM_PHRASE_REPLACEMENTS: Array<[RegExp, string]> = [
         [/encontrei\s+esses\s+produtos\s+reais\s+(para|pra)\s+voc[êe]\s*[:.\-–]?\s*/gi, "Temos sim. "],
-        [/encontrei\s+(estes|esses)\s+produtos\s*[:.\-–]?\s*/gi, "Temos sim. "],
-        [/aqui\s+est[ãa]o?\s+(os|alguns)\s+produtos\s+(reais|que\s+temos)\s*[:.\-–]?\s*/gi, "Temos sim. "],
         [/j[áa]\s+consultei\s+o\s+cat[áa]logo[^.!?]*[.!?]?\s*/gi, ""],
         [/(deixa|deixe)\s+eu\s+(ver|consultar|buscar|verificar)[^.!?]*[.!?]?\s*/gi, ""],
-        [/vou\s+(buscar|consultar|verificar)\s+(no\s+)?(cat[áa]logo|sistema|base)[^.!?]*[.!?]?\s*/gi, ""],
-        [/pelos?\s+dados\s+que\s+(eu\s+)?tenho[^.!?]*[.!?]?\s*/gi, ""],
-        [/segundo\s+(o\s+)?(sistema|cat[áa]logo|nosso\s+banco)[^.!?]*[.!?]?\s*/gi, ""],
-        [/(aqui\s+)?n[oa]\s+(sistema|nosso\s+banco|nossa\s+base|cat[áa]logo)\s*[,.]?\s*/gi, ""],
-        [/de\s+acordo\s+com\s+(o\s+)?(sistema|cat[áa]logo)[^.!?]*[.!?]?\s*/gi, ""],
       ];
       let scrubbed = aiContent;
       for (const [pattern, replacement] of SYSTEM_PHRASE_REPLACEMENTS) {
         scrubbed = scrubbed.replace(pattern, replacement);
       }
-      // Limpa espaços duplos / quebras estranhas geradas pelas remoções
       scrubbed = scrubbed.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
       if (scrubbed !== aiContent) {
-        console.log(`[ai-support-chat] [PACOTE C] system-language scrubbed (was ${aiContent.length}ch, now ${scrubbed.length}ch)`);
+        console.warn(
+          `[ai-support-chat] [PACOTE C] system-language scrubbed — REVISAR PROMPT do estado, modelo emitiu fala de sistema (was ${aiContent.length}ch, now ${scrubbed.length}ch)`
+        );
         aiContent = scrubbed;
       }
     }
