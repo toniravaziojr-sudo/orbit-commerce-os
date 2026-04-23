@@ -384,6 +384,10 @@ const CONTINUATION_PATTERNS: RegExp[] = [
   /^\s*\?+\s*$/,
   /^\s*(e|hein|alo|al[oô])\s*[?.!]*\s*$/i,
   /^\s*(esqueceu|esqueceram)\b/i,
+  // [PACOTE 3] confirmações curtas + cobranças informais
+  /^\s*(ok|okay|blz|beleza|bom|certo|isso|sim)\s*[?.!]*\s*$/i,
+  /^\s*(e\s+)?(a[ií])\s*[?.!]*\s*$/i,
+  /^\s*(opa|oi)\s*[?.!]*\s*$/i,
 ];
 
 /** Estados em que existe pendência comercial viva → continuação faz sentido. */
