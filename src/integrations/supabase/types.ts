@@ -20453,6 +20453,8 @@ export type Database = {
           message_type: string | null
           processed_at: string | null
           processed_by: string | null
+          processing_error: string | null
+          processing_status: string | null
           provider: string
           raw_payload: Json | null
           tenant_id: string
@@ -20470,6 +20472,8 @@ export type Database = {
           message_type?: string | null
           processed_at?: string | null
           processed_by?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
           provider?: string
           raw_payload?: Json | null
           tenant_id: string
@@ -20487,6 +20491,8 @@ export type Database = {
           message_type?: string | null
           processed_at?: string | null
           processed_by?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
           provider?: string
           raw_payload?: Json | null
           tenant_id?: string
