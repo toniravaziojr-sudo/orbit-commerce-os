@@ -303,12 +303,14 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "search_products",
-      description: "Busca produtos no catálogo por nome, categoria ou termo de busca. Retorna lista resumida.",
+      description: "Busca produtos do catálogo do tenant. Por padrão devolve APENAS produtos únicos (sem composição) — kits/combos só vêm se include_kits=true. Use pain_hint quando o cliente já declarou a dor/objetivo (ex.: 'calvície', 'queda', 'prevenção', 'caspa'); a tool faz join com as categorias do tenant pra filtrar pela dor antes do nome.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Termo de busca (nome do produto, categoria, etc.)" },
-          limit: { type: "number", description: "Máximo de resultados (default: 5)" },
+          query: { type: "string", description: "Termo de busca (família ou nome do produto). Ex.: 'shampoo', 'balm', 'Calvície Zero'." },
+          pain_hint: { type: "string", description: "Dor/objetivo do cliente em linguagem natural (ex.: 'calvície', 'queda de cabelo', 'prevenção', 'caspa', 'pós-banho'). Quando informado, a tool prioriza produtos das categorias compatíveis." },
+          include_kits: { type: "boolean", description: "Default false. Só passe true quando o cliente JÁ tem produto base escolhido (upsell) ou pediu explicitamente kit/combo." },
+          limit: { type: "number", description: "Máximo de resultados (default 5)." },
         },
         required: ["query"],
         additionalProperties: false,
