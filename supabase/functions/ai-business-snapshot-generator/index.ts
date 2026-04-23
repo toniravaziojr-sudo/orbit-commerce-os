@@ -403,6 +403,13 @@ REGRAS CRÍTICAS:
   parsed.products = parsed.products ?? [];
   parsed.context_tree = parsed.context_tree ?? [];
 
+  // Normalização: parent_slug vazio/undefined → null (banco usa NULL para raiz)
+  parsed.context_tree = parsed.context_tree.map((n) => ({
+    ...n,
+    parent_slug:
+      n.parent_slug && String(n.parent_slug).trim().length > 0 ? n.parent_slug : null,
+  }));
+
   return parsed;
 }
 
