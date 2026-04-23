@@ -303,12 +303,14 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "search_products",
-      description: "Busca produtos no catálogo por nome, categoria ou termo de busca. Retorna lista resumida.",
+      description: "Busca produtos do catálogo do tenant. Por padrão devolve APENAS produtos únicos (sem composição) — kits/combos só vêm se include_kits=true. Use pain_hint quando o cliente já declarou a dor/objetivo (ex.: 'calvície', 'queda', 'prevenção', 'caspa'); a tool faz join com as categorias do tenant pra filtrar pela dor antes do nome.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Termo de busca (nome do produto, categoria, etc.)" },
-          limit: { type: "number", description: "Máximo de resultados (default: 5)" },
+          query: { type: "string", description: "Termo de busca (família ou nome do produto). Ex.: 'shampoo', 'balm', 'Calvície Zero'." },
+          pain_hint: { type: "string", description: "Dor/objetivo do cliente em linguagem natural (ex.: 'calvície', 'queda de cabelo', 'prevenção', 'caspa', 'pós-banho'). Quando informado, a tool prioriza produtos das categorias compatíveis." },
+          include_kits: { type: "boolean", description: "Default false. Só passe true quando o cliente JÁ tem produto base escolhido (upsell) ou pediu explicitamente kit/combo." },
+          limit: { type: "number", description: "Máximo de resultados (default 5)." },
         },
         required: ["query"],
         additionalProperties: false,
@@ -676,8 +678,12 @@ async function executeSalesTool(
     switch (toolName) {
       case "search_products": {
         const rawQuery = (args.query as string) || "";
-        const limit = (args.limit as number) || 5;
-        // Normaliza Unicode (NFC) e remove ruído típico que a IA inclui (preço, travessões, parênteses)
+        const requestedLimit = (args.limit as number) || 5;
+        // Default seguro: na 1ª oferta a IA não vê kit. Só vê se pediu explicitamente.
+        const includeKits = args.include_kits === true;
+        const painHintRaw = (args.pain_hint as string) || "";
+
+        // Normaliza Unicode (NFC) e remove ruído típico (preço, travessões)
         const query = rawQuery
           .normalize("NFC")
           .replace(/[—–-]\s*R\$.*$/i, "")
@@ -688,12 +694,70 @@ async function executeSalesTool(
 
         const PRODUCT_COLS = "id, name, slug, price, compare_at_price, stock_quantity, status, has_variants, manage_stock, allow_backorder";
 
-        // Helper: enrich a list of products with primary image + kit indicator (single batched query each)
+        // ---------------------------------------------------------------
+        // CAMADA 2 — Mapa léxico DOR/OBJETIVO → padrões de nome de categoria
+        // do tenant. Mantido aqui (não em prompt) pra ser determinístico,
+        // testável e à prova de divergência do modelo. Categorias do tenant
+        // de teste: "Tratamento Para Calvicie", "Pos Tratamento Prevencao
+        // Para Calvicie", "Shampoo Calvície Zero", "Shampoo Preventive Power",
+        // "Balm Pós-Banho Calvície Zero", "Loção pós-banho Calvície Zero", etc.
+        // O matching é por ILIKE em categories.name, então funciona com qualquer
+        // tenant que tenha categorias nomeadas pela dor.
+        // ---------------------------------------------------------------
+        const painLexicon: Array<{ test: RegExp; categoryPatterns: string[] }> = [
+          { test: /\bcalv[íi]cie|queda|caindo|falha(s)?\b|coroa|ralo|rala/i,
+            categoryPatterns: ["%calv%", "%queda%", "%tratamento%"] },
+          { test: /\bpreven(ir|[çc][ãa]o|tivo)|fortalec|crescimento|crescer/i,
+            categoryPatterns: ["%preven%", "%fortalec%", "%crescimento%"] },
+          { test: /\bcaspa|seborr[eé]ia/i,
+            categoryPatterns: ["%caspa%", "%seborr%", "%anticaspa%"] },
+          { test: /\boleosidade|cabelo\s+oleoso|couro\s+cabeludo/i,
+            categoryPatterns: ["%oleos%", "%couro%"] },
+          { test: /\bp[óo]s[\s-]banho/i,
+            categoryPatterns: ["%pos%banho%", "%p[óo]s%banho%"] },
+        ];
+
+        const painSource = `${painHintRaw} ${query} ${lastUserMessageContentForTools}`;
+        const matchedCategoryPatterns: string[] = [];
+        for (const entry of painLexicon) {
+          if (entry.test.test(painSource)) {
+            for (const pat of entry.categoryPatterns) {
+              if (!matchedCategoryPatterns.includes(pat)) matchedCategoryPatterns.push(pat);
+            }
+          }
+        }
+
+        // Resolve product_ids da árvore de categoria do tenant compatível com a dor.
+        // Tolerante a falha: se as tabelas/joins falharem por qualquer motivo,
+        // seguimos para o caminho normal (apenas perde-se o boost por dor).
+        let painProductIds: Set<string> | null = null;
+        if (matchedCategoryPatterns.length) {
+          try {
+            const orCatFilter = matchedCategoryPatterns.map(p => `name.ilike.${p}`).join(",");
+            const { data: catRows } = await supabase
+              .from("categories")
+              .select("id")
+              .eq("tenant_id", tenantId)
+              .or(orCatFilter);
+            const catIds = (catRows ?? []).map((c: any) => c.id);
+            if (catIds.length) {
+              const { data: pcRows } = await supabase
+                .from("product_categories")
+                .select("product_id")
+                .in("category_id", catIds);
+              const ids = new Set<string>((pcRows ?? []).map((r: any) => r.product_id));
+              if (ids.size) painProductIds = ids;
+            }
+          } catch (e) {
+            console.warn(`[ai-support-chat][search_products] pain→category resolve falhou (segue sem boost):`, (e as Error).message);
+          }
+        }
+
+        // Helper: enriquece linhas com imagem e flag is_kit (fonte de verdade = product_components)
         const enrichList = async (rows: any[]) => {
           if (!rows?.length) return [];
           const ids = rows.map(r => r.id);
 
-          // Primary image per product (is_primary first, then lowest sort_order)
           const { data: imgRows } = await supabase
             .from("product_images")
             .select("product_id, url, alt_text, is_primary, sort_order")
@@ -708,12 +772,6 @@ async function executeSalesTool(
             }
           }
 
-          // FONTE DE VERDADE para is_kit: tabela product_components.
-          // Produto com composição = kit. Produto sem composição = produto único.
-          // NÃO usamos heurística por nome porque palavras como "duo", "trio", "x", "leve"
-          // aparecem em produtos únicos legítimos e mascarariam a vitrine.
-          // Caso raro: kit cadastrado sem composição formal — fallback ULTRA conservador
-          // só para o termo "kit " ou "combo " explícito no início do nome.
           const { data: compRows } = await supabase
             .from("product_components")
             .select("parent_product_id")
@@ -737,32 +795,75 @@ async function executeSalesTool(
             has_variants: p.has_variants ?? false,
             manage_stock: p.manage_stock ?? true,
             allow_backorder: p.allow_backorder ?? false,
+            // Sinaliza ao modelo qual foi a "razão de match" desse item.
+            match_reason: painProductIds && painProductIds.has(p.id) ? "pain_match" : "name_match",
           }));
         };
 
-        // ENFORCEMENT do servidor: produtos únicos vêm SEMPRE no topo da lista,
-        // kits descem para o fim. Isso garante que, mesmo se o modelo errar a regra
-        // do prompt, ao mostrar até 3 ele acerta naturalmente. Ainda assim os kits
-        // aparecem no array para o caso de upsell explícito do cliente.
-        const sortSinglesFirst = (arr: any[]) =>
-          [...arr].sort((a, b) => Number(!!a?.is_kit) - Number(!!b?.is_kit));
+        // ENFORCEMENT do servidor:
+        // 1) Particiona em [únicos, kits] usando is_kit já resolvido.
+        // 2) Aplica o limit em CIMA dos únicos primeiro; só completa com kits
+        //    se include_kits=true e ainda houver folga.
+        // 3) Quando há pain match, únicos com pain_match vêm antes dos demais.
+        const partitionAndLimit = (enriched: any[]) => {
+          const singles = enriched.filter(p => !p.is_kit);
+          const kits = enriched.filter(p => p.is_kit);
 
-        // 1) ILIKE direto pelo nome
-        const { data, error } = await supabase
-          .from("products")
-          .select(PRODUCT_COLS)
-          .eq("tenant_id", tenantId)
-          .eq("status", "active")
-          .is("deleted_at", null)
-          .ilike("name", `%${query}%`)
-          .limit(limit);
+          const sortByPain = (arr: any[]) =>
+            [...arr].sort((a, b) => {
+              const ap = a.match_reason === "pain_match" ? 0 : 1;
+              const bp = b.match_reason === "pain_match" ? 0 : 1;
+              return ap - bp;
+            });
 
-        if (!error && data?.length) {
-          return JSON.stringify(sortSinglesFirst(await enrichList(data)));
+          const singlesSorted = sortByPain(singles);
+          const kitsSorted = sortByPain(kits);
+
+          const out = singlesSorted.slice(0, requestedLimit);
+          if (includeKits && out.length < requestedLimit) {
+            out.push(...kitsSorted.slice(0, requestedLimit - out.length));
+          }
+          return out;
+        };
+
+        // Pool de busca: pegamos um limite generoso (×6) pra ter material
+        // pra particionar; o limit final do cliente é aplicado depois.
+        const POOL_LIMIT = Math.max(requestedLimit * 6, 30);
+
+        // 1) Pool por nome (ILIKE). Quando há query genérica como "shampoo",
+        //    isso traz tanto únicos quanto kits — o particionamento decide o que sai.
+        let pool: any[] = [];
+        if (query) {
+          const { data, error } = await supabase
+            .from("products")
+            .select(PRODUCT_COLS)
+            .eq("tenant_id", tenantId)
+            .eq("status", "active")
+            .is("deleted_at", null)
+            .ilike("name", `%${query}%`)
+            .limit(POOL_LIMIT);
+          if (!error && data?.length) pool = data;
         }
 
-        // 2) Fallback: busca por tokens combinados (OR)
-        if (tokens.length) {
+        // 2) Se houve pain match, garante que os produtos da categoria entrem no pool
+        //    mesmo que o ILIKE no nome não os tenha pegado.
+        if (painProductIds && painProductIds.size) {
+          const missing = [...painProductIds].filter(id => !pool.some(r => r.id === id));
+          if (missing.length) {
+            const { data: byPain } = await supabase
+              .from("products")
+              .select(PRODUCT_COLS)
+              .eq("tenant_id", tenantId)
+              .eq("status", "active")
+              .is("deleted_at", null)
+              .in("id", missing)
+              .limit(POOL_LIMIT);
+            if (byPain?.length) pool.push(...byPain);
+          }
+        }
+
+        // 3) Fallback por tokens, só se ainda estiver vazio.
+        if (!pool.length && tokens.length) {
           const orFilter = tokens.map(t => `name.ilike.%${t}%`).join(",");
           const { data: tokenData } = await supabase
             .from("products")
@@ -771,33 +872,45 @@ async function executeSalesTool(
             .eq("status", "active")
             .is("deleted_at", null)
             .or(orFilter)
-            .limit(limit);
-          if (tokenData?.length) {
-            return JSON.stringify(sortSinglesFirst(await enrichList(tokenData)));
+            .limit(POOL_LIMIT);
+          if (tokenData?.length) pool = tokenData;
+        }
+
+        // 4) Último fallback: RPC fuzzy.
+        if (!pool.length) {
+          const { data: fuzzyData } = await (supabase as any).rpc("search_products_fuzzy", {
+            p_tenant_id: tenantId,
+            p_query: query || rawQuery,
+            p_limit: POOL_LIMIT,
+            p_exclude_kits: false,
+          });
+          if (fuzzyData?.length) {
+            const fuzzyIds = fuzzyData.map((p: any) => p.id);
+            const { data: refetched } = await supabase
+              .from("products")
+              .select(PRODUCT_COLS)
+              .in("id", fuzzyIds)
+              .eq("tenant_id", tenantId)
+              .is("deleted_at", null);
+            if (refetched?.length) pool = refetched;
           }
         }
 
-        // 3) Fallback final: RPC fuzzy SEM excluir kits
-        const { data: fuzzyData } = await (supabase as any).rpc("search_products_fuzzy", {
-          p_tenant_id: tenantId,
-          p_query: query || rawQuery,
-          p_limit: limit,
-          p_exclude_kits: false,
+        if (!pool.length) {
+          return JSON.stringify({ message: "Nenhum produto encontrado para a busca.", query: query || rawQuery });
+        }
+
+        // Dedup por id (pool pode ter recebido o mesmo produto por 2 caminhos)
+        const seen = new Set<string>();
+        pool = pool.filter(p => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
         });
-        if (fuzzyData?.length) {
-          // Fuzzy returns a different shape — refetch canonical rows and enrich
-          const fuzzyIds = fuzzyData.map((p: any) => p.id);
-          const { data: refetched } = await supabase
-            .from("products")
-            .select(PRODUCT_COLS)
-            .in("id", fuzzyIds)
-            .eq("tenant_id", tenantId);
-          if (refetched?.length) {
-            return JSON.stringify(sortSinglesFirst(await enrichList(refetched)));
-          }
-        }
 
-        return JSON.stringify({ message: "Nenhum produto encontrado para a busca.", query: query || rawQuery });
+        const enriched = await enrichList(pool);
+        const finalList = partitionAndLimit(enriched);
+        return JSON.stringify(finalList);
       }
 
       case "get_product_details": {
