@@ -2676,8 +2676,8 @@ Cliente: "vocês entregam em SP?"
     );
 
     // [F2-FIX] Detecta saudação pura ANTES da pré-transição (decideNextState
-    // precisa desse flag). A declaração antiga na ~linha 2896 foi removida.
-    const isGreetingOnlyTurn = isPureGreeting(lastMessageContent);
+    // precisa desse flag). Reusa o resultado já calculado no fast-path do Pacote 1.
+    const isGreetingOnlyTurn = isPureGreetingFastPath;
     if (isGreetingOnlyTurn) {
       console.log(`[ai-support-chat] [F1] Pure greeting detected — tool triggers DISABLED for this turn.`);
     }
