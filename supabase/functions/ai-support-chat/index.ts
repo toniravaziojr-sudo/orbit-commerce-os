@@ -3296,6 +3296,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // [PACOTE 1] Sinaliza se o round final forçado com tool_choice="none" foi acionado
     let forcedTextRoundApplied = false;
     let forcedTextRoundReason: string | null = null;
+    // [PACOTE 1] iterations expostas no escopo do handler para entrar no log
+    let toolCallIterations = 0;
 
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
