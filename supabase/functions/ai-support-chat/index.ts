@@ -2267,6 +2267,30 @@ Deno.serve(async (req) => {
       (conversation.images_sent_per_product as Record<string, number>) || {};
     const lastBotResponseHash: string | null = conversation.last_bot_response_hash || null;
 
+    // [Pacote B] LOCK DE TURNO — evita processamento paralelo da mesma conversa
+    // (cliente fragmenta msg + duas chamadas ao webhook chegam quase simultâneas).
+    // Fail-OPEN: se o lock falhar, processa normalmente (não silencia o cliente).
+    const lockResult = await acquireProcessingLock(
+      supabase,
+      conversation_id,
+      "ai_turn",
+    );
+    if (!lockResult.acquired) {
+      console.log(
+        `[ai-support-chat] [LOCK] turn already in progress for conversation ${conversation_id} — skipping (lock alive)`,
+      );
+      return new Response(
+        JSON.stringify({
+          success: false,
+          skipped: true,
+          reason: "processing_lock_alive",
+          existing_lock: lockResult.existing,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const myLockId = lockResult.lock_id!;
+
     // Channel-specific config
     const channelType = conversation.channel_type || "chat";
 
