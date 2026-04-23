@@ -2331,13 +2331,29 @@ Deno.serve(async (req) => {
 
     // ============================================
     // STEP 1: INTENT CLASSIFICATION (Tool Calling)
+    // [PERF — Pacote 1] Saudação pura NÃO precisa de modelo classificador.
+    // Construímos a classificação localmente, economizamos ~1.5–2s por turno.
     // ============================================
-    console.log("[ai-support-chat] Classifying intent...");
-    const intentClassification = await classifyIntent(
-      OPENAI_API_KEY,
-      lastMessageContent,
-      conversationContext
-    );
+    const isPureGreetingFastPath = isPureGreeting(lastMessageContent);
+    let intentClassification: IntentClassification | null;
+    if (isPureGreetingFastPath) {
+      intentClassification = {
+        intent: "greeting",
+        sentiment: "neutral",
+        urgency: "low",
+        requires_action: false,
+        topics: ["saudacao"],
+        summary: "Saudação simples do cliente.",
+      };
+      console.log("[ai-support-chat] [PERF] skip classifyIntent (pure greeting fast-path)");
+    } else {
+      console.log("[ai-support-chat] Classifying intent...");
+      intentClassification = await classifyIntent(
+        OPENAI_API_KEY,
+        lastMessageContent,
+        conversationContext
+      );
+    }
 
     let shouldHandoff = false;
     let handoffReason = "";
