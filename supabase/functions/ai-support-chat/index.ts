@@ -3300,13 +3300,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             ...tokenParams,
           };
 
-          // [F2-FIX] Controle de reasoning APENAS em modelos com reasoning real.
-          // gpt-5-nano/gpt-5-mini/gpt-4o NÃO aceitam o parâmetro `reasoning` e
-          // retornam 400. Restringimos a gpt-5 e gpt-5.2.
-          const supportsReasoning = modelToTry === "gpt-5" || modelToTry === "gpt-5.2";
-          if (supportsReasoning) {
-            requestBody.reasoning = { effort: stateReasoningEffort };
-          }
+          // [PERF — Pacote 2] O parâmetro `reasoning` está sendo rejeitado pela
+          // API para todos os modelos desta conta (Unknown parameter). Mantemos
+          // desativado até confirmação de suporte. O controle de tokens
+          // (stateMaxTokens) já limita o esforço em estados simples.
+          // if (supportsReasoning) requestBody.reasoning = { effort: stateReasoningEffort };
 
           // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
           // silencioso para o default. Só enviar temperature em modelos não-gpt5.
