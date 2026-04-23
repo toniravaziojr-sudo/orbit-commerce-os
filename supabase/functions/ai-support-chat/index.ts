@@ -3243,22 +3243,47 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
       let response: Response | null = null;
       let usedModel = aiModel;
-      const modelsToTry = [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
+
+      // [PERF — Pacote 2] Parâmetros de saída/raciocínio por estado.
+      // Em greeting/discovery, limitamos esforço de raciocínio e tokens para
+      // priorizar latência baixa. Em estados complexos (decisão, checkout,
+      // detalhe, suporte), liberamos espaço para tools + texto final.
+      const SIMPLE_STATES: PipelineState[] = ["greeting", "discovery"];
+      const isSimpleState = salesModeEnabled && SIMPLE_STATES.includes(pipelineState);
+      const stateMaxTokens = isSimpleState ? 600 : 4096;
+      const stateReasoningEffort: "minimal" | "low" | "medium" = isSimpleState ? "minimal" : "low";
+
+      // [PERF — Pacote 2] Reordenação de modelos por estado:
+      // - estados simples: priorizar modelos rápidos (nano/mini)
+      // - estados complexos: manter prioridade de qualidade (modelo configurado primeiro)
+      // Em ambos, pular modelos cacheados como indisponíveis (404/400) no cold start.
+      const baseOrder = isSimpleState
+        ? [...FAST_MODELS_FOR_SIMPLE_STATES, ...OPENAI_MODELS.filter(m => !FAST_MODELS_FOR_SIMPLE_STATES.includes(m))]
+        : [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
+      // Dedup mantendo ordem
+      const seen = new Set<string>();
+      const orderedCandidates = baseOrder.filter(m => {
+        if (seen.has(m)) return false;
+        seen.add(m);
+        return true;
+      });
+      const skippedByCache: string[] = [];
+      const modelsToTry = orderedCandidates.filter(m => {
+        if (UNAVAILABLE_MODELS.has(m)) {
+          skippedByCache.push(m);
+          return false;
+        }
+        return true;
+      });
+      if (skippedByCache.length > 0) {
+        console.log(`[ai-support-chat] [PERF] skipping cached unavailable models: ${skippedByCache.join(",")}`);
+      }
+      console.log(`[ai-support-chat] [PERF] state=${pipelineState} simple=${isSimpleState} model_order=${modelsToTry.slice(0, 3).join(",")}...`);
 
       let lastErrorText = "";
       let currentMessages = [...aiMessages];
       let toolCallIterations = 0;
       const MAX_TOOL_ITERATIONS = 5;
-
-      // [F2-FIX] Parâmetros de saída e raciocínio por estado comercial.
-      // Em greeting/discovery, limitamos esforço de raciocínio (modelo não pode
-      // gastar todo o budget pensando) e damos saída suficiente para uma
-      // resposta curta e natural. Em estados mais complexos (decisão, checkout,
-      // detalhe, suporte), liberamos mais espaço para tools + texto final.
-      const SIMPLE_STATES: PipelineState[] = ["greeting", "discovery"];
-      const isSimpleState = salesModeEnabled && SIMPLE_STATES.includes(pipelineState);
-      const stateMaxTokens = isSimpleState ? 800 : 4096;
-      const stateReasoningEffort: "minimal" | "low" | "medium" = isSimpleState ? "minimal" : "low";
 
       // Outer loop for model fallback
       let modelFound = false;
@@ -3320,8 +3345,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
           lastErrorText = await response.text();
           console.warn(`[ai-support-chat] Model ${modelToTry} failed:`, response.status, lastErrorText);
-          
-          if (response.status === 404 || response.status === 400) {
+
+          // [PERF — Pacote 2] Cache de indisponibilidade no cold start.
+          // 404 = modelo não existe / sem acesso; 400 com "model" no erro = idem.
+          // Marcamos para pular nas próximas chamadas DESTE processo.
+          if (response.status === 404 || (response.status === 400 && /model/i.test(lastErrorText))) {
+            UNAVAILABLE_MODELS.add(modelToTry);
+            console.log(`[ai-support-chat] [PERF] cached as unavailable: ${modelToTry}`);
+            response = null;
+            continue;
+          }
+          if (response.status === 400) {
+            // 400 não relacionado a modelo (payload, tools etc.) — não cachear, mas tentar próximo.
             response = null;
             continue;
           }
