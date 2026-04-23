@@ -3596,6 +3596,98 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
       aiContent = aiData.choices?.[0]?.message?.content;
 
+      // ============================================
+      // [PACOTE 1] ROUND FINAL FORÇADO COM TEXTO
+      // ============================================
+      // Se o loop terminou ainda pedindo tool_calls (esgotou MAX_TOOL_ITERATIONS)
+      // OU se a última resposta veio sem texto E sem tool_calls,
+      // forçamos UM ÚNICO round final com tool_choice="none" para obrigar texto.
+      // Limitado a 1 (sem novo ciclo escondido).
+      let forcedTextRoundApplied = false;
+      let forcedTextRoundReason: string | null = null;
+      const stillHasToolCalls = !!aiData.choices?.[0]?.message?.tool_calls?.length;
+      const noTextAndNoTool = (!aiContent || !aiContent.trim()) && !stillHasToolCalls;
+      if (salesModeEnabled && (stillHasToolCalls || noTextAndNoTool) && toolsCalledThisTurn.length > 0) {
+        forcedTextRoundReason = stillHasToolCalls ? "loop_exhausted_with_pending_tools" : "empty_text_after_tools";
+        console.log(
+          `[ai-support-chat] [PACOTE 1] forcing final text round (reason=${forcedTextRoundReason} iters=${toolCallIterations})`,
+        );
+        // Se ainda há tool_calls no buffer, precisamos anexar o assistant_message
+        // ao histórico para que o tool_choice="none" seja válido. Mas como não vamos
+        // executar tool, anexamos como assistant SEM tool_calls (texto vazio explicativo)
+        // não funciona — então anexamos com tool_calls e respondemos com role:"tool" stub
+        // para cada chamada pendente, marcando-a como "skipped_loop_limit".
+        if (stillHasToolCalls) {
+          const pendingAssistant = aiData.choices[0].message;
+          currentMessages.push({
+            role: "assistant",
+            content: pendingAssistant.content || "",
+            tool_calls: pendingAssistant.tool_calls,
+          });
+          for (const tc of pendingAssistant.tool_calls) {
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({
+                skipped: true,
+                reason: "tool_loop_limit_reached_use_existing_results",
+              }),
+            } as any);
+          }
+        }
+
+        const isGpt5ModelForced = usedModel.startsWith("gpt-5");
+        const tokenParamsForced = isGpt5ModelForced
+          ? { max_completion_tokens: stateMaxTokens }
+          : { max_tokens: stateMaxTokens };
+        const forcedBody: any = {
+          model: usedModel,
+          messages: currentMessages,
+          ...tokenParamsForced,
+          // Mantém tools no payload para o modelo "saber" que existiam,
+          // mas tool_choice="none" PROÍBE nova chamada.
+          tools: pipelineFilteredTools.length > 0 ? pipelineFilteredTools : undefined,
+          tool_choice: "none",
+          parallel_tool_calls: false,
+        };
+        if (isGpt5ModelForced) {
+          forcedBody.reasoning = { effort: stateReasoningEffort };
+        }
+        if (!isGpt5ModelForced) {
+          forcedBody.temperature = 0.3;
+        }
+
+        try {
+          const forcedResp = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${OPENAI_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(forcedBody),
+          });
+          if (forcedResp.ok) {
+            const forcedData = await forcedResp.json();
+            if (forcedData.usage) {
+              inputTokens += forcedData.usage.prompt_tokens || 0;
+              outputTokens += forcedData.usage.completion_tokens || 0;
+            }
+            const forcedText = forcedData.choices?.[0]?.message?.content;
+            if (forcedText && forcedText.trim()) {
+              aiContent = forcedText;
+              forcedTextRoundApplied = true;
+              console.log(`[ai-support-chat] [PACOTE 1] forced text round produced text (${forcedText.length} chars)`);
+            } else {
+              console.warn(`[ai-support-chat] [PACOTE 1] forced text round STILL empty — will use conclusive fallback`);
+            }
+          } else {
+            console.error("[ai-support-chat] [PACOTE 1] forced text round HTTP error:", forcedResp.status);
+          }
+        } catch (forcedErr) {
+          console.error("[ai-support-chat] [PACOTE 1] forced text round threw:", forcedErr);
+        }
+      }
+
       // [F2-FIX] Observabilidade: log de consumo excessivo de reasoning
       // (modelos gpt-5*). Se mais de 50% do completion budget foi para
       // reasoning interno, logamos para podermos ajustar effort por estado.
@@ -3613,10 +3705,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         }
       } catch { /* ignore */ }
 
-      // [F2-FIX] Fallback de resposta vazia. Antes, devolvíamos erro e o cliente
-      // ficava sem resposta no WhatsApp. Agora, logamos o motivo (finish_reason,
-      // tokens) e geramos uma mensagem curta natural por estado, para não perder
-      // o turno. O log fica em ai_support_turn_log via fields existentes.
+      // [F2-FIX + PACOTE 1] Fallback de resposta vazia.
+      // Diferenciação CRÍTICA:
+      //   - Se nenhuma tool rodou neste turno → fallback "promessa" (pede tempo).
+      //   - Se ALGUMA tool rodou (já existe resultado real no histórico) → fallback
+      //     CONCLUSIVO, nunca repetir "Só um instante…" (proibido pelo usuário).
       if (!aiContent || !aiContent.trim()) {
         const finishReason = aiData.choices?.[0]?.finish_reason || "unknown";
         const compTokens = aiData.usage?.completion_tokens || 0;
@@ -3626,10 +3719,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           `[ai-support-chat] [F2-FIX] RESPOSTA VAZIA state=${pipelineState} ` +
           `model=${usedModel} finish=${finishReason} ` +
           `completion=${compTokens} reasoning=${reasoningTokens} ` +
-          `max_tokens=${stateMaxTokens} effort=${stateReasoningEffort}`
+          `max_tokens=${stateMaxTokens} effort=${stateReasoningEffort} ` +
+          `tools_called=${toolsCalledThisTurn.length} forced_round=${forcedTextRoundApplied}`
         );
 
-        const FALLBACK_BY_STATE: Record<PipelineState, string> = {
+        const toolsAlreadyRan = toolsCalledThisTurn.length > 0;
+        const FALLBACK_PROMISE_BY_STATE: Record<PipelineState, string> = {
           greeting:        "Oi! Tudo bem? Me conta o que você está procurando.",
           discovery:       "Deixa eu entender melhor. Você procura algo específico ou quer ver opções?",
           recommendation:  "Só um instante, deixa eu ver as opções aqui pra você.",
@@ -3639,10 +3734,24 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           support:         "Entendi. Deixa eu olhar isso pra você, um instante.",
           handoff:         "Vou te passar pra alguém da equipe que resolve isso, tá?",
         };
-        aiContent = FALLBACK_BY_STATE[pipelineState] || "Só um instante, já te respondo.";
+        // Fallback CONCLUSIVO quando tools já rodaram: nunca prometer de novo.
+        const FALLBACK_CONCLUSIVE_BY_STATE: Record<PipelineState, string> = {
+          greeting:        "Tive uma instabilidade rápida aqui, pode repetir o que precisa?",
+          discovery:       "Tive uma instabilidade rápida ao montar a resposta. Pode me dizer de novo o que procura?",
+          recommendation:  "Encontrei algumas opções aqui, mas tive uma instabilidade ao formatar. Pode me dizer qual estilo/tamanho/preço prefere que eu já te mostro a melhor?",
+          product_detail:  "Consegui consultar os detalhes, mas tive uma instabilidade ao montar a resposta. Quer que eu te confirme preço, estoque ou variações?",
+          decision:        "Estou com sua seleção em mãos. Pode me confirmar se quer fechar agora que eu te mando o link de pagamento?",
+          checkout_assist: "Seu carrinho está ok. Quer que eu já gere o link de pagamento?",
+          support:         "Já consultei aqui. Pode me confirmar o número do pedido ou o que você gostaria de fazer agora?",
+          handoff:         "Vou te passar pra alguém da equipe que resolve isso.",
+        };
+        const fallbackTable = toolsAlreadyRan ? FALLBACK_CONCLUSIVE_BY_STATE : FALLBACK_PROMISE_BY_STATE;
+        aiContent = fallbackTable[pipelineState] || (toolsAlreadyRan
+          ? "Tive uma instabilidade rápida aqui. Pode me confirmar o que você gostaria de fazer agora?"
+          : "Só um instante, já te respondo.");
         emptyResponseFallbackApplied = true;
         console.warn(
-          `[ai-support-chat] [F2-FIX] fallback aplicado state=${pipelineState} text="${aiContent}"`
+          `[ai-support-chat] [F2-FIX + PACOTE 1] fallback aplicado state=${pipelineState} conclusive=${toolsAlreadyRan} text="${aiContent}"`
         );
       }
     }
