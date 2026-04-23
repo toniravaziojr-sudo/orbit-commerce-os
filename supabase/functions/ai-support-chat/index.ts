@@ -708,21 +708,21 @@ async function executeSalesTool(
             }
           }
 
-          // Kit indicator (any component row makes it a kit)
+          // FONTE DE VERDADE para is_kit: tabela product_components.
+          // Produto com composição = kit. Produto sem composição = produto único.
+          // NÃO usamos heurística por nome porque palavras como "duo", "trio", "x", "leve"
+          // aparecem em produtos únicos legítimos e mascarariam a vitrine.
+          // Caso raro: kit cadastrado sem composição formal — fallback ULTRA conservador
+          // só para o termo "kit " ou "combo " explícito no início do nome.
           const { data: compRows } = await supabase
             .from("product_components")
             .select("parent_product_id")
             .in("parent_product_id", ids);
           const kitSet = new Set((compRows ?? []).map((r: any) => r.parent_product_id));
 
-          // Heurística de kit por NOME (cobre catálogos onde "kit/combo/pack" não tem
-          // composição formal cadastrada). Se o nome bate o padrão de kit/multi-unidade,
-          // tratamos como kit para fins da PRIMEIRA OFERTA, nunca aparecendo na vitrine inicial.
-          const KIT_NAME_REGEX = /\b(kit|combo|pack|leve|duo|trio|quarteto|c\/?\s?\d+|\d+\s?(un|unid|unidades|x|peças|pe[çc]as)\b|\d+\s*x\b)/i;
-          const looksLikeKitByName = (name?: string | null) => {
-            if (!name) return false;
-            return KIT_NAME_REGEX.test(name);
-          };
+          const KIT_EXPLICIT_PREFIX = /^\s*(kit|combo)\b/i;
+          const looksLikeKitByExplicitName = (name?: string | null) =>
+            !!name && KIT_EXPLICIT_PREFIX.test(name);
 
           return rows.map(p => ({
             id: p.id,
@@ -733,7 +733,7 @@ async function executeSalesTool(
             stock: p.stock_quantity,
             image: primaryImageByProduct.get(p.id)?.url ?? null,
             image_alt: primaryImageByProduct.get(p.id)?.alt ?? null,
-            is_kit: kitSet.has(p.id) || looksLikeKitByName(p.name),
+            is_kit: kitSet.has(p.id) || looksLikeKitByExplicitName(p.name),
             has_variants: p.has_variants ?? false,
             manage_stock: p.manage_stock ?? true,
             allow_backorder: p.allow_backorder ?? false,
