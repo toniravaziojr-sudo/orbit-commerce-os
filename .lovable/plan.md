@@ -1,118 +1,212 @@
+# Plano Mestre Final v4 — IA de Atendimento e Vendas do Comando Central
 
+> **Status:** ✅ Aprovado como versão final do plano mestre.
+> **Escopo:** Pipeline completa de atendimento e venda IA, com WhatsApp como canal prioritário da Fase 1.
+> **Substitui:** Plano v2 (Pipeline Básica com Contexto de Negócio).
 
-# Plano Reforçado v2 — Pipeline Básica com Contexto de Negócio (Universal + Robustez)
+---
 
 ## 📋 Checklist de Conformidade
-- Doc de Regras do Sistema: pendente leitura formal antes de executar
-- Doc formal do tema (modo vendas WhatsApp): existe — será atualizado
-- Fluxo afetado: atendimento e venda da IA no WhatsApp
-- Fonte de verdade: catálogo do tenant (primária) + configuração da IA (override)
-- Módulos impactados: Modo Vendas IA, Configuração da IA, Pipeline F2, Catálogo
-- UI impactada: sim → mapa-ui.md atualizado na Fase 4
-- 📌 Status: Proposta v2 — aguardando confirmação
+- Doc de Regras do Sistema: aplicado (Knowledge de governança em uso)
+- Doc formal do tema: lacuna documental declarada — Layer 2 macro de IA de vendas a ser criado no fechamento do rollout
+- Fluxo afetado: pipeline completa de atendimento e venda IA WhatsApp + checkout
+- Fonte de verdade: catálogo + variantes + config IA + memória híbrida + contrato de checkout por canal
+- Módulos impactados: Modo Vendas IA, Configuração IA, Pipeline F2, Catálogo, Checkout, Cupom, Frete, Memória híbrida, Observabilidade, UI override
+- Impacto cruzado mapeado: sim
+- UI impactada: sim (UI de override + tela de métricas + aviso de catálogo incompleto)
+- 📌 Status: Plano v4 aprovado — pronto para servir como base oficial da implementação
 
 ---
 
-## Onde concordo 100% com os 5 refinamentos
+## Visão macro
 
-Os 5 pontos da crítica estão certos e entram no plano. Não tenho discordância nessa rodada — todos cobrem riscos reais que eu não tinha tornado explícitos.
+Transformar a IA de "buscador reativo de catálogo" em **vendedora/atendente de alto nível** que entra na conversa já entendendo o negócio, os produtos, as dores que resolve, a lógica comercial, a linguagem do cliente e o contrato operacional do tenant. Funciona bem por padrão (com ou sem configuração manual), degrada com elegância em catálogo ruim, respeita compliance por nicho, e se mede com métricas comerciais reais — não só logs técnicos.
 
-## Como cada refinamento entra no plano
+## Princípio central
 
-### Refinamento 1 — Nível de confiança da inferência
-A IA classifica cada nível da árvore inferida como **alta**, **média** ou **baixa** confiança:
-- **Alta:** quando há sinal forte e consistente (ex.: 80% dos produtos têm a palavra "shampoo" + categoria "cabelo")
-- **Média:** sinal parcial (ex.: poucos produtos, mas convergem)
-- **Baixa:** sinal fraco ou ambíguo (ex.: catálogo misto sem categoria clara)
-
-Uso prático na conversa:
-- Alta → IA fala com convicção ("temos estes shampoos")
-- Média → IA confirma antes ("você está procurando algo de cabelo, é isso?")
-- Baixa → IA pergunta abertamente sem fingir saber ("me conta o que você procura que eu te ajudo")
-
-Nunca finge certeza que não tem.
-
-### Refinamento 2 — Fallback para catálogo ruim
-Se a inferência automática não conseguir montar a árvore (catálogo com nomes vagos, descrições vazias, categorias bagunçadas), o sistema:
-1. Marca o tenant como "contexto incompleto"
-2. A IA opera em **modo neutro**: sem assumir segmento/público, conduz a conversa por descoberta pura ("o que você procura?")
-3. Mostra um aviso na UI da configuração da IA: "Não conseguimos entender bem seu catálogo automaticamente. Preencha manualmente para a IA atender melhor." → leva direto pra UI de override (Pacote E)
-4. Continua funcionando, só sem a vantagem da árvore. Nunca quebra.
-
-### Refinamento 3 — Produto pode resolver mais de uma dor
-A estrutura do mapa produto ↔ dor passa a ser **N:N** (muitos para muitos), não 1:1:
-- Um produto pode estar vinculado a várias dores (shampoo para queda + oleosidade)
-- Uma dor pode ter vários produtos compatíveis
-- Cada vínculo tem um "peso" (dor principal vs. dor secundária)
-
-Quando o cliente descreve múltiplas dores ("queda e caspa"), a IA prioriza produtos que resolvem **as duas**, depois os que resolvem só a principal.
-
-### Refinamento 4 — Critérios de aceite por arquétipo
-Cada um dos 3 arquétipos (beleza, moda, eletrônico) só passa na validação se atender **todos** os critérios abaixo:
-
-- **Termo amplo:** ao receber "shampoo" / "tênis" / "fone", a IA lista opções reais agrupadas por dor/uso. **Não** pergunta faixa de preço/tamanho de cara.
-- **Dor descrita:** ao receber a dor, a IA conecta ao produto certo do catálogo (não a uma categoria genérica).
-- **Intenção de compra:** a IA oferece **uma** alternativa de upsell (kit/combo/3 unidades), uma única vez, e respeita a recusa.
-- **Fechamento:** a IA conduz coleta de dados, valida cupom/frete, mostra total e envia link sem fricção.
-- **Linguagem:** zero ocorrências de "consultei o catálogo", "deixa eu ver", "vou buscar" ou similar.
-- **Continuidade:** mensagem curta de retomada ("ok", "?", "eai") ou refinamento longo dentro do TTL é entendida como continuação, não como conversa nova.
-
-Se qualquer critério falhar em qualquer arquétipo, a fase não fecha.
-
-### Refinamento 5 — Atualização do contexto quando o catálogo mudar
-A árvore e o mapa produto↔dor são **regenerados automaticamente** quando:
-- Produto novo é cadastrado
-- Produto existente é editado (nome, descrição, categoria, tags)
-- Produto é arquivado/excluído
-- Categoria nova é criada
-
-A regeneração é incremental (só recalcula o que mudou) e roda em background. Se a regeneração falhar, o contexto antigo continua valendo (nunca deixa a IA sem contexto). Há também uma regeneração completa diária por segurança.
-
-A configuração manual do tenant (UI de override) **não** é sobrescrita pela regeneração — overrides são preservados.
+A IA **não pode depender de "buscar no catálogo quando o cliente perguntar"**. Ela precisa entrar na conversa já sabendo o que vende, para quem, qual problema cada produto resolve, qual o papel comercial de cada item, como traduzir a fala do cliente em dor, e qual o contrato operacional do tenant para fechar a venda.
 
 ---
 
-## Pacotes consolidados (com os 5 refinamentos integrados)
+## Pacotes (16 — A a P)
 
-- **Pacote A — Contexto automático do negócio** (com nível de confiança alta/média/baixa)
-- **Pacote B — Árvore real de contexto** (negócio → público → macrocategoria → subcategoria → tipo → dor → produtos)
-- **Pacote C — Mapa produto ↔ dor N:N** (um produto pode resolver várias dores, cada vínculo com peso)
-- **Pacote D — Pipeline comportamental universal** (4 regras: termo amplo, dor→produto, upsell único, linguagem limpa)
-- **Pacote E — UI de override** (visualizar inferência, corrigir cada nível, ajustar vínculos manualmente)
-- **Pacote F — Validação multi-arquétipo** (beleza + moda + eletrônico, com critérios de aceite explícitos)
-- **Pacote G — Robustez** (fallback de catálogo ruim + regeneração automática quando catálogo muda)
+### Núcleo de inteligência prévia
 
-## Travas obrigatórias (mantidas)
-- Não mexer na máquina de transição F1/F2
+- **A** — Inferência automática do negócio + matriz de precedência de fontes (catálogo > FAQ > Drive > avaliações; override do tenant é última camada antes do guardrail estrutural)
+- **B** — Árvore real de contexto universal (negócio → público → macrocategoria → subcategoria → tipo → dor → produtos), com suporte explícito a **tenant híbrido / multi-linha** como sub-regra
+- **C** — Mapa produto ↔ dor/objetivo N:N com peso (principal vs secundária)
+- **H** — Variantes de produto (tamanho, cor, voltagem, volume, modelo, fragrância, numeração, acabamento): quando obrigatória, como perguntar só a necessária, como não confundir produto com variante
+- **J** — Contrato de payload comercial por produto (objeto pronto, não cru): nome comercial, papel comercial, dor principal, dores secundárias, para quem serve, quando NÃO indicar, diferenciais, prova social curta condicional, resumo curto/médio, argumentos de comparação
+
+### Motor comercial e jornada
+
+- **D** — Motor comercial universal, com regras explícitas:
+  - termo amplo → listar opções reais agrupadas por dor (nunca preço/tamanho de cara)
+  - dor declarada → conectar ao produto certo (não categoria genérica)
+  - produto citado nominalmente → falar daquele produto
+  - intenção clara → avançar, parar de enrolar
+  - upsell único e respeitoso (kit/3un/complemento) na fase de decisão
+  - confiança → comportamento (alta = afirma; média = sugere e confirma; baixa = não recomenda assertivo, conduz descoberta)
+  - perfil de cliente: novo / recorrente sem pendência / com sinal ativo (carrinho, pedido recente, reclamação, elegível cupom de retorno)
+  - **regra objetiva de perguntar vs recomendar** (tabela de decisão)
+- **M** — **Dicionário de linguagem do cliente**: camada explícita que traduz como o cliente fala para dor/objetivo real ("cabelo ralo / falhas / entradas / caindo muito" → queda capilar; "mais arrumado / casual / social" → estilo; "bom / sem travar / para jogo / para trabalho" → uso). Construído por nicho, alimentado por inferência + override do tenant. Vive no payload de contexto do turno, não no prompt fixo.
+- **N** — **Regras explícitas de anti-indicação** (regra formal do motor comercial). A IA não recomenda quando:
+  - produto sem estoque
+  - variante incompatível com o que o cliente declarou
+  - kit cedo demais (antes de dor entendida + intenção)
+  - produto inadequado para a dor (peso baixo no mapa N:N)
+  - complemento fora de hora (antes do principal)
+  - premium cedo demais (sem sinal de orçamento/intenção)
+  - alternativa sempre obrigatória quando bloquear (substituto compatível pela mesma dor)
+
+### Compliance e operação
+
+- **I** — Política de claims, promessas e limites comerciais (compliance por nicho: beleza, suplementos, saúde, íntimo, eletrônico). Nunca prometer resultado clínico, prazo sem confirmação, comparação desonesta, prova social inventada, desconto fora da autonomia.
+- **O** — **Contrato de checkout por tenant/canal**. Define explicitamente, por canal (WhatsApp prioritário) e por tenant:
+  - quais dados a IA coleta no chat (nome, email, CPF, CEP, endereço, telefone)
+  - quais são obrigatórios por canal antes de avançar
+  - quando a IA continua no chat até gerar link
+  - quando manda direto para checkout (link gerado mais cedo)
+  - como adapta por tenant sem quebrar base universal (override permitido em "ordem de coleta", "campos opcionais", "ponto de transição chat→link"; nunca permitido em "campos legalmente obrigatórios" nem em segurança de pagamento)
+  - regra de retomada: se cliente sair no meio, ao voltar a IA continua de onde parou (não recomeça coleta)
+
+### Robustez, UI e governança
+
+- **E** — UI de override do tenant (visualizar inferência, corrigir cada nível da árvore, ajustar vínculos N:N, dicionário customizado, contrato de checkout)
+- **G** — Robustez (catálogo ruim → modo neutro + aviso UI; regeneração automática incremental quando catálogo muda; override do tenant nunca sobrescrito por regeneração)
+
+### Validação, performance e observabilidade
+
+- **F** — Matriz de validação multi-arquétipo (3 nichos × 13 cenários: termo amplo, dor declarada, refinamento de dor no turno seguinte, variante obrigatória, sem estoque, recorrente, objeção de preço, objeção de confiança, produto citado nominal, pedido existente, catálogo ruim, recusa de upsell, "ok/eai?", produto com várias dores, tenant híbrido)
+- **K** — SLA por estado + degradação graciosa. Fase 1 = medir baseline real P50/P95 por estado; só depois cravar alvo. Degradação: modelo mais rápido se exceder limite, resposta curta primeiro, tool simplificada.
+- **L** — Observabilidade comercial (não só técnica): por turno registrar o que a IA "sabia" do negócio, dor entendida, produtos considerados, por que recomendou aquele, qual fonte de verdade venceu conflito, estado da jornada, tools usadas, falhas, fallback, continuação, anti-duplicidade, stall, latência.
+- **P** — **Métricas de sucesso por fase** (critério objetivo de aprovação, não só rollout):
+  - **Taxa de recomendação correta** (recomendação alinhada à dor declarada — auditada amostralmente)
+  - **Taxa de repetição indevida** (mesma pergunta genérica feita 2+ vezes no mesmo fluxo)
+  - **Taxa de handoff indevido** (handoff em caso simples que IA deveria ter resolvido)
+  - **Tempo de resposta por estado** (P50/P95)
+  - **Taxa de oferta de kit na hora certa** (kit oferecido só após dor + intenção; não antes)
+  - **Taxa de fechamento após intenção clara** (cliente declarou intenção → quanto fechou)
+  - **Taxa de fallback ativo** (modo neutro / catálogo ruim disparado)
+  - **Taxa de variante perguntada corretamente** (perguntada quando obrigatória, não perguntada quando irrelevante)
+  - Cada fase do rollout só fecha se métricas relevantes ficarem dentro do limite definido por nicho
+
+---
+
+## Matriz de precedência de fontes (resolução de conflito)
+
+Em conflito sobre um fato de produto/negócio, vence nesta ordem:
+
+1. **Guardrail estrutural** (segurança, máquina de estados, política de imagem, fiscal, checkout) — nunca quebrável
+2. **Override manual do tenant** (UI Pacote E)
+3. **Catálogo do tenant** (produto, variante, estoque, preço, descrição)
+4. **Configuração IA do tenant** (system_prompt, persona, instruções de canal)
+5. **Snapshot de inferência** (árvore + mapa N:N + dicionário)
+6. **FAQ / políticas do tenant**
+7. **Drive / materiais de marca**
+8. **Avaliações / prova social** (só se estruturada e confiável; senão, IA não usa)
+9. **Memória híbrida** (aprendizado cruzado, último recurso)
+
+A IA declara internamente qual fonte venceu (vai para o log do Pacote L).
+
+---
+
+## Camadas de precedência de prompt (estrutura do turno)
+
+1. Linguagem-base PT-BR (fixa)
+2. Prompt do estado atual (fixo)
+3. **Snapshot de negócio + payload comercial dos produtos relevantes + dicionário de linguagem** (Pacotes A+B+C+J+M)
+4. Camada do tenant (system_prompt + custom_instructions — complementa)
+5. Guardrails estruturais + anti-indicação + compliance (Pacotes N+I — fixos no final, não quebráveis pelo tenant)
+6. Contexto da conversa (histórico, memória, cliente, carrinho)
+
+---
+
+## Decisões fechadas (input para Fase 1)
+
+### 1. Canal prioritário
+**WhatsApp é a prioridade absoluta da Fase 1.** Reaproveitamento em outros canais (chat na loja, Instagram) fica como herança natural, não entregável da Fase 1.
+
+### 2. Autonomia comercial da IA
+A IA pode **aplicar automaticamente cupons, benefícios e vantagens que já estejam previstos nas regras do tenant e validados pelo sistema**.
+
+> ⚠️ **Definição explícita e não-negociável:** "aplicação automática de cupom" significa **apenas uso de regras já elegíveis e validadas pelo sistema**. Nunca autonomia livre para a IA criar desconto, conceder benefício fora da política configurada, ou inventar vantagem comercial.
+
+Operacionalmente:
+- IA consulta elegibilidade via tool (`check_customer_coupon_eligibility`, `check_coupon`)
+- Só aplica o que o sistema retornar como válido para aquele cliente/carrinho
+- Nunca propõe desconto livre ("posso te dar 10%")
+- Nunca aceita pedido de desconto do cliente fora das regras configuradas (encaminha para handoff se insistir)
+
+### 3. Handoff
+- **Se existir fila/atendente humano configurado para o tenant:** usar essa fila.
+- **Se não existir:** comportamento padrão seguro:
+  - avisar o cliente explicitamente que o caso será encaminhado
+  - registrar e resumir o contexto da conversa
+  - silenciar a IA até intervenção humana
+  - **nunca fingir** que já existe um atendente respondendo
+
+---
+
+## Rollout final (ordem revisada — ferramentas/payload antes de linguagem)
+
+1. **Inferência + árvore + mapa + variantes + payload comercial + base de robustez** (A+B+C+H+J+G base)
+2. **Motor comercial + anti-indicação + compliance + contrato de checkout + dicionário** (D+N+I+O+M)
+3. **Linguagem e dinâmica de turno** (anti-repetição, anti-greeting, continuidade, debounce, agrupamento, lock de turno)
+4. **Validação multi-arquétipo pesada** (F) — 3 nichos × 13 cenários, com métricas do Pacote P como critério de aceite
+5. **UI de override + regeneração automática** (E + G restante)
+6. **Observabilidade comercial + SLA + métricas de sucesso** (L+K+P)
+7. **Handoff disciplinado** (critérios objetivos, resumo do contexto, nada já resolvível pela IA, respeitando decisão #3)
+8. **Documentação formal** (Layer 2 macro de IA de vendas + atualização Layer 3 Pipeline F2 + mapa-ui)
+
+---
+
+## Critérios de aceite por fase
+
+- **Fase 1:** snapshot gerado para 3 tenants reais de nichos diferentes; árvore válida; payload comercial preenchido para ≥80% dos produtos ativos; fallback de catálogo ruim acionável.
+- **Fase 2:** motor comercial passa nos 4 cenários básicos por nicho (termo amplo, dor, intenção, recusa de upsell); contrato de checkout respeitado por canal; dicionário traduzindo ≥10 expressões por nicho; anti-indicação bloqueando os 6 casos definidos; cupom automático só com elegibilidade validada.
+- **Fase 3:** zero ocorrência de "consultei o catálogo / vou buscar / deixa eu ver"; continuação correta para "ok/eai/?".
+- **Fase 4:** matriz 3×13 verde; métricas P dentro do limite por nicho.
+- **Fase 5:** UI de override funcional e usada em ≥1 tenant piloto.
+- **Fase 6:** observabilidade comercial mostra dor + produto + fonte vencedora em 100% dos turnos.
+- **Fase 7:** taxa de handoff indevido < limite definido; respeito ao protocolo de aviso ao cliente.
+- **Fase 8:** docs Layer 2 + Layer 3 + mapa-ui atualizados.
+
+---
+
+## Travas obrigatórias
+
+- Não mexer na máquina F1/F2 além do necessário
 - Não mexer no filtro de tools por estado
 - Não mexer na política de imagem
-- Não mexer em checkout/frete/cupom/fiscal
-- Configuração do tenant tem precedência sobre a base universal
-- Observabilidade tolerante a falha (se inferência ou regeneração quebrar, IA continua funcionando)
+- Não mexer em checkout/frete/cupom/fiscal além do contrato declarado no Pacote O
+- Configuração do tenant tem precedência sobre base universal **mas não sobre guardrail estrutural**
+- IA nunca cria desconto/benefício fora da política configurada (regra explícita da decisão #2)
+- Handoff nunca finge atendente humano (regra explícita da decisão #3)
+- Observabilidade tolerante a falha (se quebrar, IA continua funcionando)
 
-## Rollout (mantido, com Pacote G distribuído nas fases certas)
+---
 
-1. **Fase 1 — Inferência automática + Robustez base** (Pacotes A + B + C + parte do G: fallback de catálogo ruim). Comportamento da IA passa a usar contexto inferido com nível de confiança. Sem UI ainda.
-2. **Fase 2 — Pipeline comportamental** (Pacote D). Ajuste dos prompts pra usar árvore + mapa + linguagem limpa + N:N.
-3. **Fase 3 — Validação multi-arquétipo** (Pacote F). Rodar critérios de aceite em beleza + moda + eletrônico. Só avança se os 3 passarem.
-4. **Fase 4 — UI de override + Regeneração automática** (Pacote E + parte restante do G). Tela de ajuste fino + recálculo automático quando catálogo muda.
-5. **Fase 5 — Documentação.** Atualizar doc do modo vendas + mapa-ui + memória.
+## Documentação a produzir no fechamento
+
+📝 DOCUMENTAÇÃO NECESSÁRIA:
+- **Doc novo Layer 2:** "IA de Atendimento e Vendas — Macro" (este plano vira a base oficial)
+- **Atualização Layer 3:** `docs/especificacoes/whatsapp/pipeline-f2-vendas-ia.md` (incorporar Pacotes H, I, J, M, N, O, P + decisões fechadas)
+- **Atualização mapa-ui:** nova tela "Sobre o seu negócio (visão IA)" + tela "Métricas da IA de vendas" + aviso de catálogo incompleto
+- **Memória de governança:** atualizar `mem://features/ai/sales-mode-conversational-commerce` apontando para o novo Layer 2
+
+---
 
 ## Resultado final esperado
 
-Para qualquer tenant, **com ou sem configuração**, **com catálogo bom ou ruim**:
-- Catálogo bom → IA atende com convicção, lista opções reais, conecta dor → produto certo, fecha venda.
-- Catálogo médio → IA confirma antes de assumir, evita pergunta genérica, ainda conduz bem.
-- Catálogo ruim → IA não inventa contexto, conduz por descoberta pura, e a UI avisa o tenant pra preencher manualmente.
+Para qualquer tenant, com ou sem configuração, com catálogo bom ou ruim, em qualquer nicho:
 
-E a árvore se mantém viva conforme o tenant cadastra/edita produtos, sem intervenção manual.
+- **Catálogo bom →** IA atende com convicção, lista opções reais, conecta dor → produto certo, aplica cupom elegível automaticamente, respeita variantes, fecha venda no contrato de checkout do tenant.
+- **Catálogo médio →** IA confirma antes de assumir, evita pergunta genérica, ainda conduz bem, usa dicionário para entender a fala do cliente.
+- **Catálogo ruim →** IA não inventa contexto, conduz por descoberta pura em modo neutro, e a UI avisa o tenant para preencher manualmente.
 
-## Documentação necessária
-📝 Ao final do rollout:
-- Doc do modo vendas WhatsApp → adicionar "Inferência automática", "Árvore de negócio", "Mapa produto ↔ dor N:N", "Níveis de confiança", "Fallback de catálogo ruim", "Regeneração automática"
-- mapa-ui.md → registrar tela "Sobre o seu negócio" + aviso de catálogo incompleto (Fase 4)
-- Memória do modo vendas → atualizar com a base universal v2
+E a árvore + mapa + payload comercial se mantêm vivos conforme o tenant cadastra/edita produtos, sem intervenção manual, sem sobrescrever override do tenant.
 
-## Status
-📌 **Proposta v2 — aguardando confirmação para iniciar pela Fase 1**
+---
 
+📌 **Plano v4 aprovado como versão final.** Pronto para iniciar Fase 1.
