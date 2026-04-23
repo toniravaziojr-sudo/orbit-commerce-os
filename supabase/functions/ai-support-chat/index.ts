@@ -2823,7 +2823,9 @@ Cliente: "vocês entregam em SP?"
           .eq("tenant_id", tenant_id)
           .maybeSingle();
         if (!ctxRow || ctxRow.needs_regeneration || !ctxRow.last_inferred_at) {
-          triggerContextRegeneration(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, tenant_id);
+          const _url = Deno.env.get("SUPABASE_URL") || "";
+          const _key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+          if (_url && _key) triggerContextRegeneration(_url, _key, tenant_id);
         }
       } catch (_) { /* tolerante */ }
 
