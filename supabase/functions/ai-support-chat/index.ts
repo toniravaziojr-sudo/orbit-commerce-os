@@ -649,83 +649,6 @@ const INTENT_CLASSIFICATION_TOOL = {
   }
 };
 
-type ToolResultSnapshot = {
-  toolName: string;
-  data: unknown;
-};
-
-function naturalJoin(values: string[]): string {
-  if (values.length <= 1) return values[0] || "";
-  if (values.length === 2) return `${values[0]} e ${values[1]}`;
-  return `${values.slice(0, -1).join(", ")} e ${values[values.length - 1]}`;
-}
-
-function buildConclusiveFallbackFromToolResults(
-  pipelineState: PipelineState,
-  toolResults: ToolResultSnapshot[],
-): string | null {
-  try {
-    const latestResult = (toolName: string) => {
-      for (let i = toolResults.length - 1; i >= 0; i--) {
-        if (toolResults[i]?.toolName === toolName) return toolResults[i].data;
-      }
-      return null;
-    };
-
-    const latestProductDetails = latestResult("get_product_details") as Record<string, unknown> | null;
-    if (latestProductDetails?.success === true && typeof latestProductDetails.name === "string") {
-      const productName = latestProductDetails.name;
-      const productPrice = typeof latestProductDetails.price === "number"
-        ? latestProductDetails.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-        : null;
-      const hasVariants = latestProductDetails.has_variants === true;
-
-      if (pipelineState === "product_detail") {
-        return productPrice
-          ? `${productName} está em ${productPrice}.${hasVariants ? " Se quiser, eu também te mostro as variações disponíveis." : " Se quiser, eu também te explico como ele funciona ou já sigo com a compra."}`
-          : `${productName} está disponível.${hasVariants ? " Se quiser, eu te mostro as variações disponíveis." : " Se quiser, eu te explico como ele funciona ou já sigo com a compra."}`;
-      }
-
-      return `${productName}${productPrice ? ` está em ${productPrice}` : " está disponível"}. Se quiser, eu te explico rápido a diferença dele para as outras opções ou já sigo com a melhor indicação.`;
-    }
-
-    const latestSearch = latestResult("search_products");
-    if (Array.isArray(latestSearch) && latestSearch.length > 0) {
-      const productNames = Array.from(
-        new Set(
-          latestSearch
-            .map((item) => (item && typeof item === "object" && "name" in item ? String((item as { name?: unknown }).name || "").trim() : ""))
-            .filter(Boolean),
-        ),
-      ).slice(0, 4);
-
-      if (productNames.length === 1) {
-        return `Encontrei ${productNames[0]}. Se quiser, eu já te explico como ele funciona, te passo o valor ou sigo com a melhor opção pra você.`;
-      }
-
-      if (productNames.length > 1) {
-        const intro = pipelineState === "recommendation"
-          ? "Encontrei estas opções reais"
-          : "Separei estas opções reais";
-        return `${intro}: ${naturalJoin(productNames)}. Se quiser, eu te indico a melhor delas pelo objetivo que você quer tratar.`;
-      }
-    }
-
-    if (latestSearch && typeof latestSearch === "object" && "message" in latestSearch) {
-      return "Não achei esse nome exato no catálogo. Se quiser, me diz o objetivo que você quer tratar que eu te mostro a opção mais próxima.";
-    }
-
-    const latestCart = latestResult("view_cart") as Record<string, unknown> | null;
-    if (latestCart && Array.isArray(latestCart.items) && latestCart.items.length > 0) {
-      return "Seu carrinho já está com itens prontos. Se quiser, eu sigo agora para o link de pagamento.";
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 // ==============================
 // SALES TOOL EXECUTORS
 // ==============================
@@ -3393,13 +3316,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // [F1] Rastreio de tools chamadas no turno (escopo do handler, alimenta máquina de estado)
     const toolsCalledThisTurn: string[] = [];
+    // [PACOTE B] Snapshots dos resultados reais de tools deste turno.
+    // Usados pelo fallback conclusivo para que a IA NUNCA fale "consultei o catálogo"
+    // ou "encontrei esses produtos reais" — em vez disso, montamos uma fala de
+    // vendedora real a partir dos produtos retornados (ignorando kits na 1ª oferta).
+    type ToolResultSnapshot = { tool: string; parsed: any };
+    const toolResultsThisTurn: ToolResultSnapshot[] = [];
     // [F2] Tools que o modelo tentou chamar mas foram bloqueadas pelo filtro de estado
     const pipelineBlockedTools: string[] = [];
     // [F2-FIX] Sinaliza se o fallback de resposta vazia foi acionado (vai para o log)
     let emptyResponseFallbackApplied = false;
     // [PACOTE 1] Sinaliza se o round final forçado com tool_choice="none" foi acionado
     let forcedTextRoundApplied = false;
-    const toolResultsThisTurn: ToolResultSnapshot[] = [];
     let forcedTextRoundReason: string | null = null;
     // [PACOTE 1] iterations expostas no escopo do handler para entrar no log
     let toolCallIterations = 0;
@@ -3630,10 +3558,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
           const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
           toolsCalledThisTurn.push(fnName);
+          // [PACOTE B] guarda snapshot estruturado pro fallback conclusivo
           try {
-            toolResultsThisTurn.push({ toolName: fnName, data: JSON.parse(result) });
+            toolResultsThisTurn.push({ tool: fnName, parsed: JSON.parse(result) });
           } catch {
-            toolResultsThisTurn.push({ toolName: fnName, data: null });
+            toolResultsThisTurn.push({ tool: fnName, parsed: result });
           }
           console.log(`[ai-support-chat] Tool result (${fnName}):`, result.slice(0, 200));
 
@@ -3852,29 +3781,70 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           support:         "Entendi. Deixa eu olhar isso pra você, um instante.",
           handoff:         "Vou te passar pra alguém da equipe que resolve isso, tá?",
         };
-        // [PACOTE B] Fallback CONCLUSIVO quando tools já rodaram: nunca prometer de novo,
-        // nunca mencionar "instabilidade ao formatar" — pede refinamento útil baseado
-        // no que já foi consultado.
-        const FALLBACK_CONCLUSIVE_BY_STATE: Record<PipelineState, string> = {
-          greeting:        "Pode me dizer o que você está procurando? Te ajudo agora.",
-          discovery:       "Me conta um pouco mais do que você procura — uso, estilo ou faixa de preço — pra eu já te mostrar a melhor opção.",
-          recommendation:  "Já consultei o catálogo aqui. Pra eu te indicar a melhor opção, me diz: pra qual uso é, e tem alguma preferência de tamanho ou faixa de preço?",
-          product_detail:  "Já consultei esse produto aqui. Quer que eu te confirme preço, estoque, variações ou prazo de entrega?",
-          decision:        "Estou com a sua seleção. Posso gerar o link de pagamento agora?",
-          checkout_assist: "Seu carrinho está pronto. Quer que eu gere o link de pagamento agora?",
-          support:         "Já consultei aqui. Me passa o número do pedido ou me diz o que você gostaria de fazer agora.",
-          handoff:         "Vou te passar pra alguém da equipe que resolve isso.",
+        // [PACOTE B v2] Fallback CONCLUSIVO HUMANIZADO.
+        // Regras:
+        //  1. Nunca dizer "consultei o catálogo", "encontrei esses produtos reais",
+        //     "deixa eu ver", "vou buscar" etc. — isso é linguagem de sistema, proibida.
+        //  2. Se search_products retornou produtos, montamos uma fala de vendedora
+        //     com até 3 produtos ÚNICOS (sem kits). Kits só entram quando o cliente
+        //     já escolheu um produto e estamos oferecendo upsell, nunca na vitrine inicial.
+        //  3. Se get_product_details retornou produto, falamos do produto pelo nome.
+        //  4. Se nada útil saiu das tools, caímos numa pergunta curta de vendedora.
+        const buildHumanFallbackFromTools = (): string | null => {
+          // Procura search_products mais recente com lista de produtos
+          for (let i = toolResultsThisTurn.length - 1; i >= 0; i--) {
+            const snap = toolResultsThisTurn[i];
+            if (snap.tool === "search_products" && Array.isArray(snap.parsed)) {
+              const all = snap.parsed as any[];
+              // 1ª oferta: prioriza produtos únicos. Kits só se NÃO houver único.
+              const singles = all.filter(p => !p?.is_kit);
+              const pool = (singles.length > 0 ? singles : all).slice(0, 3);
+              if (pool.length === 0) continue;
+              const names = pool.map(p => p?.name).filter(Boolean);
+              if (names.length === 0) continue;
+              if (names.length === 1) {
+                return `Temos sim, o ${names[0]}. Quer que eu te conte mais sobre ele?`;
+              }
+              if (names.length === 2) {
+                return `Temos opções boas sim. Trabalhamos com o ${names[0]} e o ${names[1]}. Qual te chamou mais atenção, ou prefere que eu te conte a diferença entre eles?`;
+              }
+              return `Temos opções boas sim. Os mais procurados são o ${names[0]}, o ${names[1]} e o ${names[2]}. Quer que eu te conte a diferença entre eles, ou já tem um em mente?`;
+            }
+            if (snap.tool === "get_product_details" && snap.parsed?.name) {
+              const p = snap.parsed;
+              const priceTxt = typeof p.price === "number" ? ` Sai por R$ ${p.price.toFixed(2).replace(".", ",")}.` : "";
+              return `O ${p.name} é um dos nossos.${priceTxt} Quer saber mais alguma coisa sobre ele ou já quer fechar?`;
+            }
+            if (snap.tool === "view_cart" && Array.isArray(snap.parsed?.items)) {
+              const count = snap.parsed.items.length;
+              if (count > 0) {
+                return `Você tem ${count} ${count === 1 ? "item" : "itens"} no carrinho. Quer que eu finalize o pedido pra você?`;
+              }
+            }
+          }
+          return null;
         };
-        const toolBackedFallback = toolsAlreadyRan
-          ? buildConclusiveFallbackFromToolResults(pipelineState, toolResultsThisTurn)
-          : null;
-        const fallbackTable = toolsAlreadyRan ? FALLBACK_CONCLUSIVE_BY_STATE : FALLBACK_PROMISE_BY_STATE;
-        aiContent = toolBackedFallback || fallbackTable[pipelineState] || (toolsAlreadyRan
-          ? "Tive uma instabilidade rápida aqui. Pode me confirmar o que você gostaria de fazer agora?"
-          : "Só um instante, já te respondo.");
+
+        const FALLBACK_CONCLUSIVE_BY_STATE: Record<PipelineState, string> = {
+          greeting:        "Oi! O que você está procurando hoje?",
+          discovery:       "Me conta um pouco mais do que você quer resolver, que eu já te indico o certo.",
+          recommendation:  "Pra eu te indicar o melhor, me diz pra qual uso é?",
+          product_detail:  "Quer saber preço, prazo de entrega ou tem outra dúvida sobre ele?",
+          decision:        "Posso gerar o link de pagamento pra você?",
+          checkout_assist: "Quer que eu finalize o pedido agora?",
+          support:         "Me passa o número do pedido que eu já vejo aqui pra você.",
+          handoff:         "Vou te passar pra alguém da equipe.",
+        };
+
+        if (toolsAlreadyRan) {
+          const humanized = buildHumanFallbackFromTools();
+          aiContent = humanized || FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] || "Pode me dizer um pouco mais do que você procura?";
+        } else {
+          aiContent = FALLBACK_PROMISE_BY_STATE[pipelineState] || "Já te respondo.";
+        }
         emptyResponseFallbackApplied = true;
         console.warn(
-          `[ai-support-chat] [F2-FIX + PACOTE 1] fallback aplicado state=${pipelineState} conclusive=${toolsAlreadyRan} tool_backed=${!!toolBackedFallback} text="${aiContent}"`
+          `[ai-support-chat] [PACOTE B v2] fallback aplicado state=${pipelineState} conclusive=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
         );
       }
     }

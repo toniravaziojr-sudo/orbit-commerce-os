@@ -18,7 +18,6 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 
 ## Memories
 - [WhatsApp Diagnóstico respeiteohomem](mem://constraints/whatsapp-respeiteohomem-connection-over-meta) — Não voltar a priorizar Meta/display name sem evidência nova; investigar conexão/pipeline primeiro
-- [AI Sales Fallback Must Use Tool Results](mem://constraints/ai-sales-fallback-must-use-tool-results) — Se tool rodou e trouxe dado real, fallback final deve reaproveitar esse dado e nunca voltar para promessa genérica
 
 - [Working Rules](mem://governance/working-rules) — Os 5 lembretes detalhados de comportamento
 - [Documentation Governance](mem://governance/documentation-governance) — Regra de Ouro e hierarquia de 6 camadas de docs
