@@ -20441,6 +20441,73 @@ export type Database = {
           },
         ]
       }
+      whatsapp_inbound_debounce: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          customer_phone: string
+          external_message_id: string | null
+          flush_at: string
+          flushed_at: string | null
+          id: string
+          message_content: string | null
+          message_id: string | null
+          received_at: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          customer_phone: string
+          external_message_id?: string | null
+          flush_at: string
+          flushed_at?: string | null
+          id?: string
+          message_content?: string | null
+          message_id?: string | null
+          received_at?: string
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          customer_phone?: string
+          external_message_id?: string | null
+          flush_at?: string
+          flushed_at?: string | null
+          id?: string
+          message_content?: string | null
+          message_id?: string | null
+          received_at?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_inbound_debounce_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_inbound_debounce_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_inbound_debounce_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_inbound_messages: {
         Row: {
           conversation_id: string | null

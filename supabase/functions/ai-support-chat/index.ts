@@ -37,6 +37,16 @@ import {
   type PipelineState,
   type TransitionReason,
 } from "../_shared/sales-pipeline/index.ts";
+// [Pacotes B/C/D/E] Dinâmica de turno (lock, continuação, stall, anti-dup)
+import {
+  acquireProcessingLock,
+  releaseProcessingLock,
+  detectContinuation,
+  detectStallPromise,
+  isDuplicateRecentResponse,
+  type ContinuationContext,
+  type StallDetection,
+} from "../_shared/turn-dynamics.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -2257,6 +2267,30 @@ Deno.serve(async (req) => {
       (conversation.images_sent_per_product as Record<string, number>) || {};
     const lastBotResponseHash: string | null = conversation.last_bot_response_hash || null;
 
+    // [Pacote B] LOCK DE TURNO — evita processamento paralelo da mesma conversa
+    // (cliente fragmenta msg + duas chamadas ao webhook chegam quase simultâneas).
+    // Fail-OPEN: se o lock falhar, processa normalmente (não silencia o cliente).
+    const lockResult = await acquireProcessingLock(
+      supabase,
+      conversation_id,
+      "ai_turn",
+    );
+    if (!lockResult.acquired) {
+      console.log(
+        `[ai-support-chat] [LOCK] turn already in progress for conversation ${conversation_id} — skipping (lock alive)`,
+      );
+      return new Response(
+        JSON.stringify({
+          success: false,
+          skipped: true,
+          reason: "processing_lock_alive",
+          existing_lock: lockResult.existing,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const myLockId = lockResult.lock_id!;
+
     // Channel-specific config
     const channelType = conversation.channel_type || "chat";
 
@@ -2332,9 +2366,29 @@ Deno.serve(async (req) => {
     // ============================================
     // STEP 1: INTENT CLASSIFICATION (Tool Calling)
     // [PERF — Pacote 1] Saudação pura NÃO precisa de modelo classificador.
-    // Construímos a classificação localmente, economizamos ~1.5–2s por turno.
+    // [Pacote C] Continuação de pendência NÃO pode ser tratada como greeting/reabertura.
     // ============================================
-    const isPureGreetingFastPath = isPureGreeting(lastMessageContent);
+    const rawIsGreeting = isPureGreeting(lastMessageContent);
+
+    // Última mensagem do bot (para janela "viva" de continuação)
+    const lastBotMessage = [...messages]
+      .filter(m => m.sender_type !== "customer" && !m.is_internal && !m.is_note)
+      .pop();
+    const continuationCtx: ContinuationContext = detectContinuation({
+      message: lastMessageContent,
+      salesState: currentSalesState,
+      lastBotResponseAtIso: lastBotMessage?.created_at ?? null,
+      liveWindowMinutes: 60,
+    });
+    if (continuationCtx.isContinuation) {
+      console.log(
+        `[ai-support-chat] [PACOTE C] continuation detected (state=${continuationCtx.salesState} pattern=${continuationCtx.matchedPattern} minutes_since_bot=${continuationCtx.minutesSinceLastBot}) — suppressing greeting fast-path`,
+      );
+    }
+
+    // Suprime fast-path de greeting quando for cobrança/continuação de contexto vivo.
+    const isPureGreetingFastPath = rawIsGreeting && !continuationCtx.isContinuation;
+
     let intentClassification: IntentClassification | null;
     if (isPureGreetingFastPath) {
       intentClassification = {
@@ -2346,6 +2400,18 @@ Deno.serve(async (req) => {
         summary: "Saudação simples do cliente.",
       };
       console.log("[ai-support-chat] [PERF] skip classifyIntent (pure greeting fast-path)");
+    } else if (continuationCtx.isContinuation) {
+      // Continuação curta — também não precisa de classificador. Forçamos intent
+      // adequada para o estado comercial corrente, sem cobrar OpenAI.
+      intentClassification = {
+        intent: "general",
+        sentiment: "neutral",
+        urgency: "medium",
+        requires_action: true,
+        topics: ["continuacao"],
+        summary: "Cliente cobrando continuação do que foi prometido.",
+      };
+      console.log("[ai-support-chat] [PERF] skip classifyIntent (continuation fast-path)");
     } else {
       console.log("[ai-support-chat] Classifying intent...");
       intentClassification = await classifyIntent(
@@ -3720,6 +3786,24 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // Hash da resposta (anti-repetição na próxima rodada)
     const responseHash = await hashResponse(aiContent || "");
 
+    // [Pacote D] Detector de stall: a IA prometeu "deixa eu ver…" e não chamou tool?
+    const stallDetection: StallDetection = detectStallPromise({
+      responseText: aiContent || "",
+      toolsCalled: toolsCalledArr,
+      salesState: pipelineState,
+    });
+    if (stallDetection.isStalled) {
+      console.log(
+        `[ai-support-chat] [PACOTE D] STALL DETECTED — promise without tool (state=${pipelineState} pattern=${stallDetection.matchedPromise})`,
+      );
+    }
+
+    // [Pacote E] Anti-duplicidade: olha histórico recente de turnos para o mesmo hash.
+    const dupCheck = await isDuplicateRecentResponse(supabase, conversation_id, responseHash);
+    if (dupCheck.duplicate) {
+      console.log(`[ai-support-chat] [PACOTE E] duplicate response blocked (${dupCheck.reason})`);
+    }
+
     // Update conversation status + estado comercial
     const newStatus = shouldHandoff ? "waiting_agent" : "bot";
     const conversationUpdate: Record<string, unknown> = {
@@ -3762,7 +3846,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         response_hash: responseHash,
         response_length: (aiContent || "").length,
         anti_greeting_blocked: isGreetingOnlyTurn,
-        anti_repetition_blocked: false,
+        anti_repetition_blocked: dupCheck.duplicate,
         image_send_blocked: false,
         duration_ms: latencyMs,
         metadata: {
@@ -3789,6 +3873,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           state_reasoning_effort: salesModeEnabled
             ? (["greeting", "discovery"].includes(pipelineState) ? "minimal" : "low")
             : null,
+          // [Pacote F] Observabilidade da dinâmica de turno
+          continuation_detected: continuationCtx.isContinuation,
+          continuation_reason: continuationCtx.reason,
+          continuation_pattern: continuationCtx.matchedPattern || null,
+          continuation_minutes_since_bot: continuationCtx.minutesSinceLastBot ?? null,
+          stall_detected: stallDetection.isStalled,
+          stall_pattern: stallDetection.matchedPromise || null,
+          dup_block_reason: dupCheck.duplicate ? dupCheck.reason : null,
+          processing_lock_id: myLockId,
+          processing_lock_reason: lockResult.reason || null,
+          raw_is_greeting: rawIsGreeting,
         },
       });
       if (turnLogErr) {
@@ -3844,10 +3939,21 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // ============================================
     // STEP 10: SEND VIA CHANNEL
+    // [Pacote E] Se a resposta foi marcada como duplicada, NÃO envia (mas mantém
+    // a mensagem persistida com delivery_status="suppressed_duplicate" para auditoria).
     // ============================================
     let sendResult: { success: boolean; error?: string; message_id?: string } = { success: false, error: "Canal não suportado" };
 
-    if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
+    if (dupCheck.duplicate) {
+      console.log(`[ai-support-chat] [PACOTE E] suppress send (duplicate response within window)`);
+      try {
+        await supabase
+          .from("messages")
+          .update({ delivery_status: "suppressed_duplicate", failure_reason: dupCheck.reason })
+          .eq("id", newMessage.id);
+      } catch { /* tolerante a falha */ }
+      sendResult = { success: false, error: "duplicate_suppressed" };
+    } else if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
       console.log(`[ai-support-chat] Sending WhatsApp response...`);
       
       try {
@@ -3939,6 +4045,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     console.log(`[ai-support-chat] Response ${sendResult.success ? "sent" : "failed"} via ${channelType}. Model: ${modelUsed}, Sales: ${salesModeEnabled}, RAG: ${similarityScores.length} chunks, Latency: ${latencyMs}ms`);
 
+    // [Pacote B] Libera o lock antes de devolver. Tolerante a falha.
+    await releaseProcessingLock(supabase, conversation_id, myLockId).catch(() => {});
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -3950,6 +4059,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         send_error: sendResult.error,
         channel_type: channelType,
         sales_mode: salesModeEnabled,
+        suppressed_duplicate: dupCheck.duplicate,
+        stall_detected: stallDetection.isStalled,
+        continuation_detected: continuationCtx.isContinuation,
         rag: {
           chunks_found: similarityScores.length,
           avg_similarity: similarityScores.length > 0 
@@ -3972,6 +4084,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     );
   } catch (error) {
     console.error("[ai-support-chat] Error:", error);
+    // [Pacote B] Tenta liberar o lock mesmo em erro. Tolerante a falha.
+    try {
+      const body = await req.clone().json().catch(() => null);
+      if (body?.conversation_id) {
+        // lock_id pode não estar disponível neste catch (escopo); usamos cleanup best-effort
+        // o TTL do lock garante liberação automática em PROCESSING_LOCK_TTL_MS.
+      }
+    } catch { /* noop */ }
     return new Response(
       JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte.", code: "INTERNAL_ERROR" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
