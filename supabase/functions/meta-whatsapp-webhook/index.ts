@@ -514,16 +514,23 @@ Deno.serve(async (req) => {
                   }
 
                   if (inboundId) {
-                    await supabase
-                      .from("whatsapp_inbound_messages")
-                      .update({
-                        processed_at: new Date().toISOString(),
-                        processed_by: decision.should_respond
-                          ? (aiOk ? "ai_support" : "ai_failed")
-                          : `gate:${decision.reason}`,
-                        conversation_id: conversationId,
-                      })
-                      .eq("id", inboundId);
+                    try {
+                      await supabase
+                        .from("whatsapp_inbound_messages")
+                        .update({
+                          processed_at: new Date().toISOString(),
+                          processed_by: decision.should_respond
+                            ? (aiOk ? "ai_support" : "ai_failed")
+                            : `gate:${decision.reason}`,
+                          conversation_id: conversationId,
+                          processing_status: decision.should_respond
+                            ? (aiOk ? "processed" : "failed")
+                            : "skipped",
+                        })
+                        .eq("id", inboundId);
+                    } catch (auditErr) {
+                      console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] support update failed (non-blocking):`, auditErr);
+                    }
                   }
                 }
               }
