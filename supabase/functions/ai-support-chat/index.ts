@@ -44,7 +44,10 @@ import {
   detectContinuation,
   detectStallPromise,
   isDuplicateRecentResponse,
+  loadPendingAction,
+  persistPendingAction,
   type ContinuationContext,
+  type LastPendingAction,
   type StallDetection,
 } from "../_shared/turn-dynamics.ts";
 
