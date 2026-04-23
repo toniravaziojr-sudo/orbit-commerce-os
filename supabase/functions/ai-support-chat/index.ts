@@ -93,6 +93,22 @@ const OPENAI_MODELS = [
 
 type OpenAIModel = typeof OPENAI_MODELS[number];
 
+// [PERF] Modelos rápidos preferidos em estados simples (greeting/discovery).
+// Ordem: rápidos primeiro, alta-qualidade como fallback.
+const FAST_MODELS_FOR_SIMPLE_STATES: readonly string[] = [
+  "gpt-5-nano",
+  "gpt-5-mini",
+  "gpt-4o",
+  "gpt-5.2",
+  "gpt-5",
+] as const;
+
+// [PERF] Cache em memória (vive por cold start) de modelos que retornaram
+// 404/400 — evita reenviar a mesma requisição que vai falhar de novo.
+// Tolerante a falha: se o cache estourar (caso impossível), apenas reentra na
+// rota normal de fallback.
+const UNAVAILABLE_MODELS = new Set<string>();
+
 // AI cost tracking (per 1K tokens, in cents)
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "gpt-5.2": { input: 3.0, output: 15.0 },
@@ -2315,13 +2331,29 @@ Deno.serve(async (req) => {
 
     // ============================================
     // STEP 1: INTENT CLASSIFICATION (Tool Calling)
+    // [PERF — Pacote 1] Saudação pura NÃO precisa de modelo classificador.
+    // Construímos a classificação localmente, economizamos ~1.5–2s por turno.
     // ============================================
-    console.log("[ai-support-chat] Classifying intent...");
-    const intentClassification = await classifyIntent(
-      OPENAI_API_KEY,
-      lastMessageContent,
-      conversationContext
-    );
+    const isPureGreetingFastPath = isPureGreeting(lastMessageContent);
+    let intentClassification: IntentClassification | null;
+    if (isPureGreetingFastPath) {
+      intentClassification = {
+        intent: "greeting",
+        sentiment: "neutral",
+        urgency: "low",
+        requires_action: false,
+        topics: ["saudacao"],
+        summary: "Saudação simples do cliente.",
+      };
+      console.log("[ai-support-chat] [PERF] skip classifyIntent (pure greeting fast-path)");
+    } else {
+      console.log("[ai-support-chat] Classifying intent...");
+      intentClassification = await classifyIntent(
+        OPENAI_API_KEY,
+        lastMessageContent,
+        conversationContext
+      );
+    }
 
     let shouldHandoff = false;
     let handoffReason = "";
@@ -2644,8 +2676,8 @@ Cliente: "vocês entregam em SP?"
     );
 
     // [F2-FIX] Detecta saudação pura ANTES da pré-transição (decideNextState
-    // precisa desse flag). A declaração antiga na ~linha 2896 foi removida.
-    const isGreetingOnlyTurn = isPureGreeting(lastMessageContent);
+    // precisa desse flag). Reusa o resultado já calculado no fast-path do Pacote 1.
+    const isGreetingOnlyTurn = isPureGreetingFastPath;
     if (isGreetingOnlyTurn) {
       console.log(`[ai-support-chat] [F1] Pure greeting detected — tool triggers DISABLED for this turn.`);
     }
@@ -3211,22 +3243,47 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
       let response: Response | null = null;
       let usedModel = aiModel;
-      const modelsToTry = [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
+
+      // [PERF — Pacote 2] Parâmetros de saída/raciocínio por estado.
+      // Em greeting/discovery, limitamos esforço de raciocínio e tokens para
+      // priorizar latência baixa. Em estados complexos (decisão, checkout,
+      // detalhe, suporte), liberamos espaço para tools + texto final.
+      const SIMPLE_STATES: PipelineState[] = ["greeting", "discovery"];
+      const isSimpleState = salesModeEnabled && SIMPLE_STATES.includes(pipelineState);
+      const stateMaxTokens = isSimpleState ? 600 : 4096;
+      const stateReasoningEffort: "minimal" | "low" | "medium" = isSimpleState ? "minimal" : "low";
+
+      // [PERF — Pacote 2] Reordenação de modelos por estado:
+      // - estados simples: priorizar modelos rápidos (nano/mini)
+      // - estados complexos: manter prioridade de qualidade (modelo configurado primeiro)
+      // Em ambos, pular modelos cacheados como indisponíveis (404/400) no cold start.
+      const baseOrder = isSimpleState
+        ? [...FAST_MODELS_FOR_SIMPLE_STATES, ...OPENAI_MODELS.filter(m => !FAST_MODELS_FOR_SIMPLE_STATES.includes(m))]
+        : [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
+      // Dedup mantendo ordem
+      const seen = new Set<string>();
+      const orderedCandidates = baseOrder.filter(m => {
+        if (seen.has(m)) return false;
+        seen.add(m);
+        return true;
+      });
+      const skippedByCache: string[] = [];
+      const modelsToTry = orderedCandidates.filter(m => {
+        if (UNAVAILABLE_MODELS.has(m)) {
+          skippedByCache.push(m);
+          return false;
+        }
+        return true;
+      });
+      if (skippedByCache.length > 0) {
+        console.log(`[ai-support-chat] [PERF] skipping cached unavailable models: ${skippedByCache.join(",")}`);
+      }
+      console.log(`[ai-support-chat] [PERF] state=${pipelineState} simple=${isSimpleState} model_order=${modelsToTry.slice(0, 3).join(",")}...`);
 
       let lastErrorText = "";
       let currentMessages = [...aiMessages];
       let toolCallIterations = 0;
       const MAX_TOOL_ITERATIONS = 5;
-
-      // [F2-FIX] Parâmetros de saída e raciocínio por estado comercial.
-      // Em greeting/discovery, limitamos esforço de raciocínio (modelo não pode
-      // gastar todo o budget pensando) e damos saída suficiente para uma
-      // resposta curta e natural. Em estados mais complexos (decisão, checkout,
-      // detalhe, suporte), liberamos mais espaço para tools + texto final.
-      const SIMPLE_STATES: PipelineState[] = ["greeting", "discovery"];
-      const isSimpleState = salesModeEnabled && SIMPLE_STATES.includes(pipelineState);
-      const stateMaxTokens = isSimpleState ? 800 : 4096;
-      const stateReasoningEffort: "minimal" | "low" | "medium" = isSimpleState ? "minimal" : "low";
 
       // Outer loop for model fallback
       let modelFound = false;
@@ -3243,12 +3300,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             ...tokenParams,
           };
 
-          // [F2-FIX] Controle de reasoning para modelos gpt-5* (suportam o campo).
-          // Evita que o modelo consuma todo o orçamento de tokens em reasoning
-          // interno e devolva content vazio (finish_reason="length").
-          if (isGpt5Model) {
-            requestBody.reasoning = { effort: stateReasoningEffort };
-          }
+          // [PERF — Pacote 2] O parâmetro `reasoning` está sendo rejeitado pela
+          // API para todos os modelos desta conta (Unknown parameter). Mantemos
+          // desativado até confirmação de suporte. O controle de tokens
+          // (stateMaxTokens) já limita o esforço em estados simples.
+          // if (supportsReasoning) requestBody.reasoning = { effort: stateReasoningEffort };
 
           // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
           // silencioso para o default. Só enviar temperature em modelos não-gpt5.
@@ -3288,8 +3344,21 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
           lastErrorText = await response.text();
           console.warn(`[ai-support-chat] Model ${modelToTry} failed:`, response.status, lastErrorText);
-          
-          if (response.status === 404 || response.status === 400) {
+
+          // [PERF — Pacote 2] Cache de indisponibilidade no cold start.
+          // 404 = modelo não existe / sem acesso.
+          // 400 com referência a "model" / "unknown parameter" / "invalid parameter"
+          // = incompatibilidade do modelo com o payload (não vale tentar de novo).
+          const incompatible = response.status === 404 ||
+            (response.status === 400 && /(model|unknown parameter|invalid parameter|unsupported)/i.test(lastErrorText));
+          if (incompatible) {
+            UNAVAILABLE_MODELS.add(modelToTry);
+            console.log(`[ai-support-chat] [PERF] cached as unavailable: ${modelToTry} (status=${response.status})`);
+            response = null;
+            continue;
+          }
+          if (response.status === 400) {
+            // 400 não relacionado a modelo (payload, tools etc.) — não cachear, mas tentar próximo.
             response = null;
             continue;
           }

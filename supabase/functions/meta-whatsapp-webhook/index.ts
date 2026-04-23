@@ -258,28 +258,36 @@ Deno.serve(async (req) => {
                 messageContent = `[Localização: ${message.location.latitude}, ${message.location.longitude}]`;
               }
 
-              // Save inbound message (for audit/logs)
-              const { data: inboundRow, error: insertError } = await supabase
-                .from("whatsapp_inbound_messages")
-                .insert({
-                  tenant_id: tenantId,
-                  provider: "meta",
-                  external_message_id: message.id,
-                  from_phone: customerPhone,
-                  to_phone: destinationPhone,
-                  message_type: messageType,
-                  message_content: messageContent,
-                  media_url: mediaUrl,
-                  timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-                  raw_payload: message,
-                })
-                .select("id")
-                .single();
-
-              if (insertError) {
-                console.error(`[meta-whatsapp-webhook][${traceId}] Failed to save inbound message:`, insertError);
+              // Save inbound message (audit minimum, tolerante a falha).
+              // Pacote 3: a escrita de auditoria NUNCA derruba o webhook.
+              // Se falhar, segue processando normalmente; só registra no log.
+              let inboundId: string | null = null;
+              try {
+                const { data: inboundRow, error: insertError } = await supabase
+                  .from("whatsapp_inbound_messages")
+                  .insert({
+                    tenant_id: tenantId,
+                    provider: "meta",
+                    external_message_id: message.id,
+                    from_phone: customerPhone,
+                    to_phone: destinationPhone,
+                    message_type: messageType,
+                    message_content: messageContent,
+                    media_url: mediaUrl,
+                    timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
+                    raw_payload: message,
+                    processing_status: "received",
+                  })
+                  .select("id")
+                  .single();
+                if (insertError) {
+                  console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] inbound insert failed (non-blocking):`, insertError);
+                } else {
+                  inboundId = inboundRow?.id || null;
+                }
+              } catch (auditErr) {
+                console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] inbound insert threw (non-blocking):`, auditErr);
               }
-              const inboundId = inboundRow?.id || null;
 
               // ═══ ROUTING DECISION: Admin (Agenda) vs Customer (Support) ═══
               const { data: authorizedPhones } = await supabase
@@ -320,15 +328,20 @@ Deno.serve(async (req) => {
                 } catch (agendaError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
                 }
-                // Audit loop: mark inbound as processed so we can audit downtime
+                // Audit loop (tolerante a falha — Pacote 3): nunca derruba o webhook.
                 if (inboundId) {
-                  await supabase
-                    .from("whatsapp_inbound_messages")
-                    .update({
-                      processed_at: new Date().toISOString(),
-                      processed_by: agendaOk ? "agenda_agent" : "agenda_failed",
-                    })
-                    .eq("id", inboundId);
+                  try {
+                    await supabase
+                      .from("whatsapp_inbound_messages")
+                      .update({
+                        processed_at: new Date().toISOString(),
+                        processed_by: agendaOk ? "agenda_agent" : "agenda_failed",
+                        processing_status: agendaOk ? "processed" : "failed",
+                      })
+                      .eq("id", inboundId);
+                  } catch (auditErr) {
+                    console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] agenda update failed (non-blocking):`, auditErr);
+                  }
                 }
                 // Admin messages do NOT create support conversations
                 continue;
@@ -501,16 +514,23 @@ Deno.serve(async (req) => {
                   }
 
                   if (inboundId) {
-                    await supabase
-                      .from("whatsapp_inbound_messages")
-                      .update({
-                        processed_at: new Date().toISOString(),
-                        processed_by: decision.should_respond
-                          ? (aiOk ? "ai_support" : "ai_failed")
-                          : `gate:${decision.reason}`,
-                        conversation_id: conversationId,
-                      })
-                      .eq("id", inboundId);
+                    try {
+                      await supabase
+                        .from("whatsapp_inbound_messages")
+                        .update({
+                          processed_at: new Date().toISOString(),
+                          processed_by: decision.should_respond
+                            ? (aiOk ? "ai_support" : "ai_failed")
+                            : `gate:${decision.reason}`,
+                          conversation_id: conversationId,
+                          processing_status: decision.should_respond
+                            ? (aiOk ? "processed" : "failed")
+                            : "skipped",
+                        })
+                        .eq("id", inboundId);
+                    } catch (auditErr) {
+                      console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] support update failed (non-blocking):`, auditErr);
+                    }
                   }
                 }
               }
