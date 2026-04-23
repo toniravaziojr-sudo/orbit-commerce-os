@@ -3846,7 +3846,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         response_hash: responseHash,
         response_length: (aiContent || "").length,
         anti_greeting_blocked: isGreetingOnlyTurn,
-        anti_repetition_blocked: false,
+        anti_repetition_blocked: dupCheck.duplicate,
         image_send_blocked: false,
         duration_ms: latencyMs,
         metadata: {
@@ -3873,6 +3873,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           state_reasoning_effort: salesModeEnabled
             ? (["greeting", "discovery"].includes(pipelineState) ? "minimal" : "low")
             : null,
+          // [Pacote F] Observabilidade da dinâmica de turno
+          continuation_detected: continuationCtx.isContinuation,
+          continuation_reason: continuationCtx.reason,
+          continuation_pattern: continuationCtx.matchedPattern || null,
+          continuation_minutes_since_bot: continuationCtx.minutesSinceLastBot ?? null,
+          stall_detected: stallDetection.isStalled,
+          stall_pattern: stallDetection.matchedPromise || null,
+          dup_block_reason: dupCheck.duplicate ? dupCheck.reason : null,
+          processing_lock_id: myLockId,
+          processing_lock_reason: lockResult.reason || null,
+          raw_is_greeting: rawIsGreeting,
         },
       });
       if (turnLogErr) {
