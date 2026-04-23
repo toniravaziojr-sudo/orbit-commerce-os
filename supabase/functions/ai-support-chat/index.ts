@@ -3606,8 +3606,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // OU se a última resposta veio sem texto E sem tool_calls,
       // forçamos UM ÚNICO round final com tool_choice="none" para obrigar texto.
       // Limitado a 1 (sem novo ciclo escondido).
-      let forcedTextRoundApplied = false;
-      let forcedTextRoundReason: string | null = null;
+      // (forcedTextRoundApplied/Reason declarados no escopo do handler para o log)
       const stillHasToolCalls = !!aiData.choices?.[0]?.message?.tool_calls?.length;
       const noTextAndNoTool = (!aiContent || !aiContent.trim()) && !stillHasToolCalls;
       if (salesModeEnabled && (stillHasToolCalls || noTextAndNoTool) && toolsCalledThisTurn.length > 0) {
