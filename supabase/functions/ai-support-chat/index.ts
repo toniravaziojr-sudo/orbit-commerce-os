@@ -37,6 +37,16 @@ import {
   type PipelineState,
   type TransitionReason,
 } from "../_shared/sales-pipeline/index.ts";
+// [Pacotes B/C/D/E] Dinâmica de turno (lock, continuação, stall, anti-dup)
+import {
+  acquireProcessingLock,
+  releaseProcessingLock,
+  detectContinuation,
+  detectStallPromise,
+  isDuplicateRecentResponse,
+  type ContinuationContext,
+  type StallDetection,
+} from "../_shared/turn-dynamics.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
