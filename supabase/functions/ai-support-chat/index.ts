@@ -708,21 +708,21 @@ async function executeSalesTool(
             }
           }
 
-          // Kit indicator (any component row makes it a kit)
+          // FONTE DE VERDADE para is_kit: tabela product_components.
+          // Produto com composição = kit. Produto sem composição = produto único.
+          // NÃO usamos heurística por nome porque palavras como "duo", "trio", "x", "leve"
+          // aparecem em produtos únicos legítimos e mascarariam a vitrine.
+          // Caso raro: kit cadastrado sem composição formal — fallback ULTRA conservador
+          // só para o termo "kit " ou "combo " explícito no início do nome.
           const { data: compRows } = await supabase
             .from("product_components")
             .select("parent_product_id")
             .in("parent_product_id", ids);
           const kitSet = new Set((compRows ?? []).map((r: any) => r.parent_product_id));
 
-          // Heurística de kit por NOME (cobre catálogos onde "kit/combo/pack" não tem
-          // composição formal cadastrada). Se o nome bate o padrão de kit/multi-unidade,
-          // tratamos como kit para fins da PRIMEIRA OFERTA, nunca aparecendo na vitrine inicial.
-          const KIT_NAME_REGEX = /\b(kit|combo|pack|leve|duo|trio|quarteto|c\/?\s?\d+|\d+\s?(un|unid|unidades|x|peças|pe[çc]as)\b|\d+\s*x\b)/i;
-          const looksLikeKitByName = (name?: string | null) => {
-            if (!name) return false;
-            return KIT_NAME_REGEX.test(name);
-          };
+          const KIT_EXPLICIT_PREFIX = /^\s*(kit|combo)\b/i;
+          const looksLikeKitByExplicitName = (name?: string | null) =>
+            !!name && KIT_EXPLICIT_PREFIX.test(name);
 
           return rows.map(p => ({
             id: p.id,
@@ -733,12 +733,19 @@ async function executeSalesTool(
             stock: p.stock_quantity,
             image: primaryImageByProduct.get(p.id)?.url ?? null,
             image_alt: primaryImageByProduct.get(p.id)?.alt ?? null,
-            is_kit: kitSet.has(p.id) || looksLikeKitByName(p.name),
+            is_kit: kitSet.has(p.id) || looksLikeKitByExplicitName(p.name),
             has_variants: p.has_variants ?? false,
             manage_stock: p.manage_stock ?? true,
             allow_backorder: p.allow_backorder ?? false,
           }));
         };
+
+        // ENFORCEMENT do servidor: produtos únicos vêm SEMPRE no topo da lista,
+        // kits descem para o fim. Isso garante que, mesmo se o modelo errar a regra
+        // do prompt, ao mostrar até 3 ele acerta naturalmente. Ainda assim os kits
+        // aparecem no array para o caso de upsell explícito do cliente.
+        const sortSinglesFirst = (arr: any[]) =>
+          [...arr].sort((a, b) => Number(!!a?.is_kit) - Number(!!b?.is_kit));
 
         // 1) ILIKE direto pelo nome
         const { data, error } = await supabase
@@ -751,7 +758,7 @@ async function executeSalesTool(
           .limit(limit);
 
         if (!error && data?.length) {
-          return JSON.stringify(await enrichList(data));
+          return JSON.stringify(sortSinglesFirst(await enrichList(data)));
         }
 
         // 2) Fallback: busca por tokens combinados (OR)
@@ -766,7 +773,7 @@ async function executeSalesTool(
             .or(orFilter)
             .limit(limit);
           if (tokenData?.length) {
-            return JSON.stringify(await enrichList(tokenData));
+            return JSON.stringify(sortSinglesFirst(await enrichList(tokenData)));
           }
         }
 
@@ -786,7 +793,7 @@ async function executeSalesTool(
             .in("id", fuzzyIds)
             .eq("tenant_id", tenantId);
           if (refetched?.length) {
-            return JSON.stringify(await enrichList(refetched));
+            return JSON.stringify(sortSinglesFirst(await enrichList(refetched)));
           }
         }
 
@@ -3859,33 +3866,28 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
 
     // ============================================
-    // [PACOTE C] SCRUBBER GLOBAL DE LINGUAGEM DE SISTEMA
-    // Aplica em QUALQUER aiContent final (não só fallback).
-    // Remove frases que expõem o mecanismo ("encontrei esses produtos reais",
-    // "consultei o catálogo", "pelos dados que tenho", etc.) e troca por
-    // linguagem natural de vendedora.
+    // [PACOTE C] REDE DE SEGURANÇA — LINGUAGEM DE SISTEMA
+    // A regra principal está nos PROMPTS dos estados (causa raiz). Este
+    // scrubber é só rede de segurança mínima para os 3 padrões mais
+    // agressivos que comprometem a persona de vendedora real. Se ele
+    // disparar com frequência, é sinal de prompt ruim — corrija lá, não
+    // aqui. Mantemos enxuto pra não mascarar problemas estruturais.
     // ============================================
     if (aiContent && typeof aiContent === "string") {
       const SYSTEM_PHRASE_REPLACEMENTS: Array<[RegExp, string]> = [
         [/encontrei\s+esses\s+produtos\s+reais\s+(para|pra)\s+voc[êe]\s*[:.\-–]?\s*/gi, "Temos sim. "],
-        [/encontrei\s+(estes|esses)\s+produtos\s*[:.\-–]?\s*/gi, "Temos sim. "],
-        [/aqui\s+est[ãa]o?\s+(os|alguns)\s+produtos\s+(reais|que\s+temos)\s*[:.\-–]?\s*/gi, "Temos sim. "],
         [/j[áa]\s+consultei\s+o\s+cat[áa]logo[^.!?]*[.!?]?\s*/gi, ""],
         [/(deixa|deixe)\s+eu\s+(ver|consultar|buscar|verificar)[^.!?]*[.!?]?\s*/gi, ""],
-        [/vou\s+(buscar|consultar|verificar)\s+(no\s+)?(cat[áa]logo|sistema|base)[^.!?]*[.!?]?\s*/gi, ""],
-        [/pelos?\s+dados\s+que\s+(eu\s+)?tenho[^.!?]*[.!?]?\s*/gi, ""],
-        [/segundo\s+(o\s+)?(sistema|cat[áa]logo|nosso\s+banco)[^.!?]*[.!?]?\s*/gi, ""],
-        [/(aqui\s+)?n[oa]\s+(sistema|nosso\s+banco|nossa\s+base|cat[áa]logo)\s*[,.]?\s*/gi, ""],
-        [/de\s+acordo\s+com\s+(o\s+)?(sistema|cat[áa]logo)[^.!?]*[.!?]?\s*/gi, ""],
       ];
       let scrubbed = aiContent;
       for (const [pattern, replacement] of SYSTEM_PHRASE_REPLACEMENTS) {
         scrubbed = scrubbed.replace(pattern, replacement);
       }
-      // Limpa espaços duplos / quebras estranhas geradas pelas remoções
       scrubbed = scrubbed.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
       if (scrubbed !== aiContent) {
-        console.log(`[ai-support-chat] [PACOTE C] system-language scrubbed (was ${aiContent.length}ch, now ${scrubbed.length}ch)`);
+        console.warn(
+          `[ai-support-chat] [PACOTE C] system-language scrubbed — REVISAR PROMPT do estado, modelo emitiu fala de sistema (was ${aiContent.length}ch, now ${scrubbed.length}ch)`
+        );
         aiContent = scrubbed;
       }
     }
