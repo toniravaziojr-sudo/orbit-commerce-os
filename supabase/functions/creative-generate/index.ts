@@ -4,7 +4,7 @@
  * Inicia um job de geração de criativo (vídeo/imagem) e enfileira para processamento.
  * Suporta 5 tipos: ugc_client_video, ugc_ai_video, short_video, tech_product_video, product_image
  */
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
