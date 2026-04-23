@@ -93,6 +93,22 @@ const OPENAI_MODELS = [
 
 type OpenAIModel = typeof OPENAI_MODELS[number];
 
+// [PERF] Modelos rápidos preferidos em estados simples (greeting/discovery).
+// Ordem: rápidos primeiro, alta-qualidade como fallback.
+const FAST_MODELS_FOR_SIMPLE_STATES: readonly string[] = [
+  "gpt-5-nano",
+  "gpt-5-mini",
+  "gpt-4o",
+  "gpt-5.2",
+  "gpt-5",
+] as const;
+
+// [PERF] Cache em memória (vive por cold start) de modelos que retornaram
+// 404/400 — evita reenviar a mesma requisição que vai falhar de novo.
+// Tolerante a falha: se o cache estourar (caso impossível), apenas reentra na
+// rota normal de fallback.
+const UNAVAILABLE_MODELS = new Set<string>();
+
 // AI cost tracking (per 1K tokens, in cents)
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "gpt-5.2": { input: 3.0, output: 15.0 },
