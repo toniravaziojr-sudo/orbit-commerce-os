@@ -3316,6 +3316,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // [F1] Rastreio de tools chamadas no turno (escopo do handler, alimenta máquina de estado)
     const toolsCalledThisTurn: string[] = [];
+    // [PACOTE B] Snapshots dos resultados reais de tools deste turno.
+    // Usados pelo fallback conclusivo para que a IA NUNCA fale "consultei o catálogo"
+    // ou "encontrei esses produtos reais" — em vez disso, montamos uma fala de
+    // vendedora real a partir dos produtos retornados (ignorando kits na 1ª oferta).
+    type ToolResultSnapshot = { tool: string; parsed: any };
+    const toolResultsThisTurn: ToolResultSnapshot[] = [];
     // [F2] Tools que o modelo tentou chamar mas foram bloqueadas pelo filtro de estado
     const pipelineBlockedTools: string[] = [];
     // [F2-FIX] Sinaliza se o fallback de resposta vazia foi acionado (vai para o log)
@@ -3552,6 +3558,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
           const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
           toolsCalledThisTurn.push(fnName);
+          // [PACOTE B] guarda snapshot estruturado pro fallback conclusivo
+          try {
+            toolResultsThisTurn.push({ tool: fnName, parsed: JSON.parse(result) });
+          } catch {
+            toolResultsThisTurn.push({ tool: fnName, parsed: result });
+          }
           console.log(`[ai-support-chat] Tool result (${fnName}):`, result.slice(0, 200));
 
           // BUG FIX: Se a tool de handoff comercial foi chamada com sucesso,
