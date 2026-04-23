@@ -3300,10 +3300,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             ...tokenParams,
           };
 
-          // [F2-FIX] Controle de reasoning para modelos gpt-5* (suportam o campo).
-          // Evita que o modelo consuma todo o orçamento de tokens em reasoning
-          // interno e devolva content vazio (finish_reason="length").
-          if (isGpt5Model) {
+          // [F2-FIX] Controle de reasoning APENAS em modelos com reasoning real.
+          // gpt-5-nano/gpt-5-mini/gpt-4o NÃO aceitam o parâmetro `reasoning` e
+          // retornam 400. Restringimos a gpt-5 e gpt-5.2.
+          const supportsReasoning = modelToTry === "gpt-5" || modelToTry === "gpt-5.2";
+          if (supportsReasoning) {
             requestBody.reasoning = { effort: stateReasoningEffort };
           }
 
