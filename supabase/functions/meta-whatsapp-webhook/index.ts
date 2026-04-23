@@ -505,32 +505,84 @@ Deno.serve(async (req) => {
                   });
 
                   let aiOk = false;
+                  let aiSkippedReason: string | null = null;
+                  let debounceOwner = false;
+                  let debounceMerged = 0;
+
                   if (decision.should_respond) {
-                    console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=GREEN, invoking ai-support-chat...`);
-                    const aiRes = await invokeAiSupportChat(
-                      supabaseUrl,
-                      supabaseServiceKey,
-                      { conversation_id: conversationId, tenant_id: tenantId },
-                    );
-                    aiOk = aiRes.ok;
-                    console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiRes.status}):`, aiRes.bodyText);
+                    // ── PACOTE A: Debounce/agrupamento ──
+                    // Enfileira esta mensagem; se houver outra mensagem do mesmo
+                    // cliente chegando dentro da janela, só a ÚLTIMA dispara a IA.
+                    const enq = await enqueueInboundForDebounce({
+                      supabase,
+                      tenant_id: tenantId,
+                      conversation_id: conversationId,
+                      customer_phone: customerPhone,
+                      message_id: null,
+                      external_message_id: message.id,
+                      message_content: messageContent,
+                    });
+
+                    if (enq.enqueued && enq.shouldWait && enq.rowId) {
+                      // Aguarda a janela e tenta virar owner do flush.
+                      await new Promise((r) => setTimeout(r, DEBOUNCE_WINDOW_MS));
+                      const claim = await tryClaimDebounceFlush(
+                        supabase,
+                        tenantId,
+                        customerPhone,
+                        enq.rowId,
+                      );
+                      debounceOwner = claim.isOwner;
+                      debounceMerged = claim.mergedCount;
+
+                      if (!claim.isOwner) {
+                        aiSkippedReason = `debounce_merged(${claim.mergedCount})`;
+                        console.log(`[meta-whatsapp-webhook][${traceId}] DEBOUNCE: not owner, merged into newer msg (${claim.mergedCount} msgs in window)`);
+                      } else {
+                        console.log(`[meta-whatsapp-webhook][${traceId}] DEBOUNCE: owner, flushing ${claim.mergedCount} msgs as 1 turn`);
+                      }
+                    }
+
+                    if (aiSkippedReason === null) {
+                      console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=GREEN, invoking ai-support-chat...`);
+                      const aiRes = await invokeAiSupportChat(
+                        supabaseUrl,
+                        supabaseServiceKey,
+                        { conversation_id: conversationId, tenant_id: tenantId },
+                      );
+                      aiOk = aiRes.ok;
+                      console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiRes.status}):`, aiRes.bodyText);
+                    }
                   } else {
                     console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=BLOCKED (${decision.reason})`);
                   }
 
                   if (inboundId) {
                     try {
+                      const finalStatus = !decision.should_respond
+                        ? "skipped"
+                        : aiSkippedReason
+                          ? "skipped"
+                          : aiOk
+                            ? "processed"
+                            : "failed";
+                      const finalProcessedBy = !decision.should_respond
+                        ? `gate:${decision.reason}`
+                        : aiSkippedReason
+                          ? aiSkippedReason
+                          : aiOk
+                            ? "ai_support"
+                            : "ai_failed";
                       await supabase
                         .from("whatsapp_inbound_messages")
                         .update({
                           processed_at: new Date().toISOString(),
-                          processed_by: decision.should_respond
-                            ? (aiOk ? "ai_support" : "ai_failed")
-                            : `gate:${decision.reason}`,
+                          processed_by: finalProcessedBy,
                           conversation_id: conversationId,
-                          processing_status: decision.should_respond
-                            ? (aiOk ? "processed" : "failed")
-                            : "skipped",
+                          processing_status: finalStatus,
+                          processing_error: aiSkippedReason
+                            ? `debounce_owner=${debounceOwner} merged=${debounceMerged}`
+                            : null,
                         })
                         .eq("id", inboundId);
                     } catch (auditErr) {
