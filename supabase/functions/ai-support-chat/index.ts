@@ -2377,15 +2377,20 @@ Deno.serve(async (req) => {
     const lastBotMessage = [...messages]
       .filter(m => m.sender_type !== "customer" && !m.is_internal && !m.is_note)
       .pop();
+    // [Pacote 3] Pendência REAL persistida (TTL 10 min). Sinal preferido sobre salesState.
+    const existingPendingAction: LastPendingAction | null = loadPendingAction(
+      (conversation.metadata as Record<string, unknown> | null) ?? null,
+    );
     const continuationCtx: ContinuationContext = detectContinuation({
       message: lastMessageContent,
       salesState: currentSalesState,
       lastBotResponseAtIso: lastBotMessage?.created_at ?? null,
       liveWindowMinutes: 60,
+      pendingAction: existingPendingAction,
     });
     if (continuationCtx.isContinuation) {
       console.log(
-        `[ai-support-chat] [PACOTE C] continuation detected (state=${continuationCtx.salesState} pattern=${continuationCtx.matchedPattern} minutes_since_bot=${continuationCtx.minutesSinceLastBot}) — suppressing greeting fast-path`,
+        `[ai-support-chat] [PACOTE C] continuation detected (state=${continuationCtx.salesState} pattern=${continuationCtx.matchedPattern} pending_kind=${continuationCtx.pendingActionKind} minutes_since_bot=${continuationCtx.minutesSinceLastBot}) — suppressing greeting fast-path`,
       );
     }
 
