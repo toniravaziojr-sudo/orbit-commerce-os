@@ -413,14 +413,17 @@ export interface ContinuationContext {
 /**
  * Decide se a mensagem deve ser tratada como CONTINUAÇÃO de pendência (não greeting).
  *
- * Regras (gate de existência REAL de pendência):
- *  - Mensagem curta E bate em padrão de cobrança/continuação.
- *  - Conversa "viva" (resposta da IA nas últimas 60 min).
- *  - E pelo menos UMA das duas condições:
- *      (a) existe last_pending_action viva dentro do TTL  ← PREFERIDO (Pacote 3)
- *      (b) salesState está em estado com pendência típica (legado)
- *  - Se NENHUMA das duas existir, NÃO força continuação artificial.
+ * [PACOTE C] A pendência REAL prevalece sobre o tamanho da mensagem:
+ *  - Caminho curto (≤40 chars) + padrão de cobrança ("ok", "?", "eai", "cadê")
+ *    continua valendo, e exige (a) pendência viva OU (b) estado com pendência típica.
+ *  - Caminho de REFINAMENTO: mensagem longa (até 240 chars) ainda é tratada como
+ *    continuação SE houver last_pending_action viva dentro do TTL E a conversa
+ *    estiver dentro da janela viva. Isso evita que o usuário "perca" a pendência
+ *    só porque deu mais contexto na resposta.
+ *  - Mensagens vazias ou exageradamente longas (>240 chars) nunca viram continuação.
  */
+const CONTINUATION_LONG_MAX_CHARS = 240;
+
 export function detectContinuation(input: {
   message: string;
   salesState?: string | null;
@@ -431,30 +434,16 @@ export function detectContinuation(input: {
   const msg = (input.message || "").trim();
   const liveWindowMin = input.liveWindowMinutes ?? 60;
 
-  if (!msg || msg.length > 40) {
+  if (!msg) {
     return { isContinuation: false, reason: "msg_too_long_or_empty", salesState: input.salesState ?? null };
   }
-  const matched = CONTINUATION_PATTERNS.find(re => re.test(msg));
-  if (!matched) {
-    return { isContinuation: false, reason: "no_pattern_match", salesState: input.salesState ?? null };
-  }
 
-  // Pendência real (Pacote 3): preferimos esse sinal sobre o salesState.
   const pendingActionAlive = !!input.pendingAction;
   const stateOk = input.salesState
     ? STATES_WITH_PENDING_CONTEXT.has(input.salesState)
     : false;
 
-  if (!pendingActionAlive && !stateOk) {
-    return {
-      isContinuation: false,
-      reason: "no_pending_real_or_state",
-      salesState: input.salesState ?? null,
-      matchedPattern: String(matched),
-      pendingActionKind: null,
-    };
-  }
-
+  // Janela viva (vale para os dois caminhos)
   let minutesSinceLastBot: number | null = null;
   if (input.lastBotResponseAtIso) {
     const ts = Date.parse(input.lastBotResponseAtIso);
@@ -462,21 +451,73 @@ export function detectContinuation(input: {
       minutesSinceLastBot = (Date.now() - ts) / 60000;
     }
   }
-  if (minutesSinceLastBot !== null && minutesSinceLastBot > liveWindowMin) {
+  const conversationStale =
+    minutesSinceLastBot !== null && minutesSinceLastBot > liveWindowMin;
+
+  // -------------------------------------------------------------
+  // CAMINHO 1: mensagem curta com padrão de cobrança/continuação
+  // -------------------------------------------------------------
+  if (msg.length <= 40) {
+    const matched = CONTINUATION_PATTERNS.find(re => re.test(msg));
+    if (!matched) {
+      // Curta mas sem padrão: ainda pode virar refinamento no caminho 2
+      // (mas geralmente cai aqui sem pendência → não força nada)
+      return { isContinuation: false, reason: "no_pattern_match", salesState: input.salesState ?? null };
+    }
+    if (!pendingActionAlive && !stateOk) {
+      return {
+        isContinuation: false,
+        reason: "no_pending_real_or_state",
+        salesState: input.salesState ?? null,
+        matchedPattern: String(matched),
+        pendingActionKind: null,
+      };
+    }
+    if (conversationStale) {
+      return {
+        isContinuation: false,
+        reason: "conversation_stale",
+        salesState: input.salesState ?? null,
+        matchedPattern: String(matched),
+        minutesSinceLastBot,
+        pendingActionKind: input.pendingAction?.kind ?? null,
+      };
+    }
     return {
-      isContinuation: false,
-      reason: "conversation_stale",
-      salesState: input.salesState ?? null,
+      isContinuation: true,
+      reason: pendingActionAlive ? "continuation_pending_action" : "continuation_state_only",
       matchedPattern: String(matched),
+      salesState: input.salesState ?? null,
       minutesSinceLastBot,
       pendingActionKind: input.pendingAction?.kind ?? null,
     };
   }
 
+  // -------------------------------------------------------------
+  // CAMINHO 2: REFINAMENTO de pendência (mensagem longa)
+  // Só vale se houver pendência REAL viva dentro do TTL + janela viva.
+  // Estado sozinho NÃO basta aqui — exige pendência concreta para evitar
+  // capturar mensagens longas que mudam totalmente de assunto.
+  // -------------------------------------------------------------
+  if (msg.length > CONTINUATION_LONG_MAX_CHARS) {
+    return { isContinuation: false, reason: "msg_too_long_or_empty", salesState: input.salesState ?? null };
+  }
+  if (!pendingActionAlive) {
+    return { reason: "no_pending_real_or_state", isContinuation: false, salesState: input.salesState ?? null };
+  }
+  if (conversationStale) {
+    return {
+      isContinuation: false,
+      reason: "conversation_stale",
+      salesState: input.salesState ?? null,
+      minutesSinceLastBot,
+      pendingActionKind: input.pendingAction?.kind ?? null,
+    };
+  }
   return {
     isContinuation: true,
-    reason: pendingActionAlive ? "continuation_pending_action" : "continuation_state_only",
-    matchedPattern: String(matched),
+    reason: "continuation_pending_refinement",
+    matchedPattern: "long_refinement_with_pending",
     salesState: input.salesState ?? null,
     minutesSinceLastBot,
     pendingActionKind: input.pendingAction?.kind ?? null,

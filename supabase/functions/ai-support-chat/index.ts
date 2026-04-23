@@ -3661,6 +3661,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           forcedBody.temperature = 0.3;
         }
 
+        // [PACOTE A-FIX] Marca o round como APLICADO assim que disparamos a chamada,
+        // independente de o modelo ter produzido texto. Antes só marcávamos quando
+        // forcedText vinha não-vazio, o que escondia o round no log e dava a impressão
+        // de que ele tinha sido pulado. Agora a observabilidade reflete a execução real.
+        forcedTextRoundApplied = true;
         try {
           const forcedResp = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
@@ -3679,10 +3684,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             const forcedText = forcedData.choices?.[0]?.message?.content;
             if (forcedText && forcedText.trim()) {
               aiContent = forcedText;
-              forcedTextRoundApplied = true;
               console.log(`[ai-support-chat] [PACOTE 1] forced text round produced text (${forcedText.length} chars)`);
             } else {
-              console.warn(`[ai-support-chat] [PACOTE 1] forced text round STILL empty — will use conclusive fallback`);
+              console.warn(`[ai-support-chat] [PACOTE 1] forced text round applied but EMPTY — will use conclusive fallback`);
             }
           } else {
             console.error("[ai-support-chat] [PACOTE 1] forced text round HTTP error:", forcedResp.status);
@@ -3738,15 +3742,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           support:         "Entendi. Deixa eu olhar isso pra você, um instante.",
           handoff:         "Vou te passar pra alguém da equipe que resolve isso, tá?",
         };
-        // Fallback CONCLUSIVO quando tools já rodaram: nunca prometer de novo.
+        // [PACOTE B] Fallback CONCLUSIVO quando tools já rodaram: nunca prometer de novo,
+        // nunca mencionar "instabilidade ao formatar" — pede refinamento útil baseado
+        // no que já foi consultado.
         const FALLBACK_CONCLUSIVE_BY_STATE: Record<PipelineState, string> = {
-          greeting:        "Tive uma instabilidade rápida aqui, pode repetir o que precisa?",
-          discovery:       "Tive uma instabilidade rápida ao montar a resposta. Pode me dizer de novo o que procura?",
-          recommendation:  "Encontrei algumas opções aqui, mas tive uma instabilidade ao formatar. Pode me dizer qual estilo/tamanho/preço prefere que eu já te mostro a melhor?",
-          product_detail:  "Consegui consultar os detalhes, mas tive uma instabilidade ao montar a resposta. Quer que eu te confirme preço, estoque ou variações?",
-          decision:        "Estou com sua seleção em mãos. Pode me confirmar se quer fechar agora que eu te mando o link de pagamento?",
-          checkout_assist: "Seu carrinho está ok. Quer que eu já gere o link de pagamento?",
-          support:         "Já consultei aqui. Pode me confirmar o número do pedido ou o que você gostaria de fazer agora?",
+          greeting:        "Pode me dizer o que você está procurando? Te ajudo agora.",
+          discovery:       "Me conta um pouco mais do que você procura — uso, estilo ou faixa de preço — pra eu já te mostrar a melhor opção.",
+          recommendation:  "Já consultei o catálogo aqui. Pra eu te indicar a melhor opção, me diz: pra qual uso é, e tem alguma preferência de tamanho ou faixa de preço?",
+          product_detail:  "Já consultei esse produto aqui. Quer que eu te confirme preço, estoque, variações ou prazo de entrega?",
+          decision:        "Estou com a sua seleção. Posso gerar o link de pagamento agora?",
+          checkout_assist: "Seu carrinho está pronto. Quer que eu gere o link de pagamento agora?",
+          support:         "Já consultei aqui. Me passa o número do pedido ou me diz o que você gostaria de fazer agora.",
           handoff:         "Vou te passar pra alguém da equipe que resolve isso.",
         };
         const fallbackTable = toolsAlreadyRan ? FALLBACK_CONCLUSIVE_BY_STATE : FALLBACK_PROMISE_BY_STATE;
