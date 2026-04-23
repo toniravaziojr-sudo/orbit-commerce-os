@@ -740,6 +740,13 @@ async function executeSalesTool(
           }));
         };
 
+        // ENFORCEMENT do servidor: produtos únicos vêm SEMPRE no topo da lista,
+        // kits descem para o fim. Isso garante que, mesmo se o modelo errar a regra
+        // do prompt, ao mostrar até 3 ele acerta naturalmente. Ainda assim os kits
+        // aparecem no array para o caso de upsell explícito do cliente.
+        const sortSinglesFirst = (arr: any[]) =>
+          [...arr].sort((a, b) => Number(!!a?.is_kit) - Number(!!b?.is_kit));
+
         // 1) ILIKE direto pelo nome
         const { data, error } = await supabase
           .from("products")
@@ -751,7 +758,7 @@ async function executeSalesTool(
           .limit(limit);
 
         if (!error && data?.length) {
-          return JSON.stringify(await enrichList(data));
+          return JSON.stringify(sortSinglesFirst(await enrichList(data)));
         }
 
         // 2) Fallback: busca por tokens combinados (OR)
@@ -766,7 +773,7 @@ async function executeSalesTool(
             .or(orFilter)
             .limit(limit);
           if (tokenData?.length) {
-            return JSON.stringify(await enrichList(tokenData));
+            return JSON.stringify(sortSinglesFirst(await enrichList(tokenData)));
           }
         }
 
@@ -786,7 +793,7 @@ async function executeSalesTool(
             .in("id", fuzzyIds)
             .eq("tenant_id", tenantId);
           if (refetched?.length) {
-            return JSON.stringify(await enrichList(refetched));
+            return JSON.stringify(sortSinglesFirst(await enrichList(refetched)));
           }
         }
 
