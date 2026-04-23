@@ -715,6 +715,15 @@ async function executeSalesTool(
             .in("parent_product_id", ids);
           const kitSet = new Set((compRows ?? []).map((r: any) => r.parent_product_id));
 
+          // Heurística de kit por NOME (cobre catálogos onde "kit/combo/pack" não tem
+          // composição formal cadastrada). Se o nome bate o padrão de kit/multi-unidade,
+          // tratamos como kit para fins da PRIMEIRA OFERTA, nunca aparecendo na vitrine inicial.
+          const KIT_NAME_REGEX = /\b(kit|combo|pack|leve|duo|trio|quarteto|c\/?\s?\d+|\d+\s?(un|unid|unidades|x|peças|pe[çc]as)\b|\d+\s*x\b)/i;
+          const looksLikeKitByName = (name?: string | null) => {
+            if (!name) return false;
+            return KIT_NAME_REGEX.test(name);
+          };
+
           return rows.map(p => ({
             id: p.id,
             name: p.name,
@@ -724,7 +733,7 @@ async function executeSalesTool(
             stock: p.stock_quantity,
             image: primaryImageByProduct.get(p.id)?.url ?? null,
             image_alt: primaryImageByProduct.get(p.id)?.alt ?? null,
-            is_kit: kitSet.has(p.id),
+            is_kit: kitSet.has(p.id) || looksLikeKitByName(p.name),
             has_variants: p.has_variants ?? false,
             manage_stock: p.manage_stock ?? true,
             allow_backorder: p.allow_backorder ?? false,
@@ -3846,6 +3855,38 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         console.warn(
           `[ai-support-chat] [PACOTE B v2] fallback aplicado state=${pipelineState} conclusive=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
         );
+      }
+    }
+
+    // ============================================
+    // [PACOTE C] SCRUBBER GLOBAL DE LINGUAGEM DE SISTEMA
+    // Aplica em QUALQUER aiContent final (não só fallback).
+    // Remove frases que expõem o mecanismo ("encontrei esses produtos reais",
+    // "consultei o catálogo", "pelos dados que tenho", etc.) e troca por
+    // linguagem natural de vendedora.
+    // ============================================
+    if (aiContent && typeof aiContent === "string") {
+      const SYSTEM_PHRASE_REPLACEMENTS: Array<[RegExp, string]> = [
+        [/encontrei\s+esses\s+produtos\s+reais\s+(para|pra)\s+voc[êe]\s*[:.\-–]?\s*/gi, "Temos sim. "],
+        [/encontrei\s+(estes|esses)\s+produtos\s*[:.\-–]?\s*/gi, "Temos sim. "],
+        [/aqui\s+est[ãa]o?\s+(os|alguns)\s+produtos\s+(reais|que\s+temos)\s*[:.\-–]?\s*/gi, "Temos sim. "],
+        [/j[áa]\s+consultei\s+o\s+cat[áa]logo[^.!?]*[.!?]?\s*/gi, ""],
+        [/(deixa|deixe)\s+eu\s+(ver|consultar|buscar|verificar)[^.!?]*[.!?]?\s*/gi, ""],
+        [/vou\s+(buscar|consultar|verificar)\s+(no\s+)?(cat[áa]logo|sistema|base)[^.!?]*[.!?]?\s*/gi, ""],
+        [/pelos?\s+dados\s+que\s+(eu\s+)?tenho[^.!?]*[.!?]?\s*/gi, ""],
+        [/segundo\s+(o\s+)?(sistema|cat[áa]logo|nosso\s+banco)[^.!?]*[.!?]?\s*/gi, ""],
+        [/(aqui\s+)?n[oa]\s+(sistema|nosso\s+banco|nossa\s+base|cat[áa]logo)\s*[,.]?\s*/gi, ""],
+        [/de\s+acordo\s+com\s+(o\s+)?(sistema|cat[áa]logo)[^.!?]*[.!?]?\s*/gi, ""],
+      ];
+      let scrubbed = aiContent;
+      for (const [pattern, replacement] of SYSTEM_PHRASE_REPLACEMENTS) {
+        scrubbed = scrubbed.replace(pattern, replacement);
+      }
+      // Limpa espaços duplos / quebras estranhas geradas pelas remoções
+      scrubbed = scrubbed.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+      if (scrubbed !== aiContent) {
+        console.log(`[ai-support-chat] [PACOTE C] system-language scrubbed (was ${aiContent.length}ch, now ${scrubbed.length}ch)`);
+        aiContent = scrubbed;
       }
     }
 
