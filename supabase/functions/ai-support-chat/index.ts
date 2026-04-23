@@ -2366,9 +2366,29 @@ Deno.serve(async (req) => {
     // ============================================
     // STEP 1: INTENT CLASSIFICATION (Tool Calling)
     // [PERF — Pacote 1] Saudação pura NÃO precisa de modelo classificador.
-    // Construímos a classificação localmente, economizamos ~1.5–2s por turno.
+    // [Pacote C] Continuação de pendência NÃO pode ser tratada como greeting/reabertura.
     // ============================================
-    const isPureGreetingFastPath = isPureGreeting(lastMessageContent);
+    const rawIsGreeting = isPureGreeting(lastMessageContent);
+
+    // Última mensagem do bot (para janela "viva" de continuação)
+    const lastBotMessage = [...messages]
+      .filter(m => m.sender_type !== "customer" && !m.is_internal && !m.is_note)
+      .pop();
+    const continuationCtx: ContinuationContext = detectContinuation({
+      message: lastMessageContent,
+      salesState: currentSalesState,
+      lastBotResponseAtIso: lastBotMessage?.created_at ?? null,
+      liveWindowMinutes: 60,
+    });
+    if (continuationCtx.isContinuation) {
+      console.log(
+        `[ai-support-chat] [PACOTE C] continuation detected (state=${continuationCtx.salesState} pattern=${continuationCtx.matchedPattern} minutes_since_bot=${continuationCtx.minutesSinceLastBot}) — suppressing greeting fast-path`,
+      );
+    }
+
+    // Suprime fast-path de greeting quando for cobrança/continuação de contexto vivo.
+    const isPureGreetingFastPath = rawIsGreeting && !continuationCtx.isContinuation;
+
     let intentClassification: IntentClassification | null;
     if (isPureGreetingFastPath) {
       intentClassification = {
@@ -2380,6 +2400,18 @@ Deno.serve(async (req) => {
         summary: "Saudação simples do cliente.",
       };
       console.log("[ai-support-chat] [PERF] skip classifyIntent (pure greeting fast-path)");
+    } else if (continuationCtx.isContinuation) {
+      // Continuação curta — também não precisa de classificador. Forçamos intent
+      // adequada para o estado comercial corrente, sem cobrar OpenAI.
+      intentClassification = {
+        intent: "general",
+        sentiment: "neutral",
+        urgency: "medium",
+        requires_action: true,
+        topics: ["continuacao"],
+        summary: "Cliente cobrando continuação do que foi prometido.",
+      };
+      console.log("[ai-support-chat] [PERF] skip classifyIntent (continuation fast-path)");
     } else {
       console.log("[ai-support-chat] Classifying intent...");
       intentClassification = await classifyIntent(
