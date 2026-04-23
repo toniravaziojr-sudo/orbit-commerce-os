@@ -3293,6 +3293,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     const pipelineBlockedTools: string[] = [];
     // [F2-FIX] Sinaliza se o fallback de resposta vazia foi acionado (vai para o log)
     let emptyResponseFallbackApplied = false;
+    // [PACOTE 1] Sinaliza se o round final forçado com tool_choice="none" foi acionado
+    let forcedTextRoundApplied = false;
+    let forcedTextRoundReason: string | null = null;
 
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
