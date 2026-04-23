@@ -50,6 +50,11 @@ import {
   type LastPendingAction,
   type StallDetection,
 } from "../_shared/turn-dynamics.ts";
+// [Fase 1 - Pacotes A+B+C+G] Contexto de negócio inferido do tenant
+import {
+  loadBusinessContextBlock,
+  triggerContextRegeneration,
+} from "../_shared/business-context-loader.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -2805,6 +2810,28 @@ Cliente: "vocês entregam em SP?"
     let pipelineFilteredTools: typeof SALES_TOOLS = [];
 
     if (salesModeEnabled) {
+      // [Fase 1] Carrega contexto de negócio do tenant (Pacotes A+B+C+G).
+      // Tolerante a falha: se quebrar, IA segue como hoje.
+      const businessCtx = await loadBusinessContextBlock(supabase, tenant_id);
+
+      // Se contexto está stale ou não existe, dispara regeneração em background.
+      // Não bloqueia o turno — usa o que tiver agora.
+      try {
+        const { data: ctxRow } = await supabase
+          .from("tenant_business_context")
+          .select("needs_regeneration, last_inferred_at")
+          .eq("tenant_id", tenant_id)
+          .maybeSingle();
+        if (!ctxRow || ctxRow.needs_regeneration || !ctxRow.last_inferred_at) {
+          const _url = Deno.env.get("SUPABASE_URL") || "";
+          const _key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+          if (_url && _key) triggerContextRegeneration(_url, _key, tenant_id);
+        }
+      } catch (_) { /* tolerante */ }
+
+      const contextualBlocks: string[] = [];
+      if (businessCtx.promptBlock) contextualBlocks.push(businessCtx.promptBlock);
+
       const routed = buildPromptForState({
         state: pipelineState,
         allTools: SALES_TOOLS,
@@ -2814,14 +2841,14 @@ Cliente: "vocês entregam em SP?"
           personalityName,
           storeName,
         },
-        contextualBlocks: [],
+        contextualBlocks,
       });
       systemPrompt = routed.systemPrompt;
       pipelineFilteredTools = routed.tools;
       pipelineToolsExposed = routed.toolsExposed;
       pipelinePromptModule = routed.promptModule;
       console.log(
-        `[ai-support-chat] [F2] state=${pipelineState} module=${routed.promptModule} tools_exposed=${routed.toolsExposed.length}`
+        `[ai-support-chat] [F2] state=${pipelineState} module=${routed.promptModule} tools_exposed=${routed.toolsExposed.length} biz_ctx=${businessCtx.meta.overall_confidence || "none"} segment=${businessCtx.meta.segment || "—"} incomplete=${businessCtx.meta.catalog_incomplete}`
       );
     } else {
       systemPrompt += INFORMATIVE_GUARDRAILS;
