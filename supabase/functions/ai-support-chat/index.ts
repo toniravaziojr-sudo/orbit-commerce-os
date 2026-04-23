@@ -3923,6 +3923,45 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.log(`[ai-support-chat] [PACOTE E] duplicate response blocked (${dupCheck.reason})`);
     }
 
+    // [PACOTE 3] Decidir last_pending_action a persistir.
+    //
+    // Regras:
+    //  - Se a IA chamou tool de busca/consulta MAS terminou em fallback de promessa
+    //    (sem resultado conclusivo entregue) → persistir pendência.
+    //  - Se a IA já entregou resposta conclusiva (texto não-vazio do modelo, sem
+    //    fallback de promessa, sem stall) → LIMPAR pendência (resolveu).
+    //  - Se já existia pendência viva e o turno não a resolveu nem agravou → manter.
+    const PRODUCT_TOOLS = new Set([
+      "search_products",
+      "get_product_details",
+      "get_product_variants",
+      "recommend_related_products",
+      "view_cart",
+      "check_coupon",
+    ]);
+    const productToolsCalledNow = toolsCalledThisTurn.filter(t => PRODUCT_TOOLS.has(t));
+    const aiDeliveredRealAnswer = !emptyResponseFallbackApplied && !stallDetection.isStalled && (aiContent || "").trim().length > 0;
+
+    let pendingActionToPersist: LastPendingAction | null | undefined = undefined; // undefined = não mexer
+    if (productToolsCalledNow.length > 0 && !aiDeliveredRealAnswer) {
+      // Tool rodou, mas a IA não conseguiu fechar com texto útil → marca pendência.
+      pendingActionToPersist = {
+        kind: productToolsCalledNow[0] as LastPendingAction["kind"],
+        tool_executed: true,
+        promised_at: new Date().toISOString(),
+      };
+    } else if (stallDetection.isStalled) {
+      // Promessa sem tool → marca pendência da promessa.
+      pendingActionToPersist = {
+        kind: "search_products",
+        tool_executed: false,
+        promised_at: new Date().toISOString(),
+      };
+    } else if (aiDeliveredRealAnswer && existingPendingAction) {
+      // Conversa avançou de verdade — limpa pendência antiga.
+      pendingActionToPersist = null;
+    }
+
     // Update conversation status + estado comercial
     const newStatus = shouldHandoff ? "waiting_agent" : "bot";
     const conversationUpdate: Record<string, unknown> = {
@@ -3941,6 +3980,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       .from("conversations")
       .update(conversationUpdate)
       .eq("id", conversation_id);
+
+    // [PACOTE 3] Persistir/limpar pendência (toca metadata, separado para não conflitar com o update acima)
+    if (pendingActionToPersist !== undefined) {
+      await persistPendingAction(supabase, conversation_id, pendingActionToPersist);
+      console.log(
+        `[ai-support-chat] [PACOTE 3] last_pending_action ${pendingActionToPersist === null ? "CLEARED" : `SET (${pendingActionToPersist.kind})`}`,
+      );
+    }
 
     // [F1] LOG CANÔNICO POR TURNO — uma linha em ai_support_turn_log
     try {
