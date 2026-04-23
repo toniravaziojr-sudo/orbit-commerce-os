@@ -2,6 +2,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
 import { canonicalizeBrazilPhone, phoneVariants } from "../_shared/phone-br.ts";
+import {
+  enqueueInboundForDebounce,
+  tryClaimDebounceFlush,
+  DEBOUNCE_WINDOW_MS,
+} from "../_shared/turn-dynamics.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
