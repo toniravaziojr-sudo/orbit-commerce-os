@@ -4044,6 +4044,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           continuation_reason: continuationCtx.reason,
           continuation_pattern: continuationCtx.matchedPattern || null,
           continuation_minutes_since_bot: continuationCtx.minutesSinceLastBot ?? null,
+          continuation_pending_kind: continuationCtx.pendingActionKind ?? null,
+          // [PACOTE 1] Round final forçado
+          forced_text_round_applied: forcedTextRoundApplied,
+          forced_text_round_reason: forcedTextRoundReason,
+          tool_loop_iterations: toolCallIterations,
+          // [PACOTE 3] Pendência (estado pré e pós)
+          pending_action_before: existingPendingAction?.kind ?? null,
+          pending_action_after: pendingActionToPersist === undefined
+            ? (existingPendingAction?.kind ?? null)
+            : (pendingActionToPersist?.kind ?? null),
           stall_detected: stallDetection.isStalled,
           stall_pattern: stallDetection.matchedPromise || null,
           dup_block_reason: dupCheck.duplicate ? dupCheck.reason : null,
