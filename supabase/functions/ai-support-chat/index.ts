@@ -50,6 +50,11 @@ import {
   type LastPendingAction,
   type StallDetection,
 } from "../_shared/turn-dynamics.ts";
+// [Fase 1 - Pacotes A+B+C+G] Contexto de negócio inferido do tenant
+import {
+  loadBusinessContextBlock,
+  triggerContextRegeneration,
+} from "../_shared/business-context-loader.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
