@@ -289,6 +289,84 @@ export async function releaseProcessingLock(
 }
 
 // =============================================================
+// PACOTE 3 — last_pending_action (TTL 10 min)
+// =============================================================
+//
+// Persistido em conversations.metadata.last_pending_action.
+// Usado pela detecção de continuação como sinal independente do salesState,
+// e pelo round final forçado para escolher fallback útil em vez de promessa.
+
+export const PENDING_ACTION_TTL_MS = 10 * 60 * 1000; // 10 minutos
+
+export interface LastPendingAction {
+  // Tipo da ação prometida pela IA. Hoje cobrimos as ações de busca/consulta
+  // de catálogo, que são as que geram o sintoma "deixa eu ver…".
+  kind:
+    | "search_products"
+    | "get_product_details"
+    | "get_product_variants"
+    | "recommend_related_products"
+    | "view_cart"
+    | "check_coupon";
+  // Argumentos resumidos da chamada (ex: query, product_id). Sem PII.
+  args_summary?: Record<string, unknown>;
+  // Se a tool já rodou nesse turno e retornou resultado real (true) ou
+  // se ficou só na promessa (false).
+  tool_executed: boolean;
+  // ISO. Após PENDING_ACTION_TTL_MS, considera-se expirada.
+  promised_at: string;
+}
+
+/**
+ * Lê last_pending_action de uma metadata de conversation, considerando TTL.
+ * Tolerante a falha: retorna null em qualquer cenário inesperado.
+ */
+export function loadPendingAction(
+  metadata: Record<string, unknown> | null | undefined,
+): LastPendingAction | null {
+  try {
+    const raw = (metadata as any)?.last_pending_action;
+    if (!raw || typeof raw !== "object") return null;
+    if (!raw.promised_at || !raw.kind) return null;
+    const ts = Date.parse(String(raw.promised_at));
+    if (!Number.isFinite(ts)) return null;
+    if (Date.now() - ts > PENDING_ACTION_TTL_MS) return null;
+    return raw as LastPendingAction;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persiste/atualiza last_pending_action em conversations.metadata.
+ * Tolerante a falha: nunca derruba o turno.
+ */
+export async function persistPendingAction(
+  supabase: SupabaseLike,
+  conversation_id: string,
+  action: LastPendingAction | null,
+): Promise<void> {
+  try {
+    const { data: convRow } = await supabase
+      .from("conversations")
+      .select("metadata")
+      .eq("id", conversation_id)
+      .maybeSingle();
+    const metadata: Record<string, unknown> = (convRow?.metadata as Record<string, unknown>) || {};
+    let newMeta: Record<string, unknown>;
+    if (action === null) {
+      const { last_pending_action: _drop, ...rest } = metadata as any;
+      newMeta = rest;
+    } else {
+      newMeta = { ...metadata, last_pending_action: action };
+    }
+    await supabase.from("conversations").update({ metadata: newMeta }).eq("id", conversation_id);
+  } catch (err) {
+    console.error("[turn-dynamics] persistPendingAction failed (non-blocking):", err);
+  }
+}
+
+// =============================================================
 // PACOTE C — Continuação de contexto pendente
 // =============================================================
 
@@ -306,6 +384,10 @@ const CONTINUATION_PATTERNS: RegExp[] = [
   /^\s*\?+\s*$/,
   /^\s*(e|hein|alo|al[oô])\s*[?.!]*\s*$/i,
   /^\s*(esqueceu|esqueceram)\b/i,
+  // [PACOTE 3] confirmações curtas + cobranças informais
+  /^\s*(ok|okay|blz|beleza|bom|certo|isso|sim)\s*[?.!]*\s*$/i,
+  /^\s*(e\s+)?(a[ií])\s*[?.!]*\s*$/i,
+  /^\s*(opa|oi)\s*[?.!]*\s*$/i,
 ];
 
 /** Estados em que existe pendência comercial viva → continuação faz sentido. */
@@ -324,21 +406,27 @@ export interface ContinuationContext {
   matchedPattern?: string;
   salesState?: string | null;
   minutesSinceLastBot?: number | null;
+  // [Pacote 3] Sinaliza pendência real viva (preferida ao salesState).
+  pendingActionKind?: string | null;
 }
 
 /**
  * Decide se a mensagem deve ser tratada como CONTINUAÇÃO de pendência (não greeting).
  *
- * Regras:
- *  - Mensagem curta (≤ 25 chars) E que bate em algum padrão de cobrança/continuação.
- *  - E o estado da conversa está em algum estado com pendência viva.
- *  - E houve resposta da IA nas últimas 60 minutos (conversa "viva").
+ * Regras (gate de existência REAL de pendência):
+ *  - Mensagem curta E bate em padrão de cobrança/continuação.
+ *  - Conversa "viva" (resposta da IA nas últimas 60 min).
+ *  - E pelo menos UMA das duas condições:
+ *      (a) existe last_pending_action viva dentro do TTL  ← PREFERIDO (Pacote 3)
+ *      (b) salesState está em estado com pendência típica (legado)
+ *  - Se NENHUMA das duas existir, NÃO força continuação artificial.
  */
 export function detectContinuation(input: {
   message: string;
   salesState?: string | null;
   lastBotResponseAtIso?: string | null;
   liveWindowMinutes?: number;
+  pendingAction?: LastPendingAction | null;
 }): ContinuationContext {
   const msg = (input.message || "").trim();
   const liveWindowMin = input.liveWindowMinutes ?? 60;
@@ -350,15 +438,20 @@ export function detectContinuation(input: {
   if (!matched) {
     return { isContinuation: false, reason: "no_pattern_match", salesState: input.salesState ?? null };
   }
+
+  // Pendência real (Pacote 3): preferimos esse sinal sobre o salesState.
+  const pendingActionAlive = !!input.pendingAction;
   const stateOk = input.salesState
     ? STATES_WITH_PENDING_CONTEXT.has(input.salesState)
     : false;
-  if (!stateOk) {
+
+  if (!pendingActionAlive && !stateOk) {
     return {
       isContinuation: false,
-      reason: "no_pending_state",
+      reason: "no_pending_real_or_state",
       salesState: input.salesState ?? null,
       matchedPattern: String(matched),
+      pendingActionKind: null,
     };
   }
 
@@ -376,15 +469,17 @@ export function detectContinuation(input: {
       salesState: input.salesState ?? null,
       matchedPattern: String(matched),
       minutesSinceLastBot,
+      pendingActionKind: input.pendingAction?.kind ?? null,
     };
   }
 
   return {
     isContinuation: true,
-    reason: "continuation_detected",
+    reason: pendingActionAlive ? "continuation_pending_action" : "continuation_state_only",
     matchedPattern: String(matched),
     salesState: input.salesState ?? null,
     minutesSinceLastBot,
+    pendingActionKind: input.pendingAction?.kind ?? null,
   };
 }
 

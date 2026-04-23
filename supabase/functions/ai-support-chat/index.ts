@@ -44,7 +44,10 @@ import {
   detectContinuation,
   detectStallPromise,
   isDuplicateRecentResponse,
+  loadPendingAction,
+  persistPendingAction,
   type ContinuationContext,
+  type LastPendingAction,
   type StallDetection,
 } from "../_shared/turn-dynamics.ts";
 
@@ -2374,15 +2377,20 @@ Deno.serve(async (req) => {
     const lastBotMessage = [...messages]
       .filter(m => m.sender_type !== "customer" && !m.is_internal && !m.is_note)
       .pop();
+    // [Pacote 3] Pendência REAL persistida (TTL 10 min). Sinal preferido sobre salesState.
+    const existingPendingAction: LastPendingAction | null = loadPendingAction(
+      (conversation.metadata as Record<string, unknown> | null) ?? null,
+    );
     const continuationCtx: ContinuationContext = detectContinuation({
       message: lastMessageContent,
       salesState: currentSalesState,
       lastBotResponseAtIso: lastBotMessage?.created_at ?? null,
       liveWindowMinutes: 60,
+      pendingAction: existingPendingAction,
     });
     if (continuationCtx.isContinuation) {
       console.log(
-        `[ai-support-chat] [PACOTE C] continuation detected (state=${continuationCtx.salesState} pattern=${continuationCtx.matchedPattern} minutes_since_bot=${continuationCtx.minutesSinceLastBot}) — suppressing greeting fast-path`,
+        `[ai-support-chat] [PACOTE C] continuation detected (state=${continuationCtx.salesState} pattern=${continuationCtx.matchedPattern} pending_kind=${continuationCtx.pendingActionKind} minutes_since_bot=${continuationCtx.minutesSinceLastBot}) — suppressing greeting fast-path`,
       );
     }
 
@@ -3285,6 +3293,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     const pipelineBlockedTools: string[] = [];
     // [F2-FIX] Sinaliza se o fallback de resposta vazia foi acionado (vai para o log)
     let emptyResponseFallbackApplied = false;
+    // [PACOTE 1] Sinaliza se o round final forçado com tool_choice="none" foi acionado
+    let forcedTextRoundApplied = false;
+    let forcedTextRoundReason: string | null = null;
+    // [PACOTE 1] iterations expostas no escopo do handler para entrar no log
+    let toolCallIterations = 0;
 
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
@@ -3348,7 +3361,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
       let lastErrorText = "";
       let currentMessages = [...aiMessages];
-      let toolCallIterations = 0;
+      // toolCallIterations está em escopo do handler (acima)
       const MAX_TOOL_ITERATIONS = 5;
 
       // Outer loop for model fallback
@@ -3588,6 +3601,97 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
       aiContent = aiData.choices?.[0]?.message?.content;
 
+      // ============================================
+      // [PACOTE 1] ROUND FINAL FORÇADO COM TEXTO
+      // ============================================
+      // Se o loop terminou ainda pedindo tool_calls (esgotou MAX_TOOL_ITERATIONS)
+      // OU se a última resposta veio sem texto E sem tool_calls,
+      // forçamos UM ÚNICO round final com tool_choice="none" para obrigar texto.
+      // Limitado a 1 (sem novo ciclo escondido).
+      // (forcedTextRoundApplied/Reason declarados no escopo do handler para o log)
+      const stillHasToolCalls = !!aiData.choices?.[0]?.message?.tool_calls?.length;
+      const noTextAndNoTool = (!aiContent || !aiContent.trim()) && !stillHasToolCalls;
+      if (salesModeEnabled && (stillHasToolCalls || noTextAndNoTool) && toolsCalledThisTurn.length > 0) {
+        forcedTextRoundReason = stillHasToolCalls ? "loop_exhausted_with_pending_tools" : "empty_text_after_tools";
+        console.log(
+          `[ai-support-chat] [PACOTE 1] forcing final text round (reason=${forcedTextRoundReason} iters=${toolCallIterations})`,
+        );
+        // Se ainda há tool_calls no buffer, precisamos anexar o assistant_message
+        // ao histórico para que o tool_choice="none" seja válido. Mas como não vamos
+        // executar tool, anexamos como assistant SEM tool_calls (texto vazio explicativo)
+        // não funciona — então anexamos com tool_calls e respondemos com role:"tool" stub
+        // para cada chamada pendente, marcando-a como "skipped_loop_limit".
+        if (stillHasToolCalls) {
+          const pendingAssistant = aiData.choices[0].message;
+          currentMessages.push({
+            role: "assistant",
+            content: pendingAssistant.content || "",
+            tool_calls: pendingAssistant.tool_calls,
+          });
+          for (const tc of pendingAssistant.tool_calls) {
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({
+                skipped: true,
+                reason: "tool_loop_limit_reached_use_existing_results",
+              }),
+            } as any);
+          }
+        }
+
+        const isGpt5ModelForced = usedModel.startsWith("gpt-5");
+        const tokenParamsForced = isGpt5ModelForced
+          ? { max_completion_tokens: stateMaxTokens }
+          : { max_tokens: stateMaxTokens };
+        const forcedBody: any = {
+          model: usedModel,
+          messages: currentMessages,
+          ...tokenParamsForced,
+          // Mantém tools no payload para o modelo "saber" que existiam,
+          // mas tool_choice="none" PROÍBE nova chamada.
+          tools: pipelineFilteredTools.length > 0 ? pipelineFilteredTools : undefined,
+          tool_choice: "none",
+          parallel_tool_calls: false,
+        };
+        if (isGpt5ModelForced) {
+          forcedBody.reasoning = { effort: stateReasoningEffort };
+        }
+        if (!isGpt5ModelForced) {
+          forcedBody.temperature = 0.3;
+        }
+
+        try {
+          const forcedResp = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${OPENAI_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(forcedBody),
+          });
+          if (forcedResp.ok) {
+            const forcedData = await forcedResp.json();
+            if (forcedData.usage) {
+              inputTokens += forcedData.usage.prompt_tokens || 0;
+              outputTokens += forcedData.usage.completion_tokens || 0;
+            }
+            const forcedText = forcedData.choices?.[0]?.message?.content;
+            if (forcedText && forcedText.trim()) {
+              aiContent = forcedText;
+              forcedTextRoundApplied = true;
+              console.log(`[ai-support-chat] [PACOTE 1] forced text round produced text (${forcedText.length} chars)`);
+            } else {
+              console.warn(`[ai-support-chat] [PACOTE 1] forced text round STILL empty — will use conclusive fallback`);
+            }
+          } else {
+            console.error("[ai-support-chat] [PACOTE 1] forced text round HTTP error:", forcedResp.status);
+          }
+        } catch (forcedErr) {
+          console.error("[ai-support-chat] [PACOTE 1] forced text round threw:", forcedErr);
+        }
+      }
+
       // [F2-FIX] Observabilidade: log de consumo excessivo de reasoning
       // (modelos gpt-5*). Se mais de 50% do completion budget foi para
       // reasoning interno, logamos para podermos ajustar effort por estado.
@@ -3605,10 +3709,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         }
       } catch { /* ignore */ }
 
-      // [F2-FIX] Fallback de resposta vazia. Antes, devolvíamos erro e o cliente
-      // ficava sem resposta no WhatsApp. Agora, logamos o motivo (finish_reason,
-      // tokens) e geramos uma mensagem curta natural por estado, para não perder
-      // o turno. O log fica em ai_support_turn_log via fields existentes.
+      // [F2-FIX + PACOTE 1] Fallback de resposta vazia.
+      // Diferenciação CRÍTICA:
+      //   - Se nenhuma tool rodou neste turno → fallback "promessa" (pede tempo).
+      //   - Se ALGUMA tool rodou (já existe resultado real no histórico) → fallback
+      //     CONCLUSIVO, nunca repetir "Só um instante…" (proibido pelo usuário).
       if (!aiContent || !aiContent.trim()) {
         const finishReason = aiData.choices?.[0]?.finish_reason || "unknown";
         const compTokens = aiData.usage?.completion_tokens || 0;
@@ -3618,10 +3723,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           `[ai-support-chat] [F2-FIX] RESPOSTA VAZIA state=${pipelineState} ` +
           `model=${usedModel} finish=${finishReason} ` +
           `completion=${compTokens} reasoning=${reasoningTokens} ` +
-          `max_tokens=${stateMaxTokens} effort=${stateReasoningEffort}`
+          `max_tokens=${stateMaxTokens} effort=${stateReasoningEffort} ` +
+          `tools_called=${toolsCalledThisTurn.length} forced_round=${forcedTextRoundApplied}`
         );
 
-        const FALLBACK_BY_STATE: Record<PipelineState, string> = {
+        const toolsAlreadyRan = toolsCalledThisTurn.length > 0;
+        const FALLBACK_PROMISE_BY_STATE: Record<PipelineState, string> = {
           greeting:        "Oi! Tudo bem? Me conta o que você está procurando.",
           discovery:       "Deixa eu entender melhor. Você procura algo específico ou quer ver opções?",
           recommendation:  "Só um instante, deixa eu ver as opções aqui pra você.",
@@ -3631,10 +3738,24 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           support:         "Entendi. Deixa eu olhar isso pra você, um instante.",
           handoff:         "Vou te passar pra alguém da equipe que resolve isso, tá?",
         };
-        aiContent = FALLBACK_BY_STATE[pipelineState] || "Só um instante, já te respondo.";
+        // Fallback CONCLUSIVO quando tools já rodaram: nunca prometer de novo.
+        const FALLBACK_CONCLUSIVE_BY_STATE: Record<PipelineState, string> = {
+          greeting:        "Tive uma instabilidade rápida aqui, pode repetir o que precisa?",
+          discovery:       "Tive uma instabilidade rápida ao montar a resposta. Pode me dizer de novo o que procura?",
+          recommendation:  "Encontrei algumas opções aqui, mas tive uma instabilidade ao formatar. Pode me dizer qual estilo/tamanho/preço prefere que eu já te mostro a melhor?",
+          product_detail:  "Consegui consultar os detalhes, mas tive uma instabilidade ao montar a resposta. Quer que eu te confirme preço, estoque ou variações?",
+          decision:        "Estou com sua seleção em mãos. Pode me confirmar se quer fechar agora que eu te mando o link de pagamento?",
+          checkout_assist: "Seu carrinho está ok. Quer que eu já gere o link de pagamento?",
+          support:         "Já consultei aqui. Pode me confirmar o número do pedido ou o que você gostaria de fazer agora?",
+          handoff:         "Vou te passar pra alguém da equipe que resolve isso.",
+        };
+        const fallbackTable = toolsAlreadyRan ? FALLBACK_CONCLUSIVE_BY_STATE : FALLBACK_PROMISE_BY_STATE;
+        aiContent = fallbackTable[pipelineState] || (toolsAlreadyRan
+          ? "Tive uma instabilidade rápida aqui. Pode me confirmar o que você gostaria de fazer agora?"
+          : "Só um instante, já te respondo.");
         emptyResponseFallbackApplied = true;
         console.warn(
-          `[ai-support-chat] [F2-FIX] fallback aplicado state=${pipelineState} text="${aiContent}"`
+          `[ai-support-chat] [F2-FIX + PACOTE 1] fallback aplicado state=${pipelineState} conclusive=${toolsAlreadyRan} text="${aiContent}"`
         );
       }
     }
@@ -3804,6 +3925,45 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.log(`[ai-support-chat] [PACOTE E] duplicate response blocked (${dupCheck.reason})`);
     }
 
+    // [PACOTE 3] Decidir last_pending_action a persistir.
+    //
+    // Regras:
+    //  - Se a IA chamou tool de busca/consulta MAS terminou em fallback de promessa
+    //    (sem resultado conclusivo entregue) → persistir pendência.
+    //  - Se a IA já entregou resposta conclusiva (texto não-vazio do modelo, sem
+    //    fallback de promessa, sem stall) → LIMPAR pendência (resolveu).
+    //  - Se já existia pendência viva e o turno não a resolveu nem agravou → manter.
+    const PRODUCT_TOOLS = new Set([
+      "search_products",
+      "get_product_details",
+      "get_product_variants",
+      "recommend_related_products",
+      "view_cart",
+      "check_coupon",
+    ]);
+    const productToolsCalledNow = toolsCalledThisTurn.filter(t => PRODUCT_TOOLS.has(t));
+    const aiDeliveredRealAnswer = !emptyResponseFallbackApplied && !stallDetection.isStalled && (aiContent || "").trim().length > 0;
+
+    let pendingActionToPersist: LastPendingAction | null | undefined = undefined; // undefined = não mexer
+    if (productToolsCalledNow.length > 0 && !aiDeliveredRealAnswer) {
+      // Tool rodou, mas a IA não conseguiu fechar com texto útil → marca pendência.
+      pendingActionToPersist = {
+        kind: productToolsCalledNow[0] as LastPendingAction["kind"],
+        tool_executed: true,
+        promised_at: new Date().toISOString(),
+      };
+    } else if (stallDetection.isStalled) {
+      // Promessa sem tool → marca pendência da promessa.
+      pendingActionToPersist = {
+        kind: "search_products",
+        tool_executed: false,
+        promised_at: new Date().toISOString(),
+      };
+    } else if (aiDeliveredRealAnswer && existingPendingAction) {
+      // Conversa avançou de verdade — limpa pendência antiga.
+      pendingActionToPersist = null;
+    }
+
     // Update conversation status + estado comercial
     const newStatus = shouldHandoff ? "waiting_agent" : "bot";
     const conversationUpdate: Record<string, unknown> = {
@@ -3822,6 +3982,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       .from("conversations")
       .update(conversationUpdate)
       .eq("id", conversation_id);
+
+    // [PACOTE 3] Persistir/limpar pendência (toca metadata, separado para não conflitar com o update acima)
+    if (pendingActionToPersist !== undefined) {
+      await persistPendingAction(supabase, conversation_id, pendingActionToPersist);
+      console.log(
+        `[ai-support-chat] [PACOTE 3] last_pending_action ${pendingActionToPersist === null ? "CLEARED" : `SET (${pendingActionToPersist.kind})`}`,
+      );
+    }
 
     // [F1] LOG CANÔNICO POR TURNO — uma linha em ai_support_turn_log
     try {
@@ -3878,6 +4046,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           continuation_reason: continuationCtx.reason,
           continuation_pattern: continuationCtx.matchedPattern || null,
           continuation_minutes_since_bot: continuationCtx.minutesSinceLastBot ?? null,
+          continuation_pending_kind: continuationCtx.pendingActionKind ?? null,
+          // [PACOTE 1] Round final forçado
+          forced_text_round_applied: forcedTextRoundApplied,
+          forced_text_round_reason: forcedTextRoundReason,
+          tool_loop_iterations: toolCallIterations,
+          // [PACOTE 3] Pendência (estado pré e pós)
+          pending_action_before: existingPendingAction?.kind ?? null,
+          pending_action_after: pendingActionToPersist === undefined
+            ? (existingPendingAction?.kind ?? null)
+            : (pendingActionToPersist?.kind ?? null),
           stall_detected: stallDetection.isStalled,
           stall_pattern: stallDetection.matchedPromise || null,
           dup_block_reason: dupCheck.duplicate ? dupCheck.reason : null,
