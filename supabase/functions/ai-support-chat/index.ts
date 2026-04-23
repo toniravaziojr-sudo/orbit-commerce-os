@@ -3939,10 +3939,21 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // ============================================
     // STEP 10: SEND VIA CHANNEL
+    // [Pacote E] Se a resposta foi marcada como duplicada, NÃO envia (mas mantém
+    // a mensagem persistida com delivery_status="suppressed_duplicate" para auditoria).
     // ============================================
     let sendResult: { success: boolean; error?: string; message_id?: string } = { success: false, error: "Canal não suportado" };
 
-    if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
+    if (dupCheck.duplicate) {
+      console.log(`[ai-support-chat] [PACOTE E] suppress send (duplicate response within window)`);
+      try {
+        await supabase
+          .from("messages")
+          .update({ delivery_status: "suppressed_duplicate", failure_reason: dupCheck.reason })
+          .eq("id", newMessage.id);
+      } catch { /* tolerante a falha */ }
+      sendResult = { success: false, error: "duplicate_suppressed" };
+    } else if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
       console.log(`[ai-support-chat] Sending WhatsApp response...`);
       
       try {
