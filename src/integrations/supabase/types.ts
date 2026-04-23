@@ -1363,6 +1363,98 @@ export type Database = {
           },
         ]
       }
+      ai_business_snapshot: {
+        Row: {
+          audience_summary: string | null
+          business_summary: string | null
+          confidence_level:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score: number | null
+          created_at: string
+          generated_at: string | null
+          generation_duration_ms: number | null
+          has_manual_overrides: boolean
+          id: string
+          inferred_data: Json
+          last_regen_attempt_at: string | null
+          last_regen_error: string | null
+          manual_overrides: Json
+          mode: Database["public"]["Enums"]["ai_snapshot_mode"]
+          model_used: string | null
+          needs_regeneration: boolean
+          neutral_mode_reason: string | null
+          niche_primary: string | null
+          niche_secondary: string[] | null
+          suggested_tone: string | null
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          audience_summary?: string | null
+          business_summary?: string | null
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          generated_at?: string | null
+          generation_duration_ms?: number | null
+          has_manual_overrides?: boolean
+          id?: string
+          inferred_data?: Json
+          last_regen_attempt_at?: string | null
+          last_regen_error?: string | null
+          manual_overrides?: Json
+          mode?: Database["public"]["Enums"]["ai_snapshot_mode"]
+          model_used?: string | null
+          needs_regeneration?: boolean
+          neutral_mode_reason?: string | null
+          niche_primary?: string | null
+          niche_secondary?: string[] | null
+          suggested_tone?: string | null
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          audience_summary?: string | null
+          business_summary?: string | null
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          generated_at?: string | null
+          generation_duration_ms?: number | null
+          has_manual_overrides?: boolean
+          id?: string
+          inferred_data?: Json
+          last_regen_attempt_at?: string | null
+          last_regen_error?: string | null
+          manual_overrides?: Json
+          mode?: Database["public"]["Enums"]["ai_snapshot_mode"]
+          model_used?: string | null
+          needs_regeneration?: boolean
+          neutral_mode_reason?: string | null
+          niche_primary?: string | null
+          niche_secondary?: string[] | null
+          suggested_tone?: string | null
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_business_snapshot_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_channel_config: {
         Row: {
           channel_type: string
@@ -1406,6 +1498,81 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_channel_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_context_tree: {
+        Row: {
+          confidence_level:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score: number | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          label: string
+          level: Database["public"]["Enums"]["ai_context_node_level"]
+          metadata: Json
+          parent_id: string | null
+          slug: string
+          source: Database["public"]["Enums"]["ai_data_source"]
+          tenant_id: string
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          label: string
+          level: Database["public"]["Enums"]["ai_context_node_level"]
+          metadata?: Json
+          parent_id?: string | null
+          slug: string
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          tenant_id: string
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          level?: Database["public"]["Enums"]["ai_context_node_level"]
+          metadata?: Json
+          parent_id?: string | null
+          slug?: string
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          tenant_id?: string
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_context_tree_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_context_tree"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_context_tree_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1863,6 +2030,287 @@ export type Database = {
           resolution?: string | null
         }
         Relationships: []
+      }
+      ai_product_commercial_payload: {
+        Row: {
+          commercial_name: string | null
+          commercial_role: Database["public"]["Enums"]["ai_commercial_role"]
+          comparison_arguments: string | null
+          confidence_level:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score: number | null
+          created_at: string
+          differentials: string[] | null
+          generated_at: string | null
+          has_mandatory_variants: boolean
+          has_manual_overrides: boolean
+          id: string
+          main_pain_id: string | null
+          manual_overrides: Json
+          medium_pitch: string | null
+          model_used: string | null
+          needs_regeneration: boolean
+          product_id: string
+          product_kind: Database["public"]["Enums"]["ai_product_kind"]
+          secondary_pain_ids: string[] | null
+          short_pitch: string | null
+          social_proof_snippet: string | null
+          source: Database["public"]["Enums"]["ai_data_source"]
+          target_audience: string | null
+          tenant_id: string
+          updated_at: string
+          variant_ask_rule: string | null
+          variants_summary: Json
+          when_not_to_indicate: string | null
+        }
+        Insert: {
+          commercial_name?: string | null
+          commercial_role?: Database["public"]["Enums"]["ai_commercial_role"]
+          comparison_arguments?: string | null
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          differentials?: string[] | null
+          generated_at?: string | null
+          has_mandatory_variants?: boolean
+          has_manual_overrides?: boolean
+          id?: string
+          main_pain_id?: string | null
+          manual_overrides?: Json
+          medium_pitch?: string | null
+          model_used?: string | null
+          needs_regeneration?: boolean
+          product_id: string
+          product_kind?: Database["public"]["Enums"]["ai_product_kind"]
+          secondary_pain_ids?: string[] | null
+          short_pitch?: string | null
+          social_proof_snippet?: string | null
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          target_audience?: string | null
+          tenant_id: string
+          updated_at?: string
+          variant_ask_rule?: string | null
+          variants_summary?: Json
+          when_not_to_indicate?: string | null
+        }
+        Update: {
+          commercial_name?: string | null
+          commercial_role?: Database["public"]["Enums"]["ai_commercial_role"]
+          comparison_arguments?: string | null
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          differentials?: string[] | null
+          generated_at?: string | null
+          has_mandatory_variants?: boolean
+          has_manual_overrides?: boolean
+          id?: string
+          main_pain_id?: string | null
+          manual_overrides?: Json
+          medium_pitch?: string | null
+          model_used?: string | null
+          needs_regeneration?: boolean
+          product_id?: string
+          product_kind?: Database["public"]["Enums"]["ai_product_kind"]
+          secondary_pain_ids?: string[] | null
+          short_pitch?: string | null
+          social_proof_snippet?: string | null
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          target_audience?: string | null
+          tenant_id?: string
+          updated_at?: string
+          variant_ask_rule?: string | null
+          variants_summary?: Json
+          when_not_to_indicate?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_product_commercial_payload_main_pain_id_fkey"
+            columns: ["main_pain_id"]
+            isOneToOne: false
+            referencedRelation: "ai_context_tree"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_product_commercial_payload_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_product_commercial_payload_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_product_pain_map: {
+        Row: {
+          confidence_level:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score: number | null
+          created_at: string
+          id: string
+          is_primary: boolean
+          metadata: Json
+          pain_node_id: string
+          product_id: string
+          reasoning: string | null
+          source: Database["public"]["Enums"]["ai_data_source"]
+          tenant_id: string
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          metadata?: Json
+          pain_node_id: string
+          product_id: string
+          reasoning?: string | null
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          tenant_id: string
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          metadata?: Json
+          pain_node_id?: string
+          product_id?: string
+          reasoning?: string | null
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          tenant_id?: string
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_product_pain_map_pain_node_id_fkey"
+            columns: ["pain_node_id"]
+            isOneToOne: false
+            referencedRelation: "ai_context_tree"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_product_pain_map_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_product_pain_map_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_snapshot_regen_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          last_error: string | null
+          lease_expires_at: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          metadata: Json
+          next_retry_at: string | null
+          priority: number
+          processed_at: string | null
+          product_id: string | null
+          reason: Database["public"]["Enums"]["ai_regen_reason"]
+          result: Json | null
+          scheduled_for: string
+          scope: Database["public"]["Enums"]["ai_regen_scope"]
+          status: Database["public"]["Enums"]["ai_regen_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          metadata?: Json
+          next_retry_at?: string | null
+          priority?: number
+          processed_at?: string | null
+          product_id?: string | null
+          reason: Database["public"]["Enums"]["ai_regen_reason"]
+          result?: Json | null
+          scheduled_for?: string
+          scope: Database["public"]["Enums"]["ai_regen_scope"]
+          status?: Database["public"]["Enums"]["ai_regen_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          metadata?: Json
+          next_retry_at?: string | null
+          priority?: number
+          processed_at?: string | null
+          product_id?: string | null
+          reason?: Database["public"]["Enums"]["ai_regen_reason"]
+          result?: Json | null
+          scheduled_for?: string
+          scope?: Database["public"]["Enums"]["ai_regen_scope"]
+          status?: Database["public"]["Enums"]["ai_regen_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_snapshot_regen_queue_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_snapshot_regen_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_support_config: {
         Row: {
@@ -21337,10 +21785,12 @@ export type Database = {
         }
         Returns: number
       }
+      ai_daily_snapshot_reconciliation: { Args: never; Returns: Json }
       atomic_activate_prerender_version: {
         Args: { p_publish_version: number; p_tenant_id: string }
         Returns: Json
       }
+      belongs_to_tenant: { Args: { _tenant_id: string }; Returns: boolean }
       calculate_youtube_upload_credits: {
         Args: {
           p_file_size_bytes: number
@@ -21437,6 +21887,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      enqueue_ai_regeneration: {
+        Args: {
+          p_debounce_seconds?: number
+          p_priority?: number
+          p_product_id?: string
+          p_reason: Database["public"]["Enums"]["ai_regen_reason"]
+          p_scope: Database["public"]["Enums"]["ai_regen_scope"]
+          p_tenant_id: string
+        }
+        Returns: string
       }
       ensure_customer_tag: {
         Args: {
@@ -21882,6 +22343,50 @@ export type Database = {
       }
     }
     Enums: {
+      ai_commercial_role:
+        | "primary"
+        | "complement"
+        | "upgrade"
+        | "kit_component"
+        | "accessory"
+        | "consumable"
+      ai_confidence_level: "low" | "medium" | "high" | "verified"
+      ai_context_node_level:
+        | "business"
+        | "audience"
+        | "macro_category"
+        | "subcategory"
+        | "product_type"
+        | "pain"
+      ai_data_source: "inferred" | "manual" | "hybrid"
+      ai_product_kind:
+        | "single"
+        | "kit"
+        | "combo"
+        | "pack"
+        | "bundle"
+        | "upgrade"
+        | "complement"
+        | "replacement"
+      ai_regen_reason:
+        | "initial"
+        | "catalog_changed"
+        | "daily_cron"
+        | "manual"
+        | "override_changed"
+        | "failure_retry"
+      ai_regen_scope:
+        | "full_snapshot"
+        | "single_product"
+        | "tree_only"
+        | "payloads_only"
+      ai_regen_status:
+        | "pending"
+        | "processing"
+        | "done"
+        | "failed"
+        | "cancelled"
+      ai_snapshot_mode: "active" | "neutral" | "pending"
       app_role:
         | "owner"
         | "admin"
@@ -22180,6 +22685,50 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      ai_commercial_role: [
+        "primary",
+        "complement",
+        "upgrade",
+        "kit_component",
+        "accessory",
+        "consumable",
+      ],
+      ai_confidence_level: ["low", "medium", "high", "verified"],
+      ai_context_node_level: [
+        "business",
+        "audience",
+        "macro_category",
+        "subcategory",
+        "product_type",
+        "pain",
+      ],
+      ai_data_source: ["inferred", "manual", "hybrid"],
+      ai_product_kind: [
+        "single",
+        "kit",
+        "combo",
+        "pack",
+        "bundle",
+        "upgrade",
+        "complement",
+        "replacement",
+      ],
+      ai_regen_reason: [
+        "initial",
+        "catalog_changed",
+        "daily_cron",
+        "manual",
+        "override_changed",
+        "failure_retry",
+      ],
+      ai_regen_scope: [
+        "full_snapshot",
+        "single_product",
+        "tree_only",
+        "payloads_only",
+      ],
+      ai_regen_status: ["pending", "processing", "done", "failed", "cancelled"],
+      ai_snapshot_mode: ["active", "neutral", "pending"],
       app_role: ["owner", "admin", "operator", "support", "finance", "viewer"],
       b2b_consent_status: ["pending", "opted_in", "opted_out", "unknown"],
       b2b_job_status: [
