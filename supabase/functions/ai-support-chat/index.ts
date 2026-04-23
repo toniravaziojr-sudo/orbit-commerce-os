@@ -3840,7 +3840,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           const humanized = buildHumanFallbackFromTools();
           aiContent = humanized || FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] || "Pode me dizer um pouco mais do que você procura?";
         } else {
-          aiContent = fallbackTable[pipelineState] || "Já te respondo.";
+          aiContent = FALLBACK_PROMISE_BY_STATE[pipelineState] || "Já te respondo.";
         }
         emptyResponseFallbackApplied = true;
         console.warn(
