@@ -3361,7 +3361,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
       let lastErrorText = "";
       let currentMessages = [...aiMessages];
-      let toolCallIterations = 0;
+      // toolCallIterations está em escopo do handler (acima)
       const MAX_TOOL_ITERATIONS = 5;
 
       // Outer loop for model fallback
