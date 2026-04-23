@@ -3348,11 +3348,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           console.warn(`[ai-support-chat] Model ${modelToTry} failed:`, response.status, lastErrorText);
 
           // [PERF — Pacote 2] Cache de indisponibilidade no cold start.
-          // 404 = modelo não existe / sem acesso; 400 com "model" no erro = idem.
-          // Marcamos para pular nas próximas chamadas DESTE processo.
-          if (response.status === 404 || (response.status === 400 && /model/i.test(lastErrorText))) {
+          // 404 = modelo não existe / sem acesso.
+          // 400 com referência a "model" / "unknown parameter" / "invalid parameter"
+          // = incompatibilidade do modelo com o payload (não vale tentar de novo).
+          const incompatible = response.status === 404 ||
+            (response.status === 400 && /(model|unknown parameter|invalid parameter|unsupported)/i.test(lastErrorText));
+          if (incompatible) {
             UNAVAILABLE_MODELS.add(modelToTry);
-            console.log(`[ai-support-chat] [PERF] cached as unavailable: ${modelToTry}`);
+            console.log(`[ai-support-chat] [PERF] cached as unavailable: ${modelToTry} (status=${response.status})`);
             response = null;
             continue;
           }
