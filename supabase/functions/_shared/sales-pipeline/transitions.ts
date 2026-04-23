@@ -26,6 +26,7 @@ export type TransitionReason =
   | "support_topic_detected"
   | "handoff_requested"
   | "discovery_limit_reached_advance_to_recommendation"
+  | "pain_or_objective_declared_advance_to_recommendation"
   | "tool_advanced_state"
   | "no_change_keep_state"
   | "regression_blocked";
@@ -85,6 +86,40 @@ const CHECKOUT_REQUEST_PATTERNS = [
   /\bme\s+manda\s+o\s+link\b/i,
   /\bgera\s+(o\s+)?link\b/i,
 ];
+
+// Sinais de DOR/OBJETIVO declarados pelo cliente — quando aparecem, a IA
+// já tem informação suficiente para recomendar (não cabe nova rodada de
+// discovery genérica). Lista é ampla de propósito: cobre família "shampoo",
+// "creme", "loção" + termos de queda/calvície/prevenção/caspa/oleosidade.
+// Em F3 isso pode virar classifier; aqui é heurística determinística.
+const PAIN_OR_OBJECTIVE_PATTERNS: RegExp[] = [
+  // Categoria geral + qualquer continuação ("shampoo para X", "creme pra Y")
+  /\b(shampoo|condicionador|cream|cr[eê]me|lo[çc][ãa]o|balm|s[eé]rum|t[ôo]nico|m[áa]scara|gel|sabonete|kit|combo)\b[^.?!]{2,}/i,
+  // Dores explícitas — cabelo / couro cabeludo
+  /\bcalv[íi]cie\b/i,
+  /\bqueda\b/i,
+  /\bcaindo\b/i,
+  /\bfalha(s)?\s+(na\s+)?(coroa|cabe[çc]a|cabelo)\b/i,
+  /\bcoroa\s+(falha|aberta|rala)\b/i,
+  /\brala(r|ndo)?\b/i,
+  /\bcaspa\b/i,
+  /\bseborr[eé]ia\b/i,
+  /\boleosidade\b/i,
+  /\bcabelo\s+(oleoso|seco|fino|ralo)\b/i,
+  /\bcouro\s+cabeludo\b/i,
+  // Objetivos
+  /\bpreven(ir|[çc][ãa]o|tivo)\b/i,
+  /\btratar\b/i,
+  /\btratamento\b/i,
+  /\bcrescer|crescimento|fortalecer|fortalecimento\b/i,
+  // Pele / pós-banho
+  /\bp[óo]s[\s-]banho\b/i,
+];
+
+function detectPainOrObjective(message: string): boolean {
+  if (!message) return false;
+  return PAIN_OR_OBJECTIVE_PATTERNS.some(re => re.test(message));
+}
 
 function mentionsProductByName(message: string, productNames: string[] = []): boolean {
   if (!message || !productNames.length) return false;
@@ -162,7 +197,18 @@ export function decideNextState(input: TransitionInput): TransitionResult {
     return advanceTo(current, "recommendation", "tool_advanced_state");
   }
 
-  // 8. Discovery com limite atingido → força recommendation.
+  // 8a. Cliente declarou dor/objetivo concreto enquanto estava em greeting/discovery
+  // → já tem matéria-prima pra recomendar. Não force nova rodada de descoberta.
+  // Isso resolve o caso "queria um shampoo para calvície" preso em discovery.
+  if ((current === "greeting" || current === "discovery") && detectPainOrObjective(message)) {
+    return {
+      next: "recommendation",
+      reason: "pain_or_objective_declared_advance_to_recommendation",
+      forced: true,
+    };
+  }
+
+  // 8b. Discovery com limite atingido → força recommendation.
   if (current === "discovery" && discoveryTurnsSoFar >= 2) {
     return { next: "recommendation", reason: "discovery_limit_reached_advance_to_recommendation", forced: true };
   }
