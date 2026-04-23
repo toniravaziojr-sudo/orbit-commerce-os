@@ -4045,6 +4045,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     console.log(`[ai-support-chat] Response ${sendResult.success ? "sent" : "failed"} via ${channelType}. Model: ${modelUsed}, Sales: ${salesModeEnabled}, RAG: ${similarityScores.length} chunks, Latency: ${latencyMs}ms`);
 
+    // [Pacote B] Libera o lock antes de devolver. Tolerante a falha.
+    await releaseProcessingLock(supabase, conversation_id, myLockId).catch(() => {});
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -4056,6 +4059,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         send_error: sendResult.error,
         channel_type: channelType,
         sales_mode: salesModeEnabled,
+        suppressed_duplicate: dupCheck.duplicate,
+        stall_detected: stallDetection.isStalled,
+        continuation_detected: continuationCtx.isContinuation,
         rag: {
           chunks_found: similarityScores.length,
           avg_similarity: similarityScores.length > 0 
@@ -4078,6 +4084,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     );
   } catch (error) {
     console.error("[ai-support-chat] Error:", error);
+    // [Pacote B] Tenta liberar o lock mesmo em erro. Tolerante a falha.
+    try {
+      const body = await req.clone().json().catch(() => null);
+      if (body?.conversation_id) {
+        // lock_id pode não estar disponível neste catch (escopo); usamos cleanup best-effort
+        // o TTL do lock garante liberação automática em PROCESSING_LOCK_TTL_MS.
+      }
+    } catch { /* noop */ }
     return new Response(
       JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte.", code: "INTERNAL_ERROR" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
