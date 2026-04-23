@@ -14149,6 +14149,54 @@ export type Database = {
           },
         ]
       }
+      product_pain_points: {
+        Row: {
+          created_at: string
+          id: string
+          pain_point: string
+          product_id: string
+          source: string
+          tenant_id: string
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pain_point: string
+          product_id: string
+          source?: string
+          tenant_id: string
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pain_point?: string
+          product_id?: string
+          source?: string
+          tenant_id?: string
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_pain_points_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_pain_points_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_reference_assets: {
         Row: {
           brand_tokens: string[] | null
@@ -17707,6 +17755,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tenant_brand_context_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_business_context: {
+        Row: {
+          catalog_incomplete: boolean
+          catalog_incomplete_reason: string | null
+          created_at: string
+          id: string
+          inferred_tree: Json
+          last_inference_error: string | null
+          last_inferred_at: string | null
+          manual_overrides: Json
+          needs_regeneration: boolean
+          overall_confidence: string
+          product_count_snapshot: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          catalog_incomplete?: boolean
+          catalog_incomplete_reason?: string | null
+          created_at?: string
+          id?: string
+          inferred_tree?: Json
+          last_inference_error?: string | null
+          last_inferred_at?: string | null
+          manual_overrides?: Json
+          needs_regeneration?: boolean
+          overall_confidence?: string
+          product_count_snapshot?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          catalog_incomplete?: boolean
+          catalog_incomplete_reason?: string | null
+          created_at?: string
+          id?: string
+          inferred_tree?: Json
+          last_inference_error?: string | null
+          last_inferred_at?: string | null
+          manual_overrides?: Json
+          needs_regeneration?: boolean
+          overall_confidence?: string
+          product_count_snapshot?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_business_context_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "tenants"
