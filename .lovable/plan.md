@@ -210,3 +210,33 @@ E a árvore + mapa + payload comercial se mantêm vivos conforme o tenant cadast
 ---
 
 📌 **Plano v4 aprovado como versão final.** Pronto para iniciar Fase 1.
+
+---
+
+## 🚧 Execução — status por sub-fase
+
+### Fase 1 — Núcleo de inteligência prévia
+
+#### ✅ Sub-fase 1.1 — Fundação de dados (CONCLUÍDA)
+
+**Decisões aplicadas:**
+- Implementação universal (não específica de tenant). Tenant piloto de validação: **Respeite o Homem**.
+- Modelo de inferência: **google/gemini-2.5-pro**.
+- Gatilho de regeneração: **trigger por mudança de catálogo (debounce 5min) + cron diário 03:00 BRT (rede de segurança) + botão sob demanda**.
+
+**Entregue no banco:**
+- `ai_business_snapshot` — snapshot por tenant (modo `active`/`neutral`, confiança, overrides, versão)
+- `ai_context_tree` — árvore hierárquica negócio → público → categoria → tipo → dor (suporta tenant híbrido)
+- `ai_product_pain_map` — mapa N:N produto ↔ dor com peso, confiança, dor principal/secundária
+- `ai_product_commercial_payload` — payload comercial pronto: nome, papel comercial, `product_kind` (single/kit/combo/pack/upgrade/complement/replacement), pitch curto/médio, dores, variantes obrigatórias, anti-indicação
+- `ai_snapshot_regen_queue` — fila com lease/lock/retry/scheduled_for para worker concorrente
+- Triggers de catálogo em `products`, `product_variants`, `product_images`, `product_components`, `categories`, `product_categories` (debounce real 5min)
+- Função `ai_daily_snapshot_reconciliation()` + cron `ai-daily-snapshot-reconciliation` (03:00 BRT diário)
+- RLS tenant-scoped + `assert_same_tenant_ai` em FKs críticas + campos `confidence_level`/`confidence_score` + `manual_overrides` nunca sobrescritos por regeneração
+
+#### 🟡 Sub-fase 1.2 — Motor de inferência inicial (EM EXECUÇÃO)
+
+Edge function `ai-business-snapshot-generator` lê catálogo, decide ativo/neutro, chama Gemini 2.5 Pro e popula as 4 tabelas. Worker `ai-snapshot-queue-worker` consome `ai_snapshot_regen_queue` com lease.
+
+#### ⏳ Sub-fase 1.3 — Tratamento de variantes
+#### ⏳ Sub-fase 1.4 — Consumo no pipeline F2 (`prompt-router`)
