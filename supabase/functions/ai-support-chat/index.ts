@@ -3786,6 +3786,24 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // Hash da resposta (anti-repetição na próxima rodada)
     const responseHash = await hashResponse(aiContent || "");
 
+    // [Pacote D] Detector de stall: a IA prometeu "deixa eu ver…" e não chamou tool?
+    const stallDetection: StallDetection = detectStallPromise({
+      responseText: aiContent || "",
+      toolsCalled: toolsCalledArr,
+      salesState: pipelineState,
+    });
+    if (stallDetection.isStalled) {
+      console.log(
+        `[ai-support-chat] [PACOTE D] STALL DETECTED — promise without tool (state=${pipelineState} pattern=${stallDetection.matchedPromise})`,
+      );
+    }
+
+    // [Pacote E] Anti-duplicidade: olha histórico recente de turnos para o mesmo hash.
+    const dupCheck = await isDuplicateRecentResponse(supabase, conversation_id, responseHash);
+    if (dupCheck.duplicate) {
+      console.log(`[ai-support-chat] [PACOTE E] duplicate response blocked (${dupCheck.reason})`);
+    }
+
     // Update conversation status + estado comercial
     const newStatus = shouldHandoff ? "waiting_agent" : "bot";
     const conversationUpdate: Record<string, unknown> = {
