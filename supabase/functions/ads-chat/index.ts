@@ -1373,9 +1373,9 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
       let pageCount = 0;
       while (url && pageCount < MAX_PAGES) {
         pageCount++;
-        const response = await fetch(url);
+        const response: Response = await fetch(url);
         if (!response.ok) {
-          const errBody = await response.text().catch(() => "");
+          const errBody: string = await response.text().catch(() => "");
           console.error(`[ads-chat][${VERSION}] Meta API error (page ${pageCount}):`, response.status, errBody.slice(0, 200));
           // Handle rate limiting
           if (response.status === 429) {
@@ -1386,7 +1386,7 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
           }
           break;
         }
-        const result = await response.json();
+        const result: any = await response.json();
         
         // DIAGNOSTIC: Log first 3 rows' raw actions to understand structure
         if (pageCount === 1) {
@@ -2753,9 +2753,9 @@ async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?
       let pageCount = 0;
       while (url && allAdsets.length < MAX_ADSETS) {
         pageCount++;
-        const response = await fetch(url);
+        const response: Response = await fetch(url);
         if (!response.ok) {
-          const errBody = await response.text().catch(() => "");
+          const errBody: string = await response.text().catch(() => "");
           console.error(`[ads-chat][${VERSION}] Meta adsets API error (page ${pageCount}):`, response.status, errBody.slice(0, 200));
           if (response.status === 429) {
             const retryAfter = parseInt(response.headers.get("Retry-After") || "5");
@@ -2765,7 +2765,7 @@ async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?
           }
           break;
         }
-        const result = await response.json();
+        const result: any = await response.json();
         if (result.error) {
           console.error(`[ads-chat][${VERSION}] Meta adsets API error:`, result.error.message);
           return JSON.stringify({ error: result.error.message });
@@ -5260,7 +5260,7 @@ Deno.serve(async (req) => {
             console.log(`[ads-chat][${VERSION}] Tool round ${round + 1}: ${toolNames.join(", ")}`);
             
             // Send progress event for each tool
-            const uniqueLabels = [...new Set(toolNames.map(toolProgressLabel))];
+            const uniqueLabels: string[] = [...new Set(toolNames.map(toolProgressLabel))] as string[];
             for (const label of uniqueLabels) {
               await sendProgress(label);
             }
@@ -5274,7 +5274,7 @@ Deno.serve(async (req) => {
               let args = {};
               try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
               const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId);
-              supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
+              supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}, (e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
               return { tc_id: tc.id, result };
             });
             const toolResults = await Promise.allSettled(toolPromises);
@@ -5555,7 +5555,7 @@ Deno.serve(async (req) => {
                     console.log(`[ads-chat][${VERSION}] Filler-retry round ${round + 1}: ${toolNames.join(", ")}`);
                     
                     // Send progress
-                    const uniqueLabels = [...new Set(toolNames.map(toolProgressLabel))];
+                    const uniqueLabels: string[] = [...new Set(toolNames.map(toolProgressLabel))] as string[];
                     for (const label of uniqueLabels) await sendRetryProgress(label);
                     
                     const assistantMsg: any = { role: "assistant", content: "", tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
@@ -5565,7 +5565,7 @@ Deno.serve(async (req) => {
                       let args = {};
                       try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
                       const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId);
-                      supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
+                      supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}, (e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
                       return { tc_id: tc.id, result };
                     });
                     const toolResults = await Promise.allSettled(toolPromises);

@@ -1552,7 +1552,7 @@ Deno.serve(async (req) => {
         .insert({
           conversation_id,
           tenant_id,
-          user_id: user.id,
+          user_id: user?.id ?? null,
           role: "assistant",
           content: cleanContent,
           metadata: proposedActions.length > 0 ? { proposed_actions: proposedActions } : {},
