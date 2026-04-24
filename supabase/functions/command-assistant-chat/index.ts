@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
+import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
@@ -1459,6 +1460,13 @@ Deno.serve(async (req) => {
       if (memoryContext) {
         SYSTEM_PROMPT += memoryContext;
         console.log(`[command-assistant-chat] Memory context injected (${memoryContext.length} chars)`);
+      }
+
+      // Inject AI Brain insights (aprendizados aprovados p/ o auxiliar de gestão)
+      const brainContext = await getBrainContextForPrompt(supabase, tenant_id, "auxiliar", { limit: 15 });
+      if (brainContext) {
+        SYSTEM_PROMPT += brainContext;
+        console.log(`[command-assistant-chat] Brain insights injected (${brainContext.length} chars)`);
       }
     } catch (e) {
       console.error("[command-assistant-chat] Memory fetch error:", e);
