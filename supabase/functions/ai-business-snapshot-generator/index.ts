@@ -551,14 +551,25 @@ async function inferBatch(
     ? `Você é um analista comercial sênior de e-commerce brasileiro. Analise o catálogo (parcial — primeiro lote) e infira:
 
 1. **Negócio**: nicho principal, secundários (tenant híbrido), resumo, público-alvo, tom.
-2. **Árvore de contexto**: hierarquia negócio → público → macro_categoria → subcategoria → tipo_produto → dor. Slugs únicos kebab-case sem acento. parent_slug=null para raiz.
+2. **Árvore de contexto RAMIFICADA**: hierarquia negócio → público → macro_categoria → subcategoria → tipo_produto → dor. Slugs únicos kebab-case sem acento. parent_slug=null para raiz (apenas para o nó "business").
 3. **Mapa produto → dores**: principal + secundárias por slug.
 4. **Payload comercial por produto**: commercial_role, product_kind (single/kit/combo/pack/upgrade/complement/replacement), main_pain_slug, secondary_pain_slugs, target_audience, short_pitch (≤140), medium_pitch (≤400), differentials, when_not_to_indicate, comparison_arguments, has_mandatory_variants, variants_summary, confidence_score.
+
+LARGURA MÍNIMA OBRIGATÓRIA DA ÁRVORE (não responder se não atender):
+- business: exatamente 1 nó (raiz, parent_slug=null).
+- audience: 2 a 4 públicos distintos (ex: iniciante vs avançado, homem vs mulher, casual vs profissional). Cada um filho do business.
+- macro_category: 2 a 5 macro-categorias cobrindo TODO o sortimento do lote. Filhas do business.
+- subcategory: 3 a 8 subcategorias, distribuídas entre as macro-categorias (cada macro tem ≥1 subcategoria).
+- product_type: 4 a 10 tipos de produto, ligados às subcategorias.
+- pain: 4 a 10 dores reais do consumidor, ligadas aos product_types ou subcategories. NUNCA usar uma dor genérica para tudo.
+
+Total mínimo: 16 nós. Total máximo: 40 nós. Se o catálogo é pequeno, use o mínimo; se é amplo, expanda.
 
 REGRAS:
 - PT-BR.
 - Não inventar prova social/claim clínico.
 - Slugs kebab-case sem acento.
+- Hierarquia coerente: cada nó (exceto business) tem parent_slug existente na própria árvore.
 - Confiança honesta — se incerto, baixe o score.
 - Responda APENAS via tool_call submit_business_snapshot.`
     : `Você é um analista comercial sênior. Este é um lote ADICIONAL de produtos do mesmo tenant. A árvore de contexto JÁ FOI DEFINIDA. Para cada produto, gere apenas o payload comercial referenciando OBRIGATORIAMENTE slugs já existentes da árvore: ${slugUniverse?.join(", ") ?? "(vazio)"}.
