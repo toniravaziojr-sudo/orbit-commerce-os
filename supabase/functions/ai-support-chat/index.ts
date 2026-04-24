@@ -1269,7 +1269,7 @@ async function executeSalesTool(
         const items = cart?.items as any[] || [];
         // Identificar item igual também por variant_id
         const existingIdx = items.findIndex((i: any) =>
-          i.product_id === productId && (i.variant_id ?? null) === (variantId ?? null)
+          i.product_id === productId && (i.variant_id ?? null) === (effectiveVariantId ?? null)
         );
 
         if (existingIdx >= 0) {
@@ -1278,7 +1278,7 @@ async function executeSalesTool(
         } else {
           items.push({
             product_id: productId,
-            variant_id: variantId ?? null,
+            variant_id: effectiveVariantId ?? null,
             variant_label: variantLabel,
             sku,
             name: product.name,
