@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
-import { createHmac } from "https://deno.land/std@0.177.0/node/crypto.ts";
+import { createHmac } from "node:crypto";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 /**
