@@ -11,3 +11,4 @@ export { QuickRepliesDropdown } from './QuickRepliesDropdown';
 export { ChannelConfigDialog } from './ChannelConfigDialog';
 export { AIRulesEditor } from './AIRulesEditor';
 export { WhatsappSalesFunnel } from './WhatsappSalesFunnel';
+export { PipelineFunnelMetrics } from './PipelineFunnelMetrics';
