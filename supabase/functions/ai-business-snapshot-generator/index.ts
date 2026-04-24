@@ -117,6 +117,14 @@ function confidenceLevel(score: number): "high" | "medium" | "low" {
   return "low";
 }
 
+/** Converte score 0..1 (ou já 0..100) em inteiro 0..100 — schema da tabela usa integer. */
+function toScoreInt(score: number | null | undefined): number {
+  if (score === null || score === undefined || isNaN(Number(score))) return 0;
+  const n = Number(score);
+  const scaled = n <= 1 ? n * 100 : n;
+  return Math.max(0, Math.min(100, Math.round(scaled)));
+}
+
 /**
  * Faixa de preço (bucket) — preserva sinal de posicionamento sem expor valores
  * detalhados, reduzindo tokens.
