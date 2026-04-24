@@ -222,7 +222,7 @@ export function PipelineFunnelMetrics() {
                   <div key={s.key} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2">
-                        <s.icon className={`h-4 w-4 ${s.color}`} />
+                        <s.icon className="h-4 w-4 text-primary" />
                         <span className="font-medium">{s.label}</span>
                       </span>
                       <span className="flex items-center gap-3 text-muted-foreground">
@@ -234,7 +234,7 @@ export function PipelineFunnelMetrics() {
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
                       <div
-                        className={`h-full ${s.color.replace("text-", "bg-")}`}
+                        className="h-full bg-primary"
                         style={{ width: `${widthPct}%` }}
                       />
                     </div>
