@@ -2410,6 +2410,12 @@ Deno.serve(async (req) => {
       (conversation.images_sent_per_product as Record<string, number>) || {};
     const lastBotResponseHash: string | null = conversation.last_bot_response_hash || null;
 
+    // [Sub-fase 1.3] Foco de produto/variante persistido na conversa.
+    // Fonte: conversations.metadata.product_focus. Evita repetir pergunta de variante.
+    let currentProductFocus: ProductFocus | null = readProductFocus(conversation.metadata);
+    // Atualizações feitas durante o turno (via tools) ficam aqui até gravar no fim.
+    let nextProductFocus: ProductFocus | null | undefined = undefined;
+
     // [Pacote B] LOCK DE TURNO — evita processamento paralelo da mesma conversa
     // (cliente fragmenta msg + duas chamadas ao webhook chegam quase simultâneas).
     // Fail-OPEN: se o lock falhar, processa normalmente (não silencia o cliente).
