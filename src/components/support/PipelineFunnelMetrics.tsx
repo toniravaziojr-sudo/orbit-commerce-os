@@ -179,7 +179,7 @@ export function PipelineFunnelMetrics() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Turnos com tools</CardTitle>
-            <Wrench className="h-4 w-4 text-blue-500" />
+            <Wrench className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-20" /> : <div className="text-2xl font-bold">{totals.turns_with_tool_calls.toLocaleString("pt-BR")}</div>}
@@ -188,7 +188,7 @@ export function PipelineFunnelMetrics() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Tools bloqueadas (filtro)</CardTitle>
-            <ShieldAlert className="h-4 w-4 text-amber-500" />
+            <ShieldAlert className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-20" /> : <div className="text-2xl font-bold">{totals.turns_with_blocked_tools.toLocaleString("pt-BR")}</div>}
@@ -197,7 +197,7 @@ export function PipelineFunnelMetrics() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Conversão Carrinho→Fechado</CardTitle>
-            <Target className="h-4 w-4 text-emerald-500" />
+            <Target className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-20" /> : <div className="text-2xl font-bold">{fmtPct(rateCheckoutToClosed)}</div>}
