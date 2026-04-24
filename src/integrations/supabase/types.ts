@@ -1363,6 +1363,117 @@ export type Database = {
           },
         ]
       }
+      ai_brain_insights: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          canonical_group_id: string | null
+          created_at: string
+          evidence_count: number
+          evidence_samples: Json
+          expires_at: string | null
+          id: string
+          insight_type: Database["public"]["Enums"]["ai_insight_type"]
+          is_urgent: boolean
+          metadata: Json
+          period_end: string | null
+          period_start: string | null
+          product_id: string | null
+          recommendation: string | null
+          revoke_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          scope_auxiliar: boolean
+          scope_landing: boolean
+          scope_trafego: boolean
+          scope_vendas: boolean
+          status: Database["public"]["Enums"]["ai_brain_insight_status"]
+          summary: string
+          tenant_id: string
+          title: string
+          unique_customer_count: number
+          updated_at: string
+          variations: string[]
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          canonical_group_id?: string | null
+          created_at?: string
+          evidence_count?: number
+          evidence_samples?: Json
+          expires_at?: string | null
+          id?: string
+          insight_type: Database["public"]["Enums"]["ai_insight_type"]
+          is_urgent?: boolean
+          metadata?: Json
+          period_end?: string | null
+          period_start?: string | null
+          product_id?: string | null
+          recommendation?: string | null
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope_auxiliar?: boolean
+          scope_landing?: boolean
+          scope_trafego?: boolean
+          scope_vendas?: boolean
+          status?: Database["public"]["Enums"]["ai_brain_insight_status"]
+          summary: string
+          tenant_id: string
+          title: string
+          unique_customer_count?: number
+          updated_at?: string
+          variations?: string[]
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          canonical_group_id?: string | null
+          created_at?: string
+          evidence_count?: number
+          evidence_samples?: Json
+          expires_at?: string | null
+          id?: string
+          insight_type?: Database["public"]["Enums"]["ai_insight_type"]
+          is_urgent?: boolean
+          metadata?: Json
+          period_end?: string | null
+          period_start?: string | null
+          product_id?: string | null
+          recommendation?: string | null
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope_auxiliar?: boolean
+          scope_landing?: boolean
+          scope_trafego?: boolean
+          scope_vendas?: boolean
+          status?: Database["public"]["Enums"]["ai_brain_insight_status"]
+          summary?: string
+          tenant_id?: string
+          title?: string
+          unique_customer_count?: number
+          updated_at?: string
+          variations?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_brain_insights_canonical_group_id_fkey"
+            columns: ["canonical_group_id"]
+            isOneToOne: false
+            referencedRelation: "ai_signal_canonical_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_brain_insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_business_snapshot: {
         Row: {
           audience_summary: string | null
@@ -1620,6 +1731,74 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_conversation_summaries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_critical_alerts: {
+        Row: {
+          category: string
+          conversation_id: string | null
+          created_at: string
+          customer_id: string | null
+          description: string | null
+          detected_at: string
+          id: string
+          metadata: Json
+          occurrences_2h: number
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["ai_critical_alert_status"]
+          tenant_id: string
+          title: string
+          trigger_text: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          conversation_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          detected_at?: string
+          id?: string
+          metadata?: Json
+          occurrences_2h?: number
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["ai_critical_alert_status"]
+          tenant_id: string
+          title: string
+          trigger_text?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          conversation_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          detected_at?: string
+          id?: string
+          metadata?: Json
+          occurrences_2h?: number
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["ai_critical_alert_status"]
+          tenant_id?: string
+          title?: string
+          trigger_text?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_critical_alerts_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2221,6 +2400,140 @@ export type Database = {
           },
           {
             foreignKeyName: "ai_product_pain_map_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_signal_candidates: {
+        Row: {
+          canonical_concept: string | null
+          canonical_group_id: string | null
+          captured_at: string
+          conversation_id: string | null
+          created_at: string
+          customer_id: string | null
+          filter_reason: string | null
+          id: string
+          insight_type: Database["public"]["Enums"]["ai_insight_type"]
+          is_critical: boolean
+          metadata: Json
+          product_id: string | null
+          raw_text: string
+          severity: string
+          source_channel: string
+          status: Database["public"]["Enums"]["ai_signal_candidate_status"]
+          tenant_id: string
+        }
+        Insert: {
+          canonical_concept?: string | null
+          canonical_group_id?: string | null
+          captured_at?: string
+          conversation_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          filter_reason?: string | null
+          id?: string
+          insight_type: Database["public"]["Enums"]["ai_insight_type"]
+          is_critical?: boolean
+          metadata?: Json
+          product_id?: string | null
+          raw_text: string
+          severity?: string
+          source_channel?: string
+          status?: Database["public"]["Enums"]["ai_signal_candidate_status"]
+          tenant_id: string
+        }
+        Update: {
+          canonical_concept?: string | null
+          canonical_group_id?: string | null
+          captured_at?: string
+          conversation_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          filter_reason?: string | null
+          id?: string
+          insight_type?: Database["public"]["Enums"]["ai_insight_type"]
+          is_critical?: boolean
+          metadata?: Json
+          product_id?: string | null
+          raw_text?: string
+          severity?: string
+          source_channel?: string
+          status?: Database["public"]["Enums"]["ai_signal_candidate_status"]
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_signal_candidates_canonical_group_fkey"
+            columns: ["canonical_group_id"]
+            isOneToOne: false
+            referencedRelation: "ai_signal_canonical_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_signal_candidates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_signal_canonical_groups: {
+        Row: {
+          canonical_label: string
+          canonical_summary: string | null
+          created_at: string
+          evidence_count: number
+          first_seen_at: string
+          id: string
+          insight_type: Database["public"]["Enums"]["ai_insight_type"]
+          last_seen_at: string
+          metadata: Json
+          product_id: string | null
+          tenant_id: string
+          unique_customer_count: number
+          updated_at: string
+          variations: string[]
+        }
+        Insert: {
+          canonical_label: string
+          canonical_summary?: string | null
+          created_at?: string
+          evidence_count?: number
+          first_seen_at?: string
+          id?: string
+          insight_type: Database["public"]["Enums"]["ai_insight_type"]
+          last_seen_at?: string
+          metadata?: Json
+          product_id?: string | null
+          tenant_id: string
+          unique_customer_count?: number
+          updated_at?: string
+          variations?: string[]
+        }
+        Update: {
+          canonical_label?: string
+          canonical_summary?: string | null
+          created_at?: string
+          evidence_count?: number
+          first_seen_at?: string
+          id?: string
+          insight_type?: Database["public"]["Enums"]["ai_insight_type"]
+          last_seen_at?: string
+          metadata?: Json
+          product_id?: string | null
+          tenant_id?: string
+          unique_customer_count?: number
+          updated_at?: string
+          variations?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_signal_canonical_groups_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -21756,6 +22069,65 @@ export type Database = {
       }
     }
     Views: {
+      ai_brain_active_view: {
+        Row: {
+          approved_at: string | null
+          expires_at: string | null
+          id: string | null
+          insight_type: Database["public"]["Enums"]["ai_insight_type"] | null
+          product_id: string | null
+          recommendation: string | null
+          scope_auxiliar: boolean | null
+          scope_landing: boolean | null
+          scope_trafego: boolean | null
+          scope_vendas: boolean | null
+          summary: string | null
+          tenant_id: string | null
+          title: string | null
+          variations: string[] | null
+        }
+        Insert: {
+          approved_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          insight_type?: Database["public"]["Enums"]["ai_insight_type"] | null
+          product_id?: string | null
+          recommendation?: string | null
+          scope_auxiliar?: boolean | null
+          scope_landing?: boolean | null
+          scope_trafego?: boolean | null
+          scope_vendas?: boolean | null
+          summary?: string | null
+          tenant_id?: string | null
+          title?: string | null
+          variations?: string[] | null
+        }
+        Update: {
+          approved_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          insight_type?: Database["public"]["Enums"]["ai_insight_type"] | null
+          product_id?: string | null
+          recommendation?: string | null
+          scope_auxiliar?: boolean | null
+          scope_landing?: boolean | null
+          scope_trafego?: boolean | null
+          scope_vendas?: boolean | null
+          summary?: string | null
+          tenant_id?: string | null
+          title?: string | null
+          variations?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_brain_insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_sales_funnel_view: {
         Row: {
           carts_converted: number | null
@@ -22106,6 +22478,15 @@ export type Database = {
       }
       is_platform_admin: { Args: never; Returns: boolean }
       is_platform_admin_by_auth: { Args: never; Returns: boolean }
+      is_signal_relevant: {
+        Args: {
+          _evidence_count: number
+          _period_days?: number
+          _tenant_id: string
+          _unique_customer_count: number
+        }
+        Returns: boolean
+      }
       is_tenant_owner: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
@@ -22343,6 +22724,13 @@ export type Database = {
       }
     }
     Enums: {
+      ai_brain_insight_status:
+        | "pendente"
+        | "urgente"
+        | "ativo"
+        | "revogado"
+        | "descartado"
+        | "expirado"
       ai_commercial_role:
         | "primary"
         | "complement"
@@ -22358,7 +22746,21 @@ export type Database = {
         | "subcategory"
         | "product_type"
         | "pain"
+      ai_critical_alert_status:
+        | "aberto"
+        | "em_analise"
+        | "resolvido"
+        | "falso_positivo"
       ai_data_source: "inferred" | "manual" | "hybrid"
+      ai_insight_type:
+        | "linguagem"
+        | "dor"
+        | "objecao"
+        | "motivo_nao_fechamento"
+        | "oportunidade"
+        | "problema_operacional"
+        | "tendencia"
+        | "sistema"
       ai_product_kind:
         | "single"
         | "kit"
@@ -22386,6 +22788,11 @@ export type Database = {
         | "done"
         | "failed"
         | "cancelled"
+      ai_signal_candidate_status:
+        | "capturado"
+        | "agrupado"
+        | "descartado"
+        | "virou_insight"
       ai_snapshot_mode: "active" | "neutral" | "pending"
       app_role:
         | "owner"
@@ -22685,6 +23092,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      ai_brain_insight_status: [
+        "pendente",
+        "urgente",
+        "ativo",
+        "revogado",
+        "descartado",
+        "expirado",
+      ],
       ai_commercial_role: [
         "primary",
         "complement",
@@ -22702,7 +23117,23 @@ export const Constants = {
         "product_type",
         "pain",
       ],
+      ai_critical_alert_status: [
+        "aberto",
+        "em_analise",
+        "resolvido",
+        "falso_positivo",
+      ],
       ai_data_source: ["inferred", "manual", "hybrid"],
+      ai_insight_type: [
+        "linguagem",
+        "dor",
+        "objecao",
+        "motivo_nao_fechamento",
+        "oportunidade",
+        "problema_operacional",
+        "tendencia",
+        "sistema",
+      ],
       ai_product_kind: [
         "single",
         "kit",
@@ -22728,6 +23159,12 @@ export const Constants = {
         "payloads_only",
       ],
       ai_regen_status: ["pending", "processing", "done", "failed", "cancelled"],
+      ai_signal_candidate_status: [
+        "capturado",
+        "agrupado",
+        "descartado",
+        "virou_insight",
+      ],
       ai_snapshot_mode: ["active", "neutral", "pending"],
       app_role: ["owner", "admin", "operator", "support", "finance", "viewer"],
       b2b_consent_status: ["pending", "opted_in", "opted_out", "unknown"],
