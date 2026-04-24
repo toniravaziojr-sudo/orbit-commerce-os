@@ -821,7 +821,7 @@ async function persistActiveSnapshot(
       business_summary: inferred.business_summary,
       audience_summary: inferred.audience_summary,
       suggested_tone: inferred.suggested_tone,
-      confidence_score: inferred.confidence_score,
+      confidence_score: toScoreInt(inferred.confidence_score),
       confidence_level: confidenceLevel(inferred.confidence_score),
       inferred_data: {
         niche_primary: inferred.niche_primary,
