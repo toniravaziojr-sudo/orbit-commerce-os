@@ -361,7 +361,7 @@ async function handleConfirmation(
   }
 
   if (pendingCommands.length > 1) {
-    const list = pendingCommands.map((c, i) => `${i + 1}. ${(c.pending_action as PendingAction)?.description || c.intent}`).join("\n");
+    const list = pendingCommands.map((c: any, i: number) => `${i + 1}. ${(c.pending_action as PendingAction)?.description || c.intent}`).join("\n");
     return {
       handled: true,
       reply: `Você tem ${pendingCommands.length} ações pendentes de confirmação:\n\n${list}\n\nPor favor, especifique qual deseja confirmar.`,
