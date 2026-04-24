@@ -675,6 +675,9 @@ async function executeSalesTool(
     lastUserMessage?: string | null;
     salesState?: SalesState;
     imagesSentMap?: Record<string, number>;
+    // [Sub-fase 1.3] foco de produto/variante persistido (leitura) + setter p/ o turno
+    productFocus?: ProductFocus | null;
+    setProductFocus?: (focus: ProductFocus | null) => void;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
