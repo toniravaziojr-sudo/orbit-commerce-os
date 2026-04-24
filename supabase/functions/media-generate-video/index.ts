@@ -241,6 +241,15 @@ Deno.serve(async (req) => {
 
     const isKitScenario = matchedProducts.some(p => p.is_kit) || matchedProducts.length > 1;
 
+    // Classify video intent now that calendarItem and matchedProducts are loaded
+    const searchTextForIntent = [
+      calendarItem?.campaign?.prompt || "",
+      calendarItem?.generation_prompt || "",
+    ].join(" ");
+    const hasProductRef = !!matchedProducts?.find((p: any) => p.image_url);
+    const intent = classifyIntent(searchTextForIntent, hasProductRef);
+    console.log(`[media-generate-video] Intent: ${intent}`);
+
     // Build video prompt
     // A imagem do produto é usada como REFERÊNCIA CRIATIVA - a IA pode criar
     // cenas com pessoas segurando o produto, ambientes, etc.

@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
     if (!folderId) {
       try {
         const { ensureFolderPathEdge } = await import("../_shared/drive-register.ts");
-        folderId = (await ensureFolderPathEdge(supabase, tenant_id, userId, "Criativos IA")) || null;
+        folderId = (await ensureFolderPathEdge(supabase, tenant_id, userId as string, "Criativos IA")) || null;
       } catch (e) {
         console.warn("[creative-image] drive-register fallback:", e);
       }
