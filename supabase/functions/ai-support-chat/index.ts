@@ -1141,33 +1141,111 @@ async function executeSalesTool(
         let stockToCheck = Number(product.stock_quantity ?? 0);
         let manageStock = Boolean(product.manage_stock ?? true);
         let allowBackorder = Boolean(product.allow_backorder ?? false);
+        // [Sub-fase 1.3] variante efetivamente usada (pode vir do tool_call,
+        //   do foco persistido, ou da auto-resolução por variante única).
+        let effectiveVariantId: string | null = variantId ?? null;
 
         if (product.has_variants) {
-          if (!variantId) {
+          // --- GATE determinístico de variante ---
+          // 1) Lê payload comercial (has_mandatory_variants) — pode ser null
+          //    se o produto ainda não tem payload curado pelo cérebro.
+          const { data: commercialPayload } = await supabase
+            .from("ai_product_commercial_payload")
+            .select("has_mandatory_variants")
+            .eq("product_id", productId)
+            .eq("tenant_id", tenantId)
+            .maybeSingle();
+
+          // 2) Lista enxuta de variantes ativas (pra resolver caso "1 única")
+          const { data: activeVariantsRows } = await supabase
+            .from("product_variants")
+            .select("id, name, option1_value, option2_value, option3_value")
+            .eq("product_id", productId)
+            .eq("is_active", true);
+
+          const activeVariants = (activeVariantsRows ?? []).map((v: any) => ({
+            id: v.id as string,
+            label:
+              [v.option1_value, v.option2_value, v.option3_value]
+                .filter(Boolean)
+                .join(" / ") ||
+              (v.name as string | null) ||
+              null,
+          }));
+
+          const gate = evaluateVariantGate({
+            product_id: productId,
+            product_has_variants: true,
+            commercial_has_mandatory_variants:
+              (commercialPayload?.has_mandatory_variants as boolean | undefined) ?? null,
+            current_focus: ctx.productFocus ?? null,
+            explicit_variant_id: variantId ?? null,
+            active_variants: activeVariants,
+          });
+
+          if (gate.status === "ask_variant") {
             return JSON.stringify({
               success: false,
               error: "VARIANT_REQUIRED",
-              message: "Este produto tem variações. Use get_product_variants para listar as opções e peça ao cliente para escolher antes de adicionar ao carrinho.",
+              message:
+                "Este produto tem variações. Use get_product_variants para listar as opções e peça ao cliente para escolher antes de adicionar ao carrinho.",
+              gate_reason: gate.reason,
             });
           }
-          const { data: variant } = await supabase
-            .from("product_variants")
-            .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
-            .eq("id", variantId)
-            .eq("product_id", productId)
-            .maybeSingle();
 
-          if (!variant || !variant.is_active) {
-            return JSON.stringify({ success: false, error: "Variação não encontrada ou inativa" });
+          // gate resolveu — usa o id decidido pelo gate (se houver) ou o que veio do call
+          effectiveVariantId = gate.variant_id ?? variantId ?? null;
+
+          if (effectiveVariantId) {
+            const { data: variant } = await supabase
+              .from("product_variants")
+              .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku")
+              .eq("id", effectiveVariantId)
+              .eq("product_id", productId)
+              .maybeSingle();
+
+            if (!variant || !variant.is_active) {
+              return JSON.stringify({ success: false, error: "Variação não encontrada ou inativa" });
+            }
+            unitPrice = Number(variant.price ?? product.price);
+            stockToCheck = Number(variant.stock_quantity ?? 0);
+            sku = variant.sku ?? null;
+            variantLabel = [
+              variant.option1_value && `${variant.option1_name}: ${variant.option1_value}`,
+              variant.option2_value && `${variant.option2_name}: ${variant.option2_value}`,
+              variant.option3_value && `${variant.option3_name}: ${variant.option3_value}`,
+            ].filter(Boolean).join(" / ") || variant.name || null;
           }
-          unitPrice = Number(variant.price ?? product.price);
-          stockToCheck = Number(variant.stock_quantity ?? 0);
-          sku = variant.sku ?? null;
-          variantLabel = [
-            variant.option1_value && `${variant.option1_name}: ${variant.option1_value}`,
-            variant.option2_value && `${variant.option2_name}: ${variant.option2_value}`,
-            variant.option3_value && `${variant.option3_name}: ${variant.option3_value}`,
-          ].filter(Boolean).join(" / ") || variant.name || null;
+
+          // Persiste foco (determina quem resolveu: user ou auto)
+          if (ctx.setProductFocus) {
+            const source: ProductFocus["source"] =
+              gate.status === "ok_single_variant"
+                ? "single_variant"
+                : gate.status === "ok_no_variant_needed"
+                  ? "no_variants_needed"
+                  : "user_selection";
+            ctx.setProductFocus(
+              buildProductFocus({
+                product_id: productId,
+                variant_id: effectiveVariantId,
+                variant_label: variantLabel,
+                source,
+              })
+            );
+          }
+        } else {
+          // Produto sem variantes → grava foco simples também (útil p/ turnos futuros)
+          if (ctx.setProductFocus) {
+            ctx.setProductFocus(
+              buildProductFocus({
+                product_id: productId,
+                variant_id: null,
+                variant_label: null,
+                source: "no_variants_needed",
+              })
+            );
+          }
         }
 
         // Validar estoque (respeita manage_stock + allow_backorder)
