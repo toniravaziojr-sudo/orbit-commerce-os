@@ -4371,6 +4371,34 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       );
     }
 
+    // [Sub-fase 1.3] Persistir product_focus em conversations.metadata quando
+    //   alguma tool deste turno resolveu/atualizou o foco (variante ou produto).
+    //   Read-merge-write para não atropelar outros campos de metadata (lock, pendência).
+    if (nextProductFocus !== undefined) {
+      try {
+        const { data: convRow } = await supabase
+          .from("conversations")
+          .select("metadata")
+          .eq("id", conversation_id)
+          .maybeSingle();
+        const curMeta: Record<string, unknown> =
+          (convRow?.metadata as Record<string, unknown>) || {};
+        const newMeta =
+          nextProductFocus === null
+            ? (() => { const { product_focus: _drop, ...rest } = curMeta; return rest; })()
+            : { ...curMeta, product_focus: nextProductFocus };
+        await supabase
+          .from("conversations")
+          .update({ metadata: newMeta })
+          .eq("id", conversation_id);
+        console.log(
+          `[ai-support-chat] [Sub-fase 1.3] product_focus ${nextProductFocus === null ? "CLEARED" : `SET (product=${nextProductFocus.product_id} variant=${nextProductFocus.variant_id ?? "—"} source=${nextProductFocus.source})`}`,
+        );
+      } catch (e) {
+        console.warn("[ai-support-chat] [Sub-fase 1.3] falha ao persistir product_focus:", e);
+      }
+    }
+
     // [F1] LOG CANÔNICO POR TURNO — uma linha em ai_support_turn_log
     try {
       const { error: turnLogErr } = await supabase.from("ai_support_turn_log").insert({
