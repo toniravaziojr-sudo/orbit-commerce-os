@@ -2536,6 +2536,16 @@ Deno.serve(async (req) => {
     // Atualizações feitas durante o turno (via tools) ficam aqui até gravar no fim.
     let nextProductFocus: ProductFocus | null | undefined = undefined;
 
+    // [Sub-fase 1.4] Decisões do variant gate registradas durante o turno.
+    // Vão para metadata.variant_gate_events do ai_support_turn_log.
+    const variantGateEvents: Array<{
+      product_id: string;
+      status: string;
+      reason: string;
+      variant_id: string | null;
+      at: string;
+    }> = [];
+
     // [Pacote B] LOCK DE TURNO — evita processamento paralelo da mesma conversa
     // (cliente fragmenta msg + duas chamadas ao webhook chegam quase simultâneas).
     // Fail-OPEN: se o lock falhar, processa normalmente (não silencia o cliente).
@@ -3630,6 +3640,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // mantém disponível para tools subsequentes no mesmo turno
           salesToolCtx.productFocus = focus;
         },
+        // [Sub-fase 1.4] grava decisão do variant gate p/ observabilidade
+        recordVariantGate: (info: { product_id: string; status: string; reason: string; variant_id: string | null }) => {
+          variantGateEvents.push({
+            product_id: info.product_id,
+            status: info.status,
+            reason: info.reason,
+            variant_id: info.variant_id,
+            at: new Date().toISOString(),
+          });
+        },
       };
 
       let response: Response | null = null;
@@ -4474,6 +4494,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           forced_text_round_applied: forcedTextRoundApplied,
           forced_text_round_reason: forcedTextRoundReason,
           tool_loop_iterations: toolCallIterations,
+          // [Sub-fase 1.4] Variant gate observabilidade
+          variant_gate: variantGateEvents.length > 0 ? variantGateEvents[variantGateEvents.length - 1] : null,
+          variant_gate_events: variantGateEvents,
           // [PACOTE 3] Pendência (estado pré e pós)
           pending_action_before: existingPendingAction?.kind ?? null,
           pending_action_after: pendingActionToPersist === undefined
