@@ -391,7 +391,7 @@ async function handleConfirmation(
         const { data: cancelled } = await supabase.from("agenda_tasks").update({ status: "cancelled" }).eq("tenant_id", tenantId).eq("status", "pending").select("id");
         const count = cancelled?.length || 0;
         if (count > 0) {
-          const ids = cancelled!.map(t => t.id);
+          const ids = cancelled!.map((t: any) => t.id);
           await supabase.from("agenda_reminders").update({ status: "skipped", last_error: "task_cancelled" }).in("task_id", ids).eq("status", "pending");
         }
         reply = `✅ ${count} tarefa(s) cancelada(s).`;
