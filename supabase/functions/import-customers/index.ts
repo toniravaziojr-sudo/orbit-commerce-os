@@ -26,7 +26,7 @@ import {
   type ImportResults,
   type ImportItemTracking,
 } from '../_shared/import-helpers.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { createClient } from 'npm:@supabase/supabase-js@2.49.1';
 
 const VERSION = '2026-04-02.0004';
 const IN_BATCH_SIZE = 500;

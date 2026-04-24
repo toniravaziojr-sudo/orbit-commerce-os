@@ -3,7 +3,7 @@
 // atualiza occurrences_2h e marca como urgentes para revisão imediata.
 // Roda a cada 30 minutos.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

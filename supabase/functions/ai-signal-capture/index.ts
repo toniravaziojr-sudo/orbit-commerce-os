@@ -3,7 +3,7 @@
 // Aplica 6 filtros de qualidade, deduplica semanticamente via Gemini,
 // persiste candidatos e dispara alertas críticos quando aplicável.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

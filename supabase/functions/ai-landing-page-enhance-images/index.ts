@@ -3,7 +3,7 @@
 // Uses unified visual-engine.ts resilientGenerate()
 // No more local callImageModel duplicate
 // =============================================
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
+import { createClient } from "npm:@supabase/supabase-js@2.87.1";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getFalApiKey } from "../_shared/fal-client.ts";

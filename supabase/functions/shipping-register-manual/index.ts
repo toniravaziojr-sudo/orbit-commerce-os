@@ -5,7 +5,7 @@
  * Usado quando a etiqueta foi comprada externamente (Frenet, Melhor Envio, etc).
  * Não chama API de transportadora, apenas salva no banco.
  */
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {

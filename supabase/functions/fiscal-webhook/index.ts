@@ -1,5 +1,5 @@
 import { errorResponse } from "../_shared/error-response.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 
 const corsHeaders = {

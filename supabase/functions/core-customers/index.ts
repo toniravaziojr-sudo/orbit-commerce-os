@@ -4,7 +4,7 @@
 // Implements: validation, audit, events, HARD DELETE
 // =============================================
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { errorResponse } from '../_shared/error-response.ts';
 
 const corsHeaders = {

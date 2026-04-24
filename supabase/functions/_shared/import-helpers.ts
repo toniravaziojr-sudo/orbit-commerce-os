@@ -6,7 +6,7 @@
  * MUST use these helpers to ensure consistent behavior.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "npm:@supabase/supabase-js@2.49.1";
 
 // ===========================================
 // TYPES — Unified Import Contract

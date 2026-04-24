@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
 const VERSION = "v2.0.0"; // DRIVE-FIRST: Search existing creatives in Drive before generating new ones
