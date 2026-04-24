@@ -683,6 +683,13 @@ async function executeSalesTool(
     // [Sub-fase 1.3] foco de produto/variante persistido (leitura) + setter p/ o turno
     productFocus?: ProductFocus | null;
     setProductFocus?: (focus: ProductFocus | null) => void;
+    // [Sub-fase 1.4] grava decisão do variant gate p/ observabilidade no turn_log
+    recordVariantGate?: (info: {
+      product_id: string;
+      status: string;
+      reason: string;
+      variant_id: string | null;
+    }) => void;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
