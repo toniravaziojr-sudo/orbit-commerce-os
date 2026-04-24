@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
+import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v5.15.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
@@ -1943,8 +1944,19 @@ Os criativos ainda não estão prontos. Use report_insight para registrar o stat
           }
         }
 
+        // Inject AI Brain insights (aprendizados aprovados para tráfego)
+        let brainContext = "";
+        try {
+          brainContext = await getBrainContextForPrompt(supabase, tenant_id, "trafego", { limit: 12 });
+          if (brainContext) {
+            console.log(`[ads-autopilot-analyze] Brain insights injected (${brainContext.length} chars)`);
+          }
+        } catch (e) {
+          console.error("[ads-autopilot-analyze] Brain fetch error:", e);
+        }
+
         const plannerMessages = [
-          { role: "system", content: buildAccountPlannerPrompt(acctConfig, context, trigger_type) + pacingContext + healthContext },
+          { role: "system", content: buildAccountPlannerPrompt(acctConfig, context, trigger_type) + pacingContext + healthContext + brainContext },
           {
             role: "user",
             content: `## CAMPANHAS DESTA CONTA (${acctConfig.ad_account_id})

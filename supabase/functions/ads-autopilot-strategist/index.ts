@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
+import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.49.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
@@ -3138,6 +3139,17 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
           : isScopedRevision
           ? [...STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "generate_creative", "create_lookalike_audience"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : [...STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
+      }
+
+      // Inject AI Brain insights (aprendizados aprovados para tráfego)
+      try {
+        const brainContext = await getBrainContextForPrompt(supabase, tenantId, "trafego", { limit: 12 });
+        if (brainContext) {
+          prompt.system = prompt.system + brainContext;
+          console.log(`[ads-autopilot-strategist] Brain insights injected (${brainContext.length} chars)`);
+        }
+      } catch (e) {
+        console.error("[ads-autopilot-strategist] Brain fetch error:", e);
       }
 
       // Messages history for multi-round conversation

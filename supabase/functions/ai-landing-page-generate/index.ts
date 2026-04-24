@@ -21,6 +21,7 @@ import {
 import { getNicheImages, getNicheImage } from "../_shared/landing-page-stock-images.ts";
 import { resolveLandingPageAssets, type ResolvedAssets } from "../_shared/landing-page-asset-resolver.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 
 const VERSION = "9.0.0"; // Engine V9.0: Premium Template Masters + Patch Adjustments
 
@@ -1350,10 +1351,25 @@ Deno.serve(async (req) => {
           briefing: savedLandingPage.briefing,
         });
 
+        // Inject AI Brain insights (aprendizados aprovados para landing)
+        let systemWithBrain = system;
+        try {
+          const brainContext = await getBrainContextForPrompt(supabase, tenantId, "landing", {
+            limit: 12,
+            productId: firstProduct?.id || null,
+          });
+          if (brainContext) {
+            systemWithBrain = system + brainContext;
+            console.log(`[ai-landing-page-generate] Brain insights injected (adjustment, ${brainContext.length} chars)`);
+          }
+        } catch (e) {
+          console.error("[ai-landing-page-generate] Brain fetch error:", e);
+        }
+
         resetAIRouterCache();
         const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
           messages: [
-            { role: "system", content: system },
+            { role: "system", content: systemWithBrain },
             { role: "user", content: user },
           ],
           temperature: 0.5,
@@ -1443,10 +1459,25 @@ Deno.serve(async (req) => {
           currentSchema: baseSchema,
         });
 
+        // Inject AI Brain insights (aprendizados aprovados para landing)
+        let systemWithBrain = system;
+        try {
+          const brainContext = await getBrainContextForPrompt(supabase, tenantId, "landing", {
+            limit: 12,
+            productId: firstProduct?.id || null,
+          });
+          if (brainContext) {
+            systemWithBrain = system + brainContext;
+            console.log(`[ai-landing-page-generate] Brain insights injected (refinement, ${brainContext.length} chars)`);
+          }
+        } catch (e) {
+          console.error("[ai-landing-page-generate] Brain fetch error:", e);
+        }
+
         resetAIRouterCache();
         const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
           messages: [
-            { role: "system", content: system },
+            { role: "system", content: systemWithBrain },
             { role: "user", content: user },
           ],
           temperature: 0.6,

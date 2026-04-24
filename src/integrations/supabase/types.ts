@@ -2541,6 +2541,39 @@ export type Database = {
           },
         ]
       }
+      ai_signal_capture_queue: {
+        Row: {
+          attempts: number
+          conversation_id: string
+          enqueued_at: string
+          id: string
+          last_error: string | null
+          processed_at: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          conversation_id: string
+          enqueued_at?: string
+          id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          conversation_id?: string
+          enqueued_at?: string
+          id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       ai_snapshot_regen_queue: {
         Row: {
           attempts: number
