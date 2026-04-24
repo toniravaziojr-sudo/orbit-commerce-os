@@ -4494,6 +4494,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           forced_text_round_applied: forcedTextRoundApplied,
           forced_text_round_reason: forcedTextRoundReason,
           tool_loop_iterations: toolCallIterations,
+          // [Sub-fase 1.4] Variant gate observabilidade
+          variant_gate: variantGateEvents.length > 0 ? variantGateEvents[variantGateEvents.length - 1] : null,
+          variant_gate_events: variantGateEvents,
           // [PACOTE 3] Pendência (estado pré e pós)
           pending_action_before: existingPendingAction?.kind ?? null,
           pending_action_after: pendingActionToPersist === undefined
