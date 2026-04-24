@@ -3641,7 +3641,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           salesToolCtx.productFocus = focus;
         },
         // [Sub-fase 1.4] grava decisão do variant gate p/ observabilidade
-        recordVariantGate: (info) => {
+        recordVariantGate: (info: { product_id: string; status: string; reason: string; variant_id: string | null }) => {
           variantGateEvents.push({
             product_id: info.product_id,
             status: info.status,
