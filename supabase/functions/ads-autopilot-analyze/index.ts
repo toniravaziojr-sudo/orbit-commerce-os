@@ -1947,7 +1947,7 @@ Os criativos ainda não estão prontos. Use report_insight para registrar o stat
         // Inject AI Brain insights (aprendizados aprovados para tráfego)
         let brainContext = "";
         try {
-          brainContext = await getBrainContextForPrompt(supabase, tenantId, "trafego", { limit: 12 });
+          brainContext = await getBrainContextForPrompt(supabase, tenant_id, "trafego", { limit: 12 });
           if (brainContext) {
             console.log(`[ads-autopilot-analyze] Brain insights injected (${brainContext.length} chars)`);
           }
