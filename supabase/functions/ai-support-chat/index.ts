@@ -1322,7 +1322,7 @@ async function executeSalesTool(
           tenant_id: tenantId,
           conversation_id: conversationId,
           event_type: "cart_created",
-          customer_message: lastMessageContent,
+          customer_message: "",
           ai_response: `add_to_cart: ${product.name}`,
           metadata: { product_id: productId, quantity },
         }).catch(() => {});
@@ -1576,7 +1576,7 @@ async function executeSalesTool(
           tenant_id: tenantId,
           conversation_id: conversationId,
           event_type: "checkout_generated",
-          customer_message: lastMessageContent,
+          customer_message: "",
           ai_response: "generate_checkout_link",
           metadata: { cart_id: cart.id },
         }).catch(() => {});
@@ -4492,7 +4492,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       tenant_id,
       conversation_id,
       event_type: shouldHandoff ? "handoff_success" : "continuity",
-      customer_message: lastMessageContent,
+      customer_message: "",
       ai_response: aiContent,
       metadata: {
         intent: intentClassification?.intent,
