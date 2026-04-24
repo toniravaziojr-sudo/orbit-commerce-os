@@ -289,7 +289,7 @@ export async function aiChatCompletion(
     }
 
     // Construir body com modelo correto
-    const requestBody = { ...body, model };
+    const requestBody: Record<string, unknown> = { ...body, model };
 
     // Ajustar parâmetros OpenAI-específicos
     if (provider === 'openai') {
