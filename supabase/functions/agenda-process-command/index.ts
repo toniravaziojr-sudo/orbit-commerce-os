@@ -292,7 +292,7 @@ Deno.serve(async (req) => {
 // ============================================
 
 async function freezeAction(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   logId: string | undefined,
   action: string,
   params: Record<string, unknown>,
@@ -316,7 +316,7 @@ async function freezeAction(
 // ============================================
 
 async function handleConfirmation(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   supabaseUrl: string,
   supabaseServiceKey: string,
   tenantId: string,
@@ -437,7 +437,7 @@ async function handleConfirmation(
 async function delegateToAuxiliar(
   supabaseUrl: string,
   supabaseServiceKey: string,
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   tenantId: string,
   toolName: string,
   toolArgs: Record<string, unknown>,
@@ -695,7 +695,7 @@ function buildAIMessages(
 // ============================================
 
 async function executeCreateTask(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   tenantId: string,
   taskData: Record<string, unknown>,
   traceId: string,
@@ -758,7 +758,7 @@ async function executeCreateTask(
 // ============================================
 
 async function updateLog(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   logId: string | undefined,
   updates: Record<string, unknown>,
 ) {
