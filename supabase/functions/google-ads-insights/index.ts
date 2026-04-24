@@ -290,7 +290,7 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
 
-      const summary = (data || []).reduce((acc: any, row: any) => ({
+      const summary: any = (data || []).reduce((acc: any, row: any) => ({
         impressions: acc.impressions + (row.impressions || 0),
         clicks: acc.clicks + (row.clicks || 0),
         cost_micros: acc.cost_micros + (row.cost_micros || 0),
