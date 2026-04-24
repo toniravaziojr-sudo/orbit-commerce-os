@@ -228,7 +228,9 @@ Deno.serve(async (req) => {
     }
 
     // 7. Persistir tudo (preservando manual_overrides)
-    await persistActiveSnapshot(supabase, tenant_id, inferred, MODEL, Date.now() - startedAt);
+    console.log(`[snapshot-gen] iniciando persist active: tenant=${tenant_id} nodes=${inferred.context_tree.length} products=${inferred.products.length}`);
+    const persistStats = await persistActiveSnapshot(supabase, tenant_id, inferred, MODEL, Date.now() - startedAt);
+    console.log(`[snapshot-gen] persist concluído:`, JSON.stringify(persistStats));
 
     return jsonResponse({
       success: true,
@@ -237,6 +239,7 @@ Deno.serve(async (req) => {
         totalProducts,
         contextNodes: inferred.context_tree.length,
         productsClassified: inferred.products.length,
+        persisted: persistStats,
       },
       duration_ms: Date.now() - startedAt,
     });
@@ -461,16 +464,32 @@ async function persistActiveSnapshot(
   modelUsed: string,
   durationMs: number,
 ) {
+  const stats = {
+    snapshot_upsert: "pending",
+    context_nodes_inserted: 0,
+    context_nodes_failed: 0,
+    pain_map_inserted: 0,
+    pain_map_failed: 0,
+    payload_inserted: 0,
+    payload_failed: 0,
+    errors: [] as string[],
+  };
+
   // ---- 1. Snapshot principal (preserva manual_overrides) ----
-  const { data: existing } = await supabase
+  const { data: existing, error: existingErr } = await supabase
     .from("ai_business_snapshot")
     .select("manual_overrides, has_manual_overrides, version")
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
+  if (existingErr) {
+    console.error("[persist] erro lendo snapshot existente:", existingErr);
+    stats.errors.push(`read_existing: ${existingErr.message}`);
+  }
+
   const nextVersion = (existing?.version ?? 0) + 1;
 
-  await supabase.from("ai_business_snapshot").upsert(
+  const { error: snapErr } = await supabase.from("ai_business_snapshot").upsert(
     {
       tenant_id: tenantId,
       mode: "active",
@@ -500,12 +519,25 @@ async function persistActiveSnapshot(
     { onConflict: "tenant_id" },
   );
 
+  if (snapErr) {
+    console.error("[persist] erro upsert snapshot:", snapErr);
+    stats.snapshot_upsert = `error: ${snapErr.message}`;
+    stats.errors.push(`snapshot_upsert: ${snapErr.message}`);
+  } else {
+    stats.snapshot_upsert = "ok";
+  }
+
   // ---- 2. Árvore de contexto (substitui inferidos, preserva manuais) ----
-  await supabase
+  const { error: delTreeErr } = await supabase
     .from("ai_context_tree")
     .delete()
     .eq("tenant_id", tenantId)
     .eq("source", "inferred");
+
+  if (delTreeErr) {
+    console.error("[persist] erro delete tree:", delTreeErr);
+    stats.errors.push(`delete_tree: ${delTreeErr.message}`);
+  }
 
   const slugToId = new Map<string, string>();
 
@@ -518,7 +550,7 @@ async function persistActiveSnapshot(
 
   for (const node of sorted) {
     const parentId = node.parent_slug ? slugToId.get(node.parent_slug) ?? null : null;
-    const { data: inserted } = await supabase
+    const { data: inserted, error: nodeErr } = await supabase
       .from("ai_context_tree")
       .insert({
         tenant_id: tenantId,
@@ -536,15 +568,27 @@ async function persistActiveSnapshot(
       .select("id")
       .single();
 
-    if (inserted?.id) slugToId.set(node.slug, inserted.id);
+    if (nodeErr) {
+      console.error(`[persist] erro insert node slug=${node.slug}:`, nodeErr);
+      stats.context_nodes_failed++;
+      stats.errors.push(`node[${node.slug}]: ${nodeErr.message}`);
+    } else if (inserted?.id) {
+      slugToId.set(node.slug, inserted.id);
+      stats.context_nodes_inserted++;
+    }
   }
 
   // ---- 3. Mapa produto ↔ dor (substitui inferidos) ----
-  await supabase
+  const { error: delPainErr } = await supabase
     .from("ai_product_pain_map")
     .delete()
     .eq("tenant_id", tenantId)
     .eq("source", "inferred");
+
+  if (delPainErr) {
+    console.error("[persist] erro delete pain_map:", delPainErr);
+    stats.errors.push(`delete_pain_map: ${delPainErr.message}`);
+  }
 
   const painMapInserts: any[] = [];
   for (const p of inferred.products) {
@@ -577,9 +621,16 @@ async function persistActiveSnapshot(
   }
 
   if (painMapInserts.length > 0) {
-    // Em chunks de 100 para não estourar limite
     for (let i = 0; i < painMapInserts.length; i += 100) {
-      await supabase.from("ai_product_pain_map").insert(painMapInserts.slice(i, i + 100));
+      const chunk = painMapInserts.slice(i, i + 100);
+      const { error: pmErr } = await supabase.from("ai_product_pain_map").insert(chunk);
+      if (pmErr) {
+        console.error(`[persist] erro insert pain_map chunk ${i}:`, pmErr);
+        stats.pain_map_failed += chunk.length;
+        stats.errors.push(`pain_map[${i}]: ${pmErr.message}`);
+      } else {
+        stats.pain_map_inserted += chunk.length;
+      }
     }
   }
 
@@ -597,7 +648,7 @@ async function persistActiveSnapshot(
       .map((s) => slugToId.get(s))
       .filter(Boolean) as string[];
 
-    await supabase.from("ai_product_commercial_payload").upsert(
+    const { error: payErr } = await supabase.from("ai_product_commercial_payload").upsert(
       {
         tenant_id: tenantId,
         product_id: p.product_id,
@@ -626,5 +677,15 @@ async function persistActiveSnapshot(
       },
       { onConflict: "tenant_id,product_id" },
     );
+
+    if (payErr) {
+      console.error(`[persist] erro upsert payload product=${p.product_id}:`, payErr);
+      stats.payload_failed++;
+      stats.errors.push(`payload[${p.product_id}]: ${payErr.message}`);
+    } else {
+      stats.payload_inserted++;
+    }
   }
+
+  return stats;
 }
