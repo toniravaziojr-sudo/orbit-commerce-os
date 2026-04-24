@@ -775,7 +775,7 @@ async function executeSalesTool(
             .order("sort_order", { ascending: true });
 
           const primaryImageByProduct = new Map<string, { url: string; alt: string | null }>();
-          for (const img of (imgRows ?? [])) {
+          for (const img of ((imgRows ?? []) as any[])) {
             if (!primaryImageByProduct.has(img.product_id)) {
               primaryImageByProduct.set(img.product_id, { url: img.url, alt: img.alt_text ?? null });
             }
