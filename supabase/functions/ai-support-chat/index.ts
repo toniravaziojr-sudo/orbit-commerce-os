@@ -37,6 +37,11 @@ import {
   TOOLS_BY_STATE,
   type PipelineState,
   type TransitionReason,
+  // [Sub-fase 1.3] regra determinística de variante + persistência no foco
+  evaluateVariantGate,
+  buildProductFocus,
+  readProductFocus,
+  type ProductFocus,
 } from "../_shared/sales-pipeline/index.ts";
 // [Pacotes B/C/D/E] Dinâmica de turno (lock, continuação, stall, anti-dup)
 import {
@@ -2404,6 +2409,12 @@ Deno.serve(async (req) => {
     const imagesSentMap: Record<string, number> =
       (conversation.images_sent_per_product as Record<string, number>) || {};
     const lastBotResponseHash: string | null = conversation.last_bot_response_hash || null;
+
+    // [Sub-fase 1.3] Foco de produto/variante persistido na conversa.
+    // Fonte: conversations.metadata.product_focus. Evita repetir pergunta de variante.
+    let currentProductFocus: ProductFocus | null = readProductFocus(conversation.metadata);
+    // Atualizações feitas durante o turno (via tools) ficam aqui até gravar no fim.
+    let nextProductFocus: ProductFocus | null | undefined = undefined;
 
     // [Pacote B] LOCK DE TURNO — evita processamento paralelo da mesma conversa
     // (cliente fragmenta msg + duas chamadas ao webhook chegam quase simultâneas).
