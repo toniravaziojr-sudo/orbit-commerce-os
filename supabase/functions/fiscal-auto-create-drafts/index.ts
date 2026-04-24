@@ -260,8 +260,8 @@ async function processTenanDrafts(
 
       // Build invoice items (fiscal_products takes priority, products table as fallback)
       const invoiceItems = itemsToProcess.map((item, index) => {
-        const fiscalProduct = fiscalProductMap.get(item.product_id);
-        const product = productMap.get(item.product_id);
+        const fiscalProduct: any = fiscalProductMap.get(item.product_id);
+        const product: any = productMap.get(item.product_id);
         return {
           numero_item: index + 1,
           order_item_id: item.id || null,

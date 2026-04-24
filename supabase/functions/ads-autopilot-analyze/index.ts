@@ -2913,8 +2913,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   },
                 };
 
-                // v5.11.2: Persist artifacts for this campaign
-                const campaignKey = `${strategyRunId}:${acctConfig.ad_account_id}:${args.template || 'auto'}:${campaignFunnel}:${topProduct?.id || 'auto'}`;
+                // v5.11.2: Persist artifacts for this campaign (campaignKey already declared above)
                 try {
                   // Strategy artifact
                   const { error: stratErr } = await supabase.from("ads_autopilot_artifacts").upsert({

@@ -3388,6 +3388,7 @@ async function executeTool(
       for (const [kitId, components] of componentsByKit) {
         const kit = kitProductMap.get(kitId);
         if (!kit) continue;
+        const k: any = kit;
         
         // Sum: component_price × quantity
         const newPrice = components.reduce((sum: number, c: any) => {
@@ -3396,7 +3397,7 @@ async function executeTool(
         }, 0);
         
         const roundedPrice = Math.round(newPrice * 100) / 100;
-        const oldPrice = parseFloat(kit.price) || 0;
+        const oldPrice = parseFloat(k.price) || 0;
         
         const updateData: any = { price: roundedPrice, updated_at: new Date().toISOString() };
         if (removeCompareAtPrice) {
@@ -3412,8 +3413,8 @@ async function executeTool(
         if (!updateError) {
           updateCount++;
           report.push({
-            name: kit.name,
-            sku: kit.sku,
+            name: k.name,
+            sku: k.sku,
             oldPrice,
             newPrice: roundedPrice,
             components: components.length,
@@ -3578,9 +3579,10 @@ async function executeTool(
         
         if (!updateErr) {
           updateCount++;
+          const k2: any = kit;
           report.push({
-            name: kit.name,
-            sku: kit.sku,
+            name: k2.name,
+            sku: k2.sku,
             fullPrice: roundedFullPrice,
             discountPercent: d.discountPercent,
             finalPrice: discountedPrice,
