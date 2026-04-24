@@ -15,9 +15,6 @@ verify_jwt = false
 [functions.platform-secrets-check]
 verify_jwt = true
 
-[functions.import-shopify-products]
-verify_jwt = false
-
 [functions.scrape-update-products]
 verify_jwt = false
 
@@ -133,9 +130,6 @@ schedule = "*/10 * * * *"
 [functions.shipping-quote]
 verify_jwt = false
 
-[functions.admin-create-test-order]
-verify_jwt = true
-
 [functions.send-test-email]
 verify_jwt = true
 
@@ -178,15 +172,6 @@ verify_jwt = false
 
 [functions.whatsapp-connect]
 verify_jwt = true
-
-[functions.whatsapp-status]
-verify_jwt = true
-
-[functions.whatsapp-disconnect]
-verify_jwt = true
-
-[functions.whatsapp-send]
-verify_jwt = false
 
 [functions.marketing-send-meta]
 verify_jwt = false
@@ -235,19 +220,10 @@ verify_jwt = true
 [functions.tracking-lookup]
 verify_jwt = false
 
-[functions.import-pages]
-verify_jwt = false
-
 [functions.ai-analyze-page]
 verify_jwt = false
 
-[functions.import-pages-structure]
-verify_jwt = false
-
 [functions.classify-content]
-verify_jwt = false
-
-[functions.import-page-v5]
 verify_jwt = false
 
 [functions.fiscal-settings]
