@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error(`[google-tag-manager][${VERSION}] Error:`, err);
-    return jsonResponse({ success: false, error: err.message || "Erro interno" });
+    return jsonResponse({ success: false, error: (err as any).message || "Erro interno" });
   }
 });
 

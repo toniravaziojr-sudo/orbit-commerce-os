@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error(`[tiktok-shop-stock-sync][${VERSION}] Error:`, err);
-    return new Response(JSON.stringify({ success: false, error: err.message }), {
+    return new Response(JSON.stringify({ success: false, error: (err as any).message }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
             results.push({ path: file.path, success: true, size: fileBlob.size });
           }
         } catch (err) {
-          results.push({ path: file.path, success: false, error: err.message });
+          results.push({ path: file.path, success: false, error: (err as any).message });
         }
       }
 

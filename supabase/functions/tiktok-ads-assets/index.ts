@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error(`[tiktok-ads-assets][${traceId}] Error:`, error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message || "Erro interno" }),
+      JSON.stringify({ success: false, error: (error as any).message || "Erro interno" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
