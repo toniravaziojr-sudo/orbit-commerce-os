@@ -1799,7 +1799,6 @@ Deno.serve(async (req) => {
       // Helper: atomic append to used_asset_ids
       async function appendUsedAssetId(assetId: string) {
         usedAssetIds.add(assetId);
-        await supabase.rpc("", {}).catch(() => {}); // no-op, use raw update
         await supabase.from("ads_autopilot_sessions").update({
           used_asset_ids: Array.from(usedAssetIds),
         }).eq("id", sessionId);
@@ -2715,8 +2714,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
 
                     // === COPY GUARD (v5.12.4) ===
                     // Check if copy_text and headline are valid before creating ad
-                    const copyText = aiAsset?.copy_text || args.primary_text;
-                    const headline = aiAsset?.headline || args.headline;
+                    const copyText = (args as any).primary_text;
+                    const headline = (args as any).headline;
                     const isFallbackCopy = !copyText || copyText.startsWith("Conheça ") || copyText.length < 20;
                     const isFallbackHeadline = !headline;
 
@@ -2798,6 +2797,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 }
 
                 // === v5.12.4: STRICT POST-CONDITIONS + ROLLBACK + ACTIVATE + ARTIFACTS GATE ===
+                // Hoist campaignKey early so it's available for the artifacts gate
+                const campaignKey = `${strategyRunId}:${acctConfig.ad_account_id}:${args.template || 'auto'}:${campaignFunnel}:${topProduct?.id || 'auto'}`;
                 if (newMetaCampaignId && newMetaAdsetId && newMetaAdId && graphValidationResult !== "media_mismatch" && graphValidationResult !== "ad_not_found") {
                   // v5.12.4: ARTIFACTS GATE — verify all required artifacts are ready before activation
                   let artifactsReady = true;
@@ -2912,8 +2913,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   },
                 };
 
-                // v5.11.2: Persist artifacts for this campaign
-                const campaignKey = `${strategyRunId}:${acctConfig.ad_account_id}:${args.template || 'auto'}:${campaignFunnel}:${topProduct?.id || 'auto'}`;
+                // v5.11.2: Persist artifacts for this campaign (campaignKey already declared above)
                 try {
                   // Strategy artifact
                   const { error: stratErr } = await supabase.from("ads_autopilot_artifacts").upsert({

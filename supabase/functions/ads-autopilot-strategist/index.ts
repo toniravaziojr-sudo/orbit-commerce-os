@@ -724,7 +724,7 @@ async function buildDeepHistoricalFromLocalData(
 
       console.log(`[ads-autopilot-strategist][${VERSION}] Google deep historical for ${adAccountId}: ${campaignInsights.length} campaigns, ${adsetInsights.length} ad groups, ${adInsights.length} ads`);
 
-      return { campaigns: campaignInsights, adsets: adsetInsights, ads: adInsights, keywords: gKeywords };
+      return { campaigns: campaignInsights, adsets: adsetInsights, ads: adInsights, keywords: gKeywords } as any;
     } catch (err: any) {
       console.error(`[ads-autopilot-strategist][${VERSION}] buildDeepHistoricalFromLocalData (Google) error:`, err.message);
       return null;
@@ -2430,7 +2430,7 @@ async function executeToolCall(
         ad_account_id: config.ad_account_id,
         campaign_name: args.campaign_name,
         name: args.name,
-        type: args.type || "SEARCH_STANDARD",
+        ad_group_type: args.type || "SEARCH_STANDARD",
         cpc_bid_micros: args.cpc_bid_micros || null,
         reasoning: args.reasoning,
         preview: {

@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
       }
 
       // Get tasks
-      const taskIds = [...new Set(tenantReminders.map(r => r.task_id))];
+      const taskIds = [...new Set((tenantReminders as any[]).map((r: any) => r.task_id))];
       const { data: tasks, error: tasksError } = await supabase
         .from('agenda_tasks')
         .select('*')
@@ -294,8 +294,8 @@ Deno.serve(async (req) => {
         if (dueAt > new Date()) continue; // Not yet due
 
         // Check all reminders for this task are processed
-        const taskReminders = tenantReminders.filter(r => r.task_id === task.id);
-        const allProcessed = taskReminders.every(r =>
+        const taskReminders = (tenantReminders as any[]).filter((r: any) => r.task_id === task.id);
+        const allProcessed = taskReminders.every((r: any) =>
           results.find(res => res.reminder_id === r.id)
         );
 
