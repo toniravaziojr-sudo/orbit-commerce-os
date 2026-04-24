@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPII } from "../_shared/redact-pii.ts";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
+import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import {
@@ -3038,6 +3039,17 @@ Cliente: "vocês entregam em SP?"
       }
     } catch (e) {
       console.error("[ai-support-chat] Memory fetch error:", e);
+    }
+
+    // Inject AI Brain insights (aprendizados aprovados para o agente de vendas)
+    try {
+      const brainContext = await getBrainContextForPrompt(supabase, tenant_id, "vendas", { limit: 15 });
+      if (brainContext) {
+        systemPrompt += brainContext;
+        console.log(`[ai-support-chat] Brain insights injected (${brainContext.length} chars)`);
+      }
+    } catch (e) {
+      console.error("[ai-support-chat] Brain fetch error:", e);
     }
 
     // ============================================
