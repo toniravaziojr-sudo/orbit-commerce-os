@@ -266,51 +266,63 @@ Deno.serve(async (req) => {
       `[snapshot-gen] payload_size=${fullPayloadSize} chars, batches=${batches.length}, batch_sizes=${JSON.stringify(batchSizes)}`,
     );
 
-    // 8. Inferência por lote — primeiro lote gera o snapshot global + árvore;
-    //    lotes seguintes só geram products (referenciando árvore comum).
+    // 8. Inferência por lote.
+    //    Lote 1 (sequencial): gera snapshot global + árvore de contexto.
+    //    Lotes 2..N (paralelo): só geram products referenciando a árvore.
     const inferenceLog: any[] = [];
     let masterSnapshot: InferredSnapshot | null = null;
     const allProducts: InferredProduct[] = [];
 
-    for (let i = 0; i < batches.length; i++) {
-      const batch = batches[i];
-      const isFirst = i === 0;
-      const slugUniverse = masterSnapshot
-        ? masterSnapshot.context_tree.map((n) => n.slug)
-        : null;
+    // Lote 1 — sequencial (define a árvore)
+    try {
+      const r1 = await inferBatchWithRetry(batches[0], true, null, DESC_MAX_CHARS);
+      masterSnapshot = r1;
+      allProducts.push(...r1.products);
+      inferenceLog.push({
+        batch: 1,
+        size: batches[0].length,
+        products_inferred: r1.products.length,
+        context_nodes: r1.context_tree.length,
+        retried: r1.retried,
+        payload_chars: r1.payload_chars,
+      });
+    } catch (e) {
+      console.error(`[snapshot-gen] lote 1 falhou definitivamente:`, e);
+      inferenceLog.push({
+        batch: 1,
+        size: batches[0].length,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
 
-      try {
-        const result = await inferBatchWithRetry(
-          batch,
-          isFirst,
-          slugUniverse,
-          DESC_MAX_CHARS,
-        );
+    // Lotes 2..N — paralelos (independentes entre si, todos referenciam mesma árvore)
+    if (masterSnapshot && batches.length > 1) {
+      const slugUniverse = masterSnapshot.context_tree.map((n) => n.slug);
+      const restBatches = batches.slice(1);
+      const settled = await Promise.allSettled(
+        restBatches.map((b) => inferBatchWithRetry(b, false, slugUniverse, DESC_MAX_CHARS)),
+      );
 
-        inferenceLog.push({
-          batch: i + 1,
-          size: batch.length,
-          products_inferred: result.products.length,
-          context_nodes: isFirst ? result.context_tree.length : 0,
-          retried: result.retried,
-          payload_chars: result.payload_chars,
-        });
-
-        if (isFirst) {
-          masterSnapshot = result;
-          allProducts.push(...result.products);
+      settled.forEach((s, idx) => {
+        const batchNum = idx + 2;
+        if (s.status === "fulfilled") {
+          allProducts.push(...s.value.products);
+          inferenceLog.push({
+            batch: batchNum,
+            size: restBatches[idx].length,
+            products_inferred: s.value.products.length,
+            retried: s.value.retried,
+            payload_chars: s.value.payload_chars,
+          });
         } else {
-          // Apenas mesclar produtos; árvore vem do primeiro lote
-          allProducts.push(...result.products);
+          console.error(`[snapshot-gen] lote ${batchNum} falhou:`, s.reason);
+          inferenceLog.push({
+            batch: batchNum,
+            size: restBatches[idx].length,
+            error: s.reason instanceof Error ? s.reason.message : String(s.reason),
+          });
         }
-      } catch (e) {
-        console.error(`[snapshot-gen] lote ${i + 1} falhou definitivamente:`, e);
-        inferenceLog.push({
-          batch: i + 1,
-          size: batch.length,
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
+      });
     }
 
     if (!masterSnapshot) {
