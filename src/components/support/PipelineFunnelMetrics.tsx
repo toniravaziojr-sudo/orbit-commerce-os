@@ -147,13 +147,13 @@ export function PipelineFunnelMetrics() {
   const rateCheckoutToClosed = totals.checkout > 0 ? (totals.closed / totals.checkout) * 100 : 0;
 
   const stages = [
-    { key: "greeting", label: "Saudação", icon: MessageCircle, value: totals.greeting, ms: avgMs.greeting, color: "text-muted-foreground" },
-    { key: "discovery", label: "Descoberta", icon: Search, value: totals.discovery, ms: avgMs.discovery, color: "text-blue-500" },
-    { key: "proposal", label: "Recomendação", icon: Sparkles, value: totals.proposal, ms: avgMs.proposal, color: "text-violet-500" },
-    { key: "detail", label: "Detalhe / Decisão", icon: Eye, value: 0, ms: 0, color: "text-amber-500", skip: true },
-    { key: "cart", label: "Carrinho", icon: Target, value: totals.cart, ms: avgMs.cart, color: "text-primary" },
-    { key: "checkout", label: "Checkout", icon: CreditCard, value: totals.checkout, ms: avgMs.checkout, color: "text-emerald-500" },
-    { key: "handoff", label: "Handoff humano", icon: ShieldAlert, value: totals.handoff, ms: 0, color: "text-orange-500" },
+    { key: "greeting", label: "Saudação", icon: MessageCircle, value: totals.greeting, ms: avgMs.greeting },
+    { key: "discovery", label: "Descoberta", icon: Search, value: totals.discovery, ms: avgMs.discovery },
+    { key: "proposal", label: "Recomendação", icon: Sparkles, value: totals.proposal, ms: avgMs.proposal },
+    { key: "detail", label: "Detalhe / Decisão", icon: Eye, value: 0, ms: 0, skip: true },
+    { key: "cart", label: "Carrinho", icon: Target, value: totals.cart, ms: avgMs.cart },
+    { key: "checkout", label: "Checkout", icon: CreditCard, value: totals.checkout, ms: avgMs.checkout },
+    { key: "handoff", label: "Handoff humano", icon: ShieldAlert, value: totals.handoff, ms: 0 },
   ];
 
   return (
