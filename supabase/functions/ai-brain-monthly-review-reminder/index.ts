@@ -3,7 +3,7 @@
 // que possui insights aprovados ativos no cérebro da IA.
 // Lembra o usuário de reavaliar regras que podem ter perdido validade.
 
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

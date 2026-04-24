@@ -361,7 +361,7 @@ async function handleConfirmation(
   }
 
   if (pendingCommands.length > 1) {
-    const list = pendingCommands.map((c, i) => `${i + 1}. ${(c.pending_action as PendingAction)?.description || c.intent}`).join("\n");
+    const list = pendingCommands.map((c: any, i: number) => `${i + 1}. ${(c.pending_action as PendingAction)?.description || c.intent}`).join("\n");
     return {
       handled: true,
       reply: `Você tem ${pendingCommands.length} ações pendentes de confirmação:\n\n${list}\n\nPor favor, especifique qual deseja confirmar.`,
@@ -391,7 +391,7 @@ async function handleConfirmation(
         const { data: cancelled } = await supabase.from("agenda_tasks").update({ status: "cancelled" }).eq("tenant_id", tenantId).eq("status", "pending").select("id");
         const count = cancelled?.length || 0;
         if (count > 0) {
-          const ids = cancelled!.map(t => t.id);
+          const ids = cancelled!.map((t: any) => t.id);
           await supabase.from("agenda_reminders").update({ status: "skipped", last_error: "task_cancelled" }).in("task_id", ids).eq("status", "pending");
         }
         reply = `✅ ${count} tarefa(s) cancelada(s).`;

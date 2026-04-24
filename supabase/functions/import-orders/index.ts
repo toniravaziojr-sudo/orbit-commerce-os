@@ -22,7 +22,7 @@ import {
   mapShippingStatus,
   type ImportItemTracking,
 } from '../_shared/import-helpers.ts';
-import { createClient } from 'npm:@supabase/supabase-js@2.49.1';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const VERSION = '2026-04-01.0001';
 
