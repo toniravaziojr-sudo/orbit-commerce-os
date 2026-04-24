@@ -3640,6 +3640,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // mantém disponível para tools subsequentes no mesmo turno
           salesToolCtx.productFocus = focus;
         },
+        // [Sub-fase 1.4] grava decisão do variant gate p/ observabilidade
+        recordVariantGate: (info) => {
+          variantGateEvents.push({
+            product_id: info.product_id,
+            status: info.status,
+            reason: info.reason,
+            variant_id: info.variant_id,
+            at: new Date().toISOString(),
+          });
+        },
       };
 
       let response: Response | null = null;
