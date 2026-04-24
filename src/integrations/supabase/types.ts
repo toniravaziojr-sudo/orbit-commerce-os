@@ -22161,6 +22161,43 @@ export type Database = {
           },
         ]
       }
+      sales_pipeline_funnel_metrics: {
+        Row: {
+          avg_ms_cart: number | null
+          avg_ms_checkout: number | null
+          avg_ms_discovery: number | null
+          avg_ms_greeting: number | null
+          avg_ms_proposal: number | null
+          conv_cart: number | null
+          conv_checkout: number | null
+          conv_closed: number | null
+          conv_discovery: number | null
+          conv_greeting: number | null
+          conv_handoff: number | null
+          conv_proposal: number | null
+          conv_rate_cart_to_checkout_pct: number | null
+          conv_rate_checkout_to_closed_pct: number | null
+          conv_rate_discovery_to_cart_pct: number | null
+          day: string | null
+          tenant_id: string | null
+          total_turns: number | null
+          turns_with_blocked_tools: number | null
+          turns_with_tool_calls: number | null
+          variant_gate_asked: number | null
+          variant_gate_not_needed: number | null
+          variant_gate_resolved: number | null
+          variant_gate_single: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_support_turn_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_sales_funnel_view: {
         Row: {
           carts_converted: number | null
