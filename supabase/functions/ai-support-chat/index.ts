@@ -953,7 +953,7 @@ async function executeSalesTool(
         // Variants summary + list
         let variantsSummary: any = null;
         let variantsList: any[] = [];
-        if (data.has_variants) {
+        if (prod.has_variants) {
           const { data: variants } = await supabase
             .from("product_variants")
             .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku, weight")
@@ -961,12 +961,12 @@ async function executeSalesTool(
             .eq("is_active", true)
             .order("position", { ascending: true });
           if (variants?.length) {
-            const prices = variants.map((v: any) => Number(v.price ?? data.price)).filter((n: number) => !isNaN(n));
+            const prices = variants.map((v: any) => Number(v.price ?? prod.price)).filter((n: number) => !isNaN(n));
             const totalStock = variants.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0);
             variantsSummary = {
               count: variants.length,
-              price_min: prices.length ? Math.min(...prices) : data.price,
-              price_max: prices.length ? Math.max(...prices) : data.price,
+              price_min: prices.length ? Math.min(...prices) : prod.price,
+              price_max: prices.length ? Math.max(...prices) : prod.price,
               total_stock: totalStock,
               option_names: [variants[0]?.option1_name, variants[0]?.option2_name, variants[0]?.option3_name].filter(Boolean),
             };
@@ -978,7 +978,7 @@ async function executeSalesTool(
                 v.option3_value && `${v.option3_name}: ${v.option3_value}`,
               ].filter(Boolean).join(" / ") || v.name,
               sku: v.sku,
-              price: Number(v.price ?? data.price),
+              price: Number(v.price ?? prod.price),
               stock: v.stock_quantity ?? 0,
               weight: v.weight,
             }));
@@ -1010,47 +1010,47 @@ async function executeSalesTool(
         // Promotion active?
         const now = new Date();
         const promoActive = !!(
-          data.compare_at_price &&
-          (!data.promotion_start_date || new Date(data.promotion_start_date) <= now) &&
-          (!data.promotion_end_date || new Date(data.promotion_end_date) >= now)
+          prod.compare_at_price &&
+          (!prod.promotion_start_date || new Date(prod.promotion_start_date) <= now) &&
+          (!prod.promotion_end_date || new Date(prod.promotion_end_date) >= now)
         );
 
-        const baseStock = data.stock_quantity ?? 0;
-        const available = data.status === "active" && (
-          !data.manage_stock ||
-          data.allow_backorder ||
-          (data.has_variants ? (variantsSummary?.total_stock ?? 0) > 0 : baseStock > 0)
+        const baseStock = prod.stock_quantity ?? 0;
+        const available = prod.status === "active" && (
+          !prod.manage_stock ||
+          prod.allow_backorder ||
+          (prod.has_variants ? (variantsSummary?.total_stock ?? 0) > 0 : baseStock > 0)
         );
 
         return JSON.stringify({
           success: true,
-          id: data.id,
-          name: data.name,
-          slug: data.slug,
-          description: data.description ?? null,
-          short_description: data.short_description ?? null,
-          brand: data.brand ?? null,
-          sku: data.sku ?? null,
-          gtin: data.gtin ?? null,
-          price: data.price,
-          compare_at_price: data.compare_at_price,
+          id: prod.id,
+          name: prod.name,
+          slug: prod.slug,
+          description: prod.description ?? null,
+          short_description: prod.short_description ?? null,
+          brand: prod.brand ?? null,
+          sku: prod.sku ?? null,
+          gtin: prod.gtin ?? null,
+          price: prod.price,
+          compare_at_price: prod.compare_at_price,
           promotion_active: promoActive,
           stock: baseStock,
           available,
-          free_shipping: data.free_shipping ?? false,
-          avg_rating: data.avg_rating ?? null,
-          review_count: data.review_count ?? 0,
+          free_shipping: prod.free_shipping ?? false,
+          avg_rating: prod.avg_rating ?? null,
+          review_count: prod.review_count ?? 0,
           physical: {
-            weight_g: data.weight,
-            width_cm: data.width,
-            height_cm: data.height,
-            depth_cm: data.depth,
+            weight_g: prod.weight,
+            width_cm: prod.width,
+            height_cm: prod.height,
+            depth_cm: prod.depth,
           },
           primary_image: primaryImage,
           categories,
-          has_variants: data.has_variants ?? false,
-          manage_stock: data.manage_stock ?? true,
-          allow_backorder: data.allow_backorder ?? false,
+          has_variants: prod.has_variants ?? false,
+          manage_stock: prod.manage_stock ?? true,
+          allow_backorder: prod.allow_backorder ?? false,
           variants_summary: variantsSummary,
           variants: variantsList,
           is_kit: isKit,
