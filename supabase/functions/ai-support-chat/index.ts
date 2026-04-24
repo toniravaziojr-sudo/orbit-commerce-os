@@ -937,6 +937,7 @@ async function executeSalesTool(
           return JSON.stringify({ success: false, error: "Falha ao consultar o produto", db_error: error.message });
         }
         if (!data) return JSON.stringify({ success: false, error: "Produto não encontrado", hint: "Use search_products primeiro." });
+        const prod: any = data;
 
         // Primary image (is_primary first, then sort_order)
         const { data: imgRows } = await supabase
@@ -946,7 +947,8 @@ async function executeSalesTool(
           .order("is_primary", { ascending: false })
           .order("sort_order", { ascending: true })
           .limit(1);
-        const primaryImage = imgRows?.[0] ? { url: imgRows[0].url, alt: imgRows[0].alt_text ?? null } : null;
+        const firstImg: any = imgRows?.[0];
+        const primaryImage = firstImg ? { url: firstImg.url, alt: firstImg.alt_text ?? null } : null;
 
         // Variants summary + list
         let variantsSummary: any = null;
