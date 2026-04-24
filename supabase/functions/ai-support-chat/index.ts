@@ -954,13 +954,14 @@ async function executeSalesTool(
         let variantsSummary: any = null;
         let variantsList: any[] = [];
         if (prod.has_variants) {
-          const { data: variants } = await supabase
+          const { data: variantsData } = await supabase
             .from("product_variants")
             .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku, weight")
             .eq("product_id", productId)
             .eq("is_active", true)
             .order("position", { ascending: true });
-          if (variants?.length) {
+          const variants: any[] = (variantsData ?? []) as any[];
+          if (variants.length) {
             const prices = variants.map((v: any) => Number(v.price ?? prod.price)).filter((n: number) => !isNaN(n));
             const totalStock = variants.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0);
             variantsSummary = {
