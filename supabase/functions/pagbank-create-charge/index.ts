@@ -428,7 +428,7 @@ Deno.serve(async (req) => {
     console.error('[PagBank] Error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: "Erro interno" || 'Erro desconhecido'
+      error: "Erro interno"
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

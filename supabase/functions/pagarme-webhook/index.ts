@@ -385,7 +385,7 @@ Deno.serve(async (req) => {
     console.error(`[${requestId}] Webhook error after ${duration}ms:`, error);
     
     return new Response(JSON.stringify({ 
-      error: "Erro interno" || 'Unknown error',
+      error: "Erro interno",
       request_id: requestId,
       duration_ms: duration,
     }), {

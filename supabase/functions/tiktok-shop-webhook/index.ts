@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
         .from('tiktok_shop_webhook_events')
         .update({
           status: 'failed',
-          error_message: processError.message || 'Processing failed',
+          error_message: (processError as any).message || 'Processing failed',
         })
         .eq('id', webhookEventId);
     }
@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error(`[tiktok-shop-webhook][${VERSION}] Error:`, err);
-    return new Response(JSON.stringify({ success: false, error: err.message }), {
+    return new Response(JSON.stringify({ success: false, error: (err as any).message }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

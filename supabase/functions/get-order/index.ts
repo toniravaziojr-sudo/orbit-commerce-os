@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
     console.error('[get-order] Error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: "Erro interno" || 'Unknown error',
+      error: "Erro interno",
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     const shopId = connection.shop_id;
 
     // Get app credentials
-    const appKey = await getCredential(supabase, tenantId, 'TIKTOK_SHOP_APP_KEY');
+    const appKey = await getCredential(supabaseUrl, supabaseKey, 'TIKTOK_SHOP_APP_KEY');
     if (!appKey) {
       return new Response(JSON.stringify({ success: false, error: 'TIKTOK_SHOP_APP_KEY not configured' }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error(`[tiktok-shop-stock-sync][${VERSION}] Error:`, err);
-    return new Response(JSON.stringify({ success: false, error: err.message }), {
+    return new Response(JSON.stringify({ success: false, error: (err as any).message }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

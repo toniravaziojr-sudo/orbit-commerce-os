@@ -249,7 +249,7 @@ REGRAS:
 
 // ---------- DEDUPLICAÇÃO / AGRUPAMENTO CANÔNICO ----------
 async function findOrCreateCanonicalGroup(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   tenantId: string,
   signal: SignalExtraction,
 ): Promise<string> {

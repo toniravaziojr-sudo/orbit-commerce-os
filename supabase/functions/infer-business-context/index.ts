@@ -516,7 +516,7 @@ ${JSON.stringify(productSample)}`;
 // ------------------------ Persistência do mapa N:N ------------------------
 
 async function persistPainPoints(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   tenantId: string,
   productPainMap: Map<string, Array<{ pain: string; weight: number }>>,
 ): Promise<void> {
