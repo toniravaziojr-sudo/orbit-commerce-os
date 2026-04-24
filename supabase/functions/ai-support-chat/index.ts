@@ -2622,7 +2622,7 @@ Deno.serve(async (req) => {
     // Build conversation context for classification (últimos 5 reais)
     const conversationContext = messages
       .slice(-5)
-      .map(m => `${m.sender_type === "customer" ? "Cliente" : "Atendente"}: ${m.content?.slice(0, 200)}`)
+      .map((m: any) => `${m.sender_type === "customer" ? "Cliente" : "Atendente"}: ${m.content?.slice(0, 200)}`)
       .join("\n");
 
     // ============================================
@@ -2878,7 +2878,7 @@ Deno.serve(async (req) => {
 
         if (recentOrders?.length) {
           customerContext += `\n### Últimos pedidos:\n`;
-          customerContext += recentOrders.map(o => {
+          customerContext += recentOrders.map((o: any) => {
             let info = `- #${o.order_number} | Status: ${o.status} | Pagamento: ${o.payment_status}`;
             if (o.shipping_status) info += ` | Envio: ${o.shipping_status}`;
             info += ` | R$ ${o.total?.toFixed(2)}`;
@@ -3271,7 +3271,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       let usableMessages = messages;
       if (salesModeEnabled) {
         const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2h
-        const recent = messages.filter(m => new Date(m.created_at).getTime() >= cutoff);
+        const recent = messages.filter((m: any) => new Date(m.created_at).getTime() >= cutoff);
         usableMessages = recent.length >= 2 ? recent.slice(-10) : messages.slice(-6);
         console.log(`[ai-support-chat] sales-mode history filter: ${messages.length} → ${usableMessages.length}`);
       }
@@ -3362,7 +3362,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         "noite (você pode dizer \"Boa noite\")";
 
       // Detectar se a IA já se apresentou antes nesta conversa (reabertura vs primeiro contato)
-      const botAlreadyGreeted = (messages || []).some(m =>
+      const botAlreadyGreeted = (messages || []).some((m: any) =>
         m.sender_type !== "customer" &&
         !m.is_internal &&
         !m.is_note &&
