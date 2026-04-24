@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
         } else if (options.preset) {
           firstUrl += `&date_preset=${options.preset}`;
         }
-        firstUrl += `&access_token=${conn.access_token}`;
+        firstUrl += `&access_token=${(conn as any).access_token}`;
 
         const allData: any[] = [];
         let nextUrl: string | null = firstUrl;
@@ -96,8 +96,8 @@ Deno.serve(async (req) => {
 
         while (nextUrl && page < MAX_PAGES) {
           page++;
-          const res = await fetch(nextUrl);
-          const result = await res.json();
+          const res: Response = await fetch(nextUrl);
+          const result: any = await res.json();
 
           if (result.error) {
             if (page === 1) return { data: [], error: result.error };
