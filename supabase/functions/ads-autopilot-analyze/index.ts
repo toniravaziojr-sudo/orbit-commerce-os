@@ -1799,7 +1799,6 @@ Deno.serve(async (req) => {
       // Helper: atomic append to used_asset_ids
       async function appendUsedAssetId(assetId: string) {
         usedAssetIds.add(assetId);
-        await supabase.rpc("", {}).catch(() => {}); // no-op, use raw update
         await supabase.from("ads_autopilot_sessions").update({
           used_asset_ids: Array.from(usedAssetIds),
         }).eq("id", sessionId);
