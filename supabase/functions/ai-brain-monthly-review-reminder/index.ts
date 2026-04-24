@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
 
       const { error: insErr } = await supabase.from("ai_brain_insights").insert({
         tenant_id: tenantId,
-        insight_type: "lembrete_revisao",
+        insight_type: "sistema",
         title: `Hora de revisar seus ${activeCount} insight${activeCount > 1 ? "s" : ""} ativos`,
         summary: `Você possui ${activeCount} insight${activeCount > 1 ? "s aprovados" : " aprovado"} no cérebro da IA. Insights podem perder validade ao longo do tempo (sazonalidade, mudanças no público, novos produtos). Revise se ainda fazem sentido para evitar que regras antigas distorçam o comportamento dos seus agentes.`,
         recommendation: "Acesse a aba Insights Ativos e revise cada regra. Desative ou revogue as que não fazem mais sentido.",
