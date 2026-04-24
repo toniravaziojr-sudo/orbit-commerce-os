@@ -320,14 +320,14 @@ Deno.serve(async (req) => {
     // Get Meta connection
     const connection = await getMetaConnectionForTenant(supabase, tenantId);
 
-    if (connError || !connection) {
+    if (!connection) {
       return new Response(
         JSON.stringify({ success: false, error: "Meta não conectada", code: "NOT_CONNECTED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (connection.expires_at && new Date(connection.expires_at) < new Date()) {
+    if ((connection as any).expires_at && new Date((connection as any).expires_at) < new Date()) {
       return new Response(
         JSON.stringify({ success: false, error: "Token Meta expirado. Reconecte.", code: "TOKEN_EXPIRED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -66,8 +66,8 @@ Deno.serve(async (req) => {
       let nextUrl: string | null = `https://graph.facebook.com/${GRAPH_API_VERSION}/act_${adAccountId.replace("act_", "")}/customaudiences?fields=id,name,subtype,description&limit=50&access_token=${conn.access_token}`;
       
       while (nextUrl) {
-        const res = await fetch(nextUrl);
-        const result = await res.json();
+        const res: Response = await fetch(nextUrl);
+        const result: any = await res.json();
         
         if (result.error) {
           return metaApiErrorResponse(result.error, corsHeaders, { module: 'ads-audiences' });

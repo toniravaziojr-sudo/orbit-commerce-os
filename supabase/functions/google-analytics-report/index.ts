@@ -348,7 +348,7 @@ Deno.serve(async (req) => {
       const { data, error } = await query;
       if (error) throw error;
 
-      const summary = (data || []).reduce((acc: any, row: any) => {
+      const summary: any = (data || []).reduce((acc: any, row: any) => {
         const m = row.metrics || {};
         return {
           sessions: acc.sessions + (m.sessions || 0),
