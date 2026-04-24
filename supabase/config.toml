@@ -15,9 +15,6 @@ verify_jwt = false
 [functions.platform-secrets-check]
 verify_jwt = true
 
-[functions.import-shopify-products]
-verify_jwt = false
-
 [functions.scrape-update-products]
 verify_jwt = false
 
@@ -133,9 +130,6 @@ schedule = "*/10 * * * *"
 [functions.shipping-quote]
 verify_jwt = false
 
-[functions.admin-create-test-order]
-verify_jwt = true
-
 [functions.send-test-email]
 verify_jwt = true
 
@@ -178,15 +172,6 @@ verify_jwt = false
 
 [functions.whatsapp-connect]
 verify_jwt = true
-
-[functions.whatsapp-status]
-verify_jwt = true
-
-[functions.whatsapp-disconnect]
-verify_jwt = true
-
-[functions.whatsapp-send]
-verify_jwt = false
 
 [functions.marketing-send-meta]
 verify_jwt = false
@@ -235,19 +220,10 @@ verify_jwt = true
 [functions.tracking-lookup]
 verify_jwt = false
 
-[functions.import-pages]
-verify_jwt = false
-
 [functions.ai-analyze-page]
 verify_jwt = false
 
-[functions.import-pages-structure]
-verify_jwt = false
-
 [functions.classify-content]
-verify_jwt = false
-
-[functions.import-page-v5]
 verify_jwt = false
 
 [functions.fiscal-settings]
@@ -328,9 +304,6 @@ verify_jwt = true
 [functions.loggi-test-connection]
 verify_jwt = true
 
-[functions.whatsapp-admin-instances]
-verify_jwt = true
-
 [functions.whatsapp-enable]
 verify_jwt = true
 
@@ -384,31 +357,10 @@ verify_jwt = true
 verify_jwt = false
 schedule = "*/5 * * * *"
 
-[functions.late-auth-start]
-verify_jwt = true
-
-[functions.late-auth-callback]
-verify_jwt = false
-
-[functions.late-disconnect]
-verify_jwt = true
-
-[functions.late-schedule-post]
-verify_jwt = true
-
-[functions.late-sync-status]
-verify_jwt = true
-
-[functions.late-test-connection]
-verify_jwt = true
-
 [functions.correios-test-connection]
 verify_jwt = true
 
 [functions.tenant-clear-data]
-verify_jwt = false
-
-[functions.import-data]
 verify_jwt = false
 
 [functions.billing-activate-subscription]
@@ -530,21 +482,6 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.pagbank-refund]
-verify_jwt = true
-
-[functions.olist-oauth-start]
-verify_jwt = true
-
-[functions.olist-oauth-callback]
-verify_jwt = false
-
-[functions.olist-token-refresh]
-verify_jwt = false
-
-[functions.olist-connection-status]
-verify_jwt = true
-
-[functions.olist-disconnect]
 verify_jwt = true
 
 [functions.ai-generate-embedding]
