@@ -11,7 +11,7 @@
  * Pode ser invocado manualmente, por outra função, ou agendado (cron de cada minuto).
  */
 
-import { createClient } from "npm:@supabase/supabase-js@2.74.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -24,7 +24,7 @@ import {
   type ImportResults,
   type ItemError,
 } from '../_shared/import-helpers.ts';
-import { createClient } from 'npm:@supabase/supabase-js@2.49.1';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const VERSION = '2026-04-01.0001';
 

@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2.49.4";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {

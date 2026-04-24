@@ -6,7 +6,7 @@
  * 
  * PIPELINE: GPT Image 1 → Gemini Nativa → OpenAI → Lovable Gateway
  */
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { getFalApiKey } from "../_shared/fal-client.ts";
 import {

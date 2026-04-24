@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2.38.4";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 

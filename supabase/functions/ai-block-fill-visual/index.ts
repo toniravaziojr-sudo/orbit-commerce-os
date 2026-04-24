@@ -4,7 +4,7 @@
 // Server-side registry: backend resolve contrato internamente
 // Frontend envia: blockType, mode, scope, collectedData, tenantId
 // =============================================
-import { createClient } from "npm:@supabase/supabase-js@2.87.1";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { generateForRequest, uploadToStorage } from "../_shared/visual-engine.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
