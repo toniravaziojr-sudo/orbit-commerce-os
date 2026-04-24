@@ -46,7 +46,8 @@ Deno.serve(async (req) => {
         .from("ai_brain_insights")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("insight_type", "lembrete_revisao")
+        .eq("insight_type", "sistema")
+        .contains("metadata", { kind: "monthly_review_reminder" })
         .gte("created_at", startOfMonth)
         .maybeSingle();
 
