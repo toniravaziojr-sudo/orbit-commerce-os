@@ -240,3 +240,18 @@ Edge function `ai-business-snapshot-generator` lê catálogo, decide ativo/neutr
 
 #### ⏳ Sub-fase 1.3 — Tratamento de variantes
 #### ⏳ Sub-fase 1.4 — Consumo no pipeline F2 (`prompt-router`)
+
+#### ✅ Sub-fase 1.5 — Métricas (CONCLUÍDA)
+View `sales_pipeline_funnel_metrics` agrega por dia/tenant: turnos por estado, conversão entre etapas, latência por estado, variant_gate.
+
+#### ✅ Sub-fase 1.6 — Observabilidade (CONCLUÍDA)
+- Aba **"Pipeline IA"** em `/support` consome a view e exibe funil, KPIs, conversões e variant_gate.
+- Testes Deno (`pipeline.test.ts`) cobrem `states`, `transitions`, `tool-filter`, `variant-gate` (anti-regressão, dor declarada, handoff terminal, etc.).
+
+---
+
+### Próximas fases (Fase 2 em diante)
+
+- **Fase 2** — Pacote J completo (payload comercial pronto consumido pelo pipeline) + Pacote M (dicionário de linguagem do cliente)
+- **Fase 3** — Pacote O (contrato de checkout por tenant/canal) + Pacote E (UI de override)
+- **Fase 4** — Pacotes F+P (matriz de validação multi-arquétipo + métricas de sucesso por nicho)
