@@ -10,7 +10,7 @@
  * - GPT Image usa enums corretos (size/quality)
  * - PixVerse não aceita texto para fundo
  */
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 

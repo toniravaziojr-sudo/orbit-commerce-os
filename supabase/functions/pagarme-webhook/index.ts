@@ -3,7 +3,7 @@
 // With proper idempotency via payment_events table
 // v2.1 - PCI log redaction + tenant-aware HMAC verification (log mode)
 // ============================================
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 import { verifyPagarmeHmac, handleHmacResult } from "../_shared/webhook-hmac.ts";
 import { errorResponse } from "../_shared/error-response.ts";

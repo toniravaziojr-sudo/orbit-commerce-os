@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { getMetaConnectionForTenant, findTenantByPageIdV4 } from "../_shared/meta-connection.ts";
 import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
 

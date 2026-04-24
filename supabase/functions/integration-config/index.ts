@@ -2,7 +2,7 @@
 // INTEGRATION CONFIG - Server-side config management
 // Handles payment/shipping provider configs securely
 // ============================================
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";

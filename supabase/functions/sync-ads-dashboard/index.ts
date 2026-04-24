@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR =====
 const VERSION = "v3.0.0"; // Estratégia híbrida 3 camadas: daily(7d) | weekly(90d) | on_connect(maximum)

@@ -7,7 +7,7 @@
  * Cobre: store_settings (logo/favicon), product_images, categories.
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   ensureFolderPathEdge,
   registerFileToDriveEdge,

@@ -3,7 +3,7 @@
 // v2.0.0: Refactored to use shared resolveTenant utility
 // ============================================
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 const corsHeaders = {

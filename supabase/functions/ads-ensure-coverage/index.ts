@@ -3,7 +3,7 @@
 // dentro do range solicitado e, se houver, dispara backfill cirúrgico.
 // Retorna imediatamente com { has_gap, gap_days, triggered } — o backfill roda em background.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const VERSION = "v1.0.0";
 

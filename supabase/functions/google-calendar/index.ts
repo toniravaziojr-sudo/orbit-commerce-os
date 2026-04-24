@@ -2,7 +2,7 @@
 // EDGE FUNCTION: Google Calendar
 // Actions: calendars, events, sync, create
 // =============================================
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "npm:@supabase/supabase-js@2.49.1";
 import { errorResponse } from "../_shared/error-response.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";

@@ -4,7 +4,7 @@
 // Used by: resolve-domain, storefront-bootstrap
 // ============================================
 
-import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 // SaaS platform configuration
 const SAAS_DOMAIN = Deno.env.get('SAAS_DOMAIN') || 'comandocentral.com.br';
