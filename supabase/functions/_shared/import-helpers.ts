@@ -81,7 +81,7 @@ export function createImportResponse(
  * result = 'created' | 'updated' | 'unchanged' | 'skipped' (business)
  */
 export async function trackImportedItem(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   tenantId: string,
   jobId: string,
   module: string,
@@ -120,7 +120,7 @@ export async function trackImportedItem(
  * Batch track imported items (much faster than individual calls).
  */
 export async function trackImportedItemsBatch(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   tenantId: string,
   jobId: string,
   module: string,
@@ -159,7 +159,7 @@ export async function trackImportedItemsBatch(
  * Track a failed item in import_items.
  */
 export async function trackFailedItem(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   tenantId: string,
   jobId: string,
   module: string,
