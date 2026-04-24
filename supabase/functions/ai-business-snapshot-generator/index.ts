@@ -881,7 +881,7 @@ async function persistActiveSnapshot(
         weight: node.weight ?? 50,
         description: node.description ?? null,
         source: "inferred",
-        confidence_score: inferred.confidence_score,
+        confidence_score: toScoreInt(inferred.confidence_score),
         confidence_level: confidenceLevel(inferred.confidence_score),
         is_active: true,
       })
@@ -920,7 +920,7 @@ async function persistActiveSnapshot(
         is_primary: true,
         weight: 80,
         source: "inferred",
-        confidence_score: p.confidence_score,
+        confidence_score: toScoreInt(p.confidence_score),
         confidence_level: confidenceLevel(p.confidence_score),
       });
     }
@@ -933,7 +933,7 @@ async function persistActiveSnapshot(
           is_primary: false,
           weight: 40,
           source: "inferred",
-          confidence_score: p.confidence_score,
+          confidence_score: toScoreInt(p.confidence_score),
           confidence_level: confidenceLevel(p.confidence_score),
         });
       }
@@ -987,7 +987,7 @@ async function persistActiveSnapshot(
         variants_summary: p.variants_summary ?? {},
         social_proof_snippet: null,
         source: "inferred",
-        confidence_score: p.confidence_score,
+        confidence_score: toScoreInt(p.confidence_score),
         confidence_level: confidenceLevel(p.confidence_score),
         manual_overrides: existingPayload?.manual_overrides ?? {},
         has_manual_overrides: existingPayload?.has_manual_overrides ?? false,
