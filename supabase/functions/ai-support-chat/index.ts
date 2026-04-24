@@ -3608,6 +3608,13 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         lastUserMessage: lastMessageContent || null,
         salesState: currentSalesState,
         imagesSentMap,
+        // [Sub-fase 1.3] foco lido do metadata + setter que atualiza `nextProductFocus`
+        productFocus: currentProductFocus,
+        setProductFocus: (focus: ProductFocus | null) => {
+          nextProductFocus = focus;
+          // mantém disponível para tools subsequentes no mesmo turno
+          salesToolCtx.productFocus = focus;
+        },
       };
 
       let response: Response | null = null;
