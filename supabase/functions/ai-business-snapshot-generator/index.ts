@@ -3,17 +3,23 @@
  *
  * Sub-fase 1.2 do Plano Mestre v4 — Motor de inferência inicial.
  *
- * Lê o catálogo de um tenant, decide entre modo `active` ou `neutral` (Pacote G),
- * chama Gemini 2.5 Pro via Lovable AI Gateway e popula:
+ * v2 (revisão pós-truncamento):
+ *  - Payload enxuto enviado ao modelo (descrição curta, price_bucket em vez
+ *    de preço bruto, sem stock, sem campos operacionais).
+ *  - Lotes (chunking) por categoria/linha quando possível, com fallback por
+ *    quantidade. Tamanho alvo: 10–15 produtos por lote.
+ *  - max_tokens elevado como margem de segurança (não como solução principal).
+ *  - Retry em modo reduzido se o JSON do tool_call vier inválido/truncado.
+ *  - Nunca devolve success:true sem persistência real (snapshot upsert ok
+ *    e ao menos um payload comercial persistido).
+ *
+ * Lê o catálogo de um tenant, decide entre modo `active` ou `neutral` e popula:
  *   - ai_business_snapshot      (Pacote A)
- *   - ai_context_tree           (Pacote B — árvore de contexto, suporta tenant híbrido)
- *   - ai_product_pain_map       (Pacote C — mapa N:N produto ↔ dor com peso)
- *   - ai_product_commercial_payload (Pacote J + H — payload comercial pronto + variantes)
+ *   - ai_context_tree           (Pacote B)
+ *   - ai_product_pain_map       (Pacote C)
+ *   - ai_product_commercial_payload (Pacote J + H)
  *
- * Respeita a regra dos overrides manuais do tenant: nada em `manual_overrides`
- * é sobrescrito pela regeneração automática.
- *
- * Universal: serve qualquer tenant, qualquer nicho. Validação piloto: Respeite o Homem.
+ * Universal: serve qualquer tenant, qualquer nicho.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
@@ -30,9 +36,22 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-pro";
 
-// Catálogo mínimo viável para sair do modo neutro (Pacote G)
+// Limites de inferência
 const MIN_PRODUCTS_FOR_ACTIVE_MODE = 3;
 const MIN_PRODUCTS_WITH_DESCRIPTION = 2;
+
+// Lotes
+const TARGET_BATCH_SIZE = 12;       // alvo 10–15
+const MAX_BATCH_SIZE = 15;
+const MIN_BATCH_SIZE = 8;
+
+// Limites de payload
+const DESC_MAX_CHARS = 280;          // descrição enxuta
+const DESC_MAX_CHARS_REDUCED = 120;  // retry ainda mais enxuto
+
+// Geração
+const MAX_TOKENS_DEFAULT = 16000;
+const MAX_TOKENS_REDUCED = 12000;
 
 interface RequestBody {
   tenant_id: string;
@@ -42,13 +61,38 @@ interface RequestBody {
   dry_run?: boolean;
 }
 
+interface InferredProduct {
+  product_id: string;
+  commercial_name: string;
+  commercial_role: "primary" | "complement" | "upgrade" | "kit_component";
+  product_kind:
+    | "single"
+    | "kit"
+    | "combo"
+    | "pack"
+    | "upgrade"
+    | "complement"
+    | "replacement";
+  main_pain_slug: string | null;
+  secondary_pain_slugs: string[];
+  target_audience: string;
+  short_pitch: string;
+  medium_pitch: string;
+  differentials: string[];
+  when_not_to_indicate: string;
+  comparison_arguments: string;
+  has_mandatory_variants: boolean;
+  variants_summary: Record<string, unknown>;
+  confidence_score: number;
+}
+
 interface InferredSnapshot {
   niche_primary: string;
   niche_secondary: string[];
   business_summary: string;
   audience_summary: string;
   suggested_tone: string;
-  confidence_score: number; // 0..1
+  confidence_score: number;
   context_tree: Array<{
     level: "business" | "audience" | "macro_category" | "subcategory" | "product_type" | "pain";
     label: string;
@@ -57,30 +101,7 @@ interface InferredSnapshot {
     weight: number;
     description?: string;
   }>;
-  products: Array<{
-    product_id: string;
-    commercial_name: string;
-    commercial_role: "primary" | "complement" | "upgrade" | "kit_component";
-    product_kind:
-      | "single"
-      | "kit"
-      | "combo"
-      | "pack"
-      | "upgrade"
-      | "complement"
-      | "replacement";
-    main_pain_slug: string | null;
-    secondary_pain_slugs: string[];
-    target_audience: string;
-    short_pitch: string;
-    medium_pitch: string;
-    differentials: string[];
-    when_not_to_indicate: string;
-    comparison_arguments: string;
-    has_mandatory_variants: boolean;
-    variants_summary: Record<string, unknown>;
-    confidence_score: number;
-  }>;
+  products: InferredProduct[];
 }
 
 function jsonResponse(data: unknown, status = 200) {
@@ -94,6 +115,31 @@ function confidenceLevel(score: number): "high" | "medium" | "low" {
   if (score >= 0.75) return "high";
   if (score >= 0.45) return "medium";
   return "low";
+}
+
+/** Converte score 0..1 (ou já 0..100) em inteiro 0..100 — schema da tabela usa integer. */
+function toScoreInt(score: number | null | undefined): number {
+  if (score === null || score === undefined || isNaN(Number(score))) return 0;
+  const n = Number(score);
+  const scaled = n <= 1 ? n * 100 : n;
+  return Math.max(0, Math.min(100, Math.round(scaled)));
+}
+
+/**
+ * Faixa de preço (bucket) — preserva sinal de posicionamento sem expor valores
+ * detalhados, reduzindo tokens.
+ */
+function priceBucket(price: number | null | undefined): string | null {
+  if (price === null || price === undefined || isNaN(Number(price))) return null;
+  const p = Number(price);
+  if (p <= 0) return null;
+  if (p < 30) return "ate_30";
+  if (p < 80) return "30_80";
+  if (p < 150) return "80_150";
+  if (p < 300) return "150_300";
+  if (p < 600) return "300_600";
+  if (p < 1500) return "600_1500";
+  return "acima_1500";
 }
 
 Deno.serve(async (req) => {
@@ -119,11 +165,11 @@ Deno.serve(async (req) => {
 
     console.log(`[snapshot-gen] tenant=${tenant_id} scope=${scope} reason=${reason} dry_run=${dry_run}`);
 
-    // 1. Carregar catálogo do tenant
+    // 1. Catálogo do tenant
     const { data: products, error: prodErr } = await supabase
       .from("products")
       .select(
-        "id, name, sku, description, short_description, price, brand, product_type, tags, has_variants, stock_quantity, status",
+        "id, name, sku, description, short_description, price, brand, product_type, tags, has_variants, status",
       )
       .eq("tenant_id", tenant_id)
       .is("deleted_at", null)
@@ -133,16 +179,17 @@ Deno.serve(async (req) => {
 
     if (prodErr) throw prodErr;
 
-    // 2. Carregar variantes para os produtos
     const productIds = (products ?? []).map((p) => p.id);
+
+    // 2. Variantes (apenas nome + atributos — sem stock e sem preço)
     const { data: variants } = productIds.length > 0
       ? await supabase
           .from("product_variants")
-          .select("id, product_id, variant_name, sku, price, stock_quantity, attributes")
+          .select("product_id, variant_name, attributes")
           .in("product_id", productIds)
       : { data: [] as any[] };
 
-    // 3. Carregar categorias
+    // 3. Categorias
     const { data: productCategories } = productIds.length > 0
       ? await supabase
           .from("product_categories")
@@ -150,7 +197,7 @@ Deno.serve(async (req) => {
           .in("product_id", productIds)
       : { data: [] as any[] };
 
-    // 4. Decidir modo (Pacote G — robustez)
+    // 4. Modo (Pacote G)
     const totalProducts = products?.length ?? 0;
     const productsWithDesc = (products ?? []).filter(
       (p) => (p.description?.length ?? 0) > 30 || (p.short_description?.length ?? 0) > 20,
@@ -161,16 +208,28 @@ Deno.serve(async (req) => {
       productsWithDesc < MIN_PRODUCTS_WITH_DESCRIPTION;
 
     if (goNeutral) {
-      console.log(
-        `[snapshot-gen] tenant=${tenant_id} → modo NEUTRO (products=${totalProducts}, with_desc=${productsWithDesc})`,
-      );
       const reasonText =
         totalProducts < MIN_PRODUCTS_FOR_ACTIVE_MODE
           ? `Catálogo insuficiente: apenas ${totalProducts} produto(s) ativo(s). Mínimo: ${MIN_PRODUCTS_FOR_ACTIVE_MODE}.`
           : `Apenas ${productsWithDesc} produto(s) com descrição mínima. Mínimo: ${MIN_PRODUCTS_WITH_DESCRIPTION}.`;
 
+      console.log(`[snapshot-gen] tenant=${tenant_id} → modo NEUTRO: ${reasonText}`);
+
       if (!dry_run) {
-        await persistNeutralSnapshot(supabase, tenant_id, reasonText, MODEL, Date.now() - startedAt);
+        const persisted = await persistNeutralSnapshot(
+          supabase,
+          tenant_id,
+          reasonText,
+          MODEL,
+          Date.now() - startedAt,
+        );
+        if (!persisted.ok) {
+          return jsonResponse({
+            success: false,
+            mode: "neutral",
+            error: `Falha ao persistir snapshot neutro: ${persisted.error}`,
+          });
+        }
       }
 
       return jsonResponse({
@@ -181,7 +240,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 5. Modo ativo — preparar contexto compacto para o modelo
+    // 5. Modo ativo — preparar índices
     const variantsByProduct = new Map<string, any[]>();
     (variants ?? []).forEach((v) => {
       if (!variantsByProduct.has(v.product_id)) variantsByProduct.set(v.product_id, []);
@@ -196,55 +255,163 @@ Deno.serve(async (req) => {
       categoriesByProduct.get(pc.product_id)!.push(name);
     });
 
-    const compactCatalog = (products ?? []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      sku: p.sku,
-      description: (p.description ?? p.short_description ?? "").slice(0, 800),
-      brand: p.brand,
-      product_type: p.product_type,
-      tags: p.tags,
-      categories: categoriesByProduct.get(p.id) ?? [],
-      price: p.price,
-      stock: p.stock_quantity,
-      variants: (variantsByProduct.get(p.id) ?? []).map((v) => ({
-        name: v.variant_name,
-        attributes: v.attributes,
-        stock: v.stock_quantity,
-      })),
-    }));
+    // 6. Construir catálogo enxuto
+    const compactCatalog = buildCompactCatalog(
+      products ?? [],
+      categoriesByProduct,
+      variantsByProduct,
+      DESC_MAX_CHARS,
+    );
 
-    // 6. Chamar Gemini 2.5 Pro
-    const inferred = await inferWithGemini(compactCatalog);
+    // Métricas de payload
+    const fullPayloadSize = JSON.stringify(compactCatalog).length;
+
+    // 7. Lotear (preferência por categoria, fallback por quantidade)
+    const batches = batchProducts(compactCatalog, categoriesByProduct);
+    const batchSizes = batches.map((b) => b.length);
+
+    console.log(
+      `[snapshot-gen] payload_size=${fullPayloadSize} chars, batches=${batches.length}, batch_sizes=${JSON.stringify(batchSizes)}`,
+    );
+
+    // 8. Inferência por lote.
+    //    Lote 1 (sequencial): gera snapshot global + árvore de contexto.
+    //    Lotes 2..N (paralelo): só geram products referenciando a árvore.
+    const inferenceLog: any[] = [];
+    let masterSnapshot: InferredSnapshot | null = null;
+    const allProducts: InferredProduct[] = [];
+
+    // Lote 1 — sequencial (define a árvore)
+    try {
+      const r1 = await inferBatchWithRetry(batches[0], true, null, DESC_MAX_CHARS);
+      masterSnapshot = r1;
+      allProducts.push(...r1.products);
+      inferenceLog.push({
+        batch: 1,
+        size: batches[0].length,
+        products_inferred: r1.products.length,
+        context_nodes: r1.context_tree.length,
+        retried: r1.retried,
+        payload_chars: r1.payload_chars,
+      });
+    } catch (e) {
+      console.error(`[snapshot-gen] lote 1 falhou definitivamente:`, e);
+      inferenceLog.push({
+        batch: 1,
+        size: batches[0].length,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+
+    // Lotes 2..N — paralelos (independentes entre si, todos referenciam mesma árvore)
+    if (masterSnapshot && batches.length > 1) {
+      const slugUniverse = masterSnapshot.context_tree.map((n) => n.slug);
+      const restBatches = batches.slice(1);
+      const settled = await Promise.allSettled(
+        restBatches.map((b) => inferBatchWithRetry(b, false, slugUniverse, DESC_MAX_CHARS)),
+      );
+
+      settled.forEach((s, idx) => {
+        const batchNum = idx + 2;
+        if (s.status === "fulfilled") {
+          allProducts.push(...s.value.products);
+          inferenceLog.push({
+            batch: batchNum,
+            size: restBatches[idx].length,
+            products_inferred: s.value.products.length,
+            retried: s.value.retried,
+            payload_chars: s.value.payload_chars,
+          });
+        } else {
+          console.error(`[snapshot-gen] lote ${batchNum} falhou:`, s.reason);
+          inferenceLog.push({
+            batch: batchNum,
+            size: restBatches[idx].length,
+            error: s.reason instanceof Error ? s.reason.message : String(s.reason),
+          });
+        }
+      });
+    }
+
+    if (!masterSnapshot) {
+      return jsonResponse({
+        success: false,
+        mode: "active",
+        error: "Inferência do primeiro lote falhou — sem snapshot mestre",
+        batches: inferenceLog,
+      });
+    }
+
+    // Merge final dos produtos
+    const merged: InferredSnapshot = {
+      ...masterSnapshot,
+      products: dedupeProducts(allProducts),
+    };
 
     if (dry_run) {
       return jsonResponse({
         success: true,
         mode: "active",
         dry_run: true,
-        inferred,
+        inferred: merged,
+        payload_metrics: {
+          full_payload_chars: fullPayloadSize,
+          batches: inferenceLog,
+        },
         duration_ms: Date.now() - startedAt,
       });
     }
 
-    // 7. Persistir tudo (preservando manual_overrides)
-    console.log(`[snapshot-gen] iniciando persist active: tenant=${tenant_id} nodes=${inferred.context_tree.length} products=${inferred.products.length}`);
-    const persistStats = await persistActiveSnapshot(supabase, tenant_id, inferred, MODEL, Date.now() - startedAt);
+    // 9. Persistir
+    console.log(
+      `[snapshot-gen] persist start tenant=${tenant_id} nodes=${merged.context_tree.length} products=${merged.products.length}`,
+    );
+    const persistStats = await persistActiveSnapshot(
+      supabase,
+      tenant_id,
+      merged,
+      MODEL,
+      Date.now() - startedAt,
+    );
     console.log(`[snapshot-gen] persist concluído:`, JSON.stringify(persistStats));
+
+    // GARANTIA #5: nunca devolver success:true sem persistência real
+    const persistOk =
+      persistStats.snapshot_upsert === "ok" &&
+      persistStats.payload_inserted > 0;
+
+    if (!persistOk) {
+      return jsonResponse({
+        success: false,
+        mode: "active",
+        error: "Inferência ok porém persistência falhou (snapshot ou payloads).",
+        stats: {
+          totalProducts,
+          contextNodes: merged.context_tree.length,
+          productsClassified: merged.products.length,
+          persisted: persistStats,
+        },
+        batches: inferenceLog,
+      });
+    }
 
     return jsonResponse({
       success: true,
       mode: "active",
       stats: {
         totalProducts,
-        contextNodes: inferred.context_tree.length,
-        productsClassified: inferred.products.length,
+        contextNodes: merged.context_tree.length,
+        productsClassified: merged.products.length,
         persisted: persistStats,
+      },
+      payload_metrics: {
+        full_payload_chars: fullPayloadSize,
+        batches: inferenceLog,
       },
       duration_ms: Date.now() - startedAt,
     });
   } catch (error) {
-    console.error("[snapshot-gen] erro:", error);
+    console.error("[snapshot-gen] erro fatal:", error);
     return jsonResponse(
       {
         success: false,
@@ -255,37 +422,155 @@ Deno.serve(async (req) => {
   }
 });
 
-async function inferWithGemini(catalog: any[]): Promise<InferredSnapshot> {
-  const systemPrompt = `Você é um analista comercial sênior especializado em e-commerce brasileiro. Sua tarefa é analisar um catálogo de produtos e inferir:
+// ============================================================
+// Helpers — payload, lotes, inferência, retry, merge
+// ============================================================
 
-1. **Negócio**: nicho principal, nichos secundários (se for tenant híbrido), resumo executivo, público-alvo, tom de voz sugerido.
+function buildCompactCatalog(
+  products: any[],
+  categoriesByProduct: Map<string, string[]>,
+  variantsByProduct: Map<string, any[]>,
+  descMax: number,
+) {
+  return products.map((p) => {
+    const cats = categoriesByProduct.get(p.id) ?? [];
+    const desc = (p.description ?? p.short_description ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, descMax);
+    const vars = (variantsByProduct.get(p.id) ?? []).slice(0, 6).map((v) => ({
+      n: v.variant_name,
+      a: v.attributes,
+    }));
+    const obj: Record<string, unknown> = {
+      id: p.id,
+      name: p.name,
+      brand: p.brand ?? null,
+      type: p.product_type ?? null,
+      cats,
+      tags: Array.isArray(p.tags) ? p.tags.slice(0, 8) : [],
+      desc,
+      price_bucket: priceBucket(p.price),
+    };
+    if (p.has_variants && vars.length > 0) {
+      obj.has_variants = true;
+      obj.variants = vars;
+    }
+    return obj;
+  });
+}
 
-2. **Árvore de contexto** (Pacote B): hierarquia negócio → público → macro_categoria → subcategoria → tipo_produto → dor/objetivo. Suporta múltiplos ramos paralelos para tenant híbrido. Cada nó tem slug único, label legível, parent_slug (null para raiz), peso 1-100, descrição curta opcional.
+function batchProducts(
+  catalog: any[],
+  categoriesByProduct: Map<string, string[]>,
+): any[][] {
+  if (catalog.length <= MAX_BATCH_SIZE) return [catalog];
 
-3. **Mapeamento produto → dores** (Pacote C, N:N): para cada produto, identifique a dor principal e dores secundárias resolvidas, usando os slugs criados na árvore.
+  // Tentar agrupar por primeira categoria
+  const byCat = new Map<string, any[]>();
+  for (const p of catalog) {
+    const cats = categoriesByProduct.get(p.id) ?? [];
+    const key = cats[0]?.toLowerCase().trim() || "_sem_categoria";
+    if (!byCat.has(key)) byCat.set(key, []);
+    byCat.get(key)!.push(p);
+  }
 
-4. **Payload comercial por produto** (Pacote J): para cada produto identifique:
-   - commercial_role: primary (carro-chefe), complement (acessório), upgrade (versão melhor), kit_component (compõe kit)
-   - product_kind: single | kit | combo | pack | upgrade | complement | replacement
-   - main_pain_slug + secondary_pain_slugs (referenciando árvore)
-   - target_audience (público específico)
-   - short_pitch (≤140 chars, para recomendação)
-   - medium_pitch (≤400 chars, para detalhamento)
-   - differentials (array)
-   - when_not_to_indicate (quando NÃO recomendar)
-   - comparison_arguments (vs alternativas)
-   - has_mandatory_variants + variants_summary (se há variante obrigatória — tamanho, cor, voltagem, etc — e como perguntar)
-   - confidence_score (0-1, sua confiança nessa classificação)
+  const useCategoryGrouping =
+    byCat.size >= 2 && Array.from(byCat.values()).every((g) => g.length <= MAX_BATCH_SIZE * 2);
 
-REGRAS CRÍTICAS:
-- Use exclusivamente PT-BR.
-- Nunca invente prova social ou claim clínico.
-- Se um produto não se encaixa no nicho principal, marque como ramo secundário da árvore (tenant híbrido).
-- Se incerto sobre uma classificação, baixe o confidence_score — não invente certeza.
-- Slugs em kebab-case sem acento.
-- Responda APENAS JSON válido conforme o schema.`;
+  const batches: any[][] = [];
 
-  const userPrompt = `Catálogo do tenant (${catalog.length} produtos):\n\n${JSON.stringify(catalog, null, 2)}\n\nGere o snapshot completo conforme schema.`;
+  if (useCategoryGrouping) {
+    for (const group of byCat.values()) {
+      // Quebrar grupos grandes em pedaços de TARGET_BATCH_SIZE
+      for (let i = 0; i < group.length; i += TARGET_BATCH_SIZE) {
+        batches.push(group.slice(i, i + TARGET_BATCH_SIZE));
+      }
+    }
+  } else {
+    // Fallback: corte por quantidade
+    for (let i = 0; i < catalog.length; i += TARGET_BATCH_SIZE) {
+      batches.push(catalog.slice(i, i + TARGET_BATCH_SIZE));
+    }
+  }
+
+  // Consolidar lotes muito pequenos no final
+  if (batches.length >= 2) {
+    const last = batches[batches.length - 1];
+    const prev = batches[batches.length - 2];
+    if (last.length < MIN_BATCH_SIZE && prev.length + last.length <= MAX_BATCH_SIZE) {
+      batches[batches.length - 2] = [...prev, ...last];
+      batches.pop();
+    }
+  }
+
+  return batches;
+}
+
+async function inferBatchWithRetry(
+  batch: any[],
+  isFirst: boolean,
+  slugUniverse: string[] | null,
+  descMaxOriginal: number,
+): Promise<InferredSnapshot & { retried: boolean; payload_chars: number }> {
+  // Tentativa 1 — payload normal
+  try {
+    const r = await inferBatch(batch, isFirst, slugUniverse, MAX_TOKENS_DEFAULT);
+    return { ...r, retried: false, payload_chars: JSON.stringify(batch).length };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const isJsonIssue =
+      msg.includes("JSON") ||
+      msg.includes("truncado") ||
+      msg.includes("Unexpected end") ||
+      msg.includes("tool_call");
+
+    if (!isJsonIssue) throw e;
+
+    console.warn(`[snapshot-gen] retry em modo reduzido após erro: ${msg.slice(0, 200)}`);
+
+    // Tentativa 2 — payload ainda mais enxuto
+    const reducedBatch = batch.map((p) => ({
+      ...p,
+      desc: (p.desc ?? "").slice(0, DESC_MAX_CHARS_REDUCED),
+      variants: undefined, // remover variantes detalhadas
+      tags: (p.tags ?? []).slice(0, 4),
+    }));
+    const r = await inferBatch(reducedBatch, isFirst, slugUniverse, MAX_TOKENS_REDUCED);
+    return { ...r, retried: true, payload_chars: JSON.stringify(reducedBatch).length };
+  }
+}
+
+async function inferBatch(
+  batch: any[],
+  isFirst: boolean,
+  slugUniverse: string[] | null,
+  maxTokens: number,
+): Promise<InferredSnapshot> {
+  const systemPrompt = isFirst
+    ? `Você é um analista comercial sênior de e-commerce brasileiro. Analise o catálogo (parcial — primeiro lote) e infira:
+
+1. **Negócio**: nicho principal, secundários (tenant híbrido), resumo, público-alvo, tom.
+2. **Árvore de contexto**: hierarquia negócio → público → macro_categoria → subcategoria → tipo_produto → dor. Slugs únicos kebab-case sem acento. parent_slug=null para raiz.
+3. **Mapa produto → dores**: principal + secundárias por slug.
+4. **Payload comercial por produto**: commercial_role, product_kind (single/kit/combo/pack/upgrade/complement/replacement), main_pain_slug, secondary_pain_slugs, target_audience, short_pitch (≤140), medium_pitch (≤400), differentials, when_not_to_indicate, comparison_arguments, has_mandatory_variants, variants_summary, confidence_score.
+
+REGRAS:
+- PT-BR.
+- Não inventar prova social/claim clínico.
+- Slugs kebab-case sem acento.
+- Confiança honesta — se incerto, baixe o score.
+- Responda APENAS via tool_call submit_business_snapshot.`
+    : `Você é um analista comercial sênior. Este é um lote ADICIONAL de produtos do mesmo tenant. A árvore de contexto JÁ FOI DEFINIDA. Para cada produto, gere apenas o payload comercial referenciando OBRIGATORIAMENTE slugs já existentes da árvore: ${slugUniverse?.join(", ") ?? "(vazio)"}.
+
+Devolva snapshot com:
+- niche_primary/business_summary/audience_summary/suggested_tone/confidence_score = strings vazias ou 0 (serão ignorados)
+- context_tree = []
+- products = lista completa do lote
+
+REGRAS: PT-BR, sem invenção, slugs já existentes. Responda APENAS via tool_call.`;
+
+  const userPrompt = `Lote de ${batch.length} produto(s):\n\n${JSON.stringify(batch)}\n\nGere o snapshot conforme schema.`;
 
   const schema = {
     type: "object",
@@ -352,14 +637,7 @@ REGRAS CRÍTICAS:
         },
       },
     },
-    required: [
-      "niche_primary",
-      "business_summary",
-      "audience_summary",
-      "confidence_score",
-      "context_tree",
-      "products",
-    ],
+    required: ["context_tree", "products"],
   };
 
   const response = await fetch(AI_GATEWAY_URL, {
@@ -370,6 +648,7 @@ REGRAS CRÍTICAS:
     },
     body: JSON.stringify({
       model: MODEL,
+      max_tokens: maxTokens,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -379,7 +658,7 @@ REGRAS CRÍTICAS:
           type: "function",
           function: {
             name: "submit_business_snapshot",
-            description: "Submete o snapshot completo do negócio inferido a partir do catálogo.",
+            description: "Submete o snapshot comercial inferido a partir do lote.",
             parameters: schema,
           },
         },
@@ -394,19 +673,38 @@ REGRAS CRÍTICAS:
   }
 
   const data = await response.json();
-  const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
+  const choice = data?.choices?.[0];
+  const finishReason = choice?.finish_reason;
+  const toolCall = choice?.message?.tool_calls?.[0];
+
   if (!toolCall?.function?.arguments) {
-    throw new Error("Gateway IA não retornou tool_call esperado");
+    throw new Error(`Gateway IA não retornou tool_call (finish_reason=${finishReason})`);
   }
 
-  const parsed = JSON.parse(toolCall.function.arguments) as InferredSnapshot;
+  const rawArgs = toolCall.function.arguments as string;
 
-  // Defaults seguros
+  if (finishReason && finishReason !== "tool_calls" && finishReason !== "stop") {
+    throw new Error(
+      `tool_call possivelmente truncado (finish_reason=${finishReason}, args_len=${rawArgs.length})`,
+    );
+  }
+
+  let parsed: InferredSnapshot;
+  try {
+    parsed = JSON.parse(rawArgs) as InferredSnapshot;
+  } catch (e) {
+    throw new Error(
+      `JSON do tool_call inválido (provavelmente truncado, args_len=${rawArgs.length}): ${
+        e instanceof Error ? e.message : e
+      }`,
+    );
+  }
+
+  // Defaults
   parsed.niche_secondary = parsed.niche_secondary ?? [];
   parsed.products = parsed.products ?? [];
   parsed.context_tree = parsed.context_tree ?? [];
 
-  // Normalização: parent_slug vazio/undefined → null (banco usa NULL para raiz)
   parsed.context_tree = parsed.context_tree.map((n) => ({
     ...n,
     parent_slug:
@@ -416,14 +714,32 @@ REGRAS CRÍTICAS:
   return parsed;
 }
 
+/**
+ * Deduplica produtos vindos de lotes diferentes (por product_id), mantendo
+ * a primeira ocorrência (que tem maior contexto da árvore se foi do 1º lote).
+ */
+function dedupeProducts(products: InferredProduct[]): InferredProduct[] {
+  const seen = new Set<string>();
+  const out: InferredProduct[] = [];
+  for (const p of products) {
+    if (!p.product_id || seen.has(p.product_id)) continue;
+    seen.add(p.product_id);
+    out.push(p);
+  }
+  return out;
+}
+
+// ============================================================
+// Persistência
+// ============================================================
+
 async function persistNeutralSnapshot(
   supabase: any,
   tenantId: string,
   reasonText: string,
   modelUsed: string,
   durationMs: number,
-) {
-  // Carregar overrides existentes para preservar
+): Promise<{ ok: boolean; error?: string }> {
   const { data: existing } = await supabase
     .from("ai_business_snapshot")
     .select("manual_overrides, has_manual_overrides, version")
@@ -432,7 +748,7 @@ async function persistNeutralSnapshot(
 
   const nextVersion = (existing?.version ?? 0) + 1;
 
-  await supabase.from("ai_business_snapshot").upsert(
+  const { error } = await supabase.from("ai_business_snapshot").upsert(
     {
       tenant_id: tenantId,
       mode: "neutral",
@@ -455,6 +771,12 @@ async function persistNeutralSnapshot(
     },
     { onConflict: "tenant_id" },
   );
+
+  if (error) {
+    console.error("[persist-neutral] erro:", error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
 
 async function persistActiveSnapshot(
@@ -465,7 +787,7 @@ async function persistActiveSnapshot(
   durationMs: number,
 ) {
   const stats = {
-    snapshot_upsert: "pending",
+    snapshot_upsert: "pending" as string,
     context_nodes_inserted: 0,
     context_nodes_failed: 0,
     pain_map_inserted: 0,
@@ -475,7 +797,7 @@ async function persistActiveSnapshot(
     errors: [] as string[],
   };
 
-  // ---- 1. Snapshot principal (preserva manual_overrides) ----
+  // 1. Snapshot principal
   const { data: existing, error: existingErr } = await supabase
     .from("ai_business_snapshot")
     .select("manual_overrides, has_manual_overrides, version")
@@ -499,7 +821,7 @@ async function persistActiveSnapshot(
       business_summary: inferred.business_summary,
       audience_summary: inferred.audience_summary,
       suggested_tone: inferred.suggested_tone,
-      confidence_score: inferred.confidence_score,
+      confidence_score: toScoreInt(inferred.confidence_score),
       confidence_level: confidenceLevel(inferred.confidence_score),
       inferred_data: {
         niche_primary: inferred.niche_primary,
@@ -527,7 +849,7 @@ async function persistActiveSnapshot(
     stats.snapshot_upsert = "ok";
   }
 
-  // ---- 2. Árvore de contexto (substitui inferidos, preserva manuais) ----
+  // 2. Árvore de contexto
   const { error: delTreeErr } = await supabase
     .from("ai_context_tree")
     .delete()
@@ -540,8 +862,6 @@ async function persistActiveSnapshot(
   }
 
   const slugToId = new Map<string, string>();
-
-  // Inserir em ordem topológica (raízes primeiro)
   const sorted = [...inferred.context_tree].sort((a, b) => {
     if (a.parent_slug === null && b.parent_slug !== null) return -1;
     if (a.parent_slug !== null && b.parent_slug === null) return 1;
@@ -578,7 +898,7 @@ async function persistActiveSnapshot(
     }
   }
 
-  // ---- 3. Mapa produto ↔ dor (substitui inferidos) ----
+  // 3. Mapa produto ↔ dor
   const { error: delPainErr } = await supabase
     .from("ai_product_pain_map")
     .delete()
@@ -634,7 +954,7 @@ async function persistActiveSnapshot(
     }
   }
 
-  // ---- 4. Payload comercial por produto (preserva manual_overrides) ----
+  // 4. Payload comercial
   for (const p of inferred.products) {
     const { data: existingPayload } = await supabase
       .from("ai_product_commercial_payload")
@@ -665,7 +985,7 @@ async function persistActiveSnapshot(
         comparison_arguments: p.comparison_arguments ?? null,
         has_mandatory_variants: p.has_mandatory_variants ?? false,
         variants_summary: p.variants_summary ?? {},
-        social_proof_snippet: null, // política: nunca inventar
+        social_proof_snippet: null,
         source: "inferred",
         confidence_score: p.confidence_score,
         confidence_level: confidenceLevel(p.confidence_score),
