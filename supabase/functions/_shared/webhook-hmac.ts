@@ -111,7 +111,7 @@ export async function verifyMercadoPagoHmac(
   const receivedHmac = v1Entry.split('=')[1];
   
   // Build the template string per MP docs
-  const dataId = body.data?.id || (body as any).id || '';
+  const dataId = (body as any)?.data?.id || (body as any)?.id || '';
   const requestId = req.headers.get('x-request-id') || '';
   
   // MP template: id:<data.id>;request-id:<x-request-id>;ts:<ts>;
