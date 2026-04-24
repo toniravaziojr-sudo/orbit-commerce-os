@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
           .update({
             status: "done",
             processed_at: new Date().toISOString(),
-            error_message: null,
+            last_error: null,
             locked_at: null,
             locked_by: null,
             lease_expires_at: null,
@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
           .update({
             status: exhausted ? "failed" : "pending",
             attempts: nextAttempts,
-            error_message: errMsg.slice(0, 1000),
+            last_error: errMsg.slice(0, 1000),
             locked_at: null,
             locked_by: null,
             lease_expires_at: null,
