@@ -1199,6 +1199,13 @@ async function executeSalesTool(
           });
 
           if (gate.status === "ask_variant") {
+            // [F2 sub-fase 1.4] Registra evento de gate bloqueante
+            ctx.recordVariantGate?.({
+              product_id: productId,
+              status: gate.status,
+              reason: gate.reason,
+              variant_id: null,
+            });
             return JSON.stringify({
               success: false,
               error: "VARIANT_REQUIRED",
@@ -1210,6 +1217,14 @@ async function executeSalesTool(
 
           // gate resolveu — usa o id decidido pelo gate (se houver) ou o que veio do call
           effectiveVariantId = gate.variant_id ?? variantId ?? null;
+
+          // [F2 sub-fase 1.4] Registra evento de gate resolvido
+          ctx.recordVariantGate?.({
+            product_id: productId,
+            status: gate.status,
+            reason: gate.reason,
+            variant_id: effectiveVariantId,
+          });
 
           if (effectiveVariantId) {
             const { data: variant } = await supabase
