@@ -1,4 +1,9 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient as _createClient } from "npm:@supabase/supabase-js@2";
+// Wrap createClient so query results are typed as `any` instead of `never`.
+// This avoids dozens of TS2339 "Property X does not exist on type 'never'"
+// errors when the Database generic isn't provided.
+const createClient = ((..._args: Parameters<typeof _createClient>) =>
+  _createClient(..._args)) as unknown as (...args: any[]) => any;
 import { redactPII } from "../_shared/redact-pii.ts";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
