@@ -94,7 +94,7 @@ export async function trackImportedItem(
       ? externalId.trim()
       : `internal:${internalId}`;
 
-    const { error } = await supabase.from('import_items').upsert({
+    const { error } = await (supabase.from('import_items') as any).upsert({
       tenant_id: tenantId,
       job_id: jobId,
       module,
@@ -141,7 +141,7 @@ export async function trackImportedItemsBatch(
       result: item.result,
     }));
 
-    const { error } = await supabase.from('import_items').upsert(upsertData, {
+    const { error } = await (supabase.from('import_items') as any).upsert(upsertData, {
       onConflict: 'tenant_id,module,external_id',
       ignoreDuplicates: false,
     });
@@ -171,7 +171,7 @@ export async function trackFailedItem(
       ? externalId.trim()
       : `error:${Date.now()}`;
 
-    await supabase.from('import_items').upsert({
+    await (supabase.from('import_items') as any).upsert({
       tenant_id: tenantId,
       job_id: jobId,
       module,
