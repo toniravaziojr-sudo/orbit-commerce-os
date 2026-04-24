@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
     console.error('[affiliate-track-click] Error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: "Erro interno" || 'Unknown error',
+      error: "Erro interno",
       code: 'UNKNOWN_ERROR'
     }), {
       status: 200,

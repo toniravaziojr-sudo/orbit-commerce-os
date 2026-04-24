@@ -467,6 +467,6 @@ async function getLoggiLabel(
 
   } catch (error: any) {
     console.error('[Loggi] Label error:', error);
-    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Erro ao obter etiqueta Loggi.' };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }

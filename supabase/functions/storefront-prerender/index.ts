@@ -394,7 +394,7 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('[storefront-prerender] Fatal error:', error);
-    return new Response(JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Internal error' }), {
+    return new Response(JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

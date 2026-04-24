@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
     console.error(`[${requestId}] Refund error:`, error);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: "Erro interno" || 'Erro ao processar estorno'
+      error: "Erro interno"
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

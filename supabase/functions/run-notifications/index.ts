@@ -278,7 +278,7 @@ async function sendEmail(
     return { success: true, messageId };
   } catch (error: any) {
     console.error('[RunNotifications] Email send error:', error);
-    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Unknown error sending email' };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
 
@@ -783,7 +783,7 @@ async function sendWhatsAppViaMeta(
     console.error(`[RunNotifications] Meta WhatsApp exception:`, error);
     return {
       success: false,
-      error: "Erro interno" || 'Erro ao enviar via Meta WhatsApp',
+      error: "Erro interno",
       response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone }
     };
   }
