@@ -37,6 +37,11 @@ import {
   TOOLS_BY_STATE,
   type PipelineState,
   type TransitionReason,
+  // [Sub-fase 1.3] regra determinística de variante + persistência no foco
+  evaluateVariantGate,
+  buildProductFocus,
+  readProductFocus,
+  type ProductFocus,
 } from "../_shared/sales-pipeline/index.ts";
 // [Pacotes B/C/D/E] Dinâmica de turno (lock, continuação, stall, anti-dup)
 import {
