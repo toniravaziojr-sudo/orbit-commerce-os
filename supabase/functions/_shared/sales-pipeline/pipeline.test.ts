@@ -311,6 +311,54 @@ Deno.test("variant-gate: foco de OUTRO produto não vale para o atual", () => {
   assertEquals(r.status, "ask_variant");
 });
 
+// Sub-fase 1.3 — anti-regressão do contrato curado de variante (Pacote H/J)
+Deno.test("variant-gate (1.3): payload obrigatório + 1 única variante → auto-resolve (não pergunta)", () => {
+  // Mesmo se o cérebro disse "venda só fecha com escolha", se só existe 1 opção
+  // ativa, NÃO faz sentido perguntar. Auto-resolve com source=single_variant.
+  const r = evaluateVariantGate({
+    product_id: "p1",
+    product_has_variants: true,
+    commercial_has_mandatory_variants: true,
+    current_focus: null,
+    active_variants: [{ id: "v_unica", label: "Tamanho único" }],
+  });
+  assertEquals(r.status, "ok_single_variant");
+  assertEquals(r.variant_id, "v_unica");
+});
+
+Deno.test("variant-gate (1.3): payload obrigatório + múltiplas variantes → ask_variant com motivo curado", () => {
+  // Cenário canônico do Pacote H: "Pergunte qual numeração antes de fechar."
+  const r = evaluateVariantGate({
+    product_id: "p_calcado",
+    product_has_variants: true,
+    commercial_has_mandatory_variants: true,
+    current_focus: null,
+    active_variants: [
+      { id: "v38", label: "38" },
+      { id: "v39", label: "39" },
+      { id: "v40", label: "40" },
+    ],
+  });
+  assertEquals(r.status, "ask_variant");
+  assertEquals(r.reason, "commercial_payload_marks_variants_mandatory");
+});
+
+Deno.test("variant-gate (1.3): payload ausente (null) + múltiplas variantes → ask_variant pelo sinal estrutural", () => {
+  // Quando o cérebro ainda não rodou para o produto, caímos no fallback estrutural.
+  const r = evaluateVariantGate({
+    product_id: "p_novo",
+    product_has_variants: true,
+    commercial_has_mandatory_variants: null,
+    current_focus: null,
+    active_variants: [
+      { id: "vA", label: "A" },
+      { id: "vB", label: "B" },
+    ],
+  });
+  assertEquals(r.status, "ask_variant");
+  assertEquals(r.reason, "product_has_variants_and_no_resolution");
+});
+
 Deno.test("variant-gate: buildProductFocus preenche timestamp e source", () => {
   const f = buildProductFocus({
     product_id: "p1",

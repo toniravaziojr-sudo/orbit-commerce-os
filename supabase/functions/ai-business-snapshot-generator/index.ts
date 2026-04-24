@@ -82,7 +82,8 @@ interface InferredProduct {
   when_not_to_indicate: string;
   comparison_arguments: string;
   has_mandatory_variants: boolean;
-  variants_summary: Record<string, unknown>;
+  variants_summary: Array<{ axis: string; options: string[] }>;
+  variant_ask_rule: string | null;
   confidence_score: number;
 }
 
@@ -553,7 +554,12 @@ async function inferBatch(
 1. **Negócio**: nicho principal, secundários (tenant híbrido), resumo, público-alvo, tom.
 2. **Árvore de contexto RAMIFICADA**: hierarquia negócio → público → macro_categoria → subcategoria → tipo_produto → dor. Slugs únicos kebab-case sem acento. parent_slug=null para raiz (apenas para o nó "business").
 3. **Mapa produto → dores**: principal + secundárias por slug.
-4. **Payload comercial por produto**: commercial_role, product_kind (single/kit/combo/pack/upgrade/complement/replacement), main_pain_slug, secondary_pain_slugs, target_audience, short_pitch (≤140), medium_pitch (≤400), differentials, when_not_to_indicate, comparison_arguments, has_mandatory_variants, variants_summary, confidence_score.
+4. **Payload comercial por produto**: commercial_role, product_kind (single/kit/combo/pack/upgrade/complement/replacement), main_pain_slug, secondary_pain_slugs, target_audience, short_pitch (≤140), medium_pitch (≤400), differentials, when_not_to_indicate, comparison_arguments, has_mandatory_variants, variants_summary, variant_ask_rule, confidence_score.
+
+REGRA DE VARIANTE OBRIGATÓRIA (Pacote H):
+- has_mandatory_variants=true SOMENTE quando a venda não fecha sem o cliente escolher uma variante. Eixos tipicamente obrigatórios: numeração/tamanho (calçado/roupa), voltagem (eletrônico), cor/aroma/sabor/fragrância (cosmético/alimento), modelo/capacidade. Eixos quase nunca obrigatórios para perguntar: variantes apenas de embalagem visual idêntica, ou produto com 1 única variante ativa.
+- variants_summary: array de objetos { axis: "tamanho|cor|voltagem|sabor|...", options: ["P","M","G"] }. Use o nome do eixo em PT-BR minúsculo. Liste no máximo 8 opções por eixo. Se o produto não tiver variantes ou variantes forem irrelevantes comercialmente, devolva [].
+- variant_ask_rule: frase curta em PT-BR (máx 120 chars) ensinando à vendedora COMO perguntar a variante de forma natural. Ex: "Pergunte qual numeração ele calça antes de fechar." Se has_mandatory_variants=false, devolva null.
 
 LARGURA MÍNIMA OBRIGATÓRIA DA ÁRVORE (não responder se não atender):
 - business: exatamente 1 nó (raiz, parent_slug=null).
@@ -631,7 +637,18 @@ REGRAS: PT-BR, sem invenção, slugs já existentes. Responda APENAS via tool_ca
             when_not_to_indicate: { type: "string" },
             comparison_arguments: { type: "string" },
             has_mandatory_variants: { type: "boolean" },
-            variants_summary: { type: "object" },
+            variants_summary: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  axis: { type: "string" },
+                  options: { type: "array", items: { type: "string" } },
+                },
+                required: ["axis", "options"],
+              },
+            },
+            variant_ask_rule: { type: ["string", "null"] },
             confidence_score: { type: "number" },
           },
           required: [
@@ -643,6 +660,7 @@ REGRAS: PT-BR, sem invenção, slugs já existentes. Responda APENAS via tool_ca
             "secondary_pain_slugs",
             "short_pitch",
             "has_mandatory_variants",
+            "variants_summary",
             "confidence_score",
           ],
         },
@@ -995,7 +1013,12 @@ async function persistActiveSnapshot(
         when_not_to_indicate: p.when_not_to_indicate ?? null,
         comparison_arguments: p.comparison_arguments ?? null,
         has_mandatory_variants: p.has_mandatory_variants ?? false,
-        variants_summary: p.variants_summary ?? {},
+        variants_summary: Array.isArray(p.variants_summary) ? p.variants_summary : [],
+        variant_ask_rule: p.has_mandatory_variants
+          ? (typeof p.variant_ask_rule === "string" && p.variant_ask_rule.trim()
+              ? p.variant_ask_rule.trim().slice(0, 120)
+              : null)
+          : null,
         social_proof_snippet: null,
         source: "inferred",
         confidence_score: toScoreInt(p.confidence_score),
