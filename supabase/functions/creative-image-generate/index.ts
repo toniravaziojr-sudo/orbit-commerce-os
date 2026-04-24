@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
     }
 
     // Ensure folder
-    let folderId = output_folder_id || null;
+    let folderId: string | null = output_folder_id || null;
     if (folderId) {
       const { data: existingFolder } = await supabase.from('files').select('id').eq('id', folderId).eq('tenant_id', tenant_id).eq('is_folder', true).maybeSingle();
       if (!existingFolder) folderId = null;

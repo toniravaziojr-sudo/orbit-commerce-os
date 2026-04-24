@@ -144,17 +144,9 @@ Deno.serve(async (req) => {
       ? duration 
       : 5;
 
-    // Classify video intent from prompt
-    const searchTextForIntent = [
-      calendarItem?.campaign?.prompt || "",
-      calendarItem?.generation_prompt || "",
-    ].join(" ");
-    const hasProductRef = !!matchedProducts?.find((p: any) => p.image_url);
-    const intent = classifyIntent(searchTextForIntent, hasProductRef);
-
     console.log(`\n[media-generate-video] === START ===`);
     console.log(`[media-generate-video] Calendar item: ${calendar_item_id}`);
-    console.log(`[media-generate-video] Duration: ${validDuration}s, Aspect: ${aspect_ratio}, Intent: ${intent}`);
+    console.log(`[media-generate-video] Duration: ${validDuration}s, Aspect: ${aspect_ratio}`);
 
     // Check FAL_API_KEY
     const falApiKey = await getCredential(supabaseUrl, supabaseServiceKey, "FAL_API_KEY");
