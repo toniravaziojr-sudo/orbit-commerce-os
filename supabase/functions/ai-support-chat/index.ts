@@ -2536,6 +2536,16 @@ Deno.serve(async (req) => {
     // Atualizações feitas durante o turno (via tools) ficam aqui até gravar no fim.
     let nextProductFocus: ProductFocus | null | undefined = undefined;
 
+    // [Sub-fase 1.4] Decisões do variant gate registradas durante o turno.
+    // Vão para metadata.variant_gate_events do ai_support_turn_log.
+    const variantGateEvents: Array<{
+      product_id: string;
+      status: string;
+      reason: string;
+      variant_id: string | null;
+      at: string;
+    }> = [];
+
     // [Pacote B] LOCK DE TURNO — evita processamento paralelo da mesma conversa
     // (cliente fragmenta msg + duas chamadas ao webhook chegam quase simultâneas).
     // Fail-OPEN: se o lock falhar, processa normalmente (não silencia o cliente).
