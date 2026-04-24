@@ -1,4 +1,9 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient as _createClient } from "npm:@supabase/supabase-js@2";
+// Wrap createClient so query results are typed as `any` instead of `never`.
+// This avoids dozens of TS2339 "Property X does not exist on type 'never'"
+// errors when the Database generic isn't provided.
+const createClient = ((..._args: Parameters<typeof _createClient>) =>
+  _createClient(..._args)) as unknown as (...args: any[]) => any;
 import { redactPII } from "../_shared/redact-pii.ts";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
@@ -775,7 +780,7 @@ async function executeSalesTool(
             .order("sort_order", { ascending: true });
 
           const primaryImageByProduct = new Map<string, { url: string; alt: string | null }>();
-          for (const img of (imgRows ?? [])) {
+          for (const img of ((imgRows ?? []) as any[])) {
             if (!primaryImageByProduct.has(img.product_id)) {
               primaryImageByProduct.set(img.product_id, { url: img.url, alt: img.alt_text ?? null });
             }
@@ -937,6 +942,7 @@ async function executeSalesTool(
           return JSON.stringify({ success: false, error: "Falha ao consultar o produto", db_error: error.message });
         }
         if (!data) return JSON.stringify({ success: false, error: "Produto não encontrado", hint: "Use search_products primeiro." });
+        const prod: any = data;
 
         // Primary image (is_primary first, then sort_order)
         const { data: imgRows } = await supabase
@@ -946,25 +952,27 @@ async function executeSalesTool(
           .order("is_primary", { ascending: false })
           .order("sort_order", { ascending: true })
           .limit(1);
-        const primaryImage = imgRows?.[0] ? { url: imgRows[0].url, alt: imgRows[0].alt_text ?? null } : null;
+        const firstImg: any = imgRows?.[0];
+        const primaryImage = firstImg ? { url: firstImg.url, alt: firstImg.alt_text ?? null } : null;
 
         // Variants summary + list
         let variantsSummary: any = null;
         let variantsList: any[] = [];
-        if (data.has_variants) {
-          const { data: variants } = await supabase
+        if (prod.has_variants) {
+          const { data: variantsData } = await supabase
             .from("product_variants")
             .select("id, name, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value, price, stock_quantity, is_active, sku, weight")
             .eq("product_id", productId)
             .eq("is_active", true)
             .order("position", { ascending: true });
-          if (variants?.length) {
-            const prices = variants.map((v: any) => Number(v.price ?? data.price)).filter((n: number) => !isNaN(n));
+          const variants: any[] = (variantsData ?? []) as any[];
+          if (variants.length) {
+            const prices = variants.map((v: any) => Number(v.price ?? prod.price)).filter((n: number) => !isNaN(n));
             const totalStock = variants.reduce((s: number, v: any) => s + (v.stock_quantity ?? 0), 0);
             variantsSummary = {
               count: variants.length,
-              price_min: prices.length ? Math.min(...prices) : data.price,
-              price_max: prices.length ? Math.max(...prices) : data.price,
+              price_min: prices.length ? Math.min(...prices) : prod.price,
+              price_max: prices.length ? Math.max(...prices) : prod.price,
               total_stock: totalStock,
               option_names: [variants[0]?.option1_name, variants[0]?.option2_name, variants[0]?.option3_name].filter(Boolean),
             };
@@ -976,7 +984,7 @@ async function executeSalesTool(
                 v.option3_value && `${v.option3_name}: ${v.option3_value}`,
               ].filter(Boolean).join(" / ") || v.name,
               sku: v.sku,
-              price: Number(v.price ?? data.price),
+              price: Number(v.price ?? prod.price),
               stock: v.stock_quantity ?? 0,
               weight: v.weight,
             }));
@@ -1008,47 +1016,47 @@ async function executeSalesTool(
         // Promotion active?
         const now = new Date();
         const promoActive = !!(
-          data.compare_at_price &&
-          (!data.promotion_start_date || new Date(data.promotion_start_date) <= now) &&
-          (!data.promotion_end_date || new Date(data.promotion_end_date) >= now)
+          prod.compare_at_price &&
+          (!prod.promotion_start_date || new Date(prod.promotion_start_date) <= now) &&
+          (!prod.promotion_end_date || new Date(prod.promotion_end_date) >= now)
         );
 
-        const baseStock = data.stock_quantity ?? 0;
-        const available = data.status === "active" && (
-          !data.manage_stock ||
-          data.allow_backorder ||
-          (data.has_variants ? (variantsSummary?.total_stock ?? 0) > 0 : baseStock > 0)
+        const baseStock = prod.stock_quantity ?? 0;
+        const available = prod.status === "active" && (
+          !prod.manage_stock ||
+          prod.allow_backorder ||
+          (prod.has_variants ? (variantsSummary?.total_stock ?? 0) > 0 : baseStock > 0)
         );
 
         return JSON.stringify({
           success: true,
-          id: data.id,
-          name: data.name,
-          slug: data.slug,
-          description: data.description ?? null,
-          short_description: data.short_description ?? null,
-          brand: data.brand ?? null,
-          sku: data.sku ?? null,
-          gtin: data.gtin ?? null,
-          price: data.price,
-          compare_at_price: data.compare_at_price,
+          id: prod.id,
+          name: prod.name,
+          slug: prod.slug,
+          description: prod.description ?? null,
+          short_description: prod.short_description ?? null,
+          brand: prod.brand ?? null,
+          sku: prod.sku ?? null,
+          gtin: prod.gtin ?? null,
+          price: prod.price,
+          compare_at_price: prod.compare_at_price,
           promotion_active: promoActive,
           stock: baseStock,
           available,
-          free_shipping: data.free_shipping ?? false,
-          avg_rating: data.avg_rating ?? null,
-          review_count: data.review_count ?? 0,
+          free_shipping: prod.free_shipping ?? false,
+          avg_rating: prod.avg_rating ?? null,
+          review_count: prod.review_count ?? 0,
           physical: {
-            weight_g: data.weight,
-            width_cm: data.width,
-            height_cm: data.height,
-            depth_cm: data.depth,
+            weight_g: prod.weight,
+            width_cm: prod.width,
+            height_cm: prod.height,
+            depth_cm: prod.depth,
           },
           primary_image: primaryImage,
           categories,
-          has_variants: data.has_variants ?? false,
-          manage_stock: data.manage_stock ?? true,
-          allow_backorder: data.allow_backorder ?? false,
+          has_variants: prod.has_variants ?? false,
+          manage_stock: prod.manage_stock ?? true,
+          allow_backorder: prod.allow_backorder ?? false,
           variants_summary: variantsSummary,
           variants: variantsList,
           is_kit: isKit,
@@ -1314,7 +1322,7 @@ async function executeSalesTool(
           tenant_id: tenantId,
           conversation_id: conversationId,
           event_type: "cart_created",
-          customer_message: lastMessageContent,
+          customer_message: "",
           ai_response: `add_to_cart: ${product.name}`,
           metadata: { product_id: productId, quantity },
         }).catch(() => {});
@@ -1568,7 +1576,7 @@ async function executeSalesTool(
           tenant_id: tenantId,
           conversation_id: conversationId,
           event_type: "checkout_generated",
-          customer_message: lastMessageContent,
+          customer_message: "",
           ai_response: "generate_checkout_link",
           metadata: { cart_id: cart.id },
         }).catch(() => {});
@@ -2614,7 +2622,7 @@ Deno.serve(async (req) => {
     // Build conversation context for classification (últimos 5 reais)
     const conversationContext = messages
       .slice(-5)
-      .map(m => `${m.sender_type === "customer" ? "Cliente" : "Atendente"}: ${m.content?.slice(0, 200)}`)
+      .map((m: any) => `${m.sender_type === "customer" ? "Cliente" : "Atendente"}: ${m.content?.slice(0, 200)}`)
       .join("\n");
 
     // ============================================
@@ -2870,7 +2878,7 @@ Deno.serve(async (req) => {
 
         if (recentOrders?.length) {
           customerContext += `\n### Últimos pedidos:\n`;
-          customerContext += recentOrders.map(o => {
+          customerContext += recentOrders.map((o: any) => {
             let info = `- #${o.order_number} | Status: ${o.status} | Pagamento: ${o.payment_status}`;
             if (o.shipping_status) info += ` | Envio: ${o.shipping_status}`;
             info += ` | R$ ${o.total?.toFixed(2)}`;
@@ -3263,7 +3271,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       let usableMessages = messages;
       if (salesModeEnabled) {
         const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2h
-        const recent = messages.filter(m => new Date(m.created_at).getTime() >= cutoff);
+        const recent = messages.filter((m: any) => new Date(m.created_at).getTime() >= cutoff);
         usableMessages = recent.length >= 2 ? recent.slice(-10) : messages.slice(-6);
         console.log(`[ai-support-chat] sales-mode history filter: ${messages.length} → ${usableMessages.length}`);
       }
@@ -3354,7 +3362,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         "noite (você pode dizer \"Boa noite\")";
 
       // Detectar se a IA já se apresentou antes nesta conversa (reabertura vs primeiro contato)
-      const botAlreadyGreeted = (messages || []).some(m =>
+      const botAlreadyGreeted = (messages || []).some((m: any) =>
         m.sender_type !== "customer" &&
         !m.is_internal &&
         !m.is_note &&
@@ -4484,7 +4492,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       tenant_id,
       conversation_id,
       event_type: shouldHandoff ? "handoff_success" : "continuity",
-      customer_message: lastMessageContent,
+      customer_message: "",
       ai_response: aiContent,
       metadata: {
         intent: intentClassification?.intent,
