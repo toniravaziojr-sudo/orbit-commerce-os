@@ -1888,6 +1888,17 @@ async function executeSalesTool(
 
         if (!product) return JSON.stringify({ error: "Produto não encontrado" });
         if (!product.has_variants) {
+          // [Sub-fase 1.3] produto sem variantes → foca no produto, não pergunta de novo
+          if (ctx.setProductFocus) {
+            ctx.setProductFocus(
+              buildProductFocus({
+                product_id: productId,
+                variant_id: null,
+                variant_label: null,
+                source: "no_variants_needed",
+              })
+            );
+          }
           return JSON.stringify({ has_variants: false, message: "Este produto não tem variações." });
         }
 
@@ -1915,6 +1926,19 @@ async function executeSalesTool(
             available,
           };
         });
+
+        // [Sub-fase 1.3] Se só existe 1 variante ativa → resolve foco automaticamente.
+        //   A IA ainda vê a lista, mas não precisa repetir pergunta no próximo turno.
+        if (formatted.length === 1 && ctx.setProductFocus) {
+          ctx.setProductFocus(
+            buildProductFocus({
+              product_id: productId,
+              variant_id: formatted[0].variant_id,
+              variant_label: formatted[0].label,
+              source: "single_variant",
+            })
+          );
+        }
 
         return JSON.stringify({
           has_variants: true,
