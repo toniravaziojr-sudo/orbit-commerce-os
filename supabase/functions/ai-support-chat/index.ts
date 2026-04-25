@@ -68,6 +68,7 @@ import {
 } from "../_shared/business-context-loader.ts";
 // [Sub-fase 1.4 — Pacote H] Payload comercial do produto em foco
 import { loadCommercialPayloadBlock } from "../_shared/commercial-payload-loader.ts";
+import { recordToolCall, type BlockType } from "../_shared/tool-telemetry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -3633,6 +3634,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // [F1] Rastreio de tools chamadas no turno (escopo do handler, alimenta máquina de estado)
     const toolsCalledThisTurn: string[] = [];
+    // [D9] Correlation id único do turno — liga todas as execuções de tool do mesmo loop
+    const turnCorrelationId = crypto.randomUUID();
     // [PACOTE B] Snapshots dos resultados reais de tools deste turno.
     // Usados pelo fallback conclusivo para que a IA NUNCA fale "consultei o catálogo"
     // ou "encontrei esses produtos reais" — em vez disso, montamos uma fala de
