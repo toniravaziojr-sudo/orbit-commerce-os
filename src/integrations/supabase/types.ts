@@ -2961,6 +2961,83 @@ export type Database = {
           },
         ]
       }
+      ai_support_tool_calls: {
+        Row: {
+          args: Json
+          block_reason: string | null
+          block_type: string | null
+          blocked: boolean
+          business_context_source: string | null
+          conversation_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          iteration: number
+          message_id: string | null
+          model: string | null
+          pipeline_state_after: string | null
+          pipeline_state_before: string | null
+          result_preview: string | null
+          success: boolean
+          tenant_id: string
+          tool_name: string
+          turn_correlation_id: string
+        }
+        Insert: {
+          args?: Json
+          block_reason?: string | null
+          block_type?: string | null
+          blocked?: boolean
+          business_context_source?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          iteration?: number
+          message_id?: string | null
+          model?: string | null
+          pipeline_state_after?: string | null
+          pipeline_state_before?: string | null
+          result_preview?: string | null
+          success?: boolean
+          tenant_id: string
+          tool_name: string
+          turn_correlation_id: string
+        }
+        Update: {
+          args?: Json
+          block_reason?: string | null
+          block_type?: string | null
+          blocked?: boolean
+          business_context_source?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          iteration?: number
+          message_id?: string | null
+          model?: string | null
+          pipeline_state_after?: string | null
+          pipeline_state_before?: string | null
+          result_preview?: string | null
+          success?: boolean
+          tenant_id?: string
+          tool_name?: string
+          turn_correlation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_support_tool_calls_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_support_turn_log: {
         Row: {
           anti_greeting_blocked: boolean
