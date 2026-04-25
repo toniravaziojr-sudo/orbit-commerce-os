@@ -3889,6 +3889,27 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
               `[ai-support-chat] [F2] tool ${fnName} BLOQUEADA — não permitida no estado ${pipelineState}`
             );
             pipelineBlockedThisLoop.push(fnName);
+            // [D9] Telemetria — tool bloqueada
+            toolIterationCounter++;
+            recordToolCall(supabase, {
+              tenant_id,
+              conversation_id: conversationId,
+              message_id: newMessage?.id ?? null,
+              turn_correlation_id: turnCorrelationId,
+              iteration: toolIterationCounter,
+              tool_name: fnName,
+              args: fnArgs,
+              result_preview: `blocked: tool_not_allowed_in_state_${pipelineState}`,
+              success: false,
+              blocked: true,
+              block_type: "pipeline_state_block",
+              block_reason: `tool_not_allowed_in_state_${pipelineState}`,
+              pipeline_state_before: pipelineState,
+              pipeline_state_after: pipelineState,
+              business_context_source: businessContextSourceForTurn,
+              model: usedModel,
+              duration_ms: 0,
+            });
             currentMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,
@@ -3902,7 +3923,38 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           }
 
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
-          const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
+          // [D9] Telemetria — tool executada
+          const toolStartedAt = Date.now();
+          const stateBeforeTool = pipelineState;
+          let toolSuccess = true;
+          let toolError: string | null = null;
+          let result = "";
+          try {
+            result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
+          } catch (e) {
+            toolSuccess = false;
+            toolError = (e as Error)?.message || String(e);
+            result = JSON.stringify({ error: toolError });
+          }
+          toolIterationCounter++;
+          recordToolCall(supabase, {
+            tenant_id,
+            conversation_id: conversationId,
+            message_id: newMessage?.id ?? null,
+            turn_correlation_id: turnCorrelationId,
+            iteration: toolIterationCounter,
+            tool_name: fnName,
+            args: fnArgs,
+            result_preview: result,
+            success: toolSuccess,
+            error_message: toolError,
+            duration_ms: Date.now() - toolStartedAt,
+            blocked: false,
+            pipeline_state_before: stateBeforeTool,
+            pipeline_state_after: pipelineState,
+            business_context_source: businessContextSourceForTurn,
+            model: usedModel,
+          });
           toolsCalledThisTurn.push(fnName);
           // [PACOTE B] guarda snapshot estruturado pro fallback conclusivo
           try {
