@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Brain, Shield, Sparkles, MessageCircle, ShoppingCart } from "lucide-react";
+import { Bot, Brain, Shield, Sparkles, MessageCircle, ShoppingCart, Languages, Target } from "lucide-react";
 import { useAiSupportConfig, type AiSupportConfig, type AIRule } from "@/hooks/useAiSupportConfig";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AIRulesEditor } from "./AIRulesEditor";
+import { AILanguageDictionaryEditor } from "./AILanguageDictionaryEditor";
+import { AIIntentObjectionEditor } from "./AIIntentObjectionEditor";
 import { useEffect } from "react";
 
 export function AIConfigPanel() {
@@ -77,10 +79,18 @@ export function AIConfigPanel() {
       </div>
 
       <Tabs defaultValue="personality">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="personality" className="gap-2">
             <Sparkles className="h-4 w-4" />
             Personalidade
+          </TabsTrigger>
+          <TabsTrigger value="language" className="gap-2">
+            <Languages className="h-4 w-4" />
+            Linguagem
+          </TabsTrigger>
+          <TabsTrigger value="intents" className="gap-2">
+            <Target className="h-4 w-4" />
+            Objeções
           </TabsTrigger>
           <TabsTrigger value="knowledge" className="gap-2">
             <Brain className="h-4 w-4" />
@@ -187,6 +197,14 @@ export function AIConfigPanel() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="language" className="space-y-4 mt-4">
+          <AILanguageDictionaryEditor />
+        </TabsContent>
+
+        <TabsContent value="intents" className="space-y-4 mt-4">
+          <AIIntentObjectionEditor />
         </TabsContent>
 
         <TabsContent value="knowledge" className="space-y-4 mt-4">
