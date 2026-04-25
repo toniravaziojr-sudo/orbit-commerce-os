@@ -3636,6 +3636,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     const toolsCalledThisTurn: string[] = [];
     // [D9] Correlation id único do turno — liga todas as execuções de tool do mesmo loop
     const turnCorrelationId = crypto.randomUUID();
+    // [D9] Iteração da tool dentro do mesmo turno (1, 2, 3...)
+    let toolIterationCounter = 0;
+    // [D9] Fonte de business context usada neste turno (preenchido após loadBusinessContextBlock)
+    let businessContextSourceForTurn:
+      | "tenant_business_context"
+      | "ai_business_snapshot"
+      | "neutral"
+      | null = null;
     // [PACOTE B] Snapshots dos resultados reais de tools deste turno.
     // Usados pelo fallback conclusivo para que a IA NUNCA fale "consultei o catálogo"
     // ou "encontrei esses produtos reais" — em vez disso, montamos uma fala de
