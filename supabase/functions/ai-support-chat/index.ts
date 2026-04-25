@@ -3039,6 +3039,13 @@ Cliente: "vocês entregam em SP?"
     // Guardrails estruturais (tools por estado, anti-loop, política de imagem,
     // máquina de estados) continuam acima de qualquer customização do tenant.
     // ============================================
+    // [D9] Telemetria de tools — vars do escopo do handler
+    const turnCorrelationId = crypto.randomUUID();
+    let businessContextSourceForTurn:
+      | "tenant_business_context"
+      | "ai_business_snapshot"
+      | "neutral"
+      | null = null;
     const pipelineStateBefore: PipelineState = normalizeLegacyState(
       conversation.sales_state as string | null
     );
