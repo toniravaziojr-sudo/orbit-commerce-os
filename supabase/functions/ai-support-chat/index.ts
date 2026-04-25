@@ -3120,6 +3120,16 @@ Cliente: "vocês entregam em SP?"
       const contextualBlocks: string[] = [];
       if (businessCtx.promptBlock) contextualBlocks.push(businessCtx.promptBlock);
 
+      // [Sub-fase 1.4] Injeta payload comercial do produto em foco (Pacote H)
+      // — só quando há foco e estado é recommendation/product_detail/decision/checkout_assist.
+      const focusedProductId = currentProductFocus?.product_id ?? null;
+      const commercialCtx = await loadCommercialPayloadBlock(supabase, {
+        tenantId: tenant_id,
+        productId: focusedProductId,
+        pipelineState,
+      });
+      if (commercialCtx.promptBlock) contextualBlocks.push(commercialCtx.promptBlock);
+
       const routed = buildPromptForState({
         state: pipelineState,
         allTools: SALES_TOOLS,
@@ -3136,7 +3146,7 @@ Cliente: "vocês entregam em SP?"
       pipelineToolsExposed = routed.toolsExposed;
       pipelinePromptModule = routed.promptModule;
       console.log(
-        `[ai-support-chat] [F2] state=${pipelineState} module=${routed.promptModule} tools_exposed=${routed.toolsExposed.length} biz_ctx=${businessCtx.meta.overall_confidence || "none"} segment=${businessCtx.meta.segment || "—"} incomplete=${businessCtx.meta.catalog_incomplete}`
+        `[ai-support-chat] [F2] state=${pipelineState} module=${routed.promptModule} tools_exposed=${routed.toolsExposed.length} biz_ctx=${businessCtx.meta.overall_confidence || "none"} segment=${businessCtx.meta.segment || "—"} incomplete=${businessCtx.meta.catalog_incomplete} commercial_payload=${commercialCtx.meta.has_payload ? `yes(pitch=${commercialCtx.meta.has_pitch} pain=${commercialCtx.meta.has_main_pain} variant_rule=${commercialCtx.meta.has_variant_rule})` : "no"}`
       );
     } else {
       systemPrompt += INFORMATIVE_GUARDRAILS;
