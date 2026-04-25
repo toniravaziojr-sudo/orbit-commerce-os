@@ -9,6 +9,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { waitAndCollectMediaContext } from "../_shared/media-context.ts";
 import {
   getOrBuildTenantContext,
   formatTenantContextForPrompt,
