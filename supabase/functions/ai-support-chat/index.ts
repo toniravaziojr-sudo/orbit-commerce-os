@@ -3110,6 +3110,8 @@ Cliente: "vocês entregam em SP?"
           `incomplete=${businessCtx.meta.catalog_incomplete} ` +
           `overrides=${businessCtx.meta.has_overrides}`,
       );
+      // [D9] Guarda fonte para anexar à telemetria de tools deste turno.
+      businessContextSourceForTurn = businessCtx.meta.source;
 
       // Se contexto está stale ou não existe, dispara regeneração em background.
       // Não bloqueia o turno — usa o que tiver agora.
