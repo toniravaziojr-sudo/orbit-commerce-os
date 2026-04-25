@@ -3102,6 +3102,14 @@ Cliente: "vocês entregam em SP?"
       // Tolerante a falha: se quebrar, IA segue como hoje.
       const businessCtx = await loadBusinessContextBlock(supabase, tenant_id);
 
+      // [D6] Log de auditoria — qual fonte abasteceu o contexto deste turno.
+      console.log(
+        `[F2][business-context] tenant=${tenant_id} source=${businessCtx.meta.source} ` +
+          `confidence=${businessCtx.meta.overall_confidence ?? "n/a"} ` +
+          `incomplete=${businessCtx.meta.catalog_incomplete} ` +
+          `overrides=${businessCtx.meta.has_overrides}`,
+      );
+
       // Se contexto está stale ou não existe, dispara regeneração em background.
       // Não bloqueia o turno — usa o que tiver agora.
       try {
