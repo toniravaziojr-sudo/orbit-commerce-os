@@ -55,7 +55,7 @@ export function useAiLanguageDictionary() {
   const upsert = useMutation({
     mutationFn: async (updates: Partial<AiLanguageDictionary>) => {
       if (!currentTenant?.id) throw new Error('No tenant');
-      const payload = {
+      const payload: any = {
         tenant_id: currentTenant.id,
         ...updates,
         manual_overrides: { ...(updates as any).manual_overrides, edited_at: new Date().toISOString() },

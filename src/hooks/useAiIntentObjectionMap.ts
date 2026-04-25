@@ -53,12 +53,13 @@ export function useAiIntentObjectionMap() {
 
   const update = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<AiIntentObjectionEntry> }) => {
+      const payload: any = {
+        ...updates,
+        manual_overrides: { ...(updates as any).manual_overrides, edited_at: new Date().toISOString() },
+      };
       const { data, error } = await supabase
         .from('ai_intent_objection_map')
-        .update({
-          ...updates,
-          manual_overrides: { ...(updates as any).manual_overrides, edited_at: new Date().toISOString() },
-        })
+        .update(payload)
         .eq('id', id)
         .select()
         .single();
