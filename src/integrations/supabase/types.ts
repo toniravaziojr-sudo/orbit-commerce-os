@@ -2717,6 +2717,8 @@ export type Database = {
           enqueued_at: string
           id: string
           last_error: string | null
+          max_attempts: number
+          next_retry_at: string | null
           processed_at: string | null
           status: string
           tenant_id: string
@@ -2727,6 +2729,8 @@ export type Database = {
           enqueued_at?: string
           id?: string
           last_error?: string | null
+          max_attempts?: number
+          next_retry_at?: string | null
           processed_at?: string | null
           status?: string
           tenant_id: string
@@ -2737,6 +2741,8 @@ export type Database = {
           enqueued_at?: string
           id?: string
           last_error?: string | null
+          max_attempts?: number
+          next_retry_at?: string | null
           processed_at?: string | null
           status?: string
           tenant_id?: string
@@ -22730,6 +22736,7 @@ export type Database = {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
+      is_transient_capture_error: { Args: { _err: string }; Returns: boolean }
       is_youtube_available_for_tenant: {
         Args: { p_tenant_id: string }
         Returns: boolean
@@ -22749,6 +22756,13 @@ export type Database = {
         Args: { p_learning_ids: string[] }
         Returns: undefined
       }
+      mark_signal_capture_failed: {
+        Args: { _error: string; _id: string }
+        Returns: {
+          final_status: string
+          next_attempt_at: string
+        }[]
+      }
       migrate_existing_templates_to_sets: { Args: never; Returns: undefined }
       normalize_email: { Args: { p_email: string }; Returns: string }
       promote_learning_candidate: {
@@ -22758,6 +22772,13 @@ export type Database = {
       recalc_customer_metrics: {
         Args: { p_customer_email: string; p_tenant_id: string }
         Returns: undefined
+      }
+      reclaim_stale_snapshot_leases: {
+        Args: never
+        Returns: {
+          reclaimed_id: string
+          tenant_id: string
+        }[]
       }
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
@@ -22778,6 +22799,12 @@ export type Database = {
           error_message: string
           new_balance: number
           success: boolean
+        }[]
+      }
+      revive_transient_failed_captures: {
+        Args: never
+        Returns: {
+          revived_id: string
         }[]
       }
       save_meta_grant_token: {
