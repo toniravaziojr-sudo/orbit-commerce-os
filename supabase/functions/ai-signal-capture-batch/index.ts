@@ -99,13 +99,15 @@ Deno.serve(async (req) => {
         if (formattedMessages.length < 4) continue;
 
         // Marca como enfileirado ANTES de chamar captura (idempotência forte)
-        await supabase.from("ai_signal_capture_queue").insert({
+        const { error: queueErr } = await supabase.from("ai_signal_capture_queue").insert({
           tenant_id: conv.tenant_id,
           conversation_id: conv.id,
-          customer_id: conv.customer_id,
           status: "processing",
-          queued_at: new Date().toISOString(),
+          attempts: 1,
         });
+        // Se a constraint unique disparar (race condition entre 2 rodadas), pula
+        if (queueErr && (queueErr as any).code === "23505") continue;
+        if (queueErr) throw new Error(`queue insert: ${queueErr.message}`);
 
         const captureResp = await fetch(`${SUPABASE_URL}/functions/v1/ai-signal-capture`, {
           method: "POST",
