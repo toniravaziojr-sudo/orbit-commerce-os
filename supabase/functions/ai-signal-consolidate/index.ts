@@ -98,11 +98,15 @@ async function consolidateTenant(supabase: any, tenantId: string) {
 
   for (const group of groups as CanonicalGroup[]) {
     // 2. Verificar relevância adaptativa via SQL function
-    const { data: isRelevant } = await supabase.rpc("is_signal_relevant", {
-      p_tenant_id: tenantId,
-      p_evidence_count: group.evidence_count,
-      p_unique_customers: group.unique_customer_count,
+    const { data: isRelevant, error: relevanceErr } = await supabase.rpc("is_signal_relevant", {
+      _tenant_id: tenantId,
+      _evidence_count: group.evidence_count,
+      _unique_customer_count: group.unique_customer_count,
     });
+    if (relevanceErr) {
+      console.error(`[consolidate] is_signal_relevant failed for group ${group.id}:`, relevanceErr.message);
+      continue;
+    }
 
     if (!isRelevant) continue;
 
