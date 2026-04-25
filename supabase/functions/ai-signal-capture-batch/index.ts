@@ -49,15 +49,28 @@ Deno.serve(async (req) => {
       return json({ ok: true, processed: 0, skipped: 0, reason: "nenhuma_conversa_elegivel", duration_ms: Date.now() - startedAt });
     }
 
-    // 2) Filtrar as que já foram processadas (idempotência via capture_queue)
+    // 2) Filtrar idempotência:
+    //    - Excluir conversas já 'done' ou 'failed' definitivo (esgotaram tentativas)
+    //    - Excluir conversas 'pending' cujo next_retry_at ainda não venceu (backoff em curso)
+    //    - Conversas 'pending' com next_retry_at <= now() (ou null) são reprocessáveis
     const ids = candidateConvs.map((c) => c.id);
+    const nowIso = new Date().toISOString();
     const { data: alreadyQueued } = await supabase
       .from("ai_signal_capture_queue")
-      .select("conversation_id")
+      .select("conversation_id, status, next_retry_at")
       .in("conversation_id", ids);
 
-    const queuedSet = new Set((alreadyQueued || []).map((q: any) => q.conversation_id));
-    const toProcess = candidateConvs.filter((c) => !queuedSet.has(c.id));
+    const skipSet = new Set<string>();
+    for (const q of (alreadyQueued || []) as any[]) {
+      if (q.status === "done" || q.status === "failed") {
+        skipSet.add(q.conversation_id);
+      } else if (q.status === "pending" && q.next_retry_at && q.next_retry_at > nowIso) {
+        skipSet.add(q.conversation_id); // ainda em backoff
+      } else if (q.status === "processing") {
+        skipSet.add(q.conversation_id); // outra rodada em execução
+      }
+    }
+    const toProcess = candidateConvs.filter((c) => !skipSet.has(c.id));
 
     // 3) Enforce per-tenant cap (evita um tenant grande monopolizar a rodada)
     const perTenantCount: Record<string, number> = {};
@@ -98,16 +111,22 @@ Deno.serve(async (req) => {
 
         if (formattedMessages.length < 4) continue;
 
-        // Marca como enfileirado ANTES de chamar captura (idempotência forte)
-        const { error: queueErr } = await supabase.from("ai_signal_capture_queue").insert({
-          tenant_id: conv.tenant_id,
-          conversation_id: conv.id,
-          status: "processing",
-          attempts: 1,
-        });
-        // Se a constraint unique disparar (race condition entre 2 rodadas), pula
+        // Marca como processing ANTES de chamar captura (idempotência forte).
+        // Usa upsert por conversation_id para reaproveitar linha existente em retry.
+        const { error: queueErr } = await supabase
+          .from("ai_signal_capture_queue")
+          .upsert(
+            {
+              tenant_id: conv.tenant_id,
+              conversation_id: conv.id,
+              status: "processing",
+              next_retry_at: null,
+              processed_at: null,
+            },
+            { onConflict: "conversation_id" },
+          );
         if (queueErr && (queueErr as any).code === "23505") continue;
-        if (queueErr) throw new Error(`queue insert: ${queueErr.message}`);
+        if (queueErr) throw new Error(`queue upsert: ${queueErr.message}`);
 
         const captureResp = await fetch(`${SUPABASE_URL}/functions/v1/ai-signal-capture`, {
           method: "POST",
@@ -127,22 +146,28 @@ Deno.serve(async (req) => {
 
         if (!captureResp.ok) {
           const text = await captureResp.text();
-          await supabase
+          const errMsg = `HTTP ${captureResp.status}: ${text.slice(0, 300)}`;
+          // Pega o id da linha para chamar a função SQL com retry/backoff
+          const { data: row } = await supabase
             .from("ai_signal_capture_queue")
-            .update({
-              status: "failed",
-              last_error: `HTTP ${captureResp.status}: ${text.slice(0, 300)}`,
-              processed_at: new Date().toISOString(),
-            })
-            .eq("conversation_id", conv.id);
+            .select("id")
+            .eq("conversation_id", conv.id)
+            .maybeSingle();
+          if (row?.id) {
+            await supabase.rpc("mark_signal_capture_failed", {
+              _id: row.id,
+              _error: errMsg,
+            });
+          }
           failed++;
           continue;
         }
 
         await supabase
           .from("ai_signal_capture_queue")
-          .update({ status: "done", processed_at: new Date().toISOString() })
+          .update({ status: "done", processed_at: new Date().toISOString(), next_retry_at: null })
           .eq("conversation_id", conv.id);
+
 
         processed++;
       } catch (e) {
