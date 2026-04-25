@@ -66,6 +66,8 @@ import {
   loadBusinessContextBlock,
   triggerContextRegeneration,
 } from "../_shared/business-context-loader.ts";
+// [Sub-fase 1.4 — Pacote H] Payload comercial do produto em foco
+import { loadCommercialPayloadBlock } from "../_shared/commercial-payload-loader.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
