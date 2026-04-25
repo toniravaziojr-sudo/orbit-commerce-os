@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     const targetTenantId: string | undefined = body?.tenant_id;
 
     // 1. Listar tenants alvo (todos ou específico)
-    let tenantsQuery = supabase.from("tenants").select("id").eq("is_active", true);
+    let tenantsQuery = supabase.from("tenants").select("id");
     if (targetTenantId) tenantsQuery = supabase.from("tenants").select("id").eq("id", targetTenantId);
 
     const { data: tenants, error: tenantsErr } = await tenantsQuery;

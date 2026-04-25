@@ -41,7 +41,6 @@ Deno.serve(async (req) => {
         const { data: tenants } = await supabase
           .from("tenants")
           .select("id")
-          .eq("is_active", true)
           .limit(200);
         tenantIds = (tenants || []).map((t: any) => t.id);
       }
