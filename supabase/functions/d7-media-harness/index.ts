@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
     message_id: msgImg.id,
     tenant_id: TENANT_ID,
     file_name: "test.png",
+    file_path: `harness/d7/${crypto.randomUUID()}.png`,
     file_url: TEST_IMAGE_URL,
     mime_type: "image/png",
   }).select("id").single();
