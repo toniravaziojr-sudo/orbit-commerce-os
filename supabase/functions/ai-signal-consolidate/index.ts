@@ -102,6 +102,7 @@ async function consolidateTenant(supabase: any, tenantId: string) {
       _tenant_id: tenantId,
       _evidence_count: group.evidence_count,
       _unique_customer_count: group.unique_customer_count,
+      _period_days: 7,
     });
     if (relevanceErr) {
       console.error(`[consolidate] is_signal_relevant failed for group ${group.id}:`, relevanceErr.message);
