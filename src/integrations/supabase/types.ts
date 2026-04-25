@@ -1806,6 +1806,92 @@ export type Database = {
           },
         ]
       }
+      ai_intent_objection_map: {
+        Row: {
+          confidence_level:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score: number | null
+          created_at: string
+          entry_type: string
+          generated_at: string | null
+          has_manual_overrides: boolean
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          manual_overrides: Json
+          model_used: string | null
+          needs_regeneration: boolean
+          product_scope: string[]
+          recommended_state: string | null
+          severity: string | null
+          source: Database["public"]["Enums"]["ai_data_source"]
+          standard_response: string | null
+          tenant_id: string
+          trigger_patterns: string[]
+          updated_at: string
+        }
+        Insert: {
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          entry_type: string
+          generated_at?: string | null
+          has_manual_overrides?: boolean
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          manual_overrides?: Json
+          model_used?: string | null
+          needs_regeneration?: boolean
+          product_scope?: string[]
+          recommended_state?: string | null
+          severity?: string | null
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          standard_response?: string | null
+          tenant_id: string
+          trigger_patterns?: string[]
+          updated_at?: string
+        }
+        Update: {
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          entry_type?: string
+          generated_at?: string | null
+          has_manual_overrides?: boolean
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          manual_overrides?: Json
+          model_used?: string | null
+          needs_regeneration?: boolean
+          product_scope?: string[]
+          recommended_state?: string | null
+          severity?: string | null
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          standard_response?: string | null
+          tenant_id?: string
+          trigger_patterns?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_intent_objection_map_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_landing_page_versions: {
         Row: {
           blocks_content: Json | null
@@ -1965,6 +2051,89 @@ export type Database = {
             foreignKeyName: "ai_landing_pages_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_language_dictionary: {
+        Row: {
+          confidence_level:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score: number | null
+          created_at: string
+          emoji_whitelist: string[]
+          forbidden_terms: string[]
+          generated_at: string | null
+          has_manual_overrides: boolean
+          id: string
+          manual_overrides: Json
+          model_used: string | null
+          needs_regeneration: boolean
+          niche_vocabulary: Json
+          preferred_phrases: Json
+          product_aliases: Json
+          source: Database["public"]["Enums"]["ai_data_source"]
+          tenant_id: string
+          tone_style: string
+          treatment_pronoun: string
+          updated_at: string
+          use_emojis: boolean
+        }
+        Insert: {
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          emoji_whitelist?: string[]
+          forbidden_terms?: string[]
+          generated_at?: string | null
+          has_manual_overrides?: boolean
+          id?: string
+          manual_overrides?: Json
+          model_used?: string | null
+          needs_regeneration?: boolean
+          niche_vocabulary?: Json
+          preferred_phrases?: Json
+          product_aliases?: Json
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          tenant_id: string
+          tone_style?: string
+          treatment_pronoun?: string
+          updated_at?: string
+          use_emojis?: boolean
+        }
+        Update: {
+          confidence_level?:
+            | Database["public"]["Enums"]["ai_confidence_level"]
+            | null
+          confidence_score?: number | null
+          created_at?: string
+          emoji_whitelist?: string[]
+          forbidden_terms?: string[]
+          generated_at?: string | null
+          has_manual_overrides?: boolean
+          id?: string
+          manual_overrides?: Json
+          model_used?: string | null
+          needs_regeneration?: boolean
+          niche_vocabulary?: Json
+          preferred_phrases?: Json
+          product_aliases?: Json
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          tenant_id?: string
+          tone_style?: string
+          treatment_pronoun?: string
+          updated_at?: string
+          use_emojis?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_language_dictionary_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
