@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
             .from("ai_signal_capture_queue")
             .update({
               status: "failed",
-              error_message: `HTTP ${captureResp.status}: ${text.slice(0, 300)}`,
+              last_error: `HTTP ${captureResp.status}: ${text.slice(0, 300)}`,
               processed_at: new Date().toISOString(),
             })
             .eq("conversation_id", conv.id);
