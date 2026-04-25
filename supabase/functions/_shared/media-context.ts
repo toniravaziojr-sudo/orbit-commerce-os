@@ -152,12 +152,14 @@ export async function waitAndCollectMediaContext(
       reprocess_pending: true,
       reprocess_dispatched: false,
     };
-    await supabase
-      .from("messages")
-      .update({ metadata: newMeta })
-      .eq("id", lastCustomerMessage.id)
-      .then(() => {})
-      .catch((err) => console.error("[media-context] mark wait failed:", err));
+    try {
+      await supabase
+        .from("messages")
+        .update({ metadata: newMeta })
+        .eq("id", lastCustomerMessage.id);
+    } catch (err) {
+      console.error("[media-context] mark wait failed:", err);
+    }
   }
 
   return {
