@@ -3893,8 +3893,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             toolIterationCounter++;
             recordToolCall(supabase, {
               tenant_id,
-              conversation_id: conversationId,
-              message_id: newMessage?.id ?? null,
+              conversation_id: conversation_id,
+              message_id: null,
               turn_correlation_id: turnCorrelationId,
               iteration: toolIterationCounter,
               tool_name: fnName,
@@ -3939,8 +3939,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           toolIterationCounter++;
           recordToolCall(supabase, {
             tenant_id,
-            conversation_id: conversationId,
-            message_id: newMessage?.id ?? null,
+            conversation_id: conversation_id,
+            message_id: null,
             turn_correlation_id: turnCorrelationId,
             iteration: toolIterationCounter,
             tool_name: fnName,
