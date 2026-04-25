@@ -68,6 +68,7 @@ import {
 } from "../_shared/business-context-loader.ts";
 // [Sub-fase 1.4 — Pacote H] Payload comercial do produto em foco
 import { loadCommercialPayloadBlock } from "../_shared/commercial-payload-loader.ts";
+import { recordToolCall, type BlockType } from "../_shared/tool-telemetry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
