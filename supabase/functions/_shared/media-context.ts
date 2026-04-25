@@ -121,12 +121,14 @@ export async function waitAndCollectMediaContext(
       pending_media_processing: false,
       pending_media_consumed_at: new Date().toISOString(),
     };
-    await supabase
-      .from("messages")
-      .update({ metadata: newMeta })
-      .eq("id", lastCustomerMessage.id)
-      .then(() => {})
-      .catch((err) => console.error("[media-context] clear flag failed:", err));
+    try {
+      await supabase
+        .from("messages")
+        .update({ metadata: newMeta })
+        .eq("id", lastCustomerMessage.id);
+    } catch (err) {
+      console.error("[media-context] clear flag failed:", err);
+    }
 
     console.log(`[media-context] msg=${lastCustomerMessage.id} ALL READY (${blocks.length} blocks)`);
 
