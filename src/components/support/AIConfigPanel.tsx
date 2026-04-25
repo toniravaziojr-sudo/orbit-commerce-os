@@ -199,6 +199,14 @@ export function AIConfigPanel() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="language" className="space-y-4 mt-4">
+          <AILanguageDictionaryEditor />
+        </TabsContent>
+
+        <TabsContent value="intents" className="space-y-4 mt-4">
+          <AIIntentObjectionEditor />
+        </TabsContent>
+
         <TabsContent value="knowledge" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
