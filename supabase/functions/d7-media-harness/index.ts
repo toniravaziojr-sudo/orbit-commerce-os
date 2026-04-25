@@ -85,6 +85,7 @@ Deno.serve(async (req) => {
     message_id: msgAud.id,
     tenant_id: TENANT_ID,
     file_name: "example.ogg",
+    file_path: `harness/d7/${crypto.randomUUID()}.ogg`,
     file_url: TEST_AUDIO_URL,
     mime_type: "audio/ogg",
   }).select("id").single();
