@@ -2653,7 +2653,57 @@ Deno.serve(async (req) => {
     const lastCustomerMessage = [...messages]
       .filter(m => m.sender_type === "customer" && !m.is_internal && !m.is_note)
       .pop();
-    const lastMessageContent = lastCustomerMessage?.content || "";
+    let lastMessageContent = lastCustomerMessage?.content || "";
+
+    // ============================================
+    // [D7] MEDIA GATE — espera curta + injeção de contexto
+    // Se a última mensagem do cliente tem mídia pendente:
+    //   - aguarda até 8s pela conclusão de vision/transcription
+    //   - se concluiu: injeta o resultado no contexto antes da IA responder
+    //   - se estourou: envia 1 mensagem de espera (anti-loop) e retorna
+    // ============================================
+    const mediaGate = await waitAndCollectMediaContext(
+      supabase,
+      lastCustomerMessage
+        ? { id: lastCustomerMessage.id, metadata: lastCustomerMessage.metadata as Record<string, unknown> | null }
+        : null,
+    );
+
+    if (mediaGate.had_pending && !mediaGate.all_ready) {
+      // Timeout: envia (no máx 1x) a resposta de espera e encerra esta execução.
+      if (mediaGate.wait_reply && !mediaGate.wait_already_sent) {
+        await supabase.from("messages").insert({
+          conversation_id,
+          tenant_id,
+          direction: "outbound",
+          sender_type: "bot",
+          sender_name: "Atendente",
+          content: mediaGate.wait_reply,
+          content_type: "text",
+          delivery_status: "queued",
+          is_ai_generated: true,
+          is_internal: false,
+          is_note: false,
+          metadata: { kind: "media_wait_reply", attachment_ids: mediaGate.attachment_ids },
+        });
+        console.log(`[ai-support-chat] [D7] media wait reply sent for msg=${lastCustomerMessage?.id}`);
+        return new Response(
+          JSON.stringify({ success: true, action: "media_wait_reply_sent", attachment_ids: mediaGate.attachment_ids }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      // Já enviada antes — nada a fazer agora; reprocesso virá do consumidor.
+      console.log(`[ai-support-chat] [D7] media still pending, wait already sent — skipping`);
+      return new Response(
+        JSON.stringify({ success: true, action: "media_pending_already_notified" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (mediaGate.had_pending && mediaGate.all_ready && mediaGate.context_block) {
+      lastMessageContent = `${lastMessageContent}\n\n${mediaGate.context_block}`.trim();
+      console.log(`[ai-support-chat] [D7] media context injected (${mediaGate.attachment_ids.length} attachments)`);
+    }
 
     // Build conversation context for classification (últimos 5 reais)
     const conversationContext = messages

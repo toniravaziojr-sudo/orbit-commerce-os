@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { maybeTriggerReprocessAfterMedia } from "../_shared/media-context.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -232,6 +233,11 @@ Deno.serve(async (req) => {
           processed_at: new Date().toISOString()
         })
         .eq("id", queue_item_id);
+
+      // [D7] Reprocessa o ai-support-chat se esta era a última mídia pendente.
+      if (queueItem.message_id && queueItem.tenant_id) {
+        await maybeTriggerReprocessAfterMedia(supabase, queueItem.message_id, queueItem.tenant_id);
+      }
     }
 
     // Registrar uso
