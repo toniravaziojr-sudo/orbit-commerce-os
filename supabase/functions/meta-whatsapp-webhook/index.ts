@@ -7,6 +7,8 @@ import {
   tryClaimDebounceFlush,
   DEBOUNCE_WINDOW_MS,
 } from "../_shared/turn-dynamics.ts";
+import { enqueueMedia } from "../_shared/media-enqueue.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -460,7 +462,7 @@ Deno.serve(async (req) => {
               }
 
               if (conversationId) {
-                const { error: msgError } = await supabase
+                const { data: insertedMsg, error: msgError } = await supabase
                   .from("messages")
                   .insert({
                     conversation_id: conversationId,
@@ -476,12 +478,53 @@ Deno.serve(async (req) => {
                     is_ai_generated: false,
                     is_internal: false,
                     is_note: false,
-                  });
+                  })
+                  .select("id")
+                  .single();
 
                 if (msgError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Failed to create message:`, msgError);
                 } else {
                   console.log(`[meta-whatsapp-webhook][${traceId}] Message persisted in support module`);
+
+                  // ═══ D7: Enfileira mídia (image/audio) ANTES da IA decidir ═══
+                  // image -> vision; audio -> transcription;
+                  // video/document -> apenas registra anexo (unsupported_for_ai).
+                  const mediaCandidates: Array<{ id: string; mime: string; name?: string }> = [];
+                  if (message.type === "image" && message.image) {
+                    mediaCandidates.push({ id: message.image.id, mime: message.image.mime_type || "image/jpeg" });
+                  } else if (message.type === "audio" && message.audio) {
+                    mediaCandidates.push({ id: message.audio.id, mime: message.audio.mime_type || "audio/ogg" });
+                  } else if (message.type === "video" && message.video) {
+                    mediaCandidates.push({ id: message.video.id, mime: message.video.mime_type || "video/mp4" });
+                  } else if (message.type === "document" && message.document) {
+                    mediaCandidates.push({
+                      id: message.document.id,
+                      mime: message.document.mime_type || "application/octet-stream",
+                      name: message.document.filename,
+                    });
+                  }
+
+                  if (mediaCandidates.length > 0 && insertedMsg?.id) {
+                    try {
+                      const conn = await getMetaConnectionForTenant(supabase, tenantId, traceId);
+                      const waToken = conn?.access_token || null;
+                      for (const m of mediaCandidates) {
+                        const result = await enqueueMedia({
+                          tenant_id: tenantId,
+                          message_id: insertedMsg.id,
+                          external_media_id: m.id,
+                          mime_type: m.mime,
+                          file_name: m.name,
+                          whatsapp_media_id: m.id,
+                          whatsapp_access_token: waToken || undefined,
+                        });
+                        console.log(`[meta-whatsapp-webhook][${traceId}] media-enqueue result:`, JSON.stringify(result));
+                      }
+                    } catch (mediaErr) {
+                      console.error(`[meta-whatsapp-webhook][${traceId}] media-enqueue threw (non-blocking):`, mediaErr);
+                    }
+                  }
 
                   // CRITICAL (Phase 1): NEVER reset status here. Only update timestamps.
                   await supabase
