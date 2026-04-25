@@ -3039,6 +3039,13 @@ Cliente: "vocês entregam em SP?"
     // Guardrails estruturais (tools por estado, anti-loop, política de imagem,
     // máquina de estados) continuam acima de qualquer customização do tenant.
     // ============================================
+    // [D9] Telemetria de tools — vars do escopo do handler
+    const turnCorrelationId = crypto.randomUUID();
+    let businessContextSourceForTurn:
+      | "tenant_business_context"
+      | "ai_business_snapshot"
+      | "neutral"
+      | null = null;
     const pipelineStateBefore: PipelineState = normalizeLegacyState(
       conversation.sales_state as string | null
     );
@@ -3110,6 +3117,8 @@ Cliente: "vocês entregam em SP?"
           `incomplete=${businessCtx.meta.catalog_incomplete} ` +
           `overrides=${businessCtx.meta.has_overrides}`,
       );
+      // [D9] Guarda fonte para anexar à telemetria de tools deste turno.
+      businessContextSourceForTurn = businessCtx.meta.source;
 
       // Se contexto está stale ou não existe, dispara regeneração em background.
       // Não bloqueia o turno — usa o que tiver agora.
@@ -3634,8 +3643,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // [F1] Rastreio de tools chamadas no turno (escopo do handler, alimenta máquina de estado)
     const toolsCalledThisTurn: string[] = [];
-    // [D9] Correlation id único do turno — liga todas as execuções de tool do mesmo loop
-    const turnCorrelationId = crypto.randomUUID();
+    // [D9] Iteração da tool dentro do mesmo turno (1, 2, 3...)
+    let toolIterationCounter = 0;
     // [PACOTE B] Snapshots dos resultados reais de tools deste turno.
     // Usados pelo fallback conclusivo para que a IA NUNCA fale "consultei o catálogo"
     // ou "encontrei esses produtos reais" — em vez disso, montamos uma fala de
@@ -3880,6 +3889,27 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
               `[ai-support-chat] [F2] tool ${fnName} BLOQUEADA — não permitida no estado ${pipelineState}`
             );
             pipelineBlockedThisLoop.push(fnName);
+            // [D9] Telemetria — tool bloqueada
+            toolIterationCounter++;
+            recordToolCall(supabase, {
+              tenant_id,
+              conversation_id: conversationId,
+              message_id: newMessage?.id ?? null,
+              turn_correlation_id: turnCorrelationId,
+              iteration: toolIterationCounter,
+              tool_name: fnName,
+              args: fnArgs,
+              result_preview: `blocked: tool_not_allowed_in_state_${pipelineState}`,
+              success: false,
+              blocked: true,
+              block_type: "pipeline_state_block",
+              block_reason: `tool_not_allowed_in_state_${pipelineState}`,
+              pipeline_state_before: pipelineState,
+              pipeline_state_after: pipelineState,
+              business_context_source: businessContextSourceForTurn,
+              model: usedModel,
+              duration_ms: 0,
+            });
             currentMessages.push({
               role: "tool",
               tool_call_id: toolCall.id,
@@ -3893,7 +3923,38 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           }
 
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
-          const result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
+          // [D9] Telemetria — tool executada
+          const toolStartedAt = Date.now();
+          const stateBeforeTool = pipelineState;
+          let toolSuccess = true;
+          let toolError: string | null = null;
+          let result = "";
+          try {
+            result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
+          } catch (e) {
+            toolSuccess = false;
+            toolError = (e as Error)?.message || String(e);
+            result = JSON.stringify({ error: toolError });
+          }
+          toolIterationCounter++;
+          recordToolCall(supabase, {
+            tenant_id,
+            conversation_id: conversationId,
+            message_id: newMessage?.id ?? null,
+            turn_correlation_id: turnCorrelationId,
+            iteration: toolIterationCounter,
+            tool_name: fnName,
+            args: fnArgs,
+            result_preview: result,
+            success: toolSuccess,
+            error_message: toolError,
+            duration_ms: Date.now() - toolStartedAt,
+            blocked: false,
+            pipeline_state_before: stateBeforeTool,
+            pipeline_state_after: pipelineState,
+            business_context_source: businessContextSourceForTurn,
+            model: usedModel,
+          });
           toolsCalledThisTurn.push(fnName);
           // [PACOTE B] guarda snapshot estruturado pro fallback conclusivo
           try {
