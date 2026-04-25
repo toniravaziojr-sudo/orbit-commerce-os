@@ -49,15 +49,28 @@ Deno.serve(async (req) => {
       return json({ ok: true, processed: 0, skipped: 0, reason: "nenhuma_conversa_elegivel", duration_ms: Date.now() - startedAt });
     }
 
-    // 2) Filtrar as que já foram processadas (idempotência via capture_queue)
+    // 2) Filtrar idempotência:
+    //    - Excluir conversas já 'done' ou 'failed' definitivo (esgotaram tentativas)
+    //    - Excluir conversas 'pending' cujo next_retry_at ainda não venceu (backoff em curso)
+    //    - Conversas 'pending' com next_retry_at <= now() (ou null) são reprocessáveis
     const ids = candidateConvs.map((c) => c.id);
+    const nowIso = new Date().toISOString();
     const { data: alreadyQueued } = await supabase
       .from("ai_signal_capture_queue")
-      .select("conversation_id")
+      .select("conversation_id, status, next_retry_at")
       .in("conversation_id", ids);
 
-    const queuedSet = new Set((alreadyQueued || []).map((q: any) => q.conversation_id));
-    const toProcess = candidateConvs.filter((c) => !queuedSet.has(c.id));
+    const skipSet = new Set<string>();
+    for (const q of (alreadyQueued || []) as any[]) {
+      if (q.status === "done" || q.status === "failed") {
+        skipSet.add(q.conversation_id);
+      } else if (q.status === "pending" && q.next_retry_at && q.next_retry_at > nowIso) {
+        skipSet.add(q.conversation_id); // ainda em backoff
+      } else if (q.status === "processing") {
+        skipSet.add(q.conversation_id); // outra rodada em execução
+      }
+    }
+    const toProcess = candidateConvs.filter((c) => !skipSet.has(c.id));
 
     // 3) Enforce per-tenant cap (evita um tenant grande monopolizar a rodada)
     const perTenantCount: Record<string, number> = {};
