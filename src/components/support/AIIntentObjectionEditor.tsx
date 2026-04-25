@@ -50,7 +50,7 @@ function EntryRow({ entry, onUpdate, onToggleActive, isPending }: EntryRowProps)
       <div className="flex items-center justify-between p-3 gap-3 bg-muted/30">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {entry.entry_type === 'objection' ? (
-            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+            <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
           ) : (
             <MessageSquare className="h-4 w-4 text-primary shrink-0" />
           )}
@@ -164,7 +164,7 @@ export function AIIntentObjectionEditor() {
       <CardContent className="space-y-6">
         <section className="space-y-3">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertTriangle className="h-4 w-4 text-warning" />
             <h3 className="font-medium">Objeções ({objections.length})</h3>
           </div>
           {objections.length === 0 ? (
