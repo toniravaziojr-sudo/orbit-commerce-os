@@ -20,7 +20,8 @@ const TENANT_ID = "d1a4d0ed-8842-495e-b741-540a9a345b25";
 const CONVERSATION_ID = "00000d10-d10d-d10d-d10d-d10d10d10d10";
 
 // URLs públicas estáveis e leves para teste
-const TEST_IMAGE_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/200px-PNG_transparency_demonstration_1.png";
+// URLs estáveis e aceitas pela OpenAI Vision
+const TEST_IMAGE_URL = "https://picsum.photos/id/237/400/300.jpg";
 const TEST_AUDIO_URL = "https://upload.wikimedia.org/wikipedia/commons/c/c8/Example.ogg";
 
 Deno.serve(async (req) => {
