@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getMetaConnectionForTenant, findTenantByPageIdV4, PAGE_BEARING_INTEGRATIONS } from "../_shared/meta-connection.ts";
 import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
+import { enqueueMedia } from "../_shared/media-enqueue.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v2.0.0"; // Phase 7: V4-first tenant resolution + helper for token/assets
@@ -241,7 +242,7 @@ async function handleInstagramDM(
     convStatus = newConv.status;
   }
 
-  await supabase.from("messages").insert({
+  const { data: insertedMsg } = await supabase.from("messages").insert({
     conversation_id: conversationId,
     tenant_id: tenantId,
     direction: "inbound",
@@ -254,7 +255,35 @@ async function handleInstagramDM(
     is_internal: false,
     is_note: false,
     external_message_id: messageId,
-  });
+  }).select("id").single();
+
+  // ═══ D7: Enfileira mídia (image/audio) — vídeo/documento só registra anexo ═══
+  if (attachments.length > 0 && insertedMsg?.id) {
+    for (const att of attachments) {
+      const url = att?.payload?.url;
+      const type = (att?.type || "").toLowerCase();
+      if (!url) continue;
+      // Mapa Instagram -> mime aproximado
+      let mime = "application/octet-stream";
+      if (type === "image") mime = "image/jpeg";
+      else if (type === "audio") mime = "audio/mp4";
+      else if (type === "video") mime = "video/mp4";
+      else if (type === "file") mime = "application/octet-stream";
+
+      try {
+        const result = await enqueueMedia({
+          tenant_id: tenantId,
+          message_id: insertedMsg.id,
+          external_media_id: `ig_${messageId}_${url.substring(url.lastIndexOf("/") + 1, url.lastIndexOf("/") + 40)}`,
+          mime_type: mime,
+          file_url: url,
+        });
+        console.log(`[meta-instagram-webhook][${traceId}] media-enqueue result:`, JSON.stringify(result));
+      } catch (mediaErr) {
+        console.error(`[meta-instagram-webhook][${traceId}] media-enqueue threw (non-blocking):`, mediaErr);
+      }
+    }
+  }
 
   // CRITICAL (Phase 1): NEVER overwrite status. Only update timestamps.
   await supabase
