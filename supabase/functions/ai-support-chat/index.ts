@@ -3422,9 +3422,15 @@ Cliente: "vocês entregam em SP?"
         } catch (e) {
           console.warn("[ai-support-chat] [F2-FIX-CHECKOUT] cart context preload failed:", (e as Error).message);
         }
-      } else if (suppressCheckoutContext && (pipelineState === "decision" || pipelineState === "checkout_assist")) {
+      } else if (
+        suppressCheckoutContext ||
+        (stateDowngradeReason && (pipelineStateBefore === "decision" || pipelineStateBefore === "checkout_assist"))
+      ) {
+        // Emite log mesmo quando o downgrade já tirou a conversa de checkout/decision
+        // — assim a auditoria captura: "havia contaminação de checkout, e o gate
+        // (intenção pure_greeting / informative_question) impediu a injeção".
         console.log(
-          `[ai-support-chat] [F2-V4][builder-gate] checkout_context_suppressed reason=${suppressionReason} state=${pipelineState} turn_intent=${turnIntentClassified}`
+          `[ai-support-chat] [F2-V4][builder-gate] checkout_context_suppressed reason=${suppressionReason ?? "downgrade_from_checkout"} state_before=${pipelineStateBefore} state_after=${pipelineState} turn_intent=${turnIntentClassified} downgrade_reason=${stateDowngradeReason ?? "none"}`
         );
       }
 
