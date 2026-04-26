@@ -129,14 +129,27 @@ function detectPainOrObjective(message: string): boolean {
 }
 
 function mentionsProductByName(message: string, productNames: string[] = []): boolean {
-  if (!message || !productNames.length) return false;
+  return extractMentionedProductName(message, productNames) !== null;
+}
+
+// [F2-V2] Retorna o nome do produto mencionado nominalmente, se houver.
+// Prefere o match mais longo (mais específico).
+export function extractMentionedProductName(
+  message: string,
+  productNames: string[] = [],
+): string | null {
+  if (!message || !productNames.length) return null;
   const norm = message.toLowerCase();
-  return productNames.some(name => {
-    if (!name) return false;
+  let best: string | null = null;
+  for (const name of productNames) {
+    if (!name) continue;
     const n = name.toLowerCase().trim();
-    if (n.length < 4) return false; // evita falso positivo com palavras curtas
-    return norm.includes(n);
-  });
+    if (n.length < 4) continue;
+    if (norm.includes(n)) {
+      if (!best || n.length > best.length) best = name;
+    }
+  }
+  return best;
 }
 
 function detectBuySignal(message: string): boolean {
