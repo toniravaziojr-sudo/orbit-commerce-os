@@ -146,6 +146,26 @@ const FAST_MODELS_FOR_SIMPLE_STATES: readonly string[] = [
 // rota normal de fallback.
 const UNAVAILABLE_MODELS = new Set<string>();
 
+// [ETAPA1-FIX] Cache de incompatibilidade do parâmetro `reasoning` por modelo.
+// Mapa modelo → expiresAt (epoch ms). Quando um modelo retorna 400 informando
+// que `reasoning` é parâmetro desconhecido/inválido, marcamos por 30 min para
+// evitar pagar ~5–8s de erro+retry em todos os turnos seguintes.
+// NÃO é "modelo indisponível" — é só incompatibilidade de parâmetro.
+const REASONING_INCOMPATIBLE_MODELS = new Map<string, number>();
+const REASONING_INCOMPAT_TTL_MS = 30 * 60 * 1000; // 30 minutos
+function isReasoningIncompatible(model: string): boolean {
+  const exp = REASONING_INCOMPATIBLE_MODELS.get(model);
+  if (!exp) return false;
+  if (Date.now() > exp) {
+    REASONING_INCOMPATIBLE_MODELS.delete(model);
+    return false;
+  }
+  return true;
+}
+function markReasoningIncompatible(model: string) {
+  REASONING_INCOMPATIBLE_MODELS.set(model, Date.now() + REASONING_INCOMPAT_TTL_MS);
+}
+
 // AI cost tracking (per 1K tokens, in cents)
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "gpt-5.2": { input: 3.0, output: 15.0 },
@@ -4033,8 +4053,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // - light states: minimal (greeting/discovery/recommendation/product_detail/support/handoff)
           // - decision/checkout_assist: low (precisa pesar carrinho + dados)
           // Já enviamos reasoning no follow-up e no forced round; agora também na chamada principal.
-          if (isGpt5Model) {
+          if (isGpt5Model && !isReasoningIncompatible(modelToTry)) {
             requestBody.reasoning = { effort: stateReasoningEffort };
+          } else if (isGpt5Model && isReasoningIncompatible(modelToTry)) {
+            console.log(`[ai-support-chat] [ETAPA1-FIX] reasoning_param_incompatible_cached model=${modelToTry} skipping_reasoning_param=true`);
           }
 
           // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
@@ -4115,6 +4137,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                   body: JSON.stringify(retryBody),
                 });
                 if (retryResp.ok) {
+                  // [ETAPA1-FIX] Marca o modelo como incompatível com `reasoning`
+                  // por 30 min para evitar o overhead ~5–8s em todos os turnos seguintes.
+                  markReasoningIncompatible(modelToTry);
+                  console.log(`[ai-support-chat] [ETAPA1-FIX] retry_without_reasoning_used model=${modelToTry} cached_ttl_min=30`);
                   console.log(`[ai-support-chat] [ETAPA1] retry_without_reasoning_succeeded model=${modelToTry}`);
                   response = retryResp;
                   usedModel = modelToTry;
@@ -4322,8 +4348,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           tool_choice: pipelineFilteredTools.length > 0 ? "auto" : undefined,
           parallel_tool_calls: false,
         };
-        // [F2-FIX] Mesmo controle de reasoning no follow-up
-        if (isGpt5ModelFollow) {
+        // [F2-FIX] Mesmo controle de reasoning no follow-up + cache de incompat
+        if (isGpt5ModelFollow && !isReasoningIncompatible(usedModel)) {
           followUpBody.reasoning = { effort: stateReasoningEffort };
         }
         // [F1] Mesmo guard: gpt-5 não aceita temperature
@@ -4408,7 +4434,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           tool_choice: "none",
           parallel_tool_calls: false,
         };
-        if (isGpt5ModelForced) {
+        if (isGpt5ModelForced && !isReasoningIncompatible(usedModel)) {
           forcedBody.reasoning = { effort: stateReasoningEffort };
         }
         if (!isGpt5ModelForced) {
