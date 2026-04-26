@@ -32,9 +32,47 @@ export type TransitionReason =
   | "tool_advanced_state"
   | "no_change_keep_state"
   | "regression_blocked"
-  // [F2-V2] Novas razões — referência por foco e intenção comparativa
+  // [F2-V2] Razões de referência por foco e intenção comparativa
   | "reference_resolved_by_focus_to_product_detail"
-  | "compare_intent_with_focus";
+  | "compare_intent_with_focus"
+  // [F2-V3] Rebaixamento estrutural por intenção do turno atual
+  | "downgrade_pure_greeting_resets_state"
+  | "downgrade_informative_question_to_product_detail"
+  | "downgrade_informative_question_to_recommendation"
+  | "downgrade_informative_question_to_discovery"
+  | "downgrade_comparison_to_product_detail_with_focus"
+  | "downgrade_comparison_to_recommendation_no_focus"
+  | "data_provided_kept_checkout_with_active_cart"
+  | "data_provided_ignored_no_active_cart";
+
+// [F2-V3] Classificação canônica da intenção do turno ATUAL.
+// Usada para forçar rebaixamento de estado avançado quando o cliente
+// muda de assunto / volta a perguntar / só cumprimenta.
+export type TurnIntent =
+  | "pure_greeting"
+  | "informative_question"
+  | "product_named"
+  | "comparison"
+  | "purchase_intent"
+  | "data_provided"
+  | "support"
+  | "other";
+
+export interface TurnIntentClassification {
+  intent: TurnIntent;
+  signals: {
+    isPureGreeting: boolean;
+    hasNamedProduct: boolean;
+    hasFamilyMention: boolean;
+    hasFocusReference: boolean;
+    hasInformationalQuestion: boolean;
+    hasCompareIntent: boolean;
+    hasBuySignal: boolean;
+    hasCheckoutRequest: boolean;
+    hasSupportTopic: boolean;
+    hasDataProvided: boolean;
+  };
+}
 
 export interface TransitionInput {
   current: PipelineState;
