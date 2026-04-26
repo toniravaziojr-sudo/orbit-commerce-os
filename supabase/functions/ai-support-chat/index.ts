@@ -4013,11 +4013,13 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             ...tokenParams,
           };
 
-          // [PERF — Pacote 2] O parâmetro `reasoning` está sendo rejeitado pela
-          // API para todos os modelos desta conta (Unknown parameter). Mantemos
-          // desativado até confirmação de suporte. O controle de tokens
-          // (stateMaxTokens) já limita o esforço em estados simples.
-          // if (supportsReasoning) requestBody.reasoning = { effort: stateReasoningEffort };
+          // [PERF — Pacote 3] reasoning effort por estado:
+          // - light states: minimal (greeting/discovery/recommendation/product_detail/support/handoff)
+          // - decision/checkout_assist: low (precisa pesar carrinho + dados)
+          // Já enviamos reasoning no follow-up e no forced round; agora também na chamada principal.
+          if (isGpt5Model) {
+            requestBody.reasoning = { effort: stateReasoningEffort };
+          }
 
           // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
           // silencioso para o default. Só enviar temperature em modelos não-gpt5.
