@@ -670,16 +670,114 @@ Deno.serve(async (req) => {
           if (value.statuses && value.statuses.length > 0) {
             for (const status of value.statuses) {
               console.log(`[meta-whatsapp-webhook][${traceId}] Status update - id: ${status.id}, status: ${status.status}`);
-              
-              // Update message status in whatsapp_messages table if exists
+
+              const nowIso = new Date().toISOString();
+              const tsIso = status.timestamp
+                ? new Date(Number(status.timestamp) * 1000).toISOString()
+                : nowIso;
+
+              // ===== Legacy table (compat) =====
               await supabase
                 .from("whatsapp_messages")
-                .update({ 
+                .update({
                   status: status.status,
-                  updated_at: new Date().toISOString()
+                  updated_at: nowIso,
                 })
                 .eq("external_message_id", status.id)
                 .eq("tenant_id", tenantId);
+
+              // ===== Canonical table `messages` =====
+              // Locate the outbound message by external_message_id within this tenant.
+              const { data: msgRow, error: msgFindErr } = await supabase
+                .from("messages")
+                .select("id, delivery_status, metadata")
+                .eq("external_message_id", status.id)
+                .eq("tenant_id", tenantId)
+                .maybeSingle();
+
+              if (msgFindErr) {
+                console.error(`[meta-whatsapp-webhook][${traceId}] Lookup error for status ${status.id}:`, msgFindErr.message);
+                continue;
+              }
+
+              if (!msgRow) {
+                console.warn(`[meta-whatsapp-webhook][${traceId}] No messages row found for external_message_id=${status.id} (tenant=${tenantId})`);
+                continue;
+              }
+
+              // Status precedence: queued < sent < delivered < read ; failed is terminal.
+              const PRECEDENCE: Record<string, number> = {
+                queued: 0,
+                sent: 1,
+                delivered: 2,
+                read: 3,
+                failed: 99,
+              };
+              const currentRank = PRECEDENCE[msgRow.delivery_status as string] ?? -1;
+              const incomingRank = PRECEDENCE[status.status] ?? -1;
+
+              // Never downgrade (e.g. ignore late `sent` after `delivered`); always allow `failed` (terminal).
+              if (incomingRank < currentRank && status.status !== "failed") {
+                console.log(`[meta-whatsapp-webhook][${traceId}] Skipping downgrade ${msgRow.delivery_status} -> ${status.status} for ${msgRow.id}`);
+                continue;
+              }
+
+              const updatePayload: Record<string, unknown> = {
+                updated_at: nowIso,
+              };
+              const incomingMeta = (msgRow.metadata ?? {}) as Record<string, unknown>;
+              const webhookEvents = Array.isArray((incomingMeta as any).webhook_events)
+                ? [...((incomingMeta as any).webhook_events as unknown[])]
+                : [];
+              webhookEvents.push({
+                status: status.status,
+                at: tsIso,
+                trace_id: traceId,
+                recipient_id: status.recipient_id ?? null,
+              });
+              const newMeta = {
+                ...incomingMeta,
+                webhook_events: webhookEvents,
+                last_webhook_at: tsIso,
+                last_webhook_status: status.status,
+              };
+              updatePayload.metadata = newMeta;
+
+              switch (status.status) {
+                case "sent":
+                  updatePayload.delivery_status = "sent";
+                  break;
+                case "delivered":
+                  updatePayload.delivery_status = "delivered";
+                  updatePayload.delivered_at = tsIso;
+                  break;
+                case "read":
+                  updatePayload.delivery_status = "read";
+                  updatePayload.read_at = tsIso;
+                  break;
+                case "failed":
+                  updatePayload.delivery_status = "failed";
+                  updatePayload.failed_at = tsIso;
+                  updatePayload.failure_reason =
+                    (status as any).errors?.[0]?.title ||
+                    (status as any).errors?.[0]?.message ||
+                    "Meta reported failed delivery";
+                  break;
+                default:
+                  // Unknown status: only persist webhook event, no status change.
+                  break;
+              }
+
+              const { error: updErr } = await supabase
+                .from("messages")
+                .update(updatePayload)
+                .eq("id", msgRow.id);
+
+              if (updErr) {
+                console.error(`[meta-whatsapp-webhook][${traceId}] Update failed for ${msgRow.id}:`, updErr.message);
+              } else {
+                console.log(`[meta-whatsapp-webhook][${traceId}] messages updated: ${msgRow.id} -> ${status.status}`);
+              }
             }
           }
         }
