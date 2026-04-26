@@ -89,6 +89,10 @@ export interface TransitionInput {
   // e para detectar intenção comparativa sobre os itens já em foco.
   familyFocus?: string | null;
   lastFocusedProductName?: string | null;
+  // [F2-V3] Sinal de intenção de compra recente (últimos N minutos).
+  // Usado para evitar que `data_provided` sozinho preserve checkout em
+  // conversa contaminada por estado legado.
+  recentPurchaseIntent?: boolean;
 }
 
 export interface TransitionResult {
@@ -96,6 +100,10 @@ export interface TransitionResult {
   reason: TransitionReason;
   // Marca quando a transição foi forçada por regra (não por tool).
   forced: boolean;
+  // [F2-V3] Intenção do turno classificada (auditoria/log).
+  turnIntent?: TurnIntent;
+  // [F2-V3] Razão estrutural quando houve rebaixamento por intenção do turno.
+  downgradeReason?: TransitionReason | null;
 }
 
 // ----------------------------------------------------------------
