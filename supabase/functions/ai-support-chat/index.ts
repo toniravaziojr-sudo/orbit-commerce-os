@@ -4076,20 +4076,64 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           lastErrorText = await response.text();
           console.warn(`[ai-support-chat] Model ${modelToTry} failed:`, response.status, lastErrorText);
 
-          // [PERF — Pacote 2] Cache de indisponibilidade no cold start.
-          // 404 = modelo não existe / sem acesso.
-          // 400 com referência a "model" / "unknown parameter" / "invalid parameter"
-          // = incompatibilidade do modelo com o payload (não vale tentar de novo).
-          const incompatible = response.status === 404 ||
-            (response.status === 400 && /(model|unknown parameter|invalid parameter|unsupported)/i.test(lastErrorText));
-          if (incompatible) {
+          // [ETAPA 1 — F3] Classificação granular do erro:
+          //   model_unavailable     → 404 OU 400 com sinais reais de modelo morto
+          //                           (model_not_found, does not exist, do not have access).
+          //                           SÓ esse cacheia em UNAVAILABLE_MODELS.
+          //   parameter_incompatible→ 400 com "unknown/invalid/unsupported parameter".
+          //                           NUNCA cacheia o modelo. Se for sobre `reasoning`,
+          //                           tenta 1 retry sem o param antes de pular.
+          //   other_400             → outro 400 (payload/tools) → tenta próximo modelo.
+          const errLower = (lastErrorText || "").toLowerCase();
+          const isReal404 = response.status === 404;
+          const isModelDead400 = response.status === 400 && /(model[_ ]not[_ ]found|does not exist|do not have access|no access to model)/i.test(lastErrorText);
+          const isParamIncompat = response.status === 400 && /(unknown parameter|invalid parameter|unsupported parameter|unrecognized parameter)/i.test(lastErrorText);
+          const paramErrorAboutReasoning = isParamIncompat && /reasoning/i.test(errLower);
+
+          if (isReal404 || isModelDead400) {
             UNAVAILABLE_MODELS.add(modelToTry);
-            console.log(`[ai-support-chat] [PERF] cached as unavailable: ${modelToTry} (status=${response.status})`);
+            console.log(`[ai-support-chat] [ETAPA1] model_unavailable model=${modelToTry} status=${response.status} cached=true`);
             response = null;
             continue;
           }
+
+          if (isParamIncompat) {
+            console.log(`[ai-support-chat] [ETAPA1] parameter_incompatible model=${modelToTry} param_about_reasoning=${paramErrorAboutReasoning} cached=false`);
+
+            // Retry cirúrgico: se o erro é sobre `reasoning`, tenta UMA vez sem ele
+            // antes de pular para o próximo modelo. Limite estrito: 1 retry/modelo/turno.
+            if (paramErrorAboutReasoning && requestBody.reasoning) {
+              const retryBody = { ...requestBody };
+              delete retryBody.reasoning;
+              try {
+                const retryResp = await fetch("https://api.openai.com/v1/chat/completions", {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(retryBody),
+                });
+                if (retryResp.ok) {
+                  console.log(`[ai-support-chat] [ETAPA1] retry_without_reasoning_succeeded model=${modelToTry}`);
+                  response = retryResp;
+                  usedModel = modelToTry;
+                  modelUsed = modelToTry;
+                  modelFound = true;
+                  break;
+                }
+                const retryErr = await retryResp.text();
+                console.warn(`[ai-support-chat] [ETAPA1] retry_without_reasoning_failed model=${modelToTry} status=${retryResp.status} body=${retryErr.slice(0,200)}`);
+              } catch (retryFetchErr) {
+                console.error(`[ai-support-chat] [ETAPA1] retry_without_reasoning_failed model=${modelToTry} fetch_error=`, retryFetchErr);
+              }
+            }
+            response = null;
+            continue;
+          }
+
           if (response.status === 400) {
-            // 400 não relacionado a modelo (payload, tools etc.) — não cachear, mas tentar próximo.
+            console.log(`[ai-support-chat] [ETAPA1] other_400 model=${modelToTry} cached=false body=${lastErrorText.slice(0,160)}`);
             response = null;
             continue;
           }
