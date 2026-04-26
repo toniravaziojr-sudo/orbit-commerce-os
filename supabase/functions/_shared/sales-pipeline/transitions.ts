@@ -19,6 +19,8 @@ export type TransitionReason =
   | "first_contact_pure_greeting"
   | "greeting_to_discovery_question"
   | "product_mentioned_by_name"
+  | "informational_product_question_downgrade_to_product_detail"
+  | "informational_product_question_downgrade_to_recommendation"
   | "buy_signal_detected"
   | "explicit_checkout_request"
   | "cart_active_or_added"
@@ -226,11 +228,37 @@ export function detectFamilyMentioned(message: string): string | null {
   return null;
 }
 
+const INFORMATIONAL_PRODUCT_QUESTION_PATTERNS: RegExp[] = [
+  /\b(funciona|funciona\s+mesmo)\b/i,
+  /\b([ée]\s+)?bom\s+mesmo\b/i,
+  /\bvale\s+a\s+pena\b/i,
+  /\b(pra|para)\s+que\s+serve\b/i,
+  /\bcomo\s+funciona\b/i,
+  /\bcomo\s+usar\b/i,
+  /\bqual\s+(a\s+)?diferen[çc]a\b/i,
+  /\bquais?\s+(as\s+)?diferen[çc]as\b/i,
+  /\bdiferen[çc]a\s+entre\b/i,
+  /\bme\s+explica\b/i,
+];
+
+export function detectInformationalProductQuestion(message: string): boolean {
+  if (!message) return false;
+  return INFORMATIONAL_PRODUCT_QUESTION_PATTERNS.some(re => re.test(message));
+}
+
 // ----------------------------------------------------------------
 // Decisão da próxima transição — ordem de prioridade importa.
 // ----------------------------------------------------------------
 export function decideNextState(input: TransitionInput): TransitionResult {
   const { current, message, isPureGreeting, hasActiveCart, hasCheckoutLink, toolsCalled, discoveryTurnsSoFar, productNamesHint, familyFocus, lastFocusedProductName } = input;
+  const hasNamedProduct = mentionsProductByName(message, productNamesHint || []);
+  const hasFamilyMention = !!detectFamilyMentioned(message);
+  const hasAnaphoricReference = detectAnaphoricReference(message);
+  const hasCompareIntent = detectCompareIntent(message);
+  const hasFocusReference = !!(lastFocusedProductName || familyFocus || hasNamedProduct || hasAnaphoricReference);
+  const isInformationalProductQuestion =
+    (detectInformationalProductQuestion(message) || hasCompareIntent) &&
+    (hasFocusReference || hasFamilyMention);
 
   // 0. Handoff é terminal — se foi solicitado por tool, prevalece.
   if (toolsCalled.includes("request_human_handoff")) {
@@ -240,6 +268,27 @@ export function decideNextState(input: TransitionInput): TransitionResult {
   // 1. Tópico de pedido existente → support (sai do funil).
   if (detectSupportTopic(message)) {
     return { next: "support", reason: "support_topic_detected", forced: true };
+  }
+
+  // 1b. Pergunta informativa de produto no turno ATUAL vence contexto antigo.
+  // Se a conversa estiver avançada (decision/checkout) mas o cliente voltou a
+  // pedir explicação, comparação ou objeção de produto, fazemos downgrade
+  // forçado para detalhe/recomendação e bloqueamos abertura de checkout.
+  if (isInformationalProductQuestion) {
+    if (hasFocusReference) {
+      return {
+        next: "product_detail",
+        reason: "informational_product_question_downgrade_to_product_detail",
+        forced: true,
+      };
+    }
+    if (hasFamilyMention) {
+      return {
+        next: "recommendation",
+        reason: "informational_product_question_downgrade_to_recommendation",
+        forced: true,
+      };
+    }
   }
 
   // 2. Checkout efetivo — link gerado ou explicitamente pedido.
@@ -262,20 +311,20 @@ export function decideNextState(input: TransitionInput): TransitionResult {
   }
 
   // 5. Cliente citou produto pelo nome → product_detail (PRIORIDADE MÁXIMA).
-  if (mentionsProductByName(message, productNamesHint || [])) {
+  if (hasNamedProduct) {
     return advanceTo(current, "product_detail", "product_mentioned_by_name");
   }
 
   // [F2-V2] 5b. Intenção comparativa COM foco existente → product_detail
   // (modo comparação injetado no prompt pelo caller via familyFocus/lastFocusedProductName).
   // Não reembaralha vitrine — compara o que já está em foco.
-  if (detectCompareIntent(message) && (lastFocusedProductName || familyFocus)) {
+  if (hasCompareIntent && (lastFocusedProductName || familyFocus)) {
     return advanceTo(current, "product_detail", "compare_intent_with_focus");
   }
 
   // [F2-V2] 5c. Referência anafórica ("esse/ele/eles/esse shampoo") + foco existente
   // → resolve para product_detail do último produto/família em foco.
-  if (detectAnaphoricReference(message) && (lastFocusedProductName || familyFocus)) {
+  if (hasAnaphoricReference && (lastFocusedProductName || familyFocus)) {
     return advanceTo(current, "product_detail", "reference_resolved_by_focus_to_product_detail");
   }
 
