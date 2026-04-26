@@ -203,8 +203,48 @@ logs distintos para diagnóstico.
   estado, com `discovery.ts` e `recommendation.ts` ensinando o uso correto
   de `pain_hint` e `include_kits`.
 
-## 12. Histórico
+## 12. Family Focus persistente (anti-quebra de foco)
+
+A primeira família de produto mencionada pelo cliente (shampoo, sabonete,
+creme, loção, balm, sérum, tônico, máscara, gel, kit, combo) é detectada e
+persistida em `conversations.metadata.family_focus`.
+
+Regras:
+
+- Toda chamada subsequente a `search_products` deve aplicar **filtro estrito**
+  por essa família enquanto o foco existir. É proibido devolver produtos fora
+  da família em foco, mesmo que o ranking semântico priorize outros.
+- O foco só muda por **gatilho explícito do cliente** ("quero ver outro tipo",
+  "esquece shampoo", nova família mencionada de forma deliberada). Nunca por
+  iniciativa do bot.
+- Se nenhum produto da família casar com a intenção, a resposta deve ser um
+  fallback explícito ("não temos shampoo para X, quer ver Y?") em vez de
+  quebrar o foco silenciosamente.
+
+## 13. Anti-repetição estrutural (`last_bot_response_hash`)
+
+Antes de despachar qualquer resposta do bot:
+
+1. Calcular `responseHash` normalizando o texto (lowercase, remover
+   pontuação, emoji e espaços extras).
+2. Comparar com `conversations.metadata.last_bot_response_hash`.
+3. Se houver colisão (resposta-base repetida), chamar a IA novamente com
+   `tool_choice: "none"` + uma `variationInstruction` obrigando reformulação
+   substantiva (não cosmética).
+4. Validar `finalResponseHash` da regeneração antes de despachar.
+5. Atualizar `last_bot_response_hash` com o hash do texto efetivamente enviado.
+
+Limite operacional: **uma regeneração por turno**. Se a colisão persistir,
+despachar a versão regenerada mesmo assim e logar o incidente em
+`ai_support_turn_log.metadata.repetition_incident`.
+
+Esta trava existe porque o agente já travou em loops de "resposta-base
+repetida" no canal real e a quebra desse padrão é pré-requisito para
+considerar a entrega F2 fechada.
+
+## 14. Histórico
 
 | Data       | Versão | Mudança                                                                 |
 | ---------- | ------ | ----------------------------------------------------------------------- |
 | 2026-04-23 | 1.0.0  | Documento criado. Camada 1 (particionamento + roteador por dor) e camada 2 (árvore de categoria do tenant) ativas em `ai-support-chat`. |
+| 2026-04-26 | 1.1.0  | Adicionadas seções 12 (family_focus persistente + filtro estrito) e 13 (anti-repetição estrutural via `last_bot_response_hash` com regeneração obrigatória). |
