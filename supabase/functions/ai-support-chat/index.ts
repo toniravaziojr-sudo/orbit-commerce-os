@@ -3196,26 +3196,46 @@ Cliente: "vocês entregam em SP?"
     const familyFocusBefore = (convMetaForFocus.family_focus as string | null | undefined) ?? null;
     const lastFocusedProductNameBefore = (convMetaForFocus.last_focused_product_name as string | null | undefined) ?? null;
 
-    // [F2-V2] Pré-carrega nomes de produtos ativos (lightweight) para que o
-    // detector reconheça menção nominal já no pré-trânsito. Sem isso o cliente
-    // que cita "Shampoo Calvície Zero" fica em recommendation genérico.
-    let preTransitionProductHint: string[] = [];
-    if (salesModeEnabled && lastMessageContent && lastMessageContent.trim().length >= 4) {
-      try {
-        const { data: prodRows } = await supabase
-          .from("products")
-          .select("name")
+    // [PERF — Pacote 3] Paraleliza 3 carregamentos independentes pré-pipeline:
+    // (1) nomes de produtos para o detector anafórico
+    // (2) business context — feito mais abaixo, mas já podemos disparar
+    // (3) stale check — feito mais abaixo, idem
+    // Tudo read-only e independente: zero risco de race condition.
+    const productHintPromise: Promise<string[]> = (
+      salesModeEnabled && lastMessageContent && lastMessageContent.trim().length >= 4
+        ? supabase
+            .from("products")
+            .select("name")
+            .eq("tenant_id", tenant_id)
+            .eq("is_active", true)
+            .is("deleted_at", null)
+            .limit(200)
+            .then(({ data: prodRows, error }) => {
+              if (error) {
+                console.warn("[ai-support-chat] [F2-V2] product names hint preload failed:", error.message);
+                return [];
+              }
+              return (prodRows || [])
+                .map((p: { name: string | null }) => p.name)
+                .filter((n: string | null): n is string => typeof n === "string" && n.length >= 4);
+            })
+        : Promise.resolve<string[]>([])
+    );
+    // Disparamos o businessCtx + stale check em paralelo SE estamos em sales mode.
+    // Eles são consumidos mais abaixo (linha ~3253). Aqui só iniciamos.
+    const businessCtxPromise = salesModeEnabled
+      ? loadBusinessContextBlock(supabase, tenant_id)
+      : null;
+    const staleCheckPromise = salesModeEnabled
+      ? supabase
+          .from("tenant_business_context")
+          .select("needs_regeneration, last_inferred_at")
           .eq("tenant_id", tenant_id)
-          .eq("is_active", true)
-          .is("deleted_at", null)
-          .limit(200);
-        preTransitionProductHint = (prodRows || [])
-          .map((p: { name: string | null }) => p.name)
-          .filter((n: string | null): n is string => typeof n === "string" && n.length >= 4);
-      } catch (e) {
-        console.warn("[ai-support-chat] [F2-V2] product names hint preload failed:", (e as Error).message);
-      }
-    }
+          .maybeSingle()
+          .then(r => r.data, () => null)
+      : Promise.resolve(null);
+
+    const preTransitionProductHint: string[] = await productHintPromise;
 
     const mentionedProductNameBefore = extractMentionedProductName(lastMessageContent || "", preTransitionProductHint);
     const familyMentionedBefore = detectFamilyMentioned(lastMessageContent || "");
