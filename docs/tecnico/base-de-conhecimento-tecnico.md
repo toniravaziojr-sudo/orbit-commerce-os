@@ -18,6 +18,7 @@
 6. [Prompts & IA](#6-prompts--ia)
 7. [Padrões Proibidos (Anti-Patterns)](#7-padrões-proibidos-anti-patterns)
 8. [Decisões Arquiteturais](#8-decisões-arquiteturais)
+9. [Estabilização do Atendimento e Cérebro de IA (D6–D10)](#9-estabilização-do-atendimento-e-cérebro-de-ia-blocos-d6d10--2026-04-26)
 
 ---
 
