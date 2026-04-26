@@ -52,7 +52,15 @@ import {
   // [F2-V2] foco de família + extração de nome citado
   detectFamilyMentioned,
   extractMentionedProductName,
+  // [F2-V3] intenção do turno + razão de rebaixamento
+  type TurnIntent,
 } from "../_shared/sales-pipeline/index.ts";
+// [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
+// (substitui o cache em-memória que se perdia a cada cold start).
+import {
+  isParamIncompatible,
+  markParamIncompatible,
+} from "../_shared/ai-model-compat.ts";
 // [Pacotes B/C/D/E] Dinâmica de turno (lock, continuação, stall, anti-dup)
 import {
   acquireProcessingLock,
@@ -3263,6 +3271,15 @@ Cliente: "vocês entregam em SP?"
       detectInformationalProductQuestion(lastMessageContent || "") &&
       !!(mentionedProductNameBefore || familyMentionedBefore || familyFocusBefore || lastFocusedProductNameBefore);
 
+    // [F2-V3] Sinal de intenção de compra recente — derivado da pendência ativa.
+    // view_cart / check_coupon dentro do TTL (10 min) significam que o cliente
+    // estava engajado em compra. SEM esse sinal, data_provided sozinho NÃO
+    // preserva checkout (evita conversa contaminada).
+    const recentPurchaseIntentBefore: boolean = !!(
+      existingPendingAction &&
+      (existingPendingAction.kind === "view_cart" || existingPendingAction.kind === "check_coupon")
+    );
+
     const preTransition = salesModeEnabled
       ? decideNextState({
           current: pipelineStateBefore,
@@ -3275,10 +3292,23 @@ Cliente: "vocês entregam em SP?"
           productNamesHint: preTransitionProductHint,
           familyFocus: familyFocusBefore,
           lastFocusedProductName: lastFocusedProductNameBefore,
+          recentPurchaseIntent: recentPurchaseIntentBefore,
         })
-      : { next: pipelineStateBefore, reason: "no_change_keep_state" as const, forced: false };
+      : { next: pipelineStateBefore, reason: "no_change_keep_state" as const, forced: false, turnIntent: undefined as TurnIntent | undefined, downgradeReason: null };
 
     const pipelineState: PipelineState = preTransition.next;
+    const turnIntentClassified: TurnIntent | null = (preTransition as any).turnIntent ?? null;
+    const stateDowngradeReason: string | null = (preTransition as any).downgradeReason ?? null;
+
+    // [F2-V3] Logs estruturados de auditoria — fáceis de buscar nos edge logs.
+    console.log(
+      `[ai-support-chat] [F2-V3] turn_intent_classified intent=${turnIntentClassified ?? "n/a"} state_before=${pipelineStateBefore} state_after=${pipelineState} downgrade_reason=${stateDowngradeReason ?? "none"} recent_purchase_intent=${recentPurchaseIntentBefore} family_focus=${familyFocusBefore ?? "none"} last_focused_product=${lastFocusedProductNameBefore ?? "none"}`
+    );
+    if (stateDowngradeReason) {
+      console.log(
+        `[ai-support-chat] [F2-V3] state_downgrade_reason=${stateDowngradeReason} from=${pipelineStateBefore} to=${pipelineState}`
+      );
+    }
     console.log(
       `[ai-support-chat] [F2-FIX] pre-transition ${pipelineStateBefore} → ${pipelineState} (reason=${preTransition.reason})`
     );
