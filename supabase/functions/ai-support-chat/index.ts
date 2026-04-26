@@ -3831,7 +3831,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             variant_id: info.variant_id,
             at: new Date().toISOString(),
           });
-        },
+        // [F2-V2 — Item 1] Família em foco + família mencionada agora,
+        // para search_products aplicar filtro estrito.
+        familyFocus: familyFocusBefore,
+        familyMentionedNow: detectFamilyMentioned(lastMessageContent || ""),
       };
 
       let response: Response | null = null;
