@@ -697,6 +697,14 @@ async function executeSalesTool(
       reason: string;
       variant_id: string | null;
     }) => void;
+    // [F2-V2 — Item 1] Família em foco persistida na conversa.
+    // Se setada, search_products aplica filtro estrito por família,
+    // exceto quando a IA pediu produto nominal específico ou o cliente
+    // mencionou outra família na mensagem atual.
+    familyFocus?: string | null;
+    // [F2-V2 — Item 1] Família mencionada na mensagem ATUAL do cliente.
+    // Se diferente da família em foco, prevalece (mudou de assunto).
+    familyMentionedNow?: string | null;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
@@ -937,7 +945,50 @@ async function executeSalesTool(
         });
 
         const enriched = await enrichList(pool);
-        const finalList = partitionAndLimit(enriched);
+
+        // [F2-V2 — Item 1] FILTRO ESTRITO POR FAMÍLIA EM FOCO
+        // Quando há family_focus persistido na conversa e o cliente NÃO mudou
+        // de família na mensagem atual, filtra a vitrine para manter coerência.
+        // Evita reembaralhar o catálogo quando a conversa já está em product_detail
+        // ou comparison sobre uma família específica.
+        const familyFocusActive = ctx.familyFocus || null;
+        const familyMentionedNow = ctx.familyMentionedNow || null;
+        const familyChanged = !!familyMentionedNow && familyMentionedNow !== familyFocusActive;
+        const FAMILY_NAME_PATTERNS: Record<string, RegExp> = {
+          shampoo: /\bshampoo/i,
+          condicionador: /\bcondicionador/i,
+          creme: /\bcr[eê]me/i,
+          locao: /\blo[çc][ãa]o/i,
+          balm: /\bbalm/i,
+          serum: /\bs[eé]rum/i,
+          tonico: /\bt[ôo]nico/i,
+          mascara: /\bm[áa]scara/i,
+          gel: /\bgel\b/i,
+          sabonete: /\bsabonete/i,
+          kit: /\bkit\b/i,
+          combo: /\bcombo\b/i,
+          perfume: /\bperfume/i,
+        };
+        const effectiveFamily = familyChanged ? familyMentionedNow : familyFocusActive;
+        let filtered = enriched;
+        if (effectiveFamily && FAMILY_NAME_PATTERNS[effectiveFamily]) {
+          const pat = FAMILY_NAME_PATTERNS[effectiveFamily];
+          const byFamily = enriched.filter(p => pat.test(String(p.name || "")));
+          if (byFamily.length > 0) {
+            filtered = byFamily;
+            console.log(
+              `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+              `filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
+            );
+          } else {
+            console.log(
+              `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+              `mas pool não tem item da família — mantém vitrine original (${enriched.length})`
+            );
+          }
+        }
+
+        const finalList = partitionAndLimit(filtered);
         return JSON.stringify(finalList);
       }
 
@@ -3781,6 +3832,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             at: new Date().toISOString(),
           });
         },
+        // [F2-V2 — Item 1] Família em foco + família mencionada agora,
+        // para search_products aplicar filtro estrito.
+        familyFocus: familyFocusBefore,
+        familyMentionedNow: detectFamilyMentioned(lastMessageContent || ""),
       };
 
       let response: Response | null = null;
