@@ -180,6 +180,32 @@ Deno.test("transitions: link de checkout gerado força checkout_assist", () => {
   assertEquals(r.reason, "checkout_link_generated");
 });
 
+Deno.test("transitions: pergunta informativa com foco existente rebaixa checkout para product_detail", () => {
+  const r = decideNextState({
+    ...baseInput,
+    current: "checkout_assist",
+    hasActiveCart: true,
+    message: "esse shampoo é bom mesmo?",
+    familyFocus: "shampoo",
+    lastFocusedProductName: "Shampoo Calvície Zero",
+  });
+  assertEquals(r.next, "product_detail");
+  assertEquals(r.reason, "informational_product_question_downgrade_to_product_detail");
+  assert(r.forced);
+});
+
+Deno.test("transitions: pergunta informativa sem produto específico mas com família rebaixa para recommendation", () => {
+  const r = decideNextState({
+    ...baseInput,
+    current: "checkout_assist",
+    hasActiveCart: true,
+    message: "eu vi um shampoo será que é bom mesmo?",
+  });
+  assertEquals(r.next, "recommendation");
+  assertEquals(r.reason, "informational_product_question_downgrade_to_recommendation");
+  assert(r.forced);
+});
+
 // ============================================================
 // tool-filter.ts
 // ============================================================
