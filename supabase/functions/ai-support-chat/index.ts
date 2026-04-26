@@ -697,6 +697,14 @@ async function executeSalesTool(
       reason: string;
       variant_id: string | null;
     }) => void;
+    // [F2-V2 — Item 1] Família em foco persistida na conversa.
+    // Se setada, search_products aplica filtro estrito por família,
+    // exceto quando a IA pediu produto nominal específico ou o cliente
+    // mencionou outra família na mensagem atual.
+    familyFocus?: string | null;
+    // [F2-V2 — Item 1] Família mencionada na mensagem ATUAL do cliente.
+    // Se diferente da família em foco, prevalece (mudou de assunto).
+    familyMentionedNow?: string | null;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
