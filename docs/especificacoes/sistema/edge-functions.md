@@ -3493,3 +3493,28 @@ Quando `marketing_integrations.meta_access_token` está vazio ou inválido:
 | `disconnected` | Integração desativada pelo usuário ou por limpeza |
 
 > ⚠️ `inactive` **NÃO É** um status válido. Usar causa erro de constraint no banco.
+
+---
+
+## Edge Functions de Auditoria e Harness (Diagnóstico Fim a Fim)
+
+Funções dedicadas a **provar** o funcionamento de pipelines críticos com evidência concreta. **Não devem ser chamadas em produção operacional** — seu papel é validação técnica após implementação ou alteração estrutural.
+
+> ⚠️ **Política de preservação:** essas funções não devem ser removidas sem substituto equivalente. Cada uma é referenciada pelo doc do módulo correspondente como critério oficial de fechamento técnico.
+
+### `d7-media-harness` — Pipeline de Mídia no Atendimento
+
+**Objetivo:** validar que o ciclo completo de mídia (imagem/áudio → fila → processamento → consumo no LLM → limpeza) opera sem regressão.
+
+**Valida 6 pontos:** entrada da mídia, enfileiramento correto, processamento concluído, consumo registrado no contexto da IA, anti-loop da mensagem de espera, limpeza de estado pós-conclusão.
+
+**Doc de referência:** `docs/especificacoes/crm/crm-atendimento.md` §14.1 e §17.1.
+
+### `d8-brain-harness` — Cérebro Regenerativo (Injeção de Insights nos Agentes)
+
+**Objetivo:** provar que insights aprovados em `ai_brain_active_view` são efetivamente injetados no system prompt dos 4 agentes (vendas, auxiliar, landing, tráfego), respeitando os escopos por agente (`scope_vendas`, `scope_auxiliar`, `scope_landing`, `scope_trafego`).
+
+**Valida 4 pontos:** insight existe e está ativo, helper `getBrainContextForPrompt` retorna o bloco formatado, system prompt final contém o título/conteúdo do insight, escopos negativos retornam contexto vazio (isolamento).
+
+**Doc de referência:** `docs/especificacoes/sistema/central-comando.md` §4 (Aba Insights — Cérebro Regenerativo).
+
