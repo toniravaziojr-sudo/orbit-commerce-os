@@ -4575,10 +4575,94 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
 
     // [Pacote E] Anti-duplicidade: olha histórico recente de turnos para o mesmo hash.
-    const dupCheck = await isDuplicateRecentResponse(supabase, conversation_id, responseHash);
+    let dupCheck = await isDuplicateRecentResponse(supabase, conversation_id, responseHash);
+
+    // ============================================
+    // [PACOTE E v2] REGENERAÇÃO ESTRUTURAL ANTI-REPETIÇÃO
+    // ============================================
+    // Se a resposta gerada bate com hash recente (duplicata), tenta UMA
+    // regeneração com prompt de variação obrigatória. Sem novo loop de tools
+    // (tool_choice="none") para garantir só texto e baixar latência.
+    // Se a regeneração ainda colidir, mantemos a supressão original.
+    let regenerationAttempted = false;
+    let regenerationSucceeded = false;
+    if (dupCheck.duplicate && aiContent && aiContent.trim().length > 0 && OPENAI_API_KEY) {
+      regenerationAttempted = true;
+      try {
+        const variationInstruction =
+          `A resposta abaixo já foi enviada nesta conversa nos últimos turnos e o cliente está repetindo o tema. ` +
+          `Reformule COMPLETAMENTE com palavras, abertura e estrutura diferentes, mantendo o mesmo conteúdo de negócio ` +
+          `(mesmos produtos/preços/condições). NÃO repita as mesmas frases de abertura. Avance a conversa: ` +
+          `traga um detalhe novo (preço, ingrediente, indicação, próxima pergunta) que ainda não foi mencionado. ` +
+          `Resposta original a evitar:\n"""${aiContent.slice(0, 600)}"""`;
+
+        const isGpt5Regen = modelUsed.startsWith("gpt-5");
+        const regenBody: Record<string, unknown> = {
+          model: modelUsed,
+          messages: [
+            ...aiMessages,
+            { role: "assistant", content: aiContent },
+            { role: "system", content: variationInstruction },
+          ],
+          tool_choice: "none",
+        };
+        if (!isGpt5Regen) {
+          regenBody.temperature = 0.8;
+        }
+
+        const regenResp = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(regenBody),
+        });
+
+        if (regenResp.ok) {
+          const regenData = await regenResp.json();
+          const regenText = regenData.choices?.[0]?.message?.content;
+          if (regenData.usage) {
+            inputTokens += regenData.usage.prompt_tokens || 0;
+            outputTokens += regenData.usage.completion_tokens || 0;
+          }
+          if (regenText && regenText.trim().length > 0) {
+            const regenHash = await hashResponse(regenText);
+            if (regenHash !== responseHash) {
+              const regenDup = await isDuplicateRecentResponse(supabase, conversation_id, regenHash);
+              if (!regenDup.duplicate) {
+                console.log(
+                  `[ai-support-chat] [PACOTE E v2] regeneration succeeded — replacing duplicate (oldHash=${responseHash.slice(0,8)} newHash=${regenHash.slice(0,8)})`,
+                );
+                aiContent = regenText;
+                // Atualiza hash e libera supressão
+                (dupCheck as { duplicate: boolean; reason: string }) = { duplicate: false, reason: "regenerated" };
+                regenerationSucceeded = true;
+              } else {
+                console.warn(
+                  `[ai-support-chat] [PACOTE E v2] regeneration still duplicate (newHash=${regenHash.slice(0,8)}) — keeping suppression`,
+                );
+              }
+            } else {
+              console.warn(`[ai-support-chat] [PACOTE E v2] regeneration produced identical hash — keeping suppression`);
+            }
+          } else {
+            console.warn(`[ai-support-chat] [PACOTE E v2] regeneration returned empty text — keeping suppression`);
+          }
+        } else {
+          console.error(`[ai-support-chat] [PACOTE E v2] regeneration HTTP ${regenResp.status} — keeping suppression`);
+        }
+      } catch (regenErr) {
+        console.error(`[ai-support-chat] [PACOTE E v2] regeneration threw:`, regenErr);
+      }
+    }
+
     if (dupCheck.duplicate) {
       console.log(`[ai-support-chat] [PACOTE E] duplicate response blocked (${dupCheck.reason})`);
     }
+
+    // Recalcula hash final caso regeneração tenha trocado o texto
+    const finalResponseHash = regenerationSucceeded ? await hashResponse(aiContent || "") : responseHash;
 
     // [PACOTE 3] Decidir last_pending_action a persistir.
     //
@@ -4627,7 +4711,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       customer_id: customerId || conversation.customer_id,
       sales_state: nextState,
       last_intent: intentForState,
-      last_bot_response_hash: responseHash,
+      last_bot_response_hash: finalResponseHash,
       images_sent_per_product: imagesSentMap,
     };
     if (nextState !== currentSalesState) {
