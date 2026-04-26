@@ -4053,8 +4053,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // - light states: minimal (greeting/discovery/recommendation/product_detail/support/handoff)
           // - decision/checkout_assist: low (precisa pesar carrinho + dados)
           // Já enviamos reasoning no follow-up e no forced round; agora também na chamada principal.
-          if (isGpt5Model) {
+          if (isGpt5Model && !isReasoningIncompatible(modelToTry)) {
             requestBody.reasoning = { effort: stateReasoningEffort };
+          } else if (isGpt5Model && isReasoningIncompatible(modelToTry)) {
+            console.log(`[ai-support-chat] [ETAPA1-FIX] reasoning_param_incompatible_cached model=${modelToTry} skipping_reasoning_param=true`);
           }
 
           // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
@@ -4342,8 +4344,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           tool_choice: pipelineFilteredTools.length > 0 ? "auto" : undefined,
           parallel_tool_calls: false,
         };
-        // [F2-FIX] Mesmo controle de reasoning no follow-up
-        if (isGpt5ModelFollow) {
+        // [F2-FIX] Mesmo controle de reasoning no follow-up + cache de incompat
+        if (isGpt5ModelFollow && !isReasoningIncompatible(usedModel)) {
           followUpBody.reasoning = { effort: stateReasoningEffort };
         }
         // [F1] Mesmo guard: gpt-5 não aceita temperature
@@ -4428,7 +4430,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           tool_choice: "none",
           parallel_tool_calls: false,
         };
-        if (isGpt5ModelForced) {
+        if (isGpt5ModelForced && !isReasoningIncompatible(usedModel)) {
           forcedBody.reasoning = { effort: stateReasoningEffort };
         }
         if (!isGpt5ModelForced) {
