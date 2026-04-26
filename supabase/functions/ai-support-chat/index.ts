@@ -52,7 +52,15 @@ import {
   // [F2-V2] foco de família + extração de nome citado
   detectFamilyMentioned,
   extractMentionedProductName,
+  // [F2-V3] intenção do turno + razão de rebaixamento
+  type TurnIntent,
 } from "../_shared/sales-pipeline/index.ts";
+// [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
+// (substitui o cache em-memória que se perdia a cada cold start).
+import {
+  isParamIncompatible,
+  markParamIncompatible,
+} from "../_shared/ai-model-compat.ts";
 // [Pacotes B/C/D/E] Dinâmica de turno (lock, continuação, stall, anti-dup)
 import {
   acquireProcessingLock,
