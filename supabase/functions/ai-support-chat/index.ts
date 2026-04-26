@@ -4489,6 +4489,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       toolsCalled: toolsCalledArr,
       discoveryTurnsSoFar,
       productNamesHint,
+      familyFocus: familyFocusBefore,
+      lastFocusedProductName: lastFocusedProductNameBefore,
     });
 
     const nextPipelineState: PipelineState = shouldHandoff ? "handoff" : transition.next;
