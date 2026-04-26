@@ -4591,10 +4591,24 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       );
     }
 
-    // [Sub-fase 1.3] Persistir product_focus em conversations.metadata quando
-    //   alguma tool deste turno resolveu/atualizou o foco (variante ou produto).
-    //   Read-merge-write para não atropelar outros campos de metadata (lock, pendência).
-    if (nextProductFocus !== undefined) {
+    // [Sub-fase 1.3 + F2-V2] Persistir product_focus, family_focus e
+    //   last_focused_product_name em conversations.metadata.
+    //   Read-merge-write para não atropelar outros campos (lock, pendência).
+    const familyMentionedNow = detectFamilyMentioned(lastMessageContent || "");
+    const productMentionedNow = extractMentionedProductName(
+      lastMessageContent || "",
+      productNamesHint,
+    );
+    const shouldUpdateFamilyFocus =
+      familyMentionedNow !== null && familyMentionedNow !== familyFocusBefore;
+    const shouldUpdateLastFocusedProduct =
+      productMentionedNow !== null && productMentionedNow !== lastFocusedProductNameBefore;
+
+    if (
+      nextProductFocus !== undefined ||
+      shouldUpdateFamilyFocus ||
+      shouldUpdateLastFocusedProduct
+    ) {
       try {
         const { data: convRow } = await supabase
           .from("conversations")
@@ -4603,19 +4617,34 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           .maybeSingle();
         const curMeta: Record<string, unknown> =
           (convRow?.metadata as Record<string, unknown>) || {};
-        const newMeta =
-          nextProductFocus === null
-            ? (() => { const { product_focus: _drop, ...rest } = curMeta; return rest; })()
-            : { ...curMeta, product_focus: nextProductFocus };
+        let newMeta: Record<string, unknown> = { ...curMeta };
+
+        if (nextProductFocus !== undefined) {
+          if (nextProductFocus === null) {
+            const { product_focus: _drop, ...rest } = newMeta;
+            newMeta = rest;
+          } else {
+            newMeta.product_focus = nextProductFocus;
+          }
+        }
+        if (shouldUpdateFamilyFocus) {
+          newMeta.family_focus = familyMentionedNow;
+        }
+        if (shouldUpdateLastFocusedProduct) {
+          newMeta.last_focused_product_name = productMentionedNow;
+        }
+
         await supabase
           .from("conversations")
           .update({ metadata: newMeta })
           .eq("id", conversation_id);
         console.log(
-          `[ai-support-chat] [Sub-fase 1.3] product_focus ${nextProductFocus === null ? "CLEARED" : `SET (product=${nextProductFocus.product_id} variant=${nextProductFocus.variant_id ?? "—"} source=${nextProductFocus.source})`}`,
+          `[ai-support-chat] [F2-V2] focus persisted: product_focus=${
+            nextProductFocus === undefined ? "unchanged" : nextProductFocus === null ? "CLEARED" : `product=${nextProductFocus.product_id}`
+          } family_focus=${shouldUpdateFamilyFocus ? familyMentionedNow : "unchanged"} last_focused_product=${shouldUpdateLastFocusedProduct ? productMentionedNow : "unchanged"}`,
         );
       } catch (e) {
-        console.warn("[ai-support-chat] [Sub-fase 1.3] falha ao persistir product_focus:", e);
+        console.warn("[ai-support-chat] [F2-V2] falha ao persistir foco:", e);
       }
     }
 
