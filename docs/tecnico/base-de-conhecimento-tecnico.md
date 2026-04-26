@@ -18,6 +18,7 @@
 6. [Prompts & IA](#6-prompts--ia)
 7. [Padrões Proibidos (Anti-Patterns)](#7-padrões-proibidos-anti-patterns)
 8. [Decisões Arquiteturais](#8-decisões-arquiteturais)
+9. [Estabilização do Atendimento e Cérebro de IA (D6–D10)](#9-estabilização-do-atendimento-e-cérebro-de-ia-blocos-d6d10--2026-04-26)
 
 ---
 
@@ -715,3 +716,79 @@ Ao resolver um bug ou tomar uma decisão técnica significativa, adicionar entra
 3. **Proibido** que qualquer novo motor/agente de IA responda em um canal sem antes consultar `channel_accounts.is_active` para o `tenant_id` + `channel_type` corretos.
 4. **Proibido** confiar apenas em `ai_support_config` ou `ai_channel_config` para decidir se a IA responde — esses dois são camadas adicionais (ON/OFF lógico da IA), não substituem o gate de canal.
 5. Doc formal vivo: `docs/especificacoes/crm/crm-atendimento.md` §5.1 "Gate Universal de Canal".
+
+---
+
+## 9. Estabilização do Atendimento e Cérebro de IA (Blocos D6–D10) — 2026-04-26
+
+Bloco de 5 estabilizações entregues em sequência sobre o motor de atendimento e o ecossistema de IA. Cada item registra o problema original, a causa raiz, a solução aplicada e a validação técnica que justifica o fechamento.
+
+### 9.1 D6 — Gate Universal de Canal de Atendimento
+
+**Problema:** IA continuava respondendo após "desativar canal" pela UI.
+
+**Causa raiz:** ação "Desativar" deletava registro em `channel_accounts` em vez de marcar `is_active = false`; motor `ai-support-chat` não consultava essa tabela como fonte de verdade.
+
+**Solução:** gate universal no início do `ai-support-chat` consulta `channel_accounts` por `tenant_id` + `channel_type` antes de qualquer LLM/RAG/tool. UI corrigida para toggle `is_active` como ação primária.
+
+**Validação técnica:** ver §8.X desta base — registros confirmados no banco e chamada real à edge function retornando `CHANNEL_DISABLED` sem invocar LLM.
+
+**Doc vivo:** `docs/especificacoes/crm/crm-atendimento.md` §5.1.
+
+### 9.2 D7 — Pipeline de Mídia no Atendimento (Imagem e Áudio)
+
+**Problema:** mídia (imagem/áudio) entrava no atendimento mas a IA respondia antes de a descrição/transcrição estar pronta, ou enviava múltiplas mensagens de espera, ou reprocessava em loop.
+
+**Causa raiz:** ausência de gate de espera explícito no motor; ausência de flag anti-loop para a mensagem de espera; ausência de marcação auditável do consumo da descrição/transcrição no contexto do LLM.
+
+**Solução:** 4 mecanismos obrigatórios — gate `pending_media_processing` no chat, flag `media_wait_reply_sent` para anti-loop, reprocesso único garantido após conclusão da fila, registro `consumed_at` provando injeção no contexto.
+
+**Validação técnica:** harness `d7-media-harness` provou os 6 pontos fim a fim — entrada, enfileiramento (`vision`/`transcription`), `status = completed` com `processed_at`, `consumed_at` preenchido antes da resposta, sem duplicação, limpeza de estado.
+
+**Regras anti-regressão:** ver `docs/especificacoes/crm/crm-atendimento.md` §14.1.6.
+
+**Doc vivo:** `docs/especificacoes/crm/crm-atendimento.md` §14.1 e §17.1.
+
+### 9.3 D8 — Cérebro Regenerativo (Insights Aprovados nos 4 Agentes)
+
+**Problema:** aprendizados capturados em conversas reais não chegavam ao system prompt dos agentes — a IA não evoluía com o uso.
+
+**Causa raiz:** ausência de pipeline formal de captura → consolidação → aprovação humana → injeção. Não havia view ativa nem helper compartilhado para concatenar os insights ao prompt.
+
+**Solução:** tabela `ai_brain_insights` com status (pending/active/revoked/expired) e 4 escopos por agente (`scope_vendas`, `scope_auxiliar`, `scope_landing`, `scope_trafego`); view `ai_brain_active_view` para leitura em runtime; helper `_shared/brain-context.ts` consumido pelos 4 agentes (`ai-support-chat`, `command-assistant-chat`, `ai-landing-page-generate`, `ads-autopilot-*`).
+
+**Validação técnica:** harness `d8-brain-harness` provou que um insight aprovado de tipo `objecao` (escopo `vendas`) foi injetado no system prompt do agente de vendas, e que o agente `landing` recebeu contexto vazio por não ter o escopo correspondente — isolamento confirmado.
+
+**Doc vivo:** `docs/especificacoes/sistema/central-comando.md` §4.
+
+### 9.4 D9 — Estabilização de Conexões e Status de WhatsApp
+
+**Problema:** UI reportava WhatsApp como "saudável" mesmo com canal degradado ou desconectado real.
+
+**Causa raiz:** decisão baseada apenas em `connection_status`, ignorando `link_status` + `operational_status`.
+
+**Solução:** todo consumidor (UI, webhooks, motores de IA) passou a validar as duas camadas; janela de observação de 24h após troca de WABA / Phone Number ID.
+
+**Validação técnica:** ver §8 desta base — campos validados no banco, UI e webhooks consumindo a regra unificada.
+
+**Doc vivo:** `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` v1.1.
+
+### 9.5 D10 — Auditoria Cruzada de Recepção (Fonte de Verdade)
+
+**Problema:** ausência de mensagens era declarada com base em uma única fonte (auditoria), gerando falso negativo quando o problema estava em conversa/mensagem do atendimento.
+
+**Causa raiz:** verificação isolada em uma tabela só; falta de regra de cruzamento obrigatório.
+
+**Solução:** regra mandatória de cross-check entre `whatsapp_audit`, `conversations` e `messages` antes de declarar "não recebido". Memória de constraint formalizada (`mem://constraints/whatsapp-reception-source-of-truth-cross-check`).
+
+**Validação técnica:** auditável — toda investigação de recepção deve apresentar consulta às 3 fontes, não apenas à auditoria.
+
+**Doc vivo:** `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` (regra de diagnóstico).
+
+### 9.6 Regra Geral do Bloco (Anti-Regressão MANDATÓRIA)
+
+1. **Proibido** alterar o motor `ai-support-chat`, o helper `_shared/brain-context.ts`, o helper `_shared/media-context.ts` ou a fila `ai_media_queue` sem rodar os harnesses correspondentes (`d7-media-harness` para mídia, `d8-brain-harness` para cérebro) e provar todos os pontos.
+2. **Proibido** remover as Edge Functions de harness (`d7-media-harness`, `d8-brain-harness`) sem substituto equivalente. Elas são parte do contrato de fechamento técnico.
+3. **Proibido** declarar resposta de IA válida em conversa com mídia sem `consumed_at` no anexo.
+4. **Proibido** insight do cérebro entrar em produção sem aprovação humana explícita (clique no admin) — não há aprovação automática.
+

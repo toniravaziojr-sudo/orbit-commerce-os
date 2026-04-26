@@ -867,6 +867,59 @@ await supabase.from('message_attachments').update({
 
 ---
 
+## 14.1 Garantias de Integridade do Consumo de Mídia (v2026-04-26 — D7)
+
+O processamento de mídia (imagem/áudio) é assíncrono. Para garantir que a IA **só responda depois que a descrição/transcrição estiver pronta**, sem duplicar mensagens e sem gerar loops, o motor de atendimento opera 4 mecanismos obrigatórios — todos validados fim a fim por harness técnico (ver §17.1).
+
+### 14.1.1 Gate de Espera no Chat (`pending_media_processing`)
+
+Quando uma mensagem entra com anexo de imagem ou áudio:
+
+1. A mensagem é gravada com a flag `pending_media_processing = true`.
+2. O motor `ai-support-chat`, ao processar a conversa, detecta a flag e **não chama o LLM**.
+3. Em vez disso, envia uma única mensagem de espera ("Recebi sua mídia, estou analisando…") e encerra.
+4. Quando o consumidor da fila (`ai-media-queue-process`) conclui o processamento e atualiza o anexo (`vision_processed_at` / `transcription_processed_at`), um trigger limpa `pending_media_processing = false`.
+5. O próximo turno do chat (ou um disparo de reprocesso — ver §14.1.3) já encontra a flag limpa e prossegue normalmente, com a descrição/transcrição injetada no contexto.
+
+### 14.1.2 Anti-Loop da Mensagem de Espera (`media_wait_reply_sent`)
+
+A mensagem de espera só pode ser enviada **uma vez por mídia pendente**. O motor controla isso pela flag `media_wait_reply_sent`:
+
+- Se `pending_media_processing = true` E `media_wait_reply_sent = false` → envia a espera, marca `media_wait_reply_sent = true` e encerra.
+- Se `pending_media_processing = true` E `media_wait_reply_sent = true` → encerra silenciosamente, sem reenviar a espera.
+
+**Regra:** nunca reenviar a mesma mensagem de espera para a mesma mídia. Reenviar é regressão e deve ser tratado como bug.
+
+### 14.1.3 Reprocesso Único Garantido
+
+Quando o consumidor da fila finaliza uma mídia, ele dispara **um único reprocesso** do `ai-support-chat` para aquela conversa, garantindo que a IA responda sem depender do próximo turno do cliente. Esse reprocesso:
+
+- Acontece **somente** após `status = completed` no item da fila.
+- Gera **uma única resposta** da IA — controlado pelo gate de espera + flag de consumo (§14.1.4).
+- Em caso de falha de processamento (`status = failed` após `max_attempts`), o gate é liberado mesmo sem descrição/transcrição, e o motor segue com o conteúdo textual disponível (fallback).
+
+### 14.1.4 Consumo Registrado (`consumed_at`)
+
+Quando a descrição/transcrição entra de fato no system prompt da chamada ao LLM, o motor grava `consumed_at = NOW()` no anexo correspondente. Isso serve como **prova auditável** de que o resultado da fila foi efetivamente injetado no contexto antes da resposta final — não apenas processado isoladamente.
+
+### 14.1.5 Limpeza de Estado
+
+Após a resposta da IA:
+
+- `pending_media_processing` → fica `false` (limpo pelo trigger ao concluir o processamento).
+- `media_wait_reply_sent` → permanece `true` apenas pelo tempo de vida daquela mídia pendente; é resetado quando uma nova mídia entra na conversa.
+- Item da fila → `status = completed`, `processed_at` preenchido. Sem item órfão.
+
+### 14.1.6 Regras Anti-Regressão (MANDATÓRIAS)
+
+1. **Proibido** o motor `ai-support-chat` chamar o LLM com `pending_media_processing = true` para qualquer anexo da conversa atual.
+2. **Proibido** enviar a mensagem de espera mais de uma vez para a mesma mídia pendente.
+3. **Proibido** declarar uma resposta de IA como válida em conversa com mídia sem `consumed_at` preenchido no anexo correspondente.
+4. **Proibido** reprocessar o chat antes de `status = completed` (ou `failed` final) no item da fila.
+5. Toda alteração no fluxo de mídia DEVE rodar o harness `d7-media-harness` (§17.1) e provar os 6 pontos: registro de mensagem/anexo, enfileiramento correto, processamento concluído, consumo no contexto, anti-loop, limpeza de estado.
+
+---
+
 ## 15. Intent Classification (Tool Calling)
 
 ### Objetivo
@@ -998,3 +1051,23 @@ O sistema mascara automaticamente:
 | Notificações | Filtro de período (NotificationsFilter) | `DateRangeFilter` |
 
 > Ver `regras-gerais.md` § Padrão de Datas para especificação completa.
+
+---
+
+## 17.1 Harness de Validação Fim a Fim — Mídia (D7)
+
+Para auditar o pipeline completo de mídia (registro → fila → processamento → consumo → limpeza), o sistema mantém um harness dedicado que dispara um cenário real e retorna evidência concreta de cada etapa. Esse harness é **a única forma oficial de declarar o D7 como tecnicamente fechado** após qualquer alteração no fluxo.
+
+**Função:** `d7-media-harness` (Edge Function de auditoria — não destinada a uso operacional).
+
+**O que valida (6 pontos obrigatórios):**
+
+1. **Entrada da mídia** — mensagem registrada e anexo registrado.
+2. **Enfileiramento** — linha criada em `ai_media_queue` com tipo correto (`vision` para imagem, `transcription` para áudio).
+3. **Processamento** — item da fila atinge `status = completed` com `processed_at` e resultado persistido.
+4. **Consumo no contexto** — descrição/transcrição entrou no system prompt do `ai-support-chat` antes da resposta final (provado por `consumed_at`).
+5. **Anti-loop e reprocesso único** — sem resposta duplicada, sem mensagem de espera repetida, exatamente um reprocesso por mídia.
+6. **Limpeza de estado** — `pending_media_processing` liberado após conclusão; sem item órfão na fila.
+
+**Critério de fechamento:** o harness deve retornar evidência positiva nos 6 pontos acima. Resultado parcial não fecha o D7.
+

@@ -8,39 +8,37 @@ type: preference
 
 ## Slot 1 — Assunto ATUAL
 
-**Tema:** Diagnóstico do webhook do WhatsApp Meta — evidências já confirmadas pelo usuário
+**Tema:** Bloco D6–D10 — Estabilização do Atendimento e Cérebro de IA (validado e documentado em 2026-04-26)
 
 **Resumo:**
-- O usuário já enviou repetidas vezes prints da tela oficial de configuração do webhook no painel de developers da Meta e não deve ser solicitado novamente a reenviar a mesma evidência sem fato novo.
-- Evidência visual já confirmada pelo usuário em `developers.facebook.com/.../whatsapp-business/.../wa-settings/`:
-  - URL de callback configurada: `https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/meta-whatsapp-webhook`
-  - Verify token preenchido na tela
-  - Campo `messages` está **assinado/ativado**
-  - Campo `messages` apareceu em **v24.0** no print; vários outros campos estavam em `v25.0`
-- Essa evidência deve ser tratada como já conhecida durante esta linha de investigação, salvo se o usuário informar que mudou algo.
-- Próximos diagnósticos não devem voltar para a etapa de pedir URL/token/messages por print, a menos que haja mudança declarada pelo usuário.
+- 5 estabilizações entregues e validadas tecnicamente fim a fim:
+  - **D6** — Gate Universal de Canal: `ai-support-chat` consulta `channel_accounts.is_active` antes de qualquer LLM.
+  - **D7** — Pipeline de Mídia: 4 mecanismos obrigatórios (`pending_media_processing`, `media_wait_reply_sent`, reprocesso único, `consumed_at`). Validado pelo harness `d7-media-harness` nos 6 pontos.
+  - **D8** — Cérebro Regenerativo: insights aprovados em `ai_brain_active_view` injetados nos 4 agentes (`vendas`, `auxiliar`, `landing`, `trafego`) via `_shared/brain-context.ts`. Validado pelo harness `d8-brain-harness` (injeção positiva + isolamento por escopo).
+  - **D9** — Status WhatsApp: decisão usa `link_status` + `operational_status`, nunca só `connection_status`.
+  - **D10** — Auditoria de Recepção: cross-check obrigatório entre `whatsapp_audit`, `conversations` e `messages`.
+- 2 Edge Functions de auditoria criadas: `d7-media-harness` e `d8-brain-harness` — não devem ser removidas sem substituto equivalente.
 
 **Docs formais relacionados:**
-- Lacuna documental declarada: não existe doc formal específico consolidando o estado factual confirmado por prints desta investigação; isso é apenas cache operacional do assunto atual.
+- `docs/especificacoes/crm/crm-atendimento.md` §14.1, §14.1.6, §17.1 (D7)
+- `docs/especificacoes/sistema/central-comando.md` §4 (D8 — já existia, mantido)
+- `docs/especificacoes/sistema/edge-functions.md` — nova seção "Edge Functions de Auditoria e Harness"
+- `docs/tecnico/base-de-conhecimento-tecnico.md` §9 — registro completo dos 5 blocos com problema/causa/solução/validação
 
 ---
 
 ## Slot 2 — Assunto ANTERIOR
 
-**Tema:** Estabilização completa do rastreamento Meta (Pixel + CAPI) v8.27.0
+**Tema:** Diagnóstico do webhook do WhatsApp Meta — evidências já confirmadas pelo usuário
 
 **Resumo:**
-- 4 frentes implementadas: (A) persistência 30d do dedup do Purchase via `localStorage` em `src/lib/purchaseDedup.ts`; (B) `event_id` determinístico normalizado `purchase_<mode>_<order_normalizado>` byte-a-byte idêntico em browser e server; (C/E1+E2) cookies sintéticos `_fbp`/`_fbc` no edge `storefront-html` (v8.27.0) via `Set-Cookie`, resolvendo race condition `fbq('init')` vs CAPI; (E3) enriquecimento de `ViewContent`/`AddToCart` com `email_hashed`/`phone_hashed` do `localStorage` (PII capturada em Lead/Purchase anteriores).
-- **Bug crítico corrigido**: código anterior passava hash em campo `email` cru, backend re-hasheava (hash de hash → match quebrado). Solução: novos campos `email_hashed`/`phone_hashed` passados sem re-hash.
-- Validação técnica: `X-Storefront-Version: v8.27.0` ativo, `Set-Cookie: _fbp=fb.1.<ts>.<rnd>` confirmado em response real, banco mostra `event_id` normalizado (`purchase_created_305`), edge `marketing-capi-track` deployada, IP via `cf-connecting-ip` em 100%.
-- Soberania do tenant `respeite-o-homem` preservada: `purchaseEventTiming = all_orders` mantido (decisão de negócio).
+- O usuário já enviou repetidas vezes prints da tela oficial de configuração do webhook no painel de developers da Meta e não deve ser solicitado novamente a reenviar a mesma evidência sem fato novo.
+- Evidência visual já confirmada em `developers.facebook.com/.../whatsapp-business/.../wa-settings/`: URL de callback configurada para o webhook, verify token preenchido, campo `messages` assinado/ativado.
+- Próximos diagnósticos não devem voltar para a etapa de pedir URL/token/messages por print, a menos que haja mudança declarada pelo usuário.
 
 **Docs formais relacionados:**
-- `docs/especificacoes/marketing/meta-tracking.md` — doc Layer 3 oficial criado (regras de emissão Purchase, estratégia de cobertura ≥95%, tabela inflação aparente vs real, cobertura mínima por evento)
-- `docs/meta-tracking-changelog.md` — Registro #3 (19/abr/2026 — v8.27.0) adicionado
-- `docs/especificacoes/storefront/pagina-obrigado.md` — seção "Disparo do Evento Purchase" adicionada
-- `.lovable/memory/constraints/purchase-event-emission-rules.md` — 4 regras anti-regressão (persistência 30d, event_id normalizado, soberania do tenant, leitura correta de inflação)
-- `.lovable/memory/constraints/meta-tracking-quality-strategy.md` — 5 regras de qualidade (`_fbp` sintético, `fbclid` capture, IP via Cloudflare, `user_data` em meio de funil, cobertura mínima ≥95%)
+- `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` v1.1 (regra de diagnóstico cross-source)
+- `mem://constraints/whatsapp-reception-source-of-truth-cross-check`
 
 ---
 
