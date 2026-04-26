@@ -4711,7 +4711,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       customer_id: customerId || conversation.customer_id,
       sales_state: nextState,
       last_intent: intentForState,
-      last_bot_response_hash: responseHash,
+      last_bot_response_hash: finalResponseHash,
       images_sent_per_product: imagesSentMap,
     };
     if (nextState !== currentSalesState) {
