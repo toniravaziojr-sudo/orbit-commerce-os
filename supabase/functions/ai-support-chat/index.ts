@@ -3377,7 +3377,14 @@ Cliente: "vocês entregam em SP?"
       // carrinho + checklist de dados do cliente. Isso elimina o loop
       // "Quer que eu finalize?" — o modelo passa a saber, na hora de decidir,
       // se já tem tudo pra chamar generate_checkout_link agora ou se falta dado.
-      if (!isInformationalProductQuestionCurrentTurn && (pipelineState === "decision" || pipelineState === "checkout_assist")) {
+      // [F2-V4][builder-gate] suppressCheckoutContext bloqueia esse bloco quando
+      // o turno é pure_greeting ou informative_question — mesmo se houver
+      // carrinho ativo legado contaminando o estado da conversa.
+      if (
+        !suppressCheckoutContext &&
+        !isInformationalProductQuestionCurrentTurn &&
+        (pipelineState === "decision" || pipelineState === "checkout_assist")
+      ) {
         try {
           const { data: activeCartRow } = await supabase
             .from("whatsapp_carts")
@@ -3415,6 +3422,10 @@ Cliente: "vocês entregam em SP?"
         } catch (e) {
           console.warn("[ai-support-chat] [F2-FIX-CHECKOUT] cart context preload failed:", (e as Error).message);
         }
+      } else if (suppressCheckoutContext && (pipelineState === "decision" || pipelineState === "checkout_assist")) {
+        console.log(
+          `[ai-support-chat] [F2-V4][builder-gate] checkout_context_suppressed reason=${suppressionReason} state=${pipelineState} turn_intent=${turnIntentClassified}`
+        );
       }
 
       // [F2-FIX-QUESTION] Se a última mensagem do cliente parece pergunta direta,
