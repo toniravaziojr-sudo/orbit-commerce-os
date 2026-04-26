@@ -3283,6 +3283,74 @@ Cliente: "vocês entregam em SP?"
       });
       if (commercialCtx.promptBlock) contextualBlocks.push(commercialCtx.promptBlock);
 
+      // [F2-FIX-CHECKOUT] Em decision/checkout_assist, injeta o estado real do
+      // carrinho + checklist de dados do cliente. Isso elimina o loop
+      // "Quer que eu finalize?" — o modelo passa a saber, na hora de decidir,
+      // se já tem tudo pra chamar generate_checkout_link agora ou se falta dado.
+      if (pipelineState === "decision" || pipelineState === "checkout_assist") {
+        try {
+          const { data: activeCartRow } = await supabase
+            .from("whatsapp_carts")
+            .select("id, items, customer_data, customer_id, total_cents")
+            .eq("conversation_id", conversation_id)
+            .eq("tenant_id", tenant_id)
+            .eq("status", "active")
+            .maybeSingle();
+          if (activeCartRow) {
+            const cd = (activeCartRow.customer_data as Record<string, string> | null) || {};
+            const items = Array.isArray(activeCartRow.items) ? (activeCartRow.items as any[]) : [];
+            const itemsTxt = items.length
+              ? items.map(i => `• ${i?.quantity || 1}x ${i?.name || i?.product_name || "item"}`).join("\n")
+              : "(carrinho vazio)";
+            const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
+            const checklist = [
+              `nome: ${has("name") ? "✅ " + cd.name : "❌ falta"}`,
+              `email: ${has("email") ? "✅ " + cd.email : "❌ falta"}`,
+              `cpf: ${has("cpf") ? "✅ " + cd.cpf : "❌ falta"}`,
+              `cep: ${has("postal_code") ? "✅ " + cd.postal_code : "❌ falta"}`,
+            ].join("\n");
+            const missing: string[] = [];
+            if (!has("name")) missing.push("nome");
+            if (!has("email")) missing.push("email");
+            if (!has("cpf")) missing.push("CPF");
+            if (!has("postal_code")) missing.push("CEP");
+            const readyToFinalize = missing.length === 0 && items.length > 0;
+            const directive = readyToFinalize
+              ? "→ TODOS OS DADOS OBRIGATÓRIOS JÁ ESTÃO NO CARRINHO. Se o cliente confirmou querer fechar, CHAME generate_checkout_link AGORA. Não pergunte 'Quer que eu finalize?' — execute."
+              : `→ FALTAM: ${missing.join(", ")}. Peça apenas esses, em UMA mensagem curta. Não peça o que já está ✅.`;
+            contextualBlocks.push(
+              `### CARRINHO ATIVO\n${itemsTxt}\n\n### DADOS DO CLIENTE NO CARRINHO\n${checklist}\n\n${directive}`
+            );
+          }
+        } catch (e) {
+          console.warn("[ai-support-chat] [F2-FIX-CHECKOUT] cart context preload failed:", (e as Error).message);
+        }
+      }
+
+      // [F2-FIX-QUESTION] Se a última mensagem do cliente parece pergunta direta,
+      // marca prioridade explícita no contexto. Cobre os casos do diálogo real:
+      // "quanto custa?", "qual o prazo?", "funciona mesmo?".
+      const lastMsgLower = (lastMessageContent || "").toLowerCase().trim();
+      const DIRECT_QUESTION_PATTERNS: RegExp[] = [
+        /\bquanto\s+custa\b/,
+        /\bqual\s+(o\s+)?(pre[çc]o|valor)\b/,
+        /\bqual\s+(o\s+)?prazo\b/,
+        /\bquanto\s+(é\s+|fica\s+|sai\s+)?(o\s+)?(frete|entrega)\b/,
+        /\bfunciona\s+mesmo\b/,
+        /\bvale\s+a\s+pena\b/,
+        /\b(forma|formas|jeito)\s+de\s+(pagamento|pagar)\b/,
+        /\baceita\s+(cart[ãa]o|pix|boleto)\b/,
+        /\?$/,
+      ];
+      const isDirectQuestion = DIRECT_QUESTION_PATTERNS.some(re => re.test(lastMsgLower));
+      if (isDirectQuestion) {
+        contextualBlocks.push(
+          `### PRIORIDADE DESTE TURNO\nA última mensagem do cliente é uma PERGUNTA DIRETA. ` +
+          `Responda objetivamente PRIMEIRO, em uma linha, com dado real do produto/contexto. ` +
+          `SÓ DEPOIS continue o próximo passo do funil. NUNCA troque a resposta por "Posso gerar o link?" ou "Quer que eu finalize?".`
+        );
+      }
+
       const routed = buildPromptForState({
         state: pipelineState,
         allTools: SALES_TOOLS,
@@ -4362,13 +4430,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           return null;
         };
 
+        // [F2-FIX-CHECKOUT] Fallbacks conclusivos NÃO podem ser perguntas de
+        // confirmação ("Quer que eu finalize?"). Isso alimenta loop quando o
+        // modelo trava sem texto. Em decision/checkout_assist, fallback é
+        // ação concreta: pedir o dado que falta ou avisar próximo passo.
         const FALLBACK_CONCLUSIVE_BY_STATE: Record<PipelineState, string> = {
           greeting:        "Oi! O que você está procurando hoje?",
           discovery:       "Me conta um pouco mais do que você quer resolver, que eu já te indico o certo.",
           recommendation:  "Pra eu te indicar o melhor, me diz pra qual uso é?",
           product_detail:  "Quer saber preço, prazo de entrega ou tem outra dúvida sobre ele?",
-          decision:        "Posso gerar o link de pagamento pra você?",
-          checkout_assist: "Quer que eu finalize o pedido agora?",
+          decision:        "Vou colocar no carrinho e já te mando os próximos passos.",
+          checkout_assist: "Pra fechar agora, me confirma seu nome completo, email, CPF e CEP em uma única mensagem.",
           support:         "Me passa o número do pedido que eu já vejo aqui pra você.",
           handoff:         "Vou te passar pra alguém da equipe.",
         };
