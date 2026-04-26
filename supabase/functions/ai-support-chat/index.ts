@@ -5221,7 +5221,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // [Pacote E] Se a resposta foi marcada como duplicada, NÃO envia (mas mantém
     // a mensagem persistida com delivery_status="suppressed_duplicate" para auditoria).
     // ============================================
-    let sendResult: { success: boolean; error?: string; message_id?: string } = { success: false, error: "Canal não suportado" };
+    let sendResult: { success: boolean; error?: string; message_id?: string; managed_status?: boolean } = { success: false, error: "Canal não suportado" };
 
     if (dupCheck.duplicate) {
       console.log(`[ai-support-chat] [PACOTE E] suppress send (duplicate response within window)`);
