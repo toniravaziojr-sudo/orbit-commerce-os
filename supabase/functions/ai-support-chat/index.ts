@@ -3962,13 +3962,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // Compat com referências antigas no arquivo (logs).
       const isSimpleState = isLightState;
 
-      // [PERF — Pacote 2] Reordenação de modelos por estado:
-      // - estados simples: priorizar modelos rápidos (nano/mini)
-      // - estados complexos: manter prioridade de qualidade (modelo configurado primeiro)
-      // Em ambos, pular modelos cacheados como indisponíveis (404/400) no cold start.
-      const baseOrder = isSimpleState
-        ? [...FAST_MODELS_FOR_SIMPLE_STATES, ...OPENAI_MODELS.filter(m => !FAST_MODELS_FOR_SIMPLE_STATES.includes(m))]
-        : [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
+      // [PERF — Pacote 3] Reordenação de modelos por estado:
+      // - sales mode: SEMPRE prioriza gpt-5-mini (rápido + tool-calling confiável).
+      //   gpt-5 vira o 2º da fila — fallback automático se gpt-5-mini retornar erro
+      //   incompatível ou parse de tool falhar. Não é "default" — é exceção.
+      // - estados simples (não sales): mantém prioridade de modelos rápidos.
+      // - estados complexos (não sales): mantém ordem de qualidade configurada.
+      const baseOrder = salesModeEnabled
+        ? ["gpt-5-mini", "gpt-5", "gpt-5.2", ...OPENAI_MODELS.filter(m => !["gpt-5-mini", "gpt-5", "gpt-5.2"].includes(m))]
+        : (isSimpleState
+          ? [...FAST_MODELS_FOR_SIMPLE_STATES, ...OPENAI_MODELS.filter(m => !FAST_MODELS_FOR_SIMPLE_STATES.includes(m))]
+          : [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)]);
       // Dedup mantendo ordem
       const seen = new Set<string>();
       const orderedCandidates = baseOrder.filter(m => {
@@ -3987,7 +3991,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       if (skippedByCache.length > 0) {
         console.log(`[ai-support-chat] [PERF] skipping cached unavailable models: ${skippedByCache.join(",")}`);
       }
-      console.log(`[ai-support-chat] [PERF] state=${pipelineState} simple=${isSimpleState} model_order=${modelsToTry.slice(0, 3).join(",")}...`);
+      console.log(`[ai-support-chat] [PERF] state=${pipelineState} sales=${salesModeEnabled} light=${isLightState} effort=${stateReasoningEffort} model_order=${modelsToTry.slice(0, 3).join(",")}`);
 
       let lastErrorText = "";
       let currentMessages = [...aiMessages];
