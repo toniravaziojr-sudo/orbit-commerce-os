@@ -3232,7 +3232,7 @@ Cliente: "vocês entregam em SP?"
           .select("needs_regeneration, last_inferred_at")
           .eq("tenant_id", tenant_id)
           .maybeSingle()
-          .then(r => r.data, () => null)
+          .then((r: any) => r.data, () => null)
       : Promise.resolve(null);
 
     const preTransitionProductHint: string[] = await productHintPromise;
