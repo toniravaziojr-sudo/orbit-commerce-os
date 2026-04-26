@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
   // The token is stored in a runtime secret (INTERNAL_TEST_TOKEN). This blindagem garante que
   // produção normal não pode disparar falhas injetadas mesmo se um payload malicioso enviar a flag.
   const internalTestTokenHeader = req.headers.get("x-internal-test-token");
-  const internalTestTokenSecret = Deno.env.get("INTERNAL_TEST_TOKEN") || "";
+  const internalTestTokenSecret = Deno.env.get("META_WHATSAPP_TEST_INJECT_TOKEN") || "";
   const testModeAllowed = !!internalTestTokenSecret && internalTestTokenHeader === internalTestTokenSecret;
 
   try {
