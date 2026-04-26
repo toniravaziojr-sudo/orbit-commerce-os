@@ -1051,3 +1051,23 @@ O sistema mascara automaticamente:
 | Notificações | Filtro de período (NotificationsFilter) | `DateRangeFilter` |
 
 > Ver `regras-gerais.md` § Padrão de Datas para especificação completa.
+
+---
+
+## 17.1 Harness de Validação Fim a Fim — Mídia (D7)
+
+Para auditar o pipeline completo de mídia (registro → fila → processamento → consumo → limpeza), o sistema mantém um harness dedicado que dispara um cenário real e retorna evidência concreta de cada etapa. Esse harness é **a única forma oficial de declarar o D7 como tecnicamente fechado** após qualquer alteração no fluxo.
+
+**Função:** `d7-media-harness` (Edge Function de auditoria — não destinada a uso operacional).
+
+**O que valida (6 pontos obrigatórios):**
+
+1. **Entrada da mídia** — mensagem registrada e anexo registrado.
+2. **Enfileiramento** — linha criada em `ai_media_queue` com tipo correto (`vision` para imagem, `transcription` para áudio).
+3. **Processamento** — item da fila atinge `status = completed` com `processed_at` e resultado persistido.
+4. **Consumo no contexto** — descrição/transcrição entrou no system prompt do `ai-support-chat` antes da resposta final (provado por `consumed_at`).
+5. **Anti-loop e reprocesso único** — sem resposta duplicada, sem mensagem de espera repetida, exatamente um reprocesso por mídia.
+6. **Limpeza de estado** — `pending_media_processing` liberado após conclusão; sem item órfão na fila.
+
+**Critério de fechamento:** o harness deve retornar evidência positiva nos 6 pontos acima. Resultado parcial não fecha o D7.
+
