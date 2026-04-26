@@ -29,7 +29,10 @@ export type TransitionReason =
   | "pain_or_objective_declared_advance_to_recommendation"
   | "tool_advanced_state"
   | "no_change_keep_state"
-  | "regression_blocked";
+  | "regression_blocked"
+  // [F2-V2] Novas razões — referência por foco e intenção comparativa
+  | "reference_resolved_by_focus_to_product_detail"
+  | "compare_intent_with_focus";
 
 export interface TransitionInput {
   current: PipelineState;
@@ -42,6 +45,10 @@ export interface TransitionInput {
   discoveryTurnsSoFar: number;
   // Catálogo conhecido — usado para detectar menção a produto pelo nome.
   productNamesHint?: string[];
+  // [F2-V2] Foco persistido na conversa — usado para resolver "esse/ele/eles"
+  // e para detectar intenção comparativa sobre os itens já em foco.
+  familyFocus?: string | null;
+  lastFocusedProductName?: string | null;
 }
 
 export interface TransitionResult {
