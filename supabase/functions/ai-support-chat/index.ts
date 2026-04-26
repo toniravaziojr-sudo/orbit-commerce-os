@@ -3134,6 +3134,34 @@ Cliente: "vocês entregam em SP?"
       }
     }
 
+    // [F2-V2] Lê foco persistido na conversa (família + último produto focado)
+    // ANTES da pré-transição, para que referências anafóricas e intenção
+    // comparativa possam ser detectadas no turno atual.
+    const convMetaForFocus = (conversation.metadata as Record<string, unknown> | null) ?? {};
+    const familyFocusBefore = (convMetaForFocus.family_focus as string | null | undefined) ?? null;
+    const lastFocusedProductNameBefore = (convMetaForFocus.last_focused_product_name as string | null | undefined) ?? null;
+
+    // [F2-V2] Pré-carrega nomes de produtos ativos (lightweight) para que o
+    // detector reconheça menção nominal já no pré-trânsito. Sem isso o cliente
+    // que cita "Shampoo Calvície Zero" fica em recommendation genérico.
+    let preTransitionProductHint: string[] = [];
+    if (salesModeEnabled && lastMessageContent && lastMessageContent.trim().length >= 4) {
+      try {
+        const { data: prodRows } = await supabase
+          .from("products")
+          .select("name")
+          .eq("tenant_id", tenant_id)
+          .eq("is_active", true)
+          .is("deleted_at", null)
+          .limit(200);
+        preTransitionProductHint = (prodRows || [])
+          .map((p: { name: string | null }) => p.name)
+          .filter((n: string | null): n is string => typeof n === "string" && n.length >= 4);
+      } catch (e) {
+        console.warn("[ai-support-chat] [F2-V2] product names hint preload failed:", (e as Error).message);
+      }
+    }
+
     const preTransition = salesModeEnabled
       ? decideNextState({
           current: pipelineStateBefore,
@@ -3143,7 +3171,9 @@ Cliente: "vocês entregam em SP?"
           hasCheckoutLink: false,
           toolsCalled: [], // tools só rodam depois
           discoveryTurnsSoFar: discoveryTurnsSoFarPre,
-          productNamesHint: [],
+          productNamesHint: preTransitionProductHint,
+          familyFocus: familyFocusBefore,
+          lastFocusedProductName: lastFocusedProductNameBefore,
         })
       : { next: pipelineStateBefore, reason: "no_change_keep_state" as const, forced: false };
 
@@ -4459,6 +4489,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       toolsCalled: toolsCalledArr,
       discoveryTurnsSoFar,
       productNamesHint,
+      familyFocus: familyFocusBefore,
+      lastFocusedProductName: lastFocusedProductNameBefore,
     });
 
     const nextPipelineState: PipelineState = shouldHandoff ? "handoff" : transition.next;
