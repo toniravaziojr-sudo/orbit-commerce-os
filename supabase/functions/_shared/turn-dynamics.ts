@@ -17,9 +17,37 @@
 // deno-lint-ignore no-explicit-any
 type SupabaseLike = any;
 
-// Janela de debounce padrão (ms) — mensagens chegando em sequência
-// dentro desta janela são tratadas como UM único turno.
+// Janela de debounce padrão (ms) — fallback histórico (uso direto desencorajado;
+// preferir getAdaptiveDebounceMs para novos call-sites).
 export const DEBOUNCE_WINDOW_MS = 6000;
+
+// =============================================================
+// [ETAPA 1] Debounce ADAPTATIVO
+// Substitui a janela fixa de 6s por uma decisão por turno baseada no
+// volume recente de inbound da MESMA conversa. Mensagens isoladas viram
+// 0ms (dispara imediato); fragmentação real (2+ msgs em <8s) usa 3.5s.
+//
+// `channel` fica reservado: hoje só "whatsapp" é tratado, mas o parâmetro
+// existe para evoluir por canal (instagram, telegram etc.) sem refator.
+// =============================================================
+export interface AdaptiveDebounceInput {
+  recentInboundCount: number; // qtd de inbound da mesma conversa nos últimos lookbackMs
+  channel?: string;           // reservado p/ evolução futura por canal
+  lookbackMs?: number;        // janela de lookback (default 8000)
+}
+
+export function getAdaptiveDebounceMs(input: AdaptiveDebounceInput): number {
+  const count = Math.max(0, input.recentInboundCount | 0);
+  // Turno isolado → 0ms. Dispara imediato.
+  if (count === 0) return 0;
+  // Fragmentação leve (1 msg recente além desta) → janela curta.
+  if (count === 1) return 3500;
+  // Cliente mandando rajada (2+) → mantém comportamento conservador.
+  return DEBOUNCE_WINDOW_MS;
+}
+
+// Default lookback para contagem de inbound recentes (ms).
+export const ADAPTIVE_DEBOUNCE_LOOKBACK_MS = 8000;
 
 // TTL do lock de processamento (ms) — após isso o lock é considerado morto
 // (defesa contra cold-start travado / função que crashou no meio).
