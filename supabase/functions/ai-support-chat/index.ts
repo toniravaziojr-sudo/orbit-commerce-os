@@ -37,6 +37,7 @@ import {
 import {
   buildPromptForState,
   decideNextState,
+  detectInformationalProductQuestion,
   isToolAllowedInState,
   normalizeLegacyState,
   toLegacyState,
@@ -3216,6 +3217,12 @@ Cliente: "vocês entregam em SP?"
       }
     }
 
+    const mentionedProductNameBefore = extractMentionedProductName(lastMessageContent || "", preTransitionProductHint);
+    const familyMentionedBefore = detectFamilyMentioned(lastMessageContent || "");
+    const isInformationalProductQuestionCurrentTurn =
+      detectInformationalProductQuestion(lastMessageContent || "") &&
+      !!(mentionedProductNameBefore || familyMentionedBefore || familyFocusBefore || lastFocusedProductNameBefore);
+
     const preTransition = salesModeEnabled
       ? decideNextState({
           current: pipelineStateBefore,
@@ -3287,7 +3294,7 @@ Cliente: "vocês entregam em SP?"
       // carrinho + checklist de dados do cliente. Isso elimina o loop
       // "Quer que eu finalize?" — o modelo passa a saber, na hora de decidir,
       // se já tem tudo pra chamar generate_checkout_link agora ou se falta dado.
-      if (pipelineState === "decision" || pipelineState === "checkout_assist") {
+      if (!isInformationalProductQuestionCurrentTurn && (pipelineState === "decision" || pipelineState === "checkout_assist")) {
         try {
           const { data: activeCartRow } = await supabase
             .from("whatsapp_carts")
@@ -3343,6 +3350,16 @@ Cliente: "vocês entregam em SP?"
         /\?$/,
       ];
       const isDirectQuestion = DIRECT_QUESTION_PATTERNS.some(re => re.test(lastMsgLower));
+      if (isInformationalProductQuestionCurrentTurn) {
+        contextualBlocks.push(
+          `### MODO INFORMATIVO DE PRODUTO — PRIORIDADE ABSOLUTA\n` +
+          `O cliente está fazendo uma pergunta INFORMATIVA sobre produto neste turno. ` +
+          `BLOQUEIE checkout, link e coleta de nome/email/CPF/CEP até responder a dúvida atual. ` +
+          `Carrinho ativo, customer_data existente ou estado antigo NÃO podem atropelar esta mensagem. ` +
+          `Se o produto específico ainda não estiver claro, use search_products. Se estiver claro, use get_product_details. ` +
+          `Só avance para compra depois que a dúvida for respondida e o cliente demonstrar intenção explícita de fechar.`
+        );
+      }
       if (isDirectQuestion) {
         contextualBlocks.push(
           `### PRIORIDADE DESTE TURNO\nA última mensagem do cliente é uma PERGUNTA DIRETA. ` +
@@ -3568,7 +3585,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // Heurísticas de intenção
         const isNamingProduct = /(kit|shampoo|balm|locao|loc[aã]o|creme|s[ée]rum|m[áa]scara|perfume|sabonete|condicionador|gel|p[óo]|tonico|t[ôo]nico)\s+\w/i.test(lastMessageContent);
         const isWantToBuy = /\b(quero comprar|pode adicionar|adiciona no carrinho|coloca no carrinho|vou levar|fechar o pedido|finaliza|manda o link|gera o link)\b/i.test(lc);
-        const isWantDetails = /\b(me fala mais|me conta mais|detalh|quanto custa|qual o preco|qual o pre[çc]o|tem em estoque)\b/i.test(lc);
+        const isWantDetails =
+          /\b(me fala mais|me conta mais|detalh|quanto custa|qual o preco|qual o pre[çc]o|tem em estoque|qual o prazo|prazo de entrega)\b/i.test(lc) ||
+          detectInformationalProductQuestion(lastMessageContent);
 
         // Match com top_products do snapshot (case-insensitive, sem acento)
         let matchedProductHint = "";
