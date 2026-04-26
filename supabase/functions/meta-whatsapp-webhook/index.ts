@@ -6,6 +6,8 @@ import {
   enqueueInboundForDebounce,
   tryClaimDebounceFlush,
   DEBOUNCE_WINDOW_MS,
+  getAdaptiveDebounceMs,
+  ADAPTIVE_DEBOUNCE_LOOKBACK_MS,
 } from "../_shared/turn-dynamics.ts";
 import { enqueueMedia } from "../_shared/media-enqueue.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
@@ -567,8 +569,35 @@ Deno.serve(async (req) => {
                     });
 
                     if (enq.enqueued && enq.shouldWait && enq.rowId) {
-                      // Aguarda a janela e tenta virar owner do flush.
-                      await new Promise((r) => setTimeout(r, DEBOUNCE_WINDOW_MS));
+                      // [ETAPA 1] Debounce ADAPTATIVO.
+                      // Conta inbound recentes da MESMA conversa nos últimos 8s
+                      // (excluindo a linha atual). 0 → 0ms (turno isolado),
+                      // 1 → 3.5s, 2+ → 6s. `channel` reservado p/ evolução futura.
+                      let recentInboundCount = 0;
+                      try {
+                        const sinceIso = new Date(
+                          Date.now() - ADAPTIVE_DEBOUNCE_LOOKBACK_MS,
+                        ).toISOString();
+                        const { count } = await supabase
+                          .from("whatsapp_inbound_debounce")
+                          .select("id", { count: "exact", head: true })
+                          .eq("tenant_id", tenantId)
+                          .eq("customer_phone", customerPhone)
+                          .neq("id", enq.rowId)
+                          .gte("received_at", sinceIso);
+                        recentInboundCount = count ?? 0;
+                      } catch (lookupErr) {
+                        console.warn(`[meta-whatsapp-webhook][${traceId}] adaptive debounce lookup failed (fallback to fixed):`, lookupErr);
+                        recentInboundCount = 1; // fallback conservador → 3.5s
+                      }
+                      const adaptiveMs = getAdaptiveDebounceMs({
+                        recentInboundCount,
+                        channel: "whatsapp",
+                      });
+                      console.log(`[meta-whatsapp-webhook][${traceId}] DEBOUNCE adaptive: recent=${recentInboundCount} wait=${adaptiveMs}ms (was fixed ${DEBOUNCE_WINDOW_MS}ms)`);
+                      if (adaptiveMs > 0) {
+                        await new Promise((r) => setTimeout(r, adaptiveMs));
+                      }
                       const claim = await tryClaimDebounceFlush(
                         supabase,
                         tenantId,
