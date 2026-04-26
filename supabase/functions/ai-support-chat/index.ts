@@ -3305,6 +3305,18 @@ Cliente: "vocês entregam em SP?"
     const turnIntentClassified: TurnIntent | null = (preTransition as any).turnIntent ?? null;
     const stateDowngradeReason: string | null = (preTransition as any).downgradeReason ?? null;
 
+    // [F2-V4][builder-gate] Suprimir TODO contexto de checkout/coleta/dados-cliente quando:
+    //  - turnIntent === "pure_greeting"  → cliente apenas cumprimentou
+    //  - turnIntent === "informative_question" → cliente perguntou algo, não quer fechar
+    // Família/produto em foco continuam permitidos como referência narrativa
+    // (via commercialCtx + family_focus log), mas NUNCA como comando de continuar checkout.
+    const suppressCheckoutContext: boolean =
+      turnIntentClassified === "pure_greeting" ||
+      turnIntentClassified === "informative_question";
+    const suppressionReason: string | null = suppressCheckoutContext
+      ? (turnIntentClassified as string)
+      : null;
+
     // [F2-V3] Logs estruturados de auditoria — fáceis de buscar nos edge logs.
     console.log(
       `[ai-support-chat] [F2-V3] turn_intent_classified intent=${turnIntentClassified ?? "n/a"} state_before=${pipelineStateBefore} state_after=${pipelineState} downgrade_reason=${stateDowngradeReason ?? "none"} recent_purchase_intent=${recentPurchaseIntentBefore} family_focus=${familyFocusBefore ?? "none"} last_focused_product=${lastFocusedProductNameBefore ?? "none"}`
@@ -3365,7 +3377,14 @@ Cliente: "vocês entregam em SP?"
       // carrinho + checklist de dados do cliente. Isso elimina o loop
       // "Quer que eu finalize?" — o modelo passa a saber, na hora de decidir,
       // se já tem tudo pra chamar generate_checkout_link agora ou se falta dado.
-      if (!isInformationalProductQuestionCurrentTurn && (pipelineState === "decision" || pipelineState === "checkout_assist")) {
+      // [F2-V4][builder-gate] suppressCheckoutContext bloqueia esse bloco quando
+      // o turno é pure_greeting ou informative_question — mesmo se houver
+      // carrinho ativo legado contaminando o estado da conversa.
+      if (
+        !suppressCheckoutContext &&
+        !isInformationalProductQuestionCurrentTurn &&
+        (pipelineState === "decision" || pipelineState === "checkout_assist")
+      ) {
         try {
           const { data: activeCartRow } = await supabase
             .from("whatsapp_carts")
@@ -3403,6 +3422,10 @@ Cliente: "vocês entregam em SP?"
         } catch (e) {
           console.warn("[ai-support-chat] [F2-FIX-CHECKOUT] cart context preload failed:", (e as Error).message);
         }
+      } else if (suppressCheckoutContext && (pipelineState === "decision" || pipelineState === "checkout_assist")) {
+        console.log(
+          `[ai-support-chat] [F2-V4][builder-gate] checkout_context_suppressed reason=${suppressionReason} state=${pipelineState} turn_intent=${turnIntentClassified}`
+        );
       }
 
       // [F2-FIX-QUESTION] Se a última mensagem do cliente parece pergunta direta,
@@ -3436,6 +3459,29 @@ Cliente: "vocês entregam em SP?"
           `### PRIORIDADE DESTE TURNO\nA última mensagem do cliente é uma PERGUNTA DIRETA. ` +
           `Responda objetivamente PRIMEIRO, em uma linha, com dado real do produto/contexto. ` +
           `SÓ DEPOIS continue o próximo passo do funil. NUNCA troque a resposta por "Posso gerar o link?" ou "Quer que eu finalize?".`
+        );
+      }
+
+      // [F2-V4][builder-gate] Diretiva POSITIVA quando o gate suprime checkout.
+      // Garante que o modelo entenda explicitamente: ignore carrinho legado,
+      // ignore dados antigos do cliente, NÃO peça CPF/CEP/nome/email, NÃO
+      // sugira retomar pedido. Família/produto em foco continuam permitidos
+      // como referência narrativa, mas SOMENTE para responder/conversar.
+      if (suppressCheckoutContext) {
+        const reasonPt = turnIntentClassified === "pure_greeting"
+          ? "o cliente apenas cumprimentou (saudação pura)"
+          : "o cliente está fazendo uma pergunta informativa";
+        contextualBlocks.push(
+          `### MODO CONVERSA LIMPA — PRIORIDADE ABSOLUTA\n` +
+          `Neste turno, ${reasonPt}. Portanto:\n` +
+          `- NÃO peça nome, email, CPF ou CEP.\n` +
+          `- NÃO mencione carrinho, pedido em aberto, link de checkout ou "retomar compra".\n` +
+          `- NÃO sugira fechar a venda nem use frases como "Quer finalizar?" ou "Posso gerar o link?".\n` +
+          `- IGNORE qualquer dado antigo de cliente, carrinho ou pedido em aberto que pareça vir do histórico.\n` +
+          `- Se houver produto/família em foco, ele só pode ser usado como referência narrativa para conversar/responder, NUNCA como gatilho para retomar checkout.\n` +
+          (turnIntentClassified === "pure_greeting"
+            ? `- Responda apenas com uma saudação curta, calorosa e neutra. Pode oferecer ajuda de forma aberta ("Como posso te ajudar?"), mas sem citar produto ou pedido específico.`
+            : `- Responda objetivamente à pergunta do cliente com dado real (preço, prazo, característica, etc.). Só avance no funil se o cliente demonstrar intenção EXPLÍCITA de comprar nesta mesma mensagem.`)
         );
       }
 
@@ -3503,8 +3549,15 @@ Cliente: "vocês entregam em SP?"
       console.error("[ai-support-chat] tenant-context error:", err);
     }
 
-    if (customerContext) {
+    // [F2-V4][builder-gate] customerContext (nome/CPF/pedidos/etc.) só entra
+    // se NÃO estivermos suprimindo contexto de checkout. Saudação pura ou
+    // pergunta informativa não devem reenergizar o pipeline de coleta de dados.
+    if (customerContext && !suppressCheckoutContext) {
       systemPrompt += customerContext;
+    } else if (customerContext && suppressCheckoutContext) {
+      console.log(
+        `[ai-support-chat] [F2-V4][builder-gate] customer_context_suppressed reason=${suppressionReason} turn_intent=${turnIntentClassified}`
+      );
     }
 
     // Inject AI memory context
