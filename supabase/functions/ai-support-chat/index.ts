@@ -3305,6 +3305,18 @@ Cliente: "vocês entregam em SP?"
     const turnIntentClassified: TurnIntent | null = (preTransition as any).turnIntent ?? null;
     const stateDowngradeReason: string | null = (preTransition as any).downgradeReason ?? null;
 
+    // [F2-V4][builder-gate] Suprimir TODO contexto de checkout/coleta/dados-cliente quando:
+    //  - turnIntent === "pure_greeting"  → cliente apenas cumprimentou
+    //  - turnIntent === "informative_question" → cliente perguntou algo, não quer fechar
+    // Família/produto em foco continuam permitidos como referência narrativa
+    // (via commercialCtx + family_focus log), mas NUNCA como comando de continuar checkout.
+    const suppressCheckoutContext: boolean =
+      turnIntentClassified === "pure_greeting" ||
+      turnIntentClassified === "informative_question";
+    const suppressionReason: string | null = suppressCheckoutContext
+      ? (turnIntentClassified as string)
+      : null;
+
     // [F2-V3] Logs estruturados de auditoria — fáceis de buscar nos edge logs.
     console.log(
       `[ai-support-chat] [F2-V3] turn_intent_classified intent=${turnIntentClassified ?? "n/a"} state_before=${pipelineStateBefore} state_after=${pipelineState} downgrade_reason=${stateDowngradeReason ?? "none"} recent_purchase_intent=${recentPurchaseIntentBefore} family_focus=${familyFocusBefore ?? "none"} last_focused_product=${lastFocusedProductNameBefore ?? "none"}`
