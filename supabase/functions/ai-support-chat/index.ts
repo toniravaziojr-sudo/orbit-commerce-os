@@ -3280,11 +3280,16 @@ Cliente: "vocês entregam em SP?"
       (existingPendingAction.kind === "view_cart" || existingPendingAction.kind === "check_coupon")
     );
 
+    // [F2-V3] Para o classificador estrutural de intenção, usamos o sinal CRU
+    // de saudação (rawIsGreeting) — não o filtrado por continuation. Saudação
+    // pura tem que poder vencer pending_action/family_focus legado para
+    // permitir o rebaixamento de estado contaminado. O fast-path de greeting
+    // continua usando isGreetingOnlyTurn (filtrado) em outros pontos.
     const preTransition = salesModeEnabled
       ? decideNextState({
           current: pipelineStateBefore,
           message: lastMessageContent || "",
-          isPureGreeting: isGreetingOnlyTurn,
+          isPureGreeting: rawIsGreeting,
           hasActiveCart: false, // ainda não sabemos
           hasCheckoutLink: false,
           toolsCalled: [], // tools só rodam depois
