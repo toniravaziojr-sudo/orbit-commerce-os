@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
     }
 
     // ============= 24h WINDOW AUDIT =============
-    if (!template_name) {
+    if (!template_name && injectFailures === 0) {
       try {
         const { data: convo } = await supabase
           .from("conversations")
