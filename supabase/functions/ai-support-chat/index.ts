@@ -146,6 +146,26 @@ const FAST_MODELS_FOR_SIMPLE_STATES: readonly string[] = [
 // rota normal de fallback.
 const UNAVAILABLE_MODELS = new Set<string>();
 
+// [ETAPA1-FIX] Cache de incompatibilidade do parâmetro `reasoning` por modelo.
+// Mapa modelo → expiresAt (epoch ms). Quando um modelo retorna 400 informando
+// que `reasoning` é parâmetro desconhecido/inválido, marcamos por 30 min para
+// evitar pagar ~5–8s de erro+retry em todos os turnos seguintes.
+// NÃO é "modelo indisponível" — é só incompatibilidade de parâmetro.
+const REASONING_INCOMPATIBLE_MODELS = new Map<string, number>();
+const REASONING_INCOMPAT_TTL_MS = 30 * 60 * 1000; // 30 minutos
+function isReasoningIncompatible(model: string): boolean {
+  const exp = REASONING_INCOMPATIBLE_MODELS.get(model);
+  if (!exp) return false;
+  if (Date.now() > exp) {
+    REASONING_INCOMPATIBLE_MODELS.delete(model);
+    return false;
+  }
+  return true;
+}
+function markReasoningIncompatible(model: string) {
+  REASONING_INCOMPATIBLE_MODELS.set(model, Date.now() + REASONING_INCOMPAT_TTL_MS);
+}
+
 // AI cost tracking (per 1K tokens, in cents)
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "gpt-5.2": { input: 3.0, output: 15.0 },
