@@ -3210,14 +3210,14 @@ Cliente: "vocês entregam em SP?"
             .eq("is_active", true)
             .is("deleted_at", null)
             .limit(200)
-            .then(({ data: prodRows, error }) => {
-              if (error) {
-                console.warn("[ai-support-chat] [F2-V2] product names hint preload failed:", error.message);
-                return [];
+            .then((res: { data: Array<{ name: string | null }> | null; error: { message: string } | null }) => {
+              if (res.error) {
+                console.warn("[ai-support-chat] [F2-V2] product names hint preload failed:", res.error.message);
+                return [] as string[];
               }
-              return (prodRows || [])
-                .map((p: { name: string | null }) => p.name)
-                .filter((n: string | null): n is string => typeof n === "string" && n.length >= 4);
+              return (res.data || [])
+                .map((p) => p.name)
+                .filter((n): n is string => typeof n === "string" && n.length >= 4);
             })
         : Promise.resolve<string[]>([])
     );
