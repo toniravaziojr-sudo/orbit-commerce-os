@@ -3196,26 +3196,46 @@ Cliente: "vocês entregam em SP?"
     const familyFocusBefore = (convMetaForFocus.family_focus as string | null | undefined) ?? null;
     const lastFocusedProductNameBefore = (convMetaForFocus.last_focused_product_name as string | null | undefined) ?? null;
 
-    // [F2-V2] Pré-carrega nomes de produtos ativos (lightweight) para que o
-    // detector reconheça menção nominal já no pré-trânsito. Sem isso o cliente
-    // que cita "Shampoo Calvície Zero" fica em recommendation genérico.
-    let preTransitionProductHint: string[] = [];
-    if (salesModeEnabled && lastMessageContent && lastMessageContent.trim().length >= 4) {
-      try {
-        const { data: prodRows } = await supabase
-          .from("products")
-          .select("name")
+    // [PERF — Pacote 3] Paraleliza 3 carregamentos independentes pré-pipeline:
+    // (1) nomes de produtos para o detector anafórico
+    // (2) business context — feito mais abaixo, mas já podemos disparar
+    // (3) stale check — feito mais abaixo, idem
+    // Tudo read-only e independente: zero risco de race condition.
+    const productHintPromise: Promise<string[]> = (
+      salesModeEnabled && lastMessageContent && lastMessageContent.trim().length >= 4
+        ? supabase
+            .from("products")
+            .select("name")
+            .eq("tenant_id", tenant_id)
+            .eq("is_active", true)
+            .is("deleted_at", null)
+            .limit(200)
+            .then((res: { data: Array<{ name: string | null }> | null; error: { message: string } | null }) => {
+              if (res.error) {
+                console.warn("[ai-support-chat] [F2-V2] product names hint preload failed:", res.error.message);
+                return [] as string[];
+              }
+              return (res.data || [])
+                .map((p) => p.name)
+                .filter((n): n is string => typeof n === "string" && n.length >= 4);
+            })
+        : Promise.resolve<string[]>([])
+    );
+    // Disparamos o businessCtx + stale check em paralelo SE estamos em sales mode.
+    // Eles são consumidos mais abaixo (linha ~3253). Aqui só iniciamos.
+    const businessCtxPromise = salesModeEnabled
+      ? loadBusinessContextBlock(supabase, tenant_id)
+      : null;
+    const staleCheckPromise = salesModeEnabled
+      ? supabase
+          .from("tenant_business_context")
+          .select("needs_regeneration, last_inferred_at")
           .eq("tenant_id", tenant_id)
-          .eq("is_active", true)
-          .is("deleted_at", null)
-          .limit(200);
-        preTransitionProductHint = (prodRows || [])
-          .map((p: { name: string | null }) => p.name)
-          .filter((n: string | null): n is string => typeof n === "string" && n.length >= 4);
-      } catch (e) {
-        console.warn("[ai-support-chat] [F2-V2] product names hint preload failed:", (e as Error).message);
-      }
-    }
+          .maybeSingle()
+          .then(r => r.data, () => null)
+      : Promise.resolve(null);
+
+    const preTransitionProductHint: string[] = await productHintPromise;
 
     const mentionedProductNameBefore = extractMentionedProductName(lastMessageContent || "", preTransitionProductHint);
     const familyMentionedBefore = detectFamilyMentioned(lastMessageContent || "");
@@ -3842,12 +3862,23 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     let aiContent: string;
     
-    // Em sales mode, exigir modelo forte (gpt-5/5.2) para tool-calling confiável.
-    // gpt-5-mini falha em chamar tools mesmo com prompts imperativos.
+    // [PERF — Pacote 3] Em sales mode usamos gpt-5-mini como base por velocidade.
+    // gpt-5 vira FALLBACK explícito (ativado mais abaixo, no loop de modelos),
+    // só quando o estado é decision/checkout_assist E houve falha de tool-calling.
+    // Não tem mais "upgrade global para gpt-5" — isso destruía a latência.
     let configuredModel = effectiveConfig.ai_model || "gpt-5.2";
-    if (salesModeEnabled && (configuredModel.includes("mini") || configuredModel.includes("nano") || configuredModel.includes("flash"))) {
-      console.log(`[ai-support-chat] sales-mode: upgrading model from ${configuredModel} to gpt-5 for reliable tool-calling`);
-      configuredModel = "gpt-5";
+    if (salesModeEnabled) {
+      // Força o piso em gpt-5-mini (tool-calling confiável + ~3-5x mais rápido
+      // que gpt-5). nano não chama tools com confiabilidade suficiente.
+      const cm = configuredModel.toLowerCase();
+      if (cm.includes("nano") || cm.includes("flash-lite")) {
+        console.log(`[ai-support-chat] [PERF] sales-mode: raising ${configuredModel} → gpt-5-mini (nano/lite não tool-call)`);
+        configuredModel = "gpt-5-mini";
+      } else if (cm.includes("flash") || cm.includes("mini")) {
+        // Mantém intenção de "rápido" do tenant em gpt-5-mini.
+        configuredModel = "gpt-5-mini";
+      }
+      // Se o tenant pediu gpt-5 ou gpt-5.2 explicitamente, respeitamos.
     }
     
     const modelMapping: Record<string, string> = {
@@ -3928,22 +3959,40 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       let response: Response | null = null;
       let usedModel = aiModel;
 
-      // [PERF — Pacote 2] Parâmetros de saída/raciocínio por estado.
-      // Em greeting/discovery, limitamos esforço de raciocínio e tokens para
-      // priorizar latência baixa. Em estados complexos (decisão, checkout,
-      // detalhe, suporte), liberamos espaço para tools + texto final.
-      const SIMPLE_STATES: PipelineState[] = ["greeting", "discovery"];
-      const isSimpleState = salesModeEnabled && SIMPLE_STATES.includes(pipelineState);
-      const stateMaxTokens = isSimpleState ? 600 : 4096;
-      const stateReasoningEffort: "minimal" | "low" | "medium" = isSimpleState ? "minimal" : "low";
+      // [PERF — Pacote 3] Parâmetros de saída/raciocínio por estado.
+      // Estados leves (greeting, discovery, recommendation, product_detail,
+      // support, handoff): effort=minimal — o turno é informativo/conversacional,
+      // não precisa de raciocínio profundo. Estados de transação (decision,
+      // checkout_assist): effort=low — precisa pesar dados do carrinho/cliente
+      // antes de gerar link ou pedir dado faltante.
+      const LIGHT_STATES: PipelineState[] = [
+        "greeting",
+        "discovery",
+        "recommendation",
+        "product_detail",
+        "support",
+        "handoff",
+      ];
+      const isLightState = salesModeEnabled && LIGHT_STATES.includes(pipelineState);
+      // Mantemos o budget de tokens menor só nos estados realmente curtos.
+      const SHORT_OUTPUT_STATES: PipelineState[] = ["greeting", "discovery"];
+      const isShortOutputState = salesModeEnabled && SHORT_OUTPUT_STATES.includes(pipelineState);
+      const stateMaxTokens = isShortOutputState ? 600 : 4096;
+      const stateReasoningEffort: "minimal" | "low" | "medium" = isLightState ? "minimal" : "low";
+      // Compat com referências antigas no arquivo (logs).
+      const isSimpleState = isLightState;
 
-      // [PERF — Pacote 2] Reordenação de modelos por estado:
-      // - estados simples: priorizar modelos rápidos (nano/mini)
-      // - estados complexos: manter prioridade de qualidade (modelo configurado primeiro)
-      // Em ambos, pular modelos cacheados como indisponíveis (404/400) no cold start.
-      const baseOrder = isSimpleState
-        ? [...FAST_MODELS_FOR_SIMPLE_STATES, ...OPENAI_MODELS.filter(m => !FAST_MODELS_FOR_SIMPLE_STATES.includes(m))]
-        : [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
+      // [PERF — Pacote 3] Reordenação de modelos por estado:
+      // - sales mode: SEMPRE prioriza gpt-5-mini (rápido + tool-calling confiável).
+      //   gpt-5 vira o 2º da fila — fallback automático se gpt-5-mini retornar erro
+      //   incompatível ou parse de tool falhar. Não é "default" — é exceção.
+      // - estados simples (não sales): mantém prioridade de modelos rápidos.
+      // - estados complexos (não sales): mantém ordem de qualidade configurada.
+      const baseOrder = salesModeEnabled
+        ? ["gpt-5-mini", "gpt-5", "gpt-5.2", ...OPENAI_MODELS.filter(m => !["gpt-5-mini", "gpt-5", "gpt-5.2"].includes(m))]
+        : (isSimpleState
+          ? [...FAST_MODELS_FOR_SIMPLE_STATES, ...OPENAI_MODELS.filter(m => !FAST_MODELS_FOR_SIMPLE_STATES.includes(m))]
+          : [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)]);
       // Dedup mantendo ordem
       const seen = new Set<string>();
       const orderedCandidates = baseOrder.filter(m => {
@@ -3962,7 +4011,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       if (skippedByCache.length > 0) {
         console.log(`[ai-support-chat] [PERF] skipping cached unavailable models: ${skippedByCache.join(",")}`);
       }
-      console.log(`[ai-support-chat] [PERF] state=${pipelineState} simple=${isSimpleState} model_order=${modelsToTry.slice(0, 3).join(",")}...`);
+      console.log(`[ai-support-chat] [PERF] state=${pipelineState} sales=${salesModeEnabled} light=${isLightState} effort=${stateReasoningEffort} model_order=${modelsToTry.slice(0, 3).join(",")}`);
 
       let lastErrorText = "";
       let currentMessages = [...aiMessages];
@@ -3984,11 +4033,13 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             ...tokenParams,
           };
 
-          // [PERF — Pacote 2] O parâmetro `reasoning` está sendo rejeitado pela
-          // API para todos os modelos desta conta (Unknown parameter). Mantemos
-          // desativado até confirmação de suporte. O controle de tokens
-          // (stateMaxTokens) já limita o esforço em estados simples.
-          // if (supportsReasoning) requestBody.reasoning = { effort: stateReasoningEffort };
+          // [PERF — Pacote 3] reasoning effort por estado:
+          // - light states: minimal (greeting/discovery/recommendation/product_detail/support/handoff)
+          // - decision/checkout_assist: low (precisa pesar carrinho + dados)
+          // Já enviamos reasoning no follow-up e no forced round; agora também na chamada principal.
+          if (isGpt5Model) {
+            requestBody.reasoning = { effort: stateReasoningEffort };
+          }
 
           // [F1] Modelos gpt-5* rejeitam temperature customizado e fazem fallback
           // silencioso para o default. Só enviar temperature em modelos não-gpt5.
