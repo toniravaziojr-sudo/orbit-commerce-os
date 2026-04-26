@@ -154,6 +154,65 @@ function detectCheckoutRequest(message: string): boolean {
   return CHECKOUT_REQUEST_PATTERNS.some(re => re.test(message));
 }
 
+// [F2-V2] Detector de intenção comparativa explícita.
+// Quando dispara junto com foco já existente, vamos para product_detail
+// (modo comparação injetado via contextualBlocks pelo caller) sem reembaralhar
+// a vitrine de recomendação.
+const COMPARE_INTENT_PATTERNS: RegExp[] = [
+  /\b(diferen[çc]a|diferen[çc]as)\b/i,
+  /\b(compar(a|ar|e|ando)|comparativo)\b/i,
+  /\bqual\s+(o\s+)?melhor\b/i,
+  /\bqual\s+(é\s+)?(o|a)\s+melhor\b/i,
+  /\bqual\s+(eu\s+)?(devo|escolho)\b/i,
+  /\bentre\s+(eles|elas|esses|essas)\b/i,
+];
+export function detectCompareIntent(message: string): boolean {
+  if (!message) return false;
+  return COMPARE_INTENT_PATTERNS.some(re => re.test(message));
+}
+
+// [F2-V2] Detector de referência anafórica ("esse/ele/eles/esse shampoo").
+// Não basta a palavra solta; exigimos contexto curto OU acompanhada de família.
+const ANAPHORIC_REFERENCE_PATTERNS: RegExp[] = [
+  /\b(esse|essa|esses|essas|este|esta|estes|estas)\s+(shampoo|condicionador|cr[eê]me|lo[çc][ãa]o|balm|s[eé]rum|t[ôo]nico|m[áa]scara|gel|sabonete|kit|combo|produto|item)\b/i,
+  /^\s*(ele|ela|eles|elas|esse|essa|esses|essas)\b\s*[?.!,]?\s*$/i,
+  /\b(me\s+(conta|fala|diz|explica)\s+(mais\s+)?(sobre\s+)?(ele|ela|esse|essa))\b/i,
+  /\b(quanto\s+custa\s+(ele|ela|esse|essa))\b/i,
+];
+export function detectAnaphoricReference(message: string): boolean {
+  if (!message) return false;
+  const trimmed = message.trim();
+  if (trimmed.length > 80) {
+    return ANAPHORIC_REFERENCE_PATTERNS.slice(0, 1).some(re => re.test(trimmed));
+  }
+  return ANAPHORIC_REFERENCE_PATTERNS.some(re => re.test(trimmed));
+}
+
+// [F2-V2] Detector de família mencionada. Usado para atualizar familyFocus
+// quando o cliente diz "shampoo", "loção", "creme" sozinho ou com modificador.
+const FAMILY_TOKENS: Array<{ family: string; pattern: RegExp }> = [
+  { family: "shampoo", pattern: /\bshampoo(s)?\b/i },
+  { family: "condicionador", pattern: /\bcondicionador(es)?\b/i },
+  { family: "creme", pattern: /\bcr[eê]me(s)?\b/i },
+  { family: "locao", pattern: /\blo[çc][ãa]o|loc(o|õ)es\b/i },
+  { family: "balm", pattern: /\bbalm(s)?\b/i },
+  { family: "serum", pattern: /\bs[eé]rum(s)?\b/i },
+  { family: "tonico", pattern: /\bt[ôo]nico(s)?\b/i },
+  { family: "mascara", pattern: /\bm[áa]scara(s)?\b/i },
+  { family: "gel", pattern: /\bgel(s)?\b/i },
+  { family: "sabonete", pattern: /\bsabonete(s)?\b/i },
+  { family: "kit", pattern: /\bkit(s)?\b/i },
+  { family: "combo", pattern: /\bcombo(s)?\b/i },
+  { family: "perfume", pattern: /\bperfume(s)?\b/i },
+];
+export function detectFamilyMentioned(message: string): string | null {
+  if (!message) return null;
+  for (const entry of FAMILY_TOKENS) {
+    if (entry.pattern.test(message)) return entry.family;
+  }
+  return null;
+}
+
 // ----------------------------------------------------------------
 // Decisão da próxima transição — ordem de prioridade importa.
 // ----------------------------------------------------------------
