@@ -217,7 +217,7 @@ export function detectFamilyMentioned(message: string): string | null {
 // Decisão da próxima transição — ordem de prioridade importa.
 // ----------------------------------------------------------------
 export function decideNextState(input: TransitionInput): TransitionResult {
-  const { current, message, isPureGreeting, hasActiveCart, hasCheckoutLink, toolsCalled, discoveryTurnsSoFar, productNamesHint } = input;
+  const { current, message, isPureGreeting, hasActiveCart, hasCheckoutLink, toolsCalled, discoveryTurnsSoFar, productNamesHint, familyFocus, lastFocusedProductName } = input;
 
   // 0. Handoff é terminal — se foi solicitado por tool, prevalece.
   if (toolsCalled.includes("request_human_handoff")) {
@@ -248,9 +248,22 @@ export function decideNextState(input: TransitionInput): TransitionResult {
     return advanceTo(current, "decision", "buy_signal_detected");
   }
 
-  // 5. Cliente citou produto pelo nome → product_detail.
+  // 5. Cliente citou produto pelo nome → product_detail (PRIORIDADE MÁXIMA).
   if (mentionsProductByName(message, productNamesHint || [])) {
     return advanceTo(current, "product_detail", "product_mentioned_by_name");
+  }
+
+  // [F2-V2] 5b. Intenção comparativa COM foco existente → product_detail
+  // (modo comparação injetado no prompt pelo caller via familyFocus/lastFocusedProductName).
+  // Não reembaralha vitrine — compara o que já está em foco.
+  if (detectCompareIntent(message) && (lastFocusedProductName || familyFocus)) {
+    return advanceTo(current, "product_detail", "compare_intent_with_focus");
+  }
+
+  // [F2-V2] 5c. Referência anafórica ("esse/ele/eles/esse shampoo") + foco existente
+  // → resolve para product_detail do último produto/família em foco.
+  if (detectAnaphoricReference(message) && (lastFocusedProductName || familyFocus)) {
+    return advanceTo(current, "product_detail", "reference_resolved_by_focus_to_product_detail");
   }
 
   // 6. Tools de detalhe foram chamadas → product_detail.
