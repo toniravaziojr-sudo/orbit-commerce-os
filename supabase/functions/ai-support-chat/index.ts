@@ -4137,6 +4137,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                   body: JSON.stringify(retryBody),
                 });
                 if (retryResp.ok) {
+                  // [ETAPA1-FIX] Marca o modelo como incompatível com `reasoning`
+                  // por 30 min para evitar o overhead ~5–8s em todos os turnos seguintes.
+                  markReasoningIncompatible(modelToTry);
+                  console.log(`[ai-support-chat] [ETAPA1-FIX] retry_without_reasoning_used model=${modelToTry} cached_ttl_min=30`);
                   console.log(`[ai-support-chat] [ETAPA1] retry_without_reasoning_succeeded model=${modelToTry}`);
                   response = retryResp;
                   usedModel = modelToTry;
