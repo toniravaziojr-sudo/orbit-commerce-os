@@ -3928,14 +3928,28 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       let response: Response | null = null;
       let usedModel = aiModel;
 
-      // [PERF — Pacote 2] Parâmetros de saída/raciocínio por estado.
-      // Em greeting/discovery, limitamos esforço de raciocínio e tokens para
-      // priorizar latência baixa. Em estados complexos (decisão, checkout,
-      // detalhe, suporte), liberamos espaço para tools + texto final.
-      const SIMPLE_STATES: PipelineState[] = ["greeting", "discovery"];
-      const isSimpleState = salesModeEnabled && SIMPLE_STATES.includes(pipelineState);
-      const stateMaxTokens = isSimpleState ? 600 : 4096;
-      const stateReasoningEffort: "minimal" | "low" | "medium" = isSimpleState ? "minimal" : "low";
+      // [PERF — Pacote 3] Parâmetros de saída/raciocínio por estado.
+      // Estados leves (greeting, discovery, recommendation, product_detail,
+      // support, handoff): effort=minimal — o turno é informativo/conversacional,
+      // não precisa de raciocínio profundo. Estados de transação (decision,
+      // checkout_assist): effort=low — precisa pesar dados do carrinho/cliente
+      // antes de gerar link ou pedir dado faltante.
+      const LIGHT_STATES: PipelineState[] = [
+        "greeting",
+        "discovery",
+        "recommendation",
+        "product_detail",
+        "support",
+        "handoff",
+      ];
+      const isLightState = salesModeEnabled && LIGHT_STATES.includes(pipelineState);
+      // Mantemos o budget de tokens menor só nos estados realmente curtos.
+      const SHORT_OUTPUT_STATES: PipelineState[] = ["greeting", "discovery"];
+      const isShortOutputState = salesModeEnabled && SHORT_OUTPUT_STATES.includes(pipelineState);
+      const stateMaxTokens = isShortOutputState ? 600 : 4096;
+      const stateReasoningEffort: "minimal" | "low" | "medium" = isLightState ? "minimal" : "low";
+      // Compat com referências antigas no arquivo (logs).
+      const isSimpleState = isLightState;
 
       // [PERF — Pacote 2] Reordenação de modelos por estado:
       // - estados simples: priorizar modelos rápidos (nano/mini)
