@@ -4430,13 +4430,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           return null;
         };
 
+        // [F2-FIX-CHECKOUT] Fallbacks conclusivos NÃO podem ser perguntas de
+        // confirmação ("Quer que eu finalize?"). Isso alimenta loop quando o
+        // modelo trava sem texto. Em decision/checkout_assist, fallback é
+        // ação concreta: pedir o dado que falta ou avisar próximo passo.
         const FALLBACK_CONCLUSIVE_BY_STATE: Record<PipelineState, string> = {
           greeting:        "Oi! O que você está procurando hoje?",
           discovery:       "Me conta um pouco mais do que você quer resolver, que eu já te indico o certo.",
           recommendation:  "Pra eu te indicar o melhor, me diz pra qual uso é?",
           product_detail:  "Quer saber preço, prazo de entrega ou tem outra dúvida sobre ele?",
-          decision:        "Posso gerar o link de pagamento pra você?",
-          checkout_assist: "Quer que eu finalize o pedido agora?",
+          decision:        "Vou colocar no carrinho e já te mando os próximos passos.",
+          checkout_assist: "Pra fechar agora, me confirma seu nome completo, email, CPF e CEP em uma única mensagem.",
           support:         "Me passa o número do pedido que eu já vejo aqui pra você.",
           handoff:         "Vou te passar pra alguém da equipe.",
         };
