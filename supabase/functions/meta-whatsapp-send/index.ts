@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
       const lockStillValid = existingLock?.expires_at && new Date(existingLock.expires_at) > new Date();
 
       // Already delivered? Idempotent return.
-      if (msgRow.delivery_status === "sent" || msgRow.delivery_status === "delivered" || msgRow.delivery_status === "delivered_after_retry") {
+      if (msgRow.delivery_status === "sent" || msgRow.delivery_status === "delivered" || msgRow.delivery_status === "read") {
         console.log(`[meta-whatsapp-send][${traceId}] Already delivered (status=${msgRow.delivery_status}). Idempotent return.`);
         return new Response(JSON.stringify({
           success: true,
