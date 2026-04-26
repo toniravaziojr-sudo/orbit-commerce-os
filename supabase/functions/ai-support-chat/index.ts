@@ -3155,8 +3155,8 @@ Cliente: "vocês entregam em SP?"
           .is("deleted_at", null)
           .limit(200);
         preTransitionProductHint = (prodRows || [])
-          .map(p => (p as { name: string }).name)
-          .filter((n): n is string => typeof n === "string" && n.length >= 4);
+          .map((p: { name: string | null }) => p.name)
+          .filter((n: string | null): n is string => typeof n === "string" && n.length >= 4);
       } catch (e) {
         console.warn("[ai-support-chat] [F2-V2] product names hint preload failed:", (e as Error).message);
       }
