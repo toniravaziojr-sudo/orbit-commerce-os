@@ -3462,6 +3462,29 @@ Cliente: "vocês entregam em SP?"
         );
       }
 
+      // [F2-V4][builder-gate] Diretiva POSITIVA quando o gate suprime checkout.
+      // Garante que o modelo entenda explicitamente: ignore carrinho legado,
+      // ignore dados antigos do cliente, NÃO peça CPF/CEP/nome/email, NÃO
+      // sugira retomar pedido. Família/produto em foco continuam permitidos
+      // como referência narrativa, mas SOMENTE para responder/conversar.
+      if (suppressCheckoutContext) {
+        const reasonPt = turnIntentClassified === "pure_greeting"
+          ? "o cliente apenas cumprimentou (saudação pura)"
+          : "o cliente está fazendo uma pergunta informativa";
+        contextualBlocks.push(
+          `### MODO CONVERSA LIMPA — PRIORIDADE ABSOLUTA\n` +
+          `Neste turno, ${reasonPt}. Portanto:\n` +
+          `- NÃO peça nome, email, CPF ou CEP.\n` +
+          `- NÃO mencione carrinho, pedido em aberto, link de checkout ou "retomar compra".\n` +
+          `- NÃO sugira fechar a venda nem use frases como "Quer finalizar?" ou "Posso gerar o link?".\n` +
+          `- IGNORE qualquer dado antigo de cliente, carrinho ou pedido em aberto que pareça vir do histórico.\n` +
+          `- Se houver produto/família em foco, ele só pode ser usado como referência narrativa para conversar/responder, NUNCA como gatilho para retomar checkout.\n` +
+          (turnIntentClassified === "pure_greeting"
+            ? `- Responda apenas com uma saudação curta, calorosa e neutra. Pode oferecer ajuda de forma aberta ("Como posso te ajudar?"), mas sem citar produto ou pedido específico.`
+            : `- Responda objetivamente à pergunta do cliente com dado real (preço, prazo, característica, etc.). Só avance no funil se o cliente demonstrar intenção EXPLÍCITA de comprar nesta mesma mensagem.`)
+        );
+      }
+
       const routed = buildPromptForState({
         state: pipelineState,
         allTools: SALES_TOOLS,
