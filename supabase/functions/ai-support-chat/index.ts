@@ -5221,7 +5221,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // [Pacote E] Se a resposta foi marcada como duplicada, NÃO envia (mas mantém
     // a mensagem persistida com delivery_status="suppressed_duplicate" para auditoria).
     // ============================================
-    let sendResult: { success: boolean; error?: string; message_id?: string } = { success: false, error: "Canal não suportado" };
+    let sendResult: { success: boolean; error?: string; message_id?: string; managed_status?: boolean } = { success: false, error: "Canal não suportado" };
 
     if (dupCheck.duplicate) {
       console.log(`[ai-support-chat] [PACOTE E] suppress send (duplicate response within window)`);
@@ -5236,6 +5236,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.log(`[ai-support-chat] Sending WhatsApp response...`);
       
       try {
+        // [Reliability v2] Passamos message_id para que meta-whatsapp-send aplique
+        // idempotência (lock + verificação de wamid já persistido) e gerencie o
+        // delivery_status final, incluindo retries e delivered_after_retry.
         const sendResponse = await fetch(
           `${supabaseUrl}/functions/v1/meta-whatsapp-send`,
           {
@@ -5248,29 +5251,34 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
               tenant_id,
               phone: conversation.customer_phone,
               message: aiContent,
+              message_id: newMessage.id,
             }),
           }
         );
 
         sendResult = await sendResponse.json();
 
-        const deliveryStatus = sendResult.success ? "sent" : "failed";
-        await supabase
-          .from("messages")
-          .update({ 
-            delivery_status: deliveryStatus,
-            external_message_id: sendResult.message_id || null,
-            failure_reason: sendResult.success ? null : sendResult.error,
-          })
-          .eq("id", newMessage.id);
+        // Se a função informa que ela mesma já gerenciou o status (managed_status=true),
+        // não sobrescrevemos. Caso contrário, mantemos o comportamento legado.
+        if (!sendResult?.managed_status) {
+          const deliveryStatus = sendResult.success ? "sent" : "failed";
+          await supabase
+            .from("messages")
+            .update({
+              delivery_status: deliveryStatus,
+              external_message_id: sendResult.message_id || null,
+              failure_reason: sendResult.success ? null : sendResult.error,
+            })
+            .eq("id", newMessage.id);
+        }
 
       } catch (sendError) {
         console.error("[ai-support-chat] WhatsApp send error:", sendError);
         sendResult = { success: false, error: sendError instanceof Error ? sendError.message : "Erro ao enviar" };
-        
+
         await supabase
           .from("messages")
-          .update({ 
+          .update({
             delivery_status: "failed",
             failure_reason: sendResult.error,
           })
