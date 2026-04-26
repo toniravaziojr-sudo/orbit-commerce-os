@@ -32,9 +32,47 @@ export type TransitionReason =
   | "tool_advanced_state"
   | "no_change_keep_state"
   | "regression_blocked"
-  // [F2-V2] Novas razões — referência por foco e intenção comparativa
+  // [F2-V2] Razões de referência por foco e intenção comparativa
   | "reference_resolved_by_focus_to_product_detail"
-  | "compare_intent_with_focus";
+  | "compare_intent_with_focus"
+  // [F2-V3] Rebaixamento estrutural por intenção do turno atual
+  | "downgrade_pure_greeting_resets_state"
+  | "downgrade_informative_question_to_product_detail"
+  | "downgrade_informative_question_to_recommendation"
+  | "downgrade_informative_question_to_discovery"
+  | "downgrade_comparison_to_product_detail_with_focus"
+  | "downgrade_comparison_to_recommendation_no_focus"
+  | "data_provided_kept_checkout_with_active_cart"
+  | "data_provided_ignored_no_active_cart";
+
+// [F2-V3] Classificação canônica da intenção do turno ATUAL.
+// Usada para forçar rebaixamento de estado avançado quando o cliente
+// muda de assunto / volta a perguntar / só cumprimenta.
+export type TurnIntent =
+  | "pure_greeting"
+  | "informative_question"
+  | "product_named"
+  | "comparison"
+  | "purchase_intent"
+  | "data_provided"
+  | "support"
+  | "other";
+
+export interface TurnIntentClassification {
+  intent: TurnIntent;
+  signals: {
+    isPureGreeting: boolean;
+    hasNamedProduct: boolean;
+    hasFamilyMention: boolean;
+    hasFocusReference: boolean;
+    hasInformationalQuestion: boolean;
+    hasCompareIntent: boolean;
+    hasBuySignal: boolean;
+    hasCheckoutRequest: boolean;
+    hasSupportTopic: boolean;
+    hasDataProvided: boolean;
+  };
+}
 
 export interface TransitionInput {
   current: PipelineState;
@@ -51,6 +89,10 @@ export interface TransitionInput {
   // e para detectar intenção comparativa sobre os itens já em foco.
   familyFocus?: string | null;
   lastFocusedProductName?: string | null;
+  // [F2-V3] Sinal de intenção de compra recente (últimos N minutos).
+  // Usado para evitar que `data_provided` sozinho preserve checkout em
+  // conversa contaminada por estado legado.
+  recentPurchaseIntent?: boolean;
 }
 
 export interface TransitionResult {
@@ -58,6 +100,10 @@ export interface TransitionResult {
   reason: TransitionReason;
   // Marca quando a transição foi forçada por regra (não por tool).
   forced: boolean;
+  // [F2-V3] Intenção do turno classificada (auditoria/log).
+  turnIntent?: TurnIntent;
+  // [F2-V3] Razão estrutural quando houve rebaixamento por intenção do turno.
+  downgradeReason?: TransitionReason | null;
 }
 
 // ----------------------------------------------------------------
@@ -247,39 +293,205 @@ export function detectInformationalProductQuestion(message: string): boolean {
 }
 
 // ----------------------------------------------------------------
+// [F2-V3] Detector de "data_provided" — cliente mandou nome/CPF/CEP/email
+// espontaneamente. Não é compra explícita; só preserva checkout se houver
+// carrinho ativo + intenção recente de compra.
+// ----------------------------------------------------------------
+const DATA_PROVIDED_PATTERNS: RegExp[] = [
+  /\bcpf[:\s]*\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/i,
+  /\bcep[:\s]*\d{5}-?\d{3}\b/i,
+  /\b\d{5}-?\d{3}\b/, // CEP solto
+  /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/, // CPF solto
+  /\bmeu\s+(nome|email|e-mail|cpf|cep|endere[çc]o)\s+[ée]\b/i,
+  /\bemail[:\s]*[\w.+-]+@[\w.-]+\.[a-z]{2,}/i,
+];
+function detectDataProvided(message: string): boolean {
+  if (!message) return false;
+  return DATA_PROVIDED_PATTERNS.some(re => re.test(message));
+}
+
+// ----------------------------------------------------------------
+// [F2-V3] Classificador canônico da intenção do turno atual.
+// Função pura — não toca estado. Usada pelo resolver para aplicar
+// rebaixamento estrutural antes da máquina de estados clássica.
+// ----------------------------------------------------------------
+export function classifyTurnIntent(
+  message: string,
+  ctx: {
+    isPureGreeting: boolean;
+    productNamesHint?: string[];
+    familyFocus?: string | null;
+    lastFocusedProductName?: string | null;
+  },
+): TurnIntentClassification {
+  const msg = message || "";
+  const hasNamedProduct = mentionsProductByName(msg, ctx.productNamesHint || []);
+  const hasFamilyMention = !!detectFamilyMentioned(msg);
+  const hasAnaphoricReference = detectAnaphoricReference(msg);
+  const hasFocusReference = !!(ctx.lastFocusedProductName || ctx.familyFocus || hasNamedProduct || hasAnaphoricReference);
+  const hasInformationalQuestion = detectInformationalProductQuestion(msg);
+  const hasCompareIntent = detectCompareIntent(msg);
+  const hasBuySignal = detectBuySignal(msg);
+  const hasCheckoutRequest = detectCheckoutRequest(msg);
+  const hasSupportTopic = detectSupportTopic(msg);
+  const hasDataProvided = detectDataProvided(msg);
+
+  let intent: TurnIntent = "other";
+  // Ordem importa: support > purchase > comparison > product_named > informative > data > greeting > other
+  if (hasSupportTopic) intent = "support";
+  else if (hasBuySignal || hasCheckoutRequest) intent = "purchase_intent";
+  else if (hasCompareIntent) intent = "comparison";
+  else if (hasNamedProduct) intent = "product_named";
+  else if (hasInformationalQuestion && (hasFocusReference || hasFamilyMention)) intent = "informative_question";
+  else if (hasDataProvided) intent = "data_provided";
+  else if (ctx.isPureGreeting) intent = "pure_greeting";
+
+  return {
+    intent,
+    signals: {
+      isPureGreeting: ctx.isPureGreeting,
+      hasNamedProduct,
+      hasFamilyMention,
+      hasFocusReference,
+      hasInformationalQuestion,
+      hasCompareIntent,
+      hasBuySignal,
+      hasCheckoutRequest,
+      hasSupportTopic,
+      hasDataProvided,
+    },
+  };
+}
+
+// ----------------------------------------------------------------
 // Decisão da próxima transição — ordem de prioridade importa.
 // ----------------------------------------------------------------
 export function decideNextState(input: TransitionInput): TransitionResult {
-  const { current, message, isPureGreeting, hasActiveCart, hasCheckoutLink, toolsCalled, discoveryTurnsSoFar, productNamesHint, familyFocus, lastFocusedProductName } = input;
-  const hasNamedProduct = mentionsProductByName(message, productNamesHint || []);
-  const hasFamilyMention = !!detectFamilyMentioned(message);
-  const hasAnaphoricReference = detectAnaphoricReference(message);
-  const hasCompareIntent = detectCompareIntent(message);
-  const hasFocusReference = !!(lastFocusedProductName || familyFocus || hasNamedProduct || hasAnaphoricReference);
+  const { current, message, isPureGreeting, hasActiveCart, hasCheckoutLink, toolsCalled, discoveryTurnsSoFar, productNamesHint, familyFocus, lastFocusedProductName, recentPurchaseIntent } = input;
+
+  // [F2-V3] Classificação canônica do turno (usada pelas regras de rebaixamento).
+  const turnClass = classifyTurnIntent(message, {
+    isPureGreeting,
+    productNamesHint,
+    familyFocus,
+    lastFocusedProductName,
+  });
+  const turnIntent = turnClass.intent;
+  const { hasNamedProduct, hasFamilyMention, hasFocusReference, hasCompareIntent, hasInformationalQuestion } = turnClass.signals;
   const isInformationalProductQuestion =
-    (detectInformationalProductQuestion(message) || hasCompareIntent) &&
-    (hasFocusReference || hasFamilyMention);
+    (hasInformationalQuestion || hasCompareIntent) && (hasFocusReference || hasFamilyMention);
 
   // 0. Handoff é terminal — se foi solicitado por tool, prevalece.
   if (toolsCalled.includes("request_human_handoff")) {
-    return { next: "handoff", reason: "handoff_requested", forced: true };
+    return { next: "handoff", reason: "handoff_requested", forced: true, turnIntent };
   }
 
   // 1. Tópico de pedido existente → support (sai do funil).
-  if (detectSupportTopic(message)) {
-    return { next: "support", reason: "support_topic_detected", forced: true };
+  if (turnIntent === "support") {
+    return { next: "support", reason: "support_topic_detected", forced: true, turnIntent };
   }
 
-  // 1b. Pergunta informativa de produto no turno ATUAL vence contexto antigo.
-  // Se a conversa estiver avançada (decision/checkout) mas o cliente voltou a
-  // pedir explicação, comparação ou objeção de produto, fazemos downgrade
-  // forçado para detalhe/recomendação e bloqueamos abertura de checkout.
+  // ============================================================
+  // [F2-V3] BLOCO DE REBAIXAMENTO ESTRUTURAL POR INTENÇÃO DO TURNO
+  // Aplica ANTES das regras clássicas. Vence contexto antigo
+  // (sales_state legado, family_focus, last_pending_action, customer_data).
+  // ============================================================
+
+  // R1. Saudação pura → SEMPRE rebaixa para greeting, ignora estado anterior.
+  if (turnIntent === "pure_greeting") {
+    return {
+      next: "greeting",
+      reason: "downgrade_pure_greeting_resets_state",
+      forced: true,
+      turnIntent,
+      downgradeReason: "downgrade_pure_greeting_resets_state",
+    };
+  }
+
+  // R2. Comparação:
+  //  - com foco existente (lastFocusedProductName OU familyFocus) → product_detail (modo comparação)
+  //  - sem foco → recommendation
+  if (turnIntent === "comparison") {
+    if (lastFocusedProductName || familyFocus) {
+      return {
+        next: "product_detail",
+        reason: "downgrade_comparison_to_product_detail_with_focus",
+        forced: true,
+        turnIntent,
+        downgradeReason: "downgrade_comparison_to_product_detail_with_focus",
+      };
+    }
+    return {
+      next: "recommendation",
+      reason: "downgrade_comparison_to_recommendation_no_focus",
+      forced: true,
+      turnIntent,
+      downgradeReason: "downgrade_comparison_to_recommendation_no_focus",
+    };
+  }
+
+  // R3. Pergunta informativa:
+  //  - com foco em produto específico → product_detail
+  //  - com família mencionada/em foco mas sem produto específico → recommendation
+  //  - sem nenhum foco → discovery
+  if (turnIntent === "informative_question") {
+    if (lastFocusedProductName || hasNamedProduct) {
+      return {
+        next: "product_detail",
+        reason: "downgrade_informative_question_to_product_detail",
+        forced: true,
+        turnIntent,
+        downgradeReason: "downgrade_informative_question_to_product_detail",
+      };
+    }
+    if (familyFocus || hasFamilyMention) {
+      return {
+        next: "recommendation",
+        reason: "downgrade_informative_question_to_recommendation",
+        forced: true,
+        turnIntent,
+        downgradeReason: "downgrade_informative_question_to_recommendation",
+      };
+    }
+    return {
+      next: "discovery",
+      reason: "downgrade_informative_question_to_discovery",
+      forced: true,
+      turnIntent,
+      downgradeReason: "downgrade_informative_question_to_discovery",
+    };
+  }
+
+  // R4. data_provided sozinho:
+  //  - SÓ preserva checkout_assist se houver carrinho ativo OU intenção recente de compra.
+  //  - Caso contrário (conversa contaminada) ignora e segue o fluxo natural abaixo.
+  if (turnIntent === "data_provided") {
+    if (hasActiveCart || recentPurchaseIntent) {
+      return {
+        next: "checkout_assist",
+        reason: "data_provided_kept_checkout_with_active_cart",
+        forced: true,
+        turnIntent,
+        downgradeReason: null,
+      };
+    }
+    // Sem carrinho/intenção: trata como neutro, deixa cair nas regras clássicas
+    // (que provavelmente vão para greeting/discovery).
+    // Loga o ignore para auditoria via downgradeReason.
+  }
+
+  // ============================================================
+  // [F2-V3] Compatibilidade — regra antiga 1b (informativa) preservada
+  // como fallback quando a classificação não cobriu o caso (defesa em
+  // profundidade).
+  // ============================================================
   if (isInformationalProductQuestion) {
     if (hasFocusReference) {
       return {
         next: "product_detail",
         reason: "informational_product_question_downgrade_to_product_detail",
         forced: true,
+        turnIntent,
       };
     }
     if (hasFamilyMention) {
@@ -287,85 +499,101 @@ export function decideNextState(input: TransitionInput): TransitionResult {
         next: "recommendation",
         reason: "informational_product_question_downgrade_to_recommendation",
         forced: true,
+        turnIntent,
       };
     }
   }
 
   // 2. Checkout efetivo — link gerado ou explicitamente pedido.
   if (hasCheckoutLink || toolsCalled.includes("generate_checkout_link")) {
-    return { next: "checkout_assist", reason: "checkout_link_generated", forced: false };
+    return { next: "checkout_assist", reason: "checkout_link_generated", forced: false, turnIntent };
   }
   if (detectCheckoutRequest(message)) {
-    return { next: "checkout_assist", reason: "explicit_checkout_request", forced: true };
+    return { next: "checkout_assist", reason: "explicit_checkout_request", forced: true, turnIntent };
   }
 
   // 3. Carrinho ativo ou item adicionado neste turno.
   if (hasActiveCart || toolsCalled.includes("add_to_cart")) {
-    // Carrinho ativo NÃO regride para discovery, mas pode ir para decision/checkout.
-    return advanceTo(current, "checkout_assist", "cart_active_or_added");
+    const r = advanceTo(current, "checkout_assist", "cart_active_or_added");
+    return { ...r, turnIntent };
   }
 
   // 4. Sinal claro de compra → decision (mesmo vindo de greeting/discovery).
-  if (detectBuySignal(message)) {
-    return advanceTo(current, "decision", "buy_signal_detected");
+  if (turnIntent === "purchase_intent") {
+    const r = advanceTo(current, "decision", "buy_signal_detected");
+    return { ...r, turnIntent };
   }
 
   // 5. Cliente citou produto pelo nome → product_detail (PRIORIDADE MÁXIMA).
   if (hasNamedProduct) {
-    return advanceTo(current, "product_detail", "product_mentioned_by_name");
+    const r = advanceTo(current, "product_detail", "product_mentioned_by_name");
+    return { ...r, turnIntent };
   }
 
   // [F2-V2] 5b. Intenção comparativa COM foco existente → product_detail
-  // (modo comparação injetado no prompt pelo caller via familyFocus/lastFocusedProductName).
-  // Não reembaralha vitrine — compara o que já está em foco.
   if (hasCompareIntent && (lastFocusedProductName || familyFocus)) {
-    return advanceTo(current, "product_detail", "compare_intent_with_focus");
+    const r = advanceTo(current, "product_detail", "compare_intent_with_focus");
+    return { ...r, turnIntent };
   }
 
-  // [F2-V2] 5c. Referência anafórica ("esse/ele/eles/esse shampoo") + foco existente
-  // → resolve para product_detail do último produto/família em foco.
-  if (hasAnaphoricReference && (lastFocusedProductName || familyFocus)) {
-    return advanceTo(current, "product_detail", "reference_resolved_by_focus_to_product_detail");
+  // [F2-V2] 5c. Referência anafórica + foco existente → product_detail
+  if (detectAnaphoricReference(message) && (lastFocusedProductName || familyFocus)) {
+    const r = advanceTo(current, "product_detail", "reference_resolved_by_focus_to_product_detail");
+    return { ...r, turnIntent };
   }
 
   // 6. Tools de detalhe foram chamadas → product_detail.
   if (toolsCalled.includes("get_product_details") || toolsCalled.includes("get_product_variants")) {
-    return advanceTo(current, "product_detail", "tool_advanced_state");
+    const r = advanceTo(current, "product_detail", "tool_advanced_state");
+    return { ...r, turnIntent };
   }
 
   // 7. Tools de busca foram chamadas → recommendation.
   if (toolsCalled.includes("search_products") || toolsCalled.includes("recommend_related_products")) {
-    return advanceTo(current, "recommendation", "tool_advanced_state");
+    const r = advanceTo(current, "recommendation", "tool_advanced_state");
+    return { ...r, turnIntent };
   }
 
-  // 8a. Cliente declarou dor/objetivo concreto enquanto estava em greeting/discovery
-  // → já tem matéria-prima pra recomendar. Não force nova rodada de descoberta.
-  // Isso resolve o caso "queria um shampoo para calvície" preso em discovery.
+  // 8a. Dor/objetivo declarada em greeting/discovery → recommendation.
   if ((current === "greeting" || current === "discovery") && detectPainOrObjective(message)) {
     return {
       next: "recommendation",
       reason: "pain_or_objective_declared_advance_to_recommendation",
       forced: true,
+      turnIntent,
     };
   }
 
   // 8b. Discovery com limite atingido → força recommendation.
   if (current === "discovery" && discoveryTurnsSoFar >= 2) {
-    return { next: "recommendation", reason: "discovery_limit_reached_advance_to_recommendation", forced: true };
+    return { next: "recommendation", reason: "discovery_limit_reached_advance_to_recommendation", forced: true, turnIntent };
   }
 
   // 9. Saída natural de greeting com pergunta de necessidade.
   if (current === "greeting" && !isPureGreeting && message.trim().length > 0) {
-    return { next: "discovery", reason: "greeting_to_discovery_question", forced: false };
+    return { next: "discovery", reason: "greeting_to_discovery_question", forced: false, turnIntent };
   }
 
-  // 10. Saudação pura mantém greeting.
+  // 10. Saudação pura mantém greeting (já coberta em R1, mas mantém compat).
   if (current === "greeting" && isPureGreeting) {
-    return { next: "greeting", reason: "first_contact_pure_greeting", forced: false };
+    return { next: "greeting", reason: "first_contact_pure_greeting", forced: false, turnIntent };
   }
 
-  return { next: current, reason: "no_change_keep_state", forced: false };
+  // [F2-V3] Caso especial: data_provided que caiu até aqui (sem carrinho/intenção)
+  // — registra o ignore para auditoria.
+  if (turnIntent === "data_provided") {
+    return {
+      next: current,
+      reason: "data_provided_ignored_no_active_cart",
+      forced: false,
+      turnIntent,
+      downgradeReason: "data_provided_ignored_no_active_cart",
+    };
+  }
+
+  return { next: current, reason: "no_change_keep_state", forced: false, turnIntent };
 }
+
 
 // Anti-regressão: só avança se o rank do alvo for ≥ atual, ou se for forçado.
 function advanceTo(current: PipelineState, target: PipelineState, reason: TransitionReason): TransitionResult {

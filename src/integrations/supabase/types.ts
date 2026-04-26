@@ -2265,6 +2265,30 @@ export type Database = {
           },
         ]
       }
+      ai_model_param_compat: {
+        Row: {
+          expires_at: string
+          incompatible: boolean
+          last_seen_at: string
+          model: string
+          param_name: string
+        }
+        Insert: {
+          expires_at?: string
+          incompatible?: boolean
+          last_seen_at?: string
+          model: string
+          param_name: string
+        }
+        Update: {
+          expires_at?: string
+          incompatible?: boolean
+          last_seen_at?: string
+          model?: string
+          param_name?: string
+        }
+        Relationships: []
+      }
       ai_model_pricing: {
         Row: {
           cost_per_1k_tokens: number | null
