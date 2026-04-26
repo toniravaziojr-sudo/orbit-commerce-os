@@ -3268,9 +3268,9 @@ Cliente: "vocês entregam em SP?"
     let pipelineFilteredTools: typeof SALES_TOOLS = [];
 
     if (salesModeEnabled) {
-      // [Fase 1] Carrega contexto de negócio do tenant (Pacotes A+B+C+G).
-      // Tolerante a falha: se quebrar, IA segue como hoje.
-      const businessCtx = await loadBusinessContextBlock(supabase, tenant_id);
+      // [Fase 1] Consome promises paralelizadas (iniciadas ~linha 3226).
+      // Reduz latência: businessCtx + staleCheck rodam em paralelo em vez de serial.
+      const businessCtx = await (businessCtxPromise ?? loadBusinessContextBlock(supabase, tenant_id));
 
       // [D6] Log de auditoria — qual fonte abasteceu o contexto deste turno.
       console.log(
@@ -3285,11 +3285,7 @@ Cliente: "vocês entregam em SP?"
       // Se contexto está stale ou não existe, dispara regeneração em background.
       // Não bloqueia o turno — usa o que tiver agora.
       try {
-        const { data: ctxRow } = await supabase
-          .from("tenant_business_context")
-          .select("needs_regeneration, last_inferred_at")
-          .eq("tenant_id", tenant_id)
-          .maybeSingle();
+        const ctxRow = await staleCheckPromise;
         if (!ctxRow || ctxRow.needs_regeneration || !ctxRow.last_inferred_at) {
           const _url = Deno.env.get("SUPABASE_URL") || "";
           const _key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
