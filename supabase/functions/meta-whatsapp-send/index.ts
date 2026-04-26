@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     } = params;
 
     // Sanitize test flag — only honored when header token matches
-    const injectFailures = testModeAllowed ? Math.max(0, Math.min(MAX_ATTEMPTS - 1, Number(params._test_inject_failures) || 0)) : 0;
+    const injectFailures = testModeAllowed ? Math.max(0, Math.min(MAX_ATTEMPTS, Number(params._test_inject_failures) || 0)) : 0;
     if (params._test_inject_failures && !testModeAllowed) {
       console.warn(`[meta-whatsapp-send][${traceId}] _test_inject_failures ignored (no valid x-internal-test-token)`);
     }
