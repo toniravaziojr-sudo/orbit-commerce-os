@@ -3842,12 +3842,23 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     let aiContent: string;
     
-    // Em sales mode, exigir modelo forte (gpt-5/5.2) para tool-calling confiável.
-    // gpt-5-mini falha em chamar tools mesmo com prompts imperativos.
+    // [PERF — Pacote 3] Em sales mode usamos gpt-5-mini como base por velocidade.
+    // gpt-5 vira FALLBACK explícito (ativado mais abaixo, no loop de modelos),
+    // só quando o estado é decision/checkout_assist E houve falha de tool-calling.
+    // Não tem mais "upgrade global para gpt-5" — isso destruía a latência.
     let configuredModel = effectiveConfig.ai_model || "gpt-5.2";
-    if (salesModeEnabled && (configuredModel.includes("mini") || configuredModel.includes("nano") || configuredModel.includes("flash"))) {
-      console.log(`[ai-support-chat] sales-mode: upgrading model from ${configuredModel} to gpt-5 for reliable tool-calling`);
-      configuredModel = "gpt-5";
+    if (salesModeEnabled) {
+      // Força o piso em gpt-5-mini (tool-calling confiável + ~3-5x mais rápido
+      // que gpt-5). nano não chama tools com confiabilidade suficiente.
+      const cm = configuredModel.toLowerCase();
+      if (cm.includes("nano") || cm.includes("flash-lite")) {
+        console.log(`[ai-support-chat] [PERF] sales-mode: raising ${configuredModel} → gpt-5-mini (nano/lite não tool-call)`);
+        configuredModel = "gpt-5-mini";
+      } else if (cm.includes("flash") || cm.includes("mini")) {
+        // Mantém intenção de "rápido" do tenant em gpt-5-mini.
+        configuredModel = "gpt-5-mini";
+      }
+      // Se o tenant pediu gpt-5 ou gpt-5.2 explicitamente, respeitamos.
     }
     
     const modelMapping: Record<string, string> = {
