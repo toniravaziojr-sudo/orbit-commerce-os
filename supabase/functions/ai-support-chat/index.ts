@@ -48,6 +48,9 @@ import {
   buildProductFocus,
   readProductFocus,
   type ProductFocus,
+  // [F2-V2] foco de família + extração de nome citado
+  detectFamilyMentioned,
+  extractMentionedProductName,
 } from "../_shared/sales-pipeline/index.ts";
 // [Pacotes B/C/D/E] Dinâmica de turno (lock, continuação, stall, anti-dup)
 import {
