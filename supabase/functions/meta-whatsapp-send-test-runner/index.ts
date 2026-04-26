@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
         direction: "outbound",
         sender_type: "system",
         content: message_text,
-        delivery_status: "pending",
+        delivery_status: "queued",
         is_internal: true,
         metadata: { test_run: true, level: 1, created_by: "test-runner" },
       })
