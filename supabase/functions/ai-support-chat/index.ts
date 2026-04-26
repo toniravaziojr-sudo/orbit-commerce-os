@@ -3526,8 +3526,15 @@ Cliente: "vocês entregam em SP?"
       console.error("[ai-support-chat] tenant-context error:", err);
     }
 
-    if (customerContext) {
+    // [F2-V4][builder-gate] customerContext (nome/CPF/pedidos/etc.) só entra
+    // se NÃO estivermos suprimindo contexto de checkout. Saudação pura ou
+    // pergunta informativa não devem reenergizar o pipeline de coleta de dados.
+    if (customerContext && !suppressCheckoutContext) {
       systemPrompt += customerContext;
+    } else if (customerContext && suppressCheckoutContext) {
+      console.log(
+        `[ai-support-chat] [F2-V4][builder-gate] customer_context_suppressed reason=${suppressionReason} turn_intent=${turnIntentClassified}`
+      );
     }
 
     // Inject AI memory context
