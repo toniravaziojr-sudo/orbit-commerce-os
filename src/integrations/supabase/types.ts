@@ -22504,6 +22504,10 @@ export type Database = {
         Returns: number
       }
       ai_daily_snapshot_reconciliation: { Args: never; Returns: Json }
+      append_delivery_attempt: {
+        Args: { _attempt: Json; _message_id: string }
+        Returns: Json
+      }
       atomic_activate_prerender_version: {
         Args: { p_publish_version: number; p_tenant_id: string }
         Returns: Json
