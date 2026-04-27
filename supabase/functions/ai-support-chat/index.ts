@@ -5237,6 +5237,42 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     const shouldUpdateLastFocusedProduct =
       productMentionedNow !== null && productMentionedNow !== lastFocusedProductNameBefore;
 
+    // [F2-FS-CROSS] Antes de persistir, enriquecer o foco com o sumário cruzado
+    // de frete grátis da MESMA LINHA. Lê do snapshot mais recente de
+    // search_products neste turno (formato legado ou novo). Só anexa se a
+    // linha-base bater com o product_id do foco — protege contra associação
+    // entre produtos diferentes da mesma família.
+    if (nextProductFocus && typeof nextProductFocus === "object") {
+      try {
+        for (let i = toolResultsThisTurn.length - 1; i >= 0; i--) {
+          const snap = toolResultsThisTurn[i];
+          if (snap.tool !== "search_products") continue;
+          const normalized = parseSearchProductsResult(snap.parsed);
+          const summary = normalized.family_shipping_summary;
+          if (!summary) continue;
+          // Só aplica se o foco atual pertence à linha que o sumário descreve.
+          // base = id do produto-base; o foco pertence à linha se for a base
+          // OU se for um pack cuja base bate (verificável pela presença em
+          // free_shipping_offers / paid_shipping_offers do mesmo sumário).
+          const inLine =
+            summary.line_base_product_id === nextProductFocus.product_id ||
+            (summary.free_shipping_offers ?? []).some((o: any) => o.id === nextProductFocus.product_id) ||
+            (summary.paid_shipping_offers ?? []).some((o: any) => o.id === nextProductFocus.product_id);
+          if (!inLine) continue;
+          const offers = (summary.free_shipping_offers ?? []).map((o: any) => ({
+            label: String(o.pack_label ?? (o.is_kit ? "pack" : "unidade")),
+            name: String(o.name),
+            is_kit: Boolean(o.is_kit),
+            price: typeof o.price === "number" ? o.price : null,
+          }));
+          (nextProductFocus as ProductFocus).family_free_shipping_offers = offers.length > 0 ? offers : null;
+          break;
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [F2-FS-CROSS] enrich foco falhou:", (e as Error).message);
+      }
+    }
+
     if (
       nextProductFocus !== undefined ||
       shouldUpdateFamilyFocus ||
