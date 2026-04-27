@@ -1384,6 +1384,7 @@ async function executeSalesTool(
                 variant_id: effectiveVariantId,
                 variant_label: variantLabel,
                 quantity,
+                free_shipping: product.free_shipping ?? false,
                 source,
               })
             );
@@ -1398,6 +1399,7 @@ async function executeSalesTool(
                 variant_id: null,
                 variant_label: null,
                 quantity,
+                free_shipping: product.free_shipping ?? false,
                 source: "no_variants_needed",
               })
             );
