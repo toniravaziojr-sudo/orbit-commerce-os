@@ -197,55 +197,65 @@ function HealthDashboard() {
               <CardTitle>Status dos jobs (últimas 24h)</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Job</TableHead>
-                      <TableHead>Agendamento</TableHead>
-                      <TableHead>Última execução</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Sucessos</TableHead>
-                      <TableHead className="text-right">Falhas</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(cronJobs.data ?? []).map((j) => {
-                      const failing = j.failures_last_24h > 0;
-                      return (
-                        <TableRow key={j.jobid}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {failing ? (
-                                <AlertTriangle className="h-4 w-4 text-destructive" />
-                              ) : (
-                                <CheckCircle2 className="h-4 w-4 text-success" />
-                              )}
-                              <span>{j.jobname}</span>
-                              {!j.active && <Badge variant="outline">inativo</Badge>}
-                            </div>
-                          </TableCell>
-                          <TableCell><code className="text-xs">{j.schedule}</code></TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {formatBRT(j.last_run_at)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={j.last_status === 'succeeded' ? 'default' : j.last_status === 'failed' ? 'destructive' : 'secondary'}>
-                              {j.last_status ?? '—'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">{j.successes_last_24h}</TableCell>
-                          <TableCell className="text-right">
-                            <span className={failing ? 'text-destructive font-semibold' : ''}>
-                              {j.failures_last_24h}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              {cronJobs.isLoading ? (
+                <TableSkeleton cols={6} rows={6} />
+              ) : cronJobs.error ? (
+                <ErrorBanner title="Não foi possível carregar os jobs" error={cronJobs.error} />
+              ) : (cronJobs.data ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  Nenhum job agendado encontrado.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Job</TableHead>
+                        <TableHead>Agendamento</TableHead>
+                        <TableHead>Última execução</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Sucessos</TableHead>
+                        <TableHead className="text-right">Falhas</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(cronJobs.data ?? []).map((j) => {
+                        const failing = j.failures_last_24h > 0;
+                        return (
+                          <TableRow key={j.jobid}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {failing ? (
+                                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                                ) : (
+                                  <CheckCircle2 className="h-4 w-4 text-success" />
+                                )}
+                                <span>{j.jobname}</span>
+                                {!j.active && <Badge variant="outline">inativo</Badge>}
+                              </div>
+                            </TableCell>
+                            <TableCell><code className="text-xs">{j.schedule}</code></TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatBRT(j.last_run_at)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={j.last_status === 'succeeded' ? 'default' : j.last_status === 'failed' ? 'destructive' : 'secondary'}>
+                                {j.last_status ?? '—'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{j.successes_last_24h}</TableCell>
+                            <TableCell className="text-right">
+                              <span className={failing ? 'text-destructive font-semibold' : ''}>
+                                {j.failures_last_24h}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
