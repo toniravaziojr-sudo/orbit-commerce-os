@@ -343,10 +343,17 @@ export function PaymentSettingsTab() {
     });
   }, [gatewayMap, activeProviders]);
 
-  // Initialize discounts from DB — only once when data arrives
+  // Initialize discounts — runs once. For new tenants without rows in
+  // payment_method_discounts, we still need to render default cards (parcelas,
+  // expiração de PIX/Boleto, descontos) so the user can configure and save.
+  // The guard `allDiscounts.length === 0` was blocking that case (tenant Amazgan).
   useEffect(() => {
     if (discountsInitialized.current) return;
-    if (allDiscounts.length === 0) return;
+    // Wait until we know which providers are active for each method;
+    // otherwise we'd initialize with empty providers and skip all cards.
+    const hasAnyProvider = (['pix', 'credit_card', 'boleto'] as MethodKey[])
+      .some(m => !!localGatewayConfigs[m]?.provider);
+    if (!hasAnyProvider) return;
     discountsInitialized.current = true;
 
     setLocalDiscounts(() => {
