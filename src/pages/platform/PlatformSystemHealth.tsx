@@ -1,18 +1,50 @@
-import { Activity, Database, Clock, Layers, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Activity, Database, Clock, Layers, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   useCronJobsStatus,
   useQueueHealth,
   useSystemHealthOverview,
   useTopSlowQueries,
 } from '@/hooks/useSystemHealth';
+
+function ErrorBanner({ title, error }: { title: string; error: unknown }) {
+  const msg = error instanceof Error ? error.message : String(error ?? 'erro desconhecido');
+  const isAccessDenied = /access denied|platform admin only|permission denied/i.test(msg);
+  return (
+    <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm flex items-start gap-2">
+      <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+      <div>
+        <p className="font-medium text-destructive">{title}</p>
+        <p className="text-muted-foreground text-xs mt-0.5">
+          {isAccessDenied
+            ? 'Sua conta não está cadastrada como operador de plataforma. Verifique platform_admins.'
+            : msg}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TableSkeleton({ cols = 6, rows = 5 }: { cols?: number; rows?: number }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex gap-3">
+          {Array.from({ length: cols }).map((_, j) => (
+            <Skeleton key={j} className="h-6 flex-1" />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 const BRT_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
   day: '2-digit',
