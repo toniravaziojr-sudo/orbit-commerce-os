@@ -3543,6 +3543,19 @@ Cliente: "vocês entregam em SP?"
         );
       }
 
+      // [F2-V4] Espelho mecânico de saudação — força a IA a abrir LITERALMENTE
+      // com o que o cliente disse (oi + boa noite + tudo bem). Só ativa em greeting.
+      if (pipelineState === "greeting" && lastMessageContent) {
+        const echo = detectGreetingEcho(lastMessageContent);
+        const mirrorBlock = buildGreetingMirrorBlock(echo);
+        if (mirrorBlock) {
+          contextualBlocks.push(mirrorBlock);
+          console.log(
+            `[ai-support-chat] [F2-V4] greeting_mirror period=${echo.period || "—"} hello=${echo.hello || "—"} how_are_you=${echo.askedHowAreYou} opening="${echo.mandatoryOpening}"`
+          );
+        }
+      }
+
       const routed = buildPromptForState({
         state: pipelineState,
         allTools: SALES_TOOLS,
