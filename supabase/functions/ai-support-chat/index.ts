@@ -1222,19 +1222,29 @@ async function executeSalesTool(
         const quantity = (args.quantity as number) || 1;
         const variantId = (args.variant_id as string | undefined) || undefined;
 
-        // Aceita UUID ou slug (a IA às vezes manda slug)
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productIdOrSlug || "");
-        const productQuery = supabase
-          .from("products")
-          .select("id, name, price, stock_quantity, status, has_variants, manage_stock, allow_backorder")
-          .eq("tenant_id", tenantId)
-          .is("deleted_at", null);
-        const { data: product } = isUuid
-          ? await productQuery.eq("id", productIdOrSlug).maybeSingle()
-          : await productQuery.eq("slug", productIdOrSlug).maybeSingle();
-        const productId = product?.id ?? productIdOrSlug;
+        // [Sub-fase 2] Resolver tolerante: aceita UUID, slug ou nome.
+        // Se o nome for ambíguo, NÃO adivinha — devolve candidatos para a IA
+        // confirmar com o cliente.
+        const resolved = await resolveProductReference(supabase, tenantId, productIdOrSlug);
+        if (resolved.ambiguous) {
+          return JSON.stringify({
+            success: false,
+            error: "AMBIGUOUS_PRODUCT",
+            message:
+              "Mais de um produto bate com esse nome. Pergunte ao cliente qual exatamente antes de adicionar ao carrinho.",
+            candidates: resolved.candidates,
+          });
+        }
+        if (!resolved.found || !resolved.product) {
+          return JSON.stringify({
+            success: false,
+            error: "Produto não encontrado",
+            hint: resolved.hint ?? "Use search_products para localizar o id correto.",
+          });
+        }
+        const product = resolved.product;
+        const productId = product.id as string;
 
-        if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado", hint: "Use search_products primeiro para obter o id correto." });
         if (product.status !== "active") return JSON.stringify({ success: false, error: "Produto indisponível" });
 
 
