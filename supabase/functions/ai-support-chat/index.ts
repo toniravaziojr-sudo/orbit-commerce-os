@@ -3842,6 +3842,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       if (typeof pf.free_shipping === "boolean") {
         parts.push(`frete_grátis: ${pf.free_shipping ? "sim (global, sem CEP)" : "não (depende do CEP)"}`);
       }
+      // [F2-FS-CROSS] Lista CURTA de ofertas da MESMA LINHA com frete grátis,
+      // pra IA poder citar "3x e 6x têm frete grátis" sem inventar e sem
+      // cruzar com produtos de outra linha/família.
+      if (Array.isArray(pf.family_free_shipping_offers) && pf.family_free_shipping_offers.length > 0) {
+        const labels = pf.family_free_shipping_offers
+          .map(o => o.label)
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .join(", ");
+        parts.push(`ofertas_com_frete_grátis_na_mesma_linha: sim (${labels})`);
+      } else if (pf.family_free_shipping_offers !== undefined && pf.family_free_shipping_offers !== null) {
+        parts.push(`ofertas_com_frete_grátis_na_mesma_linha: não`);
+      }
       systemPrompt += `\n\n### PRODUTO EM FOCO (LOCK ATIVO)\n` +
         `O cliente JÁ escolheu este item. NÃO reabra vitrine, NÃO ofereça alternativas, ` +
         `NÃO requalifique, NÃO peça de novo o que ele já decidiu.\n` +
