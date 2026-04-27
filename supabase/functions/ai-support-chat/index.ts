@@ -54,6 +54,7 @@ import {
   // [F2-V2] foco de família + extração de nome citado
   detectFamilyMentioned,
   extractMentionedProductName,
+  getCatalogFamilyAliases,
   // [F2-V3] intenção do turno + razão de rebaixamento
   type TurnIntent,
   // [F2-V4] espelho mecânico de saudação (forçar reciprocidade real)
@@ -996,7 +997,7 @@ async function executeSalesTool(
           shampoo: /\bshampoo/i,
           condicionador: /\bcondicionador/i,
           creme: /\bcr[eê]me/i,
-          locao: /\blo[çc][ãa]o/i,
+          locao: /\blo[çc][ãa]o|lotion\b/i,
           balm: /\bbalm/i,
           serum: /\bs[eé]rum/i,
           tonico: /\bt[ôo]nico/i,
@@ -1009,19 +1010,22 @@ async function executeSalesTool(
         };
         const effectiveFamily = familyChanged ? familyMentionedNow : familyFocusActive;
         let filtered = enriched;
-        if (effectiveFamily && FAMILY_NAME_PATTERNS[effectiveFamily]) {
-          const pat = FAMILY_NAME_PATTERNS[effectiveFamily];
-          const byFamily = enriched.filter(p => pat.test(String(p.name || "")));
+        const familyAliases = getCatalogFamilyAliases(effectiveFamily);
+        if (familyAliases.length > 0) {
+          const aliasPatterns = familyAliases
+            .map(alias => FAMILY_NAME_PATTERNS[alias])
+            .filter((pat): pat is RegExp => pat instanceof RegExp);
+          const byFamily = enriched.filter(p => aliasPatterns.some(pat => pat.test(String(p.name || ""))));
           if (byFamily.length > 0) {
             filtered = byFamily;
             console.log(
               `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-              `filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
+              `aliases=${familyAliases.join("|")} filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
             );
           } else {
             console.log(
               `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-              `mas pool não tem item da família — mantém vitrine original (${enriched.length})`
+              `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
             );
           }
         }
@@ -4835,19 +4839,35 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
               const normalized = parseSearchProductsResult(snap.parsed);
               const all = normalized.items;
               if (!all.length) continue;
-              // 1ª oferta: prioriza produtos únicos. Kits só se NÃO houver único.
+        // 1ª oferta: prioriza produtos únicos. Kits só se NÃO houver único.
               const singles = all.filter(p => !p?.is_kit);
               const pool = (singles.length > 0 ? singles : all).slice(0, 3);
               if (pool.length === 0) continue;
               const names = pool.map(p => p?.name).filter(Boolean);
               if (names.length === 0) continue;
+               const shippingNoteFor = (product: any): string => {
+                 if (product?.free_shipping === true) return " com frete grátis";
+                 const summary = normalized.family_shipping_summary;
+                 if (!summary) return "";
+                 const matchesFocusLine =
+                   summary.line_base_product_id === product?.id ||
+                   (summary.paid_shipping_offers ?? []).some((offer: any) => offer.id === product?.id) ||
+                   (summary.free_shipping_offers ?? []).some((offer: any) => offer.id === product?.id);
+                 if (!matchesFocusLine) return "";
+                 const labels = (summary.free_shipping_offers ?? [])
+                   .map((offer: any) => String(offer.pack_label || "").trim())
+                   .filter((label: string, index: number, arr: string[]) => label.length > 0 && arr.indexOf(label) === index);
+                 return labels.length > 0
+                   ? ` — na mesma linha, ${labels.join(" e ")} têm frete grátis`
+                   : "";
+               };
               if (names.length === 1) {
-                return `Temos sim, o ${names[0]}. Quer que eu te conte mais sobre ele?`;
+                 return `Temos sim, o ${names[0]}${shippingNoteFor(pool[0])}. Quer que eu te conte mais sobre ele?`;
               }
               if (names.length === 2) {
-                return `Temos opções boas sim. Trabalhamos com o ${names[0]} e o ${names[1]}. Qual te chamou mais atenção, ou prefere que eu te conte a diferença entre eles?`;
+                 return `Temos opções boas sim. Trabalhamos com o ${names[0]}${shippingNoteFor(pool[0])} e o ${names[1]}${shippingNoteFor(pool[1])}. Qual te chamou mais atenção, ou prefere que eu te conte a diferença entre eles?`;
               }
-              return `Temos opções boas sim. Os mais procurados são o ${names[0]}, o ${names[1]} e o ${names[2]}. Quer que eu te conte a diferença entre eles, ou já tem um em mente?`;
+               return `Temos opções boas sim. Os mais procurados são o ${names[0]}${shippingNoteFor(pool[0])}, o ${names[1]}${shippingNoteFor(pool[1])} e o ${names[2]}${shippingNoteFor(pool[2])}. Quer que eu te conte a diferença entre eles, ou já tem um em mente?`;
             }
             if (snap.tool === "get_product_details" && snap.parsed?.name) {
               const p = snap.parsed;

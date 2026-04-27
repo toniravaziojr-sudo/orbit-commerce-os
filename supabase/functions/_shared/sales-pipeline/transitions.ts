@@ -274,6 +274,23 @@ export function detectFamilyMentioned(message: string): string | null {
   return null;
 }
 
+// [F2-CATALOG-FIX] Algumas linhas comerciais equivalem ao mesmo "tipo" pedido
+// pelo cliente, mesmo com nomenclatura diferente no catálogo.
+// Ex.: cliente pede "loção" e o tenant trabalha com loção + balm pós-banho
+// como duas opções tópicas do mesmo caso de uso. Isso NÃO muda a regra de
+// cobertura cruzada de frete (que continua por mesma linha/produto-base), apenas
+// evita esconder uma opção relevante na vitrine inicial por rótulo de família.
+export function getCatalogFamilyAliases(family: string | null | undefined): string[] {
+  switch (family) {
+    case "locao":
+      return ["locao", "balm"];
+    case "balm":
+      return ["balm", "locao"];
+    default:
+      return family ? [family] : [];
+  }
+}
+
 const INFORMATIONAL_PRODUCT_QUESTION_PATTERNS: RegExp[] = [
   /\b(funciona|funciona\s+mesmo)\b/i,
   /\b([ée]\s+)?bom\s+mesmo\b/i,
