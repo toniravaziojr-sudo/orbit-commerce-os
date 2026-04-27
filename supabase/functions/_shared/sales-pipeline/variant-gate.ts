@@ -42,6 +42,7 @@ export interface ProductFocus {
   variant_id: string | null;
   variant_label: string | null;
   quantity?: number | null;          // [Sub-fase 2] quantidade já decidida pelo cliente (lock)
+  free_shipping?: boolean | null;    // [F2-FS] frete grátis global do produto/oferta em foco
   resolved_at: string;
   source: "user_selection" | "single_variant" | "no_variants_needed";
 }
@@ -148,6 +149,7 @@ export function buildProductFocus(args: {
   variant_id: string | null;
   variant_label: string | null;
   quantity?: number | null;
+  free_shipping?: boolean | null;
   source: ProductFocus["source"];
 }): ProductFocus {
   return {
@@ -156,6 +158,7 @@ export function buildProductFocus(args: {
     variant_id: args.variant_id,
     variant_label: args.variant_label,
     quantity: args.quantity ?? null,
+    free_shipping: args.free_shipping ?? null,
     resolved_at: new Date().toISOString(),
     source: args.source,
   };
@@ -179,6 +182,7 @@ export function readProductFocus(metadata: unknown): ProductFocus | null {
       typeof obj.quantity === "number" && Number.isFinite(obj.quantity) && obj.quantity > 0
         ? obj.quantity
         : null,
+    free_shipping: typeof obj.free_shipping === "boolean" ? obj.free_shipping : null,
     resolved_at: typeof obj.resolved_at === "string" ? obj.resolved_at : new Date().toISOString(),
     source:
       obj.source === "user_selection" ||
