@@ -73,4 +73,6 @@ Cliente (depois de escolher Calvície Zero): "tem em mais quantidade?"
 "Encontrei esses produtos reais pra você: Calvície Zero (6x), Preventive (3x),
 Preventive (12x)."
 ↑ três erros: linguagem de sistema; mostrou kits na 1ª oferta; ignorou a dor.
+
+${FREE_SHIPPING_RULE}
 `.trim();
