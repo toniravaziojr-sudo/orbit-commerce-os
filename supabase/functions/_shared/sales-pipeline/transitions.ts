@@ -43,7 +43,13 @@ export type TransitionReason =
   | "downgrade_comparison_to_product_detail_with_focus"
   | "downgrade_comparison_to_recommendation_no_focus"
   | "data_provided_kept_checkout_with_active_cart"
-  | "data_provided_ignored_no_active_cart";
+  | "data_provided_ignored_no_active_cart"
+  // [F2-V4] Recovery downgrade: conversa presa em product_detail sem foco real
+  // de produto, e cliente pergunta algo genérico de família/objetivo OU desafia
+  // a variedade do catálogo ("só tem essa?", "tem outras?").
+  | "recovery_downgrade_product_detail_to_recommendation_family_question"
+  | "recovery_downgrade_product_detail_to_recommendation_variety_challenge"
+  | "variety_challenge_with_family_focus_to_recommendation";
 
 // [F2-V3] Classificação canônica da intenção do turno ATUAL.
 // Usada para forçar rebaixamento de estado avançado quando o cliente
