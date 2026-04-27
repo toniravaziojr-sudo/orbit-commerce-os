@@ -43,7 +43,13 @@ export type TransitionReason =
   | "downgrade_comparison_to_product_detail_with_focus"
   | "downgrade_comparison_to_recommendation_no_focus"
   | "data_provided_kept_checkout_with_active_cart"
-  | "data_provided_ignored_no_active_cart";
+  | "data_provided_ignored_no_active_cart"
+  // [F2-V4] Recovery downgrade: conversa presa em product_detail sem foco real
+  // de produto, e cliente pergunta algo genérico de família/objetivo OU desafia
+  // a variedade do catálogo ("só tem essa?", "tem outras?").
+  | "recovery_downgrade_product_detail_to_recommendation_family_question"
+  | "recovery_downgrade_product_detail_to_recommendation_variety_challenge"
+  | "variety_challenge_with_family_focus_to_recommendation";
 
 // [F2-V3] Classificação canônica da intenção do turno ATUAL.
 // Usada para forçar rebaixamento de estado avançado quando o cliente
@@ -56,6 +62,14 @@ export type TurnIntent =
   | "purchase_intent"
   | "data_provided"
   | "support"
+  // [F2-V4] Cliente desafia a variedade do catálogo: "só tem essa?",
+  // "tem outras?", "essa é a única?", "tem mais opções?".
+  // Sempre força resposta pela família/linha — nunca pelo item isolado.
+  | "variety_challenge"
+  // [F2-V4] Cliente faz pergunta genérica de família/objetivo
+  // (ex.: "tem alguma loção pra crescer cabelo?", "vocês têm shampoo?")
+  // sem citar produto específico. Deve ir para recommendation.
+  | "family_or_objective_query"
   | "other";
 
 export interface TurnIntentClassification {
@@ -71,6 +85,9 @@ export interface TurnIntentClassification {
     hasCheckoutRequest: boolean;
     hasSupportTopic: boolean;
     hasDataProvided: boolean;
+    // [F2-V4]
+    hasVarietyChallenge: boolean;
+    hasFamilyOrObjectiveQuery: boolean;
   };
 }
 
@@ -328,6 +345,49 @@ function detectDataProvided(message: string): boolean {
 }
 
 // ----------------------------------------------------------------
+// [F2-V4] Detector de "variety challenge" — cliente desafia variedade do
+// catálogo. Sempre força resposta pela família/linha (recommendation).
+// ----------------------------------------------------------------
+const VARIETY_CHALLENGE_PATTERNS: RegExp[] = [
+  /\bs[óo]\s+tem\s+(essa|esse|esses|essas|isso|isso\s+a[ií])\b/i,
+  /\b[ée]\s+(s[óo]|a\s+[uú]nica?)\b/i,
+  /\bessa?\s+[ée]\s+a\s+[uú]nica?\b/i,
+  /\btem\s+(outras?|outros|mais|alguma\s+outra|algum\s+outro)\b/i,
+  /\bmais\s+(op[çc][ãa]o|op[çc][õo]es)\b/i,
+  /\boutras?\s+op[çc][õo]es\b/i,
+  /\bquais?\s+(s[ãa]o\s+)?(as\s+)?op[çc][õo]es\b/i,
+  /\bn[ãa]o\s+tem\s+(outra|outro|mais)\b/i,
+];
+export function detectVarietyChallenge(message: string): boolean {
+  if (!message) return false;
+  return VARIETY_CHALLENGE_PATTERNS.some(re => re.test(message));
+}
+
+// ----------------------------------------------------------------
+// [F2-V4] Detector de pergunta genérica de família/objetivo
+// ("você tem alguma loção?", "vocês têm shampoo pra queda?",
+//  "tem algum creme?"). Não cita produto pelo nome.
+// ----------------------------------------------------------------
+const FAMILY_OR_OBJECTIVE_QUERY_PATTERNS: RegExp[] = [
+  /\b(voc[êe]s?|tem|tem\s+algum[ao]?)\s+/i, // gatilho largo, refinado abaixo
+];
+export function detectFamilyOrObjectiveQuery(
+  message: string,
+  hasFamilyMention: boolean,
+  hasPainOrObjective: boolean,
+  hasNamedProduct: boolean,
+): boolean {
+  if (!message) return false;
+  if (hasNamedProduct) return false;
+  if (!hasFamilyMention && !hasPainOrObjective) return false;
+  // Exige um verbo/pergunta de existência ou desejo de busca.
+  const hasQuery = /\b(tem|t[eê]m|voc[êe]s?\s+t[eê]m|procuro|preciso|queria|quero\s+(ver|saber|conhecer))\b/i.test(message)
+    || /\?$/.test(message.trim())
+    || /\balgum[ao]?\b/i.test(message);
+  return hasQuery;
+}
+
+// ----------------------------------------------------------------
 // [F2-V3] Classificador canônico da intenção do turno atual.
 // Função pura — não toca estado. Usada pelo resolver para aplicar
 // rebaixamento estrutural antes da máquina de estados clássica.
@@ -352,13 +412,26 @@ export function classifyTurnIntent(
   const hasCheckoutRequest = detectCheckoutRequest(msg);
   const hasSupportTopic = detectSupportTopic(msg);
   const hasDataProvided = detectDataProvided(msg);
+  const hasPainOrObjective = detectPainOrObjective(msg);
+  const hasVarietyChallenge = detectVarietyChallenge(msg);
+  const hasFamilyOrObjectiveQuery = detectFamilyOrObjectiveQuery(
+    msg,
+    hasFamilyMention,
+    hasPainOrObjective,
+    hasNamedProduct,
+  );
 
   let intent: TurnIntent = "other";
-  // Ordem importa: support > purchase > comparison > product_named > informative > data > greeting > other
+  // Ordem importa: support > purchase > variety_challenge > comparison >
+  // product_named > family_or_objective_query > informative > data > greeting > other
+  // variety_challenge tem precedência sobre product_named porque é meta-pergunta
+  // sobre o catálogo, não sobre o item.
   if (hasSupportTopic) intent = "support";
   else if (hasBuySignal || hasCheckoutRequest) intent = "purchase_intent";
+  else if (hasVarietyChallenge) intent = "variety_challenge";
   else if (hasCompareIntent) intent = "comparison";
   else if (hasNamedProduct) intent = "product_named";
+  else if (hasFamilyOrObjectiveQuery) intent = "family_or_objective_query";
   else if (hasInformationalQuestion && (hasFocusReference || hasFamilyMention)) intent = "informative_question";
   else if (hasDataProvided) intent = "data_provided";
   else if (ctx.isPureGreeting) intent = "pure_greeting";
@@ -376,6 +449,8 @@ export function classifyTurnIntent(
       hasCheckoutRequest,
       hasSupportTopic,
       hasDataProvided,
+      hasVarietyChallenge,
+      hasFamilyOrObjectiveQuery,
     },
   };
 }
@@ -422,6 +497,57 @@ export function decideNextState(input: TransitionInput): TransitionResult {
       forced: true,
       turnIntent,
       downgradeReason: "downgrade_pure_greeting_resets_state",
+    };
+  }
+
+  // ============================================================
+  // [F2-V4] R1b. VARIETY CHALLENGE — "só tem essa?", "tem outras?"
+  // Sempre força recommendation pela família/linha.
+  // - Se há familyFocus persistido → mantém família e busca outras opções dela.
+  // - Se há lastFocusedProductName mas sem familyFocus → caller infere família
+  //   pelo nome (via getCatalogFamilyAliases).
+  // - Sem nada → recommendation genérica.
+  // NUNCA responde pelo item isolado (resolve "só tem essa?" travado em product_detail).
+  // ============================================================
+  if (turnIntent === "variety_challenge") {
+    const downgrade = current === "product_detail"
+      ? "recovery_downgrade_product_detail_to_recommendation_variety_challenge" as const
+      : null;
+    if (familyFocus || lastFocusedProductName) {
+      return {
+        next: "recommendation",
+        reason: "variety_challenge_with_family_focus_to_recommendation",
+        forced: true,
+        turnIntent,
+        downgradeReason: downgrade,
+      };
+    }
+    return {
+      next: "recommendation",
+      reason: "recovery_downgrade_product_detail_to_recommendation_variety_challenge",
+      forced: true,
+      turnIntent,
+      downgradeReason: downgrade,
+    };
+  }
+
+  // ============================================================
+  // [F2-V4] R1c. FAMILY OR OBJECTIVE QUERY — pergunta genérica de
+  // família/objetivo sem citar produto pelo nome
+  // ("você tem alguma loção pra crescer cabelo?", "vocês têm shampoo?").
+  // Vai para recommendation (vitrine curta da família/objetivo),
+  // mesmo se a conversa estava contaminada em product_detail.
+  // Resolve o caso clássico do recovery downgrade.
+  // ============================================================
+  if (turnIntent === "family_or_objective_query") {
+    return {
+      next: "recommendation",
+      reason: "recovery_downgrade_product_detail_to_recommendation_family_question",
+      forced: true,
+      turnIntent,
+      downgradeReason: current === "product_detail"
+        ? "recovery_downgrade_product_detail_to_recommendation_family_question"
+        : null,
     };
   }
 

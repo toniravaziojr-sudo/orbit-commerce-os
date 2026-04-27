@@ -3471,7 +3471,11 @@ Cliente: "vocês entregam em SP?"
     // (via commercialCtx + family_focus log), mas NUNCA como comando de continuar checkout.
     const suppressCheckoutContext: boolean =
       turnIntentClassified === "pure_greeting" ||
-      turnIntentClassified === "informative_question";
+      turnIntentClassified === "informative_question" ||
+      // [F2-V4] Cliente desafiando variedade ou perguntando família genérica
+      // está EXPLORANDO catálogo — não está fechando compra.
+      turnIntentClassified === "variety_challenge" ||
+      turnIntentClassified === "family_or_objective_query";
     const suppressionReason: string | null = suppressCheckoutContext
       ? (turnIntentClassified as string)
       : null;
