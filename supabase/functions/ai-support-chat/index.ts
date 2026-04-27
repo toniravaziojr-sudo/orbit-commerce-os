@@ -49,6 +49,8 @@ import {
   buildProductFocus,
   readProductFocus,
   type ProductFocus,
+  // [Sub-fase 2] resolver tolerante (uuid|slug|nome) com candidatos quando ambíguo
+  resolveProductReference,
   // [F2-V2] foco de família + extração de nome citado
   detectFamilyMentioned,
   extractMentionedProductName,
