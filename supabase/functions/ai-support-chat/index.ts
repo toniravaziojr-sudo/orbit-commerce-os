@@ -2053,7 +2053,7 @@ async function executeSalesTool(
 
         const { data: product } = await supabase
           .from("products")
-          .select("id, name, has_variants, manage_stock, allow_backorder")
+          .select("id, name, has_variants, manage_stock, allow_backorder, free_shipping")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
@@ -2068,6 +2068,7 @@ async function executeSalesTool(
                 product_id: productId,
                 variant_id: null,
                 variant_label: null,
+                free_shipping: product.free_shipping ?? false,
                 source: "no_variants_needed",
               })
             );
