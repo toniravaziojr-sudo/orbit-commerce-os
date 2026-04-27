@@ -43,6 +43,14 @@ export interface ProductFocus {
   variant_label: string | null;
   quantity?: number | null;          // [Sub-fase 2] quantidade já decidida pelo cliente (lock)
   free_shipping?: boolean | null;    // [F2-FS] frete grátis global do produto/oferta em foco
+  // [F2-FS-CROSS] Frete grátis cruzado da MESMA LINHA (mesmo produto-base / packs do mesmo).
+  // Não é a família ampla — é estritamente a linha resolvida via product_components.
+  family_free_shipping_offers?: Array<{
+    label: string;          // ex.: "3x", "6x", "unidade"
+    name: string;           // nome humano curto pra IA poder citar
+    is_kit: boolean;
+    price?: number | null;
+  }> | null;
   resolved_at: string;
   source: "user_selection" | "single_variant" | "no_variants_needed";
 }
@@ -150,6 +158,7 @@ export function buildProductFocus(args: {
   variant_label: string | null;
   quantity?: number | null;
   free_shipping?: boolean | null;
+  family_free_shipping_offers?: ProductFocus["family_free_shipping_offers"];
   source: ProductFocus["source"];
 }): ProductFocus {
   return {
@@ -159,6 +168,7 @@ export function buildProductFocus(args: {
     variant_label: args.variant_label,
     quantity: args.quantity ?? null,
     free_shipping: args.free_shipping ?? null,
+    family_free_shipping_offers: args.family_free_shipping_offers ?? null,
     resolved_at: new Date().toISOString(),
     source: args.source,
   };
@@ -173,6 +183,19 @@ export function readProductFocus(metadata: unknown): ProductFocus | null {
   if (!pf || typeof pf !== "object") return null;
   const obj = pf as Record<string, unknown>;
   if (typeof obj.product_id !== "string") return null;
+
+  let familyOffers: ProductFocus["family_free_shipping_offers"] = null;
+  if (Array.isArray(obj.family_free_shipping_offers)) {
+    familyOffers = (obj.family_free_shipping_offers as any[])
+      .filter(o => o && typeof o === "object" && typeof o.label === "string" && typeof o.name === "string")
+      .map(o => ({
+        label: String(o.label),
+        name: String(o.name),
+        is_kit: Boolean(o.is_kit),
+        price: typeof o.price === "number" ? o.price : null,
+      }));
+  }
+
   return {
     product_id: obj.product_id,
     product_name: typeof obj.product_name === "string" ? obj.product_name : null,
@@ -183,6 +206,7 @@ export function readProductFocus(metadata: unknown): ProductFocus | null {
         ? obj.quantity
         : null,
     free_shipping: typeof obj.free_shipping === "boolean" ? obj.free_shipping : null,
+    family_free_shipping_offers: familyOffers,
     resolved_at: typeof obj.resolved_at === "string" ? obj.resolved_at : new Date().toISOString(),
     source:
       obj.source === "user_selection" ||

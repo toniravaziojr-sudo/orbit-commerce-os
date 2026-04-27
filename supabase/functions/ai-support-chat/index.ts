@@ -59,6 +59,8 @@ import {
   // [F2-V4] espelho mecânico de saudação (forçar reciprocidade real)
   detectGreetingEcho,
   buildGreetingMirrorBlock,
+  // [F2-FS-CROSS] normalizador do retorno de search_products (legado/novo)
+  parseSearchProductsResult,
 } from "../_shared/sales-pipeline/index.ts";
 // [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
 // (substitui o cache em-memória que se perdia a cada cold start).
@@ -1025,7 +1027,102 @@ async function executeSalesTool(
         }
 
         const finalList = partitionAndLimit(filtered);
-        return JSON.stringify(finalList);
+
+        // [F2-FS-CROSS] Sumário cruzado de FRETE GRÁTIS — escopo: MESMA LINHA.
+        // "Mesma linha" = mesmo produto-base resolvido via product_components,
+        // não a família ampla por nome. Se o cliente pediu "loção" e o pool
+        // tem várias linhas distintas (ex.: loção dia + loção noite), cada uma
+        // tem o seu próprio sumário e o que vai pro foco é o da linha do item
+        // efetivamente apresentado.
+        let familyShippingSummary: any = undefined;
+        try {
+          const enrichedIds = filtered.map(p => p.id);
+          if (enrichedIds.length > 0) {
+            // Para CADA item do pool: descobrir a "base da linha".
+            //  - Se item é kit/pack: base = único component_product_id (quando o pack
+            //    tem 1 só componente, que é o caso de packs Nx do mesmo produto).
+            //    Se tiver múltiplos componentes (ex.: kit misto), NÃO entra na linha
+            //    (pra não atribuir frete grátis cruzado entre linhas diferentes).
+            //  - Se item é único: base = ele mesmo.
+            const { data: compRowsAll } = await supabase
+              .from("product_components")
+              .select("parent_product_id, component_product_id, quantity")
+              .in("parent_product_id", enrichedIds);
+
+            const componentsByParent = new Map<string, Array<{ component_product_id: string; quantity: number | null }>>();
+            for (const r of (compRowsAll ?? []) as any[]) {
+              const list = componentsByParent.get(r.parent_product_id) ?? [];
+              list.push({ component_product_id: r.component_product_id, quantity: r.quantity });
+              componentsByParent.set(r.parent_product_id, list);
+            }
+
+            const baseOf = (p: any): string | null => {
+              if (!p.is_kit) return p.id;
+              const comps = componentsByParent.get(p.id) ?? [];
+              if (comps.length === 1) return comps[0].component_product_id;
+              return null; // kit misto — não pertence a uma única linha
+            };
+
+            // Agrupa o pool por base.
+            const lineByBase = new Map<string, any[]>();
+            for (const p of filtered) {
+              const base = baseOf(p);
+              if (!base) continue;
+              const arr = lineByBase.get(base) ?? [];
+              arr.push(p);
+              lineByBase.set(base, arr);
+            }
+
+            // Escolhe a "linha em foco" desta resposta: a linha do PRIMEIRO item
+            // da finalList (que é o que a IA vai apresentar). Assim o sumário
+            // é sempre da mesma linha do item exibido.
+            const focusItem = finalList[0];
+            const focusBase = focusItem ? baseOf(focusItem) : null;
+            const focusLine = focusBase ? (lineByBase.get(focusBase) ?? []) : [];
+
+            const inferLabel = (p: any): string => {
+              if (!p.is_kit) return "unidade";
+              const comps = componentsByParent.get(p.id) ?? [];
+              const qty = comps.length === 1 ? Number(comps[0].quantity ?? 0) : 0;
+              if (qty >= 2) return `${qty}x`;
+              const m = String(p.name || "").match(/\(?\s*(\d+)\s*x\s*\)?/i);
+              return m ? `${m[1]}x` : "pack";
+            };
+
+            const free = focusLine
+              .filter(p => p.free_shipping === true)
+              .map(p => ({
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                is_kit: !!p.is_kit,
+                pack_label: inferLabel(p),
+              }));
+            const paid = focusLine
+              .filter(p => p.free_shipping === false)
+              .map(p => ({
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                is_kit: !!p.is_kit,
+                pack_label: inferLabel(p),
+              }));
+
+            familyShippingSummary = {
+              has_free_shipping_offers: free.length > 0,
+              free_shipping_offers: free,
+              paid_shipping_offers: paid,
+              line_base_product_id: focusBase,
+            };
+          }
+        } catch (e) {
+          console.warn(`[ai-support-chat][search_products] family shipping summary falhou (segue sem sumário):`, (e as Error).message);
+        }
+
+        return JSON.stringify({
+          items: finalList,
+          family_shipping_summary: familyShippingSummary,
+        });
       }
 
       case "get_product_details": {
@@ -3745,6 +3842,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       if (typeof pf.free_shipping === "boolean") {
         parts.push(`frete_grátis: ${pf.free_shipping ? "sim (global, sem CEP)" : "não (depende do CEP)"}`);
       }
+      // [F2-FS-CROSS] Lista CURTA de ofertas da MESMA LINHA com frete grátis,
+      // pra IA poder citar "3x e 6x têm frete grátis" sem inventar e sem
+      // cruzar com produtos de outra linha/família.
+      if (Array.isArray(pf.family_free_shipping_offers) && pf.family_free_shipping_offers.length > 0) {
+        const labels = pf.family_free_shipping_offers
+          .map(o => o.label)
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .join(", ");
+        parts.push(`ofertas_com_frete_grátis_na_mesma_linha: sim (${labels})`);
+      } else if (pf.family_free_shipping_offers !== undefined && pf.family_free_shipping_offers !== null) {
+        parts.push(`ofertas_com_frete_grátis_na_mesma_linha: não`);
+      }
       systemPrompt += `\n\n### PRODUTO EM FOCO (LOCK ATIVO)\n` +
         `O cliente JÁ escolheu este item. NÃO reabra vitrine, NÃO ofereça alternativas, ` +
         `NÃO requalifique, NÃO peça de novo o que ele já decidiu.\n` +
@@ -4718,11 +4827,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         //  3. Se get_product_details retornou produto, falamos do produto pelo nome.
         //  4. Se nada útil saiu das tools, caímos numa pergunta curta de vendedora.
         const buildHumanFallbackFromTools = (): string | null => {
-          // Procura search_products mais recente com lista de produtos
+          // Procura search_products mais recente com lista de produtos.
+          // [F2-FS-CROSS] aceita formato legado (array) E novo ({items,...}).
           for (let i = toolResultsThisTurn.length - 1; i >= 0; i--) {
             const snap = toolResultsThisTurn[i];
-            if (snap.tool === "search_products" && Array.isArray(snap.parsed)) {
-              const all = snap.parsed as any[];
+            if (snap.tool === "search_products") {
+              const normalized = parseSearchProductsResult(snap.parsed);
+              const all = normalized.items;
+              if (!all.length) continue;
               // 1ª oferta: prioriza produtos únicos. Kits só se NÃO houver único.
               const singles = all.filter(p => !p?.is_kit);
               const pool = (singles.length > 0 ? singles : all).slice(0, 3);
@@ -5136,6 +5248,42 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       familyMentionedNow !== null && familyMentionedNow !== familyFocusBefore;
     const shouldUpdateLastFocusedProduct =
       productMentionedNow !== null && productMentionedNow !== lastFocusedProductNameBefore;
+
+    // [F2-FS-CROSS] Antes de persistir, enriquecer o foco com o sumário cruzado
+    // de frete grátis da MESMA LINHA. Lê do snapshot mais recente de
+    // search_products neste turno (formato legado ou novo). Só anexa se a
+    // linha-base bater com o product_id do foco — protege contra associação
+    // entre produtos diferentes da mesma família.
+    if (nextProductFocus && typeof nextProductFocus === "object") {
+      try {
+        for (let i = toolResultsThisTurn.length - 1; i >= 0; i--) {
+          const snap = toolResultsThisTurn[i];
+          if (snap.tool !== "search_products") continue;
+          const normalized = parseSearchProductsResult(snap.parsed);
+          const summary = normalized.family_shipping_summary;
+          if (!summary) continue;
+          // Só aplica se o foco atual pertence à linha que o sumário descreve.
+          // base = id do produto-base; o foco pertence à linha se for a base
+          // OU se for um pack cuja base bate (verificável pela presença em
+          // free_shipping_offers / paid_shipping_offers do mesmo sumário).
+          const inLine =
+            summary.line_base_product_id === nextProductFocus.product_id ||
+            (summary.free_shipping_offers ?? []).some((o: any) => o.id === nextProductFocus.product_id) ||
+            (summary.paid_shipping_offers ?? []).some((o: any) => o.id === nextProductFocus.product_id);
+          if (!inLine) continue;
+          const offers = (summary.free_shipping_offers ?? []).map((o: any) => ({
+            label: String(o.pack_label ?? (o.is_kit ? "pack" : "unidade")),
+            name: String(o.name),
+            is_kit: Boolean(o.is_kit),
+            price: typeof o.price === "number" ? o.price : null,
+          }));
+          (nextProductFocus as ProductFocus).family_free_shipping_offers = offers.length > 0 ? offers : null;
+          break;
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [F2-FS-CROSS] enrich foco falhou:", (e as Error).message);
+      }
+    }
 
     if (
       nextProductFocus !== undefined ||
