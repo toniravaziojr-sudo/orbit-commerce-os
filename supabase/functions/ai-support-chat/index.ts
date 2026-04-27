@@ -1024,7 +1024,25 @@ async function executeSalesTool(
       }
 
       case "get_product_details": {
-        const productId = args.product_id as string;
+        const productRef = args.product_id as string;
+
+        // [Sub-fase 2] Resolver tolerante: aceita UUID, slug ou nome.
+        const resolved = await resolveProductReference(supabase, tenantId, productRef);
+        if (resolved.ambiguous) {
+          return JSON.stringify({
+            success: false,
+            error: "AMBIGUOUS_PRODUCT",
+            message:
+              "Mais de um produto bate com esse nome. Pergunte ao cliente qual exatamente.",
+            candidates: resolved.candidates,
+          });
+        }
+        if (!resolved.found || !resolved.product) {
+          return JSON.stringify({ success: false, error: "Produto não encontrado", hint: resolved.hint ?? "Use search_products primeiro." });
+        }
+        const productId = resolved.product.id as string;
+
+        // Recarrega com colunas completas (resolver traz só o essencial)
         const { data, error } = await supabase
           .from("products")
           .select("id, name, slug, description, short_description, price, compare_at_price, promotion_start_date, promotion_end_date, stock_quantity, status, weight, width, height, depth, sku, gtin, brand, has_variants, manage_stock, allow_backorder, free_shipping, avg_rating, review_count")
