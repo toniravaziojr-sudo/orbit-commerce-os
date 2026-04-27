@@ -2,6 +2,8 @@
 // Vendedora real: oferece o INGREDIENTE (produto único) primeiro, e quando o
 // cliente já declarou a dor, RECOMENDA pela dor — não por proximidade textual.
 
+import { FREE_SHIPPING_RULE } from "./free-shipping-rule.ts";
+
 export const RECOMMENDATION_PROMPT = `
 ### MOMENTO DA CONVERSA: RECOMENDAÇÃO
 O cliente já deu sinal do que precisa. Apresente opções como vendedora consultiva
