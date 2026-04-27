@@ -485,7 +485,7 @@ const App = () => {
                   <Route path="/platform/tutorials" element={<PlatformTutorials />} />
                    <Route path="/platform/tenants" element={<PlatformTenants />} />
                    <Route path="/platform/tools" element={<PlatformTools />} />
-                   <Route path="/platform/system-health" element={<PlatformSystemHealth />} />
+                   <Route path="/platform/system-health" element={<PlatformAdminGate fallback={<PlatformAccessDenied />}><PlatformSystemHealth /></PlatformAdminGate>} />
                    <Route path="/saude-do-sistema" element={<Navigate to="/platform/system-health" replace />} />
                    
                   {/* System routes - Owner only */}
