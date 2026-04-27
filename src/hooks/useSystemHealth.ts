@@ -8,23 +8,25 @@ import { supabase } from '@/integrations/supabase/client';
  */
 
 export interface SystemHealthOverview {
-  total_connections: number;
-  active_connections: number;
-  idle_connections: number;
-  max_connections: number;
-  connection_usage_pct: number;
+  connections: {
+    active: number;
+    idle: number;
+    idle_in_transaction: number;
+    total: number;
+    max: number;
+  };
+  database_size: number;
   cache_hit_ratio: number;
-  index_hit_ratio: number;
-  database_size_mb: number;
   captured_at: string;
 }
 
 export interface SlowQuery {
-  query: string;
+  query_sample: string;
   calls: number;
-  total_exec_time_ms: number;
-  mean_exec_time_ms: number;
-  rows: number;
+  total_time_ms: number;
+  mean_time_ms: number;
+  max_time_ms: number;
+  rows_returned: number;
 }
 
 export interface CronJobStatus {
@@ -34,19 +36,21 @@ export interface CronJobStatus {
   active: boolean;
   last_run_at: string | null;
   last_status: string | null;
-  failures_24h: number;
-  successes_24h: number;
+  last_duration_ms: number | null;
+  failures_last_24h: number;
+  successes_last_24h: number;
 }
 
-export interface QueueHealth {
-  queue_name: string;
-  queued: number;
-  processing: number;
-  failed: number;
-  oldest_pending_minutes: number | null;
+export interface QueueHealthEntry {
+  pending_or_orphans: number;
+  oldest_pending_at: string | null;
+  oldest_age_seconds: number | null;
 }
 
-const REFRESH_MS = 30_000;
+export type QueueHealthMap = Record<string, QueueHealthEntry>;
+
+const REFRESH_FAST = 30_000;
+const REFRESH_SLOW = 60_000;
 
 export function useSystemHealthOverview() {
   return useQuery({
@@ -54,9 +58,9 @@ export function useSystemHealthOverview() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_system_health_overview');
       if (error) throw error;
-      return (Array.isArray(data) ? data[0] : data) as SystemHealthOverview;
+      return data as unknown as SystemHealthOverview;
     },
-    refetchInterval: REFRESH_MS,
+    refetchInterval: REFRESH_FAST,
     staleTime: 15_000,
   });
 }
@@ -67,9 +71,9 @@ export function useTopSlowQueries(limit = 10) {
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_top_slow_queries', { p_limit: limit });
       if (error) throw error;
-      return (data || []) as SlowQuery[];
+      return (data ?? []) as SlowQuery[];
     },
-    refetchInterval: 60_000,
+    refetchInterval: REFRESH_SLOW,
     staleTime: 30_000,
   });
 }
@@ -80,9 +84,9 @@ export function useCronJobsStatus() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_cron_jobs_status');
       if (error) throw error;
-      return (data || []) as CronJobStatus[];
+      return (data ?? []) as unknown as CronJobStatus[];
     },
-    refetchInterval: 60_000,
+    refetchInterval: REFRESH_SLOW,
     staleTime: 30_000,
   });
 }
@@ -93,9 +97,9 @@ export function useQueueHealth() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_queue_health');
       if (error) throw error;
-      return (data || []) as QueueHealth[];
+      return (data ?? {}) as unknown as QueueHealthMap;
     },
-    refetchInterval: 30_000,
+    refetchInterval: REFRESH_FAST,
     staleTime: 15_000,
   });
 }
