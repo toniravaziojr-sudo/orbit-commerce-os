@@ -1,18 +1,50 @@
-import { Activity, Database, Clock, Layers, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Activity, Database, Clock, Layers, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   useCronJobsStatus,
   useQueueHealth,
   useSystemHealthOverview,
   useTopSlowQueries,
 } from '@/hooks/useSystemHealth';
+
+function ErrorBanner({ title, error }: { title: string; error: unknown }) {
+  const msg = error instanceof Error ? error.message : String(error ?? 'erro desconhecido');
+  const isAccessDenied = /access denied|platform admin only|permission denied/i.test(msg);
+  return (
+    <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm flex items-start gap-2">
+      <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+      <div>
+        <p className="font-medium text-destructive">{title}</p>
+        <p className="text-muted-foreground text-xs mt-0.5">
+          {isAccessDenied
+            ? 'Sua conta não está cadastrada como operador de plataforma. Verifique platform_admins.'
+            : msg}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TableSkeleton({ cols = 6, rows = 5 }: { cols?: number; rows?: number }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex gap-3">
+          {Array.from({ length: cols }).map((_, j) => (
+            <Skeleton key={j} className="h-6 flex-1" />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 const BRT_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
   day: '2-digit',
@@ -52,7 +84,6 @@ function formatMs(ms: number) {
 }
 
 function HealthDashboard() {
-  const queryClient = useQueryClient();
   const overview = useSystemHealthOverview();
   const slowQueries = useTopSlowQueries(15);
   const cronJobs = useCronJobsStatus();
@@ -60,9 +91,14 @@ function HealthDashboard() {
 
   const isLoading =
     overview.isLoading || slowQueries.isLoading || cronJobs.isLoading || queues.isLoading;
+  const isFetching =
+    overview.isFetching || slowQueries.isFetching || cronJobs.isFetching || queues.isFetching;
 
   const refreshAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['system-health'] });
+    overview.refetch();
+    slowQueries.refetch();
+    cronJobs.refetch();
+    queues.refetch();
   };
 
   // Métricas derivadas
@@ -97,11 +133,21 @@ function HealthDashboard() {
             </p>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={refreshAll} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Atualizar
+        <Button variant="outline" size="sm" onClick={refreshAll} disabled={isFetching}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+          {isFetching ? 'Atualizando...' : 'Atualizar'}
         </Button>
       </div>
+
+      {/* Banner global de erros */}
+      {(overview.error || cronJobs.error || queues.error || slowQueries.error) && (
+        <div className="space-y-2">
+          {overview.error && <ErrorBanner title="Falha ao carregar visão geral" error={overview.error} />}
+          {cronJobs.error && <ErrorBanner title="Falha ao carregar tarefas automatizadas" error={cronJobs.error} />}
+          {queues.error && <ErrorBanner title="Falha ao carregar filas" error={queues.error} />}
+          {slowQueries.error && <ErrorBanner title="Falha ao carregar queries lentas" error={slowQueries.error} />}
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -151,55 +197,65 @@ function HealthDashboard() {
               <CardTitle>Status dos jobs (últimas 24h)</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Job</TableHead>
-                      <TableHead>Agendamento</TableHead>
-                      <TableHead>Última execução</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Sucessos</TableHead>
-                      <TableHead className="text-right">Falhas</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(cronJobs.data ?? []).map((j) => {
-                      const failing = j.failures_last_24h > 0;
-                      return (
-                        <TableRow key={j.jobid}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {failing ? (
-                                <AlertTriangle className="h-4 w-4 text-destructive" />
-                              ) : (
-                                <CheckCircle2 className="h-4 w-4 text-success" />
-                              )}
-                              <span>{j.jobname}</span>
-                              {!j.active && <Badge variant="outline">inativo</Badge>}
-                            </div>
-                          </TableCell>
-                          <TableCell><code className="text-xs">{j.schedule}</code></TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {formatBRT(j.last_run_at)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={j.last_status === 'succeeded' ? 'default' : j.last_status === 'failed' ? 'destructive' : 'secondary'}>
-                              {j.last_status ?? '—'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">{j.successes_last_24h}</TableCell>
-                          <TableCell className="text-right">
-                            <span className={failing ? 'text-destructive font-semibold' : ''}>
-                              {j.failures_last_24h}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              {cronJobs.isLoading ? (
+                <TableSkeleton cols={6} rows={6} />
+              ) : cronJobs.error ? (
+                <ErrorBanner title="Não foi possível carregar os jobs" error={cronJobs.error} />
+              ) : (cronJobs.data ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  Nenhum job agendado encontrado.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Job</TableHead>
+                        <TableHead>Agendamento</TableHead>
+                        <TableHead>Última execução</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Sucessos</TableHead>
+                        <TableHead className="text-right">Falhas</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(cronJobs.data ?? []).map((j) => {
+                        const failing = j.failures_last_24h > 0;
+                        return (
+                          <TableRow key={j.jobid}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {failing ? (
+                                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                                ) : (
+                                  <CheckCircle2 className="h-4 w-4 text-success" />
+                                )}
+                                <span>{j.jobname}</span>
+                                {!j.active && <Badge variant="outline">inativo</Badge>}
+                              </div>
+                            </TableCell>
+                            <TableCell><code className="text-xs">{j.schedule}</code></TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatBRT(j.last_run_at)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={j.last_status === 'succeeded' ? 'default' : j.last_status === 'failed' ? 'destructive' : 'secondary'}>
+                                {j.last_status ?? '—'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{j.successes_last_24h}</TableCell>
+                            <TableCell className="text-right">
+                              <span className={failing ? 'text-destructive font-semibold' : ''}>
+                                {j.failures_last_24h}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -211,43 +267,49 @@ function HealthDashboard() {
               <CardTitle>Saúde das filas</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fila</TableHead>
-                    <TableHead className="text-right">Pendentes / órfãos</TableHead>
-                    <TableHead>Mais antigo</TableHead>
-                    <TableHead className="text-right">Idade</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {queueEntries.length === 0 && (
+              {queues.isLoading ? (
+                <TableSkeleton cols={4} rows={4} />
+              ) : queues.error ? (
+                <ErrorBanner title="Não foi possível carregar as filas" error={queues.error} />
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        Nenhuma fila com pendências.
-                      </TableCell>
+                      <TableHead>Fila</TableHead>
+                      <TableHead className="text-right">Pendentes / órfãos</TableHead>
+                      <TableHead>Mais antigo</TableHead>
+                      <TableHead className="text-right">Idade</TableHead>
                     </TableRow>
-                  )}
-                  {queueEntries.map(([name, info]) => {
-                    const orphans = info?.pending_or_orphans ?? 0;
-                    const ageMin = info?.oldest_age_seconds ? Math.round(info.oldest_age_seconds / 60) : null;
-                    return (
-                      <TableRow key={name}>
-                        <TableCell className="font-medium">{name}</TableCell>
-                        <TableCell className="text-right">
-                          <span className={orphans > 0 ? 'text-warning font-semibold' : ''}>{orphans}</span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatBRT(info?.oldest_pending_at)}
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground">
-                          {ageMin != null ? `${ageMin} min` : '—'}
+                  </TableHeader>
+                  <TableBody>
+                    {queueEntries.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          Nenhuma fila com pendências.
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    )}
+                    {queueEntries.map(([name, info]) => {
+                      const orphans = info?.pending_or_orphans ?? 0;
+                      const ageMin = info?.oldest_age_seconds ? Math.round(info.oldest_age_seconds / 60) : null;
+                      return (
+                        <TableRow key={name}>
+                          <TableCell className="font-medium">{name}</TableCell>
+                          <TableCell className="text-right">
+                            <span className={orphans > 0 ? 'text-warning font-semibold' : ''}>{orphans}</span>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatBRT(info?.oldest_pending_at)}
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
+                            {ageMin != null ? `${ageMin} min` : '—'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -259,34 +321,44 @@ function HealthDashboard() {
               <CardTitle>Top 15 queries por tempo total</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[45%]">Query</TableHead>
-                      <TableHead className="text-right">Chamadas</TableHead>
-                      <TableHead className="text-right">Tempo total</TableHead>
-                      <TableHead className="text-right">Médio</TableHead>
-                      <TableHead className="text-right">Máximo</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(slowQueries.data ?? []).map((q, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>
-                          <code className="text-xs block max-w-2xl truncate" title={q.query_sample}>
-                            {q.query_sample}
-                          </code>
-                        </TableCell>
-                        <TableCell className="text-right">{q.calls?.toLocaleString('pt-BR')}</TableCell>
-                        <TableCell className="text-right">{formatMs(q.total_time_ms)}</TableCell>
-                        <TableCell className="text-right">{formatMs(q.mean_time_ms)}</TableCell>
-                        <TableCell className="text-right">{formatMs(q.max_time_ms)}</TableCell>
+              {slowQueries.isLoading ? (
+                <TableSkeleton cols={5} rows={6} />
+              ) : slowQueries.error ? (
+                <ErrorBanner title="Não foi possível carregar as queries" error={slowQueries.error} />
+              ) : (slowQueries.data ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  Sem dados ainda. O snapshot de pg_stat_statements precisa acumular consultas.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[45%]">Query</TableHead>
+                        <TableHead className="text-right">Chamadas</TableHead>
+                        <TableHead className="text-right">Tempo total</TableHead>
+                        <TableHead className="text-right">Médio</TableHead>
+                        <TableHead className="text-right">Máximo</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {(slowQueries.data ?? []).map((q, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>
+                            <code className="text-xs block max-w-2xl truncate" title={q.query_sample}>
+                              {q.query_sample}
+                            </code>
+                          </TableCell>
+                          <TableCell className="text-right">{q.calls?.toLocaleString('pt-BR')}</TableCell>
+                          <TableCell className="text-right">{formatMs(q.total_time_ms)}</TableCell>
+                          <TableCell className="text-right">{formatMs(q.mean_time_ms)}</TableCell>
+                          <TableCell className="text-right">{formatMs(q.max_time_ms)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
