@@ -53,8 +53,16 @@ const GREETING_TOKENS = [
   "bom dia", "boa tarde", "boa noite",
   "oie", "opa", "tudo bem", "tudo bom",
   "hey", "hi", "hello",
-  "alo", "alô"
+  "alo", "alô",
+  "td bem", "tdb", "tudo certo", "como vai", "como esta", "como está"
 ];
+
+// Tokens individuais que sozinhos são "ruído" comum em saudação concatenada
+// ("oi, boa noite tudo bem?" → ["oi","boa","noite","tudo","bem"]).
+const GREETING_FILLER_TOKENS = new Set([
+  "bem", "bom", "boa", "noite", "tarde", "dia", "tudo", "td",
+  "ai", "vai", "esta", "está", "certo", "como", "e",
+]);
 
 export function isPureGreeting(message: string): boolean {
   if (!message) return false;
@@ -62,21 +70,24 @@ export function isPureGreeting(message: string): boolean {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[!?.,;]/g, "")
+    .replace(/[!?.,;]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   if (norm.length === 0) return true;
-  if (norm.length > 30) return false; // mensagens longas não são "puras"
+  if (norm.length > 40) return false; // mensagens longas não são "puras"
 
   // Match exato com algum token (após normalização)
-  if (GREETING_TOKENS.some(t => norm === t || norm === t + " ")) return true;
+  if (GREETING_TOKENS.some(t => norm === t)) return true;
 
-  // "oi tudo bem", "bom dia tudo bem", etc. — duas saudações concatenadas
-  const tokens = norm.split(/\s+/);
-  if (tokens.length <= 4) {
+  // Saudações concatenadas: "oi boa noite tudo bem", "ola bom dia tudo bem", etc.
+  // Tokeniza e exige que TODO token seja saudação ou filler reconhecido.
+  const tokens = norm.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  if (tokens.length <= 7) {
     const allGreeting = tokens.every(tok =>
       GREETING_TOKENS.some(g => g.split(" ").includes(tok))
-      || ["bem", "bom"].includes(tok)
+      || GREETING_FILLER_TOKENS.has(tok)
     );
     if (allGreeting) return true;
   }
