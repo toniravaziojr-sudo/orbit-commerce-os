@@ -2109,6 +2109,7 @@ async function executeSalesTool(
               product_id: productId,
               variant_id: formatted[0].variant_id,
               variant_label: formatted[0].label,
+              free_shipping: product.free_shipping ?? false,
               source: "single_variant",
             })
           );
