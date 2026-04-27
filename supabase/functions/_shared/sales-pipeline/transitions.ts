@@ -500,6 +500,57 @@ export function decideNextState(input: TransitionInput): TransitionResult {
     };
   }
 
+  // ============================================================
+  // [F2-V4] R1b. VARIETY CHALLENGE — "só tem essa?", "tem outras?"
+  // Sempre força recommendation pela família/linha.
+  // - Se há familyFocus persistido → mantém família e busca outras opções dela.
+  // - Se há lastFocusedProductName mas sem familyFocus → caller infere família
+  //   pelo nome (via getCatalogFamilyAliases).
+  // - Sem nada → recommendation genérica.
+  // NUNCA responde pelo item isolado (resolve "só tem essa?" travado em product_detail).
+  // ============================================================
+  if (turnIntent === "variety_challenge") {
+    const downgrade = current === "product_detail"
+      ? "recovery_downgrade_product_detail_to_recommendation_variety_challenge" as const
+      : null;
+    if (familyFocus || lastFocusedProductName) {
+      return {
+        next: "recommendation",
+        reason: "variety_challenge_with_family_focus_to_recommendation",
+        forced: true,
+        turnIntent,
+        downgradeReason: downgrade,
+      };
+    }
+    return {
+      next: "recommendation",
+      reason: "recovery_downgrade_product_detail_to_recommendation_variety_challenge",
+      forced: true,
+      turnIntent,
+      downgradeReason: downgrade,
+    };
+  }
+
+  // ============================================================
+  // [F2-V4] R1c. FAMILY OR OBJECTIVE QUERY — pergunta genérica de
+  // família/objetivo sem citar produto pelo nome
+  // ("você tem alguma loção pra crescer cabelo?", "vocês têm shampoo?").
+  // Vai para recommendation (vitrine curta da família/objetivo),
+  // mesmo se a conversa estava contaminada em product_detail.
+  // Resolve o caso clássico do recovery downgrade.
+  // ============================================================
+  if (turnIntent === "family_or_objective_query") {
+    return {
+      next: "recommendation",
+      reason: "recovery_downgrade_product_detail_to_recommendation_family_question",
+      forced: true,
+      turnIntent,
+      downgradeReason: current === "product_detail"
+        ? "recovery_downgrade_product_detail_to_recommendation_family_question"
+        : null,
+    };
+  }
+
   // R2. Comparação:
   //  - com foco existente (lastFocusedProductName OU familyFocus) → product_detail (modo comparação)
   //  - sem foco → recommendation
