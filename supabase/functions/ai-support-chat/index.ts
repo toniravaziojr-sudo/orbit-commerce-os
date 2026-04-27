@@ -3710,6 +3710,24 @@ RESTRIÇÕES DA SHOPEE:
 Responda de forma empática dizendo que não possui essa informação e que vai transferir para um atendente humano que poderá ajudar.`;
     }
 
+    // [Sub-fase 2] PRODUTO EM FOCO — bloqueia reabertura de vitrine quando o
+    // cliente já escolheu produto/variante/quantidade.
+    if (currentProductFocus && currentProductFocus.product_id) {
+      const pf = currentProductFocus;
+      const parts: string[] = [];
+      parts.push(`product_id: ${pf.product_id}`);
+      if (pf.product_name) parts.push(`nome: ${pf.product_name}`);
+      if (pf.variant_label) parts.push(`variante: ${pf.variant_label}`);
+      if (pf.variant_id) parts.push(`variant_id: ${pf.variant_id}`);
+      if (pf.quantity) parts.push(`quantidade: ${pf.quantity}`);
+      systemPrompt += `\n\n### PRODUTO EM FOCO (LOCK ATIVO)\n` +
+        `O cliente JÁ escolheu este item. NÃO reabra vitrine, NÃO ofereça alternativas, ` +
+        `NÃO requalifique, NÃO peça de novo o que ele já decidiu.\n` +
+        `- ${parts.join("\n- ")}\n` +
+        `Use SEMPRE este product_id (UUID acima) ao chamar add_to_cart / get_product_details / get_product_variants. ` +
+        `Só desbloqueie este foco se o cliente disser explicitamente que mudou de ideia ou pediu OUTRO produto.`;
+    }
+
     // ============================================
     // STEP 6: BUILD CONVERSATION HISTORY
     // ============================================
