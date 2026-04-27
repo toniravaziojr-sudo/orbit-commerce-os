@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
+import { PlatformAccessDenied } from "@/components/auth/PlatformAccessDenied";
 import { GatedRoute, FeatureGatedRoute } from "@/components/layout/GatedRoute";
 import { CommandAssistantProvider, CommandAssistantPanel } from "@/components/command-assistant";
 import { lazy, Suspense, useEffect } from "react";
@@ -485,7 +487,7 @@ const App = () => {
                   <Route path="/platform/tutorials" element={<PlatformTutorials />} />
                    <Route path="/platform/tenants" element={<PlatformTenants />} />
                    <Route path="/platform/tools" element={<PlatformTools />} />
-                   <Route path="/platform/system-health" element={<PlatformSystemHealth />} />
+                   <Route path="/platform/system-health" element={<PlatformAdminGate fallback={<PlatformAccessDenied />}><PlatformSystemHealth /></PlatformAdminGate>} />
                    <Route path="/saude-do-sistema" element={<Navigate to="/platform/system-health" replace />} />
                    
                   {/* System routes - Owner only */}
