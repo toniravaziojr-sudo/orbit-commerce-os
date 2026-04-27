@@ -18571,6 +18571,113 @@ export type Database = {
           },
         ]
       }
+      system_performance_snapshots: {
+        Row: {
+          active_connections: number | null
+          cache_hit_ratio: number | null
+          captured_at: string
+          created_at: string
+          cron_health: Json | null
+          database_size_bytes: number | null
+          edge_health: Json | null
+          id: string
+          idle_connections: number | null
+          idle_in_transaction: number | null
+          index_hit_ratio: number | null
+          largest_tables: Json | null
+          max_connections: number | null
+          queue_health: Json | null
+          total_connections: number | null
+        }
+        Insert: {
+          active_connections?: number | null
+          cache_hit_ratio?: number | null
+          captured_at?: string
+          created_at?: string
+          cron_health?: Json | null
+          database_size_bytes?: number | null
+          edge_health?: Json | null
+          id?: string
+          idle_connections?: number | null
+          idle_in_transaction?: number | null
+          index_hit_ratio?: number | null
+          largest_tables?: Json | null
+          max_connections?: number | null
+          queue_health?: Json | null
+          total_connections?: number | null
+        }
+        Update: {
+          active_connections?: number | null
+          cache_hit_ratio?: number | null
+          captured_at?: string
+          created_at?: string
+          cron_health?: Json | null
+          database_size_bytes?: number | null
+          edge_health?: Json | null
+          id?: string
+          idle_connections?: number | null
+          idle_in_transaction?: number | null
+          index_hit_ratio?: number | null
+          largest_tables?: Json | null
+          max_connections?: number | null
+          queue_health?: Json | null
+          total_connections?: number | null
+        }
+        Relationships: []
+      }
+      system_query_stats_snapshots: {
+        Row: {
+          calls: number | null
+          captured_at: string
+          created_at: string
+          id: string
+          max_exec_time_ms: number | null
+          mean_exec_time_ms: number | null
+          query_hash: string | null
+          query_sample: string | null
+          rank: number | null
+          rows_returned: number | null
+          snapshot_id: string | null
+          total_exec_time_ms: number | null
+        }
+        Insert: {
+          calls?: number | null
+          captured_at?: string
+          created_at?: string
+          id?: string
+          max_exec_time_ms?: number | null
+          mean_exec_time_ms?: number | null
+          query_hash?: string | null
+          query_sample?: string | null
+          rank?: number | null
+          rows_returned?: number | null
+          snapshot_id?: string | null
+          total_exec_time_ms?: number | null
+        }
+        Update: {
+          calls?: number | null
+          captured_at?: string
+          created_at?: string
+          id?: string
+          max_exec_time_ms?: number | null
+          mean_exec_time_ms?: number | null
+          query_hash?: string | null
+          query_sample?: string | null
+          rank?: number | null
+          rows_returned?: number | null
+          snapshot_id?: string | null
+          total_exec_time_ms?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_query_stats_snapshots_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "system_performance_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_addons: {
         Row: {
           addon_key: string
@@ -22521,6 +22628,7 @@ export type Database = {
         }
         Returns: number
       }
+      capture_system_health_snapshot: { Args: never; Returns: string }
       check_credit_balance: {
         Args: { p_credits_needed: number; p_tenant_id: string }
         Returns: {
@@ -22676,6 +22784,20 @@ export type Database = {
         }[]
       }
       get_auth_user_email: { Args: never; Returns: string }
+      get_cron_jobs_status: {
+        Args: never
+        Returns: {
+          active: boolean
+          failures_last_24h: number
+          jobid: number
+          jobname: string
+          last_duration_ms: number
+          last_run_at: string
+          last_status: string
+          schedule: string
+          successes_last_24h: number
+        }[]
+      }
       get_current_tenant_id: { Args: { _user_id: string }; Returns: string }
       get_current_year_month: { Args: never; Returns: string }
       get_discount_usage: { Args: { p_discount_id: string }; Returns: number }
@@ -22718,6 +22840,7 @@ export type Database = {
           tiktok_pixel_id: string
         }[]
       }
+      get_queue_health: { Args: never; Returns: Json }
       get_recent_conversation_summaries: {
         Args: {
           p_ai_agent: string
@@ -22750,7 +22873,19 @@ export type Database = {
         }[]
       }
       get_security_flag: { Args: { p_flag_key: string }; Returns: boolean }
+      get_system_health_overview: { Args: never; Returns: Json }
       get_tenant_module_access: { Args: { p_tenant_id: string }; Returns: Json }
+      get_top_slow_queries: {
+        Args: { p_limit?: number }
+        Returns: {
+          calls: number
+          max_time_ms: number
+          mean_time_ms: number
+          query_sample: string
+          rows_returned: number
+          total_time_ms: number
+        }[]
+      }
       get_whatsapp_config_for_tenant: {
         Args: { p_tenant_id: string }
         Returns: {
