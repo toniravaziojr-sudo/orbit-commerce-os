@@ -267,43 +267,49 @@ function HealthDashboard() {
               <CardTitle>Saúde das filas</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fila</TableHead>
-                    <TableHead className="text-right">Pendentes / órfãos</TableHead>
-                    <TableHead>Mais antigo</TableHead>
-                    <TableHead className="text-right">Idade</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {queueEntries.length === 0 && (
+              {queues.isLoading ? (
+                <TableSkeleton cols={4} rows={4} />
+              ) : queues.error ? (
+                <ErrorBanner title="Não foi possível carregar as filas" error={queues.error} />
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        Nenhuma fila com pendências.
-                      </TableCell>
+                      <TableHead>Fila</TableHead>
+                      <TableHead className="text-right">Pendentes / órfãos</TableHead>
+                      <TableHead>Mais antigo</TableHead>
+                      <TableHead className="text-right">Idade</TableHead>
                     </TableRow>
-                  )}
-                  {queueEntries.map(([name, info]) => {
-                    const orphans = info?.pending_or_orphans ?? 0;
-                    const ageMin = info?.oldest_age_seconds ? Math.round(info.oldest_age_seconds / 60) : null;
-                    return (
-                      <TableRow key={name}>
-                        <TableCell className="font-medium">{name}</TableCell>
-                        <TableCell className="text-right">
-                          <span className={orphans > 0 ? 'text-warning font-semibold' : ''}>{orphans}</span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatBRT(info?.oldest_pending_at)}
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground">
-                          {ageMin != null ? `${ageMin} min` : '—'}
+                  </TableHeader>
+                  <TableBody>
+                    {queueEntries.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          Nenhuma fila com pendências.
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    )}
+                    {queueEntries.map(([name, info]) => {
+                      const orphans = info?.pending_or_orphans ?? 0;
+                      const ageMin = info?.oldest_age_seconds ? Math.round(info.oldest_age_seconds / 60) : null;
+                      return (
+                        <TableRow key={name}>
+                          <TableCell className="font-medium">{name}</TableCell>
+                          <TableCell className="text-right">
+                            <span className={orphans > 0 ? 'text-warning font-semibold' : ''}>{orphans}</span>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatBRT(info?.oldest_pending_at)}
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
+                            {ageMin != null ? `${ageMin} min` : '—'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
