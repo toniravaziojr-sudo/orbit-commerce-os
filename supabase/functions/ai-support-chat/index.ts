@@ -997,7 +997,7 @@ async function executeSalesTool(
           shampoo: /\bshampoo/i,
           condicionador: /\bcondicionador/i,
           creme: /\bcr[eê]me/i,
-          locao: /\blo[çc][ãa]o/i,
+          locao: /\blo[çc][ãa]o|lotion\b/i,
           balm: /\bbalm/i,
           serum: /\bs[eé]rum/i,
           tonico: /\bt[ôo]nico/i,
