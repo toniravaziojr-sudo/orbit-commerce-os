@@ -42,4 +42,6 @@ REGRAS DESTE MOMENTO:
 - Pedir os mesmos dados que o cliente acabou de mandar.
 - Perguntar "conseguiu pegar os dados?" — se você os tem, USE; se não, peça
   exatamente qual falta pelo nome.
+
+${FREE_SHIPPING_RULE}
 `.trim();

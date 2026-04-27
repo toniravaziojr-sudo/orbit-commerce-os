@@ -44,4 +44,6 @@ REGRAS DESTE MOMENTO:
 - Pedir confirmação para uma ação que o cliente JÁ confirmou no turno anterior.
   Se o cliente disse "sim" / "pode" / "manda" / "fechado" → EXECUTE a tool, não pergunte de novo.
 - Reabrir vitrine, recomendar substituto, dizer "tenho outras opções".
+
+${FREE_SHIPPING_RULE}
 `.trim();
