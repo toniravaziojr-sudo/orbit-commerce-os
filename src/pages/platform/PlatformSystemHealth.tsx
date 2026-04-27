@@ -84,7 +84,6 @@ function formatMs(ms: number) {
 }
 
 function HealthDashboard() {
-  const queryClient = useQueryClient();
   const overview = useSystemHealthOverview();
   const slowQueries = useTopSlowQueries(15);
   const cronJobs = useCronJobsStatus();
@@ -92,9 +91,14 @@ function HealthDashboard() {
 
   const isLoading =
     overview.isLoading || slowQueries.isLoading || cronJobs.isLoading || queues.isLoading;
+  const isFetching =
+    overview.isFetching || slowQueries.isFetching || cronJobs.isFetching || queues.isFetching;
 
   const refreshAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['system-health'] });
+    overview.refetch();
+    slowQueries.refetch();
+    cronJobs.refetch();
+    queues.refetch();
   };
 
   // Métricas derivadas
