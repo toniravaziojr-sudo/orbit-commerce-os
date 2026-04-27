@@ -321,34 +321,44 @@ function HealthDashboard() {
               <CardTitle>Top 15 queries por tempo total</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[45%]">Query</TableHead>
-                      <TableHead className="text-right">Chamadas</TableHead>
-                      <TableHead className="text-right">Tempo total</TableHead>
-                      <TableHead className="text-right">Médio</TableHead>
-                      <TableHead className="text-right">Máximo</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(slowQueries.data ?? []).map((q, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>
-                          <code className="text-xs block max-w-2xl truncate" title={q.query_sample}>
-                            {q.query_sample}
-                          </code>
-                        </TableCell>
-                        <TableCell className="text-right">{q.calls?.toLocaleString('pt-BR')}</TableCell>
-                        <TableCell className="text-right">{formatMs(q.total_time_ms)}</TableCell>
-                        <TableCell className="text-right">{formatMs(q.mean_time_ms)}</TableCell>
-                        <TableCell className="text-right">{formatMs(q.max_time_ms)}</TableCell>
+              {slowQueries.isLoading ? (
+                <TableSkeleton cols={5} rows={6} />
+              ) : slowQueries.error ? (
+                <ErrorBanner title="Não foi possível carregar as queries" error={slowQueries.error} />
+              ) : (slowQueries.data ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  Sem dados ainda. O snapshot de pg_stat_statements precisa acumular consultas.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[45%]">Query</TableHead>
+                        <TableHead className="text-right">Chamadas</TableHead>
+                        <TableHead className="text-right">Tempo total</TableHead>
+                        <TableHead className="text-right">Médio</TableHead>
+                        <TableHead className="text-right">Máximo</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {(slowQueries.data ?? []).map((q, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>
+                            <code className="text-xs block max-w-2xl truncate" title={q.query_sample}>
+                              {q.query_sample}
+                            </code>
+                          </TableCell>
+                          <TableCell className="text-right">{q.calls?.toLocaleString('pt-BR')}</TableCell>
+                          <TableCell className="text-right">{formatMs(q.total_time_ms)}</TableCell>
+                          <TableCell className="text-right">{formatMs(q.mean_time_ms)}</TableCell>
+                          <TableCell className="text-right">{formatMs(q.max_time_ms)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
