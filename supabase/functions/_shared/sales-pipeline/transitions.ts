@@ -345,6 +345,49 @@ function detectDataProvided(message: string): boolean {
 }
 
 // ----------------------------------------------------------------
+// [F2-V4] Detector de "variety challenge" — cliente desafia variedade do
+// catálogo. Sempre força resposta pela família/linha (recommendation).
+// ----------------------------------------------------------------
+const VARIETY_CHALLENGE_PATTERNS: RegExp[] = [
+  /\bs[óo]\s+tem\s+(essa|esse|esses|essas|isso|isso\s+a[ií])\b/i,
+  /\b[ée]\s+(s[óo]|a\s+[uú]nica?)\b/i,
+  /\bessa?\s+[ée]\s+a\s+[uú]nica?\b/i,
+  /\btem\s+(outras?|outros|mais|alguma\s+outra|algum\s+outro)\b/i,
+  /\bmais\s+(op[çc][ãa]o|op[çc][õo]es)\b/i,
+  /\boutras?\s+op[çc][õo]es\b/i,
+  /\bquais?\s+(s[ãa]o\s+)?(as\s+)?op[çc][õo]es\b/i,
+  /\bn[ãa]o\s+tem\s+(outra|outro|mais)\b/i,
+];
+export function detectVarietyChallenge(message: string): boolean {
+  if (!message) return false;
+  return VARIETY_CHALLENGE_PATTERNS.some(re => re.test(message));
+}
+
+// ----------------------------------------------------------------
+// [F2-V4] Detector de pergunta genérica de família/objetivo
+// ("você tem alguma loção?", "vocês têm shampoo pra queda?",
+//  "tem algum creme?"). Não cita produto pelo nome.
+// ----------------------------------------------------------------
+const FAMILY_OR_OBJECTIVE_QUERY_PATTERNS: RegExp[] = [
+  /\b(voc[êe]s?|tem|tem\s+algum[ao]?)\s+/i, // gatilho largo, refinado abaixo
+];
+export function detectFamilyOrObjectiveQuery(
+  message: string,
+  hasFamilyMention: boolean,
+  hasPainOrObjective: boolean,
+  hasNamedProduct: boolean,
+): boolean {
+  if (!message) return false;
+  if (hasNamedProduct) return false;
+  if (!hasFamilyMention && !hasPainOrObjective) return false;
+  // Exige um verbo/pergunta de existência ou desejo de busca.
+  const hasQuery = /\b(tem|t[eê]m|voc[êe]s?\s+t[eê]m|procuro|preciso|queria|quero\s+(ver|saber|conhecer))\b/i.test(message)
+    || /\?$/.test(message.trim())
+    || /\balgum[ao]?\b/i.test(message);
+  return hasQuery;
+}
+
+// ----------------------------------------------------------------
 // [F2-V3] Classificador canônico da intenção do turno atual.
 // Função pura — não toca estado. Usada pelo resolver para aplicar
 // rebaixamento estrutural antes da máquina de estados clássica.
@@ -369,13 +412,26 @@ export function classifyTurnIntent(
   const hasCheckoutRequest = detectCheckoutRequest(msg);
   const hasSupportTopic = detectSupportTopic(msg);
   const hasDataProvided = detectDataProvided(msg);
+  const hasPainOrObjective = detectPainOrObjective(msg);
+  const hasVarietyChallenge = detectVarietyChallenge(msg);
+  const hasFamilyOrObjectiveQuery = detectFamilyOrObjectiveQuery(
+    msg,
+    hasFamilyMention,
+    hasPainOrObjective,
+    hasNamedProduct,
+  );
 
   let intent: TurnIntent = "other";
-  // Ordem importa: support > purchase > comparison > product_named > informative > data > greeting > other
+  // Ordem importa: support > purchase > variety_challenge > comparison >
+  // product_named > family_or_objective_query > informative > data > greeting > other
+  // variety_challenge tem precedência sobre product_named porque é meta-pergunta
+  // sobre o catálogo, não sobre o item.
   if (hasSupportTopic) intent = "support";
   else if (hasBuySignal || hasCheckoutRequest) intent = "purchase_intent";
+  else if (hasVarietyChallenge) intent = "variety_challenge";
   else if (hasCompareIntent) intent = "comparison";
   else if (hasNamedProduct) intent = "product_named";
+  else if (hasFamilyOrObjectiveQuery) intent = "family_or_objective_query";
   else if (hasInformationalQuestion && (hasFocusReference || hasFamilyMention)) intent = "informative_question";
   else if (hasDataProvided) intent = "data_provided";
   else if (ctx.isPureGreeting) intent = "pure_greeting";
@@ -393,6 +449,8 @@ export function classifyTurnIntent(
       hasCheckoutRequest,
       hasSupportTopic,
       hasDataProvided,
+      hasVarietyChallenge,
+      hasFamilyOrObjectiveQuery,
     },
   };
 }
