@@ -1375,8 +1375,10 @@ async function executeSalesTool(
             ctx.setProductFocus(
               buildProductFocus({
                 product_id: productId,
+                product_name: product.name,
                 variant_id: effectiveVariantId,
                 variant_label: variantLabel,
+                quantity,
                 source,
               })
             );
@@ -1387,8 +1389,10 @@ async function executeSalesTool(
             ctx.setProductFocus(
               buildProductFocus({
                 product_id: productId,
+                product_name: product.name,
                 variant_id: null,
                 variant_label: null,
+                quantity,
                 source: "no_variants_needed",
               })
             );
