@@ -762,7 +762,7 @@ async function executeSalesTool(
           .trim();
         const tokens = query.split(/\s+/).filter(t => t.length >= 3).slice(0, 5);
 
-        const PRODUCT_COLS = "id, name, slug, price, compare_at_price, stock_quantity, status, has_variants, manage_stock, allow_backorder";
+        const PRODUCT_COLS = "id, name, slug, price, compare_at_price, stock_quantity, status, has_variants, manage_stock, allow_backorder, free_shipping";
 
         // ---------------------------------------------------------------
         // CAMADA 2 — Mapa léxico DOR/OBJETIVO → padrões de nome de categoria
@@ -865,6 +865,8 @@ async function executeSalesTool(
             has_variants: p.has_variants ?? false,
             manage_stock: p.manage_stock ?? true,
             allow_backorder: p.allow_backorder ?? false,
+            // Frete grátis global (regra do cadastro do produto, independente de CEP).
+            free_shipping: p.free_shipping ?? false,
             // Sinaliza ao modelo qual foi a "razão de match" desse item.
             match_reason: painProductIds && painProductIds.has(p.id) ? "pain_match" : "name_match",
           }));
