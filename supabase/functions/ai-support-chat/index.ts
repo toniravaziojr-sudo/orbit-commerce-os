@@ -56,6 +56,9 @@ import {
   extractMentionedProductName,
   // [F2-V3] intenção do turno + razão de rebaixamento
   type TurnIntent,
+  // [F2-V4] espelho mecânico de saudação (forçar reciprocidade real)
+  detectGreetingEcho,
+  buildGreetingMirrorBlock,
 } from "../_shared/sales-pipeline/index.ts";
 // [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
 // (substitui o cache em-memória que se perdia a cada cold start).
@@ -3538,6 +3541,19 @@ Cliente: "vocês entregam em SP?"
             ? `- Responda apenas com uma saudação curta, calorosa e neutra. Pode oferecer ajuda de forma aberta ("Como posso te ajudar?"), mas sem citar produto ou pedido específico.`
             : `- Responda objetivamente à pergunta do cliente com dado real (preço, prazo, característica, etc.). Só avance no funil se o cliente demonstrar intenção EXPLÍCITA de comprar nesta mesma mensagem.`)
         );
+      }
+
+      // [F2-V4] Espelho mecânico de saudação — força a IA a abrir LITERALMENTE
+      // com o que o cliente disse (oi + boa noite + tudo bem). Só ativa em greeting.
+      if (pipelineState === "greeting" && lastMessageContent) {
+        const echo = detectGreetingEcho(lastMessageContent);
+        const mirrorBlock = buildGreetingMirrorBlock(echo);
+        if (mirrorBlock) {
+          contextualBlocks.push(mirrorBlock);
+          console.log(
+            `[ai-support-chat] [F2-V4] greeting_mirror period=${echo.period || "—"} hello=${echo.hello || "—"} how_are_you=${echo.askedHowAreYou} opening="${echo.mandatoryOpening}"`
+          );
+        }
       }
 
       const routed = buildPromptForState({

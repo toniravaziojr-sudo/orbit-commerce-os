@@ -5,3 +5,4 @@ export * from "./transitions.ts";
 export * from "./prompt-router.ts";
 export * from "./variant-gate.ts";
 export * from "./product-resolver.ts";
+export * from "./greeting-mirror.ts";
