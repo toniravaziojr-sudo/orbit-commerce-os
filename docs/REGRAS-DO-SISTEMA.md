@@ -88,6 +88,15 @@ Nenhuma camada inferior sobrepõe a superior no seu domínio de autoridade.
 - O frontend apenas **lê** os dados existentes. Botões de atualização manual (refresh) podem existir como ação explícita do usuário, mas nunca como mecanismo automático ao carregar a tela.
 - Violação desta regra gera a percepção de lentidão ou de que o sistema "só funciona quando o usuário acessa a tela", o que é inaceitável.
 
+### 3.7.1 Inicialização de Telas de Configuração (Tenant Novo)
+- Telas de configuração de tenant (ex: Pagamentos, Frete, Fiscal, E-mail, Storefront) **DEVEM** renderizar todos os seus campos para tenants novos sem registros prévios, usando defaults locais até o primeiro Save do usuário.
+- É **proibido** usar `data.length === 0` (ou equivalente) como condição de bloqueio em `useEffect` de inicialização de telas de configuração — isso impede que tenant novo veja e configure os campos.
+- O critério correto do guard é uma condição de **"contexto mínimo resolvido"** (ex: provider ativo, integração conectada, tenant carregado). Não confundir "ainda não chegou do banco" com "chegou vazio porque é tenant novo".
+- A inicialização deve fazer **merge** entre dados reais do banco e defaults locais: para cada item esperado, usar o valor salvo se existir, senão default. O primeiro Save grava na tabela.
+- A flag de "já inicializei" (ex: `useRef(false)`) deve garantir que isso ocorra **uma única vez** por sessão de tela, evitando sobrescrever edições do usuário em re-renders.
+- Violação desta regra gera tenant novo "sem opções" na tela de configuração, mesmo com integrações ativas. Caso histórico: tenant Amazgan na aba Pagamentos (abril/2026).
+
+
 ### 3.8 Entrega Incremental com Qualidade de Produção
 - Cada etapa aprovada deve ser entregue pronta para produção dentro do escopo daquela etapa, sem depender de gambiarra ou retrabalho estrutural posterior.
 - Não existe MVP — existe entrega incremental com qualidade de produção.

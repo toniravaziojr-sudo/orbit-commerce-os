@@ -37,20 +37,40 @@
    ```tsx
    const activeProviders = useMemo(() => providers.filter(p => p.is_enabled), [providers]);
    ```
-2. Para efeitos de inicialização (carregar dados do DB uma única vez), usar `useRef` como flag:
+2. Para efeitos de inicialização (carregar dados do DB uma única vez), usar `useRef` como flag — **mas o critério de bloqueio NÃO pode ser `data.length === 0`** (isso quebra tenant novo, ver seção 1.2). Use uma condição de "contexto pronto":
    ```tsx
    const initialized = useRef(false);
    useEffect(() => {
      if (initialized.current) return;
-     if (data.length === 0) return;
+     // ❌ NÃO usar `if (data.length === 0) return;` — bloqueia tenant novo para sempre.
+     // ✅ Use uma dependência funcional que indique "estou pronto para inicializar":
+     if (!hasRequiredContext) return; // ex: provider ativo, tenant carregado
      initialized.current = true;
-     // ... inicializar estado local
-   }, [data]);
+     // Merge: para cada item esperado, usar dado do banco se existir, senão default local.
+   }, [data, hasRequiredContext]);
    ```
 
 **Onde ocorreu:** `PaymentSettingsTab.tsx` — Configurações de Pagamento (abril/2026).
 
 **Regra derivada:** Todo array/objeto criado no corpo de um componente e usado como dependência de `useEffect` DEVE ser memoizado com `useMemo`.
+
+---
+
+### 1.2 Guard de inicialização que bloqueia tenant novo
+
+**Problema:** `useEffect` de inicialização que retorna cedo quando a fonte de dados vem vazia (`if (data.length === 0) return;`) impede a UI de renderizar para tenants novos, que legitimamente ainda não têm registros salvos.
+
+**Sintoma:** Tela de configuração aparece "incompleta" para tenant novo (faltam cards, seções inteiras, campos não aparecem) mesmo com providers/integrações ativos. Tenants antigos funcionam normalmente porque já têm registros no banco.
+
+**Causa raiz:** O guard confunde dois cenários distintos:
+- "dados ainda chegando do banco" → legítimo aguardar
+- "dados chegaram e estão vazios porque o tenant é novo" → **NÃO** deve aguardar, deve montar a UI com defaults locais
+
+**Solução:** Trocar o critério do guard de "tem registro?" para "tenho contexto mínimo para inicializar?" (ex: provider ativo, tenant resolvido, integração configurada). Inicializar com merge entre dados reais do banco e defaults locais; o primeiro Save gera o upsert.
+
+**Onde ocorreu:** `PaymentSettingsTab.tsx` — tenant Amazgan (abril/2026). A linha `if (allDiscounts.length === 0) return;` impedia a tela de mostrar cards de PIX/Cartão/Boleto, restando só o seletor de provider.
+
+**Regra derivada:** Guards de `useEffect` de inicialização em telas de configuração de tenant **NUNCA** devem usar `length === 0` da fonte de dados como bloqueio. O critério correto é uma condição de "contexto mínimo resolvido". Esta regra é estrutural e está no Layer 2, seção 3.7.1.
 
 ---
 

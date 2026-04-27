@@ -94,6 +94,14 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 4. Dentro de cada aba: cards de PIX/Cartão/Boleto com toggle, desconto e parcelas
 5. Botão "Salvar" por método faz upsert na tabela `payment_method_discounts` com `provider`
 
+#### Inicialização da tela (tenant novo vs existente)
+
+- Os cards de PIX/Cartão/Boleto **DEVEM** ser montados assim que houver pelo menos um gateway ativo para alguma forma de pagamento, mesmo que ainda não exista nenhum registro salvo em `payment_method_discounts` (caso típico de tenant novo).
+- Os valores default ficam em memória até o usuário clicar **Salvar** — quando ocorre o upsert na tabela.
+- Defaults aplicados: PIX expira em 60 minutos, Boleto expira em 3 dias, Cartão até 12 parcelas com mínimo de R$ 5,00 por parcela, descontos zerados e desligados.
+- ❌ **Proibido** usar `allDiscounts.length === 0` (ou equivalente) como condição de bloqueio do `useEffect` de inicialização — isso impede tenant novo de ver e configurar os campos. O critério correto é "tem provider ativo configurado para alguma forma de pagamento?".
+- A flag `discountsInitialized.current` (useRef) garante que a inicialização ocorra **uma única vez** por sessão de tela, evitando sobrescrever edições do usuário em re-renders.
+
 ### Relação com Builder
 
 | Local | O que controla |
