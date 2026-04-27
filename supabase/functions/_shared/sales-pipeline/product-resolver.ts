@@ -21,7 +21,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PRODUCT_COLS =
-  "id, name, slug, price, stock_quantity, status, has_variants, manage_stock, allow_backorder";
+  "id, name, slug, price, stock_quantity, status, has_variants, manage_stock, allow_backorder, free_shipping";
 
 export interface ResolvedProductCandidate {
   id: string;

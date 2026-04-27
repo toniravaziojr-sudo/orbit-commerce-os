@@ -762,7 +762,7 @@ async function executeSalesTool(
           .trim();
         const tokens = query.split(/\s+/).filter(t => t.length >= 3).slice(0, 5);
 
-        const PRODUCT_COLS = "id, name, slug, price, compare_at_price, stock_quantity, status, has_variants, manage_stock, allow_backorder";
+        const PRODUCT_COLS = "id, name, slug, price, compare_at_price, stock_quantity, status, has_variants, manage_stock, allow_backorder, free_shipping";
 
         // ---------------------------------------------------------------
         // CAMADA 2 — Mapa léxico DOR/OBJETIVO → padrões de nome de categoria
@@ -865,6 +865,8 @@ async function executeSalesTool(
             has_variants: p.has_variants ?? false,
             manage_stock: p.manage_stock ?? true,
             allow_backorder: p.allow_backorder ?? false,
+            // Frete grátis global (regra do cadastro do produto, independente de CEP).
+            free_shipping: p.free_shipping ?? false,
             // Sinaliza ao modelo qual foi a "razão de match" desse item.
             match_reason: painProductIds && painProductIds.has(p.id) ? "pain_match" : "name_match",
           }));
@@ -1382,6 +1384,7 @@ async function executeSalesTool(
                 variant_id: effectiveVariantId,
                 variant_label: variantLabel,
                 quantity,
+                free_shipping: product.free_shipping ?? false,
                 source,
               })
             );
@@ -1396,6 +1399,7 @@ async function executeSalesTool(
                 variant_id: null,
                 variant_label: null,
                 quantity,
+                free_shipping: product.free_shipping ?? false,
                 source: "no_variants_needed",
               })
             );
@@ -2049,7 +2053,7 @@ async function executeSalesTool(
 
         const { data: product } = await supabase
           .from("products")
-          .select("id, name, has_variants, manage_stock, allow_backorder")
+          .select("id, name, has_variants, manage_stock, allow_backorder, free_shipping")
           .eq("id", productId)
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
@@ -2064,6 +2068,7 @@ async function executeSalesTool(
                 product_id: productId,
                 variant_id: null,
                 variant_label: null,
+                free_shipping: product.free_shipping ?? false,
                 source: "no_variants_needed",
               })
             );
@@ -2104,6 +2109,7 @@ async function executeSalesTool(
               product_id: productId,
               variant_id: formatted[0].variant_id,
               variant_label: formatted[0].label,
+              free_shipping: product.free_shipping ?? false,
               source: "single_variant",
             })
           );
@@ -3736,6 +3742,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       if (pf.variant_label) parts.push(`variante: ${pf.variant_label}`);
       if (pf.variant_id) parts.push(`variant_id: ${pf.variant_id}`);
       if (pf.quantity) parts.push(`quantidade: ${pf.quantity}`);
+      if (typeof pf.free_shipping === "boolean") {
+        parts.push(`frete_grátis: ${pf.free_shipping ? "sim (global, sem CEP)" : "não (depende do CEP)"}`);
+      }
       systemPrompt += `\n\n### PRODUTO EM FOCO (LOCK ATIVO)\n` +
         `O cliente JÁ escolheu este item. NÃO reabra vitrine, NÃO ofereça alternativas, ` +
         `NÃO requalifique, NÃO peça de novo o que ele já decidiu.\n` +

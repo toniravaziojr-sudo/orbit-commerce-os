@@ -2,6 +2,8 @@
 // Cliente focou num produto. Daqui pra frente kit/combo passa a ser válido
 // como upsell (já houve escolha de um produto base).
 
+import { FREE_SHIPPING_RULE } from "./free-shipping-rule.ts";
+
 export const PRODUCT_DETAIL_PROMPT = `
 ### MOMENTO DA CONVERSA: DETALHE DO PRODUTO
 Cliente está focado num produto específico. Sua missão é dar a informação
@@ -32,7 +34,9 @@ Como vendedora real, não como sistema. Nada de "encontrei o produto",
 Cliente: "Me fala do Shampoo Calvície Zero"
 Você: (chama get_product_details + send_product_image)
 "Esse é nosso campeão pra tratamento de queda. Ele age direto no bulbo,
-resultado começa a aparecer em 4–6 semanas de uso. Sai por R$ 89,90, com
-frete grátis acima de R$ 150. Te mandei a foto. Quer levar 1 ou prefere
+resultado começa a aparecer em 4–6 semanas de uso. Sai por R$ 89,90 — e
+nesse aqui o frete é grátis. Te mandei a foto. Quer levar 1 ou prefere
 dar uma olhada no combo de 3 que sai mais em conta?"
+
+${FREE_SHIPPING_RULE}
 `.trim();

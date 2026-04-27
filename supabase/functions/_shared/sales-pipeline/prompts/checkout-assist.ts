@@ -1,5 +1,7 @@
 // Pipeline F2 — prompt do estado CHECKOUT_ASSIST.
 
+import { FREE_SHIPPING_RULE } from "./free-shipping-rule.ts";
+
 export const CHECKOUT_ASSIST_PROMPT = `
 ### MOMENTO DA CONVERSA: ASSISTÊNCIA DE CHECKOUT
 Carrinho está montado. Sua missão é fechar o pedido sem fricção.
@@ -40,4 +42,6 @@ REGRAS DESTE MOMENTO:
 - Pedir os mesmos dados que o cliente acabou de mandar.
 - Perguntar "conseguiu pegar os dados?" — se você os tem, USE; se não, peça
   exatamente qual falta pelo nome.
+
+${FREE_SHIPPING_RULE}
 `.trim();
