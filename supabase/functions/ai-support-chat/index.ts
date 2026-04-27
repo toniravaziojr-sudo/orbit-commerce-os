@@ -2022,8 +2022,23 @@ async function executeSalesTool(
       }
 
       case "get_product_variants": {
-        const productId = args.product_id as string;
-        if (!productId) return JSON.stringify({ error: "product_id é obrigatório" });
+        const productRef = args.product_id as string;
+        if (!productRef) return JSON.stringify({ error: "product_id é obrigatório" });
+
+        // [Sub-fase 2] Resolver tolerante: aceita UUID, slug ou nome.
+        const resolvedV = await resolveProductReference(supabase, tenantId, productRef);
+        if (resolvedV.ambiguous) {
+          return JSON.stringify({
+            success: false,
+            error: "AMBIGUOUS_PRODUCT",
+            message: "Mais de um produto bate com esse nome. Pergunte ao cliente qual exatamente.",
+            candidates: resolvedV.candidates,
+          });
+        }
+        if (!resolvedV.found || !resolvedV.product) {
+          return JSON.stringify({ error: "Produto não encontrado", hint: resolvedV.hint });
+        }
+        const productId = resolvedV.product.id as string;
 
         const { data: product } = await supabase
           .from("products")
