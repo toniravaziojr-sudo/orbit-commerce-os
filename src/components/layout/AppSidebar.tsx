@@ -224,6 +224,7 @@ const platformAdminNavigation: NavGroup[] = [
   {
     label: "Plataforma",
     items: [
+      { title: "Saúde do Sistema", href: "/platform/system-health", icon: Activity },
       { title: "Health Monitor", href: "/platform/health-monitor", icon: Activity },
       { title: "Integrações da Plataforma", href: "/platform/integrations", icon: Plug },
       { title: "Sugestões de Blocos", href: "/platform/block-suggestions", icon: Sparkles },

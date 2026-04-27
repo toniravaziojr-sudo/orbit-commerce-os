@@ -78,15 +78,16 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 
 | # | Item | Rota | Observações |
 |---|------|------|-------------|
-| 1 | Health Monitor | `/platform/health-monitor` | — |
-| 2 | Integrações da Plataforma | `/platform/integrations` | — |
-| 3 | Sugestões de Blocos | `/platform/block-suggestions` | — |
-| 4 | Assinaturas | `/platform/billing` | — |
-| 5 | Emails do Sistema | `/platform/emails` | — |
-| 6 | Avisos da Plataforma | `/platform/announcements` | — |
-| 7 | Tutoriais por Módulo | `/platform/tutorials` | — |
-| 8 | Tenants | `/platform/tenants` | — |
-| 9 | Ferramentas | `/platform/tools` | — |
+| 1 | Saúde do Sistema | `/platform/system-health` | Onda 1 — Visibilidade. KPIs em tempo real, cron, filas, queries lentas. |
+| 2 | Health Monitor | `/platform/health-monitor` | — |
+| 3 | Integrações da Plataforma | `/platform/integrations` | — |
+| 4 | Sugestões de Blocos | `/platform/block-suggestions` | — |
+| 5 | Assinaturas | `/platform/billing` | — |
+| 6 | Emails do Sistema | `/platform/emails` | — |
+| 7 | Avisos da Plataforma | `/platform/announcements` | — |
+| 8 | Tutoriais por Módulo | `/platform/tutorials` | — |
+| 9 | Tenants | `/platform/tenants` | — |
+| 10 | Ferramentas | `/platform/tools` | — |
 
 ---
 

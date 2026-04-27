@@ -155,6 +155,7 @@ const PlatformAnnouncements = lazy(() => import("@/pages/platform/PlatformAnnoun
 const PlatformTutorials = lazy(() => import("@/pages/platform/PlatformTutorials"));
 const PlatformTools = lazy(() => import("@/pages/platform/PlatformTools"));
 const PlatformTenants = lazy(() => import("@/pages/platform/PlatformTenants"));
+const PlatformSystemHealth = lazy(() => import("@/pages/platform/PlatformSystemHealth"));
 
 const Influencers = lazy(() => import("@/pages/Influencers"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
@@ -484,6 +485,8 @@ const App = () => {
                   <Route path="/platform/tutorials" element={<PlatformTutorials />} />
                    <Route path="/platform/tenants" element={<PlatformTenants />} />
                    <Route path="/platform/tools" element={<PlatformTools />} />
+                   <Route path="/platform/system-health" element={<PlatformSystemHealth />} />
+                   <Route path="/saude-do-sistema" element={<Navigate to="/platform/system-health" replace />} />
                    
                   {/* System routes - Owner only */}
                   <Route path="/system/users" element={<GatedRoute moduleKey="sistema_usuarios" moduleName="Usuários e Permissões" moduleDescription="Gerencie usuários e permissões da sua loja"><SystemUsers /></GatedRoute>} />
