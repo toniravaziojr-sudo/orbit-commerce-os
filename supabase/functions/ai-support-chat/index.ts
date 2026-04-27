@@ -4813,11 +4813,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         //  3. Se get_product_details retornou produto, falamos do produto pelo nome.
         //  4. Se nada útil saiu das tools, caímos numa pergunta curta de vendedora.
         const buildHumanFallbackFromTools = (): string | null => {
-          // Procura search_products mais recente com lista de produtos
+          // Procura search_products mais recente com lista de produtos.
+          // [F2-FS-CROSS] aceita formato legado (array) E novo ({items,...}).
           for (let i = toolResultsThisTurn.length - 1; i >= 0; i--) {
             const snap = toolResultsThisTurn[i];
-            if (snap.tool === "search_products" && Array.isArray(snap.parsed)) {
-              const all = snap.parsed as any[];
+            if (snap.tool === "search_products") {
+              const normalized = parseSearchProductsResult(snap.parsed);
+              const all = normalized.items;
+              if (!all.length) continue;
               // 1ª oferta: prioriza produtos únicos. Kits só se NÃO houver único.
               const singles = all.filter(p => !p?.is_kit);
               const pool = (singles.length > 0 ? singles : all).slice(0, 3);
