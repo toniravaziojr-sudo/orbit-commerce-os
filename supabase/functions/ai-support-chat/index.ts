@@ -3742,6 +3742,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       if (pf.variant_label) parts.push(`variante: ${pf.variant_label}`);
       if (pf.variant_id) parts.push(`variant_id: ${pf.variant_id}`);
       if (pf.quantity) parts.push(`quantidade: ${pf.quantity}`);
+      if (typeof pf.free_shipping === "boolean") {
+        parts.push(`frete_grátis: ${pf.free_shipping ? "sim (global, sem CEP)" : "não (depende do CEP)"}`);
+      }
       systemPrompt += `\n\n### PRODUTO EM FOCO (LOCK ATIVO)\n` +
         `O cliente JÁ escolheu este item. NÃO reabra vitrine, NÃO ofereça alternativas, ` +
         `NÃO requalifique, NÃO peça de novo o que ele já decidiu.\n` +
