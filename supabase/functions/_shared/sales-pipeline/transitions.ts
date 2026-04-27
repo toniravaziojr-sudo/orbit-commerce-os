@@ -684,8 +684,54 @@ export function decideNextState(input: TransitionInput): TransitionResult {
   }
 
   return { next: current, reason: "no_change_keep_state", forced: false, turnIntent };
-}
+  }
 
+  // ============================================================
+  // [F2-V4] R5. VARIETY CHALLENGE — "só tem essa?", "tem outras?"
+  // Sempre força recommendation pela família/linha.
+  // - Se há familyFocus persistido → mantém família e busca outras opções dela.
+  // - Se há lastFocusedProductName mas sem familyFocus → busca pela família
+  //   inferida pelo nome (caller resolve via getCatalogFamilyAliases).
+  // - Sem nada → recommendation genérica (caller fará discovery curta).
+  // NUNCA responde pelo item isolado.
+  // ============================================================
+  if (turnIntent === "variety_challenge") {
+    if (familyFocus || lastFocusedProductName) {
+      return {
+        next: "recommendation",
+        reason: "variety_challenge_with_family_focus_to_recommendation",
+        forced: true,
+        turnIntent,
+        downgradeReason: "recovery_downgrade_product_detail_to_recommendation_variety_challenge",
+      };
+    }
+    return {
+      next: "recommendation",
+      reason: "recovery_downgrade_product_detail_to_recommendation_variety_challenge",
+      forced: true,
+      turnIntent,
+      downgradeReason: "recovery_downgrade_product_detail_to_recommendation_variety_challenge",
+    };
+  }
+
+  // ============================================================
+  // [F2-V4] R6. FAMILY OR OBJECTIVE QUERY — pergunta genérica de
+  // família/objetivo sem citar produto pelo nome
+  // ("você tem alguma loção pra crescer cabelo?", "vocês têm shampoo?").
+  // Vai para recommendation (vitrine curta da família/objetivo),
+  // mesmo se a conversa estava contaminada em product_detail.
+  // ============================================================
+  if (turnIntent === "family_or_objective_query") {
+    return {
+      next: "recommendation",
+      reason: "recovery_downgrade_product_detail_to_recommendation_family_question",
+      forced: true,
+      turnIntent,
+      downgradeReason: current === "product_detail"
+        ? "recovery_downgrade_product_detail_to_recommendation_family_question"
+        : null,
+    };
+  }
 
 // Anti-regressão: só avança se o rank do alvo for ≥ atual, ou se for forçado.
 function advanceTo(current: PipelineState, target: PipelineState, reason: TransitionReason): TransitionResult {
