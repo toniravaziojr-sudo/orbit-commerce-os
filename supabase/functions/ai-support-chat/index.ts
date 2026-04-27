@@ -59,6 +59,8 @@ import {
   // [F2-V4] espelho mecânico de saudação (forçar reciprocidade real)
   detectGreetingEcho,
   buildGreetingMirrorBlock,
+  // [F2-FS-CROSS] normalizador do retorno de search_products (legado/novo)
+  parseSearchProductsResult,
 } from "../_shared/sales-pipeline/index.ts";
 // [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
 // (substitui o cache em-memória que se perdia a cada cold start).
