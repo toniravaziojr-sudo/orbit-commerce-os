@@ -155,6 +155,7 @@ const PlatformAnnouncements = lazy(() => import("@/pages/platform/PlatformAnnoun
 const PlatformTutorials = lazy(() => import("@/pages/platform/PlatformTutorials"));
 const PlatformTools = lazy(() => import("@/pages/platform/PlatformTools"));
 const PlatformTenants = lazy(() => import("@/pages/platform/PlatformTenants"));
+const PlatformSystemHealth = lazy(() => import("@/pages/platform/PlatformSystemHealth"));
 
 const Influencers = lazy(() => import("@/pages/Influencers"));
 const Affiliates = lazy(() => import("@/pages/Affiliates"));
