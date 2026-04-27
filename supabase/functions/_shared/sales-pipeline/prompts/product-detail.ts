@@ -2,6 +2,8 @@
 // Cliente focou num produto. Daqui pra frente kit/combo passa a ser válido
 // como upsell (já houve escolha de um produto base).
 
+import { FREE_SHIPPING_RULE } from "./free-shipping-rule.ts";
+
 export const PRODUCT_DETAIL_PROMPT = `
 ### MOMENTO DA CONVERSA: DETALHE DO PRODUTO
 Cliente está focado num produto específico. Sua missão é dar a informação

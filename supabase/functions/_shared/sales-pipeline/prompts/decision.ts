@@ -1,6 +1,8 @@
 // Pipeline F2 — prompt do estado DECISION.
 // Cliente sinalizou intenção de compra. STOP de requalificar.
 
+import { FREE_SHIPPING_RULE } from "./free-shipping-rule.ts";
+
 export const DECISION_PROMPT = `
 ### MOMENTO DA CONVERSA: DECISÃO DE COMPRA
 Cliente disse que quer comprar. NÃO requalifique. NÃO recomece.
