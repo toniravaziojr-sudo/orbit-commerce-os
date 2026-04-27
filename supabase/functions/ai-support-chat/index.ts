@@ -1025,7 +1025,102 @@ async function executeSalesTool(
         }
 
         const finalList = partitionAndLimit(filtered);
-        return JSON.stringify(finalList);
+
+        // [F2-FS-CROSS] Sumário cruzado de FRETE GRÁTIS — escopo: MESMA LINHA.
+        // "Mesma linha" = mesmo produto-base resolvido via product_components,
+        // não a família ampla por nome. Se o cliente pediu "loção" e o pool
+        // tem várias linhas distintas (ex.: loção dia + loção noite), cada uma
+        // tem o seu próprio sumário e o que vai pro foco é o da linha do item
+        // efetivamente apresentado.
+        let familyShippingSummary: any = undefined;
+        try {
+          const enrichedIds = filtered.map(p => p.id);
+          if (enrichedIds.length > 0) {
+            // Para CADA item do pool: descobrir a "base da linha".
+            //  - Se item é kit/pack: base = único component_product_id (quando o pack
+            //    tem 1 só componente, que é o caso de packs Nx do mesmo produto).
+            //    Se tiver múltiplos componentes (ex.: kit misto), NÃO entra na linha
+            //    (pra não atribuir frete grátis cruzado entre linhas diferentes).
+            //  - Se item é único: base = ele mesmo.
+            const { data: compRowsAll } = await supabase
+              .from("product_components")
+              .select("parent_product_id, component_product_id, quantity")
+              .in("parent_product_id", enrichedIds);
+
+            const componentsByParent = new Map<string, Array<{ component_product_id: string; quantity: number | null }>>();
+            for (const r of (compRowsAll ?? []) as any[]) {
+              const list = componentsByParent.get(r.parent_product_id) ?? [];
+              list.push({ component_product_id: r.component_product_id, quantity: r.quantity });
+              componentsByParent.set(r.parent_product_id, list);
+            }
+
+            const baseOf = (p: any): string | null => {
+              if (!p.is_kit) return p.id;
+              const comps = componentsByParent.get(p.id) ?? [];
+              if (comps.length === 1) return comps[0].component_product_id;
+              return null; // kit misto — não pertence a uma única linha
+            };
+
+            // Agrupa o pool por base.
+            const lineByBase = new Map<string, any[]>();
+            for (const p of filtered) {
+              const base = baseOf(p);
+              if (!base) continue;
+              const arr = lineByBase.get(base) ?? [];
+              arr.push(p);
+              lineByBase.set(base, arr);
+            }
+
+            // Escolhe a "linha em foco" desta resposta: a linha do PRIMEIRO item
+            // da finalList (que é o que a IA vai apresentar). Assim o sumário
+            // é sempre da mesma linha do item exibido.
+            const focusItem = finalList[0];
+            const focusBase = focusItem ? baseOf(focusItem) : null;
+            const focusLine = focusBase ? (lineByBase.get(focusBase) ?? []) : [];
+
+            const inferLabel = (p: any): string => {
+              if (!p.is_kit) return "unidade";
+              const comps = componentsByParent.get(p.id) ?? [];
+              const qty = comps.length === 1 ? Number(comps[0].quantity ?? 0) : 0;
+              if (qty >= 2) return `${qty}x`;
+              const m = String(p.name || "").match(/\(?\s*(\d+)\s*x\s*\)?/i);
+              return m ? `${m[1]}x` : "pack";
+            };
+
+            const free = focusLine
+              .filter(p => p.free_shipping === true)
+              .map(p => ({
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                is_kit: !!p.is_kit,
+                pack_label: inferLabel(p),
+              }));
+            const paid = focusLine
+              .filter(p => p.free_shipping === false)
+              .map(p => ({
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                is_kit: !!p.is_kit,
+                pack_label: inferLabel(p),
+              }));
+
+            familyShippingSummary = {
+              has_free_shipping_offers: free.length > 0,
+              free_shipping_offers: free,
+              paid_shipping_offers: paid,
+              line_base_product_id: focusBase,
+            };
+          }
+        } catch (e) {
+          console.warn(`[ai-support-chat][search_products] family shipping summary falhou (segue sem sumário):`, (e as Error).message);
+        }
+
+        return JSON.stringify({
+          items: finalList,
+          family_shipping_summary: familyShippingSummary,
+        });
       }
 
       case "get_product_details": {
