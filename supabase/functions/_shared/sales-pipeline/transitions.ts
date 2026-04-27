@@ -85,6 +85,9 @@ export interface TurnIntentClassification {
     hasCheckoutRequest: boolean;
     hasSupportTopic: boolean;
     hasDataProvided: boolean;
+    // [F2-V4]
+    hasVarietyChallenge: boolean;
+    hasFamilyOrObjectiveQuery: boolean;
   };
 }
 
