@@ -62,6 +62,14 @@ export type TurnIntent =
   | "purchase_intent"
   | "data_provided"
   | "support"
+  // [F2-V4] Cliente desafia a variedade do catálogo: "só tem essa?",
+  // "tem outras?", "essa é a única?", "tem mais opções?".
+  // Sempre força resposta pela família/linha — nunca pelo item isolado.
+  | "variety_challenge"
+  // [F2-V4] Cliente faz pergunta genérica de família/objetivo
+  // (ex.: "tem alguma loção pra crescer cabelo?", "vocês têm shampoo?")
+  // sem citar produto específico. Deve ir para recommendation.
+  | "family_or_objective_query"
   | "other";
 
 export interface TurnIntentClassification {
