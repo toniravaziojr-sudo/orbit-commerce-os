@@ -38,8 +38,10 @@ export interface VariantGateResult {
 
 export interface ProductFocus {
   product_id: string;
+  product_name?: string | null;     // [Sub-fase 2] nome humano para a IA citar sem reabrir vitrine
   variant_id: string | null;
   variant_label: string | null;
+  quantity?: number | null;          // [Sub-fase 2] quantidade já decidida pelo cliente (lock)
   resolved_at: string;
   source: "user_selection" | "single_variant" | "no_variants_needed";
 }
@@ -142,14 +144,18 @@ export function evaluateVariantGate(input: VariantGateInput): VariantGateResult 
  */
 export function buildProductFocus(args: {
   product_id: string;
+  product_name?: string | null;
   variant_id: string | null;
   variant_label: string | null;
+  quantity?: number | null;
   source: ProductFocus["source"];
 }): ProductFocus {
   return {
     product_id: args.product_id,
+    product_name: args.product_name ?? null,
     variant_id: args.variant_id,
     variant_label: args.variant_label,
+    quantity: args.quantity ?? null,
     resolved_at: new Date().toISOString(),
     source: args.source,
   };
@@ -166,8 +172,13 @@ export function readProductFocus(metadata: unknown): ProductFocus | null {
   if (typeof obj.product_id !== "string") return null;
   return {
     product_id: obj.product_id,
+    product_name: typeof obj.product_name === "string" ? obj.product_name : null,
     variant_id: typeof obj.variant_id === "string" ? obj.variant_id : null,
     variant_label: typeof obj.variant_label === "string" ? obj.variant_label : null,
+    quantity:
+      typeof obj.quantity === "number" && Number.isFinite(obj.quantity) && obj.quantity > 0
+        ? obj.quantity
+        : null,
     resolved_at: typeof obj.resolved_at === "string" ? obj.resolved_at : new Date().toISOString(),
     source:
       obj.source === "user_selection" ||

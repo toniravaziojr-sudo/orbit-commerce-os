@@ -54,6 +54,10 @@ export const TOOLS_BY_STATE: Record<PipelineState, string[]> = {
     "get_product_variants",
     "apply_coupon",
     "check_coupon",
+    // [Sub-fase 2] search_products LIBERADO em decision APENAS como saída
+    // de emergência — recuperar product_id ou desambiguar nome.
+    // O prompt do estado decision proíbe reabrir vitrine ampla.
+    "search_products",
   ],
 
   checkout_assist: [
