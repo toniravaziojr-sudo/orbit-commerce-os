@@ -34,8 +34,8 @@ Como vendedora real, não como sistema. Nada de "encontrei o produto",
 Cliente: "Me fala do Shampoo Calvície Zero"
 Você: (chama get_product_details + send_product_image)
 "Esse é nosso campeão pra tratamento de queda. Ele age direto no bulbo,
-resultado começa a aparecer em 4–6 semanas de uso. Sai por R$ 89,90, com
-frete grátis acima de R$ 150. Te mandei a foto. Quer levar 1 ou prefere
+resultado começa a aparecer em 4–6 semanas de uso. Sai por R$ 89,90 — e
+nesse aqui o frete é grátis. Te mandei a foto. Quer levar 1 ou prefere
 dar uma olhada no combo de 3 que sai mais em conta?"
 
 ${FREE_SHIPPING_RULE}
