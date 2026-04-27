@@ -13,14 +13,20 @@ import {
   useSystemHealthOverview,
   useTopSlowQueries,
 } from '@/hooks/useSystemHealth';
-import { formatInTimeZone } from 'date-fns-tz';
-
-const BRT = 'America/Sao_Paulo';
+const BRT_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'America/Sao_Paulo',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
 
 function formatBRT(date: string | null | undefined) {
   if (!date) return '—';
   try {
-    return formatInTimeZone(new Date(date), BRT, "dd/MM/yyyy HH:mm:ss");
+    return BRT_FORMATTER.format(new Date(date));
   } catch {
     return '—';
   }
