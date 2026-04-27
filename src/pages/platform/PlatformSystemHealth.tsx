@@ -133,11 +133,21 @@ function HealthDashboard() {
             </p>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={refreshAll} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Atualizar
+        <Button variant="outline" size="sm" onClick={refreshAll} disabled={isFetching}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+          {isFetching ? 'Atualizando...' : 'Atualizar'}
         </Button>
       </div>
+
+      {/* Banner global de erros */}
+      {(overview.error || cronJobs.error || queues.error || slowQueries.error) && (
+        <div className="space-y-2">
+          {overview.error && <ErrorBanner title="Falha ao carregar visão geral" error={overview.error} />}
+          {cronJobs.error && <ErrorBanner title="Falha ao carregar tarefas automatizadas" error={cronJobs.error} />}
+          {queues.error && <ErrorBanner title="Falha ao carregar filas" error={queues.error} />}
+          {slowQueries.error && <ErrorBanner title="Falha ao carregar queries lentas" error={slowQueries.error} />}
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
