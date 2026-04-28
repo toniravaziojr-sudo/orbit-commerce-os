@@ -101,9 +101,11 @@ antes de virar `srcDoc` do iframe. Ela injeta:
 
 | Sintoma | Causa raiz | Correção definitiva |
 |---|---|---|
-| Caracteres "estranhos" (`Ã©`, `Ã£`, `\uFFFD`) em e-mails recebidos | Função de ingestão não respeitava o `charsets` do SendGrid (Latin-1 lido como UTF-8) | `decodeField` em `support-email-inbound` |
+| Caracteres "estranhos" (`Ã©`, `Ã£`) em e-mails NOVOS | Ingestão não respeitava o `charsets` do SendGrid (Latin-1 lido como UTF-8) | `decodeField` em `support-email-inbound` |
+| Caracteres `\uFFFD` (`�`) em e-mails ANTIGOS já gravados | Bytes originais foram **descartados** no momento da decodificação errada antes da correção da ingestão. **Lacuna irrecuperável** — a informação não está mais no banco. | Não há recuperação possível. Reenvio pelo remetente é a única solução. E-mails recebidos após a correção entram íntegros. |
 | Caracteres estranhos só na visualização (banco está OK) | HTML do e-mail não declara `<meta charset>` e o iframe assume Latin-1 | `prepareEmailHtml` injeta `<meta charset="utf-8">` |
-| Links no e-mail não são clicáveis / não abrem | Sandbox `allow-same-origin` bloqueia top-navigation e popups | Sandbox `allow-same-origin allow-popups allow-popups-to-escape-sandbox` + `<base target="_blank">` |
+| Botão/link `<a href>` não abre ao clicar | Sandbox `allow-same-origin` bloqueia top-navigation e popups | Sandbox `allow-same-origin allow-popups allow-popups-to-escape-sandbox` + `<base target="_blank">` |
+| URL aparece como texto puro (não clicável) — ex.: Pagar.me, Bradesco | Remetente envia URL fora de `<a href>` (texto livre dentro de `<p>` ou `<b>`). Comportamento legítimo do e-mail. | `autolinkHtml` em `prepareEmailHtml`: tokeniza HTML preservando `<a>`, `<script>`, `<style>` e atributos de tag, e converte URLs em texto livre para `<a target="_blank">`. |
 
 ## 6. Validação técnica
 
@@ -114,8 +116,12 @@ Cobertura mínima ao alterar este módulo:
   correto em `email_messages`.
 - Renderização visual: e-mail com link `<a href>` deve abrir em nova aba
   ao clicar.
-- Mojibake recovery: e-mail histórico com `Olá` (mojibake) deve renderizar
-  como `Olá` no viewer sem alterar o registro no banco.
+- **Autolink:** URL em texto puro (ex.: `<p><b>https://x.com/y</b></p>`)
+  deve virar link clicável. URL já dentro de `<a>`, `<script>` ou `<style>`
+  não pode ser duplicada/quebrada.
+- Mojibake recovery: e-mail histórico com `Olá` (mojibake Latin-1↔UTF-8)
+  deve renderizar como `Olá` no viewer sem alterar o registro no banco.
+- E-mails antigos com `\uFFFD` (`�`) **não são recuperáveis** — esperado.
 
 ## 7. Referências cruzadas
 
