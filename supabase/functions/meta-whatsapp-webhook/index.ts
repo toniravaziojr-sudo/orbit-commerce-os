@@ -298,6 +298,45 @@ Deno.serve(async (req) => {
                 console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] inbound insert threw (non-blocking):`, auditErr);
               }
 
+              // ═══ CAMADA 6 (abr/2026): DEDUPE DE REDELIVERY DA META ═══
+              // A Meta reentrega mensagens não confirmadas em <30s. A 2ª execução
+              // reentra no INSERT (novo id), gasta 6s+ no debounce e 10-30s na IA,
+              // e o runtime do edge function mata antes do `finally`. Resultado:
+              // linha-filha fica para sempre em `received` sem desfecho.
+              //
+              // Solução: ANTES de qualquer processamento, checar se já existe
+              // OUTRA linha com mesmo external_message_id já processada.
+              // Se sim → marca esta como skipped/redelivery_dedup e pula tudo.
+              if (inboundId && message.id) {
+                try {
+                  const { data: alreadyProcessed } = await supabase
+                    .from("whatsapp_inbound_messages")
+                    .select("id, processing_status, processed_by")
+                    .eq("tenant_id", tenantId)
+                    .eq("external_message_id", message.id)
+                    .not("processed_at", "is", null)
+                    .neq("id", inboundId)
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (alreadyProcessed) {
+                    console.log(`[meta-whatsapp-webhook][${traceId}] REDELIVERY DEDUP: external_message_id=${message.id} já processado por sibling=${alreadyProcessed.id} (${alreadyProcessed.processing_status}/${alreadyProcessed.processed_by})`);
+                    await supabase
+                      .from("whatsapp_inbound_messages")
+                      .update({
+                        processed_at: new Date().toISOString(),
+                        processed_by: "redelivery_dedup",
+                        processing_status: "skipped",
+                        processing_error: `Redelivery from Meta — original sibling=${alreadyProcessed.id} status=${alreadyProcessed.processing_status}`,
+                      })
+                      .eq("id", inboundId);
+                    continue; // pula para próxima mensagem do loop
+                  }
+                } catch (dedupErr) {
+                  console.warn(`[meta-whatsapp-webhook][${traceId}] dedup lookup failed (segue processando):`, dedupErr);
+                }
+              }
+
               // ═══ ANTI-REGRESSÃO (abr/2026): outcome SEMPRE registrado ═══
               // Defaults pessimistas — se nada atualizar, o desfecho fica
               // explícito como "silent_exit" e a watcher abre incidente.
