@@ -1,6 +1,6 @@
 ---
 name: WhatsApp Inbound Pipeline must never be silent
-description: Recepção WhatsApp tem 5 camadas anti-regressão. Toda mensagem deve ter desfecho em <5min. Trigger garante status, webhook tem try/finally universal, view+watcher detectam órfãs, monitor diário valida assinatura Meta.
+description: Recepção WhatsApp tem 6 camadas anti-regressão. Toda mensagem deve ter desfecho em <5min. Trigger garante status, webhook tem try/finally universal, dedupe imediato de redelivery por external_message_id, view+watcher detectam órfãs, monitor diário valida assinatura Meta.
 type: constraint
 ---
 Cenário-pai: jan/2026 (1.980 órfãs por assinatura `messages` perdida na Meta) + abr/2026 (2.657 órfãs por early returns silenciosos no webhook após o "Pacote 3 não-bloqueante").
