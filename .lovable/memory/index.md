@@ -17,6 +17,7 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 7. **Memória limitada a governança + 2 últimos assuntos** — Rotação obrigatória; nunca guardar regra de sistema que não esteja nos docs.
 
 ## Memories
+- [Observability Over Automation Rule](mem://constraints/observability-over-automation-rule) — Onda 2: fluxos sensíveis (WhatsApp inbound, pagamentos) priorizam visibilidade + ação manual em vez de reprocessamento automático
 - [Platform Admin Auth + Observability RPC Standard](mem://constraints/platform-admin-auth-and-observability-rpc-standard) — Hook unificado via is_platform_admin(), RPCs de observabilidade em passe único, normalização de erro PostgREST, KPI "Indisponível" em vez de 0
 - [WhatsApp Diagnóstico respeiteohomem](mem://constraints/whatsapp-respeiteohomem-connection-over-meta) — Não voltar a priorizar Meta/display name sem evidência nova; investigar conexão/pipeline primeiro
 
