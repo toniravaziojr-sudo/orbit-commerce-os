@@ -152,6 +152,9 @@ migração nem mudança de schema.
 - **Recomendar por proximidade textual** quando há dor declarada e árvore
   de categoria disponível no tenant.
 - **Inventar produto** que não veio do `search_products`.
+- **Negar produto** sem ter chamado `search_products` no mesmo turno (Eixo 1.6).
+- **Pedir confirmação de novo** depois que o cliente já confirmou querer fechar — a próxima ação é `add_to_cart` + `generate_checkout_link`, não outra pergunta (Eixo 1.7).
+- **Transitar para `checkout_assist`** sem `cart_id` ativo (persistido OU criado neste turno) — bloqueado em retaguarda como `no_cart_for_checkout` (Eixo 1.8).
 
 ## 8. Observabilidade
 

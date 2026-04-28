@@ -100,6 +100,16 @@ Quando `request_human_handoff` é executada com sucesso:
 3. Atualiza `conversations.status = 'waiting_agent'`.
 4. **Garantia anti-regressão:** o flag `shouldHandoff` é forçado para `true` no loop final, impedindo que o status seja revertido para `'bot'` por outras heurísticas. *(Correção aplicada em 2026-04-21.)*
 
+### 5.4 Scrubbers de retaguarda (Eixo 1.6 / 1.7 — 2026-04-28)
+
+Três redes de segurança rodam **após** a resposta do modelo, antes de persistir:
+
+- **Eixo 1.6 — search-before-deny:** se a resposta contém negação de produto (`não temos / não consta / não conheço`) E `search_products` **não foi chamada** neste turno → substitui por fala neutra que pede confirmação do nome/categoria. Complementa o FIX-C (que cobre o caso "search foi chamado e ainda assim a IA negou").
+- **Eixo 1.7 — close-on-confirmed-intent:** se o cliente sinalizou fechamento (`sim/quero/manda/pode gerar/fechado`) E a IA pediu confirmação **de novo** (`posso finalizar?`, `quer que eu gere?`) E `generate_checkout_link` **não foi chamada** → substitui por mensagem de transferência e força `shouldHandoff = true` com `reason='confirmation_loop_detected'`. O caminho feliz continua sendo FIX-B (tool_choice forçado em `checkout_assist`).
+- **Eixo 1.8 — checkout exige carrinho:** transição para `checkout_assist` é **bloqueada** quando não há `cart_id` ativo (persistido nem criado neste turno). Cai para `decision`, com `reason='no_cart_for_checkout'`.
+
+Além disso, o contador `conversations.metadata.discovery_questions_asked` é incrementado a cada turno em que a IA emite pergunta de qualificação em `discovery`, permitindo que a transição por contagem deixe de ficar travada em 0.
+
 ---
 
 ## 6. FUNIL DE VENDAS WHATSAPP
