@@ -1269,3 +1269,47 @@ Em `src/hooks/useAuth.tsx`:
 - **Nunca** usar `signOut()` sem `scope` nesse caminho — mataria sessões válidas em outras abas/dispositivos.
 - Se um dia for adicionado outro client Supabase (edge, worker, segundo schema), aplicar o mesmo padrão.
 
+---
+
+## 2026-04-28 — Cron `pg_cron` com `current_setting('app.settings.service_role_key')` ausente
+
+### Sintoma
+
+Job `ads-experiments-run` (jobid antigo 6) falhava silenciosamente toda terça às 11h desde fev/2026. Erro de auth ao chamar a edge function.
+
+### Causa
+
+O cron usava `'Bearer ' || current_setting('app.settings.service_role_key')`. A GUC **não existe** neste projeto (`current_setting(..., false)` lança exceção; `current_setting(..., true)` retorna NULL → header `Bearer ` vazio).
+
+### Correção
+
+Reagendado com **anon key hardcoded** no header — mesmo padrão dos jobs saudáveis (`scheduler-tick-job`, `ads-autopilot-analyze`, `ads-weekly-insights`). Validação: `net.http_post` manual retornou `200 {"success":true}`.
+
+### Regra perene (anti-regressão)
+
+- **Proibido** usar `current_setting('app.settings.service_role_key')` em `cron.schedule` neste projeto. A GUC nunca foi provisionada.
+- Padrão obrigatório: anon key hardcoded no header (validação real do papel acontece dentro da edge function).
+- Referência canônica: `scheduler-tick-job`.
+
+---
+
+## 2026-04-28 — Login OAuth (Google) não registrava em `auth_login_attempts`
+
+### Sintoma
+
+`auth_login_attempts` registrava só logins por e-mail/senha. Logins via Google ficavam invisíveis, comprometendo a auditoria da Onda 5 F1.
+
+### Causa
+
+A tela `/auth` chama `lovable.auth.signInWithOAuth('google', ...)` direto, sem passar por `useAuth.signInWithGoogle`. O sucesso real do OAuth só chega após o redirect (evento `SIGNED_IN` no `onAuthStateChange`), que não chamava `log-login-attempt`.
+
+### Correção
+
+Em `src/hooks/useAuth.tsx`, dentro do `onAuthStateChange`: quando `event === 'SIGNED_IN'` e `user.app_metadata.provider !== 'email'`, disparar `log-login-attempt` (fire-and-forget). Login por e-mail/senha continua logado em `signIn()` — sem duplicidade.
+
+### Regra perene (anti-regressão)
+
+- Qualquer novo provider OAuth (Apple, Facebook, etc.) já fica auditado automaticamente pelo handler centralizado.
+- **Proibido** adicionar log de login por provider em código de tela — sempre no `useAuth`, fonte única.
+- Filtro `provider !== 'email'` é mandatório para evitar duplicidade.
+
