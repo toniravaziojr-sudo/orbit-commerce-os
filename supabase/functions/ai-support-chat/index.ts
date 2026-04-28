@@ -30,6 +30,7 @@ import {
   evaluateImagePolicy,
   nextSalesState,
   hashResponse,
+  isQualificationQuestion,
   type SalesState,
   type Intent,
 } from "../_shared/sales-state-machine.ts";
