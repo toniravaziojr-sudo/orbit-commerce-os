@@ -298,6 +298,17 @@ Deno.serve(async (req) => {
                 console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] inbound insert threw (non-blocking):`, auditErr);
               }
 
+              // ═══ ANTI-REGRESSÃO (abr/2026): outcome SEMPRE registrado ═══
+              // Defaults pessimistas — se nada atualizar, o desfecho fica
+              // explícito como "silent_exit" e a watcher abre incidente.
+              // Toda saída do processamento (sucesso, early return, exceção)
+              // passa pelo `finally` no fim, que persiste o desfecho final.
+              let outcomeStatus: string = "failed";
+              let outcomeProcessedBy: string = "silent_exit";
+              let outcomeError: string | null = "Pipeline ended without explicit outcome";
+              let outcomeConversationId: string | null = null;
+
+              try {
               // ═══ ROUTING DECISION: Admin (Agenda) vs Customer (Support) ═══
               const { data: authorizedPhones } = await supabase
                 .from("agenda_authorized_phones")
@@ -337,26 +348,13 @@ Deno.serve(async (req) => {
                 } catch (agendaError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
                 }
-                // Audit loop (tolerante a falha — Pacote 3): nunca derruba o webhook.
-                if (inboundId) {
-                  try {
-                    await supabase
-                      .from("whatsapp_inbound_messages")
-                      .update({
-                        processed_at: new Date().toISOString(),
-                        processed_by: agendaOk ? "agenda_agent" : "agenda_failed",
-                        processing_status: agendaOk ? "processed" : "failed",
-                      })
-                      .eq("id", inboundId);
-                  } catch (auditErr) {
-                    console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] agenda update failed (non-blocking):`, auditErr);
-                  }
-                }
+                // Outcome registrado pelo `finally` no fim do bloco.
+                outcomeStatus = agendaOk ? "processed" : "failed";
+                outcomeProcessedBy = agendaOk ? "agenda_agent" : "agenda_failed";
+                outcomeError = agendaOk ? null : "agenda invocation failed";
                 // Admin messages do NOT create support conversations
-                continue;
-              }
-
-              // ── ROUTE TO SUPPORT FLOW (Phase 1: inbound desacoplado da IA) ──
+              } else {
+              // (Customer flow continua abaixo)
               // Ordem: (1) localizar/criar conversa SEM sobrescrever status,
               //        (2) persistir mensagem inbound,
               //        (3) só então decidir se IA responde via shared gate.
@@ -456,6 +454,9 @@ Deno.serve(async (req) => {
 
                 if (convError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Failed to create conversation:`, convError);
+                  outcomeStatus = "failed";
+                  outcomeProcessedBy = "conversation_create_failed";
+                  outcomeError = `convError: ${convError.message || String(convError)}`;
                 } else {
                   conversationId = newConv.id;
                   existingStatus = newConv.status;
@@ -463,7 +464,17 @@ Deno.serve(async (req) => {
                 }
               }
 
-              if (conversationId) {
+              // Sincroniza outcome com a conversa identificada (mesmo se nula)
+              outcomeConversationId = conversationId;
+
+              if (!conversationId) {
+                // Sem conversa: registra desfecho explícito (não é silêncio).
+                if (outcomeStatus === "failed" && outcomeProcessedBy === "silent_exit") {
+                  outcomeStatus = "failed";
+                  outcomeProcessedBy = "no_conversation";
+                  outcomeError = "Could not locate or create conversation";
+                }
+              } else {
                 const { data: insertedMsg, error: msgError } = await supabase
                   .from("messages")
                   .insert({
@@ -486,6 +497,9 @@ Deno.serve(async (req) => {
 
                 if (msgError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Failed to create message:`, msgError);
+                  outcomeStatus = "failed";
+                  outcomeProcessedBy = "message_persist_failed";
+                  outcomeError = `msgError: ${msgError.message || String(msgError)}`;
                 } else {
                   console.log(`[meta-whatsapp-webhook][${traceId}] Message persisted in support module`);
 
@@ -629,38 +643,55 @@ Deno.serve(async (req) => {
                     console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=BLOCKED (${decision.reason})`);
                   }
 
-                  if (inboundId) {
-                    try {
-                      const finalStatus = !decision.should_respond
-                        ? "skipped"
-                        : aiSkippedReason
-                          ? "skipped"
-                          : aiOk
-                            ? "processed"
-                            : "failed";
-                      const finalProcessedBy = !decision.should_respond
-                        ? `gate:${decision.reason}`
-                        : aiSkippedReason
-                          ? aiSkippedReason
-                          : aiOk
-                            ? "ai_support"
-                            : "ai_failed";
-                      await supabase
-                        .from("whatsapp_inbound_messages")
-                        .update({
-                          processed_at: new Date().toISOString(),
-                          processed_by: finalProcessedBy,
-                          conversation_id: conversationId,
-                          processing_status: finalStatus,
-                          processing_error: aiSkippedReason
-                            ? `debounce_owner=${debounceOwner} merged=${debounceMerged}`
-                            : null,
-                        })
-                        .eq("id", inboundId);
-                    } catch (auditErr) {
-                      console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] support update failed (non-blocking):`, auditErr);
-                    }
+                  // Outcome final do customer flow — gravado pelo `finally`.
+                  outcomeStatus = !decision.should_respond
+                    ? "skipped"
+                    : aiSkippedReason
+                      ? "skipped"
+                      : aiOk
+                        ? "processed"
+                        : "failed";
+                  outcomeProcessedBy = !decision.should_respond
+                    ? `gate:${decision.reason}`
+                    : aiSkippedReason
+                      ? aiSkippedReason
+                      : aiOk
+                        ? "ai_support"
+                        : "ai_failed";
+                  outcomeError = aiSkippedReason
+                    ? `debounce_owner=${debounceOwner} merged=${debounceMerged}`
+                    : (aiOk || !decision.should_respond ? null : "ai_support invocation failed");
+                  outcomeConversationId = conversationId;
+                }
+              }
+              } // fim do else (customer flow)
+              } catch (pipelineErr) {
+                // Captura qualquer exceção inesperada — outcome explícito.
+                console.error(`[meta-whatsapp-webhook][${traceId}] [PIPELINE] unhandled exception:`, pipelineErr);
+                outcomeStatus = "failed";
+                outcomeProcessedBy = "pipeline_exception";
+                outcomeError = `${(pipelineErr as Error)?.name || "Error"}: ${(pipelineErr as Error)?.message || String(pipelineErr)}`;
+              } finally {
+                // ═══ DESFECHO UNIVERSAL — anti-regressão silent_exit ═══
+                // SEMPRE escreve um desfecho. Se o INSERT do inbound falhou,
+                // ainda assim deixamos um log claro.
+                if (inboundId) {
+                  try {
+                    await supabase
+                      .from("whatsapp_inbound_messages")
+                      .update({
+                        processed_at: new Date().toISOString(),
+                        processed_by: outcomeProcessedBy,
+                        processing_status: outcomeStatus,
+                        processing_error: outcomeError,
+                        conversation_id: outcomeConversationId,
+                      })
+                      .eq("id", inboundId);
+                  } catch (finalErr) {
+                    console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] FINAL desfecho update failed (non-blocking):`, finalErr);
                   }
+                } else {
+                  console.warn(`[meta-whatsapp-webhook][${traceId}] [AUDIT] sem inboundId — desfecho=${outcomeStatus}/${outcomeProcessedBy} err=${outcomeError}`);
                 }
               }
             }
