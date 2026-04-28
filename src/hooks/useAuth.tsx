@@ -272,7 +272,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: existingSession }, error }) => {
+      // Anti-regressão: se houver erro de refresh (bad_jwt) no bootstrap,
+      // limpar storage local para encerrar o ciclo de retries do GoTrue.
+      if (error) {
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        setSession(null);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
 
