@@ -120,3 +120,122 @@ export function useQueueHealth() {
     staleTime: 15_000,
   });
 }
+
+// ===== Onda 2 — Resiliência observável =====
+
+export interface ResilienceKpis {
+  orphan_inbound: number;
+  open_incidents: number;
+  payment_divergences_24h: number;
+  captured_at: string;
+}
+
+export interface WhatsAppIncident {
+  id: string;
+  tenant_id: string;
+  tenant_name: string;
+  incident_type: string;
+  severity: string;
+  title: string;
+  detail: string | null;
+  status: string;
+  detected_at: string;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface WhatsAppOrphanInbound {
+  id: string;
+  tenant_id: string;
+  tenant_name: string;
+  provider: string;
+  external_message_id: string | null;
+  from_phone: string | null;
+  message_type: string | null;
+  age_minutes: number;
+  created_at: string;
+  processing_status: string | null;
+  processing_error: string | null;
+}
+
+export interface PaymentDivergence {
+  transaction_id: string;
+  tenant_id: string;
+  tenant_name: string;
+  provider: string;
+  provider_transaction_id: string | null;
+  status: string;
+  method: string | null;
+  amount: number;
+  paid_amount: number | null;
+  order_id: string | null;
+  order_exists: boolean;
+  divergence_type: 'no_order' | 'order_missing' | 'amount_mismatch' | 'unknown';
+  paid_at: string | null;
+  created_at: string;
+}
+
+export function useResilienceKpis() {
+  return useQuery({
+    queryKey: ['system-health', 'resilience-kpis'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_resilience_kpis');
+      if (error) throw toRpcError(error, 'Falha ao carregar indicadores de resiliência');
+      return data as unknown as ResilienceKpis;
+    },
+    refetchInterval: REFRESH_FAST,
+    staleTime: 15_000,
+  });
+}
+
+export function useWhatsAppIncidents(limit = 50) {
+  return useQuery({
+    queryKey: ['system-health', 'wa-incidents', limit],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_whatsapp_incidents', { p_limit: limit });
+      if (error) throw toRpcError(error, 'Falha ao carregar incidentes do WhatsApp');
+      return (data ?? []) as unknown as WhatsAppIncident[];
+    },
+    refetchInterval: REFRESH_SLOW,
+    staleTime: 30_000,
+  });
+}
+
+export function useWhatsAppOrphanInbound(limit = 50) {
+  return useQuery({
+    queryKey: ['system-health', 'wa-orphan-inbound', limit],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_whatsapp_orphan_inbound', { p_limit: limit });
+      if (error) throw toRpcError(error, 'Falha ao carregar mensagens não processadas');
+      return (data ?? []) as unknown as WhatsAppOrphanInbound[];
+    },
+    refetchInterval: REFRESH_FAST,
+    staleTime: 15_000,
+  });
+}
+
+export function usePaymentDivergences(windowHours = 24, limit = 100) {
+  return useQuery({
+    queryKey: ['system-health', 'payment-divergences', windowHours, limit],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_payment_divergences', {
+        p_window_hours: windowHours,
+        p_limit: limit,
+      });
+      if (error) throw toRpcError(error, 'Falha ao carregar divergências de pagamento');
+      return (data ?? []) as unknown as PaymentDivergence[];
+    },
+    refetchInterval: REFRESH_SLOW,
+    staleTime: 30_000,
+  });
+}
+
+export async function resolveWhatsAppIncident(incidentId: string, note?: string) {
+  const { data, error } = await supabase.rpc('resolve_whatsapp_incident', {
+    p_incident_id: incidentId,
+    p_resolution_note: note ?? null,
+  });
+  if (error) throw toRpcError(error, 'Falha ao resolver incidente');
+  return data as unknown as { success: boolean; incident_id: string; updated: number };
+}

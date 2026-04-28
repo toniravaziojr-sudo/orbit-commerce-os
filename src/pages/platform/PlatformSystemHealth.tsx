@@ -1,4 +1,4 @@
-import { Activity, Database, Clock, Layers, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Activity, Database, Clock, Layers, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, MessageSquare, CreditCard, Inbox } from 'lucide-react';
 import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,10 @@ import {
   useQueueHealth,
   useSystemHealthOverview,
   useTopSlowQueries,
+  useResilienceKpis,
 } from '@/hooks/useSystemHealth';
+import { WhatsAppIncidentsTab } from '@/components/platform/health/WhatsAppIncidentsTab';
+import { PaymentDivergencesTab } from '@/components/platform/health/PaymentDivergencesTab';
 
 function ErrorBanner({ title, error }: { title: string; error: unknown }) {
   const msg = error instanceof Error ? error.message : String(error ?? 'erro desconhecido');
@@ -88,17 +91,19 @@ function HealthDashboard() {
   const slowQueries = useTopSlowQueries(15);
   const cronJobs = useCronJobsStatus();
   const queues = useQueueHealth();
+  const resilience = useResilienceKpis();
 
   const isLoading =
     overview.isLoading || slowQueries.isLoading || cronJobs.isLoading || queues.isLoading;
   const isFetching =
-    overview.isFetching || slowQueries.isFetching || cronJobs.isFetching || queues.isFetching;
+    overview.isFetching || slowQueries.isFetching || cronJobs.isFetching || queues.isFetching || resilience.isFetching;
 
   const refreshAll = () => {
     overview.refetch();
     slowQueries.refetch();
     cronJobs.refetch();
     queues.refetch();
+    resilience.refetch();
   };
 
   // Métricas derivadas — "Indisponível" quando falha (NUNCA cair para 0)
@@ -165,7 +170,7 @@ function HealthDashboard() {
         </div>
       )}
 
-      {/* KPIs */}
+      {/* KPIs Onda 1 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Conexões do banco"
@@ -197,14 +202,49 @@ function HealthDashboard() {
         />
       </div>
 
+      {/* KPIs Onda 2 — Resiliência */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatCard
+          title="Mensagens WhatsApp travadas"
+          value={resilience.error ? 'Indisponível' : resilience.data?.orphan_inbound ?? 0}
+          description="Recebidas há mais de 5 min sem processamento"
+          icon={Inbox}
+          variant={(resilience.data?.orphan_inbound ?? 0) > 0 ? 'warning' : 'success' as any}
+        />
+        <StatCard
+          title="Incidentes WhatsApp abertos"
+          value={resilience.error ? 'Indisponível' : resilience.data?.open_incidents ?? 0}
+          description="Aguardando ação manual do operador"
+          icon={MessageSquare}
+          variant={(resilience.data?.open_incidents ?? 0) > 0 ? 'destructive' : 'success' as any}
+        />
+        <StatCard
+          title="Divergências de pagamento (24h)"
+          value={resilience.error ? 'Indisponível' : resilience.data?.payment_divergences_24h ?? 0}
+          description="Pagamento aprovado sem pedido correspondente"
+          icon={CreditCard}
+          variant={(resilience.data?.payment_divergences_24h ?? 0) > 0 ? 'destructive' : 'success' as any}
+        />
+      </div>
+
       {/* Detalhe */}
       <Tabs defaultValue="cron" className="w-full">
         <TabsList>
           <TabsTrigger value="cron">Tarefas Automatizadas</TabsTrigger>
           <TabsTrigger value="queues">Filas</TabsTrigger>
+          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+          <TabsTrigger value="payments">Pagamentos</TabsTrigger>
           <TabsTrigger value="queries">Queries Lentas</TabsTrigger>
           <TabsTrigger value="db">Banco</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="whatsapp">
+          <WhatsAppIncidentsTab />
+        </TabsContent>
+
+        <TabsContent value="payments">
+          <PaymentDivergencesTab />
+        </TabsContent>
 
         {/* CRON */}
         <TabsContent value="cron">

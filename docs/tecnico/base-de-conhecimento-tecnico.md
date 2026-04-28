@@ -835,3 +835,29 @@ Bloco de 5 estabilizações entregues em sequência sobre o motor de atendimento
 2. Nenhum painel pode degradar erro estruturado de RPC para `String(obj)` no UI; erros precisam ser normalizados para mensagem legível.
 3. Antes de declarar corrigido um painel operacional, validar a chamada real no network/browser ou consulta equivalente no ambiente autenticado.
 
+
+---
+
+## 10. Onda 2 — Resiliência Observável (2026-04-28)
+
+**Contexto:** Após a Onda 1 dar visibilidade do banco/cron/filas, restavam falhas silenciosas em dois fluxos críticos: mensagens WhatsApp recebidas que não chegavam ao processamento, e pagamentos aprovados pelo gateway sem pedido correspondente.
+
+**Decisão arquitetural:** Resiliência via observabilidade + ação manual. **Nenhum reprocessamento automático foi adicionado** — qualquer auto-reconcile de mensagem ou criação automática de pedido por pagamento órfão poderia gerar duplicatas. Constraints relacionadas: `mem://constraints/whatsapp-reception-source-of-truth-cross-check`, `mem://constraints/observability-over-automation-rule`.
+
+**Implementação:**
+- 3 novos KPIs no header do painel `/platform/system-health`:
+  - Mensagens WhatsApp travadas (>5 min sem `processed_at`)
+  - Incidentes WhatsApp abertos (`whatsapp_health_incidents` em `open|acknowledged`)
+  - Divergências de pagamento 24h (`payment_transactions` aprovado sem `order_id` ou pedido inexistente)
+- 2 novas abas detalhadas: **WhatsApp** (incidentes + mensagens órfãs com botão "Resolver") e **Pagamentos** (divergências com filtro 24h/7d/30d).
+- Toda leitura via RPC `SECURITY DEFINER` restrita a `is_platform_admin()`:
+  - `get_resilience_kpis()`
+  - `get_whatsapp_incidents(p_limit)`
+  - `get_whatsapp_orphan_inbound(p_limit)`
+  - `get_payment_divergences(p_window_hours, p_limit)`
+- Única RPC de escrita: `resolve_whatsapp_incident(p_incident_id, p_resolution_note)` — ação manual do operador, registra `resolved_by` no `metadata` do incidente.
+
+**Anti-regressão:**
+1. Não criar cron de auto-reconcile sobre `whatsapp_inbound_messages` ou `payment_transactions` sem aprovação formal e sem garantir idempotência comprovada.
+2. Toda nova fila sensível deve ganhar primeiro um KPI + lista no painel; cron só depois com plano explícito.
+3. RPCs de leitura para o painel `/platform/system-health` seguem o padrão `mem://constraints/platform-admin-auth-and-observability-rpc-standard`: `SECURITY DEFINER`, `SET search_path = public`, `REVOKE` de anon/public, `GRANT EXECUTE` apenas para `authenticated`, e validação `is_platform_admin()` na primeira linha.

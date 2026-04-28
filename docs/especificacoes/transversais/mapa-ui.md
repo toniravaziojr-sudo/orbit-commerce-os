@@ -78,7 +78,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 
 | # | Item | Rota | Observações |
 |---|------|------|-------------|
-| 1 | Saúde do Sistema | `/platform/system-health` | Onda 1 — Visibilidade. KPIs em tempo real, cron, filas, queries lentas. |
+| 1 | Saúde do Sistema | `/platform/system-health` | Ondas 1+2 — Visibilidade & Resiliência. KPIs banco/cron/filas + KPIs WhatsApp travadas/incidentes/divergências de pagamento. Abas: Tarefas Automatizadas, Filas, WhatsApp (incidentes + mensagens órfãs com ação "Resolver"), Pagamentos (divergências 24h/7d/30d), Queries Lentas, Banco. |
 | 2 | Health Monitor | `/platform/health-monitor` | — |
 | 3 | Integrações da Plataforma | `/platform/integrations` | — |
 | 4 | Sugestões de Blocos | `/platform/block-suggestions` | — |

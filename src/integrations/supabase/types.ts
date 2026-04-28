@@ -22826,6 +22826,25 @@ export type Database = {
           refresh_token: string
         }[]
       }
+      get_payment_divergences: {
+        Args: { p_limit?: number; p_window_hours?: number }
+        Returns: {
+          amount: number
+          created_at: string
+          divergence_type: string
+          method: string
+          order_exists: boolean
+          order_id: string
+          paid_amount: number
+          paid_at: string
+          provider: string
+          provider_transaction_id: string
+          status: string
+          tenant_id: string
+          tenant_name: string
+          transaction_id: string
+        }[]
+      }
       get_public_marketing_config: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -22872,6 +22891,7 @@ export type Database = {
           success_score: number
         }[]
       }
+      get_resilience_kpis: { Args: never; Returns: Json }
       get_security_flag: { Args: { p_flag_key: string }; Returns: boolean }
       get_system_health_overview: { Args: never; Returns: Json }
       get_tenant_module_access: { Args: { p_tenant_id: string }; Returns: Json }
@@ -22902,6 +22922,39 @@ export type Database = {
           qr_expires_at: string
           tenant_id: string
           updated_at: string
+        }[]
+      }
+      get_whatsapp_incidents: {
+        Args: { p_limit?: number }
+        Returns: {
+          acknowledged_at: string
+          detail: string
+          detected_at: string
+          id: string
+          incident_type: string
+          metadata: Json
+          resolved_at: string
+          severity: string
+          status: string
+          tenant_id: string
+          tenant_name: string
+          title: string
+        }[]
+      }
+      get_whatsapp_orphan_inbound: {
+        Args: { p_limit?: number }
+        Returns: {
+          age_minutes: number
+          created_at: string
+          external_message_id: string
+          from_phone: string
+          id: string
+          message_type: string
+          processing_error: string
+          processing_status: string
+          provider: string
+          tenant_id: string
+          tenant_name: string
         }[]
       }
       has_role: {
@@ -23040,6 +23093,10 @@ export type Database = {
           new_balance: number
           success: boolean
         }[]
+      }
+      resolve_whatsapp_incident: {
+        Args: { p_incident_id: string; p_resolution_note?: string }
+        Returns: Json
       }
       revive_transient_failed_captures: {
         Args: never
