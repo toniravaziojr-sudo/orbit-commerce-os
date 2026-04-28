@@ -464,7 +464,17 @@ Deno.serve(async (req) => {
                 }
               }
 
-              if (conversationId) {
+              // Sincroniza outcome com a conversa identificada (mesmo se nula)
+              outcomeConversationId = conversationId;
+
+              if (!conversationId) {
+                // Sem conversa: registra desfecho explícito (não é silêncio).
+                if (outcomeStatus === "failed" && outcomeProcessedBy === "silent_exit") {
+                  outcomeStatus = "failed";
+                  outcomeProcessedBy = "no_conversation";
+                  outcomeError = "Could not locate or create conversation";
+                }
+              } else {
                 const { data: insertedMsg, error: msgError } = await supabase
                   .from("messages")
                   .insert({
@@ -487,6 +497,9 @@ Deno.serve(async (req) => {
 
                 if (msgError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Failed to create message:`, msgError);
+                  outcomeStatus = "failed";
+                  outcomeProcessedBy = "message_persist_failed";
+                  outcomeError = `msgError: ${msgError.message || String(msgError)}`;
                 } else {
                   console.log(`[meta-whatsapp-webhook][${traceId}] Message persisted in support module`);
 
