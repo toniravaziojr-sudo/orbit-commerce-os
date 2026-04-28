@@ -51,6 +51,10 @@ function prepareEmailHtml(rawHtml: string): string {
     } catch {}
   }
 
+  // Autolink: transforma URLs em texto puro em <a> clicáveis.
+  // Protege conteúdo dentro de <a>, <script>, <style> e atributos de tag.
+  html = autolinkHtml(html);
+
   const headInjections =
     '<meta charset="utf-8">' +
     '<base target="_blank" rel="noopener noreferrer">';
@@ -62,6 +66,34 @@ function prepareEmailHtml(rawHtml: string): string {
     return html.replace(/<html([^>]*)>/i, `<html$1><head>${headInjections}</head>`);
   }
   return `<!doctype html><html><head>${headInjections}</head><body>${html}</body></html>`;
+}
+
+/**
+ * Converte URLs (http/https) em texto puro para <a href> clicáveis.
+ * Preserva: conteúdo de <a>, <script>, <style>, e qualquer texto dentro de tags.
+ * Estratégia: tokeniza alternando entre "tag/bloco protegido" e "texto livre",
+ * e só aplica a regex de URL no texto livre.
+ */
+function autolinkHtml(input: string): string {
+  if (!input) return input;
+  const URL_RE = /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]}]/gi;
+  // Divide em segmentos preservando: <a>...</a>, <script>...</script>,
+  // <style>...</style> e qualquer outra tag isolada.
+  const SPLIT_RE = /(<a\b[^>]*>[\s\S]*?<\/a>|<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<[^>]+>)/gi;
+  const parts = input.split(SPLIT_RE);
+  return parts
+    .map((part) => {
+      if (!part) return part;
+      // Bloco protegido ou tag → não toca
+      if (/^<(a|script|style)\b/i.test(part) || /^<[^>]+>$/.test(part)) {
+        return part;
+      }
+      // Texto livre → autolink
+      return part.replace(URL_RE, (url) => {
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+      });
+    })
+    .join('');
 }
 
 interface EmailViewerProps {
