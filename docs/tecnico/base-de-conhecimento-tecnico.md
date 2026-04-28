@@ -902,3 +902,54 @@ END IF;
 - ✅ As 33 funções aparecem em `pg_proc` com `user_has_tenant_access` no corpo.
 - ✅ Migration aplicada sem regressão funcional (testes de fluxo: `add_credits` via edge function, `generate_order_number` via trigger, `get_ai_memories` via UI).
 - ✅ Linter Supabase: 219 alertas (4 novos `Function Search Path Mutable` em funções já existentes, não relacionados às mudanças desta onda — pré-existentes nas funções convertidas para plpgsql; `SET search_path TO 'public'` foi preservado em todas).
+
+---
+
+## 2026-04-28 — Hardening de Superfície de Ataque (Onda 4.1 — encerrada)
+
+**Objetivo:** Reduzir o número de funções `SECURITY DEFINER` invocáveis via `POST /rest/v1/rpc/<name>` por roles `anon`/`authenticated`/`PUBLIC`. A Onda 3 instalou guard interno (Pattern 6); a Onda 4.1 fecha a porta de entrada antes que o guard seja invocado, conforme recomendação oficial dos lints `0028_anon_security_definer_function_executable` e `0029_authenticated_security_definer_function_executable`.
+
+**Resultado mensurável:** Alertas do Supabase Linter caíram de **219 → 75** (redução de **144 alertas**, ~66%).
+
+**Padrão de classificação aplicado (4 categorias):**
+
+| Categoria | Critério | Decisão de grant | Nº de funções |
+|---|---|---|---|
+| **A — Já protegidas (Onda 3)** | Grants já restritos a `service_role`/`postgres` | Manter como está | 25 |
+| **B — Helpers de RLS** | Função aparece em `USING/CHECK` de policy `pg_policies` | Manter `EXECUTE` para `anon` E `authenticated` (Postgres precisa avaliar a policy no role do caller) | 9 |
+| **C — Trigger functions** | Função associada a `pg_trigger` (não-interno) | `REVOKE EXECUTE FROM PUBLIC, anon, authenticated` (trigger executa no contexto do banco; grant é irrelevante) | 27 |
+| **D — RPC chamada pelo front logado** | Aparece em `grep -rohE '\.rpc\("name"' src/` | `REVOKE FROM PUBLIC, anon` + manter `authenticated` | 22 |
+| **E — Edge-only / service_role** | Restantes (chamadas só por edge functions) | `REVOKE FROM PUBLIC, anon, authenticated` (edge usa `service_role`) | ~37 |
+| **F — Pública intencional** | `get_public_marketing_config` — usada pelo storefront público | Manter `anon` E `authenticated` (documentada como exceção) | 1 |
+
+**Trava futura (mandatória — sem isso novas funções nascem vulneráveis de novo):**
+```sql
+ALTER DEFAULT PRIVILEGES IN SCHEMA public 
+  REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
+```
+
+**Exceções formalmente declaradas (não devem ser "corrigidas" no futuro):**
+
+1. **RLS Helpers (B):** `belongs_to_tenant`, `get_current_tenant_id`, `has_role`, `is_owner_of_member_tenant`, `is_platform_admin_by_auth`, `is_tenant_owner`, `user_belongs_to_tenant`, `user_has_tenant_access` — Postgres precisa de `EXECUTE` para o role que dispara a query, senão **toda RLS quebra com erro 42501**. Lint aceita como exceção.
+2. **Pública (F):** `get_public_marketing_config(uuid)` — endpoint público do storefront por design. Filtra dados internamente para devolver apenas configurações de marketing já visíveis na vitrine.
+3. **`is_platform_admin()`:** mantém `authenticated` (não `anon`) por ser usada por hooks da UI logada.
+
+**Anti-regressão:**
+
+1. Toda nova função `SECURITY DEFINER` nasce sem grant para `anon`/`authenticated`/`PUBLIC` por causa do `ALTER DEFAULT PRIVILEGES`. Para RPCs chamadas pelo front, conceder explicitamente: `GRANT EXECUTE ON FUNCTION public.<fn> TO authenticated;`
+2. Antes de remover uma função da lista de exceções B (RLS helpers), validar com `SELECT * FROM pg_policies WHERE qual::text LIKE '%<fn>%' OR with_check::text LIKE '%<fn>%';` — se aparecer em alguma policy, NÃO revogar.
+3. Quando uma função sai de "edge-only" para "chamada pelo front", concedê-la a `authenticated` na mesma migration que adiciona a chamada no `src/`.
+
+**Validação técnica executada:**
+- ✅ `pg_proc.proacl` confirma 22 RPCs do front com `authenticated=X/postgres`, `anon` ausente.
+- ✅ `pg_proc.proacl` confirma 9 RLS helpers preservaram `anon=X/postgres` e `authenticated=X/postgres`.
+- ✅ `get_public_marketing_config` mantém `anon=X/postgres` (exceção F).
+- ✅ Total de funções `SECURITY DEFINER` ainda expostas a `anon`: 9 (helpers RLS) + 1 (pública intencional) = **10**, todas declaradas.
+- ✅ Total expostas a `authenticated`: 31 (9 helpers + 22 RPCs do front + alguns auxiliares de apps internos).
+- ✅ Linter Supabase: 75 alertas (queda de 144). Restam: 27 RLS Policy Always True (Onda 4.2), 4 Public Bucket Allows Listing (Onda 4.3), ~40 EXECUTE em funções legítimas (B+D+F — exceções), 1 search_path mutable, 1 Extension in public, 1 RLS enabled no policy, 1 Leaked password protection (Onda 5).
+
+**Próximas ondas:**
+- **Onda 4.2:** Refazer 27 policies RLS com `USING (true)` / `WITH CHECK (true)` em INSERT/UPDATE/DELETE.
+- **Onda 4.3:** Restringir 4 buckets públicos com policy de listagem aberta.
+- **Onda 4.4:** Mover extensão de `public` para `extensions`, criar policy na tabela órfã, fixar `search_path` na função remanescente.
+- **Onda 5:** Auth hardening (leaked password, OTP expiry, MFA platform admin).
