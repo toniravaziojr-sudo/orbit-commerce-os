@@ -171,10 +171,12 @@ export function EmailViewer({ messageId, onClose, onReply }: EmailViewerProps) {
         <div className="p-4">
           {message.body_html ? (
             <iframe
-              srcDoc={message.body_html}
+              srcDoc={prepareEmailHtml(message.body_html)}
               title="Email content"
               className="w-full border-0 min-h-[400px]"
-              sandbox="allow-same-origin"
+              // allow-popups + escape-sandbox => links abrem em nova aba normalmente.
+              // allow-same-origin é mantido para conseguir medir scrollHeight.
+              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
               style={{ height: '600px' }}
               onLoad={(e) => {
                 // Auto-resize iframe to content height
