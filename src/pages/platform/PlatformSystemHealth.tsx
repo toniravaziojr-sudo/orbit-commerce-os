@@ -105,7 +105,6 @@ function HealthDashboard() {
     queues.refetch();
     resilience.refetch();
   };
-  };
 
   // Métricas derivadas — "Indisponível" quando falha (NUNCA cair para 0)
   const conn = overview.data?.connections;
