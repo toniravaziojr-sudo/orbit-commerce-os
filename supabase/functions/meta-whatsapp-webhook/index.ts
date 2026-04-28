@@ -298,6 +298,17 @@ Deno.serve(async (req) => {
                 console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] inbound insert threw (non-blocking):`, auditErr);
               }
 
+              // ═══ ANTI-REGRESSÃO (abr/2026): outcome SEMPRE registrado ═══
+              // Defaults pessimistas — se nada atualizar, o desfecho fica
+              // explícito como "silent_exit" e a watcher abre incidente.
+              // Toda saída do processamento (sucesso, early return, exceção)
+              // passa pelo `finally` no fim, que persiste o desfecho final.
+              let outcomeStatus: string = "failed";
+              let outcomeProcessedBy: string = "silent_exit";
+              let outcomeError: string | null = "Pipeline ended without explicit outcome";
+              let outcomeConversationId: string | null = null;
+
+              try {
               // ═══ ROUTING DECISION: Admin (Agenda) vs Customer (Support) ═══
               const { data: authorizedPhones } = await supabase
                 .from("agenda_authorized_phones")
