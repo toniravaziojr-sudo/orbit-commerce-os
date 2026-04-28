@@ -5178,6 +5178,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
     }
 
+    const latencyMs = Date.now() - startTime;
+
     // ============================================
     // STEP 8: RECORD USAGE & METRICS
     // ============================================
