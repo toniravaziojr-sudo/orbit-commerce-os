@@ -304,6 +304,9 @@ Definida em `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` §3. Resumo:
 - **Cliente (próprio):** `lookup_customer`, `save_customer_data`, `update_customer_record` (apenas dados de contato/entrega da própria conversa).
 - **Logística/checkout:** `calculate_shipping`, `generate_checkout_link`.
 - **Escalada:** `request_human_handoff` (atômico, terminal e idempotente).
+  - **Idempotência por conversa:** enquanto existir um chamado de atendimento em aberto ou pendente vinculado à conversa, novas chamadas de handoff **atualizam o mesmo chamado** (motivo, prioridade, resumo, contexto do carrinho) em vez de criar um chamado novo. Isso evita duplicação de tickets quando a IA reaciona o handoff em mensagens seguintes.
+  - **Atômico:** o mesmo acionamento marca a conversa como aguardando agente, vincula o chamado e registra o motivo no carrinho ativo.
+  - **Terminal:** após o handoff, a IA encerra o turno sem novas tools nem fala livre.
 
 **Tudo que não está nessa lista é proibido**, incluindo: cancelar pedido, alterar status de pedido pago, criar/editar cupom, alterar preço/estoque de produto, alterar dados de outro cliente, acessar dados de outro tenant, enviar e-mail manual, executar SQL livre, chamar APIs administrativas.
 
