@@ -1072,3 +1072,51 @@ CREATE POLICY "..." ON storage.objects FOR SELECT TO service_role
 
 - **Onda 4.4:** Mover extensão de `public` para `extensions`, criar policy na tabela órfã (RLS Enabled No Policy), fixar último `search_path` mutable.
 - **Onda 5:** Auth hardening (leaked password protection, OTP expiry, MFA para platform admin).
+
+## 2026-04-28 — Hardening final + HIBP (Onda 4.4 — encerrada)
+
+**Objetivo:** Fechar a Onda 4 tratando os warnings residuais (extensão em public, função sem search_path, RLS sem policy, SECURITY DEFINER administrativas) e ativar Leaked Password Protection.
+
+### Ações executadas
+
+| Frente | Ação | Resultado |
+|--------|------|-----------|
+| Função admin sem uso pelo client | `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated` em `update_customer_order_stats(uuid)`; `GRANT ... TO service_role` | -1 alerta SECURITY DEFINER |
+| RLS Enabled No Policy | `ai_model_param_compat`: policy SELECT pública (catálogo de referência) + ALL para service_role | -1 alerta INFO |
+| Leaked Password Protection | `configure_auth({password_hibp_enabled: true})` | Auth atualizado |
+| Function Search Path Mutable | Investigado: 0 funções `public` sem search_path. Alerta restante = extensão nativa (`pgcrypto`/`pgvector`), não modificável | Falso-positivo aceito |
+| Extension in Public (`pg_net`) | Não movido — usado por triggers/queues em `_shared/`. Mover quebraria integrações | Exceção aceita |
+
+### 42 alertas restantes (todos exceções arquiteturais)
+
+Ver `mem://constraints/security-linter-accepted-exceptions` para a whitelist completa e justificativa de cada categoria.
+
+| Categoria | Qtd | Status |
+|---|---|---|
+| SECURITY DEFINER anon (9 helpers RLS) | 9 | Necessário para storefront público |
+| SECURITY DEFINER authenticated (RPCs com Tenant Identity Guard) | 31 | Modelo arquitetural validado |
+| Extension `pg_net` em `public` | 1 | Risco de mover > ganho |
+| Function Search Path (extensão nativa) | 1 | Falso-positivo do linter |
+
+### Validação técnica
+
+- ✅ Migration aplicada com sucesso
+- ✅ Linter: 44 → 42 alertas
+- ✅ HIBP ativado (Auth configuration updated successfully)
+- ✅ `pg_proc` confirma 0 funções `public` SECURITY DEFINER sem search_path
+- ✅ Whitelist documentada com base em `rg "\.rpc\(" src/ supabase/functions/`
+
+### Encerramento da Onda 4
+
+| Onda | Foco | Alertas (antes → depois) |
+|------|------|---------------------------|
+| 4.1 | SECURITY DEFINER EXECUTE revoke default | 75 → 60 |
+| 4.2 | RLS Write Hardening | 60 → 48 |
+| 4.3 | Storage Bucket Listing | 48 → 44 |
+| 4.4 | Hardening final + HIBP | 44 → 42 |
+
+**Redução total: 44%** (33 alertas eliminados). Os 42 restantes são exceções arquiteturais documentadas em `mem://constraints/security-linter-accepted-exceptions`.
+
+### Próxima onda (proposta — não iniciada)
+
+- **Onda 5:** Auth hardening avançado — OTP expiry tuning, MFA obrigatório para platform admin, audit log de tentativas falhas.
