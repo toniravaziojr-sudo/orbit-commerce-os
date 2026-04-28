@@ -101,23 +101,39 @@ function HealthDashboard() {
     queues.refetch();
   };
 
-  // Métricas derivadas
+  // Métricas derivadas — "Indisponível" quando falha (NUNCA cair para 0)
   const conn = overview.data?.connections;
-  const usagePct = conn ? Math.round((conn.total / conn.max) * 100) : 0;
-  const cacheRatio = overview.data?.cache_hit_ratio ?? 0;
+  const overviewUnavailable = !!overview.error || (!overview.isLoading && !overview.data);
+  const usagePct = conn ? Math.round((conn.total / conn.max) * 100) : null;
+  const cacheRatio = overview.data?.cache_hit_ratio ?? null;
 
-  const connVariant = usagePct >= 80 ? 'destructive' : usagePct >= 60 ? 'warning' : 'success';
-  const cacheVariant = cacheRatio >= 99 ? 'success' : cacheRatio >= 95 ? 'warning' : 'destructive';
+  const connVariant = overviewUnavailable
+    ? 'muted'
+    : usagePct === null
+      ? 'muted'
+      : usagePct >= 80 ? 'destructive' : usagePct >= 60 ? 'warning' : 'success';
+  const cacheVariant = overviewUnavailable
+    ? 'muted'
+    : cacheRatio === null
+      ? 'muted'
+      : cacheRatio >= 99 ? 'success' : cacheRatio >= 95 ? 'warning' : 'destructive';
 
-  const failedCronTotal = (cronJobs.data ?? []).reduce(
-    (acc, j) => acc + (j.failures_last_24h || 0),
-    0,
-  );
-  const cronVariant = failedCronTotal > 100 ? 'destructive' : failedCronTotal > 0 ? 'warning' : 'success';
+  const cronUnavailable = !!cronJobs.error || (!cronJobs.isLoading && !cronJobs.data);
+  const failedCronTotal = cronUnavailable
+    ? null
+    : (cronJobs.data ?? []).reduce((acc, j) => acc + (j.failures_last_24h || 0), 0);
+  const cronVariant = cronUnavailable
+    ? 'muted'
+    : (failedCronTotal ?? 0) > 100 ? 'destructive' : (failedCronTotal ?? 0) > 0 ? 'warning' : 'success';
 
+  const queuesUnavailable = !!queues.error || (!queues.isLoading && !queues.data);
   const queueEntries = Object.entries(queues.data ?? {});
-  const orphansTotal = queueEntries.reduce((acc, [, v]) => acc + (v?.pending_or_orphans || 0), 0);
-  const queueVariant = orphansTotal > 100 ? 'destructive' : orphansTotal > 0 ? 'warning' : 'success';
+  const orphansTotal = queuesUnavailable
+    ? null
+    : queueEntries.reduce((acc, [, v]) => acc + (v?.pending_or_orphans || 0), 0);
+  const queueVariant = queuesUnavailable
+    ? 'muted'
+    : (orphansTotal ?? 0) > 100 ? 'destructive' : (orphansTotal ?? 0) > 0 ? 'warning' : 'success';
 
   return (
     <div className="container mx-auto py-8 space-y-6">
