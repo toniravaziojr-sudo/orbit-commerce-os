@@ -3,9 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, isOAuthInProgress } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable';
 import logoHorizontal from '@/assets/logo-horizontal.png';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,7 +59,7 @@ type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, signIn, signUp, resetPassword, isLoading: authLoading } = useAuth();
+  const { user, signIn, signUp, signInWithGoogle, resetPassword, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -281,49 +280,24 @@ export default function Auth() {
     }
   };
 
-  // Handler para LOGIN com Google (apenas usuários existentes)
+  // Handler para LOGIN com Google (apenas usuários existentes).
+  // Toda chamada OAuth passa por useAuth.signInWithGoogle (fonte única).
+  // A bandeira oauth_in_progress é gerenciada lá dentro — não duplicar aqui.
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    try {
-      // Marcar intenção como LOGIN - usa localStorage para persistir após redirect
-      localStorage.setItem('oauth_intent', 'login');
-      
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: `${window.location.origin}/auth`,
-      });
-      
-      if (result.error) {
-        localStorage.removeItem('oauth_intent');
-        toast.error('Erro ao fazer login com Google. Tente novamente.');
-        setIsLoading(false);
-      }
-      // Se redirected, o usuário foi redirecionado para o Google
-    } catch (error) {
-      localStorage.removeItem('oauth_intent');
+    const { error } = await signInWithGoogle('login');
+    if (error) {
       toast.error('Erro ao fazer login com Google. Tente novamente.');
       setIsLoading(false);
     }
+    // Sucesso: navegador redireciona para Google; nada mais a fazer aqui.
   };
 
-  // Handler para SIGNUP com Google (cria novo usuário)
+  // Handler para SIGNUP com Google (cria novo usuário).
   const handleGoogleSignup = async () => {
     setIsLoading(true);
-    try {
-      // Marcar intenção como SIGNUP - usa localStorage para persistir após redirect
-      localStorage.setItem('oauth_intent', 'signup');
-      
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: `${window.location.origin}/auth`,
-      });
-      
-      if (result.error) {
-        localStorage.removeItem('oauth_intent');
-        toast.error('Erro ao criar conta com Google. Tente novamente.');
-        setIsLoading(false);
-      }
-      // Se redirected, o usuário foi redirecionado para o Google
-    } catch (error) {
-      localStorage.removeItem('oauth_intent');
+    const { error } = await signInWithGoogle('signup');
+    if (error) {
       toast.error('Erro ao criar conta com Google. Tente novamente.');
       setIsLoading(false);
     }
