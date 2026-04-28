@@ -5135,7 +5135,48 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
     }
 
-    const latencyMs = Date.now() - startTime;
+    // ============================================
+    // [FIX-D] ACTION-INVENTION SCRUBBER — AÇÕES INVENTADAS PELO MODELO
+    // Bloqueia frases como "reenviei o e-mail", "acionei o suporte",
+    // "encaminhei pra equipe", "atualizei seu cadastro" quando NENHUMA tool
+    // correspondente foi chamada neste turno. O modelo afirmar uma ação que
+    // não aconteceu cria expectativa quebrada no cliente e gera reclamação
+    // direta. Quando detectado, substitui pela frase neutra de handoff e
+    // marca a conversa para escalada (shouldHandoff = true).
+    // ============================================
+    if (aiContent && typeof aiContent === "string") {
+      try {
+        const ACTION_INVENTION_PATTERNS: RegExp[] = [
+          /\b(reenviei|reenviarei|j[áa]\s+reenviei)\s+(o\s+)?(e-?mail|email|c[óo]digo|link)/i,
+          /\b(encaminhei|j[áa]\s+encaminhei|vou\s+encaminhar\s+agora)\s+(pra|para|ao)\s+(equipe|suporte|financeiro|log[íi]stica)/i,
+          /\b(acionei|j[áa]\s+acionei|disparei)\s+(o\s+)?(suporte|t[ée]cnico|financeiro|log[íi]stica)/i,
+          /\b(atualizei|alterei|corrigi)\s+(seu|o\s+seu)\s+(cadastro|endere[çc]o|email|telefone|cpf|dado)/i,
+          /\b(cancelei|estornei|reembolsei)\s+(seu|o\s+seu)?\s*(pedido|compra|pagamento)/i,
+          /\bj[áa]\s+abri\s+(um\s+)?(chamado|ticket|protocolo)/i,
+        ];
+        const hasInvention = ACTION_INVENTION_PATTERNS.some((re) => re.test(aiContent));
+        if (hasInvention) {
+          // Tools que JUSTIFICAM essas falas. Se nenhuma rodou neste turno,
+          // a frase é inventada.
+          const ACTION_BACKING_TOOLS = new Set([
+            "request_human_handoff",
+            "save_customer_data",
+            "update_customer_record",
+          ]);
+          const hasBackingTool = toolsCalledThisTurn.some((t) => ACTION_BACKING_TOOLS.has(t));
+          if (!hasBackingTool) {
+            console.warn(
+              `[ai-support-chat] [FIX-D] action-invention scrubbed — modelo afirmou ação sem tool. tools=${JSON.stringify(toolsCalledThisTurn)} text="${aiContent.slice(0, 120)}"`,
+            );
+            aiContent = "Vou chamar alguém da equipe pra resolver isso direto com você. Já te respondem por aqui.";
+            shouldHandoff = true;
+            handoffReason = handoffReason || "unsupported_action_promised";
+          }
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [FIX-D] action-invention scrubber failed:", (e as Error).message);
+      }
+    }
 
     // ============================================
     // STEP 8: RECORD USAGE & METRICS
