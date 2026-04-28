@@ -63,6 +63,13 @@ Garantir que **toda** mensagem que entra pelo webhook da Meta tenha desfecho reg
 - Healthcheck de token (`/me`) **não substitui** a verificação da assinatura.
 - Token vivo + assinatura morta = pipeline silencioso (cenário jan/2026).
 
+### Camada 6 — Dedupe de Redelivery da Meta (`meta-whatsapp-webhook`)
+- Cenário (descoberto abr/2026): a Meta reentrega mensagens não confirmadas em <30s. A 2ª execução faz novo INSERT (novo id, mesmo `external_message_id`), entra no fluxo de IA, gasta >30s no debounce + `ai-support-chat`, e o runtime do edge function mata a execução **antes do `finally`** rodar — deixando a linha-filha em `received` para sempre. Resultado: 93% das órfãs eram redeliveries de mensagens já respondidas (cliente NÃO ficou sem resposta, mas o painel inflava).
+- Solução: **antes** do bloco `try` do pipeline, o webhook consulta se já existe outra linha com mesmo `(tenant_id, external_message_id)` e `processed_at IS NOT NULL`. Se existir, marca a redelivery como `skipped/redelivery_dedup` em ~50ms e faz `continue` — sem entrar no debounce nem chamar IA.
+- Suportada por índice `idx_whatsapp_inbound_external_msg_id` em `(tenant_id, external_message_id, processed_at)`.
+- Adiciona `redelivery_dedup` aos códigos canônicos de `processed_by`.
+- **Proibido remover** essa checagem: sem ela, qualquer pico de redelivery da Meta volta a inflar órfãs.
+
 ## 4. Estados Canônicos de `processing_status`
 
 | Status      | Significado                                                                |
@@ -102,4 +109,5 @@ WHERE processed_by = 'silent_exit' AND timestamp > NOW() - INTERVAL '24 hours';
 | Data        | Sintoma                                            | Causa raiz                                      | Camada que cobre |
 |-------------|----------------------------------------------------|-------------------------------------------------|------------------|
 | jan/2026    | 1.980 mensagens com `processed_at NULL`            | Assinatura `messages` perdida na Meta           | Camada 5         |
-| abr/2026    | 2.657 mensagens em `received` sem desfecho         | Early returns/exceções no webhook sem update    | Camadas 1, 2, 3  |
+| abr/2026 (1)| 2.657 mensagens em `received` sem desfecho         | Early returns/exceções no webhook sem update    | Camadas 1, 2, 3  |
+| abr/2026 (2)| 367 órfãs, 93% sendo redeliveries duplicadas       | Timeout do edge function antes do `finally` em redeliveries da Meta | Camada 6 |
