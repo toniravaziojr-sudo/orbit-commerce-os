@@ -52,12 +52,29 @@ export type QueueHealthMap = Record<string, QueueHealthEntry>;
 const REFRESH_FAST = 30_000;
 const REFRESH_SLOW = 60_000;
 
+function toRpcError(error: unknown, fallback: string) {
+  if (!error) return new Error(fallback);
+  if (error instanceof Error) return error;
+
+  if (typeof error === 'object') {
+    const message = 'message' in error && typeof error.message === 'string'
+      ? error.message
+      : 'details' in error && typeof error.details === 'string'
+        ? error.details
+        : fallback;
+
+    return new Error(message);
+  }
+
+  return new Error(String(error));
+}
+
 export function useSystemHealthOverview() {
   return useQuery({
     queryKey: ['system-health', 'overview'],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_system_health_overview');
-      if (error) throw error;
+      if (error) throw toRpcError(error, 'Falha ao carregar visão geral da saúde do sistema');
       return data as unknown as SystemHealthOverview;
     },
     refetchInterval: REFRESH_FAST,
@@ -70,7 +87,7 @@ export function useTopSlowQueries(limit = 10) {
     queryKey: ['system-health', 'slow-queries', limit],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_top_slow_queries', { p_limit: limit });
-      if (error) throw error;
+      if (error) throw toRpcError(error, 'Falha ao carregar queries lentas');
       return (data ?? []) as SlowQuery[];
     },
     refetchInterval: REFRESH_SLOW,
@@ -83,7 +100,7 @@ export function useCronJobsStatus() {
     queryKey: ['system-health', 'cron'],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_cron_jobs_status');
-      if (error) throw error;
+      if (error) throw toRpcError(error, 'Falha ao carregar tarefas automatizadas');
       return (data ?? []) as unknown as CronJobStatus[];
     },
     refetchInterval: REFRESH_SLOW,
@@ -96,7 +113,7 @@ export function useQueueHealth() {
     queryKey: ['system-health', 'queues'],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_queue_health');
-      if (error) throw error;
+      if (error) throw toRpcError(error, 'Falha ao carregar filas monitoradas');
       return (data ?? {}) as unknown as QueueHealthMap;
     },
     refetchInterval: REFRESH_FAST,
