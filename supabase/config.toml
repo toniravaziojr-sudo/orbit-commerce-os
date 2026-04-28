@@ -763,3 +763,6 @@ verify_jwt = false
 [functions.tiktok-token-refresh-cron]
 verify_jwt = false
 schedule = "0 */6 * * *"
+
+[functions.log-login-attempt]
+verify_jwt = false

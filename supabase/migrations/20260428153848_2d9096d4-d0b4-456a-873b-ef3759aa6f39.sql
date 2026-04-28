@@ -1,0 +1,1 @@
+DELETE FROM public.auth_login_attempts WHERE email = 'teste-onda5@validacao.local';
