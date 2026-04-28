@@ -5086,6 +5086,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       } catch (e) {
         console.warn("[ai-support-chat] [FIX-C] knowledge scrubber failed:", (e as Error).message);
       }
+    }
+
+    const latencyMs = Date.now() - startTime;
 
     // ============================================
     // STEP 8: RECORD USAGE & METRICS
