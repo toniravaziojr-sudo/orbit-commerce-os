@@ -454,6 +454,9 @@ Deno.serve(async (req) => {
 
                 if (convError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Failed to create conversation:`, convError);
+                  outcomeStatus = "failed";
+                  outcomeProcessedBy = "conversation_create_failed";
+                  outcomeError = `convError: ${convError.message || String(convError)}`;
                 } else {
                   conversationId = newConv.id;
                   existingStatus = newConv.status;
