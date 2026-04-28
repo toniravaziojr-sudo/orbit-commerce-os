@@ -323,8 +323,11 @@ export default function Auth() {
   };
 
   // LATCH: Só mostra loader na PRIMEIRA carga - após isso, nunca bloqueia a tela
-  // Isso é crítico para evitar tela cinza durante operações OAuth ou com Google Tradutor
-  if (authLoading && !initialRenderComplete) {
+  // Isso é crítico para evitar tela cinza durante operações OAuth ou com Google Tradutor.
+  // EXCEÇÃO: callback OAuth em curso (isOAuthInProgress) força o loader mesmo
+  // depois do latch, evitando flash da tela de login vazia entre o retorno do
+  // Google e o redirect final. Padrão §4.5 da base técnica (lado receptor).
+  if ((authLoading && !initialRenderComplete) || isOAuthInProgress()) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
