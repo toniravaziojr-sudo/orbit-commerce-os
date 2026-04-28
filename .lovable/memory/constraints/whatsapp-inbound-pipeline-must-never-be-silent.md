@@ -19,10 +19,12 @@ Cenário-pai: jan/2026 (1.980 órfãs por assinatura `messages` perdida na Meta)
 
 5. **Assinatura do webhook (`subscribed_apps` com `subscribed_fields=[messages,...]`)** precisa ser re-postada diariamente em todos os tenants Meta ativos pelo `meta-whatsapp-monitor-all`, mesmo quando diagnóstico diz "healthy". Healthcheck de token (`/me`) **NÃO** substitui verificação da assinatura. Token vivo + assinatura morta = pipeline silencioso.
 
-6. **Versão Meta v25.0** é a validada. Trocar exige novo teste E2E de recepção, não só de envio.
+6. **Dedupe de redelivery por `external_message_id`** é OBRIGATÓRIO no início do webhook, ANTES do bloco `try` do pipeline. A Meta reentrega mensagens não confirmadas em <30s; sem dedupe, a 2ª execução roda IA inteira e morre por timeout antes do `finally`, gerando órfã permanente. Suportado por índice `idx_whatsapp_inbound_external_msg_id`. **Proibido remover** essa checagem.
 
-7. **Proibido reprocessamento automático** de órfãs — só visibilidade. Reprocessar é decisão humana caso a caso.
+7. **Versão Meta v25.0** é a validada. Trocar exige novo teste E2E de recepção, não só de envio.
 
-**Códigos canônicos de `processed_by`:** `agenda_agent`, `agenda_failed`, `ai_support`, `ai_failed`, `gate:<motivo>`, `debounce_merged(N)`, `conversation_create_failed`, `message_persist_failed`, `no_conversation`, `pipeline_exception`, `silent_exit` (NUNCA em produção).
+8. **Proibido reprocessamento automático** de órfãs — só visibilidade. Reprocessar é decisão humana caso a caso.
+
+**Códigos canônicos de `processed_by`:** `agenda_agent`, `agenda_failed`, `ai_support`, `ai_failed`, `gate:<motivo>`, `debounce_merged(N)`, `redelivery_dedup`, `conversation_create_failed`, `message_persist_failed`, `no_conversation`, `pipeline_exception`, `silent_exit` (NUNCA em produção).
 
 **Card visual:** `WhatsAppHealthCard` na Central de Comando + aba WhatsApp em `/platform/system-health` (Onda 2 abr/2026).
