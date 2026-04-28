@@ -27,6 +27,43 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+/**
+ * Prepara o HTML do e-mail recebido para renderização segura no iframe:
+ * 1. Garante <meta charset="utf-8"> para evitar mojibake quando o HTML
+ *    original não declara o charset.
+ * 2. Injeta <base target="_blank" rel="noopener noreferrer"> para que
+ *    todos os links abram em nova aba (o sandbox bloqueia top-navigation).
+ * 3. Detecta heuristicamente mojibake clássico (Ã©, Ã£, etc.) em e-mails
+ *    historicos e tenta recuperar Latin-1 -> UTF-8 como best-effort.
+ */
+function prepareEmailHtml(rawHtml: string): string {
+  let html = rawHtml || "";
+
+  // Best-effort: corrige mojibake comum (UTF-8 lido como Latin-1)
+  if (/[ÃÂ][\x80-\xBF]/.test(html)) {
+    try {
+      const recovered = decodeURIComponent(escape(html));
+      // Só aplica se reduziu drasticamente os marcadores de mojibake
+      if ((recovered.match(/[ÃÂ][\x80-\xBF]/g) || []).length <
+          (html.match(/[ÃÂ][\x80-\xBF]/g) || []).length / 2) {
+        html = recovered;
+      }
+    } catch {}
+  }
+
+  const headInjections =
+    '<meta charset="utf-8">' +
+    '<base target="_blank" rel="noopener noreferrer">';
+
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head([^>]*)>/i, `<head$1>${headInjections}`);
+  }
+  if (/<html[^>]*>/i.test(html)) {
+    return html.replace(/<html([^>]*)>/i, `<html$1><head>${headInjections}</head>`);
+  }
+  return `<!doctype html><html><head>${headInjections}</head><body>${html}</body></html>`;
+}
+
 interface EmailViewerProps {
   messageId: string;
   onClose: () => void;
