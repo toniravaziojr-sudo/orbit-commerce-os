@@ -224,7 +224,29 @@ function isOnTenantHost(): boolean {
 }
 
 
-const queryClient = new QueryClient();
+// =============================================
+// ONDA 6 — Performance: defaults globais do React Query
+// - staleTime 60s: evita refetch redundante na navegação entre abas/módulos
+// - gcTime 5min: mantém cache em memória por mais tempo (volta à tela = instantâneo)
+// - refetchOnWindowFocus false: para de refazer queries só por trocar de aba do browser
+// - refetchOnReconnect true: ainda recupera dados ao voltar de offline
+// - retry 1: falha rápido em vez de travar a UI por 4 tentativas
+// Telas que precisem de dados sempre frescos podem sobrescrever localmente com staleTime: 0.
+// =============================================
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000,
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      retry: 1,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 // Determine if we should render tenant routes at root (for custom/platform domains)
 const shouldUseTenantRootRoutes = isOnTenantHost();

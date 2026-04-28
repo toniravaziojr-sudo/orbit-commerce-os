@@ -22989,6 +22989,7 @@ export type Database = {
           total_time_ms: number
         }[]
       }
+      get_user_bootstrap: { Args: never; Returns: Json }
       get_whatsapp_config_for_tenant: {
         Args: { p_tenant_id: string }
         Returns: {
