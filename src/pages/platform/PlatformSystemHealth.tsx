@@ -1,4 +1,4 @@
-import { Activity, Database, Clock, Layers, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Activity, Database, Clock, Layers, AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, MessageSquare, CreditCard, Inbox } from 'lucide-react';
 import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,10 @@ import {
   useQueueHealth,
   useSystemHealthOverview,
   useTopSlowQueries,
+  useResilienceKpis,
 } from '@/hooks/useSystemHealth';
+import { WhatsAppIncidentsTab } from '@/components/platform/health/WhatsAppIncidentsTab';
+import { PaymentDivergencesTab } from '@/components/platform/health/PaymentDivergencesTab';
 
 function ErrorBanner({ title, error }: { title: string; error: unknown }) {
   const msg = error instanceof Error ? error.message : String(error ?? 'erro desconhecido');
