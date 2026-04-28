@@ -354,7 +354,7 @@ Deno.serve(async (req) => {
                 outcomeError = agendaOk ? null : "agenda invocation failed";
                 // Admin messages do NOT create support conversations
               } else {
-              // ── ROUTE TO SUPPORT FLOW (Phase 1: inbound desacoplado da IA) ──
+              // (Customer flow continua abaixo)
               // Ordem: (1) localizar/criar conversa SEM sobrescrever status,
               //        (2) persistir mensagem inbound,
               //        (3) só então decidir se IA responde via shared gate.
