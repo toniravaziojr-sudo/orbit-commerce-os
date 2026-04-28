@@ -4434,7 +4434,36 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // permitidas vão para o modelo.
           if (salesModeEnabled && pipelineFilteredTools.length > 0) {
             requestBody.tools = pipelineFilteredTools;
-            requestBody.tool_choice = salesTriggerFired ? "required" : "auto";
+            // [FIX-B] Quando estamos em checkout_assist com TODOS os 4 dados
+            // (nome/email/cpf/cep) e sinal de intenção de fechar (compra
+            // recente ou fala explícita "quero comprar/finalizar/manda link"),
+            // forçamos o modelo a chamar generate_checkout_link em vez de
+            // mais uma pergunta confirmatória ("Quer que eu finalize?").
+            // Isto elimina o loop infinito observado em produção.
+            const lcMsgForBuy = (lastMessageContent || "").toLowerCase();
+            const explicitBuyNow = /\b(pode (gerar|mandar|enviar)|gera o link|manda o link|envia o link|finaliza|fechar (o )?pedido|quero (fechar|comprar|finalizar)|vou levar|pode finalizar|sim,? (pode|fecha|quero))\b/.test(lcMsgForBuy);
+            const generateCheckoutAvailable = pipelineFilteredTools.some(
+              (t: any) => t?.function?.name === "generate_checkout_link"
+            );
+            const forceCheckoutLink =
+              pipelineState === "checkout_assist" &&
+              checkoutChecklist.ready &&
+              generateCheckoutAvailable &&
+              (salesIntentFlags.buy || explicitBuyNow || recentPurchaseIntentBefore);
+
+            if (forceCheckoutLink) {
+              requestBody.tool_choice = {
+                type: "function",
+                function: { name: "generate_checkout_link" },
+              };
+              console.log(
+                `[ai-support-chat] [FIX-B] forcing tool_choice=generate_checkout_link ` +
+                `state=${pipelineState} ready=${checkoutChecklist.ready} ` +
+                `intent_buy=${salesIntentFlags.buy} explicit=${explicitBuyNow} recent=${recentPurchaseIntentBefore}`
+              );
+            } else {
+              requestBody.tool_choice = salesTriggerFired ? "required" : "auto";
+            }
             requestBody.parallel_tool_calls = false;
           }
 
