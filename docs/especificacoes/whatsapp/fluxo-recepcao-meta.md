@@ -109,4 +109,5 @@ WHERE processed_by = 'silent_exit' AND timestamp > NOW() - INTERVAL '24 hours';
 | Data        | Sintoma                                            | Causa raiz                                      | Camada que cobre |
 |-------------|----------------------------------------------------|-------------------------------------------------|------------------|
 | jan/2026    | 1.980 mensagens com `processed_at NULL`            | Assinatura `messages` perdida na Meta           | Camada 5         |
-| abr/2026    | 2.657 mensagens em `received` sem desfecho         | Early returns/exceções no webhook sem update    | Camadas 1, 2, 3  |
+| abr/2026 (1)| 2.657 mensagens em `received` sem desfecho         | Early returns/exceções no webhook sem update    | Camadas 1, 2, 3  |
+| abr/2026 (2)| 367 órfãs, 93% sendo redeliveries duplicadas       | Timeout do edge function antes do `finally` em redeliveries da Meta | Camada 6 |
