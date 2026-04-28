@@ -5342,6 +5342,64 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
     }
 
+    // ============================================
+    // [Eixo 1.6] SEARCH-BEFORE-DENY — produto citado pelo cliente exige tool
+    // Se o cliente CITOU um nome de produto neste turno (productMentioned),
+    // a IA NEGA o produto ("não temos / não conhecemos / não consta")
+    // E `search_products` NÃO foi chamada neste turno → marca a conversa
+    // para handoff e substitui a resposta por fala neutra. FIX-C cobre o
+    // caso "search foi chamado E retornou itens, mas IA negou"; este cobre
+    // o caso "IA negou sem nem buscar". Complementares.
+    // ============================================
+    if (salesModeEnabled && aiContent && typeof aiContent === "string") {
+      try {
+        const NEGATION_RE = /\b(n[ãa]o\s+(temos|tenho|possu[ií]mos|trabalhamos|conhe[çc]o|encontrei|encontramos)|n[ãa]o\s+(consta|existe)\s+(no\s+)?(nosso\s+)?cat[áa]logo|infelizmente\s+n[ãa]o)/i;
+        const customerMentionedProduct = /[A-Za-zÀ-ÿ0-9]{3,}/.test(lastMessageContent || "")
+          && (productNamesHint?.some?.((n: string) => {
+            if (!n || n.length < 3) return false;
+            return (lastMessageContent || "").toLowerCase().includes(n.toLowerCase());
+          }) ?? false);
+        const searchCalledThisTurn = toolsCalledThisTurn.includes("search_products");
+        if (NEGATION_RE.test(aiContent) && !searchCalledThisTurn) {
+          console.warn(
+            `[ai-support-chat] [Eixo 1.6] negation-without-search scrubbed — customer_mentioned=${customerMentionedProduct} tools=${JSON.stringify(toolsCalledThisTurn)} text="${aiContent.slice(0, 120)}"`,
+          );
+          aiContent = "Deixa eu confirmar isso direito pra te responder com certeza. Pode me dizer de novo o nome ou a categoria do produto que você procura?";
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [Eixo 1.6] search-before-deny scrubber failed:", (e as Error).message);
+      }
+    }
+
+    // ============================================
+    // [Eixo 1.7] CLOSE-ON-CONFIRMED-INTENT — não pedir nova confirmação
+    // Se o cliente deu sinal explícito de fechamento ("sim/quero/manda/
+    // pode gerar/fechado") E a IA RESPONDEU pedindo confirmação de novo
+    // ("posso finalizar?", "quer que eu gere o link?") sem ter chamado
+    // generate_checkout_link → marca como degenerado: substitui por uma
+    // mensagem que aciona handoff comercial em vez de loop infinito.
+    // (O caminho feliz já existe via FIX-B + tool_choice forçado; este
+    //  scrubber é a rede de segurança quando o forçamento não disparou.)
+    // ============================================
+    if (salesModeEnabled && aiContent && typeof aiContent === "string") {
+      try {
+        const customerClosed = /\b(sim,?\s*(pode|fecha|quero|manda)|pode\s+(gerar|mandar|enviar|finalizar)|gera\s+o\s+link|manda\s+o\s+link|fechado|fechou|t[áa]\s+fechado|quero\s+fechar|vou\s+levar|finaliza)\b/i.test(lastMessageContent || "");
+        const aiAsksAgain = /\b(posso\s+(finalizar|gerar|mandar)|quer\s+que\s+eu\s+(finalize|gere|mande)|confirma\s+(que|se)\s+(quer|vai)|posso\s+seguir\??)/i.test(aiContent);
+        const checkoutCalled = toolsCalledThisTurn.includes("generate_checkout_link");
+        const isAdvancedState = ["recommendation", "consideration", "decision", "cart", "checkout"].includes(pipelineState);
+        if (customerClosed && aiAsksAgain && !checkoutCalled && isAdvancedState) {
+          console.warn(
+            `[ai-support-chat] [Eixo 1.7] confirmation-loop scrubbed — customerClosed=${customerClosed} aiAsksAgain=${aiAsksAgain} checkoutCalled=${checkoutCalled} state=${pipelineState}`,
+          );
+          aiContent = "Vou chamar alguém da equipe pra fechar com você agora. Já te respondem por aqui.";
+          shouldHandoff = true;
+          handoffReason = handoffReason || "confirmation_loop_detected";
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [Eixo 1.7] confirmation-loop scrubber failed:", (e as Error).message);
+      }
+    }
+
     const latencyMs = Date.now() - startTime;
 
     // ============================================
