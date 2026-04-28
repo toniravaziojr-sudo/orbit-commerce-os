@@ -1233,6 +1233,6 @@ Padrão segue Onda 3.4: `SECURITY DEFINER` + `SET search_path = public` + `REVOK
 ### Regras perenes derivadas (anti-regressão)
 
 1. **QueryClient global nunca volta a defaults zerados.** Necessidade pontual de dados frescos = override local.
-2. **Toda lib pesada nova** (>50kb minified) deve receber regra explícita em `manualChunks` antes de ser importada.
+2. **`manualChunks` agressivo é PROIBIDO** em `vite.config.ts`. Tentativa de fatiar por categoria (react/charts/flow/editor/ui/etc.) causou tela em branco no app publicado em 2026-04-28 mesmo funcionando no preview. Deixar o Rollup fazer split natural por entry e dynamic-import. Se for tentar de novo, fatiar **uma categoria por vez** e validar **no domínio publicado**, não no preview.
 3. **Bootstraps de contexto crítico** (auth, tenant, permissões) devem ser sempre 1 round-trip via RPC. Adicionar nova entidade ao bootstrap = estender `get_user_bootstrap`, não criar nova chamada paralela.
 
