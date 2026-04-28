@@ -1006,6 +1006,69 @@ CREATE POLICY "Anyone can insert X" ON tbl
 
 ### Próximas ondas
 
-- **Onda 4.3:** 4 buckets públicos com listagem aberta (`storage.objects` SELECT amplo).
+- ~~**Onda 4.3:** 4 buckets públicos com listagem aberta (`storage.objects` SELECT amplo).~~ ✅ **Encerrada em 2026-04-28** (ver seção abaixo).
+- **Onda 4.4:** Mover extensão de `public` para `extensions`, criar policy na tabela órfã (RLS Enabled No Policy), fixar último `search_path` mutable.
+- **Onda 5:** Auth hardening (leaked password protection, OTP expiry, MFA para platform admin).
+
+---
+
+## 2026-04-28 — Hardening de Buckets Públicos (Onda 4.3 — encerrada)
+
+**Objetivo:** Eliminar listagem aberta (LIST/enumerate) em buckets públicos do Storage, conforme lint `0025_public_bucket_allows_listing`. Ataques de enumeração permitiam listar todos os arquivos de todos os tenants, vazando SKUs internos, padrões de nomenclatura, volume comercial e arquivos órfãos.
+
+### Princípio fundamental do Supabase Storage
+
+> **Buckets `public:true` permitem leitura individual via URL direta sem passar por RLS.**
+> RLS SELECT em `storage.objects` controla apenas a API de **LIST/enumerate**, não a leitura individual.
+
+Portanto, restringir SELECT no `storage.objects` **não quebra o storefront** — visitantes anônimos continuam carregando imagens via URL pública direta (`https://<proj>.supabase.co/storage/v1/object/public/<bucket>/<path>`). O que muda é só a capacidade de listar/enumerar via `storage.from(bucket).list(...)`.
+
+### Buckets corrigidos
+
+| Bucket | Padrão de path | Nova policy SELECT |
+|--------|----------------|---------------------|
+| `product-images` | `<tenant_id>/...` | `authenticated` + `EXISTS user_roles WHERE tenant_id = foldername[1]` |
+| `published-assets` | `<tenant_id>/...` | `authenticated` + `EXISTS user_roles WHERE tenant_id = foldername[1]` |
+| `store-assets` | `<tenant_id>/...` ou `tenants/<tenant_id>/...` | `authenticated` + dual-pattern check |
+| `media-assets` | `<tenant_id>/...` | `authenticated` + tenant ownership |
+| `review-media` | `reviews/...` (sem tenant_id no path) | `service_role` apenas (admin via Edge Function) |
+
+### Padrão obrigatório para novas policies em `storage.objects`
+
+```sql
+-- ❌ NUNCA: listagem aberta
+CREATE POLICY "..." ON storage.objects FOR SELECT TO public
+  USING (bucket_id = 'meu-bucket');  -- vaza tudo de todos os tenants
+
+-- ✅ SEMPRE: tenant-scoped via foldername
+CREATE POLICY "..." ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'meu-bucket'
+    AND EXISTS (
+      SELECT 1 FROM public.user_roles ur
+      WHERE ur.user_id = auth.uid()
+        AND ur.tenant_id::text = (storage.foldername(name))[1]
+    )
+  );
+
+-- ✅ Quando o path NÃO carrega tenant_id: restringir a service_role
+-- e mediar acesso via Edge Function que valida tenant via tabela relacionada
+CREATE POLICY "..." ON storage.objects FOR SELECT TO service_role
+  USING (bucket_id = 'meu-bucket');
+```
+
+### Restrição operacional importante
+
+`COMMENT ON TABLE storage.objects` **falha** com `must be owner of table objects` (42501). Supabase reserva alterações estruturais em `storage` schema. **Apenas policies podem ser criadas/dropadas** em `storage.objects` — nunca COMMENT, ALTER, INDEX ou TRIGGER.
+
+### Validação técnica
+
+- ✅ Linter Supabase: **48 → 44 alertas** (-4, todos os 4 alertas `0025_public_bucket_allows_listing` eliminados).
+- ✅ `pg_policies` em `storage.objects` confirma todas as 5 policies SELECT em buckets públicos agora usam `roles: {authenticated}` ou `{service_role}` com restrição de tenant/path.
+- ✅ Storefront (anônimo): leitura individual via URL pública continua funcional (não passa por RLS).
+- 🔬 Pendente validação do usuário: testar painel admin (listagem de imagens de produtos, assets de loja, mídias de reviews).
+
+### Próximas ondas
+
 - **Onda 4.4:** Mover extensão de `public` para `extensions`, criar policy na tabela órfã (RLS Enabled No Policy), fixar último `search_path` mutable.
 - **Onda 5:** Auth hardening (leaked password protection, OTP expiry, MFA para platform admin).
