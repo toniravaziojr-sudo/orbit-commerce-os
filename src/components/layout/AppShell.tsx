@@ -5,6 +5,7 @@ import { AppHeader } from "./AppHeader";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { AdminModeProvider } from "@/contexts/AdminModeContext";
 import { AdminErrorBoundary } from "./AdminErrorBoundary";
+import { MFAEnrollmentBanner } from "@/components/auth/MFAEnrollmentBanner";
 
 export function AppShell() {
   useEffect(() => {
@@ -21,6 +22,7 @@ export function AppShell() {
             <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 scrollbar-thin">
               <div className="mx-auto max-w-[1600px]">
                 <PermissionGuard>
+                  <MFAEnrollmentBanner />
                   <Outlet />
                 </PermissionGuard>
               </div>
