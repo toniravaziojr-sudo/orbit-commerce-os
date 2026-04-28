@@ -1196,18 +1196,15 @@ new QueryClient({
 
 **Regra:** Telas que precisem de dados sempre frescos sobrescrevem localmente com `staleTime: 0` ou `refetchInterval`. **Nunca voltar o default global a 0** — anula o ganho.
 
-### F2 — Bundle partitioning (`vite.config.ts`)
+### F2 — Bundle partitioning (`vite.config.ts`) — REVERTIDO 2026-04-28
 
-Libs grandes isoladas em chunks dedicados, cacheados independentemente pelo browser:
+**Tentativa inicial:** isolar libs grandes em chunks por categoria (react-vendor, charts-vendor, flow-vendor, editor-vendor, export-vendor, ui-vendor, etc.) via `manualChunks`.
 
-- `react-vendor` (react/react-dom/react-router)
-- `charts-vendor` (recharts/d3)
-- `flow-vendor` (@xyflow/reactflow — só usado no editor de automação)
-- `editor-vendor` (@dnd-kit/@tiptap/codemirror)
-- `export-vendor` (jspdf/html2canvas/xlsx/papaparse)
-- `supabase-vendor`, `ui-vendor` (radix), `form-vendor`, `date-vendor`, `icons-vendor` (lucide), `motion-vendor`
+**Regressão observada:** O app publicado (`app.comandocentral.com.br`) ficou com **tela totalmente em branco** após o deploy. Apesar do RPC `get_user_bootstrap` responder 200 e o `useAuth` funcionar, a inicialização do React quebrou silenciosamente — provavelmente porque `manualChunks` separou módulos que dependem de ordem de inicialização compartilhada (Radix + react-dom + provider tree).
 
-**Resultado esperado:** primeiro carregamento (login + dashboard) baixa só o necessário; navegar para módulos baixa apenas o chunk daquele módulo. Deploys parciais não invalidam todos os caches.
+**Decisão:** Reverter `manualChunks` por completo. Manter apenas `chunkSizeWarningLimit: 1500` e `optimizeDeps.include` para acelerar dev. O Rollup faz split natural por entry/dynamic-import — que já é bom — e os ganhos reais da Onda 6 vêm das **outras 2 frentes** (cache global + bootstrap RPC).
+
+**Regra anti-regressão (CRÍTICA):** Nunca aplicar `manualChunks` agressivo em SPAs com Radix UI + lazy routes sem teste obrigatório no app **publicado** (não só no preview). O preview do Lovable usa servir local que mascara problemas de ordem de carregamento que só aparecem em CDN com chunks segmentados. Se for tentar de novo no futuro, fatiar **uma categoria por vez** e validar publicado entre cada uma.
 
 ### F3 — Bootstrap unificado de auth (RPC)
 
