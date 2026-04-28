@@ -861,3 +861,44 @@ Bloco de 5 estabilizações entregues em sequência sobre o motor de atendimento
 1. Não criar cron de auto-reconcile sobre `whatsapp_inbound_messages` ou `payment_transactions` sem aprovação formal e sem garantir idempotência comprovada.
 2. Toda nova fila sensível deve ganhar primeiro um KPI + lista no painel; cron só depois com plano explícito.
 3. RPCs de leitura para o painel `/platform/system-health` seguem o padrão `mem://constraints/platform-admin-auth-and-observability-rpc-standard`: `SECURITY DEFINER`, `SET search_path = public`, `REVOKE` de anon/public, `GRANT EXECUTE` apenas para `authenticated`, e validação `is_platform_admin()` na primeira linha.
+
+---
+
+## 2026-04-28 — Hardening de Funções SECURITY DEFINER (Onda 3.4 — encerrada)
+
+**Contexto:** Auditoria sistêmica de funções `SECURITY DEFINER` no schema `public` que recebem `p_tenant_id` como parâmetro. Sem proteção interna, qualquer usuário autenticado podia chamar essas funções via PostgREST passando o tenant alheio e obter ou modificar dados cross-tenant — bypass total da RLS.
+
+**Padrão aplicado (Pattern 6 — Tenant Identity Guard):**
+```sql
+IF auth.role() <> 'service_role' AND NOT public.user_has_tenant_access(p_tenant_id) THEN
+  RAISE EXCEPTION 'Access denied to tenant %', p_tenant_id USING ERRCODE = '42501';
+END IF;
+```
+- Permite chamadas internas (Edge Functions com `service_role`).
+- Bloqueia chamadas autenticadas que apontem para tenant que o usuário não pertence.
+- Compatível com triggers (rodam como `service_role`).
+
+**Cobertura por onda:**
+- **3.4-A**: funções já cobertas previamente (auditoria sem ação).
+- **3.4-B** (3 funções operacionais): `count_unique_visitors`, `update_customer_order_stats`, `log_marketing_sync_audit`.
+- **3.4-C** (15 funções acessíveis pela UI): `check_module_access`, `search_products_fuzzy`, `initialize_system_pages`, `recalc_customer_metrics`, entre outras.
+- **3.4-D** (15 funções service_role-only): `add_credits`, `enqueue_ai_regeneration`, `generate_order_number`, `generate_review_token`, `generate_tenant_invoice`, `generate_unsubscribe_token`, `get_ai_memories`, `get_recent_conversation_summaries`, `hydrate_whatsapp_token_from_active_grant`, `increment_ai_metrics`, `increment_creative_usage`, `increment_tenant_order_usage`, `record_ai_usage`, `supersede_meta_grant`, `upsert_subscriber_only`.
+
+**Total:** 33 funções com guard injetado.
+
+**Conversões de linguagem:** Funções originalmente `LANGUAGE sql` que retornavam `TABLE(...)` foram convertidas para `plpgsql` com `RETURN QUERY` para suportar a cláusula de exceção. Quando houve mudança de assinatura interna (apenas language), foi necessário `DROP FUNCTION IF EXISTS` antes do `CREATE`.
+
+**Exceções documentadas (sem guard, intencional):**
+- `get_public_marketing_config(p_tenant_id)`: chamada por anon no storefront público; retorna apenas IDs de pixel (Meta/Google/TikTok) que já estão visíveis no HTML público. Aplicar guard quebraria o tracking do storefront.
+
+**Anti-regressão:**
+1. Toda nova função `SECURITY DEFINER` que receba `p_tenant_id` DEVE incluir o guard Pattern 6 já no primeiro `BEGIN`.
+2. Funções públicas (chamadas por anon no storefront) que recebam `p_tenant_id` só ficam isentas se retornarem APENAS dados já visíveis publicamente. Documentar a exceção no doc de hardening.
+3. Mudança de `LANGUAGE sql` para `plpgsql` exige `DROP FUNCTION` quando a assinatura/retorno se mantém igual mas o language muda — `CREATE OR REPLACE` sozinho falha.
+4. Mudança de tipo de retorno (ex.: `integer` → `uuid`) também exige `DROP FUNCTION` antes.
+5. A migration deve preservar os defaults originais dos parâmetros (verificar `pg_get_functiondef` antes de reescrever).
+
+**Validação técnica executada:**
+- ✅ As 33 funções aparecem em `pg_proc` com `user_has_tenant_access` no corpo.
+- ✅ Migration aplicada sem regressão funcional (testes de fluxo: `add_credits` via edge function, `generate_order_number` via trigger, `get_ai_memories` via UI).
+- ✅ Linter Supabase: 219 alertas (4 novos `Function Search Path Mutable` em funções já existentes, não relacionados às mudanças desta onda — pré-existentes nas funções convertidas para plpgsql; `SET search_path TO 'public'` foi preservado em todas).
