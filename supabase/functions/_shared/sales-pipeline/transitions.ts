@@ -49,7 +49,9 @@ export type TransitionReason =
   // a variedade do catálogo ("só tem essa?", "tem outras?").
   | "recovery_downgrade_product_detail_to_recommendation_family_question"
   | "recovery_downgrade_product_detail_to_recommendation_variety_challenge"
-  | "variety_challenge_with_family_focus_to_recommendation";
+  | "variety_challenge_with_family_focus_to_recommendation"
+  // [Eixo 1.8] Bloqueio: checkout_assist exige cart_id ativo
+  | "no_cart_for_checkout";
 
 // [F2-V3] Classificação canônica da intenção do turno ATUAL.
 // Usada para forçar rebaixamento de estado avançado quando o cliente
