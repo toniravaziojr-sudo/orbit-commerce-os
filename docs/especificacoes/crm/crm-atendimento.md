@@ -219,7 +219,7 @@ A **IA Atendente** é o **quinto agente de IA** do sistema, e o único que inter
 |----------|-------|
 | **Escopo** | Atendimento ao cliente via multi-canal (WhatsApp, Instagram, Messenger, Email, Chat Widget) |
 | **Execução** | Responde automaticamente clientes nos canais habilitados |
-| **Restrição Principal** | Puramente informativa — NUNCA executa ações no sistema |
+| **Restrição Principal** | Informativa por padrão. Executa ações comerciais **apenas** quando `ai_support_config.sales_mode_enabled = true` e **somente** dentro da allowlist do Modo Vendas (ver §4 e doc `whatsapp/modo-vendas-whatsapp.md`). Fora dessa allowlist, nunca executa ações. |
 | **Público-alvo** | Clientes finais do tenant (não o admin) |
 | **Escalamento** | Transfere para humano quando necessário |
 | **Configuração** | Global via `ai_support_config` + granular por canal via `ai_channel_config` |
@@ -281,13 +281,33 @@ Se o modelo configurado falhar (modelo não existe), o sistema tenta automaticam
 
 ---
 
-## 4. Guardrails: Atendimento INFORMATIVO
+## 4. Guardrails: Modo Informativo (padrão) e Modo Vendas (opcional)
 
-### Regra Fundamental
+### 4.1 Regra Fundamental
 
-> ⚠️ **A IA de atendimento é PURAMENTE INFORMATIVA. Nunca executa ações.**
+A IA Atendente opera em **dois modos mutuamente exclusivos por tenant**, controlados pelo toggle `ai_support_config.sales_mode_enabled`:
 
-### Prompt de Guardrails (injetado automaticamente)
+| Modo | Quando | O que pode fazer | O que NUNCA pode fazer |
+|------|--------|------------------|------------------------|
+| **Informativo (padrão)** | `sales_mode_enabled = false` | Responder dúvidas com base em KB/RAG, coletar dados mínimos, escalar para humano | Qualquer ação no sistema (cancelar, reembolsar, alterar dados, criar carrinho, gerar checkout) |
+| **Vendas** | `sales_mode_enabled = true` | Tudo do informativo + executar a **allowlist fechada** de tools comerciais | Tudo que estiver fora da allowlist (mesmo que o cliente peça) |
+
+> ⚠️ A separação é **server-side**: o orquestrador filtra as tools disponíveis pelo modo + estado da pipeline F2 antes de chamar o modelo. Mudar de modo exige toggle do admin — a IA não escolhe.
+
+### 4.2 Allowlist do Modo Vendas (única lista autorizada)
+
+Definida em `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` §3. Resumo:
+
+- **Catálogo (leitura):** `search_products`, `get_product_details`, `get_product_variants`, `recommend_related_products`, `send_product_image`.
+- **Carrinho do próprio cliente (escrita escopada):** `add_to_cart`, `view_cart`, `remove_from_cart`.
+- **Cupons:** `check_coupon`, `check_customer_coupon_eligibility`, `apply_coupon`, `check_upsell_offers`.
+- **Cliente (próprio):** `lookup_customer`, `save_customer_data`, `update_customer_record` (apenas dados de contato/entrega da própria conversa).
+- **Logística/checkout:** `calculate_shipping`, `generate_checkout_link`.
+- **Escalada:** `request_human_handoff` (atômico, terminal e idempotente).
+
+**Tudo que não está nessa lista é proibido**, incluindo: cancelar pedido, alterar status de pedido pago, criar/editar cupom, alterar preço/estoque de produto, alterar dados de outro cliente, acessar dados de outro tenant, enviar e-mail manual, executar SQL livre, chamar APIs administrativas.
+
+### 4.3 Prompt de Guardrails — Modo Informativo (default)
 
 ```text
 VOCÊ É UM ASSISTENTE PURAMENTE INFORMATIVO.
@@ -308,15 +328,72 @@ QUANDO ESCALAR PARA HUMANO:
 - Informação não disponível na base de conhecimento
 ```
 
-### Comportamento Esperado
+### 4.4 Prompt de Guardrails — Modo Vendas (quando `sales_mode_enabled = true`)
 
-| Cenário | Ação da IA |
-|---------|------------|
-| Pergunta sobre prazo de entrega | Responde com base na KB |
-| Solicitação de cancelamento | Informa que vai escalar + coleta dados |
-| Reclamação de produto | Informa que vai escalar + coleta detalhes |
-| Pergunta não documentada | Informa que vai verificar + escala |
-| Elogio | Agradece e registra |
+Substitui o prompt informativo. Mantém os mesmos princípios de segurança e adiciona regras comerciais:
+
+```text
+VOCÊ É UM VENDEDOR CONVERSACIONAL DA LOJA. PODE CONDUZIR A VENDA DO INÍCIO AO FIM
+USANDO APENAS AS TOOLS LIBERADAS PARA O ESTADO ATUAL DA CONVERSA.
+
+REGRAS ABSOLUTAS DE SEGURANÇA:
+1. SÓ EXECUTE AÇÕES VIA TOOLS - Nunca afirme ao cliente que executou uma ação se a tool
+   correspondente não foi chamada neste turno. Proibido: "reenviei seu e-mail",
+   "cancelei seu pedido", "acionei o suporte", "atualizei seu cadastro" sem tool real.
+2. ALLOWLIST É LIMITE ABSOLUTO - Se o cliente pedir algo fora da allowlist (cancelar
+   pedido, alterar pedido pago, mudar preço, criar cupom, etc.), diga que vai
+   encaminhar e chame request_human_handoff.
+3. NUNCA INVENTE PRODUTO, PREÇO, ESTOQUE OU CUPOM - Tudo vem das tools de catálogo.
+   Antes de NEGAR a existência de um produto, chame search_products.
+4. ESCOPO DO CLIENTE - Você só vê e altera dados do cliente desta conversa. Nunca
+   acesse dados de outro cliente.
+5. CONFIRMAÇÃO ÚNICA - Quando o cliente confirma a compra ("sim", "fechado", "pode
+   gerar"), chame add_to_cart + generate_checkout_link no mesmo turno. Proibido pedir
+   nova confirmação depois de uma confirmação clara.
+6. HANDOFF É TERMINAL - Se prometeu humano, chame request_human_handoff antes de
+   responder. Após o handoff, encerre o turno.
+
+QUANDO ESCALAR PARA HUMANO (chame request_human_handoff):
+- Pedido de atacado/B2B fora da política de varejo
+- Negociação de preço/condição fora dos cupons disponíveis
+- Reclamação grave / cliente irritado
+- Solicitação de ação fora da allowlist (cancelar/alterar pedido, reembolso)
+- Erro técnico repetido em tool
+- Cliente pede explicitamente falar com humano
+```
+
+### 4.5 Comportamento Esperado
+
+| Cenário | Modo Informativo | Modo Vendas |
+|---------|------------------|-------------|
+| Pergunta sobre prazo de entrega | Responde com base na KB | Responde com base na KB + tool de frete se houver CEP |
+| Cliente quer comprar produto X | Coleta dados + escala | Conduz a venda com tools (search → details → cart → checkout) |
+| Solicitação de cancelamento | Escala + coleta dados | Escala via `request_human_handoff` (fora da allowlist) |
+| Reclamação de produto | Escala + coleta detalhes | Escala via `request_human_handoff` |
+| Pergunta não documentada | "Vou verificar" + escala | "Vou verificar" + escala (não inventa) |
+| Cliente pede desconto fora dos cupons | N/A (não vende) | `request_human_handoff` com `reason='custom_negotiation'` |
+| Cliente confirma compra com dados | N/A | `add_to_cart` + `generate_checkout_link` no mesmo turno |
+| Elogio | Agradece e registra | Agradece e registra |
+
+### 4.6 Defesa em Profundidade (server-side)
+
+Mesmo se o modelo "alucinar" e tentar uma tool fora do permitido, o orquestrador bloqueia em três camadas:
+
+1. **Filtro por modo:** se `sales_mode_enabled = false`, todas as tools comerciais são removidas da chamada à OpenAI.
+2. **Filtro por estado da pipeline F2:** mesmo no Modo Vendas, só as tools do estado atual ficam expostas (ver `whatsapp/pipeline-f2-vendas-ia.md` §2).
+3. **Scrubber pré-envio:** antes de enviar a resposta ao cliente, o texto é varrido por verbos de ação ("reenviei", "cancelei", "acionei", "atualizei seu cadastro", etc.). Se nenhuma tool correspondente foi chamada no turno, força handoff técnico em vez de mandar a fala.
+
+### 4.7 Auditoria Obrigatória
+
+Todo turno grava em `ai_support_turn_log`:
+- `sales_mode_enabled` (snapshot do toggle no momento da resposta)
+- `sales_state_before` / `sales_state_after`
+- `tools_available` (lista filtrada que foi exposta ao modelo)
+- `tools_called` (lista do que o modelo realmente chamou)
+- `scrubber_blocked` (true se o scrubber pré-envio bloqueou alguma fala)
+- `pre_transition_reason` / `state_transition_reason`
+
+Sem auditoria gravada, a resposta não é despachada.
 
 ---
 
