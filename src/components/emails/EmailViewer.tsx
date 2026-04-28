@@ -27,6 +27,43 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+/**
+ * Prepara o HTML do e-mail recebido para renderização segura no iframe:
+ * 1. Garante <meta charset="utf-8"> para evitar mojibake quando o HTML
+ *    original não declara o charset.
+ * 2. Injeta <base target="_blank" rel="noopener noreferrer"> para que
+ *    todos os links abram em nova aba (o sandbox bloqueia top-navigation).
+ * 3. Detecta heuristicamente mojibake clássico (Ã©, Ã£, etc.) em e-mails
+ *    historicos e tenta recuperar Latin-1 -> UTF-8 como best-effort.
+ */
+function prepareEmailHtml(rawHtml: string): string {
+  let html = rawHtml || "";
+
+  // Best-effort: corrige mojibake comum (UTF-8 lido como Latin-1)
+  if (/[ÃÂ][\x80-\xBF]/.test(html)) {
+    try {
+      const recovered = decodeURIComponent(escape(html));
+      // Só aplica se reduziu drasticamente os marcadores de mojibake
+      if ((recovered.match(/[ÃÂ][\x80-\xBF]/g) || []).length <
+          (html.match(/[ÃÂ][\x80-\xBF]/g) || []).length / 2) {
+        html = recovered;
+      }
+    } catch {}
+  }
+
+  const headInjections =
+    '<meta charset="utf-8">' +
+    '<base target="_blank" rel="noopener noreferrer">';
+
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head([^>]*)>/i, `<head$1>${headInjections}`);
+  }
+  if (/<html[^>]*>/i.test(html)) {
+    return html.replace(/<html([^>]*)>/i, `<html$1><head>${headInjections}</head>`);
+  }
+  return `<!doctype html><html><head>${headInjections}</head><body>${html}</body></html>`;
+}
+
 interface EmailViewerProps {
   messageId: string;
   onClose: () => void;
@@ -171,10 +208,12 @@ export function EmailViewer({ messageId, onClose, onReply }: EmailViewerProps) {
         <div className="p-4">
           {message.body_html ? (
             <iframe
-              srcDoc={message.body_html}
+              srcDoc={prepareEmailHtml(message.body_html)}
               title="Email content"
               className="w-full border-0 min-h-[400px]"
-              sandbox="allow-same-origin"
+              // allow-popups + escape-sandbox => links abrem em nova aba normalmente.
+              // allow-same-origin é mantido para conseguir medir scrollHeight.
+              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
               style={{ height: '600px' }}
               onLoad={(e) => {
                 // Auto-resize iframe to content height
