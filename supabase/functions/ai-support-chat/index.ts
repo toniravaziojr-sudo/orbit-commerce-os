@@ -5538,9 +5538,27 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       lastFocusedProductName: lastFocusedProductNameBefore,
     });
 
-    const nextPipelineState: PipelineState = shouldHandoff ? "handoff" : transition.next;
+    let nextPipelineState: PipelineState = shouldHandoff ? "handoff" : transition.next;
+    let transitionReason: TransitionReason = shouldHandoff ? "handoff_requested" : transition.reason;
+
+    // [Eixo 1.8] Bloqueia transição para checkout_assist sem carrinho real.
+    // checkout_assist exige cart_id ativo (persistido OU criado neste turno
+    // via add_to_cart). Sem isso, downgrade para decision para evitar que a
+    // IA tente fechar venda sem produto no carrinho.
+    if (
+      nextPipelineState === "checkout_assist" &&
+      !hasActiveCart &&
+      !hasCheckout &&
+      !hasActiveCartPersisted
+    ) {
+      console.warn(
+        `[ai-support-chat] [Eixo 1.8] blocked checkout_assist without cart — downgrading to decision`
+      );
+      nextPipelineState = "decision";
+      transitionReason = "no_cart_for_checkout";
+    }
+
     const nextState: SalesState = toLegacyState(nextPipelineState) as SalesState;
-    const transitionReason: TransitionReason = shouldHandoff ? "handoff_requested" : transition.reason;
 
     console.log(
       `[ai-support-chat] [F2] transition ${pipelineState} → ${nextPipelineState} (reason=${transitionReason})`
