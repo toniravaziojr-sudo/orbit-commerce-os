@@ -812,3 +812,26 @@ Bloco de 5 estabilizações entregues em sequência sobre o motor de atendimento
 3. **Proibido** declarar resposta de IA válida em conversa com mídia sem `consumed_at` no anexo.
 4. **Proibido** insight do cérebro entrar em produção sem aprovação humana explícita (clique no admin) — não há aprovação automática.
 
+---
+
+## 10. Painel Saúde do Sistema — Timeout em Jobs Automatizados — 2026-04-28
+
+**Problema:** o bloco de tarefas automatizadas em `/platform/system-health` falhava de forma intermitente enquanto os demais KPIs continuavam carregando.
+
+**Causa raiz:** a rotina de leitura dos jobs consultava o histórico de execuções com subconsultas repetidas por job em `cron.job_run_details`. Em ambiente real, isso ultrapassava o timeout do PostgREST (~8s), retornando erro 500 só para `get_cron_jobs_status`.
+
+**Solução aplicada:**
+1. Reescrita de `get_cron_jobs_status()` para uma estratégia de agregação única da janela de 24h (`recent_runs` + `latest_run` + `run_counts`), eliminando leituras correlacionadas repetidas.
+2. Preservação do mesmo contrato funcional do painel: nome, agendamento, última execução, status, duração, falhas e sucessos nas últimas 24h.
+3. Normalização do tratamento de erro no frontend (`useSystemHealth`) para converter erros RPC em mensagens legíveis, impedindo fallback opaco como `[object Object]`.
+
+**Validação técnica:**
+- Browser/network no preview logado: `POST /rpc/get_cron_jobs_status` passou de `500 timeout` para `200` em ~393ms. ✅
+- Fluxo correlato preservado: `get_system_health_overview`, `get_queue_health` e `get_top_slow_queries` também responderam `200`. ✅
+- Testes rápidos de regressão frontend: `vitest` com 30 testes aprovados. ✅
+
+**Regra derivada (anti-regressão — MANDATÓRIA):**
+1. Toda RPC de observabilidade que consulte tabelas de histórico/telemetria (`cron`, logs, stats) deve agregar em lote antes de expor dados ao painel; subconsulta correlacionada por linha é proibida sem prova de performance.
+2. Nenhum painel pode degradar erro estruturado de RPC para `String(obj)` no UI; erros precisam ser normalizados para mensagem legível.
+3. Antes de declarar corrigido um painel operacional, validar a chamada real no network/browser ou consulta equivalente no ambiente autenticado.
+
