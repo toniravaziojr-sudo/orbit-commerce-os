@@ -3439,6 +3439,49 @@ Cliente: "vocês entregam em SP?"
       (existingPendingAction.kind === "view_cart" || existingPendingAction.kind === "check_coupon")
     );
 
+    // [FIX-A] Pré-carrega o carrinho ativo do banco (fonte de verdade real),
+    // não dependendo apenas de `add_to_cart` ter sido chamado neste turno.
+    // Isto corrige o bug onde, em turnos só de coleta de dados (CPF/CEP/email),
+    // hasActiveCart=false e a pipeline tratava como se não houvesse compra,
+    // gerando loop "Quer que eu finalize?" e ignorando dados já fornecidos.
+    let preloadedActiveCart: {
+      id: string;
+      items: any[];
+      customer_data: Record<string, string>;
+      total_cents: number | null;
+    } | null = null;
+    if (salesModeEnabled) {
+      try {
+        const { data: cartRow } = await supabase
+          .from("whatsapp_carts")
+          .select("id, items, customer_data, total_cents")
+          .eq("conversation_id", conversation_id)
+          .eq("tenant_id", tenant_id)
+          .eq("status", "active")
+          .maybeSingle();
+        if (cartRow && Array.isArray(cartRow.items) && cartRow.items.length > 0) {
+          preloadedActiveCart = {
+            id: cartRow.id as string,
+            items: cartRow.items as any[],
+            customer_data: (cartRow.customer_data as Record<string, string> | null) || {},
+            total_cents: (cartRow.total_cents as number | null) ?? null,
+          };
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [FIX-A] active cart preload failed:", (e as Error).message);
+      }
+    }
+    const hasActiveCartPersisted: boolean = !!preloadedActiveCart;
+    if (hasActiveCartPersisted) {
+      console.log(
+        `[ai-support-chat] [FIX-A] active_cart_preloaded items=${preloadedActiveCart!.items.length} ` +
+        `has_name=${!!preloadedActiveCart!.customer_data.name} ` +
+        `has_email=${!!preloadedActiveCart!.customer_data.email} ` +
+        `has_cpf=${!!preloadedActiveCart!.customer_data.cpf} ` +
+        `has_cep=${!!preloadedActiveCart!.customer_data.postal_code}`
+      );
+    }
+
     // [F2-V3] Para o classificador estrutural de intenção, usamos o sinal CRU
     // de saudação (rawIsGreeting) — não o filtrado por continuation. Saudação
     // pura tem que poder vencer pending_action/family_focus legado para
@@ -3449,7 +3492,8 @@ Cliente: "vocês entregam em SP?"
           current: pipelineStateBefore,
           message: lastMessageContent || "",
           isPureGreeting: rawIsGreeting,
-          hasActiveCart: false, // ainda não sabemos
+          // [FIX-A] usa carrinho persistido (DB), não só tool deste turno
+          hasActiveCart: hasActiveCartPersisted,
           hasCheckoutLink: false,
           toolsCalled: [], // tools só rodam depois
           discoveryTurnsSoFar: discoveryTurnsSoFarPre,
