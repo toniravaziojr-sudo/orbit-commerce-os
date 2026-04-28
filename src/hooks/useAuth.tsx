@@ -1,6 +1,57 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable';
+
+// ============================================================================
+// OAuth in-progress signal — sobrevive a remontagens do React após redirect
+// ----------------------------------------------------------------------------
+// Padrões reaproveitados (docs):
+//   §4.5 (base técnica) — "Lado emissor + lado receptor": toda operação que
+//        sai do app via redirect precisa de guarda explícita no destino.
+//   §10.6 (base técnica) — Estado de operação em curso precisa viver fora
+//        do ciclo de render.
+//
+// Contrato: localStorage.oauth_in_progress = timestamp (string).
+// Auto-expira em 60s (timeout de segurança contra abandono).
+// ============================================================================
+const OAUTH_IN_PROGRESS_KEY = 'oauth_in_progress';
+const OAUTH_IN_PROGRESS_TIMEOUT_MS = 60_000;
+
+export function markOAuthInProgress(): void {
+  try {
+    localStorage.setItem(OAUTH_IN_PROGRESS_KEY, Date.now().toString());
+  } catch {
+    // storage indisponível — fail-safe (UI cai no caminho normal)
+  }
+}
+
+export function clearOAuthInProgress(): void {
+  try {
+    localStorage.removeItem(OAUTH_IN_PROGRESS_KEY);
+  } catch {
+    // noop
+  }
+}
+
+export function isOAuthInProgress(): boolean {
+  try {
+    const raw = localStorage.getItem(OAUTH_IN_PROGRESS_KEY);
+    if (!raw) return false;
+    const ts = Number(raw);
+    if (!Number.isFinite(ts)) {
+      clearOAuthInProgress();
+      return false;
+    }
+    if (Date.now() - ts > OAUTH_IN_PROGRESS_TIMEOUT_MS) {
+      clearOAuthInProgress();
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface Profile {
   id: string;
