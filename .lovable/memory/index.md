@@ -29,6 +29,8 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [AI Action Invention Scrubber](mem://constraints/ai-action-invention-scrubber) — Frases tipo "reenviei/acionei/encaminhei" sem tool de backing são scrubbed e forçam handoff. Replicar em qualquer edge que gere fala livre da IA.
 - [Ambiguous Input Pre-Model Detector](mem://constraints/ambiguous-input-pre-model-detector) — Inputs degenerados (só pontuação/emoji/<2 alfanum.) em conversas >5 msgs são interceptados antes do modelo: 1ª-2ª pedem reformulação, 3ª faz handoff `reason=ambiguous_input`.
 - [AI Response Anti-Repetition Prefix Hash](mem://constraints/ai-response-anti-repetition-prefix-hash) — `hashResponse` deve usar prefixo normalizado de 80 chars (lower + sem acentos + sem pontuação). Hash do texto inteiro deixa repetições reais passarem.
+- [AI Search Catalog Before Denying Product](mem://constraints/ai-must-search-catalog-before-denying-product) — Negar produto sem chamar `search_products` no turno é proibido em sales mode (Eixo 1.6). Complementa FIX-C (negar mesmo com search retornando itens).
+- [AI Sales Must Close on Confirmed Intent](mem://constraints/ai-sales-must-close-on-confirmed-intent) — Cliente confirma fechamento ("sim/quero/manda"), IA pede confirmação de novo sem chamar `generate_checkout_link` → handoff `confirmation_loop_detected` (Eixo 1.7). E `checkout_assist` exige `cart_id` (Eixo 1.8).
 
 - [Working Rules](mem://governance/working-rules) — Os 5 lembretes detalhados de comportamento
 - [Documentation Governance](mem://governance/documentation-governance) — Regra de Ouro e hierarquia de 6 camadas de docs
