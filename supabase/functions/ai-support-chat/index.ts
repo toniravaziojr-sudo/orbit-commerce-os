@@ -3439,6 +3439,49 @@ Cliente: "vocês entregam em SP?"
       (existingPendingAction.kind === "view_cart" || existingPendingAction.kind === "check_coupon")
     );
 
+    // [FIX-A] Pré-carrega o carrinho ativo do banco (fonte de verdade real),
+    // não dependendo apenas de `add_to_cart` ter sido chamado neste turno.
+    // Isto corrige o bug onde, em turnos só de coleta de dados (CPF/CEP/email),
+    // hasActiveCart=false e a pipeline tratava como se não houvesse compra,
+    // gerando loop "Quer que eu finalize?" e ignorando dados já fornecidos.
+    let preloadedActiveCart: {
+      id: string;
+      items: any[];
+      customer_data: Record<string, string>;
+      total_cents: number | null;
+    } | null = null;
+    if (salesModeEnabled) {
+      try {
+        const { data: cartRow } = await supabase
+          .from("whatsapp_carts")
+          .select("id, items, customer_data, total_cents")
+          .eq("conversation_id", conversation_id)
+          .eq("tenant_id", tenant_id)
+          .eq("status", "active")
+          .maybeSingle();
+        if (cartRow && Array.isArray(cartRow.items) && cartRow.items.length > 0) {
+          preloadedActiveCart = {
+            id: cartRow.id as string,
+            items: cartRow.items as any[],
+            customer_data: (cartRow.customer_data as Record<string, string> | null) || {},
+            total_cents: (cartRow.total_cents as number | null) ?? null,
+          };
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [FIX-A] active cart preload failed:", (e as Error).message);
+      }
+    }
+    const hasActiveCartPersisted: boolean = !!preloadedActiveCart;
+    if (hasActiveCartPersisted) {
+      console.log(
+        `[ai-support-chat] [FIX-A] active_cart_preloaded items=${preloadedActiveCart!.items.length} ` +
+        `has_name=${!!preloadedActiveCart!.customer_data.name} ` +
+        `has_email=${!!preloadedActiveCart!.customer_data.email} ` +
+        `has_cpf=${!!preloadedActiveCart!.customer_data.cpf} ` +
+        `has_cep=${!!preloadedActiveCart!.customer_data.postal_code}`
+      );
+    }
+
     // [F2-V3] Para o classificador estrutural de intenção, usamos o sinal CRU
     // de saudação (rawIsGreeting) — não o filtrado por continuation. Saudação
     // pura tem que poder vencer pending_action/family_focus legado para
@@ -3449,7 +3492,8 @@ Cliente: "vocês entregam em SP?"
           current: pipelineStateBefore,
           message: lastMessageContent || "",
           isPureGreeting: rawIsGreeting,
-          hasActiveCart: false, // ainda não sabemos
+          // [FIX-A] usa carrinho persistido (DB), não só tool deste turno
+          hasActiveCart: hasActiveCartPersisted,
           hasCheckoutLink: false,
           toolsCalled: [], // tools só rodam depois
           discoveryTurnsSoFar: discoveryTurnsSoFarPre,
@@ -3496,6 +3540,14 @@ Cliente: "vocês entregam em SP?"
     let pipelinePromptModule: string | null = null;
     let pipelineToolsExposed: string[] = [];
     let pipelineFilteredTools: typeof SALES_TOOLS = [];
+    // [FIX-A/B] Checklist do carrinho compartilhado entre o bloco de contexto
+    // e o gate de tool_choice forçado (chamada do modelo). Sem isso, o Fix B
+    // não tem como decidir forçar generate_checkout_link.
+    let checkoutChecklist: { ready: boolean; missing: string[]; items: number } = {
+      ready: false,
+      missing: [],
+      items: 0,
+    };
 
     if (salesModeEnabled) {
       // [Fase 1] Consome promises paralelizadas (iniciadas ~linha 3226).
@@ -3543,55 +3595,59 @@ Cliente: "vocês entregam em SP?"
       // [F2-V4][builder-gate] suppressCheckoutContext bloqueia esse bloco quando
       // o turno é pure_greeting ou informative_question — mesmo se houver
       // carrinho ativo legado contaminando o estado da conversa.
+      // [FIX-A/B] readyToFinalize promovido a escopo amplo para que o gate
+      // de tool_choice forçado (Fix B) possa lê-lo na hora de chamar o modelo.
+      // Computado SEMPRE que houver carrinho persistido, mesmo fora de
+      // decision/checkout_assist (porque o downgrade do gate pode ter ocorrido
+      // mas o carrinho ainda está válido para fechar quando intenção voltar).
+      // (checkoutChecklist já declarado em escopo amplo acima)
+      if (preloadedActiveCart) {
+        const cd = preloadedActiveCart.customer_data;
+        const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
+        const missing: string[] = [];
+        if (!has("name")) missing.push("nome");
+        if (!has("email")) missing.push("email");
+        if (!has("cpf")) missing.push("CPF");
+        if (!has("postal_code")) missing.push("CEP");
+        checkoutChecklist = {
+          ready: missing.length === 0 && preloadedActiveCart.items.length > 0,
+          missing,
+          items: preloadedActiveCart.items.length,
+        };
+      }
+
       if (
         !suppressCheckoutContext &&
         !isInformationalProductQuestionCurrentTurn &&
+        preloadedActiveCart &&
         (pipelineState === "decision" || pipelineState === "checkout_assist")
       ) {
         try {
-          const { data: activeCartRow } = await supabase
-            .from("whatsapp_carts")
-            .select("id, items, customer_data, customer_id, total_cents")
-            .eq("conversation_id", conversation_id)
-            .eq("tenant_id", tenant_id)
-            .eq("status", "active")
-            .maybeSingle();
-          if (activeCartRow) {
-            const cd = (activeCartRow.customer_data as Record<string, string> | null) || {};
-            const items = Array.isArray(activeCartRow.items) ? (activeCartRow.items as any[]) : [];
-            const itemsTxt = items.length
-              ? items.map(i => `• ${i?.quantity || 1}x ${i?.name || i?.product_name || "item"}`).join("\n")
-              : "(carrinho vazio)";
-            const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
-            const checklist = [
-              `nome: ${has("name") ? "✅ " + cd.name : "❌ falta"}`,
-              `email: ${has("email") ? "✅ " + cd.email : "❌ falta"}`,
-              `cpf: ${has("cpf") ? "✅ " + cd.cpf : "❌ falta"}`,
-              `cep: ${has("postal_code") ? "✅ " + cd.postal_code : "❌ falta"}`,
-            ].join("\n");
-            const missing: string[] = [];
-            if (!has("name")) missing.push("nome");
-            if (!has("email")) missing.push("email");
-            if (!has("cpf")) missing.push("CPF");
-            if (!has("postal_code")) missing.push("CEP");
-            const readyToFinalize = missing.length === 0 && items.length > 0;
-            const directive = readyToFinalize
-              ? "→ TODOS OS DADOS OBRIGATÓRIOS JÁ ESTÃO NO CARRINHO. Se o cliente confirmou querer fechar, CHAME generate_checkout_link AGORA. Não pergunte 'Quer que eu finalize?' — execute."
-              : `→ FALTAM: ${missing.join(", ")}. Peça apenas esses, em UMA mensagem curta. Não peça o que já está ✅.`;
-            contextualBlocks.push(
-              `### CARRINHO ATIVO\n${itemsTxt}\n\n### DADOS DO CLIENTE NO CARRINHO\n${checklist}\n\n${directive}`
-            );
-          }
+          const cd = preloadedActiveCart.customer_data;
+          const items = preloadedActiveCart.items;
+          const itemsTxt = items.length
+            ? items.map(i => `• ${i?.quantity || 1}x ${i?.name || i?.product_name || "item"}`).join("\n")
+            : "(carrinho vazio)";
+          const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
+          const checklist = [
+            `nome: ${has("name") ? "✅ " + cd.name : "❌ falta"}`,
+            `email: ${has("email") ? "✅ " + cd.email : "❌ falta"}`,
+            `cpf: ${has("cpf") ? "✅ " + cd.cpf : "❌ falta"}`,
+            `cep: ${has("postal_code") ? "✅ " + cd.postal_code : "❌ falta"}`,
+          ].join("\n");
+          const directive = checkoutChecklist.ready
+            ? "→ TODOS OS DADOS OBRIGATÓRIOS JÁ ESTÃO NO CARRINHO. Se o cliente confirmou querer fechar, CHAME generate_checkout_link AGORA. Não pergunte 'Quer que eu finalize?' — execute."
+            : `→ FALTAM: ${checkoutChecklist.missing.join(", ")}. Peça apenas esses, em UMA mensagem curta. Não peça o que já está ✅.`;
+          contextualBlocks.push(
+            `### CARRINHO ATIVO\n${itemsTxt}\n\n### DADOS DO CLIENTE NO CARRINHO\n${checklist}\n\n${directive}`
+          );
         } catch (e) {
-          console.warn("[ai-support-chat] [F2-FIX-CHECKOUT] cart context preload failed:", (e as Error).message);
+          console.warn("[ai-support-chat] [F2-FIX-CHECKOUT] cart context block failed:", (e as Error).message);
         }
       } else if (
         suppressCheckoutContext ||
         (stateDowngradeReason && (pipelineStateBefore === "decision" || pipelineStateBefore === "checkout_assist"))
       ) {
-        // Emite log mesmo quando o downgrade já tirou a conversa de checkout/decision
-        // — assim a auditoria captura: "havia contaminação de checkout, e o gate
-        // (intenção pure_greeting / informative_question) impediu a injeção".
         console.log(
           `[ai-support-chat] [F2-V4][builder-gate] checkout_context_suppressed reason=${suppressionReason ?? "downgrade_from_checkout"} state_before=${pipelineStateBefore} state_after=${pipelineState} turn_intent=${turnIntentClassified} downgrade_reason=${stateDowngradeReason ?? "none"}`
         );
@@ -4378,7 +4434,36 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // permitidas vão para o modelo.
           if (salesModeEnabled && pipelineFilteredTools.length > 0) {
             requestBody.tools = pipelineFilteredTools;
-            requestBody.tool_choice = salesTriggerFired ? "required" : "auto";
+            // [FIX-B] Quando estamos em checkout_assist com TODOS os 4 dados
+            // (nome/email/cpf/cep) e sinal de intenção de fechar (compra
+            // recente ou fala explícita "quero comprar/finalizar/manda link"),
+            // forçamos o modelo a chamar generate_checkout_link em vez de
+            // mais uma pergunta confirmatória ("Quer que eu finalize?").
+            // Isto elimina o loop infinito observado em produção.
+            const lcMsgForBuy = (lastMessageContent || "").toLowerCase();
+            const explicitBuyNow = /\b(pode (gerar|mandar|enviar)|gera o link|manda o link|envia o link|finaliza|fechar (o )?pedido|quero (fechar|comprar|finalizar)|vou levar|pode finalizar|sim,? (pode|fecha|quero))\b/.test(lcMsgForBuy);
+            const generateCheckoutAvailable = pipelineFilteredTools.some(
+              (t: any) => t?.function?.name === "generate_checkout_link"
+            );
+            const forceCheckoutLink =
+              pipelineState === "checkout_assist" &&
+              checkoutChecklist.ready &&
+              generateCheckoutAvailable &&
+              (salesIntentFlags.buy || explicitBuyNow || recentPurchaseIntentBefore);
+
+            if (forceCheckoutLink) {
+              requestBody.tool_choice = {
+                type: "function",
+                function: { name: "generate_checkout_link" },
+              };
+              console.log(
+                `[ai-support-chat] [FIX-B] forcing tool_choice=generate_checkout_link ` +
+                `state=${pipelineState} ready=${checkoutChecklist.ready} ` +
+                `intent_buy=${salesIntentFlags.buy} explicit=${explicitBuyNow} recent=${recentPurchaseIntentBefore}`
+              );
+            } else {
+              requestBody.tool_choice = salesTriggerFired ? "required" : "auto";
+            }
             requestBody.parallel_tool_calls = false;
           }
 
@@ -4940,6 +5025,66 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           `[ai-support-chat] [PACOTE C] system-language scrubbed — REVISAR PROMPT do estado, modelo emitiu fala de sistema (was ${aiContent.length}ch, now ${scrubbed.length}ch)`
         );
         aiContent = scrubbed;
+      }
+    }
+
+    // ============================================
+    // [FIX-C] KNOWLEDGE SCRUBBER — NEGAÇÃO DE PRODUTO INVENTADA
+    // Bloqueia o modelo de afirmar "não temos / não conheço / não encontrei"
+    // um produto quando search_products neste turno (ou em turnos recentes
+    // dessa mesma conversa) retornou produtos reais. Esse padrão é tóxico
+    // para vendas: o cliente cita um produto, a tool acha, e o modelo nega.
+    // Quando detectado, regeneramos a frase de negação para uma fala neutra
+    // que mantém o catálogo aberto.
+    // ============================================
+    if (salesModeEnabled && aiContent && typeof aiContent === "string") {
+      try {
+        const NEGATION_PATTERNS: RegExp[] = [
+          /\b(n[ãa]o\s+(temos|tenho|possu[ií]mos|trabalhamos\s+com|encontrei|encontramos|achei))\b[^.!?\n]{0,80}(produto|item|esse|esta|essa|isso)/i,
+          /\b(infelizmente|por\s+enquanto)\s+n[ãa]o\s+(temos|tenho|possu[ií]mos)/i,
+          /\bn[ãa]o\s+(consta|existe)\s+(no\s+)?(nosso\s+)?cat[áa]logo/i,
+          /\bn[ãa]o\s+conhe[çc]o\s+(esse|essa|esta|este)\s+produto/i,
+        ];
+        const hasNegation = NEGATION_PATTERNS.some((re) => re.test(aiContent));
+        if (hasNegation) {
+          // Verifica se search_products NESTE turno retornou itens.
+          let searchReturnedItems = false;
+          try {
+            for (const snap of toolResultsThisTurn) {
+              if (snap.tool !== "search_products") continue;
+              const normalized = parseSearchProductsResult(snap.parsed);
+              if (normalized.items && normalized.items.length > 0) {
+                searchReturnedItems = true;
+                break;
+              }
+            }
+          } catch (_) { /* tolerante */ }
+
+          // Também considera relevantProducts (snapshot de catálogo já injetado).
+          const catalogHasItems = (relevantProducts?.length ?? 0) > 0;
+
+          if (searchReturnedItems || catalogHasItems) {
+            const safeReplacement = "Posso te dar mais detalhes desse produto se você me confirmar o nome exato ou a categoria?";
+            // Substitui apenas a primeira sentença com negação, preservando o resto.
+            let replaced = aiContent;
+            for (const re of NEGATION_PATTERNS) {
+              if (re.test(replaced)) {
+                replaced = replaced.replace(/(^|[\n.!?])\s*[^.!?\n]*(n[ãa]o\s+(temos|tenho|possu[ií]mos|trabalhamos|encontrei|encontramos|conhe[çc]o|consta|existe))\b[^.!?\n]*[.!?]?/i,
+                  "$1 " + safeReplacement);
+                break;
+              }
+            }
+            if (replaced !== aiContent) {
+              console.warn(
+                `[ai-support-chat] [FIX-C] product-negation scrubbed — search_results=${searchReturnedItems} catalog=${catalogHasItems} ` +
+                `(was ${aiContent.length}ch → ${replaced.length}ch)`
+              );
+              aiContent = replaced.replace(/[ \t]{2,}/g, " ").trim();
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [FIX-C] knowledge scrubber failed:", (e as Error).message);
       }
     }
 
