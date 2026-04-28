@@ -301,11 +301,22 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 | **Auxiliar de Comando** | Qualquer ação que o usuário poderia fazer manualmente | Executa após aprovação do usuário | Solicitação → Resumo → Aprovação → Execução → Feedback |
 | **Gestor de Tráfego IA** | Tráfego pago (campanhas, criativos, orçamento) | Executa ações de tráfego | Criativos e aumento de orçamento acima do limite exigem aprovação manual |
 | **Agenda** | Gestão de tarefas, lembretes e delegação restrita ao Auxiliar | Comunicação exclusiva via WhatsApp com o admin | Canal exclusivo: admin autorizado via WhatsApp. Ações no sistema somente via Auxiliar com confirmação. Delegação limitada por allowlist de ações. Regra de desambiguação obrigatória. |
-| **IA Atendente** | Atendimento ao cliente do tenant via multi-canal | Responde clientes automaticamente nos canais habilitados | Puramente informativa — NUNCA executa ações. Escala para humano quando necessário. Configurável por canal. |
+| **IA Atendente** | Atendimento ao cliente do tenant via multi-canal | Responde clientes automaticamente nos canais habilitados | Informativa por padrão. Pode executar ações comerciais **apenas** quando `sales_mode_enabled = true` e **somente** via tools auditadas da allowlist do Modo Vendas. Escala para humano quando necessário. Configurável por canal. |
 
 > **Nota sobre escopo Auxiliar vs Agenda:** O Auxiliar de Comando tem escopo amplo ("qualquer ação manual"). A Agenda, quando delega ao Auxiliar, opera com um subconjunto restrito definido pela allowlist inicial. A ampliação da allowlist exige atualização documental e confirmação do usuário.
 
 > **Nota sobre IA Atendente:** Diferente dos demais agentes que auxiliam o **administrador** da loja, a IA Atendente interage diretamente com os **clientes** do tenant. Opera nos canais WhatsApp, Instagram, Messenger, Email e Chat Widget. Especificação completa: `docs/especificacoes/crm/crm-atendimento.md`.
+
+> **Nota sobre execução comercial da IA Atendente (Modo Vendas):** Por padrão a IA Atendente é informativa. Quando o tenant habilita `ai_support_config.sales_mode_enabled = true`, ela passa a executar **um conjunto fechado e auditado** de ações comerciais, sempre via OpenAI Function Calling, **sem acesso a SQL livre, sem ações destrutivas e sem ações fora do domínio comercial**. Limites obrigatórios:
+>
+> 1. **Allowlist fechada de tools** (definida em `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` §3): busca/consulta de catálogo, manipulação do carrinho do próprio cliente, validação/aplicação de cupom, geração de link de checkout pré-preenchido, consulta do próprio cadastro do cliente e handoff humano. Qualquer tool fora dessa lista é proibida e bloqueada server-side.
+> 2. **Tenant-scoped e cliente-scoped:** toda tool opera apenas no tenant da conversa e no carrinho/cliente da própria conversa. Nunca acessa dados de outro cliente, outro tenant ou áreas administrativas.
+> 3. **Sem ações destrutivas:** proibido cancelar/alterar pedido pago, alterar preço, criar cupom, alterar estoque, alterar dados cadastrais sensíveis (CPF, e-mail) sem confirmação explícita do cliente, ou qualquer operação que o §13 desta Layer 2 classifique como destrutiva.
+> 4. **Sem invenção de ações:** a IA só pode AFIRMAR ao cliente que executou uma ação se a tool correspondente foi efetivamente chamada no mesmo turno (scrubber pré-envio bloqueia "reenviei e-mail", "cancelei seu pedido", "acionei o suporte" etc.).
+> 5. **Filtro por estado da pipeline:** as tools comerciais são adicionalmente filtradas pelo estado da máquina F2 (`docs/especificacoes/whatsapp/pipeline-f2-vendas-ia.md` §2). Ex.: `add_to_cart` só fica visível em `decision`/`checkout_assist`; `generate_checkout_link` só em `checkout_assist`.
+> 6. **Handoff atômico, terminal e idempotente:** ao chamar `request_human_handoff`, a conversa entra em `waiting_agent`, o turno é encerrado e novas tentativas no mesmo intervalo retornam o mesmo ticket (lock por conversa).
+> 7. **Auditoria obrigatória:** todo turno grava em `ai_support_turn_log` o estado, as tools disponíveis, as tools efetivamente chamadas e o motivo de transição. Sem auditoria, a resposta não sai.
+> 8. **Reversível por toggle:** desligar `sales_mode_enabled` retorna a IA Atendente ao modo puramente informativo no próximo turno, sem cache.
 
 ### 9.3 Regras Universais dos Agentes
 - Todo agente conhece a estrutura do sistema e opera dentro do escopo de permissões do seu domínio e da autorização do usuário. O acesso a dados do tenant é limitado ao necessário para a função do agente.
