@@ -222,6 +222,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
+        // Anti-regressão: refresh token expirado/corrompido em visitante anônimo
+        // gera ciclo permanente de 403 bad_jwt em /user. Quando o GoTrue sinaliza
+        // TOKEN_REFRESHED sem sessão (refresh falhou), limpar storage local
+        // para encerrar o ciclo. Não faz signOut global (escopo 'local' apenas).
+        if (event === 'TOKEN_REFRESHED' && !newSession) {
+          supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setCurrentTenantState(null);
+          setUserRoles([]);
+          setTenants([]);
+          setIsLoading(false);
+          return;
+        }
+
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
