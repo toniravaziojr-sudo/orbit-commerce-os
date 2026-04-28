@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, isOAuthInProgress } from '@/hooks/useAuth';
 import { usePlatformOperator } from '@/hooks/usePlatformOperator';
 import { useWasInvitedUser } from '@/hooks/useWasInvitedUser';
 import { Loader2 } from 'lucide-react';
@@ -78,8 +78,10 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
   const isStillLoading = isLoading || platformLoading || inviteLoading;
   
   // Só mostra loader na PRIMEIRA carga - após isso, NUNCA bloqueia a tela
-  // Isso é crítico para evitar tela cinza durante operações como OAuth popups
-  if (isStillLoading && !initialLoadComplete) {
+  // Isso é crítico para evitar tela cinza durante operações como OAuth popups.
+  // EXCEÇÃO: callback OAuth em curso força loader mesmo após o latch — blinda
+  // o caso de redirect_uri apontar para rota protegida (§4.5 base técnica).
+  if ((isStillLoading && !initialLoadComplete) || isOAuthInProgress()) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
