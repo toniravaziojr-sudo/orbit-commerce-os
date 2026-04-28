@@ -643,38 +643,55 @@ Deno.serve(async (req) => {
                     console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=BLOCKED (${decision.reason})`);
                   }
 
-                  if (inboundId) {
-                    try {
-                      const finalStatus = !decision.should_respond
-                        ? "skipped"
-                        : aiSkippedReason
-                          ? "skipped"
-                          : aiOk
-                            ? "processed"
-                            : "failed";
-                      const finalProcessedBy = !decision.should_respond
-                        ? `gate:${decision.reason}`
-                        : aiSkippedReason
-                          ? aiSkippedReason
-                          : aiOk
-                            ? "ai_support"
-                            : "ai_failed";
-                      await supabase
-                        .from("whatsapp_inbound_messages")
-                        .update({
-                          processed_at: new Date().toISOString(),
-                          processed_by: finalProcessedBy,
-                          conversation_id: conversationId,
-                          processing_status: finalStatus,
-                          processing_error: aiSkippedReason
-                            ? `debounce_owner=${debounceOwner} merged=${debounceMerged}`
-                            : null,
-                        })
-                        .eq("id", inboundId);
-                    } catch (auditErr) {
-                      console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] support update failed (non-blocking):`, auditErr);
-                    }
+                  // Outcome final do customer flow — gravado pelo `finally`.
+                  outcomeStatus = !decision.should_respond
+                    ? "skipped"
+                    : aiSkippedReason
+                      ? "skipped"
+                      : aiOk
+                        ? "processed"
+                        : "failed";
+                  outcomeProcessedBy = !decision.should_respond
+                    ? `gate:${decision.reason}`
+                    : aiSkippedReason
+                      ? aiSkippedReason
+                      : aiOk
+                        ? "ai_support"
+                        : "ai_failed";
+                  outcomeError = aiSkippedReason
+                    ? `debounce_owner=${debounceOwner} merged=${debounceMerged}`
+                    : (aiOk || !decision.should_respond ? null : "ai_support invocation failed");
+                  outcomeConversationId = conversationId;
+                }
+              }
+              } // fim do else (customer flow)
+              } catch (pipelineErr) {
+                // Captura qualquer exceção inesperada — outcome explícito.
+                console.error(`[meta-whatsapp-webhook][${traceId}] [PIPELINE] unhandled exception:`, pipelineErr);
+                outcomeStatus = "failed";
+                outcomeProcessedBy = "pipeline_exception";
+                outcomeError = `${(pipelineErr as Error)?.name || "Error"}: ${(pipelineErr as Error)?.message || String(pipelineErr)}`;
+              } finally {
+                // ═══ DESFECHO UNIVERSAL — anti-regressão silent_exit ═══
+                // SEMPRE escreve um desfecho. Se o INSERT do inbound falhou,
+                // ainda assim deixamos um log claro.
+                if (inboundId) {
+                  try {
+                    await supabase
+                      .from("whatsapp_inbound_messages")
+                      .update({
+                        processed_at: new Date().toISOString(),
+                        processed_by: outcomeProcessedBy,
+                        processing_status: outcomeStatus,
+                        processing_error: outcomeError,
+                        conversation_id: outcomeConversationId,
+                      })
+                      .eq("id", inboundId);
+                  } catch (finalErr) {
+                    console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] FINAL desfecho update failed (non-blocking):`, finalErr);
                   }
+                } else {
+                  console.warn(`[meta-whatsapp-webhook][${traceId}] [AUDIT] sem inboundId — desfecho=${outcomeStatus}/${outcomeProcessedBy} err=${outcomeError}`);
                 }
               }
             }
