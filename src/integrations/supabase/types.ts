@@ -3289,6 +3289,39 @@ export type Database = {
           },
         ]
       }
+      auth_login_attempts: {
+        Row: {
+          attempted_at: string
+          email: string | null
+          failure_reason: string | null
+          id: string
+          ip_address: string | null
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          attempted_at?: string
+          email?: string | null
+          failure_reason?: string | null
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          attempted_at?: string
+          email?: string | null
+          failure_reason?: string | null
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       billing_checkout_sessions: {
         Row: {
           billing_cycle: string
@@ -23066,6 +23099,7 @@ export type Database = {
       }
       is_platform_admin: { Args: never; Returns: boolean }
       is_platform_admin_by_auth: { Args: never; Returns: boolean }
+      is_platform_super_admin: { Args: never; Returns: boolean }
       is_signal_relevant: {
         Args: {
           _evidence_count: number
