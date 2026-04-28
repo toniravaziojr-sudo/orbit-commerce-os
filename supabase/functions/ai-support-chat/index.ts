@@ -3540,6 +3540,14 @@ Cliente: "vocês entregam em SP?"
     let pipelinePromptModule: string | null = null;
     let pipelineToolsExposed: string[] = [];
     let pipelineFilteredTools: typeof SALES_TOOLS = [];
+    // [FIX-A/B] Checklist do carrinho compartilhado entre o bloco de contexto
+    // e o gate de tool_choice forçado (chamada do modelo). Sem isso, o Fix B
+    // não tem como decidir forçar generate_checkout_link.
+    let checkoutChecklist: { ready: boolean; missing: string[]; items: number } = {
+      ready: false,
+      missing: [],
+      items: 0,
+    };
 
     if (salesModeEnabled) {
       // [Fase 1] Consome promises paralelizadas (iniciadas ~linha 3226).
