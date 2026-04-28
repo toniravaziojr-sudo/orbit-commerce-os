@@ -101,23 +101,39 @@ function HealthDashboard() {
     queues.refetch();
   };
 
-  // Métricas derivadas
+  // Métricas derivadas — "Indisponível" quando falha (NUNCA cair para 0)
   const conn = overview.data?.connections;
-  const usagePct = conn ? Math.round((conn.total / conn.max) * 100) : 0;
-  const cacheRatio = overview.data?.cache_hit_ratio ?? 0;
+  const overviewUnavailable = !!overview.error || (!overview.isLoading && !overview.data);
+  const usagePct = conn ? Math.round((conn.total / conn.max) * 100) : null;
+  const cacheRatio = overview.data?.cache_hit_ratio ?? null;
 
-  const connVariant = usagePct >= 80 ? 'destructive' : usagePct >= 60 ? 'warning' : 'success';
-  const cacheVariant = cacheRatio >= 99 ? 'success' : cacheRatio >= 95 ? 'warning' : 'destructive';
+  const connVariant = overviewUnavailable
+    ? 'muted'
+    : usagePct === null
+      ? 'muted'
+      : usagePct >= 80 ? 'destructive' : usagePct >= 60 ? 'warning' : 'success';
+  const cacheVariant = overviewUnavailable
+    ? 'muted'
+    : cacheRatio === null
+      ? 'muted'
+      : cacheRatio >= 99 ? 'success' : cacheRatio >= 95 ? 'warning' : 'destructive';
 
-  const failedCronTotal = (cronJobs.data ?? []).reduce(
-    (acc, j) => acc + (j.failures_last_24h || 0),
-    0,
-  );
-  const cronVariant = failedCronTotal > 100 ? 'destructive' : failedCronTotal > 0 ? 'warning' : 'success';
+  const cronUnavailable = !!cronJobs.error || (!cronJobs.isLoading && !cronJobs.data);
+  const failedCronTotal = cronUnavailable
+    ? null
+    : (cronJobs.data ?? []).reduce((acc, j) => acc + (j.failures_last_24h || 0), 0);
+  const cronVariant = cronUnavailable
+    ? 'muted'
+    : (failedCronTotal ?? 0) > 100 ? 'destructive' : (failedCronTotal ?? 0) > 0 ? 'warning' : 'success';
 
+  const queuesUnavailable = !!queues.error || (!queues.isLoading && !queues.data);
   const queueEntries = Object.entries(queues.data ?? {});
-  const orphansTotal = queueEntries.reduce((acc, [, v]) => acc + (v?.pending_or_orphans || 0), 0);
-  const queueVariant = orphansTotal > 100 ? 'destructive' : orphansTotal > 0 ? 'warning' : 'success';
+  const orphansTotal = queuesUnavailable
+    ? null
+    : queueEntries.reduce((acc, [, v]) => acc + (v?.pending_or_orphans || 0), 0);
+  const queueVariant = queuesUnavailable
+    ? 'muted'
+    : (orphansTotal ?? 0) > 100 ? 'destructive' : (orphansTotal ?? 0) > 0 ? 'warning' : 'success';
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -153,29 +169,29 @@ function HealthDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Conexões do banco"
-          value={conn ? `${conn.total} / ${conn.max}` : '—'}
-          description={`${usagePct}% em uso · ${conn?.active ?? 0} ativas`}
+          value={overviewUnavailable ? 'Indisponível' : conn ? `${conn.total} / ${conn.max}` : '—'}
+          description={overviewUnavailable ? 'Métrica temporariamente indisponível' : `${usagePct ?? 0}% em uso · ${conn?.active ?? 0} ativas`}
           icon={Database}
           variant={connVariant as any}
         />
         <StatCard
           title="Cache hit ratio"
-          value={`${cacheRatio.toFixed(2)}%`}
-          description={cacheRatio >= 99 ? 'Saudável' : 'Abaixo do alvo (99%+)'}
+          value={overviewUnavailable || cacheRatio === null ? 'Indisponível' : `${cacheRatio.toFixed(2)}%`}
+          description={overviewUnavailable ? 'Métrica temporariamente indisponível' : (cacheRatio ?? 0) >= 99 ? 'Saudável' : 'Abaixo do alvo (99%+)'}
           icon={Activity}
           variant={cacheVariant as any}
         />
         <StatCard
           title="Falhas de cron (24h)"
-          value={failedCronTotal}
-          description={`${(cronJobs.data ?? []).length} jobs ativos`}
+          value={cronUnavailable ? 'Indisponível' : failedCronTotal ?? 0}
+          description={cronUnavailable ? 'Métrica temporariamente indisponível' : `${(cronJobs.data ?? []).length} jobs ativos`}
           icon={Clock}
           variant={cronVariant as any}
         />
         <StatCard
           title="Pendências em filas"
-          value={orphansTotal}
-          description={`${queueEntries.length} filas monitoradas`}
+          value={queuesUnavailable ? 'Indisponível' : orphansTotal ?? 0}
+          description={queuesUnavailable ? 'Métrica temporariamente indisponível' : `${queueEntries.length} filas monitoradas`}
           icon={Layers}
           variant={queueVariant as any}
         />

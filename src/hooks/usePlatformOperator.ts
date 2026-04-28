@@ -4,12 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Hook to check if the current user is a platform operator (superadmin).
- * 
- * Platform operators have access to cross-tenant monitoring tools like Health Monitor,
- * system email configuration, and platform-level settings.
- * 
- * SECURITY: This queries the platform_admins table in the database.
- * Only users registered in that table with is_active=true are considered platform operators.
+ *
+ * SOURCE OF TRUTH: Uses the canonical `is_platform_admin()` RPC (SECURITY DEFINER)
+ * — the same function used by all backend RLS policies and edge functions.
+ * This eliminates divergence between UI authorization and backend authorization.
+ *
+ * Per memory: auth/permission-architecture-v2-unified-hook-standard
  */
 
 interface PlatformAdmin {
@@ -23,44 +23,55 @@ interface PlatformAdmin {
 
 export function usePlatformOperator() {
   const { user, isLoading: authLoading } = useAuth();
-  
+
   const normalizedEmail = user?.email?.trim().toLowerCase();
-  
-  const { data: platformAdmin, isLoading: queryLoading } = useQuery({
-    queryKey: ['platform-admin-check', normalizedEmail],
+  const userId = user?.id;
+
+  const { data, isLoading: queryLoading } = useQuery({
+    queryKey: ['platform-admin-check', userId, normalizedEmail],
     queryFn: async () => {
-      if (!normalizedEmail) {
-        console.log('[usePlatformOperator] No email available');
-        return null;
+      if (!userId || !normalizedEmail) {
+        return { isOperator: false, admin: null as PlatformAdmin | null };
       }
-      
-      console.log('[usePlatformOperator] Checking admin status for:', normalizedEmail);
-      
-      const { data, error } = await supabase
+
+      // 1) Canonical authorization check via RPC (single source of truth)
+      const { data: isOperator, error: rpcError } = await supabase.rpc('is_platform_admin');
+
+      if (rpcError) {
+        console.error('[usePlatformOperator] is_platform_admin RPC failed:', rpcError);
+        return { isOperator: false, admin: null as PlatformAdmin | null };
+      }
+
+      if (!isOperator) {
+        return { isOperator: false, admin: null as PlatformAdmin | null };
+      }
+
+      // 2) If authorized, fetch admin profile metadata for UI (role, permissions, name)
+      const { data: admin, error: profileError } = await supabase
         .from('platform_admins')
         .select('id, email, name, role, permissions, is_active')
         .eq('email', normalizedEmail)
         .eq('is_active', true)
         .maybeSingle();
-      
-      if (error) {
-        console.error('[usePlatformOperator] Error checking platform admin:', error);
-        console.error('[usePlatformOperator] Error details:', JSON.stringify(error));
-        return null;
+
+      if (profileError) {
+        console.warn('[usePlatformOperator] Profile fetch failed (still authorized):', profileError);
       }
-      
-      console.log('[usePlatformOperator] Query result:', data);
-      
-      return data as PlatformAdmin | null;
+
+      return {
+        isOperator: true,
+        admin: (admin as PlatformAdmin | null) ?? null,
+      };
     },
-    enabled: !!normalizedEmail && !authLoading,
+    enabled: !!userId && !!normalizedEmail && !authLoading,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    retry: 1,
   });
-  
+
   return {
-    isPlatformOperator: !!platformAdmin,
-    platformAdmin,
+    isPlatformOperator: !!data?.isOperator,
+    platformAdmin: data?.admin ?? null,
     isLoading: authLoading || queryLoading,
     userEmail: user?.email,
   };
