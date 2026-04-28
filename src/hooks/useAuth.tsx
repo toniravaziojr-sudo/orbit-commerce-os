@@ -126,10 +126,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loadUserData = async (userId: string): Promise<boolean> => {
-    const [profileData, rolesData] = await Promise.all([
-      fetchProfile(userId),
-      fetchUserRoles(userId),
-    ]);
+    // ============================================================
+    // ONDA 6 — Performance: bootstrap em 1 round-trip via RPC
+    // Substitui 3 chamadas (profile + roles + tenants) por 1.
+    // Em caso de falha (ex: RPC indisponível durante deploy),
+    // cai no caminho clássico paralelo como fallback seguro.
+    // ============================================================
+    let profileData: Profile | null = null;
+    let rolesData: UserRole[] = [];
+    let tenantsData: Tenant[] = [];
+
+    try {
+      const { data: bootstrap, error: bootstrapError } = await supabase
+        .rpc('get_user_bootstrap');
+
+      if (bootstrapError) throw bootstrapError;
+
+      const payload = bootstrap as any;
+      profileData = (payload?.profile ?? null) as Profile | null;
+      rolesData = ((payload?.roles ?? []) as any[]).map((r) => ({
+        ...r,
+        permissions: r.permissions || {},
+      })) as UserRole[];
+      tenantsData = (payload?.tenants ?? []) as Tenant[];
+    } catch (rpcErr) {
+      console.warn('[useAuth] get_user_bootstrap falhou, usando fallback paralelo:', rpcErr);
+      const [pData, rData] = await Promise.all([
+        fetchProfile(userId),
+        fetchUserRoles(userId),
+      ]);
+      profileData = pData;
+      rolesData = rData;
+      tenantsData = await fetchTenants(rData);
+    }
 
     // Se não existe profile, o usuário foi deletado - fazer logout
     if (!profileData) {
@@ -140,8 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setProfile(profileData);
     setUserRoles(rolesData);
-
-    const tenantsData = await fetchTenants(rolesData);
     setTenants(tenantsData);
 
     if (profileData?.current_tenant_id) {
@@ -149,11 +176,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (tenant) {
         setCurrentTenantState(tenant);
       } else if (tenantsData.length > 0) {
-        // Current tenant não existe mais, selecionar o primeiro
         await setCurrentTenant(tenantsData[0].id);
       }
     } else if (tenantsData.length > 0) {
-      // Sem tenant atual, selecionar o primeiro
       await setCurrentTenant(tenantsData[0].id);
     }
     return true;
