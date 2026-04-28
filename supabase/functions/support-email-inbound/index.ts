@@ -40,15 +40,57 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const formData = await req.formData();
-    
+
+    // SendGrid envia o campo `charsets` (JSON) indicando o charset original
+    // de cada campo textual. Sem isso, payloads em ISO-8859-1 (Latin-1) — comuns
+    // em provedores brasileiros — chegam com caracteres corrompidos (mojibake)
+    // porque o Deno assume UTF-8 por padrão ao ler form fields como string.
+    let charsetMap: Record<string, string> = {};
+    try {
+      const charsetsRaw = formData.get('charsets');
+      if (typeof charsetsRaw === 'string' && charsetsRaw.trim()) {
+        charsetMap = JSON.parse(charsetsRaw);
+      }
+    } catch (e) {
+      console.warn('Failed to parse charsets field:', e);
+    }
+
+    const decodeField = async (field: string): Promise<string> => {
+      const value = formData.get(field);
+      if (value == null) return '';
+      if (value instanceof File) {
+        // Campo veio como blob (ocorre quando o Deno detecta charset não-UTF-8).
+        const charset = (charsetMap[field] || 'utf-8').toLowerCase();
+        const buf = new Uint8Array(await value.arrayBuffer());
+        try {
+          return new TextDecoder(charset, { fatal: false }).decode(buf);
+        } catch {
+          return new TextDecoder('utf-8', { fatal: false }).decode(buf);
+        }
+      }
+      const str = value as string;
+      const charset = (charsetMap[field] || '').toLowerCase();
+      // Se o charset declarado não é UTF-8, re-decodifica a partir dos bytes Latin-1
+      // (string já chegou interpretada como UTF-8 — usamos round-trip via Latin-1).
+      if (charset && charset !== 'utf-8' && charset !== 'utf8') {
+        try {
+          const bytes = Uint8Array.from(str, (c) => c.charCodeAt(0) & 0xff);
+          return new TextDecoder(charset, { fatal: false }).decode(bytes);
+        } catch {
+          return str;
+        }
+      }
+      return str;
+    };
+
     const payload: SendGridInboundEmail = {
-      from: formData.get('from') as string || '',
-      to: formData.get('to') as string || '',
-      subject: formData.get('subject') as string || '',
-      text: formData.get('text') as string || '',
-      html: formData.get('html') as string || '',
-      headers: formData.get('headers') as string || '',
-      envelope: formData.get('envelope') as string || '{}',
+      from: await decodeField('from'),
+      to: await decodeField('to'),
+      subject: await decodeField('subject'),
+      text: await decodeField('text'),
+      html: await decodeField('html'),
+      headers: await decodeField('headers'),
+      envelope: (await decodeField('envelope')) || '{}',
       attachments: formData.get('attachments') as string,
       'attachment-info': formData.get('attachment-info') as string,
     };
