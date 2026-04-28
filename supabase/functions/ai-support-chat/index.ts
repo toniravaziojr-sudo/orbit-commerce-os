@@ -3600,11 +3600,7 @@ Cliente: "vocês entregam em SP?"
       // Computado SEMPRE que houver carrinho persistido, mesmo fora de
       // decision/checkout_assist (porque o downgrade do gate pode ter ocorrido
       // mas o carrinho ainda está válido para fechar quando intenção voltar).
-      var checkoutChecklist: {
-        ready: boolean;
-        missing: string[];
-        items: number;
-      } = { ready: false, missing: [], items: 0 };
+      // (checkoutChecklist já declarado em escopo amplo acima)
       if (preloadedActiveCart) {
         const cd = preloadedActiveCart.customer_data;
         const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
