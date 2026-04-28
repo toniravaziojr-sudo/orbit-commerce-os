@@ -1,0 +1,9 @@
+REVOKE EXECUTE ON FUNCTION public.get_ai_memories FROM anon, authenticated, PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_recent_conversation_summaries FROM anon, authenticated, PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.search_knowledge_base FROM anon, authenticated, PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.search_products_fuzzy FROM anon, authenticated, PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.increment_ai_metrics FROM anon, authenticated, PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.enqueue_ai_regeneration FROM anon, authenticated, PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_auth_user_email FROM anon, authenticated, PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.ai_daily_snapshot_reconciliation FROM anon, authenticated, PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.attribute_email_conversion FROM anon, authenticated, PUBLIC;
