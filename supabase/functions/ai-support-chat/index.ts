@@ -2492,34 +2492,81 @@ async function executeSalesTool(
           coupon: cart.coupon_code || null,
         } : null;
 
-        // Criar ticket de suporte (categoria sales)
-        const subject = `[Vendas WhatsApp] ${summary.slice(0, 80)}`;
-        const { data: ticket, error: ticketErr } = await supabase
+        // [IDEMPOTÊNCIA] Reaproveita ticket aberto da mesma conversa para evitar
+        // duplicação quando a IA chama request_human_handoff mais de uma vez.
+        const { data: existingTicket } = await supabase
           .from("support_tickets")
-          .insert({
-            tenant_id: tenantId,
-            created_by: customerId || "00000000-0000-0000-0000-000000000000",
-            subject,
-            category: "sales",
-            priority: reason === "angry_customer" || reason === "complaint" ? "high" : "normal",
-            status: "open",
-            source_conversation_id: conversationId,
-            metadata: {
-              source: "whatsapp_sales",
-              handoff_reason: reason,
-              last_intent: lastIntent,
-              ai_summary: summary,
-              customer: {
-                id: customerId,
-                name: customerName,
-                phone: customerPhone,
-                email: customerEmail,
+          .select("id, status, metadata")
+          .eq("tenant_id", tenantId)
+          .eq("source_conversation_id", conversationId)
+          .in("status", ["open", "pending"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let ticket: { id: string } | null = null;
+        let ticketErr: any = null;
+
+        if (existingTicket?.id) {
+          // Atualiza ticket existente com o novo contexto, mantendo o id estável.
+          const { data: updated, error: updateErr } = await supabase
+            .from("support_tickets")
+            .update({
+              priority: reason === "angry_customer" || reason === "complaint" ? "high" : "normal",
+              metadata: {
+                ...(existingTicket.metadata as Record<string, unknown> ?? {}),
+                source: "whatsapp_sales",
+                handoff_reason: reason,
+                last_intent: lastIntent,
+                ai_summary: summary,
+                customer: {
+                  id: customerId,
+                  name: customerName,
+                  phone: customerPhone,
+                  email: customerEmail,
+                },
+                cart: cartSummary,
+                last_handoff_at: new Date().toISOString(),
               },
-              cart: cartSummary,
-            },
-          })
-          .select()
-          .single();
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingTicket.id)
+            .select("id")
+            .single();
+          ticket = updated;
+          ticketErr = updateErr;
+          console.log(`[sales-tool] handoff REUSED existing ticket ${existingTicket.id} (idempotent)`);
+        } else {
+          const subject = `[Vendas WhatsApp] ${summary.slice(0, 80)}`;
+          const { data: created, error: createErr } = await supabase
+            .from("support_tickets")
+            .insert({
+              tenant_id: tenantId,
+              created_by: customerId || "00000000-0000-0000-0000-000000000000",
+              subject,
+              category: "sales",
+              priority: reason === "angry_customer" || reason === "complaint" ? "high" : "normal",
+              status: "open",
+              source_conversation_id: conversationId,
+              metadata: {
+                source: "whatsapp_sales",
+                handoff_reason: reason,
+                last_intent: lastIntent,
+                ai_summary: summary,
+                customer: {
+                  id: customerId,
+                  name: customerName,
+                  phone: customerPhone,
+                  email: customerEmail,
+                },
+                cart: cartSummary,
+              },
+            })
+            .select("id")
+            .single();
+          ticket = created;
+          ticketErr = createErr;
+        }
 
         if (ticketErr) {
           console.error("[sales-tool] handoff ticket error:", ticketErr);
