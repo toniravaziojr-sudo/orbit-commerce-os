@@ -1119,4 +1119,123 @@ Ver `mem://constraints/security-linter-accepted-exceptions` para a whitelist com
 
 ### Próxima onda (proposta — não iniciada)
 
-- **Onda 5:** Auth hardening avançado — OTP expiry tuning, MFA obrigatório para platform admin, audit log de tentativas falhas.
+- ~~**Onda 5:** Auth hardening avançado — OTP expiry tuning, MFA obrigatório para platform admin, audit log de tentativas falhas.~~ ✅ **Encerrada em 2026-04-28** (ver seção abaixo).
+
+---
+
+## 2026-04-28 — Onda 5 — Auth Hardening Avançado (encerrada)
+
+**Objetivo:** Fechar o ciclo de hardening iniciado nas Ondas 3 e 4, atacando vetores ligados ao login (e não mais ao banco).
+
+### F1 — Audit Log de Tentativas de Login
+
+- **Tabela:** `public.auth_login_attempts` (email, user_id, ip_address, user_agent, success, error_code, attempted_at).
+- **Índices:** por email, ip_address, user_id e attempted_at — suportam contagem rápida em janelas curtas.
+- **RLS:** ENABLE; SELECT só para `platform super_admin`; INSERT só por `service_role` via edge function `log-login-attempt`.
+- **Edge function:** `log-login-attempt` (`verify_jwt = false`) — sanitiza email, captura IP via header padrão, persiste registro.
+- **Front:** `Auth.tsx` chama a edge em todo `signInWithPassword`/`signUp`, sucesso ou falha.
+
+### F2 — MFA Obrigatório para Platform Admin
+
+- **Tabela:** `public.user_mfa_status`.
+- **Hook:** `useRequireMFA` — verifica fator TOTP em `auth.mfa_factors` para roles `platform.super_admin` / `platform.admin`. Sem fator → redireciona para `/mfa/setup`.
+- **Tela:** `MFASetup.tsx` (QR + verificação + códigos de recuperação).
+
+### F3 — OTP Expiry Tuning
+
+- OTP de e-mail reduzido de 60min para 10min via `configure_auth`. Janela suficiente para uso legítimo, hostil a ataques tardios.
+
+### Validação técnica
+
+- ✅ Tentativas visíveis em `auth_login_attempts` em tempo real
+- ✅ Platform admins sem MFA são redirecionados no próximo login
+- ✅ Linter Supabase: 42 alertas (sem regressão)
+
+### Aprendizado consolidado das Ondas 1–5
+
+| Onda | Foco | Resultado |
+|------|------|-----------|
+| 1 | Observabilidade (banco/cron/filas) | Painel Saúde do Sistema operacional |
+| 2 | Resiliência observável (WhatsApp + pagamentos órfãos) | 0 mensagens perdidas |
+| 3 | Hardening `SECURITY DEFINER` | search_path fixo + REVOKE default |
+| 4 | RLS, buckets, extensões, HIBP | 75 → 42 alertas (-44%) |
+| 5 | Auth hardening (audit, MFA, OTP) | Vetor de login auditado e endurecido |
+
+**Regra perene derivada:** Toda nova função `SECURITY DEFINER` exposta via API DEVE ter `SET search_path = public` + `REVOKE EXECUTE FROM PUBLIC, anon` + `GRANT EXECUTE TO <role específica>`. Toda nova RLS permissiva (`USING (true)`) precisa de justificativa no comentário da migration.
+
+---
+
+## 2026-04-28 — Onda 6 — Performance e Velocidade Percebida (em validação)
+
+**Contexto:** Após Onda 4 estabilizar segurança e Onda 5 endurecer auth, o usuário relatou que a velocidade percebida do app continuava ruim mesmo após upgrade da instância de Lovable Cloud. Diagnóstico mostrou que o gargalo era 100% **frontend + cascata de auth**, não banco.
+
+### Diagnóstico
+
+| Sintoma | Causa raiz | Camada |
+|---------|------------|--------|
+| Refetch a cada troca de aba | `QueryClient` sem defaults (staleTime 0, refetchOnWindowFocus true) | Frontend / cache |
+| Bundle inicial grande, login lento | `vite.config.ts` sem `manualChunks` (recharts/xyflow/tiptap no chunk principal) | Build |
+| 200–400ms extras em todo bootstrap | `useAuth.loadUserData` fazia 3 round-trips (profile → roles → tenants) | Auth |
+
+### F1 — Defaults globais do React Query (`src/App.tsx`)
+
+```ts
+new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000,           // dados frescos por 60s
+      gcTime: 5 * 60 * 1000,          // cache em memória por 5min
+      refetchOnWindowFocus: false,    // troca de aba não dispara refetch
+      refetchOnReconnect: true,       // voltar de offline sim
+      retry: 1,
+    },
+    mutations: { retry: 0 },
+  },
+});
+```
+
+**Regra:** Telas que precisem de dados sempre frescos sobrescrevem localmente com `staleTime: 0` ou `refetchInterval`. **Nunca voltar o default global a 0** — anula o ganho.
+
+### F2 — Bundle partitioning (`vite.config.ts`)
+
+Libs grandes isoladas em chunks dedicados, cacheados independentemente pelo browser:
+
+- `react-vendor` (react/react-dom/react-router)
+- `charts-vendor` (recharts/d3)
+- `flow-vendor` (@xyflow/reactflow — só usado no editor de automação)
+- `editor-vendor` (@dnd-kit/@tiptap/codemirror)
+- `export-vendor` (jspdf/html2canvas/xlsx/papaparse)
+- `supabase-vendor`, `ui-vendor` (radix), `form-vendor`, `date-vendor`, `icons-vendor` (lucide), `motion-vendor`
+
+**Resultado esperado:** primeiro carregamento (login + dashboard) baixa só o necessário; navegar para módulos baixa apenas o chunk daquele módulo. Deploys parciais não invalidam todos os caches.
+
+### F3 — Bootstrap unificado de auth (RPC)
+
+Função `public.get_user_bootstrap()` retorna `{ profile, roles, tenants }` em **uma única chamada**. `useAuth.loadUserData` agora:
+
+1. Tenta o RPC unificado.
+2. Em erro (deploy em curso etc.), cai no caminho clássico paralelo.
+
+Padrão segue Onda 3.4: `SECURITY DEFINER` + `SET search_path = public` + `REVOKE FROM PUBLIC, anon` + `GRANT TO authenticated`.
+
+### Validação técnica executada
+
+- ✅ Migration aplicada — `pg_proc` confirma `prosecdef=true`, `provolatile=s`, `proconfig=[search_path=public]`
+- ✅ Linter Supabase estável (43 alertas; nova função enquadrada como exceção autenticada documentada)
+- ✅ `useAuth` com fallback paralelo — sem regressão se o RPC falhar
+- ⏳ **Pendente de validação do usuário:** percepção de velocidade no app publicado (`app.comandocentral.com.br`) após o próximo build/deploy
+
+### Como o usuário valida
+
+1. Acessar `app.comandocentral.com.br`, fazer login.
+2. Navegar Pedidos → Produtos → Clientes → Dashboard várias vezes.
+3. **Esperado:** segunda visita à mesma aba é instantânea (cache de 60s).
+4. Trocar de aba do navegador e voltar → **sem loading**.
+5. Tempo de login deve cair perceptivelmente.
+
+### Regras perenes derivadas (anti-regressão)
+
+1. **QueryClient global nunca volta a defaults zerados.** Necessidade pontual de dados frescos = override local.
+2. **Toda lib pesada nova** (>50kb minified) deve receber regra explícita em `manualChunks` antes de ser importada.
+3. **Bootstraps de contexto crítico** (auth, tenant, permissões) devem ser sempre 1 round-trip via RPC. Adicionar nova entidade ao bootstrap = estender `get_user_bootstrap`, não criar nova chamada paralela.
+
