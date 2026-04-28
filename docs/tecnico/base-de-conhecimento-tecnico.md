@@ -949,7 +949,63 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 - ✅ Linter Supabase: 75 alertas (queda de 144). Restam: 27 RLS Policy Always True (Onda 4.2), 4 Public Bucket Allows Listing (Onda 4.3), ~40 EXECUTE em funções legítimas (B+D+F — exceções), 1 search_path mutable, 1 Extension in public, 1 RLS enabled no policy, 1 Leaked password protection (Onda 5).
 
 **Próximas ondas:**
-- **Onda 4.2:** Refazer 27 policies RLS com `USING (true)` / `WITH CHECK (true)` em INSERT/UPDATE/DELETE.
+- ~~**Onda 4.2:** Refazer 27 policies RLS com `USING (true)` / `WITH CHECK (true)` em INSERT/UPDATE/DELETE.~~ ✅ **Encerrada em 2026-04-28** (ver seção abaixo).
 - **Onda 4.3:** Restringir 4 buckets públicos com policy de listagem aberta.
 - **Onda 4.4:** Mover extensão de `public` para `extensions`, criar policy na tabela órfã, fixar `search_path` na função remanescente.
 - **Onda 5:** Auth hardening (leaked password, OTP expiry, MFA platform admin).
+
+---
+
+## 2026-04-28 — Hardening de Políticas RLS Permissivas (Onda 4.2 — encerrada)
+
+**Objetivo:** Eliminar policies RLS de escrita (INSERT/UPDATE/DELETE/ALL) com `USING (true)` ou `WITH CHECK (true)` sem restrição de role/tenant, conforme lint `0024_permissive_rls_policy`. Auditoria classificou 42 policies em 4 categorias e tratou 30 delas (Cat A, C, D); Cat B é falso-positivo aceito e documentado.
+
+### Categorias de classificação
+
+**Categoria A — Service-role atribuída a `public` (BUG real, 17 policies corrigidas):**
+Policies cujo nome dizia "Service role" mas estavam atribuídas ao role `public`, abrindo acesso a `anon`/`authenticated`. Tabelas: `ads_autopilot_artifacts`, `billing_events`, `core_audit_log`, `email_conversions`, `email_tracking_tokens`, `google_ad_ads/assets/groups/keywords`, `google_business_posts/reviews`, `google_search_console_data`, `meta_ad_ads/adsets`, `meta_whatsapp_onboarding_states`, `tiktok_shop_returns`, `whatsapp_inbound_messages`. **Correção:** `DROP POLICY` + `CREATE POLICY ... TO service_role`.
+
+**Categoria B — Service-role já correto (15 policies — falso-positivo aceito):**
+Policies já em `roles: {service_role}` com `USING (true)`. Linter ainda alerta porque vê `true` literal, mas service_role faz bypass natural de RLS — a expressão é cosmética. **Decisão:** manter como está. Tabelas: `ad_insights_sync_coverage`, `ai_signal_capture_queue`, `ai_support_tool_calls`, `command_insights`, `meta_oauth_states`, `store_page_versions`, `store_pages`, `storefront_cache_health_log`, `support_tickets`, `system_performance_snapshots`, `system_query_stats_snapshots`, `whatsapp_carts`, `whatsapp_health_incidents`, `whatsapp_inbound_debounce`, `wms_pratika_logs`.
+
+**Categoria C — Endpoints públicos legítimos do storefront (8 policies endurecidas):**
+Tabelas que precisam aceitar escrita anônima (carrinho/checkout convidado, reviews, cotação CEP, analytics) mas tinham `WITH CHECK (true)` cego. **Correção:** `WITH CHECK (tenant_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenants WHERE id = tenant_id))`. Para `cart_items` valida via `cart_id` (parent cart existe). Para `checkouts` valida `cart_id` quando informado. Tabelas: `affiliate_clicks`, `carts` (INSERT/UPDATE), `cart_items` (ALL), `checkouts` (INSERT/UPDATE), `product_reviews`, `shipping_quotes`, `storefront_visits`.
+
+**Categoria D — Privilege escalation (1 policy crítica removida):**
+`user_roles` tinha `INSERT TO authenticated WITH CHECK (true)` — qualquer usuário autenticado podia se conceder qualquer role (inclusive `owner`) em qualquer tenant. **Correção:** `DROP POLICY "System can insert roles"`. Inserções legítimas continuam via policy `Owner can manage tenant user_roles` (com check `is_tenant_owner`) ou via `service_role` em Edge Functions administrativas.
+
+### Padrão obrigatório para novas policies
+
+```sql
+-- ❌ NUNCA: nome contradiz role
+CREATE POLICY "Service role full access" ON tbl
+  FOR ALL TO public USING (true);  -- BUG: público vê tudo
+
+-- ✅ SEMPRE: role explícito + nome coerente
+CREATE POLICY "Service role full access" ON tbl
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- ✅ Endpoint público: validar tenant existe
+CREATE POLICY "Anyone can insert X" ON tbl
+  FOR INSERT TO public
+  WITH CHECK (tenant_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.tenants WHERE id = tenant_id
+  ));
+
+-- ✅ Tabela de papéis: NUNCA permitir self-assignment
+-- Apenas owner do tenant ou service_role podem inserir em user_roles.
+```
+
+### Validação técnica
+
+- ✅ Linter Supabase: **75 → 48 alertas** (queda de 27, -36%).
+- ✅ Migrations: `20260428_wave_4_2_step_1_user_roles`, `_step_2_service_role_fix`, `_step_3_storefront_tenant_validation`.
+- ✅ `pg_policies` confirma todas as 17 policies da Cat A agora têm `roles: {service_role}`.
+- ✅ Storefront público continua funcional (carts, checkouts, reviews, shipping_quotes, storefront_visits aceitam INSERT anônimo desde que tenant exista).
+- ✅ `user_roles`: tentativa de self-insert por authenticated agora é bloqueada por RLS.
+
+### Próximas ondas
+
+- **Onda 4.3:** 4 buckets públicos com listagem aberta (`storage.objects` SELECT amplo).
+- **Onda 4.4:** Mover extensão de `public` para `extensions`, criar policy na tabela órfã (RLS Enabled No Policy), fixar último `search_path` mutable.
+- **Onda 5:** Auth hardening (leaked password protection, OTP expiry, MFA para platform admin).
