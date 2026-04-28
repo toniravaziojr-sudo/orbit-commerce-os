@@ -5028,7 +5028,64 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
     }
 
-    const latencyMs = Date.now() - startTime;
+    // ============================================
+    // [FIX-C] KNOWLEDGE SCRUBBER — NEGAÇÃO DE PRODUTO INVENTADA
+    // Bloqueia o modelo de afirmar "não temos / não conheço / não encontrei"
+    // um produto quando search_products neste turno (ou em turnos recentes
+    // dessa mesma conversa) retornou produtos reais. Esse padrão é tóxico
+    // para vendas: o cliente cita um produto, a tool acha, e o modelo nega.
+    // Quando detectado, regeneramos a frase de negação para uma fala neutra
+    // que mantém o catálogo aberto.
+    // ============================================
+    if (salesModeEnabled && aiContent && typeof aiContent === "string") {
+      try {
+        const NEGATION_PATTERNS: RegExp[] = [
+          /\b(n[ãa]o\s+(temos|tenho|possu[ií]mos|trabalhamos\s+com|encontrei|encontramos|achei))\b[^.!?\n]{0,80}(produto|item|esse|esta|essa|isso)/i,
+          /\b(infelizmente|por\s+enquanto)\s+n[ãa]o\s+(temos|tenho|possu[ií]mos)/i,
+          /\bn[ãa]o\s+(consta|existe)\s+(no\s+)?(nosso\s+)?cat[áa]logo/i,
+          /\bn[ãa]o\s+conhe[çc]o\s+(esse|essa|esta|este)\s+produto/i,
+        ];
+        const hasNegation = NEGATION_PATTERNS.some((re) => re.test(aiContent));
+        if (hasNegation) {
+          // Verifica se search_products NESTE turno retornou itens.
+          let searchReturnedItems = false;
+          try {
+            for (const snap of toolResultsThisTurn) {
+              if (snap.tool !== "search_products") continue;
+              const normalized = parseSearchProductsResult(snap.parsed);
+              if (normalized.items && normalized.items.length > 0) {
+                searchReturnedItems = true;
+                break;
+              }
+            }
+          } catch (_) { /* tolerante */ }
+
+          // Também considera relevantProducts (snapshot de catálogo já injetado).
+          const catalogHasItems = (relevantProducts?.length ?? 0) > 0;
+
+          if (searchReturnedItems || catalogHasItems) {
+            const safeReplacement = "Posso te dar mais detalhes desse produto se você me confirmar o nome exato ou a categoria?";
+            // Substitui apenas a primeira sentença com negação, preservando o resto.
+            let replaced = aiContent;
+            for (const re of NEGATION_PATTERNS) {
+              if (re.test(replaced)) {
+                replaced = replaced.replace(/(^|[\n.!?])\s*[^.!?\n]*(n[ãa]o\s+(temos|tenho|possu[ií]mos|trabalhamos|encontrei|encontramos|conhe[çc]o|consta|existe))\b[^.!?\n]*[.!?]?/i,
+                  "$1 " + safeReplacement);
+                break;
+              }
+            }
+            if (replaced !== aiContent) {
+              console.warn(
+                `[ai-support-chat] [FIX-C] product-negation scrubbed — search_results=${searchReturnedItems} catalog=${catalogHasItems} ` +
+                `(was ${aiContent.length}ch → ${replaced.length}ch)`
+              );
+              aiContent = replaced.replace(/[ \t]{2,}/g, " ").trim();
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat] [FIX-C] knowledge scrubber failed:", (e as Error).message);
+      }
 
     // ============================================
     // STEP 8: RECORD USAGE & METRICS
