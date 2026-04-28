@@ -5651,6 +5651,27 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       .update(conversationUpdate)
       .eq("id", conversation_id);
 
+    // [Eixo 1.3] Reset do contador de inputs ambíguos quando o turno foi
+    // processado normalmente (não estava degenerado). Lê-modifica-grava em
+    // metadata para não atropelar outros campos.
+    if (ambiguousResetNeeded) {
+      const { data: convForReset } = await supabase
+        .from("conversations")
+        .select("metadata")
+        .eq("id", conversation_id)
+        .maybeSingle();
+      const metaNow = (convForReset?.metadata as Record<string, unknown> | null) ?? {};
+      if ((metaNow.ambiguous_input_count as number | undefined) ?? 0 > 0) {
+        await supabase
+          .from("conversations")
+          .update({
+            metadata: { ...metaNow, ambiguous_input_count: 0 },
+          })
+          .eq("id", conversation_id);
+        console.log(`[ai-support-chat] [Eixo 1.3] ambiguous counter reset after normal turn`);
+      }
+    }
+
     // [PACOTE 3] Persistir/limpar pendência (toca metadata, separado para não conflitar com o update acima)
     if (pendingActionToPersist !== undefined) {
       await persistPendingAction(supabase, conversation_id, pendingActionToPersist);
