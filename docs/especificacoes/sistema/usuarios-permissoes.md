@@ -204,6 +204,39 @@ const {
 
 ---
 
+## Fluxo de Login (Autenticação Inicial)
+
+### Pontos de Entrada
+- **Rota:** `/auth` (componente `src/pages/Auth.tsx`)
+- **Modos:** Login por e-mail/senha, Cadastro por e-mail/senha, Google OAuth (login e signup), Recuperação de senha (`/auth/reset-password`).
+- **Hook único:** `useAuth` (`src/hooks/useAuth.tsx`) é a **fonte de verdade** para todas as operações de autenticação. Componentes de UI **não** podem chamar `supabase.auth.signInWithOAuth` diretamente.
+
+### Fluxo Google OAuth (Emissor → Receptor)
+1. **Emissor** (`Auth.tsx`): usuário clica em "Continuar com Google" → chama `useAuth().signInWithGoogle(intent)`.
+2. `useAuth.signInWithGoogle`:
+   - Marca sinal persistente `oauth_in_progress` em `localStorage` com timestamp (TTL de segurança: 60s).
+   - Dispara `supabase.auth.signInWithOAuth({ provider: 'google', redirectTo })`.
+3. **Redirecionamento externo** para Google → callback de volta em `/auth#access_token=...`.
+4. **Receptor** (`Auth.tsx` + `ProtectedRoute.tsx` no remount):
+   - Enquanto `isOAuthInProgress()` for `true`, ambos exibem **loader visual** e **bloqueiam o render** do formulário de login e de qualquer rota protegida.
+   - `useAuth` detecta `onAuthStateChange('SIGNED_IN')`, hidrata sessão/tenant/roles, registra auditoria de login (provedor `google`) e chama `clearOAuthInProgress()`.
+5. Concluído o bootstrap, `ProtectedRoute` libera a rota destino (ex.: `/command-center`).
+
+### Regras Anti-Flicker (obrigatórias)
+- Toda tela envolvida em redirect OAuth (emissor + receptor) deve respeitar `isOAuthInProgress()` como **gate de loader**, mantendo o loader visível até a conclusão do bootstrap.
+- O sinal `oauth_in_progress` é limpo deterministicamente em: sucesso (`SIGNED_IN`), erro de OAuth, ou expiração do TTL de 60s.
+- **Proibido**: chamar `supabase.auth.signInWithOAuth` fora do `useAuth`; esconder loader baseado apenas em `authLoading` durante callback OAuth.
+
+### Auditoria de Login
+- Todo evento `SIGNED_IN` é registrado via `onAuthStateChange` no `useAuth`, incluindo o provedor (`email` ou `google`). Ver constraint `mem://constraints/oauth-login-audit-via-onauthstatechange`.
+
+### Padrões Aplicados (referência)
+- §4.5 do `docs/tecnico/base-de-conhecimento-tecnico.md` — Loader/Wizard Guard no receptor de fluxos por URL.
+- §10.6 — Stable Latch sobrevivendo a remounts via `localStorage`.
+- `mem://constraints/oauth-callback-visual-loader-required` — gate visual obrigatório.
+
+---
+
 ## Checklist de Implementação
 
 - [x] Página de gestão de usuários
