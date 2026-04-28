@@ -22581,6 +22581,56 @@ export type Database = {
           },
         ]
       }
+      whatsapp_inbound_orphans_v: {
+        Row: {
+          age_seconds: number | null
+          from_phone: string | null
+          id: string | null
+          message_type: string | null
+          orphan_reason: string | null
+          processed_by: string | null
+          processing_error: string | null
+          processing_status: string | null
+          tenant_id: string | null
+          timestamp: string | null
+          to_phone: string | null
+        }
+        Insert: {
+          age_seconds?: never
+          from_phone?: string | null
+          id?: string | null
+          message_type?: string | null
+          orphan_reason?: never
+          processed_by?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
+          tenant_id?: string | null
+          timestamp?: string | null
+          to_phone?: string | null
+        }
+        Update: {
+          age_seconds?: never
+          from_phone?: string | null
+          id?: string | null
+          message_type?: string | null
+          orphan_reason?: never
+          processed_by?: string | null
+          processing_error?: string | null
+          processing_status?: string | null
+          tenant_id?: string | null
+          timestamp?: string | null
+          to_phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_inbound_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_sales_funnel_view: {
         Row: {
           carts_converted: number | null
