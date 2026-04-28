@@ -214,9 +214,29 @@ function rankAdvance(current: SalesState, target: SalesState): SalesState {
 
 // ----------------------------------------------------------------
 // Hash determinístico curto da resposta (anti-repetição)
+// [Eixo 1.4] Normalização robusta:
+//   - lowercase
+//   - remove acentos
+//   - remove tudo que não é [a-z0-9 ]
+//   - colapsa espaços
+//   - corta nos primeiros 80 chars (prefixo é o "abre" da resposta — é o que
+//     dá a sensação de "ela tá respondendo a mesma coisa de novo")
+// Mantém assinatura async/Promise<string> para compatibilidade.
 // ----------------------------------------------------------------
+function normalizeForHash(content: string): string {
+  return content
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")        // acentos
+    .replace(/[^a-z0-9 ]+/g, " ")           // pontuação/emoji/símbolos → espaço
+    .replace(/\s+/g, " ")                   // colapsa
+    .trim()
+    .slice(0, 80);                          // prefixo "abre"
+}
+
 export async function hashResponse(content: string): Promise<string> {
-  const data = new TextEncoder().encode(content.trim().toLowerCase().slice(0, 500));
+  const normalized = normalizeForHash(content);
+  const data = new TextEncoder().encode(normalized);
   const buf = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(buf))
     .slice(0, 12)
