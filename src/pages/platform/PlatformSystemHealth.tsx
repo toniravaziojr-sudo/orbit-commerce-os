@@ -170,7 +170,7 @@ function HealthDashboard() {
         </div>
       )}
 
-      {/* KPIs */}
+      {/* KPIs Onda 1 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Conexões do banco"
@@ -202,14 +202,49 @@ function HealthDashboard() {
         />
       </div>
 
+      {/* KPIs Onda 2 — Resiliência */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatCard
+          title="Mensagens WhatsApp travadas"
+          value={resilience.error ? 'Indisponível' : resilience.data?.orphan_inbound ?? 0}
+          description="Recebidas há mais de 5 min sem processamento"
+          icon={Inbox}
+          variant={(resilience.data?.orphan_inbound ?? 0) > 0 ? 'warning' : 'success' as any}
+        />
+        <StatCard
+          title="Incidentes WhatsApp abertos"
+          value={resilience.error ? 'Indisponível' : resilience.data?.open_incidents ?? 0}
+          description="Aguardando ação manual do operador"
+          icon={MessageSquare}
+          variant={(resilience.data?.open_incidents ?? 0) > 0 ? 'destructive' : 'success' as any}
+        />
+        <StatCard
+          title="Divergências de pagamento (24h)"
+          value={resilience.error ? 'Indisponível' : resilience.data?.payment_divergences_24h ?? 0}
+          description="Pagamento aprovado sem pedido correspondente"
+          icon={CreditCard}
+          variant={(resilience.data?.payment_divergences_24h ?? 0) > 0 ? 'destructive' : 'success' as any}
+        />
+      </div>
+
       {/* Detalhe */}
       <Tabs defaultValue="cron" className="w-full">
         <TabsList>
           <TabsTrigger value="cron">Tarefas Automatizadas</TabsTrigger>
           <TabsTrigger value="queues">Filas</TabsTrigger>
+          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+          <TabsTrigger value="payments">Pagamentos</TabsTrigger>
           <TabsTrigger value="queries">Queries Lentas</TabsTrigger>
           <TabsTrigger value="db">Banco</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="whatsapp">
+          <WhatsAppIncidentsTab />
+        </TabsContent>
+
+        <TabsContent value="payments">
+          <PaymentDivergencesTab />
+        </TabsContent>
 
         {/* CRON */}
         <TabsContent value="cron">
