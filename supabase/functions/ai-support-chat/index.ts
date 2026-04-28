@@ -5728,6 +5728,31 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       .update(conversationUpdate)
       .eq("id", conversation_id);
 
+    // [Eixo 1.8] Incrementa discovery_questions_asked quando estamos em
+    // discovery e a IA fez uma pergunta de qualificação. Sem isso, o contador
+    // fica eternamente em 0 e discovery nunca avança por contagem.
+    try {
+      if (
+        (pipelineState === "discovery" || nextPipelineState === "discovery") &&
+        aiContent && isQualificationQuestion(aiContent)
+      ) {
+        const { data: convForDisc } = await supabase
+          .from("conversations")
+          .select("metadata")
+          .eq("id", conversation_id)
+          .maybeSingle();
+        const metaDisc = (convForDisc?.metadata as Record<string, unknown> | null) ?? {};
+        const prev = (metaDisc.discovery_questions_asked as number | undefined) ?? 0;
+        await supabase
+          .from("conversations")
+          .update({ metadata: { ...metaDisc, discovery_questions_asked: prev + 1 } })
+          .eq("id", conversation_id);
+        console.log(`[ai-support-chat] [Eixo 1.8] discovery_questions_asked ${prev} → ${prev + 1}`);
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Eixo 1.8] discovery counter increment failed:", (e as Error).message);
+    }
+
     // [Eixo 1.3] Reset do contador de inputs ambíguos quando o turno foi
     // processado normalmente (não estava degenerado). Lê-modifica-grava em
     // metadata para não atropelar outros campos.
