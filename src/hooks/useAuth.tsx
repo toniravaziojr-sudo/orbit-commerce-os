@@ -241,6 +241,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
+        // Anti-regressão: registrar SIGNED_IN via OAuth em auth_login_attempts.
+        // signInWithPassword já loga em signIn(); aqui cobrimos OAuth (Google),
+        // cujo sucesso real só chega depois do redirect via onAuthStateChange.
+        if (event === 'SIGNED_IN' && newSession?.user) {
+          const provider = (newSession.user.app_metadata as any)?.provider;
+          if (provider && provider !== 'email') {
+            try {
+              supabase.functions.invoke('log-login-attempt', {
+                body: {
+                  email: newSession.user.email ?? null,
+                  success: true,
+                  failure_reason: null,
+                  user_id: newSession.user.id,
+                },
+              }).catch(() => {});
+            } catch {
+              // auditoria nunca bloqueia login
+            }
+          }
+        }
+
         // Defer data loading to prevent deadlock
         if (newSession?.user) {
           setTimeout(async () => {
