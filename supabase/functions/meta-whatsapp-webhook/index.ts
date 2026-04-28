@@ -348,25 +348,12 @@ Deno.serve(async (req) => {
                 } catch (agendaError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
                 }
-                // Audit loop (tolerante a falha — Pacote 3): nunca derruba o webhook.
-                if (inboundId) {
-                  try {
-                    await supabase
-                      .from("whatsapp_inbound_messages")
-                      .update({
-                        processed_at: new Date().toISOString(),
-                        processed_by: agendaOk ? "agenda_agent" : "agenda_failed",
-                        processing_status: agendaOk ? "processed" : "failed",
-                      })
-                      .eq("id", inboundId);
-                  } catch (auditErr) {
-                    console.error(`[meta-whatsapp-webhook][${traceId}] [AUDIT] agenda update failed (non-blocking):`, auditErr);
-                  }
-                }
+                // Outcome registrado pelo `finally` no fim do bloco.
+                outcomeStatus = agendaOk ? "processed" : "failed";
+                outcomeProcessedBy = agendaOk ? "agenda_agent" : "agenda_failed";
+                outcomeError = agendaOk ? null : "agenda invocation failed";
                 // Admin messages do NOT create support conversations
-                continue;
-              }
-
+              } else {
               // ── ROUTE TO SUPPORT FLOW (Phase 1: inbound desacoplado da IA) ──
               // Ordem: (1) localizar/criar conversa SEM sobrescrever status,
               //        (2) persistir mensagem inbound,
