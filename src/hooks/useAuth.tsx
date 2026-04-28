@@ -1,6 +1,57 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable';
+
+// ============================================================================
+// OAuth in-progress signal — sobrevive a remontagens do React após redirect
+// ----------------------------------------------------------------------------
+// Padrões reaproveitados (docs):
+//   §4.5 (base técnica) — "Lado emissor + lado receptor": toda operação que
+//        sai do app via redirect precisa de guarda explícita no destino.
+//   §10.6 (base técnica) — Estado de operação em curso precisa viver fora
+//        do ciclo de render.
+//
+// Contrato: localStorage.oauth_in_progress = timestamp (string).
+// Auto-expira em 60s (timeout de segurança contra abandono).
+// ============================================================================
+const OAUTH_IN_PROGRESS_KEY = 'oauth_in_progress';
+const OAUTH_IN_PROGRESS_TIMEOUT_MS = 60_000;
+
+export function markOAuthInProgress(): void {
+  try {
+    localStorage.setItem(OAUTH_IN_PROGRESS_KEY, Date.now().toString());
+  } catch {
+    // storage indisponível — fail-safe (UI cai no caminho normal)
+  }
+}
+
+export function clearOAuthInProgress(): void {
+  try {
+    localStorage.removeItem(OAUTH_IN_PROGRESS_KEY);
+  } catch {
+    // noop
+  }
+}
+
+export function isOAuthInProgress(): boolean {
+  try {
+    const raw = localStorage.getItem(OAUTH_IN_PROGRESS_KEY);
+    if (!raw) return false;
+    const ts = Number(raw);
+    if (!Number.isFinite(ts)) {
+      clearOAuthInProgress();
+      return false;
+    }
+    if (Date.now() - ts > OAUTH_IN_PROGRESS_TIMEOUT_MS) {
+      clearOAuthInProgress();
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface Profile {
   id: string;
@@ -36,7 +87,7 @@ interface AuthContextType {
   isLoading: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signInWithGoogle: () => Promise<{ error: Error | null }>;
+  signInWithGoogle: (intent?: 'login' | 'signup') => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updatePassword: (password: string) => Promise<{ error: Error | null }>;
@@ -271,6 +322,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(null);
               setSession(null);
               setIsLoading(false);
+              clearOAuthInProgress();
               return;
             }
             
@@ -281,6 +333,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setSession(null);
             }
             setIsLoading(false);
+            // Bootstrap concluído após callback OAuth — libera UI receptora
+            clearOAuthInProgress();
           }, 0);
         } else {
           setProfile(null);
@@ -288,6 +342,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUserRoles([]);
           setTenants([]);
           setIsLoading(false);
+          // Sem sessão (ex: SIGNED_OUT) também limpa flag, evita travar UI
+          clearOAuthInProgress();
         }
       }
     );
@@ -301,6 +357,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null);
         setUser(null);
         setIsLoading(false);
+        clearOAuthInProgress();
         return;
       }
 
@@ -314,6 +371,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setSession(null);
           setIsLoading(false);
+          clearOAuthInProgress();
           return;
         }
         
@@ -323,8 +381,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(null);
         }
         setIsLoading(false);
+        clearOAuthInProgress();
       } else {
         setIsLoading(false);
+        clearOAuthInProgress();
       }
     });
 
@@ -380,29 +440,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error as Error | null };
   };
 
-  const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      },
-    });
-
-    // Para OAuth, sucesso real só após o redirect; aqui registramos só falha imediata
-    if (error) {
-      logLoginAttempt({
-        success: false,
-        failure_reason: `oauth_google: ${error.message}`,
-      });
+  // Fonte única para login Google. Toda tela DEVE chamar este método —
+  // nunca `lovable.auth.signInWithOAuth` direto (regra anti-regressão da
+  // base técnica linha 1313: "Proibido adicionar log de login por provider
+  // em código de tela — sempre no useAuth, fonte única").
+  // O parâmetro `intent` encapsula o storage de oauth_intent que antes
+  // ficava espalhado em Auth.tsx.
+  const signInWithGoogle = async (intent: 'login' | 'signup' = 'login') => {
+    // Marca operação em curso ANTES do redirect — sobrevive à remontagem
+    // do React no retorno (padrão §10.6 da base técnica).
+    markOAuthInProgress();
+    try {
+      localStorage.setItem('oauth_intent', intent);
+    } catch {
+      // storage indisponível — segue o fluxo
     }
 
-    return { error: error as Error | null };
+    try {
+      const result = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: `${window.location.origin}/auth`,
+      });
+
+      // Erro imediato (antes do redirect) — limpar bandeira e auditar
+      if (result.error) {
+        clearOAuthInProgress();
+        try { localStorage.removeItem('oauth_intent'); } catch { /* noop */ }
+        logLoginAttempt({
+          success: false,
+          failure_reason: `oauth_google: ${result.error.message ?? 'unknown'}`,
+        });
+        return { error: result.error instanceof Error ? result.error : new Error(String(result.error)) };
+      }
+
+      // result.redirected === true → navegador vai para Google; nada a fazer.
+      // Caminho síncrono (tokens já vieram) é tratado pelo onAuthStateChange.
+      return { error: null };
+    } catch (err) {
+      clearOAuthInProgress();
+      try { localStorage.removeItem('oauth_intent'); } catch { /* noop */ }
+      const error = err instanceof Error ? err : new Error(String(err));
+      logLoginAttempt({
+        success: false,
+        failure_reason: `oauth_google_exception: ${error.message}`,
+      });
+      return { error };
+    }
   };
 
   const signOut = async () => {
     // Limpar flags de latch pattern no logout para próxima sessão começar fresh
     sessionStorage.removeItem('auth_initial_load_complete');
     sessionStorage.removeItem('auth_page_rendered');
+    clearOAuthInProgress();
     await supabase.auth.signOut();
   };
 
