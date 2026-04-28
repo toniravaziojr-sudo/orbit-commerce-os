@@ -33,17 +33,30 @@ E-mails entrando via SendGrid Inbound Parse aparentavam mojibake (`Olá` →
 
 - Iframe **DEVE** usar:
   `sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"`.
-- HTML **DEVE** passar por `prepareEmailHtml()` antes do `srcDoc`, que
-  injeta `<meta charset="utf-8">` e
-  `<base target="_blank" rel="noopener noreferrer">`.
+- HTML **DEVE** passar por `prepareEmailHtml()` antes do `srcDoc`, que:
+  1. injeta `<meta charset="utf-8">`,
+  2. injeta `<base target="_blank" rel="noopener noreferrer">`,
+  3. roda `autolinkHtml()` — converte URLs em texto puro para `<a>` clicáveis,
+     preservando `<a>`, `<script>`, `<style>` e atributos de tag existentes.
 - **PROIBIDO**: `<iframe srcDoc={message.body_html}>` direto, ou sandbox
-  apenas com `allow-same-origin`.
+  apenas com `allow-same-origin`, ou pular o autolink (muitos remetentes
+  como Pagar.me e Bradesco enviam URLs em texto puro).
+
+### E-mails antigos corrompidos (`\uFFFD` / `�`)
+
+- Registros gravados ANTES da correção da ingestão contêm bytes
+  substituídos por U+FFFD — informação perdida no momento da decodificação.
+- **PROIBIDO** propor "scripts de recuperação" ou novas heurísticas para
+  esses registros: a informação não está mais no banco. Única solução é
+  reenvio pelo remetente.
 
 ## Como validar
 
 - Mock de payload com `charsets={"subject":"iso-8859-1"}` + bytes Latin-1
   → asserir UTF-8 correto persistido.
 - Clicar em link no viewer → abre em nova aba sem ser bloqueado.
+- Autolink: `<p><b>https://x.com/y</b></p>` → vira `<a href>` clicável.
+  URL já dentro de `<a>` ou `<style>` não pode ser duplicada.
 
 ## Doc formal
 
