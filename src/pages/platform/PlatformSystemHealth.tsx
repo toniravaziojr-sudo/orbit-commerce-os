@@ -169,29 +169,29 @@ function HealthDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Conexões do banco"
-          value={conn ? `${conn.total} / ${conn.max}` : '—'}
-          description={`${usagePct}% em uso · ${conn?.active ?? 0} ativas`}
+          value={overviewUnavailable ? 'Indisponível' : conn ? `${conn.total} / ${conn.max}` : '—'}
+          description={overviewUnavailable ? 'Métrica temporariamente indisponível' : `${usagePct ?? 0}% em uso · ${conn?.active ?? 0} ativas`}
           icon={Database}
           variant={connVariant as any}
         />
         <StatCard
           title="Cache hit ratio"
-          value={`${cacheRatio.toFixed(2)}%`}
-          description={cacheRatio >= 99 ? 'Saudável' : 'Abaixo do alvo (99%+)'}
+          value={overviewUnavailable || cacheRatio === null ? 'Indisponível' : `${cacheRatio.toFixed(2)}%`}
+          description={overviewUnavailable ? 'Métrica temporariamente indisponível' : (cacheRatio ?? 0) >= 99 ? 'Saudável' : 'Abaixo do alvo (99%+)'}
           icon={Activity}
           variant={cacheVariant as any}
         />
         <StatCard
           title="Falhas de cron (24h)"
-          value={failedCronTotal}
-          description={`${(cronJobs.data ?? []).length} jobs ativos`}
+          value={cronUnavailable ? 'Indisponível' : failedCronTotal ?? 0}
+          description={cronUnavailable ? 'Métrica temporariamente indisponível' : `${(cronJobs.data ?? []).length} jobs ativos`}
           icon={Clock}
           variant={cronVariant as any}
         />
         <StatCard
           title="Pendências em filas"
-          value={orphansTotal}
-          description={`${queueEntries.length} filas monitoradas`}
+          value={queuesUnavailable ? 'Indisponível' : orphansTotal ?? 0}
+          description={queuesUnavailable ? 'Métrica temporariamente indisponível' : `${queueEntries.length} filas monitoradas`}
           icon={Layers}
           variant={queueVariant as any}
         />
