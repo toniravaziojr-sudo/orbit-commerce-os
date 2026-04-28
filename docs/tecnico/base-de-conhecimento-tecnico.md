@@ -1307,9 +1307,47 @@ A tela `/auth` chama `lovable.auth.signInWithOAuth('google', ...)` direto, sem p
 
 Em `src/hooks/useAuth.tsx`, dentro do `onAuthStateChange`: quando `event === 'SIGNED_IN'` e `user.app_metadata.provider !== 'email'`, disparar `log-login-attempt` (fire-and-forget). Login por e-mail/senha continua logado em `signIn()` — sem duplicidade.
 
+
+---
+
+## 2026-04-28 — Auth: flicker da tela de login no callback OAuth Google
+
+### Sintoma
+
+Após login com Google, o usuário via a tela de login renderizar **vazia por 1-2s** entre o retorno do Google e o redirect para a home.
+
+### Causa
+
+Combinação de 3 fatores:
+
+1. O latch `auth_page_rendered` em `Auth.tsx` (e o equivalente `__globalInitialLoadComplete` em `ProtectedRoute.tsx`) é ligado na primeira visita a `/auth`. Quando o usuário volta do Google, o latch já está ativo → o spinner de bootstrap é pulado → tela de login renderiza enquanto `loadUserData` ainda está rodando.
+2. `Auth.tsx` chamava `lovable.auth.signInWithOAuth` direto, contornando `useAuth.signInWithGoogle` (violava a regra anti-regressão do item anterior — fonte única).
+3. Não existia sinal estável de "OAuth em curso" sobrevivendo à remontagem do React após o redirect.
+
+### Correção
+
+Aplicação consistente de **dois padrões já consolidados** na própria base técnica:
+
+- **§4.5 — Lado emissor + lado receptor** (`useCheckoutLinkLoader`): toda operação que sai do app via redirect precisa de uma guarda explícita no destino.
+- **§10.6 — Sinal estável que sobrevive a re-renders** (blocos do Builder com cache do React Query): estado de operação em curso precisa viver fora do ciclo de render.
+
+Mudanças:
+
+1. **`src/hooks/useAuth.tsx`** — Helpers de módulo `markOAuthInProgress()` / `clearOAuthInProgress()` / `isOAuthInProgress()`. Bandeira em `localStorage.oauth_in_progress` com timestamp e timeout de segurança de 60s (anti-abandono). Limpeza determinística em todos os pontos de conclusão do bootstrap (sucesso, erro, sem sessão) e em `signOut()`.
+2. **`signInWithGoogle(intent)`** virou **fonte única** consumindo `lovable.auth.signInWithOAuth` (Lovable Cloud). Encapsula `oauth_intent` (`'login' | 'signup'`) — não fica mais espalhado no código de tela.
+3. **`src/pages/Auth.tsx`** — Handlers `handleGoogleLogin` / `handleGoogleSignup` passam a delegar a `useAuth.signInWithGoogle`. Gate do loader virou: `if ((authLoading && !initialRenderComplete) || isOAuthInProgress())`.
+4. **`src/components/auth/ProtectedRoute.tsx`** — Mesmo gate adicional para blindar caso de `redirect_uri` apontar para rota protegida.
+
+### Validação técnica
+
+- `rg` confirma fonte única: 1 único caller de `lovable.auth.signInWithOAuth` em todo `src/`, dentro de `useAuth.tsx`.
+- `tsc --noEmit -p tsconfig.app.json` → sem erros.
+- Helpers exportados consumidos em `Auth.tsx` e `ProtectedRoute.tsx`.
+
 ### Regra perene (anti-regressão)
 
-- Qualquer novo provider OAuth (Apple, Facebook, etc.) já fica auditado automaticamente pelo handler centralizado.
-- **Proibido** adicionar log de login por provider em código de tela — sempre no `useAuth`, fonte única.
-- Filtro `provider !== 'email'` é mandatório para evitar duplicidade.
+- **Toda chamada OAuth (qualquer provider)** deve passar por `useAuth.signInWithGoogle` (ou método análogo no mesmo hook). **Proibido** chamar `lovable.auth.signInWithOAuth` diretamente em código de tela.
+- **Toda operação que sai do app via redirect** deve ter um sinal estável (storage com timestamp + timeout) controlado pela fonte única e consumido pelos gates de loader das rotas envolvidas. Padrão §4.5 + §10.6.
+- **Latches genéricos anti-remontagem** (Google Tradutor, etc.) **não podem atropelar** estados de operação assíncrona em curso — o gate deve combinar `(latch desligado) OR (operação em curso)`.
+- **Novos providers OAuth** (Apple, etc.) reaproveitam o mesmo método de `useAuth` e os mesmos helpers de bandeira — nunca duplicar.
 
