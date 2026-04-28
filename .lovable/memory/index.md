@@ -20,6 +20,7 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Observability Over Automation Rule](mem://constraints/observability-over-automation-rule) — Onda 2: fluxos sensíveis (WhatsApp inbound, pagamentos) priorizam visibilidade + ação manual em vez de reprocessamento automático
 - [Platform Admin Auth + Observability RPC Standard](mem://constraints/platform-admin-auth-and-observability-rpc-standard) — Hook unificado via is_platform_admin(), RPCs de observabilidade em passe único, normalização de erro PostgREST, KPI "Indisponível" em vez de 0
 - [WhatsApp Diagnóstico respeiteohomem](mem://constraints/whatsapp-respeiteohomem-connection-over-meta) — Não voltar a priorizar Meta/display name sem evidência nova; investigar conexão/pipeline primeiro
+- [SECURITY DEFINER EXECUTE Revoke Default](mem://constraints/security-definer-execute-revoke-default) — Onda 4.1: ALTER DEFAULT PRIVILEGES travado, novas funções nascem privadas. Helpers RLS + get_public_marketing_config são exceções declaradas. Pattern 6 não substitui revogação de EXECUTE.
 
 - [Working Rules](mem://governance/working-rules) — Os 5 lembretes detalhados de comportamento
 - [Documentation Governance](mem://governance/documentation-governance) — Regra de Ouro e hierarquia de 6 camadas de docs
