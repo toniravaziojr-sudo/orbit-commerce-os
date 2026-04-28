@@ -1,257 +1,186 @@
-# Plano Mestre Final v4 — IA de Atendimento e Vendas do Comando Central
 
-> **Status:** ✅ Aprovado como versão final do plano mestre.
-> **Escopo:** Pipeline completa de atendimento e venda IA, com WhatsApp como canal prioritário da Fase 1.
-> **Substitui:** Plano v2 (Pipeline Básica com Contexto de Negócio).
+# Plano REVISADO — Correção do Agente IA Vendas + Cérebro Regenerativo (respeiteohomem)
 
----
+## Por que este plano mudou após reler os docs
 
-## 📋 Checklist de Conformidade
-- Doc de Regras do Sistema: aplicado (Knowledge de governança em uso)
-- Doc formal do tema: lacuna documental declarada — Layer 2 macro de IA de vendas a ser criado no fechamento do rollout
-- Fluxo afetado: pipeline completa de atendimento e venda IA WhatsApp + checkout
-- Fonte de verdade: catálogo + variantes + config IA + memória híbrida + contrato de checkout por canal
-- Módulos impactados: Modo Vendas IA, Configuração IA, Pipeline F2, Catálogo, Checkout, Cupom, Frete, Memória híbrida, Observabilidade, UI override
-- Impacto cruzado mapeado: sim
-- UI impactada: sim (UI de override + tela de métricas + aviso de catálogo incompleto)
-- 📌 Status: Plano v4 aprovado — pronto para servir como base oficial da implementação
+Reli `docs/REGRAS-DO-SISTEMA.md` (Layer 2), `docs/especificacoes/sistema/central-comando.md` (§4 Cérebro Regenerativo v2.0), `docs/especificacoes/crm/crm-atendimento.md` (§3 IA Atendente), `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` (Layer 3) e `docs/especificacoes/whatsapp/pipeline-f2-vendas-ia.md` (F2 — máquina de estados, anti-repetição, family_focus). Quatro ajustes importantes resultaram disso:
+
+1. **Conflito documental Layer 2 ↔ Layer 3 (precisa decisão sua):** o Doc de Regras §9.2 e CRM §3 dizem que a IA Atendente é "**puramente informativa, NUNCA executa ações**". O doc do Modo Vendas (Layer 3) define que ela executa carrinho/checkout. Os dois coexistem hoje porque o sales_mode é toggle por tenant, mas a Layer 2 não reconhece essa exceção. Antes de qualquer ajuste comportamental, vou propor texto de reconciliação no Doc de Regras (a forma definitiva exige sua confirmação).
+2. **Cérebro Regenerativo v2.0 já está totalmente especificado** (4 etapas, 4 sub-abas, captura por trigger, injeção via `ai_brain_active_view`). O modelo oficial **não inclui** "prompt do usuário na aprovação". Sua nova solicitação (admin escrever orientação simples ao aprovar) é **ampliação da spec** — mantenho no plano, mas sinalizo como evolução documental v2.1, não conserto.
+3. **Pipeline F2 (modo vendas) já documenta** máquina de estados completa (greeting → discovery → recommendation → product_detail → decision → checkout_assist → handoff), anti-repetição estrutural com regeneração obrigatória, family_focus persistente. Vários "ajustes" do plano anterior eram, na verdade, **regressões em relação ao já documentado**. Foco muda para descobrir por que o que está escrito não está acontecendo.
+4. **Conflito de nomenclatura encontrado:** o banco grava `sales_state='checkout'` (4 conversas), mas o código `tool-filter.ts` só conhece `checkout_assist`. Quando cai no nome errado, o filtro retorna lista vazia → IA fica sem `generate_checkout_link`. Esta é provavelmente a causa raiz do bug do Luiz. **Achado novo, não estava no plano anterior.**
 
 ---
 
-## Visão macro
+## Diagnóstico final (consolidado)
 
-Transformar a IA de "buscador reativo de catálogo" em **vendedora/atendente de alto nível** que entra na conversa já entendendo o negócio, os produtos, as dores que resolve, a lógica comercial, a linguagem do cliente e o contrato operacional do tenant. Funciona bem por padrão (com ou sem configuração manual), degrada com elegância em catálogo ruim, respeita compliance por nicho, e se mede com métricas comerciais reais — não só logs técnicos.
+### A) Comportamento do agente — 9 problemas (5 confirmados como BUG, 4 como divergência da spec)
 
-## Princípio central
+| # | Problema | Status vs. spec |
+|---|---|---|
+| 1 | `sales_state='checkout'` no banco vs. `checkout_assist` no código → filtro retorna nada → IA sem tool de checkout | **Drift de schema/código** (Luiz fez tudo certo, IA travou) |
+| 2 | Promete handoff e não chama `request_human_handoff` (Mário, Alexandre) | **Bug** — viola §5.3 do modo-vendas (handoff é atômico) |
+| 3 | `request_human_handoff` sem idempotência (já gerou 117 tickets antes) | **Lacuna na spec** + bug |
+| 4 | Inputs não-textuais (`???`/`!!!`) resetam para greeting | **Lacuna** — F2 não trata input degenerado |
+| 5 | Anti-repetição `last_bot_response_hash` falha em variações mínimas | **Bug** — F2 §13 prevê regeneração com hash normalizado, mas hash atual é frágil |
+| 6 | IA inventa ações ("reenviei e-mail", "encaminhei pro suporte") | **Viola** Doc de Regras §9.2 e CRM §4 ("nunca invente informações") + F2 §7 anti-padrões |
+| 7 | Loop de confirmação eterno na hora de fechar venda (Luiz, 3x sim) | **Bug do nome de estado (#1)** + falta de regra "1 confirmação = chama tool" |
+| 8 | Bot diz "não consigo confirmar" sobre produto do catálogo (Fast Upgrade) | **Viola** F2 §7 anti-padrão "inventar produto" no inverso (nega produto real) |
+| 9 | 23 conversas em `waiting_agent` invisíveis (`assigned_to=null`) | **Lacuna na UI do Atendimento** — sem fila de não atribuídos |
 
-A IA **não pode depender de "buscar no catálogo quando o cliente perguntar"**. Ela precisa entrar na conversa já sabendo o que vende, para quem, qual problema cada produto resolve, qual o papel comercial de cada item, como traduzir a fala do cliente em dor, e qual o contrato operacional do tenant para fechar a venda.
+### B) Pipeline regenerativo — 5 elos quebrados
 
----
-
-## Pacotes (16 — A a P)
-
-### Núcleo de inteligência prévia
-
-- **A** — Inferência automática do negócio + matriz de precedência de fontes (catálogo > FAQ > Drive > avaliações; override do tenant é última camada antes do guardrail estrutural)
-- **B** — Árvore real de contexto universal (negócio → público → macrocategoria → subcategoria → tipo → dor → produtos), com suporte explícito a **tenant híbrido / multi-linha** como sub-regra
-- **C** — Mapa produto ↔ dor/objetivo N:N com peso (principal vs secundária)
-- **H** — Variantes de produto (tamanho, cor, voltagem, volume, modelo, fragrância, numeração, acabamento): quando obrigatória, como perguntar só a necessária, como não confundir produto com variante
-- **J** — Contrato de payload comercial por produto (objeto pronto, não cru): nome comercial, papel comercial, dor principal, dores secundárias, para quem serve, quando NÃO indicar, diferenciais, prova social curta condicional, resumo curto/médio, argumentos de comparação
-
-### Motor comercial e jornada
-
-- **D** — Motor comercial universal, com regras explícitas:
-  - termo amplo → listar opções reais agrupadas por dor (nunca preço/tamanho de cara)
-  - dor declarada → conectar ao produto certo (não categoria genérica)
-  - produto citado nominalmente → falar daquele produto
-  - intenção clara → avançar, parar de enrolar
-  - upsell único e respeitoso (kit/3un/complemento) na fase de decisão
-  - confiança → comportamento (alta = afirma; média = sugere e confirma; baixa = não recomenda assertivo, conduz descoberta)
-  - perfil de cliente: novo / recorrente sem pendência / com sinal ativo (carrinho, pedido recente, reclamação, elegível cupom de retorno)
-  - **regra objetiva de perguntar vs recomendar** (tabela de decisão)
-- **M** — **Dicionário de linguagem do cliente**: camada explícita que traduz como o cliente fala para dor/objetivo real ("cabelo ralo / falhas / entradas / caindo muito" → queda capilar; "mais arrumado / casual / social" → estilo; "bom / sem travar / para jogo / para trabalho" → uso). Construído por nicho, alimentado por inferência + override do tenant. Vive no payload de contexto do turno, não no prompt fixo.
-- **N** — **Regras explícitas de anti-indicação** (regra formal do motor comercial). A IA não recomenda quando:
-  - produto sem estoque
-  - variante incompatível com o que o cliente declarou
-  - kit cedo demais (antes de dor entendida + intenção)
-  - produto inadequado para a dor (peso baixo no mapa N:N)
-  - complemento fora de hora (antes do principal)
-  - premium cedo demais (sem sinal de orçamento/intenção)
-  - alternativa sempre obrigatória quando bloquear (substituto compatível pela mesma dor)
-
-### Compliance e operação
-
-- **I** — Política de claims, promessas e limites comerciais (compliance por nicho: beleza, suplementos, saúde, íntimo, eletrônico). Nunca prometer resultado clínico, prazo sem confirmação, comparação desonesta, prova social inventada, desconto fora da autonomia.
-- **O** — **Contrato de checkout por tenant/canal**. Define explicitamente, por canal (WhatsApp prioritário) e por tenant:
-  - quais dados a IA coleta no chat (nome, email, CPF, CEP, endereço, telefone)
-  - quais são obrigatórios por canal antes de avançar
-  - quando a IA continua no chat até gerar link
-  - quando manda direto para checkout (link gerado mais cedo)
-  - como adapta por tenant sem quebrar base universal (override permitido em "ordem de coleta", "campos opcionais", "ponto de transição chat→link"; nunca permitido em "campos legalmente obrigatórios" nem em segurança de pagamento)
-  - regra de retomada: se cliente sair no meio, ao voltar a IA continua de onde parou (não recomeça coleta)
-
-### Robustez, UI e governança
-
-- **E** — UI de override do tenant (visualizar inferência, corrigir cada nível da árvore, ajustar vínculos N:N, dicionário customizado, contrato de checkout)
-- **G** — Robustez (catálogo ruim → modo neutro + aviso UI; regeneração automática incremental quando catálogo muda; override do tenant nunca sobrescrito por regeneração)
-
-### Validação, performance e observabilidade
-
-- **F** — Matriz de validação multi-arquétipo (3 nichos × 13 cenários: termo amplo, dor declarada, refinamento de dor no turno seguinte, variante obrigatória, sem estoque, recorrente, objeção de preço, objeção de confiança, produto citado nominal, pedido existente, catálogo ruim, recusa de upsell, "ok/eai?", produto com várias dores, tenant híbrido)
-- **K** — SLA por estado + degradação graciosa. Fase 1 = medir baseline real P50/P95 por estado; só depois cravar alvo. Degradação: modelo mais rápido se exceder limite, resposta curta primeiro, tool simplificada.
-- **L** — Observabilidade comercial (não só técnica): por turno registrar o que a IA "sabia" do negócio, dor entendida, produtos considerados, por que recomendou aquele, qual fonte de verdade venceu conflito, estado da jornada, tools usadas, falhas, fallback, continuação, anti-duplicidade, stall, latência.
-- **P** — **Métricas de sucesso por fase** (critério objetivo de aprovação, não só rollout):
-  - **Taxa de recomendação correta** (recomendação alinhada à dor declarada — auditada amostralmente)
-  - **Taxa de repetição indevida** (mesma pergunta genérica feita 2+ vezes no mesmo fluxo)
-  - **Taxa de handoff indevido** (handoff em caso simples que IA deveria ter resolvido)
-  - **Tempo de resposta por estado** (P50/P95)
-  - **Taxa de oferta de kit na hora certa** (kit oferecido só após dor + intenção; não antes)
-  - **Taxa de fechamento após intenção clara** (cliente declarou intenção → quanto fechou)
-  - **Taxa de fallback ativo** (modo neutro / catálogo ruim disparado)
-  - **Taxa de variante perguntada corretamente** (perguntada quando obrigatória, não perguntada quando irrelevante)
-  - Cada fase do rollout só fecha se métricas relevantes ficarem dentro do limite definido por nicho
+| Elo (spec) | Real | Diagnóstico |
+|---|---|---|
+| Captura via trigger `conversations_signal_capture_on_resolve` | **Trigger não existe no banco** (information_schema confirma) | Spec não foi implementada OU foi removida silenciosamente |
+| Conversas precisam virar `resolved` para captura disparar | **Apenas 1 conversa em `resolved` em 30 dias** (de ~150 totais) | Falta automação para resolver conversas; agentes não fecham handoffs |
+| `tenant_learning_events` (898 eventos em 7d) | Coletado mas **não conectado** ao `ai_signal_capture_queue` | Pipeline paralelo legado que nunca foi descontinuado nem unificado |
+| `ai-signal-consolidate` (cron seg 06:00 BRT) gera insights | **0 insights gerados** apesar de 68 grupos canônicos | Threshold restritivo OU bug no consolidador |
+| Aprovação humana com prompt do usuário (sua nova ideia) | **Não previsto na spec v2.0** | Ampliação para v2.1 — exige migração + UI + injeção priorizada |
 
 ---
 
-## Matriz de precedência de fontes (resolução de conflito)
+## O que vou ajustar
 
-Em conflito sobre um fato de produto/negócio, vence nesta ordem:
+### Eixo 1 — Bugs e regressões do agente de vendas
 
-1. **Guardrail estrutural** (segurança, máquina de estados, política de imagem, fiscal, checkout) — nunca quebrável
-2. **Override manual do tenant** (UI Pacote E)
-3. **Catálogo do tenant** (produto, variante, estoque, preço, descrição)
-4. **Configuração IA do tenant** (system_prompt, persona, instruções de canal)
-5. **Snapshot de inferência** (árvore + mapa N:N + dicionário)
-6. **FAQ / políticas do tenant**
-7. **Drive / materiais de marca**
-8. **Avaliações / prova social** (só se estruturada e confiável; senão, IA não usa)
-9. **Memória híbrida** (aprendizado cruzado, último recurso)
+**1.1 Reconciliação `checkout` vs `checkout_assist`** (causa raiz do Luiz)
+Decidir o nome canônico (proposta: `checkout_assist` por ser o que F2 documenta). Migrar 4 conversas do banco. Adicionar guarda no `decideNextState` que rejeite nomes desconhecidos com log.
 
-A IA declara internamente qual fonte venceu (vai para o log do Pacote L).
+**1.2 Handoff atômico, terminal e idempotente**
+- Após `request_human_handoff` chamado, conversa entra em `waiting_agent` e o orquestrador **encerra o turno** sem mais tools/respostas livres.
+- Lock por conversa de 10 min: se já tem ticket aberto, retorna o mesmo `ticket_id`.
+- Scrubber pré-envio: se a resposta contiver "vou chamar humano / equipe / atendente / suporte" e a tool não foi chamada no turno → força chamada.
 
----
+**1.3 Tratamento de input degenerado**
+Detectar pré-modelo (regex: <2 alfanuméricos OU só pontuação OU só emoji). Em conversa com >5 mensagens, responde "Não entendi sua última mensagem, pode reescrever?" sem mexer em `sales_state`. 3 ambíguos seguidos → handoff `reason=ambiguous_input`.
 
-## Camadas de precedência de prompt (estrutura do turno)
+**1.4 Anti-repetição de fato**
+Trocar hash exato por **prefixo normalizado de 80 chars** (lower + sem pontuação + sem espaços extras). Colisão força regeneração com `tool_choice='none'` e instrução de variação substantiva — exatamente como F2 §13 já manda, mas com hash mais robusto.
 
-1. Linguagem-base PT-BR (fixa)
-2. Prompt do estado atual (fixo)
-3. **Snapshot de negócio + payload comercial dos produtos relevantes + dicionário de linguagem** (Pacotes A+B+C+J+M)
-4. Camada do tenant (system_prompt + custom_instructions — complementa)
-5. Guardrails estruturais + anti-indicação + compliance (Pacotes N+I — fixos no final, não quebráveis pelo tenant)
-6. Contexto da conversa (histórico, memória, cliente, carrinho)
+**1.5 Proibição reforçada de ações inventadas**
+- Lista branca explícita no prompt: "Você só pode AFIRMAR uma ação se chamou a tool correspondente no mesmo turno."
+- Scrubber pós-resposta: se contiver verbos `reenviei|encaminhei|acionei|enviei e-mail|aciono o suporte` e nenhuma tool comercial/handoff foi chamada → força handoff `reason=unsupported_action_promised` em vez de mandar a fala.
 
----
+**1.6 Search obrigatório antes de negar produto**
+Se a resposta da IA contiver `não consigo confirmar|não tenho|não conhecemos|não temos esse produto` E `search_products` não foi chamado neste turno com termo similar ao do cliente → força regeneração obrigando chamada à tool antes de negar.
 
-## Decisões fechadas (input para Fase 1)
+**1.7 Fechar venda quando cliente confirma**
+Em `recommendation`/`product_detail`/`decision`, se a última mensagem do cliente contiver sinal de fechamento ("sim/quero/manda/fechado/pode mandar/pode gerar") OU email+CPF+CEP no mesmo turno → orquestrador **bloqueia o envio** se o turno não chamar `add_to_cart` + `generate_checkout_link`. Após 1 confirmação explícita, **proibido pedir nova confirmação** (zero "confirma de novo?").
 
-### 1. Canal prioritário
-**WhatsApp é a prioridade absoluta da Fase 1.** Reaproveitamento em outros canais (chat na loja, Instagram) fica como herança natural, não entregável da Fase 1.
+**1.8 Saúde da máquina de estados**
+- Incrementar `discovery_questions_asked` toda pergunta de qualificação (hoje sempre 0 → discovery nunca avança por contagem).
+- Bloquear transição para `checkout_assist` sem `cart_id` real associado.
 
-### 2. Autonomia comercial da IA
-A IA pode **aplicar automaticamente cupons, benefícios e vantagens que já estejam previstos nas regras do tenant e validados pelo sistema**.
-
-> ⚠️ **Definição explícita e não-negociável:** "aplicação automática de cupom" significa **apenas uso de regras já elegíveis e validadas pelo sistema**. Nunca autonomia livre para a IA criar desconto, conceder benefício fora da política configurada, ou inventar vantagem comercial.
-
-Operacionalmente:
-- IA consulta elegibilidade via tool (`check_customer_coupon_eligibility`, `check_coupon`)
-- Só aplica o que o sistema retornar como válido para aquele cliente/carrinho
-- Nunca propõe desconto livre ("posso te dar 10%")
-- Nunca aceita pedido de desconto do cliente fora das regras configuradas (encaminha para handoff se insistir)
-
-### 3. Handoff
-- **Se existir fila/atendente humano configurado para o tenant:** usar essa fila.
-- **Se não existir:** comportamento padrão seguro:
-  - avisar o cliente explicitamente que o caso será encaminhado
-  - registrar e resumir o contexto da conversa
-  - silenciar a IA até intervenção humana
-  - **nunca fingir** que já existe um atendente respondendo
+**1.9 Visibilidade do `waiting_agent` no Atendimento**
+- Aba/seção "Aguardando atendimento (não atribuído)" no `/support-center` filtrando `status='waiting_agent' AND assigned_to IS NULL`, ordenado por tempo de espera, badge "há Xmin".
+- Anexar ao ticket o resumo automático (últimas 6 mensagens + reason + last_intent + carrinho se houver).
 
 ---
 
-## Rollout final (ordem revisada — ferramentas/payload antes de linguagem)
+### Eixo 2 — Cérebro Regenerativo (fechar o ciclo, depois ampliar)
 
-1. **Inferência + árvore + mapa + variantes + payload comercial + base de robustez** (A+B+C+H+J+G base)
-2. **Motor comercial + anti-indicação + compliance + contrato de checkout + dicionário** (D+N+I+O+M)
-3. **Linguagem e dinâmica de turno** (anti-repetição, anti-greeting, continuidade, debounce, agrupamento, lock de turno)
-4. **Validação multi-arquétipo pesada** (F) — 3 nichos × 13 cenários, com métricas do Pacote P como critério de aceite
-5. **UI de override + regeneração automática** (E + G restante)
-6. **Observabilidade comercial + SLA + métricas de sucesso** (L+K+P)
-7. **Handoff disciplinado** (critérios objetivos, resumo do contexto, nada já resolvível pela IA, respeitando decisão #3)
-8. **Documentação formal** (Layer 2 macro de IA de vendas + atualização Layer 3 Pipeline F2 + mapa-ui)
+**2.1 Restaurar a captura (FALTA NO BANCO)**
+- Criar o trigger `conversations_signal_capture_on_resolve` que a spec §4.5 promete e o banco não tem. Enfileira em `ai_signal_capture_queue` quando `status` muda para `resolved`.
+- Cron `ai-signal-capture-batch` já roda diário 7h — vai começar a processar.
 
----
+**2.2 Garantir que conversas viram `resolved`**
+- Hoje só 1 conversa em 30 dias virou `resolved`. Sem isso, cérebro nunca recebe matéria-prima.
+- Adicionar regra: ao agente humano fechar ticket de handoff OU passados 7 dias sem nova mensagem em `waiting_customer`, marcar `resolved`. Cron diário.
 
-## Critérios de aceite por fase
+**2.3 Investigar e destravar `ai-signal-consolidate`**
+- Banco tem 72 candidates e 68 canonical_groups, mas **0 insights**. Cron está ativo (seg 06:00 BRT) mas nada sai dele.
+- Diagnóstico técnico: ler critério de promoção (provável threshold de evidence_count alto demais ou bug). Disparar manualmente para o tenant para gerar primeiro lote de insights e validar.
 
-- **Fase 1:** snapshot gerado para 3 tenants reais de nichos diferentes; árvore válida; payload comercial preenchido para ≥80% dos produtos ativos; fallback de catálogo ruim acionável.
-- **Fase 2:** motor comercial passa nos 4 cenários básicos por nicho (termo amplo, dor, intenção, recusa de upsell); contrato de checkout respeitado por canal; dicionário traduzindo ≥10 expressões por nicho; anti-indicação bloqueando os 6 casos definidos; cupom automático só com elegibilidade validada.
-- **Fase 3:** zero ocorrência de "consultei o catálogo / vou buscar / deixa eu ver"; continuação correta para "ok/eai/?".
-- **Fase 4:** matriz 3×13 verde; métricas P dentro do limite por nicho.
-- **Fase 5:** UI de override funcional e usada em ≥1 tenant piloto.
-- **Fase 6:** observabilidade comercial mostra dor + produto + fonte vencedora em 100% dos turnos.
-- **Fase 7:** taxa de handoff indevido < limite definido; respeito ao protocolo de aviso ao cliente.
-- **Fase 8:** docs Layer 2 + Layer 3 + mapa-ui atualizados.
+**2.4 Descontinuar pipeline paralelo `tenant_learning_memory`**
+- Tem 40 itens parados em `pending_review` há semanas, sem UI de aprovação, sem leitura no agente (só em `status='active'` que ninguém consegue gerar).
+- Decisão: parar o `ai-learning-aggregator-6h`, manter dados como histórico, descontinuar leitura. Toda aprendizagem flui pelo Cérebro v2.0 oficial.
 
----
-
-## Travas obrigatórias
-
-- Não mexer na máquina F1/F2 além do necessário
-- Não mexer no filtro de tools por estado
-- Não mexer na política de imagem
-- Não mexer em checkout/frete/cupom/fiscal além do contrato declarado no Pacote O
-- Configuração do tenant tem precedência sobre base universal **mas não sobre guardrail estrutural**
-- IA nunca cria desconto/benefício fora da política configurada (regra explícita da decisão #2)
-- Handoff nunca finge atendente humano (regra explícita da decisão #3)
-- Observabilidade tolerante a falha (se quebrar, IA continua funcionando)
+**2.5 Ampliação v2.1 — Aprovação com diretiva do usuário (sua nova solicitação)**
+- Migração: adicionar `user_directive` (text) e `directive_updated_at` (timestamp) em `ai_brain_insights`.
+- UI: modal de aprovação ganha campo obrigatório "**Como a IA deve agir nesses casos?**" (placeholder com exemplo, máx 500 chars). Sem texto, botão "Aprovar" desabilitado.
+- Aba "Ativos" mostra a diretiva do usuário em destaque, com botões "Editar diretiva" / "Pausar" / "Revogar".
+- Histórico: criar `ai_brain_insights_history` com versionamento da diretiva (data, autor, texto antigo, texto novo).
+- Injeção priorizada: `getBrainContextForPrompt` formata as diretivas como bloco "**REGRAS DEFINIDAS PELO DONO DO NEGÓCIO (obrigatórias)**" no topo; `recommendation` da IA original vira contexto secundário.
+- Métrica: `usage_count++` quando regra é incluída no prompt para mostrar frequência ao admin.
 
 ---
 
-## Documentação a produzir no fechamento
+### Eixo 3 — Reconciliação documental (Layer 2 vs Layer 3)
 
-📝 DOCUMENTAÇÃO NECESSÁRIA:
-- **Doc novo Layer 2:** "IA de Atendimento e Vendas — Macro" (este plano vira a base oficial)
-- **Atualização Layer 3:** `docs/especificacoes/whatsapp/pipeline-f2-vendas-ia.md` (incorporar Pacotes H, I, J, M, N, O, P + decisões fechadas)
-- **Atualização mapa-ui:** nova tela "Sobre o seu negócio (visão IA)" + tela "Métricas da IA de vendas" + aviso de catálogo incompleto
-- **Memória de governança:** atualizar `mem://features/ai/sales-mode-conversational-commerce` apontando para o novo Layer 2
+Antes de implementar 1 e 2, atualizar `docs/REGRAS-DO-SISTEMA.md` §9.2:
 
----
+- Esclarecer que a IA Atendente é "informativa por padrão" mas **pode operar em Modo Vendas (toggle por tenant)** quando `ai_support_config.sales_mode_enabled = true`, executando carrinho/checkout dentro das tools auditadas (referenciar Layer 3).
+- Adicionar nota: "Modo Vendas ativo NÃO autoriza execução fora do conjunto de tools listado em `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` §3."
 
-## Resultado final esperado
-
-Para qualquer tenant, com ou sem configuração, com catálogo bom ou ruim, em qualquer nicho:
-
-- **Catálogo bom →** IA atende com convicção, lista opções reais, conecta dor → produto certo, aplica cupom elegível automaticamente, respeita variantes, fecha venda no contrato de checkout do tenant.
-- **Catálogo médio →** IA confirma antes de assumir, evita pergunta genérica, ainda conduz bem, usa dicionário para entender a fala do cliente.
-- **Catálogo ruim →** IA não inventa contexto, conduz por descoberta pura em modo neutro, e a UI avisa o tenant para preencher manualmente.
-
-E a árvore + mapa + payload comercial se mantêm vivos conforme o tenant cadastra/edita produtos, sem intervenção manual, sem sobrescrever override do tenant.
+Sem essa reconciliação, qualquer correção em 1.1-1.8 fica em conflito com o Layer 2.
 
 ---
 
-📌 **Plano v4 aprovado como versão final.** Pronto para iniciar Fase 1.
+## Validação técnica obrigatória
+
+Para cada item:
+1. Consulta SQL confirmando o efeito (ex: 1.1 → 0 conversas com `sales_state='checkout'` após migração).
+2. `curl_edge_function` ao `ai-support-chat` simulando o cenário.
+3. Logs do edge function confirmando tool chamada/bloqueada conforme regra.
+4. Regressão: rodar 3 conversas saudáveis e confirmar que nada quebrou.
 
 ---
 
-## 🚧 Execução — status por sub-fase
+## Testes simulados (alinhados ao doc oficial de validação modo-vendas §1-7)
 
-### Fase 1 — Núcleo de inteligência prévia
-
-#### ✅ Sub-fase 1.1 — Fundação de dados (CONCLUÍDA)
-
-**Decisões aplicadas:**
-- Implementação universal (não específica de tenant). Tenant piloto de validação: **Respeite o Homem**.
-- Modelo de inferência: **google/gemini-2.5-pro**.
-- Gatilho de regeneração: **trigger por mudança de catálogo (debounce 5min) + cron diário 03:00 BRT (rede de segurança) + botão sob demanda**.
-
-**Entregue no banco:**
-- `ai_business_snapshot` — snapshot por tenant (modo `active`/`neutral`, confiança, overrides, versão)
-- `ai_context_tree` — árvore hierárquica negócio → público → categoria → tipo → dor (suporta tenant híbrido)
-- `ai_product_pain_map` — mapa N:N produto ↔ dor com peso, confiança, dor principal/secundária
-- `ai_product_commercial_payload` — payload comercial pronto: nome, papel comercial, `product_kind` (single/kit/combo/pack/upgrade/complement/replacement), pitch curto/médio, dores, variantes obrigatórias, anti-indicação
-- `ai_snapshot_regen_queue` — fila com lease/lock/retry/scheduled_for para worker concorrente
-- Triggers de catálogo em `products`, `product_variants`, `product_images`, `product_components`, `categories`, `product_categories` (debounce real 5min)
-- Função `ai_daily_snapshot_reconciliation()` + cron `ai-daily-snapshot-reconciliation` (03:00 BRT diário)
-- RLS tenant-scoped + `assert_same_tenant_ai` em FKs críticas + campos `confidence_level`/`confidence_score` + `manual_overrides` nunca sobrescritos por regeneração
-
-#### 🟡 Sub-fase 1.2 — Motor de inferência inicial (EM EXECUÇÃO)
-
-Edge function `ai-business-snapshot-generator` lê catálogo, decide ativo/neutro, chama Gemini 2.5 Pro e popula as 4 tabelas. Worker `ai-snapshot-queue-worker` consome `ai_snapshot_regen_queue` com lease.
-
-#### ⏳ Sub-fase 1.3 — Tratamento de variantes
-#### ⏳ Sub-fase 1.4 — Consumo no pipeline F2 (`prompt-router`)
-
-#### ✅ Sub-fase 1.5 — Métricas (CONCLUÍDA)
-View `sales_pipeline_funnel_metrics` agrega por dia/tenant: turnos por estado, conversão entre etapas, latência por estado, variant_gate.
-
-#### ✅ Sub-fase 1.6 — Observabilidade (CONCLUÍDA)
-- Aba **"Pipeline IA"** em `/support` consome a view e exibe funil, KPIs, conversões e variant_gate.
-- Testes Deno (`pipeline.test.ts`) cobrem `states`, `transitions`, `tool-filter`, `variant-gate` (anti-regressão, dor declarada, handoff terminal, etc.).
+| # | Cenário | Resultado esperado |
+|---|---|---|
+| A | Cenário 1 do doc oficial — venda completa produto sem variante | `add_to_cart` + `generate_checkout_link` chamados; cart no banco; link clicável |
+| B | Cliente confirma compra com email+CPF+CEP | Próxima resposta do bot CONTÉM o link; sem nova pergunta de confirmação |
+| C | Cliente cita produto exato do catálogo ("Fast Upgrade") | `search_products` chamado antes de qualquer negativa |
+| D | Cliente manda "???" 3x | 1ª/2ª: pede esclarecimento sem resetar estado; 3ª: handoff |
+| E | Cliente bravo: "vocês não resolvem nada" | Handoff imediato, conversa em `waiting_agent`, aparece no topo da fila não atribuída |
+| F | Cliente pergunta sobre pedido pago | IA NÃO inventa "reenvio"; chama `request_human_handoff` |
+| G | Bot tenta repetir resposta com variação cosmética | Hash normalizado pega; força regeneração |
+| H | Handoff disparado 3x em 5min | 1 ticket único (idempotência) |
+| I | Conversa marcada `resolved` | Trigger enfileira em `ai_signal_capture_queue` |
+| J | `ai-signal-consolidate` rodado manualmente após I | Gera ≥1 `ai_brain_insights` em `pending` |
+| K | Admin aprova insight com diretiva "ofereça desconto de 10%" | `user_directive` salvo; próxima conversa similar recebe regra no prompt; bot oferece desconto |
+| L | Admin edita diretiva | `ai_brain_insights_history` cria nova versão; uso passa a refletir versão nova |
 
 ---
 
-### Próximas fases (Fase 2 em diante)
+## Documentação a atualizar (entrega não fecha sem isso)
 
-- **Fase 2** — Pacote J completo (payload comercial pronto consumido pelo pipeline) + Pacote M (dicionário de linguagem do cliente)
-- **Fase 3** — Pacote O (contrato de checkout por tenant/canal) + Pacote E (UI de override)
-- **Fase 4** — Pacotes F+P (matriz de validação multi-arquétipo + métricas de sucesso por nicho)
+| Doc | O que atualizar |
+|---|---|
+| `docs/REGRAS-DO-SISTEMA.md` §9.2 (Layer 2) | Reconciliar exceção do Modo Vendas vs "puramente informativa" |
+| `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` (L3) | Estado canônico `checkout_assist`; regra "1 confirmação = chama tool"; scrubber de ações inventadas; search obrigatório antes de negar; idempotência do handoff |
+| `docs/especificacoes/whatsapp/pipeline-f2-vendas-ia.md` (L3) | Atualizar §13 (anti-repetição) para hash de prefixo normalizado; nova seção sobre input degenerado; nome canônico de estado |
+| `docs/especificacoes/crm/crm-atendimento.md` (L3) | Aba/fila "Aguardando atendimento (não atribuído)"; resumo no ticket; regra de auto-resolve em 7d |
+| `docs/especificacoes/sistema/central-comando.md` §4 | Atualizar v2.0 → v2.1 com `user_directive`, histórico, injeção priorizada |
+| `docs/especificacoes/transversais/mapa-ui.md` | Nova aba/fila no Atendimento; campo de diretiva no modal de aprovação |
+| `mem://constraints/sales-state-name-canonical-checkout-assist` (novo) | Anti-regressão do drift `checkout` vs `checkout_assist` |
+| `mem://constraints/ai-handoff-must-be-atomic-terminal-and-idempotent` (novo) | Anti-regressão handoff |
+| `mem://constraints/ai-must-not-promise-unsupported-actions` (novo) | Anti-regressão ações inventadas |
+| `mem://constraints/ai-sales-must-close-on-confirmed-intent` (novo) | Anti-regressão do bug do Luiz |
+| `mem://constraints/ai-must-search-catalog-before-denying-product` (novo) | Anti-regressão Fast Upgrade |
+| `mem://constraints/brain-capture-trigger-must-exist-in-db` (novo) | Anti-regressão do trigger ausente |
+| `mem://features/ai/brain-regenerative-v2-1-with-user-directive` (novo) | Pipeline ampliado |
+| `mem://features/ai/sales-mode-conversational-commerce` | Atualizar com novas regras |
+| `mem://index.md` | Indexar todas |
+
+---
+
+## Ordem de execução proposta (segura)
+
+1. **Reconciliação documental** (Eixo 3) — não toca código, destrava o resto.
+2. **Bug do nome de estado** (1.1) — pequeno, alta probabilidade de explicar a "venda perdida do Luiz".
+3. **Handoff terminal/idempotente + scrubber de ações inventadas** (1.2 e 1.5) — destrava 5 conversas em loop infinito.
+4. **Visibilidade no Atendimento** (1.9) — destrava as 23 conversas presas em `waiting_agent`.
+5. **Restantes do agente** (1.3, 1.4, 1.6, 1.7, 1.8).
+6. **Cérebro v2.0 fechar o ciclo** (2.1, 2.2, 2.3, 2.4).
+7. **Cérebro v2.1 com diretiva do usuário** (2.5) — só após v2.0 estar gerando insight.
+8. **Validação técnica + testes simulados + docs**.
+
+Cada etapa só fecha após validação técnica explícita e tem checklist de regressão.
+
+---
+
+**Confirma que sigo com este plano?** Em caso afirmativo, começo pela reconciliação documental e pelo bug do nome de estado (Eixo 3 + 1.1) — são os dois itens de menor risco e maior impacto imediato.
