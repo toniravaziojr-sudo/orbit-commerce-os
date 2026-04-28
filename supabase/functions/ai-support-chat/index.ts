@@ -3587,55 +3587,63 @@ Cliente: "vocês entregam em SP?"
       // [F2-V4][builder-gate] suppressCheckoutContext bloqueia esse bloco quando
       // o turno é pure_greeting ou informative_question — mesmo se houver
       // carrinho ativo legado contaminando o estado da conversa.
+      // [FIX-A/B] readyToFinalize promovido a escopo amplo para que o gate
+      // de tool_choice forçado (Fix B) possa lê-lo na hora de chamar o modelo.
+      // Computado SEMPRE que houver carrinho persistido, mesmo fora de
+      // decision/checkout_assist (porque o downgrade do gate pode ter ocorrido
+      // mas o carrinho ainda está válido para fechar quando intenção voltar).
+      var checkoutChecklist: {
+        ready: boolean;
+        missing: string[];
+        items: number;
+      } = { ready: false, missing: [], items: 0 };
+      if (preloadedActiveCart) {
+        const cd = preloadedActiveCart.customer_data;
+        const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
+        const missing: string[] = [];
+        if (!has("name")) missing.push("nome");
+        if (!has("email")) missing.push("email");
+        if (!has("cpf")) missing.push("CPF");
+        if (!has("postal_code")) missing.push("CEP");
+        checkoutChecklist = {
+          ready: missing.length === 0 && preloadedActiveCart.items.length > 0,
+          missing,
+          items: preloadedActiveCart.items.length,
+        };
+      }
+
       if (
         !suppressCheckoutContext &&
         !isInformationalProductQuestionCurrentTurn &&
+        preloadedActiveCart &&
         (pipelineState === "decision" || pipelineState === "checkout_assist")
       ) {
         try {
-          const { data: activeCartRow } = await supabase
-            .from("whatsapp_carts")
-            .select("id, items, customer_data, customer_id, total_cents")
-            .eq("conversation_id", conversation_id)
-            .eq("tenant_id", tenant_id)
-            .eq("status", "active")
-            .maybeSingle();
-          if (activeCartRow) {
-            const cd = (activeCartRow.customer_data as Record<string, string> | null) || {};
-            const items = Array.isArray(activeCartRow.items) ? (activeCartRow.items as any[]) : [];
-            const itemsTxt = items.length
-              ? items.map(i => `• ${i?.quantity || 1}x ${i?.name || i?.product_name || "item"}`).join("\n")
-              : "(carrinho vazio)";
-            const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
-            const checklist = [
-              `nome: ${has("name") ? "✅ " + cd.name : "❌ falta"}`,
-              `email: ${has("email") ? "✅ " + cd.email : "❌ falta"}`,
-              `cpf: ${has("cpf") ? "✅ " + cd.cpf : "❌ falta"}`,
-              `cep: ${has("postal_code") ? "✅ " + cd.postal_code : "❌ falta"}`,
-            ].join("\n");
-            const missing: string[] = [];
-            if (!has("name")) missing.push("nome");
-            if (!has("email")) missing.push("email");
-            if (!has("cpf")) missing.push("CPF");
-            if (!has("postal_code")) missing.push("CEP");
-            const readyToFinalize = missing.length === 0 && items.length > 0;
-            const directive = readyToFinalize
-              ? "→ TODOS OS DADOS OBRIGATÓRIOS JÁ ESTÃO NO CARRINHO. Se o cliente confirmou querer fechar, CHAME generate_checkout_link AGORA. Não pergunte 'Quer que eu finalize?' — execute."
-              : `→ FALTAM: ${missing.join(", ")}. Peça apenas esses, em UMA mensagem curta. Não peça o que já está ✅.`;
-            contextualBlocks.push(
-              `### CARRINHO ATIVO\n${itemsTxt}\n\n### DADOS DO CLIENTE NO CARRINHO\n${checklist}\n\n${directive}`
-            );
-          }
+          const cd = preloadedActiveCart.customer_data;
+          const items = preloadedActiveCart.items;
+          const itemsTxt = items.length
+            ? items.map(i => `• ${i?.quantity || 1}x ${i?.name || i?.product_name || "item"}`).join("\n")
+            : "(carrinho vazio)";
+          const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
+          const checklist = [
+            `nome: ${has("name") ? "✅ " + cd.name : "❌ falta"}`,
+            `email: ${has("email") ? "✅ " + cd.email : "❌ falta"}`,
+            `cpf: ${has("cpf") ? "✅ " + cd.cpf : "❌ falta"}`,
+            `cep: ${has("postal_code") ? "✅ " + cd.postal_code : "❌ falta"}`,
+          ].join("\n");
+          const directive = checkoutChecklist.ready
+            ? "→ TODOS OS DADOS OBRIGATÓRIOS JÁ ESTÃO NO CARRINHO. Se o cliente confirmou querer fechar, CHAME generate_checkout_link AGORA. Não pergunte 'Quer que eu finalize?' — execute."
+            : `→ FALTAM: ${checkoutChecklist.missing.join(", ")}. Peça apenas esses, em UMA mensagem curta. Não peça o que já está ✅.`;
+          contextualBlocks.push(
+            `### CARRINHO ATIVO\n${itemsTxt}\n\n### DADOS DO CLIENTE NO CARRINHO\n${checklist}\n\n${directive}`
+          );
         } catch (e) {
-          console.warn("[ai-support-chat] [F2-FIX-CHECKOUT] cart context preload failed:", (e as Error).message);
+          console.warn("[ai-support-chat] [F2-FIX-CHECKOUT] cart context block failed:", (e as Error).message);
         }
       } else if (
         suppressCheckoutContext ||
         (stateDowngradeReason && (pipelineStateBefore === "decision" || pipelineStateBefore === "checkout_assist"))
       ) {
-        // Emite log mesmo quando o downgrade já tirou a conversa de checkout/decision
-        // — assim a auditoria captura: "havia contaminação de checkout, e o gate
-        // (intenção pure_greeting / informative_question) impediu a injeção".
         console.log(
           `[ai-support-chat] [F2-V4][builder-gate] checkout_context_suppressed reason=${suppressionReason ?? "downgrade_from_checkout"} state_before=${pipelineStateBefore} state_after=${pipelineState} turn_intent=${turnIntentClassified} downgrade_reason=${stateDowngradeReason ?? "none"}`
         );
