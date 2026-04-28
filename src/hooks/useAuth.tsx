@@ -278,10 +278,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error as Error | null };
   };
 
+  const logLoginAttempt = (payload: {
+    email?: string | null;
+    success: boolean;
+    failure_reason?: string | null;
+    user_id?: string | null;
+  }) => {
+    // Fire-and-forget: nunca bloqueia o fluxo de login
+    try {
+      supabase.functions.invoke('log-login-attempt', { body: payload }).catch(() => {});
+    } catch {
+      // ignora qualquer erro de auditoria
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
+    });
+
+    logLoginAttempt({
+      email,
+      success: !error,
+      failure_reason: error?.message ?? null,
+      user_id: data?.user?.id ?? null,
     });
 
     return { error: error as Error | null };
@@ -294,6 +315,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         redirectTo: `${window.location.origin}/`,
       },
     });
+
+    // Para OAuth, sucesso real só após o redirect; aqui registramos só falha imediata
+    if (error) {
+      logLoginAttempt({
+        success: false,
+        failure_reason: `oauth_google: ${error.message}`,
+      });
+    }
 
     return { error: error as Error | null };
   };
