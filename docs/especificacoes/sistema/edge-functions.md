@@ -250,16 +250,33 @@ END IF;
 - UI autenticada → valida pertencimento via `user_has_tenant_access(p_tenant_id)` (helper canônico).
 - Tentativa cross-tenant → erro Postgres `42501` (insufficient_privilege).
 
-**Funções já protegidas (Onda 3.4-A — 28/04/2026):**
-- `check_credit_balance(uuid, integer)`
-- `reserve_credits(uuid, integer, text, uuid)`
-- `consume_credits(uuid, uuid, integer, text, text, text, text, jsonb, numeric, uuid, boolean)`
+**Cobertura completa da Onda 3.4 — encerrada em 28/04/2026 (33 funções com guarda):**
 
-**Próximas ondas:**
-- 3.4-B: Funções de observabilidade administrativa (enforçar `is_platform_admin()`).
-- 3.4-C: Demais RPCs operacionais com `p_tenant_id`.
+| Sub-onda | Escopo | Funções |
+|----------|--------|---------|
+| **3.4-A** | Créditos / billing | `check_credit_balance`, `reserve_credits`, `consume_credits` |
+| **3.4-B** | Operacional / plataforma | `count_unique_visitors`, `update_customer_order_stats`, `log_marketing_sync_audit` |
+| **3.4-C** | RPCs acessíveis pela UI (15 funções) | `check_module_access`, `search_products_fuzzy`, `initialize_system_pages`, `recalc_customer_metrics`, `search_knowledge_base`, `get_whatsapp_config_for_tenant`, entre outras |
+| **3.4-D** | RPCs service_role-only / triggers (15 funções) | `add_credits`, `enqueue_ai_regeneration`, `generate_order_number`, `generate_review_token`, `generate_tenant_invoice`, `generate_unsubscribe_token`, `get_ai_memories`, `get_recent_conversation_summaries`, `hydrate_whatsapp_token_from_active_grant`, `increment_ai_metrics`, `increment_creative_usage`, `increment_tenant_order_usage`, `record_ai_usage`, `supersede_meta_grant`, `upsert_subscriber_only` |
 
-**Exceção documentada:** RPCs intencionalmente públicas (ex.: `get_public_marketing_config`) NÃO recebem a guarda — devem ser anotadas explicitamente como "Intentional Public" no comentário da função.
+**Funções administrativas (não exigem Pattern 6):** Funções como `get_queue_health`, `get_top_slow_queries`, `get_resilience_kpis`, `get_whatsapp_incidents`, `get_whatsapp_orphan_inbound`, `get_payment_divergences`, `resolve_whatsapp_incident` são protegidas por `is_platform_admin()` no início do corpo (padrão `mem://constraints/platform-admin-auth-and-observability-rpc-standard`).
+
+**Exceção documentada (Intentional Public):**
+- `get_public_marketing_config(p_tenant_id)` — chamada por `anon` no storefront público; retorna apenas IDs de pixel já visíveis no HTML público. Aplicar guarda quebraria o tracking. Anotada como "Intentional Public" no comentário da função.
+
+**Regras de manutenção (anti-regressão):**
+1. Toda nova função `SECURITY DEFINER` que receba `p_tenant_id` DEVE incluir o guarda Pattern 6 já no primeiro `BEGIN` — sem exceção.
+2. Funções públicas só ficam isentas se retornarem APENAS dados já visíveis publicamente. Documentar a exceção aqui.
+3. Mudança de `LANGUAGE sql` → `plpgsql` exige `DROP FUNCTION` antes do `CREATE` (ainda que assinatura/retorno se mantenham), pois `CREATE OR REPLACE` falha quando o language muda.
+4. Mudança de tipo de retorno também exige `DROP FUNCTION` antes.
+5. Preservar defaults dos parâmetros e `SET search_path TO 'public'` ao reescrever a função.
+
+**Validação técnica registrada (28/04/2026):**
+- ✅ As 33 funções aparecem em `pg_proc` com chamada a `user_has_tenant_access` no corpo.
+- ✅ Migrations aplicadas sem regressão funcional (testes de fluxo: `add_credits` via edge function, `generate_order_number` via trigger, `get_ai_memories` via UI).
+- ✅ Linter Supabase: alertas de segurança permanecem em patamar pré-existente — nenhum novo alerta introduzido pela onda.
+
+**Detalhamento histórico completo:** ver `docs/tecnico/base-de-conhecimento-tecnico.md` (seção "2026-04-28 — Hardening de Funções SECURITY DEFINER (Onda 3.4 — encerrada)").
 
 ---
 
