@@ -231,6 +231,36 @@ As seguintes tabelas estão **sem policies anônimas** e devem permanecer assim 
 |--------|----------|-------------|
 | `product_reviews` | INSERT público com policy própria (necessário para clientes enviarem avaliações) | Pendente de endurecimento — NÃO tratar como padrão final consolidado |
 
+### Padrão 6: Tenant Identity Guard em RPCs `SECURITY DEFINER` (v2026-04-28)
+
+> **REGRA OBRIGATÓRIA** — Toda função SQL `SECURITY DEFINER` em `public` que (a) recebe `p_tenant_id uuid` e (b) é executável pelo papel `authenticated` (chamada direta da UI via `supabase.rpc()`) DEVE injetar guarda de identidade no início do corpo:
+
+```sql
+IF auth.role() <> 'service_role'
+   AND NOT public.user_has_tenant_access(p_tenant_id) THEN
+  RAISE EXCEPTION 'Access denied to tenant %', p_tenant_id
+    USING ERRCODE = '42501';
+END IF;
+```
+
+**Por quê:** sem essa guarda, qualquer usuário autenticado pode informar um `tenant_id` arbitrário e ler/manipular dados de outra loja, mesmo com `SECURITY DEFINER` correto e `search_path` fixado. RLS não protege chamadas de RPC porque a função roda com privilégios do owner.
+
+**Comportamento:**
+- Edge Functions usando `SUPABASE_SERVICE_ROLE_KEY` → `auth.role() = 'service_role'` → passam livre.
+- UI autenticada → valida pertencimento via `user_has_tenant_access(p_tenant_id)` (helper canônico).
+- Tentativa cross-tenant → erro Postgres `42501` (insufficient_privilege).
+
+**Funções já protegidas (Onda 3.4-A — 28/04/2026):**
+- `check_credit_balance(uuid, integer)`
+- `reserve_credits(uuid, integer, text, uuid)`
+- `consume_credits(uuid, uuid, integer, text, text, text, text, jsonb, numeric, uuid, boolean)`
+
+**Próximas ondas:**
+- 3.4-B: Funções de observabilidade administrativa (enforçar `is_platform_admin()`).
+- 3.4-C: Demais RPCs operacionais com `p_tenant_id`.
+
+**Exceção documentada:** RPCs intencionalmente públicas (ex.: `get_public_marketing_config`) NÃO recebem a guarda — devem ser anotadas explicitamente como "Intentional Public" no comentário da função.
+
 ---
 
 ## Regras Gerais
