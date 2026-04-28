@@ -27,6 +27,8 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Login Audit and Optional MFA](mem://auth/login-audit-and-mfa-optional-standard) — Onda 5: tabela auth_login_attempts populada por edge function log-login-attempt (fire-and-forget). Banner MFA opcional em /platform/* via supabase.auth.mfa nativo (TOTP). Toda alteração em login deve chamar logLoginAttempt.
 - [Handoff Idempotency by Conversation](mem://constraints/handoff-idempotency-by-conversation) — request_human_handoff DEVE reaproveitar ticket open/pending da mesma conversa via source_conversation_id. Sem isso, gera dezenas de tickets duplicados por cliente.
 - [AI Action Invention Scrubber](mem://constraints/ai-action-invention-scrubber) — Frases tipo "reenviei/acionei/encaminhei" sem tool de backing são scrubbed e forçam handoff. Replicar em qualquer edge que gere fala livre da IA.
+- [Ambiguous Input Pre-Model Detector](mem://constraints/ambiguous-input-pre-model-detector) — Inputs degenerados (só pontuação/emoji/<2 alfanum.) em conversas >5 msgs são interceptados antes do modelo: 1ª-2ª pedem reformulação, 3ª faz handoff `reason=ambiguous_input`.
+- [AI Response Anti-Repetition Prefix Hash](mem://constraints/ai-response-anti-repetition-prefix-hash) — `hashResponse` deve usar prefixo normalizado de 80 chars (lower + sem acentos + sem pontuação). Hash do texto inteiro deixa repetições reais passarem.
 
 - [Working Rules](mem://governance/working-rules) — Os 5 lembretes detalhados de comportamento
 - [Documentation Governance](mem://governance/documentation-governance) — Regra de Ouro e hierarquia de 6 camadas de docs

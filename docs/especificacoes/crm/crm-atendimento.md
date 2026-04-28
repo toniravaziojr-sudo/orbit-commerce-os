@@ -398,6 +398,25 @@ Todo turno grava em `ai_support_turn_log`:
 
 Sem auditoria gravada, a resposta não é despachada.
 
+### 4.8 Tratamento de Input Degenerado (Eixo 1.3)
+
+Para evitar que mensagens "vazias" do cliente (só pontuação, só emoji, ou com menos de 2 caracteres alfanuméricos) sejam roteadas para o modelo — gerando respostas confusas ou loops — o orquestrador aplica um detector pré-modelo:
+
+- **Quando aplica:** apenas após a fase inicial da conversa (mais de 5 mensagens trocadas). Conversas novas seguem o fluxo padrão de saudação.
+- **Resposta a 1 ou 2 inputs ambíguos seguidos:** o sistema responde "Não entendi sua última mensagem, pode reescrever, por favor?" e **não altera** o estado comercial (`sales_state`). O contador `metadata.ambiguous_input_count` é incrementado.
+- **Resposta ao 3º input ambíguo seguido:** handoff automático, idempotente por conversa, com `reason='ambiguous_input'`. A conversa entra em `waiting_agent` e fica visível na fila de atendimento humano. Contador é zerado.
+- **Reset:** qualquer mensagem compreensível zera o contador.
+
+Esse detector evita gastar tokens, evita poluir o histórico com respostas-modelo tentando adivinhar e garante que clientes sem contexto cheguem rapidamente a um humano.
+
+### 4.9 Anti-Repetição de Resposta (Eixo 1.4)
+
+Cada resposta gerada é hasheada por um **prefixo normalizado de 80 caracteres** (lowercase, sem acentos, sem pontuação, espaços colapsados). Esse hash é comparado contra o histórico recente de hashes da mesma conversa.
+
+- **Se houver colisão (resposta praticamente repetida):** o orquestrador faz **uma** tentativa de regeneração com `tool_choice='none'`, instruindo o modelo a reformular completamente abertura, palavras e estrutura, mantendo o mesmo conteúdo de negócio (preços, produtos, condições).
+- **Se a regeneração ainda colidir:** a resposta é suprimida (não enviada ao cliente) e a duplicata é registrada na auditoria.
+- **Por que prefixo e não conteúdo inteiro:** repetições percebidas pelo cliente são quase sempre repetições de **abertura**. Comparar o prefixo normalizado captura colisões reais e ignora variações cosméticas no meio do texto.
+
 ---
 
 ## 5. Webhooks de Entrada

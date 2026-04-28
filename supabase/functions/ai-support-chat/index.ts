@@ -2994,6 +2994,170 @@ Deno.serve(async (req) => {
       console.log(`[ai-support-chat] [D7] media context injected (${mediaGate.attachment_ids.length} attachments)`);
     }
 
+    // ============================================
+    // [Eixo 1.3] DETECTOR DE INPUT DEGENERADO
+    // ============================================
+    // Em conversas que já passaram da fase inicial (>5 mensagens), tratamos
+    // mensagens "vazias" (só pontuação, só emoji, <2 alfanuméricos) como
+    // ambíguas e respondemos pedindo reformulação SEM tocar em sales_state
+    // nem chamar o modelo. 3 ambíguas seguidas → handoff automático.
+    function isDegenerateInput(text: string): boolean {
+      const t = (text || "").trim();
+      if (!t) return true;
+      if (!/[\p{L}\p{N}]/u.test(t)) return true; // só pontuação/símbolos
+      const alnumLatin = (t.match(/[a-z0-9áéíóúâêîôûãõàèìòùäëïöüç]/gi) || []).length;
+      if (alnumLatin < 2) return true;
+      return false;
+    }
+
+    const convMetaForAmbig = (conversation.metadata as Record<string, unknown> | null) ?? {};
+    const ambigCountBefore =
+      typeof convMetaForAmbig.ambiguous_input_count === "number"
+        ? (convMetaForAmbig.ambiguous_input_count as number)
+        : 0;
+
+    const isDegenerate = isDegenerateInput(lastMessageContent);
+    const isPastInitial = messages.length > 5;
+
+    if (isDegenerate && isPastInitial) {
+      const newCount = ambigCountBefore + 1;
+      console.log(
+        `[ai-support-chat] [Eixo 1.3] degenerate input detected (count=${newCount}, msgs=${messages.length}, raw="${(lastMessageContent || "").slice(0, 40)}")`,
+      );
+
+      if (newCount >= 3) {
+        // Handoff idempotente por conversa (padrão já documentado).
+        const { data: existingTicket } = await supabase
+          .from("support_tickets")
+          .select("id, metadata")
+          .eq("tenant_id", tenant_id)
+          .eq("source_conversation_id", conversation_id)
+          .in("status", ["open", "pending"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const ticketMeta = {
+          source: "whatsapp_sales",
+          handoff_reason: "ambiguous_input",
+          ambiguous_input_count: newCount,
+          last_customer_text: (lastMessageContent || "").slice(0, 200),
+          captured_at: new Date().toISOString(),
+        };
+
+        if (existingTicket?.id) {
+          await supabase
+            .from("support_tickets")
+            .update({
+              metadata: {
+                ...(existingTicket.metadata as Record<string, unknown> ?? {}),
+                ...ticketMeta,
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingTicket.id);
+          console.log(`[ai-support-chat] [Eixo 1.3] reused ticket=${existingTicket.id} for ambiguous_input`);
+        } else {
+          const { error: ticketErr } = await supabase.from("support_tickets").insert({
+            tenant_id,
+            customer_id: conversation.customer_id ?? null,
+            source_conversation_id: conversation_id,
+            channel: "whatsapp",
+            status: "open",
+            priority: "normal",
+            subject: "Cliente com mensagens não compreendidas pela IA",
+            metadata: ticketMeta,
+          });
+          if (ticketErr) {
+            console.error(`[ai-support-chat] [Eixo 1.3] failed to create ambiguous_input ticket:`, ticketErr);
+          }
+        }
+
+        const handoffReply =
+          "Vou chamar um atendente humano para te ajudar melhor. " +
+          "Em instantes alguém da equipe assume essa conversa com você.";
+
+        await supabase.from("messages").insert({
+          conversation_id,
+          tenant_id,
+          direction: "outbound",
+          sender_type: "bot",
+          sender_name: "Atendente",
+          content: handoffReply,
+          content_type: "text",
+          delivery_status: "queued",
+          is_ai_generated: true,
+          is_internal: false,
+          is_note: false,
+          metadata: { kind: "ambiguous_input_handoff", ambiguous_input_count: newCount },
+        });
+
+        await supabase
+          .from("conversations")
+          .update({
+            status: "waiting_agent",
+            updated_at: new Date().toISOString(),
+            metadata: {
+              ...convMetaForAmbig,
+              ambiguous_input_count: 0,
+              last_ambiguous_handoff_at: new Date().toISOString(),
+            },
+          })
+          .eq("id", conversation_id);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            action: "ambiguous_input_handoff",
+            ambiguous_input_count: newCount,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // <3 ambíguas: pede reformulação. NÃO mexe em sales_state.
+      const askReply = "Não entendi sua última mensagem, pode reescrever, por favor?";
+      await supabase.from("messages").insert({
+        conversation_id,
+        tenant_id,
+        direction: "outbound",
+        sender_type: "bot",
+        sender_name: "Atendente",
+        content: askReply,
+        content_type: "text",
+        delivery_status: "queued",
+        is_ai_generated: true,
+        is_internal: false,
+        is_note: false,
+        metadata: { kind: "ambiguous_input_ask_rephrase", ambiguous_input_count: newCount },
+      });
+
+      await supabase
+        .from("conversations")
+        .update({
+          updated_at: new Date().toISOString(),
+          metadata: {
+            ...convMetaForAmbig,
+            ambiguous_input_count: newCount,
+          },
+        })
+        .eq("id", conversation_id);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          action: "ambiguous_input_ask_rephrase",
+          ambiguous_input_count: newCount,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Input compreensível: zera contador se estava acumulando (não persiste
+    // o reset aqui; será feito no UPDATE final da conversa para evitar duplicar
+    // gravação. Mantemos a variável para uso adiante.)
+    const ambiguousResetNeeded = !isDegenerate && ambigCountBefore > 0;
+
     // Build conversation context for classification (últimos 5 reais)
     const conversationContext = messages
       .slice(-5)
@@ -5486,6 +5650,27 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       .from("conversations")
       .update(conversationUpdate)
       .eq("id", conversation_id);
+
+    // [Eixo 1.3] Reset do contador de inputs ambíguos quando o turno foi
+    // processado normalmente (não estava degenerado). Lê-modifica-grava em
+    // metadata para não atropelar outros campos.
+    if (ambiguousResetNeeded) {
+      const { data: convForReset } = await supabase
+        .from("conversations")
+        .select("metadata")
+        .eq("id", conversation_id)
+        .maybeSingle();
+      const metaNow = (convForReset?.metadata as Record<string, unknown> | null) ?? {};
+      if ((metaNow.ambiguous_input_count as number | undefined) ?? 0 > 0) {
+        await supabase
+          .from("conversations")
+          .update({
+            metadata: { ...metaNow, ambiguous_input_count: 0 },
+          })
+          .eq("id", conversation_id);
+        console.log(`[ai-support-chat] [Eixo 1.3] ambiguous counter reset after normal turn`);
+      }
+    }
 
     // [PACOTE 3] Persistir/limpar pendência (toca metadata, separado para não conflitar com o update acima)
     if (pendingActionToPersist !== undefined) {
