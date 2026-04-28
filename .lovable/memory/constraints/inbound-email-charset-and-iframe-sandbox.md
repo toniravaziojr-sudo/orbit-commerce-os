@@ -1,6 +1,6 @@
 ---
-name: Inbound Email Charset & Iframe Sandbox
-description: SendGrid inbound MUST decode using `charsets` field; EmailViewer iframe MUST allow popups and inject base target + meta charset
+name: Inbound Email Charset, Iframe Sandbox & Autolink
+description: SendGrid inbound MUST decode using `charsets` field; EmailViewer iframe MUST allow popups, inject base target + meta charset, AND autolink URLs in plain text. E-mails antigos com U+FFFD são irrecuperáveis.
 type: constraint
 ---
 
