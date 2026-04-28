@@ -91,17 +91,20 @@ function HealthDashboard() {
   const slowQueries = useTopSlowQueries(15);
   const cronJobs = useCronJobsStatus();
   const queues = useQueueHealth();
+  const resilience = useResilienceKpis();
 
   const isLoading =
     overview.isLoading || slowQueries.isLoading || cronJobs.isLoading || queues.isLoading;
   const isFetching =
-    overview.isFetching || slowQueries.isFetching || cronJobs.isFetching || queues.isFetching;
+    overview.isFetching || slowQueries.isFetching || cronJobs.isFetching || queues.isFetching || resilience.isFetching;
 
   const refreshAll = () => {
     overview.refetch();
     slowQueries.refetch();
     cronJobs.refetch();
     queues.refetch();
+    resilience.refetch();
+  };
   };
 
   // Métricas derivadas — "Indisponível" quando falha (NUNCA cair para 0)
