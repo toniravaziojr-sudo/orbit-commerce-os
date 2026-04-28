@@ -22,6 +22,7 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [WhatsApp Diagnóstico respeiteohomem](mem://constraints/whatsapp-respeiteohomem-connection-over-meta) — Não voltar a priorizar Meta/display name sem evidência nova; investigar conexão/pipeline primeiro
 - [SECURITY DEFINER EXECUTE Revoke Default](mem://constraints/security-definer-execute-revoke-default) — Onda 4.1: ALTER DEFAULT PRIVILEGES travado, novas funções nascem privadas. Helpers RLS + get_public_marketing_config são exceções declaradas. Pattern 6 não substitui revogação de EXECUTE.
 - [RLS Write Policy Permissive Prohibition](mem://constraints/rls-write-policy-permissive-prohibition) — Onda 4.2: Policies de escrita não podem ter USING/WITH CHECK true sem service_role ou validação de tenant/parent. Nome de policy deve refletir role real. INSERT em user_roles nunca pode ser self-assignment.
+- [Storage Public Bucket Listing Prohibition](mem://constraints/storage-public-bucket-listing-prohibition) — Onda 4.3: Buckets públicos do Storage proibidos de ter SELECT amplo. URL pública não passa por RLS, mas LIST sim. Policy SELECT deve ser tenant-scoped via foldername ou restrita a service_role. COMMENT em storage.objects falha com 42501.
 
 - [Working Rules](mem://governance/working-rules) — Os 5 lembretes detalhados de comportamento
 - [Documentation Governance](mem://governance/documentation-governance) — Regra de Ouro e hierarquia de 6 camadas de docs
