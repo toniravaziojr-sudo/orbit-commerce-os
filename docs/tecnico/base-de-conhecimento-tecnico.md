@@ -1236,3 +1236,36 @@ Padrão segue Onda 3.4: `SECURITY DEFINER` + `SET search_path = public` + `REVOK
 2. **`manualChunks` agressivo é PROIBIDO** em `vite.config.ts`. Tentativa de fatiar por categoria (react/charts/flow/editor/ui/etc.) causou tela em branco no app publicado em 2026-04-28 mesmo funcionando no preview. Deixar o Rollup fazer split natural por entry e dynamic-import. Se for tentar de novo, fatiar **uma categoria por vez** e validar **no domínio publicado**, não no preview.
 3. **Bootstraps de contexto crítico** (auth, tenant, permissões) devem ser sempre 1 round-trip via RPC. Adicionar nova entidade ao bootstrap = estender `get_user_bootstrap`, não criar nova chamada paralela.
 
+
+---
+
+## Auth — Tratamento de refresh token expirado (`bad_jwt`)
+
+### Sintoma
+
+Logs de auth do projeto mostravam, a cada 5 minutos, eventos do tipo:
+
+```
+GET /user → 403  error_code=bad_jwt  msg="invalid claim: missing sub claim"
+referer: <URL pública do app>
+```
+
+Ocorria em visitantes com tokens antigos persistidos no `localStorage`. O Supabase JS dispara `autoRefreshToken` em loop e falha em todas as tentativas, gerando ruído permanente nos logs e chamadas de rede inúteis.
+
+### Causa
+
+O cliente Supabase guarda o `refresh_token` no storage. Quando esse token foi revogado/expirou (rotação de chaves, troca de projeto, sessão muito antiga), o GoTrue continua tentando renová-lo de 5 em 5 min e nunca limpa o storage sozinho.
+
+### Correção
+
+Em `src/hooks/useAuth.tsx`:
+
+1. **`onAuthStateChange`** — quando o evento `TOKEN_REFRESHED` chega com `session === null`, isso significa que o refresh falhou em definitivo. Disparar `supabase.auth.signOut({ scope: 'local' })` para apagar o token podre do storage e zerar o estado local. Escopo `'local'` é mandatório — não revoga sessão de outros dispositivos.
+2. **`getSession()` inicial** — se o callback retornar `error`, mesma ação: `signOut({ scope: 'local' })` e estado limpo. Sem isso, o GoTrue mantém o refresh quebrado e reinicia o ciclo.
+
+### Regra perene (anti-regressão)
+
+- Toda inicialização de `useAuth` (bootstrap + listener) **deve** tratar falha de refresh limpando o storage local. Sem isso, qualquer sessão antiga gera 403 contínuo.
+- **Nunca** usar `signOut()` sem `scope` nesse caminho — mataria sessões válidas em outras abas/dispositivos.
+- Se um dia for adicionado outro client Supabase (edge, worker, segundo schema), aplicar o mesmo padrão.
+
