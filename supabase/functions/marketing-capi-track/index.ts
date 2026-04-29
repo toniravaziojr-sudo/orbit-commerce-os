@@ -45,6 +45,13 @@ interface TrackRequest {
     // ViewContent/AddToCart with PII captured in earlier Lead/Purchase.
     email_hashed?: string;
     phone_hashed?: string;
+    // v8.28.0: Full pre-hashed identity (cofre _sf_identity).
+    first_name_hashed?: string;
+    last_name_hashed?: string;
+    city_hashed?: string;
+    state_hashed?: string;
+    zip_hashed?: string;
+    country_hashed?: string;
     name?: string;
     city?: string;
     state?: string;
@@ -164,6 +171,13 @@ Deno.serve(async (req) => {
         // v8.27.0: pre-hashed PII passthrough (used in mid-funnel enrichment)
         email_hashed: payload.user_data?.email_hashed,
         phone_hashed: payload.user_data?.phone_hashed,
+        // v8.28.0: full pre-hashed identity passthrough (cofre _sf_identity)
+        first_name_hashed: payload.user_data?.first_name_hashed,
+        last_name_hashed: payload.user_data?.last_name_hashed,
+        city_hashed: payload.user_data?.city_hashed,
+        state_hashed: payload.user_data?.state_hashed,
+        zip_hashed: payload.user_data?.zip_hashed,
+        country_hashed: payload.user_data?.country_hashed,
         first_name: firstName,
         last_name: lastName,
         city: payload.user_data?.city,
