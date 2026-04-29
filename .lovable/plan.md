@@ -1,186 +1,117 @@
 
-# Plano REVISADO — Correção do Agente IA Vendas + Cérebro Regenerativo (respeiteohomem)
+# Correção estrutural do fluxo de notificações por template + filtro "Não lidos" + docs
 
-## Por que este plano mudou após reler os docs
+## Diagnóstico fechado (o que de fato está acontecendo)
 
-Reli `docs/REGRAS-DO-SISTEMA.md` (Layer 2), `docs/especificacoes/sistema/central-comando.md` (§4 Cérebro Regenerativo v2.0), `docs/especificacoes/crm/crm-atendimento.md` (§3 IA Atendente), `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` (Layer 3) e `docs/especificacoes/whatsapp/pipeline-f2-vendas-ia.md` (F2 — máquina de estados, anti-repetição, family_focus). Quatro ajustes importantes resultaram disso:
+O fluxo é: `evento → process-events → notifications (fila) → run-notifications → canal real (WhatsApp/Email) + timeline em /support`.
 
-1. **Conflito documental Layer 2 ↔ Layer 3 (precisa decisão sua):** o Doc de Regras §9.2 e CRM §3 dizem que a IA Atendente é "**puramente informativa, NUNCA executa ações**". O doc do Modo Vendas (Layer 3) define que ela executa carrinho/checkout. Os dois coexistem hoje porque o sales_mode é toggle por tenant, mas a Layer 2 não reconhece essa exceção. Antes de qualquer ajuste comportamental, vou propor texto de reconciliação no Doc de Regras (a forma definitiva exige sua confirmação).
-2. **Cérebro Regenerativo v2.0 já está totalmente especificado** (4 etapas, 4 sub-abas, captura por trigger, injeção via `ai_brain_active_view`). O modelo oficial **não inclui** "prompt do usuário na aprovação". Sua nova solicitação (admin escrever orientação simples ao aprovar) é **ampliação da spec** — mantenho no plano, mas sinalizo como evolução documental v2.1, não conserto.
-3. **Pipeline F2 (modo vendas) já documenta** máquina de estados completa (greeting → discovery → recommendation → product_detail → decision → checkout_assist → handoff), anti-repetição estrutural com regeneração obrigatória, family_focus persistente. Vários "ajustes" do plano anterior eram, na verdade, **regressões em relação ao já documentado**. Foco muda para descobrir por que o que está escrito não está acontecendo.
-4. **Conflito de nomenclatura encontrado:** o banco grava `sales_state='checkout'` (4 conversas), mas o código `tool-filter.ts` só conhece `checkout_assist`. Quando cai no nome errado, o filtro retorna lista vazia → IA fica sem `generate_checkout_link`. Esta é provavelmente a causa raiz do bug do Luiz. **Achado novo, não estava no plano anterior.**
+Hoje existem **três falhas convivendo**, e nenhuma é "regressão de hoje":
 
----
+1. **Origem do payload incompleta.** `process-events` monta as variáveis do template lendo `payload.product_names` e `payload.store_name` direto do evento `order.paid`. Esses dois campos não vêm no evento — então sempre saem vazios. Resultado: template parcial ("Produto:" em branco e "A   agradece a compra") desde 22/04.
+2. **Saldo SendGrid esgotado.** Todos os envios de e-mail estão `failed` com `401 Maximum credits exceeded`. É erro de provedor, não de pipeline — mas o pipeline trata como falha permanente e fica calado.
+3. **Timeline com conteúdo cru no histórico antigo.** Mensagens anteriores a 21/04 (legacy, antes do Phase 3 do `template-renderer`) foram gravadas em `messages.content` com `[Template: ...] {{customer_first_name}}…` literais. O Phase 3 já bloqueia novos casos, mas o que ficou no banco continua visível no /support — é o que você viu no print.
 
-## Diagnóstico final (consolidado)
+A pergunta "estava funcionando até ontem" não se sustenta nos dados: as 28 notificações de `pagamento_aprovado` desde 22/04 estão todas como `failed` (3/3 tentativas), com erro idêntico. O sintoma é antigo; só não estava sendo percebido porque a UI não destaca falhas.
 
-### A) Comportamento do agente — 9 problemas (5 confirmados como BUG, 4 como divergência da spec)
+## Princípio da correção (não-pontual)
 
-| # | Problema | Status vs. spec |
-|---|---|---|
-| 1 | `sales_state='checkout'` no banco vs. `checkout_assist` no código → filtro retorna nada → IA sem tool de checkout | **Drift de schema/código** (Luiz fez tudo certo, IA travou) |
-| 2 | Promete handoff e não chama `request_human_handoff` (Mário, Alexandre) | **Bug** — viola §5.3 do modo-vendas (handoff é atômico) |
-| 3 | `request_human_handoff` sem idempotência (já gerou 117 tickets antes) | **Lacuna na spec** + bug |
-| 4 | Inputs não-textuais (`???`/`!!!`) resetam para greeting | **Lacuna** — F2 não trata input degenerado |
-| 5 | Anti-repetição `last_bot_response_hash` falha em variações mínimas | **Bug** — F2 §13 prevê regeneração com hash normalizado, mas hash atual é frágil |
-| 6 | IA inventa ações ("reenviei e-mail", "encaminhei pro suporte") | **Viola** Doc de Regras §9.2 e CRM §4 ("nunca invente informações") + F2 §7 anti-padrões |
-| 7 | Loop de confirmação eterno na hora de fechar venda (Luiz, 3x sim) | **Bug do nome de estado (#1)** + falta de regra "1 confirmação = chama tool" |
-| 8 | Bot diz "não consigo confirmar" sobre produto do catálogo (Fast Upgrade) | **Viola** F2 §7 anti-padrão "inventar produto" no inverso (nega produto real) |
-| 9 | 23 conversas em `waiting_agent` invisíveis (`assigned_to=null`) | **Lacuna na UI do Atendimento** — sem fila de não atribuídos |
+Em vez de só "preencher product_names no order.paid", vamos **fechar o contrato em três camadas** para que nenhuma notificação por template possa nunca mais sair (ou aparecer) incompleta:
 
-### B) Pipeline regenerativo — 5 elos quebrados
+- **Camada 1 — Origem garantida:** `process-events` enriquece o payload de qualquer regra com pedido/cliente/loja a partir do banco, com fallbacks determinísticos. Nunca confia só no que veio no evento.
+- **Camada 2 — Render strict universal:** o `template-renderer` fica em modo `strict` para todo template, e qualquer variável referenciada é resolvida (ou explicitamente declarada opcional). Nada sai com `{{ }}` cru e nada sai com `[Template:]`.
+- **Camada 3 — Timeline limpa:** o /support nunca exibe `messages.content` cru. Há um sanitizador na bolha de mensagem; o backfill do histórico legado também é feito.
 
-| Elo (spec) | Real | Diagnóstico |
-|---|---|---|
-| Captura via trigger `conversations_signal_capture_on_resolve` | **Trigger não existe no banco** (information_schema confirma) | Spec não foi implementada OU foi removida silenciosamente |
-| Conversas precisam virar `resolved` para captura disparar | **Apenas 1 conversa em `resolved` em 30 dias** (de ~150 totais) | Falta automação para resolver conversas; agentes não fecham handoffs |
-| `tenant_learning_events` (898 eventos em 7d) | Coletado mas **não conectado** ao `ai_signal_capture_queue` | Pipeline paralelo legado que nunca foi descontinuado nem unificado |
-| `ai-signal-consolidate` (cron seg 06:00 BRT) gera insights | **0 insights gerados** apesar de 68 grupos canônicos | Threshold restritivo OU bug no consolidador |
-| Aprovação humana com prompt do usuário (sua nova ideia) | **Não previsto na spec v2.0** | Ampliação para v2.1 — exige migração + UI + injeção priorizada |
+Sobre saldo SendGrid: vira **alerta operacional explícito** (badge no Notifications + insight na Central de Comando), não erro silencioso na fila.
 
----
+## Mudanças por área
 
-## O que vou ajustar
+### 1. `process-events` — enriquecimento determinístico do payload (Camada 1)
 
-### Eixo 1 — Bugs e regressões do agente de vendas
+Antes de montar `templateVars`, para qualquer regra que tenha `order_id` resolvido, fazer um único `enrichOrderContext(orderId, tenantId)` que devolve um bloco normalizado com:
 
-**1.1 Reconciliação `checkout` vs `checkout_assist`** (causa raiz do Luiz)
-Decidir o nome canônico (proposta: `checkout_assist` por ser o que F2 documenta). Migrar 4 conversas do banco. Adicionar guarda no `decideNextState` que rejeite nomes desconhecidos com log.
+- `store_name` ← `tenants.name` (ou `tenants.slug` como fallback) — já consultamos `tenants` para `storeUrl`, vai junto.
+- `product_names` ← agregação de `order_items` no formato `"Produto A (2x), Produto B (1x)"`.
+- `customer_first_name` ← derivado de `customers.full_name` quando `payload.customer_name` for vazio.
+- `order_number`, `order_total` ← garantia de fallback em `orders` se faltar no payload.
 
-**1.2 Handoff atômico, terminal e idempotente**
-- Após `request_human_handoff` chamado, conversa entra em `waiting_agent` e o orquestrador **encerra o turno** sem mais tools/respostas livres.
-- Lock por conversa de 10 min: se já tem ticket aberto, retorna o mesmo `ticket_id`.
-- Scrubber pré-envio: se a resposta contiver "vou chamar humano / equipe / atendente / suporte" e a tool não foi chamada no turno → força chamada.
+Para `abandoned_checkout` e `post_sale`, o mesmo helper roda com a entidade correspondente (sessão / cliente). Variáveis sem fonte conhecida ficam declaradas como **opcionais explícitas** no template, não vazias por acidente.
 
-**1.3 Tratamento de input degenerado**
-Detectar pré-modelo (regex: <2 alfanuméricos OU só pontuação OU só emoji). Em conversa com >5 mensagens, responde "Não entendi sua última mensagem, pode reescrever?" sem mexer em `sales_state`. 3 ambíguos seguidos → handoff `reason=ambiguous_input`.
+Bloco final: `templateVars = { ...payloadVars, ...enrichedVars }` — enriquecido sempre vence o payload cru.
 
-**1.4 Anti-repetição de fato**
-Trocar hash exato por **prefixo normalizado de 80 chars** (lower + sem pontuação + sem espaços extras). Colisão força regeneração com `tool_choice='none'` e instrução de variação substantiva — exatamente como F2 §13 já manda, mas com hash mais robusto.
+### 2. `_shared/template-renderer.ts` — contrato strict universal (Camada 2)
 
-**1.5 Proibição reforçada de ações inventadas**
-- Lista branca explícita no prompt: "Você só pode AFIRMAR uma ação se chamou a tool correspondente no mesmo turno."
-- Scrubber pós-resposta: se contiver verbos `reenviei|encaminhei|acionei|enviei e-mail|aciono o suporte` e nenhuma tool comercial/handoff foi chamada → força handoff `reason=unsupported_action_promised` em vez de mandar a fala.
+- Modo `strict` passa a ser default em todo render de notificação.
+- Cada `notification_rules` ganha (em runtime, não em schema) uma lista derivada de variáveis **opcionais conhecidas** (ex.: `tracking_url` em `payment_approved`); o resto é obrigatório.
+- Render falha → marca `notifications.status='blocked_render'` (status novo, distinto de `failed`) com `last_error` claro listando as variáveis que faltaram, e **não conta como retry consumido**. Operador vê o motivo na UI.
+- Mantém o `assertNoPlaceholders` final (já existe). Se mesmo assim algo passar, nunca chega ao canal nem à timeline — é registrado como evento interno.
 
-**1.6 Search obrigatório antes de negar produto**
-Se a resposta da IA contiver `não consigo confirmar|não tenho|não conhecemos|não temos esse produto` E `search_products` não foi chamado neste turno com termo similar ao do cliente → força regeneração obrigando chamada à tool antes de negar.
+### 3. `run-notifications` — disciplina de erro e canal (Camada 2 + saúde)
 
-**1.7 Fechar venda quando cliente confirma**
-Em `recommendation`/`product_detail`/`decision`, se a última mensagem do cliente contiver sinal de fechamento ("sim/quero/manda/fechado/pode mandar/pode gerar") OU email+CPF+CEP no mesmo turno → orquestrador **bloqueia o envio** se o turno não chamar `add_to_cart` + `generate_checkout_link`. Após 1 confirmação explícita, **proibido pedir nova confirmação** (zero "confirma de novo?").
+- Erro de provedor distinguido do erro de render: `provider_error` vs `render_blocked` em `notifications.last_error_kind`. Retry só faz sentido para `provider_error` transitório.
+- SendGrid 401 "Maximum credits exceeded" → marca tenant em `tenant_health` com `email_provider_credits_exhausted=true`, dispara um único insight no Central de Comando, e **não retenta** (poupa fila).
+- WhatsApp template não aprovado ainda → marca `awaiting_template_approval` em vez de `failed`, sem queimar tentativa (alinha com o cron horário de `whatsapp-check-templates`).
 
-**1.8 Saúde da máquina de estados**
-- Incrementar `discovery_questions_asked` toda pergunta de qualificação (hoje sempre 0 → discovery nunca avança por contagem).
-- Bloquear transição para `checkout_assist` sem `cart_id` real associado.
+### 4. Timeline do /support — nada cru (Camada 3)
 
-**1.9 Visibilidade do `waiting_agent` no Atendimento**
-- Aba/seção "Aguardando atendimento (não atribuído)" no `/support-center` filtrando `status='waiting_agent' AND assigned_to IS NULL`, ordenado por tempo de espera, badge "há Xmin".
-- Anexar ao ticket o resumo automático (últimas 6 mensagens + reason + last_intent + carrinho se houver).
+- Componente da bolha de mensagem em `/support` passa a usar um helper `sanitizeForDisplay(content)` que: detecta `[Template: ...]` e `{{ }}` em `messages.content`, e substitui por evento interno cinza "Notificação enviada (conteúdo legado oculto — ver detalhes)" com link para abrir o JSON em modal técnico (mesma camada usada hoje para "Notificação não enviada").
+- Backfill único: marcar todas as `messages` do tenant que casem o padrão legado com `metadata.legacy_template_leak=true` (não apaga o conteúdo, só sinaliza para a UI esconder).
+- O contrato `messages.content` para futuras notificações já é o `renderedVisibleText` final (`run-notifications` v1.5.0 faz isto). Nada novo entra cru.
 
----
+### 5. Filtro "Não lidos" no Atendimento
 
-### Eixo 2 — Cérebro Regenerativo (fechar o ciclo, depois ampliar)
+- Em `src/lib/support-queues.ts`: nova função `hasUnread(c)` baseada em `conversations.unread_count > 0`.
+- Em `src/components/support/ConversationList.tsx`: adicionar **toggle** "Não lidos" (chip ao lado do filtro de canal, não uma 4ª aba — preserva as 3 filas oficiais). Quando ativo, filtra a lista atual por `unread_count > 0`. Persistir preferência em `localStorage` por tenant.
+- Badge de contagem no toggle.
 
-**2.1 Restaurar a captura (FALTA NO BANCO)**
-- Criar o trigger `conversations_signal_capture_on_resolve` que a spec §4.5 promete e o banco não tem. Enfileira em `ai_signal_capture_queue` quando `status` muda para `resolved`.
-- Cron `ai-signal-capture-batch` já roda diário 7h — vai começar a processar.
+### 6. Observabilidade e dashboards
 
-**2.2 Garantir que conversas viram `resolved`**
-- Hoje só 1 conversa em 30 dias virou `resolved`. Sem isso, cérebro nunca recebe matéria-prima.
-- Adicionar regra: ao agente humano fechar ticket de handoff OU passados 7 dias sem nova mensagem em `waiting_customer`, marcar `resolved`. Cron diário.
+- Painel novo em `/notifications` (aba Saúde): contagem de `notifications` por status nos últimos 7 dias (`sent / failed / blocked_render / awaiting_template_approval`), com drill-down por regra.
+- Insight automático na Central de Comando quando: (a) saldo SendGrid esgotado, (b) >5 `blocked_render` da mesma regra em 24h, (c) template WhatsApp em `pending` há >24h.
 
-**2.3 Investigar e destravar `ai-signal-consolidate`**
-- Banco tem 72 candidates e 68 canonical_groups, mas **0 insights**. Cron está ativo (seg 06:00 BRT) mas nada sai dele.
-- Diagnóstico técnico: ler critério de promoção (provável threshold de evidence_count alto demais ou bug). Disparar manualmente para o tenant para gerar primeiro lote de insights e validar.
+### 7. Documentação (obrigatória — atualização na mesma entrega)
 
-**2.4 Descontinuar pipeline paralelo `tenant_learning_memory`**
-- Tem 40 itens parados em `pending_review` há semanas, sem UI de aprovação, sem leitura no agente (só em `status='active'` que ninguém consegue gerar).
-- Decisão: parar o `ai-learning-aggregator-6h`, manter dados como histórico, descontinuar leitura. Toda aprendizagem flui pelo Cérebro v2.0 oficial.
+- `docs/especificacoes/crm/crm-atendimento.md`: nova seção **"Pipeline de Notificações — Contrato de Render (v8.3.0)"** com as 3 camadas, status `blocked_render` e `awaiting_template_approval`, lista oficial de variáveis garantidas e opcionais por `rule_type`.
+- `docs/especificacoes/transversais/mapa-ui.md`: registrar o filtro "Não lidos" em `/support` e a aba Saúde em `/notifications`.
+- `mem://constraints/notification-template-render-contract` (novo): regra anti-regressão proibindo (a) leitura direta de `payload.product_names`/`payload.store_name` em qualquer caller, (b) gravação de `messages.content` com `[Template:]` ou `{{ }}`, (c) novo render fora de strict mode.
+- `mem://index.md`: indexar a nova constraint.
 
-**2.5 Ampliação v2.1 — Aprovação com diretiva do usuário (sua nova solicitação)**
-- Migração: adicionar `user_directive` (text) e `directive_updated_at` (timestamp) em `ai_brain_insights`.
-- UI: modal de aprovação ganha campo obrigatório "**Como a IA deve agir nesses casos?**" (placeholder com exemplo, máx 500 chars). Sem texto, botão "Aprovar" desabilitado.
-- Aba "Ativos" mostra a diretiva do usuário em destaque, com botões "Editar diretiva" / "Pausar" / "Revogar".
-- Histórico: criar `ai_brain_insights_history` com versionamento da diretiva (data, autor, texto antigo, texto novo).
-- Injeção priorizada: `getBrainContextForPrompt` formata as diretivas como bloco "**REGRAS DEFINIDAS PELO DONO DO NEGÓCIO (obrigatórias)**" no topo; `recommendation` da IA original vira contexto secundário.
-- Métrica: `usage_count++` quando regra é incluída no prompt para mostrar frequência ao admin.
+## Validação técnica obrigatória antes de declarar fechado
 
----
+Após implementar, executo nesta ordem (e te entrego o resultado):
 
-### Eixo 3 — Reconciliação documental (Layer 2 vs Layer 3)
+1. Inserir um evento `order.paid` simulado para `respeiteohomem` (script idempotente).
+2. Confirmar em `notifications`: `status='sent'`, `last_error=null`, `attempt_count=1`.
+3. Confirmar em `notification_logs`: `content_preview` com `Produto: X (2x)` e `A Respeite o Homem agradece`.
+4. Confirmar em `messages`: nova linha sem `[Template:]` e sem `{{ }}`, exibida limpa no /support.
+5. Forçar uma regra com variável obrigatória ausente → deve marcar `blocked_render`, não consumir tentativa, gerar evento interno na timeline.
+6. Validar que a aba "Não lidos" filtra corretamente uma conversa com `unread_count>0`.
 
-Antes de implementar 1 e 2, atualizar `docs/REGRAS-DO-SISTEMA.md` §9.2:
+## Arquivos que serão tocados
 
-- Esclarecer que a IA Atendente é "informativa por padrão" mas **pode operar em Modo Vendas (toggle por tenant)** quando `ai_support_config.sales_mode_enabled = true`, executando carrinho/checkout dentro das tools auditadas (referenciar Layer 3).
-- Adicionar nota: "Modo Vendas ativo NÃO autoriza execução fora do conjunto de tools listado em `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` §3."
+```text
+supabase/functions/process-events/index.ts             [enriquecimento + helper]
+supabase/functions/_shared/template-renderer.ts        [strict universal + opcionais]
+supabase/functions/_shared/enrich-order-context.ts     [novo helper compartilhado]
+supabase/functions/run-notifications/index.ts          [classificar erro, não retentar 401]
+src/components/support/ConversationList.tsx            [filtro "Não lidos"]
+src/components/support/MessageBubble.tsx (ou equiv.)   [sanitizeForDisplay]
+src/lib/support-queues.ts                              [hasUnread]
+src/lib/sanitizeNotificationContent.ts                 [novo]
+src/pages/Notifications.tsx                            [aba Saúde]
+docs/especificacoes/crm/crm-atendimento.md
+docs/especificacoes/transversais/mapa-ui.md
+.lovable/memory/constraints/notification-template-render-contract.md (novo)
+.lovable/memory/index.md
+```
 
-Sem essa reconciliação, qualquer correção em 1.1-1.8 fica em conflito com o Layer 2.
+## O que eu vou poder afirmar tecnicamente no fim
 
----
+Após a validação técnica acima passar, vou afirmar que o fluxo está **sólido, seguro e à prova de erros nos seguintes termos**:
 
-## Validação técnica obrigatória
+- Nenhuma notificação por template pode sair com variável vazia (Camada 2 bloqueia).
+- Nenhum conteúdo cru pode chegar à timeline do atendente nem ao cliente (Camada 1 evita, Camada 2 bloqueia, Camada 3 limpa o legado).
+- Falhas de provedor (SendGrid sem saldo, template WhatsApp não aprovado) viram alertas operacionais, não erros silenciosos.
+- Atendente vê exatamente o que o cliente vê, sempre.
+- O filtro "Não lidos" usa a fonte de verdade `unread_count` que já é mantida pelos triggers.
 
-Para cada item:
-1. Consulta SQL confirmando o efeito (ex: 1.1 → 0 conversas com `sales_state='checkout'` após migração).
-2. `curl_edge_function` ao `ai-support-chat` simulando o cenário.
-3. Logs do edge function confirmando tool chamada/bloqueada conforme regra.
-4. Regressão: rodar 3 conversas saudáveis e confirmar que nada quebrou.
-
----
-
-## Testes simulados (alinhados ao doc oficial de validação modo-vendas §1-7)
-
-| # | Cenário | Resultado esperado |
-|---|---|---|
-| A | Cenário 1 do doc oficial — venda completa produto sem variante | `add_to_cart` + `generate_checkout_link` chamados; cart no banco; link clicável |
-| B | Cliente confirma compra com email+CPF+CEP | Próxima resposta do bot CONTÉM o link; sem nova pergunta de confirmação |
-| C | Cliente cita produto exato do catálogo ("Fast Upgrade") | `search_products` chamado antes de qualquer negativa |
-| D | Cliente manda "???" 3x | 1ª/2ª: pede esclarecimento sem resetar estado; 3ª: handoff |
-| E | Cliente bravo: "vocês não resolvem nada" | Handoff imediato, conversa em `waiting_agent`, aparece no topo da fila não atribuída |
-| F | Cliente pergunta sobre pedido pago | IA NÃO inventa "reenvio"; chama `request_human_handoff` |
-| G | Bot tenta repetir resposta com variação cosmética | Hash normalizado pega; força regeneração |
-| H | Handoff disparado 3x em 5min | 1 ticket único (idempotência) |
-| I | Conversa marcada `resolved` | Trigger enfileira em `ai_signal_capture_queue` |
-| J | `ai-signal-consolidate` rodado manualmente após I | Gera ≥1 `ai_brain_insights` em `pending` |
-| K | Admin aprova insight com diretiva "ofereça desconto de 10%" | `user_directive` salvo; próxima conversa similar recebe regra no prompt; bot oferece desconto |
-| L | Admin edita diretiva | `ai_brain_insights_history` cria nova versão; uso passa a refletir versão nova |
-
----
-
-## Documentação a atualizar (entrega não fecha sem isso)
-
-| Doc | O que atualizar |
-|---|---|
-| `docs/REGRAS-DO-SISTEMA.md` §9.2 (Layer 2) | Reconciliar exceção do Modo Vendas vs "puramente informativa" |
-| `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` (L3) | Estado canônico `checkout_assist`; regra "1 confirmação = chama tool"; scrubber de ações inventadas; search obrigatório antes de negar; idempotência do handoff |
-| `docs/especificacoes/whatsapp/pipeline-f2-vendas-ia.md` (L3) | Atualizar §13 (anti-repetição) para hash de prefixo normalizado; nova seção sobre input degenerado; nome canônico de estado |
-| `docs/especificacoes/crm/crm-atendimento.md` (L3) | Aba/fila "Aguardando atendimento (não atribuído)"; resumo no ticket; regra de auto-resolve em 7d |
-| `docs/especificacoes/sistema/central-comando.md` §4 | Atualizar v2.0 → v2.1 com `user_directive`, histórico, injeção priorizada |
-| `docs/especificacoes/transversais/mapa-ui.md` | Nova aba/fila no Atendimento; campo de diretiva no modal de aprovação |
-| `mem://constraints/sales-state-name-canonical-checkout-assist` (novo) | Anti-regressão do drift `checkout` vs `checkout_assist` |
-| `mem://constraints/ai-handoff-must-be-atomic-terminal-and-idempotent` (novo) | Anti-regressão handoff |
-| `mem://constraints/ai-must-not-promise-unsupported-actions` (novo) | Anti-regressão ações inventadas |
-| `mem://constraints/ai-sales-must-close-on-confirmed-intent` (novo) | Anti-regressão do bug do Luiz |
-| `mem://constraints/ai-must-search-catalog-before-denying-product` (novo) | Anti-regressão Fast Upgrade |
-| `mem://constraints/brain-capture-trigger-must-exist-in-db` (novo) | Anti-regressão do trigger ausente |
-| `mem://features/ai/brain-regenerative-v2-1-with-user-directive` (novo) | Pipeline ampliado |
-| `mem://features/ai/sales-mode-conversational-commerce` | Atualizar com novas regras |
-| `mem://index.md` | Indexar todas |
-
----
-
-## Ordem de execução proposta (segura)
-
-1. **Reconciliação documental** (Eixo 3) — não toca código, destrava o resto.
-2. **Bug do nome de estado** (1.1) — pequeno, alta probabilidade de explicar a "venda perdida do Luiz".
-3. **Handoff terminal/idempotente + scrubber de ações inventadas** (1.2 e 1.5) — destrava 5 conversas em loop infinito.
-4. **Visibilidade no Atendimento** (1.9) — destrava as 23 conversas presas em `waiting_agent`.
-5. **Restantes do agente** (1.3, 1.4, 1.6, 1.7, 1.8).
-6. **Cérebro v2.0 fechar o ciclo** (2.1, 2.2, 2.3, 2.4).
-7. **Cérebro v2.1 com diretiva do usuário** (2.5) — só após v2.0 estar gerando insight.
-8. **Validação técnica + testes simulados + docs**.
-
-Cada etapa só fecha após validação técnica explícita e tem checklist de regressão.
-
----
-
-**Confirma que sigo com este plano?** Em caso afirmativo, começo pela reconciliação documental e pelo bug do nome de estado (Eixo 3 + 1.1) — são os dois itens de menor risco e maior impacto imediato.
+O que **não** posso garantir só com código: que o saldo SendGrid esteja recarregado e que os templates WhatsApp estejam aprovados — isso é operacional. Mas o sistema avisa quando não está.
