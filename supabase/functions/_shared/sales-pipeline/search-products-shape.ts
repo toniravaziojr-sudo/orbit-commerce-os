@@ -49,6 +49,8 @@ export interface FamilyShippingSummary {
   free_shipping_offers: FreeShippingOffer[];
   // Itens da mesma linha que pagam frete (informativo).
   paid_shipping_offers: FreeShippingOffer[];
+  // ID do produto-base da linha (usado p/ casar foco com a linha do summary).
+  line_base_product_id?: string | null;
 }
 
 export interface SearchProductsResult {

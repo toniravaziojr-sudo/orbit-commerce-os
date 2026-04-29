@@ -5558,11 +5558,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     if (salesModeEnabled && aiContent && typeof aiContent === "string") {
       try {
         const NEGATION_RE = /\b(n[ãa]o\s+(temos|tenho|possu[ií]mos|trabalhamos|conhe[çc]o|encontrei|encontramos)|n[ãa]o\s+(consta|existe)\s+(no\s+)?(nosso\s+)?cat[áa]logo|infelizmente\s+n[ãa]o)/i;
+        const localNamesHint = (relevantProducts || []).map((p: any) => p?.name).filter(Boolean) as string[];
         const customerMentionedProduct = /[A-Za-zÀ-ÿ0-9]{3,}/.test(lastMessageContent || "")
-          && (productNamesHint?.some?.((n: string) => {
+          && localNamesHint.some((n: string) => {
             if (!n || n.length < 3) return false;
             return (lastMessageContent || "").toLowerCase().includes(n.toLowerCase());
-          }) ?? false);
+          });
         const searchCalledThisTurn = toolsCalledThisTurn.includes("search_products");
         if (NEGATION_RE.test(aiContent) && !searchCalledThisTurn) {
           console.warn(
@@ -6093,6 +6094,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // linha-base bater com o product_id do foco — protege contra associação
     // entre produtos diferentes da mesma família.
     if (nextProductFocus && typeof nextProductFocus === "object") {
+      const focusForLine = nextProductFocus as ProductFocus;
       try {
         for (let i = toolResultsThisTurn.length - 1; i >= 0; i--) {
           const snap = toolResultsThisTurn[i];
@@ -6105,9 +6107,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // OU se for um pack cuja base bate (verificável pela presença em
           // free_shipping_offers / paid_shipping_offers do mesmo sumário).
           const inLine =
-            summary.line_base_product_id === nextProductFocus.product_id ||
-            (summary.free_shipping_offers ?? []).some((o: any) => o.id === nextProductFocus.product_id) ||
-            (summary.paid_shipping_offers ?? []).some((o: any) => o.id === nextProductFocus.product_id);
+            summary.line_base_product_id === focusForLine.product_id ||
+            (summary.free_shipping_offers ?? []).some((o: any) => o.id === focusForLine.product_id) ||
+            (summary.paid_shipping_offers ?? []).some((o: any) => o.id === focusForLine.product_id);
           if (!inLine) continue;
           const offers = (summary.free_shipping_offers ?? []).map((o: any) => ({
             label: String(o.pack_label ?? (o.is_kit ? "pack" : "unidade")),
@@ -6159,7 +6161,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           .eq("id", conversation_id);
         console.log(
           `[ai-support-chat] [F2-V2] focus persisted: product_focus=${
-            nextProductFocus === undefined ? "unchanged" : nextProductFocus === null ? "CLEARED" : `product=${nextProductFocus.product_id}`
+            nextProductFocus === undefined ? "unchanged" : nextProductFocus === null ? "CLEARED" : `product=${(nextProductFocus as ProductFocus).product_id}`
           } family_focus=${shouldUpdateFamilyFocus ? familyMentionedNow : "unchanged"} last_focused_product=${shouldUpdateLastFocusedProduct ? productMentionedNow : "unchanged"}`,
         );
       } catch (e) {
