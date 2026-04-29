@@ -885,6 +885,15 @@ export class MarketingTracker {
     const eventId = generateEventId();
     const currency = customer.currency || 'BRL';
 
+    // v8.28.0: Persist captured PII into the cofre BEFORE dispatching the
+    // CAPI event — so `sendServerEvent` already sees these values and
+    // every subsequent funnel event in the same session inherits them.
+    void storeIdentity({
+      email: customer.email,
+      phone: customer.phone,
+      name: customer.name,
+    });
+
     if (this.config.meta_enabled) {
       trackMetaEvent('Lead', {
         value: customer.value || 0,
