@@ -16,7 +16,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.27.0"; // FRENTE E1+E2: synthetic _fbp/_fbc cookies via Set-Cookie (server-side fallback for race-condition fix)
+const VERSION = "v8.28.0"; // WAVE 6: PageView gated on _fbp (5s polling) so pixel + CAPI share fbp; cumulative identity vault enrichment
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
@@ -230,10 +230,10 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
       // Check _fbp immediately
       var fbp=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||null;
       if(fbp){_doSend(fbp);return;}
-      // Poll for _fbp (250ms x 12 = 3s)
+      // Poll for _fbp (250ms x 20 = 5s) — Wave 6: increased window
       var _att=0;var _iv=setInterval(function(){
         _att++;var f=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||null;
-        if(f||_att>=12){clearInterval(_iv);_doSend(f);}
+        if(f||_att>=20){clearInterval(_iv);_doSend(f);}
       },250);
     };
     </script>`);
@@ -246,11 +246,28 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     scripts.push(`
     <script>
     (function(){
+      function firePageView(){
+        fbq('init','${pixelId}');
+        var _pvEid=window._sfEvtId?_sfEvtId():'';
+        // Wave 6: wait up to 5s for _fbp before firing PageView so pixel + CAPI share the same fbp
+        var _pvAtt=0;
+        var _pvFire=function(){
+          fbq('track','PageView',{},{eventID:_pvEid});
+          if(window._sfCapi)_sfCapi('PageView',_pvEid);
+          window._sfMetaReady=true;
+          if(window._sfPendingMetaEvents){window._sfPendingMetaEvents.forEach(function(fn){try{fn();}catch(e){}});delete window._sfPendingMetaEvents;}
+        };
+        var _pvFbp=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1];
+        if(_pvFbp){_pvFire();return;}
+        var _pvIv=setInterval(function(){
+          _pvAtt++;
+          var f=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1];
+          if(f||_pvAtt>=20){clearInterval(_pvIv);_pvFire();}
+        },250);
+      }
       function loadMeta(){
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init','${pixelId}');var _pvEid=window._sfEvtId?_sfEvtId():'';fbq('track','PageView',{},{eventID:_pvEid});if(window._sfCapi)_sfCapi('PageView',_pvEid);
-        window._sfMetaReady=true;
-        if(window._sfPendingMetaEvents){window._sfPendingMetaEvents.forEach(function(fn){fn();});delete window._sfPendingMetaEvents;}
+        firePageView();
       }
       if('requestIdleCallback' in window){requestIdleCallback(loadMeta,{timeout:3000});}
       else{setTimeout(loadMeta,2000);}

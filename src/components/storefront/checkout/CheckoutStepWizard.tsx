@@ -613,7 +613,14 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
       // When leaving step 3 (shipping selected), track AddShippingInfo
       if (currentStep === 3 && shipping.selected) {
-        trackAddShippingInfo(shipping.selected.label);
+        trackAddShippingInfo(shipping.selected.label, {
+          email: formData.customerEmail,
+          phone: formData.customerPhone,
+          name: formData.customerName,
+          city: formData.shippingCity,
+          state: formData.shippingState,
+          zip: formData.shippingPostalCode,
+        });
         // Persist funnel step in checkout_sessions
         heartbeatCheckoutSession({
           tenantSlug: tenantSlug || undefined,
@@ -725,7 +732,14 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     setPaymentError(null);
 
     // MARKETING: Track AddPaymentInfo when user proceeds to pay
-    trackAddPaymentInfo(paymentMethod);
+    trackAddPaymentInfo(paymentMethod, {
+      email: formData.customerEmail,
+      phone: formData.customerPhone,
+      name: formData.customerName,
+      city: formData.shippingCity,
+      state: formData.shippingState,
+      zip: formData.shippingPostalCode,
+    });
     // Persist funnel step in checkout_sessions
     heartbeatCheckoutSession({
       tenantSlug: tenantSlug || undefined,
