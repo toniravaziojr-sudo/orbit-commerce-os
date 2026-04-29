@@ -262,4 +262,38 @@ Memórias a criar e indexar quando os blocos forem aplicados (cada uma vira 1 en
 
 ---
 
-*Documento criado em 29/abr/2026 · Última atualização: 29/abr/2026 (Reg. #2.4, #2.5, #2.6, #2.7 aplicados).*
+## Registro #2.8 — Turn Pre-Router + Catalog Probe + Output Gates (aplicado)
+
+**Data:** 29/abr/2026
+**Motivação:** após os blocos 3.3/3.4/3.6, o usuário re-testou e os mesmos sintomas voltaram (saudação não espelhada com perfeição, preço espontâneo, IA cega para Balm/Loção mesmo descrevendo "calvície"). Diagnóstico: defesas baseadas em regex/prompt-only não enxergam a intenção real do turno. Plano aprovado: trocar a base por classificação estruturada + gates determinísticos lendo o JSON da classificação.
+
+**Arquivos criados/alterados:**
+- `supabase/functions/_shared/sales-pipeline/turn-pre-router.ts` (novo) — TPR com `google/gemini-2.5-flash-lite` via Lovable AI Gateway, tool calling, timeout 3.5s, fallback regex.
+- `supabase/functions/_shared/sales-pipeline/catalog-probe.ts` (novo) — `broadenCatalogForPain` devolve 1 representante por família quando o cliente descreve dor.
+- `supabase/functions/_shared/sales-pipeline/output-gates.ts` (novo) — `scrubUnsolicitedPrice` (remove R$/frete/parcelas em estados pré-detalhe) + `gateGreetingMirror` (corrige bug AND/OR do scrub legado).
+- `supabase/functions/_shared/sales-pipeline/index.ts` — exporta os 3 módulos novos.
+- `supabase/functions/ai-support-chat/index.ts` — integração:
+  - **TPR** disparado após o `productHintPromise` (paralelo ao bootstrap do turno) com histórico curto (6 últimos), media flag e dicas de catálogo. Resultado é a fonte única.
+  - **Catalog Probe** plugado no `search_products` via `ctx.shouldBroadenForPain`. Quando true, ignora filtro estrito por família e devolve 1 produto por família (Shampoo + Loção + Balm + Kit).
+  - **Output Gates** rodam pós-resposta: price scrubber sempre (TPR ou fallback), greeting mirror gate quando `TPR.source='llm'`; scrub legado regex segue como rede quando o TPR cair.
+  - **Hardening de domínio**: log explícito de `storeUrlSource` (`tenant_domains_primary` | `tenant_domains_any` | `shops_fallback`) e warn quando cair em `.shops` para diagnóstico futuro.
+- Bug de chave perdida na chamada `buildPromptForState({` (introduzido entre Reg #2.6 e #2.7) restaurado nesta entrega.
+
+**Antes:** detectores eram regex frágeis (`alreadyMirrors` com bug AND/OR; `tenho bastante entrada` não casava com nenhum padrão consultivo); `family_focus` estrito escondia Balm/Loção quando o cliente dizia "shampoo pra calvície"; preço vazava no 1º turno mesmo com a regra global.
+**Depois:** o TPR classifica o turno em ~300-500ms e devolve JSON estruturado (`should_broaden_catalog_for_pain`, `asked_about_price`, `greeting_period`, `is_consultative_turn`, etc.). Os gates leem esse JSON e aplicam regra dura sem regex e sem regenerar resposta. Quando o TPR falha (rate limit, timeout), o pipeline cai nos detectores antigos — nunca derruba o turno.
+
+**Observabilidade:** logs `[Reg #2.8] TPR source=… latency=… pure_greeting=… consultative=… broaden_pain=…`, `[Reg #2.8] catalog probe families=…`, `[Reg #2.8] price scrub (…)`, `[Reg #2.8] greeting gate (…)` e `[Reg #2.8] storeUrl=… source=…` no edge log.
+
+**Memórias anti-regressão a indexar (próxima rodada):**
+- `mem://features/ai/turn-pre-router-as-source-of-truth` — JSON do TPR é a fonte única para gates determinísticos.
+- `mem://features/ai/catalog-probe-pain-broaden` — quando o cliente descreve dor, mostre o TRATAMENTO (várias famílias), não só a família citada.
+- `mem://constraints/output-gates-must-read-tpr-not-regex` — proibido criar novo gate baseado em regex de saída quando o sinal está disponível no TPR.
+
+**Validação técnica executada:**
+- ✅ `deno check` confirma sintaxe OK (7 erros TS pré-existentes em `nextProductFocus`/`productNamesHint` não foram introduzidos por esta entrega).
+- ✅ Consulta DB confirma `tenant_domains` do Respeite o Homem com `www.respeiteohomem.com.br` `is_primary=true status=verified` — o `.shops` no diálogo anterior provavelmente foi link gerado em turno antigo; o log novo vai expor a origem em qualquer turno futuro.
+- Pendente: usuário re-testar no WhatsApp ("Boa noite, tudo bem? Tenho calvície na coroa, qual tratamento indicado pra mim?") e confirmar (a) abertura "Boa noite, tudo bem?", (b) acolhida + qualificação antes de listar, (c) recomendação cita Shampoo + Loção + Balm (não só Shampoo), (d) sem preço espontâneo, (e) link com domínio `respeiteohomem.com.br`.
+
+---
+
+*Documento criado em 29/abr/2026 · Última atualização: 29/abr/2026 (Reg. #2.4, #2.5, #2.6, #2.7, #2.8 aplicados).*

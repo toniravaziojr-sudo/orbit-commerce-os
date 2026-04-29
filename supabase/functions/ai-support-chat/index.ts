@@ -72,6 +72,13 @@ import {
   buildConsultativeTurnBlock,
   // [F2-FS-CROSS] normalizador do retorno de search_products (legado/novo)
   parseSearchProductsResult,
+  // [Reg #2.8] Turn Pre-Router + Catalog Probe + Output Gates
+  classifyTurn,
+  fallbackClassification,
+  type TurnClassification,
+  broadenCatalogForPain,
+  scrubUnsolicitedPrice,
+  gateGreetingMirror,
 } from "../_shared/sales-pipeline/index.ts";
 // [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
 // (substitui o cache em-memória que se perdia a cada cold start).
@@ -753,6 +760,9 @@ async function executeSalesTool(
     // [F2-V2 — Item 1] Família mencionada na mensagem ATUAL do cliente.
     // Se diferente da família em foco, prevalece (mudou de assunto).
     familyMentionedNow?: string | null;
+    // [Reg #2.8] Quando o TPR detecta DOR/OBJETIVO concreto, search_products
+    // aplica Catalog Probe (1 representante por família, não filtra estrito).
+    shouldBroadenForPain?: boolean;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
@@ -1021,23 +1031,44 @@ async function executeSalesTool(
         };
         const effectiveFamily = familyChanged ? familyMentionedNow : familyFocusActive;
         let filtered = enriched;
-        const familyAliases = getCatalogFamilyAliases(effectiveFamily);
-        if (familyAliases.length > 0) {
-          const aliasPatterns = familyAliases
-            .map(alias => FAMILY_NAME_PATTERNS[alias])
-            .filter((pat): pat is RegExp => pat instanceof RegExp);
-          const byFamily = enriched.filter(p => aliasPatterns.some(pat => pat.test(String(p.name || ""))));
-          if (byFamily.length > 0) {
-            filtered = byFamily;
+
+        // [Reg #2.8] CATALOG PROBE — quando o TPR sinaliza dor concreta,
+        // devolvemos 1 representante por família (Shampoo + Loção + Balm + Kit)
+        // ao invés de filtro estrito. Resolve "Catalog Blindness".
+        const shouldBroaden = !!ctx.shouldBroadenForPain && enriched.length > 1;
+        if (shouldBroaden) {
+          const broadened = broadenCatalogForPain({
+            enriched: enriched as any,
+            familyMentionedNow,
+            familyFocus: familyFocusActive,
+            limit: requestedLimit,
+          });
+          if (broadened.filtered.length > 0) {
+            filtered = broadened.filtered as typeof enriched;
             console.log(
-              `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-              `aliases=${familyAliases.join("|")} filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
+              `[ai-support-chat][search_products] [Reg #2.8] catalog probe ` +
+              `families=${broadened.families_returned.join("|")} pool=${enriched.length}→${filtered.length} reason=${broadened.reason}`
             );
-          } else {
-            console.log(
-              `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-              `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
-            );
+          }
+        } else {
+          const familyAliases = getCatalogFamilyAliases(effectiveFamily);
+          if (familyAliases.length > 0) {
+            const aliasPatterns = familyAliases
+              .map(alias => FAMILY_NAME_PATTERNS[alias])
+              .filter((pat): pat is RegExp => pat instanceof RegExp);
+            const byFamily = enriched.filter(p => aliasPatterns.some(pat => pat.test(String(p.name || ""))));
+            if (byFamily.length > 0) {
+              filtered = byFamily;
+              console.log(
+                `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+                `aliases=${familyAliases.join("|")} filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
+              );
+            } else {
+              console.log(
+                `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+                `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
+              );
+            }
           }
         }
 
@@ -3428,11 +3459,20 @@ Deno.serve(async (req) => {
 
     // Resolve domínio personalizado verificado via tenant_domains (fonte oficial).
     // Preferência: is_primary verified → qualquer verified → fallback slug.shops...
-    const { data: tenantDomains } = await supabase
+    // [Reg #2.8] Hardening: log explícito quando cair no fallback .shops para
+    // facilitar diagnóstico (cliente reportou que IA mandava link .shops mesmo
+    // havendo domínio próprio configurado).
+    const { data: tenantDomains, error: tenantDomainsError } = await supabase
       .from("tenant_domains")
       .select("domain, is_primary, status")
       .eq("tenant_id", tenant_id)
       .eq("status", "verified");
+
+    if (tenantDomainsError) {
+      console.error(
+        `[ai-support-chat] [Reg #2.8] tenant_domains lookup error tenant=${tenant_id}: ${tenantDomainsError.message}`
+      );
+    }
 
     const primaryDomain =
       (tenantDomains || []).find((d: any) => d.is_primary)?.domain ||
@@ -3446,11 +3486,22 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     let storeUrl = "";
+    let storeUrlSource: "tenant_domains_primary" | "tenant_domains_any" | "shops_fallback" | "none" = "none";
     if (primaryDomain) {
       storeUrl = `https://${primaryDomain}`;
+      const isPrimaryFlag = (tenantDomains || []).find((d: any) => d.domain === primaryDomain)?.is_primary;
+      storeUrlSource = isPrimaryFlag ? "tenant_domains_primary" : "tenant_domains_any";
     } else if (tenant?.slug) {
       storeUrl = `https://${tenant.slug}.shops.comandocentral.com.br`;
+      storeUrlSource = "shops_fallback";
+      console.warn(
+        `[ai-support-chat] [Reg #2.8] storeUrl FALLBACK=.shops tenant=${tenant_id} slug=${tenant.slug} ` +
+        `domains_count=${(tenantDomains || []).length} — verifique tenant_domains.status='verified' e is_primary.`
+      );
     }
+    console.log(
+      `[ai-support-chat] [Reg #2.8] storeUrl=${storeUrl || "(empty)"} source=${storeUrlSource} tenant=${tenant_id}`
+    );
 
     const storeName = storeSettings?.store_name || tenant?.name || "Nossa Loja";
 
@@ -3716,6 +3767,38 @@ Cliente: "vocês entregam em SP?"
       : Promise.resolve(null);
 
     const preTransitionProductHint: string[] = await productHintPromise;
+
+    // [Reg #2.8] Turn Pre-Router (TPR) — classificação estruturada do turno
+    // via LLM curta (Gemini Flash-Lite). É a fonte única de verdade para
+    // greeting mirror, price scrubber e catalog probe. Disparado em paralelo
+    // ao restante do bootstrap; com timeout curto e fallback regex.
+    let turnClassification: TurnClassification;
+    if (salesModeEnabled && lastMessageContent && lastMessageContent.trim().length > 0) {
+      try {
+        turnClassification = await classifyTurn({
+          customerMessage: lastMessageContent,
+          recentHistory: (messages || []).slice(-6).map((m: any) => ({
+            role: m.role === "user" ? "user" : "assistant",
+            content: String(m.content || "").slice(0, 400),
+          })),
+          hasMediaAttachment: !!(messages || []).slice(-1)[0]?.attachments?.length,
+          productNamesHint: preTransitionProductHint,
+          timeoutMs: 3500,
+        });
+        console.log(
+          `[ai-support-chat] [Reg #2.8] TPR source=${turnClassification.source} latency=${turnClassification.latency_ms}ms ` +
+          `pure_greeting=${turnClassification.is_pure_greeting} consultative=${turnClassification.is_consultative_turn} ` +
+          `broaden_pain=${turnClassification.should_broaden_catalog_for_pain} asked_price=${turnClassification.asked_about_price} ` +
+          `family=${turnClassification.mentioned_product_family ?? "none"} purchase_intent=${turnClassification.confirmed_purchase_intent}` +
+          (turnClassification.raw_error ? ` err=${turnClassification.raw_error}` : "")
+        );
+      } catch (e) {
+        console.warn("[ai-support-chat] [Reg #2.8] TPR threw, using regex fallback:", (e as Error).message);
+        turnClassification = fallbackClassification(lastMessageContent, false);
+      }
+    } else {
+      turnClassification = fallbackClassification(lastMessageContent || "", false);
+    }
 
     const mentionedProductNameBefore = extractMentionedProductName(lastMessageContent || "", preTransitionProductHint);
     const familyMentionedBefore = detectFamilyMentioned(lastMessageContent || "");
@@ -4028,6 +4111,8 @@ Cliente: "vocês entregam em SP?"
           console.warn("[ai-support-chat] [Reg#2-3.6] consultative detector failed:", (e as Error).message);
         }
       }
+
+      const routed = buildPromptForState({
         state: pipelineState,
         allTools: SALES_TOOLS,
         tenant: {
@@ -4656,6 +4741,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // para search_products aplicar filtro estrito.
         familyFocus: familyFocusBefore,
         familyMentionedNow: detectFamilyMentioned(lastMessageContent || ""),
+        // [Reg #2.8] Sinaliza ao search_products que aplique Catalog Probe
+        // (1 representante por família) ao invés do filtro estrito.
+        shouldBroadenForPain: turnClassification?.should_broaden_catalog_for_pain === true,
       };
 
       let response: Response | null = null;
@@ -5680,27 +5768,58 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       `[ai-support-chat] [F2] transition ${pipelineState} → ${nextPipelineState} (reason=${transitionReason})`
     );
 
-    // [Reg #2 - 3.3] Greeting scrub server-side: garante reciprocidade real de saudação.
-    // Reescreve apenas a ABERTURA quando o estado é "greeting" e a IA não espelhou o
-    // período do dia / "tudo bem?" do cliente. Custo zero, sem regeneração.
+    // [Reg #2.8] OUTPUT GATES — server-side, leem o JSON do TPR.
+    // (a) Price Scrubber: remove menções não solicitadas a R$/frete em estados
+    //     pré-detalhe (greeting/discovery/recommendation).
+    // (b) Greeting Mirror Gate: corrige o bug AND/OR do scrub legado, exigindo
+    //     espelho do período E reciprocidade quando ambos estão presentes.
+    // Quando o TPR caiu em fallback (regex), usamos o scrub legado como rede.
     let greetingScrubApplied = false;
     let greetingScrubReason = "noop";
+    let priceScrubApplied = false;
+    let priceScrubReason = "noop";
     try {
-      const scrub = scrubGreetingReciprocity({
+      // Price scrubber sempre roda — usa TPR se disponível, fallback regex se não.
+      const priceGate = scrubUnsolicitedPrice({
         pipelineState,
-        customerMessage: lastMessageContent || "",
         aiResponse: aiContent || "",
+        classification: turnClassification,
       });
-      greetingScrubReason = scrub.reason;
-      if (scrub.scrubbed) {
-        console.log(
-          `[ai-support-chat] [Reg #2 - 3.3] greeting scrub applied (${scrub.reason})`,
-        );
-        aiContent = scrub.after;
-        greetingScrubApplied = true;
+      priceScrubReason = priceGate.reason;
+      if (priceGate.scrubbed) {
+        console.log(`[ai-support-chat] [Reg #2.8] price scrub (${priceGate.reason})`);
+        aiContent = priceGate.after;
+        priceScrubApplied = true;
+      }
+
+      if (turnClassification.source === "llm") {
+        const greetGate = gateGreetingMirror({
+          pipelineState,
+          aiResponse: aiContent || "",
+          classification: turnClassification,
+        });
+        greetingScrubReason = greetGate.reason;
+        if (greetGate.scrubbed) {
+          console.log(`[ai-support-chat] [Reg #2.8] greeting gate (${greetGate.reason})`);
+          aiContent = greetGate.after;
+          greetingScrubApplied = true;
+        }
+      } else {
+        // Fallback: scrub legado por regex
+        const scrub = scrubGreetingReciprocity({
+          pipelineState,
+          customerMessage: lastMessageContent || "",
+          aiResponse: aiContent || "",
+        });
+        greetingScrubReason = scrub.reason;
+        if (scrub.scrubbed) {
+          console.log(`[ai-support-chat] [Reg #2 - 3.3 fallback] greeting scrub (${scrub.reason})`);
+          aiContent = scrub.after;
+          greetingScrubApplied = true;
+        }
       }
     } catch (e) {
-      console.warn("[ai-support-chat] [Reg #2 - 3.3] greeting scrub failed:", (e as Error).message);
+      console.warn("[ai-support-chat] [Reg #2.8] output gates failed:", (e as Error).message);
     }
 
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
