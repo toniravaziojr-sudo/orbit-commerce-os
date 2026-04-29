@@ -1,117 +1,162 @@
+## 📋 Checklist de Conformidade
+- ✅ Doc de Regras lido (`.lovable/memory/constraints/meta-tracking-quality-strategy.md`, `purchase-event-emission-rules.md`)
+- ✅ Doc formal lido (`docs/especificacoes/marketing/meta-tracking.md` v8.27.0, `docs/meta-tracking-changelog.md`)
+- ✅ Fluxo identificado: emissão Pixel + CAPI ao longo do funil
+- ✅ Fonte de verdade: `marketingTracker.ts` (browser) + `meta-capi-sender.ts` (server) + `storefront-html` (Edge HTML)
+- ✅ Módulos impactados: storefront, checkout, edge tracking, edge sender
+- ✅ Impacto cruzado: Lead → Checkout (já existia falha), nenhum impacto em outros módulos
+- ✅ UI impactada? Não. mapa-ui.md não muda.
+- 📌 Situação: **Aguardando confirmação do usuário**
 
-# Correção estrutural do fluxo de notificações por template + filtro "Não lidos" + docs
+---
 
-## Diagnóstico fechado (o que de fato está acontecendo)
-
-O fluxo é: `evento → process-events → notifications (fila) → run-notifications → canal real (WhatsApp/Email) + timeline em /support`.
-
-Hoje existem **três falhas convivendo**, e nenhuma é "regressão de hoje":
-
-1. **Origem do payload incompleta.** `process-events` monta as variáveis do template lendo `payload.product_names` e `payload.store_name` direto do evento `order.paid`. Esses dois campos não vêm no evento — então sempre saem vazios. Resultado: template parcial ("Produto:" em branco e "A   agradece a compra") desde 22/04.
-2. **Saldo SendGrid esgotado.** Todos os envios de e-mail estão `failed` com `401 Maximum credits exceeded`. É erro de provedor, não de pipeline — mas o pipeline trata como falha permanente e fica calado.
-3. **Timeline com conteúdo cru no histórico antigo.** Mensagens anteriores a 21/04 (legacy, antes do Phase 3 do `template-renderer`) foram gravadas em `messages.content` com `[Template: ...] {{customer_first_name}}…` literais. O Phase 3 já bloqueia novos casos, mas o que ficou no banco continua visível no /support — é o que você viu no print.
-
-A pergunta "estava funcionando até ontem" não se sustenta nos dados: as 28 notificações de `pagamento_aprovado` desde 22/04 estão todas como `failed` (3/3 tentativas), com erro idêntico. O sintoma é antigo; só não estava sendo percebido porque a UI não destaca falhas.
-
-## Princípio da correção (não-pontual)
-
-Em vez de só "preencher product_names no order.paid", vamos **fechar o contrato em três camadas** para que nenhuma notificação por template possa nunca mais sair (ou aparecer) incompleta:
-
-- **Camada 1 — Origem garantida:** `process-events` enriquece o payload de qualquer regra com pedido/cliente/loja a partir do banco, com fallbacks determinísticos. Nunca confia só no que veio no evento.
-- **Camada 2 — Render strict universal:** o `template-renderer` fica em modo `strict` para todo template, e qualquer variável referenciada é resolvida (ou explicitamente declarada opcional). Nada sai com `{{ }}` cru e nada sai com `[Template:]`.
-- **Camada 3 — Timeline limpa:** o /support nunca exibe `messages.content` cru. Há um sanitizador na bolha de mensagem; o backfill do histórico legado também é feito.
-
-Sobre saldo SendGrid: vira **alerta operacional explícito** (badge no Notifications + insight na Central de Comando), não erro silencioso na fila.
-
-## Mudanças por área
-
-### 1. `process-events` — enriquecimento determinístico do payload (Camada 1)
-
-Antes de montar `templateVars`, para qualquer regra que tenha `order_id` resolvido, fazer um único `enrichOrderContext(orderId, tenantId)` que devolve um bloco normalizado com:
-
-- `store_name` ← `tenants.name` (ou `tenants.slug` como fallback) — já consultamos `tenants` para `storeUrl`, vai junto.
-- `product_names` ← agregação de `order_items` no formato `"Produto A (2x), Produto B (1x)"`.
-- `customer_first_name` ← derivado de `customers.full_name` quando `payload.customer_name` for vazio.
-- `order_number`, `order_total` ← garantia de fallback em `orders` se faltar no payload.
-
-Para `abandoned_checkout` e `post_sale`, o mesmo helper roda com a entidade correspondente (sessão / cliente). Variáveis sem fonte conhecida ficam declaradas como **opcionais explícitas** no template, não vazias por acidente.
-
-Bloco final: `templateVars = { ...payloadVars, ...enrichedVars }` — enriquecido sempre vence o payload cru.
-
-### 2. `_shared/template-renderer.ts` — contrato strict universal (Camada 2)
-
-- Modo `strict` passa a ser default em todo render de notificação.
-- Cada `notification_rules` ganha (em runtime, não em schema) uma lista derivada de variáveis **opcionais conhecidas** (ex.: `tracking_url` em `payment_approved`); o resto é obrigatório.
-- Render falha → marca `notifications.status='blocked_render'` (status novo, distinto de `failed`) com `last_error` claro listando as variáveis que faltaram, e **não conta como retry consumido**. Operador vê o motivo na UI.
-- Mantém o `assertNoPlaceholders` final (já existe). Se mesmo assim algo passar, nunca chega ao canal nem à timeline — é registrado como evento interno.
-
-### 3. `run-notifications` — disciplina de erro e canal (Camada 2 + saúde)
-
-- Erro de provedor distinguido do erro de render: `provider_error` vs `render_blocked` em `notifications.last_error_kind`. Retry só faz sentido para `provider_error` transitório.
-- SendGrid 401 "Maximum credits exceeded" → marca tenant em `tenant_health` com `email_provider_credits_exhausted=true`, dispara um único insight no Central de Comando, e **não retenta** (poupa fila).
-- WhatsApp template não aprovado ainda → marca `awaiting_template_approval` em vez de `failed`, sem queimar tentativa (alinha com o cron horário de `whatsapp-check-templates`).
-
-### 4. Timeline do /support — nada cru (Camada 3)
-
-- Componente da bolha de mensagem em `/support` passa a usar um helper `sanitizeForDisplay(content)` que: detecta `[Template: ...]` e `{{ }}` em `messages.content`, e substitui por evento interno cinza "Notificação enviada (conteúdo legado oculto — ver detalhes)" com link para abrir o JSON em modal técnico (mesma camada usada hoje para "Notificação não enviada").
-- Backfill único: marcar todas as `messages` do tenant que casem o padrão legado com `metadata.legacy_template_leak=true` (não apaga o conteúdo, só sinaliza para a UI esconder).
-- O contrato `messages.content` para futuras notificações já é o `renderedVisibleText` final (`run-notifications` v1.5.0 faz isto). Nada novo entra cru.
-
-### 5. Filtro "Não lidos" no Atendimento
-
-- Em `src/lib/support-queues.ts`: nova função `hasUnread(c)` baseada em `conversations.unread_count > 0`.
-- Em `src/components/support/ConversationList.tsx`: adicionar **toggle** "Não lidos" (chip ao lado do filtro de canal, não uma 4ª aba — preserva as 3 filas oficiais). Quando ativo, filtra a lista atual por `unread_count > 0`. Persistir preferência em `localStorage` por tenant.
-- Badge de contagem no toggle.
-
-### 6. Observabilidade e dashboards
-
-- Painel novo em `/notifications` (aba Saúde): contagem de `notifications` por status nos últimos 7 dias (`sent / failed / blocked_render / awaiting_template_approval`), com drill-down por regra.
-- Insight automático na Central de Comando quando: (a) saldo SendGrid esgotado, (b) >5 `blocked_render` da mesma regra em 24h, (c) template WhatsApp em `pending` há >24h.
-
-### 7. Documentação (obrigatória — atualização na mesma entrega)
-
-- `docs/especificacoes/crm/crm-atendimento.md`: nova seção **"Pipeline de Notificações — Contrato de Render (v8.3.0)"** com as 3 camadas, status `blocked_render` e `awaiting_template_approval`, lista oficial de variáveis garantidas e opcionais por `rule_type`.
-- `docs/especificacoes/transversais/mapa-ui.md`: registrar o filtro "Não lidos" em `/support` e a aba Saúde em `/notifications`.
-- `mem://constraints/notification-template-render-contract` (novo): regra anti-regressão proibindo (a) leitura direta de `payload.product_names`/`payload.store_name` em qualquer caller, (b) gravação de `messages.content` com `[Template:]` ou `{{ }}`, (c) novo render fora de strict mode.
-- `mem://index.md`: indexar a nova constraint.
-
-## Validação técnica obrigatória antes de declarar fechado
-
-Após implementar, executo nesta ordem (e te entrego o resultado):
-
-1. Inserir um evento `order.paid` simulado para `respeiteohomem` (script idempotente).
-2. Confirmar em `notifications`: `status='sent'`, `last_error=null`, `attempt_count=1`.
-3. Confirmar em `notification_logs`: `content_preview` com `Produto: X (2x)` e `A Respeite o Homem agradece`.
-4. Confirmar em `messages`: nova linha sem `[Template:]` e sem `{{ }}`, exibida limpa no /support.
-5. Forçar uma regra com variável obrigatória ausente → deve marcar `blocked_render`, não consumir tentativa, gerar evento interno na timeline.
-6. Validar que a aba "Não lidos" filtra corretamente uma conversa com `unread_count>0`.
-
-## Arquivos que serão tocados
+## Diagnóstico medido em produção (respeite-o-homem, 48h)
 
 ```text
-supabase/functions/process-events/index.ts             [enriquecimento + helper]
-supabase/functions/_shared/template-renderer.ts        [strict universal + opcionais]
-supabase/functions/_shared/enrich-order-context.ts     [novo helper compartilhado]
-supabase/functions/run-notifications/index.ts          [classificar erro, não retentar 401]
-src/components/support/ConversationList.tsx            [filtro "Não lidos"]
-src/components/support/MessageBubble.tsx (ou equiv.)   [sanitizeForDisplay]
-src/lib/support-queues.ts                              [hasUnread]
-src/lib/sanitizeNotificationContent.ts                 [novo]
-src/pages/Notifications.tsx                            [aba Saúde]
-docs/especificacoes/crm/crm-atendimento.md
-docs/especificacoes/transversais/mapa-ui.md
-.lovable/memory/constraints/notification-template-render-contract.md (novo)
-.lovable/memory/index.md
+Evento             total  fbp   fbc   email  phone  nome   city/uf/cep
+PageView            608   43%   22%    5%     5%    0%      0%
+ViewCategory        202    0%   17%    5%     5%    0%      0%
+ViewContent          89    1%   10%    2%     2%    0%      0%
+AddToCart            26    0%    4%    0%     0%    0%      0%
+InitiateCheckout     34   47%   23%    0%     0%    0%      0%
+Lead                 22  100%   50%  100%   100%  100%      0%
+AddShippingInfo      17  100%   47%    0%     0%    0%      0%
+AddPaymentInfo       13  100%   46%    0%     0%    0%      0%
+Purchase             17   76%   35%  100%   100%  100%    100%
 ```
 
-## O que eu vou poder afirmar tecnicamente no fim
+Comparado às metas oficiais da doc v8.27.0 (`≥95%` em fbp e PII), só Purchase está aderente. Há **6 lacunas reais**.
 
-Após a validação técnica acima passar, vou afirmar que o fluxo está **sólido, seguro e à prova de erros nos seguintes termos**:
+## Como funciona hoje
 
-- Nenhuma notificação por template pode sair com variável vazia (Camada 2 bloqueia).
-- Nenhum conteúdo cru pode chegar à timeline do atendente nem ao cliente (Camada 1 evita, Camada 2 bloqueia, Camada 3 limpa o legado).
-- Falhas de provedor (SendGrid sem saldo, template WhatsApp não aprovado) viram alertas operacionais, não erros silenciosos.
-- Atendente vê exatamente o que o cliente vê, sempre.
-- O filtro "Não lidos" usa a fonte de verdade `unread_count` que já é mantida pelos triggers.
+- "Memória" do funil só existe via `_sf_am_em` e `_sf_am_ph` (email/phone hash em localStorage).
+- Essa memória **só é gravada no Purchase** — depois que o pedido fechou. O usuário só ganha enriquecimento na próxima sessão.
+- Edge HTML (`storefront-html`) lê `_sf_am_*` do localStorage; SPA tracker idem.
+- Backend (`meta-capi-sender`) só aceita pré-hash de **email e phone**. Para nome/city/uf/cep ele exige texto plano e hasheia.
+- Lead, AddShippingInfo, AddPaymentInfo passam PII no momento do disparo, mas **não a persistem** para os eventos seguintes.
+- AddShippingInfo e AddPaymentInfo são chamados sem `userData` no `CheckoutStepWizard`, mesmo com `formData` cheio.
+- AddToCart dispara antes do `_fbp` existir (cobertura 0%).
+- Edge HTML PageView dispara antes do Pixel injetar `_fbp` (cobertura 43%).
 
-O que **não** posso garantir só com código: que o saldo SendGrid esteja recarregado e que os templates WhatsApp estejam aprovados — isso é operacional. Mas o sistema avisa quando não está.
+## As 6 lacunas que explicam as quedas
+
+1. **Lead não persiste a PII capturada** para os eventos seguintes na mesma sessão.
+2. **`CheckoutStepWizard` não passa `userData` em AddShippingInfo/AddPaymentInfo**, mesmo tendo todos os dados em `formData`.
+3. **Backend não aceita pré-hash para nome/cidade/UF/CEP** — só email/phone — então não dá para enriquecer eventos pré-Purchase com endereço sem reescrever o backend.
+4. **Endereço (city/state/zip) nunca é persistido** para sessão seguinte.
+5. **AddToCart dispara antes do `_fbp` carregar** (`waitForFbp` configurado para 3s, mas o evento sai imediatamente no clique).
+6. **Edge HTML PageView dispara sem aguardar o Pixel injetar `_fbp`** (`_sfMetaReady` existe mas não é usado como gate).
+
+## O que eu faria — plano em 5 ondas (sem regressão)
+
+Regra anti-regressão central: **acumular, nunca substituir**. Merge sempre não-destrutivo (`payload.X ?? stored.X`). Nenhum evento perde parâmetro existente.
+
+### Onda 1 — Estender backend para aceitar pré-hash de TODA a PII
+Em `supabase/functions/_shared/meta-capi-sender.ts` (`MetaUserData` + `buildHashedUserData`), adicionar campos pré-hashed para todos os atributos de identidade, espelhando o padrão já existente de `email_hashed`/`phone_hashed`:
+- `first_name_hashed`, `last_name_hashed`, `city_hashed`, `state_hashed`, `zip_hashed`, `country_hashed`
+
+Comportamento: se `_hashed` vier preenchido, usar direto (sem re-hashear). Se vier o campo plano, usa o caminho atual. Total compatibilidade retroativa — nada que já funciona é alterado.
+
+Em `marketing-capi-track/index.ts` (interface `TrackRequest.user_data`), aceitar e repassar esses campos novos.
+
+> ⚠️ **Por que isso é necessário:** sem pré-hash no client, eu teria que persistir nome/endereço em texto plano em `localStorage`, o que viola privacidade e LGPD. Pré-hashar no client e passar `_hashed` ao backend é a única solução segura.
+
+### Onda 2 — Cofre de identidade persistente no client (`_sf_identity`)
+Em `src/lib/visitorIdentity.ts`, adicionar:
+- `storeIdentity(partial: { email?, phone?, firstName?, lastName?, city?, state?, zip? })` — recebe valores em **texto plano**, hasheia (SHA-256, lowercase, trim) e grava em `localStorage._sf_identity`. Merge não-destrutivo (campos existentes nunca são apagados; só atualizados se o novo valor for diferente).
+- `getStoredIdentity()` — retorna `{ em_hash, ph_hash, fn_hash, ln_hash, ct_hash, st_hash, zp_hash }` se existirem.
+- TTL: 30 dias (mesmo padrão do `purchaseDedup`).
+
+Compatibilidade: `_sf_am_em` e `_sf_am_ph` continuam sendo gravados em paralelo (Edge HTML inline ainda lê eles). Zero regressão no caminho do Edge.
+
+### Onda 3 — Pontos de captura passam a alimentar o cofre
+Em `src/lib/marketingTracker.ts`:
+- **`trackLead`**: chamar `storeIdentity({ email, phone, firstName, lastName })` ANTES do `sendCapi`.
+- **`trackAddShippingInfo`**: chamar `storeIdentity({ email, phone, firstName, lastName, city, state, zip })`.
+- **`trackAddPaymentInfo`**: idem.
+- **`trackPurchase`**: substituir `storeAdvancedMatchingData` por `storeIdentity(...)` completo (mantém `_sf_am_em`/`_sf_am_ph` como side-effect para compat com Edge HTML).
+
+Resultado: a partir do momento em que o usuário entrega cada dado, **todos os eventos seguintes na mesma sessão e nos próximos 30 dias herdam aquele dado**.
+
+### Onda 4 — Cada CAPI lê o cofre e injeta o que faltar (acumulação real)
+Em `src/lib/marketingTracker.ts → sendServerEvent`, antes de montar o body:
+1. Ler `getStoredIdentity()`.
+2. Para cada campo do cofre, injetar no `user_data` **somente se o evento não já tiver explicitamente aquele campo** (merge não-destrutivo).
+3. Mapear cofre → payload: `em_hash → email_hashed`, `ph_hash → phone_hashed`, `fn_hash → first_name_hashed`, `ln_hash → last_name_hashed`, `ct_hash → city_hashed`, `st_hash → state_hashed`, `zp_hash → zip_hashed`.
+
+No Edge HTML (`storefront-html → _sfGetAM`):
+- Expandir para ler também `_sf_identity` e mesclar todos os campos.
+- Mesmo princípio: só adiciona o que não veio explicitamente.
+
+### Onda 5 — `CheckoutStepWizard` passa `userData` que já tem
+- Linha 616: `trackAddShippingInfo(shipping.selected.label)` → `trackAddShippingInfo(shipping.selected.label, { email: formData.customerEmail, phone: formData.customerPhone, name: formData.customerName, city: formData.shippingCity, state: formData.shippingState, zip: formData.shippingPostalCode })`.
+- Linha 728: `trackAddPaymentInfo(paymentMethod)` → `trackAddPaymentInfo(paymentMethod, { mesmos campos })`.
+
+Trivial — todos os campos já estão em `formData`. Sem isso, a Onda 3 não tem o que gravar nesses pontos.
+
+### Onda 6 — Endurecer captura de `_fbp`
+- **AddToCart e ViewContent (SPA)**: usar `waitForFbp(5000)` (já é o timeout máximo no código atual; AddToCart hoje cai para 3s). Como o tracking é fire-and-forget com `keepalive`, não há custo de UX.
+- **Edge HTML inline (`_sfCapi`)**: aumentar poll de 12 para 20 ticks (5s).
+- **Edge HTML PageView**: gate na flag `window._sfMetaReady` — disparar PageView só após Pixel injetar (já existe a flag em `loadMeta`, mas o `_sfCapi('PageView')` é chamado dentro do `loadMeta` ANTES do `_sfMetaReady=true`; trocar a ordem para Pixel injetar primeiro, esperar 1 tick, então disparar PageView).
+
+Ganho esperado: PageView 43% → ~90%, AddToCart 0% → ~85%, ViewContent 1% → ~85%.
+
+## Resultado final esperado
+
+```text
+Evento             fbp     PII (em+ph+fn+ln)   Endereço (ct+st+zp)
+PageView           ~90%    herdado se houver    herdado se houver
+ViewCategory       ~90%    herdado              herdado
+ViewContent        ~90%    herdado              herdado
+AddToCart          ~85%    herdado              herdado
+InitiateCheckout   ~95%    herdado              herdado
+Lead               100%    100%                 0% (ainda não tem)
+AddShippingInfo    100%    100%                 100% ← passa a passar userData
+AddPaymentInfo     100%    100%                 100% ← passa a passar userData
+Purchase           ~95%    100%                 100% ← _fbp sobrevive ao redirect
+```
+
+Score Match Quality projetado: PageView 6.5 → ~9; meio de funil 4.9 → ~8.5; Purchase 9.1 → 9.5+.
+
+## Garantias de segurança e zero-regressão
+
+1. **Privacidade**: `localStorage._sf_identity` armazena APENAS hashes SHA-256. Texto plano nunca persiste no client.
+2. **Compat retroativa do backend**: campos `_hashed` novos são opcionais. Se o cliente atual não os enviar, o caminho de PII em texto plano segue funcionando intocado.
+3. **Compat do Edge HTML**: `_sf_am_em` e `_sf_am_ph` continuam gravados em paralelo; `_sfGetAM` só ganha capacidade adicional de ler `_sf_identity`. Páginas servidas por Edge antigo (cache) continuam funcionando.
+4. **Merge não-destrutivo em 3 camadas**: client (sendServerEvent), Edge (`_sfCapi`), backend (`buildHashedUserData` já prefere `_hashed` antes do plano). Em nenhuma camada um valor explícito é substituído por valor herdado.
+5. **Validação técnica obrigatória pós-deploy**: query no `marketing_events_log` 24h depois confirmando: (a) cobertura de email/phone em ViewContent/AddToCart subiu de 2% para ≥80%; (b) cobertura de fbp subiu para ≥85% em todos eventos; (c) nenhum evento perdeu cobertura de campo que tinha antes (especialmente `external_id`, `client_ip_address`, `client_user_agent` — devem manter 100%).
+6. **Rollout**: deploy único (são alterações coordenadas; faseamento aumenta risco de inconsistência entre client e backend). Janela de monitoramento de 24h com query automática de cobertura.
+
+## Documentação a atualizar (na mesma entrega)
+
+- `docs/especificacoes/marketing/meta-tracking.md` → nova **Técnica 5 — Cofre de Identidade Persistente do Visitante**; tabela de cobertura mínima atualizada para refletir herança via cofre; bump v8.28.0.
+- `docs/meta-tracking-changelog.md` → entrada v8.28.0 com diagnóstico (números) + lacunas + correções aplicadas.
+- `.lovable/memory/constraints/meta-tracking-quality-strategy.md` → adicionar **Regra 6 — Cofre de identidade persistente** e **Regra 7 — Acumulação não-destrutiva ao longo do funil** (PII de uma etapa enriquece todas as seguintes; merge nunca sobrescreve valor explícito).
+- Indexar nova memória em `mem://index.md`.
+
+## É isso? Confirma que eu executo as 6 ondas em entrega única coordenada?
+
+Posso fazer:
+- **Opção A (recomendada):** as 6 ondas em uma entrega única + monitoramento 24h. É coerente porque as 4 primeiras dependem umas das outras (backend precisa aceitar `_hashed` ANTES do client começar a mandar; senão Meta recebe campo desconhecido).
+- **Opção B (mais conservadora):** primeiro Onda 1 (backend só) e validar 24h sem ninguém usando. Depois Ondas 2–6 juntas. Adiciona 24h ao cronograma mas isola risco de schema.
+
+Qual opção?
+
+---
+
+### Bloco técnico (referência)
+
+**Arquivos impactados:**
+- `supabase/functions/_shared/meta-capi-sender.ts` — `MetaUserData` ganha 6 campos `_hashed`; `buildHashedUserData` prefere `_hashed` quando presente.
+- `supabase/functions/marketing-capi-track/index.ts` — `TrackRequest.user_data` aceita os 6 campos novos; passa adiante para o sender.
+- `src/lib/visitorIdentity.ts` — `storeIdentity`, `getStoredIdentity`, `clearStaleIdentity`, helpers de hash SHA-256.
+- `src/lib/marketingTracker.ts` — `sendServerEvent` mescla cofre; `trackLead`/`trackAddShippingInfo`/`trackAddPaymentInfo`/`trackPurchase` chamam `storeIdentity`; `waitForFbp` recebe override por evento.
+- `src/components/storefront/checkout/CheckoutStepWizard.tsx` — passa `userData` em AddShippingInfo (linha ~616) e AddPaymentInfo (linha ~728).
+- `supabase/functions/storefront-html/index.ts` — `_sfGetAM` lê `_sf_identity` e devolve TODOS os hashes; PageView gateado em `_sfMetaReady`; poll `_fbp` 5s.
+
+**Anti-regressão (testes manuais pós-deploy):**
+- Visitante novo: PageView dispara, sem PII (correto). Adiciona ao carrinho — AddToCart dispara com fbp ✅.
+- Visitante completa Lead — todos eventos seguintes carregam email/phone/nome ✅.
+- Visitante completa AddShippingInfo — todos eventos seguintes carregam endereço ✅.
+- Visitante volta 3 dias depois (mesmo navegador) — PageView já sai com email/phone/nome/endereço herdados ✅.
+- Pedido Pagar.me hospedado: redirect ida e volta — Purchase dispara com `_fbp` (sobreviveu via cookie first-party) e PII (sobreviveu via `_sf_identity` em localStorage) ✅.

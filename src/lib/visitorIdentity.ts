@@ -193,3 +193,192 @@ export function getTrackingIdentity(): TrackingIdentity {
     fbc: getFbc(),
   };
 }
+
+// =============================================
+// v8.28.0 — PERSISTENT IDENTITY VAULT (`_sf_identity`)
+// =============================================
+// Accumulates SHA-256 hashed PII across the funnel so any event after
+// the user provides a piece of data can enrich its CAPI payload —
+// without ever persisting plaintext PII in the browser.
+//
+// Storage: localStorage `_sf_identity` (JSON).
+// TTL: 30 days (refreshed on every write).
+// Merge: non-destructive — existing fields are never erased; only updated
+// when a new (different) hash arrives.
+// =============================================
+
+const IDENTITY_STORAGE_KEY = '_sf_identity';
+const IDENTITY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+export interface StoredIdentity {
+  em_hash?: string;
+  ph_hash?: string;
+  fn_hash?: string;
+  ln_hash?: string;
+  ct_hash?: string;
+  st_hash?: string;
+  zp_hash?: string;
+  country_hash?: string;
+  updated_at?: number;
+}
+
+export interface StoreIdentityInput {
+  email?: string;
+  phone?: string;
+  firstName?: string;
+  lastName?: string;
+  /** Full name — split into firstName/lastName by first whitespace if firstName not provided */
+  name?: string;
+  city?: string;
+  /** UF (2-letter) */
+  state?: string;
+  /** CEP (digits only or formatted — sanitized to digits before hashing) */
+  zip?: string;
+  country?: string;
+}
+
+async function sha256Lower(value: string): Promise<string | null> {
+  try {
+    if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+    const normalized = value.toLowerCase().trim();
+    if (!normalized) return null;
+    const data = new TextEncoder().encode(normalized);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return null;
+  }
+}
+
+function normalizePhoneBR(phone: string): string | null {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 10) return null;
+  if (digits.length === 10 || digits.length === 11) return '55' + digits;
+  return digits;
+}
+
+function readIdentityRaw(): StoredIdentity {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(IDENTITY_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as StoredIdentity;
+    // TTL check
+    if (parsed.updated_at && Date.now() - parsed.updated_at > IDENTITY_TTL_MS) {
+      localStorage.removeItem(IDENTITY_STORAGE_KEY);
+      return {};
+    }
+    return parsed || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeIdentity(identity: StoredIdentity): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    identity.updated_at = Date.now();
+    localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(identity));
+  } catch {}
+}
+
+/**
+ * Read the stored identity (already hashed). Returns only fields that exist.
+ * Does NOT include `updated_at` in the returned object.
+ */
+export function getStoredIdentity(): StoredIdentity {
+  const raw = readIdentityRaw();
+  const out: StoredIdentity = {};
+  if (raw.em_hash) out.em_hash = raw.em_hash;
+  if (raw.ph_hash) out.ph_hash = raw.ph_hash;
+  if (raw.fn_hash) out.fn_hash = raw.fn_hash;
+  if (raw.ln_hash) out.ln_hash = raw.ln_hash;
+  if (raw.ct_hash) out.ct_hash = raw.ct_hash;
+  if (raw.st_hash) out.st_hash = raw.st_hash;
+  if (raw.zp_hash) out.zp_hash = raw.zp_hash;
+  if (raw.country_hash) out.country_hash = raw.country_hash;
+  return out;
+}
+
+/**
+ * Persist hashed PII into the cofre. Non-destructive merge:
+ * - Receives plaintext PII; hashes locally with SHA-256 (lowercased+trimmed).
+ * - Existing fields are never erased — only overwritten when a NEW hash arrives.
+ * - Also mirrors `em_hash`/`ph_hash` into legacy `_sf_am_em`/`_sf_am_ph`
+ *   so the Edge HTML inline `_sfGetAM` continues to work unchanged.
+ */
+export async function storeIdentity(input: StoreIdentityInput): Promise<void> {
+  if (typeof localStorage === 'undefined') return;
+
+  // Resolve firstName / lastName (allow `name` shortcut).
+  let firstName = input.firstName?.trim() || undefined;
+  let lastName = input.lastName?.trim() || undefined;
+  if ((!firstName || !lastName) && input.name) {
+    const parts = input.name.trim().split(/\s+/);
+    if (!firstName) firstName = parts[0];
+    if (!lastName && parts.length > 1) lastName = parts.slice(1).join(' ');
+  }
+
+  const current = readIdentityRaw();
+  const next: StoredIdentity = { ...current };
+
+  if (input.email) {
+    const h = await sha256Lower(input.email);
+    if (h) next.em_hash = h;
+  }
+  if (input.phone) {
+    const normalized = normalizePhoneBR(input.phone);
+    if (normalized) {
+      const h = await sha256Lower(normalized);
+      if (h) next.ph_hash = h;
+    }
+  }
+  if (firstName) {
+    const h = await sha256Lower(firstName);
+    if (h) next.fn_hash = h;
+  }
+  if (lastName) {
+    const h = await sha256Lower(lastName);
+    if (h) next.ln_hash = h;
+  }
+  if (input.city) {
+    const h = await sha256Lower(input.city);
+    if (h) next.ct_hash = h;
+  }
+  if (input.state) {
+    const h = await sha256Lower(input.state);
+    if (h) next.st_hash = h;
+  }
+  if (input.zip) {
+    const digits = input.zip.replace(/\D/g, '');
+    if (digits) {
+      const h = await sha256Lower(digits);
+      if (h) next.zp_hash = h;
+    }
+  }
+  if (input.country) {
+    const h = await sha256Lower(input.country);
+    if (h) next.country_hash = h;
+  }
+
+  writeIdentity(next);
+
+  // Legacy compat: keep _sf_am_em / _sf_am_ph in sync so Edge HTML inline
+  // `_sfGetAM` (which only reads those keys today) keeps enriching events
+  // even from cached HTML rendered before v8.28.0.
+  try {
+    if (next.em_hash) localStorage.setItem('_sf_am_em', next.em_hash);
+    if (next.ph_hash) localStorage.setItem('_sf_am_ph', next.ph_hash);
+  } catch {}
+}
+
+/**
+ * Hash a single value with SHA-256 (lowercased+trimmed). Public helper for
+ * callers that need to hash PII outside the cofre (e.g., advanced matching
+ * passed to `fbq('init', ...)`).
+ */
+export async function hashIdentityValue(value: string): Promise<string | null> {
+  return sha256Lower(value);
+}

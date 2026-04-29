@@ -20,6 +20,17 @@ interface MetaUserData {
   phone_hashed?: string;
   first_name?: string;
   last_name?: string;
+  // v8.28.0: Full pre-hashed identity (cofre _sf_identity). Same contract as
+  // email_hashed/phone_hashed: when provided, used as-is. Enables enriching
+  // ALL funnel events (PageView, ViewContent, AddToCart, etc.) with PII
+  // captured in earlier Lead/AddShipping/AddPayment/Purchase steps —
+  // without ever persisting plaintext PII in the browser.
+  first_name_hashed?: string;
+  last_name_hashed?: string;
+  city_hashed?: string;
+  state_hashed?: string;
+  zip_hashed?: string;
+  country_hashed?: string;
   city?: string;
   state?: string;
   zip?: string;
@@ -136,38 +147,50 @@ async function buildHashedUserData(userData: MetaUserData): Promise<Record<strin
     }
   }
 
-  // First name (fn)
-  if (userData.first_name) {
+  // First name (fn) — v8.28.0: prefer pre-hashed when provided.
+  if (userData.first_name_hashed) {
+    hashed.fn = [userData.first_name_hashed.toLowerCase()];
+  } else if (userData.first_name) {
     const h = await hashForMeta(userData.first_name);
     if (h) hashed.fn = [h];
   }
 
-  // Last name (ln)
-  if (userData.last_name) {
+  // Last name (ln) — v8.28.0: prefer pre-hashed when provided.
+  if (userData.last_name_hashed) {
+    hashed.ln = [userData.last_name_hashed.toLowerCase()];
+  } else if (userData.last_name) {
     const h = await hashForMeta(userData.last_name);
     if (h) hashed.ln = [h];
   }
 
-  // City (ct)
-  if (userData.city) {
+  // City (ct) — v8.28.0: prefer pre-hashed when provided.
+  if (userData.city_hashed) {
+    hashed.ct = [userData.city_hashed.toLowerCase()];
+  } else if (userData.city) {
     const h = await hashForMeta(userData.city);
     if (h) hashed.ct = [h];
   }
 
-  // State (st) - 2 letter code
-  if (userData.state) {
+  // State (st) - 2 letter code — v8.28.0: prefer pre-hashed when provided.
+  if (userData.state_hashed) {
+    hashed.st = [userData.state_hashed.toLowerCase()];
+  } else if (userData.state) {
     const h = await hashForMeta(userData.state);
     if (h) hashed.st = [h];
   }
 
-  // Zip code (zp)
-  if (userData.zip) {
+  // Zip code (zp) — v8.28.0: prefer pre-hashed when provided.
+  if (userData.zip_hashed) {
+    hashed.zp = [userData.zip_hashed.toLowerCase()];
+  } else if (userData.zip) {
     const h = await hashForMeta(userData.zip.replace(/\D/g, ''));
     if (h) hashed.zp = [h];
   }
 
-  // Country (country)
-  if (userData.country) {
+  // Country (country) — v8.28.0: prefer pre-hashed when provided.
+  if (userData.country_hashed) {
+    hashed.country = [userData.country_hashed.toLowerCase()];
+  } else if (userData.country) {
     const h = await hashForMeta(userData.country);
     if (h) hashed.country = [h];
   } else {

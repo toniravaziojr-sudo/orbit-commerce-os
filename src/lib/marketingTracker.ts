@@ -9,7 +9,7 @@
 // Phase 7: Retry with logging in sendServerEvent
 // Phase 9: Advanced matching in fbq init
 
-import { getTrackingIdentity, captureClickIds, getOrCreateVisitorId } from '@/lib/visitorIdentity';
+import { getTrackingIdentity, captureClickIds, getOrCreateVisitorId, getStoredIdentity, storeIdentity } from '@/lib/visitorIdentity';
 
 // Generate unique event ID for deduplication between client and server
 export function generateEventId(): string {
@@ -338,43 +338,70 @@ function sendServerEvent(tenantId: string, payload: {
   event_source_url?: string;
   user_data?: Record<string, any>;
   custom_data?: Record<string, any>;
+  /** v8.28.0: per-event override for waitForFbp timeout. Default 5s. */
+  fbp_wait_ms?: number;
 }): void {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   if (!projectId) return;
 
   const url = `https://${projectId}.supabase.co/functions/v1/marketing-capi-track`;
 
-  // v8.21.1: Wait for _fbp on ALL Meta events (not just early ones)
-  // This ensures identity coverage across the entire funnel
-  const needsFbpWait = true;
+  // v8.28.0: Wait for _fbp on ALL Meta events. Timeout per event (default 5s).
+  const fbpWaitMs = payload.fbp_wait_ms ?? 5000;
 
   const doSend = (resolvedFbp: string | null) => {
     // Phase 4: Include external_id + identity
     const metaIds = getMetaIdentifiers();
-    
-    // Phase 10 / v8.27.0: Include stored advanced matching PII (already hashed).
-    // Used to enrich ALL Meta events (not just Lead/Purchase) with PII captured
-    // earlier in the funnel — improves Match Quality on ViewContent/AddToCart.
-    let storedEmailHashed: string | undefined;
-    let storedPhoneHashed: string | undefined;
-    try {
-      storedEmailHashed = localStorage.getItem('_sf_am_em') || undefined;
-      storedPhoneHashed = localStorage.getItem('_sf_am_ph') || undefined;
-    } catch {}
 
-    const userData = {
-      ...(payload.user_data || {}),
+    // v8.28.0 — Read persistent identity vault (cofre _sf_identity).
+    // All values stored already SHA-256 hashed. We pass them as `*_hashed`
+    // fields so the backend uses them as-is (no re-hashing).
+    const stored = getStoredIdentity();
+
+    // Build user_data with NON-DESTRUCTIVE merge:
+    //  - explicit values from `payload.user_data` ALWAYS win.
+    //  - stored hashes only fill fields that are NOT already provided
+    //    (in either plaintext or pre-hashed form).
+    const explicit = payload.user_data || {};
+    const userData: Record<string, any> = {
+      ...explicit,
       fbp: resolvedFbp || metaIds.fbp || undefined,
       fbc: metaIds.fbc || undefined,
       external_id: metaIds.external_id || undefined,
-      // Pass pre-hashed PII when not already provided (avoids double-hashing on server)
-      ...(storedEmailHashed && !payload.user_data?.email && !payload.user_data?.email_hashed
-        ? { email_hashed: storedEmailHashed }
-        : {}),
-      ...(storedPhoneHashed && !payload.user_data?.phone && !payload.user_data?.phone_hashed
-        ? { phone_hashed: storedPhoneHashed }
-        : {}),
     };
+
+    // Email
+    if (stored.em_hash && !explicit.email && !explicit.email_hashed) {
+      userData.email_hashed = stored.em_hash;
+    }
+    // Phone
+    if (stored.ph_hash && !explicit.phone && !explicit.phone_hashed) {
+      userData.phone_hashed = stored.ph_hash;
+    }
+    // First name
+    if (stored.fn_hash && !explicit.first_name_hashed && !explicit.name) {
+      userData.first_name_hashed = stored.fn_hash;
+    }
+    // Last name
+    if (stored.ln_hash && !explicit.last_name_hashed && !explicit.name) {
+      userData.last_name_hashed = stored.ln_hash;
+    }
+    // City
+    if (stored.ct_hash && !explicit.city && !explicit.city_hashed) {
+      userData.city_hashed = stored.ct_hash;
+    }
+    // State
+    if (stored.st_hash && !explicit.state && !explicit.state_hashed) {
+      userData.state_hashed = stored.st_hash;
+    }
+    // Zip
+    if (stored.zp_hash && !explicit.zip && !explicit.zip_hashed) {
+      userData.zip_hashed = stored.zp_hash;
+    }
+    // Country
+    if (stored.country_hash && !explicit.country && !explicit.country_hashed) {
+      userData.country_hashed = stored.country_hash;
+    }
 
     const body = JSON.stringify({
       tenant_id: tenantId,
@@ -422,11 +449,7 @@ function sendServerEvent(tenantId: string, payload: {
     doFetch(1);
   };
 
-  if (needsFbpWait) {
-    waitForFbp(3000).then(doSend);
-  } else {
-    doSend(null);
-  }
+  waitForFbp(fbpWaitMs).then(doSend);
 }
 
 export class MarketingTracker {
@@ -438,13 +461,15 @@ export class MarketingTracker {
   }
 
   // Phase 5: sendCapi now accepts userData for PII enrichment
-  private sendCapi(eventName: string, eventId: string, customData?: Record<string, any>, userData?: Record<string, any>): void {
+  // v8.28.0: optional fbp_wait_ms override per event
+  private sendCapi(eventName: string, eventId: string, customData?: Record<string, any>, userData?: Record<string, any>, fbpWaitMs?: number): void {
     if (!this.config.meta_enabled || !this.config.tenantId) return;
     sendServerEvent(this.config.tenantId, {
       event_name: eventName,
       event_id: eventId,
       custom_data: customData,
       user_data: userData,
+      fbp_wait_ms: fbpWaitMs,
     });
   }
 
@@ -777,27 +802,21 @@ export class MarketingTracker {
       order_id: order.order_id,
     }, order.userData);
 
-    // Phase 9: Store hashed email/phone for advanced matching on next page load
-    if (order.userData?.email || order.userData?.phone) {
-      this.storeAdvancedMatchingData(order.userData.email, order.userData.phone);
+    // v8.28.0: Persist FULL identity into the cofre — Purchase is the most
+    // complete capture point. Replaces legacy `storeAdvancedMatchingData`
+    // (which only handled email+phone). The cofre helper also mirrors
+    // em_hash/ph_hash into legacy `_sf_am_em`/`_sf_am_ph` so cached Edge
+    // HTML rendered before v8.28.0 keeps working.
+    if (order.userData) {
+      void storeIdentity({
+        email: order.userData.email,
+        phone: order.userData.phone,
+        name: order.userData.name,
+        city: order.userData.city,
+        state: order.userData.state,
+        zip: order.userData.zip,
+      });
     }
-  }
-
-  // Phase 9: Store hashed PII for advanced matching
-  private async storeAdvancedMatchingData(email?: string, phone?: string): Promise<void> {
-    try {
-      if (email) {
-        const hashed = await hashPII(email);
-        // Store in both localStorage (persistent across sessions) and sessionStorage (legacy compat)
-        localStorage.setItem('_sf_am_em', hashed);
-        sessionStorage.setItem('_sf_am_em', hashed);
-      }
-      if (phone) {
-        const hashed = await hashPII(phone);
-        localStorage.setItem('_sf_am_ph', hashed);
-        sessionStorage.setItem('_sf_am_ph', hashed);
-      }
-    } catch {}
   }
 
   trackSearch(query: string): void {
@@ -866,6 +885,15 @@ export class MarketingTracker {
     const eventId = generateEventId();
     const currency = customer.currency || 'BRL';
 
+    // v8.28.0: Persist captured PII into the cofre BEFORE dispatching the
+    // CAPI event — so `sendServerEvent` already sees these values and
+    // every subsequent funnel event in the same session inherits them.
+    void storeIdentity({
+      email: customer.email,
+      phone: customer.phone,
+      name: customer.name,
+    });
+
     if (this.config.meta_enabled) {
       trackMetaEvent('Lead', {
         value: customer.value || 0,
@@ -907,6 +935,18 @@ export class MarketingTracker {
   }): void {
     const eventId = generateEventId();
     const currency = shipping.currency || 'BRL';
+
+    // v8.28.0: Persist captured PII into the cofre (non-destructive merge).
+    if (shipping.userData) {
+      void storeIdentity({
+        email: shipping.userData.email,
+        phone: shipping.userData.phone,
+        name: shipping.userData.name,
+        city: shipping.userData.city,
+        state: shipping.userData.state,
+        zip: shipping.userData.zip,
+      });
+    }
 
     if (this.config.meta_enabled) {
       trackMetaEvent('AddShippingInfo', {
@@ -968,6 +1008,18 @@ export class MarketingTracker {
   }): void {
     const eventId = generateEventId();
     const currency = payment.currency || 'BRL';
+
+    // v8.28.0: Persist captured PII into the cofre (non-destructive merge).
+    if (payment.userData) {
+      void storeIdentity({
+        email: payment.userData.email,
+        phone: payment.userData.phone,
+        name: payment.userData.name,
+        city: payment.userData.city,
+        state: payment.userData.state,
+        zip: payment.userData.zip,
+      });
+    }
 
     if (this.config.meta_enabled) {
       trackMetaEvent('AddPaymentInfo', {
