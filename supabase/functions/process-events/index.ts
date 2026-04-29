@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendCapiPurchase, getMetaCapiConfig } from "../_shared/meta-capi-sender.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { buildDeterministicPurchaseEventId } from "../_shared/purchase-event-id.ts";
+import { enrichOrderContext } from "../_shared/enrich-order-context.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
