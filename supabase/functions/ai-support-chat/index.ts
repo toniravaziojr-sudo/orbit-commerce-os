@@ -1031,23 +1031,43 @@ async function executeSalesTool(
         };
         const effectiveFamily = familyChanged ? familyMentionedNow : familyFocusActive;
         let filtered = enriched;
-        const familyAliases = getCatalogFamilyAliases(effectiveFamily);
-        if (familyAliases.length > 0) {
-          const aliasPatterns = familyAliases
-            .map(alias => FAMILY_NAME_PATTERNS[alias])
-            .filter((pat): pat is RegExp => pat instanceof RegExp);
-          const byFamily = enriched.filter(p => aliasPatterns.some(pat => pat.test(String(p.name || ""))));
-          if (byFamily.length > 0) {
-            filtered = byFamily;
+
+        // [Reg #2.8] CATALOG PROBE — quando o TPR sinaliza dor concreta,
+        // devolvemos 1 representante por família (Shampoo + Loção + Balm + Kit)
+        // ao invés de filtro estrito. Resolve "Catalog Blindness".
+        const shouldBroaden = !!ctx.shouldBroadenForPain && enriched.length > 1;
+        if (shouldBroaden) {
+          const broadened = broadenCatalogForPain({
+            enriched: enriched as any,
+            familyMentionedNow,
+            familyFocus: familyFocusActive,
+            limit: requestedLimit,
+          });
+          if (broadened.filtered.length > 0) {
+            filtered = broadened.filtered as typeof enriched;
             console.log(
-              `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-              `aliases=${familyAliases.join("|")} filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
+              `[ai-support-chat][search_products] [Reg #2.8] catalog probe ` +
+              `families=${broadened.families_returned.join("|")} pool=${enriched.length}→${filtered.length} reason=${broadened.reason}`
             );
-          } else {
-            console.log(
-              `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-              `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
-            );
+          }
+        } else {
+          const familyAliases = getCatalogFamilyAliases(effectiveFamily);
+          if (familyAliases.length > 0) {
+            const aliasPatterns = familyAliases
+              .map(alias => FAMILY_NAME_PATTERNS[alias])
+              .filter((pat): pat is RegExp => pat instanceof RegExp);
+            const byFamily = enriched.filter(p => aliasPatterns.some(pat => pat.test(String(p.name || ""))));
+            if (byFamily.length > 0) {
+              filtered = byFamily;
+              console.log(
+                `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+                `aliases=${familyAliases.join("|")} filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
+              );
+            } else {
+              console.log(
+                `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+                `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
+              );
           }
         }
 
