@@ -61,6 +61,15 @@ import {
   // [F2-V4] espelho mecânico de saudação (forçar reciprocidade real)
   detectGreetingEcho,
   buildGreetingMirrorBlock,
+  // [Reg #2 - 3.3] scrubber server-side de reciprocidade
+  scrubGreetingReciprocity,
+  // [Reg #2 - 3.4] anti-repetição semântica por família de intenção
+  classifyIntentFamily,
+  isSemanticDuplicate,
+  type IntentFamily,
+  // [Reg #2 - 3.6] detector de turno consultivo
+  detectConsultativeTurn,
+  buildConsultativeTurnBlock,
   // [F2-FS-CROSS] normalizador do retorno de search_products (legado/novo)
   parseSearchProductsResult,
 } from "../_shared/sales-pipeline/index.ts";
@@ -3997,7 +4006,28 @@ Cliente: "vocês entregam em SP?"
         }
       }
 
-      const routed = buildPromptForState({
+      // [Reg #2 - 3.6] Turno CONSULTIVO: cliente trouxe sintoma + pediu recomendação
+      // (possivelmente com foto). Força acolhida + 1 pergunta antes de listar produto.
+      if (lastMessageContent && (pipelineState === "discovery" || pipelineState === "recommendation" || pipelineState === "greeting")) {
+        try {
+          const hasMedia = Array.isArray((req as any)?.body?.attachments) && (req as any).body.attachments.length > 0;
+          const consultative = detectConsultativeTurn({
+            customerMessage: lastMessageContent,
+            hasMediaAttachment: hasMedia,
+          });
+          if (consultative.isConsultative) {
+            const block = buildConsultativeTurnBlock(consultative);
+            if (block) {
+              contextualBlocks.push(block);
+              console.log(
+                `[ai-support-chat] [Reg#2-3.6] consultative_turn detected — symptom=${consultative.hasSymptomDescription} req=${consultative.hasRecommendationRequest} media=${consultative.hasMediaAttachment} matches=${consultative.matchCount}`
+              );
+            }
+          }
+        } catch (e) {
+          console.warn("[ai-support-chat] [Reg#2-3.6] consultative detector failed:", (e as Error).message);
+        }
+      }
         state: pipelineState,
         allTools: SALES_TOOLS,
         tenant: {
