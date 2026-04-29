@@ -230,10 +230,10 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
       // Check _fbp immediately
       var fbp=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||null;
       if(fbp){_doSend(fbp);return;}
-      // Poll for _fbp (250ms x 12 = 3s)
+      // Poll for _fbp (250ms x 20 = 5s) — Wave 6: increased window
       var _att=0;var _iv=setInterval(function(){
         _att++;var f=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||null;
-        if(f||_att>=12){clearInterval(_iv);_doSend(f);}
+        if(f||_att>=20){clearInterval(_iv);_doSend(f);}
       },250);
     };
     </script>`);
