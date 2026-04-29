@@ -396,7 +396,6 @@ function sendServerEvent(tenantId: string, payload: {
     }
     // Zip
     if (stored.zp_hash && !explicit.zip && !explicit.zip_hashed) {
-      userData.zp_hash = undefined; // dummy to keep linter quiet (overwritten below)
       userData.zip_hashed = stored.zp_hash;
     }
     // Country
