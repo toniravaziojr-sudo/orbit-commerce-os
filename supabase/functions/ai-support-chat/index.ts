@@ -5558,11 +5558,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     if (salesModeEnabled && aiContent && typeof aiContent === "string") {
       try {
         const NEGATION_RE = /\b(n[ãa]o\s+(temos|tenho|possu[ií]mos|trabalhamos|conhe[çc]o|encontrei|encontramos)|n[ãa]o\s+(consta|existe)\s+(no\s+)?(nosso\s+)?cat[áa]logo|infelizmente\s+n[ãa]o)/i;
+        const localNamesHint = (relevantProducts || []).map((p: any) => p?.name).filter(Boolean) as string[];
         const customerMentionedProduct = /[A-Za-zÀ-ÿ0-9]{3,}/.test(lastMessageContent || "")
-          && (productNamesHint?.some?.((n: string) => {
+          && localNamesHint.some((n: string) => {
             if (!n || n.length < 3) return false;
             return (lastMessageContent || "").toLowerCase().includes(n.toLowerCase());
-          }) ?? false);
+          });
         const searchCalledThisTurn = toolsCalledThisTurn.includes("search_products");
         if (NEGATION_RE.test(aiContent) && !searchCalledThisTurn) {
           console.warn(
