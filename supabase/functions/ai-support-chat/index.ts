@@ -6119,6 +6119,13 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           stall_detected: stallDetection.isStalled,
           stall_pattern: stallDetection.matchedPromise || null,
           dup_block_reason: dupCheck.duplicate ? dupCheck.reason : null,
+          // [Reg #2 - 3.3] greeting scrub
+          greeting_scrub_applied: greetingScrubApplied,
+          greeting_scrub_reason: greetingScrubReason,
+          // [Reg #2 - 3.4] anti-repetição semântica por família
+          intent_family: intentFamilyOfTurn,
+          semantic_duplicate_detected: semanticDuplicateDetected,
+          semantic_duplicate_reason: semanticDuplicateReason,
           processing_lock_id: myLockId,
           processing_lock_reason: lockResult.reason || null,
           raw_is_greeting: rawIsGreeting,
