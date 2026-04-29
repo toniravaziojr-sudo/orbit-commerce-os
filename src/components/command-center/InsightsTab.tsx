@@ -87,7 +87,7 @@ export function InsightsTab() {
   const consolidate = useConsolidateNow();
 
   const { data: pending = [] } = useBrainInsights("pendente");
-  const { data: active = [] } = useBrainInsights("aprovado");
+  const { data: active = [] } = useBrainInsights("ativo");
   const { data: alerts = [] } = useCriticalAlerts("aberto");
 
   return (
@@ -285,7 +285,7 @@ function PendingCard({ insight }: { insight: BrainInsight }) {
 // ---------- ACTIVE ----------
 
 function ActiveList() {
-  const { data: insights = [], isLoading } = useBrainInsights("aprovado");
+  const { data: insights = [], isLoading } = useBrainInsights("ativo");
 
   if (isLoading) return <Skeleton />;
   if (insights.length === 0) {
