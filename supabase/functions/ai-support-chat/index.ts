@@ -263,8 +263,8 @@ VOCÊ DEVE chamar tools ANTES de responder, sempre que cair em UM destes gatilho
 
 4. **CLIENTE PEDE LINK / "MANDA O LINK" / "FINALIZAR"**
    → CHAME \`view_cart\` se ainda não viu o carrinho.
-   → Colete dados que faltam (nome, email, CPF, CEP) e chame \`save_customer_data\`.
-   → CHAME \`generate_checkout_link\` e envie a URL.
+   → CHAME \`generate_checkout_link\` IMEDIATAMENTE e envie a URL.
+   → NÃO peça nome, email, CPF, CEP ou endereço — esses dados são preenchidos pelo cliente NA PÁGINA DE CHECKOUT.
 
 5. **CLIENTE PEDE PARA REMOVER / TIRAR ITEM**
    → CHAME \`remove_from_cart\`.
@@ -319,15 +319,16 @@ REGRAS:
 - A imagem é entregue pelo WhatsApp em separado. NO TEXTO da resposta, comente brevemente ("Te mandei a foto") e siga a venda.
 
 ═══════════════════════════════════════════════════════
-👤 COLETA DE DADOS DO CLIENTE
+👤 IDENTIFICAÇÃO DO CLIENTE (NÃO PEDIR DADOS NO WHATSAPP)
 ═══════════════════════════════════════════════════════
 
 ANTES de \`generate_checkout_link\`:
-- Pergunte se já comprou. Se SIM → \`lookup_customer\` por email. Se achar, peça só o que faltar.
-- Se NÃO ou não achou: peça nome completo, email, CPF, CEP — em UMA mensagem só, lista numerada.
-- Use \`calculate_shipping\` quando tiver CEP + carrinho.
-- Use \`save_customer_data\` para gravar.
-- Use \`update_customer_record\` se atualizou cliente existente.
+- Você PODE chamar \`lookup_customer\` SOMENTE para tentar identificar um cliente
+  recorrente e pré-popular o link com dados que já existem no cadastro.
+- Você NÃO deve PEDIR nome, email, CPF, CEP ou endereço pelo WhatsApp.
+  Esses dados são coletados na PRÓPRIA PÁGINA DE CHECKOUT pelo cliente.
+- Se \`lookup_customer\` não achar, gere o link assim mesmo. O cliente preenche
+  os dados na página.
 
 ═══════════════════════════════════════════════════════
 🤝 HANDOFF COMERCIAL (request_human_handoff)
@@ -3850,15 +3851,13 @@ Cliente: "vocês entregam em SP?"
       // (checkoutChecklist já declarado em escopo amplo acima)
       if (preloadedActiveCart) {
         const cd = preloadedActiveCart.customer_data;
-        const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
-        const missing: string[] = [];
-        if (!has("name")) missing.push("nome");
-        if (!has("email")) missing.push("email");
-        if (!has("cpf")) missing.push("CPF");
-        if (!has("postal_code")) missing.push("CEP");
+        // [PIPELINE-FIX 2026-04-29] Dados pessoais (nome/email/CPF/CEP) são
+        // coletados NA PÁGINA DE CHECKOUT, não no WhatsApp. O carrinho está
+        // "pronto pra fechar" assim que tem item — não dependemos mais de
+        // ter dados pré-preenchidos.
         checkoutChecklist = {
-          ready: missing.length === 0 && preloadedActiveCart.items.length > 0,
-          missing,
+          ready: preloadedActiveCart.items.length > 0,
+          missing: [],
           items: preloadedActiveCart.items.length,
         };
       }
@@ -3870,23 +3869,15 @@ Cliente: "vocês entregam em SP?"
         (pipelineState === "decision" || pipelineState === "checkout_assist")
       ) {
         try {
-          const cd = preloadedActiveCart.customer_data;
           const items = preloadedActiveCart.items;
           const itemsTxt = items.length
             ? items.map(i => `• ${i?.quantity || 1}x ${i?.name || i?.product_name || "item"}`).join("\n")
             : "(carrinho vazio)";
-          const has = (k: string) => typeof cd[k] === "string" && cd[k].trim().length > 0;
-          const checklist = [
-            `nome: ${has("name") ? "✅ " + cd.name : "❌ falta"}`,
-            `email: ${has("email") ? "✅ " + cd.email : "❌ falta"}`,
-            `cpf: ${has("cpf") ? "✅ " + cd.cpf : "❌ falta"}`,
-            `cep: ${has("postal_code") ? "✅ " + cd.postal_code : "❌ falta"}`,
-          ].join("\n");
           const directive = checkoutChecklist.ready
-            ? "→ TODOS OS DADOS OBRIGATÓRIOS JÁ ESTÃO NO CARRINHO. Se o cliente confirmou querer fechar, CHAME generate_checkout_link AGORA. Não pergunte 'Quer que eu finalize?' — execute."
-            : `→ FALTAM: ${checkoutChecklist.missing.join(", ")}. Peça apenas esses, em UMA mensagem curta. Não peça o que já está ✅.`;
+            ? "→ CARRINHO PRONTO. Se o cliente confirmou querer fechar, CHAME generate_checkout_link AGORA. Os dados pessoais (nome/email/CPF/CEP/endereço) são preenchidos pelo CLIENTE na página de checkout — NÃO peça pelo WhatsApp."
+            : "→ Carrinho vazio. Confirme com o cliente o produto e adicione antes de gerar link.";
           contextualBlocks.push(
-            `### CARRINHO ATIVO\n${itemsTxt}\n\n### DADOS DO CLIENTE NO CARRINHO\n${checklist}\n\n${directive}`
+            `### CARRINHO ATIVO\n${itemsTxt}\n\n${directive}`
           );
         } catch (e) {
           console.warn("[ai-support-chat] [F2-FIX-CHECKOUT] cart context block failed:", (e as Error).message);
@@ -5230,7 +5221,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           recommendation:  "Pra eu te indicar o melhor, me diz pra qual uso é?",
           product_detail:  "Quer saber preço, prazo de entrega ou tem outra dúvida sobre ele?",
           decision:        "Vou colocar no carrinho e já te mando os próximos passos.",
-          checkout_assist: "Pra fechar agora, me confirma seu nome completo, email, CPF e CEP em uma única mensagem.",
+          checkout_assist: "Tô gerando seu link de pagamento agora. Você preenche os dados na própria página.",
           support:         "Me passa o número do pedido que eu já vejo aqui pra você.",
           handoff:         "Vou te passar pra alguém da equipe.",
         };
