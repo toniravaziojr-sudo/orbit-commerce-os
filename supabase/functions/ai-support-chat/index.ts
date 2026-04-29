@@ -5746,27 +5746,58 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       `[ai-support-chat] [F2] transition ${pipelineState} → ${nextPipelineState} (reason=${transitionReason})`
     );
 
-    // [Reg #2 - 3.3] Greeting scrub server-side: garante reciprocidade real de saudação.
-    // Reescreve apenas a ABERTURA quando o estado é "greeting" e a IA não espelhou o
-    // período do dia / "tudo bem?" do cliente. Custo zero, sem regeneração.
+    // [Reg #2.8] OUTPUT GATES — server-side, leem o JSON do TPR.
+    // (a) Price Scrubber: remove menções não solicitadas a R$/frete em estados
+    //     pré-detalhe (greeting/discovery/recommendation).
+    // (b) Greeting Mirror Gate: corrige o bug AND/OR do scrub legado, exigindo
+    //     espelho do período E reciprocidade quando ambos estão presentes.
+    // Quando o TPR caiu em fallback (regex), usamos o scrub legado como rede.
     let greetingScrubApplied = false;
     let greetingScrubReason = "noop";
+    let priceScrubApplied = false;
+    let priceScrubReason = "noop";
     try {
-      const scrub = scrubGreetingReciprocity({
+      // Price scrubber sempre roda — usa TPR se disponível, fallback regex se não.
+      const priceGate = scrubUnsolicitedPrice({
         pipelineState,
-        customerMessage: lastMessageContent || "",
         aiResponse: aiContent || "",
+        classification: turnClassification,
       });
-      greetingScrubReason = scrub.reason;
-      if (scrub.scrubbed) {
-        console.log(
-          `[ai-support-chat] [Reg #2 - 3.3] greeting scrub applied (${scrub.reason})`,
-        );
-        aiContent = scrub.after;
-        greetingScrubApplied = true;
+      priceScrubReason = priceGate.reason;
+      if (priceGate.scrubbed) {
+        console.log(`[ai-support-chat] [Reg #2.8] price scrub (${priceGate.reason})`);
+        aiContent = priceGate.after;
+        priceScrubApplied = true;
+      }
+
+      if (turnClassification.source === "llm") {
+        const greetGate = gateGreetingMirror({
+          pipelineState,
+          aiResponse: aiContent || "",
+          classification: turnClassification,
+        });
+        greetingScrubReason = greetGate.reason;
+        if (greetGate.scrubbed) {
+          console.log(`[ai-support-chat] [Reg #2.8] greeting gate (${greetGate.reason})`);
+          aiContent = greetGate.after;
+          greetingScrubApplied = true;
+        }
+      } else {
+        // Fallback: scrub legado por regex
+        const scrub = scrubGreetingReciprocity({
+          pipelineState,
+          customerMessage: lastMessageContent || "",
+          aiResponse: aiContent || "",
+        });
+        greetingScrubReason = scrub.reason;
+        if (scrub.scrubbed) {
+          console.log(`[ai-support-chat] [Reg #2 - 3.3 fallback] greeting scrub (${scrub.reason})`);
+          aiContent = scrub.after;
+          greetingScrubApplied = true;
+        }
       }
     } catch (e) {
-      console.warn("[ai-support-chat] [Reg #2 - 3.3] greeting scrub failed:", (e as Error).message);
+      console.warn("[ai-support-chat] [Reg #2.8] output gates failed:", (e as Error).message);
     }
 
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
