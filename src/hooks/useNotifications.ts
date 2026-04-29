@@ -164,6 +164,11 @@ export function useNotifications() {
       if (filter.endDate) {
         query = query.lte('created_at', filter.endDate);
       }
+      if (filter.errorCategory === 'render_blocked') {
+        query = query.eq('status', 'failed').ilike('last_error', '%bloqueado%');
+      } else if (filter.errorCategory === 'provider_error') {
+        query = query.eq('status', 'failed').not('last_error', 'ilike', '%bloqueado%');
+      }
 
       const { data, error } = await query;
 
