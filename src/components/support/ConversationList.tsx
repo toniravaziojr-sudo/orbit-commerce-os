@@ -90,8 +90,20 @@ export function ConversationList({
   filter,
   onFilterChange,
 }: ConversationListProps) {
+  const { currentTenant } = useAuth();
   const [search, setSearch] = useState('');
   const [channelFilter, setChannelFilter] = useState<SupportChannelType | 'all'>('all');
+  const unreadStorageKey = currentTenant?.id ? `support_unread_only:${currentTenant.id}` : 'support_unread_only';
+  const [unreadOnly, setUnreadOnly] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(unreadStorageKey) === '1';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (unreadOnly) window.localStorage.setItem(unreadStorageKey, '1');
+    else window.localStorage.removeItem(unreadStorageKey);
+  }, [unreadOnly, unreadStorageKey]);
 
   const filteredConversations = useMemo(() => {
     // Fila oficial (regra única em src/lib/support-queues.ts)
@@ -100,6 +112,11 @@ export function ConversationList({
     // Filter by channel
     if (channelFilter !== 'all') {
       filtered = filtered.filter(c => c.channel_type === channelFilter);
+    }
+
+    // Filter by unread (transversal)
+    if (unreadOnly) {
+      filtered = filtered.filter(hasUnread);
     }
 
     // Search
@@ -113,9 +130,13 @@ export function ConversationList({
     }
 
     return filtered;
-  }, [conversations, filter, channelFilter, search]);
+  }, [conversations, filter, channelFilter, search, unreadOnly]);
 
   const counts = useMemo(() => countByQueue(conversations), [conversations]);
+  const unreadCount = useMemo(
+    () => conversations.filter((c) => getConversationQueue(c) !== null && hasUnread(c)).length,
+    [conversations],
+  );
 
   return (
     <div className="flex flex-col h-full border-r">
