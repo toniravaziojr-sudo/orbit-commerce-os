@@ -5758,11 +5758,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // Se a regeneração ainda colidir, mantemos a supressão original.
     let regenerationAttempted = false;
     let regenerationSucceeded = false;
-    if (dupCheck.duplicate && aiContent && aiContent.trim().length > 0 && OPENAI_API_KEY) {
+    // [Reg #2 - 3.4] Dispara regen tanto para hash exato (Pacote E) quanto para
+    // duplicata semântica por família de intenção (mesmo "tipo" de pergunta com
+    // palavras diferentes — ex.: "posso separar?" vs "deixo separado pra você?").
+    const shouldRegenerate = (dupCheck.duplicate || semanticDuplicateDetected);
+    if (shouldRegenerate && aiContent && aiContent.trim().length > 0 && OPENAI_API_KEY) {
       regenerationAttempted = true;
       try {
+        const semanticHint = semanticDuplicateDetected
+          ? ` Especificamente, a IA está repetindo o MESMO TIPO de pergunta/oferta (família "${intentFamilyOfTurn}") dos turnos anteriores — TROQUE A INTENÇÃO do turno: se vinha oferecendo reserva, agora avance para fechamento ou traga informação nova; se vinha perguntando dado, mude para outro ângulo.`
+          : "";
         const variationInstruction =
-          `A resposta abaixo já foi enviada nesta conversa nos últimos turnos e o cliente está repetindo o tema. ` +
+          `A resposta abaixo já foi enviada nesta conversa nos últimos turnos e o cliente está repetindo o tema.${semanticHint} ` +
           `Reformule COMPLETAMENTE com palavras, abertura e estrutura diferentes, mantendo o mesmo conteúdo de negócio ` +
           `(mesmos produtos/preços/condições). NÃO repita as mesmas frases de abertura. Avance a conversa: ` +
           `traga um detalhe novo (preço, ingrediente, indicação, próxima pergunta) que ainda não foi mencionado. ` +
