@@ -40,14 +40,14 @@
 | Não inventar ação executada ("já encaminhei…") | ✅ Coberto | Scrubber `unsupported_action_promised` | Reg. #1 |
 | Não trocar produto após confirmação | ✅ Coberto | `PRODUCT_LOCK_MISMATCH` + resolver com `focusProductId` | Reg. #1 |
 | Não pedir nova confirmação após "sim/manda" | ✅ Coberto | FIX-B `tool_choice` forçado + scrubber `confirmation_loop_detected` | Reg. #1 |
-| Não repetir a mesma frase/intenção | ⚠️ Parcial | Hash de prefixo (não pega família semântica) | Reg. #2 |
-| Não citar preço sem o cliente perguntar | ❌ Sem defesa | — | Reg. #2 |
-| Não trocar conjunto ofertado por kit consolidado | ⚠️ Parcial | Trava cobre item único, não conjunto | Reg. #2 |
-| Espelhar saudação ("boa tarde" → "boa tarde") | ⚠️ Só prompt | Sem reforço no servidor | Reg. #2 |
-| Honrar pergunta consultiva antes de listar produto | ⚠️ Só prompt | Sem regra dura | Reg. #2 |
-| Enviar imagem na 1ª apresentação real do produto | ⚠️ Opcional | Existe a tool, não é obrigatória | Reg. #2 |
-| Link de checkout no domínio próprio da loja | ❌ Quebrado | Consulta tabela inexistente | Reg. #2 |
-| Carrinho hidratado ao abrir o link enviado | ❌ Quebrado | Hidratador rodava depois do empty-state | Reg. #2 |
+| Não repetir a mesma frase/intenção | ⚠️ Parcial | Hash de prefixo (não pega família semântica) | Reg. #2 — pendente 3.4 |
+| Não citar preço sem o cliente perguntar | ✅ Coberto | Regra global `PRICE-ON-DEMAND` em `base.ts` + reforço em discovery/recommendation | Reg. #2.3 |
+| Não trocar conjunto ofertado por kit consolidado | ✅ Coberto | `BUNDLE LOCK` global em `base.ts` + reforço em recommendation; trava de SKU já existente cobre execução | Reg. #2.3 |
+| Espelhar saudação ("boa tarde" → "boa tarde") | ✅ Coberto | `greeting-mirror.ts` mecânico (já em produção) + regra dura em greeting prompt | Reg. #2 (já existia, confirmado) |
+| Honrar pergunta consultiva antes de listar produto | ⚠️ Só prompt | Sem regra dura | Reg. #2 — pendente 3.6 |
+| Enviar imagem na 1ª apresentação real do produto | ✅ Coberto | `product-detail` exige `send_product_image` na 1ª menção (1x/produto) | Reg. #2.3 |
+| Link de checkout no domínio próprio da loja | ✅ Coberto | `ai-support-chat` consulta `tenant_domains` (preferindo `is_primary`) | Reg. #2.1 |
+| Carrinho hidratado ao abrir o link enviado | ✅ Coberto | `useCheckoutLinkLoader` inicializa `isLoading=true` quando há `?link=`/`?product=` na URL | Reg. #2.2 |
 | Filtro estrito por família no `search_products` | ✅ Coberto | `family_focus` persistente | mem://features/ai/sales-pipeline-anti-repetition-and-family-focus |
 | Janela Meta 24h (mensagem livre + imagem) | ✅ Coberto | `meta-whatsapp-send` valida antes de enviar | Reg. #1 |
 
