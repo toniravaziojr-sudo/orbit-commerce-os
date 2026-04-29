@@ -5680,6 +5680,57 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       `[ai-support-chat] [F2] transition ${pipelineState} → ${nextPipelineState} (reason=${transitionReason})`
     );
 
+    // [Reg #2 - 3.3] Greeting scrub server-side: garante reciprocidade real de saudação.
+    // Reescreve apenas a ABERTURA quando o estado é "greeting" e a IA não espelhou o
+    // período do dia / "tudo bem?" do cliente. Custo zero, sem regeneração.
+    let greetingScrubApplied = false;
+    let greetingScrubReason = "noop";
+    try {
+      const scrub = scrubGreetingReciprocity({
+        pipelineState,
+        customerMessage: lastMessageContent || "",
+        aiResponse: aiContent || "",
+      });
+      greetingScrubReason = scrub.reason;
+      if (scrub.scrubbed) {
+        console.log(
+          `[ai-support-chat] [Reg #2 - 3.3] greeting scrub applied (${scrub.reason})`,
+        );
+        aiContent = scrub.after;
+        greetingScrubApplied = true;
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #2 - 3.3] greeting scrub failed:", (e as Error).message);
+    }
+
+    // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
+    // Persistida no turn log; usada para detectar repetição por intenção
+    // (não só por hash exato) confrontando com as últimas famílias da conversa.
+    const intentFamilyOfTurn = classifyIntentFamily(aiContent || "");
+    let semanticDuplicateDetected = false;
+    let semanticDuplicateReason = "noop";
+    try {
+      const { data: recentFamilyRows } = await supabase
+        .from("ai_support_turn_log")
+        .select("metadata, created_at")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      const recentFamilies: IntentFamily[] = (recentFamilyRows || [])
+        .map((r: any) => (r?.metadata?.intent_family as IntentFamily) || "other")
+        .reverse(); // ordem cronológica
+      const semDup = isSemanticDuplicate(intentFamilyOfTurn, recentFamilies);
+      semanticDuplicateDetected = semDup.duplicate;
+      semanticDuplicateReason = semDup.reason;
+      if (semDup.duplicate) {
+        console.log(
+          `[ai-support-chat] [Reg #2 - 3.4] semantic duplicate detected (family=${intentFamilyOfTurn}, recent=${recentFamilies.join(",")}, reason=${semDup.reason})`,
+        );
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #2 - 3.4] semantic dup lookup failed:", (e as Error).message);
+    }
+
     // Hash da resposta (anti-repetição na próxima rodada)
     const responseHash = await hashResponse(aiContent || "");
 
@@ -5707,11 +5758,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // Se a regeneração ainda colidir, mantemos a supressão original.
     let regenerationAttempted = false;
     let regenerationSucceeded = false;
-    if (dupCheck.duplicate && aiContent && aiContent.trim().length > 0 && OPENAI_API_KEY) {
+    // [Reg #2 - 3.4] Dispara regen tanto para hash exato (Pacote E) quanto para
+    // duplicata semântica por família de intenção (mesmo "tipo" de pergunta com
+    // palavras diferentes — ex.: "posso separar?" vs "deixo separado pra você?").
+    const shouldRegenerate = (dupCheck.duplicate || semanticDuplicateDetected);
+    if (shouldRegenerate && aiContent && aiContent.trim().length > 0 && OPENAI_API_KEY) {
       regenerationAttempted = true;
       try {
+        const semanticHint = semanticDuplicateDetected
+          ? ` Especificamente, a IA está repetindo o MESMO TIPO de pergunta/oferta (família "${intentFamilyOfTurn}") dos turnos anteriores — TROQUE A INTENÇÃO do turno: se vinha oferecendo reserva, agora avance para fechamento ou traga informação nova; se vinha perguntando dado, mude para outro ângulo.`
+          : "";
         const variationInstruction =
-          `A resposta abaixo já foi enviada nesta conversa nos últimos turnos e o cliente está repetindo o tema. ` +
+          `A resposta abaixo já foi enviada nesta conversa nos últimos turnos e o cliente está repetindo o tema.${semanticHint} ` +
           `Reformule COMPLETAMENTE com palavras, abertura e estrutura diferentes, mantendo o mesmo conteúdo de negócio ` +
           `(mesmos produtos/preços/condições). NÃO repita as mesmas frases de abertura. Avance a conversa: ` +
           `traga um detalhe novo (preço, ingrediente, indicação, próxima pergunta) que ainda não foi mencionado. ` +
@@ -6061,6 +6119,13 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           stall_detected: stallDetection.isStalled,
           stall_pattern: stallDetection.matchedPromise || null,
           dup_block_reason: dupCheck.duplicate ? dupCheck.reason : null,
+          // [Reg #2 - 3.3] greeting scrub
+          greeting_scrub_applied: greetingScrubApplied,
+          greeting_scrub_reason: greetingScrubReason,
+          // [Reg #2 - 3.4] anti-repetição semântica por família
+          intent_family: intentFamilyOfTurn,
+          semantic_duplicate_detected: semanticDuplicateDetected,
+          semantic_duplicate_reason: semanticDuplicateReason,
           processing_lock_id: myLockId,
           processing_lock_reason: lockResult.reason || null,
           raw_is_greeting: rawIsGreeting,
