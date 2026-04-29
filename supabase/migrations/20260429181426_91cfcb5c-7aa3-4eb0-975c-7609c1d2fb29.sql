@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.resolve_order_shipping_provider(uuid) FROM PUBLIC, anon;

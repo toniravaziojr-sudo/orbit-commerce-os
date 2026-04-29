@@ -7866,6 +7866,75 @@ export type Database = {
           },
         ]
       }
+      fiscal_dce: {
+        Row: {
+          authorized_at: string | null
+          cancelled_at: string | null
+          chave: string | null
+          created_at: string
+          id: string
+          numero: string | null
+          order_id: string | null
+          payload: Json
+          pdf_url: string | null
+          rejection_reason: string | null
+          serie: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          xml_url: string | null
+        }
+        Insert: {
+          authorized_at?: string | null
+          cancelled_at?: string | null
+          chave?: string | null
+          created_at?: string
+          id?: string
+          numero?: string | null
+          order_id?: string | null
+          payload?: Json
+          pdf_url?: string | null
+          rejection_reason?: string | null
+          serie?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          xml_url?: string | null
+        }
+        Update: {
+          authorized_at?: string | null
+          cancelled_at?: string | null
+          chave?: string | null
+          created_at?: string
+          id?: string
+          numero?: string | null
+          order_id?: string | null
+          payload?: Json
+          pdf_url?: string | null
+          rejection_reason?: string | null
+          serie?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          xml_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_dce_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_dce_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fiscal_draft_queue: {
         Row: {
           attempts: number
@@ -8808,6 +8877,76 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "free_pix_validations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gateway_sync_queue: {
+        Row: {
+          action: string
+          attempts: number
+          created_at: string
+          external_ref: string | null
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          order_id: string
+          payload: Json
+          processed_at: string | null
+          provider_id: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          attempts?: number
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          order_id: string
+          payload?: Json
+          processed_at?: string | null
+          provider_id?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          attempts?: number
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          order_id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider_id?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gateway_sync_queue_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gateway_sync_queue_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gateway_sync_queue_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -13844,6 +13983,13 @@ export type Database = {
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount: number | null
           payment_status: Database["public"]["Enums"]["payment_status"]
+          resolved_shipping_provider_id: string | null
+          resolved_shipping_provider_kind:
+            | Database["public"]["Enums"]["shipping_provider_kind"]
+            | null
+          resolved_shipping_reason:
+            | Database["public"]["Enums"]["shipping_routing_reason"]
+            | null
           retry_from_order_id: string | null
           retry_token: string | null
           retry_token_expires_at: string | null
@@ -13931,6 +14077,13 @@ export type Database = {
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          resolved_shipping_provider_id?: string | null
+          resolved_shipping_provider_kind?:
+            | Database["public"]["Enums"]["shipping_provider_kind"]
+            | null
+          resolved_shipping_reason?:
+            | Database["public"]["Enums"]["shipping_routing_reason"]
+            | null
           retry_from_order_id?: string | null
           retry_token?: string | null
           retry_token_expires_at?: string | null
@@ -14018,6 +14171,13 @@ export type Database = {
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          resolved_shipping_provider_id?: string | null
+          resolved_shipping_provider_kind?:
+            | Database["public"]["Enums"]["shipping_provider_kind"]
+            | null
+          resolved_shipping_reason?:
+            | Database["public"]["Enums"]["shipping_routing_reason"]
+            | null
           retry_from_order_id?: string | null
           retry_token?: string | null
           retry_token_expires_at?: string | null
@@ -14065,6 +14225,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_resolved_shipping_provider_id_fkey"
+            columns: ["resolved_shipping_provider_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_providers"
             referencedColumns: ["id"]
           },
           {
@@ -16806,9 +16973,11 @@ export type Database = {
         Row: {
           created_at: string
           credentials: Json
+          gateway_capabilities: Json
           id: string
           is_enabled: boolean
           provider: string
+          provider_kind: Database["public"]["Enums"]["shipping_provider_kind"]
           settings: Json
           supports_quote: boolean
           supports_tracking: boolean
@@ -16818,9 +16987,11 @@ export type Database = {
         Insert: {
           created_at?: string
           credentials?: Json
+          gateway_capabilities?: Json
           id?: string
           is_enabled?: boolean
           provider: string
+          provider_kind?: Database["public"]["Enums"]["shipping_provider_kind"]
           settings?: Json
           supports_quote?: boolean
           supports_tracking?: boolean
@@ -16830,9 +17001,11 @@ export type Database = {
         Update: {
           created_at?: string
           credentials?: Json
+          gateway_capabilities?: Json
           id?: string
           is_enabled?: boolean
           provider?: string
+          provider_kind?: Database["public"]["Enums"]["shipping_provider_kind"]
           settings?: Json
           supports_quote?: boolean
           supports_tracking?: boolean
@@ -23179,6 +23352,14 @@ export type Database = {
           success: boolean
         }[]
       }
+      resolve_order_shipping_provider: {
+        Args: { p_order_id: string }
+        Returns: {
+          provider_id: string
+          provider_kind: Database["public"]["Enums"]["shipping_provider_kind"]
+          reason: Database["public"]["Enums"]["shipping_routing_reason"]
+        }[]
+      }
       resolve_whatsapp_incident: {
         Args: { p_incident_id: string; p_resolution_note?: string }
         Returns: Json
@@ -23542,6 +23723,7 @@ export type Database = {
         | "ready_to_invoice"
         | "invoice_pending_sefaz"
         | "invoice_authorized"
+        | "fulfilled"
         | "invoice_issued"
         | "dispatched"
         | "completed"
@@ -23568,6 +23750,15 @@ export type Database = {
         | "cancelled"
         | "chargeback_requested"
         | "under_review"
+      shipping_provider_kind: "gateway" | "contract" | "manual"
+      shipping_routing_reason:
+        | "customer_choice"
+        | "tracking_inheritance"
+        | "single_active"
+        | "manual_third_party"
+        | "marketplace"
+        | "imported"
+        | "unresolved"
       shipping_status:
         | "pending"
         | "processing"
@@ -23916,6 +24107,7 @@ export const Constants = {
         "ready_to_invoice",
         "invoice_pending_sefaz",
         "invoice_authorized",
+        "fulfilled",
         "invoice_issued",
         "dispatched",
         "completed",
@@ -23944,6 +24136,16 @@ export const Constants = {
         "cancelled",
         "chargeback_requested",
         "under_review",
+      ],
+      shipping_provider_kind: ["gateway", "contract", "manual"],
+      shipping_routing_reason: [
+        "customer_choice",
+        "tracking_inheritance",
+        "single_active",
+        "manual_third_party",
+        "marketplace",
+        "imported",
+        "unresolved",
       ],
       shipping_status: [
         "pending",
