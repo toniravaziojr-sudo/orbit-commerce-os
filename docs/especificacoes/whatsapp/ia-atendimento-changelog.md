@@ -40,14 +40,14 @@
 | Não inventar ação executada ("já encaminhei…") | ✅ Coberto | Scrubber `unsupported_action_promised` | Reg. #1 |
 | Não trocar produto após confirmação | ✅ Coberto | `PRODUCT_LOCK_MISMATCH` + resolver com `focusProductId` | Reg. #1 |
 | Não pedir nova confirmação após "sim/manda" | ✅ Coberto | FIX-B `tool_choice` forçado + scrubber `confirmation_loop_detected` | Reg. #1 |
-| Não repetir a mesma frase/intenção | ⚠️ Parcial | Hash de prefixo (não pega família semântica) | Reg. #2 |
-| Não citar preço sem o cliente perguntar | ❌ Sem defesa | — | Reg. #2 |
-| Não trocar conjunto ofertado por kit consolidado | ⚠️ Parcial | Trava cobre item único, não conjunto | Reg. #2 |
-| Espelhar saudação ("boa tarde" → "boa tarde") | ⚠️ Só prompt | Sem reforço no servidor | Reg. #2 |
-| Honrar pergunta consultiva antes de listar produto | ⚠️ Só prompt | Sem regra dura | Reg. #2 |
-| Enviar imagem na 1ª apresentação real do produto | ⚠️ Opcional | Existe a tool, não é obrigatória | Reg. #2 |
-| Link de checkout no domínio próprio da loja | ❌ Quebrado | Consulta tabela inexistente | Reg. #2 |
-| Carrinho hidratado ao abrir o link enviado | ❌ Quebrado | Hidratador rodava depois do empty-state | Reg. #2 |
+| Não repetir a mesma frase/intenção | ⚠️ Parcial | Hash de prefixo (não pega família semântica) | Reg. #2 — pendente 3.4 |
+| Não citar preço sem o cliente perguntar | ✅ Coberto | Regra global `PRICE-ON-DEMAND` em `base.ts` + reforço em discovery/recommendation | Reg. #2.3 |
+| Não trocar conjunto ofertado por kit consolidado | ✅ Coberto | `BUNDLE LOCK` global em `base.ts` + reforço em recommendation; trava de SKU já existente cobre execução | Reg. #2.3 |
+| Espelhar saudação ("boa tarde" → "boa tarde") | ✅ Coberto | `greeting-mirror.ts` mecânico (já em produção) + regra dura em greeting prompt | Reg. #2 (já existia, confirmado) |
+| Honrar pergunta consultiva antes de listar produto | ⚠️ Só prompt | Sem regra dura | Reg. #2 — pendente 3.6 |
+| Enviar imagem na 1ª apresentação real do produto | ✅ Coberto | `product-detail` exige `send_product_image` na 1ª menção (1x/produto) | Reg. #2.3 |
+| Link de checkout no domínio próprio da loja | ✅ Coberto | `ai-support-chat` consulta `tenant_domains` (preferindo `is_primary`) | Reg. #2.1 |
+| Carrinho hidratado ao abrir o link enviado | ✅ Coberto | `useCheckoutLinkLoader` inicializa `isLoading=true` quando há `?link=`/`?product=` na URL | Reg. #2.2 |
 | Filtro estrito por família no `search_products` | ✅ Coberto | `family_focus` persistente | mem://features/ai/sales-pipeline-anti-repetition-and-family-focus |
 | Janela Meta 24h (mensagem livre + imagem) | ✅ Coberto | `meta-whatsapp-send` valida antes de enviar | Reg. #1 |
 
@@ -145,8 +145,69 @@ Memórias a criar e indexar quando os blocos forem aplicados (cada uma vira 1 en
 2. Cada bloco aplicado abre seu próprio sub-registro abaixo (Reg. #2.1, #2.2, …) com o "antes/depois" e o link da memória criada.
 3. Quando todos os blocos estiverem aplicados e validados, o Registro #2 é fechado com o resumo final do "depois" e o `Mapa de qualidade atual` é atualizado.
 
-**Status do registro:** ⏳ Diagnóstico concluído · Correção em fase de aplicação · Validação pendente.
+**Status do registro:** ⏳ Diagnóstico concluído · Blocos 1, 2 e 3 (parcial) aplicados em 29/abr/2026 · Blocos 3.3, 3.4, 3.6 pendentes · Validação final pendente.
 
 ---
 
-*Documento criado em 29/abr/2026.*
+## Registro #2.1 — Domínio próprio no link de checkout (aplicado)
+
+**Data:** 29/abr/2026
+**Bloco:** 1 do plano técnico do Reg. #2
+**Arquivo alterado:** `supabase/functions/ai-support-chat/index.ts` (resolução de `storeUrl`)
+
+**Antes:** consulta a `custom_domains` (tabela inexistente) → sempre vazio → fallback `slug.shops.comandocentral.com.br`.
+**Depois:** consulta `tenant_domains` filtrando `status='verified'`, com preferência por `is_primary=true`. Validado: 3 domínios verificados no banco; o tenant Respeite o Homem tem `www.respeiteohomem.com.br` cadastrado como primário.
+**Memória anti-regressão:** `mem://constraints/checkout-link-domain-source-of-truth`.
+**Validação técnica executada:** ✅ build TS limpo · ✅ query `tenant_domains` confirmada (3 verified). Pendente: gerar um link real no canal de teste e conferir o host na URL.
+
+---
+
+## Registro #2.2 — Carrinho hidratado antes do empty-state (aplicado)
+
+**Data:** 29/abr/2026
+**Bloco:** 2 do plano técnico do Reg. #2
+**Arquivo alterado:** `src/hooks/useCheckoutLinkLoader.ts`
+
+**Antes:** o hook iniciava com `isLoading=false` e só virava `true` dentro do `useEffect`. Entre o primeiro render e o efeito, o `CheckoutStepWizard` avaliava `items.length === 0 && !linkLoading` e renderizava "Seu carrinho está vazio" antes do hidratador rodar.
+**Depois:** o hook detecta `?link=` ou `?product=` na URL **na inicialização do `useState`**, então `isLoading` já nasce `true` e o guard `!linkLoading` no wizard segura o empty-state. Render → "Carregando seu pedido…" (loader nativo do wizard) → hidrata → mostra carrinho cheio.
+**Memória anti-regressão:** `mem://constraints/checkout-link-must-show-loading-not-empty`.
+**Validação técnica executada:** ✅ build TS limpo · ✅ guard `!linkLoading` já existia em `CheckoutStepWizard.tsx:915`. Pendente: abrir um link real e confirmar visualmente que o empty-state não pisca.
+
+---
+
+## Registro #2.3 — Protocolo conversacional: preço sob demanda + bundle lock + imagem obrigatória (aplicado)
+
+**Data:** 29/abr/2026
+**Bloco:** 3.1, 3.2 e 3.5 do plano técnico do Reg. #2
+**Arquivos alterados:**
+- `supabase/functions/_shared/sales-pipeline/prompts/base.ts` (regras globais novas)
+- `supabase/functions/_shared/sales-pipeline/prompts/discovery.ts` (proibição de preço)
+- `supabase/functions/_shared/sales-pipeline/prompts/recommendation.ts` (PRICE-ON-DEMAND + BUNDLE LOCK por estado)
+- `supabase/functions/_shared/sales-pipeline/prompts/product-detail.ts` (imagem obrigatória + preço liberado)
+
+**Mudanças efetivas:**
+1. **PRICE-ON-DEMAND global** em `base.ts`: preço só com pergunta direta do cliente, EXCETO em `product_detail` (cliente já focou) e `checkout_assist` (fechamento). `discovery` e `recommendation` ganharam reforço explícito.
+2. **BUNDLE LOCK / OFFERED_SKU_LOCK global** em `base.ts`: o que foi ofertado é o que vai pro carrinho; trocar SKU por kit/combo sem perguntar é proibido. Reforço por estado em `recommendation`.
+3. **Anti-repetição semântica** (regra macro adicionada ao `base.ts` enquanto o detector dedicado do Bloco 3.4 não fica pronto).
+4. **Imagem obrigatória na 1ª menção real do produto** em `product-detail`: `send_product_image` agora é obrigatória (1x por produto, respeitando anti-spam) na primeira apresentação.
+
+**Memórias anti-regressão criadas:**
+- `mem://constraints/ai-must-not-mention-price-unsolicited`
+- `mem://constraints/ai-must-not-swap-offered-bundle`
+- `mem://constraints/ai-product-detail-image-mandatory-on-first-mention`
+
+**Validação técnica executada:** ✅ build TS limpo · ✅ template literais fechados em `base.ts`. Pendente de validação do usuário: refazer o roteiro do cliente (caso de calvície) e checar que a IA (a) não cita preço em descoberta/recomendação, (b) não troca o conjunto ofertado por kit consolidado, (c) manda foto na 1ª menção do produto.
+
+---
+
+## Pendências do Registro #2 (a aplicar em ciclo seguinte)
+
+| Bloco | Tema | Por que ficou para depois |
+|---|---|---|
+| 3.3 | Scrubber server-side de saudação espelhada | Mecânico (`greeting-mirror.ts`) já está em produção e cobre o caso; scrubber dedicado entra se reaparecer divergência |
+| 3.4 | Detector de anti-repetição por família semântica | Requer dicionário de famílias e teste com histórico real; entra como sub-registro próprio |
+| 3.6 | Classificador de turno consultivo (sintoma + foto + pedido de recomendação) | Requer feature de classificação no pré-modelo; sub-registro próprio |
+
+---
+
+*Documento criado em 29/abr/2026 · Última atualização: 29/abr/2026 (Reg. #2.1, #2.2, #2.3 aplicados).*

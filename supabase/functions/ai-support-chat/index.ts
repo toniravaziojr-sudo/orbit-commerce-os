@@ -3417,13 +3417,18 @@ Deno.serve(async (req) => {
       .eq("id", tenant_id)
       .single();
 
-    const { data: customDomain } = await supabase
-      .from("custom_domains")
-      .select("domain, status, ssl_active")
+    // Resolve domínio personalizado verificado via tenant_domains (fonte oficial).
+    // Preferência: is_primary verified → qualquer verified → fallback slug.shops...
+    const { data: tenantDomains } = await supabase
+      .from("tenant_domains")
+      .select("domain, is_primary, status")
       .eq("tenant_id", tenant_id)
-      .eq("status", "verified")
-      .eq("ssl_active", true)
-      .maybeSingle();
+      .eq("status", "verified");
+
+    const primaryDomain =
+      (tenantDomains || []).find((d: any) => d.is_primary)?.domain ||
+      (tenantDomains || [])[0]?.domain ||
+      null;
 
     const { data: storeSettings } = await supabase
       .from("store_settings")
@@ -3432,8 +3437,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     let storeUrl = "";
-    if (customDomain?.domain) {
-      storeUrl = `https://${customDomain.domain}`;
+    if (primaryDomain) {
+      storeUrl = `https://${primaryDomain}`;
     } else if (tenant?.slug) {
       storeUrl = `https://${tenant.slug}.shops.comandocentral.com.br`;
     }
