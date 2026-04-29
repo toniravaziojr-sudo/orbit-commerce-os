@@ -1349,9 +1349,13 @@ async function executeSalesTool(
         const variantId = (args.variant_id as string | undefined) || undefined;
 
         // [Sub-fase 2] Resolver tolerante: aceita UUID, slug ou nome.
-        // Se o nome for ambíguo, NÃO adivinha — devolve candidatos para a IA
-        // confirmar com o cliente.
-        const resolved = await resolveProductReference(supabase, tenantId, productIdOrSlug);
+        // [PIPELINE-FIX 2026-04-29] Passa o product_id em foco como dica
+        // de desempate quando a IA mandar nome ambíguo (ex.: "Calvície Zero 3x"
+        // bate com vários packs). O resolver vai priorizar candidato compatível.
+        const resolved = await resolveProductReference(supabase, tenantId, productIdOrSlug, {
+          focusProductId: ctx.productFocus?.product_id ?? null,
+          quantityHint: quantity,
+        });
         if (resolved.ambiguous) {
           return JSON.stringify({
             success: false,
@@ -1370,6 +1374,33 @@ async function executeSalesTool(
         }
         const product = resolved.product;
         const productId = product.id as string;
+
+        // [PIPELINE-FIX 2026-04-29] TRAVA DE PRODUTO CONFIRMADO
+        // Se há um produto em foco com id conhecido E a IA tentou adicionar
+        // OUTRO id, e o turno do cliente NÃO contém sinal de troca explícita,
+        // bloqueia silenciosamente e devolve aviso pra IA reconfirmar.
+        const focusedId = ctx.productFocus?.product_id ?? null;
+        const focusedName = ctx.productFocus?.product_name ?? null;
+        const lastUserMsg = (ctx.lastUserMessage || "").toLowerCase();
+        const SWITCH_PATTERNS = /\b(troca|trocar|outro|outra|prefiro|esquece|muda(r)?|na verdade|mudei de ideia|n[ãa]o quero (mais|esse))\b/;
+        const customerSwitched = SWITCH_PATTERNS.test(lastUserMsg);
+        if (focusedId && productId !== focusedId && !customerSwitched) {
+          console.warn(
+            `[ai-support-chat] [PIPELINE-FIX] add_to_cart blocked by focus-lock: ` +
+            `attempted=${productId} (${product.name}) focused=${focusedId} (${focusedName}) ` +
+            `last_user="${lastUserMsg.slice(0, 80)}"`
+          );
+          return JSON.stringify({
+            success: false,
+            error: "PRODUCT_LOCK_MISMATCH",
+            message:
+              `O cliente confirmou "${focusedName}". Você tentou adicionar produto diferente sem ele pedir. ` +
+              `Use o product_id em foco (${focusedId}) ao chamar add_to_cart, OU pergunte primeiro: ` +
+              `"Só pra confirmar — você quer fechar com o ${focusedName} mesmo, ou trocou de ideia?"`,
+            locked_product_id: focusedId,
+            locked_product_name: focusedName,
+          });
+        }
 
         if (product.status !== "active") return JSON.stringify({ success: false, error: "Produto indisponível" });
 
