@@ -223,21 +223,51 @@ Antes de afirmar "inflação de Purchase", validar os 3 pontos abaixo:
 
 ---
 
-## Cobertura Mínima por Evento (meta operacional pós-v8.27.0)
+## Cobertura Mínima por Evento (meta operacional pós-v8.28.0)
 
-| Evento | `_fbp` | `_fbc` (quando há fbclid) | `client_ip_address` | `client_user_agent` | PII (`em`/`ph`) |
+A meta passou a ser **PII acumulada** em todos os eventos pós-Lead. A regra de ouro: **o score de cada evento deve ser maior ou igual ao do evento anterior na cadeia natural**.
+
+| Evento | `_fbp` | `_fbc` (quando há fbclid) | `client_ip_address` | `client_user_agent` | PII (`em`/`ph` + endereço) |
 |---|---|---|---|---|---|
-| PageView | ≥95% | ≥95% | 100% | 100% | Best-effort |
-| ViewCategory | ≥95% | ≥95% | 100% | 100% | Best-effort |
-| ViewContent | ≥95% | ≥95% | 100% | 100% | Best-effort* |
-| AddToCart | ≥95% | ≥95% | 100% | 100% | Best-effort* |
+| PageView | 100% (gated) | ≥95% | 100% | 100% | Best-effort¹ |
+| ViewCategory | ≥95% | ≥95% | 100% | 100% | Best-effort¹ |
+| ViewContent | ≥95% | ≥95% | 100% | 100% | Best-effort¹ |
+| AddToCart | ≥95% | ≥95% | 100% | 100% | Best-effort¹ |
 | InitiateCheckout | ≥95% | ≥95% | 100% | 100% | ≥80% |
-| Lead | 100% | ≥95% | 100% | 100% | 100% |
-| AddShippingInfo | 100% | ≥95% | 100% | 100% | 100% |
-| AddPaymentInfo | 100% | ≥95% | 100% | 100% | 100% |
-| Purchase | 100% | ≥95% | 100% | 100% | 100% |
+| Lead | 100% | ≥95% | 100% | 100% | 100% (em/ph/nome) |
+| AddShippingInfo | 100% | ≥95% | 100% | 100% | 100% (+ endereço) |
+| AddPaymentInfo | 100% | ≥95% | 100% | 100% | 100% (+ endereço) |
+| Purchase | 100% | ≥95% | 100% | 100% | 100% (cofre completo) |
 
-\* Dependente de o cliente ter passado em Lead/Purchase anteriormente na mesma sessão (PII hashed em `localStorage`).
+¹ Se o visitante já passou em Lead/Purchase em qualquer sessão dos últimos 30 dias, herda do cofre `_sf_identity`.
+
+---
+
+## Snapshot de Qualidade — 2026-04-29 (baseline pré-v8.28.0)
+
+Notas observadas no Gerenciador de Eventos da Meta no dia da entrega da v8.28.0 (servem como **linha de base** para comparar a próxima medição em 24-48h):
+
+| Evento | Score Pixel | Score CAPI | Observação |
+|---|---|---|---|
+| PageView | 6.5 | 6.5 | Maior cobertura de identificadores no funil |
+| Lead | 8.0 | 8.0 | Pico de PII no funil — referência mínima esperada para Purchase |
+| AddToCart | — | — | `_fbp` em 0% (race condition) — alvo prioritário da Onda 6 |
+| AddShippingInfo | 7.x | 7.x | PII parcial — alvo da Onda 5 |
+| AddPaymentInfo | 7.x | 7.x | PII parcial — alvo da Onda 5 |
+| Purchase | 7.5 | 7.5 | **Abaixo do Lead** — anomalia que motivou o plano |
+
+**Lacunas identificadas que motivaram a v8.28.0:**
+- `_fbp` em AddToCart: **0%**
+- `_fbp` em Purchase CAPI: **76%**
+- PII (nome/cidade/CEP) não chegava no Purchase mesmo tendo sido digitada no checkout
+- Cada evento coletava informações de forma independente, sem acumular
+
+**Meta da próxima medição (após 24-48h da v8.28.0):**
+- `_fbp` ≥95% em todos os eventos (incluindo PageView via gated, AddToCart via cookie sintético)
+- Score Purchase **≥** Score Lead (cadeia natural respeitada)
+- PII completa (em/ph/nome/cidade/UF/CEP) presente em AddShippingInfo, AddPaymentInfo e Purchase
+
+---
 
 ---
 
