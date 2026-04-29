@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-export type BrainInsightStatus = "pendente" | "aprovado" | "revogado" | "expirado";
+export type BrainInsightStatus = "pendente" | "urgente" | "ativo" | "revogado" | "descartado" | "expirado";
 export type BrainInsightType =
   | "linguagem"
   | "dor"
@@ -93,7 +93,7 @@ export function useApproveInsight() {
       const { error } = await supabase
         .from("ai_brain_insights" as any)
         .update({
-          status: "aprovado",
+          status: "ativo",
           approved_at: new Date().toISOString(),
           approved_by: user?.id,
         })

@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     const { data: rows, error } = await supabase
       .from("ai_brain_insights")
       .select("tenant_id")
-      .eq("status", "aprovado")
+      .eq("status", "ativo")
       .is("revoked_at", null);
 
     if (error) throw error;

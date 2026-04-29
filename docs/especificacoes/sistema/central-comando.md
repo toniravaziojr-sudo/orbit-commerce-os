@@ -417,9 +417,9 @@ As Edge Functions dos 4 agentes (`ai-support-chat`, `command-assistant-chat`, `a
 |--------|-------|
 | `ai_signal_candidates` | Sinais brutos capturados em conversas (entrada do funil) |
 | `ai_signal_canonical_groups` | Grupos de sinais semelhantes (deduplicação semântica) |
-| `ai_brain_insights` | Insights consolidados com status (pending/active/revoked/expired) |
+| `ai_brain_insights` | Insights consolidados com status (`pendente` / `urgente` / `ativo` / `revogado` / `descartado` / `expirado`) |
 | `ai_critical_alerts` | Alertas operacionais críticos (site fora, checkout com erro) |
-| `ai_brain_active_view` (view) | Visão dos insights com `status = active` para injeção no prompt |
+| `ai_brain_active_view` (view) | Visão dos insights com `status = 'ativo'` (e não expirados) para injeção no prompt dos agentes |
 
 ### 4.8 Regras Operacionais
 
