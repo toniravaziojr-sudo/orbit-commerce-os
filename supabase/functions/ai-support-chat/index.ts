@@ -760,6 +760,9 @@ async function executeSalesTool(
     // [F2-V2 — Item 1] Família mencionada na mensagem ATUAL do cliente.
     // Se diferente da família em foco, prevalece (mudou de assunto).
     familyMentionedNow?: string | null;
+    // [Reg #2.8] Quando o TPR detecta DOR/OBJETIVO concreto, search_products
+    // aplica Catalog Probe (1 representante por família, não filtra estrito).
+    shouldBroadenForPain?: boolean;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
