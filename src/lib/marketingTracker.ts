@@ -9,7 +9,7 @@
 // Phase 7: Retry with logging in sendServerEvent
 // Phase 9: Advanced matching in fbq init
 
-import { getTrackingIdentity, captureClickIds, getOrCreateVisitorId } from '@/lib/visitorIdentity';
+import { getTrackingIdentity, captureClickIds, getOrCreateVisitorId, getStoredIdentity, storeIdentity } from '@/lib/visitorIdentity';
 
 // Generate unique event ID for deduplication between client and server
 export function generateEventId(): string {
