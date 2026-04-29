@@ -388,10 +388,24 @@ Todo insight aprovado possui 4 flags independentes (`scope_vendas`, `scope_auxil
 | `ai-signal-consolidate` | Segundas-feiras 06:00 BRT | Agrupa sinais semelhantes, aplica filtro de relevância e promove grupos a candidatos `pending` |
 | `ai-critical-alerts-process` | A cada 30 min | Agrega alertas operacionais por categoria e atualiza contagem de ocorrências |
 | `ai-brain-monthly-review-reminder` | Dia 1 de cada mês | Cria um insight do tipo `sistema` lembrando o admin de revisar os ativos |
+| `conversations-auto-resolve-daily` | Diário 03:00 UTC (00:00 BRT) | **(Eixo 2)** Marca como `resolved` conversas em `waiting_customer` há mais de 72h **sem humano atribuído**. Libera a conversa para o pipeline de aprendizado. Conversas com humano dono ou em fila NUNCA são tocadas. |
+| `ai-learning-aggregator-daily` | Diário 03:15 UTC | Promove eventos de `tenant_learning_events` para `tenant_learning_memory` (FAQ, objeções e abordagens vencedoras). Substitui o cron legado `ai-learning-aggregator-6h` (descomissionado). |
 
-### 4.5 Captura Contínua (Trigger)
+### 4.5 Captura Contínua
 
-Quando uma conversa é marcada como `resolved`, um trigger SQL (`conversations_signal_capture_on_resolve`) enfileira a tarefa de captura e chama a Edge Function `ai-signal-capture`, que extrai sinais estruturados da conversa (dores, objeções, desejos, linguagem dos clientes, etc.).
+**Capturas em tempo real (triggers SQL):**
+
+- **`conversations_signal_capture_on_resolve`** — Quando uma conversa é marcada como `resolved`, enfileira a tarefa de captura e chama a Edge Function `ai-signal-capture`, que extrai sinais estruturados (dores, objeções, desejos, linguagem dos clientes).
+- **`trg_capture_human_agent_learning`** — **(Eixo 4)** A cada mensagem real do atendente humano ao cliente (sender_type=agent, outbound, não-interna, não-nota), captura como evento `human_correction_positive` (peso +10) em `tenant_learning_events`. O aggregator promove esses padrões para `tenant_learning_memory` como `winning_response`, fazendo a IA aprender o estilo de atendimento do próprio negócio.
+
+**Ciclo do encerramento manual (Eixo 3):**
+
+Quando o atendente humano clica em **"Encerrar conversa"**:
+
+1. Status vira `resolved`, `assigned_to` é limpo, `resolved_at` é carimbado.
+2. A conversa fica disponível como sinal pronto para o aprendizado.
+3. Se o cliente voltar a mandar mensagem depois, `ai-support-chat` reabre automaticamente (`resolved` → `bot`) e a IA responde — sem precisar de humano.
+
 
 ### 4.6 Injeção no Prompt dos Agentes
 
