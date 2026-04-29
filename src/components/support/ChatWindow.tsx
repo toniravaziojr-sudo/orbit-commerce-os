@@ -240,6 +240,9 @@ export function ChatWindow({
             const isSystem = msg.sender_type === 'system';
             const isNote = msg.is_note;
             const isInternal = msg.is_internal;
+            // Phase 4: bloqueia conteúdo cru de templates legados (placeholders/{{vars}}).
+            const sanitized = sanitizeMessageContent(msg.content);
+            const safeContent = sanitized.text;
 
             // PHASE 3: Eventos internos do sistema (renderização bloqueada,
             // falhas de envio, ações automáticas) NÃO aparecem como balão de
@@ -252,7 +255,7 @@ export function ChatWindow({
                       <Info className="h-3 w-3" />
                       <span>Evento interno do sistema</span>
                     </div>
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{safeContent}</p>
                     <div className="text-[10px] text-muted-foreground/70 mt-1">
                       {formatTimeBR(new Date(msg.created_at))}
                     </div>
