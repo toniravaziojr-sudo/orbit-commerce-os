@@ -16,7 +16,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.27.0"; // FRENTE E1+E2: synthetic _fbp/_fbc cookies via Set-Cookie (server-side fallback for race-condition fix)
+const VERSION = "v8.28.0"; // WAVE 6: PageView gated on _fbp (5s polling) so pixel + CAPI share fbp; cumulative identity vault enrichment
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
