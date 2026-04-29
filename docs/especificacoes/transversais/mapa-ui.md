@@ -288,7 +288,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/chatgpt` — ChatGPT (FeatureGated: `assistant`)
 - `/ai-memories` — Memórias de IA
 - `/ai-packages` — Pacotes IA
-- `/support-center` — Central de suporte. **Abas oficiais:** Tickets, AI Config (com toggle Modo Vendas), Conversas, **Funil WhatsApp** (`WhatsappSalesFunnel.tsx`, consome `whatsapp_sales_funnel_view`: carrinhos, convertidos, handoffs, pedidos, receita, taxa de conversão). Doc funcional: `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md`.
+- `/support-center` — Central de suporte. **Abas oficiais:** Tickets, AI Config (com toggle Modo Vendas), Conversas, **Funil WhatsApp** (`WhatsappSalesFunnel.tsx`, consome `whatsapp_sales_funnel_view`: carrinhos, convertidos, handoffs, pedidos, receita, taxa de conversão). Doc funcional: `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md`. **Histórico de diagnósticos e correções da IA:** `docs/especificacoes/whatsapp/ia-atendimento-changelog.md`.
 - `/getting-started` — Guia inicial
 
 **Dev:**
