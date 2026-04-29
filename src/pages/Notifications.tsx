@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { QueryErrorState } from "@/components/ui/query-error-state";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 import { Bell, Zap, Plus } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
