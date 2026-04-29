@@ -1,6 +1,6 @@
 ---
 name: meta-tracking-quality-strategy
-description: Estratégia de qualidade de identificadores Meta (Pixel + CAPI). Cookies sintéticos no edge, captura de fbclid, IP/UA corretos via CF-Connecting-IP, enriquecimento de user_data quando contato existir.
+description: Estratégia de qualidade de identificadores Meta (Pixel + CAPI). Cookies sintéticos no edge, captura de fbclid, IP/UA corretos via CF-Connecting-IP, enriquecimento cumulativo de user_data via cofre de identidade.
 type: constraint
 ---
 
@@ -24,5 +24,11 @@ Se houver contato capturado em `checkout_sessions` ou usuário logado, eventos `
 ## Regra 5 — Cobertura mínima de identificadores ≥95%
 Toda nova feature de tracking DEVE preservar cobertura ≥95% de `_fbp`/`_fbc` nos eventos de funil (PageView, ViewContent, AddToCart, InitiateCheckout). IP é sinal complementar, nunca primário.
 
+## Regra 6 — Cofre de identidade cumulativo (`_sf_identity`) — v8.28.0
+Todo PII coletado durante a sessão (Lead → Shipping → Payment → Purchase) DEVE ser persistido em `localStorage._sf_identity` já hashado SHA-256, com TTL 30 dias, gerenciado por `src/lib/visitorIdentity.ts`. Eventos subsequentes (incluindo PageView e AddToCart de páginas posteriores) DEVEM mesclar não-destrutivamente esses hashes em `user_data` antes de despachar Pixel/CAPI (`payload.X ?? stored.X`). Backend `meta-capi-sender.ts` aceita campos pré-hashados (`first_name_hashed`, `last_name_hashed`, `city_hashed`, `state_hashed`, `zip_hashed`) — proibido enviar PII em texto puro do browser. Resultado esperado: parâmetros acumulam ao longo do funil, score de Purchase ≥ score de Lead.
+
+## Regra 7 — PageView sincronizado com `_fbp` (Onda 6)
+O snippet do edge HTML DEVE atrasar `fbq('track','PageView')` e o CAPI PageView até o `_fbp` estar disponível (polling 250ms × 20 = 5s). Garante que Pixel browser e CAPI server compartilhem o mesmo `fbp` no PageView (deduplicação correta + score consistente). Mesmo princípio aplica-se a qualquer novo evento iniciado pelo edge HTML antes do `_sfMetaReady=true`.
+
 ## Doc formal de referência
-`docs/especificacoes/marketing/meta-tracking.md` — seção "Estratégia de Cobertura de Identificadores".
+`docs/especificacoes/marketing/meta-tracking.md` — seções "Estratégia de Cobertura de Identificadores" e "Cofre de Identidade Cumulativo".
