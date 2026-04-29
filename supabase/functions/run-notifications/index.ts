@@ -943,7 +943,21 @@ Deno.serve(async (req) => {
         !String(payload.product_names ?? '').trim();
 
       if (needsEnrich) {
-        const orderIdForEnrich = (payload.order_id as string) || null;
+        // Resolve order_id: prefer payload, fallback to events_inbox via event_id
+        let orderIdForEnrich = (payload.order_id as string) || null;
+        if (!orderIdForEnrich && notification.event_id) {
+          const { data: ev } = await supabase
+            .from('events_inbox')
+            .select('payload_normalized')
+            .eq('id', notification.event_id)
+            .maybeSingle();
+          const evPayload = ev?.payload_normalized as Record<string, unknown> | null;
+          orderIdForEnrich = (evPayload?.order_id as string) || null;
+          if (orderIdForEnrich) {
+            payload.order_id = orderIdForEnrich; // persist for future retries
+            console.log(`[RunNotifications] Recovered order_id from event_id for ${notification.id}: ${orderIdForEnrich}`);
+          }
+        }
         try {
           const enriched = await enrichOrderContext(supabase, notification.tenant_id, orderIdForEnrich);
           for (const [k, v] of Object.entries(enriched)) {
