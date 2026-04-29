@@ -1035,6 +1035,20 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                           </Button>
                           <Button 
                             size="sm" 
+                            variant="outline"
+                            onClick={handleBulkEmitDce}
+                            disabled={isBulkProcessing}
+                            title="Emite Declaração de Conteúdo (DC-e) para os rascunhos selecionados"
+                          >
+                            {isBulkProcessing ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Receipt className="h-4 w-4 mr-2" />
+                            )}
+                            Emitir DC-e {selectedDraftsCount}
+                          </Button>
+                          <Button 
+                            size="sm" 
                             variant="destructive"
                             onClick={handleBulkDelete}
                             disabled={isBulkProcessing}
@@ -1046,6 +1060,21 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                       )}
                       {selectedAuthorizedCount > 0 && (
                         <>
+                          {selectedGatewayInvoicesCount > 0 && (
+                            <Button
+                              size="sm"
+                              onClick={handleBulkSendToGateway}
+                              disabled={isBulkProcessing}
+                              title="Envia o pedido e a NF-e à transportadora integrada (ex: Frenet)"
+                            >
+                              {isBulkProcessing ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Truck className="h-4 w-4 mr-2" />
+                              )}
+                              Enviar à transportadora {selectedGatewayInvoicesCount}
+                            </Button>
+                          )}
                           <Button 
                             size="sm" 
                             variant="outline"
