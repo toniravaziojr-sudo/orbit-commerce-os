@@ -51,6 +51,41 @@ function normalize(s: string): string {
 }
 
 /**
+ * [PIPELINE-FIX 2026-04-29] Detecta quantificador no termo (1x, 2x, 3x, 6x,
+ * "kit 3", "pack 6", etc.). Usado para desempatar quando vários candidatos
+ * da mesma família batem com o nome (ex.: "Calvície Zero" → unidade, 2x, 3x, 6x).
+ */
+function extractQuantifier(s: string): number | null {
+  if (!s) return null;
+  const norm = s.toLowerCase();
+  // padrões: "3x", "x3", "3 unidades", "kit 3", "pack 6", "(3)"
+  const patterns = [
+    /\b(\d+)\s*x\b/,        // 3x
+    /\bx\s*(\d+)\b/,        // x3
+    /\b(\d+)\s*un(idades?)?\b/, // 3 unidades
+    /\b(kit|pack|combo)\s+(\d+)\b/, // kit 3 / pack 6
+    /\((\d+)\)/,            // (3)
+  ];
+  for (const re of patterns) {
+    const m = norm.match(re);
+    if (m) {
+      // pega o último grupo numérico
+      const num = m[m.length - 1] || m[1];
+      const n = parseInt(num, 10);
+      if (Number.isFinite(n) && n >= 1 && n <= 24) return n;
+    }
+  }
+  return null;
+}
+
+export interface ResolveOptions {
+  /** product_id em foco na conversa — usado como dica de desempate. */
+  focusProductId?: string | null;
+  /** Quantidade pedida pela IA — ajuda a casar pack 1x/2x/3x/6x. */
+  quantityHint?: number | null;
+}
+
+/**
  * Resolve um identificador (UUID, slug ou nome) em produto único.
  *
  * Estratégia:
@@ -60,12 +95,14 @@ function normalize(s: string): string {
  *  4. nome contém / contém nome (token-fuzzy):
  *      - 0 hits  → not found
  *      - 1 hit   → resolve
- *      - >1 hits → AMBÍGUO, retorna candidatos (sem adivinhar)
+ *      - >1 hits → tenta desempate por (a) focusProductId, (b) quantificador.
+ *                  Se nada desempatar, retorna AMBÍGUO.
  */
 export async function resolveProductReference(
   supabase: any,
   tenantId: string,
   ref: string,
+  options: ResolveOptions = {},
 ): Promise<ResolveProductResult> {
   const raw = (ref || "").toString().trim();
   if (!raw) {
@@ -151,8 +188,33 @@ export async function resolveProductReference(
     };
   }
 
-  // 3c) múltiplos hits → AMBÍGUO. Não adivinhar.
+  // 3c) múltiplos hits → tenta desempatar antes de declarar ambíguo.
   if (candidates.length > 1) {
+    // [PIPELINE-FIX 2026-04-29] Desempate (a): focusProductId.
+    if (options.focusProductId) {
+      const focused = candidates.find((p) => p.id === options.focusProductId);
+      if (focused) {
+        return { found: true, ambiguous: false, product: focused, candidates: [] };
+      }
+    }
+    // [PIPELINE-FIX 2026-04-29] Desempate (b): quantificador no termo
+    // ("Calvície Zero 3x" → escolhe o pack cujo nome também tem 3x/x3/kit 3).
+    const termQty = extractQuantifier(term);
+    if (termQty != null) {
+      const qtyMatches = candidates.filter((p) => extractQuantifier(p.name) === termQty);
+      if (qtyMatches.length === 1) {
+        return { found: true, ambiguous: false, product: qtyMatches[0], candidates: [] };
+      }
+    }
+    // [PIPELINE-FIX 2026-04-29] Desempate (c): quantityHint vs quantificador
+    // do nome do candidato (ex.: IA pediu quantity=3 e há candidato "Pack 3").
+    if (options.quantityHint && options.quantityHint > 1) {
+      const qtyMatches = candidates.filter((p) => extractQuantifier(p.name) === options.quantityHint);
+      if (qtyMatches.length === 1) {
+        return { found: true, ambiguous: false, product: qtyMatches[0], candidates: [] };
+      }
+    }
+    // Sem desempate → AMBÍGUO. Não adivinhar.
     return {
       found: false,
       ambiguous: true,

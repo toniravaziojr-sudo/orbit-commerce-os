@@ -67,11 +67,11 @@ export const TOOLS_BY_STATE: Record<PipelineState, string[]> = {
     "apply_coupon",
     "check_coupon",
     "lookup_customer",
-    "save_customer_data",
-    "update_customer_record",
     "calculate_shipping",
     "check_upsell_offers",
     "check_customer_coupon_eligibility",
+    // save_customer_data e update_customer_record REMOVIDOS:
+    // dados pessoais são coletados na própria página de checkout, não no WhatsApp.
   ],
 
   support: [
