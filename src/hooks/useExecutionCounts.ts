@@ -425,6 +425,7 @@ export function useExecutionCounts() {
   const { data: blogAlerts } = useBlogAlerts();
   const { data: marketplaceAlerts } = useMarketplaceAlerts();
   const { data: problematicShipments = 0 } = useProblematicShipments();
+  const { data: trackingDisabledProviders = 0 } = useShippingTrackingGap();
   const { data: aiCredits } = useAiCreditsAlert();
   const { data: storageAlert } = useStorageAlert();
 
