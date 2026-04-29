@@ -6,10 +6,11 @@ import {
   renderForInternalLog,
   TemplateRenderError,
 } from "../_shared/template-renderer.ts";
+import { enrichOrderContext } from "../_shared/enrich-order-context.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.5.0"; // Phase 3 — strict template rendering, no [Template:] in timeline
+const VERSION = "v1.6.0"; // Phase 4 — safety-net re-enrichment + re-render at send time
 // ===========================================================
 
 const corsHeaders = {
