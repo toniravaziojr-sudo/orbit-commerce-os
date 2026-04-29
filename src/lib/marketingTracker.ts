@@ -802,27 +802,21 @@ export class MarketingTracker {
       order_id: order.order_id,
     }, order.userData);
 
-    // Phase 9: Store hashed email/phone for advanced matching on next page load
-    if (order.userData?.email || order.userData?.phone) {
-      this.storeAdvancedMatchingData(order.userData.email, order.userData.phone);
+    // v8.28.0: Persist FULL identity into the cofre — Purchase is the most
+    // complete capture point. Replaces legacy `storeAdvancedMatchingData`
+    // (which only handled email+phone). The cofre helper also mirrors
+    // em_hash/ph_hash into legacy `_sf_am_em`/`_sf_am_ph` so cached Edge
+    // HTML rendered before v8.28.0 keeps working.
+    if (order.userData) {
+      void storeIdentity({
+        email: order.userData.email,
+        phone: order.userData.phone,
+        name: order.userData.name,
+        city: order.userData.city,
+        state: order.userData.state,
+        zip: order.userData.zip,
+      });
     }
-  }
-
-  // Phase 9: Store hashed PII for advanced matching
-  private async storeAdvancedMatchingData(email?: string, phone?: string): Promise<void> {
-    try {
-      if (email) {
-        const hashed = await hashPII(email);
-        // Store in both localStorage (persistent across sessions) and sessionStorage (legacy compat)
-        localStorage.setItem('_sf_am_em', hashed);
-        sessionStorage.setItem('_sf_am_em', hashed);
-      }
-      if (phone) {
-        const hashed = await hashPII(phone);
-        localStorage.setItem('_sf_am_ph', hashed);
-        sessionStorage.setItem('_sf_am_ph', hashed);
-      }
-    } catch {}
   }
 
   trackSearch(query: string): void {
