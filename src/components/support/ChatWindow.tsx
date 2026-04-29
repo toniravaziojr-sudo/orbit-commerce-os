@@ -15,6 +15,7 @@ import { QuickRepliesDropdown } from "./QuickRepliesDropdown";
 import { toast } from "sonner";
 
 import { formatTimeBR } from "@/lib/date-format";
+import { sanitizeMessageContent } from "@/lib/sanitizeNotificationContent";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
