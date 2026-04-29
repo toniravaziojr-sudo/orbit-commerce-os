@@ -244,14 +244,14 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/reviews` — Avaliações
 
 **ERP:**
-- `/fiscal` — Fiscal (abas: Pedidos em Aberto, Notas Fiscais)
+- `/fiscal` — Fiscal (abas: **Pedidos**, Notas Fiscais). Lista de Notas Fiscais inclui ações em massa **"Emitir DC-e"** (rascunhos com transportadora gateway) e **"Enviar à transportadora"** (NFes autorizadas com transportadora gateway — dispara `gateway-attach-fiscal-doc`). Detalhe em `docs/especificacoes/erp/erp-fiscal.md`.
 - `/fiscal/configuracoes` — Configurações Fiscais (página dedicada — abas: Configurações Fiscais, Natureza Jurídica, Outros). **Casa oficial:** `Sistema → Configurações → aba Fiscal` (conteúdo embutido na aba — sem redirecionamento desde rev 2026-04-17c). **Atalho:** botão "Configurações" em `/fiscal` abre `/fiscal/configuracoes?from=fiscal`. **Botão "Voltar" contextual via `?from=`:** `?from=fiscal` retorna para `/fiscal?tab=pedidos`; `?from=settings` (ou sem param) retorna para `/system/settings?tab=fiscal`. Não aparece como item próprio na sidebar.
 - `/fiscal/products` — Config fiscal de produtos
 - `/fiscal/operation-natures` — **Redirect legado** → `/fiscal/configuracoes?aba=natureza`
 - `/finance` — Financeiro (GatedRoute: `erp_financeiro`)
 - `/purchases` — Compras (GatedRoute: `erp_compras`)
 - `/shipping` — Dashboard de logística
-- `/shipping/shipments` — Remessas (FeatureGated: `remessas`) — filtros: busca, data, status, **Transportadora** (Correios/Loggi/Frenet/Fallback/Sem) e **Serviço** (PAC, Sedex, Loggi Express — dinâmico). Coluna Transportadora exibe badge + serviço (ex: "Correios · PAC"). Detalhe em `docs/especificacoes/erp/rascunhos-logisticos.md` v2.5.0.
+- `/shipping/shipments` — Remessas (FeatureGated: `remessas`) — filtros: busca, data, status, **Transportadora** (Correios/Loggi/Frenet/Fallback/Sem) e **Serviço** (PAC, Sedex, Loggi Express — dinâmico). Coluna Transportadora exibe badge + serviço (ex: "Correios · PAC"). **Pedidos com transportadora gateway (`resolved_shipping_provider_kind = 'gateway'`) são excluídos automaticamente da fila local de remessas** — o despacho é feito pela própria transportadora via `gateway-sync-order`. Detalhe em `docs/especificacoes/erp/rascunhos-logisticos.md` v2.5.0.
 - `/shipping/settings` — Config de frete
 
 **Parcerias (GatedRoute: `parcerias`):**
