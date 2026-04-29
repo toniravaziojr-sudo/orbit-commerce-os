@@ -284,6 +284,31 @@ function useProblematicShipments() {
   });
 }
 
+// ── Transportadoras com Cotação ativa, mas Rastreamento desativado ──
+// Avisa o usuário que a integração não conseguirá sincronizar rastreios
+// até habilitar a função de Rastreamento.
+function useShippingTrackingGap() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ["execution-shipping-tracking-gap", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return 0;
+      const { count } = await supabase
+        .from("shipping_providers")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("is_enabled", true)
+        .eq("supports_quote", true)
+        .eq("supports_tracking", false);
+      return count || 0;
+    },
+    enabled: !!tenantId,
+    refetchInterval: 120000,
+  });
+}
+
 // ── Pacotes de IA: créditos abaixo de 10% ──
 function useAiCreditsAlert() {
   const { currentTenant } = useAuth();
@@ -400,6 +425,7 @@ export function useExecutionCounts() {
   const { data: blogAlerts } = useBlogAlerts();
   const { data: marketplaceAlerts } = useMarketplaceAlerts();
   const { data: problematicShipments = 0 } = useProblematicShipments();
+  const { data: trackingDisabledProviders = 0 } = useShippingTrackingGap();
   const { data: aiCredits } = useAiCreditsAlert();
   const { data: storageAlert } = useStorageAlert();
 
@@ -523,8 +549,9 @@ export function useExecutionCounts() {
   const tracking: ExecutionCategory = {
     stats: [
       problematicShipments ? { count: problematicShipments, label: "Entregas problemáticas", navigateTo: "/shipping", color: "destructive" as const } : null,
+      trackingDisabledProviders ? { count: trackingDisabledProviders, label: "Rastreamento desativado", navigateTo: "/shipping?tab=settings", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: problematicShipments,
+    totalPending: problematicShipments + trackingDisabledProviders,
   };
 
   // Pacotes de IA

@@ -60,6 +60,7 @@ interface ShipmentRecord {
     total?: number;
     created_at?: string;
     status?: string;
+    resolved_shipping_provider_kind?: string | null;
   };
   invoice?: {
     danfe_url: string | null;
@@ -107,7 +108,7 @@ export function ShipmentGenerator() {
         .from('shipments')
         .select<string, any>(`
           id, order_id, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
-          order:orders!inner(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status)
+          order:orders!inner(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
         .eq('delivery_status', 'draft' as any)
@@ -127,7 +128,11 @@ export function ShipmentGenerator() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as ShipmentRecord[];
+      // Excluir pedidos cuja transportadora resolvida é um gateway (ex: Frenet) — esses
+      // são sincronizados por integração e não passam pelo fluxo local de remessas.
+      return ((data || []) as ShipmentRecord[]).filter(
+        (s) => (s.order as any)?.resolved_shipping_provider_kind !== 'gateway'
+      );
     },
     enabled: !!currentTenant?.id,
   });
