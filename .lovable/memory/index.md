@@ -58,3 +58,4 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [AI Must Not Mention Price Unsolicited](mem://constraints/ai-must-not-mention-price-unsolicited) — Modo Vendas: preço só com pergunta direta ou em product_detail/checkout_assist.
 - [AI Must Not Swap Offered Bundle](mem://constraints/ai-must-not-swap-offered-bundle) — Modo Vendas: o que foi ofertado é o que vai pro carrinho; trocar por kit/combo sem perguntar é proibido.
 - [AI Product Detail Image Mandatory](mem://constraints/ai-product-detail-image-mandatory-on-first-mention) — Modo Vendas: send_product_image obrigatória na 1ª menção do produto em product_detail (1x/produto, respeitando 24h).
+- [AI Support Test Contact](mem://reference/ai-support-test-contact) — **PERMANENTE.** Contato fixo de teste da IA de atendimento WhatsApp: tenant `respeiteohomem`, número `73 991681425` (E.164 `5573991681425`). Usar sempre que o usuário pedir teste/limpeza sem especificar outro número.
