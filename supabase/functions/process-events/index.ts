@@ -623,7 +623,14 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Prepare template variables
+        // PHASE 4: Enrich payload with DB-derived context BEFORE rendering.
+        // The raw event (e.g. order.paid) does NOT carry product_names or
+        // store_name. We resolve them from `tenants` + `order_items` so that
+        // the strict template renderer downstream never blocks for those vars.
+        // Anti-regression: see mem://constraints/notification-template-render-contract
+        const enriched = await enrichOrderContext(supabase, event.tenant_id, orderId);
+
+        // Prepare template variables (raw payload first, enrichment WINS)
         const templateVars: Record<string, unknown> = {
           customer_name: customerName,
           customer_first_name: customerName.split(' ')[0] || customerName,
@@ -643,6 +650,13 @@ Deno.serve(async (req) => {
           review_link: reviewLink,
           products_review_links: productsReviewLinks,
         };
+
+        // Apply enrichment: only fill in fields that are still empty.
+        for (const [k, v] of Object.entries(enriched)) {
+          if (v && (!templateVars[k] || String(templateVars[k]).trim().length === 0)) {
+            templateVars[k] = v;
+          }
+        }
 
         // Process V2 channels
         const channels = rule.channels || [];
