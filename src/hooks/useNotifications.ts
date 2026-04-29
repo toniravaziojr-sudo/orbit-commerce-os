@@ -40,6 +40,8 @@ export interface NotificationAttempt {
   provider_response: Record<string, unknown> | null;
 }
 
+export type NotificationErrorCategory = 'render_blocked' | 'provider_error';
+
 export interface NotificationsFilter {
   status?: NotificationStatus[];
   channel?: string;
@@ -47,6 +49,8 @@ export interface NotificationsFilter {
   search?: string;
   startDate?: string;
   endDate?: string;
+  /** Sub-classifies status='failed' by inspecting last_error. */
+  errorCategory?: NotificationErrorCategory;
 }
 
 export interface NotificationsStats {
@@ -56,6 +60,10 @@ export interface NotificationsStats {
   sent: number;
   failed: number;
   canceled: number;
+  /** failed where last_error indicates blocked template render (variável faltando) */
+  blockedRender: number;
+  /** failed where last_error indicates an upstream provider error (SendGrid/Meta) */
+  providerError: number;
 }
 
 const PAGE_SIZE = 20;
