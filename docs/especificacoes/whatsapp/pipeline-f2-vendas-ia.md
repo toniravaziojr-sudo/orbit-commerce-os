@@ -3,6 +3,7 @@
 > Documento Layer 3. Define o comportamento funcional da pipeline conversacional
 > de vendas no canal WhatsApp quando `ai_support_config.sales_mode_enabled = true`.
 > Não substitui Layer 2 (regras macro, segurança, contratos transversais).
+> **Histórico de diagnósticos e correções:** ver `docs/especificacoes/whatsapp/ia-atendimento-changelog.md`
 > Não substitui Layer 4 (arquitetura ampla do agente IA).
 
 ## 1. Escopo

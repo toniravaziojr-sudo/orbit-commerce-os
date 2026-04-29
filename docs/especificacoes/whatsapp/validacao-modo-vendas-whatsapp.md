@@ -3,6 +3,7 @@
 > **Tenant alvo:** `respeite-o-homem` (id `d1a4d0ed-8842-495e-b741-540a9a345b25`)
 > **Fase:** 5 — encerramento de validação ponta a ponta
 > **Doc funcional:** `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md`
+> **Histórico de diagnósticos e correções:** ver `docs/especificacoes/whatsapp/ia-atendimento-changelog.md`
 > **Última revisão:** 2026-04-21
 
 ---

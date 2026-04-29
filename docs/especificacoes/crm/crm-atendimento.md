@@ -2,6 +2,7 @@
 
 > **STATUS:** ✅ Ready (Emails, Notificações, Atendimento WhatsApp com IA via OpenAI, Avaliações)  
 > **Última atualização:** 2026-03-29
+> **Histórico de diagnósticos e correções da IA de atendimento:** ver `docs/especificacoes/whatsapp/ia-atendimento-changelog.md`
 
 > **Camada:** Layer 3 — Especificações / Crm  
 > **Migrado de:** `docs/regras/crm.md`  

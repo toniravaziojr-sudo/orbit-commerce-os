@@ -3,6 +3,7 @@
 > **Camada:** Layer 3 — Especificação Funcional do Módulo
 > **Status:** Ativo (Fase 5 concluída e validada — 2026-04-21)
 > **Módulo pai:** AI Support / WhatsApp
+> **Histórico de diagnósticos e correções:** ver `docs/especificacoes/whatsapp/ia-atendimento-changelog.md`
 > **Fonte de verdade para:** comportamento da IA em modo vendas, regras de variantes/estoque, handoff comercial, funil de vendas WhatsApp, conformidade da janela de 24h, rastreabilidade carrinho ↔ pedido.
 
 ---
