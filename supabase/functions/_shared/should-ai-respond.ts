@@ -150,11 +150,15 @@ export async function shouldAiRespond(
       };
     }
 
-    // Estados em que humano está no controle ou conversa encerrada
+    // Estados em que humano está no controle (assigned_to já foi checado acima).
+    // IMPORTANTE: 'resolved' NÃO está aqui — encerrar conversa devolve para a IA.
+    // Se cliente voltar a falar após o encerramento, a IA deve reabrir e responder.
+    // O ai-support-chat (lado de quem invoca) é responsável por promover a
+    // conversa de volta para 'bot' antes de gerar resposta.
+    // 'spam' continua bloqueando (decisão explícita de não responder).
     const humanOwnedStatuses = new Set([
       "open",
       "waiting_customer",
-      "resolved",
       "spam",
     ]);
     if (

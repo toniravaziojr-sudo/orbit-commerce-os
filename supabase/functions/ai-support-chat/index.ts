@@ -2832,6 +2832,41 @@ Deno.serve(async (req) => {
       );
     }
 
+    // [Cérebro Regenerativo — Eixo 3] Reabertura automática de conversa encerrada.
+    // Se a conversa estava em 'resolved' e chegou nova mensagem do cliente,
+    // a IA reabre como 'bot' (encerrar conversa = devolver controle para a IA).
+    // Pré-requisito de segurança: assigned_to deve estar nulo (humano já soltou).
+    if (conversation.status === "resolved" && !conversation.assigned_to) {
+      const { error: reopenError } = await supabase
+        .from("conversations")
+        .update({
+          status: "bot",
+          resolved_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversation_id);
+      if (reopenError) {
+        console.warn(
+          `[ai-support-chat] Reabertura resolved->bot falhou: ${reopenError.message}`,
+        );
+      } else {
+        console.log(
+          `[ai-support-chat] Conversa ${conversation_id} reaberta (resolved -> bot) por nova mensagem do cliente.`,
+        );
+        await supabase.from("conversation_events").insert({
+          tenant_id,
+          conversation_id,
+          event_type: "status_changed",
+          actor_type: "system",
+          actor_name: "ai-support-chat:auto-reopen",
+          old_value: { status: "resolved" },
+          new_value: { status: "bot", reason: "customer_returned_after_resolve" },
+        });
+        conversation.status = "bot";
+        conversation.resolved_at = null;
+      }
+    }
+
     // [F1] Estado comercial atual (fonte de verdade: conversations.sales_state)
     const currentSalesState: SalesState = (conversation.sales_state as SalesState) || "greeting";
     const stateBefore: SalesState = currentSalesState;
