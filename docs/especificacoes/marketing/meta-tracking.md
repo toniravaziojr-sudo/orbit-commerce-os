@@ -1,9 +1,9 @@
 # Meta Tracking — Pixel + Conversions API (CAPI)
 
 > **Status:** 🟢 Ativo
-> **Versão:** 8.27.0
+> **Versão:** 8.28.0
 > **Camada:** Layer 3 — Especificações / Marketing
-> **Última atualização:** 2026-04-19
+> **Última atualização:** 2026-04-29
 > **Doc relacionado:** `docs/meta-tracking-changelog.md` (histórico de notas e cobertura)
 
 ---
@@ -146,6 +146,69 @@ A qualidade do match na Meta depende dos identificadores enviados em cada evento
 
 ---
 
+## Cofre de Identidade Cumulativo (`_sf_identity`) — v8.28.0
+
+**Problema resolvido:** parâmetros perdidos ao longo do funil. Lead alimentava email/phone, mas eventos posteriores (AddShippingInfo, AddPaymentInfo, Purchase) só tinham acesso ao que o componente atual conhecia. Resultado: score do Purchase ficava **abaixo** do score do Lead — o oposto do que deveria acontecer numa cadeia natural.
+
+### Princípio
+Todo PII coletado durante a sessão é **persistido já hashado SHA-256** em `localStorage._sf_identity` (TTL 30 dias). Cada novo evento de funil **mescla não-destrutivamente** os hashes guardados antes de despachar Pixel/CAPI. Como a fusão é `payload.X ?? stored.X`, dados explícitos do evento atual prevalecem; só completa o que estiver faltando.
+
+### Estrutura do cofre
+```
+_sf_identity = {
+  email_hashed?: string,
+  phone_hashed?: string,
+  first_name_hashed?: string,
+  last_name_hashed?: string,
+  city_hashed?: string,
+  state_hashed?: string,
+  zip_hashed?: string,
+  expires_at: number   // epoch ms (30 dias)
+}
+```
+
+### Pontos de captura (acumulam no cofre)
+| Evento | Campos gravados |
+|---|---|
+| `Lead` | email, phone, first_name, last_name |
+| `AddShippingInfo` | email, phone, first/last name, city, state, zip |
+| `AddPaymentInfo` | email, phone, first/last name, city, state, zip |
+| `Purchase` | tudo do checkout |
+
+### Pontos de leitura (mesclam do cofre)
+**Todos** os eventos CAPI (`PageView`, `ViewContent`, `AddToCart`, `InitiateCheckout`, ...). Inclusive o PageView do edge HTML mescla via inline script antes de despachar.
+
+### Backend — campos pré-hashados aceitos
+`supabase/functions/_shared/meta-capi-sender.ts` aceita os seguintes campos como **já hashados** (sem re-hash):
+- `email_hashed`, `phone_hashed`
+- `first_name_hashed`, `last_name_hashed`
+- `city_hashed`, `state_hashed`, `zip_hashed`
+
+> **🚫 Proibido enviar PII em texto puro do browser para esses campos.** Hashing acontece exclusivamente em `src/lib/visitorIdentity.ts` antes de gravar no cofre.
+
+**Implementação:**
+- Cofre: `src/lib/visitorIdentity.ts` (`storeIdentity`, `readIdentity`, `mergeIdentityIntoUserData`)
+- Mesclagem em todos os eventos: `src/lib/marketingTracker.ts` → `sendServerEvent`
+- Edge HTML: `supabase/functions/storefront-html/index.ts` (snippet inline lê `_sf_identity` antes do PageView)
+
+---
+
+## PageView Sincronizado com `_fbp` — v8.28.0 (Onda 6)
+
+**Problema resolvido:** mesmo com cookie sintético, em ambiente real o `fbq('init')` podia atrasar e o PageView do CAPI saía antes de o Pixel browser confirmar o `_fbp`. Resultado: PageView browser e PageView server divergiam no `fbp` → match imperfeito.
+
+### Solução
+O snippet do edge HTML agora **atrasa** `fbq('track', 'PageView')` e o CAPI PageView até o `_fbp` estar disponível, com polling de **250ms × 20 = 5s máximo**. Quando o cookie é detectado, marca `window._sfMetaReady = true` e dispara os dois canais com o mesmo `fbp`.
+
+### Garantias
+- Mesmo `event_id` em Pixel e CAPI (deduplicação Meta correta)
+- Mesmo `_fbp` nos dois lados (score consistente)
+- Fallback: se 5s passarem sem cookie, dispara mesmo assim (não bloqueia rastreamento)
+
+> **Regra futura:** qualquer novo evento iniciado pelo edge HTML antes do `_sfMetaReady=true` deve seguir o mesmo padrão de espera.
+
+---
+
 ## Tabela de Causas Comuns: Inflação Aparente vs Real
 
 Antes de afirmar "inflação de Purchase", validar os 3 pontos abaixo:
@@ -160,21 +223,51 @@ Antes de afirmar "inflação de Purchase", validar os 3 pontos abaixo:
 
 ---
 
-## Cobertura Mínima por Evento (meta operacional pós-v8.27.0)
+## Cobertura Mínima por Evento (meta operacional pós-v8.28.0)
 
-| Evento | `_fbp` | `_fbc` (quando há fbclid) | `client_ip_address` | `client_user_agent` | PII (`em`/`ph`) |
+A meta passou a ser **PII acumulada** em todos os eventos pós-Lead. A regra de ouro: **o score de cada evento deve ser maior ou igual ao do evento anterior na cadeia natural**.
+
+| Evento | `_fbp` | `_fbc` (quando há fbclid) | `client_ip_address` | `client_user_agent` | PII (`em`/`ph` + endereço) |
 |---|---|---|---|---|---|
-| PageView | ≥95% | ≥95% | 100% | 100% | Best-effort |
-| ViewCategory | ≥95% | ≥95% | 100% | 100% | Best-effort |
-| ViewContent | ≥95% | ≥95% | 100% | 100% | Best-effort* |
-| AddToCart | ≥95% | ≥95% | 100% | 100% | Best-effort* |
+| PageView | 100% (gated) | ≥95% | 100% | 100% | Best-effort¹ |
+| ViewCategory | ≥95% | ≥95% | 100% | 100% | Best-effort¹ |
+| ViewContent | ≥95% | ≥95% | 100% | 100% | Best-effort¹ |
+| AddToCart | ≥95% | ≥95% | 100% | 100% | Best-effort¹ |
 | InitiateCheckout | ≥95% | ≥95% | 100% | 100% | ≥80% |
-| Lead | 100% | ≥95% | 100% | 100% | 100% |
-| AddShippingInfo | 100% | ≥95% | 100% | 100% | 100% |
-| AddPaymentInfo | 100% | ≥95% | 100% | 100% | 100% |
-| Purchase | 100% | ≥95% | 100% | 100% | 100% |
+| Lead | 100% | ≥95% | 100% | 100% | 100% (em/ph/nome) |
+| AddShippingInfo | 100% | ≥95% | 100% | 100% | 100% (+ endereço) |
+| AddPaymentInfo | 100% | ≥95% | 100% | 100% | 100% (+ endereço) |
+| Purchase | 100% | ≥95% | 100% | 100% | 100% (cofre completo) |
 
-\* Dependente de o cliente ter passado em Lead/Purchase anteriormente na mesma sessão (PII hashed em `localStorage`).
+¹ Se o visitante já passou em Lead/Purchase em qualquer sessão dos últimos 30 dias, herda do cofre `_sf_identity`.
+
+---
+
+## Snapshot de Qualidade — 2026-04-29 (baseline pré-v8.28.0)
+
+Notas observadas no Gerenciador de Eventos da Meta no dia da entrega da v8.28.0 (servem como **linha de base** para comparar a próxima medição em 24-48h):
+
+| Evento | Score Pixel | Score CAPI | Observação |
+|---|---|---|---|
+| PageView | 6.5 | 6.5 | Maior cobertura de identificadores no funil |
+| Lead | 8.0 | 8.0 | Pico de PII no funil — referência mínima esperada para Purchase |
+| AddToCart | — | — | `_fbp` em 0% (race condition) — alvo prioritário da Onda 6 |
+| AddShippingInfo | 7.x | 7.x | PII parcial — alvo da Onda 5 |
+| AddPaymentInfo | 7.x | 7.x | PII parcial — alvo da Onda 5 |
+| Purchase | 7.5 | 7.5 | **Abaixo do Lead** — anomalia que motivou o plano |
+
+**Lacunas identificadas que motivaram a v8.28.0:**
+- `_fbp` em AddToCart: **0%**
+- `_fbp` em Purchase CAPI: **76%**
+- PII (nome/cidade/CEP) não chegava no Purchase mesmo tendo sido digitada no checkout
+- Cada evento coletava informações de forma independente, sem acumular
+
+**Meta da próxima medição (após 24-48h da v8.28.0):**
+- `_fbp` ≥95% em todos os eventos (incluindo PageView via gated, AddToCart via cookie sintético)
+- Score Purchase **≥** Score Lead (cadeia natural respeitada)
+- PII completa (em/ph/nome/cidade/UF/CEP) presente em AddShippingInfo, AddPaymentInfo e Purchase
+
+---
 
 ---
 
@@ -212,6 +305,7 @@ Antes de afirmar "inflação de Purchase", validar os 3 pontos abaixo:
 
 | Versão | Data | Resumo |
 |---|---|---|
+| **v8.28.0** | **2026-04-29** | **Cofre `_sf_identity` (PII hashada cumulativa, TTL 30d); backend aceita `first_name_hashed`/`last_name_hashed`/`city_hashed`/`state_hashed`/`zip_hashed`; PageView gated por `_fbp` (polling 5s); checkout passa `userData` completo em AddShippingInfo/AddPaymentInfo; invalidação de 89 prerenders ativos** |
 | v8.27.0 | 2026-04-19 | Persistência 30d do Purchase (`purchaseDedup.ts`); event_id normalizado; cookies sintéticos `_fbp`/`_fbc` no edge; `email_hashed`/`phone_hashed` em meio de funil |
 | v8.26.0 | 2026-04-15 | `client_ip_from_browser` priorizado sobre headers em CAPI |
 | v8.25.0 | 2026-04-10 | `waitForFbp` aumentado para 5s |
