@@ -6094,6 +6094,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // linha-base bater com o product_id do foco — protege contra associação
     // entre produtos diferentes da mesma família.
     if (nextProductFocus && typeof nextProductFocus === "object") {
+      const focusForLine = nextProductFocus as ProductFocus;
       try {
         for (let i = toolResultsThisTurn.length - 1; i >= 0; i--) {
           const snap = toolResultsThisTurn[i];
@@ -6106,9 +6107,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // OU se for um pack cuja base bate (verificável pela presença em
           // free_shipping_offers / paid_shipping_offers do mesmo sumário).
           const inLine =
-            summary.line_base_product_id === nextProductFocus.product_id ||
-            (summary.free_shipping_offers ?? []).some((o: any) => o.id === nextProductFocus.product_id) ||
-            (summary.paid_shipping_offers ?? []).some((o: any) => o.id === nextProductFocus.product_id);
+            summary.line_base_product_id === focusForLine.product_id ||
+            (summary.free_shipping_offers ?? []).some((o: any) => o.id === focusForLine.product_id) ||
+            (summary.paid_shipping_offers ?? []).some((o: any) => o.id === focusForLine.product_id);
           if (!inLine) continue;
           const offers = (summary.free_shipping_offers ?? []).map((o: any) => ({
             label: String(o.pack_label ?? (o.is_kit ? "pack" : "unidade")),
