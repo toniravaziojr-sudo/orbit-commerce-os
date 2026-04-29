@@ -4111,6 +4111,8 @@ Cliente: "vocês entregam em SP?"
           console.warn("[ai-support-chat] [Reg#2-3.6] consultative detector failed:", (e as Error).message);
         }
       }
+
+      const routed = buildPromptForState({
         state: pipelineState,
         allTools: SALES_TOOLS,
         tenant: {
