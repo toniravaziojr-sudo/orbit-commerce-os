@@ -145,7 +145,7 @@ Memórias a criar e indexar quando os blocos forem aplicados (cada uma vira 1 en
 2. Cada bloco aplicado abre seu próprio sub-registro abaixo (Reg. #2.1, #2.2, …) com o "antes/depois" e o link da memória criada.
 3. Quando todos os blocos estiverem aplicados e validados, o Registro #2 é fechado com o resumo final do "depois" e o `Mapa de qualidade atual` é atualizado.
 
-**Status do registro:** ⏳ Diagnóstico concluído · Blocos 1, 2 e 3 (parcial) aplicados em 29/abr/2026 · Blocos 3.3, 3.4, 3.6 pendentes · Validação final pendente.
+**Status do registro:** ⏳ Diagnóstico concluído · Blocos 1, 2, 3 (parcial), 3.3, 3.4 e 3.6 aplicados em 29/abr/2026 · Validação E2E pelo usuário pendente (refazer roteiro do cliente no canal de teste após limpeza do histórico).
 
 ---
 
