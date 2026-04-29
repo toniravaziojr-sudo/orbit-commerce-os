@@ -936,6 +936,18 @@ export class MarketingTracker {
     const eventId = generateEventId();
     const currency = shipping.currency || 'BRL';
 
+    // v8.28.0: Persist captured PII into the cofre (non-destructive merge).
+    if (shipping.userData) {
+      void storeIdentity({
+        email: shipping.userData.email,
+        phone: shipping.userData.phone,
+        name: shipping.userData.name,
+        city: shipping.userData.city,
+        state: shipping.userData.state,
+        zip: shipping.userData.zip,
+      });
+    }
+
     if (this.config.meta_enabled) {
       trackMetaEvent('AddShippingInfo', {
         content_ids: shipping.items.map(i => resolveMetaContentId(i)),
