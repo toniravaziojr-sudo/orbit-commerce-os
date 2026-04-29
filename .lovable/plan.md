@@ -1,162 +1,204 @@
-## 📋 Checklist de Conformidade
-- ✅ Doc de Regras lido (`.lovable/memory/constraints/meta-tracking-quality-strategy.md`, `purchase-event-emission-rules.md`)
-- ✅ Doc formal lido (`docs/especificacoes/marketing/meta-tracking.md` v8.27.0, `docs/meta-tracking-changelog.md`)
-- ✅ Fluxo identificado: emissão Pixel + CAPI ao longo do funil
-- ✅ Fonte de verdade: `marketingTracker.ts` (browser) + `meta-capi-sender.ts` (server) + `storefront-html` (Edge HTML)
-- ✅ Módulos impactados: storefront, checkout, edge tracking, edge sender
-- ✅ Impacto cruzado: Lead → Checkout (já existia falha), nenhum impacto em outros módulos
-- ✅ UI impactada? Não. mapa-ui.md não muda.
-- 📌 Situação: **Aguardando confirmação do usuário**
+
+# Plano revisado — Base genérica para gateways de frete (Frenet, Melhor Envio, SuperFrete, Intelipost…) + Roteamento por capacidade + DC-e + status "Atendido"
+
+Esta revisão consolida o que você pediu nas três rodadas anteriores e generaliza a base para qualquer gateway de frete futuro. **Não é um plano só para a Frenet** — a Frenet entra como o primeiro caso real de uso de uma arquitetura que já nasce pronta para Melhor Envio, SuperFrete, Intelipost e similares.
 
 ---
 
-## Diagnóstico medido em produção (respeite-o-homem, 48h)
+## 0. Diagnóstico do que já existe (auditado agora)
 
-```text
-Evento             total  fbp   fbc   email  phone  nome   city/uf/cep
-PageView            608   43%   22%    5%     5%    0%      0%
-ViewCategory        202    0%   17%    5%     5%    0%      0%
-ViewContent          89    1%   10%    2%     2%    0%      0%
-AddToCart            26    0%    4%    0%     0%    0%      0%
-InitiateCheckout     34   47%   23%    0%     0%    0%      0%
-Lead                 22  100%   50%  100%   100%  100%      0%
-AddShippingInfo      17  100%   47%    0%     0%    0%      0%
-AddPaymentInfo       13  100%   46%    0%     0%    0%      0%
-Purchase             17   76%   35%  100%   100%  100%    100%
-```
+- A tabela `shipping_providers` **já tem** os campos `supports_quote` e `supports_tracking`.
+- Os toggles **já estão na UI** (`CarrierConfigDialog.tsx`, `ShippingCarrierSettings.tsx`) e **já gravam** no banco.
+- O `shipping-quote` **já filtra** por `supports_quote`.
+- O `tracking-poll` **já filtra** por `supports_tracking`.
+- O que **não existe ainda**: classificação `gateway × contrato × manual`, regras de roteamento por capacidade, fila de sincronização para gateways, DC-e, status "Atendido" e badge na Central de Execuções.
 
-Comparado às metas oficiais da doc v8.27.0 (`≥95%` em fbp e PII), só Purchase está aderente. Há **6 lacunas reais**.
-
-## Como funciona hoje
-
-- "Memória" do funil só existe via `_sf_am_em` e `_sf_am_ph` (email/phone hash em localStorage).
-- Essa memória **só é gravada no Purchase** — depois que o pedido fechou. O usuário só ganha enriquecimento na próxima sessão.
-- Edge HTML (`storefront-html`) lê `_sf_am_*` do localStorage; SPA tracker idem.
-- Backend (`meta-capi-sender`) só aceita pré-hash de **email e phone**. Para nome/city/uf/cep ele exige texto plano e hasheia.
-- Lead, AddShippingInfo, AddPaymentInfo passam PII no momento do disparo, mas **não a persistem** para os eventos seguintes.
-- AddShippingInfo e AddPaymentInfo são chamados sem `userData` no `CheckoutStepWizard`, mesmo com `formData` cheio.
-- AddToCart dispara antes do `_fbp` existir (cobertura 0%).
-- Edge HTML PageView dispara antes do Pixel injetar `_fbp` (cobertura 43%).
-
-## As 6 lacunas que explicam as quedas
-
-1. **Lead não persiste a PII capturada** para os eventos seguintes na mesma sessão.
-2. **`CheckoutStepWizard` não passa `userData` em AddShippingInfo/AddPaymentInfo**, mesmo tendo todos os dados em `formData`.
-3. **Backend não aceita pré-hash para nome/cidade/UF/CEP** — só email/phone — então não dá para enriquecer eventos pré-Purchase com endereço sem reescrever o backend.
-4. **Endereço (city/state/zip) nunca é persistido** para sessão seguinte.
-5. **AddToCart dispara antes do `_fbp` carregar** (`waitForFbp` configurado para 3s, mas o evento sai imediatamente no clique).
-6. **Edge HTML PageView dispara sem aguardar o Pixel injetar `_fbp`** (`_sfMetaReady` existe mas não é usado como gate).
-
-## O que eu faria — plano em 5 ondas (sem regressão)
-
-Regra anti-regressão central: **acumular, nunca substituir**. Merge sempre não-destrutivo (`payload.X ?? stored.X`). Nenhum evento perde parâmetro existente.
-
-### Onda 1 — Estender backend para aceitar pré-hash de TODA a PII
-Em `supabase/functions/_shared/meta-capi-sender.ts` (`MetaUserData` + `buildHashedUserData`), adicionar campos pré-hashed para todos os atributos de identidade, espelhando o padrão já existente de `email_hashed`/`phone_hashed`:
-- `first_name_hashed`, `last_name_hashed`, `city_hashed`, `state_hashed`, `zip_hashed`, `country_hashed`
-
-Comportamento: se `_hashed` vier preenchido, usar direto (sem re-hashear). Se vier o campo plano, usa o caminho atual. Total compatibilidade retroativa — nada que já funciona é alterado.
-
-Em `marketing-capi-track/index.ts` (interface `TrackRequest.user_data`), aceitar e repassar esses campos novos.
-
-> ⚠️ **Por que isso é necessário:** sem pré-hash no client, eu teria que persistir nome/endereço em texto plano em `localStorage`, o que viola privacidade e LGPD. Pré-hashar no client e passar `_hashed` ao backend é a única solução segura.
-
-### Onda 2 — Cofre de identidade persistente no client (`_sf_identity`)
-Em `src/lib/visitorIdentity.ts`, adicionar:
-- `storeIdentity(partial: { email?, phone?, firstName?, lastName?, city?, state?, zip? })` — recebe valores em **texto plano**, hasheia (SHA-256, lowercase, trim) e grava em `localStorage._sf_identity`. Merge não-destrutivo (campos existentes nunca são apagados; só atualizados se o novo valor for diferente).
-- `getStoredIdentity()` — retorna `{ em_hash, ph_hash, fn_hash, ln_hash, ct_hash, st_hash, zp_hash }` se existirem.
-- TTL: 30 dias (mesmo padrão do `purchaseDedup`).
-
-Compatibilidade: `_sf_am_em` e `_sf_am_ph` continuam sendo gravados em paralelo (Edge HTML inline ainda lê eles). Zero regressão no caminho do Edge.
-
-### Onda 3 — Pontos de captura passam a alimentar o cofre
-Em `src/lib/marketingTracker.ts`:
-- **`trackLead`**: chamar `storeIdentity({ email, phone, firstName, lastName })` ANTES do `sendCapi`.
-- **`trackAddShippingInfo`**: chamar `storeIdentity({ email, phone, firstName, lastName, city, state, zip })`.
-- **`trackAddPaymentInfo`**: idem.
-- **`trackPurchase`**: substituir `storeAdvancedMatchingData` por `storeIdentity(...)` completo (mantém `_sf_am_em`/`_sf_am_ph` como side-effect para compat com Edge HTML).
-
-Resultado: a partir do momento em que o usuário entrega cada dado, **todos os eventos seguintes na mesma sessão e nos próximos 30 dias herdam aquele dado**.
-
-### Onda 4 — Cada CAPI lê o cofre e injeta o que faltar (acumulação real)
-Em `src/lib/marketingTracker.ts → sendServerEvent`, antes de montar o body:
-1. Ler `getStoredIdentity()`.
-2. Para cada campo do cofre, injetar no `user_data` **somente se o evento não já tiver explicitamente aquele campo** (merge não-destrutivo).
-3. Mapear cofre → payload: `em_hash → email_hashed`, `ph_hash → phone_hashed`, `fn_hash → first_name_hashed`, `ln_hash → last_name_hashed`, `ct_hash → city_hashed`, `st_hash → state_hashed`, `zp_hash → zip_hashed`.
-
-No Edge HTML (`storefront-html → _sfGetAM`):
-- Expandir para ler também `_sf_identity` e mesclar todos os campos.
-- Mesmo princípio: só adiciona o que não veio explicitamente.
-
-### Onda 5 — `CheckoutStepWizard` passa `userData` que já tem
-- Linha 616: `trackAddShippingInfo(shipping.selected.label)` → `trackAddShippingInfo(shipping.selected.label, { email: formData.customerEmail, phone: formData.customerPhone, name: formData.customerName, city: formData.shippingCity, state: formData.shippingState, zip: formData.shippingPostalCode })`.
-- Linha 728: `trackAddPaymentInfo(paymentMethod)` → `trackAddPaymentInfo(paymentMethod, { mesmos campos })`.
-
-Trivial — todos os campos já estão em `formData`. Sem isso, a Onda 3 não tem o que gravar nesses pontos.
-
-### Onda 6 — Endurecer captura de `_fbp`
-- **AddToCart e ViewContent (SPA)**: usar `waitForFbp(5000)` (já é o timeout máximo no código atual; AddToCart hoje cai para 3s). Como o tracking é fire-and-forget com `keepalive`, não há custo de UX.
-- **Edge HTML inline (`_sfCapi`)**: aumentar poll de 12 para 20 ticks (5s).
-- **Edge HTML PageView**: gate na flag `window._sfMetaReady` — disparar PageView só após Pixel injetar (já existe a flag em `loadMeta`, mas o `_sfCapi('PageView')` é chamado dentro do `loadMeta` ANTES do `_sfMetaReady=true`; trocar a ordem para Pixel injetar primeiro, esperar 1 tick, então disparar PageView).
-
-Ganho esperado: PageView 43% → ~90%, AddToCart 0% → ~85%, ViewContent 1% → ~85%.
-
-## Resultado final esperado
-
-```text
-Evento             fbp     PII (em+ph+fn+ln)   Endereço (ct+st+zp)
-PageView           ~90%    herdado se houver    herdado se houver
-ViewCategory       ~90%    herdado              herdado
-ViewContent        ~90%    herdado              herdado
-AddToCart          ~85%    herdado              herdado
-InitiateCheckout   ~95%    herdado              herdado
-Lead               100%    100%                 0% (ainda não tem)
-AddShippingInfo    100%    100%                 100% ← passa a passar userData
-AddPaymentInfo     100%    100%                 100% ← passa a passar userData
-Purchase           ~95%    100%                 100% ← _fbp sobrevive ao redirect
-```
-
-Score Match Quality projetado: PageView 6.5 → ~9; meio de funil 4.9 → ~8.5; Purchase 9.1 → 9.5+.
-
-## Garantias de segurança e zero-regressão
-
-1. **Privacidade**: `localStorage._sf_identity` armazena APENAS hashes SHA-256. Texto plano nunca persiste no client.
-2. **Compat retroativa do backend**: campos `_hashed` novos são opcionais. Se o cliente atual não os enviar, o caminho de PII em texto plano segue funcionando intocado.
-3. **Compat do Edge HTML**: `_sf_am_em` e `_sf_am_ph` continuam gravados em paralelo; `_sfGetAM` só ganha capacidade adicional de ler `_sf_identity`. Páginas servidas por Edge antigo (cache) continuam funcionando.
-4. **Merge não-destrutivo em 3 camadas**: client (sendServerEvent), Edge (`_sfCapi`), backend (`buildHashedUserData` já prefere `_hashed` antes do plano). Em nenhuma camada um valor explícito é substituído por valor herdado.
-5. **Validação técnica obrigatória pós-deploy**: query no `marketing_events_log` 24h depois confirmando: (a) cobertura de email/phone em ViewContent/AddToCart subiu de 2% para ≥80%; (b) cobertura de fbp subiu para ≥85% em todos eventos; (c) nenhum evento perdeu cobertura de campo que tinha antes (especialmente `external_id`, `client_ip_address`, `client_user_agent` — devem manter 100%).
-6. **Rollout**: deploy único (são alterações coordenadas; faseamento aumenta risco de inconsistência entre client e backend). Janela de monitoramento de 24h com query automática de cobertura.
-
-## Documentação a atualizar (na mesma entrega)
-
-- `docs/especificacoes/marketing/meta-tracking.md` → nova **Técnica 5 — Cofre de Identidade Persistente do Visitante**; tabela de cobertura mínima atualizada para refletir herança via cofre; bump v8.28.0.
-- `docs/meta-tracking-changelog.md` → entrada v8.28.0 com diagnóstico (números) + lacunas + correções aplicadas.
-- `.lovable/memory/constraints/meta-tracking-quality-strategy.md` → adicionar **Regra 6 — Cofre de identidade persistente** e **Regra 7 — Acumulação não-destrutiva ao longo do funil** (PII de uma etapa enriquece todas as seguintes; merge nunca sobrescreve valor explícito).
-- Indexar nova memória em `mem://index.md`.
-
-## É isso? Confirma que eu executo as 6 ondas em entrega única coordenada?
-
-Posso fazer:
-- **Opção A (recomendada):** as 6 ondas em uma entrega única + monitoramento 24h. É coerente porque as 4 primeiras dependem umas das outras (backend precisa aceitar `_hashed` ANTES do client começar a mandar; senão Meta recebe campo desconhecido).
-- **Opção B (mais conservadora):** primeiro Onda 1 (backend só) e validar 24h sem ninguém usando. Depois Ondas 2–6 juntas. Adiciona 24h ao cronograma mas isola risco de schema.
-
-Qual opção?
+Ou seja: a base de capacidades já está lá. Falta usá-la para **decidir o destino operacional** de cada pedido e para **excluir gateways do fluxo de remessa local**.
 
 ---
 
-### Bloco técnico (referência)
+## 1. Tipo de provedor (genérico, serve para qualquer transportadora)
 
-**Arquivos impactados:**
-- `supabase/functions/_shared/meta-capi-sender.ts` — `MetaUserData` ganha 6 campos `_hashed`; `buildHashedUserData` prefere `_hashed` quando presente.
-- `supabase/functions/marketing-capi-track/index.ts` — `TrackRequest.user_data` aceita os 6 campos novos; passa adiante para o sender.
-- `src/lib/visitorIdentity.ts` — `storeIdentity`, `getStoredIdentity`, `clearStaleIdentity`, helpers de hash SHA-256.
-- `src/lib/marketingTracker.ts` — `sendServerEvent` mescla cofre; `trackLead`/`trackAddShippingInfo`/`trackAddPaymentInfo`/`trackPurchase` chamam `storeIdentity`; `waitForFbp` recebe override por evento.
-- `src/components/storefront/checkout/CheckoutStepWizard.tsx` — passa `userData` em AddShippingInfo (linha ~616) e AddPaymentInfo (linha ~728).
-- `supabase/functions/storefront-html/index.ts` — `_sfGetAM` lê `_sf_identity` e devolve TODOS os hashes; PageView gateado em `_sfMetaReady`; poll `_fbp` 5s.
+Adicionar à `shipping_providers`:
 
-**Anti-regressão (testes manuais pós-deploy):**
-- Visitante novo: PageView dispara, sem PII (correto). Adiciona ao carrinho — AddToCart dispara com fbp ✅.
-- Visitante completa Lead — todos eventos seguintes carregam email/phone/nome ✅.
-- Visitante completa AddShippingInfo — todos eventos seguintes carregam endereço ✅.
-- Visitante volta 3 dias depois (mesmo navegador) — PageView já sai com email/phone/nome/endereço herdados ✅.
-- Pedido Pagar.me hospedado: redirect ida e volta — Purchase dispara com `_fbp` (sobreviveu via cookie first-party) e PII (sobreviveu via `_sf_identity` em localStorage) ✅.
+- `provider_kind` enum:
+  - `gateway` — agregador externo que recebe o pedido por API e devolve etiqueta/tracking pelo painel próprio (Frenet, Melhor Envio, SuperFrete, Intelipost…).
+  - `contract` — contrato direto onde o sistema gera etiqueta/romaneio localmente (Correios, Loggi direto, Jadlog direto…).
+  - `manual` — sem integração; lojista informa rastreio na mão.
+- `gateway_capabilities` jsonb (opcional) — flags por gateway: `accepts_invoice_key`, `accepts_dce`, `supports_webhook_tracking`, `supports_label_download`. Permite a UI ligar/desligar botões sem escrever código novo a cada novo gateway.
+
+Seed inicial:
+- Frenet → `gateway`, aceita NF-e e DC-e, suporta webhook.
+- Correios, Loggi, Jadlog (quando integrado direto) → `contract`.
+- "Frete por terceiros" → `manual`.
+
+---
+
+## 2. Capacidades (já existem) — definição final do que cada uma significa
+
+| `supports_quote` | `supports_tracking` | Habilitado para |
+|---|---|---|
+| ✅ | ✅ | Receber pedidos roteados pela escolha do cliente; executar fluxo operacional completo (remessa local se `contract`, sync se `gateway`). |
+| ❌ | ✅ | Receber pedidos por **herança de rastreamento** (ver regra 3.4). |
+| ✅ | ❌ | Apenas calcular frete na vitrine. Caso especial 3.3. |
+| ❌ | ❌ | Inativo operacionalmente. |
+
+Os toggles continuam no card de cada integração, com tooltip explicando o efeito.
+
+---
+
+## 3. Regras de roteamento (genéricas — valem para qualquer combinação de integrações)
+
+Aplicadas no momento em que o pedido é confirmado/pago, por uma função SQL única `resolve_order_shipping_provider(order_id)`:
+
+1. **Há frete escolhido pelo cliente** (checkout, link de checkout, pedido manual com transportadora informada): a integração responsável é a que oferta aquele serviço **e está ativa**.
+2. **Mais de uma integração com Cotação+Rastreamento ativos**: cada pedido segue para a integração escolhida pelo cliente. Sem ambiguidade.
+3. **Só uma integração ativa, e ela tem apenas Cotação (sem Rastreamento em ninguém)**: a integração assume o pedido, mas:
+   - Não gera remessa local nem sincroniza tracking.
+   - Permite emitir NF-e e/ou DC-e normalmente.
+   - Aciona um **badge dispensável** na Central de Execuções: "Ative Rastreamento em alguma integração de frete para destravar remessas e tracking." Reaparece a cada novo pedido nesse cenário.
+4. **A integração escolhida pelo cliente não tem Rastreamento, mas existe outra com Rastreamento ativo**: o pedido herda essa segunda integração apenas para fins de remessa/tracking.
+5. **Pedido manual sem frete selecionado**: bloqueado na UI. Lojista é obrigado a escolher transportadora + serviço **ou** marcar "Frete por terceiros" (vai direto para fiscal, sem remessa nem rastreio).
+6. **Marketplace**: nunca entra em logística. Vai só para fiscal e devolve a chave da NF-e ao marketplace.
+7. **Importado (histórico)**: fora de logística e fiscal. Aparece só em Pedidos/Relatórios.
+8. **Link de checkout**: meio de envio é obrigatório no momento da criação do link.
+
+A função grava em `orders`:
+- `resolved_shipping_provider_id`
+- `resolved_shipping_provider_kind` (`gateway`/`contract`/`manual`)
+- `resolved_shipping_reason` (`customer_choice` | `tracking_inheritance` | `single_active` | `manual_third_party` | `marketplace`)
+
+---
+
+## 4. Separação operacional (resolve a sua dor: "gateway não deve aparecer em remessas")
+
+- **Provedor `contract`** → entra em `shipping_draft_queue` → vira remessa local → aparece na aba **Remessas** do módulo Logística.
+- **Provedor `gateway`** → entra em `gateway_sync_queue` → não aparece em Remessas → aparece apenas em:
+  - **Pedidos** (com selo "Frenet/Melhor Envio/…")
+  - **Fiscal → Pedidos** (para emitir NF-e ou DC-e)
+  - **Logística → Rastreamento** (status vindo do gateway via webhook ou polling)
+- **Provedor `manual` / Frete por terceiros** → não entra em remessa nem em sync. Vai direto para fiscal.
+
+A trigger `enqueue_fiscal_draft` é atualizada para fazer esse roteamento; o trigger paralelo de logística passa a checar `provider_kind` e só enfileira em `shipping_draft_queue` quando for `contract`.
+
+---
+
+## 5. Pipeline genérico de gateway (reaproveitável)
+
+Em vez de criar funções com nome "frenet-…", a base é genérica:
+
+- **Edge function `gateway-sync-order`** — recebe `(order_id, provider_id)`, despacha para o adapter do gateway correspondente (`frenetAdapter`, `melhorEnvioAdapter`, `superFreteAdapter`, …) sob `supabase/functions/_shared/shipping-gateways/`.
+- **Edge function `gateway-attach-fiscal-doc`** — anexa NF-e ou DC-e autorizada ao pedido no gateway. Mesmo despacho por adapter.
+- **Edge function `gateway-webhook`** — endpoint único `/functions/v1/gateway-webhook/{provider}` que valida assinatura/IP do gateway e atualiza o pedido (status, tracking, etiqueta).
+- **Tabela `gateway_sync_queue`** — fila genérica `(id, tenant_id, order_id, provider_id, action, status, attempts, last_error, payload, processed_at)` com `action` em `sync_order | attach_invoice | attach_dce | request_label`.
+
+Cada novo gateway no futuro = um novo arquivo de adapter + uma linha no seed. Zero alteração no resto da arquitetura.
+
+---
+
+## 6. Fiscal: NF-e e DC-e
+
+- **DC-e (Declaração de Conteúdo Eletrônica)** via Nuvem Fiscal: nova tabela `fiscal_dce` espelhando `fiscal_invoices`, edge function `dce-emit`.
+- Aba **Notas Fiscais** ganha duas ações em massa:
+  - "Emitir Declaração de Conteúdo"
+  - "Enviar ao gateway de frete" (rótulo dinâmico — "Enviar à Frenet", "Enviar ao Melhor Envio" — conforme `resolved_shipping_provider`). Disponível apenas para pedidos `gateway` com NF-e ou DC-e autorizada.
+- Emitir NF-e **ou** DC-e move o pedido para o status `fulfilled` ("Atendido").
+
+---
+
+## 7. Status novo: "Atendido" (`fulfilled`)
+
+```text
+Pago → Atendido (NF-e ou DC-e emitida) → Enviado → Entregue
+```
+
+- Adicionado ao enum `OrderStatus` e a todas as listas/filtros (Pedidos, Fiscal, Logística).
+- Aba **"Pedidos em Aberto"** dentro do Fiscal renomeada para **"Pedidos"**: lista pagos + atendidos ainda não enviados, com ações em massa de NF-e, DC-e e (quando aplicável) Sincronizar com gateway.
+- Selo de cor própria, distinto de "Pago" e "Enviado".
+
+---
+
+## 8. Central de Execuções
+
+Três famílias novas de aviso:
+
+1. Badge dispensável "Ative Rastreamento em uma integração de frete" (cenário 3.3).
+2. Falha ao sincronizar pedido com o gateway (com retry e link para o pedido).
+3. Falha ao anexar NF-e/DC-e no gateway.
+
+Todos com texto dinâmico pelo nome do gateway envolvido.
+
+---
+
+## 9. UI/UX — checagem completa, lacunas que faltavam no plano anterior
+
+- **Configurações → Integrações de Frete**:
+  - Toggles Cotação/Rastreamento já existem; adicionar **tooltip explicando a matriz** de combinações.
+  - Adicionar selo visual do `provider_kind` no card ("Gateway" / "Contrato" / "Manual").
+  - Validação: se o tenant tiver só uma integração com Cotação ligada e Rastreamento desligado em todas, mostrar inline-warning idêntico ao da Central.
+- **Pedidos (lista)**:
+  - Nova coluna/etiqueta de status "Atendido".
+  - Badge "Sincronizado com [gateway]" para pedidos `gateway`.
+  - Filtros atualizados (status + tipo de provedor).
+- **Pedido manual (criação)**:
+  - Campo Transportadora + Serviço **obrigatórios**, com opção "Frete por terceiros".
+- **Link de checkout (criação)**:
+  - Meio de envio **obrigatório**.
+- **Fiscal → Pedidos** (aba renomeada):
+  - Ações em massa: "Emitir NF-e", "Emitir Declaração", "Enviar ao gateway".
+  - Filtro adicional por tipo de provedor.
+- **Fiscal → Notas Fiscais**:
+  - Ação em massa "Enviar ao gateway de frete" (visível só quando há pedidos `gateway` selecionados).
+- **Logística → Remessas**:
+  - **Filtra automaticamente fora todos os pedidos `gateway` e `manual`**. Banner explicativo no topo: "Pedidos de gateways de frete (Frenet, Melhor Envio…) são gerenciados no painel da própria plataforma. Veja-os em Rastreamento."
+- **Logística → Rastreamento**:
+  - Mostra todos. Cada linha indica a origem do status (gateway/contrato/manual).
+  - Pedidos `gateway` ganham botão "Abrir no painel [gateway]".
+- **Central de Execuções**:
+  - Cards descritos no item 8.
+
+---
+
+## 10. Backend — resumo objetivo
+
+- Migrações: `provider_kind`, `gateway_capabilities`, novos campos em `orders`, tabelas `fiscal_dce` e `gateway_sync_queue`, novo valor `fulfilled` no enum de status.
+- Função SQL: `resolve_order_shipping_provider(order_id)` — implementa item 3.
+- Triggers atualizados: `enqueue_fiscal_draft` chama o resolver e roteia para `shipping_draft_queue` ou `gateway_sync_queue` conforme `provider_kind`.
+- Edge functions novas (genéricas): `gateway-sync-order`, `gateway-attach-fiscal-doc`, `gateway-webhook`, `dce-emit`.
+- `_shared/shipping-gateways/` com `frenetAdapter.ts` (única implementação real agora) + interface `IShippingGatewayAdapter` documentada para futuros gateways.
+- `tracking-poll` passa a ignorar pedidos `gateway` (eles recebem status por webhook).
+
+---
+
+## 11. Documentação a atualizar (na mesma entrega — obrigatório)
+
+- `docs/especificacoes/erp/logistica.md` — `provider_kind`, matriz de capacidades, regras de roteamento, separação Remessas vs Rastreamento, pipeline genérico de gateway.
+- `docs/especificacoes/erp/erp-fiscal.md` — DC-e, status "Atendido", ação "Enviar ao gateway".
+- `docs/especificacoes/ecommerce/pedidos.md` — novo status, obrigatoriedade de frete em manual e link, marketplaces e importados fora da logística.
+- Novo `docs/especificacoes/erp/integracoes-frete.md` — padrão de adapter para futuros gateways.
+- `docs/especificacoes/transversais/mapa-ui.md` — renomeação de aba, badges, novos botões.
+- Memórias novas:
+  - `mem://constraints/shipping-provider-capability-routing` — regras do item 3.
+  - `mem://features/logistics/gateway-vs-contract-providers` — separação operacional + pipeline genérico.
+  - `mem://features/fiscal/dce-issuance-standard` — fluxo DC-e e status "Atendido".
+
+---
+
+## 12. Rollout
+
+1. Migrações + seed (Frenet=`gateway`, Correios/Loggi=`contract`).
+2. Backend em modo "shadow" 24h no tenant `respeiteohomem` (grava classificação e fila, mas não atua).
+3. Ativação real para `respeiteohomem`, monitorada na Central de Execuções.
+4. Liberação geral.
+5. Docs e memórias atualizadas na mesma entrega.
+
+---
+
+**Resumo do que mudou em relação ao plano anterior:**
+- Arquitetura **genérica** de gateways (adapter + fila + webhook único), não mais centrada na Frenet.
+- Aproveitamento de `supports_quote` e `supports_tracking` que **já existem** no banco e na UI.
+- Função SQL única `resolve_order_shipping_provider` como fonte de verdade do roteamento.
+- UI ganha selo de `provider_kind`, banner em Remessas, botão "Abrir no painel do gateway", validação inline em Configurações.
+- Rótulos dinâmicos dos botões pelo nome do gateway.
+
+**Confirma esse plano para eu sair do modo plano e implementar?**
