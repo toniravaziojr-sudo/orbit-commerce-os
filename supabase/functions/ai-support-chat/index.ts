@@ -3724,6 +3724,38 @@ Cliente: "vocês entregam em SP?"
 
     const preTransitionProductHint: string[] = await productHintPromise;
 
+    // [Reg #2.8] Turn Pre-Router (TPR) — classificação estruturada do turno
+    // via LLM curta (Gemini Flash-Lite). É a fonte única de verdade para
+    // greeting mirror, price scrubber e catalog probe. Disparado em paralelo
+    // ao restante do bootstrap; com timeout curto e fallback regex.
+    let turnClassification: TurnClassification;
+    if (salesModeEnabled && lastMessageContent && lastMessageContent.trim().length > 0) {
+      try {
+        turnClassification = await classifyTurn({
+          customerMessage: lastMessageContent,
+          recentHistory: (messages || []).slice(-6).map((m: any) => ({
+            role: m.role === "user" ? "user" : "assistant",
+            content: String(m.content || "").slice(0, 400),
+          })),
+          hasMediaAttachment: !!(messages || []).slice(-1)[0]?.attachments?.length,
+          productNamesHint: preTransitionProductHint,
+          timeoutMs: 3500,
+        });
+        console.log(
+          `[ai-support-chat] [Reg #2.8] TPR source=${turnClassification.source} latency=${turnClassification.latency_ms}ms ` +
+          `pure_greeting=${turnClassification.is_pure_greeting} consultative=${turnClassification.is_consultative_turn} ` +
+          `broaden_pain=${turnClassification.should_broaden_catalog_for_pain} asked_price=${turnClassification.asked_about_price} ` +
+          `family=${turnClassification.mentioned_product_family ?? "none"} purchase_intent=${turnClassification.confirmed_purchase_intent}` +
+          (turnClassification.raw_error ? ` err=${turnClassification.raw_error}` : "")
+        );
+      } catch (e) {
+        console.warn("[ai-support-chat] [Reg #2.8] TPR threw, using regex fallback:", (e as Error).message);
+        turnClassification = fallbackClassification(lastMessageContent, false);
+      }
+    } else {
+      turnClassification = fallbackClassification(lastMessageContent || "", false);
+    }
+
     const mentionedProductNameBefore = extractMentionedProductName(lastMessageContent || "", preTransitionProductHint);
     const familyMentionedBefore = detectFamilyMentioned(lastMessageContent || "");
     const isInformationalProductQuestionCurrentTurn =
