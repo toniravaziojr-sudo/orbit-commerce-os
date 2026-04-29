@@ -632,6 +632,10 @@ Deno.serve(async (req) => {
 
         // Prepare template variables (raw payload first, enrichment WINS)
         const templateVars: Record<string, unknown> = {
+          // Internal context — NOT used in templates, but persisted to enable
+          // safety-net re-enrichment in run-notifications. See
+          // mem://constraints/notification-template-render-contract
+          order_id: orderId || '',
           customer_name: customerName,
           customer_first_name: customerName.split(' ')[0] || customerName,
           customer_email: customerEmail,
