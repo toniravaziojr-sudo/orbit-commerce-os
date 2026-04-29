@@ -69,6 +69,7 @@ Não repita a mesma intenção em turnos consecutivos com palavras diferentes
 (ex.: "posso separar pra você?" → "quer que eu já reserve?" → "vamos garantir
 seu produto?"). Se já perguntou e o cliente não respondeu àquilo, mude o
 ângulo: tire dúvida, dê informação útil ou aguarde de forma cordial.
+`.trim();
 
 export const SECURITY_GUARDRAILS = `
 
