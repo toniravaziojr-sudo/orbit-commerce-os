@@ -55,29 +55,39 @@ export async function enrichOrderContext(
   orderId: string | null,
 ): Promise<EnrichedContext> {
   const out: EnrichedContext = {};
+  const tag = `[enrich-order-context tenant=${tenantId} order=${orderId ?? 'none'}]`;
 
   // Tenant (store_name) — always try, even without orderId
   try {
-    const { data: tenant } = await supabase
+    const { data: tenant, error } = await supabase
       .from("tenants")
       .select("name, slug")
       .eq("id", tenantId)
       .maybeSingle();
+    if (error) console.error(`${tag} tenant query error:`, error.message);
     const storeName = (tenant?.name ?? tenant?.slug ?? "").toString().trim();
-    if (storeName) out.store_name = storeName;
-  } catch (_err) {
-    // swallow — enrichment is best-effort
+    if (storeName) {
+      out.store_name = storeName;
+    } else {
+      console.warn(`${tag} tenant resolved but store_name empty (name=${tenant?.name}, slug=${tenant?.slug})`);
+    }
+  } catch (err) {
+    console.error(`${tag} tenant fetch threw:`, err instanceof Error ? err.message : err);
   }
 
-  if (!orderId) return out;
+  if (!orderId) {
+    console.log(`${tag} no orderId — returning early with`, out);
+    return out;
+  }
 
   // Order header — fallback for order_number / order_total
   try {
-    const { data: order } = await supabase
+    const { data: order, error } = await supabase
       .from("orders")
       .select("order_number, total, customer_name")
       .eq("id", orderId)
       .maybeSingle();
+    if (error) console.error(`${tag} order query error:`, error.message);
     if (order) {
       if (order.order_number != null && String(order.order_number).trim().length > 0) {
         out.order_number = String(order.order_number).trim();
@@ -90,22 +100,30 @@ export async function enrichOrderContext(
       }
       const fullName = (order.customer_name ?? "").toString().trim();
       if (fullName) out.customer_first_name = fullName.split(/\s+/)[0];
+    } else {
+      console.warn(`${tag} order not found in DB`);
     }
-  } catch (_err) {
-    // swallow
+  } catch (err) {
+    console.error(`${tag} order fetch threw:`, err instanceof Error ? err.message : err);
   }
 
   // Order items (product_names)
   try {
-    const { data: items } = await supabase
+    const { data: items, error } = await supabase
       .from("order_items")
       .select("product_name, quantity")
       .eq("order_id", orderId);
+    if (error) console.error(`${tag} items query error:`, error.message);
     const formatted = formatProductNames(items ?? []);
-    if (formatted) out.product_names = formatted;
-  } catch (_err) {
-    // swallow
+    if (formatted) {
+      out.product_names = formatted;
+    } else {
+      console.warn(`${tag} order_items returned ${items?.length ?? 0} rows but product_names empty`);
+    }
+  } catch (err) {
+    console.error(`${tag} items fetch threw:`, err instanceof Error ? err.message : err);
   }
 
+  console.log(`${tag} resolved →`, out);
   return out;
 }

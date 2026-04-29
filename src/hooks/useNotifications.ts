@@ -40,6 +40,8 @@ export interface NotificationAttempt {
   provider_response: Record<string, unknown> | null;
 }
 
+export type NotificationErrorCategory = 'render_blocked' | 'provider_error';
+
 export interface NotificationsFilter {
   status?: NotificationStatus[];
   channel?: string;
@@ -47,6 +49,8 @@ export interface NotificationsFilter {
   search?: string;
   startDate?: string;
   endDate?: string;
+  /** Sub-classifies status='failed' by inspecting last_error. */
+  errorCategory?: NotificationErrorCategory;
 }
 
 export interface NotificationsStats {
@@ -56,6 +60,10 @@ export interface NotificationsStats {
   sent: number;
   failed: number;
   canceled: number;
+  /** failed where last_error indicates blocked template render (variável faltando) */
+  blockedRender: number;
+  /** failed where last_error indicates an upstream provider error (SendGrid/Meta) */
+  providerError: number;
 }
 
 const PAGE_SIZE = 20;
@@ -72,6 +80,8 @@ export function useNotifications() {
     sent: 0,
     failed: 0,
     canceled: 0,
+    blockedRender: 0,
+    providerError: 0,
   });
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,7 +95,7 @@ export function useNotifications() {
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .select('status')
+        .select('status, last_error')
         .eq('tenant_id', tenantId);
 
       if (error) throw error;
@@ -97,12 +107,21 @@ export function useNotifications() {
         sent: 0,
         failed: 0,
         canceled: 0,
+        blockedRender: 0,
+        providerError: 0,
       };
 
       data?.forEach(row => {
         const status = row.status as NotificationStatus;
         if (status in counts) {
-          counts[status]++;
+          (counts as unknown as Record<string, number>)[status]++;
+        }
+        if (status === 'failed' && row.last_error) {
+          if (/bloqueado|render bloqueado|variáveis ausentes/i.test(row.last_error)) {
+            counts.blockedRender++;
+          } else {
+            counts.providerError++;
+          }
         }
       });
 
@@ -144,6 +163,11 @@ export function useNotifications() {
       }
       if (filter.endDate) {
         query = query.lte('created_at', filter.endDate);
+      }
+      if (filter.errorCategory === 'render_blocked') {
+        query = query.eq('status', 'failed').ilike('last_error', '%bloqueado%');
+      } else if (filter.errorCategory === 'provider_error') {
+        query = query.eq('status', 'failed').not('last_error', 'ilike', '%bloqueado%');
       }
 
       const { data, error } = await query;

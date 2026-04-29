@@ -14,9 +14,13 @@ Aplica-se ao pipeline `events_inbox → process-events → notifications → run
 
 2. **Render strict universal (run-notifications + template-renderer).** Nenhum render de notificação pode rodar fora de `mode: "strict"` no `_shared/template-renderer.ts`. Variáveis verdadeiramente opcionais devem ser declaradas via `optionalVars` — nunca tratadas como vazio aceitável. Falha de render NÃO conta como retentativa de envio.
 
-3. **Timeline limpa (messages.content).** É proibido persistir `messages.content` contendo `[Template: ...]` ou `{{var}}`. O `run-notifications` v1.5.0+ já bloqueia novos casos via `assertNoPlaceholders`. Para histórico legado, o frontend SEMPRE passa `messages.content` por `sanitizeMessageContent` (`src/lib/sanitizeNotificationContent.ts`) antes de exibir — nada cru chega à tela do atendente.
+3. **Safety net obrigatório (run-notifications v1.6.0+).** Antes de despachar, o worker DEVE detectar payloads incompletos (`store_name`/`product_names` vazios) e re-enriquecer + re-renderizar. Inclui fallback de `order_id` via `events_inbox.payload_normalized` quando o payload da notif não trouxer. Payload reparado é persistido de volta. Isso protege contra notifs criadas por versões antigas do `process-events`.
 
-4. **Erros de provedor não silenciam falhas.** SendGrid 401 "Maximum credits exceeded" e templates WhatsApp não-aprovados NÃO devem consumir tentativas nem ficar como `failed` genérico. Devem virar alerta operacional explícito (insight Central de Comando + status distinto na fila).
+4. **process-events DEVE persistir `order_id` no payload.notif** para que o safety net consiga re-enriquecer em retentativas.
+
+5. **Timeline limpa (messages.content).** É proibido persistir `messages.content` contendo `[Template: ...]` ou `{{var}}`. O `run-notifications` v1.5.0+ já bloqueia novos casos via `assertNoPlaceholders`. Para histórico legado, o frontend SEMPRE passa `messages.content` por `sanitizeMessageContent` (`src/lib/sanitizeNotificationContent.ts`) antes de exibir — nada cru chega à tela do atendente.
+
+6. **Erros de provedor não silenciam falhas.** SendGrid 401 "Maximum credits exceeded" e templates WhatsApp não-aprovados NÃO devem consumir tentativas nem ficar como `failed` genérico. UI de Notificações exibe alerta no topo (`stats.blockedRender` / `stats.providerError`) e oferece filtros "Bloqueada (dado faltando)" e "Erro do provedor".
 
 ## Por que existe (incidente que originou)
 

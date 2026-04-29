@@ -6,10 +6,11 @@ import {
   renderForInternalLog,
   TemplateRenderError,
 } from "../_shared/template-renderer.ts";
+import { enrichOrderContext } from "../_shared/enrich-order-context.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.5.0"; // Phase 3 — strict template rendering, no [Template:] in timeline
+const VERSION = "v1.6.0"; // Phase 4 — safety-net re-enrichment + re-render at send time
 // ===========================================================
 
 const corsHeaders = {
@@ -929,9 +930,74 @@ Deno.serve(async (req) => {
       }
 
       const attemptId = attemptData.id;
-      const payload = notification.payload as Record<string, unknown> | null;
-      
-      // Extract content from payload
+      const payload = (notification.payload as Record<string, unknown> | null) ?? {};
+
+      // ===== PHASE 4 SAFETY NET =====
+      // If payload was created BEFORE the enrichment fix (or any field
+      // is still empty), re-enrich at send time so the strict template
+      // renderer downstream never blocks for `store_name`/`product_names`.
+      // This is the second layer of defense — see
+      // mem://constraints/notification-template-render-contract
+      const needsEnrich =
+        !String(payload.store_name ?? '').trim() ||
+        !String(payload.product_names ?? '').trim();
+
+      if (needsEnrich) {
+        // Resolve order_id: prefer payload, fallback to events_inbox via event_id
+        let orderIdForEnrich = (payload.order_id as string) || null;
+        if (!orderIdForEnrich && notification.event_id) {
+          const { data: ev } = await supabase
+            .from('events_inbox')
+            .select('payload_normalized')
+            .eq('id', notification.event_id)
+            .maybeSingle();
+          const evPayload = ev?.payload_normalized as Record<string, unknown> | null;
+          orderIdForEnrich = (evPayload?.order_id as string) || null;
+          if (orderIdForEnrich) {
+            payload.order_id = orderIdForEnrich; // persist for future retries
+            console.log(`[RunNotifications] Recovered order_id from event_id for ${notification.id}: ${orderIdForEnrich}`);
+          }
+        }
+        try {
+          const enriched = await enrichOrderContext(supabase, notification.tenant_id, orderIdForEnrich);
+          for (const [k, v] of Object.entries(enriched)) {
+            if (v && (!payload[k] || String(payload[k]).trim().length === 0)) {
+              payload[k] = v;
+            }
+          }
+          // Re-render the rule's raw template if we have rule_id and channel content
+          if (notification.rule_id) {
+            const { data: rule } = await supabase
+              .from('notification_rules')
+              .select('whatsapp_message, email_subject, email_body')
+              .eq('id', notification.rule_id)
+              .maybeSingle();
+            if (rule) {
+              const reRender = (tpl: string | null | undefined) => {
+                if (!tpl) return '';
+                try {
+                  return renderTemplate(tpl, payload, { mode: 'lenient' }).text;
+                } catch {
+                  return '';
+                }
+              };
+              if (rule.whatsapp_message) payload.whatsapp_message = reRender(rule.whatsapp_message);
+              if (rule.email_subject) payload.email_subject = reRender(rule.email_subject);
+              if (rule.email_body) payload.email_body = reRender(rule.email_body);
+              // Persist the repaired payload back so retries are clean
+              await supabase
+                .from('notifications')
+                .update({ payload })
+                .eq('id', notification.id);
+              console.log(`[RunNotifications] Safety-net re-enriched + re-rendered notification ${notification.id}`);
+            }
+          }
+        } catch (enrichErr) {
+          console.error(`[RunNotifications] Safety-net enrichment failed for ${notification.id}:`, enrichErr);
+        }
+      }
+
+      // Extract content from payload (now post-enrichment)
       const emailSubject = payload?.email_subject as string || 'Notificação';
       const emailBody = payload?.email_body as string || '';
       const whatsappMessage = payload?.whatsapp_message as string || '';
