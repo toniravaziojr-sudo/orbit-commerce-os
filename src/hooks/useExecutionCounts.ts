@@ -284,6 +284,31 @@ function useProblematicShipments() {
   });
 }
 
+// ── Transportadoras com Cotação ativa, mas Rastreamento desativado ──
+// Avisa o usuário que a integração não conseguirá sincronizar rastreios
+// até habilitar a função de Rastreamento.
+function useShippingTrackingGap() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ["execution-shipping-tracking-gap", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return 0;
+      const { count } = await supabase
+        .from("shipping_providers")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("is_enabled", true)
+        .eq("supports_quote", true)
+        .eq("supports_tracking", false);
+      return count || 0;
+    },
+    enabled: !!tenantId,
+    refetchInterval: 120000,
+  });
+}
+
 // ── Pacotes de IA: créditos abaixo de 10% ──
 function useAiCreditsAlert() {
   const { currentTenant } = useAuth();
