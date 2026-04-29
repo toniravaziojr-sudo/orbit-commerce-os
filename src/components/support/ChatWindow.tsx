@@ -294,7 +294,7 @@ export function ChatWindow({
                       <StickyNote className="h-3 w-3" />
                       <span>Nota interna • {msg.sender_name}</span>
                     </div>
-                    <p className="text-sm">{msg.content}</p>
+                    <p className="text-sm">{safeContent}</p>
                   </div>
                 </div>
               );
