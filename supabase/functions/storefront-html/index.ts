@@ -246,11 +246,28 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     scripts.push(`
     <script>
     (function(){
+      function firePageView(){
+        fbq('init','${pixelId}');
+        var _pvEid=window._sfEvtId?_sfEvtId():'';
+        // Wave 6: wait up to 5s for _fbp before firing PageView so pixel + CAPI share the same fbp
+        var _pvAtt=0;
+        var _pvFire=function(){
+          fbq('track','PageView',{},{eventID:_pvEid});
+          if(window._sfCapi)_sfCapi('PageView',_pvEid);
+          window._sfMetaReady=true;
+          if(window._sfPendingMetaEvents){window._sfPendingMetaEvents.forEach(function(fn){try{fn();}catch(e){}});delete window._sfPendingMetaEvents;}
+        };
+        var _pvFbp=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1];
+        if(_pvFbp){_pvFire();return;}
+        var _pvIv=setInterval(function(){
+          _pvAtt++;
+          var f=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1];
+          if(f||_pvAtt>=20){clearInterval(_pvIv);_pvFire();}
+        },250);
+      }
       function loadMeta(){
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init','${pixelId}');var _pvEid=window._sfEvtId?_sfEvtId():'';fbq('track','PageView',{},{eventID:_pvEid});if(window._sfCapi)_sfCapi('PageView',_pvEid);
-        window._sfMetaReady=true;
-        if(window._sfPendingMetaEvents){window._sfPendingMetaEvents.forEach(function(fn){fn();});delete window._sfPendingMetaEvents;}
+        firePageView();
       }
       if('requestIdleCallback' in window){requestIdleCallback(loadMeta,{timeout:3000});}
       else{setTimeout(loadMeta,2000);}
