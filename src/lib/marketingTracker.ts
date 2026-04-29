@@ -338,43 +338,71 @@ function sendServerEvent(tenantId: string, payload: {
   event_source_url?: string;
   user_data?: Record<string, any>;
   custom_data?: Record<string, any>;
+  /** v8.28.0: per-event override for waitForFbp timeout. Default 5s. */
+  fbp_wait_ms?: number;
 }): void {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   if (!projectId) return;
 
   const url = `https://${projectId}.supabase.co/functions/v1/marketing-capi-track`;
 
-  // v8.21.1: Wait for _fbp on ALL Meta events (not just early ones)
-  // This ensures identity coverage across the entire funnel
-  const needsFbpWait = true;
+  // v8.28.0: Wait for _fbp on ALL Meta events. Timeout per event (default 5s).
+  const fbpWaitMs = payload.fbp_wait_ms ?? 5000;
 
   const doSend = (resolvedFbp: string | null) => {
     // Phase 4: Include external_id + identity
     const metaIds = getMetaIdentifiers();
-    
-    // Phase 10 / v8.27.0: Include stored advanced matching PII (already hashed).
-    // Used to enrich ALL Meta events (not just Lead/Purchase) with PII captured
-    // earlier in the funnel — improves Match Quality on ViewContent/AddToCart.
-    let storedEmailHashed: string | undefined;
-    let storedPhoneHashed: string | undefined;
-    try {
-      storedEmailHashed = localStorage.getItem('_sf_am_em') || undefined;
-      storedPhoneHashed = localStorage.getItem('_sf_am_ph') || undefined;
-    } catch {}
 
-    const userData = {
-      ...(payload.user_data || {}),
+    // v8.28.0 — Read persistent identity vault (cofre _sf_identity).
+    // All values stored already SHA-256 hashed. We pass them as `*_hashed`
+    // fields so the backend uses them as-is (no re-hashing).
+    const stored = getStoredIdentity();
+
+    // Build user_data with NON-DESTRUCTIVE merge:
+    //  - explicit values from `payload.user_data` ALWAYS win.
+    //  - stored hashes only fill fields that are NOT already provided
+    //    (in either plaintext or pre-hashed form).
+    const explicit = payload.user_data || {};
+    const userData: Record<string, any> = {
+      ...explicit,
       fbp: resolvedFbp || metaIds.fbp || undefined,
       fbc: metaIds.fbc || undefined,
       external_id: metaIds.external_id || undefined,
-      // Pass pre-hashed PII when not already provided (avoids double-hashing on server)
-      ...(storedEmailHashed && !payload.user_data?.email && !payload.user_data?.email_hashed
-        ? { email_hashed: storedEmailHashed }
-        : {}),
-      ...(storedPhoneHashed && !payload.user_data?.phone && !payload.user_data?.phone_hashed
-        ? { phone_hashed: storedPhoneHashed }
-        : {}),
     };
+
+    // Email
+    if (stored.em_hash && !explicit.email && !explicit.email_hashed) {
+      userData.email_hashed = stored.em_hash;
+    }
+    // Phone
+    if (stored.ph_hash && !explicit.phone && !explicit.phone_hashed) {
+      userData.phone_hashed = stored.ph_hash;
+    }
+    // First name
+    if (stored.fn_hash && !explicit.first_name_hashed && !explicit.name) {
+      userData.first_name_hashed = stored.fn_hash;
+    }
+    // Last name
+    if (stored.ln_hash && !explicit.last_name_hashed && !explicit.name) {
+      userData.last_name_hashed = stored.ln_hash;
+    }
+    // City
+    if (stored.ct_hash && !explicit.city && !explicit.city_hashed) {
+      userData.city_hashed = stored.ct_hash;
+    }
+    // State
+    if (stored.st_hash && !explicit.state && !explicit.state_hashed) {
+      userData.state_hashed = stored.st_hash;
+    }
+    // Zip
+    if (stored.zp_hash && !explicit.zip && !explicit.zip_hashed) {
+      userData.zp_hash = undefined; // dummy to keep linter quiet (overwritten below)
+      userData.zip_hashed = stored.zp_hash;
+    }
+    // Country
+    if (stored.country_hash && !explicit.country && !explicit.country_hashed) {
+      userData.country_hashed = stored.country_hash;
+    }
 
     const body = JSON.stringify({
       tenant_id: tenantId,
@@ -422,11 +450,7 @@ function sendServerEvent(tenantId: string, payload: {
     doFetch(1);
   };
 
-  if (needsFbpWait) {
-    waitForFbp(3000).then(doSend);
-  } else {
-    doSend(null);
-  }
+  waitForFbp(fbpWaitMs).then(doSend);
 }
 
 export class MarketingTracker {
