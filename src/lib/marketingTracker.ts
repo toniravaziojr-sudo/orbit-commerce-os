@@ -461,13 +461,15 @@ export class MarketingTracker {
   }
 
   // Phase 5: sendCapi now accepts userData for PII enrichment
-  private sendCapi(eventName: string, eventId: string, customData?: Record<string, any>, userData?: Record<string, any>): void {
+  // v8.28.0: optional fbp_wait_ms override per event
+  private sendCapi(eventName: string, eventId: string, customData?: Record<string, any>, userData?: Record<string, any>, fbpWaitMs?: number): void {
     if (!this.config.meta_enabled || !this.config.tenantId) return;
     sendServerEvent(this.config.tenantId, {
       event_name: eventName,
       event_id: eventId,
       custom_data: customData,
       user_data: userData,
+      fbp_wait_ms: fbpWaitMs,
     });
   }
 
