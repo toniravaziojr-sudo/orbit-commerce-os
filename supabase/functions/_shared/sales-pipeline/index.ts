@@ -7,3 +7,7 @@ export * from "./variant-gate.ts";
 export * from "./product-resolver.ts";
 export * from "./greeting-mirror.ts";
 export * from "./search-products-shape.ts";
+// [Reg #2] Blocos 3.3, 3.4, 3.6
+export * from "./greeting-scrub.ts";
+export * from "./intent-fingerprint.ts";
+export * from "./consultative-turn.ts";
