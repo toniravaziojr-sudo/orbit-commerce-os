@@ -60,6 +60,7 @@ interface ShipmentRecord {
     total?: number;
     created_at?: string;
     status?: string;
+    resolved_shipping_provider_kind?: string | null;
   };
   invoice?: {
     danfe_url: string | null;
