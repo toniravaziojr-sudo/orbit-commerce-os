@@ -6161,7 +6161,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           .eq("id", conversation_id);
         console.log(
           `[ai-support-chat] [F2-V2] focus persisted: product_focus=${
-            nextProductFocus === undefined ? "unchanged" : nextProductFocus === null ? "CLEARED" : `product=${nextProductFocus.product_id}`
+            nextProductFocus === undefined ? "unchanged" : nextProductFocus === null ? "CLEARED" : `product=${(nextProductFocus as ProductFocus).product_id}`
           } family_focus=${shouldUpdateFamilyFocus ? familyMentionedNow : "unchanged"} last_focused_product=${shouldUpdateLastFocusedProduct ? productMentionedNow : "unchanged"}`,
         );
       } catch (e) {
