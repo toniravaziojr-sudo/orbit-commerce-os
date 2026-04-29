@@ -139,6 +139,24 @@ export default function Notifications() {
 
       <NotificationsStatsCards stats={stats} />
 
+      {(stats.blockedRender > 0 || stats.providerError > 0) && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Atenção: notificações com problema</AlertTitle>
+          <AlertDescription className="space-y-1">
+            {stats.blockedRender > 0 && (
+              <div>
+                <strong>{stats.blockedRender}</strong> bloqueada(s) por dado faltando no template — use o filtro "Bloqueada (dado faltando)" para ver e reprocessar.
+              </div>
+            )}
+            {stats.providerError > 0 && (
+              <div>
+                <strong>{stats.providerError}</strong> com erro do provedor (SendGrid / WhatsApp) — use o filtro "Erro do provedor".
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       <Tabs defaultValue="notifications" className="space-y-4">
         <TabsList>
           <TabsTrigger value="notifications" className="gap-2">
