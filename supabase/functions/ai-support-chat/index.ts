@@ -4172,10 +4172,33 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     ];
 
     if (conversation.customer_name) {
-      aiMessages.push({
-        role: "system",
-        content: `O cliente nesta conversa se chama ${conversation.customer_name}. Canal: ${channelType}.`,
-      });
+      // [PIPELINE-FIX 2026-04-29] Uso estratégico do nome:
+      // - Só primeiro nome.
+      // - Filtra nomes corporativos / muito longos (provavelmente nome de loja
+      //   vindo do profile do WhatsApp Business, não nome real do cliente).
+      const rawName = String(conversation.customer_name).trim();
+      const tokens = rawName.split(/\s+/);
+      const firstName = tokens[0] || "";
+      const looksCorporate = /\b(loja|comando|comercial|ltda|me\b|distribuidora|store|shop|sa\b|s\/a|eireli|mei)\b/i.test(rawName)
+        || tokens.length > 3
+        || firstName.length < 2;
+      if (firstName && !looksCorporate) {
+        aiMessages.push({
+          role: "system",
+          content:
+            `O cliente nesta conversa se chama ${firstName}. Canal: ${channelType}. ` +
+            `Use o primeiro nome APENAS na 1ª saudação do dia, ao confirmar fechamento de pedido, ou ao retomar a conversa após silêncio longo. ` +
+            `NÃO use o nome em respostas de catálogo, preço, frete, prazo ou recomendação. Frequência máxima: 1 vez a cada 4–5 mensagens.`,
+        });
+      } else {
+        aiMessages.push({
+          role: "system",
+          content:
+            `O nome registrado neste contato (${rawName}) parece ser nome de empresa/loja, não de pessoa física. ` +
+            `NÃO use vocativo neste atendimento — fale direto, sem chamar pelo nome. Canal: ${channelType}.`,
+        });
+        console.log(`[ai-support-chat] [name-policy] suppressing vocative for corporate-like name: "${rawName}"`);
+      }
     }
 
     let historySizeUsed = 0;
