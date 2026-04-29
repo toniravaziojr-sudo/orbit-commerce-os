@@ -1068,6 +1068,7 @@ async function executeSalesTool(
                 `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
                 `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
               );
+            }
           }
         }
 
