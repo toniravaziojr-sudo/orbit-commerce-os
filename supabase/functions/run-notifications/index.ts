@@ -930,9 +930,60 @@ Deno.serve(async (req) => {
       }
 
       const attemptId = attemptData.id;
-      const payload = notification.payload as Record<string, unknown> | null;
-      
-      // Extract content from payload
+      const payload = (notification.payload as Record<string, unknown> | null) ?? {};
+
+      // ===== PHASE 4 SAFETY NET =====
+      // If payload was created BEFORE the enrichment fix (or any field
+      // is still empty), re-enrich at send time so the strict template
+      // renderer downstream never blocks for `store_name`/`product_names`.
+      // This is the second layer of defense — see
+      // mem://constraints/notification-template-render-contract
+      const needsEnrich =
+        !String(payload.store_name ?? '').trim() ||
+        !String(payload.product_names ?? '').trim();
+
+      if (needsEnrich) {
+        const orderIdForEnrich = (payload.order_id as string) || null;
+        try {
+          const enriched = await enrichOrderContext(supabase, notification.tenant_id, orderIdForEnrich);
+          for (const [k, v] of Object.entries(enriched)) {
+            if (v && (!payload[k] || String(payload[k]).trim().length === 0)) {
+              payload[k] = v;
+            }
+          }
+          // Re-render the rule's raw template if we have rule_id and channel content
+          if (notification.rule_id) {
+            const { data: rule } = await supabase
+              .from('notification_rules')
+              .select('whatsapp_message, email_subject, email_body')
+              .eq('id', notification.rule_id)
+              .maybeSingle();
+            if (rule) {
+              const reRender = (tpl: string | null | undefined) => {
+                if (!tpl) return '';
+                try {
+                  return renderTemplate(tpl, payload, { mode: 'lenient' }).text;
+                } catch {
+                  return '';
+                }
+              };
+              if (rule.whatsapp_message) payload.whatsapp_message = reRender(rule.whatsapp_message);
+              if (rule.email_subject) payload.email_subject = reRender(rule.email_subject);
+              if (rule.email_body) payload.email_body = reRender(rule.email_body);
+              // Persist the repaired payload back so retries are clean
+              await supabase
+                .from('notifications')
+                .update({ payload })
+                .eq('id', notification.id);
+              console.log(`[RunNotifications] Safety-net re-enriched + re-rendered notification ${notification.id}`);
+            }
+          }
+        } catch (enrichErr) {
+          console.error(`[RunNotifications] Safety-net enrichment failed for ${notification.id}:`, enrichErr);
+        }
+      }
+
+      // Extract content from payload (now post-enrichment)
       const emailSubject = payload?.email_subject as string || 'Notificação';
       const emailBody = payload?.email_body as string || '';
       const whatsappMessage = payload?.whatsapp_message as string || '';
