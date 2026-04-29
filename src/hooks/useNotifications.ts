@@ -114,7 +114,7 @@ export function useNotifications() {
       data?.forEach(row => {
         const status = row.status as NotificationStatus;
         if (status in counts) {
-          (counts as Record<string, number>)[status]++;
+          (counts as unknown as Record<string, number>)[status]++;
         }
         if (status === 'failed' && row.last_error) {
           if (/bloqueado|render bloqueado|variáveis ausentes/i.test(row.last_error)) {
