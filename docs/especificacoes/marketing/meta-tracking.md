@@ -146,6 +146,69 @@ A qualidade do match na Meta depende dos identificadores enviados em cada evento
 
 ---
 
+## Cofre de Identidade Cumulativo (`_sf_identity`) — v8.28.0
+
+**Problema resolvido:** parâmetros perdidos ao longo do funil. Lead alimentava email/phone, mas eventos posteriores (AddShippingInfo, AddPaymentInfo, Purchase) só tinham acesso ao que o componente atual conhecia. Resultado: score do Purchase ficava **abaixo** do score do Lead — o oposto do que deveria acontecer numa cadeia natural.
+
+### Princípio
+Todo PII coletado durante a sessão é **persistido já hashado SHA-256** em `localStorage._sf_identity` (TTL 30 dias). Cada novo evento de funil **mescla não-destrutivamente** os hashes guardados antes de despachar Pixel/CAPI. Como a fusão é `payload.X ?? stored.X`, dados explícitos do evento atual prevalecem; só completa o que estiver faltando.
+
+### Estrutura do cofre
+```
+_sf_identity = {
+  email_hashed?: string,
+  phone_hashed?: string,
+  first_name_hashed?: string,
+  last_name_hashed?: string,
+  city_hashed?: string,
+  state_hashed?: string,
+  zip_hashed?: string,
+  expires_at: number   // epoch ms (30 dias)
+}
+```
+
+### Pontos de captura (acumulam no cofre)
+| Evento | Campos gravados |
+|---|---|
+| `Lead` | email, phone, first_name, last_name |
+| `AddShippingInfo` | email, phone, first/last name, city, state, zip |
+| `AddPaymentInfo` | email, phone, first/last name, city, state, zip |
+| `Purchase` | tudo do checkout |
+
+### Pontos de leitura (mesclam do cofre)
+**Todos** os eventos CAPI (`PageView`, `ViewContent`, `AddToCart`, `InitiateCheckout`, ...). Inclusive o PageView do edge HTML mescla via inline script antes de despachar.
+
+### Backend — campos pré-hashados aceitos
+`supabase/functions/_shared/meta-capi-sender.ts` aceita os seguintes campos como **já hashados** (sem re-hash):
+- `email_hashed`, `phone_hashed`
+- `first_name_hashed`, `last_name_hashed`
+- `city_hashed`, `state_hashed`, `zip_hashed`
+
+> **🚫 Proibido enviar PII em texto puro do browser para esses campos.** Hashing acontece exclusivamente em `src/lib/visitorIdentity.ts` antes de gravar no cofre.
+
+**Implementação:**
+- Cofre: `src/lib/visitorIdentity.ts` (`storeIdentity`, `readIdentity`, `mergeIdentityIntoUserData`)
+- Mesclagem em todos os eventos: `src/lib/marketingTracker.ts` → `sendServerEvent`
+- Edge HTML: `supabase/functions/storefront-html/index.ts` (snippet inline lê `_sf_identity` antes do PageView)
+
+---
+
+## PageView Sincronizado com `_fbp` — v8.28.0 (Onda 6)
+
+**Problema resolvido:** mesmo com cookie sintético, em ambiente real o `fbq('init')` podia atrasar e o PageView do CAPI saía antes de o Pixel browser confirmar o `_fbp`. Resultado: PageView browser e PageView server divergiam no `fbp` → match imperfeito.
+
+### Solução
+O snippet do edge HTML agora **atrasa** `fbq('track', 'PageView')` e o CAPI PageView até o `_fbp` estar disponível, com polling de **250ms × 20 = 5s máximo**. Quando o cookie é detectado, marca `window._sfMetaReady = true` e dispara os dois canais com o mesmo `fbp`.
+
+### Garantias
+- Mesmo `event_id` em Pixel e CAPI (deduplicação Meta correta)
+- Mesmo `_fbp` nos dois lados (score consistente)
+- Fallback: se 5s passarem sem cookie, dispara mesmo assim (não bloqueia rastreamento)
+
+> **Regra futura:** qualquer novo evento iniciado pelo edge HTML antes do `_sfMetaReady=true` deve seguir o mesmo padrão de espera.
+
+---
+
 ## Tabela de Causas Comuns: Inflação Aparente vs Real
 
 Antes de afirmar "inflação de Purchase", validar os 3 pontos abaixo:
