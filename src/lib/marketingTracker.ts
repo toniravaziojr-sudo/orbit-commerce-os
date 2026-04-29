@@ -1009,6 +1009,18 @@ export class MarketingTracker {
     const eventId = generateEventId();
     const currency = payment.currency || 'BRL';
 
+    // v8.28.0: Persist captured PII into the cofre (non-destructive merge).
+    if (payment.userData) {
+      void storeIdentity({
+        email: payment.userData.email,
+        phone: payment.userData.phone,
+        name: payment.userData.name,
+        city: payment.userData.city,
+        state: payment.userData.state,
+        zip: payment.userData.zip,
+      });
+    }
+
     if (this.config.meta_enabled) {
       trackMetaEvent('AddPaymentInfo', {
         content_ids: payment.items.map(i => resolveMetaContentId(i)),
