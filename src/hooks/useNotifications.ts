@@ -80,6 +80,8 @@ export function useNotifications() {
     sent: 0,
     failed: 0,
     canceled: 0,
+    blockedRender: 0,
+    providerError: 0,
   });
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,7 +95,7 @@ export function useNotifications() {
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .select('status')
+        .select('status, last_error')
         .eq('tenant_id', tenantId);
 
       if (error) throw error;
@@ -105,12 +107,21 @@ export function useNotifications() {
         sent: 0,
         failed: 0,
         canceled: 0,
+        blockedRender: 0,
+        providerError: 0,
       };
 
       data?.forEach(row => {
         const status = row.status as NotificationStatus;
         if (status in counts) {
-          counts[status]++;
+          (counts as Record<string, number>)[status]++;
+        }
+        if (status === 'failed' && row.last_error) {
+          if (/bloqueado|render bloqueado|variáveis ausentes/i.test(row.last_error)) {
+            counts.blockedRender++;
+          } else {
+            counts.providerError++;
+          }
         }
       });
 
