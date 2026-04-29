@@ -132,7 +132,12 @@ export function useConversations(filters?: ConversationFilters) {
     mutationFn: async ({ conversationId, status }: { conversationId: string; status: ConversationStatus }) => {
       const updates: Record<string, unknown> = { status };
       if (status === 'resolved') {
+        // Cérebro Regenerativo — Eixo 3: encerrar conversa devolve controle para a IA.
+        // Limpa assigned_to/assigned_at para que a próxima mensagem do cliente reabra
+        // automaticamente na IA (ai-support-chat reabre resolved -> bot).
         updates.resolved_at = new Date().toISOString();
+        updates.assigned_to = null;
+        updates.assigned_at = null;
       }
 
       const { error } = await supabase
@@ -148,12 +153,18 @@ export function useConversations(filters?: ConversationFilters) {
         event_type: 'status_changed',
         actor_type: 'agent',
         actor_id: user?.id,
-        new_value: { status },
+        new_value: status === 'resolved'
+          ? { status, reason: 'manual_close_by_agent', assigned_to_cleared: true }
+          : { status },
       });
     },
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      toast.success('Status atualizado');
+      toast.success(
+        vars.status === 'resolved'
+          ? 'Conversa encerrada. A IA volta a responder se o cliente retornar.'
+          : 'Status atualizado',
+      );
     },
     onError: (error) => {
       toast.error('Erro ao atualizar status');
