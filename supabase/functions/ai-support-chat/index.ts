@@ -72,6 +72,13 @@ import {
   buildConsultativeTurnBlock,
   // [F2-FS-CROSS] normalizador do retorno de search_products (legado/novo)
   parseSearchProductsResult,
+  // [Reg #2.8] Turn Pre-Router + Catalog Probe + Output Gates
+  classifyTurn,
+  fallbackClassification,
+  type TurnClassification,
+  broadenCatalogForPain,
+  scrubUnsolicitedPrice,
+  gateGreetingMirror,
 } from "../_shared/sales-pipeline/index.ts";
 // [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
 // (substitui o cache em-memória que se perdia a cada cold start).
