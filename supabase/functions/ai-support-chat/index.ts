@@ -3459,11 +3459,20 @@ Deno.serve(async (req) => {
 
     // Resolve domínio personalizado verificado via tenant_domains (fonte oficial).
     // Preferência: is_primary verified → qualquer verified → fallback slug.shops...
-    const { data: tenantDomains } = await supabase
+    // [Reg #2.8] Hardening: log explícito quando cair no fallback .shops para
+    // facilitar diagnóstico (cliente reportou que IA mandava link .shops mesmo
+    // havendo domínio próprio configurado).
+    const { data: tenantDomains, error: tenantDomainsError } = await supabase
       .from("tenant_domains")
       .select("domain, is_primary, status")
       .eq("tenant_id", tenant_id)
       .eq("status", "verified");
+
+    if (tenantDomainsError) {
+      console.error(
+        `[ai-support-chat] [Reg #2.8] tenant_domains lookup error tenant=${tenant_id}: ${tenantDomainsError.message}`
+      );
+    }
 
     const primaryDomain =
       (tenantDomains || []).find((d: any) => d.is_primary)?.domain ||
@@ -3477,11 +3486,22 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     let storeUrl = "";
+    let storeUrlSource: "tenant_domains_primary" | "tenant_domains_any" | "shops_fallback" | "none" = "none";
     if (primaryDomain) {
       storeUrl = `https://${primaryDomain}`;
+      const isPrimaryFlag = (tenantDomains || []).find((d: any) => d.domain === primaryDomain)?.is_primary;
+      storeUrlSource = isPrimaryFlag ? "tenant_domains_primary" : "tenant_domains_any";
     } else if (tenant?.slug) {
       storeUrl = `https://${tenant.slug}.shops.comandocentral.com.br`;
+      storeUrlSource = "shops_fallback";
+      console.warn(
+        `[ai-support-chat] [Reg #2.8] storeUrl FALLBACK=.shops tenant=${tenant_id} slug=${tenant.slug} ` +
+        `domains_count=${(tenantDomains || []).length} — verifique tenant_domains.status='verified' e is_primary.`
+      );
     }
+    console.log(
+      `[ai-support-chat] [Reg #2.8] storeUrl=${storeUrl || "(empty)"} source=${storeUrlSource} tenant=${tenant_id}`
+    );
 
     const storeName = storeSettings?.store_name || tenant?.name || "Nossa Loja";
 
