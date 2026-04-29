@@ -11,3 +11,7 @@ export * from "./search-products-shape.ts";
 export * from "./greeting-scrub.ts";
 export * from "./intent-fingerprint.ts";
 export * from "./consultative-turn.ts";
+// [Reg #2.8] Turn Pre-Router + Catalog Probe + Output Gates
+export * from "./turn-pre-router.ts";
+export * from "./catalog-probe.ts";
+export * from "./output-gates.ts";
