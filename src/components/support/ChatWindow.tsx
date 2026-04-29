@@ -272,7 +272,7 @@ export function ChatWindow({
                       <Bot className="h-3 w-3" />
                       <span>Sistema</span>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{safeContent}</p>
                     <div className="flex items-center gap-2 text-xs mt-1 opacity-70">
                       <span>{formatTimeBR(new Date(msg.created_at))}</span>
                     </div>
