@@ -200,14 +200,66 @@ Memórias a criar e indexar quando os blocos forem aplicados (cada uma vira 1 en
 
 ---
 
-## Pendências do Registro #2 (a aplicar em ciclo seguinte)
+## Registro #2.4 — Greeting scrub server-side (aplicado)
 
-| Bloco | Tema | Por que ficou para depois |
-|---|---|---|
-| 3.3 | Scrubber server-side de saudação espelhada | Mecânico (`greeting-mirror.ts`) já está em produção e cobre o caso; scrubber dedicado entra se reaparecer divergência |
-| 3.4 | Detector de anti-repetição por família semântica | Requer dicionário de famílias e teste com histórico real; entra como sub-registro próprio |
-| 3.6 | Classificador de turno consultivo (sintoma + foto + pedido de recomendação) | Requer feature de classificação no pré-modelo; sub-registro próprio |
+**Data:** 29/abr/2026
+**Bloco:** 3.3 do plano técnico do Reg. #2
+**Arquivos criados/alterados:**
+- `supabase/functions/_shared/sales-pipeline/greeting-scrub.ts` (novo)
+- `supabase/functions/_shared/sales-pipeline/index.ts` (export)
+- `supabase/functions/ai-support-chat/index.ts` (integração antes do hash + métrica no turn log)
+
+**Antes:** o `greeting-mirror.ts` já injetava a abertura literal no prompt, mas o modelo eventualmente ignorava e abria com "Oi!" mesmo com o cliente dizendo "boa noite". Não havia correção pós-geração.
+**Depois:** scrubber de saída detecta quebra de reciprocidade (período do dia ausente ou ausência de "tudo bem" recíproco) e reescreve a abertura com `mandatoryOpening` derivada da mensagem do cliente, **sem regenerar** (latência zero, custo zero). Aplica APENAS quando `pipelineState='greeting'`.
+**Observabilidade:** `metadata.greeting_scrub_applied` e `metadata.greeting_scrub_reason` no `ai_support_turn_log`.
+**Memória anti-regressão:** `mem://constraints/ai-must-mirror-greeting-period` (referência já listada no Reg. #2).
+**Validação técnica executada:** ✅ helpers exportados via barrel · ✅ wiring antes do `hashResponse`. Pendente: validar no canal de teste (refazer "boa noite" e conferir que IA abre com "Boa noite!").
 
 ---
 
-*Documento criado em 29/abr/2026 · Última atualização: 29/abr/2026 (Reg. #2.1, #2.2, #2.3 aplicados).*
+## Registro #2.5 — Anti-repetição por família semântica (aplicado)
+
+**Data:** 29/abr/2026
+**Bloco:** 3.4 do plano técnico do Reg. #2
+**Arquivos criados/alterados:**
+- `supabase/functions/_shared/sales-pipeline/intent-fingerprint.ts` (novo)
+- `supabase/functions/_shared/sales-pipeline/index.ts` (export)
+- `supabase/functions/ai-support-chat/index.ts` (classificação + lookup das últimas 2-3 famílias + gate de regeneração)
+
+**Antes:** o anti-repetição olhava só o hash exato dos primeiros 80 chars normalizados. "Posso separar pra você?" e "Deixo separado pra você?" geravam hashes diferentes — mesma intenção, loop não era detectado.
+**Depois:** classificador de família (`reserve_offer`, `confirm_close`, `bundle_upsell_ask`, `data_request`, `generic_qualify`, `generic_help`, `opening_greeting`, `other`). Antes de gravar, busca as últimas 2-3 famílias do `ai_support_turn_log` da conversa; se a família atual repete uma das duas anteriores, dispara o **mesmo fluxo de regeneração** já existente (Pacote E v2) com hint específico de "troque a intenção do turno". Famílias `other` e `opening_greeting` não disparam (genéricas demais).
+**Observabilidade:** `metadata.intent_family`, `metadata.semantic_duplicate_detected`, `metadata.semantic_duplicate_reason` no `ai_support_turn_log`.
+**Memória anti-regressão:** `mem://constraints/ai-anti-repetition-semantic-family` (referência já listada no Reg. #2).
+**Validação técnica executada:** ✅ helpers exportados · ✅ integrado ao gate de regeneração existente. Pendente: validar no canal de teste forçando duas ofertas de "reservar" consecutivas e conferir que a 2ª é regenerada.
+
+---
+
+## Registro #2.6 — Detector de turno consultivo (aplicado)
+
+**Data:** 29/abr/2026
+**Bloco:** 3.6 do plano técnico do Reg. #2
+**Arquivos criados/alterados:**
+- `supabase/functions/_shared/sales-pipeline/consultative-turn.ts` (novo)
+- `supabase/functions/_shared/sales-pipeline/index.ts` (export)
+- `supabase/functions/ai-support-chat/index.ts` (injeção do bloco em `discovery`/`recommendation`)
+
+**Antes:** quando o cliente trazia sintoma + pedido de recomendação + foto, a IA pulava direto pra listagem de 2 produtos, sem acolher e sem qualificar.
+**Depois:** detector combina 3 sinais (descrição de sintoma, pedido de recomendação personalizada, mídia anexada) — qualquer 2 dos 3 = consultivo. Quando detectado em `discovery` ou `recommendation`, injeta um bloco no prompt obrigando: (1) acolhida em 1 linha espelhando o caso, (2) UMA pergunta curta de qualificação, (3) sinalização de que vai recomendar logo em seguida. Proíbe listar produto, citar preço, mandar imagem, pedir dado pessoal ou usar "Como posso te ajudar?" no mesmo turno.
+**Memória anti-regressão:** `mem://constraints/ai-must-honor-consultative-question-first` (referência já listada no Reg. #2).
+**Validação técnica executada:** ✅ helpers exportados · ✅ injeção condicional no prompt validada. Pendente: validar no canal de teste com mensagem "tenho calvície na coroa há 2 anos, qual tratamento mais indicado pra mim?" + foto e conferir que a IA acolhe + faz 1 pergunta antes de listar produto.
+
+---
+
+## Registro #2.7 — Limpeza do histórico de teste (aplicado)
+
+**Data:** 29/abr/2026
+**Escopo:** contato de teste oficial — Antonio Ravazio · `5573991681425` · tenant Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
+
+**Operação:** apagados (não soft-delete) — 1 conversa (`97b54ad3-…`), 15 mensagens, 7 mensagens WhatsApp do telefone, 7 turnos do `ai_support_turn_log`, 0 resumos, 0 memórias da IA. **Cliente cadastrado mantido** (2 registros do Antonio preservados).
+**Motivo:** retestar do zero o roteiro completo do cliente após aplicação dos blocos 1, 2, 3 (parcial), 3.3, 3.4 e 3.6.
+**Reversão:** não há (delete físico). Backups da plataforma cobrem caso de necessidade extrema.
+**Validação técnica executada:** ✅ contagem pós-delete = 0 em todas as tabelas-alvo · ✅ customers do contato preservados (2 registros). Pendente: validação E2E do usuário no canal real.
+
+---
+
+*Documento criado em 29/abr/2026 · Última atualização: 29/abr/2026 (Reg. #2.4, #2.5, #2.6, #2.7 aplicados).*
