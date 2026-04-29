@@ -549,8 +549,9 @@ export function useExecutionCounts() {
   const tracking: ExecutionCategory = {
     stats: [
       problematicShipments ? { count: problematicShipments, label: "Entregas problemáticas", navigateTo: "/shipping", color: "destructive" as const } : null,
+      trackingDisabledProviders ? { count: trackingDisabledProviders, label: "Rastreamento desativado", navigateTo: "/shipping?tab=settings", color: "warning" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: problematicShipments,
+    totalPending: problematicShipments + trackingDisabledProviders,
   };
 
   // Pacotes de IA
