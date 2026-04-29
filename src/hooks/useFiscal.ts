@@ -138,6 +138,8 @@ export interface FiscalInvoice {
   marketplace_source?: string | null;
   // Order status (from joined order) - used for chargeback visibility
   order_status?: string | null;
+  // Resolved shipping provider kind (from joined order) - 'gateway' | 'contract' | 'manual'
+  resolved_shipping_provider_kind?: string | null;
 }
 
 export interface FiscalInvoiceItem {
