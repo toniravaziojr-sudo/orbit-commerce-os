@@ -78,7 +78,7 @@ export function NotificationsFilterComponent({ filter, onFilterChange }: Notific
     onFilterChange({});
   };
 
-  const hasActiveFilters = filter.status || filter.channel || filter.search || filter.startDate;
+  const hasActiveFilters = filter.status || filter.channel || filter.search || filter.startDate || filter.errorCategory;
 
   return (
     <div className="flex flex-wrap gap-3 items-center">
@@ -95,10 +95,10 @@ export function NotificationsFilterComponent({ filter, onFilterChange }: Notific
       </form>
 
       <Select 
-        value={filter.status?.[0] || 'all'} 
+        value={currentStatusValue} 
         onValueChange={handleStatusChange}
       >
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-[220px]">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
