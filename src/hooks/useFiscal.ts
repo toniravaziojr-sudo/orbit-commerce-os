@@ -138,6 +138,8 @@ export interface FiscalInvoice {
   marketplace_source?: string | null;
   // Order status (from joined order) - used for chargeback visibility
   order_status?: string | null;
+  // Resolved shipping provider kind (from joined order) - 'gateway' | 'contract' | 'manual'
+  resolved_shipping_provider_kind?: string | null;
 }
 
 export interface FiscalInvoiceItem {
@@ -331,7 +333,7 @@ export function useFiscalInvoices(filters?: {
       // Query with join to orders for marketplace_source
       let query = supabase
         .from('fiscal_invoices')
-        .select('*, orders!fiscal_invoices_order_id_fkey(marketplace_source, status)')
+        .select('*, orders!fiscal_invoices_order_id_fkey(marketplace_source, status, resolved_shipping_provider_kind)')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
@@ -358,6 +360,7 @@ export function useFiscalInvoices(filters?: {
         ...inv,
         marketplace_source: inv.orders?.marketplace_source || null,
         order_status: inv.orders?.status || null,
+        resolved_shipping_provider_kind: inv.orders?.resolved_shipping_provider_kind || null,
         orders: undefined,
       })) as FiscalInvoice[];
 

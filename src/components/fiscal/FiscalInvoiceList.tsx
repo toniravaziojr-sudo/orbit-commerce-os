@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, Download, Send, X, Trash2, Mail, RotateCcw } from "lucide-react";
+import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, Download, Send, X, Trash2, Mail, RotateCcw, Truck, Receipt } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -744,7 +744,90 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     inv => selectedInvoices.has(inv.id) && inv.status === 'authorized'
   ).length;
 
-  const cardTitle = mode === 'orders' ? 'Pedidos em Aberto' : 'Notas Fiscais';
+  // NF-e/DC-e autorizadas selecionadas cujo pedido vai para um gateway (ex: Frenet).
+  // Para esses pedidos, o envio à transportadora é feito via gateway_sync_queue
+  // (não pelo fluxo de Remessas).
+  const selectedGatewayInvoicesCount = (filteredInvoices || []).filter(
+    inv => selectedInvoices.has(inv.id)
+      && inv.status === 'authorized'
+      && inv.order_id
+      && inv.resolved_shipping_provider_kind === 'gateway'
+  ).length;
+
+  // Bulk: Emitir DC-e para os rascunhos selecionados (via edge dce-emit)
+  const handleBulkEmitDce = async () => {
+    const drafts = (filteredInvoices || []).filter(
+      inv => selectedInvoices.has(inv.id) && inv.status === 'draft' && inv.order_id
+    );
+
+    if (drafts.length === 0) {
+      toast.error('Nenhum rascunho com pedido vinculado selecionado');
+      return;
+    }
+
+    setIsBulkProcessing(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const inv of drafts) {
+      try {
+        const { data, error } = await supabase.functions.invoke('dce-emit', {
+          body: { order_id: inv.order_id, invoice_id: inv.id },
+        });
+        if (error || !data?.success) errorCount++;
+        else successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+
+    setIsBulkProcessing(false);
+    clearSelection();
+    refetch();
+
+    if (successCount > 0) toast.success(`${successCount} DC-e enfileirada(s) para emissão`);
+    if (errorCount > 0) toast.error(`${errorCount} DC-e com erro`);
+  };
+
+  // Bulk: Enviar pedidos selecionados ao gateway (Frenet etc.) via gateway_sync_queue
+  const handleBulkSendToGateway = async () => {
+    const selected = (filteredInvoices || []).filter(
+      inv => selectedInvoices.has(inv.id)
+        && inv.status === 'authorized'
+        && inv.order_id
+        && inv.resolved_shipping_provider_kind === 'gateway'
+    );
+
+    if (selected.length === 0) {
+      toast.error('Nenhuma NF-e autorizada com transportadora gateway selecionada');
+      return;
+    }
+
+    setIsBulkProcessing(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const inv of selected) {
+      try {
+        const { data, error } = await supabase.functions.invoke('gateway-attach-fiscal-doc', {
+          body: { order_id: inv.order_id, invoice_id: inv.id },
+        });
+        if (error || !data?.success) errorCount++;
+        else successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+
+    setIsBulkProcessing(false);
+    clearSelection();
+    refetch();
+
+    if (successCount > 0) toast.success(`${successCount} pedido(s) enviado(s) à transportadora`);
+    if (errorCount > 0) toast.error(`${errorCount} envio(s) com erro`);
+  };
+
+  const cardTitle = mode === 'orders' ? 'Pedidos' : 'Notas Fiscais';
 
   return (
     <div className="space-y-6">
@@ -952,6 +1035,20 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                           </Button>
                           <Button 
                             size="sm" 
+                            variant="outline"
+                            onClick={handleBulkEmitDce}
+                            disabled={isBulkProcessing}
+                            title="Emite Declaração de Conteúdo (DC-e) para os rascunhos selecionados"
+                          >
+                            {isBulkProcessing ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Receipt className="h-4 w-4 mr-2" />
+                            )}
+                            Emitir DC-e {selectedDraftsCount}
+                          </Button>
+                          <Button 
+                            size="sm" 
                             variant="destructive"
                             onClick={handleBulkDelete}
                             disabled={isBulkProcessing}
@@ -963,6 +1060,21 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                       )}
                       {selectedAuthorizedCount > 0 && (
                         <>
+                          {selectedGatewayInvoicesCount > 0 && (
+                            <Button
+                              size="sm"
+                              onClick={handleBulkSendToGateway}
+                              disabled={isBulkProcessing}
+                              title="Envia o pedido e a NF-e à transportadora integrada (ex: Frenet)"
+                            >
+                              {isBulkProcessing ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Truck className="h-4 w-4 mr-2" />
+                              )}
+                              Enviar à transportadora {selectedGatewayInvoicesCount}
+                            </Button>
+                          )}
                           <Button 
                             size="sm" 
                             variant="outline"
