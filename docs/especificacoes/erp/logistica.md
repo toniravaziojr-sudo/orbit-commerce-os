@@ -274,6 +274,16 @@ interface CustomShippingRule {
 
 **Fluxo:** Gateway que agrega múltiplas transportadoras. Cada tenant tem seu token Frenet.
 
+### Roteamento de Despacho — Local vs Gateway
+
+Cada integração de envio tem um campo `kind` em `shipping_integrations`:
+- `kind = 'local'` (Correios): emissão de etiqueta e despacho ocorrem dentro do sistema, na tela de **Remessas** (`/shipping/shipments`).
+- `kind = 'gateway'` (Frenet, Loggi via Frenet): a própria transportadora cuida do despacho. O sistema apenas **sincroniza o pedido** com o gateway via Edge Function `gateway-sync-order` e **anexa o documento fiscal** (DC-e ou NFe) via `gateway-attach-fiscal-doc`.
+
+Cada pedido carrega `orders.resolved_shipping_provider_kind` (preenchido por trigger no momento da escolha do frete). A tela de Remessas filtra automaticamente os pedidos `kind = 'gateway'` — eles **não aparecem** na fila local de etiquetas, evitando despacho duplicado.
+
+Adicionalmente, a Central de Execuções emite o badge **"Rastreamento desativado"** quando uma transportadora ativa tem `supports_quote = true` mas `supports_tracking = false` (gera link direto para `/shipping?tab=settings`).
+
 ---
 
 ### Status das Integrações
