@@ -168,6 +168,22 @@ export function ConversationList({
             <SelectItem value="shopee">🧡 Shopee</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          type="button"
+          variant={unreadOnly ? "default" : "outline"}
+          size="sm"
+          className="w-full justify-center gap-2"
+          onClick={() => setUnreadOnly((v) => !v)}
+          aria-pressed={unreadOnly}
+        >
+          <MailOpen className="h-4 w-4" />
+          <span>Apenas não lidos</span>
+          {unreadCount > 0 && (
+            <Badge variant={unreadOnly ? "secondary" : "destructive"} className="ml-1 h-4 px-1 text-[10px] leading-none">
+              {unreadCount}
+            </Badge>
+          )}
+        </Button>
       </div>
 
       {/* Tabs — fila oficial (Fase 2) */}
