@@ -35,8 +35,18 @@ export function useCheckoutLinkLoader({ tenantId }: CheckoutLinkLoaderOptions): 
   const { items, addItem, clearCart } = useCart();
   const { applyDiscount } = useDiscount();
   const processedRef = useRef(false);
+
+  // CRÍTICO: detectar param na inicialização para já marcar isLoading=true
+  // antes do useEffect rodar. Evita flicker de "carrinho vazio" no primeiro
+  // render quando o cliente abre o link gerado pela IA (?link= / ?product=).
+  const hasCheckoutParam = (() => {
+    if (typeof window === 'undefined') return false;
+    const sp = new URLSearchParams(window.location.search);
+    return !!(sp.get('link') || sp.get('product'));
+  })();
+
   const [state, setState] = useState<LoaderState>({
-    isLoading: false,
+    isLoading: hasCheckoutParam,
     error: null,
     priceOverride: null,
     shippingOverride: null,
