@@ -1,15 +1,17 @@
-import { useState, useMemo } from "react";
-import { MessageSquare, Search, Filter, Inbox, Bot, User, Mail, Globe, ShoppingCart, Music, Instagram } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { MessageSquare, Search, Filter, Inbox, Bot, User, Mail, Globe, ShoppingCart, Music, Instagram, MailOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation, ConversationStatus, SupportChannelType } from "@/hooks/useConversations";
 import { cn } from "@/lib/utils";
-import { countByQueue, getConversationQueue, type SupportQueue } from "@/lib/support-queues";
+import { countByQueue, getConversationQueue, hasUnread, type SupportQueue } from "@/lib/support-queues";
+import { useAuth } from "@/hooks/useAuth";
 
 import { formatDateBR } from "@/lib/date-format";
 
