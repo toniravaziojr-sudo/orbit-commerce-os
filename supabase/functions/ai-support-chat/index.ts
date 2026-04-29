@@ -61,6 +61,15 @@ import {
   // [F2-V4] espelho mecânico de saudação (forçar reciprocidade real)
   detectGreetingEcho,
   buildGreetingMirrorBlock,
+  // [Reg #2 - 3.3] scrubber server-side de reciprocidade
+  scrubGreetingReciprocity,
+  // [Reg #2 - 3.4] anti-repetição semântica por família de intenção
+  classifyIntentFamily,
+  isSemanticDuplicate,
+  type IntentFamily,
+  // [Reg #2 - 3.6] detector de turno consultivo
+  detectConsultativeTurn,
+  buildConsultativeTurnBlock,
   // [F2-FS-CROSS] normalizador do retorno de search_products (legado/novo)
   parseSearchProductsResult,
 } from "../_shared/sales-pipeline/index.ts";
