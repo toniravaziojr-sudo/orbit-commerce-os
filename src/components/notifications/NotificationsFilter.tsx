@@ -17,12 +17,14 @@ interface NotificationsFilterProps {
   onFilterChange: (filter: FilterType) => void;
 }
 
-const statusOptions: { value: NotificationStatus; label: string }[] = [
+const statusOptions: { value: string; label: string }[] = [
   { value: 'scheduled', label: 'Agendadas' },
-  { value: 'retrying', label: 'Retrying' },
+  { value: 'retrying', label: 'Reentando' },
   { value: 'sending', label: 'Enviando' },
   { value: 'sent', label: 'Enviadas' },
-  { value: 'failed', label: 'Falhas' },
+  { value: 'failed', label: 'Falhas (todas)' },
+  { value: 'failed:render_blocked', label: '↳ Bloqueada (dado faltando)' },
+  { value: 'failed:provider_error', label: '↳ Erro do provedor' },
   { value: 'canceled', label: 'Canceladas' },
 ];
 
@@ -41,11 +43,19 @@ export function NotificationsFilterComponent({ filter, onFilterChange }: Notific
 
   const handleStatusChange = (value: string) => {
     if (value === 'all') {
-      onFilterChange({ ...filter, status: undefined });
+      onFilterChange({ ...filter, status: undefined, errorCategory: undefined });
+    } else if (value === 'failed:render_blocked') {
+      onFilterChange({ ...filter, status: ['failed'], errorCategory: 'render_blocked' });
+    } else if (value === 'failed:provider_error') {
+      onFilterChange({ ...filter, status: ['failed'], errorCategory: 'provider_error' });
     } else {
-      onFilterChange({ ...filter, status: [value as NotificationStatus] });
+      onFilterChange({ ...filter, status: [value as NotificationStatus], errorCategory: undefined });
     }
   };
+
+  const currentStatusValue = filter.errorCategory
+    ? `failed:${filter.errorCategory}`
+    : (filter.status?.[0] || 'all');
 
   const handleChannelChange = (value: string) => {
     if (value === 'all') {
