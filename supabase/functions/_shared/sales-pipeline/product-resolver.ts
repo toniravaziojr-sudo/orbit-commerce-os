@@ -188,8 +188,33 @@ export async function resolveProductReference(
     };
   }
 
-  // 3c) múltiplos hits → AMBÍGUO. Não adivinhar.
+  // 3c) múltiplos hits → tenta desempatar antes de declarar ambíguo.
   if (candidates.length > 1) {
+    // [PIPELINE-FIX 2026-04-29] Desempate (a): focusProductId.
+    if (options.focusProductId) {
+      const focused = candidates.find((p) => p.id === options.focusProductId);
+      if (focused) {
+        return { found: true, ambiguous: false, product: focused, candidates: [] };
+      }
+    }
+    // [PIPELINE-FIX 2026-04-29] Desempate (b): quantificador no termo
+    // ("Calvície Zero 3x" → escolhe o pack cujo nome também tem 3x/x3/kit 3).
+    const termQty = extractQuantifier(term);
+    if (termQty != null) {
+      const qtyMatches = candidates.filter((p) => extractQuantifier(p.name) === termQty);
+      if (qtyMatches.length === 1) {
+        return { found: true, ambiguous: false, product: qtyMatches[0], candidates: [] };
+      }
+    }
+    // [PIPELINE-FIX 2026-04-29] Desempate (c): quantityHint vs quantificador
+    // do nome do candidato (ex.: IA pediu quantity=3 e há candidato "Pack 3").
+    if (options.quantityHint && options.quantityHint > 1) {
+      const qtyMatches = candidates.filter((p) => extractQuantifier(p.name) === options.quantityHint);
+      if (qtyMatches.length === 1) {
+        return { found: true, ambiguous: false, product: qtyMatches[0], candidates: [] };
+      }
+    }
+    // Sem desempate → AMBÍGUO. Não adivinhar.
     return {
       found: false,
       ambiguous: true,
