@@ -1,15 +1,17 @@
-import { useState, useMemo } from "react";
-import { MessageSquare, Search, Filter, Inbox, Bot, User, Mail, Globe, ShoppingCart, Music, Instagram } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { MessageSquare, Search, Filter, Inbox, Bot, User, Mail, Globe, ShoppingCart, Music, Instagram, MailOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation, ConversationStatus, SupportChannelType } from "@/hooks/useConversations";
 import { cn } from "@/lib/utils";
-import { countByQueue, getConversationQueue, type SupportQueue } from "@/lib/support-queues";
+import { countByQueue, getConversationQueue, hasUnread, type SupportQueue } from "@/lib/support-queues";
+import { useAuth } from "@/hooks/useAuth";
 
 import { formatDateBR } from "@/lib/date-format";
 
@@ -88,8 +90,20 @@ export function ConversationList({
   filter,
   onFilterChange,
 }: ConversationListProps) {
+  const { currentTenant } = useAuth();
   const [search, setSearch] = useState('');
   const [channelFilter, setChannelFilter] = useState<SupportChannelType | 'all'>('all');
+  const unreadStorageKey = currentTenant?.id ? `support_unread_only:${currentTenant.id}` : 'support_unread_only';
+  const [unreadOnly, setUnreadOnly] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(unreadStorageKey) === '1';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (unreadOnly) window.localStorage.setItem(unreadStorageKey, '1');
+    else window.localStorage.removeItem(unreadStorageKey);
+  }, [unreadOnly, unreadStorageKey]);
 
   const filteredConversations = useMemo(() => {
     // Fila oficial (regra única em src/lib/support-queues.ts)
@@ -98,6 +112,11 @@ export function ConversationList({
     // Filter by channel
     if (channelFilter !== 'all') {
       filtered = filtered.filter(c => c.channel_type === channelFilter);
+    }
+
+    // Filter by unread (transversal)
+    if (unreadOnly) {
+      filtered = filtered.filter(hasUnread);
     }
 
     // Search
@@ -111,9 +130,13 @@ export function ConversationList({
     }
 
     return filtered;
-  }, [conversations, filter, channelFilter, search]);
+  }, [conversations, filter, channelFilter, search, unreadOnly]);
 
   const counts = useMemo(() => countByQueue(conversations), [conversations]);
+  const unreadCount = useMemo(
+    () => conversations.filter((c) => getConversationQueue(c) !== null && hasUnread(c)).length,
+    [conversations],
+  );
 
   return (
     <div className="flex flex-col h-full border-r">
@@ -145,6 +168,22 @@ export function ConversationList({
             <SelectItem value="shopee">🧡 Shopee</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          type="button"
+          variant={unreadOnly ? "default" : "outline"}
+          size="sm"
+          className="w-full justify-center gap-2"
+          onClick={() => setUnreadOnly((v) => !v)}
+          aria-pressed={unreadOnly}
+        >
+          <MailOpen className="h-4 w-4" />
+          <span>Apenas não lidos</span>
+          {unreadCount > 0 && (
+            <Badge variant={unreadOnly ? "secondary" : "destructive"} className="ml-1 h-4 px-1 text-[10px] leading-none">
+              {unreadCount}
+            </Badge>
+          )}
+        </Button>
       </div>
 
       {/* Tabs — fila oficial (Fase 2) */}

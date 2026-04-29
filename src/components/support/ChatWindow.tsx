@@ -15,6 +15,7 @@ import { QuickRepliesDropdown } from "./QuickRepliesDropdown";
 import { toast } from "sonner";
 
 import { formatTimeBR } from "@/lib/date-format";
+import { sanitizeMessageContent } from "@/lib/sanitizeNotificationContent";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -239,6 +240,9 @@ export function ChatWindow({
             const isSystem = msg.sender_type === 'system';
             const isNote = msg.is_note;
             const isInternal = msg.is_internal;
+            // Phase 4: bloqueia conteúdo cru de templates legados (placeholders/{{vars}}).
+            const sanitized = sanitizeMessageContent(msg.content);
+            const safeContent = sanitized.text;
 
             // PHASE 3: Eventos internos do sistema (renderização bloqueada,
             // falhas de envio, ações automáticas) NÃO aparecem como balão de
@@ -251,7 +255,7 @@ export function ChatWindow({
                       <Info className="h-3 w-3" />
                       <span>Evento interno do sistema</span>
                     </div>
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{safeContent}</p>
                     <div className="text-[10px] text-muted-foreground/70 mt-1">
                       {formatTimeBR(new Date(msg.created_at))}
                     </div>
@@ -268,7 +272,7 @@ export function ChatWindow({
                       <Bot className="h-3 w-3" />
                       <span>Sistema</span>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{safeContent}</p>
                     <div className="flex items-center gap-2 text-xs mt-1 opacity-70">
                       <span>{formatTimeBR(new Date(msg.created_at))}</span>
                     </div>
@@ -290,7 +294,7 @@ export function ChatWindow({
                       <StickyNote className="h-3 w-3" />
                       <span>Nota interna • {msg.sender_name}</span>
                     </div>
-                    <p className="text-sm">{msg.content}</p>
+                    <p className="text-sm">{safeContent}</p>
                   </div>
                 </div>
               );
@@ -323,13 +327,13 @@ export function ChatWindow({
                       <span>IA</span>
                     </div>
                   )}
-                  {msg.content_type === 'html' || (msg.content?.startsWith('<') && msg.content?.includes('</')) ? (
+                  {!sanitized.wasLegacyLeak && (msg.content_type === 'html' || (msg.content?.startsWith('<') && msg.content?.includes('</'))) ? (
                     <div 
                       className="text-sm prose prose-sm max-w-none dark:prose-invert"
                       dangerouslySetInnerHTML={{ __html: msg.content || '' }}
                     />
                   ) : (
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <p className={cn("text-sm whitespace-pre-wrap", sanitized.wasLegacyLeak && "italic opacity-70")}>{safeContent}</p>
                   )}
                   <div className={cn(
                     "flex items-center gap-2 text-xs mt-1",

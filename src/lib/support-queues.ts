@@ -57,6 +57,11 @@ export function filterByQueue<T extends Pick<Conversation, "status" | "assigned_
   return conversations.filter((c) => getConversationQueue(c) === queue);
 }
 
+/** Filtro transversal: conversa com mensagens não lidas. */
+export function hasUnread<T extends Pick<Conversation, "unread_count">>(c: T): boolean {
+  return (c.unread_count ?? 0) > 0;
+}
+
 /** Calcula os contadores oficiais das 3 filas. */
 export function countByQueue<T extends Pick<Conversation, "status" | "assigned_to">>(
   conversations: T[],

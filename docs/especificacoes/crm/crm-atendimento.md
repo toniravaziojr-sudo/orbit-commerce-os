@@ -118,6 +118,19 @@ As variáveis amigáveis (`{{customer_first_name}}`) são convertidas para o for
 
 O `run-notifications` reconstrói os valores reais do payload ao enviar.
 
+### Pipeline de Notificações — Contrato de Render (v8.3.0)
+
+Três camadas obrigatórias para garantir que nenhum template saia (ou apareça) incompleto:
+
+1. **Origem garantida** — `process-events` chama `enrichOrderContext(supabase, tenant_id, order_id)` em `_shared/enrich-order-context.ts` antes de montar `templateVars`. Variáveis enriquecidas (`store_name`, `product_names`, `customer_first_name`, `order_number`, `order_total`) **vencem** o payload cru. Proibido ler `payload.product_names` ou `payload.store_name` direto sem fallback de banco.
+2. **Render strict universal** — `_shared/template-renderer.ts` opera em `strict` por padrão. Variável referenciada e ausente bloqueia o envio (`run-notifications` registra evento interno na timeline em vez de mandar conteúdo cru). Variáveis verdadeiramente opcionais devem ser declaradas via `optionalVars`.
+3. **Timeline limpa** — `messages.content` nunca recebe `[Template: ...]` nem `{{ }}`. Para histórico legado anterior ao Phase 3, o frontend usa `sanitizeMessageContent` (`src/lib/sanitizeNotificationContent.ts`) e exibe "Notificação enviada (conteúdo legado oculto)" em vez do texto cru.
+
+**Erros de provedor distintos de erros de render**: SendGrid 401 "Maximum credits exceeded" e templates WhatsApp não-aprovados não devem queimar tentativas — viram alerta operacional, não falha silenciosa.
+
+Anti-regressão registrada em `mem://constraints/notification-template-render-contract`.
+
+
 ### Tipos de Notificação (Regras V2)
 | rule_type | trigger_condition | Descrição |
 |-----------|-------------------|-----------|
