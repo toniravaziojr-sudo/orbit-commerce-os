@@ -4719,6 +4719,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // para search_products aplicar filtro estrito.
         familyFocus: familyFocusBefore,
         familyMentionedNow: detectFamilyMentioned(lastMessageContent || ""),
+        // [Reg #2.8] Sinaliza ao search_products que aplique Catalog Probe
+        // (1 representante por família) ao invés do filtro estrito.
+        shouldBroadenForPain: turnClassification?.should_broaden_catalog_for_pain === true,
       };
 
       let response: Response | null = null;
