@@ -5680,6 +5680,57 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       `[ai-support-chat] [F2] transition ${pipelineState} → ${nextPipelineState} (reason=${transitionReason})`
     );
 
+    // [Reg #2 - 3.3] Greeting scrub server-side: garante reciprocidade real de saudação.
+    // Reescreve apenas a ABERTURA quando o estado é "greeting" e a IA não espelhou o
+    // período do dia / "tudo bem?" do cliente. Custo zero, sem regeneração.
+    let greetingScrubApplied = false;
+    let greetingScrubReason = "noop";
+    try {
+      const scrub = scrubGreetingReciprocity({
+        pipelineState,
+        customerMessage: lastMessageContent || "",
+        aiResponse: aiContent || "",
+      });
+      greetingScrubReason = scrub.reason;
+      if (scrub.scrubbed) {
+        console.log(
+          `[ai-support-chat] [Reg #2 - 3.3] greeting scrub applied (${scrub.reason})`,
+        );
+        aiContent = scrub.after;
+        greetingScrubApplied = true;
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #2 - 3.3] greeting scrub failed:", (e as Error).message);
+    }
+
+    // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
+    // Persistida no turn log; usada para detectar repetição por intenção
+    // (não só por hash exato) confrontando com as últimas famílias da conversa.
+    const intentFamilyOfTurn = classifyIntentFamily(aiContent || "");
+    let semanticDuplicateDetected = false;
+    let semanticDuplicateReason = "noop";
+    try {
+      const { data: recentFamilyRows } = await supabase
+        .from("ai_support_turn_log")
+        .select("metadata, created_at")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      const recentFamilies: IntentFamily[] = (recentFamilyRows || [])
+        .map((r: any) => (r?.metadata?.intent_family as IntentFamily) || "other")
+        .reverse(); // ordem cronológica
+      const semDup = isSemanticDuplicate(intentFamilyOfTurn, recentFamilies);
+      semanticDuplicateDetected = semDup.duplicate;
+      semanticDuplicateReason = semDup.reason;
+      if (semDup.duplicate) {
+        console.log(
+          `[ai-support-chat] [Reg #2 - 3.4] semantic duplicate detected (family=${intentFamilyOfTurn}, recent=${recentFamilies.join(",")}, reason=${semDup.reason})`,
+        );
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #2 - 3.4] semantic dup lookup failed:", (e as Error).message);
+    }
+
     // Hash da resposta (anti-repetição na próxima rodada)
     const responseHash = await hashResponse(aiContent || "");
 
