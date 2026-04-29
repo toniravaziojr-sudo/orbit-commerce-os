@@ -316,7 +316,7 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 | **Localização** | `src/pages/Fiscal.tsx`, `src/components/fiscal/FiscalInvoiceList.tsx`, `src/components/fiscal/ManualInvoiceDialog.tsx` |
 | **Descrição** | A página Fiscal possui duas abas principais com ações distintas |
 
-#### Aba "Pedidos em Aberto" (`mode=orders`)
+#### Aba "Pedidos" (`mode=orders`) — _renomeada de "Pedidos em Aberto" em 2026-04-29_
 - Lista rascunhos de NF-e gerados automaticamente a partir de pedidos pagos (todas as origens: lojas, marketplaces, etc.)
 - Permite criar pedidos/rascunhos manualmente via botão **"Novo Pedido"** → abre `ManualInvoiceDialog`
 - O formulário de pedido é **simplificado**: apenas Cliente + Produtos (descrição, código, unidade, qtd, valor) + Observações
@@ -329,6 +329,16 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 - ~~Botão "NF-e de Entrada"~~ removido (rev3) — o tipo de NF é selecionado dentro do InvoiceEditor na aba Geral
 - ~~Dropdown "Ações"~~ removido (rev2) — era desnecessário
 - ~~"Consultar por Chave"~~ removido como ação separada — o campo de busca da lista já pesquisa por `chave_acesso`
+
+##### Ações em massa (rev 2026-04-29 — Roteamento Gateway)
+
+Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em massa exibe:
+
+- **"Emitir DC-e"** — visível quando os itens selecionados são **rascunhos** cujo pedido tem `resolved_shipping_provider_kind = 'gateway'`. Dispara a Edge Function `dce-emit` que emite o documento de conhecimento de transporte eletrônico (DC-e) para os pedidos selecionados.
+- **"Enviar à transportadora"** — visível quando os itens selecionados são NF-e **autorizadas** com transportadora `kind = 'gateway'` (ex.: Frenet). Dispara `gateway-attach-fiscal-doc`, que anexa o XML/chave da NF ao pedido já sincronizado no gateway, liberando a coleta/despacho pela própria transportadora.
+
+> Para pedidos com transportadora `kind = 'local'` (Correios), o despacho continua sendo feito pela tela de **Remessas** (`/shipping/shipments`), com emissão de etiqueta interna. Não há ação de "Enviar à transportadora" no Fiscal nesse cenário.
+
 
 #### InvoiceEditor — Seletor de Tipo de NF (rev3)
 - Campo **"Tipo de Nota"** na aba Geral com opções: Saída (Venda), Entrada (Compra), Devolução, Remessa, Transferência
