@@ -117,7 +117,7 @@ async function consolidateTenant(supabase: any, tenantId: string) {
       .select("id, status, evidence_count, unique_customer_count, variations")
       .eq("tenant_id", tenantId)
       .eq("canonical_group_id", group.id)
-      .in("status", ["pendente", "aprovado"])
+      .in("status", ["pendente", "ativo"])
       .maybeSingle();
 
     if (existing) {
