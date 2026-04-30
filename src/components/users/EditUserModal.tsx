@@ -184,6 +184,7 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
   };
 
   const memberName = member?.profiles?.full_name || member?.profiles?.email || 'Usuário';
+  const isOwnerMember = member?.role === 'owner';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,7 +192,9 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
         <DialogHeader>
           <DialogTitle>Editar Usuário</DialogTitle>
           <DialogDescription>
-            Edite as permissões de {memberName}
+            {isOwnerMember
+              ? `Edite o nome de ${memberName}. Proprietários têm acesso total e não podem ter permissões alteradas.`
+              : `Edite as permissões de ${memberName}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -231,25 +234,27 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
             </p>
           </div>
 
-          {/* User Type */}
-          <div className="space-y-2">
-            <Label>Tipo de Usuário</Label>
-            <Select value={userType} onValueChange={handleUserTypeChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manager">Gerente</SelectItem>
-                <SelectItem value="editor">Editor</SelectItem>
-                <SelectItem value="attendant">Atendente</SelectItem>
-                <SelectItem value="assistant">Auxiliar</SelectItem>
-                <SelectItem value="viewer">Visualizador</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              O tipo de usuário define as permissões padrão
-            </p>
-          </div>
+          {/* User Type — hidden for owners */}
+          {!isOwnerMember && (
+            <div className="space-y-2">
+              <Label>Tipo de Usuário</Label>
+              <Select value={userType} onValueChange={handleUserTypeChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manager">Gerente</SelectItem>
+                  <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="attendant">Atendente</SelectItem>
+                  <SelectItem value="assistant">Auxiliar</SelectItem>
+                  <SelectItem value="viewer">Visualizador</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                O tipo de usuário define as permissões padrão
+              </p>
+            </div>
+          )}
 
           {/* Permissions */}
           <div className="space-y-2">
