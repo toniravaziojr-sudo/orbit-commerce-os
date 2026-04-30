@@ -38,6 +38,7 @@ interface EditUserModalProps {
   member: {
     id: string;
     user_id: string;
+    role?: string;
     user_type: string;
     permissions: Record<string, boolean | Record<string, boolean>> | null;
     profiles?: {
@@ -183,6 +184,7 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
   };
 
   const memberName = member?.profiles?.full_name || member?.profiles?.email || 'Usuário';
+  const isOwnerMember = member?.role === 'owner';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -190,7 +192,9 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
         <DialogHeader>
           <DialogTitle>Editar Usuário</DialogTitle>
           <DialogDescription>
-            Edite as permissões de {memberName}
+            {isOwnerMember
+              ? `Edite o nome de ${memberName}. Proprietários têm acesso total e não podem ter permissões alteradas.`
+              : `Edite as permissões de ${memberName}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -230,67 +234,71 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
             </p>
           </div>
 
-          {/* User Type */}
-          <div className="space-y-2">
-            <Label>Tipo de Usuário</Label>
-            <Select value={userType} onValueChange={handleUserTypeChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manager">Gerente</SelectItem>
-                <SelectItem value="editor">Editor</SelectItem>
-                <SelectItem value="attendant">Atendente</SelectItem>
-                <SelectItem value="assistant">Auxiliar</SelectItem>
-                <SelectItem value="viewer">Visualizador</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              O tipo de usuário define as permissões padrão
-            </p>
-          </div>
+          {/* User Type — hidden for owners */}
+          {!isOwnerMember && (
+            <div className="space-y-2">
+              <Label>Tipo de Usuário</Label>
+              <Select value={userType} onValueChange={handleUserTypeChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manager">Gerente</SelectItem>
+                  <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="attendant">Atendente</SelectItem>
+                  <SelectItem value="assistant">Auxiliar</SelectItem>
+                  <SelectItem value="viewer">Visualizador</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                O tipo de usuário define as permissões padrão
+              </p>
+            </div>
+          )}
 
-          {/* Permissions */}
-          <div className="space-y-2">
-            <Label>Permissões Detalhadas</Label>
-            <Accordion type="multiple" className="w-full">
-              {MODULES.map((module) => (
-                <AccordionItem key={module.key} value={module.key}>
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={isModuleEnabled(module.key)}
-                        onCheckedChange={() => toggleModule(module.key)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <span>{module.label}</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    {module.submodules ? (
-                      <div className="space-y-2 pl-6">
-                        {module.submodules.map((sub) => (
-                          <div key={sub.key} className="flex items-center gap-2">
-                            <Checkbox
-                              checked={isSubmoduleEnabled(module.key, sub.key)}
-                              onCheckedChange={() => toggleSubmodule(module.key, sub.key)}
-                            />
-                            <Label className="text-sm font-normal cursor-pointer">
-                              {sub.label}
-                            </Label>
-                          </div>
-                        ))}
+          {/* Permissions — hidden for owners (they have full access) */}
+          {!isOwnerMember && (
+            <div className="space-y-2">
+              <Label>Permissões Detalhadas</Label>
+              <Accordion type="multiple" className="w-full">
+                {MODULES.map((module) => (
+                  <AccordionItem key={module.key} value={module.key}>
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={isModuleEnabled(module.key)}
+                          onCheckedChange={() => toggleModule(module.key)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <span>{module.label}</span>
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground pl-6">
-                        Sem submódulos
-                      </p>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      {module.submodules ? (
+                        <div className="space-y-2 pl-6">
+                          {module.submodules.map((sub) => (
+                            <div key={sub.key} className="flex items-center gap-2">
+                              <Checkbox
+                                checked={isSubmoduleEnabled(module.key, sub.key)}
+                                onCheckedChange={() => toggleSubmodule(module.key, sub.key)}
+                              />
+                              <Label className="text-sm font-normal cursor-pointer">
+                                {sub.label}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground pl-6">
+                          Sem submódulos
+                        </p>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </div>
+          )}
 
           {/* Password Reset */}
           <div className="pt-4 border-t">

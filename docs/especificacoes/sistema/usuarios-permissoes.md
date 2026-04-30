@@ -23,7 +23,8 @@ Sistema de controle de acesso baseado em roles (RBAC) para gerenciamento de equi
 | `src/components/users/InviteUserModal.tsx` | Modal de convite |
 | `src/components/users/EditUserModal.tsx` | Modal de edição |
 | `supabase/functions/tenant-user-invite/` | Edge function de convite |
-| `supabase/functions/tenant-user-update/` | Edge function de atualização |
+| `supabase/functions/tenant-user-update/` | Edge function de atualização (nome, tipo, permissões) |
+| `supabase/functions/tenant-user-remove/` | Edge function de remoção (com safeguards) |
 
 ---
 
@@ -193,6 +194,28 @@ const {
 
 ---
 
+## Edição e Remoção de Membros
+
+### Editar Membro
+- **Quem pode:** apenas owner do tenant.
+- **Modal:** `EditUserModal` chamado pelo dropdown da linha do membro em `/system/users`.
+- **Edge function:** `tenant-user-update` valida que o requester é owner do tenant do membro alvo.
+- **Campos editáveis:**
+  - **Nome** (`profiles.full_name`) — sempre editável, inclusive para outros owners.
+  - **Tipo de usuário** e **Permissões detalhadas** — editáveis apenas para membros não-owner. Para owners, esses campos ficam ocultos no modal e ignorados pela edge function (owner sempre tem acesso total por definição).
+- **Recuperação de senha:** botão envia e-mail de reset via `supabase.auth.resetPasswordForEmail`.
+
+### Remover Membro
+- **Quem pode:** apenas owner do tenant.
+- **Edge function:** `tenant-user-remove` (substitui o delete direto na tabela que existia antes).
+- **Safeguards obrigatórios (validados no servidor):**
+  1. Requester deve ser owner do tenant do membro alvo.
+  2. **Não pode remover a si mesmo** (proteção contra auto-lockout).
+  3. **Não pode remover o último owner** do tenant (garante que sempre exista pelo menos um proprietário).
+- **UI:** botão "Remover" disponível para qualquer membro que **não seja o usuário logado** (inclusive outros owners, desde que haja mais de um). Confirmação obrigatória via `AlertDialog`.
+
+---
+
 ## Proibições
 
 | Proibido | Motivo |
@@ -201,6 +224,8 @@ const {
 | Bypass de `canAccessRoute()` | Controle de acesso |
 | Criar roles fora do fluxo de convite | RLS/Segurança |
 | Editar own role | Auto-elevação |
+| Delete direto em `user_roles` pelo cliente | Bypassa safeguards (último owner, self-remove). Usar `tenant-user-remove`. |
+| Editar `user_type`/permissões de owner | Owner tem acesso total por definição. |
 
 ---
 

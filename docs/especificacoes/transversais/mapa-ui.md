@@ -63,7 +63,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 32 | Marketplaces | TikTok Shop | `/marketplaces/tiktokshop` | marketplaces | `tiktokshop` | — | Badge "Upgrade" se bloqueado |
 | 33 | Sistema | Integrações | `/integrations` | sistema_integracoes | — | — | — |
 | 34 | Sistema | Configurações | `/system/settings` | sistema_integracoes | — | — | — |
-| 35 | Sistema | Usuários e Permissões | `/system/users` | sistema_integracoes | `sistema_usuarios` | ✅ | Visível apenas para owner |
+| 35 | Sistema | Usuários e Permissões | `/system/users` | sistema_integracoes | `sistema_usuarios` | ✅ | Visível apenas para owner. Linha de membro tem dropdown com **Editar Permissões** e **Remover** (oculto na própria linha do usuário logado). Edição/remoção de owner permitida quando há mais de um owner. |
 | 36 | Utilitários | Apps Externos | `/apps-externos` | central | — | — | — |
 | 37 | Utilitários | Importar Dados | `/import` | central | `sistema_importacao` | — | Badge "Upgrade" se bloqueado |
 | 38 | Utilitários | Meu Drive | `/files` | central | — | — | — |

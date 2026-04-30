@@ -91,16 +91,15 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Cannot edit the owner role
-    if (targetRole.role === 'owner') {
-      return new Response(
-        JSON.stringify({ success: false, error: "Não é possível editar o proprietário" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    // For owners: only allow updating full_name (not user_type/permissions)
+    // because owners always have full access by definition.
+    const isTargetOwner = targetRole.role === 'owner';
+    if (isTargetOwner && (user_type !== undefined || permissions !== undefined)) {
+      console.log("[tenant-user-update] Skipping role/permissions update for owner");
     }
 
-    // Update user_roles (user_type and permissions)
-    if (user_type !== undefined || permissions !== undefined) {
+    // Update user_roles (only for non-owners)
+    if (!isTargetOwner && (user_type !== undefined || permissions !== undefined)) {
       const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
       if (user_type !== undefined) updateData.user_type = user_type;
       if (permissions !== undefined) updateData.permissions = permissions;
