@@ -1,6 +1,6 @@
 ---
-name: Sales Pipeline v2.9 — Working Memory + Stage Machine (Shadow Mode)
-description: Onda 2 do Reg #2.9. Tabela conversation_sales_state com 7 estágios (social_only/exploring/needs_known/evaluating/buying_intent/closing/post_sale) é a fonte única de memória persistente da conversa de vendas. Módulos working-memory.ts (load/patch/hashQuestion) e stage-machine.ts (decideStage com anti-regressão + STAGE_TO_PIPELINE_STATE mapeando para os 8 PipelineState legados) rodam em ai-support-chat APÓS o TPR e ANTES da gravação de nextPipelineState. Nesta onda é shadow mode: loga e persiste, NÃO altera resposta. Onda 3 ativará prompts por estágio. Onda 4 ativará tool-filter por estágio.
+name: Sales Pipeline v2.9 — Working Memory ativa nos prompts (Onda 3)
+description: Reg #2.9 Ondas 1-3. Tabela conversation_sales_state com 7 estágios é a fonte única de memória persistente da conversa de vendas. Onda 3 ATIVA o uso da memória nos prompts via working-memory-prompt.ts (buildWorkingMemoryPromptBlock injetado em contextualBlocks do buildPromptForState). O bloco lembra à IA: dor declarada, famílias/produtos já apresentados, perguntas-âncora já feitas (anti-repetição via hash FNV-1a), limite de upsell (máx 1) e que já cumprimentou. Pós-resposta, extractAnchorQuestions tira hashes das perguntas da resposta, e os IDs apresentados são extraídos de toolResultsThisTurn (search_products / get_product_details / add_to_cart). decideStage continua sendo SUGESTÃO informativa — decideNextState legado segue como fonte de verdade do PipelineState (Onda 4 troca isso).
 type: feature
 ---
 
@@ -12,7 +12,11 @@ type: feature
 - `_shared/sales-pipeline/working-memory.ts` — `loadSalesState()`, `patchSalesState()`, `hashQuestion()` (FNV-1a determinístico).
 - `_shared/sales-pipeline/stage-machine.ts` — `decideStage()` com anti-regressão; `STAGE_TO_PIPELINE_STATE` mapeia 7 estágios → 8 PipelineState legados.
 - Plugado em `ai-support-chat/index.ts` em 2 pontos: pós-TPR (load + decideStage + log) e pós-nextPipelineState (patchSalesState).
-- TPR NÃO foi estendido — campos atuais cobrem todas as transições.
+
+**Onda 3 (concluída — ativa nos prompts):**
+- `_shared/sales-pipeline/working-memory-prompt.ts` — `buildWorkingMemoryPromptBlock(state)`, `extractAnchorQuestions(text)`, `questionsToHashes(qs)`.
+- `ai-support-chat/index.ts`: injeta o bloco em `contextualBlocks` antes do `buildPromptForState` (somente quando salesMemory carregou). No patch pós-resposta grava `add_asked_question_hashes`, `add_presented_product_ids` e `add_presented_families`.
+- Comportamento ainda compatível: `decideNextState` continua escolhendo o `nextPipelineState` real (a Onda 4 vai virar a chave para a stage-machine ser fonte de verdade do tool-filter).
 
 ## Regras anti-regressão
 

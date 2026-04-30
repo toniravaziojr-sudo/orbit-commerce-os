@@ -345,3 +345,30 @@ Memórias a criar e indexar quando os blocos forem aplicados (cada uma vira 1 en
 ---
 
 *Documento criado em 29/abr/2026 · Última atualização: 29/abr/2026 (Reg. #2.4, #2.5, #2.6, #2.7, #2.8 aplicados).*
+
+## Registro #2.9 Onda 3 — Working Memory ATIVA nos prompts (aplicado)
+
+**Data:** 30/abr/2026
+**Motivação:** Onda 2 já persistia memória da conversa (estágio, dor, famílias, presented_product_ids, asked_question_hashes) mas a IA não LIA esse contexto — então repetia perguntas, reapresentava produtos e oferecia upsell mais de uma vez. Plano aprovado: ativar Working Memory dentro do `systemPrompt` de cada estado, sem mexer nos prompts por estado (segurança).
+
+**Arquivos criados/alterados:**
+- `supabase/functions/_shared/sales-pipeline/working-memory-prompt.ts` (novo) — `buildWorkingMemoryPromptBlock(state)` monta bloco aditivo com estágio atual + dor declarada + famílias citadas pelo cliente + famílias/produtos já apresentados + nº de perguntas feitas (anti-repetição) + status de upsell (limite 1 por conversa) + flag de saudação já feita. `extractAnchorQuestions(text)` tira perguntas-âncora (>=12 chars, ignora "tudo bem?", "posso?") e `questionsToHashes()` gera hashes FNV-1a determinísticos.
+- `supabase/functions/_shared/sales-pipeline/index.ts` — exporta o módulo novo.
+- `supabase/functions/ai-support-chat/index.ts`:
+  - **Injeção do bloco** em `contextualBlocks` ANTES do `buildPromptForState` (somente quando salesMemory carregou). Log `[Reg #2.9] working_memory_block injected — stage=… pain=… presented_products=… asked_questions=… upsell=…`.
+  - **Patch pós-resposta estendido**: agora grava `add_asked_question_hashes` (das perguntas extraídas do `aiContent`), `add_presented_product_ids` (extraídos de `toolResultsThisTurn` — search_products / get_product_details / get_product_variants / add_to_cart) e `add_presented_families`. Log `[Reg #2.9] working_memory patched — stage=… new_questions=N new_products=M pain_set=…`.
+
+**Antes:** memória persistia mas não influenciava resposta — IA podia perguntar 3x a mesma coisa, reapresentar Shampoo X depois de já ter mostrado, oferecer upsell em todo turno.
+**Depois:** prompt do estado recebe bloco "MEMÓRIA DA CONVERSA" lembrando explicitamente: dor declarada, famílias/produtos já mostrados, contagem de perguntas feitas (proibido repetir), upsell já oferecido (proibido reoferecer), saudação já feita (proibido recumprimentar).
+
+**Compatibilidade:** `decideStage` continua sendo SUGESTÃO (gravada em `conversation_sales_state.stage`), mas `decideNextState` legado segue como fonte de verdade do `nextPipelineState` real e do tool-filter — Onda 4 vai virar essa chave.
+
+**Validação técnica executada:**
+- ✅ Tipos TypeScript do módulo novo resolvem sem erro.
+- ✅ Injeção condicionada a `salesMemory` carregado; falhas de extração caem em try/catch silencioso (não derruba turno).
+- ✅ Patch idempotente — `uniqueMerge` em working-memory.ts garante que rerodar não duplica IDs nem hashes.
+- Pendente: usuário re-testar no WhatsApp uma conversa multi-turno (3+ mensagens) e confirmar: (a) IA não repete a mesma pergunta com palavras diferentes, (b) IA não reapresenta produtos já citados, (c) IA não cumprimenta de novo, (d) upsell aparece no máximo 1 vez. Validar via `SELECT stage, customer_declared_pain, presented_product_ids, asked_question_hashes, upsell_offered_count FROM conversation_sales_state WHERE conversation_id = '<uuid>'`.
+
+---
+
+*Última atualização: 30/abr/2026 (Reg. #2.9 Onda 3 aplicado).*

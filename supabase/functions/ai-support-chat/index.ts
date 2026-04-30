@@ -85,6 +85,10 @@ import {
   decideStage,
   type ConversationSalesState,
   type SalesStage,
+  // [Reg #2.9] Onda 3 — bloco de prompt + extração de perguntas-âncora
+  buildWorkingMemoryPromptBlock,
+  extractAnchorQuestions,
+  questionsToHashes,
 } from "../_shared/sales-pipeline/index.ts";
 // [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
 // (substitui o cache em-memória que se perdia a cada cold start).
@@ -4150,6 +4154,25 @@ Cliente: "vocês entregam em SP?"
         }
       }
 
+      // [Reg #2.9] Onda 3 — injeta bloco de Working Memory no prompt do estado.
+      // Aditivo: não substitui prompts por estado, só lembra a IA do que já
+      // foi feito (dor, famílias/produtos apresentados, perguntas feitas, upsell).
+      if (salesMemory) {
+        try {
+          const wmBlock = buildWorkingMemoryPromptBlock({ state: salesMemory });
+          if (wmBlock) {
+            contextualBlocks.push(wmBlock);
+            console.log(
+              `[ai-support-chat] [Reg #2.9] working_memory_block injected — stage=${salesMemory.stage} ` +
+              `pain=${!!salesMemory.customer_declared_pain} presented_products=${salesMemory.presented_product_ids.length} ` +
+              `asked_questions=${salesMemory.asked_question_hashes.length} upsell=${salesMemory.upsell_offered_count}`
+            );
+          }
+        } catch (e) {
+          console.warn("[ai-support-chat] [Reg #2.9] working_memory_block failed:", (e as Error).message);
+        }
+      }
+
       const routed = buildPromptForState({
         state: pipelineState,
         allTools: SALES_TOOLS,
@@ -5807,15 +5830,66 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       `[ai-support-chat] [F2] transition ${pipelineState} → ${nextPipelineState} (reason=${transitionReason})`
     );
 
-    // [Reg #2.9] Onda 2 — Persiste working memory (shadow mode).
+    // [Reg #2.9] Onda 3 — Persiste working memory (agora ativa nos prompts).
     // Grava: estágio sugerido, dor declarada, família citada, last_greeting_at,
-    // sinais comerciais derivados do TPR. Anti-repetição de pergunta-âncora
-    // será adicionada na Onda 3, quando os prompts por estágio forem ativados.
+    // sinais comerciais derivados do TPR, perguntas-âncora feitas pela IA neste
+    // turno (anti-repetição) e IDs de produtos efetivamente apresentados
+    // (extraídos dos resultados das tools de catálogo).
     if (salesMemory && suggestedStage) {
       try {
         const familyMentioned = turnClassification.mentioned_product_family || null;
         const declaredPain = turnClassification.symptom_text || null;
         const isGreetingTurn = turnClassification.is_pure_greeting || !!turnClassification.greeting_period;
+
+        // Perguntas-âncora feitas pela IA neste turno (para anti-repetição).
+        let askedHashes: string[] | undefined;
+        try {
+          const questions = extractAnchorQuestions(aiContent || "");
+          if (questions.length > 0) {
+            askedHashes = questionsToHashes(questions);
+          }
+        } catch (e) {
+          console.warn("[ai-support-chat] [Reg #2.9] anchor question extraction failed:", (e as Error).message);
+        }
+
+        // Produtos apresentados neste turno — varre resultados das tools de
+        // catálogo (search_products / get_product_details / add_to_cart) e
+        // coleta os IDs/UUIDs encontrados. Defensivo: cada tool tem shape
+        // distinta, então tentamos várias chaves comuns.
+        const presentedIds = new Set<string>();
+        try {
+          const PRODUCT_TOOL_NAMES = new Set([
+            "search_products",
+            "get_product_details",
+            "get_product_variants",
+            "add_to_cart",
+          ]);
+          for (const t of toolResultsThisTurn || []) {
+            if (!t || !PRODUCT_TOOL_NAMES.has(t.tool)) continue;
+            const parsed = t.parsed;
+            if (!parsed || typeof parsed !== "object") continue;
+            // Coleta recursiva leve: pega id/product_id em arrays comuns.
+            const collectFrom = (arr: any[]) => {
+              for (const item of arr) {
+                if (!item || typeof item !== "object") continue;
+                const id = item.product_id || item.id;
+                if (typeof id === "string" && id.length >= 8) presentedIds.add(id);
+              }
+            };
+            if (Array.isArray(parsed.products)) collectFrom(parsed.products);
+            if (Array.isArray(parsed.results)) collectFrom(parsed.results);
+            if (Array.isArray(parsed.items)) collectFrom(parsed.items);
+            if (parsed.product_id && typeof parsed.product_id === "string") {
+              presentedIds.add(parsed.product_id);
+            }
+            if (parsed.product?.id && typeof parsed.product.id === "string") {
+              presentedIds.add(parsed.product.id);
+            }
+          }
+        } catch (e) {
+          console.warn("[ai-support-chat] [Reg #2.9] presented_ids extraction failed:", (e as Error).message);
+        }
+        const presentedIdsArr = Array.from(presentedIds);
 
         await patchSalesState(supabase, salesMemory, {
           stage: suggestedStage,
@@ -5823,6 +5897,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           add_customer_named_families: familyMentioned ? [familyMentioned] : undefined,
           customer_declared_pain:
             declaredPain && !salesMemory.customer_declared_pain ? declaredPain : undefined,
+          add_asked_question_hashes: askedHashes,
+          add_presented_product_ids: presentedIdsArr.length > 0 ? presentedIdsArr : undefined,
+          add_presented_families: familyMentioned ? [familyMentioned] : undefined,
           merge_commercial_signals: {
             last_tpr_source: turnClassification.source,
             last_pipeline_state_legacy: nextPipelineState,
@@ -5831,6 +5908,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             asked_about_payment_or_link: turnClassification.asked_about_payment_or_link || undefined,
           },
         });
+
+        console.log(
+          `[ai-support-chat] [Reg #2.9] working_memory patched — stage=${suggestedStage} ` +
+          `new_questions=${askedHashes?.length || 0} new_products=${presentedIdsArr.length} ` +
+          `pain_set=${!!(declaredPain && !salesMemory.customer_declared_pain)}`
+        );
       } catch (e) {
         console.warn("[ai-support-chat] [Reg #2.9] working memory patch failed:", (e as Error).message);
       }
