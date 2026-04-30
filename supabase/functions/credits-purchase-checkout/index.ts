@@ -1,6 +1,6 @@
 // ============================================
 // CREDITS PURCHASE CHECKOUT - Create MP preference for AI credits
-// Uses platform MP_ACCESS_TOKEN (admin billing account)
+// Uses platform receiver MP credentials (tenant admin → payment_providers)
 // ============================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
