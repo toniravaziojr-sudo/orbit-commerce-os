@@ -343,14 +343,20 @@ Disponível apenas para `isPlatformOperator`:
 | **TikTok Ads** | TikTok Ads platform config (Pixel, CAPI, Campanhas) | `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET` |
 | **TikTok Shop** | TikTok Shop platform config (Catálogo, Pedidos, Fulfillment) | `TIKTOK_SHOP_APP_KEY`, `TIKTOK_SHOP_APP_SECRET` |
 | Mercado Livre | Meli platform config | `MELI_APP_ID`, `MELI_CLIENT_SECRET` |
-| Mercado Pago | App **integrador OAuth** (usado para lojistas conectarem suas contas MP) | `MP_CLIENT_ID`, `MP_CLIENT_SECRET` |
+| Mercado Pago | App **integrador OAuth** (usado para QUALQUER conta MP — admin ou lojista — conectar como recebedor) | `mercadopago_client_id`, `mercadopago_client_secret` |
 
-> ⚠️ **Mercado Pago — 3 contextos de credenciais (não confundir):**
-> 1. **Integrador (esta tela):** `MP_CLIENT_ID` + `MP_CLIENT_SECRET` do app de developer. Usado **só** para o OAuth onde lojistas conectam suas próprias contas MP.
-> 2. **Recebedor da plataforma** (assinaturas SaaS, créditos de IA, plano inicial): NÃO fica aqui. Fica em `payment_providers` do tenant admin (`cc000000-0000-0000-0000-000000000001`), cadastrado em **Minha Loja → Integrações → Pagamentos** logado como o admin. As edge functions de billing leem via helper `_shared/platform-receiver-credentials.ts`.
-> 3. **Recebedor de cada lojista:** também em `payment_providers`, registro do tenant correspondente, configurado pelo próprio lojista em Minha Loja → Integrações → Pagamentos.
+> ⚠️ **Mercado Pago — 2 contextos de credenciais (corrigido em 2026-04-30):**
+> 1. **Integrador (esta tela /platform-integrations):** `mercadopago_client_id` + `mercadopago_client_secret` do app de developer da plataforma. Usado **só** para emitir tokens OAuth quando QUALQUER tenant (admin ou lojista) clica em "Conectar com Mercado Pago".
+> 2. **Recebedor (por tenant):** registro em `payment_providers` (`provider='mercado_pago'`), criado automaticamente pelo fluxo OAuth — o lojista clica em **Conectar com Mercado Pago** em Minha Loja → Integrações → Pagamentos, autoriza no site oficial do MP, e o `access_token` + `refresh_token` + `mp_user_id` são gravados pelo backend. **Não há mais campos manuais de Access Token / Public Key.** Vale exatamente o mesmo para o tenant admin (`cc000000-0000-0000-0000-000000000001`) — a conta recebedora da plataforma é só mais um tenant que conectou via OAuth, sem fluxo especial.
 >
-> Não existem mais os secrets de ambiente `MP_ACCESS_TOKEN`, `MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET` — foram removidos em 2026-04-30. Toda credencial recebedora é DB-stored.
+> **Edge functions do fluxo OAuth do recebedor:**
+> - `mercadopago-oauth-start` — usuário autenticado, valida acesso ao tenant, lê `mercadopago_client_id` do integrador, gera state assinado e devolve a URL `https://auth.mercadopago.com.br/authorization`.
+> - `mercadopago-oauth-callback` — público (chamado pelo redirect do MP), valida state, troca `code` por token via `https://api.mercadopago.com/oauth/token`, faz `GET /users/me`, persiste em `payment_providers` (upsert por `tenant_id+provider`), retorna HTML que faz `postMessage` ao opener.
+> - `mercadopago-oauth-disconnect` — usuário autenticado, valida acesso ao tenant, faz `DELETE` em `payment_providers`.
+>
+> Tabela auxiliar: `oauth_state_store` (nonce + tenant + user + expires_at de 10 min, RLS bloqueia anon e authenticated — só service_role acessa).
+>
+> Não existem mais os secrets de ambiente `MP_ACCESS_TOKEN`, `MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET` — foram removidos em 2026-04-30. Toda credencial recebedora é DB-stored e obtida via OAuth.
 | Shopee | Shopee platform config | `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY` |
 
 ### ⚠️ REGRA: Padrão Visual Obrigatório — CredentialEditor

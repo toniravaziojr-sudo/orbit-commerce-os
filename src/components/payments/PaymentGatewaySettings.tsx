@@ -39,6 +39,8 @@ import {
 import { usePaymentProviders, PaymentProviderInput } from '@/hooks/usePaymentProviders';
 import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 interface GatewayField {
   key: string;
@@ -61,6 +63,8 @@ interface GatewayDefinition {
   comingSoon?: boolean;
   webhookUrl?: string;
   webhookInstructions?: string;
+  /** Quando true, conexão é via OAuth — sem campos manuais. */
+  oauth?: boolean;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -98,27 +102,91 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     id: 'mercado_pago',
     name: 'Mercado Pago',
     logo: '💳',
-    description: 'Aceite PIX, cartões e boleto com o Mercado Pago',
-    fields: [
-      { key: 'public_key', label: 'Public Key', type: 'text', placeholder: 'APP_USR-...' },
-      { key: 'access_token', label: 'Access Token', type: 'password', placeholder: 'APP_USR-...' },
-    ],
+    description: 'Conecte sua conta Mercado Pago em 1 clique para receber PIX, cartão e boleto',
+    fields: [], // OAuth — sem campos manuais
     supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
     docsUrl: 'https://www.mercadopago.com.br/developers',
     webhookUrl: `${SUPABASE_URL}/functions/v1/mercadopago-storefront-webhook`,
-    webhookInstructions: 'Acesse Mercado Pago → Sua aplicação → Webhooks → Configure esta URL para receber notificações de pagamento.',
+    webhookInstructions: 'O webhook é configurado automaticamente após conectar sua conta.',
+    oauth: true,
   },
 ];
 
 export function PaymentGatewaySettings() {
   const { providers, isLoading, upsertProvider, deleteProvider, getProvider } = usePaymentProviders();
+  const { currentTenant } = useAuth();
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [expandedGateway, setExpandedGateway] = useState<string | null>(null);
   const [disconnectDialog, setDisconnectDialog] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, {
     fields: Record<string, string>;
   }>>({});
+
+  // Listener para mensagens da janela popup do OAuth
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.source !== 'mp-oauth') return;
+      if (e.data.status === 'success') {
+        toast.success('Mercado Pago conectado com sucesso!');
+        // Refresh providers list
+        window.dispatchEvent(new CustomEvent('payment-providers-refresh'));
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        toast.error(`Falha ao conectar: ${e.data.message || 'erro desconhecido'}`);
+      }
+      setOauthLoading(null);
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const startOAuth = async (gatewayId: string) => {
+    if (!currentTenant?.id) {
+      toast.error('Nenhum tenant selecionado');
+      return;
+    }
+    setOauthLoading(gatewayId);
+    try {
+      const { data, error } = await supabase.functions.invoke('mercadopago-oauth-start', {
+        body: { tenant_id: currentTenant.id, return_url: window.location.pathname },
+      });
+      if (error) throw error;
+      if (!data?.success || !data?.url) {
+        throw new Error(data?.error || 'Falha ao iniciar conexão');
+      }
+      // Abre popup centralizado
+      const w = 600, h = 720;
+      const left = window.screenX + (window.outerWidth - w) / 2;
+      const top = window.screenY + (window.outerHeight - h) / 2;
+      const popup = window.open(data.url, 'mp-oauth', `width=${w},height=${h},left=${left},top=${top}`);
+      if (!popup) {
+        toast.error('Permita janelas pop-up para este site e tente novamente.');
+        setOauthLoading(null);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao iniciar conexão com Mercado Pago');
+      setOauthLoading(null);
+    }
+  };
+
+  const disconnectOAuth = async (gatewayId: string) => {
+    if (!currentTenant?.id) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('mercadopago-oauth-disconnect', {
+        body: { tenant_id: currentTenant.id },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao desconectar');
+      toast.success('Mercado Pago desconectado');
+      window.location.reload();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao desconectar');
+    }
+  };
+
+
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -299,7 +367,11 @@ export function PaymentGatewaySettings() {
                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDisconnectDialog(gateway.id);
+                          if (gateway.oauth) {
+                            disconnectOAuth(gateway.id);
+                          } else {
+                            setDisconnectDialog(gateway.id);
+                          }
                         }}
                       >
                         <Unplug className="h-4 w-4 mr-1" />
@@ -310,6 +382,26 @@ export function PaymentGatewaySettings() {
                       <Button variant="ghost" size="sm" disabled>
                         Em breve
                       </Button>
+                    ) : gateway.oauth && !connected ? (
+                      <Button
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); startOAuth(gateway.id); }}
+                        disabled={oauthLoading === gateway.id}
+                      >
+                        {oauthLoading === gateway.id ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Plug className="h-4 w-4 mr-2" />
+                        )}
+                        Conectar com Mercado Pago
+                      </Button>
+                    ) : gateway.oauth && connected ? (
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          Detalhes
+                          {isExpanded ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
+                        </Button>
+                      </CollapsibleTrigger>
                     ) : (
                       <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="sm">
@@ -328,65 +420,97 @@ export function PaymentGatewaySettings() {
 
               <CollapsibleContent>
                 <CardContent className="pt-0 space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {gateway.fields.map((field) => {
-                      const secretKey = `${gateway.id}-${field.key}`;
-                      const isVisible = showSecrets[secretKey] || field.type === 'text';
-                      
-                      return (
-                        <div key={field.key} className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
-                            {field.optional && (
-                              <Badge variant="outline" className="text-[10px] h-4 px-1.5">
-                                Opcional
-                              </Badge>
-                            )}
+                  {gateway.oauth ? (
+                    // ====== UI OAuth (Mercado Pago) ======
+                    connected && saved ? (
+                      <div className="space-y-3">
+                        <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-4">
+                          <div className="flex items-start gap-3">
+                            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                            <div className="flex-1 space-y-1 text-sm">
+                              <p className="font-medium text-green-900 dark:text-green-100">
+                                Conta Mercado Pago conectada
+                              </p>
+                              {saved.credentials?.mp_user_id && (
+                                <p className="text-xs text-muted-foreground">
+                                  ID da conta: <span className="font-mono">{saved.credentials.mp_user_id}</span>
+                                </p>
+                              )}
+                              {saved.credentials?.connected_at && (
+                                <p className="text-xs text-muted-foreground">
+                                  Conectada em: {new Date(saved.credentials.connected_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                                </p>
+                              )}
+                              {saved.credentials?.expires_at && (
+                                <p className="text-xs text-muted-foreground">
+                                  Token expira em: {new Date(saved.credentials.expires_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} (renovação automática)
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <div className="relative">
-                            <Input
-                              id={`${gateway.id}-${field.key}`}
-                              type={isVisible ? 'text' : 'password'}
-                              placeholder={field.placeholder}
-                              value={data.fields[field.key] || ''}
-                              onChange={(e) => updateField(gateway.id, field.key, e.target.value)}
-                              className="pr-10"
-                            />
-                            {field.type === 'password' && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                                onClick={() => toggleSecret(gateway.id, field.key)}
-                              >
-                                {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
-                            )}
-                          </div>
-                          {field.helpText && (
-                            <p className="text-xs text-muted-foreground leading-snug">
-                              {field.helpText}
-                            </p>
-                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    ) : (
+                      <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-sm">
+                          Clique em <strong>Conectar com Mercado Pago</strong> para autorizar sua conta.
+                          Você será direcionado ao site oficial do Mercado Pago para fazer login e autorizar.
+                          Nenhuma credencial precisa ser preenchida manualmente.
+                        </AlertDescription>
+                      </Alert>
+                    )
+                  ) : (
+                    // ====== UI Manual (Pagar.me, etc) ======
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {gateway.fields.map((field) => {
+                        const secretKey = `${gateway.id}-${field.key}`;
+                        const isVisible = showSecrets[secretKey] || field.type === 'text';
+                        return (
+                          <div key={field.key} className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
+                              {field.optional && (
+                                <Badge variant="outline" className="text-[10px] h-4 px-1.5">Opcional</Badge>
+                              )}
+                            </div>
+                            <div className="relative">
+                              <Input
+                                id={`${gateway.id}-${field.key}`}
+                                type={isVisible ? 'text' : 'password'}
+                                placeholder={field.placeholder}
+                                value={data.fields[field.key] || ''}
+                                onChange={(e) => updateField(gateway.id, field.key, e.target.value)}
+                                className="pr-10"
+                              />
+                              {field.type === 'password' && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                                  onClick={() => toggleSecret(gateway.id, field.key)}
+                                >
+                                  {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                              )}
+                            </div>
+                            {field.helpText && (
+                              <p className="text-xs text-muted-foreground leading-snug">{field.helpText}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                  {/* Webhook URL Section */}
-                  {gateway.webhookUrl && connected && (
+                  {/* Webhook URL Section (apenas para gateways manuais conectados) */}
+                  {gateway.webhookUrl && connected && !gateway.oauth && (
                     <div className="bg-muted/50 rounded-lg p-4 space-y-2">
                       <Label className="text-sm font-medium">URL do Webhook</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {gateway.webhookInstructions}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{gateway.webhookInstructions}</p>
                       <div className="flex gap-2">
-                        <Input
-                          value={gateway.webhookUrl}
-                          readOnly
-                          className="font-mono text-xs"
-                        />
+                        <Input value={gateway.webhookUrl} readOnly className="font-mono text-xs" />
                         <Button
                           variant="outline"
                           size="icon"
@@ -409,19 +533,21 @@ export function PaymentGatewaySettings() {
                         Documentação
                       </a>
                     </Button>
-                    <Button 
-                      onClick={() => handleSave(gateway.id)}
-                      disabled={upsertProvider.isPending || !isConfigured(gateway.id)}
-                    >
-                      {upsertProvider.isPending ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : connected ? (
-                        <Save className="h-4 w-4 mr-2" />
-                      ) : (
-                        <Plug className="h-4 w-4 mr-2" />
-                      )}
-                      {connected ? 'Salvar' : 'Conectar'}
-                    </Button>
+                    {!gateway.oauth && (
+                      <Button
+                        onClick={() => handleSave(gateway.id)}
+                        disabled={upsertProvider.isPending || !isConfigured(gateway.id)}
+                      >
+                        {upsertProvider.isPending ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : connected ? (
+                          <Save className="h-4 w-4 mr-2" />
+                        ) : (
+                          <Plug className="h-4 w-4 mr-2" />
+                        )}
+                        {connected ? 'Salvar' : 'Conectar'}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </CollapsibleContent>

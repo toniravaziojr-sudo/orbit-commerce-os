@@ -1,5 +1,14 @@
 project_id = "ojssezfjhdvvncsqyhyq"
 
+[functions.mercadopago-oauth-start]
+verify_jwt = false
+
+[functions.mercadopago-oauth-callback]
+verify_jwt = false
+
+[functions.mercadopago-oauth-disconnect]
+verify_jwt = false
+
 [functions.ai-import-page]
 verify_jwt = false
 
