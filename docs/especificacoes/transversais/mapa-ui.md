@@ -80,7 +80,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 |---|------|------|-------------|
 | 1 | Saúde do Sistema | `/platform/system-health` | Ondas 1+2 — Visibilidade & Resiliência. KPIs banco/cron/filas + KPIs WhatsApp travadas/incidentes/divergências de pagamento. Abas: Tarefas Automatizadas, Filas, WhatsApp (incidentes + mensagens órfãs com ação "Resolver"), Pagamentos (divergências 24h/7d/30d), Queries Lentas, Banco. |
 | 2 | Health Monitor | `/platform/health-monitor` | — |
-| 3 | Integrações da Plataforma | `/platform/integrations` | Apenas credenciais de **app integrador** (OAuth Mercado Pago, Mercado Livre, Meta, Google, Shopee, etc). **NÃO contém recebedor de pagamento** — recebedor da plataforma fica em "Minha Loja → Integrações → Pagamentos" do tenant admin. Ver `mem://constraints/mercadopago-3-contextos-credentials`. |
+| 3 | Integrações da Plataforma | `/platform/integrations` | Apenas credenciais de **app integrador** (OAuth Mercado Pago, Mercado Livre, Meta, Google, Shopee, etc). **NÃO contém recebedor de pagamento** — recebedor de QUALQUER tenant (inclusive admin) é configurado via OAuth em "Minha Loja → Integrações → Pagamentos → Mercado Pago → Conectar com Mercado Pago" (botão único, sem campos manuais). Ver `mem://constraints/mercadopago-2-contextos-credentials`. |
 | 4 | Sugestões de Blocos | `/platform/block-suggestions` | — |
 | 5 | Assinaturas | `/platform/billing` | — |
 | 6 | Emails do Sistema | `/platform/emails` | — |
