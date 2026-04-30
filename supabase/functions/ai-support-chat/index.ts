@@ -3806,6 +3806,38 @@ Cliente: "vocês entregam em SP?"
       turnClassification = fallbackClassification(lastMessageContent || "", false);
     }
 
+    // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (SHADOW MODE)
+    // Carrega memória persistente da conversa, decide o estágio comercial
+    // sugerido pela máquina nova e LOGA. Nesta onda NÃO altera o pipeline
+    // F2-V3/V4 que já está em produção — só observa, persiste sinais e
+    // gera dados auditáveis para validar antes da Onda 3 ativar.
+    let salesMemory: ConversationSalesState | null = null;
+    let suggestedStage: SalesStage | null = null;
+    if (salesModeEnabled) {
+      try {
+        salesMemory = await loadSalesState(supabase, {
+          conversationId: conversation_id,
+          tenantId: tenant_id,
+        });
+        const decision = decideStage({
+          current: salesMemory.stage,
+          tpr: turnClassification,
+          hasPresentedProducts: salesMemory.presented_product_ids.length > 0,
+          hasDeclaredPain: !!salesMemory.customer_declared_pain,
+        });
+        suggestedStage = decision.next;
+        console.log(
+          `[ai-support-chat] [Reg #2.9] [shadow] stage=${salesMemory.stage} suggested=${decision.next} ` +
+          `pipeline_state=${decision.pipelineState} reason=${decision.reason} regressed=${decision.regressed} ` +
+          `presented=${salesMemory.presented_product_ids.length} pain=${!!salesMemory.customer_declared_pain} ` +
+          `upsell_offered=${salesMemory.upsell_offered_count}`
+        );
+      } catch (e) {
+        console.warn("[ai-support-chat] [Reg #2.9] working memory load failed:", (e as Error).message);
+      }
+    }
+
+
     const mentionedProductNameBefore = extractMentionedProductName(lastMessageContent || "", preTransitionProductHint);
     const familyMentionedBefore = detectFamilyMentioned(lastMessageContent || "");
     const isInformationalProductQuestionCurrentTurn =
