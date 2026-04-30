@@ -915,15 +915,34 @@ async function executeSalesTool(
           const singles = enriched.filter(p => !p.is_kit);
           const kits = enriched.filter(p => p.is_kit);
 
-          const sortByPain = (arr: any[]) =>
+          // [Reg #2.10] Onda 4 — EXACT-MATCH BOOST
+          // Quando a query do modelo bate literalmente com o nome do produto,
+          // esse produto SEMPRE vem antes do pain_match. Resolve o caso
+          // "buscou 'Loção' e veio Shampoo Preventive Power".
+          const normalizedQuery = (query || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          const queryTokens = normalizedQuery.split(/\s+/).filter(t => t.length >= 3);
+          const exactScore = (name: string): number => {
+            if (!normalizedQuery) return 0;
+            const n = String(name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            // 0 = melhor (match no início), 1 = match no meio, 2 = só por token, 3 = sem match
+            if (n.startsWith(normalizedQuery)) return 0;
+            if (n.includes(normalizedQuery)) return 1;
+            if (queryTokens.length && queryTokens.every(t => n.includes(t))) return 2;
+            return 3;
+          };
+
+          const sortRanked = (arr: any[]) =>
             [...arr].sort((a, b) => {
+              const ea = exactScore(a.name);
+              const eb = exactScore(b.name);
+              if (ea !== eb) return ea - eb;
               const ap = a.match_reason === "pain_match" ? 0 : 1;
               const bp = b.match_reason === "pain_match" ? 0 : 1;
               return ap - bp;
             });
 
-          const singlesSorted = sortByPain(singles);
-          const kitsSorted = sortByPain(kits);
+          const singlesSorted = sortRanked(singles);
+          const kitsSorted = sortRanked(kits);
 
           const out = singlesSorted.slice(0, requestedLimit);
           if (includeKits && out.length < requestedLimit) {
@@ -5891,6 +5910,93 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         }
         const presentedIdsArr = Array.from(presentedIds);
 
+        // [Reg #2.10] Onda 4 — FOCUS SNAPSHOT
+        // Trava IDs canônicos quando há sinal forte de foco:
+        //   (a) add_to_cart rodou neste turno → trava nos itens do carrinho
+        //   (b) get_product_details rodou → trava no produto detalhado
+        //   (c) estado avançado (decision/cart/checkout) e há ≤3 produtos
+        //       apresentados → trava nesses
+        // O snapshot só é (re)gravado se ainda não houver um, OU se add_to_cart
+        // rodou (sinal mais forte que sobrescreve).
+        let focusPatchExtras: Record<string, unknown> | undefined;
+        try {
+          const existingFocus = (salesMemory.extras as any)?.focus_snapshot;
+          const addToCartRan = (toolsCalledThisTurn || []).includes("add_to_cart");
+          const detailsRan = (toolsCalledThisTurn || []).includes("get_product_details");
+          const advancedState = ["decision", "cart", "checkout", "checkout_assist"].includes(pipelineState);
+
+          const collectFocusFromTools = (): { ids: string[]; names: string[]; kit_id?: string } | null => {
+            // Prioridade 1: add_to_cart (itens efetivamente no carrinho)
+            for (const t of toolResultsThisTurn || []) {
+              if (t.tool !== "add_to_cart") continue;
+              const p = t.parsed;
+              if (p && typeof p === "object") {
+                const ids: string[] = [];
+                const names: string[] = [];
+                if (Array.isArray(p.cart_items)) {
+                  for (const it of p.cart_items) {
+                    if (it?.product_id) ids.push(it.product_id);
+                    if (it?.product_name) names.push(it.product_name);
+                  }
+                }
+                if (ids.length === 0 && p.product_id) {
+                  ids.push(p.product_id);
+                  if (p.product_name) names.push(p.product_name);
+                }
+                if (ids.length > 0) return { ids, names };
+              }
+            }
+            // Prioridade 2: get_product_details
+            for (const t of toolResultsThisTurn || []) {
+              if (t.tool !== "get_product_details") continue;
+              const p = t.parsed;
+              if (p?.id || p?.product_id) {
+                const id = p.id || p.product_id;
+                const name = p.name || p.product_name || "";
+                const kit_id = p.is_kit ? id : undefined;
+                return { ids: [id], names: name ? [name] : [], kit_id };
+              }
+            }
+            // Prioridade 3: search_products com ≤3 resultados em estado avançado
+            if (advancedState) {
+              for (const t of toolResultsThisTurn || []) {
+                if (t.tool !== "search_products") continue;
+                const items: any[] = t.parsed?.items || t.parsed?.products || t.parsed?.results || [];
+                if (items.length > 0 && items.length <= 3) {
+                  const ids = items.map((i: any) => i.id || i.product_id).filter(Boolean);
+                  const names = items.map((i: any) => i.name).filter(Boolean);
+                  if (ids.length > 0) return { ids, names };
+                }
+              }
+            }
+            return null;
+          };
+
+          const shouldLock = addToCartRan || (!existingFocus && (detailsRan || advancedState));
+          if (shouldLock) {
+            const collected = collectFocusFromTools();
+            if (collected && collected.ids.length > 0) {
+              const reason: "ai_offered" | "added_to_cart" | "kit_offered" =
+                addToCartRan ? "added_to_cart" : (collected.kit_id ? "kit_offered" : "ai_offered");
+              focusPatchExtras = {
+                focus_snapshot: {
+                  product_ids: collected.ids,
+                  names: collected.names,
+                  kit_id: collected.kit_id,
+                  locked_at: new Date().toISOString(),
+                  locked_reason: reason,
+                },
+              };
+              console.log(
+                `[ai-support-chat] [Reg #2.10] focus_snapshot LOCKED reason=${reason} ` +
+                `ids=${collected.ids.join(",")} names="${collected.names.join("|")}"`
+              );
+            }
+          }
+        } catch (e) {
+          console.warn("[ai-support-chat] [Reg #2.10] focus snapshot lock failed:", (e as Error).message);
+        }
+
         await patchSalesState(supabase, salesMemory, {
           stage: suggestedStage,
           last_greeting_at: isGreetingTurn ? new Date().toISOString() : undefined,
@@ -5907,6 +6013,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             confirmed_purchase_intent: turnClassification.confirmed_purchase_intent || undefined,
             asked_about_payment_or_link: turnClassification.asked_about_payment_or_link || undefined,
           },
+          merge_extras: focusPatchExtras,
         });
 
         console.log(

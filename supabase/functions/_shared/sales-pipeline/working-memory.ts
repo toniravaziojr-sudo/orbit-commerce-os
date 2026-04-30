@@ -140,6 +140,39 @@ export function alreadyAsked(state: ConversationSalesState, questionText: string
 }
 
 // ------------------------------------------------------------
+// [Reg #2.10] Onda 4 — Focus Snapshot (produtos travados)
+// ------------------------------------------------------------
+//
+// Snapshot canônico dos itens em foco/oferta na conversa. Persistido em
+// `extras.focus_snapshot` para evitar migração de schema. Quando preenchido,
+// substitui a necessidade de novo search_products no closing — o link de
+// checkout é gerado a partir desses IDs canônicos.
+//
+// Estrutura:
+//   { product_ids: string[], names: string[], kit_id?: string,
+//     locked_at: ISO, locked_reason: "ai_offered" | "added_to_cart" | "kit_offered" }
+// ------------------------------------------------------------
+
+export interface FocusSnapshot {
+  product_ids: string[];
+  names: string[];
+  kit_id?: string;
+  locked_at: string;
+  locked_reason: "ai_offered" | "added_to_cart" | "kit_offered";
+}
+
+export function getFocusSnapshot(state: ConversationSalesState): FocusSnapshot | null {
+  const raw = (state.extras as any)?.focus_snapshot;
+  if (!raw || typeof raw !== "object") return null;
+  if (!Array.isArray(raw.product_ids) || raw.product_ids.length === 0) return null;
+  return raw as FocusSnapshot;
+}
+
+export function buildFocusSnapshotPatch(snap: FocusSnapshot): Record<string, unknown> {
+  return { focus_snapshot: snap };
+}
+
+// ------------------------------------------------------------
 // Update parcial idempotente
 // ------------------------------------------------------------
 
