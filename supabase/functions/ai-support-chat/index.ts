@@ -5807,6 +5807,36 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       `[ai-support-chat] [F2] transition ${pipelineState} → ${nextPipelineState} (reason=${transitionReason})`
     );
 
+    // [Reg #2.9] Onda 2 — Persiste working memory (shadow mode).
+    // Grava: estágio sugerido, dor declarada, família citada, last_greeting_at,
+    // sinais comerciais derivados do TPR. Anti-repetição de pergunta-âncora
+    // será adicionada na Onda 3, quando os prompts por estágio forem ativados.
+    if (salesMemory && suggestedStage) {
+      try {
+        const familyMentioned = turnClassification.mentioned_product_family || null;
+        const declaredPain = turnClassification.symptom_text || null;
+        const isGreetingTurn = turnClassification.is_pure_greeting || !!turnClassification.greeting_period;
+
+        await patchSalesState(supabase, salesMemory, {
+          stage: suggestedStage,
+          last_greeting_at: isGreetingTurn ? new Date().toISOString() : undefined,
+          add_customer_named_families: familyMentioned ? [familyMentioned] : undefined,
+          customer_declared_pain:
+            declaredPain && !salesMemory.customer_declared_pain ? declaredPain : undefined,
+          merge_commercial_signals: {
+            last_tpr_source: turnClassification.source,
+            last_pipeline_state_legacy: nextPipelineState,
+            last_turn_at: new Date().toISOString(),
+            confirmed_purchase_intent: turnClassification.confirmed_purchase_intent || undefined,
+            asked_about_payment_or_link: turnClassification.asked_about_payment_or_link || undefined,
+          },
+        });
+      } catch (e) {
+        console.warn("[ai-support-chat] [Reg #2.9] working memory patch failed:", (e as Error).message);
+      }
+    }
+
+
     // [Reg #2.8] OUTPUT GATES — server-side, leem o JSON do TPR.
     // (a) Price Scrubber: remove menções não solicitadas a R$/frete em estados
     //     pré-detalhe (greeting/discovery/recommendation).
