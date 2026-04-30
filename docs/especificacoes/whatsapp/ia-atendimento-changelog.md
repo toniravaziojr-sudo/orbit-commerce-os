@@ -50,6 +50,7 @@
 | Carrinho hidratado ao abrir o link enviado | ✅ Coberto | `useCheckoutLinkLoader` inicializa `isLoading=true` quando há `?link=`/`?product=` na URL | Reg. #2.2 |
 | Filtro estrito por família no `search_products` | ✅ Coberto | `family_focus` persistente | mem://features/ai/sales-pipeline-anti-repetition-and-family-focus |
 | Janela Meta 24h (mensagem livre + imagem) | ✅ Coberto | `meta-whatsapp-send` valida antes de enviar | Reg. #1 |
+| Memória persistente unificada da conversa de vendas (estágio comercial, dor, produtos apresentados, anti-repetição, upsell counter) | 🟡 Em observação | Tabela `conversation_sales_state` + módulos `working-memory.ts` e `stage-machine.ts` em **shadow mode** (loga e persiste, ainda não altera resposta) | Reg. #2.9 |
 
 Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
