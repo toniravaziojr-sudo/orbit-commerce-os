@@ -114,13 +114,79 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
 
 export function PaymentGatewaySettings() {
   const { providers, isLoading, upsertProvider, deleteProvider, getProvider } = usePaymentProviders();
+  const { currentTenant } = useAuth();
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [expandedGateway, setExpandedGateway] = useState<string | null>(null);
   const [disconnectDialog, setDisconnectDialog] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, {
     fields: Record<string, string>;
   }>>({});
+
+  // Listener para mensagens da janela popup do OAuth
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.source !== 'mp-oauth') return;
+      if (e.data.status === 'success') {
+        toast.success('Mercado Pago conectado com sucesso!');
+        // Refresh providers list
+        window.dispatchEvent(new CustomEvent('payment-providers-refresh'));
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        toast.error(`Falha ao conectar: ${e.data.message || 'erro desconhecido'}`);
+      }
+      setOauthLoading(null);
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const startOAuth = async (gatewayId: string) => {
+    if (!currentTenant?.id) {
+      toast.error('Nenhum tenant selecionado');
+      return;
+    }
+    setOauthLoading(gatewayId);
+    try {
+      const { data, error } = await supabase.functions.invoke('mercadopago-oauth-start', {
+        body: { tenant_id: currentTenant.id, return_url: window.location.pathname },
+      });
+      if (error) throw error;
+      if (!data?.success || !data?.url) {
+        throw new Error(data?.error || 'Falha ao iniciar conexão');
+      }
+      // Abre popup centralizado
+      const w = 600, h = 720;
+      const left = window.screenX + (window.outerWidth - w) / 2;
+      const top = window.screenY + (window.outerHeight - h) / 2;
+      const popup = window.open(data.url, 'mp-oauth', `width=${w},height=${h},left=${left},top=${top}`);
+      if (!popup) {
+        toast.error('Permita janelas pop-up para este site e tente novamente.');
+        setOauthLoading(null);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao iniciar conexão com Mercado Pago');
+      setOauthLoading(null);
+    }
+  };
+
+  const disconnectOAuth = async (gatewayId: string) => {
+    if (!currentTenant?.id) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('mercadopago-oauth-disconnect', {
+        body: { tenant_id: currentTenant.id },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao desconectar');
+      toast.success('Mercado Pago desconectado');
+      window.location.reload();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao desconectar');
+    }
+  };
+
+
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
