@@ -4154,6 +4154,25 @@ Cliente: "vocês entregam em SP?"
         }
       }
 
+      // [Reg #2.9] Onda 3 — injeta bloco de Working Memory no prompt do estado.
+      // Aditivo: não substitui prompts por estado, só lembra a IA do que já
+      // foi feito (dor, famílias/produtos apresentados, perguntas feitas, upsell).
+      if (salesMemory) {
+        try {
+          const wmBlock = buildWorkingMemoryPromptBlock({ state: salesMemory });
+          if (wmBlock) {
+            contextualBlocks.push(wmBlock);
+            console.log(
+              `[ai-support-chat] [Reg #2.9] working_memory_block injected — stage=${salesMemory.stage} ` +
+              `pain=${!!salesMemory.customer_declared_pain} presented_products=${salesMemory.presented_product_ids.length} ` +
+              `asked_questions=${salesMemory.asked_question_hashes.length} upsell=${salesMemory.upsell_offered_count}`
+            );
+          }
+        } catch (e) {
+          console.warn("[ai-support-chat] [Reg #2.9] working_memory_block failed:", (e as Error).message);
+        }
+      }
+
       const routed = buildPromptForState({
         state: pipelineState,
         allTools: SALES_TOOLS,
