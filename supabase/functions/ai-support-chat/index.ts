@@ -79,6 +79,12 @@ import {
   broadenCatalogForPain,
   scrubUnsolicitedPrice,
   gateGreetingMirror,
+  // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (shadow mode)
+  loadSalesState,
+  patchSalesState,
+  decideStage,
+  type ConversationSalesState,
+  type SalesStage,
 } from "../_shared/sales-pipeline/index.ts";
 // [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
 // (substitui o cache em-memória que se perdia a cada cold start).
@@ -3800,6 +3806,38 @@ Cliente: "vocês entregam em SP?"
       turnClassification = fallbackClassification(lastMessageContent || "", false);
     }
 
+    // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (SHADOW MODE)
+    // Carrega memória persistente da conversa, decide o estágio comercial
+    // sugerido pela máquina nova e LOGA. Nesta onda NÃO altera o pipeline
+    // F2-V3/V4 que já está em produção — só observa, persiste sinais e
+    // gera dados auditáveis para validar antes da Onda 3 ativar.
+    let salesMemory: ConversationSalesState | null = null;
+    let suggestedStage: SalesStage | null = null;
+    if (salesModeEnabled) {
+      try {
+        salesMemory = await loadSalesState(supabase, {
+          conversationId: conversation_id,
+          tenantId: tenant_id,
+        });
+        const decision = decideStage({
+          current: salesMemory.stage,
+          tpr: turnClassification,
+          hasPresentedProducts: salesMemory.presented_product_ids.length > 0,
+          hasDeclaredPain: !!salesMemory.customer_declared_pain,
+        });
+        suggestedStage = decision.next;
+        console.log(
+          `[ai-support-chat] [Reg #2.9] [shadow] stage=${salesMemory.stage} suggested=${decision.next} ` +
+          `pipeline_state=${decision.pipelineState} reason=${decision.reason} regressed=${decision.regressed} ` +
+          `presented=${salesMemory.presented_product_ids.length} pain=${!!salesMemory.customer_declared_pain} ` +
+          `upsell_offered=${salesMemory.upsell_offered_count}`
+        );
+      } catch (e) {
+        console.warn("[ai-support-chat] [Reg #2.9] working memory load failed:", (e as Error).message);
+      }
+    }
+
+
     const mentionedProductNameBefore = extractMentionedProductName(lastMessageContent || "", preTransitionProductHint);
     const familyMentionedBefore = detectFamilyMentioned(lastMessageContent || "");
     const isInformationalProductQuestionCurrentTurn =
@@ -5768,6 +5806,36 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     console.log(
       `[ai-support-chat] [F2] transition ${pipelineState} → ${nextPipelineState} (reason=${transitionReason})`
     );
+
+    // [Reg #2.9] Onda 2 — Persiste working memory (shadow mode).
+    // Grava: estágio sugerido, dor declarada, família citada, last_greeting_at,
+    // sinais comerciais derivados do TPR. Anti-repetição de pergunta-âncora
+    // será adicionada na Onda 3, quando os prompts por estágio forem ativados.
+    if (salesMemory && suggestedStage) {
+      try {
+        const familyMentioned = turnClassification.mentioned_product_family || null;
+        const declaredPain = turnClassification.symptom_text || null;
+        const isGreetingTurn = turnClassification.is_pure_greeting || !!turnClassification.greeting_period;
+
+        await patchSalesState(supabase, salesMemory, {
+          stage: suggestedStage,
+          last_greeting_at: isGreetingTurn ? new Date().toISOString() : undefined,
+          add_customer_named_families: familyMentioned ? [familyMentioned] : undefined,
+          customer_declared_pain:
+            declaredPain && !salesMemory.customer_declared_pain ? declaredPain : undefined,
+          merge_commercial_signals: {
+            last_tpr_source: turnClassification.source,
+            last_pipeline_state_legacy: nextPipelineState,
+            last_turn_at: new Date().toISOString(),
+            confirmed_purchase_intent: turnClassification.confirmed_purchase_intent || undefined,
+            asked_about_payment_or_link: turnClassification.asked_about_payment_or_link || undefined,
+          },
+        });
+      } catch (e) {
+        console.warn("[ai-support-chat] [Reg #2.9] working memory patch failed:", (e as Error).message);
+      }
+    }
+
 
     // [Reg #2.8] OUTPUT GATES — server-side, leem o JSON do TPR.
     // (a) Price Scrubber: remove menções não solicitadas a R$/frete em estados
