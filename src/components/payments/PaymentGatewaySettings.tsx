@@ -367,7 +367,11 @@ export function PaymentGatewaySettings() {
                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDisconnectDialog(gateway.id);
+                          if (gateway.oauth) {
+                            disconnectOAuth(gateway.id);
+                          } else {
+                            setDisconnectDialog(gateway.id);
+                          }
                         }}
                       >
                         <Unplug className="h-4 w-4 mr-1" />
@@ -378,6 +382,26 @@ export function PaymentGatewaySettings() {
                       <Button variant="ghost" size="sm" disabled>
                         Em breve
                       </Button>
+                    ) : gateway.oauth && !connected ? (
+                      <Button
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); startOAuth(gateway.id); }}
+                        disabled={oauthLoading === gateway.id}
+                      >
+                        {oauthLoading === gateway.id ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Plug className="h-4 w-4 mr-2" />
+                        )}
+                        Conectar com Mercado Pago
+                      </Button>
+                    ) : gateway.oauth && connected ? (
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          Detalhes
+                          {isExpanded ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
+                        </Button>
+                      </CollapsibleTrigger>
                     ) : (
                       <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="sm">
