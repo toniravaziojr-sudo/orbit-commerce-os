@@ -915,15 +915,34 @@ async function executeSalesTool(
           const singles = enriched.filter(p => !p.is_kit);
           const kits = enriched.filter(p => p.is_kit);
 
-          const sortByPain = (arr: any[]) =>
+          // [Reg #2.10] Onda 4 — EXACT-MATCH BOOST
+          // Quando a query do modelo bate literalmente com o nome do produto,
+          // esse produto SEMPRE vem antes do pain_match. Resolve o caso
+          // "buscou 'Loção' e veio Shampoo Preventive Power".
+          const normalizedQuery = (query || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          const queryTokens = normalizedQuery.split(/\s+/).filter(t => t.length >= 3);
+          const exactScore = (name: string): number => {
+            if (!normalizedQuery) return 0;
+            const n = String(name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            // 0 = melhor (match no início), 1 = match no meio, 2 = só por token, 3 = sem match
+            if (n.startsWith(normalizedQuery)) return 0;
+            if (n.includes(normalizedQuery)) return 1;
+            if (queryTokens.length && queryTokens.every(t => n.includes(t))) return 2;
+            return 3;
+          };
+
+          const sortRanked = (arr: any[]) =>
             [...arr].sort((a, b) => {
+              const ea = exactScore(a.name);
+              const eb = exactScore(b.name);
+              if (ea !== eb) return ea - eb;
               const ap = a.match_reason === "pain_match" ? 0 : 1;
               const bp = b.match_reason === "pain_match" ? 0 : 1;
               return ap - bp;
             });
 
-          const singlesSorted = sortByPain(singles);
-          const kitsSorted = sortByPain(kits);
+          const singlesSorted = sortRanked(singles);
+          const kitsSorted = sortRanked(kits);
 
           const out = singlesSorted.slice(0, requestedLimit);
           if (includeKits && out.length < requestedLimit) {
