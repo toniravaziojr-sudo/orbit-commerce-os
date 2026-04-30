@@ -4824,6 +4824,63 @@ export type Database = {
           },
         ]
       }
+      conversation_sales_state: {
+        Row: {
+          asked_question_hashes: string[]
+          commercial_signals: Json
+          conversation_id: string
+          created_at: string
+          customer_declared_pain: string | null
+          customer_named_families: string[]
+          extras: Json
+          id: string
+          last_greeting_at: string | null
+          presented_families: string[]
+          presented_product_ids: string[]
+          stage: string
+          tenant_id: string
+          updated_at: string
+          upsell_declined: boolean
+          upsell_offered_count: number
+        }
+        Insert: {
+          asked_question_hashes?: string[]
+          commercial_signals?: Json
+          conversation_id: string
+          created_at?: string
+          customer_declared_pain?: string | null
+          customer_named_families?: string[]
+          extras?: Json
+          id?: string
+          last_greeting_at?: string | null
+          presented_families?: string[]
+          presented_product_ids?: string[]
+          stage?: string
+          tenant_id: string
+          updated_at?: string
+          upsell_declined?: boolean
+          upsell_offered_count?: number
+        }
+        Update: {
+          asked_question_hashes?: string[]
+          commercial_signals?: Json
+          conversation_id?: string
+          created_at?: string
+          customer_declared_pain?: string | null
+          customer_named_families?: string[]
+          extras?: Json
+          id?: string
+          last_greeting_at?: string | null
+          presented_families?: string[]
+          presented_product_ids?: string[]
+          stage?: string
+          tenant_id?: string
+          updated_at?: string
+          upsell_declined?: boolean
+          upsell_offered_count?: number
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           assigned_at: string | null
