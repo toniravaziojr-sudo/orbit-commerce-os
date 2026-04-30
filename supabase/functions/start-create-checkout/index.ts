@@ -1,6 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+import { getPlatformReceiverCredentials } from "../_shared/platform-receiver-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -38,8 +37,6 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  await loadPlatformCredentials();
-
   try {
     if (req.method !== 'POST') {
       return new Response(
@@ -50,7 +47,15 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const mpAccessToken = Deno.env.get('MP_ACCESS_TOKEN')!;
+    // Recebedor da plataforma — credenciais MP do tenant admin (Minha Loja → Pagamentos)
+    const platformCreds = await getPlatformReceiverCredentials(supabaseUrl, supabaseServiceKey, 'mercadopago');
+    const mpAccessToken = platformCreds?.access_token || null;
+    if (!mpAccessToken) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Gateway de pagamento não configurado pela plataforma.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 

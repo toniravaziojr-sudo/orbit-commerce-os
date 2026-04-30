@@ -111,10 +111,10 @@ Deno.serve(async (req) => {
     const lateApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LATE_API_KEY');
     const meliAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_APP_ID');
     const meliClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_CLIENT_SECRET');
-    // Mercado Pago Platform (SaaS Billing)
-    const mpAccessToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_ACCESS_TOKEN');
-    const mpPublicKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_PUBLIC_KEY');
-    const mpWebhookSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_WEBHOOK_SECRET');
+    // Mercado Pago Integrador (OAuth — para lojistas conectarem)
+    // Recebedor da plataforma vai em payment_providers (Minha Loja → Pagamentos)
+    const mpClientId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_CLIENT_ID');
+    const mpClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_CLIENT_SECRET');
     // Nuvem Fiscal
     const nuvemFiscalClientId = await checkCredential(supabaseUrl, supabaseServiceKey, 'NUVEM_FISCAL_CLIENT_ID');
     const nuvemFiscalClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'NUVEM_FISCAL_CLIENT_SECRET');
@@ -323,24 +323,21 @@ Deno.serve(async (req) => {
         },
       },
       mercadopago_platform: {
-        name: 'Mercado Pago (Billing)',
-        description: 'Credenciais para cobrar assinaturas do SaaS',
+        name: 'Mercado Pago (Integrador OAuth)',
+        description: 'App MP de developer — usado para lojistas conectarem suas próprias contas via OAuth',
         icon: 'CreditCard',
         docs: 'https://www.mercadopago.com.br/developers',
         secrets: {
-          MP_ACCESS_TOKEN: mpAccessToken.exists,
-          MP_PUBLIC_KEY: mpPublicKey.exists,
-          MP_WEBHOOK_SECRET: mpWebhookSecret.exists,
+          MP_CLIENT_ID: mpClientId.exists,
+          MP_CLIENT_SECRET: mpClientSecret.exists,
         },
         previews: {
-          MP_ACCESS_TOKEN: mpAccessToken.preview || '',
-          MP_PUBLIC_KEY: mpPublicKey.preview || '',
-          MP_WEBHOOK_SECRET: mpWebhookSecret.preview || '',
+          MP_CLIENT_ID: mpClientId.preview || '',
+          MP_CLIENT_SECRET: mpClientSecret.preview || '',
         },
         sources: {
-          MP_ACCESS_TOKEN: mpAccessToken.source || '',
-          MP_PUBLIC_KEY: mpPublicKey.source || '',
-          MP_WEBHOOK_SECRET: mpWebhookSecret.source || '',
+          MP_CLIENT_ID: mpClientId.source || '',
+          MP_CLIENT_SECRET: mpClientSecret.source || '',
         },
       },
       fal_ai: {

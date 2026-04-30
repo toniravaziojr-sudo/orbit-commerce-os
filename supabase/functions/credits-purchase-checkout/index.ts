@@ -1,11 +1,10 @@
 // ============================================
 // CREDITS PURCHASE CHECKOUT - Create MP preference for AI credits
-// Uses platform MP_ACCESS_TOKEN (admin billing account)
+// Uses platform receiver MP credentials (tenant admin → payment_providers)
 // ============================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
-
-import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+import { getPlatformReceiverCredentials } from "../_shared/platform-receiver-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -24,12 +23,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  await loadPlatformCredentials();
-
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const mpAccessToken = Deno.env.get('MP_ACCESS_TOKEN');
+    // Recebedor da plataforma — credenciais MP do tenant admin (Minha Loja → Pagamentos)
+    const platformCreds = await getPlatformReceiverCredentials(supabaseUrl, supabaseServiceKey, 'mercadopago');
+    const mpAccessToken = platformCreds?.access_token || null;
 
     // Auth check
     const authHeader = req.headers.get('Authorization');
