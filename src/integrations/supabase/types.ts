@@ -13591,6 +13591,36 @@ export type Database = {
           },
         ]
       }
+      oauth_state_store: {
+        Row: {
+          created_at: string
+          expires_at: string
+          payload: Json
+          provider: string
+          state_key: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          payload?: Json
+          provider: string
+          state_key: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          payload?: Json
+          provider?: string
+          state_key?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       offer_rules: {
         Row: {
           created_at: string
