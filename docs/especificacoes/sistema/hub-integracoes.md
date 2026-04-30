@@ -343,7 +343,14 @@ Disponível apenas para `isPlatformOperator`:
 | **TikTok Ads** | TikTok Ads platform config (Pixel, CAPI, Campanhas) | `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET` |
 | **TikTok Shop** | TikTok Shop platform config (Catálogo, Pedidos, Fulfillment) | `TIKTOK_SHOP_APP_KEY`, `TIKTOK_SHOP_APP_SECRET` |
 | Mercado Livre | Meli platform config | `MELI_APP_ID`, `MELI_CLIENT_SECRET` |
-| Mercado Pago | MP Billing platform config | `MP_ACCESS_TOKEN` |
+| Mercado Pago | App **integrador OAuth** (usado para lojistas conectarem suas contas MP) | `MP_CLIENT_ID`, `MP_CLIENT_SECRET` |
+
+> ⚠️ **Mercado Pago — 3 contextos de credenciais (não confundir):**
+> 1. **Integrador (esta tela):** `MP_CLIENT_ID` + `MP_CLIENT_SECRET` do app de developer. Usado **só** para o OAuth onde lojistas conectam suas próprias contas MP.
+> 2. **Recebedor da plataforma** (assinaturas SaaS, créditos de IA, plano inicial): NÃO fica aqui. Fica em `payment_providers` do tenant admin (`cc000000-0000-0000-0000-000000000001`), cadastrado em **Minha Loja → Integrações → Pagamentos** logado como o admin. As edge functions de billing leem via helper `_shared/platform-receiver-credentials.ts`.
+> 3. **Recebedor de cada lojista:** também em `payment_providers`, registro do tenant correspondente, configurado pelo próprio lojista em Minha Loja → Integrações → Pagamentos.
+>
+> Não existem mais os secrets de ambiente `MP_ACCESS_TOKEN`, `MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET` — foram removidos em 2026-04-30. Toda credencial recebedora é DB-stored.
 | Shopee | Shopee platform config | `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY` |
 
 ### ⚠️ REGRA: Padrão Visual Obrigatório — CredentialEditor

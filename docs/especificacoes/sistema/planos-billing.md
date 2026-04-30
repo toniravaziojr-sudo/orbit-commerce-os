@@ -1,11 +1,30 @@
 # Planos e Billing — Regras e Especificações
 
 > **STATUS:** 🟢 Implementado (v2.4)  
-> **Última atualização:** 2026-04-10
+> **Última atualização:** 2026-04-30
 
 > **Camada:** Layer 3 — Especificações / Sistema  
 > **Migrado de:** `docs/regras/planos-billing.md`
 
+
+---
+
+## ⚠️ Gateway Recebedor da Plataforma (Mercado Pago)
+
+**Onde mora a credencial:** tabela `payment_providers`, registro do tenant admin (`cc000000-0000-0000-0000-000000000001`), provider `mercadopago`.
+
+**Como configurar (passo a passo):**
+1. Logar como o tenant admin.
+2. Ir em **Minha Loja → Integrações → Pagamentos → Mercado Pago**.
+3. Cadastrar `access_token`, `public_key` e `webhook_secret` de **produção**, marcar `is_enabled = true` e `environment = production`.
+
+**Quem lê:** edge functions `billing-create-checkout`, `billing-webhook`, `credits-purchase-checkout` e `start-create-checkout` consultam via helper `supabase/functions/_shared/platform-receiver-credentials.ts` (cache 60s).
+
+**O que NÃO é isso:**
+- `Sistema → Integrações da Plataforma → Mercado Pago` é o **app integrador OAuth** (`MP_CLIENT_ID` + `MP_CLIENT_SECRET`), usado só para lojistas conectarem suas próprias contas MP.
+- Os secrets de ambiente `MP_ACCESS_TOKEN`, `MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET` foram removidos em 2026-04-30.
+
+**Anti-regressão:** se billing falhar com "Gateway não configurado", verificar primeiro se existe registro em `payment_providers` para o tenant admin.
 
 ---
 
