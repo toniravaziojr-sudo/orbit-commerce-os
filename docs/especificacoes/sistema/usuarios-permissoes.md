@@ -23,7 +23,8 @@ Sistema de controle de acesso baseado em roles (RBAC) para gerenciamento de equi
 | `src/components/users/InviteUserModal.tsx` | Modal de convite |
 | `src/components/users/EditUserModal.tsx` | Modal de edição |
 | `supabase/functions/tenant-user-invite/` | Edge function de convite |
-| `supabase/functions/tenant-user-update/` | Edge function de atualização |
+| `supabase/functions/tenant-user-update/` | Edge function de atualização (nome, tipo, permissões) |
+| `supabase/functions/tenant-user-remove/` | Edge function de remoção (com safeguards) |
 
 ---
 
