@@ -256,47 +256,49 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
             </div>
           )}
 
-          {/* Permissions */}
-          <div className="space-y-2">
-            <Label>Permissões Detalhadas</Label>
-            <Accordion type="multiple" className="w-full">
-              {MODULES.map((module) => (
-                <AccordionItem key={module.key} value={module.key}>
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={isModuleEnabled(module.key)}
-                        onCheckedChange={() => toggleModule(module.key)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <span>{module.label}</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    {module.submodules ? (
-                      <div className="space-y-2 pl-6">
-                        {module.submodules.map((sub) => (
-                          <div key={sub.key} className="flex items-center gap-2">
-                            <Checkbox
-                              checked={isSubmoduleEnabled(module.key, sub.key)}
-                              onCheckedChange={() => toggleSubmodule(module.key, sub.key)}
-                            />
-                            <Label className="text-sm font-normal cursor-pointer">
-                              {sub.label}
-                            </Label>
-                          </div>
-                        ))}
+          {/* Permissions — hidden for owners (they have full access) */}
+          {!isOwnerMember && (
+            <div className="space-y-2">
+              <Label>Permissões Detalhadas</Label>
+              <Accordion type="multiple" className="w-full">
+                {MODULES.map((module) => (
+                  <AccordionItem key={module.key} value={module.key}>
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={isModuleEnabled(module.key)}
+                          onCheckedChange={() => toggleModule(module.key)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <span>{module.label}</span>
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground pl-6">
-                        Sem submódulos
-                      </p>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      {module.submodules ? (
+                        <div className="space-y-2 pl-6">
+                          {module.submodules.map((sub) => (
+                            <div key={sub.key} className="flex items-center gap-2">
+                              <Checkbox
+                                checked={isSubmoduleEnabled(module.key, sub.key)}
+                                onCheckedChange={() => toggleSubmodule(module.key, sub.key)}
+                              />
+                              <Label className="text-sm font-normal cursor-pointer">
+                                {sub.label}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground pl-6">
+                          Sem submódulos
+                        </p>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </div>
+          )}
 
           {/* Password Reset */}
           <div className="pt-4 border-t">
