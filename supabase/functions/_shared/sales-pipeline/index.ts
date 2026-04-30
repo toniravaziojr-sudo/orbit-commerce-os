@@ -15,3 +15,6 @@ export * from "./consultative-turn.ts";
 export * from "./turn-pre-router.ts";
 export * from "./catalog-probe.ts";
 export * from "./output-gates.ts";
+// [Reg #2.9] Onda 2 — Working Memory + Stage Machine
+export * from "./working-memory.ts";
+export * from "./stage-machine.ts";
