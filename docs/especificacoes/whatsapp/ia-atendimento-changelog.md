@@ -79,6 +79,53 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #2.9 — Working Memory + Stage Machine em Shadow Mode (aplicado, em observação) — 30/abr/2026
+
+**Contexto.** Reg #2.8 (TPR + Output Gates) entregou classificação por turno, mas a memória da conversa ainda vivia em campos avulsos (`sales_state` na coluna da tabela `conversations`, `family_focus` em outro lugar, anti-repetição em outro). Sem uma memória persistente unificada, a IA esquecia em qual fase comercial o cliente estava entre turnos, repetia perguntas-âncora, oferecia upsell mais de uma vez e não tinha como saber se já tinha apresentado um produto antes.
+
+**Onda 1 (banco).** Criada a tabela `conversation_sales_state` (1:1 com a conversa) com:
+- `stage` em 7 fases comerciais: `social_only | exploring | needs_known | evaluating | buying_intent | closing | post_sale`.
+- `presented_families`, `presented_product_ids`, `customer_named_families` (anti-repetição de catálogo).
+- `customer_declared_pain` (dor declarada — só grava se ainda for nula, preserva primeira declaração).
+- `asked_question_hashes` (anti-repetição de perguntas-âncora).
+- `last_greeting_at` (evita re-saudar o mesmo cliente no mesmo dia).
+- `upsell_offered_count` + `upsell_declined` (upsell limitado a 1 por conversa).
+- `commercial_signals` (jsonb livre — TPR source, último estado pipeline, intenção de compra).
+- RLS: `service_role` total, `authenticated` lê via `user_has_tenant_access`, anon bloqueado.
+
+**Onda 2 (pipeline — esta entrega).**
+- Novo módulo `_shared/sales-pipeline/working-memory.ts`: `loadSalesState()` (cria 1:1 com upsert idempotente), `patchSalesState()` (merge parcial), `hashQuestion()` (FNV-1a determinístico).
+- Novo módulo `_shared/sales-pipeline/stage-machine.ts`: `decideStage()` decide próximo dos 7 estágios a partir do TPR + sinais persistidos. Inclui anti-regressão (não permite cair de `closing` para `exploring` sem motivo legítimo). `STAGE_TO_PIPELINE_STATE` mapeia cada estágio para um `PipelineState` já existente — **reaproveita o tool-filter e os prompts em produção**, sem reescrever nada.
+- Plugados em `ai-support-chat/index.ts` em **shadow mode**: logo após o TPR, carrega memória, calcula estágio sugerido e loga (`[Reg #2.9] [shadow] stage=… suggested=… reason=…`). Logo após `nextPipelineState` ser definido, persiste o estágio sugerido + dor declarada + família citada + last_greeting_at + sinais comerciais.
+- **Não altera a resposta do cliente nesta entrega**. A máquina antiga (`decideNextState` + `family_focus` + `pending_action`) continua decidindo o que a IA fala. A nova roda em paralelo, gerando dados auditáveis.
+- TPR não foi estendido — os campos atuais (`is_pure_greeting`, `described_symptom`, `mentioned_product_name`, `confirmed_purchase_intent`, `asked_about_payment_or_link`, `is_support_topic`) já cobrem todas as transições da nova máquina. Decisão de prudência: zero risco no Reg #2.8.
+
+**Validação técnica.**
+- `deno check` no `ai-support-chat/index.ts` passou sem erros após inserir os 2 blocos novos + imports.
+- Deploy `ai-support-chat` concluído.
+- Tabela `conversation_sales_state` começa em 0 registros — vai popular conforme conversas chegam pelo WhatsApp.
+
+**Pendente de validação do usuário.**
+1. Disparar 1 conversa real no WhatsApp em modo vendas (ex.: contato de teste).
+2. Verificar nos logs do edge function `ai-support-chat` linhas com `[Reg #2.9] [shadow]` mostrando `stage=… suggested=… reason=…`.
+3. Conferir no banco: `SELECT * FROM conversation_sales_state WHERE conversation_id = '<id da conversa de teste>'` para ver memória persistida.
+4. Confirmar que o comportamento do cliente final no WhatsApp **não mudou** (objetivo da Onda 2 é só observar).
+
+**Próximas ondas (planejadas).**
+- **Onda 3** — Prompts por estágio: cada um dos 7 estágios ganha um prompt dedicado que lê working memory (anti-repetição via `asked_question_hashes`, dor declarada como contexto, evita re-apresentar produtos em `presented_product_ids`, controla upsell). Substitui `decideNextState` legado pela `decideStage` como fonte de verdade.
+- **Onda 4** — Filtro de tools por estágio comercial (ex.: `closing` libera `generate_checkout_link` mas bloqueia `search_products` para evitar reabrir vitrine). Documentação Layer 3 `sales-pipeline-v3.md` criada como spec final.
+
+**Arquivos alterados.**
+- `supabase/migrations/20260430020302_*.sql` (Onda 1 — criou `conversation_sales_state`).
+- `supabase/functions/_shared/sales-pipeline/working-memory.ts` (novo).
+- `supabase/functions/_shared/sales-pipeline/stage-machine.ts` (novo).
+- `supabase/functions/_shared/sales-pipeline/index.ts` (exporta os 2 novos).
+- `supabase/functions/ai-support-chat/index.ts` (imports + bloco shadow load + bloco shadow persist).
+
+**Anti-regressão.** Memória `mem://features/ai/sales-pipeline-v2-9-working-memory-shadow-mode` (a indexar no fechamento da Onda 4 quando virar fonte de verdade ativa).
+
+---
+
 ## Registro #2 — Conversa Respeite o Homem, 14:14 BRT (em correção)
 
 **Data do diagnóstico:** 29/abr/2026
