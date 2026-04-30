@@ -39,6 +39,8 @@ import {
 import { usePaymentProviders, PaymentProviderInput } from '@/hooks/usePaymentProviders';
 import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 interface GatewayField {
   key: string;
@@ -61,6 +63,8 @@ interface GatewayDefinition {
   comingSoon?: boolean;
   webhookUrl?: string;
   webhookInstructions?: string;
+  /** Quando true, conexão é via OAuth — sem campos manuais. */
+  oauth?: boolean;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -98,15 +102,13 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     id: 'mercado_pago',
     name: 'Mercado Pago',
     logo: '💳',
-    description: 'Aceite PIX, cartões e boleto com o Mercado Pago',
-    fields: [
-      { key: 'public_key', label: 'Public Key', type: 'text', placeholder: 'APP_USR-...' },
-      { key: 'access_token', label: 'Access Token', type: 'password', placeholder: 'APP_USR-...' },
-    ],
+    description: 'Conecte sua conta Mercado Pago em 1 clique para receber PIX, cartão e boleto',
+    fields: [], // OAuth — sem campos manuais
     supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
     docsUrl: 'https://www.mercadopago.com.br/developers',
     webhookUrl: `${SUPABASE_URL}/functions/v1/mercadopago-storefront-webhook`,
-    webhookInstructions: 'Acesse Mercado Pago → Sua aplicação → Webhooks → Configure esta URL para receber notificações de pagamento.',
+    webhookInstructions: 'O webhook é configurado automaticamente após conectar sua conta.',
+    oauth: true,
   },
 ];
 
