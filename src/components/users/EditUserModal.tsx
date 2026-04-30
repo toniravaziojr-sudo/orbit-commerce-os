@@ -38,6 +38,7 @@ interface EditUserModalProps {
   member: {
     id: string;
     user_id: string;
+    role?: string;
     user_type: string;
     permissions: Record<string, boolean | Record<string, boolean>> | null;
     profiles?: {
