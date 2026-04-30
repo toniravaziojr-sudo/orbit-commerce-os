@@ -20,7 +20,7 @@
 // ============================================================
 
 import type { ConversationSalesState, SalesStage } from "./working-memory.ts";
-import { hashQuestion } from "./working-memory.ts";
+import { hashQuestion, getFocusSnapshot } from "./working-memory.ts";
 
 const STAGE_LABEL: Record<SalesStage, string> = {
   social_only: "Apenas socializando — cliente cumprimentou, ainda sem demanda comercial",
@@ -77,6 +77,19 @@ export function buildWorkingMemoryPromptBlock(args: BuildWorkingMemoryBlockArgs)
         .slice(-12)
         .join(", ")}. ` +
         `Evite reapresentar os MESMOS produtos. Se precisar reforçar, retome citando como "como te falei antes".`
+    );
+  }
+
+  // [Reg #2.10] Focus Snapshot — produtos canônicos em foco/oferta.
+  const focus = getFocusSnapshot(state);
+  if (focus) {
+    lines.push(
+      `- 🔒 PRODUTOS EM FOCO (TRAVADOS): ${focus.names.join(" + ")} ` +
+        `(IDs: ${focus.product_ids.join(", ")}${focus.kit_id ? ` | kit_id: ${focus.kit_id}` : ""}). ` +
+        `Estes são EXATAMENTE os produtos da oferta atual. ` +
+        `🚫 NÃO chame search_products para reabrir vitrine — esses IDs já estão definidos. ` +
+        `Se o cliente pedir oferta/desconto/link, use APENAS estes IDs. ` +
+        `Se o cliente pedir 'fechar/gerar link': chame add_to_cart com cada ID acima (se já não estiver no carrinho) e depois generate_checkout_link.`
     );
   }
 
