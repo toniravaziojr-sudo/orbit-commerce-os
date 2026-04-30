@@ -149,24 +149,25 @@ export default function SystemUsers() {
     enabled: !!currentTenant && isOwner,
   });
 
-  // Remove user mutation
+  // Remove user mutation (uses edge function with safeguards)
   const removeUserMutation = useMutation({
     mutationFn: async (userRoleId: string) => {
-      const { error } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('id', userRoleId);
-      
-      if (error) throw error;
+      const response = await supabase.functions.invoke('tenant-user-remove', {
+        body: { user_role_id: userRoleId },
+      });
+      if (response.error) throw response.error;
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Erro ao remover membro');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       toast.success('Usuário removido da equipe');
       setUserToRemove(null);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error removing user:', error);
-      toast.error('Erro ao remover usuário');
+      toast.error(error?.message || 'Erro ao remover usuário');
     },
   });
 
@@ -332,7 +333,7 @@ export default function SystemUsers() {
                             })}
                           </TableCell>
                           <TableCell>
-                            {member.role !== 'owner' && !isCurrentUser && (
+                            {!isCurrentUser && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
