@@ -29,10 +29,10 @@ const EDITABLE_CREDENTIALS = [
   // Mercado Livre (Marketplace)
   'MELI_APP_ID',
   'MELI_CLIENT_SECRET',
-  // Mercado Pago (Platform Billing)
-  'MP_ACCESS_TOKEN',
-  'MP_PUBLIC_KEY',
-  'MP_WEBHOOK_SECRET',
+  // Mercado Pago (Integrador — OAuth para lojistas conectarem suas contas)
+  // ⚠️ Credenciais RECEBEDORAS da plataforma ficam em Minha Loja → Integrações → Pagamentos
+  'MP_CLIENT_ID',
+  'MP_CLIENT_SECRET',
   // Meta (Facebook/Instagram/WhatsApp)
   'META_APP_ID',
   'META_APP_SECRET',
