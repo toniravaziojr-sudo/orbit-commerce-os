@@ -420,65 +420,97 @@ export function PaymentGatewaySettings() {
 
               <CollapsibleContent>
                 <CardContent className="pt-0 space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {gateway.fields.map((field) => {
-                      const secretKey = `${gateway.id}-${field.key}`;
-                      const isVisible = showSecrets[secretKey] || field.type === 'text';
-                      
-                      return (
-                        <div key={field.key} className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
-                            {field.optional && (
-                              <Badge variant="outline" className="text-[10px] h-4 px-1.5">
-                                Opcional
-                              </Badge>
-                            )}
+                  {gateway.oauth ? (
+                    // ====== UI OAuth (Mercado Pago) ======
+                    connected && saved ? (
+                      <div className="space-y-3">
+                        <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-4">
+                          <div className="flex items-start gap-3">
+                            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                            <div className="flex-1 space-y-1 text-sm">
+                              <p className="font-medium text-green-900 dark:text-green-100">
+                                Conta Mercado Pago conectada
+                              </p>
+                              {saved.credentials?.mp_user_id && (
+                                <p className="text-xs text-muted-foreground">
+                                  ID da conta: <span className="font-mono">{saved.credentials.mp_user_id}</span>
+                                </p>
+                              )}
+                              {saved.credentials?.connected_at && (
+                                <p className="text-xs text-muted-foreground">
+                                  Conectada em: {new Date(saved.credentials.connected_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                                </p>
+                              )}
+                              {saved.credentials?.expires_at && (
+                                <p className="text-xs text-muted-foreground">
+                                  Token expira em: {new Date(saved.credentials.expires_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} (renovação automática)
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <div className="relative">
-                            <Input
-                              id={`${gateway.id}-${field.key}`}
-                              type={isVisible ? 'text' : 'password'}
-                              placeholder={field.placeholder}
-                              value={data.fields[field.key] || ''}
-                              onChange={(e) => updateField(gateway.id, field.key, e.target.value)}
-                              className="pr-10"
-                            />
-                            {field.type === 'password' && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                                onClick={() => toggleSecret(gateway.id, field.key)}
-                              >
-                                {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
-                            )}
-                          </div>
-                          {field.helpText && (
-                            <p className="text-xs text-muted-foreground leading-snug">
-                              {field.helpText}
-                            </p>
-                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    ) : (
+                      <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-sm">
+                          Clique em <strong>Conectar com Mercado Pago</strong> para autorizar sua conta.
+                          Você será direcionado ao site oficial do Mercado Pago para fazer login e autorizar.
+                          Nenhuma credencial precisa ser preenchida manualmente.
+                        </AlertDescription>
+                      </Alert>
+                    )
+                  ) : (
+                    // ====== UI Manual (Pagar.me, etc) ======
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {gateway.fields.map((field) => {
+                        const secretKey = `${gateway.id}-${field.key}`;
+                        const isVisible = showSecrets[secretKey] || field.type === 'text';
+                        return (
+                          <div key={field.key} className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
+                              {field.optional && (
+                                <Badge variant="outline" className="text-[10px] h-4 px-1.5">Opcional</Badge>
+                              )}
+                            </div>
+                            <div className="relative">
+                              <Input
+                                id={`${gateway.id}-${field.key}`}
+                                type={isVisible ? 'text' : 'password'}
+                                placeholder={field.placeholder}
+                                value={data.fields[field.key] || ''}
+                                onChange={(e) => updateField(gateway.id, field.key, e.target.value)}
+                                className="pr-10"
+                              />
+                              {field.type === 'password' && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                                  onClick={() => toggleSecret(gateway.id, field.key)}
+                                >
+                                  {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                              )}
+                            </div>
+                            {field.helpText && (
+                              <p className="text-xs text-muted-foreground leading-snug">{field.helpText}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                  {/* Webhook URL Section */}
-                  {gateway.webhookUrl && connected && (
+                  {/* Webhook URL Section (apenas para gateways manuais conectados) */}
+                  {gateway.webhookUrl && connected && !gateway.oauth && (
                     <div className="bg-muted/50 rounded-lg p-4 space-y-2">
                       <Label className="text-sm font-medium">URL do Webhook</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {gateway.webhookInstructions}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{gateway.webhookInstructions}</p>
                       <div className="flex gap-2">
-                        <Input
-                          value={gateway.webhookUrl}
-                          readOnly
-                          className="font-mono text-xs"
-                        />
+                        <Input value={gateway.webhookUrl} readOnly className="font-mono text-xs" />
                         <Button
                           variant="outline"
                           size="icon"
@@ -501,19 +533,21 @@ export function PaymentGatewaySettings() {
                         Documentação
                       </a>
                     </Button>
-                    <Button 
-                      onClick={() => handleSave(gateway.id)}
-                      disabled={upsertProvider.isPending || !isConfigured(gateway.id)}
-                    >
-                      {upsertProvider.isPending ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : connected ? (
-                        <Save className="h-4 w-4 mr-2" />
-                      ) : (
-                        <Plug className="h-4 w-4 mr-2" />
-                      )}
-                      {connected ? 'Salvar' : 'Conectar'}
-                    </Button>
+                    {!gateway.oauth && (
+                      <Button
+                        onClick={() => handleSave(gateway.id)}
+                        disabled={upsertProvider.isPending || !isConfigured(gateway.id)}
+                      >
+                        {upsertProvider.isPending ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : connected ? (
+                          <Save className="h-4 w-4 mr-2" />
+                        ) : (
+                          <Plug className="h-4 w-4 mr-2" />
+                        )}
+                        {connected ? 'Salvar' : 'Conectar'}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </CollapsibleContent>
