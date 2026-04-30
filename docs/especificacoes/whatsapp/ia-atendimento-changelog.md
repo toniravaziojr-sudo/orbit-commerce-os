@@ -80,6 +80,48 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #2.10 — Focus Snapshot + Exact-Match Boost (aplicado, em validação) — 30/abr/2026
+
+**Contexto.** Após a Onda 3 do Reg #2.9 (Working Memory ativa nos prompts), validamos a conversa das 09:35 (ID `ab3d720d`). As 3 primeiras mensagens da IA ficaram corretas. A partir da quarta apareceram dois erros lógicos sérios:
+
+1. **Drift de identidade de produto.** A IA inventou "kit banho calvície zero noite" (que não existe — o real é "Kit Banho Calvície Zero", sem "noite"; o "noite" só existe para o kit shampoo+loção).
+2. **Re-busca no fechamento.** Quando o cliente pediu oferta "desse kit" e em seguida pediu o link, a IA disparou `search_products` genérico de novo (em vez de focar nos itens já discutidos), o `generate_checkout_link` nunca foi chamado e a conversa caiu em handoff.
+3. **Ranking do `search_products`.** `query="Loção"` retornou repetidamente o **Shampoo Preventive Power** porque o sort priorizava `pain_match` sobre similaridade textual literal.
+
+**Causa raiz.** Faltavam dois mecanismos:
+- **Travamento canônico de produto.** Não existia uma estrutura "estes são os IDs em foco/oferta" persistida — então cada turno o modelo recomeçava do zero quando precisava do checkout.
+- **Match literal forte.** O ranking textual era frágil: pain match sobrepunha qualquer similaridade lexical, mesmo quando a query do modelo batia exatamente com o nome.
+
+**Ajustes desta entrega.**
+
+1. **Exact-Match Boost no `search_products`** (`partitionAndLimit`): score lexical (0=começa com query, 1=contém query, 2=contém todos os tokens, 3=sem match) ANTES de `pain_match`. Resolve "buscou Loção e veio Shampoo".
+2. **Focus Snapshot persistido em `extras.focus_snapshot`** (sem migração — usa `jsonb` existente). Estrutura: `{ product_ids[], names[], kit_id?, locked_at, locked_reason }`. Travamento no fim do turno:
+   - `add_to_cart` rodou → trava nos itens do carrinho (sobrescreve qualquer focus anterior — sinal mais forte).
+   - `get_product_details` rodou e ainda não há focus → trava no produto detalhado.
+   - Estado avançado (decision/cart/checkout/checkout_assist) + `search_products` retornou ≤3 itens e ainda não há focus → trava nesses.
+3. **Bloco "🔒 PRODUTOS EM FOCO" no working memory prompt.** `buildWorkingMemoryPromptBlock` injeta no system prompt: nomes + IDs travados, instrução explícita de NÃO reabrir vitrine via `search_products`, e direção para fechar com `add_to_cart`(IDs travados) → `generate_checkout_link`.
+
+**Validação técnica executada.**
+- ✅ Edição cirúrgica: 3 arquivos (`working-memory.ts`, `working-memory-prompt.ts`, `ai-support-chat/index.ts`).
+- ✅ Sem migração de schema (usa coluna `extras` existente).
+- ✅ Retrocompatível: `getFocusSnapshot()` retorna `null` quando vazio → bloco não é injetado, comportamento legado preservado.
+
+**Pendente de validação do usuário.**
+1. Reproduzir a conversa que falhou (saudação → dor → IA recomenda kit + componentes → cliente pede oferta → cliente pede link).
+2. Conferir nos logs: `[Reg #2.10] focus_snapshot LOCKED reason=... ids=...` deve aparecer nos turnos avançados.
+3. Conferir no banco: `SELECT extras->'focus_snapshot' FROM conversation_sales_state WHERE conversation_id = '<id>'`.
+4. Confirmar que ao pedir oferta/link a IA NÃO chama mais `search_products` e SIM `add_to_cart` + `generate_checkout_link` com os IDs travados.
+5. Confirmar que `search_products('Loção')` retorna a Loção (não o Shampoo) como primeiro item.
+
+**Arquivos alterados.**
+- `supabase/functions/_shared/sales-pipeline/working-memory.ts` — interface `FocusSnapshot` + helper `getFocusSnapshot`.
+- `supabase/functions/_shared/sales-pipeline/working-memory-prompt.ts` — bloco "PRODUTOS EM FOCO".
+- `supabase/functions/ai-support-chat/index.ts` — exact-match boost em `partitionAndLimit`, lock do focus snapshot pós-turno (passa via `merge_extras`).
+
+**Anti-regressão.** Memória `mem://features/ai/sales-pipeline-v2-10-focus-snapshot-and-exact-match` (a indexar no fechamento desta onda).
+
+---
+
 ## Registro #2.9 — Working Memory + Stage Machine em Shadow Mode (aplicado, em observação) — 30/abr/2026
 
 **Contexto.** Reg #2.8 (TPR + Output Gates) entregou classificação por turno, mas a memória da conversa ainda vivia em campos avulsos (`sales_state` na coluna da tabela `conversations`, `family_focus` em outro lugar, anti-repetição em outro). Sem uma memória persistente unificada, a IA esquecia em qual fase comercial o cliente estava entre turnos, repetia perguntas-âncora, oferecia upsell mais de uma vez e não tinha como saber se já tinha apresentado um produto antes.
