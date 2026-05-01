@@ -21,7 +21,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-agent-mode",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-agent-mode, x-agent-key",
 };
 
 // Tenant fixo "Respeite o Homem" — único tenant autorizado para Agent Mode.
