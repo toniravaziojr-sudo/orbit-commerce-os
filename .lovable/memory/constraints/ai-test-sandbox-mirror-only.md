@@ -32,6 +32,19 @@ O propósito do sandbox é permitir que o usuário teste **exatamente** o que va
 - Retornar as mensagens da IA para o front.
 - Validar acesso do usuário ao tenant.
 
+## Agent Mode (exceção controlada — apenas Respeite o Homem)
+
+Para permitir que o backend execute roteiros automatizados de teste sem JWT de usuário, a função aceita um "Agent Mode" com **dois gates obrigatórios**:
+
+1. Header `x-agent-mode: true` **+** `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>` (só o backend tem).
+2. `tenant_id` do body **deve ser exatamente** `d1a4d0ed-8842-495e-b741-540a9a345b25` (Respeite o Homem). Qualquer outro tenant retorna 403.
+
+Regras:
+- Agent Mode **NÃO** muda nada da pipeline da IA — continua chamando `ai-support-chat` original.
+- Conversas criadas em Agent Mode mantêm `is_sandbox=true` (isolamento total de métricas/aprendizado).
+- É PROIBIDO estender Agent Mode para outros tenants sem nova autorização explícita do usuário e atualização desta memória.
+- É PROIBIDO usar Agent Mode para qualquer coisa fora de testes da IA de atendimento (ex.: gravar produtos, disparar webhooks externos, etc.).
+
 ## Isolamento obrigatório
 
 Toda query que alimenta métricas, funil, aprendizado da IA, ou listagem de atendimento **DEVE** filtrar `metadata->>is_sandbox != 'true'`. Já aplicado em:
