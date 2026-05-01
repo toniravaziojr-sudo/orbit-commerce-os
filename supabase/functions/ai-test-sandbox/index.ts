@@ -55,12 +55,14 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // -------- Detecta Agent Mode (backend automatizado) --------
-    // Agent Mode: header x-agent-mode=true + Authorization com SERVICE_ROLE_KEY.
+    // Agent Mode: header x-agent-mode=true + x-agent-key=SERVICE_ROLE_KEY.
+    // Usa header separado pra não conflitar com Authorization (que pode trazer JWT do user).
     // Só liberado para o tenant fixo Respeite o Homem.
     const authHeader = req.headers.get("Authorization") || "";
     const jwt = authHeader.replace("Bearer ", "").trim();
+    const agentKey = (req.headers.get("x-agent-key") || "").trim();
     const agentModeHeader = (req.headers.get("x-agent-mode") || "").toLowerCase() === "true";
-    const isAgentMode = agentModeHeader && jwt === serviceKey;
+    const isAgentMode = agentModeHeader && agentKey.length > 0 && agentKey === serviceKey;
 
     let userId: string;
     if (isAgentMode) {
