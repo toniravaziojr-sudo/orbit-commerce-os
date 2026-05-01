@@ -494,6 +494,64 @@ export default function OrderNew() {
               <span>Total</span>
               <span>R$ {total.toFixed(2)}</span>
             </div>
+            {/* Bloco de Status Iniciais — apenas owner/admin */}
+            {canOverrideStatus && (
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="initial-overrides" className="flex items-center gap-2 cursor-pointer">
+                    <ShieldAlert className="h-4 w-4 text-warning" />
+                    Definir status iniciais (override admin)
+                  </Label>
+                  <Switch
+                    id="initial-overrides"
+                    checked={showInitialOverrides}
+                    onCheckedChange={(c) => {
+                      setShowInitialOverrides(c);
+                      if (!c) {
+                        setInitialPaymentStatus('');
+                        setInitialShippingStatus('');
+                      }
+                    }}
+                  />
+                </div>
+                {showInitialOverrides && (
+                  <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Use quando o pedido vier "por fora" do sistema (ex.: já pago, já despachado).
+                      Será registrado como criação manual no histórico.
+                    </p>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Status do Pagamento</Label>
+                      <Select value={initialPaymentStatus} onValueChange={(v) => setInitialPaymentStatus(v as any)}>
+                        <SelectTrigger><SelectValue placeholder="Padrão (aguardando pagamento)" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="awaiting_payment">Aguardando pagamento</SelectItem>
+                          <SelectItem value="paid">Pago</SelectItem>
+                          <SelectItem value="declined">Recusado</SelectItem>
+                          <SelectItem value="refunded">Estornado</SelectItem>
+                          <SelectItem value="cancelled">Cancelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Status do Envio</Label>
+                      <Select value={initialShippingStatus} onValueChange={(v) => setInitialShippingStatus(v as any)}>
+                        <SelectTrigger><SelectValue placeholder="Padrão (aguardando envio)" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="awaiting_shipment">Aguardando envio</SelectItem>
+                          <SelectItem value="label_generated">Etiqueta gerada</SelectItem>
+                          <SelectItem value="shipped">Despachado</SelectItem>
+                          <SelectItem value="in_transit">Em trânsito</SelectItem>
+                          <SelectItem value="arriving">Saiu para entrega</SelectItem>
+                          <SelectItem value="delivered">Entregue</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <Button 
               type="submit" 
               className="w-full" 
