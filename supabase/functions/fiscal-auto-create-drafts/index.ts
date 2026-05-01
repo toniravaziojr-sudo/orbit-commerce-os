@@ -453,20 +453,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ========== CRON MODE: process ALL configured tenants ==========
+    // ========== CRON MODE: process ALL tenants with approved orders ==========
     if (isCronMode) {
-      console.log(`[fiscal-auto-create-drafts][${VERSION}] CRON mode — processing all tenants`);
+      console.log(`[fiscal-auto-create-drafts][${VERSION}] CRON mode — processing all tenants with approved orders`);
 
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      // Get all tenants with fiscal configured
-      const { data: configuredTenants, error: tenantsError } = await supabase
-        .from('fiscal_settings')
+      // Itera TODOS tenants que têm pedidos aprovados (independente de fiscal_settings).
+      // Rascunho é permissivo; configuração é exigida apenas na emissão.
+      const { data: tenantsWithOrders, error: tenantsError } = await supabase
+        .from('orders')
         .select('tenant_id')
-        .eq('is_configured', true);
+        .eq('payment_status', 'approved')
+        .in('status', ['paid', 'ready_to_invoice']);
 
-      if (tenantsError || !configuredTenants || configuredTenants.length === 0) {
-        console.log('[fiscal-auto-create-drafts] No configured tenants found');
+      if (tenantsError) {
+        console.error('[fiscal-auto-create-drafts] Error fetching tenants:', tenantsError);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Erro ao listar tenants' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const uniqueTenantIds = Array.from(new Set((tenantsWithOrders || []).map((r: any) => r.tenant_id)));
+
+      if (uniqueTenantIds.length === 0) {
+        console.log('[fiscal-auto-create-drafts] No tenants with approved orders');
         return new Response(
           JSON.stringify({ success: true, mode: 'cron', tenants_processed: 0, total_created: 0 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -476,18 +488,18 @@ Deno.serve(async (req) => {
       let totalCreated = 0;
       const allErrors: string[] = [];
 
-      for (const tenant of configuredTenants) {
+      for (const tenantId of uniqueTenantIds) {
         try {
-          const result = await processTenanDrafts(supabase, tenant.tenant_id, null);
+          const result = await processTenanDrafts(supabase, tenantId, null);
           totalCreated += result.created;
           allErrors.push(...result.errors);
         } catch (err) {
-          console.error(`[fiscal-auto-create-drafts] Error for tenant ${tenant.tenant_id}:`, err);
-          allErrors.push(`Tenant ${tenant.tenant_id}: ${err instanceof Error ? err.message : 'Erro'}`);
+          console.error(`[fiscal-auto-create-drafts] Error for tenant ${tenantId}:`, err);
+          allErrors.push(`Tenant ${tenantId}: ${err instanceof Error ? err.message : 'Erro'}`);
         }
       }
 
-      console.log(`[fiscal-auto-create-drafts] CRON complete. ${configuredTenants.length} tenants, ${totalCreated} drafts created.`);
+      console.log(`[fiscal-auto-create-drafts] CRON complete. ${uniqueTenantIds.length} tenants, ${totalCreated} drafts created.`);
 
       return new Response(
         JSON.stringify({ 
