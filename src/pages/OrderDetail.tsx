@@ -824,6 +824,29 @@ export default function OrderDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {overrideDialog && (
+        <OrderStatusOverrideDialog
+          open={!!overrideDialog}
+          onOpenChange={(o) => { if (!o) setOverrideDialog(null); }}
+          scope={overrideDialog.scope}
+          fromLabel={
+            overrideDialog.scope === 'order'
+              ? (ORDER_STATUS_CONFIG[normalizeOrderStatus(overrideDialog.from)]?.label ?? overrideDialog.from)
+              : overrideDialog.scope === 'payment'
+              ? (PAYMENT_STATUS_CONFIG[normalizePaymentStatus(overrideDialog.from)]?.label ?? overrideDialog.from)
+              : (SHIPPING_STATUS_CONFIG[normalizeShippingStatus(overrideDialog.from)]?.label ?? overrideDialog.from)
+          }
+          toLabel={
+            overrideDialog.scope === 'order'
+              ? (ORDER_STATUS_CONFIG[normalizeOrderStatus(overrideDialog.to)]?.label ?? overrideDialog.to)
+              : overrideDialog.scope === 'payment'
+              ? (PAYMENT_STATUS_CONFIG[normalizePaymentStatus(overrideDialog.to)]?.label ?? overrideDialog.to)
+              : (SHIPPING_STATUS_CONFIG[normalizeShippingStatus(overrideDialog.to)]?.label ?? overrideDialog.to)
+          }
+          onConfirm={handleConfirmOverride}
+        />
+      )}
     </div>
   );
 }
