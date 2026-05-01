@@ -405,6 +405,18 @@ O sistema cria rascunhos logísticos automaticamente quando um pagamento é apro
 
 ---
 
+## Sincronia com Pedidos em Regressão (v2026-05-01)
+
+Quando um pedido entra em estado regressivo (`cancelled`, `returned`, `chargeback_detected`, `chargeback_lost`, `payment_expired`, `invoice_cancelled`), o módulo Logística reage automaticamente:
+
+- **Etiqueta em rascunho/pendente:** linhas correspondentes em `shipping_draft_queue` com status `pending`/`processing` recebem `status = 'cancelled'`, `cancelled_at` e `cancel_reason = 'order_regression:<motivo>'` via trigger `cancel_pending_drafts_on_regression`. Não há geração de etiqueta nem despacho.
+- **Etiqueta já gerada e não entregue:** o `shipments` correspondente recebe `requires_action = true` e `action_reason = <motivo>` via trigger `handle_order_shipping_alert`. Aparece no banner em `OrderDetail` e no card "Pedidos" da Central de Execuções como "Etiquetas a reverter". O cancelamento/devolução é manual (exige processo logístico).
+- **Reforço idempotente:** a edge function `order-regression-handler` reaplica as marcações em transições que não passam pelo `core-orders` (webhooks de chargeback, cron de expiração).
+
+Detalhe completo do pipeline: `docs/especificacoes/ecommerce/pedidos.md` §4.6.
+
+---
+
 ## Pendências
 
 - [ ] Integração Melhor Envio
