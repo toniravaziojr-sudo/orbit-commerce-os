@@ -31,7 +31,7 @@ interface IntegrationError {
   navigateTo: string;
 }
 
-// ── Pedidos: chargebacks, limite mensal (90%+), aguardando NF ──
+// ── Pedidos: chargebacks, limite mensal (90%+), aguardando NF, regressões pendentes ──
 function useOrderExecutionCounts() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
@@ -39,18 +39,24 @@ function useOrderExecutionCounts() {
   return useQuery({
     queryKey: ["execution-order-counts", tenantId],
     queryFn: async () => {
-      if (!tenantId) return { chargebacks: 0, awaitingInvoice: 0 };
+      if (!tenantId) return { chargebacks: 0, awaitingInvoice: 0, regressionInvoices: 0, regressionShipments: 0 };
 
-      const [chargebackRes, invoiceRes] = await Promise.all([
+      const [chargebackRes, invoiceRes, regInvRes, regShipRes] = await Promise.all([
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId).in("status", ["chargeback_detected", "chargeback_lost"]),
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId).eq("status", "ready_to_invoice"),
+        supabase.from("fiscal_invoices").select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("requires_action", true),
+        supabase.from("shipments").select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("requires_action", true),
       ]);
 
       return {
         chargebacks: chargebackRes.count || 0,
         awaitingInvoice: invoiceRes.count || 0,
+        regressionInvoices: regInvRes.count || 0,
+        regressionShipments: regShipRes.count || 0,
       };
     },
     enabled: !!tenantId,
