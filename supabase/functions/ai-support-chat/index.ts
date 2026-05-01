@@ -6245,6 +6245,46 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                 // Atualiza hash e libera supressão
                 (dupCheck as { duplicate: boolean; reason: string }) = { duplicate: false, reason: "regenerated" };
                 regenerationSucceeded = true;
+
+                // [Reg #2.11] REAPLICA gates após regeneração — antes a nova
+                // resposta pulava price/greeting/checkout-url e a degenerada
+                // voltava (ex.: "Oi! Tudo bem?" no lugar de "Boa noite!").
+                try {
+                  const pg = scrubUnsolicitedPrice({
+                    pipelineState,
+                    aiResponse: aiContent || "",
+                    classification: turnClassification,
+                  });
+                  if (pg.scrubbed) {
+                    console.log(`[ai-support-chat] [Reg #2.11] post-regen price scrub (${pg.reason})`);
+                    aiContent = pg.after;
+                  }
+                  const gg = turnClassification.source === "llm"
+                    ? gateGreetingMirror({
+                        pipelineState,
+                        aiResponse: aiContent || "",
+                        classification: turnClassification,
+                      })
+                    : gateGreetingMirrorFallback({
+                        pipelineState,
+                        aiResponse: aiContent || "",
+                        customerMessage: lastMessageContent || "",
+                      });
+                  if (gg.scrubbed) {
+                    console.log(`[ai-support-chat] [Reg #2.11] post-regen greeting gate (${gg.reason})`);
+                    aiContent = gg.after;
+                  }
+                  const ug = enforceCheckoutUrlInText({
+                    aiResponse: aiContent || "",
+                    toolResults: toolResultsThisTurn,
+                  });
+                  if (ug.scrubbed) {
+                    console.log(`[ai-support-chat] [Reg #2.11] post-regen checkout url gate (${ug.reason})`);
+                    aiContent = ug.after;
+                  }
+                } catch (gateErr) {
+                  console.warn("[ai-support-chat] [Reg #2.11] post-regen gates failed:", (gateErr as Error).message);
+                }
               } else {
                 console.warn(
                   `[ai-support-chat] [PACOTE E v2] regeneration still duplicate (newHash=${regenHash.slice(0,8)}) — keeping suppression`,
