@@ -4940,8 +4940,20 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             const generateCheckoutAvailable = pipelineFilteredTools.some(
               (t: any) => t?.function?.name === "generate_checkout_link"
             );
+            // [Reg #2.10] FIX-B estendido: também dispara quando o estado
+            // ainda é consideration/decision/recommendation MAS o cliente
+            // pediu o link explicitamente e o carrinho tem item. Antes,
+            // exigir checkout_assist criava loop "posso finalizar?" → handoff,
+            // porque a transição pra checkout_assist só acontece DEPOIS de
+            // gerar o link.
+            const eligibleStateForForce =
+              pipelineState === "checkout_assist" ||
+              ((pipelineState === "consideration" ||
+                pipelineState === "decision" ||
+                pipelineState === "recommendation") &&
+                explicitBuyNow);
             const forceCheckoutLink =
-              pipelineState === "checkout_assist" &&
+              eligibleStateForForce &&
               checkoutChecklist.ready &&
               generateCheckoutAvailable &&
               (salesIntentFlags.buy || explicitBuyNow || recentPurchaseIntentBefore);
