@@ -174,12 +174,10 @@ Deno.serve(async (req) => {
     // sem alterar o status do pedido (decisão manual do operador via override).
     if (invoice.order_id) {
       await supabaseClient.from('order_history').insert({
-        tenant_id: tenantId,
         order_id: invoice.order_id,
         action: 'fiscal_invoice_cancelled',
         description: `[NF-e CANCELADA] Justificativa: ${justificativa}. ` +
           `Reveja o status do pedido e a etiqueta de envio (se houver).`,
-        metadata: { invoice_id, justificativa },
       });
 
       // Marcar shipments não entregues como requires_action
