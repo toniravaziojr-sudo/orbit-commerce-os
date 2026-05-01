@@ -6209,6 +6209,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             pipelineState,
             customerMessage: lastMessageContent || "",
             aiResponse: aiContent || "",
+            isRecurring: (messages?.length ?? 0) > 1 || !!customerId,
+            customerName: conversation?.customer_name || null,
           });
           greetingScrubReason = scrub.reason;
           if (scrub.scrubbed) {
