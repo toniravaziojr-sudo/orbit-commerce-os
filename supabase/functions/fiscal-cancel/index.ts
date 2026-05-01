@@ -170,6 +170,29 @@ Deno.serve(async (req) => {
         event_data: { justificativa, response: result.data },
       });
 
+    // Sinalizar regressão no pedido vinculado (banner UI + reconciliação),
+    // sem alterar o status do pedido (decisão manual do operador via override).
+    if (invoice.order_id) {
+      await supabaseClient.from('order_history').insert({
+        order_id: invoice.order_id,
+        action: 'fiscal_invoice_cancelled',
+        description: `[NF-e CANCELADA] Justificativa: ${justificativa}. ` +
+          `Reveja o status do pedido e a etiqueta de envio (se houver).`,
+      });
+
+      // Marcar shipments não entregues como requires_action
+      await supabaseClient
+        .from('shipments')
+        .update({
+          requires_action: true,
+          action_reason: 'invoice_cancelled',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('order_id', invoice.order_id)
+        .eq('requires_action', false)
+        .is('delivered_at', null);
+    }
+
     console.log(`[fiscal-cancel] NF-e ${invoice_id} cancelada com sucesso`);
 
     return new Response(
