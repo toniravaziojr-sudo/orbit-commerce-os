@@ -755,7 +755,7 @@ Deno.serve(async (req) => {
       }
 
       case 'set_payment_status': {
-        const { new_status, notes } = payload;
+        const { new_status, notes, force } = payload;
         
         if (!PAYMENT_STATUSES.includes(new_status)) {
           return new Response(
@@ -779,8 +779,20 @@ Deno.serve(async (req) => {
         }
 
         const currentStatus = order.payment_status as PaymentStatus;
-        
-        if (!isValidTransition(PAYMENT_TRANSITIONS, currentStatus, new_status)) {
+        const isOverride = force === true;
+
+        if (isOverride && !['owner', 'admin'].includes(roleCheck.role)) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Apenas owner/admin podem forçar alteração de status de pagamento',
+              code: 'OVERRIDE_FORBIDDEN',
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (!isOverride && !isValidTransition(PAYMENT_TRANSITIONS, currentStatus, new_status)) {
           return new Response(
             JSON.stringify({ 
               success: false, 
@@ -803,10 +815,11 @@ Deno.serve(async (req) => {
           return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'set_payment_status' });
         }
 
+        const overridePrefix = isOverride ? '[OVERRIDE ADMIN] ' : '';
         await supabase.from('order_history').insert({
           order_id,
           status: order.status,
-          description: notes || `Pagamento: ${currentStatus} → ${new_status}`,
+          description: notes || `${overridePrefix}Pagamento: ${currentStatus} → ${new_status}`,
           created_by: userId,
         });
 
@@ -814,9 +827,9 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           entity_type: 'order',
           entity_id: order_id,
-          action: 'set_payment_status',
+          action: isOverride ? 'set_payment_status_override' : 'set_payment_status',
           before_json: { payment_status: currentStatus },
-          after_json: { payment_status: new_status },
+          after_json: { payment_status: new_status, manual_override: isOverride },
           changed_fields: ['payment_status'],
           actor_user_id: userId,
           source: 'core-orders',
@@ -828,10 +841,11 @@ Deno.serve(async (req) => {
           order_number: order.order_number,
           from_status: currentStatus,
           to_status: new_status,
+          is_manual_override: isOverride,
         }, `payment_status_${order_id}_${new_status}_${Date.now()}`);
 
         return new Response(
-          JSON.stringify({ success: true, data: { order_id, payment_status: new_status } }),
+          JSON.stringify({ success: true, data: { order_id, payment_status: new_status, manual_override: isOverride } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
