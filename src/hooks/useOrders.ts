@@ -304,9 +304,13 @@ export function useOrders(options?: {
 
       return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['orders', currentTenant?.id] });
-      toast.success('Pedido criado com sucesso!');
+      const num = data?.order_number;
+      toast.success(
+        num ? `Pedido ${num} criado com sucesso!` : 'Pedido criado com sucesso!',
+        { description: 'A numeração pode pular números entre pedidos — isso é normal e exigido pela auditoria fiscal.' }
+      );
     },
     onError: (error: Error) => {
       console.error('Erro ao criar pedido:', error);
