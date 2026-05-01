@@ -88,10 +88,14 @@ const SHIPPING_TRANSITIONS: Record<ShippingStatus, ShippingStatus[]> = {
 // Os mapas abaixo só ainda existem para compat REVERSA: ler valores legados gravados
 // por webhooks antigos de gateways e normalizá-los para o vocabulário canônico.
 
-// PAYMENT — escrita: canônico → DB (identidade; legado também ainda é aceito pelo enum)
+// PAYMENT — escrita: canônico → DB
+// IMPORTANTE: gravamos 'paid' como 'approved' no DB porque o trigger
+// trg_enqueue_fiscal_draft / trg_after_order_approved_sync escutam exatamente
+// payment_status='approved' (vocabulário histórico do checkout). Mantém paridade
+// total entre fluxo automático (webhook gateway) e fluxo manual (admin).
 const PAYMENT_CANONICAL_TO_DB: Record<string, string> = {
   awaiting_payment: 'awaiting_payment',
-  paid: 'paid',
+  paid: 'approved',
   declined: 'declined',
   cancelled: 'cancelled',
   refunded: 'refunded',
