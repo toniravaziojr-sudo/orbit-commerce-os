@@ -4243,15 +4243,23 @@ Cliente: "vocês entregam em SP?"
         );
       }
 
-      // [F2-V4] Espelho mecânico de saudação — força a IA a abrir LITERALMENTE
-      // com o que o cliente disse (oi + boa noite + tudo bem). Só ativa em greeting.
+      // [F2-V4 + Reg #5] Espelho mecânico de saudação — força tom FORMAL.
+      // Mapeia gírias do cliente ("Eai", "Opa") para "Olá"; ecoa período do dia
+      // se o cliente disse, senão calcula em BRT; usa "hoje" se cliente recorrente
+      // (>=1 mensagem anterior na conversa) e nome se conhecido.
       if (pipelineState === "greeting" && lastMessageContent) {
-        const echo = detectGreetingEcho(lastMessageContent);
+        // Recorrente = cliente já trocou mensagens antes nesta conversa.
+        // messages contém histórico + a mensagem atual; >1 = não é o 1º contato.
+        const isRecurringClient = (messages?.length ?? 0) > 1 || !!customerId;
+        const echo = detectGreetingEcho(lastMessageContent, {
+          isRecurring: isRecurringClient,
+          customerName: customerName,
+        });
         const mirrorBlock = buildGreetingMirrorBlock(echo);
         if (mirrorBlock) {
           contextualBlocks.push(mirrorBlock);
           console.log(
-            `[ai-support-chat] [F2-V4] greeting_mirror period=${echo.period || "—"} hello=${echo.hello || "—"} how_are_you=${echo.askedHowAreYou} opening="${echo.mandatoryOpening}"`
+            `[ai-support-chat] [Reg#5] greeting_formal period=${echo.period} echoed=${echo.periodEchoed} how_are_you=${echo.askedHowAreYou} recurring=${echo.isRecurring} name=${echo.customerName || "—"} opening="${echo.mandatoryOpening}"`
           );
         }
       }
