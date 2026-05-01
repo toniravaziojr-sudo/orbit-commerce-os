@@ -55,21 +55,22 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // -------- Detecta Agent Mode (backend automatizado) --------
-    // Agent Mode: header x-agent-mode=true + x-agent-key=SERVICE_ROLE_KEY.
-    // Usa header separado pra não conflitar com Authorization (que pode trazer JWT do user).
-    // Só liberado para o tenant fixo Respeite o Homem.
+    // Agent Mode: header x-agent-mode=true + tenant_id == Respeite o Homem.
+    // Sem token extra: a trava é o tenant fixo + isolamento via is_sandbox=true.
+    // Qualquer outro tenant retorna 403.
     const authHeader = req.headers.get("Authorization") || "";
     const jwt = authHeader.replace("Bearer ", "").trim();
-    const agentKey = (req.headers.get("x-agent-key") || "").trim();
     const agentModeHeader = (req.headers.get("x-agent-mode") || "").toLowerCase() === "true";
-    const isAgentMode = agentModeHeader && agentKey.length > 0 && agentKey === serviceKey;
+
+    // Determina tenant alvo da requisição (para 'send' vem no body, para 'cleanup' será revalidado)
+    const requestedTenant = body.action === "send" ? (body as SendBody).tenant_id : null;
+    const isAgentMode = agentModeHeader && (
+      body.action === "cleanup" || requestedTenant === AGENT_MODE_ALLOWED_TENANT
+    );
 
     let userId: string;
     if (isAgentMode) {
-      // Valida que o tenant alvo é o permitido. Para 'send' o tenant vem no body;
-      // para 'cleanup' será revalidado depois de carregar a conversa.
-      const targetTenant = (body as SendBody).tenant_id;
-      if (body.action === "send" && targetTenant !== AGENT_MODE_ALLOWED_TENANT) {
+      if (body.action === "send" && requestedTenant !== AGENT_MODE_ALLOWED_TENANT) {
         return json({ success: false, error: "agent_mode_tenant_not_allowed" }, 200);
       }
       userId = "agent-mode";
