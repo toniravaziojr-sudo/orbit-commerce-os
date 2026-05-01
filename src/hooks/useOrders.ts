@@ -81,6 +81,9 @@ export interface Order {
   marketplace_source: string | null;
   marketplace_order_id: string | null;
   marketplace_data: Record<string, unknown> | null;
+  // AI Sales attribution
+  sales_channel: string | null;
+  ai_conversation_id: string | null;
   created_at: string;
   updated_at: string;
   // New canonical fields
