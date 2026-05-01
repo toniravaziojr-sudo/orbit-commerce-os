@@ -396,13 +396,15 @@ async function processTenanDrafts(
     }
   }
 
-  await syncFiscalNumberCursor({
-    supabase,
-    tenantId,
-    serie: serieNfe,
-    currentCursor: nextNumeroCursor,
-    logPrefix: 'fiscal-auto-create-drafts',
-  });
+  if (isFiscalConfigured) {
+    await syncFiscalNumberCursor({
+      supabase,
+      tenantId,
+      serie: serieNfe,
+      currentCursor: nextNumeroCursor,
+      logPrefix: 'fiscal-auto-create-drafts',
+    });
+  }
 
   console.log(`[fiscal-auto-create-drafts] Completed for tenant ${tenantId}. Created ${created.count} drafts.`);
   return { created: created.count, errors };
