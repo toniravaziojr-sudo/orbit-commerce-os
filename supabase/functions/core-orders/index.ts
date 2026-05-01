@@ -851,7 +851,7 @@ Deno.serve(async (req) => {
       }
 
       case 'set_shipping_status': {
-        const { new_status, notes, tracking_code, shipping_carrier } = payload;
+        const { new_status, notes, tracking_code, shipping_carrier, force } = payload;
         
         if (!SHIPPING_STATUSES.includes(new_status)) {
           return new Response(
@@ -875,8 +875,20 @@ Deno.serve(async (req) => {
         }
 
         const currentStatus = order.shipping_status as ShippingStatus;
-        
-        if (!isValidTransition(SHIPPING_TRANSITIONS, currentStatus, new_status)) {
+        const isOverride = force === true;
+
+        if (isOverride && !['owner', 'admin'].includes(roleCheck.role)) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Apenas owner/admin podem forçar alteração de status de envio',
+              code: 'OVERRIDE_FORBIDDEN',
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (!isOverride && !isValidTransition(SHIPPING_TRANSITIONS, currentStatus, new_status)) {
           return new Response(
             JSON.stringify({ 
               success: false, 
@@ -902,10 +914,11 @@ Deno.serve(async (req) => {
           return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'set_shipping_status' });
         }
 
+        const overridePrefix = isOverride ? '[OVERRIDE ADMIN] ' : '';
         await supabase.from('order_history').insert({
           order_id,
           status: order.status,
-          description: notes || `Envio: ${currentStatus} → ${new_status}`,
+          description: notes || `${overridePrefix}Envio: ${currentStatus} → ${new_status}`,
           created_by: userId,
         });
 
@@ -913,9 +926,9 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           entity_type: 'order',
           entity_id: order_id,
-          action: 'set_shipping_status',
+          action: isOverride ? 'set_shipping_status_override' : 'set_shipping_status',
           before_json: { shipping_status: currentStatus },
-          after_json: { shipping_status: new_status, tracking_code, shipping_carrier },
+          after_json: { shipping_status: new_status, tracking_code, shipping_carrier, manual_override: isOverride },
           changed_fields: ['shipping_status', ...(tracking_code ? ['tracking_code'] : []), ...(shipping_carrier ? ['shipping_carrier'] : [])],
           actor_user_id: userId,
           source: 'core-orders',
@@ -928,10 +941,11 @@ Deno.serve(async (req) => {
           from_status: currentStatus,
           to_status: new_status,
           tracking_code,
+          is_manual_override: isOverride,
         }, `shipping_status_${order_id}_${new_status}_${Date.now()}`);
 
         return new Response(
-          JSON.stringify({ success: true, data: { order_id, shipping_status: new_status } }),
+          JSON.stringify({ success: true, data: { order_id, shipping_status: new_status, manual_override: isOverride } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
