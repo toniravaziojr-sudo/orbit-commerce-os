@@ -748,6 +748,32 @@ Deno.serve(async (req) => {
           is_manual_override: isOverride,
         }, `order_status_${order_id}_${new_status}_${Date.now()}`);
 
+        // Disparar handler de regressão (fire-and-forget) se o novo status
+        // for regressivo. O handler é idempotente — triggers DB já fazem o
+        // grosso, mas a edge cobre cenários extras (logs, futuras integrações).
+        const REGRESSIVE = new Set([
+          'cancelled','returned','returning',
+          'chargeback_detected','chargeback_lost',
+          'payment_expired','invoice_cancelled',
+        ]);
+        if (REGRESSIVE.has(new_status)) {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          fetch(`${supabaseUrl}/functions/v1/order-regression-handler`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${serviceKey}`,
+            },
+            body: JSON.stringify({
+              order_id,
+              tenant_id: tenantId,
+              reason: new_status,
+              source: isOverride ? 'manual-override' : 'core-orders',
+            }),
+          }).catch((e) => console.error('[regression-handler] non-blocking error:', e));
+        }
+
         return new Response(
           JSON.stringify({ success: true, data: { order_id, status: new_status, manual_override: isOverride } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
