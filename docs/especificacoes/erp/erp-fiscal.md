@@ -481,6 +481,18 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 
 ---
 
+## Sincronia com Pedidos em Regressão (v2026-05-01)
+
+Quando um pedido entra em estado regressivo (`cancelled`, `returned`, `chargeback_detected`, `chargeback_lost`, `payment_expired`, `invoice_cancelled`), o módulo Fiscal reage automaticamente:
+
+- **NF-e em rascunho/pendente:** linhas correspondentes em `fiscal_draft_queue` com status `pending`/`processing` recebem `status = 'cancelled'`, `cancelled_at` e `cancel_reason = 'order_regression:<motivo>'` via trigger `cancel_pending_drafts_on_regression`. Não há emissão.
+- **NF-e já autorizada:** o documento **não é cancelado automaticamente** (exige justificativa SEFAZ). É marcado com `requires_action = true` e `action_reason = <motivo>` via trigger `handle_order_fiscal_alert`. Aparece no banner em `OrderDetail` e no card "Notas Fiscais" da Central de Execuções como "NF-e a cancelar (regressão)". O cancelamento é manual via `fiscal-cancel`, que registra log no `order_history` e sinaliza remessas pendentes do mesmo pedido.
+- **Reforço idempotente:** a edge function `order-regression-handler` é chamada por `core-orders` e por webhooks/cron; reaplica as marcações acima caso a transição não passe por `core-orders` (ex.: webhook de chargeback direto).
+
+Detalhe completo do pipeline: `docs/especificacoes/ecommerce/pedidos.md` §4.6.
+
+---
+
 ## Pendências
 
 - [x] Migração Focus NFe → Nuvem Fiscal
