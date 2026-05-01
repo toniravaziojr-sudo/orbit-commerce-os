@@ -6,22 +6,18 @@ type: reference
 
 # Assuntos recentes (rotativo)
 
-## 1) IA Atendimento — Frente 3 (fechamento sem loop) — EM VALIDAÇÃO
-- Status: Ajuste aplicado, validação parcial.
-- O que foi feito:
-  - Auto-Ready em `ai-support-chat/index.ts` (libera FIX-B mesmo com carrinho vazio quando há 1 produto apresentado/foco).
-  - `enforceCloseOnConfirmedIntent` em `_shared/sales-pipeline/output-gates.ts` (rede de segurança que marca `semanticDuplicateDetected` para forçar regeneração com `tool_choice`).
-  - Hotfix: `ReferenceError: customerName is not defined` (linhas 4280 e 6437/6446) — variáveis declaradas em `try` reusadas fora do escopo. Corrigido referenciando `conversation.customer_name` direto.
-  - Doc: Reg #7 em `docs/especificacoes/whatsapp/ia-atendimento-changelog.md`.
-  - Memória: `mem://constraints/ai-close-on-confirmed-intent-no-loop.md`.
-- O que falta validar (próximo turno):
-  - Roteiro completo do tenant Respeite o Homem via `ai-test-sandbox` Agent Mode: turno 1 saudação ✅, turno 2 (descoberta de produto) interrompido por timeout do conector de teste, turnos 3+ (recomendação → confirmação → fechamento) NÃO validados.
-  - Verificar log `[Frente 3] checkout_auto_ready` e `[Frente 3] close_loop_detected` em produção.
-- Pendência documental:
-  - Registrar Reg #8 (hotfix `customerName`) no changelog.
-  - Criar `mem://constraints/greeting-mirror-vars-must-be-declared-at-handler-scope.md`.
+## 1) Pedidos — Override Administrativo de Status — AJUSTE APLICADO
+- Status: 📌 Ajuste aplicado — pendente de validação prática pelo usuário.
+- Problema original: tenant amazgan não conseguia alterar manualmente status de pedido travado em estado terminal (`payment_expired`, `cancelled`, `invoice_cancelled`, `chargeback_lost`). Regressão universal: máquina de estados de `core-orders` não tinha rota de saída desses estados e tratava admin = webhook.
+- Solução (Opção 1 — Override com Defesa em Camadas):
+  - Edge `core-orders/index.ts`: adicionados statuses faltantes (`chargeback_detected`, `chargeback_lost`, `under_review`); novo parâmetro `force: true` em `set_order_status`/`set_payment_status`/`set_shipping_status` que pula `isValidTransition` apenas para `owner`/`admin`. Auditoria com prefixo `[OVERRIDE ADMIN]` e flag `is_manual_override: true` no evento.
+  - Frontend: `src/lib/orderTransitions.ts` (espelho client da máquina), `src/components/orders/OrderStatusOverrideDialog.tsx` (avisa consequências), `src/pages/OrderDetail.tsx` integrado, `src/hooks/useOrders.ts` + `src/lib/coreApi.ts` propagam `force`.
+  - Doc: `docs/especificacoes/ecommerce/pedidos.md` seção 5.2 reescrita (5.2.1 Fluxo Automático, 5.2.2 Override Admin, 5.2.3 Enum completo).
+  - Memória: `mem://constraints/order-status-manual-override-policy.md` indexada.
+- Pendente de validação:
+  - Usuário precisa testar no tenant amazgan: abrir pedido travado, mudar status manualmente — dialog deve aparecer, override deve aplicar, history deve registrar `[OVERRIDE ADMIN]`.
+  - Validar que webhook de pagamento ainda é barrado (sem `force` chegando dele).
 
-## 2) Pedidos — alteração manual de status NÃO funciona (NOVO — em diagnóstico)
-- Reportado em: tenant amazgan.
-- Suspeita do usuário: regressão universal (não pode ser específica de tenant).
-- A investigar: RLS de `orders` (UPDATE), trigger que possa estar bloqueando, lógica de UI/edge.
+## 2) IA Atendimento — Frente 3 (fechamento sem loop) — EM VALIDAÇÃO
+- Status: Ajuste aplicado, validação parcial (ver memória `mem://constraints/ai-close-on-confirmed-intent-no-loop`).
+- Pendência documental: Reg #8 (hotfix `customerName`) no changelog + memória `mem://constraints/greeting-mirror-vars-must-be-declared-at-handler-scope.md`.

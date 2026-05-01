@@ -396,15 +396,41 @@ graph TD
 
 ### 5.2 Atualização de Status
 
+Existem **duas vias** de atualização — fluxo automático (rígido) e override administrativo (flexível com auditoria).
+
 ```mermaid
 graph TD
-    A[Admin altera status] --> B[core-orders.setOrderStatus]
-    B --> C{Transição válida?}
-    C -->|Não| D[Retorna erro INVALID_TRANSITION]
-    C -->|Sim| E[Atualiza orders]
-    E --> F[Registra em order_history]
-    F --> G[Dispara evento order_status_changed]
+    A[Origem da mudança] --> B{force=true?}
+    B -->|Não - webhook/cron/UI normal| C[core-orders.setOrderStatus]
+    C --> D{Transição válida na máquina?}
+    D -->|Não| E[Retorna INVALID_TRANSITION]
+    D -->|Sim| F[Atualiza orders]
+    B -->|Sim - admin override| G{Role = owner/admin?}
+    G -->|Não| H[Retorna FORBIDDEN]
+    G -->|Sim| I[Pula validação de transição]
+    I --> F
+    F --> J[order_history com prefixo OVERRIDE ADMIN se force]
+    J --> K[Evento order.status_changed com is_manual_override]
 ```
+
+#### 5.2.1 Fluxo Automático (sem `force`)
+- Webhooks de pagamento, crons (`verify-payment-status`, `monitor-chargebacks`), automações fiscais e de envio **NUNCA** enviam `force: true`.
+- Tentativa de transição inválida retorna `INVALID_TRANSITION` — comportamento intencional para proteger integridade do fluxo.
+
+#### 5.2.2 Override Administrativo (`force: true`)
+- Disponível em `set_order_status`, `set_payment_status`, `set_shipping_status` da edge `core-orders`.
+- Validação server-side: apenas membros com role `owner` ou `admin` (operador é negado com `FORBIDDEN`).
+- Pula `isValidTransition` e permite qualquer destino dentro do enum válido.
+- Auditoria obrigatória:
+  - `audit_logs.action = 'set_*_status_override'` com `manual_override: true` em `after_json`.
+  - `order_history.description` recebe prefixo `[OVERRIDE ADMIN]`.
+  - Evento publicado em `order_events` carrega `is_manual_override: true` no payload — consumidores externos (notificações, fiscal, etc.) decidem se reagem.
+- Frontend (`OrderDetail.tsx`) espelha a máquina em `src/lib/orderTransitions.ts` apenas para detectar transições não naturais e abrir `OrderStatusOverrideDialog` listando consequências (NFe draft, recálculo de LTV, notificações). A validação real é sempre no servidor.
+
+#### 5.2.3 Statuses suportados (enum completo)
+- **Order:** `awaiting_confirmation`, `ready_to_invoice`, `invoice_pending_sefaz`, `invoice_authorized`, `invoice_issued`, `invoice_rejected`, `invoice_cancelled`, `dispatched`, `completed`, `returning`, `returned`, `payment_expired`, `cancelled`, `chargeback_detected`, `chargeback_lost`, `pending`, `awaiting_payment`, `paid`, `processing`, `shipped`, `in_transit`, `delivered`.
+- **Payment:** `awaiting_payment`, `paid`, `declined`, `cancelled`, `refunded`, `under_review`.
+- **Shipping:** `awaiting_shipment`, `label_generated`, `shipped`, `in_transit`, `arriving`, `delivered`, `problem`, `awaiting_pickup`, `returning`, `returned`.
 
 ### 5.3 Rastreio
 
