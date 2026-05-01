@@ -154,7 +154,6 @@ Deno.serve(async (req) => {
 
     // 4) Registrar histórico
     await supabase.from("order_history").insert({
-      tenant_id: order.tenant_id,
       order_id: order.id,
       action: "regression_handled",
       description: `[REGRESSÃO ${reason.toUpperCase()}] origem=${source}. ` +
@@ -164,7 +163,6 @@ Deno.serve(async (req) => {
         `${summary.fiscal_draft_queue_cancelled}/` +
         `${summary.shipping_draft_queue_cancelled}/` +
         `${summary.gateway_sync_queue_cancelled}.`,
-      metadata: { reason, source, summary },
     });
 
     return new Response(
