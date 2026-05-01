@@ -374,6 +374,41 @@ const cfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CON
 
 ---
 
+### 4.6 Sincronia Cross-Module em Regressão (v2026-05-01)
+
+**Problema resolvido:** quando um pedido aprovado avança para o fluxo Fiscal e Logístico (NF-e emitida, etiqueta despachada) e depois regride por um motivo legítimo (cancelamento manual, chargeback detectado, pagamento expirado pós-aprovação, devolução), os módulos a jusante deixavam o documento/etiqueta ativos sem alerta. Resultado: NF-e válida para venda inexistente, etiqueta gerada para pedido cancelado, métricas de cliente infladas e rascunhos órfãos nas filas.
+
+**Estados regressivos canônicos:**
+`cancelled`, `returned`, `returning`, `chargeback_detected`, `chargeback_lost`, `payment_expired`, `invoice_cancelled`.
+
+**Pipeline obrigatório (toda transição que entra em estado regressivo):**
+
+| Camada | Componente | Responsabilidade |
+|--------|------------|------------------|
+| 1. Trigger DB | `handle_order_fiscal_alert` | Marca `fiscal_invoices.requires_action = true` + `action_reason` em NF-e `authorized` do pedido |
+| 1. Trigger DB | `handle_order_shipping_alert` | Marca `shipments.requires_action = true` + `action_reason` em remessas não entregues |
+| 1. Trigger DB | `cancel_pending_drafts_on_regression` | Cancela linhas `pending`/`processing` em `fiscal_draft_queue`, `shipping_draft_queue`, `gateway_sync_queue` (preenche `cancelled_at` + `cancel_reason`) |
+| 1. Trigger DB | `handle_customer_regression` | Dispara `recalc_customer_metrics` para reverter tags/métricas (ex.: comprador frequente) |
+| 2. Edge Function | `order-regression-handler` | Orquestrador idempotente. Reforça as marcações acima e registra entrada em `order_history` com sumário (`regression_handled`). Chamado fire-and-forget pelo `core-orders` em toda transição regressiva manual ou automática, e por webhooks (chargeback/estorno) e cron `expire-stale-orders` |
+| 2. Edge Function | `fiscal-cancel` | Ao cancelar NF-e autorizada, registra log no `order_history` e sinaliza remessas pendentes para revisão manual |
+| 3. UI | `OrderRegressionBanner` (em `OrderDetail`) | Exibe NF-e e etiquetas com `requires_action = true`, motivo da regressão e ação manual sugerida |
+| 3. UI | `ExecutionsQueue` (Central de Execuções) | Cards "Pedidos" e "Notas Fiscais" expõem stats `Etiquetas a reverter` e `NF-e a cancelar (regressão)` |
+
+**O que NÃO é automático (decisão de produto):**
+- Cancelamento ativo de NF-e autorizada (exige justificativa fiscal e prazo SEFAZ).
+- Cancelamento de etiqueta já despachada (exige processo logístico de devolução).
+
+A automação **sinaliza**; a ação destrutiva fica com o operador. A bandeira `requires_action` só é limpa por ação humana via `fiscal-cancel` (NF-e) ou ação explícita na tela de Remessas (etiqueta).
+
+**Colunas de auditoria adicionadas:**
+- `fiscal_invoices.requires_action`, `action_reason`, `action_dismissed_at`
+- `shipments.requires_action`, `action_reason`
+- `fiscal_draft_queue` / `shipping_draft_queue` / `gateway_sync_queue`: `cancelled_at`, `cancel_reason`
+
+**Anti-regressão:** ver `mem://constraints/order-cross-module-sync-on-regression`.
+
+---
+
 ## 5. Fluxos de Negócio
 
 ### 5.1 Criação via Checkout (v2026-04-04)
