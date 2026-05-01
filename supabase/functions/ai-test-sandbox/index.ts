@@ -101,8 +101,15 @@ Deno.serve(async (req) => {
       }
 
       // Valida que o usuário tem acesso ao tenant da conversa.
-      const allowed = await userHasTenantAccess(supabase, userId, conv.tenant_id);
-      if (!allowed) return json({ success: false, error: "forbidden" }, 200);
+      // Em Agent Mode, restringe ao tenant fixo permitido.
+      if (isAgentMode) {
+        if (conv.tenant_id !== AGENT_MODE_ALLOWED_TENANT) {
+          return json({ success: false, error: "agent_mode_tenant_not_allowed" }, 200);
+        }
+      } else {
+        const allowed = await userHasTenantAccess(supabase, userId, conv.tenant_id);
+        if (!allowed) return json({ success: false, error: "forbidden" }, 200);
+      }
 
       await supabase.from("messages").delete().eq("conversation_id", conversationId);
       await supabase.from("conversation_events").delete().eq("conversation_id", conversationId);
