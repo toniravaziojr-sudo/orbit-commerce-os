@@ -129,9 +129,11 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "tenant_id and message required" }, 200);
     }
 
-    // Valida acesso do usuário ao tenant.
-    const allowed = await userHasTenantAccess(supabase, userId, tenant_id);
-    if (!allowed) return json({ success: false, error: "forbidden" }, 200);
+    // Valida acesso do usuário ao tenant (em Agent Mode já garantido pelo gate de tenant fixo).
+    if (!isAgentMode) {
+      const allowed = await userHasTenantAccess(supabase, userId, tenant_id);
+      if (!allowed) return json({ success: false, error: "forbidden" }, 200);
+    }
 
     // -------- Cria conversa sandbox se não existir --------
     if (!conversation_id) {
