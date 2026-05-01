@@ -1,4 +1,4 @@
-import { Store, ShoppingBag } from 'lucide-react';
+import { Store, ShoppingBag, Bot } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Ícone SVG do Mercado Livre
