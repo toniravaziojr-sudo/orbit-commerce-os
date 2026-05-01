@@ -51,6 +51,7 @@
 | Filtro estrito por família no `search_products` | ✅ Coberto | `family_focus` persistente | mem://features/ai/sales-pipeline-anti-repetition-and-family-focus |
 | Janela Meta 24h (mensagem livre + imagem) | ✅ Coberto | `meta-whatsapp-send` valida antes de enviar | Reg. #1 |
 | Memória persistente unificada da conversa de vendas (estágio comercial, dor, produtos apresentados, anti-repetição, upsell counter) | 🟡 Em observação | Tabela `conversation_sales_state` + módulos `working-memory.ts` e `stage-machine.ts` em **shadow mode** (loga e persiste, ainda não altera resposta) | Reg. #2.9 |
+| Pedido fechado pela IA marcado como "Venda IA" + atribuído a "IA de Atendimento" | ✅ Coberto | Triggers DB `trg_link_whatsapp_cart_to_order` + `trg_mark_order_as_ai_sale` populam `orders.sales_channel='ai_attendant'` e `order_attribution.attribution_source='ai_atendimento'`. UI exibe badge "Venda IA" em Pedidos/Fiscal e categoria "IA de Atendimento" em Atribuição. | Reg. #4 |
 
 Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
