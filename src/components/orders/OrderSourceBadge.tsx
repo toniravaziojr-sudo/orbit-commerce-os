@@ -53,28 +53,49 @@ const marketplaceConfig: Record<string, {
 
 interface OrderSourceBadgeProps {
   marketplaceSource?: string | null;
+  salesChannel?: string | null;
   showLabel?: boolean;
   size?: 'sm' | 'md' | 'lg';
 }
 
 export function OrderSourceBadge({ 
   marketplaceSource, 
+  salesChannel,
   showLabel = false,
   size = 'md' 
 }: OrderSourceBadgeProps) {
-  // Se não tem marketplace_source, é pedido da loja própria
-  if (!marketplaceSource) {
-    const sizeClasses = {
-      sm: 'h-4 w-4',
-      md: 'h-5 w-5',
-      lg: 'h-6 w-6',
-    };
+  const sizeClasses = {
+    sm: 'h-4 w-4',
+    md: 'h-5 w-5',
+    lg: 'h-6 w-6',
+  };
 
+  // Venda IA tem prioridade sobre "loja própria" — pedido fechado via IA de Atendimento (WhatsApp)
+  if (!marketplaceSource && salesChannel === 'ai_attendant') {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="inline-flex items-center gap-1.5">
-            <div className={`rounded-full bg-primary/10 p-1 ${size === 'sm' ? 'p-0.5' : 'p-1'}`}>
+            <div className={`rounded-full bg-primary/15 ${size === 'sm' ? 'p-0.5' : 'p-1'}`}>
+              <Bot className={`${sizeClasses[size]} text-primary`} />
+            </div>
+            {showLabel && <span className="text-sm text-muted-foreground">Venda IA</span>}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          <p className="text-xs font-medium">Venda IA — fechada pela IA de Atendimento</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  // Se não tem marketplace_source, é pedido da loja própria
+  if (!marketplaceSource) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="inline-flex items-center gap-1.5">
+            <div className={`rounded-full bg-primary/10 ${size === 'sm' ? 'p-0.5' : 'p-1'}`}>
               <Store className={`${sizeClasses[size]} text-primary`} />
             </div>
             {showLabel && <span className="text-sm text-muted-foreground">Loja</span>}
