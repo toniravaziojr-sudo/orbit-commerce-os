@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -58,6 +59,14 @@ import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 import { PaymentAttemptsCard } from '@/components/orders/PaymentAttemptsCard';
 import { useRetryLinkedOrder } from '@/hooks/useRetryLinkedOrder';
+import { useAuth } from '@/hooks/useAuth';
+import { OrderStatusOverrideDialog } from '@/components/orders/OrderStatusOverrideDialog';
+import {
+  ORDER_TRANSITIONS as CLIENT_ORDER_TRANSITIONS,
+  PAYMENT_TRANSITIONS as CLIENT_PAYMENT_TRANSITIONS,
+  SHIPPING_TRANSITIONS as CLIENT_SHIPPING_TRANSITIONS,
+  isNaturalTransition,
+} from '@/lib/orderTransitions';
 
 const paymentMethodLabels: Record<string, string> = {
   pix: 'PIX',
@@ -105,24 +114,71 @@ export default function OrderDetail() {
   const { order, items, history, isLoading, addNote, updateTrackingCode, updatePaymentStatus, updateShippingAddress, updateShippingStatus } = useOrderDetails(id);
   const { updateOrderStatus } = useOrders();
   const { replacedBy, retryOf } = useRetryLinkedOrder(id, order?.retry_from_order_id);
+  const { hasRole } = useAuth();
+  const canOverride = hasRole('owner') || hasRole('admin');
+
+  // Override dialog state
+  const [overrideDialog, setOverrideDialog] = useState<
+    | { scope: 'order'; from: OrderStatus; to: OrderStatus }
+    | { scope: 'payment'; from: PaymentStatus; to: PaymentStatus }
+    | { scope: 'shipping'; from: ShippingStatus; to: ShippingStatus }
+    | null
+  >(null);
 
   const handleStatusChange = (status: OrderStatus) => {
-    if (id) {
+    if (!id || !order) return;
+    const current = order.status as OrderStatus;
+    if (isNaturalTransition(CLIENT_ORDER_TRANSITIONS, current, status)) {
       updateOrderStatus.mutate({ orderId: id, status });
+      return;
     }
+    if (!canOverride) {
+      toast.error('Apenas owner/admin podem forçar esta alteração de status');
+      return;
+    }
+    setOverrideDialog({ scope: 'order', from: current, to: status });
   };
 
   const handleShippingStatusChange = (status: ShippingStatus) => {
-    if (id) {
+    if (!id || !order) return;
+    const current = order.shipping_status as ShippingStatus;
+    if (isNaturalTransition(CLIENT_SHIPPING_TRANSITIONS, current, status)) {
       updateShippingStatus.mutate({ orderId: id, shippingStatus: status });
+      return;
     }
+    if (!canOverride) {
+      toast.error('Apenas owner/admin podem forçar esta alteração de envio');
+      return;
+    }
+    setOverrideDialog({ scope: 'shipping', from: current, to: status });
   };
 
   const handlePaymentStatusChange = (status: PaymentStatus) => {
-    if (id) {
+    if (!id || !order) return;
+    const current = (order.payment_status || 'awaiting_payment') as PaymentStatus;
+    if (isNaturalTransition(CLIENT_PAYMENT_TRANSITIONS, current, status)) {
       updatePaymentStatus.mutate({ orderId: id, paymentStatus: status });
+      return;
     }
+    if (!canOverride) {
+      toast.error('Apenas owner/admin podem forçar esta alteração de pagamento');
+      return;
+    }
+    setOverrideDialog({ scope: 'payment', from: current, to: status });
   };
+
+  const handleConfirmOverride = () => {
+    if (!id || !overrideDialog) return;
+    if (overrideDialog.scope === 'order') {
+      updateOrderStatus.mutate({ orderId: id, status: overrideDialog.to, force: true });
+    } else if (overrideDialog.scope === 'payment') {
+      updatePaymentStatus.mutate({ orderId: id, paymentStatus: overrideDialog.to, force: true });
+    } else {
+      updateShippingStatus.mutate({ orderId: id, shippingStatus: overrideDialog.to, force: true });
+    }
+    setOverrideDialog(null);
+  };
+
 
   const handleAddNote = () => {
     if (id && newNote.trim()) {
@@ -768,6 +824,29 @@ export default function OrderDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {overrideDialog && (
+        <OrderStatusOverrideDialog
+          open={!!overrideDialog}
+          onOpenChange={(o) => { if (!o) setOverrideDialog(null); }}
+          scope={overrideDialog.scope}
+          fromLabel={
+            overrideDialog.scope === 'order'
+              ? (ORDER_STATUS_CONFIG[normalizeOrderStatus(overrideDialog.from)]?.label ?? overrideDialog.from)
+              : overrideDialog.scope === 'payment'
+              ? (PAYMENT_STATUS_CONFIG[normalizePaymentStatus(overrideDialog.from)]?.label ?? overrideDialog.from)
+              : (SHIPPING_STATUS_CONFIG[normalizeShippingStatus(overrideDialog.from)]?.label ?? overrideDialog.from)
+          }
+          toLabel={
+            overrideDialog.scope === 'order'
+              ? (ORDER_STATUS_CONFIG[normalizeOrderStatus(overrideDialog.to)]?.label ?? overrideDialog.to)
+              : overrideDialog.scope === 'payment'
+              ? (PAYMENT_STATUS_CONFIG[normalizePaymentStatus(overrideDialog.to)]?.label ?? overrideDialog.to)
+              : (SHIPPING_STATUS_CONFIG[normalizeShippingStatus(overrideDialog.to)]?.label ?? overrideDialog.to)
+          }
+          onConfirm={handleConfirmOverride}
+        />
+      )}
     </div>
   );
 }
