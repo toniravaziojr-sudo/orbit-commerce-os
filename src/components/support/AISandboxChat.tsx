@@ -22,7 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ChatMessageBubble, ChatTypingIndicator, ChatEmptyState } from "@/components/chat";
+import { ChatMessageBubble, ChatTypingIndicator } from "@/components/chat";
 import { toast } from "sonner";
 
 interface SandboxMessage {
