@@ -6111,6 +6111,26 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.warn("[ai-support-chat] [Reg #2.8] output gates failed:", (e as Error).message);
     }
 
+    // [Reg #2.11] Enforce Checkout URL no texto: se a tool generate_checkout_link
+    // foi chamada com sucesso e devolveu URL, garante que ela apareça no texto
+    // final. Roda DEPOIS dos gates de price/greeting porque a URL não pode ser
+    // removida por nenhum scrubber subsequente.
+    let checkoutUrlEnforced = false;
+    let checkoutUrlEnforceReason = "noop";
+    try {
+      const urlGate = enforceCheckoutUrlInText({
+        aiResponse: aiContent || "",
+        toolResults: toolResultsThisTurn,
+      });
+      checkoutUrlEnforceReason = urlGate.reason;
+      if (urlGate.scrubbed) {
+        console.log(`[ai-support-chat] [Reg #2.11] checkout URL gate (${urlGate.reason}) url=${urlGate.url}`);
+        aiContent = urlGate.after;
+        checkoutUrlEnforced = true;
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #2.11] checkout url gate failed:", (e as Error).message);
+    }
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
     // Persistida no turn log; usada para detectar repetição por intenção
     // (não só por hash exato) confrontando com as últimas famílias da conversa.
