@@ -878,7 +878,8 @@ Deno.serve(async (req) => {
           );
         }
 
-        const currentStatus = order.payment_status as PaymentStatus;
+        // Normalizar status atual do banco (legado) para vocabulário canônico
+        const currentStatus = fromDbPaymentStatus(order.payment_status);
         const isOverride = force === true;
 
         if (isOverride && !['owner', 'admin'].includes(roleCheck.role)) {
@@ -903,7 +904,9 @@ Deno.serve(async (req) => {
           );
         }
 
-        const updateData: Record<string, any> = { payment_status: new_status };
+        // Traduzir canônico → enum do banco (mantém compat com webhooks legados)
+        const dbPaymentStatus = toDbPaymentStatus(new_status);
+        const updateData: Record<string, any> = { payment_status: dbPaymentStatus };
         if (new_status === 'paid') updateData.paid_at = new Date().toISOString();
 
         const { error: updateError } = await supabase
