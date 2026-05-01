@@ -977,7 +977,8 @@ Deno.serve(async (req) => {
           );
         }
 
-        const currentStatus = order.shipping_status as ShippingStatus;
+        // Normalizar status atual do banco (legado) para vocabulário canônico
+        const currentStatus = fromDbShippingStatus(order.shipping_status);
         const isOverride = force === true;
 
         if (isOverride && !['owner', 'admin'].includes(roleCheck.role)) {
@@ -1002,7 +1003,9 @@ Deno.serve(async (req) => {
           );
         }
 
-        const updateData: Record<string, any> = { shipping_status: new_status };
+        // Traduzir canônico → enum do banco (mantém compat com webhooks legados)
+        const dbShippingStatus = toDbShippingStatus(new_status);
+        const updateData: Record<string, any> = { shipping_status: dbShippingStatus };
         if (new_status === 'shipped') updateData.shipped_at = new Date().toISOString();
         if (new_status === 'delivered') updateData.delivered_at = new Date().toISOString();
         if (tracking_code) updateData.tracking_code = tracking_code;
