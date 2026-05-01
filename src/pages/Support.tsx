@@ -242,6 +242,10 @@ export default function Support() {
         <TabsContent value="pipeline-ia" className="flex-1 m-0 overflow-auto">
           <PipelineFunnelMetrics />
         </TabsContent>
+
+        <TabsContent value="ia-teste" className="flex-1 m-0 overflow-hidden">
+          {activeTab === "ia-teste" ? <AISandboxChat /> : null}
+        </TabsContent>
       </Tabs>
 
       {/* Transfer Dialog */}
