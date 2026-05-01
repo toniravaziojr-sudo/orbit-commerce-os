@@ -211,14 +211,14 @@ function json(payload: unknown, status: number) {
 
 async function userHasTenantAccess(supabase: any, userId: string, tenantId: string): Promise<boolean> {
   const { data, error } = await supabase
-    .from("tenant_users")
+    .from("user_roles")
     .select("user_id")
     .eq("tenant_id", tenantId)
     .eq("user_id", userId)
-    .maybeSingle();
+    .limit(1);
   if (error) {
     console.warn("[ai-test-sandbox] tenant access check error", error);
     return false;
   }
-  return !!data;
+  return Array.isArray(data) && data.length > 0;
 }
