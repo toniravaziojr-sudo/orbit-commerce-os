@@ -38,6 +38,8 @@ interface OrderItemForm {
 export default function OrderNew() {
   const navigate = useNavigate();
   const { createOrder } = useOrders();
+  const { hasRole } = useAuth();
+  const canOverrideStatus = hasRole('owner') || hasRole('admin');
   const { products: activeProducts, isLoading: productsLoading } = useProductsWithImages();
   const { products: allProducts, isLoading: allProductsLoading } = useProducts();
   const { customers, isLoading: customersLoading } = useCustomers({ pageSize: 500 });
