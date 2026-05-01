@@ -9,7 +9,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 
-const VERSION = 'v8.8.0';
+const VERSION = 'v9.0.0';
+// v9.0.0 — Rascunho permissivo: criação NÃO depende mais de fiscal_settings.is_configured.
+//          A configuração de emissor é exigida apenas no momento da emissão (fiscal-emit).
+//          Quando settings ausente/não-configurado: numero=0, serie=0 (placeholder).
+//          CRON itera TODOS tenants com pedidos aprovados sem rascunho.
+// v8.8.0 — versão anterior
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -94,26 +99,31 @@ async function processTenanDrafts(
   const mode = singleOrderId ? 'TRIGGER' : 'BATCH';
   console.log(`[fiscal-auto-create-drafts][${VERSION}] Starting ${mode} for tenant:`, tenantId, singleOrderId ? `order: ${singleOrderId}` : '');
 
-  // Get fiscal settings
-  const { data: fiscalSettings, error: settingsError } = await supabase
+  // Get fiscal settings (OPTIONAL — rascunho NÃO depende de configuração fiscal)
+  // Configuração só é exigida no momento da emissão (fiscal-emit).
+  const { data: fiscalSettingsRaw } = await supabase
     .from('fiscal_settings')
     .select('*')
     .eq('tenant_id', tenantId)
-    .single();
+    .maybeSingle();
 
-  if (settingsError || !fiscalSettings || !fiscalSettings.is_configured) {
-    console.log('[fiscal-auto-create-drafts] Fiscal not configured for tenant', tenantId);
-    // Throw so queue item stays pending and will be retried when settings exist
-    throw new Error('FISCAL_NOT_CONFIGURED');
+  const isFiscalConfigured = !!(fiscalSettingsRaw && fiscalSettingsRaw.is_configured);
+
+  // Defaults seguros para rascunho permissivo (usados quando emissor não configurado)
+  const fiscalSettings: any = fiscalSettingsRaw || {};
+  const serieNfe = isFiscalConfigured ? (fiscalSettings.serie_nfe || 1) : 0; // 0 = placeholder draft
+
+  let nextNumeroCursor = 0; // 0 = placeholder; só pré-aloca numeração quando configurado
+  if (isFiscalConfigured) {
+    nextNumeroCursor = await getNextFiscalNumber({
+      supabase,
+      tenantId,
+      serie: serieNfe,
+      fallbackNumeroAtual: fiscalSettings.numero_nfe_atual,
+    });
+  } else {
+    console.log(`[fiscal-auto-create-drafts] Tenant ${tenantId} sem emissor configurado — criando rascunho placeholder (numero=0, serie=0)`);
   }
-
-  const serieNfe = fiscalSettings.serie_nfe || 1;
-  let nextNumeroCursor = await getNextFiscalNumber({
-    supabase,
-    tenantId,
-    serie: serieNfe,
-    fallbackNumeroAtual: fiscalSettings.numero_nfe_atual,
-  });
 
   // Get paid orders without invoices
   let query = supabase
@@ -313,19 +323,41 @@ async function processTenanDrafts(
         created_at: nfDate,
       };
 
-      const { invoice, numero } = await insertFiscalInvoiceWithRetry({
-        supabase,
-        tenantId,
-        serie: serieNfe,
-        initialNumber: nextNumeroCursor,
-        logPrefix: 'fiscal-auto-create-drafts',
-        buildDraftData: (numeroFiscal: number) => ({
-          ...draftDataBase,
-          numero: numeroFiscal,
-        }),
-      });
+      let invoice: any;
+      let numero: number;
 
-      nextNumeroCursor = Math.max(nextNumeroCursor, numero + 1);
+      if (isFiscalConfigured) {
+        // Caminho normal: aloca numeração fiscal real com retry
+        const result = await insertFiscalInvoiceWithRetry({
+          supabase,
+          tenantId,
+          serie: serieNfe,
+          initialNumber: nextNumeroCursor,
+          logPrefix: 'fiscal-auto-create-drafts',
+          buildDraftData: (numeroFiscal: number) => ({
+            ...draftDataBase,
+            numero: numeroFiscal,
+          }),
+        });
+        invoice = result.invoice;
+        numero = result.numero;
+        nextNumeroCursor = Math.max(nextNumeroCursor, numero + 1);
+      } else {
+        // Placeholder: numero=0, serie=0. Numeração real será alocada na emissão.
+        const { data: insertedInvoice, error: insertError } = await supabase
+          .from('fiscal_invoices')
+          .insert({ ...draftDataBase, numero: 0 })
+          .select()
+          .single();
+
+        if (insertError || !insertedInvoice) {
+          console.error(`[fiscal-auto-create-drafts] Placeholder insert error for order ${order.order_number}:`, insertError);
+          errors.push(`Pedido ${order.order_number}: erro ao criar rascunho placeholder`);
+          continue;
+        }
+        invoice = insertedInvoice;
+        numero = 0;
+      }
 
       // Insert items
       const itemsToInsert = invoiceItems.map(item => ({
@@ -364,13 +396,15 @@ async function processTenanDrafts(
     }
   }
 
-  await syncFiscalNumberCursor({
-    supabase,
-    tenantId,
-    serie: serieNfe,
-    currentCursor: nextNumeroCursor,
-    logPrefix: 'fiscal-auto-create-drafts',
-  });
+  if (isFiscalConfigured) {
+    await syncFiscalNumberCursor({
+      supabase,
+      tenantId,
+      serie: serieNfe,
+      currentCursor: nextNumeroCursor,
+      logPrefix: 'fiscal-auto-create-drafts',
+    });
+  }
 
   console.log(`[fiscal-auto-create-drafts] Completed for tenant ${tenantId}. Created ${created.count} drafts.`);
   return { created: created.count, errors };
@@ -419,20 +453,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ========== CRON MODE: process ALL configured tenants ==========
+    // ========== CRON MODE: process ALL tenants with approved orders ==========
     if (isCronMode) {
-      console.log(`[fiscal-auto-create-drafts][${VERSION}] CRON mode — processing all tenants`);
+      console.log(`[fiscal-auto-create-drafts][${VERSION}] CRON mode — processing all tenants with approved orders`);
 
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      // Get all tenants with fiscal configured
-      const { data: configuredTenants, error: tenantsError } = await supabase
-        .from('fiscal_settings')
+      // Itera TODOS tenants que têm pedidos aprovados (independente de fiscal_settings).
+      // Rascunho é permissivo; configuração é exigida apenas na emissão.
+      const { data: tenantsWithOrders, error: tenantsError } = await supabase
+        .from('orders')
         .select('tenant_id')
-        .eq('is_configured', true);
+        .eq('payment_status', 'approved')
+        .in('status', ['paid', 'ready_to_invoice']);
 
-      if (tenantsError || !configuredTenants || configuredTenants.length === 0) {
-        console.log('[fiscal-auto-create-drafts] No configured tenants found');
+      if (tenantsError) {
+        console.error('[fiscal-auto-create-drafts] Error fetching tenants:', tenantsError);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Erro ao listar tenants' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const uniqueTenantIds = Array.from(new Set((tenantsWithOrders || []).map((r: any) => r.tenant_id)));
+
+      if (uniqueTenantIds.length === 0) {
+        console.log('[fiscal-auto-create-drafts] No tenants with approved orders');
         return new Response(
           JSON.stringify({ success: true, mode: 'cron', tenants_processed: 0, total_created: 0 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -442,24 +488,24 @@ Deno.serve(async (req) => {
       let totalCreated = 0;
       const allErrors: string[] = [];
 
-      for (const tenant of configuredTenants) {
+      for (const tenantId of uniqueTenantIds) {
         try {
-          const result = await processTenanDrafts(supabase, tenant.tenant_id, null);
+          const result = await processTenanDrafts(supabase, tenantId, null);
           totalCreated += result.created;
           allErrors.push(...result.errors);
         } catch (err) {
-          console.error(`[fiscal-auto-create-drafts] Error for tenant ${tenant.tenant_id}:`, err);
-          allErrors.push(`Tenant ${tenant.tenant_id}: ${err instanceof Error ? err.message : 'Erro'}`);
+          console.error(`[fiscal-auto-create-drafts] Error for tenant ${tenantId}:`, err);
+          allErrors.push(`Tenant ${tenantId}: ${err instanceof Error ? err.message : 'Erro'}`);
         }
       }
 
-      console.log(`[fiscal-auto-create-drafts] CRON complete. ${configuredTenants.length} tenants, ${totalCreated} drafts created.`);
+      console.log(`[fiscal-auto-create-drafts] CRON complete. ${uniqueTenantIds.length} tenants, ${totalCreated} drafts created.`);
 
       return new Response(
         JSON.stringify({ 
           success: true, 
           mode: 'cron',
-          tenants_processed: configuredTenants.length, 
+          tenants_processed: uniqueTenantIds.length, 
           total_created: totalCreated,
           errors: allErrors.length > 0 ? allErrors : undefined,
         }),
