@@ -6102,6 +6102,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             aiContent = scrub.after;
             greetingScrubApplied = true;
           }
+        }
       }
     } catch (e) {
       console.warn("[ai-support-chat] [Reg #2.8] output gates failed:", (e as Error).message);
