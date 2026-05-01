@@ -58,6 +58,14 @@ import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 import { PaymentAttemptsCard } from '@/components/orders/PaymentAttemptsCard';
 import { useRetryLinkedOrder } from '@/hooks/useRetryLinkedOrder';
+import { useAuth } from '@/hooks/useAuth';
+import { OrderStatusOverrideDialog } from '@/components/orders/OrderStatusOverrideDialog';
+import {
+  ORDER_TRANSITIONS as CLIENT_ORDER_TRANSITIONS,
+  PAYMENT_TRANSITIONS as CLIENT_PAYMENT_TRANSITIONS,
+  SHIPPING_TRANSITIONS as CLIENT_SHIPPING_TRANSITIONS,
+  isNaturalTransition,
+} from '@/lib/orderTransitions';
 
 const paymentMethodLabels: Record<string, string> = {
   pix: 'PIX',
