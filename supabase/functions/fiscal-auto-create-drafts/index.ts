@@ -323,19 +323,41 @@ async function processTenanDrafts(
         created_at: nfDate,
       };
 
-      const { invoice, numero } = await insertFiscalInvoiceWithRetry({
-        supabase,
-        tenantId,
-        serie: serieNfe,
-        initialNumber: nextNumeroCursor,
-        logPrefix: 'fiscal-auto-create-drafts',
-        buildDraftData: (numeroFiscal: number) => ({
-          ...draftDataBase,
-          numero: numeroFiscal,
-        }),
-      });
+      let invoice: any;
+      let numero: number;
 
-      nextNumeroCursor = Math.max(nextNumeroCursor, numero + 1);
+      if (isFiscalConfigured) {
+        // Caminho normal: aloca numeração fiscal real com retry
+        const result = await insertFiscalInvoiceWithRetry({
+          supabase,
+          tenantId,
+          serie: serieNfe,
+          initialNumber: nextNumeroCursor,
+          logPrefix: 'fiscal-auto-create-drafts',
+          buildDraftData: (numeroFiscal: number) => ({
+            ...draftDataBase,
+            numero: numeroFiscal,
+          }),
+        });
+        invoice = result.invoice;
+        numero = result.numero;
+        nextNumeroCursor = Math.max(nextNumeroCursor, numero + 1);
+      } else {
+        // Placeholder: numero=0, serie=0. Numeração real será alocada na emissão.
+        const { data: insertedInvoice, error: insertError } = await supabase
+          .from('fiscal_invoices')
+          .insert({ ...draftDataBase, numero: 0 })
+          .select()
+          .single();
+
+        if (insertError || !insertedInvoice) {
+          console.error(`[fiscal-auto-create-drafts] Placeholder insert error for order ${order.order_number}:`, insertError);
+          errors.push(`Pedido ${order.order_number}: erro ao criar rascunho placeholder`);
+          continue;
+        }
+        invoice = insertedInvoice;
+        numero = 0;
+      }
 
       // Insert items
       const itemsToInsert = invoiceItems.map(item => ({
