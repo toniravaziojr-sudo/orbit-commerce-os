@@ -80,7 +80,29 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
-## Registro #2.10 — Focus Snapshot + Exact-Match Boost (aplicado, em validação) — 30/abr/2026
+## Registro #3 — Sandbox de teste da IA (aba "IA Teste" em /atendimento) — 01/mai/2026
+
+**Contexto.** Para que o usuário possa validar a IA antes de colocá-la em produção (ou após mexer em config/prompt), ganhou uma janela de chat dedicada dentro de `/atendimento` na aba **IA Teste**.
+
+**Princípio (mem://constraints/ai-test-sandbox-mirror-only).** A "IA Teste" **NÃO é uma IA paralela** — é a **mesma IA de Atendimento de produção**, executada através de uma camada fina de sandbox. Qualquer mudança em prompt, tool, scrubber ou configuração da IA aparece automaticamente no sandbox no próximo turno. É proibido manter código de pipeline duplicado.
+
+**Como funciona.**
+
+- Frontend: componente `AISandboxChat.tsx` — apenas UI de chat, sem lógica de IA.
+- Backend: edge `ai-test-sandbox` cria/garante uma conversa marcada com `metadata.is_sandbox=true`, insere a mensagem do usuário, **invoca a edge `ai-support-chat` original** e devolve a resposta.
+- Conversa em "memória" enquanto a aba está aberta. Trocou de aba, fechou o navegador ou clicou em "Reiniciar" → conversa é apagada do banco (mensagens, eventos e a conversa em si).
+- Tools de leitura (catálogo, políticas) usam dados reais. Tools de envio externo real (mandar WhatsApp de fato, criar pedido real) são naturalmente neutras nesse contexto porque a conversa é sandbox e não tem canal externo conectado.
+
+**Isolamento aplicado.**
+
+- `useConversations` filtra `metadata->>is_sandbox != 'true'` para que conversas sandbox **não apareçam** na fila de atendimento.
+- Toda nova query/agregador que ler `conversations` ou `messages` para métricas/funil/aprendizado deve aplicar o mesmo filtro.
+
+**Anti-regressão.** Memória `mem://constraints/ai-test-sandbox-mirror-only` proíbe duplicação da pipeline. Mudanças na IA só acontecem no fluxo principal (`ai-support-chat`, `_shared/sales-pipeline/`, `ai_support_config`).
+
+---
+
+
 
 **Contexto.** Após a Onda 3 do Reg #2.9 (Working Memory ativa nos prompts), validamos a conversa das 09:35 (ID `ab3d720d`). As 3 primeiras mensagens da IA ficaram corretas. A partir da quarta apareceram dois erros lógicos sérios:
 
