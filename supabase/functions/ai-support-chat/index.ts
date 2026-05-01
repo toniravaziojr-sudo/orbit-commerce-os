@@ -6177,26 +6177,31 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         priceScrubApplied = true;
       }
 
+      // [Reg #5] Saudação formal: passa contexto de recorrência + nome
+      const greetIsRecurring = (messages?.length ?? 0) > 1 || !!customerId;
+      const greetCustomerName = conversation?.customer_name || null;
+
       if (turnClassification.source === "llm") {
         const greetGate = gateGreetingMirror({
           pipelineState,
           aiResponse: aiContent || "",
           classification: turnClassification,
+          isRecurring: greetIsRecurring,
+          customerName: greetCustomerName,
         });
         greetingScrubReason = greetGate.reason;
         if (greetGate.scrubbed) {
-          console.log(`[ai-support-chat] [Reg #2.8] greeting gate (${greetGate.reason})`);
+          console.log(`[ai-support-chat] [Reg #5] greeting gate (${greetGate.reason})`);
           aiContent = greetGate.after;
           greetingScrubApplied = true;
         }
       } else {
-        // [Reg #2.10] Sem TPR: tenta o gate determinístico (sem LLM)
-        // que detecta período direto na mensagem do cliente. Antes
-        // pulava direto pro scrub legado bugado.
         const fallbackGate = gateGreetingMirrorFallback({
           pipelineState,
           aiResponse: aiContent || "",
           customerMessage: lastMessageContent || "",
+          isRecurring: greetIsRecurring,
+          customerName: greetCustomerName,
         });
         if (fallbackGate.scrubbed) {
           console.log(`[ai-support-chat] [Reg #2.10] greeting fallback gate (${fallbackGate.reason})`);
