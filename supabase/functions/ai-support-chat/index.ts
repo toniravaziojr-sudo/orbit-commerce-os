@@ -1853,13 +1853,111 @@ async function executeSalesTool(
       }
 
       case "generate_checkout_link": {
-        const { data: cart } = await supabase
+        let { data: cart } = await supabase
           .from("whatsapp_carts")
           .select("*")
           .eq("conversation_id", conversationId)
           .eq("tenant_id", tenantId)
           .eq("status", "active")
           .maybeSingle();
+
+        // [Reg #2.15] AUTO-POPULATE ON EMPTY CART
+        // Se a IA chegou ao checkout sem ter chamado add_to_cart (LLM
+        // paralisada por múltiplas variações de quantidade, etc.) e há
+        // exatamente 1 produto apresentado no turno anterior, auto-adicionamos
+        // a variação Solo (qty=1) para destravar o fechamento. Salva-vidas
+        // determinístico — evita loop "Confirma que eu já gero o link?".
+        if (!cart || !(cart.items as any[])?.length) {
+          try {
+            const { data: salesState } = await supabase
+              .from("conversation_sales_state")
+              .select("presented_product_ids")
+              .eq("conversation_id", conversationId)
+              .eq("tenant_id", tenantId)
+              .maybeSingle();
+
+            const presented = (salesState?.presented_product_ids as string[] | null) || [];
+            if (presented.length === 1) {
+              const candidateId = presented[0];
+              const { data: candidateProduct } = await supabase
+                .from("products")
+                .select("id, name, price, status, has_variants")
+                .eq("id", candidateId)
+                .eq("tenant_id", tenantId)
+                .maybeSingle();
+
+              // Só auto-popula se: produto ativo + SEM variantes mandatórias.
+              // Com variantes, exigir add_to_cart explícito (gate de variante).
+              if (
+                candidateProduct &&
+                candidateProduct.status === "active" &&
+                !candidateProduct.has_variants
+              ) {
+                const unitPrice = Number(candidateProduct.price);
+                const items = [{
+                  product_id: candidateProduct.id,
+                  variant_id: null,
+                  variant_label: null,
+                  sku: null,
+                  name: candidateProduct.name,
+                  price: unitPrice,
+                  quantity: 1,
+                  subtotal: unitPrice,
+                }];
+                const subtotalCents = Math.round(unitPrice * 100);
+
+                if (cart) {
+                  await supabase
+                    .from("whatsapp_carts")
+                    .update({ items, subtotal_cents: subtotalCents, updated_at: new Date().toISOString() })
+                    .eq("id", cart.id);
+                } else {
+                  await supabase
+                    .from("whatsapp_carts")
+                    .insert({
+                      conversation_id: conversationId,
+                      tenant_id: tenantId,
+                      customer_id: customerId,
+                      items,
+                      subtotal_cents: subtotalCents,
+                      status: "active",
+                      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                    });
+                }
+
+                console.log(
+                  `[ai-support-chat] [Reg #2.15] auto_add_on_empty_cart product_id=${candidateProduct.id} ` +
+                  `name="${candidateProduct.name}" reason=single_presented_product`
+                );
+
+                // Recarrega o cart para o fluxo padrão de geração de link.
+                const { data: refreshed } = await supabase
+                  .from("whatsapp_carts")
+                  .select("*")
+                  .eq("conversation_id", conversationId)
+                  .eq("tenant_id", tenantId)
+                  .eq("status", "active")
+                  .maybeSingle();
+                cart = refreshed ?? null;
+              } else {
+                console.log(
+                  `[ai-support-chat] [Reg #2.15] auto_add_skipped reason=${
+                    !candidateProduct ? "product_not_found" :
+                    candidateProduct.status !== "active" ? "product_inactive" :
+                    "has_mandatory_variants"
+                  } product_id=${candidateId}`
+                );
+              }
+            } else {
+              console.log(
+                `[ai-support-chat] [Reg #2.15] auto_add_skipped reason=presented_count=${presented.length} ` +
+                `(precisa ser exatamente 1)`
+              );
+            }
+          } catch (e) {
+            console.warn("[ai-support-chat] [Reg #2.15] auto_add failed:", (e as Error).message);
+          }
+        }
 
         if (!cart || !(cart.items as any[])?.length) {
           return JSON.stringify({ success: false, error: "Carrinho vazio. Adicione produtos antes de gerar o link." });
