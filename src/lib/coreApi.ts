@@ -40,9 +40,15 @@ export interface CreateOrderData {
   shipping_city?: string | null;
   shipping_state?: string | null;
   shipping_postal_code?: string | null;
+  shipping_carrier?: string | null;
+  tracking_code?: string | null;
   customer_notes?: string | null;
   internal_notes?: string | null;
   items: CreateOrderItem[];
+  // Overrides iniciais (apenas owner/admin — validado no servidor)
+  payment_status_initial?: string;
+  shipping_status_initial?: string;
+  order_status_initial?: string;
 }
 
 // ===== SHIPPING ADDRESS TYPE =====

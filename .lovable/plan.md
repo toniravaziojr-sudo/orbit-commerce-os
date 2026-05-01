@@ -1,198 +1,91 @@
-## Objetivo
+## Contexto e diagnóstico
 
-Investigar e corrigir as 7 frentes em aberto da IA de atendimento (modo vendas WhatsApp) e adicionar duas novas frentes pedidas agora:
+Auditei o fluxo completo. A causa raiz dos erros não é uma só, são três bugs convergindo:
 
-- **Frente 8 (Saudação formal):** IA responde sempre em tom formal, sem gírias, com fórmulas fixas (cliente novo vs cliente recorrente).
-- **Frente 9 (Venda IA):** marcar pedidos fechados via link gerado pela IA com flag visível em Pedidos e categoria própria em Atribuição de Vendas.
+**1. Vocabulário desalinhado entre UI ↔ Edge ↔ Banco**
+- A UI e o `core-orders` usam o vocabulário canônico novo (`paid`, `awaiting_shipment`, `arriving`, `problem`, `awaiting_pickup`, `returning`, `label_generated`).
+- O **enum do banco** ainda é o legado: pagamento aceita `pending, processing, approved, declined, refunded, cancelled, chargeback_requested, under_review`; envio aceita `pending, processing, shipped, in_transit, out_for_delivery, delivered, returned, failed`.
+- A camada de tradução existe **só nos handlers `set_payment_status` e `set_shipping_status`**. Funciona para esses dois, mas não cobre todos os caminhos.
 
-Cada frente vira uma entrega independente (diagnóstico → proposta → ajuste → validação), na ordem definida.
+**2. A criação de pedido manual quebra antes mesmo de chegar à tradução**
+- O handler `create_order` insere direto no banco com `shipping_status: 'awaiting_shipment'` — valor que **não existe no enum**. Por isso o "erro ao criar" que você viu nos prints.
+- Mesma classe de risco existe em qualquer outro INSERT/UPDATE direto que não passe pelo `toDbShippingStatus`/`toDbPaymentStatus`.
 
----
+**3. Tela de criação manual está incompleta**
+- Não tem campo para método de envio com Correios/Manual (filtro `supports_quote` esconde).
+- Não tem campo para forma de pagamento + status de pagamento + status de envio iniciais (necessários quando o pedido vem "por fora", já pago, já despachado etc.).
+- Não tem aviso fiscal: hoje todo pedido manual gera rascunho de NF-e automaticamente, e o usuário não sabe que precisa ir no Fiscal apagar se não quiser emitir.
 
-## Ordem de execução
+**4. Status "Devolvido" e ação de Estorno**
+- `returned` existe no enum mas não tem fluxo manual nem integração com gateway para estornar.
+- Sem ação clara, o admin não consegue marcar pedido devolvido nem disparar reembolso.
 
-1. Frente 9 — Flag "Venda IA" + categoria de Atribuição (alto valor, baixo risco, desbloqueia análise de ROI da IA)
-2. Frente 8 — Saudação formal sem gírias (regra nova de produto, fácil de validar)
-3. Frente 2 — Variantes obrigatórias no auto-add do checkout
-4. Frente 7 — Auditoria do "carrinho convertido" no webhook
-5. Frente 5 — Anti-repetição cobrindo paráfrase semântica
-6. Frente 3 — Fechamento real da janela do scrubber (limites de tamanho)
-7. Frente 6 — Detecção de tom robótico residual
-8. Frente 4 — Loop de confirmação travada em casos edge
-9. Frente 1 — Sandbox stale (ferramenta interna de teste retornando versão antiga)
+## O que vou fazer
 
----
-
-## Frente 9 — Flag "Venda IA" + Atribuição
-
-### Como funciona hoje
-- IA gera link via tool `generate_checkout_link` → cria registro em `checkout_links` vinculado ao `whatsapp_carts.conversation_id`.
-- Quando o pagamento é aprovado, trigger `link_whatsapp_cart_to_order` faz `whatsapp_carts.order_id = orders.id`.
-- A tabela `orders` não tem nenhum campo indicando origem "IA de atendimento".
-- A tabela `order_attribution` é populada por UTM/landing do storefront, mas a IA do WhatsApp gera link que entra no checkout sem UTM próprio → atribuição fica como `unknown` ou herdada da última sessão.
-
-### O problema
-- Operador não consegue saber, olhando a lista de pedidos, quais foram fechados pela IA.
-- Relatório de atribuição não tem categoria "IA de Atendimento" → ROI da IA é invisível.
-
-### O que será feito
-1. **Migration:**
-   - Adicionar coluna `orders.sales_channel text` (valores: `storefront`, `ai_attendant`, `marketplace`, `link_checkout`, `manual`) com default `storefront`.
-   - Adicionar coluna `orders.ai_conversation_id uuid` (nullable, FK opcional para `conversations`).
-   - Index composto `(tenant_id, sales_channel, created_at DESC)` para filtro rápido.
-2. **Backend (edge `generate_checkout_link` em `ai-support-chat/index.ts`):**
-   - Ao criar `checkout_links`, persistir já a marcação `metadata.source='ai_attendant'` e `metadata.conversation_id`.
-3. **Trigger `link_whatsapp_cart_to_order`:**
-   - Ao vincular cart→order, setar `orders.sales_channel='ai_attendant'` e `orders.ai_conversation_id`.
-   - Inserir/atualizar `order_attribution` com `attribution_source='ai_atendimento'` e `attribution_medium='whatsapp'` (sobrescreve UTM herdado, porque link IA é fonte determinística).
-4. **UI Pedidos:**
-   - Novo badge "Venda IA" (ícone bot + cor distinta) na lista (`OrderSourceBadge`-like) e no detalhe do pedido.
-   - Filtro "Origem" passa a incluir "IA de Atendimento".
-5. **UI Atribuição (`useAttributionStats` + dashboard):**
-   - Categoria nova "IA de Atendimento" aparece como linha própria, ranqueada por receita.
-   - Tooltip explicando que conta apenas pedidos com link gerado pela IA.
-6. **Documentação:** atualizar `modo-vendas-whatsapp.md`, `mapa-ui.md` e criar memória `mem://constraints/ai-sales-channel-marking.md`.
-
-### Validação técnica
-- Conversa sandbox → fechar checkout → confirmar webhook de teste → checar `orders.sales_channel='ai_attendant'`, `order_attribution.attribution_source='ai_atendimento'`, badge na UI.
-
----
-
-## Frente 8 — Saudação formal sem gírias
-
-### Como funciona hoje
-- `greeting-mirror.ts` espelha exatamente o que o cliente disse, incluindo "Eai", "Opa", "Beleza".
-- Prompt `prompts/greeting.ts` permite "Oi!" e variações informais.
-- `greeting-scrub.ts` reescreve abertura mas mantém o token informal do cliente.
-
-### O problema
-- Cliente manda "Eai" de manhã → IA responde "Eai!" em vez de "Olá, bom dia, tudo bem? Como posso ajudar?".
-- Não há diferenciação entre cliente novo (sem histórico) e cliente recorrente.
-
-### O que será feito
-1. **Nova fórmula determinística** (substitui mirror espelho-literal):
-   - Sempre começa com "Olá".
-   - Adiciona período do dia detectado pelo horário do servidor (BRT) OU pelo que o cliente disse (preferência: o que o cliente disse).
-   - Sempre inclui "tudo bem?".
-   - Fecha com "Como posso ajudar?" (cliente novo) OU "Como posso ajudar hoje?" (cliente recorrente, identificado via `lookup_customer` no histórico).
-   - Se já houver nome conhecido na conversa recente, prefixa "Olá, {Nome}". Senão, omite.
-2. **Sanitizador de input:** lista de gírias mapeadas para neutro ("eai", "opa", "blz", "tmj", "fala") → tratadas como saudação genérica, NÃO espelhadas.
-3. **Detecção cliente novo vs recorrente:** consultar `customers` por `phone` no início do turno greeting; se existe e tem nome, marca como recorrente.
-4. **Toggle de configuração futuro:** deixar hook `ai_support_config.greeting_style` (default `formal`) para tenants poderem ativar `mirror_informal` depois — sem UI agora, só campo no schema.
-5. **Atualizar:** `greeting-mirror.ts`, `greeting-scrub.ts`, `prompts/greeting.ts`, TPR (já entrega `greeting_period`), changelog IA atendimento, memória `mem://constraints/greeting-must-be-formal-by-default.md`.
-
-### Validação técnica
-- Sandbox 5 turnos: cliente novo manda "Eai", "Opa bom dia", "blz mano", "boa tarde tudo bem?", "oi". Verificar que TODAS as respostas começam com "Olá, [período], tudo bem? Como posso ajudar?".
-- Repetir com telefone de cliente cadastrado → confirmar "hoje" no fim.
-
----
-
-## Frente 2 — Variantes obrigatórias no auto-add
-
-### Como funciona hoje
-- Reg #2.15 adicionou auto-add no `generate_checkout_link` quando cart vazio + 1 produto focado SEM variantes mandatórias.
-- Produto com variantes obrigatórias (cor, tamanho) cai fora do salva-vidas.
-
-### O que será feito
-- Detectar produto focado com variantes → IA pergunta a variante ANTES de gerar link (forçar tool `get_product_variants`).
-- Se cliente já mencionou variante no histórico, fazer match por `option1_value` e auto-add.
-- Logar `[Reg #2.16] variant required` para auditoria.
-
----
-
-## Frente 7 — Auditoria do "cart converted" no webhook
-
-### O que será feito
-- Listar todos os webhooks de gateway (`pagarme-webhook`, `mercadopago-storefront-webhook`) e verificar se chamam o trigger `link_whatsapp_cart_to_order` ou marcam `whatsapp_carts.status='converted'`.
-- Inventariar carts `active` com mais de 30 dias e order vinculado pago → identificar gap.
-- Adicionar reconciliação cron diária: cart com `order_id NOT NULL` e `orders.payment_status='paid'` → marca `converted`.
-
----
-
-## Frente 5 — Anti-repetição semântica
-
-### O que será feito
-- Hash de prefixo atual compara texto literal. Adicionar embedding leve (Gemini Flash-Lite) para detectar paráfrase ("Eu indicaria" vs "Minha recomendação seria").
-- Threshold de similaridade configurável; ao bater, regenera com instrução explícita de mudar abordagem.
-
----
-
-## Frente 3 — Limites de tamanho do scrubber de saudação
-
-### O que será feito
-- `greeting-scrub.ts` tem regex de cabeça limitado a ~25 chars. Resposta longa com saudação degenerada no meio passa despercebida.
-- Estender detecção para primeiros 80 chars + fallback de prepend obrigatório quando TPR detecta saudação não espelhada.
-
----
-
-## Frente 6 — Tom robótico residual
-
-### O que será feito
-- Catálogo de frases robóticas ("Como posso te auxiliar", "Em que posso ser útil", "Estou à sua disposição") → scrubber substitui por equivalentes humanas/formais ("Como posso ajudar").
-- TPR ganha campo `tone_robotic_score` para flagar antes de gerar.
-
----
-
-## Frente 4 — Loop de confirmação travada (edge cases)
-
-### O que será feito
-- Mapear casos remanescentes onde IA pergunta "confirma?" mais de 2x sem nova ação.
-- State machine ganha contador `confirmation_loops`; ao bater 2, força ação determinística (gerar link, listar opções, ou handoff).
-
----
-
-## Frente 1 — Sandbox stale
-
-### O que será feito
-- Investigar por que `ai-test-sandbox` às vezes retorna comportamento de versão anterior (suspeita: cache de prompt no Lovable AI Gateway ou release não propagado).
-- Adicionar header `x-deploy-version` na resposta do sandbox para evidenciar versão exata em uso.
-- Documentar no runbook.
-
----
-
-## Documentação obrigatória (todas as frentes)
-
-- `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` — Registro novo por frente.
-- `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md` — Atualizar comportamento.
-- `docs/especificacoes/transversais/mapa-ui.md` — Badge "Venda IA" + filtro novo + linha em Atribuição.
-- Memórias `mem://constraints/*` por frente com risco de regressão.
-
----
-
-## Detalhes técnicos (resumo)
+### Etapa 1 — Alinhar vocabulário no banco (fonte de verdade única)
+Expandir os enums `payment_status` e `shipping_status` para aceitar os valores canônicos novos, mantendo os legados como apelidos válidos durante transição. Backfill dos pedidos existentes para o vocabulário novo (com mapeamento determinístico). Após o backfill, a camada de tradução continua existindo só para webhooks externos antigos (gateways), que continuam mandando vocabulário legado.
 
 ```text
-DB:
-  + orders.sales_channel text default 'storefront'
-  + orders.ai_conversation_id uuid
-  + ai_support_config.greeting_style text default 'formal'
-  + index orders(tenant_id, sales_channel, created_at desc)
+payment_status (novo enum):
+  awaiting_payment, paid, declined, cancelled, refunded,
+  under_review, chargeback_requested, chargeback_lost
 
-Edge:
-  ai-support-chat/index.ts (generate_checkout_link handler)
-  _shared/sales-pipeline/greeting-mirror.ts (rewrite formal)
-  _shared/sales-pipeline/greeting-scrub.ts (limites + prepend)
-  _shared/sales-pipeline/turn-pre-router.ts (tone_robotic_score)
-  _shared/sales-pipeline/output-gates.ts (frase robotica scrub)
-  pagarme-webhook + mercadopago-storefront-webhook (auditoria)
-
-Trigger:
-  link_whatsapp_cart_to_order: setar sales_channel + order_attribution
-
-UI:
-  src/components/orders/OrderSourceBadge.tsx (novo valor "Venda IA")
-  src/pages/Marketing.tsx ou dashboard atribuição (categoria nova)
-  src/hooks/useOrderAttribution.ts (label "ai_atendimento" → "IA de Atendimento")
+shipping_status (novo enum):
+  awaiting_shipment, label_generated, shipped, in_transit,
+  arriving, awaiting_pickup, delivered, problem, returning, returned
 ```
 
----
+### Etapa 2 — Corrigir criação de pedido manual no edge
+- Garantir que `create_order` use os valores canônicos novos (já que o enum agora os aceita).
+- Aceitar (opcionais) no payload: `payment_status_initial`, `shipping_status_initial`, `shipping_method`, `shipping_carrier`, `tracking_code`, `paid_at`, `shipped_at`. Quando vierem, são "manual override" no momento da criação, registrados no histórico como `[CRIAÇÃO MANUAL]`.
+- Validar que apenas `owner`/`admin` podem usar os campos de override iniciais.
 
-## O que NÃO está no escopo
+### Etapa 3 — Refatorar a tela "Novo Pedido"
+- Adicionar bloco **"Status iniciais (opcional)"** com 3 selects: forma de pagamento, status de pagamento, status de envio. Default = vazio (entra no fluxo normal). Visíveis apenas para owner/admin.
+- Liberar carriers manuais (ex.: Correios sem cotação) no select de método de envio: dropar o filtro `supports_quote`.
+- Adicionar **aviso fiscal** no topo do formulário: "Todo pedido manual gera automaticamente um rascunho de NF-e. Se você não quiser emitir nota para esse pedido, vá em Fiscal → Notas Fiscais e exclua o rascunho manualmente."
 
-- Toggle UI de "estilo de saudação" (deixamos só o campo, ativação via UI vira ticket futuro).
-- Reescrita do TPR (mantemos modelo atual, só adicionamos campos).
-- Alteração de gateways de pagamento além de auditoria/log.
+### Etapa 4 — Refinar overrides na tela de detalhe do pedido
+- Garantir que a tela de detalhe e o preview da lista usem **o mesmo helper de normalização** para decidir se a transição é natural ou override.
+- Adicionar ação **"Estornar pagamento"** (owner/admin) que, para pedidos com gateway integrado, dispara o reembolso real no gateway antes de marcar `payment_status = refunded`. Para pedidos manuais, só marca o status.
+- Garantir que **Cancelar pedido pago**, **Aprovar pedido sem cobrança** e **Estornar/Devolver** sejam tratados como override absoluto: pausa polling de webhook, propaga para Fiscal (marca `requires_action`) e Logística conforme política de regressão já existente.
 
----
+### Etapa 5 — Validação técnica
+- Rodar `UPDATE orders SET status='awaiting_confirmation' WHERE id=<test>` para garantir que os triggers de regressão (cast enum→text) continuam OK.
+- Criar pedido manual via edge `core-orders` direto pelo curl, validando os 4 cenários: sem overrides, com `paid` inicial, com `dispatched` inicial, com vocabulário legado vindo de webhook simulado.
+- Mudar status de pagamento e envio em pedido existente, verificando que a UI e o banco refletem o mesmo valor.
+- Verificar logs de Postgres e do `core-orders` por `invalid input value for enum`.
 
-**Confirma esse plano e a ordem proposta?** Se sim, começo pela Frente 9 (Venda IA + Atribuição) por ser a de maior valor imediato e desbloquear os relatórios de ROI da IA.
+### Etapa 6 — Documentação (entrega obrigatória)
+- `docs/especificacoes/ecommerce/pedidos.md` — atualizar §4 (máquina de estados) com vocabulário canônico oficial, listar overrides permitidos na criação manual, listar ação de Estorno.
+- `docs/especificacoes/erp/erp-fiscal.md` — registrar regra "todo pedido manual gera rascunho; admin precisa ir ao Fiscal para excluir se não quiser emitir".
+- `docs/especificacoes/erp/logistica.md` — registrar que carriers sem cotação ficam disponíveis para seleção manual.
+- `docs/especificacoes/transversais/mapa-ui.md` — atualizar tela "Novo Pedido" (novos campos) e tela de detalhe (ação Estornar).
+- Memória anti-regressão: criar `mem://constraints/order-status-vocabulary-canonical` registrando que enum DB e edge devem permanecer alinhados, com exigência de teste E2E pós-mudança.
+
+## Por que essa é a forma mais sólida
+
+- **Resolve a causa raiz**, não o sintoma: alinhar o enum elimina permanentemente a classe de erro "invalid input value for enum", em qualquer caminho (criação, update, webhook, cron).
+- **Não quebra integrações legadas**: a camada de tradução continua viva como ponte para webhooks de gateways que ainda mandam vocabulário antigo.
+- **Mantém a política de override existente** (mem `order-status-manual-override-policy` e `order-cross-module-sync-on-regression`) intacta — só estende para dois novos pontos: criação manual e ação de estorno.
+- **Respeita o core**: tenant-scoped, sem regra específica de tenant, fonte de verdade única no `core-orders`.
+- **Anti-regressão**: a obrigação técnica de rodar UPDATE em `orders` após qualquer mudança em trigger/enum (regra já registrada em `order-cross-module-sync-on-regression`) será reforçada.
+
+## Riscos e mitigação
+
+- **Expandir enum em produção**: operação não-destrutiva (`ADD VALUE IF NOT EXISTS`), sem downtime, sem perda de dados.
+- **Backfill de status legados**: feito em UPDATE com mapeamento determinístico e idempotente. Reversível.
+- **Override na criação**: limitado a owner/admin no servidor, registrado em `order_history` e `audit_log`.
+
+## Detalhes técnicos (referência opcional)
+
+- Migrations: `ALTER TYPE payment_status ADD VALUE IF NOT EXISTS 'paid'/'awaiting_payment'/'chargeback_lost'` e equivalentes para `shipping_status` (`awaiting_shipment, label_generated, arriving, awaiting_pickup, problem, returning`).
+- UPDATE de backfill mapeando `approved→paid`, `pending→awaiting_payment`, `pending→awaiting_shipment` (shipping), `processing→label_generated`, `out_for_delivery→arriving`, `failed→problem`.
+- Após backfill, simplificar `toDb*Status` para identidade (mantendo `from*` como compat reversa para webhooks).
+- `core-orders` `create_order`: aceitar `payment_status_initial`, `shipping_status_initial`, `shipping_method`, `shipping_carrier`, `tracking_code`, `paid_at`, `shipped_at` (com role check).
+- `OrderNew.tsx`: novo bloco condicional, drop filtro `supports_quote` em `OrderShippingMethod.tsx`, banner fiscal.
+- `OrderDetail.tsx`: nova ação `setPaymentStatus('refunded', { force: true, gateway_refund: true })` que, para pedidos com `gateway_id`, chama edge `payments-refund` antes do update.
+
+## Próximo passo
+
+Confirma que pode aplicar exatamente esse plano? Se sim, sigo na ordem das etapas, com validação técnica entre cada uma.

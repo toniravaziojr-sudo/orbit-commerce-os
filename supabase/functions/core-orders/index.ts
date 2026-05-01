@@ -82,16 +82,16 @@ const SHIPPING_TRANSITIONS: Record<ShippingStatus, ShippingStatus[]> = {
 };
 
 // ===== CANONICAL <-> DB ENUM TRANSLATORS =====
-// O enum do banco (payment_status / shipping_status) ainda usa vocabulário legado
-// (approved/pending/processing/out_for_delivery/failed). A UI e este edge falam o
-// vocabulário canônico novo (paid/awaiting_payment/awaiting_shipment/...).
-// Estes tradutores são a ponte oficial entre os dois mundos para EVITAR migração de enum
-// (que quebraria webhooks de gateways que ainda gravam valores legados).
+// Após a migração 2026-05-01 que expandiu os enums payment_status/shipping_status,
+// os valores canônicos novos (paid, awaiting_payment, awaiting_shipment, label_generated,
+// arriving, awaiting_pickup, problem, returning, chargeback_lost) passam direto.
+// Os mapas abaixo só ainda existem para compat REVERSA: ler valores legados gravados
+// por webhooks antigos de gateways e normalizá-los para o vocabulário canônico.
 
-// PAYMENT
+// PAYMENT — escrita: canônico → DB (identidade; legado também ainda é aceito pelo enum)
 const PAYMENT_CANONICAL_TO_DB: Record<string, string> = {
-  awaiting_payment: 'pending',   // canônico → enum DB
-  paid: 'approved',
+  awaiting_payment: 'awaiting_payment',
+  paid: 'paid',
   declined: 'declined',
   cancelled: 'cancelled',
   refunded: 'refunded',
@@ -117,17 +117,17 @@ function fromDbPaymentStatus(db: string | null | undefined): PaymentStatus {
   return PAYMENT_DB_TO_CANONICAL[db] ?? 'awaiting_payment';
 }
 
-// SHIPPING
+// SHIPPING — escrita: canônico → DB (identidade pós-migração)
 const SHIPPING_CANONICAL_TO_DB: Record<string, string> = {
-  awaiting_shipment: 'pending',
-  label_generated: 'processing',
+  awaiting_shipment: 'awaiting_shipment',
+  label_generated: 'label_generated',
   shipped: 'shipped',
   in_transit: 'in_transit',
-  arriving: 'out_for_delivery',
+  arriving: 'arriving',
   delivered: 'delivered',
-  problem: 'failed',
-  awaiting_pickup: 'in_transit',   // sem equivalente direto no enum DB
-  returning: 'returned',
+  problem: 'problem',
+  awaiting_pickup: 'awaiting_pickup',
+  returning: 'returning',
   returned: 'returned',
 };
 const SHIPPING_DB_TO_CANONICAL: Record<string, ShippingStatus> = {
@@ -277,12 +277,46 @@ Deno.serve(async (req) => {
           customer_id, customer_name, customer_email, customer_phone, customer_cpf,
           payment_method, shipping_street, shipping_number, shipping_complement,
           shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code,
-          customer_notes, internal_notes, items
+          customer_notes, internal_notes, items,
+          // Overrides iniciais opcionais (apenas owner/admin)
+          payment_status_initial, shipping_status_initial, order_status_initial,
+          shipping_carrier, tracking_code,
         } = payload;
 
         if (!customer_name || !customer_email || !items || items.length === 0) {
           return new Response(
             JSON.stringify({ success: false, error: 'customer_name, customer_email and items are required', code: 'VALIDATION_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Se vier override inicial, validar role e valores
+        const hasInitialOverride = !!(payment_status_initial || shipping_status_initial || order_status_initial);
+        if (hasInitialOverride && !['owner', 'admin'].includes(roleCheck.role)) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Apenas owner/admin podem definir status iniciais ao criar pedido manual',
+              code: 'OVERRIDE_FORBIDDEN',
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (payment_status_initial && !PAYMENT_STATUSES.includes(payment_status_initial as any)) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Invalid payment_status_initial', code: 'INVALID_STATUS' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (shipping_status_initial && !SHIPPING_STATUSES.includes(shipping_status_initial as any)) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Invalid shipping_status_initial', code: 'INVALID_STATUS' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (order_status_initial && !ORDER_STATUSES.includes(order_status_initial as any)) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Invalid order_status_initial', code: 'INVALID_STATUS' }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -315,40 +349,56 @@ Deno.serve(async (req) => {
             .eq('tenant_id', tenantId)
             .eq('email', normalizedEmail)
             .maybeSingle();
-          // If no customer exists yet for this email, it's a first sale
-          // Note: admin-created orders with a pre-existing customer_id mean customer already exists
           isFirstSale = !existingCust && !customer_id;
+        }
+
+        // Resolver status iniciais (canônicos pós-migração)
+        const finalPaymentStatus = toDbPaymentStatus(payment_status_initial || 'awaiting_payment');
+        const finalShippingStatus = toDbShippingStatus(shipping_status_initial || 'awaiting_shipment');
+        const finalOrderStatus = order_status_initial || 'pending';
+
+        const insertPayload: Record<string, any> = {
+          tenant_id: tenantId,
+          order_number: orderNumber,
+          customer_id,
+          customer_name,
+          customer_email: normalizedEmail,
+          customer_phone,
+          customer_cpf,
+          payment_method,
+          shipping_street,
+          shipping_number,
+          shipping_complement,
+          shipping_neighborhood,
+          shipping_city,
+          shipping_state,
+          shipping_postal_code,
+          customer_notes,
+          internal_notes,
+          subtotal,
+          discount_total: discountTotal,
+          total,
+          status: finalOrderStatus,
+          payment_status: finalPaymentStatus,
+          shipping_status: finalShippingStatus,
+          is_first_sale: isFirstSale,
+        };
+        if (shipping_carrier) insertPayload.shipping_carrier = shipping_carrier;
+        if (tracking_code) insertPayload.tracking_code = tracking_code;
+        // Carimbar timestamps coerentes com status iniciais
+        if (payment_status_initial === 'paid') insertPayload.paid_at = new Date().toISOString();
+        if (shipping_status_initial === 'shipped' || shipping_status_initial === 'in_transit' || shipping_status_initial === 'arriving') {
+          insertPayload.shipped_at = new Date().toISOString();
+        }
+        if (shipping_status_initial === 'delivered') {
+          insertPayload.shipped_at = insertPayload.shipped_at || new Date().toISOString();
+          insertPayload.delivered_at = new Date().toISOString();
         }
 
         // Create order
         const { data: order, error: orderError } = await supabase
           .from('orders')
-          .insert({
-            tenant_id: tenantId,
-            order_number: orderNumber,
-            customer_id,
-            customer_name,
-            customer_email: normalizedEmail,
-            customer_phone,
-            customer_cpf,
-            payment_method,
-            shipping_street,
-            shipping_number,
-            shipping_complement,
-            shipping_neighborhood,
-            shipping_city,
-            shipping_state,
-            shipping_postal_code,
-            customer_notes,
-            internal_notes,
-            subtotal,
-            discount_total: discountTotal,
-            total,
-            status: 'pending',
-            payment_status: 'awaiting_payment',
-            shipping_status: 'awaiting_shipment',
-            is_first_sale: isFirstSale,
-          })
+          .insert(insertPayload)
           .select()
           .single();
 
@@ -381,11 +431,14 @@ Deno.serve(async (req) => {
         }
 
         // Create history entry
+        const overrideTag = hasInitialOverride ? '[CRIAÇÃO MANUAL] ' : '';
         await supabase.from('order_history').insert({
           order_id: order.id,
           action: 'order_created',
-          description: `Pedido ${orderNumber} criado`,
-          new_value: { status: 'pending' },
+          description: `${overrideTag}Pedido ${orderNumber} criado` + (hasInitialOverride
+            ? ` (status iniciais: pagamento=${payment_status_initial || 'awaiting_payment'}, envio=${shipping_status_initial || 'awaiting_shipment'}, pedido=${finalOrderStatus})`
+            : ''),
+          new_value: { status: finalOrderStatus, payment_status: finalPaymentStatus, shipping_status: finalShippingStatus, manual_override: hasInitialOverride },
           created_by: userId,
         });
 

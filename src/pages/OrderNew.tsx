@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Search, UserCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Search, UserCheck, Loader2, Info, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Select,
   SelectContent,
@@ -20,6 +21,7 @@ import { useProductsWithImages } from '@/hooks/useProducts';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers, useCustomerAddresses } from '@/hooks/useCustomers';
 import { useCepLookup } from '@/hooks/useCepLookup';
+import { useAuth } from '@/hooks/useAuth';
 import { OrderShippingMethod } from '@/components/orders/OrderShippingMethod';
 import { toast } from 'sonner';
 
@@ -36,6 +38,8 @@ interface OrderItemForm {
 export default function OrderNew() {
   const navigate = useNavigate();
   const { createOrder } = useOrders();
+  const { hasRole } = useAuth();
+  const canOverrideStatus = hasRole('owner') || hasRole('admin');
   const { products: activeProducts, isLoading: productsLoading } = useProductsWithImages();
   const { products: allProducts, isLoading: allProductsLoading } = useProducts();
   const { customers, isLoading: customersLoading } = useCustomers({ pageSize: 500 });
@@ -73,6 +77,11 @@ export default function OrderNew() {
     shipping_tracking_code: '',
     shipping_cost: 0,
   });
+
+  // Overrides iniciais (apenas owner/admin) — para pedidos manuais "por fora" do fluxo
+  const [showInitialOverrides, setShowInitialOverrides] = useState(false);
+  const [initialPaymentStatus, setInitialPaymentStatus] = useState<'' | 'awaiting_payment' | 'paid' | 'declined' | 'refunded' | 'cancelled'>('');
+  const [initialShippingStatus, setInitialShippingStatus] = useState<'' | 'awaiting_shipment' | 'label_generated' | 'shipped' | 'in_transit' | 'arriving' | 'delivered'>('');
 
   const [items, setItems] = useState<OrderItemForm[]>([]);
   const [productSearch, setProductSearch] = useState('');
@@ -253,8 +262,17 @@ export default function OrderNew() {
       shipping_city: formData.shipping_city || null,
       shipping_state: formData.shipping_state || null,
       shipping_postal_code: formData.shipping_postal_code || null,
+      shipping_carrier: formData.shipping_carrier || null,
+      tracking_code: formData.shipping_tracking_code || null,
       customer_notes: formData.customer_notes || null,
       internal_notes: formData.internal_notes || null,
+      // Overrides iniciais opcionais (validados no servidor por role)
+      ...(canOverrideStatus && showInitialOverrides && initialPaymentStatus
+        ? { payment_status_initial: initialPaymentStatus }
+        : {}),
+      ...(canOverrideStatus && showInitialOverrides && initialShippingStatus
+        ? { shipping_status_initial: initialShippingStatus }
+        : {}),
       items: items.map(item => ({
         product_id: item.product_id,
         sku: item.sku,
@@ -264,7 +282,7 @@ export default function OrderNew() {
         unit_price: item.unit_price,
         discount_amount: item.discount_amount,
       })),
-    };
+    } as CreateOrderData;
 
     createOrder.mutate(orderData, {
       onSuccess: (result) => {
@@ -287,6 +305,17 @@ export default function OrderNew() {
           </Button>
         }
       />
+
+      {/* Aviso fiscal: pedidos manuais sempre geram rascunho de NF-e */}
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>Sobre a nota fiscal deste pedido</AlertTitle>
+        <AlertDescription>
+          Todo pedido criado manualmente gera automaticamente um <strong>rascunho de NF-e</strong> no
+          módulo Fiscal. Se você não quiser emitir nota para este pedido, vá em{' '}
+          <strong>Fiscal → Notas Fiscais</strong> e exclua o rascunho manualmente após salvar.
+        </AlertDescription>
+      </Alert>
 
       <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-3">
         {/* Customer Info */}
@@ -465,6 +494,64 @@ export default function OrderNew() {
               <span>Total</span>
               <span>R$ {total.toFixed(2)}</span>
             </div>
+            {/* Bloco de Status Iniciais — apenas owner/admin */}
+            {canOverrideStatus && (
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="initial-overrides" className="flex items-center gap-2 cursor-pointer">
+                    <ShieldAlert className="h-4 w-4 text-warning" />
+                    Definir status iniciais (override admin)
+                  </Label>
+                  <Switch
+                    id="initial-overrides"
+                    checked={showInitialOverrides}
+                    onCheckedChange={(c) => {
+                      setShowInitialOverrides(c);
+                      if (!c) {
+                        setInitialPaymentStatus('');
+                        setInitialShippingStatus('');
+                      }
+                    }}
+                  />
+                </div>
+                {showInitialOverrides && (
+                  <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Use quando o pedido vier "por fora" do sistema (ex.: já pago, já despachado).
+                      Será registrado como criação manual no histórico.
+                    </p>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Status do Pagamento</Label>
+                      <Select value={initialPaymentStatus} onValueChange={(v) => setInitialPaymentStatus(v as any)}>
+                        <SelectTrigger><SelectValue placeholder="Padrão (aguardando pagamento)" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="awaiting_payment">Aguardando pagamento</SelectItem>
+                          <SelectItem value="paid">Pago</SelectItem>
+                          <SelectItem value="declined">Recusado</SelectItem>
+                          <SelectItem value="refunded">Estornado</SelectItem>
+                          <SelectItem value="cancelled">Cancelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Status do Envio</Label>
+                      <Select value={initialShippingStatus} onValueChange={(v) => setInitialShippingStatus(v as any)}>
+                        <SelectTrigger><SelectValue placeholder="Padrão (aguardando envio)" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="awaiting_shipment">Aguardando envio</SelectItem>
+                          <SelectItem value="label_generated">Etiqueta gerada</SelectItem>
+                          <SelectItem value="shipped">Despachado</SelectItem>
+                          <SelectItem value="in_transit">Em trânsito</SelectItem>
+                          <SelectItem value="arriving">Saiu para entrega</SelectItem>
+                          <SelectItem value="delivered">Entregue</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <Button 
               type="submit" 
               className="w-full" 
