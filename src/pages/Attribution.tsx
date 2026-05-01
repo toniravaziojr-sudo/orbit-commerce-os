@@ -66,6 +66,7 @@ const SOURCE_LABELS: Record<string, string> = {
   direct: 'Acesso Direto',
   bing: 'Bing Orgânico',
   bing_ads: 'Bing Ads',
+  ai_atendimento: 'IA de Atendimento',
   unknown: 'Desconhecido',
 };
 
