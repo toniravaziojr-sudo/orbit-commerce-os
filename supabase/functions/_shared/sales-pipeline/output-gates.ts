@@ -123,11 +123,18 @@ export function gateGreetingMirror(input: {
   if (periodOk && reciprocityOk) return { ...noop, reason: "already_mirrors_correctly" };
 
   // Reescreve abertura: remove "Oi!"/"Olá!" degenerado e antepõe a saudação espelhada
+  // [Reg #2.13] Strip ITERATIVO: a IA pode encadear "Oi! Tudo bem? ..." —
+  // o regex casa só "Oi!" e deixa "Tudo bem?" residual, que duplicaria a
+  // reciprocidade injetada via mandatoryOpening. Aplicamos o strip em loop
+  // (até 3 passagens) para remover qualquer cabeça de saudação encadeada.
   const degeneratedHeadRe =
     /^\s*(oi|ol[áa]|opa|hey|hello|hi|tudo\s+(bem|sim|certo)[^.!?\n]*[.!?]?\s*)([.!?\n]|$)/i;
   let stripped = aiResponse;
-  const m = degeneratedHeadRe.exec(stripped);
-  if (m) stripped = stripped.slice(m[0].length).trimStart();
+  for (let i = 0; i < 3; i++) {
+    const m = degeneratedHeadRe.exec(stripped);
+    if (!m) break;
+    stripped = stripped.slice(m[0].length).trimStart();
+  }
 
   let opening = mandatoryOpening.trim();
   if (!/[.!?]$/.test(opening)) opening += "!";
