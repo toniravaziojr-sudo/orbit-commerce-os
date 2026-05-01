@@ -21,8 +21,13 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-agent-mode",
 };
+
+// Tenant fixo "Respeite o Homem" — único tenant autorizado para Agent Mode.
+// Agent Mode permite que o backend (com SERVICE_ROLE_KEY) rode roteiros de teste
+// automatizados sem JWT de usuário. Qualquer outro tenant é rejeitado com 403.
+const AGENT_MODE_ALLOWED_TENANT = "d1a4d0ed-8842-495e-b741-540a9a345b25";
 
 interface SendBody {
   action: "send";
@@ -49,17 +54,33 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // -------- Validar usuário autenticado e tenant --------
+    // -------- Detecta Agent Mode (backend automatizado) --------
+    // Agent Mode: header x-agent-mode=true + Authorization com SERVICE_ROLE_KEY.
+    // Só liberado para o tenant fixo Respeite o Homem.
     const authHeader = req.headers.get("Authorization") || "";
     const jwt = authHeader.replace("Bearer ", "").trim();
-    if (!jwt) {
-      return json({ success: false, error: "unauthenticated" }, 200);
+    const agentModeHeader = (req.headers.get("x-agent-mode") || "").toLowerCase() === "true";
+    const isAgentMode = agentModeHeader && jwt === serviceKey;
+
+    let userId: string;
+    if (isAgentMode) {
+      // Valida que o tenant alvo é o permitido. Para 'send' o tenant vem no body;
+      // para 'cleanup' será revalidado depois de carregar a conversa.
+      const targetTenant = (body as SendBody).tenant_id;
+      if (body.action === "send" && targetTenant !== AGENT_MODE_ALLOWED_TENANT) {
+        return json({ success: false, error: "agent_mode_tenant_not_allowed" }, 200);
+      }
+      userId = "agent-mode";
+    } else {
+      if (!jwt) {
+        return json({ success: false, error: "unauthenticated" }, 200);
+      }
+      const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
+      if (userErr || !userData?.user) {
+        return json({ success: false, error: "unauthenticated" }, 200);
+      }
+      userId = userData.user.id;
     }
-    const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
-    if (userErr || !userData?.user) {
-      return json({ success: false, error: "unauthenticated" }, 200);
-    }
-    const userId = userData.user.id;
 
     // ============== CLEANUP ==============
     if (body.action === "cleanup") {
@@ -80,8 +101,15 @@ Deno.serve(async (req) => {
       }
 
       // Valida que o usuário tem acesso ao tenant da conversa.
-      const allowed = await userHasTenantAccess(supabase, userId, conv.tenant_id);
-      if (!allowed) return json({ success: false, error: "forbidden" }, 200);
+      // Em Agent Mode, restringe ao tenant fixo permitido.
+      if (isAgentMode) {
+        if (conv.tenant_id !== AGENT_MODE_ALLOWED_TENANT) {
+          return json({ success: false, error: "agent_mode_tenant_not_allowed" }, 200);
+        }
+      } else {
+        const allowed = await userHasTenantAccess(supabase, userId, conv.tenant_id);
+        if (!allowed) return json({ success: false, error: "forbidden" }, 200);
+      }
 
       await supabase.from("messages").delete().eq("conversation_id", conversationId);
       await supabase.from("conversation_events").delete().eq("conversation_id", conversationId);
@@ -101,9 +129,11 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "tenant_id and message required" }, 200);
     }
 
-    // Valida acesso do usuário ao tenant.
-    const allowed = await userHasTenantAccess(supabase, userId, tenant_id);
-    if (!allowed) return json({ success: false, error: "forbidden" }, 200);
+    // Valida acesso do usuário ao tenant (em Agent Mode já garantido pelo gate de tenant fixo).
+    if (!isAgentMode) {
+      const allowed = await userHasTenantAccess(supabase, userId, tenant_id);
+      if (!allowed) return json({ success: false, error: "forbidden" }, 200);
+    }
 
     // -------- Cria conversa sandbox se não existir --------
     if (!conversation_id) {
