@@ -505,7 +505,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ 
           success: true, 
           mode: 'cron',
-          tenants_processed: configuredTenants.length, 
+          tenants_processed: uniqueTenantIds.length, 
           total_created: totalCreated,
           errors: allErrors.length > 0 ? allErrors : undefined,
         }),
