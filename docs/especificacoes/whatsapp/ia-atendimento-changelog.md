@@ -655,3 +655,26 @@ Em `supabase/functions/ai-support-chat/index.ts`, handler `generate_checkout_lin
 ---
 
 *Última atualização: 01/mai/2026 (Reg. #2.15 aplicado, validação via sandbox pendente).*
+
+---
+
+## Registro #6 — 01/mai/2026 — Variantes obrigatórias condicionais ao cadastro (Frente 2)
+
+### Sintomas potenciais
+A IA, em modo vendas, podia perguntar "qual tamanho/cor/sabor?" para produtos que não têm variantes cadastradas, gerando atrito e expondo invenção de opções inexistentes.
+
+### Diagnóstico
+- O `variant-gate.ts` já era determinístico e correto (só dispara `ask_variant` quando `product_has_variants=true` e há múltiplas ativas, ou quando `commercial_has_mandatory_variants=true`).
+- Mas os prompts de `product-detail` e `decision` diziam apenas "se tiver variantes, pergunte" — texto genérico que permitia a LLM extrapolar.
+
+### Correção aplicada
+- `prompts/product-detail.ts` regra 5: reescrita para deixar explícito que (a) só pergunta se `get_product_variants` retornar múltiplas variantes ativas reais, (b) se vier vazio ou 1 só, não pergunta nada de variante, (c) listar APENAS as opções reais retornadas pela tool, (d) PROIBIDO inventar "qual tamanho/cor/sabor?" para produto único.
+- `prompts/decision.ts` regra 1: mesma diretiva — variante é gatilho condicional ao cadastro do produto, não pergunta padrão. Se produto é único OU variante já resolvida no `product_focus`, chama `add_to_cart` direto.
+
+### Validação técnica executada
+- ✅ Prompts atualizados nos dois estados.
+- ✅ Variant-gate determinístico inalterado (continua autoridade).
+- ⚠️ Pendente — teste no sandbox com produto sem variantes ("Balm Pós-Banho") confirmando que IA não pergunta tamanho/cor; e com produto que tenha variantes confirmando que pergunta listando só as reais.
+
+### Anti-regressão
+- Memória nova: `mem://constraints/ai-variant-question-only-when-cataloged` — IA só pergunta variante quando o produto realmente tem variantes ativas múltiplas; proibido inventar.
