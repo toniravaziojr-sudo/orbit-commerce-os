@@ -180,15 +180,19 @@ export function AISandboxChat() {
       </Alert>
 
       {/* Área de mensagens */}
-      <div className="flex-1 min-h-0 rounded-lg border bg-card">
-        <ScrollArea className="h-full" viewportRef={scrollRef as any}>
+      <div className="flex-1 min-h-0 rounded-lg border bg-card overflow-hidden">
+        <div ref={scrollRef} className="h-full overflow-y-auto">
           <div className="p-4 space-y-4">
             {messages.length === 0 && !sending && (
-              <ChatEmptyState
-                icon={<Bot className="h-6 w-6" />}
-                title="Comece a conversar"
-                description="Mande uma mensagem como se fosse um cliente. A IA vai responder com a mesma lógica que usa em produção."
-              />
+              <div className="flex flex-col items-center justify-center text-center py-12 px-4">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10">
+                  <Bot className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="mb-1.5 text-base font-semibold">Comece a conversar</h3>
+                <p className="max-w-sm text-sm text-muted-foreground leading-relaxed">
+                  Mande uma mensagem como se fosse um cliente. A IA vai responder com a mesma lógica que usa em produção.
+                </p>
+              </div>
             )}
             {messages.map((m) => (
               <ChatMessageBubble
@@ -204,7 +208,7 @@ export function AISandboxChat() {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Input */}
