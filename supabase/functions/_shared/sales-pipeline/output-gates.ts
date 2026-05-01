@@ -69,8 +69,16 @@ export function scrubUnsolicitedPrice(input: {
 }
 
 // ----------------------------------------------------------------
-// Greeting Mirror Gate (corrige o bug AND/OR do greeting-scrub.ts)
-// LE direto do TPR (greeting_period + asked_how_are_you) — não usa regex.
+// Greeting Mirror Gate (Reg #5 — Saudação Formal)
+//
+// Regra de produto: TODA saudação responde no formato formal padrão:
+//   "Olá[, Nome], [período], tudo bem? Como posso ajudar[ hoje]?"
+//
+// - "Olá" sempre (mesmo se cliente disse "Eai", "Opa").
+// - Período: ecoa se cliente disse, senão calcula em BRT.
+// - "tudo bem?" sempre presente.
+// - "hoje" se cliente recorrente (>=1 mensagem anterior na conversa).
+// - Nome só se conhecido E recorrente.
 // ----------------------------------------------------------------
 
 export interface GreetingGateResult {
@@ -81,27 +89,51 @@ export interface GreetingGateResult {
   mandatoryOpening: string;
 }
 
-function buildOpeningFromTPR(c: TurnClassification): string {
-  const parts: string[] = [];
-  if (c.greeting_period) {
-    parts.push(c.greeting_period.charAt(0).toUpperCase() + c.greeting_period.slice(1));
-  }
-  if (c.asked_how_are_you) {
-    if (parts.length) parts[parts.length - 1] = parts[parts.length - 1] + ", tudo bem?";
-    else parts.push("Tudo bem?");
-  } else if (parts.length) {
-    parts[parts.length - 1] = parts[parts.length - 1] + "!";
-  }
-  return parts.join("");
+/** Calcula período em BRT (UTC-3 fixo). 5–11h59 manhã · 12–17h59 tarde · resto noite. */
+function computePeriodBRT(nowMs: number = Date.now()): "bom dia" | "boa tarde" | "boa noite" {
+  const brtMs = nowMs - 3 * 60 * 60 * 1000;
+  const hour = new Date(brtMs).getUTCHours();
+  if (hour >= 5 && hour < 12) return "bom dia";
+  if (hour >= 12 && hour < 18) return "boa tarde";
+  return "boa noite";
+}
+
+interface FormalGreetingContext {
+  period: "bom dia" | "boa tarde" | "boa noite";
+  isRecurring: boolean;
+  customerName: string | null;
+}
+
+function buildFormalOpening(ctx: FormalGreetingContext): string {
+  const helloPart = ctx.customerName ? `Olá, ${ctx.customerName}` : "Olá";
+  return `${helloPart}, ${ctx.period}, tudo bem?`;
+}
+
+function buildFormalCloser(ctx: FormalGreetingContext): string {
+  return ctx.isRecurring ? "Como posso ajudar hoje?" : "Como posso ajudar?";
 }
 
 export function gateGreetingMirror(input: {
   pipelineState: string;
   aiResponse: string;
   classification: TurnClassification;
+  isRecurring?: boolean;
+  customerName?: string | null;
+  nowMs?: number;
 }): GreetingGateResult {
   const { pipelineState, aiResponse, classification: c } = input;
-  const mandatoryOpening = buildOpeningFromTPR(c);
+
+  const period: "bom dia" | "boa tarde" | "boa noite" =
+    c.greeting_period || computePeriodBRT(input.nowMs);
+  const isRecurring = !!input.isRecurring;
+  const customerName = isRecurring && input.customerName
+    ? input.customerName.trim().split(/\s+/)[0]
+    : null;
+
+  const ctx: FormalGreetingContext = { period, isRecurring, customerName };
+  const mandatoryOpening = buildFormalOpening(ctx);
+  const closer = buildFormalCloser(ctx);
+
   const noop: GreetingGateResult = {
     scrubbed: false,
     before: aiResponse,
@@ -110,25 +142,17 @@ export function gateGreetingMirror(input: {
     mandatoryOpening,
   };
   if (pipelineState !== "greeting") return { ...noop, reason: "not_greeting_state" };
-  if (!mandatoryOpening) return { ...noop, reason: "no_greeting_to_mirror" };
   if (!aiResponse) return { ...noop, reason: "empty_response" };
 
-  const head = aiResponse.toLowerCase().slice(0, 80);
-  const periodOk = c.greeting_period ? head.includes(c.greeting_period) : true;
-  const reciprocityOk = c.asked_how_are_you
-    ? /\btudo\s+(bem|sim|certo|tranquilo)\b|\be\s+(com\s+)?voc[êe]\??/.test(head)
-    : true;
-  // CORREÇÃO do bug AND/OR: AGORA exige os DOIS quando os dois sinais
-  // estão presentes.
-  if (periodOk && reciprocityOk) return { ...noop, reason: "already_mirrors_correctly" };
+  const head = aiResponse.toLowerCase().slice(0, 100);
+  const periodOk = head.includes(period);
+  const reciprocityOk = /\btudo\s+(bem|sim|certo|tranquilo)\b/.test(head);
 
-  // Reescreve abertura: remove "Oi!"/"Olá!" degenerado e antepõe a saudação espelhada
-  // [Reg #2.13] Strip ITERATIVO: a IA pode encadear "Oi! Tudo bem? ..." —
-  // o regex casa só "Oi!" e deixa "Tudo bem?" residual, que duplicaria a
-  // reciprocidade injetada via mandatoryOpening. Aplicamos o strip em loop
-  // (até 3 passagens) para remover qualquer cabeça de saudação encadeada.
+  if (periodOk && reciprocityOk) return { ...noop, reason: "already_formal" };
+
+  // [Reg #2.13] Strip iterativo (até 3x) de saudações degeneradas/gírias.
   const degeneratedHeadRe =
-    /^\s*(oi|ol[áa]|opa|hey|hello|hi|tudo\s+(bem|sim|certo)[^.!?\n]*[.!?]?\s*)([.!?\n]|$)/i;
+    /^\s*(oi|ol[áa]|opa|eai|e\s+ai|salve|hey|hello|hi|al[ôo]|bom\s+dia|boa\s+tarde|boa\s+noite|tudo\s+(bem|sim|certo)[^.!?\n]*[.!?]?\s*)([.!?,\n]|$)/i;
   let stripped = aiResponse;
   for (let i = 0; i < 3; i++) {
     const m = degeneratedHeadRe.exec(stripped);
@@ -136,26 +160,24 @@ export function gateGreetingMirror(input: {
     stripped = stripped.slice(m[0].length).trimStart();
   }
 
-  let opening = mandatoryOpening.trim();
-  if (!/[.!?]$/.test(opening)) opening += "!";
-  const after = (stripped ? `${opening} ${stripped}` : opening).replace(/[ \t]{2,}/g, " ").trim();
+  const head2 = `${mandatoryOpening} ${closer}`;
+  const after = (stripped ? `${head2} ${stripped}` : head2)
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
   if (after === aiResponse) return { ...noop, reason: "rewrite_no_change" };
 
   return {
     scrubbed: true,
     before: aiResponse,
     after,
-    reason: `prepended_${c.greeting_period || "greeting"}${c.asked_how_are_you ? "_with_reciprocity" : ""}`,
+    reason: `prepended_formal_${period}${isRecurring ? "_recurring" : ""}`,
     mandatoryOpening,
   };
 }
 
 // ----------------------------------------------------------------
 // [Reg #2.10] Greeting Mirror Fallback — sem depender do TPR.
-// Detecta direto na mensagem do cliente o período do dia e a pergunta
-// "tudo bem?". Usado quando TPR.source !== 'llm' (timeout, rate limit,
-// fallback regex). Antes, sem TPR, o gate não rodava e a saudação
-// degenerada ("Oi!" pra "Boa tarde") passava.
+// Mesma regra formal, calcula período em BRT se ausente.
 // ----------------------------------------------------------------
 
 const PERIOD_WORDS: Record<string, "bom dia" | "boa tarde" | "boa noite"> = {
@@ -170,6 +192,8 @@ export function gateGreetingMirrorFallback(input: {
   pipelineState: string;
   aiResponse: string;
   customerMessage: string;
+  isRecurring?: boolean;
+  customerName?: string | null;
 }): GreetingGateResult {
   const { pipelineState, aiResponse, customerMessage } = input;
   const lc = (customerMessage || "").toLowerCase();
@@ -179,15 +203,15 @@ export function gateGreetingMirrorFallback(input: {
   }
   const askedHow = HOW_ARE_YOU_RE.test(lc);
 
-  // Reusa gateGreetingMirror passando uma classification sintética
   return gateGreetingMirror({
     pipelineState,
     aiResponse,
     classification: {
-      // só os 2 campos lidos pelo gate
       greeting_period: period,
       asked_how_are_you: askedHow,
     } as TurnClassification,
+    isRecurring: input.isRecurring,
+    customerName: input.customerName,
   });
 }
 
