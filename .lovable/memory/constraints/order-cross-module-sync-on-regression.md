@@ -31,4 +31,8 @@ type: constraint
 - Nunca limpar `requires_action` por trigger ou cron — só ação humana.
 - Toda nova rota de mudança de status (novo webhook, novo cron) DEVE chamar `order-regression-handler` se transicionar para estado regressivo.
 
+**Regra técnica obrigatória — comparação enum vs array:** as 4 funções comparam `orders.status` (enum `order_status`) contra `TEXT[]` de estados regressivos. Postgres NÃO casta enum → text implicitamente em `ANY()`. SEMPRE usar `NEW.status::text = ANY(v_regression_states)` e `OLD.status::text = ANY(...)`. Sem o cast, **toda UPDATE em `public.orders` falha com `42883: operator does not exist: order_status = text`** — quebra pagamento, cancelamento, webhooks e cron de expiração. Detectado em teste E2E 2026-05-01 logo após Onda 1.
+
+**Validação obrigatória ao alterar essas funções:** rodar `UPDATE orders SET status='awaiting_confirmation' WHERE id=<qualquer pedido>` em ambiente de teste antes de declarar a mudança concluída. TypeScript build NÃO valida triggers PL/pgSQL.
+
 **Docs formais:** `docs/especificacoes/ecommerce/pedidos.md` §4.6, `docs/especificacoes/erp/erp-fiscal.md`, `docs/especificacoes/erp/logistica.md`.
