@@ -4949,9 +4949,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             // gerar o link.
             const eligibleStateForForce =
               pipelineState === "checkout_assist" ||
-              ((pipelineState === "consideration" ||
-                pipelineState === "decision" ||
-                pipelineState === "recommendation") &&
+              ((pipelineState === "decision" ||
+                pipelineState === "recommendation" ||
+                pipelineState === "product_detail") &&
                 explicitBuyNow);
             const forceCheckoutLink =
               eligibleStateForForce &&
