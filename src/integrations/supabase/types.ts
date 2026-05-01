@@ -2869,6 +2869,7 @@ export type Database = {
           custom_knowledge: string | null
           data_retention_days: number | null
           forbidden_topics: string[] | null
+          greeting_style: string
           handle_audio: boolean | null
           handle_files: boolean | null
           handle_images: boolean | null
@@ -2908,6 +2909,7 @@ export type Database = {
           custom_knowledge?: string | null
           data_retention_days?: number | null
           forbidden_topics?: string[] | null
+          greeting_style?: string
           handle_audio?: boolean | null
           handle_files?: boolean | null
           handle_images?: boolean | null
@@ -2947,6 +2949,7 @@ export type Database = {
           custom_knowledge?: string | null
           data_retention_days?: number | null
           forbidden_topics?: string[] | null
+          greeting_style?: string
           handle_audio?: boolean | null
           handle_files?: boolean | null
           handle_images?: boolean | null
@@ -14018,6 +14021,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          ai_conversation_id: string | null
           billing_city: string | null
           billing_complement: string | null
           billing_country: string | null
@@ -14080,6 +14084,7 @@ export type Database = {
           retry_from_order_id: string | null
           retry_token: string | null
           retry_token_expires_at: string | null
+          sales_channel: string
           shipped_at: string | null
           shipping_carrier: string | null
           shipping_city: string | null
@@ -14112,6 +14117,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_conversation_id?: string | null
           billing_city?: string | null
           billing_complement?: string | null
           billing_country?: string | null
@@ -14174,6 +14180,7 @@ export type Database = {
           retry_from_order_id?: string | null
           retry_token?: string | null
           retry_token_expires_at?: string | null
+          sales_channel?: string
           shipped_at?: string | null
           shipping_carrier?: string | null
           shipping_city?: string | null
@@ -14206,6 +14213,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_conversation_id?: string | null
           billing_city?: string | null
           billing_complement?: string | null
           billing_country?: string | null
@@ -14268,6 +14276,7 @@ export type Database = {
           retry_from_order_id?: string | null
           retry_token?: string | null
           retry_token_expires_at?: string | null
+          sales_channel?: string
           shipped_at?: string | null
           shipping_carrier?: string | null
           shipping_city?: string | null
