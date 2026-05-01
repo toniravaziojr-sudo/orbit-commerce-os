@@ -1921,10 +1921,15 @@ async function executeSalesTool(
 
         const checkoutUrl = `${storeUrl}/checkout?${params.toString()}`;
 
-        // Mark cart as converted
+        // [Reg #2.11] NÃO marcar cart como "converted" aqui. A conversão real
+        // só acontece quando o webhook do gateway confirma o pedido. Marcar
+        // cedo demais quebra o fluxo: se o cliente pedir "manda o link" de
+        // novo, a próxima chamada via "Carrinho vazio" e a IA cai em loop de
+        // confirmação. O cart fica "active" e a tool retorna o mesmo (ou novo)
+        // link consistentemente.
         await supabase
           .from("whatsapp_carts")
-          .update({ status: "converted", updated_at: new Date().toISOString() })
+          .update({ updated_at: new Date().toISOString() })
           .eq("id", cart.id);
 
         // [learning] checkout_generated event
