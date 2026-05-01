@@ -262,8 +262,17 @@ export default function OrderNew() {
       shipping_city: formData.shipping_city || null,
       shipping_state: formData.shipping_state || null,
       shipping_postal_code: formData.shipping_postal_code || null,
+      shipping_carrier: formData.shipping_carrier || null,
+      tracking_code: formData.shipping_tracking_code || null,
       customer_notes: formData.customer_notes || null,
       internal_notes: formData.internal_notes || null,
+      // Overrides iniciais opcionais (validados no servidor por role)
+      ...(canOverrideStatus && showInitialOverrides && initialPaymentStatus
+        ? { payment_status_initial: initialPaymentStatus }
+        : {}),
+      ...(canOverrideStatus && showInitialOverrides && initialShippingStatus
+        ? { shipping_status_initial: initialShippingStatus }
+        : {}),
       items: items.map(item => ({
         product_id: item.product_id,
         sku: item.sku,
@@ -273,7 +282,7 @@ export default function OrderNew() {
         unit_price: item.unit_price,
         discount_amount: item.discount_amount,
       })),
-    };
+    } as CreateOrderData;
 
     createOrder.mutate(orderData, {
       onSuccess: (result) => {
