@@ -57,6 +57,33 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #4 — Atribuição "Venda IA" para pedidos fechados via IA de Atendimento — 01/mai/2026
+
+**Sintoma / motivação:** o lojista não conseguia distinguir, na lista de pedidos nem no relatório de atribuição, quais vendas foram fechadas pela IA de Atendimento (link gerado via WhatsApp) versus vendas orgânicas da loja própria. Sem isso, era impossível medir a performance comercial real do agente vendedor.
+
+**Diagnóstico:**
+- `checkout_links` já carregava `source_conversation_id` apontando para a conversa que originou o link.
+- Trigger `trg_link_whatsapp_cart_to_order` (em `orders` AFTER INSERT) já vinculava `whatsapp_carts.order_id` quando o pedido entrava.
+- Faltava: marcar o `orders` como "venda IA" e gravar a atribuição no relatório.
+
+**Correção aplicada:**
+1. **Schema (`orders`):** colunas `sales_channel` (default `'storefront'`, valores: `storefront`, `ai_attendant`, `marketplace`, `link_checkout`, `manual`) e `ai_conversation_id` adicionadas com validação por trigger.
+2. **Trigger DB:** `trg_mark_order_as_ai_sale` (em `whatsapp_carts` AFTER UPDATE OF `order_id`) — quando o vínculo carrinho↔pedido é estabelecido, atualiza `orders.sales_channel='ai_attendant'` (apenas se ainda for `storefront`, sem sobrescrever marketplace/manual) e faz `INSERT … ON CONFLICT DO UPDATE` em `order_attribution` com `attribution_source='ai_atendimento'` e `attribution_medium='whatsapp'`.
+3. **UI Pedidos / Fiscal:** `OrderSourceBadge` ganha variante "Venda IA" (ícone `Bot`, cor primária, tooltip "Venda IA — fechada pela IA de Atendimento"). Lista de pedidos e Notas Fiscais passam `salesChannel` para o badge. Filtro `MARKETPLACE_OPTIONS` passa a expor `venda_ia` como opção.
+4. **UI Atribuição:** página `/attribution` mapeia `ai_atendimento` → ícone 🤖 + label "IA de Atendimento" (em `SOURCE_LABELS` e `SOURCE_ICONS`).
+
+**Validação técnica executada:**
+- ✅ Schema confirmado em `information_schema.columns` (orders.sales_channel, orders.ai_conversation_id presentes).
+- ✅ Triggers confirmados em `pg_trigger`: `trg_link_whatsapp_cart_to_order` (orders) + `trg_mark_order_as_ai_sale` (whatsapp_carts).
+- ✅ Função `mark_order_as_ai_sale_on_cart_link` é `SECURITY DEFINER` com `SET search_path = public`.
+- ⏳ Validação E2E (cliente fecha pelo link da IA → pedido aparece com badge Venda IA + entra em Atribuição como "IA de Atendimento") depende de teste real do usuário em produção.
+
+**Anti-regressão:** o trigger NÃO sobrescreve `sales_channel` se já for `marketplace` ou outro canal explícito — só promove `storefront → ai_attendant`. Garante que vendas de marketplace integradas posteriormente não sejam silenciosamente reclassificadas. A atribuição usa `ON CONFLICT (order_id) DO UPDATE` para sobrepor qualquer atribuição UTM genérica capturada antes (a fonte real do fechamento é a IA, não a UTM da landing page).
+
+**Impacto cruzado:** módulo de Relatórios (`useReports.ts:184`) ainda agrupa por `marketplace_source` — não foi alterado nesta entrega. Se o lojista quiser ver "Venda IA" no relatório de canal, precisará incluir `sales_channel` na agregação numa entrega futura (lacuna documental conhecida, não bloqueante).
+
+---
+
 ## Registro #1 — Histórico retroativo (consolidado, ciclos anteriores)
 
 **Período coberto:** desde a estreia do Modo Vendas até abr/2026.
