@@ -102,6 +102,7 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #2.10 — Focus Snapshot + Exact-Match Boost (aplicado, em validação) — 30/abr/2026
 
 
 **Contexto.** Após a Onda 3 do Reg #2.9 (Working Memory ativa nos prompts), validamos a conversa das 09:35 (ID `ab3d720d`). As 3 primeiras mensagens da IA ficaram corretas. A partir da quarta apareceram dois erros lógicos sérios:
