@@ -84,6 +84,30 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #5 — Saudação formal padrão (sem gírias) — 01/mai/2026
+
+**Regra de produto definida pelo usuário:** a IA SEMPRE responde de forma formal, mesmo que o cliente abra com gíria ("Eai", "Opa", "Salve"). Se o tenant quiser tom casual, criará regra própria nas configurações futuramente.
+
+**Formato canônico:**
+- Cliente novo: `"Olá, [período], tudo bem? Como posso ajudar?"`
+- Cliente recorrente (já tem mensagens prévias na conversa OU customer_id conhecido): `"Olá[, Nome], [período], tudo bem? Como posso ajudar hoje?"`
+- Período do dia: ECOA se o cliente disse; senão CALCULA em BRT (5–11h59 bom dia · 12–17h59 boa tarde · 18–4h59 boa noite).
+
+**Correção aplicada:**
+1. `greeting-mirror.ts` reescrito: tipo `period` sempre presente (calculado se ausente), removido campo `hello`, novo `computePeriodBRT()`, novos parâmetros `isRecurring` + `customerName`. Mapeia toda gíria para "Olá".
+2. `greeting-scrub.ts` (fallback legado) atualizado para nova assinatura + strip iterativo de saudações degeneradas/gírias.
+3. `output-gates.ts` (`gateGreetingMirror` + `gateGreetingMirrorFallback`): gera abertura formal + closer ("Como posso ajudar" ou "Como posso ajudar hoje" se recorrente). Strip iterativo expandido para cobrir "Eai", "Opa", "Salve", "Alô".
+4. `ai-support-chat/index.ts`: 4 chamadas dos gates passam `isRecurring = (messages.length > 1 || !!customerId)` e `customerName = conversation.customer_name`.
+
+**Validação técnica:**
+- ✅ Edge `ai-support-chat` deployada com sucesso após mudanças.
+- ✅ Build sem erros de tipo.
+- ⏳ Validação E2E (cliente real diz "Eai" às 9h → IA responde "Olá, bom dia, tudo bem? Como posso ajudar?") depende de teste no sandbox da IA com o usuário.
+
+**Anti-regressão:** memória `mem://constraints/greeting-formal-tone-no-slang` registra a regra. O scrub usa BRT fixo (UTC-3) — Brasil não tem horário de verão desde 2019. Override por tenant via `ai_support_config.greeting_style` fica disponível para implementação futura quando algum cliente pedir tom casual.
+
+---
+
 ## Registro #1 — Histórico retroativo (consolidado, ciclos anteriores)
 
 **Período coberto:** desde a estreia do Modo Vendas até abr/2026.

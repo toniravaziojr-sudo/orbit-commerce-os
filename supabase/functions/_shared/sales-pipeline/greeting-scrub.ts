@@ -1,23 +1,23 @@
 // ============================================================
-// Pipeline F2 — Greeting Scrub (Bloco 3.3)
+// Pipeline F2 — Greeting Scrub (Reg #5 — Saudação Formal)
 //
-// Rede de segurança SERVER-SIDE para reciprocidade de saudação.
+// Rede de segurança SERVER-SIDE para a saudação formal padrão.
 // O `greeting-mirror.ts` injeta a abertura literal no prompt, mas o
-// modelo às vezes ignora e abre só com "Oi!" quando o cliente disse
-// "boa noite". Aqui detectamos a quebra e reescrevemos a abertura
-// SEM regenerar (custo zero, latência zero).
+// modelo às vezes ignora e abre só com "Oi!" / "Olá tudo bem?". Aqui
+// detectamos a quebra e reescrevemos a abertura SEM regenerar
+// (custo zero, latência zero).
 //
 // Aplica APENAS quando:
 //   1. estado da pipeline é "greeting"
-//   2. mensagem do cliente contém saudação com período do dia
-//      OU pergunta "tudo bem?"
-//   3. resposta da IA NÃO espelha o que o cliente disse
+//   2. há mensagem do cliente E resposta da IA
+//   3. resposta da IA NÃO contém o período do dia esperado
+//      OU NÃO inclui "tudo bem?"
 //
 // Estratégia: prepend da abertura mecânica (`mandatoryOpening`) +
 // remoção do "Oi!"/"Olá!" inicial degenerado, preservando o resto.
 // ============================================================
 
-import { detectGreetingEcho, type GreetingEcho } from "./greeting-mirror.ts";
+import { detectGreetingEcho, type GreetingEcho, type GreetingEchoOptions } from "./greeting-mirror.ts";
 
 export interface GreetingScrubResult {
   scrubbed: boolean;
@@ -36,56 +36,45 @@ function normalizeStart(s: string): string {
 }
 
 /**
- * Verifica se a abertura da resposta da IA já espelha minimamente
- * o período do dia ou o "tudo bem?" perguntado pelo cliente.
- *
- * Conservador de propósito: se o período aparece nas primeiras 50
- * letras da resposta, considera espelhado (mesmo que invertido na
- * ordem) e NÃO mexe.
+ * Verifica se a abertura da resposta da IA já contém o período do
+ * dia E o "tudo bem?". Conservador: olha as primeiras 80 letras
+ * (cabem "Olá, [Nome], boa tarde, tudo bem?" + folga).
  */
 function alreadyMirrors(response: string, echo: GreetingEcho): boolean {
-  const head = normalizeStart(response).slice(0, 60);
+  const head = normalizeStart(response).slice(0, 80);
 
-  // Se o cliente usou período, exigir que o período apareça no início
-  if (echo.period) {
-    if (!head.includes(echo.period)) return false;
-  }
+  // Período sempre presente no echo (formal). Exigir no início.
+  if (!head.includes(echo.period)) return false;
 
-  // Se o cliente perguntou "tudo bem", exigir reciprocidade explícita
-  if (echo.askedHowAreYou) {
-    const reciprocates =
-      /\btudo\s+(bem|sim|certo|tranquilo)\b/.test(head) ||
-      /\be\s+(com\s+)?voc[êe]\??/.test(head) ||
-      /\be\s+contigo\??/.test(head);
-    if (!reciprocates) return false;
-  }
+  // "tudo bem?" sempre obrigatório no padrão formal.
+  const reciprocates = /\btudo\s+(bem|sim|certo|tranquilo)\b/.test(head);
+  if (!reciprocates) return false;
 
   return true;
 }
 
 /**
  * Reescreve a abertura preservando o "miolo" da resposta da IA.
- * Remove "Oi!"/"Olá!"/"Olá," degenerado do início (se houver) e
- * antepõe a abertura literal espelhada do cliente.
+ * Remove "Oi!"/"Olá!"/"Eai!" degenerado do início (até 3 iterações
+ * para pegar saudações encadeadas) e antepõe a abertura formal.
  */
 function rewriteOpening(response: string, echo: GreetingEcho): string {
   if (!echo.mandatoryOpening) return response;
 
-  // Remove até a primeira pontuação forte (.!?\n) se for um "Oi!" ou
-  // "Olá! Tudo bem?" degenerado — esses padrões cabem em até ~25 chars.
   let stripped = response;
   const degeneratedHeadRe =
-    /^\s*(oi|ol[áa]|opa|hey|hello|hi|tudo\s+(bem|sim|certo)[^.!?\n]*[.!?]?\s*)([.!?\n]|$)/i;
-  const m = degeneratedHeadRe.exec(stripped);
-  if (m) {
+    /^\s*(oi|ol[áa]|opa|eai|e\s+ai|salve|hey|hello|hi|al[ôo]|bom\s+dia|boa\s+tarde|boa\s+noite|tudo\s+(bem|sim|certo)[^.!?\n]*[.!?]?\s*)([.!?,\n]|$)/i;
+
+  // Iterativo (até 3x) para remover saudações encadeadas tipo "Oi! Tudo bem? Olá!"
+  for (let i = 0; i < 3; i++) {
+    const m = degeneratedHeadRe.exec(stripped);
+    if (!m) break;
     stripped = stripped.slice(m[0].length).trimStart();
   }
 
-  // Garante que mandatoryOpening termina em pontuação
   let opening = echo.mandatoryOpening.trim();
   if (!/[.!?]$/.test(opening)) opening += "!";
 
-  // Junta com 1 espaço, evita pontuação dupla
   if (stripped) {
     return `${opening} ${stripped}`.replace(/[ \t]{2,}/g, " ").trim();
   }
@@ -101,30 +90,29 @@ export function scrubGreetingReciprocity(input: {
   pipelineState: string;
   customerMessage: string;
   aiResponse: string;
+  isRecurring?: boolean;
+  customerName?: string | null;
 }): GreetingScrubResult {
-  const { pipelineState, customerMessage, aiResponse } = input;
+  const { pipelineState, customerMessage, aiResponse, isRecurring, customerName } = input;
+
+  const opts: GreetingEchoOptions = { isRecurring, customerName };
+  const echoFallback = detectGreetingEcho(customerMessage || "", opts);
 
   const baseResult: GreetingScrubResult = {
     scrubbed: false,
     before: aiResponse,
     after: aiResponse,
     reason: "noop",
-    echo: {
-      hasGreeting: false,
-      period: null,
-      hello: null,
-      askedHowAreYou: false,
-      mandatoryOpening: "",
-    },
+    echo: echoFallback,
   };
 
   if (pipelineState !== "greeting") return { ...baseResult, reason: "not_greeting_state" };
   if (!customerMessage || !aiResponse) return { ...baseResult, reason: "empty_input" };
 
-  const echo = detectGreetingEcho(customerMessage);
+  const echo = detectGreetingEcho(customerMessage, opts);
   baseResult.echo = echo;
 
-  if (!echo.hasGreeting || !echo.mandatoryOpening) {
+  if (!echo.hasGreeting) {
     return { ...baseResult, reason: "no_greeting_to_mirror" };
   }
 
@@ -139,7 +127,7 @@ export function scrubGreetingReciprocity(input: {
     scrubbed: true,
     before: aiResponse,
     after,
-    reason: `rewrote_opening_to_mirror_${echo.period || echo.hello || "greeting"}`,
+    reason: `rewrote_opening_to_formal_${echo.period}`,
     echo,
   };
 }

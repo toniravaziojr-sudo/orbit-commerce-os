@@ -4243,15 +4243,23 @@ Cliente: "vocês entregam em SP?"
         );
       }
 
-      // [F2-V4] Espelho mecânico de saudação — força a IA a abrir LITERALMENTE
-      // com o que o cliente disse (oi + boa noite + tudo bem). Só ativa em greeting.
+      // [F2-V4 + Reg #5] Espelho mecânico de saudação — força tom FORMAL.
+      // Mapeia gírias do cliente ("Eai", "Opa") para "Olá"; ecoa período do dia
+      // se o cliente disse, senão calcula em BRT; usa "hoje" se cliente recorrente
+      // (>=1 mensagem anterior na conversa) e nome se conhecido.
       if (pipelineState === "greeting" && lastMessageContent) {
-        const echo = detectGreetingEcho(lastMessageContent);
+        // Recorrente = cliente já trocou mensagens antes nesta conversa.
+        // messages contém histórico + a mensagem atual; >1 = não é o 1º contato.
+        const isRecurringClient = (messages?.length ?? 0) > 1 || !!customerId;
+        const echo = detectGreetingEcho(lastMessageContent, {
+          isRecurring: isRecurringClient,
+          customerName: customerName,
+        });
         const mirrorBlock = buildGreetingMirrorBlock(echo);
         if (mirrorBlock) {
           contextualBlocks.push(mirrorBlock);
           console.log(
-            `[ai-support-chat] [F2-V4] greeting_mirror period=${echo.period || "—"} hello=${echo.hello || "—"} how_are_you=${echo.askedHowAreYou} opening="${echo.mandatoryOpening}"`
+            `[ai-support-chat] [Reg#5] greeting_formal period=${echo.period} echoed=${echo.periodEchoed} how_are_you=${echo.askedHowAreYou} recurring=${echo.isRecurring} name=${echo.customerName || "—"} opening="${echo.mandatoryOpening}"`
           );
         }
       }
@@ -6169,26 +6177,31 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         priceScrubApplied = true;
       }
 
+      // [Reg #5] Saudação formal: passa contexto de recorrência + nome
+      const greetIsRecurring = (messages?.length ?? 0) > 1 || !!customerId;
+      const greetCustomerName = conversation?.customer_name || null;
+
       if (turnClassification.source === "llm") {
         const greetGate = gateGreetingMirror({
           pipelineState,
           aiResponse: aiContent || "",
           classification: turnClassification,
+          isRecurring: greetIsRecurring,
+          customerName: greetCustomerName,
         });
         greetingScrubReason = greetGate.reason;
         if (greetGate.scrubbed) {
-          console.log(`[ai-support-chat] [Reg #2.8] greeting gate (${greetGate.reason})`);
+          console.log(`[ai-support-chat] [Reg #5] greeting gate (${greetGate.reason})`);
           aiContent = greetGate.after;
           greetingScrubApplied = true;
         }
       } else {
-        // [Reg #2.10] Sem TPR: tenta o gate determinístico (sem LLM)
-        // que detecta período direto na mensagem do cliente. Antes
-        // pulava direto pro scrub legado bugado.
         const fallbackGate = gateGreetingMirrorFallback({
           pipelineState,
           aiResponse: aiContent || "",
           customerMessage: lastMessageContent || "",
+          isRecurring: greetIsRecurring,
+          customerName: greetCustomerName,
         });
         if (fallbackGate.scrubbed) {
           console.log(`[ai-support-chat] [Reg #2.10] greeting fallback gate (${fallbackGate.reason})`);
@@ -6201,6 +6214,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             pipelineState,
             customerMessage: lastMessageContent || "",
             aiResponse: aiContent || "",
+            isRecurring: (messages?.length ?? 0) > 1 || !!customerId,
+            customerName: conversation?.customer_name || null,
           });
           greetingScrubReason = scrub.reason;
           if (scrub.scrubbed) {
@@ -6367,11 +6382,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                         pipelineState,
                         aiResponse: aiContent || "",
                         classification: turnClassification,
+                        isRecurring: greetIsRecurring,
+                        customerName: greetCustomerName,
                       })
                     : gateGreetingMirrorFallback({
                         pipelineState,
                         aiResponse: aiContent || "",
                         customerMessage: lastMessageContent || "",
+                        isRecurring: greetIsRecurring,
+                        customerName: greetCustomerName,
                       });
                   if (gg.scrubbed) {
                     console.log(`[ai-support-chat] [Reg #2.11] post-regen greeting gate (${gg.reason})`);
