@@ -56,6 +56,7 @@ import {
   normalizeShippingStatus,
 } from '@/types/orderStatus';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
+import { OrderRegressionBanner } from '@/components/orders/OrderRegressionBanner';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 import { PaymentAttemptsCard } from '@/components/orders/PaymentAttemptsCard';
 import { useRetryLinkedOrder } from '@/hooks/useRetryLinkedOrder';
@@ -313,6 +314,9 @@ export default function OrderDetail() {
           </p>
         </div>
       )}
+
+      {/* Regression alerts (NF-e autorizada / etiqueta despachada após cancelamento, chargeback, etc.) */}
+      <OrderRegressionBanner orderId={id} />
 
       <Tabs defaultValue="details" className="space-y-4">
         <TabsList>

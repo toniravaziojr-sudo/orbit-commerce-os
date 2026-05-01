@@ -31,7 +31,7 @@ interface IntegrationError {
   navigateTo: string;
 }
 
-// ── Pedidos: chargebacks, limite mensal (90%+), aguardando NF ──
+// ── Pedidos: chargebacks, limite mensal (90%+), aguardando NF, regressões pendentes ──
 function useOrderExecutionCounts() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
@@ -39,18 +39,24 @@ function useOrderExecutionCounts() {
   return useQuery({
     queryKey: ["execution-order-counts", tenantId],
     queryFn: async () => {
-      if (!tenantId) return { chargebacks: 0, awaitingInvoice: 0 };
+      if (!tenantId) return { chargebacks: 0, awaitingInvoice: 0, regressionInvoices: 0, regressionShipments: 0 };
 
-      const [chargebackRes, invoiceRes] = await Promise.all([
+      const [chargebackRes, invoiceRes, regInvRes, regShipRes] = await Promise.all([
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId).in("status", ["chargeback_detected", "chargeback_lost"]),
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId).eq("status", "ready_to_invoice"),
+        supabase.from("fiscal_invoices").select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("requires_action", true),
+        supabase.from("shipments").select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("requires_action", true),
       ]);
 
       return {
         chargebacks: chargebackRes.count || 0,
         awaitingInvoice: invoiceRes.count || 0,
+        regressionInvoices: regInvRes.count || 0,
+        regressionShipments: regShipRes.count || 0,
       };
     },
     enabled: !!tenantId,
@@ -441,22 +447,26 @@ export function useExecutionCounts() {
       orderCounts?.chargebacks ? { count: orderCounts.chargebacks, label: "Chargebacks", navigateTo: "/orders?status=chargeback_detected", color: "destructive" as const } : null,
       orderLimitNear && limitCheck ? { count: limitCheck.order_limit! - limitCheck.current_count, label: "Limite mensal acabando", navigateTo: "/settings/billing", color: "warning" as const } : null,
       orderCounts?.awaitingInvoice ? { count: orderCounts.awaitingInvoice, label: "Aguardando NF", navigateTo: "/orders?status=ready_to_invoice", color: "warning" as const } : null,
+      orderCounts?.regressionShipments ? { count: orderCounts.regressionShipments, label: "Etiquetas a reverter", navigateTo: "/orders?regression=shipments", color: "destructive" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
     totalPending: 0,
   };
   orders.totalPending = orders.stats.reduce((s, st) => s + st.count, 0);
 
-  // Notas Fiscais: pendentes emissão + rejeitadas
+  // Notas Fiscais: pendentes emissão + rejeitadas + regressões
   const pendingInvoiceCount = pendingInvoiceOrders?.length || 0;
   const rejectedCount = fiscalStats?.rejected || 0;
+  const regressionInvoiceCount = orderCounts?.regressionInvoices || 0;
 
   const fiscal: ExecutionCategory = {
     stats: [
       pendingInvoiceCount ? { count: pendingInvoiceCount, label: "Emitir NF-e", navigateTo: "/fiscal?tab=open-orders", color: "warning" as const } : null,
       rejectedCount ? { count: rejectedCount, label: "Pendências emissão", navigateTo: "/fiscal?tab=invoices", color: "destructive" as const } : null,
+      regressionInvoiceCount ? { count: regressionInvoiceCount, label: "NF-e a cancelar (regressão)", navigateTo: "/fiscal?tab=invoices&filter=requires_action", color: "destructive" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: pendingInvoiceCount + rejectedCount,
+    totalPending: pendingInvoiceCount + rejectedCount + regressionInvoiceCount,
   };
+
 
   // Anúncios: contas sem saldo
   const zeroBalanceCount = adsBalance.zeroBalanceCount || 0;
