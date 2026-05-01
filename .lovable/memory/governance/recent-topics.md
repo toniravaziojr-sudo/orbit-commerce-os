@@ -1,51 +1,27 @@
 ---
-name: recent-topics
-description: Cache rotativo dos 2 últimos assuntos tratados — atual e anterior. Toda regra técnica aqui DEVE existir também nos docs formais.
-type: preference
+name: Recent topics (rotativo, máx 2)
+description: Cache rotativo dos 2 últimos assuntos tratados. Não é fonte de verdade — só ponteiro para retomar trabalho.
+type: reference
 ---
 
-# Assuntos Recentes (rotação obrigatória, máx 2)
+# Assuntos recentes (rotativo)
 
-## Slot 1 — Assunto ATUAL
+## 1) IA Atendimento — Frente 3 (fechamento sem loop) — EM VALIDAÇÃO
+- Status: Ajuste aplicado, validação parcial.
+- O que foi feito:
+  - Auto-Ready em `ai-support-chat/index.ts` (libera FIX-B mesmo com carrinho vazio quando há 1 produto apresentado/foco).
+  - `enforceCloseOnConfirmedIntent` em `_shared/sales-pipeline/output-gates.ts` (rede de segurança que marca `semanticDuplicateDetected` para forçar regeneração com `tool_choice`).
+  - Hotfix: `ReferenceError: customerName is not defined` (linhas 4280 e 6437/6446) — variáveis declaradas em `try` reusadas fora do escopo. Corrigido referenciando `conversation.customer_name` direto.
+  - Doc: Reg #7 em `docs/especificacoes/whatsapp/ia-atendimento-changelog.md`.
+  - Memória: `mem://constraints/ai-close-on-confirmed-intent-no-loop.md`.
+- O que falta validar (próximo turno):
+  - Roteiro completo do tenant Respeite o Homem via `ai-test-sandbox` Agent Mode: turno 1 saudação ✅, turno 2 (descoberta de produto) interrompido por timeout do conector de teste, turnos 3+ (recomendação → confirmação → fechamento) NÃO validados.
+  - Verificar log `[Frente 3] checkout_auto_ready` e `[Frente 3] close_loop_detected` em produção.
+- Pendência documental:
+  - Registrar Reg #8 (hotfix `customerName`) no changelog.
+  - Criar `mem://constraints/greeting-mirror-vars-must-be-declared-at-handler-scope.md`.
 
-**Tema:** Bloco D6–D10 — Estabilização do Atendimento e Cérebro de IA (validado e documentado em 2026-04-26)
-
-**Resumo:**
-- 5 estabilizações entregues e validadas tecnicamente fim a fim:
-  - **D6** — Gate Universal de Canal: `ai-support-chat` consulta `channel_accounts.is_active` antes de qualquer LLM.
-  - **D7** — Pipeline de Mídia: 4 mecanismos obrigatórios (`pending_media_processing`, `media_wait_reply_sent`, reprocesso único, `consumed_at`). Validado pelo harness `d7-media-harness` nos 6 pontos.
-  - **D8** — Cérebro Regenerativo: insights aprovados em `ai_brain_active_view` injetados nos 4 agentes (`vendas`, `auxiliar`, `landing`, `trafego`) via `_shared/brain-context.ts`. Validado pelo harness `d8-brain-harness` (injeção positiva + isolamento por escopo).
-  - **D9** — Status WhatsApp: decisão usa `link_status` + `operational_status`, nunca só `connection_status`.
-  - **D10** — Auditoria de Recepção: cross-check obrigatório entre `whatsapp_audit`, `conversations` e `messages`.
-- 2 Edge Functions de auditoria criadas: `d7-media-harness` e `d8-brain-harness` — não devem ser removidas sem substituto equivalente.
-
-**Docs formais relacionados:**
-- `docs/especificacoes/crm/crm-atendimento.md` §14.1, §14.1.6, §17.1 (D7)
-- `docs/especificacoes/sistema/central-comando.md` §4 (D8 — já existia, mantido)
-- `docs/especificacoes/sistema/edge-functions.md` — nova seção "Edge Functions de Auditoria e Harness"
-- `docs/tecnico/base-de-conhecimento-tecnico.md` §9 — registro completo dos 5 blocos com problema/causa/solução/validação
-
----
-
-## Slot 2 — Assunto ANTERIOR
-
-**Tema:** Diagnóstico do webhook do WhatsApp Meta — evidências já confirmadas pelo usuário
-
-**Resumo:**
-- O usuário já enviou repetidas vezes prints da tela oficial de configuração do webhook no painel de developers da Meta e não deve ser solicitado novamente a reenviar a mesma evidência sem fato novo.
-- Evidência visual já confirmada em `developers.facebook.com/.../whatsapp-business/.../wa-settings/`: URL de callback configurada para o webhook, verify token preenchido, campo `messages` assinado/ativado.
-- Próximos diagnósticos não devem voltar para a etapa de pedir URL/token/messages por print, a menos que haja mudança declarada pelo usuário.
-
-**Docs formais relacionados:**
-- `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` v1.1 (regra de diagnóstico cross-source)
-- `mem://constraints/whatsapp-reception-source-of-truth-cross-check`
-
----
-
-## Regra de rotação
-
-Quando um terceiro assunto entrar em pauta:
-1. Auditar Slot 2 contra os docs (atualizar docs se houver lacuna).
-2. Descartar Slot 2.
-3. Slot 1 vira Slot 2.
-4. Novo assunto entra como Slot 1.
+## 2) Pedidos — alteração manual de status NÃO funciona (NOVO — em diagnóstico)
+- Reportado em: tenant amazgan.
+- Suspeita do usuário: regressão universal (não pode ser específica de tenant).
+- A investigar: RLS de `orders` (UPDATE), trigger que possa estar bloqueando, lógica de UI/edge.
