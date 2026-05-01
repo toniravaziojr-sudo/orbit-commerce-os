@@ -6273,12 +6273,39 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     } catch (e) {
       console.warn("[ai-support-chat] [Reg #2.11] checkout url gate failed:", (e as Error).message);
     }
+    // [Frente 3 — Reg #2.16] Enforce Close On Confirmed Intent.
+    // Se o cliente confirmou fechamento (TPR) e a IA voltou com pergunta
+    // confirmatória sem chamar generate_checkout_link, marcamos como
+    // duplicata semântica para forçar regeneração com tool_choice.
+    let closeLoopDetected = false;
+    let closeLoopReason = "noop";
+    let closeLoopMatch: string | null = null;
+    try {
+      const closeGate = enforceCloseOnConfirmedIntent({
+        aiResponse: aiContent || "",
+        classification: turnClassification,
+        toolResults: toolResultsThisTurn,
+      });
+      closeLoopReason = closeGate.reason;
+      if (closeGate.loopDetected) {
+        closeLoopDetected = true;
+        closeLoopMatch = closeGate.matchedPattern;
+        console.log(
+          `[ai-support-chat] [Frente 3] close_loop_detected reason=${closeGate.reason} match="${closeGate.matchedPattern}"`
+        );
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Frente 3] close loop gate failed:", (e as Error).message);
+    }
+
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
     // Persistida no turn log; usada para detectar repetição por intenção
     // (não só por hash exato) confrontando com as últimas famílias da conversa.
     const intentFamilyOfTurn = classifyIntentFamily(aiContent || "");
-    let semanticDuplicateDetected = false;
-    let semanticDuplicateReason = "noop";
+    let semanticDuplicateDetected = closeLoopDetected; // [Frente 3] herda sinal
+    let semanticDuplicateReason = closeLoopDetected
+      ? `close_loop_${closeLoopReason}`
+      : "noop";
     try {
       const { data: recentFamilyRows } = await supabase
         .from("ai_support_turn_log")
