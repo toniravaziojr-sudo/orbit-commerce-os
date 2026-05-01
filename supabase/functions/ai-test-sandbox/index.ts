@@ -54,17 +54,33 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // -------- Validar usuário autenticado e tenant --------
+    // -------- Detecta Agent Mode (backend automatizado) --------
+    // Agent Mode: header x-agent-mode=true + Authorization com SERVICE_ROLE_KEY.
+    // Só liberado para o tenant fixo Respeite o Homem.
     const authHeader = req.headers.get("Authorization") || "";
     const jwt = authHeader.replace("Bearer ", "").trim();
-    if (!jwt) {
-      return json({ success: false, error: "unauthenticated" }, 200);
+    const agentModeHeader = (req.headers.get("x-agent-mode") || "").toLowerCase() === "true";
+    const isAgentMode = agentModeHeader && jwt === serviceKey;
+
+    let userId: string;
+    if (isAgentMode) {
+      // Valida que o tenant alvo é o permitido. Para 'send' o tenant vem no body;
+      // para 'cleanup' será revalidado depois de carregar a conversa.
+      const targetTenant = (body as SendBody).tenant_id;
+      if (body.action === "send" && targetTenant !== AGENT_MODE_ALLOWED_TENANT) {
+        return json({ success: false, error: "agent_mode_tenant_not_allowed" }, 200);
+      }
+      userId = "agent-mode";
+    } else {
+      if (!jwt) {
+        return json({ success: false, error: "unauthenticated" }, 200);
+      }
+      const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
+      if (userErr || !userData?.user) {
+        return json({ success: false, error: "unauthenticated" }, 200);
+      }
+      userId = userData.user.id;
     }
-    const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
-    if (userErr || !userData?.user) {
-      return json({ success: false, error: "unauthenticated" }, 200);
-    }
-    const userId = userData.user.id;
 
     // ============== CLEANUP ==============
     if (body.action === "cleanup") {
