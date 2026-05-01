@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { QueryErrorState } from "@/components/ui/query-error-state";
-import { MessageSquare, Plug, History, Settings, TrendingUp, Activity } from "lucide-react";
+import { MessageSquare, Plug, History, Settings, TrendingUp, Activity, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -13,6 +13,7 @@ import {
   TransferDialog,
   WhatsappSalesFunnel,
   PipelineFunnelMetrics,
+  AISandboxChat,
 } from "@/components/support";
 import { useConversations, type Conversation } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
