@@ -359,7 +359,12 @@ Deno.serve(async (req) => {
         // Resolver status iniciais (canônicos pós-migração)
         const finalPaymentStatus = toDbPaymentStatus(payment_status_initial || 'awaiting_payment');
         const finalShippingStatus = toDbShippingStatus(shipping_status_initial || 'awaiting_shipment');
-        const finalOrderStatus = order_status_initial || 'pending';
+        // Espelhar fluxo automático: se nasce pago e não foi forçado um order_status, vai para ready_to_invoice
+        // (mesmo destino do pedido aprovado pelo webhook do gateway).
+        let finalOrderStatus = order_status_initial || 'pending';
+        if (!order_status_initial && payment_status_initial === 'paid') {
+          finalOrderStatus = 'ready_to_invoice';
+        }
 
         const insertPayload: Record<string, any> = {
           tenant_id: tenantId,
