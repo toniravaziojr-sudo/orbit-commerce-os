@@ -9,7 +9,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 
-const VERSION = 'v8.8.0';
+const VERSION = 'v9.0.0';
+// v9.0.0 — Rascunho permissivo: criação NÃO depende mais de fiscal_settings.is_configured.
+//          A configuração de emissor é exigida apenas no momento da emissão (fiscal-emit).
+//          Quando settings ausente/não-configurado: numero=0, serie=0 (placeholder).
+//          CRON itera TODOS tenants com pedidos aprovados sem rascunho.
+// v8.8.0 — versão anterior
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
