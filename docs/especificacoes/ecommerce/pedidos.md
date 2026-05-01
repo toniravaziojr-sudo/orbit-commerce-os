@@ -405,6 +405,15 @@ A automação **sinaliza**; a ação destrutiva fica com o operador. A bandeira 
 - `shipments.requires_action`, `action_reason`
 - `fiscal_draft_queue` / `shipping_draft_queue` / `gateway_sync_queue`: `cancelled_at`, `cancel_reason`
 
+**Detalhe técnico crítico (lições do teste E2E 2026-05-01):**
+- As 4 funções de trigger comparam `orders.status` (enum `order_status`) contra `TEXT[]` de estados regressivos. **Postgres não casta enum→text implicitamente em `ANY()`** — sem `NEW.status::text` e `OLD.status::text` toda `UPDATE orders` falha com erro `42883` e bloqueia pagamento, cancelamento, webhooks e cron de expiração em produção. Validação obrigatória ao alterar essas funções: rodar um `UPDATE orders SET status='awaiting_confirmation' WHERE id=...` real antes de fechar a entrega.
+- Quando `resolve_order_shipping_provider` retorna `unresolved` (pedido sem CEP/transportadora resolvida), o pipeline atual ainda enfileira em `shipping_draft_queue` com `provider='manual'` como fallback. Comportamento intencional para que o operador receba a remessa na tela manual.
+
+**Teste E2E executado em 2026-05-01:**
+- 1 pedido fluxo feliz: `pending → awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice_authorized → invoice_issued → dispatched → completed` ✅
+- 5 pedidos regressão: `cancelled`, `payment_expired`, `invoice_cancelled`, `chargeback_detected`, `returned` — todas as 4 triggers e o handler comportaram como especificado ✅
+- Teste rodou no tenant Respeite o Homem com pedidos/cliente/NF-e/remessas marcados `[E2E-TEST]` e `[E2E-REG]`, removidos integralmente ao fim sem rastro.
+
 **Anti-regressão:** ver `mem://constraints/order-cross-module-sync-on-regression`.
 
 ---
