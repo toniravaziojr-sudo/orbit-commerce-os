@@ -1145,6 +1145,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                           <TableCell>
                             <OrderSourceBadge 
                               marketplaceSource={invoice.marketplace_source} 
+                              salesChannel={(invoice as any).sales_channel}
                               size="sm"
                             />
                           </TableCell>
