@@ -86,10 +86,18 @@ export function OrderShippingMethod({ address, items, value, onChange }: OrderSh
   const [isCalculating, setIsCalculating] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   
-  // Get enabled providers that support quotes
+  // Em pedido manual, listamos TODAS as integrações ativas — mesmo as que não suportam cotação automática.
+  // Quando a integração escolhida não tiver cotação, o admin informa transportadora/valor manualmente.
   const enabledProviders = useMemo(() => {
-    return providers.filter(p => p.is_enabled && p.supports_quote);
+    return providers.filter(p => p.is_enabled);
   }, [providers]);
+
+  // Indica se o provedor selecionado suporta cotação automática
+  const selectedProviderSupportsQuote = useMemo(() => {
+    if (!selectedProvider) return false;
+    const p = providers.find(pp => pp.provider === selectedProvider);
+    return !!p?.supports_quote;
+  }, [providers, selectedProvider]);
   
   // Check if address is complete enough for quote
   const isAddressComplete = useMemo(() => {
