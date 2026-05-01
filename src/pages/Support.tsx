@@ -167,6 +167,10 @@ export default function Support() {
               <Activity className="h-4 w-4" />
               Pipeline IA
             </TabsTrigger>
+            <TabsTrigger value="ia-teste" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              IA Teste
+            </TabsTrigger>
           </TabsList>
         </div>
 
