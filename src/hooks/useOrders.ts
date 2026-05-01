@@ -554,30 +554,35 @@ export function useOrderDetails(orderId: string | undefined) {
 
   // ===== UPDATE SHIPPING STATUS VIA CORE API =====
   const updateShippingStatus = useMutation({
-    mutationFn: async ({ orderId, shippingStatus, trackingCode, carrier }: { 
+    mutationFn: async ({ orderId, shippingStatus, trackingCode, carrier, force }: { 
       orderId: string; 
       shippingStatus: ShippingStatus;
       trackingCode?: string;
       carrier?: string;
+      force?: boolean;
     }) => {
       const result = await coreOrdersApi.setShippingStatus(orderId, shippingStatus, {
         tracking_code: trackingCode,
         shipping_carrier: carrier,
+        force,
       });
       
       if (!result.success) {
         if (result.code === 'INVALID_TRANSITION') {
           throw new Error('Transição de status de envio inválida');
         }
+        if (result.code === 'OVERRIDE_FORBIDDEN') {
+          throw new Error(result.error || 'Apenas owner/admin podem forçar alteração');
+        }
         throw new Error(result.error || 'Erro ao atualizar status de envio');
       }
 
       return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
-      toast.success('Status de envio atualizado!');
+      toast.success(data?.manual_override ? 'Envio alterado (override admin)' : 'Status de envio atualizado!');
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar status de envio:', error);
