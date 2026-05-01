@@ -555,3 +555,21 @@ Após o cálculo do `finalResponseHash` (logo depois do bloco de regeneração),
 ---
 
 *Última atualização: 01/mai/2026 (Reg. #2.12 aplicado, validação via sandbox pendente).*
+
+## Reg #2.13 — Greeting Mirror: strip iterativo da cabeça degenerada (2026-05-01)
+
+### Problema
+No teste sandbox da Reg #2.12, o turno 1 produziu `messages.content = "Boa noite, tudo bem? Tudo bem? Me conta o que você está procurando."` — reciprocidade "tudo bem?" duplicada.
+
+### Causa raiz
+Em `supabase/functions/_shared/sales-pipeline/output-gates.ts`, dentro de `gateGreetingMirror`, o `degeneratedHeadRe` rodava UMA vez. Quando a IA gera "Oi! Tudo bem? Me conta…", o regex casa apenas "Oi!" e o `stripped` mantém "Tudo bem? Me conta…". Como o `mandatoryOpening` reconstrói "Boa noite, tudo bem?", o `after` final concatena duas reciprocidades.
+
+### Correção aplicada
+Strip iterativo (até 3 passagens) sobre o `stripped`, removendo qualquer saudação degenerada encadeada antes de prepender o `mandatoryOpening`.
+
+### Memória nova
+- `mem://constraints/greeting-mirror-strip-must-be-iterative`
+
+---
+
+*Última atualização: 01/mai/2026 (Reg. #2.13 aplicado, validação via sandbox pendente).*
