@@ -6428,20 +6428,22 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                     console.log(`[ai-support-chat] [Reg #2.11] post-regen price scrub (${pg.reason})`);
                     aiContent = pg.after;
                   }
+                  const _greetIsRecurring = (messages?.length ?? 0) > 1 || !!customerId;
+                  const _greetCustomerName = conversation?.customer_name || null;
                   const gg = turnClassification.source === "llm"
                     ? gateGreetingMirror({
                         pipelineState,
                         aiResponse: aiContent || "",
                         classification: turnClassification,
-                        isRecurring: greetIsRecurring,
-                        customerName: greetCustomerName,
+                        isRecurring: _greetIsRecurring,
+                        customerName: _greetCustomerName,
                       })
                     : gateGreetingMirrorFallback({
                         pipelineState,
                         aiResponse: aiContent || "",
                         customerMessage: lastMessageContent || "",
-                        isRecurring: greetIsRecurring,
-                        customerName: greetCustomerName,
+                        isRecurring: _greetIsRecurring,
+                        customerName: _greetCustomerName,
                       });
                   if (gg.scrubbed) {
                     console.log(`[ai-support-chat] [Reg #2.11] post-regen greeting gate (${gg.reason})`);
