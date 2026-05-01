@@ -302,19 +302,19 @@ Deno.serve(async (req) => {
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        if (payment_status_initial && !PAYMENT_STATUSES.includes(payment_status_initial)) {
+        if (payment_status_initial && !PAYMENT_STATUSES.includes(payment_status_initial as any)) {
           return new Response(
             JSON.stringify({ success: false, error: 'Invalid payment_status_initial', code: 'INVALID_STATUS' }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        if (shipping_status_initial && !SHIPPING_STATUSES.includes(shipping_status_initial)) {
+        if (shipping_status_initial && !SHIPPING_STATUSES.includes(shipping_status_initial as any)) {
           return new Response(
             JSON.stringify({ success: false, error: 'Invalid shipping_status_initial', code: 'INVALID_STATUS' }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        if (order_status_initial && !ORDER_STATUSES.includes(order_status_initial)) {
+        if (order_status_initial && !ORDER_STATUSES.includes(order_status_initial as any)) {
           return new Response(
             JSON.stringify({ success: false, error: 'Invalid order_status_initial', code: 'INVALID_STATUS' }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
