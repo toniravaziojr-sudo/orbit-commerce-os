@@ -266,13 +266,9 @@ export default function OrderNew() {
       tracking_code: formData.shipping_tracking_code || null,
       customer_notes: formData.customer_notes || null,
       internal_notes: formData.internal_notes || null,
-      // Overrides iniciais opcionais (validados no servidor por role)
-      ...(canOverrideStatus && showInitialOverrides && initialPaymentStatus
-        ? { payment_status_initial: initialPaymentStatus }
-        : {}),
-      ...(canOverrideStatus && showInitialOverrides && initialShippingStatus
-        ? { shipping_status_initial: initialShippingStatus }
-        : {}),
+      // Status iniciais do pedido manual (servidor valida role para aceitar overrides)
+      ...(initialPaymentStatus ? { payment_status_initial: initialPaymentStatus } : {}),
+      ...(initialShippingStatus ? { shipping_status_initial: initialShippingStatus } : {}),
       items: items.map(item => ({
         product_id: item.product_id,
         sku: item.sku,
