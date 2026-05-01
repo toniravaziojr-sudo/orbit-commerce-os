@@ -534,3 +534,24 @@ Memórias a criar e indexar quando os blocos forem aplicados (cada uma vira 1 en
 ---
 
 *Última atualização: 01/mai/2026 (Reg. #2.11 aplicado, validação via sandbox pendente).*
+
+## Reg #2.12 — Persistência da mensagem deve refletir saída pós-gates (2026-05-01)
+
+### Problema
+No teste sandbox da Reg #2.11, o gate de greeting confirmadamente disparou ("prepended_boa noite_with_reciprocity") e mutou `aiContent` em memória de "Oi! Tudo bem?" para "Boa noite! Tudo bem?". Mesmo assim, a mensagem persistida em `messages.content` apareceu como "Oi! Tudo bem?".
+
+### Causa raiz
+A insert de `messages` (STEP 9, ~linha 5748 de `ai-support-chat/index.ts`) acontece **antes** do bloco de gates (price scrub, greeting mirror, checkout URL enforcer) e **antes** da regeneração anti-duplicidade (~linhas 6070–6308). O envio para o WhatsApp (STEP 10) usa `aiContent` já mutado, então o cliente recebe o texto correto, mas o banco fica defasado. Consequências:
+- Histórico/dashboard mostra texto pré-gate.
+- Hash anti-duplicação dos próximos turnos é calculado contra o texto efetivamente enviado, mas o histórico que alimenta o LLM lê o texto antigo.
+- Auditoria fica inconsistente.
+
+### Correção aplicada
+Após o cálculo do `finalResponseHash` (logo depois do bloco de regeneração), executar `UPDATE messages SET content=aiContent WHERE id=newMessage.id`. Tolerante a falha (não bloqueia envio).
+
+### Memória nova
+- `mem://constraints/messages-persistence-must-reflect-post-gates-output`
+
+---
+
+*Última atualização: 01/mai/2026 (Reg. #2.12 aplicado, validação via sandbox pendente).*
