@@ -431,11 +431,14 @@ Deno.serve(async (req) => {
         }
 
         // Create history entry
+        const overrideTag = hasInitialOverride ? '[CRIAÇÃO MANUAL] ' : '';
         await supabase.from('order_history').insert({
           order_id: order.id,
           action: 'order_created',
-          description: `Pedido ${orderNumber} criado`,
-          new_value: { status: 'pending' },
+          description: `${overrideTag}Pedido ${orderNumber} criado` + (hasInitialOverride
+            ? ` (status iniciais: pagamento=${payment_status_initial || 'awaiting_payment'}, envio=${shipping_status_initial || 'awaiting_shipment'}, pedido=${finalOrderStatus})`
+            : ''),
+          new_value: { status: finalOrderStatus, payment_status: finalPaymentStatus, shipping_status: finalShippingStatus, manual_override: hasInitialOverride },
           created_by: userId,
         });
 
