@@ -4156,6 +4156,28 @@ Cliente: "vocês entregam em SP?"
           items: preloadedActiveCart.items.length,
         };
       }
+      // [Frente 3] Auto-Ready: mesmo com carrinho vazio, considerar pronto
+      // para fechar quando há exatamente 1 produto apresentado OU foco ativo.
+      // O handler `generate_checkout_link` (Reg #2.15) tenta auto-popular o
+      // carrinho com qty=1 antes de gerar o link. Sem este auto-ready, o
+      // FIX-B nunca dispara em fluxos onde a IA mostrou o produto mas não
+      // chamou add_to_cart, e a IA cai em loop "Posso gerar o link?".
+      if (!checkoutChecklist.ready) {
+        const presentedIds = (salesMemory?.presented_product_ids || []) as string[];
+        const focusId = currentProductFocus?.product_id || null;
+        const eligibleForAutoAdd =
+          presentedIds.length === 1 || (!!focusId && presentedIds.length <= 1);
+        if (eligibleForAutoAdd) {
+          checkoutChecklist = {
+            ready: true,
+            missing: [],
+            items: 0, // sinaliza "carrinho vazio mas auto-add elegível"
+          };
+          console.log(
+            `[ai-support-chat] [Frente 3] checkout_auto_ready presented=${presentedIds.length} focus=${focusId ?? "none"}`
+          );
+        }
+      }
 
       if (
         !suppressCheckoutContext &&
