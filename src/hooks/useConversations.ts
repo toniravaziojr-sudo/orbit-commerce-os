@@ -53,6 +53,8 @@ export function useConversations(filters?: ConversationFilters) {
         .from('conversations')
         .select('*')
         .eq('tenant_id', currentTenant.id)
+        // Excluir conversas do sandbox de teste da IA (mem://constraints/ai-test-sandbox-mirror-only)
+        .or('metadata->>is_sandbox.is.null,metadata->>is_sandbox.neq.true')
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
       // Filter by status
