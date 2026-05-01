@@ -153,6 +153,7 @@ export function OrderSourceBadge({
 export const MARKETPLACE_OPTIONS = [
   { value: '', label: 'Todas as origens' },
   { value: 'loja', label: 'Loja Própria' },
+  { value: 'venda_ia', label: 'Venda IA' },
   { value: 'mercadolivre', label: 'Mercado Livre' },
   { value: 'shopee', label: 'Shopee' },
   { value: 'tiktokshop', label: 'TikTok Shop' },
