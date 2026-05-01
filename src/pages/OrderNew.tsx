@@ -613,32 +613,55 @@ export default function OrderNew() {
           </CardContent>
         </Card>
 
-        {/* Shipping Method */}
-        <OrderShippingMethod
-          address={{
-            postal_code: formData.shipping_postal_code,
-            street: formData.shipping_street,
-            number: formData.shipping_number,
-            city: formData.shipping_city,
-            state: formData.shipping_state,
-          }}
-          items={items.map(item => ({
-            product_id: item.product_id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-          }))}
-          value={{
-            shipping_method: formData.shipping_method,
-            shipping_carrier: formData.shipping_carrier,
-            shipping_cost: formData.shipping_cost,
-          }}
-          onChange={(data) => setFormData(prev => ({
-            ...prev,
-            shipping_method: data.shipping_method as typeof prev.shipping_method,
-            shipping_carrier: data.shipping_carrier,
-            shipping_cost: data.shipping_cost,
-          }))}
-        />
+        {/* Shipping Method + Status do Envio agrupados */}
+        <div className="space-y-4">
+          <OrderShippingMethod
+            address={{
+              postal_code: formData.shipping_postal_code,
+              street: formData.shipping_street,
+              number: formData.shipping_number,
+              city: formData.shipping_city,
+              state: formData.shipping_state,
+            }}
+            items={items.map(item => ({
+              product_id: item.product_id,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+            }))}
+            value={{
+              shipping_method: formData.shipping_method,
+              shipping_carrier: formData.shipping_carrier,
+              shipping_cost: formData.shipping_cost,
+            }}
+            onChange={(data) => setFormData(prev => ({
+              ...prev,
+              shipping_method: data.shipping_method as typeof prev.shipping_method,
+              shipping_carrier: data.shipping_carrier,
+              shipping_cost: data.shipping_cost,
+            }))}
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Status do Envio</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Use quando o pedido já foi despachado/entregue por fora do sistema.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <Select value={initialShippingStatus} onValueChange={(v) => setInitialShippingStatus(v as any)}>
+                <SelectTrigger><SelectValue placeholder="Aguardando envio (padrão)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="awaiting_shipment">Aguardando envio</SelectItem>
+                  <SelectItem value="label_generated">Etiqueta gerada</SelectItem>
+                  <SelectItem value="shipped">Despachado</SelectItem>
+                  <SelectItem value="in_transit">Em trânsito</SelectItem>
+                  <SelectItem value="arriving">Saiu para entrega</SelectItem>
+                  <SelectItem value="delivered">Entregue</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Products */}
         <Card className="lg:col-span-3">
