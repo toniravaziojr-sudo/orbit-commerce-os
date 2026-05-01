@@ -127,7 +127,8 @@ export const coreOrdersApi = {
   setOrderStatus: async (
     orderId: string,
     newStatus: OrderStatus,
-    notes?: string
+    notes?: string,
+    options?: { force?: boolean }
   ): Promise<CoreApiResponse> => {
     const { data, error } = await supabase.functions.invoke('core-orders', {
       body: {
@@ -135,6 +136,7 @@ export const coreOrdersApi = {
         order_id: orderId,
         new_status: newStatus,
         notes,
+        force: options?.force === true,
       },
     });
     if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
@@ -144,7 +146,8 @@ export const coreOrdersApi = {
   setPaymentStatus: async (
     orderId: string,
     newStatus: PaymentStatus,
-    notes?: string
+    notes?: string,
+    options?: { force?: boolean }
   ): Promise<CoreApiResponse> => {
     const { data, error } = await supabase.functions.invoke('core-orders', {
       body: {
@@ -152,6 +155,7 @@ export const coreOrdersApi = {
         order_id: orderId,
         new_status: newStatus,
         notes,
+        force: options?.force === true,
       },
     });
     if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
@@ -161,7 +165,7 @@ export const coreOrdersApi = {
   setShippingStatus: async (
     orderId: string,
     newStatus: ShippingStatus,
-    options?: { notes?: string; tracking_code?: string; shipping_carrier?: string }
+    options?: { notes?: string; tracking_code?: string; shipping_carrier?: string; force?: boolean }
   ): Promise<CoreApiResponse> => {
     const { data, error } = await supabase.functions.invoke('core-orders', {
       body: {
@@ -169,6 +173,7 @@ export const coreOrdersApi = {
         order_id: orderId,
         new_status: newStatus,
         ...options,
+        force: options?.force === true,
       },
     });
     if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
