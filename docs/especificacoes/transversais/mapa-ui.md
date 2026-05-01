@@ -199,7 +199,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 **E-commerce:**
 - `/orders` — Lista de pedidos
 - `/orders/new` — Novo pedido manual
-- `/orders/:id` — Detalhe do pedido
+- `/orders/:id` — Detalhe do pedido (inclui `OrderRegressionBanner` quando há NF-e/etiqueta com `requires_action = true` por regressão de status — ver `pedidos.md` §4.6)
 - `/abandoned-checkouts` — Checkouts abandonados
 - `/products` — Produtos
 - `/customers` — Clientes
