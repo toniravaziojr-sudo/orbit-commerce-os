@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Search, UserCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Search, UserCheck, Loader2, Info, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Select,
   SelectContent,
@@ -20,6 +21,7 @@ import { useProductsWithImages } from '@/hooks/useProducts';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers, useCustomerAddresses } from '@/hooks/useCustomers';
 import { useCepLookup } from '@/hooks/useCepLookup';
+import { useAuth } from '@/hooks/useAuth';
 import { OrderShippingMethod } from '@/components/orders/OrderShippingMethod';
 import { toast } from 'sonner';
 
