@@ -117,17 +117,17 @@ function fromDbPaymentStatus(db: string | null | undefined): PaymentStatus {
   return PAYMENT_DB_TO_CANONICAL[db] ?? 'awaiting_payment';
 }
 
-// SHIPPING
+// SHIPPING — escrita: canônico → DB (identidade pós-migração)
 const SHIPPING_CANONICAL_TO_DB: Record<string, string> = {
-  awaiting_shipment: 'pending',
-  label_generated: 'processing',
+  awaiting_shipment: 'awaiting_shipment',
+  label_generated: 'label_generated',
   shipped: 'shipped',
   in_transit: 'in_transit',
-  arriving: 'out_for_delivery',
+  arriving: 'arriving',
   delivered: 'delivered',
-  problem: 'failed',
-  awaiting_pickup: 'in_transit',   // sem equivalente direto no enum DB
-  returning: 'returned',
+  problem: 'problem',
+  awaiting_pickup: 'awaiting_pickup',
+  returning: 'returning',
   returned: 'returned',
 };
 const SHIPPING_DB_TO_CANONICAL: Record<string, ShippingStatus> = {
