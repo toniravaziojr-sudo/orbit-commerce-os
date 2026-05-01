@@ -18,10 +18,12 @@ const ORDER_STATUSES = [
   'awaiting_confirmation', 'ready_to_invoice', 'invoice_pending_sefaz', 
   'invoice_authorized', 'invoice_issued', 'dispatched', 'completed', 
   'returning', 'payment_expired', 'invoice_rejected', 'invoice_cancelled',
+  // Chargeback states (canonical, present in DB enum + UI filters)
+  'chargeback_detected', 'chargeback_lost',
   // Legacy values still valid in DB enum
   'pending', 'awaiting_payment', 'paid', 'processing', 'shipped', 'in_transit', 'delivered', 'cancelled', 'returned',
 ] as const;
-const PAYMENT_STATUSES = ['awaiting_payment', 'paid', 'declined', 'cancelled', 'refunded'] as const;
+const PAYMENT_STATUSES = ['awaiting_payment', 'paid', 'declined', 'cancelled', 'refunded', 'under_review'] as const;
 const SHIPPING_STATUSES = ['awaiting_shipment', 'label_generated', 'shipped', 'in_transit', 'arriving', 'delivered', 'problem', 'awaiting_pickup', 'returning', 'returned'] as const;
 
 type OrderStatus = typeof ORDER_STATUSES[number];
