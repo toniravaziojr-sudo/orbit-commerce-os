@@ -78,6 +78,11 @@ export default function OrderNew() {
     shipping_cost: 0,
   });
 
+  // Overrides iniciais (apenas owner/admin) — para pedidos manuais "por fora" do fluxo
+  const [showInitialOverrides, setShowInitialOverrides] = useState(false);
+  const [initialPaymentStatus, setInitialPaymentStatus] = useState<'' | 'awaiting_payment' | 'paid' | 'declined' | 'refunded' | 'cancelled'>('');
+  const [initialShippingStatus, setInitialShippingStatus] = useState<'' | 'awaiting_shipment' | 'label_generated' | 'shipped' | 'in_transit' | 'arriving' | 'delivered'>('');
+
   const [items, setItems] = useState<OrderItemForm[]>([]);
   const [productSearch, setProductSearch] = useState('');
 
