@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Search, UserCheck, Loader2, Info, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Search, UserCheck, Loader2, Info } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,7 @@ import { useProductsWithImages } from '@/hooks/useProducts';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers, useCustomerAddresses } from '@/hooks/useCustomers';
 import { useCepLookup } from '@/hooks/useCepLookup';
-import { useAuth } from '@/hooks/useAuth';
+
 import { OrderShippingMethod } from '@/components/orders/OrderShippingMethod';
 import { toast } from 'sonner';
 
@@ -38,8 +38,6 @@ interface OrderItemForm {
 export default function OrderNew() {
   const navigate = useNavigate();
   const { createOrder } = useOrders();
-  const { hasRole } = useAuth();
-  const canOverrideStatus = hasRole('owner') || hasRole('admin');
   const { products: activeProducts, isLoading: productsLoading } = useProductsWithImages();
   const { products: allProducts, isLoading: allProductsLoading } = useProducts();
   const { customers, isLoading: customersLoading } = useCustomers({ pageSize: 500 });
@@ -78,8 +76,7 @@ export default function OrderNew() {
     shipping_cost: 0,
   });
 
-  // Overrides iniciais (apenas owner/admin) — para pedidos manuais "por fora" do fluxo
-  const [showInitialOverrides, setShowInitialOverrides] = useState(false);
+  // Status iniciais para pedido manual (servidor valida role para aceitar)
   const [initialPaymentStatus, setInitialPaymentStatus] = useState<'' | 'awaiting_payment' | 'paid' | 'declined' | 'refunded' | 'cancelled'>('');
   const [initialShippingStatus, setInitialShippingStatus] = useState<'' | 'awaiting_shipment' | 'label_generated' | 'shipped' | 'in_transit' | 'arriving' | 'delivered'>('');
 
@@ -266,13 +263,9 @@ export default function OrderNew() {
       tracking_code: formData.shipping_tracking_code || null,
       customer_notes: formData.customer_notes || null,
       internal_notes: formData.internal_notes || null,
-      // Overrides iniciais opcionais (validados no servidor por role)
-      ...(canOverrideStatus && showInitialOverrides && initialPaymentStatus
-        ? { payment_status_initial: initialPaymentStatus }
-        : {}),
-      ...(canOverrideStatus && showInitialOverrides && initialShippingStatus
-        ? { shipping_status_initial: initialShippingStatus }
-        : {}),
+      // Status iniciais do pedido manual (servidor valida role para aceitar overrides)
+      ...(initialPaymentStatus ? { payment_status_initial: initialPaymentStatus } : {}),
+      ...(initialShippingStatus ? { shipping_status_initial: initialShippingStatus } : {}),
       items: items.map(item => ({
         product_id: item.product_id,
         sku: item.sku,
@@ -451,23 +444,6 @@ export default function OrderNew() {
                 />
                 <p className="text-xs text-muted-foreground">Obrigatório para emissão de NF-e</p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="payment_method">Método de Pagamento</Label>
-                <Select
-                  value={formData.payment_method}
-                  onValueChange={(value) => setFormData({ ...formData, payment_method: value as PaymentMethod })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pix">PIX</SelectItem>
-                    <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
-                    <SelectItem value="debit_card">Cartão de Débito</SelectItem>
-                    <SelectItem value="boleto">Boleto</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -494,63 +470,42 @@ export default function OrderNew() {
               <span>Total</span>
               <span>R$ {total.toFixed(2)}</span>
             </div>
-            {/* Bloco de Status Iniciais — apenas owner/admin */}
-            {canOverrideStatus && (
-              <div className="border-t pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="initial-overrides" className="flex items-center gap-2 cursor-pointer">
-                    <ShieldAlert className="h-4 w-4 text-warning" />
-                    Definir status iniciais (override admin)
-                  </Label>
-                  <Switch
-                    id="initial-overrides"
-                    checked={showInitialOverrides}
-                    onCheckedChange={(c) => {
-                      setShowInitialOverrides(c);
-                      if (!c) {
-                        setInitialPaymentStatus('');
-                        setInitialShippingStatus('');
-                      }
-                    }}
-                  />
-                </div>
-                {showInitialOverrides && (
-                  <div className="space-y-3 rounded-md border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">
-                      Use quando o pedido vier "por fora" do sistema (ex.: já pago, já despachado).
-                      Será registrado como criação manual no histórico.
-                    </p>
-                    <div className="space-y-2">
-                      <Label className="text-xs">Status do Pagamento</Label>
-                      <Select value={initialPaymentStatus} onValueChange={(v) => setInitialPaymentStatus(v as any)}>
-                        <SelectTrigger><SelectValue placeholder="Padrão (aguardando pagamento)" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="awaiting_payment">Aguardando pagamento</SelectItem>
-                          <SelectItem value="paid">Pago</SelectItem>
-                          <SelectItem value="declined">Recusado</SelectItem>
-                          <SelectItem value="refunded">Estornado</SelectItem>
-                          <SelectItem value="cancelled">Cancelado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs">Status do Envio</Label>
-                      <Select value={initialShippingStatus} onValueChange={(v) => setInitialShippingStatus(v as any)}>
-                        <SelectTrigger><SelectValue placeholder="Padrão (aguardando envio)" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="awaiting_shipment">Aguardando envio</SelectItem>
-                          <SelectItem value="label_generated">Etiqueta gerada</SelectItem>
-                          <SelectItem value="shipped">Despachado</SelectItem>
-                          <SelectItem value="in_transit">Em trânsito</SelectItem>
-                          <SelectItem value="arriving">Saiu para entrega</SelectItem>
-                          <SelectItem value="delivered">Entregue</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                )}
+            {/* Pagamento — meio + status (sempre visível em pedido manual) */}
+            <div className="border-t pt-4 space-y-3">
+              <Label className="flex items-center gap-2 text-sm font-semibold">
+                Pagamento
+              </Label>
+              <div className="space-y-2">
+                <Label htmlFor="payment_method" className="text-xs text-muted-foreground">Meio de pagamento *</Label>
+                <Select
+                  value={formData.payment_method}
+                  onValueChange={(value) => setFormData({ ...formData, payment_method: value as PaymentMethod })}
+                >
+                  <SelectTrigger id="payment_method">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pix">PIX</SelectItem>
+                    <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
+                    <SelectItem value="debit_card">Cartão de Débito</SelectItem>
+                    <SelectItem value="boleto">Boleto</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Status do pagamento</Label>
+                <Select value={initialPaymentStatus} onValueChange={(v) => setInitialPaymentStatus(v as any)}>
+                  <SelectTrigger><SelectValue placeholder="Aguardando pagamento (padrão)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="awaiting_payment">Aguardando pagamento</SelectItem>
+                    <SelectItem value="paid">Pago</SelectItem>
+                    <SelectItem value="declined">Recusado</SelectItem>
+                    <SelectItem value="refunded">Estornado</SelectItem>
+                    <SelectItem value="cancelled">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
             <Button 
               type="submit" 
@@ -651,32 +606,55 @@ export default function OrderNew() {
           </CardContent>
         </Card>
 
-        {/* Shipping Method */}
-        <OrderShippingMethod
-          address={{
-            postal_code: formData.shipping_postal_code,
-            street: formData.shipping_street,
-            number: formData.shipping_number,
-            city: formData.shipping_city,
-            state: formData.shipping_state,
-          }}
-          items={items.map(item => ({
-            product_id: item.product_id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-          }))}
-          value={{
-            shipping_method: formData.shipping_method,
-            shipping_carrier: formData.shipping_carrier,
-            shipping_cost: formData.shipping_cost,
-          }}
-          onChange={(data) => setFormData(prev => ({
-            ...prev,
-            shipping_method: data.shipping_method as typeof prev.shipping_method,
-            shipping_carrier: data.shipping_carrier,
-            shipping_cost: data.shipping_cost,
-          }))}
-        />
+        {/* Shipping Method + Status do Envio agrupados */}
+        <div className="space-y-4">
+          <OrderShippingMethod
+            address={{
+              postal_code: formData.shipping_postal_code,
+              street: formData.shipping_street,
+              number: formData.shipping_number,
+              city: formData.shipping_city,
+              state: formData.shipping_state,
+            }}
+            items={items.map(item => ({
+              product_id: item.product_id,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+            }))}
+            value={{
+              shipping_method: formData.shipping_method,
+              shipping_carrier: formData.shipping_carrier,
+              shipping_cost: formData.shipping_cost,
+            }}
+            onChange={(data) => setFormData(prev => ({
+              ...prev,
+              shipping_method: data.shipping_method as typeof prev.shipping_method,
+              shipping_carrier: data.shipping_carrier,
+              shipping_cost: data.shipping_cost,
+            }))}
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Status do Envio</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Use quando o pedido já foi despachado/entregue por fora do sistema.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <Select value={initialShippingStatus} onValueChange={(v) => setInitialShippingStatus(v as any)}>
+                <SelectTrigger><SelectValue placeholder="Aguardando envio (padrão)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="awaiting_shipment">Aguardando envio</SelectItem>
+                  <SelectItem value="label_generated">Etiqueta gerada</SelectItem>
+                  <SelectItem value="shipped">Despachado</SelectItem>
+                  <SelectItem value="in_transit">Em trânsito</SelectItem>
+                  <SelectItem value="arriving">Saiu para entrega</SelectItem>
+                  <SelectItem value="delivered">Entregue</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Products */}
         <Card className="lg:col-span-3">
