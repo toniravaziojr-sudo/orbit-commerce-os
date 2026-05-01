@@ -375,15 +375,30 @@ async function callSubFunction(
       body: JSON.stringify(body),
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      return { ok: true, data };
-    } else {
+    // Padrão do projeto: edge functions retornam 200 + { success: false } para erros de negócio.
+    // Validar AMBOS: HTTP status E envelope `success`.
+    if (!response.ok) {
       const errorText = await response.text();
-      return { ok: false, error: `${response.status} - ${errorText}` };
+      return { ok: false, error: `HTTP ${response.status} - ${errorText}` };
     }
+
+    let data: any = null;
+    try {
+      data = await response.json();
+    } catch {
+      // Resposta sem JSON válido — tratamos como sucesso técnico (HTTP ok)
+      return { ok: true, data: null };
+    }
+
+    // Se a função retornou explicitamente success:false, é falha de negócio
+    if (data && typeof data === 'object' && data.success === false) {
+      const errMsg = data.error || data.message || 'Falha de negócio (success:false)';
+      return { ok: false, data, error: String(errMsg) };
+    }
+
+    return { ok: true, data };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? "Erro interno. Se o problema persistir, entre em contato com o suporte." : String(error) };
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
