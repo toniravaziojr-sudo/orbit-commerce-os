@@ -99,26 +99,31 @@ async function processTenanDrafts(
   const mode = singleOrderId ? 'TRIGGER' : 'BATCH';
   console.log(`[fiscal-auto-create-drafts][${VERSION}] Starting ${mode} for tenant:`, tenantId, singleOrderId ? `order: ${singleOrderId}` : '');
 
-  // Get fiscal settings
-  const { data: fiscalSettings, error: settingsError } = await supabase
+  // Get fiscal settings (OPTIONAL — rascunho NÃO depende de configuração fiscal)
+  // Configuração só é exigida no momento da emissão (fiscal-emit).
+  const { data: fiscalSettingsRaw } = await supabase
     .from('fiscal_settings')
     .select('*')
     .eq('tenant_id', tenantId)
-    .single();
+    .maybeSingle();
 
-  if (settingsError || !fiscalSettings || !fiscalSettings.is_configured) {
-    console.log('[fiscal-auto-create-drafts] Fiscal not configured for tenant', tenantId);
-    // Throw so queue item stays pending and will be retried when settings exist
-    throw new Error('FISCAL_NOT_CONFIGURED');
+  const isFiscalConfigured = !!(fiscalSettingsRaw && fiscalSettingsRaw.is_configured);
+
+  // Defaults seguros para rascunho permissivo (usados quando emissor não configurado)
+  const fiscalSettings: any = fiscalSettingsRaw || {};
+  const serieNfe = isFiscalConfigured ? (fiscalSettings.serie_nfe || 1) : 0; // 0 = placeholder draft
+
+  let nextNumeroCursor = 0; // 0 = placeholder; só pré-aloca numeração quando configurado
+  if (isFiscalConfigured) {
+    nextNumeroCursor = await getNextFiscalNumber({
+      supabase,
+      tenantId,
+      serie: serieNfe,
+      fallbackNumeroAtual: fiscalSettings.numero_nfe_atual,
+    });
+  } else {
+    console.log(`[fiscal-auto-create-drafts] Tenant ${tenantId} sem emissor configurado — criando rascunho placeholder (numero=0, serie=0)`);
   }
-
-  const serieNfe = fiscalSettings.serie_nfe || 1;
-  let nextNumeroCursor = await getNextFiscalNumber({
-    supabase,
-    tenantId,
-    serie: serieNfe,
-    fallbackNumeroAtual: fiscalSettings.numero_nfe_atual,
-  });
 
   // Get paid orders without invoices
   let query = supabase
