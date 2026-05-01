@@ -55,8 +55,8 @@ export function OrderRegressionBanner({ orderId }: { orderId?: string }) {
                 <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">
-                    NF-e {inv.number ? `#${inv.number}` : "(sem número)"}{" "}
-                    {inv.series ? `• Série ${inv.series}` : ""}
+                    NF-e {inv.numero ? `#${inv.numero}` : "(sem número)"}{" "}
+                    {inv.serie ? `• Série ${inv.serie}` : ""}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Status atual: {inv.status} • Motivo: {reasonText(inv.action_reason)}
@@ -83,7 +83,7 @@ export function OrderRegressionBanner({ orderId }: { orderId?: string }) {
                     Etiqueta {sh.tracking_code ?? "(sem código)"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Status atual: {sh.status ?? "—"} • Motivo:{" "}
+                    Status atual: {sh.delivery_status ?? "—"} • Motivo:{" "}
                     {reasonText(sh.action_reason)}
                   </p>
                 </div>
