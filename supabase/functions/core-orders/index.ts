@@ -649,7 +649,7 @@ Deno.serve(async (req) => {
       }
 
       case 'set_order_status': {
-        const { new_status, notes } = payload;
+        const { new_status, notes, force } = payload;
         
         if (!ORDER_STATUSES.includes(new_status)) {
           return new Response(
@@ -674,9 +674,22 @@ Deno.serve(async (req) => {
         }
 
         const currentStatus = order.status as OrderStatus;
-        
-        // Validate transition
-        if (!isValidTransition(ORDER_TRANSITIONS, currentStatus, new_status)) {
+        const isOverride = force === true;
+
+        // Override gating: only owner/admin may bypass the state machine
+        if (isOverride && !['owner', 'admin'].includes(roleCheck.role)) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Apenas owner/admin podem forçar alteração de status',
+              code: 'OVERRIDE_FORBIDDEN',
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Validate transition (skipped only on explicit override)
+        if (!isOverride && !isValidTransition(ORDER_TRANSITIONS, currentStatus, new_status)) {
           return new Response(
             JSON.stringify({ 
               success: false, 
@@ -703,11 +716,12 @@ Deno.serve(async (req) => {
           return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'set_status' });
         }
 
-        // Create order history entry
+        // Create order history entry (flag override in description for visibility)
+        const overridePrefix = isOverride ? '[OVERRIDE ADMIN] ' : '';
         await supabase.from('order_history').insert({
           order_id,
           status: new_status,
-          description: notes || `Status alterado de ${currentStatus} para ${new_status}`,
+          description: notes || `${overridePrefix}Status alterado de ${currentStatus} para ${new_status}`,
           created_by: userId,
         });
 
@@ -716,25 +730,26 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           entity_type: 'order',
           entity_id: order_id,
-          action: 'set_order_status',
+          action: isOverride ? 'set_order_status_override' : 'set_order_status',
           before_json: { status: currentStatus },
-          after_json: { status: new_status },
+          after_json: { status: new_status, manual_override: isOverride },
           changed_fields: ['status'],
           actor_user_id: userId,
           source: 'core-orders',
           correlation_id: correlationId,
         });
 
-        // Emit event
+        // Emit event with override flag so consumers can decide
         await emitEvent(supabase, tenantId, 'order.status_changed', order_id, {
           order_id,
           order_number: order.order_number,
           from_status: currentStatus,
           to_status: new_status,
+          is_manual_override: isOverride,
         }, `order_status_${order_id}_${new_status}_${Date.now()}`);
 
         return new Response(
-          JSON.stringify({ success: true, data: { order_id, status: new_status } }),
+          JSON.stringify({ success: true, data: { order_id, status: new_status, manual_override: isOverride } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
