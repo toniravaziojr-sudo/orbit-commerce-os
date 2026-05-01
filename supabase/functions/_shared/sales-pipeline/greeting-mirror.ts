@@ -1,13 +1,27 @@
 // ============================================================
-// Pipeline F2 — Greeting Mirror
+// Pipeline F2 — Greeting Mirror (Frente 8 — Saudação Formal)
 //
-// Extrai os tokens de saudação da última mensagem do cliente
-// (período do dia + saudação informal + "tudo bem?") e monta a
-// ABERTURA OBRIGATÓRIA que a IA precisa usar literalmente.
+// REGRA DE PRODUTO (Reg #5, 01/mai/2026):
+// A IA SEMPRE responde de forma formal, sem gírias, mesmo que o
+// cliente abra com "Eai", "Opa", "Salve". Mapeamento:
+//   "eai", "opa", "salve", "hey", "oi"  → "Olá"
+//   "olá"                                → "Olá"
+//   (sem saudação verbal)                → "Olá"
 //
-// Por que mecânico: o modelo (Gemini Flash) frequentemente
-// "resume" a saudação e descarta o "boa noite". Em vez de pedir
-// gentileza, calculamos a string e mandamos a IA começar com ela.
+// Período do dia:
+// - Se o cliente disse "bom dia/boa tarde/boa noite", ECOA o que ele disse.
+// - Se NÃO disse, calculamos pelo horário em BRT (America/Sao_Paulo).
+//
+// "Tudo bem?":
+// - SEMPRE incluir na primeira saudação do turno (mesmo se o cliente não perguntou).
+// - Linguagem formal padrão.
+//
+// Cliente recorrente (já apareceu no histórico recente da conversa):
+// - "Como posso ajudar HOJE?" em vez de "Como posso ajudar?"
+// - Se conhecemos o nome, usar "Olá, [Nome]!" — caso contrário só "Olá".
+//
+// O tenant pode futuramente sobrescrever via ai_support_config.greeting_style
+// (formal | casual). Padrão = formal.
 // ============================================================
 
 function normalize(s: string): string {
@@ -22,84 +36,117 @@ function normalize(s: string): string {
 
 export interface GreetingEcho {
   hasGreeting: boolean;
-  period: "bom dia" | "boa tarde" | "boa noite" | null;
-  hello: "oi" | "olá" | null;
+  /** Período detectado/calculado — sempre presente. */
+  period: "bom dia" | "boa tarde" | "boa noite";
+  /** Se o cliente DISSE o período (true) ou se calculamos pelo horário (false). */
+  periodEchoed: boolean;
   askedHowAreYou: boolean;
-  // Frase literal que a IA DEVE usar para começar a resposta.
+  /** Cliente recorrente — usa "hoje" no fechamento. */
+  isRecurring: boolean;
+  /** Nome a usar (apenas se conhecido E recorrente). */
+  customerName: string | null;
+  /** Frase literal que a IA DEVE usar para começar a resposta. */
   mandatoryOpening: string;
 }
 
-export function detectGreetingEcho(userMessage: string): GreetingEcho {
+export interface GreetingEchoOptions {
+  /** Cliente já apareceu no histórico recente (>=1 mensagem anterior). */
+  isRecurring?: boolean;
+  /** Primeiro nome do cliente, se conhecido (usar só com isRecurring=true). */
+  customerName?: string | null;
+  /** Override de horário em ms (testes). Padrão: Date.now(). */
+  nowMs?: number;
+}
+
+/**
+ * Calcula o período do dia em BRT (America/Sao_Paulo, UTC-3).
+ *  5h–11h59 → bom dia
+ * 12h–17h59 → boa tarde
+ * 18h–4h59  → boa noite
+ */
+export function computePeriodBRT(nowMs: number = Date.now()): "bom dia" | "boa tarde" | "boa noite" {
+  // BRT é UTC-3 fixo (Brasil não usa horário de verão desde 2019).
+  const brtMs = nowMs - 3 * 60 * 60 * 1000;
+  const hour = new Date(brtMs).getUTCHours();
+  if (hour >= 5 && hour < 12) return "bom dia";
+  if (hour >= 12 && hour < 18) return "boa tarde";
+  return "boa noite";
+}
+
+export function detectGreetingEcho(
+  userMessage: string,
+  opts: GreetingEchoOptions = {},
+): GreetingEcho {
   const text = normalize(userMessage);
 
-  let period: GreetingEcho["period"] = null;
-  if (/\bbom dia\b/.test(text)) period = "bom dia";
-  else if (/\bboa tarde\b/.test(text)) period = "boa tarde";
-  else if (/\bboa noite\b/.test(text)) period = "boa noite";
+  // Período: ecoa se o cliente disse, senão calcula pelo horário BRT.
+  let period: GreetingEcho["period"];
+  let periodEchoed = false;
+  if (/\bbom dia\b/.test(text)) {
+    period = "bom dia";
+    periodEchoed = true;
+  } else if (/\bboa tarde\b/.test(text)) {
+    period = "boa tarde";
+    periodEchoed = true;
+  } else if (/\bboa noite\b/.test(text)) {
+    period = "boa noite";
+    periodEchoed = true;
+  } else {
+    period = computePeriodBRT(opts.nowMs);
+  }
 
-  let hello: GreetingEcho["hello"] = null;
-  if (/\bola\b/.test(text)) hello = "olá";
-  else if (/\b(oi|opa|eai|e ai|hey|hello)\b/.test(text)) hello = "oi";
+  // Detecta saudação verbal do cliente (não importa qual — sempre vira "Olá").
+  const hasVerbalGreeting =
+    /\b(ola|oi|opa|eai|e ai|salve|hey|hello|hi|alo|alô)\b/.test(text);
 
   const askedHowAreYou =
     /\b(tudo bem|tudo bom|td bem|td bom|tudo certo|como vai|como esta|como voce esta|beleza|blz)\b/.test(text);
 
-  const hasGreeting = !!(period || hello || askedHowAreYou);
+  const hasGreeting = hasVerbalGreeting || periodEchoed || askedHowAreYou;
 
-  // Monta a abertura literal preservando a ordem natural: oi → período → tudo bem
-  const parts: string[] = [];
-  if (hello && period) {
-    // "Oi, boa noite" / "Olá, bom dia"
-    parts.push(`${capitalize(hello)}, ${period}`);
-  } else if (period) {
-    parts.push(capitalize(period));
-  } else if (hello) {
-    parts.push(capitalize(hello));
-  }
+  const isRecurring = !!opts.isRecurring;
+  const customerName = isRecurring && opts.customerName ? opts.customerName.trim().split(/\s+/)[0] : null;
 
-  let opening = parts.join("");
-  if (askedHowAreYou) {
-    opening = opening ? `${opening}, tudo bem?` : "Tudo bem?";
-  } else if (opening) {
-    opening = `${opening}!`;
-  }
+  // Monta saudação formal padrão: "Olá[, Nome], [período], tudo bem?"
+  const helloPart = customerName ? `Olá, ${customerName}` : "Olá";
+  const mandatoryOpening = `${helloPart}, ${period}, tudo bem?`;
 
   return {
     hasGreeting,
     period,
-    hello,
+    periodEchoed,
     askedHowAreYou,
-    mandatoryOpening: opening,
+    isRecurring,
+    customerName,
+    mandatoryOpening,
   };
-}
-
-function capitalize(s: string): string {
-  if (!s) return s;
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // Bloco de contexto a ser injetado no prompt do estado greeting.
 // Vai DEPOIS do guardrail, então tem precedência sobre tudo.
 export function buildGreetingMirrorBlock(echo: GreetingEcho): string | null {
-  if (!echo.hasGreeting || !echo.mandatoryOpening) return null;
+  if (!echo.hasGreeting) return null;
+
+  const closer = echo.isRecurring
+    ? "Como posso ajudar hoje?"
+    : "Como posso ajudar?";
 
   return [
-    "### ABERTURA OBRIGATÓRIA DESTE TURNO (REGRA MECÂNICA)",
-    `O cliente usou esta saudação. Sua resposta DEVE começar LITERALMENTE com:`,
+    "### ABERTURA OBRIGATÓRIA DESTE TURNO (REGRA MECÂNICA — TOM FORMAL)",
+    `Sua resposta DEVE começar LITERALMENTE com:`,
     ``,
     `  "${echo.mandatoryOpening}"`,
     ``,
-    "Depois desse início obrigatório, complete com UMA frase curta convidando",
-    'o cliente a contar o que precisa (ex: "Me conta, como posso te ajudar?",',
-    '"Me diz o que você procura, estou aqui pra ajudar.").',
+    `Depois, encerre com EXATAMENTE: "${closer}"`,
     "",
     "É PROIBIDO:",
-    "- Trocar a saudação por outra (ex: cliente disse 'boa noite' → você responder só 'Oi!').",
-    "- Omitir o período do dia se o cliente usou um.",
-    "- Omitir o 'tudo bem?' se o cliente perguntou.",
-    "- Usar 'Como posso te ajudar hoje?' ou variações corporativas.",
+    "- Usar gírias como 'Eai', 'Opa', 'Salve', 'Beleza', 'Tranquilo', mesmo se o cliente usou.",
+    "- Trocar 'Olá' por 'Oi' (sempre 'Olá' — tom formal padrão).",
+    `- Trocar o período do dia ('${echo.period}' está correto para o horário atual em BRT).`,
+    "- Omitir 'tudo bem?'.",
+    "- Adicionar perguntas extras antes do fechamento (ex: 'Me conta o que procura?').",
     "",
     "Exemplo do formato final esperado:",
-    `  "${echo.mandatoryOpening} Me conta, como posso te ajudar?"`,
+    `  "${echo.mandatoryOpening} ${closer}"`,
   ].join("\n");
 }
