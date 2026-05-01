@@ -82,16 +82,16 @@ const SHIPPING_TRANSITIONS: Record<ShippingStatus, ShippingStatus[]> = {
 };
 
 // ===== CANONICAL <-> DB ENUM TRANSLATORS =====
-// O enum do banco (payment_status / shipping_status) ainda usa vocabulário legado
-// (approved/pending/processing/out_for_delivery/failed). A UI e este edge falam o
-// vocabulário canônico novo (paid/awaiting_payment/awaiting_shipment/...).
-// Estes tradutores são a ponte oficial entre os dois mundos para EVITAR migração de enum
-// (que quebraria webhooks de gateways que ainda gravam valores legados).
+// Após a migração 2026-05-01 que expandiu os enums payment_status/shipping_status,
+// os valores canônicos novos (paid, awaiting_payment, awaiting_shipment, label_generated,
+// arriving, awaiting_pickup, problem, returning, chargeback_lost) passam direto.
+// Os mapas abaixo só ainda existem para compat REVERSA: ler valores legados gravados
+// por webhooks antigos de gateways e normalizá-los para o vocabulário canônico.
 
-// PAYMENT
+// PAYMENT — escrita: canônico → DB (identidade; legado também ainda é aceito pelo enum)
 const PAYMENT_CANONICAL_TO_DB: Record<string, string> = {
-  awaiting_payment: 'pending',   // canônico → enum DB
-  paid: 'approved',
+  awaiting_payment: 'awaiting_payment',
+  paid: 'paid',
   declined: 'declined',
   cancelled: 'cancelled',
   refunded: 'refunded',
