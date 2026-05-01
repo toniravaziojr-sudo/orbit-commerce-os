@@ -316,21 +316,24 @@ export function useOrders(options?: {
 
   // ===== UPDATE ORDER STATUS VIA CORE API =====
   const updateOrderStatus = useMutation({
-    mutationFn: async ({ orderId, status, reason }: { orderId: string; status: OrderStatus; reason?: string }) => {
-      const result = await coreOrdersApi.setOrderStatus(orderId, status, reason);
+    mutationFn: async ({ orderId, status, reason, force }: { orderId: string; status: OrderStatus; reason?: string; force?: boolean }) => {
+      const result = await coreOrdersApi.setOrderStatus(orderId, status, reason, { force });
       
       if (!result.success) {
         if (result.code === 'INVALID_TRANSITION') {
           throw new Error('Transição de status inválida');
+        }
+        if (result.code === 'OVERRIDE_FORBIDDEN') {
+          throw new Error(result.error || 'Apenas owner/admin podem forçar alteração de status');
         }
         throw new Error(result.error || 'Erro ao atualizar status');
       }
 
       return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['orders', currentTenant?.id] });
-      toast.success('Status atualizado!');
+      toast.success(data?.manual_override ? 'Status alterado (override admin)' : 'Status atualizado!');
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar status:', error);
