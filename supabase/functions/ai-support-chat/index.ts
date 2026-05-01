@@ -6316,6 +6316,25 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // Recalcula hash final caso regeneração tenha trocado o texto
     const finalResponseHash = regenerationSucceeded ? await hashResponse(aiContent || "") : responseHash;
 
+    // [Reg #2.12] SYNC PERSISTÊNCIA PÓS-GATES
+    // A mensagem foi inserida em STEP 9 antes dos gates rodarem (price scrub,
+    // greeting mirror, checkout url enforcer, regeneração anti-dup). Se algum
+    // gate mutou aiContent, o registro em `messages.content` ficou defasado
+    // em relação ao que vai ser enviado pelo WhatsApp — quebrando histórico,
+    // hash anti-dup do próximo turno e dashboard.
+    // Este UPDATE alinha o que está no banco com o que será efetivamente
+    // entregue ao cliente. Tolerante a falha (não bloqueia o envio).
+    try {
+      if (newMessage?.id) {
+        await supabase
+          .from("messages")
+          .update({ content: aiContent })
+          .eq("id", newMessage.id);
+      }
+    } catch (syncErr) {
+      console.warn("[ai-support-chat] [Reg #2.12] post-gates content sync failed:", (syncErr as Error).message);
+    }
+
     // [PACOTE 3] Decidir last_pending_action a persistir.
     //
     // Regras:
