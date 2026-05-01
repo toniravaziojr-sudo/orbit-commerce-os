@@ -493,22 +493,25 @@ export function useOrderDetails(orderId: string | undefined) {
 
   // ===== UPDATE PAYMENT STATUS VIA CORE API =====
   const updatePaymentStatus = useMutation({
-    mutationFn: async ({ orderId, paymentStatus }: { orderId: string; paymentStatus: PaymentStatus }) => {
-      const result = await coreOrdersApi.setPaymentStatus(orderId, paymentStatus);
+    mutationFn: async ({ orderId, paymentStatus, force }: { orderId: string; paymentStatus: PaymentStatus; force?: boolean }) => {
+      const result = await coreOrdersApi.setPaymentStatus(orderId, paymentStatus, undefined, { force });
       
       if (!result.success) {
         if (result.code === 'INVALID_TRANSITION') {
           throw new Error('Transição de status de pagamento inválida');
+        }
+        if (result.code === 'OVERRIDE_FORBIDDEN') {
+          throw new Error(result.error || 'Apenas owner/admin podem forçar alteração');
         }
         throw new Error(result.error || 'Erro ao atualizar status de pagamento');
       }
 
       return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
-      toast.success('Status de pagamento atualizado!');
+      toast.success(data?.manual_override ? 'Pagamento alterado (override admin)' : 'Status de pagamento atualizado!');
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar status de pagamento:', error);
