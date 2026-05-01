@@ -48,6 +48,7 @@ const SOURCE_ICONS: Record<string, React.ReactNode> = {
   direct: <MousePointerClick className="h-4 w-4 text-gray-400" />,
   bing: <Search className="h-4 w-4 text-teal-500" />,
   bing_ads: <span className="text-teal-500">B</span>,
+  ai_atendimento: <span className="text-primary">🤖</span>,
 };
 
 // Labels for sources
