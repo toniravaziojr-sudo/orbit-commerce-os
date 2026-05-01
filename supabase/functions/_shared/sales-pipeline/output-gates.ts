@@ -299,3 +299,59 @@ export function enforceCheckoutUrlInText(input: {
     url,
   };
 }
+
+// ----------------------------------------------------------------
+// [Frente 3 — Reg #2.16] Enforce Close On Confirmed Intent
+//
+// Detecta o loop "Posso gerar o link?" quando o cliente JÁ confirmou
+// fechamento. Se TPR.confirmed_purchase_intent OU asked_about_payment_or_link,
+// E a resposta da IA contém pergunta confirmatória de fechamento,
+// E nenhuma generate_checkout_link foi chamada com sucesso este turno
+// → marca como duplicata semântica para forçar regeneração com tool_choice.
+//
+// NÃO reescreve o texto (a IA precisa rodar de novo com força). Apenas
+// sinaliza ao orquestrador. Latência zero.
+// ----------------------------------------------------------------
+
+export interface CloseLoopGateResult {
+  loopDetected: boolean;
+  reason: string;
+  matchedPattern: string | null;
+}
+
+const CLOSE_CONFIRMATION_QUESTION_RE =
+  /\b(posso\s+(gerar|mandar|enviar|finalizar|seguir)\s+(o\s+)?(link|pedido|fechamento|com)|quer\s+que\s+eu\s+(gere|mande|envie|finalize|fa[çc]a)\s+(o\s+)?(link|pedido|fechamento)|confirma\s+(que|se)\s+(quer|vai|posso)|posso\s+seguir\s+com\s+(o\s+)?(pedido|fechamento)|vamos\s+fechar\??\s*$|conseguiu\s+pegar\s+os\s+dados)\b/i;
+
+export function enforceCloseOnConfirmedIntent(input: {
+  aiResponse: string;
+  classification: TurnClassification;
+  toolResults: Array<{ tool: string; parsed: unknown }>;
+}): CloseLoopGateResult {
+  const { aiResponse, classification: c, toolResults } = input;
+  const noop: CloseLoopGateResult = { loopDetected: false, reason: "noop", matchedPattern: null };
+  if (!aiResponse) return { ...noop, reason: "empty_response" };
+
+  const clientConfirmed = !!(c?.confirmed_purchase_intent || c?.asked_about_payment_or_link);
+  if (!clientConfirmed) return { ...noop, reason: "client_did_not_confirm" };
+
+  // Se a tool de checkout foi chamada com sucesso este turno, não é loop.
+  const checkoutCalledOk = toolResults.some((r) => {
+    if (r.tool !== "generate_checkout_link") return false;
+    const p = r.parsed as Record<string, unknown> | null;
+    return !!(p && typeof p === "object" && p.success === true && typeof p.checkout_url === "string");
+  });
+  if (checkoutCalledOk) return { ...noop, reason: "checkout_link_generated_ok" };
+
+  // Se a resposta JÁ contém uma URL http(s), provavelmente o link foi entregue
+  // via outro caminho — não bloqueia.
+  if (/https?:\/\/[^\s]+/i.test(aiResponse)) return { ...noop, reason: "url_already_in_text" };
+
+  const m = CLOSE_CONFIRMATION_QUESTION_RE.exec(aiResponse);
+  if (!m) return { ...noop, reason: "no_confirmation_question" };
+
+  return {
+    loopDetected: true,
+    reason: "client_confirmed_but_ai_asked_again",
+    matchedPattern: m[0],
+  };
+}

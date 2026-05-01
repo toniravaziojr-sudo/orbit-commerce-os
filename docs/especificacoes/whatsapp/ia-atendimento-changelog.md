@@ -678,3 +678,29 @@ A IA, em modo vendas, podia perguntar "qual tamanho/cor/sabor?" para produtos qu
 
 ### Anti-regressão
 - Memória nova: `mem://constraints/ai-variant-question-only-when-cataloged` — IA só pergunta variante quando o produto realmente tem variantes ativas múltiplas; proibido inventar.
+
+---
+
+## Registro #7 — 01/mai/2026 — Fechamento sem loop em intenção confirmada (Frente 3)
+
+### Sintoma
+Cliente confirmava fechamento ("manda o link", "pode gerar", "sim, fecha") e a IA respondia com nova pergunta de confirmação ("Posso gerar o link de pagamento pra você?", "Quer que eu finalize?"). Loop derrubava a venda sem que o link fosse entregue.
+
+### Diagnóstico
+Duas falhas combinadas:
+1. **Camada de prevenção (FIX-B / Reg #2.10):** o gate que força `tool_choice=generate_checkout_link` exige `checkoutChecklist.ready=true`, e a checklist só ficava pronta quando `whatsapp_carts.items.length > 0`. Em fluxos onde a IA apresentou o produto mas ainda não chamou `add_to_cart` (cenário comum quando a LLM "demora" pra adicionar), o cart estava vazio na hora do check e o FIX-B não disparava. A Reg #2.15 já tinha resolvido o problema *dentro* do handler `generate_checkout_link` (auto-add com 1 produto), mas o gate de força nunca chegava a chamar a tool — caía em texto livre primeiro.
+2. **Rede de segurança ausente:** se a prevenção falhasse, não havia gate determinístico pós-resposta para detectar a pergunta confirmatória + intenção confirmada do cliente e forçar regeneração. Dependia do anti-repetição semântico, que só dispara no **segundo** turno do loop.
+
+### Correção aplicada (defesa em duas camadas)
+
+**Camada 1 — Auto-Ready do checklist (`ai-support-chat/index.ts`).** Após o cálculo padrão de `checkoutChecklist`, se ainda `ready=false`, considerar pronto também quando há **exatamente 1 produto apresentado** OU **foco ativo** com no máximo 1 produto presented. O handler da tool (Reg #2.15) faz o auto-add real com qty=1 antes de gerar o link. Log: `[Frente 3] checkout_auto_ready presented=N focus=ID`.
+
+**Camada 2 — Gate `enforceCloseOnConfirmedIntent` (`output-gates.ts`).** Roda após o gate de URL. Detecta loop quando: (a) `TPR.confirmed_purchase_intent=true` OU `asked_about_payment_or_link=true`; (b) resposta da IA contém pergunta confirmatória de fechamento (`/posso (gerar|mandar|enviar|finalizar) (o )?(link|pedido)/i`, `/quer que eu (gere|mande|envie|finalize)/i`, `/confirma (que|se) (quer|vai|posso)/i`, `/conseguiu pegar os dados/i`); (c) NÃO houve `generate_checkout_link` com `success=true` neste turno; (d) NÃO há URL `https?://` no texto. Quando detectado, NÃO reescreve o texto — marca `semanticDuplicateDetected=true` para forçar regeneração via mecanismo já existente. Log: `[Frente 3] close_loop_detected reason=… match=…`.
+
+### Validação técnica executada
+- ✅ Edge `ai-support-chat` deploy pendente (próximo passo).
+- ✅ Lógica determinística cirúrgica — só dispara quando TPR confirmou intent E resposta tem pergunta E sem URL/tool sucesso. Não afeta turnos legítimos onde IA precisa coletar variante ou cupom (essas perguntas não casam com a regex de fechamento).
+- ⚠️ Pendente — sandbox: cliente confirma "pode mandar o link" com 1 produto presented + cart vazio → deve disparar FIX-B, auto-add (Reg #2.15), gerar URL e injetar (Reg #2.11) tudo no mesmo turno.
+
+### Anti-regressão
+- Memória nova: `mem://constraints/ai-close-on-confirmed-intent-no-loop` — fechamento confirmado nunca pode resultar em pergunta confirmatória; defesa em 2 camadas (FIX-B estendido + gate pós-resposta).

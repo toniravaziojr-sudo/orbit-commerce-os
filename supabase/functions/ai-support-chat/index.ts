@@ -82,6 +82,8 @@ import {
   gateGreetingMirrorFallback,
   // [Reg #2.11] Gate determinístico que injeta a URL do checkout no texto
   enforceCheckoutUrlInText,
+  // [Frente 3 — Reg #2.16] Gate determinístico anti-loop de fechamento
+  enforceCloseOnConfirmedIntent,
   // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (shadow mode)
   loadSalesState,
   patchSalesState,
@@ -4156,6 +4158,28 @@ Cliente: "vocês entregam em SP?"
           items: preloadedActiveCart.items.length,
         };
       }
+      // [Frente 3] Auto-Ready: mesmo com carrinho vazio, considerar pronto
+      // para fechar quando há exatamente 1 produto apresentado OU foco ativo.
+      // O handler `generate_checkout_link` (Reg #2.15) tenta auto-popular o
+      // carrinho com qty=1 antes de gerar o link. Sem este auto-ready, o
+      // FIX-B nunca dispara em fluxos onde a IA mostrou o produto mas não
+      // chamou add_to_cart, e a IA cai em loop "Posso gerar o link?".
+      if (!checkoutChecklist.ready) {
+        const presentedIds = (salesMemory?.presented_product_ids || []) as string[];
+        const focusId = currentProductFocus?.product_id || null;
+        const eligibleForAutoAdd =
+          presentedIds.length === 1 || (!!focusId && presentedIds.length <= 1);
+        if (eligibleForAutoAdd) {
+          checkoutChecklist = {
+            ready: true,
+            missing: [],
+            items: 0, // sinaliza "carrinho vazio mas auto-add elegível"
+          };
+          console.log(
+            `[ai-support-chat] [Frente 3] checkout_auto_ready presented=${presentedIds.length} focus=${focusId ?? "none"}`
+          );
+        }
+      }
 
       if (
         !suppressCheckoutContext &&
@@ -6249,12 +6273,39 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     } catch (e) {
       console.warn("[ai-support-chat] [Reg #2.11] checkout url gate failed:", (e as Error).message);
     }
+    // [Frente 3 — Reg #2.16] Enforce Close On Confirmed Intent.
+    // Se o cliente confirmou fechamento (TPR) e a IA voltou com pergunta
+    // confirmatória sem chamar generate_checkout_link, marcamos como
+    // duplicata semântica para forçar regeneração com tool_choice.
+    let closeLoopDetected = false;
+    let closeLoopReason = "noop";
+    let closeLoopMatch: string | null = null;
+    try {
+      const closeGate = enforceCloseOnConfirmedIntent({
+        aiResponse: aiContent || "",
+        classification: turnClassification,
+        toolResults: toolResultsThisTurn,
+      });
+      closeLoopReason = closeGate.reason;
+      if (closeGate.loopDetected) {
+        closeLoopDetected = true;
+        closeLoopMatch = closeGate.matchedPattern;
+        console.log(
+          `[ai-support-chat] [Frente 3] close_loop_detected reason=${closeGate.reason} match="${closeGate.matchedPattern}"`
+        );
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Frente 3] close loop gate failed:", (e as Error).message);
+    }
+
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
     // Persistida no turn log; usada para detectar repetição por intenção
     // (não só por hash exato) confrontando com as últimas famílias da conversa.
     const intentFamilyOfTurn = classifyIntentFamily(aiContent || "");
-    let semanticDuplicateDetected = false;
-    let semanticDuplicateReason = "noop";
+    let semanticDuplicateDetected = closeLoopDetected; // [Frente 3] herda sinal
+    let semanticDuplicateReason = closeLoopDetected
+      ? `close_loop_${closeLoopReason}`
+      : "noop";
     try {
       const { data: recentFamilyRows } = await supabase
         .from("ai_support_turn_log")
