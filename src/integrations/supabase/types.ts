@@ -23870,6 +23870,9 @@ export type Database = {
         | "cancelled"
         | "chargeback_requested"
         | "under_review"
+        | "awaiting_payment"
+        | "paid"
+        | "chargeback_lost"
       shipping_provider_kind: "gateway" | "contract" | "manual"
       shipping_routing_reason:
         | "customer_choice"
@@ -23888,6 +23891,12 @@ export type Database = {
         | "delivered"
         | "returned"
         | "failed"
+        | "awaiting_shipment"
+        | "label_generated"
+        | "arriving"
+        | "awaiting_pickup"
+        | "problem"
+        | "returning"
       social_connection_status:
         | "disconnected"
         | "connecting"
@@ -24256,6 +24265,9 @@ export const Constants = {
         "cancelled",
         "chargeback_requested",
         "under_review",
+        "awaiting_payment",
+        "paid",
+        "chargeback_lost",
       ],
       shipping_provider_kind: ["gateway", "contract", "manual"],
       shipping_routing_reason: [
@@ -24276,6 +24288,12 @@ export const Constants = {
         "delivered",
         "returned",
         "failed",
+        "awaiting_shipment",
+        "label_generated",
+        "arriving",
+        "awaiting_pickup",
+        "problem",
+        "returning",
       ],
       social_connection_status: [
         "disconnected",
