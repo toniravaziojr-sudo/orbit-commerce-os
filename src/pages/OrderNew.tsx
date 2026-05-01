@@ -21,7 +21,7 @@ import { useProductsWithImages } from '@/hooks/useProducts';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers, useCustomerAddresses } from '@/hooks/useCustomers';
 import { useCepLookup } from '@/hooks/useCepLookup';
-import { useAuth } from '@/hooks/useAuth';
+
 import { OrderShippingMethod } from '@/components/orders/OrderShippingMethod';
 import { toast } from 'sonner';
 
