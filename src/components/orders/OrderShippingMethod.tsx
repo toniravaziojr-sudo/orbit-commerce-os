@@ -164,17 +164,22 @@ export function OrderShippingMethod({ address, items, value, onChange }: OrderSh
     setSelectedOption('');
     setShippingOptions([]);
     setQuoteError(null);
-    
-    // If address is ready, calculate automatically
-    if (isAddressComplete && items.length > 0) {
-      // Calculate after state update
+
+    const p = providers.find(pp => pp.provider === provider);
+    const supportsQuote = !!p?.supports_quote;
+
+    if (supportsQuote && isAddressComplete && items.length > 0) {
       setTimeout(() => calculateShipping(), 100);
+    } else if (!supportsQuote) {
+      // Sem cotação: marcar shipping_method com o provedor para o trigger rotear
+      onChange({ ...value, shipping_method: provider, shipping_carrier: value.shipping_carrier || '' });
     }
   };
-  
-  // Trigger calculation when address becomes complete
+
+  // Trigger calculation when address becomes complete (apenas para provedores com cotação)
   useEffect(() => {
-    if (selectedMethodType === 'integrated' && selectedProvider && isAddressComplete && items.length > 0 && shippingOptions.length === 0) {
+    if (selectedMethodType === 'integrated' && selectedProvider && selectedProviderSupportsQuote
+        && isAddressComplete && items.length > 0 && shippingOptions.length === 0) {
       calculateShipping();
     }
   }, [isAddressComplete, items.length]);
