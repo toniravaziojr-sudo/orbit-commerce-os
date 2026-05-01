@@ -451,23 +451,6 @@ export default function OrderNew() {
                 />
                 <p className="text-xs text-muted-foreground">Obrigatório para emissão de NF-e</p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="payment_method">Método de Pagamento</Label>
-                <Select
-                  value={formData.payment_method}
-                  onValueChange={(value) => setFormData({ ...formData, payment_method: value as PaymentMethod })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pix">PIX</SelectItem>
-                    <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
-                    <SelectItem value="debit_card">Cartão de Débito</SelectItem>
-                    <SelectItem value="boleto">Boleto</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </CardContent>
         </Card>
