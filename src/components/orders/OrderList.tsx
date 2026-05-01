@@ -224,6 +224,7 @@ export function OrderList({
                     <div className="flex items-center gap-2">
                       <OrderSourceBadge 
                         marketplaceSource={order.marketplace_source} 
+                        salesChannel={(order as any).sales_channel}
                         size="sm"
                       />
                       <span className="font-semibold text-sm">{order.order_number}</span>
