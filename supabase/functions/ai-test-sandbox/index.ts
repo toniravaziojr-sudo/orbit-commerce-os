@@ -21,8 +21,13 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-agent-mode",
 };
+
+// Tenant fixo "Respeite o Homem" — único tenant autorizado para Agent Mode.
+// Agent Mode permite que o backend (com SERVICE_ROLE_KEY) rode roteiros de teste
+// automatizados sem JWT de usuário. Qualquer outro tenant é rejeitado com 403.
+const AGENT_MODE_ALLOWED_TENANT = "d1a4d0ed-8842-495e-b741-540a9a345b25";
 
 interface SendBody {
   action: "send";
