@@ -81,6 +81,80 @@ const SHIPPING_TRANSITIONS: Record<ShippingStatus, ShippingStatus[]> = {
   returned: [],
 };
 
+// ===== CANONICAL <-> DB ENUM TRANSLATORS =====
+// O enum do banco (payment_status / shipping_status) ainda usa vocabulário legado
+// (approved/pending/processing/out_for_delivery/failed). A UI e este edge falam o
+// vocabulário canônico novo (paid/awaiting_payment/awaiting_shipment/...).
+// Estes tradutores são a ponte oficial entre os dois mundos para EVITAR migração de enum
+// (que quebraria webhooks de gateways que ainda gravam valores legados).
+
+// PAYMENT
+const PAYMENT_CANONICAL_TO_DB: Record<string, string> = {
+  awaiting_payment: 'pending',   // canônico → enum DB
+  paid: 'approved',
+  declined: 'declined',
+  cancelled: 'cancelled',
+  refunded: 'refunded',
+  under_review: 'under_review',
+};
+const PAYMENT_DB_TO_CANONICAL: Record<string, PaymentStatus> = {
+  pending: 'awaiting_payment',
+  processing: 'awaiting_payment',
+  approved: 'paid',
+  paid: 'paid',
+  awaiting_payment: 'awaiting_payment',
+  declined: 'declined',
+  cancelled: 'cancelled',
+  refunded: 'refunded',
+  under_review: 'under_review',
+  chargeback_requested: 'under_review',
+};
+function toDbPaymentStatus(canonical: string): string {
+  return PAYMENT_CANONICAL_TO_DB[canonical] ?? canonical;
+}
+function fromDbPaymentStatus(db: string | null | undefined): PaymentStatus {
+  if (!db) return 'awaiting_payment';
+  return PAYMENT_DB_TO_CANONICAL[db] ?? 'awaiting_payment';
+}
+
+// SHIPPING
+const SHIPPING_CANONICAL_TO_DB: Record<string, string> = {
+  awaiting_shipment: 'pending',
+  label_generated: 'processing',
+  shipped: 'shipped',
+  in_transit: 'in_transit',
+  arriving: 'out_for_delivery',
+  delivered: 'delivered',
+  problem: 'failed',
+  awaiting_pickup: 'in_transit',   // sem equivalente direto no enum DB
+  returning: 'returned',
+  returned: 'returned',
+};
+const SHIPPING_DB_TO_CANONICAL: Record<string, ShippingStatus> = {
+  pending: 'awaiting_shipment',
+  processing: 'label_generated',
+  shipped: 'shipped',
+  in_transit: 'in_transit',
+  out_for_delivery: 'arriving',
+  delivered: 'delivered',
+  returned: 'returned',
+  failed: 'problem',
+  // identidades canônicas (caso o DB já tenha o valor novo no futuro)
+  awaiting_shipment: 'awaiting_shipment',
+  label_generated: 'label_generated',
+  arriving: 'arriving',
+  problem: 'problem',
+  awaiting_pickup: 'awaiting_pickup',
+  returning: 'returning',
+};
+function toDbShippingStatus(canonical: string): string {
+  return SHIPPING_CANONICAL_TO_DB[canonical] ?? canonical;
+}
+function fromDbShippingStatus(db: string | null | undefined): ShippingStatus {
+  if (!db) return 'awaiting_shipment';
+  return SHIPPING_DB_TO_CANONICAL[db] ?? 'awaiting_shipment';
+}
+
 // ===== HELPER FUNCTIONS =====
 function isValidTransition<T extends string>(
   transitions: Record<T, T[]>,
@@ -804,7 +878,8 @@ Deno.serve(async (req) => {
           );
         }
 
-        const currentStatus = order.payment_status as PaymentStatus;
+        // Normalizar status atual do banco (legado) para vocabulário canônico
+        const currentStatus = fromDbPaymentStatus(order.payment_status);
         const isOverride = force === true;
 
         if (isOverride && !['owner', 'admin'].includes(roleCheck.role)) {
@@ -829,7 +904,9 @@ Deno.serve(async (req) => {
           );
         }
 
-        const updateData: Record<string, any> = { payment_status: new_status };
+        // Traduzir canônico → enum do banco (mantém compat com webhooks legados)
+        const dbPaymentStatus = toDbPaymentStatus(new_status);
+        const updateData: Record<string, any> = { payment_status: dbPaymentStatus };
         if (new_status === 'paid') updateData.paid_at = new Date().toISOString();
 
         const { error: updateError } = await supabase
@@ -900,7 +977,8 @@ Deno.serve(async (req) => {
           );
         }
 
-        const currentStatus = order.shipping_status as ShippingStatus;
+        // Normalizar status atual do banco (legado) para vocabulário canônico
+        const currentStatus = fromDbShippingStatus(order.shipping_status);
         const isOverride = force === true;
 
         if (isOverride && !['owner', 'admin'].includes(roleCheck.role)) {
@@ -925,7 +1003,9 @@ Deno.serve(async (req) => {
           );
         }
 
-        const updateData: Record<string, any> = { shipping_status: new_status };
+        // Traduzir canônico → enum do banco (mantém compat com webhooks legados)
+        const dbShippingStatus = toDbShippingStatus(new_status);
+        const updateData: Record<string, any> = { shipping_status: dbShippingStatus };
         if (new_status === 'shipped') updateData.shipped_at = new Date().toISOString();
         if (new_status === 'delivered') updateData.delivered_at = new Date().toISOString();
         if (tracking_code) updateData.tracking_code = tracking_code;
