@@ -4277,7 +4277,7 @@ Cliente: "vocês entregam em SP?"
         const isRecurringClient = (messages?.length ?? 0) > 1 || !!customerId;
         const echo = detectGreetingEcho(lastMessageContent, {
           isRecurring: isRecurringClient,
-          customerName: customerName,
+          customerName: conversation.customer_name || null,
         });
         const mirrorBlock = buildGreetingMirrorBlock(echo);
         if (mirrorBlock) {
