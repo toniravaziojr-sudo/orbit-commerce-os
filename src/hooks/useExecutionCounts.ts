@@ -447,22 +447,26 @@ export function useExecutionCounts() {
       orderCounts?.chargebacks ? { count: orderCounts.chargebacks, label: "Chargebacks", navigateTo: "/orders?status=chargeback_detected", color: "destructive" as const } : null,
       orderLimitNear && limitCheck ? { count: limitCheck.order_limit! - limitCheck.current_count, label: "Limite mensal acabando", navigateTo: "/settings/billing", color: "warning" as const } : null,
       orderCounts?.awaitingInvoice ? { count: orderCounts.awaitingInvoice, label: "Aguardando NF", navigateTo: "/orders?status=ready_to_invoice", color: "warning" as const } : null,
+      orderCounts?.regressionShipments ? { count: orderCounts.regressionShipments, label: "Etiquetas a reverter", navigateTo: "/orders?regression=shipments", color: "destructive" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
     totalPending: 0,
   };
   orders.totalPending = orders.stats.reduce((s, st) => s + st.count, 0);
 
-  // Notas Fiscais: pendentes emissão + rejeitadas
+  // Notas Fiscais: pendentes emissão + rejeitadas + regressões
   const pendingInvoiceCount = pendingInvoiceOrders?.length || 0;
   const rejectedCount = fiscalStats?.rejected || 0;
+  const regressionInvoiceCount = orderCounts?.regressionInvoices || 0;
 
   const fiscal: ExecutionCategory = {
     stats: [
       pendingInvoiceCount ? { count: pendingInvoiceCount, label: "Emitir NF-e", navigateTo: "/fiscal?tab=open-orders", color: "warning" as const } : null,
       rejectedCount ? { count: rejectedCount, label: "Pendências emissão", navigateTo: "/fiscal?tab=invoices", color: "destructive" as const } : null,
+      regressionInvoiceCount ? { count: regressionInvoiceCount, label: "NF-e a cancelar (regressão)", navigateTo: "/fiscal?tab=invoices&filter=requires_action", color: "destructive" as const } : null,
     ].filter(Boolean) as ExecutionStat[],
-    totalPending: pendingInvoiceCount + rejectedCount,
+    totalPending: pendingInvoiceCount + rejectedCount + regressionInvoiceCount,
   };
+
 
   // Anúncios: contas sem saldo
   const zeroBalanceCount = adsBalance.zeroBalanceCount || 0;
