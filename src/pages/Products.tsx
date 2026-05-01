@@ -34,7 +34,7 @@ export default function Products() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in min-h-full">
+    <div className="space-y-6 animate-fade-in pb-16 min-h-[calc(100vh-4rem)]">
       {view === 'list' && (
         <>
           <PageHeader

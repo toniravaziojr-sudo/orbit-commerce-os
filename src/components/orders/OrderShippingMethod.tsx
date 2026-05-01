@@ -86,10 +86,18 @@ export function OrderShippingMethod({ address, items, value, onChange }: OrderSh
   const [isCalculating, setIsCalculating] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   
-  // Get enabled providers that support quotes
+  // Em pedido manual, listamos TODAS as integrações ativas — mesmo as que não suportam cotação automática.
+  // Quando a integração escolhida não tiver cotação, o admin informa transportadora/valor manualmente.
   const enabledProviders = useMemo(() => {
-    return providers.filter(p => p.is_enabled && p.supports_quote);
+    return providers.filter(p => p.is_enabled);
   }, [providers]);
+
+  // Indica se o provedor selecionado suporta cotação automática
+  const selectedProviderSupportsQuote = useMemo(() => {
+    if (!selectedProvider) return false;
+    const p = providers.find(pp => pp.provider === selectedProvider);
+    return !!p?.supports_quote;
+  }, [providers, selectedProvider]);
   
   // Check if address is complete enough for quote
   const isAddressComplete = useMemo(() => {
@@ -156,17 +164,22 @@ export function OrderShippingMethod({ address, items, value, onChange }: OrderSh
     setSelectedOption('');
     setShippingOptions([]);
     setQuoteError(null);
-    
-    // If address is ready, calculate automatically
-    if (isAddressComplete && items.length > 0) {
-      // Calculate after state update
+
+    const p = providers.find(pp => pp.provider === provider);
+    const supportsQuote = !!p?.supports_quote;
+
+    if (supportsQuote && isAddressComplete && items.length > 0) {
       setTimeout(() => calculateShipping(), 100);
+    } else if (!supportsQuote) {
+      // Sem cotação: marcar shipping_method com o provedor para o trigger rotear
+      onChange({ ...value, shipping_method: provider, shipping_carrier: value.shipping_carrier || '' });
     }
   };
-  
-  // Trigger calculation when address becomes complete
+
+  // Trigger calculation when address becomes complete (apenas para provedores com cotação)
   useEffect(() => {
-    if (selectedMethodType === 'integrated' && selectedProvider && isAddressComplete && items.length > 0 && shippingOptions.length === 0) {
+    if (selectedMethodType === 'integrated' && selectedProvider && selectedProviderSupportsQuote
+        && isAddressComplete && items.length > 0 && shippingOptions.length === 0) {
       calculateShipping();
     }
   }, [isAddressComplete, items.length]);
@@ -293,8 +306,50 @@ export function OrderShippingMethod({ address, items, value, onChange }: OrderSh
               </Select>
             </div>
             
-            {/* Address Warning */}
-            {selectedProvider && !isAddressComplete && (
+            {/* Integração SEM cotação automática (ex: Correios contrato sem API): preenche manual */}
+            {selectedProvider && !selectedProviderSupportsQuote && (
+              <div className="space-y-3 p-3 border border-dashed rounded-lg bg-muted/30">
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    A integração <strong>{PROVIDER_NAMES[selectedProvider] || selectedProvider}</strong> está
+                    ativa, mas sem cotação automática. Informe o serviço e o valor do frete manualmente — o
+                    pedido entrará no fluxo de remessas dessa transportadora normalmente.
+                  </AlertDescription>
+                </Alert>
+                <div className="space-y-2">
+                  <Label htmlFor="manual_service_name">Serviço / Modalidade</Label>
+                  <Input
+                    id="manual_service_name"
+                    value={value.shipping_carrier}
+                    onChange={(e) => onChange({
+                      ...value,
+                      shipping_method: selectedProvider,
+                      shipping_carrier: e.target.value,
+                    })}
+                    placeholder="Ex: SEDEX, PAC, Expresso..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="manual_cost">Valor do Frete (R$)</Label>
+                  <Input
+                    id="manual_cost"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={value.shipping_cost}
+                    onChange={(e) => onChange({
+                      ...value,
+                      shipping_method: selectedProvider,
+                      shipping_cost: parseFloat(e.target.value) || 0,
+                    })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Address Warning (apenas para cotação automática) */}
+            {selectedProvider && selectedProviderSupportsQuote && !isAddressComplete && (
               <Alert>
                 <MapPin className="h-4 w-4" />
                 <AlertDescription>

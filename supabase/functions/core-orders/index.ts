@@ -88,10 +88,14 @@ const SHIPPING_TRANSITIONS: Record<ShippingStatus, ShippingStatus[]> = {
 // Os mapas abaixo só ainda existem para compat REVERSA: ler valores legados gravados
 // por webhooks antigos de gateways e normalizá-los para o vocabulário canônico.
 
-// PAYMENT — escrita: canônico → DB (identidade; legado também ainda é aceito pelo enum)
+// PAYMENT — escrita: canônico → DB
+// IMPORTANTE: gravamos 'paid' como 'approved' no DB porque o trigger
+// trg_enqueue_fiscal_draft / trg_after_order_approved_sync escutam exatamente
+// payment_status='approved' (vocabulário histórico do checkout). Mantém paridade
+// total entre fluxo automático (webhook gateway) e fluxo manual (admin).
 const PAYMENT_CANONICAL_TO_DB: Record<string, string> = {
   awaiting_payment: 'awaiting_payment',
-  paid: 'paid',
+  paid: 'approved',
   declined: 'declined',
   cancelled: 'cancelled',
   refunded: 'refunded',
@@ -355,7 +359,12 @@ Deno.serve(async (req) => {
         // Resolver status iniciais (canônicos pós-migração)
         const finalPaymentStatus = toDbPaymentStatus(payment_status_initial || 'awaiting_payment');
         const finalShippingStatus = toDbShippingStatus(shipping_status_initial || 'awaiting_shipment');
-        const finalOrderStatus = order_status_initial || 'pending';
+        // Espelhar fluxo automático: se nasce pago e não foi forçado um order_status, vai para ready_to_invoice
+        // (mesmo destino do pedido aprovado pelo webhook do gateway).
+        let finalOrderStatus = order_status_initial || 'pending';
+        if (!order_status_initial && payment_status_initial === 'paid') {
+          finalOrderStatus = 'ready_to_invoice';
+        }
 
         const insertPayload: Record<string, any> = {
           tenant_id: tenantId,
