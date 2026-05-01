@@ -306,6 +306,17 @@ export default function OrderNew() {
         }
       />
 
+      {/* Aviso fiscal: pedidos manuais sempre geram rascunho de NF-e */}
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>Sobre a nota fiscal deste pedido</AlertTitle>
+        <AlertDescription>
+          Todo pedido criado manualmente gera automaticamente um <strong>rascunho de NF-e</strong> no
+          módulo Fiscal. Se você não quiser emitir nota para este pedido, vá em{' '}
+          <strong>Fiscal → Notas Fiscais</strong> e exclua o rascunho manualmente após salvar.
+        </AlertDescription>
+      </Alert>
+
       <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-3">
         {/* Customer Info */}
         <Card className="lg:col-span-2">
