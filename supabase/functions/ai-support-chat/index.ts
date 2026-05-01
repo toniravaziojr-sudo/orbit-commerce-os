@@ -6382,11 +6382,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                         pipelineState,
                         aiResponse: aiContent || "",
                         classification: turnClassification,
+                        isRecurring: greetIsRecurring,
+                        customerName: greetCustomerName,
                       })
                     : gateGreetingMirrorFallback({
                         pipelineState,
                         aiResponse: aiContent || "",
                         customerMessage: lastMessageContent || "",
+                        isRecurring: greetIsRecurring,
+                        customerName: greetCustomerName,
                       });
                   if (gg.scrubbed) {
                     console.log(`[ai-support-chat] [Reg #2.11] post-regen greeting gate (${gg.reason})`);
