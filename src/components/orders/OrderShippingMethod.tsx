@@ -301,8 +301,50 @@ export function OrderShippingMethod({ address, items, value, onChange }: OrderSh
               </Select>
             </div>
             
-            {/* Address Warning */}
-            {selectedProvider && !isAddressComplete && (
+            {/* Integração SEM cotação automática (ex: Correios contrato sem API): preenche manual */}
+            {selectedProvider && !selectedProviderSupportsQuote && (
+              <div className="space-y-3 p-3 border border-dashed rounded-lg bg-muted/30">
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    A integração <strong>{PROVIDER_NAMES[selectedProvider] || selectedProvider}</strong> está
+                    ativa, mas sem cotação automática. Informe o serviço e o valor do frete manualmente — o
+                    pedido entrará no fluxo de remessas dessa transportadora normalmente.
+                  </AlertDescription>
+                </Alert>
+                <div className="space-y-2">
+                  <Label htmlFor="manual_service_name">Serviço / Modalidade</Label>
+                  <Input
+                    id="manual_service_name"
+                    value={value.shipping_carrier}
+                    onChange={(e) => onChange({
+                      ...value,
+                      shipping_method: selectedProvider,
+                      shipping_carrier: e.target.value,
+                    })}
+                    placeholder="Ex: SEDEX, PAC, Expresso..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="manual_cost">Valor do Frete (R$)</Label>
+                  <Input
+                    id="manual_cost"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={value.shipping_cost}
+                    onChange={(e) => onChange({
+                      ...value,
+                      shipping_method: selectedProvider,
+                      shipping_cost: parseFloat(e.target.value) || 0,
+                    })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Address Warning (apenas para cotação automática) */}
+            {selectedProvider && selectedProviderSupportsQuote && !isAddressComplete && (
               <Alert>
                 <MapPin className="h-4 w-4" />
                 <AlertDescription>
