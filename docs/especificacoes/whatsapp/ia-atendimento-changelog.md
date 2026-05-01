@@ -493,4 +493,44 @@ Memórias a criar e indexar quando os blocos forem aplicados (cada uma vira 1 en
 
 ---
 
-*Última atualização: 01/mai/2026 (Reg. #2.10 aplicado, validação E2E pendente).*
+## Registro #2.11 — Gates pós-regeneração + URL determinística + cart sem conversão prematura (aplicado)
+
+**Data:** 01/mai/2026
+**Conversa de origem:** `dc4943c8-0173-406b-919f-b2a9ac437a26` — roteiro de 6 turnos via `ai-test-sandbox` (Agent Mode), tenant Respeite o Homem.
+
+### Resultado da rodada de validação do Reg #2.10
+| Sintoma | Status |
+|---|---|
+| Saudação não espelhada | ❌ Persistia (gate aplicava "Boa noite!" mas regeneração sobrescrevia) |
+| Preço sem solicitação | ✅ Corrigido |
+| Troca silenciosa de produto | ✅ Corrigido |
+| Handoff agressivo no fechamento | ✅ Corrigido (FIX-B estendido funcionou) |
+| Link narrado sem URL no texto | ❌ Novo |
+| Loop de confirmação após primeiro link | ❌ Novo |
+
+### Diagnóstico técnico (causas-raiz)
+1. **Saudação:** o turn-log do turno 1 registrou `greeting_scrub_reason=prepended_boa noite` (gate aplicou). Mas a mensagem persistida foi "Oi! Tudo bem?". Causa: o bloco de **regeneração por duplicado** (`PACOTE E v2`, ai-support-chat linha ~6244) substitui `aiContent = regenText` SEM reaplicar os gates de price/greeting. A regeneração, vinda crua da OpenAI, devolveu saudação degenerada e foi persistida.
+2. **Link sem URL (turno 5):** `generate_checkout_link` foi chamada com sucesso (`state_transition_reason=checkout_link_generated`) e devolveu `checkout_url` no payload. A LLM, ao redigir, narrou "Aqui está o link" sem colar a URL. Não existia gate determinístico forçando a URL no texto final — dependia 100% da LLM.
+3. **Loop confirmação (turno 6):** após gerar o link, `whatsapp_carts.status` virava `converted` imediatamente (linha 1925). Quando o cliente disse "Manda o link" pela 2ª vez, a tool retornou `Carrinho vazio. Adicione produtos antes de gerar o link.` (cart sumiu do filtro `status=active`), e a LLM caiu no fallback de pedir confirmação.
+
+### Correção aplicada
+1. **`output-gates.ts → enforceCheckoutUrlInText` (novo)**: gate determinístico que lê `toolResultsThisTurn`, pega o último `checkout_url` bem-sucedido e garante presença textual — anexa se ausente, substitui se a IA inventou outra URL, ignora se já está no texto. Idempotente.
+2. **`ai-support-chat/index.ts` (gates pós-resposta principais)**: chama `enforceCheckoutUrlInText` logo após o bloco de price/greeting gates.
+3. **`ai-support-chat/index.ts` (regeneração)**: após `aiContent = regenText`, REAPLICA os 3 gates (price, greeting/fallback, checkout-url) sobre o texto regenerado. Antes a regeneração escapava de todos os gates determinísticos.
+4. **`ai-support-chat/index.ts` (handler `generate_checkout_link`, linha 1925)**: removido `status: "converted"` no momento de gerar o link. O cart fica `active`; conversão real só pelo webhook do gateway. Permite o cliente pedir o link N vezes (a tool devolve novo `checkout_links` row mas o cart continua válido).
+
+### Validação técnica executada
+- ✅ TypeScript: `output-gates.ts` exporta `enforceCheckoutUrlInText` com tipo `CheckoutUrlGateResult`.
+- ✅ Import adicionado em `ai-support-chat/index.ts`.
+- ✅ Lógica de injeção é puramente determinística (sem LLM extra) — latência zero.
+- ✅ Deploy: `ai-support-chat`.
+- ⚠️ Pendente — re-rodar roteiro de 6 turnos via `ai-test-sandbox` confirmando: (a) turno 1 abre com "Boa noite!", (b) turno 5/6 contém URL `https://…/checkout?link=wpp-…`, (c) cliente pode pedir "manda o link" mais de uma vez sem cair em loop.
+
+### Anti-regressão
+- Memória nova: `mem://constraints/gates-must-reapply-after-regeneration` — toda regeneração de resposta (PACOTE E v2 ou futuro) DEVE reaplicar os gates determinísticos antes de persistir, senão os gates viram cosméticos.
+- Memória nova: `mem://constraints/checkout-url-must-be-deterministic-in-text` — quando `generate_checkout_link` é chamada com sucesso, a URL DEVE aparecer textualmente; nunca confiar na LLM para colar.
+- Memória nova: `mem://constraints/whatsapp-cart-converted-only-on-payment-confirmation` — `whatsapp_carts.status="converted"` só pelo webhook do gateway. Marcar no momento do link gera deadlock no segundo pedido de link.
+
+---
+
+*Última atualização: 01/mai/2026 (Reg. #2.11 aplicado, validação via sandbox pendente).*

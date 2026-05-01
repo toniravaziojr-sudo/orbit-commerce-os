@@ -80,6 +80,8 @@ import {
   scrubUnsolicitedPrice,
   gateGreetingMirror,
   gateGreetingMirrorFallback,
+  // [Reg #2.11] Gate determinístico que injeta a URL do checkout no texto
+  enforceCheckoutUrlInText,
   // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (shadow mode)
   loadSalesState,
   patchSalesState,
@@ -1919,10 +1921,15 @@ async function executeSalesTool(
 
         const checkoutUrl = `${storeUrl}/checkout?${params.toString()}`;
 
-        // Mark cart as converted
+        // [Reg #2.11] NÃO marcar cart como "converted" aqui. A conversão real
+        // só acontece quando o webhook do gateway confirma o pedido. Marcar
+        // cedo demais quebra o fluxo: se o cliente pedir "manda o link" de
+        // novo, a próxima chamada via "Carrinho vazio" e a IA cai em loop de
+        // confirmação. O cart fica "active" e a tool retorna o mesmo (ou novo)
+        // link consistentemente.
         await supabase
           .from("whatsapp_carts")
-          .update({ status: "converted", updated_at: new Date().toISOString() })
+          .update({ updated_at: new Date().toISOString() })
           .eq("id", cart.id);
 
         // [learning] checkout_generated event
@@ -6109,6 +6116,26 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.warn("[ai-support-chat] [Reg #2.8] output gates failed:", (e as Error).message);
     }
 
+    // [Reg #2.11] Enforce Checkout URL no texto: se a tool generate_checkout_link
+    // foi chamada com sucesso e devolveu URL, garante que ela apareça no texto
+    // final. Roda DEPOIS dos gates de price/greeting porque a URL não pode ser
+    // removida por nenhum scrubber subsequente.
+    let checkoutUrlEnforced = false;
+    let checkoutUrlEnforceReason = "noop";
+    try {
+      const urlGate = enforceCheckoutUrlInText({
+        aiResponse: aiContent || "",
+        toolResults: toolResultsThisTurn,
+      });
+      checkoutUrlEnforceReason = urlGate.reason;
+      if (urlGate.scrubbed) {
+        console.log(`[ai-support-chat] [Reg #2.11] checkout URL gate (${urlGate.reason}) url=${urlGate.url}`);
+        aiContent = urlGate.after;
+        checkoutUrlEnforced = true;
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #2.11] checkout url gate failed:", (e as Error).message);
+    }
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
     // Persistida no turn log; usada para detectar repetição por intenção
     // (não só por hash exato) confrontando com as últimas famílias da conversa.
@@ -6223,6 +6250,46 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                 // Atualiza hash e libera supressão
                 (dupCheck as { duplicate: boolean; reason: string }) = { duplicate: false, reason: "regenerated" };
                 regenerationSucceeded = true;
+
+                // [Reg #2.11] REAPLICA gates após regeneração — antes a nova
+                // resposta pulava price/greeting/checkout-url e a degenerada
+                // voltava (ex.: "Oi! Tudo bem?" no lugar de "Boa noite!").
+                try {
+                  const pg = scrubUnsolicitedPrice({
+                    pipelineState,
+                    aiResponse: aiContent || "",
+                    classification: turnClassification,
+                  });
+                  if (pg.scrubbed) {
+                    console.log(`[ai-support-chat] [Reg #2.11] post-regen price scrub (${pg.reason})`);
+                    aiContent = pg.after;
+                  }
+                  const gg = turnClassification.source === "llm"
+                    ? gateGreetingMirror({
+                        pipelineState,
+                        aiResponse: aiContent || "",
+                        classification: turnClassification,
+                      })
+                    : gateGreetingMirrorFallback({
+                        pipelineState,
+                        aiResponse: aiContent || "",
+                        customerMessage: lastMessageContent || "",
+                      });
+                  if (gg.scrubbed) {
+                    console.log(`[ai-support-chat] [Reg #2.11] post-regen greeting gate (${gg.reason})`);
+                    aiContent = gg.after;
+                  }
+                  const ug = enforceCheckoutUrlInText({
+                    aiResponse: aiContent || "",
+                    toolResults: toolResultsThisTurn,
+                  });
+                  if (ug.scrubbed) {
+                    console.log(`[ai-support-chat] [Reg #2.11] post-regen checkout url gate (${ug.reason})`);
+                    aiContent = ug.after;
+                  }
+                } catch (gateErr) {
+                  console.warn("[ai-support-chat] [Reg #2.11] post-regen gates failed:", (gateErr as Error).message);
+                }
               } else {
                 console.warn(
                   `[ai-support-chat] [PACOTE E v2] regeneration still duplicate (newHash=${regenHash.slice(0,8)}) — keeping suppression`,
