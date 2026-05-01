@@ -82,6 +82,8 @@ import {
   gateGreetingMirrorFallback,
   // [Reg #2.11] Gate determinístico que injeta a URL do checkout no texto
   enforceCheckoutUrlInText,
+  // [Frente 3 — Reg #2.16] Gate determinístico anti-loop de fechamento
+  enforceCloseOnConfirmedIntent,
   // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (shadow mode)
   loadSalesState,
   patchSalesState,
