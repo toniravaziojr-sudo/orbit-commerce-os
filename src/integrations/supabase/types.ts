@@ -7998,6 +7998,8 @@ export type Database = {
       fiscal_draft_queue: {
         Row: {
           attempts: number
+          cancel_reason: string | null
+          cancelled_at: string | null
           created_at: string
           error_message: string | null
           id: string
@@ -8008,6 +8010,8 @@ export type Database = {
         }
         Insert: {
           attempts?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
@@ -8018,6 +8022,8 @@ export type Database = {
         }
         Update: {
           attempts?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
@@ -8948,6 +8954,8 @@ export type Database = {
         Row: {
           action: string
           attempts: number
+          cancel_reason: string | null
+          cancelled_at: string | null
           created_at: string
           external_ref: string | null
           id: string
@@ -8963,6 +8971,8 @@ export type Database = {
         Insert: {
           action: string
           attempts?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
           created_at?: string
           external_ref?: string | null
           id?: string
@@ -8978,6 +8988,8 @@ export type Database = {
         Update: {
           action?: string
           attempts?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
           created_at?: string
           external_ref?: string | null
           id?: string
@@ -16792,6 +16804,7 @@ export type Database = {
       }
       shipments: {
         Row: {
+          action_reason: string | null
           carrier: string
           created_at: string
           delivered_at: string | null
@@ -16809,6 +16822,7 @@ export type Database = {
           order_id: string
           poll_error_count: number | null
           provider_shipment_id: string | null
+          requires_action: boolean
           service_code: string | null
           service_name: string | null
           source: string | null
@@ -16818,6 +16832,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          action_reason?: string | null
           carrier: string
           created_at?: string
           delivered_at?: string | null
@@ -16835,6 +16850,7 @@ export type Database = {
           order_id: string
           poll_error_count?: number | null
           provider_shipment_id?: string | null
+          requires_action?: boolean
           service_code?: string | null
           service_name?: string | null
           source?: string | null
@@ -16844,6 +16860,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          action_reason?: string | null
           carrier?: string
           created_at?: string
           delivered_at?: string | null
@@ -16861,6 +16878,7 @@ export type Database = {
           order_id?: string
           poll_error_count?: number | null
           provider_shipment_id?: string | null
+          requires_action?: boolean
           service_code?: string | null
           service_name?: string | null
           source?: string | null
@@ -16958,6 +16976,8 @@ export type Database = {
       shipping_draft_queue: {
         Row: {
           attempts: number
+          cancel_reason: string | null
+          cancelled_at: string | null
           created_at: string
           error_message: string | null
           id: string
@@ -16969,6 +16989,8 @@ export type Database = {
         }
         Insert: {
           attempts?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
@@ -16980,6 +17002,8 @@ export type Database = {
         }
         Update: {
           attempts?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
