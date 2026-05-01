@@ -100,6 +100,29 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 **Anti-regressão.** Memória `mem://constraints/ai-test-sandbox-mirror-only` proíbe duplicação da pipeline. Mudanças na IA só acontecem no fluxo principal (`ai-support-chat`, `_shared/sales-pipeline/`, `ai_support_config`).
 
+### 🔍 Validação técnica executada — 01/mai/2026 00:27 UTC
+
+| Etapa | Resultado |
+|---|---|
+| Schema confirmado (`conversations.metadata`, `messages.metadata`, `conversation_events`, `user_roles.tenant_id`) | ✅ bate com o que a edge usa |
+| Contrato de entrada da `ai-support-chat` (`{conversation_id, tenant_id}`) | ✅ idêntico ao que o sandbox envia |
+| Edge `ai-test-sandbox` rejeita chamada sem JWT | ✅ retorna `success:false, error:"unauthenticated"` |
+| Conversa sandbox criada manualmente (Respeite o Homem) | ✅ `metadata.is_sandbox=true`, `channel_type=chat`, `status=bot` |
+| Mensagem inbound do "cliente" (`Boa tarde`) inserida | ✅ |
+| Pipeline real invocada via `ai-support-chat` sobre a conversa sandbox | ✅ resposta gerada em 9.6s, modelo `gpt-5-mini`, `sales_mode=true`, intent=`greeting`, custo 4¢ |
+| Resposta da IA: `"Oi! Tudo bem? Me conta o que você está procurando."` | ✅ saudação coerente, sem violar regras (sem preço, sem invenção) |
+| Trigger de contagem de mensagens | ✅ `message_count=2` após o turno |
+| Cleanup (delete em `messages`, `conversation_events`, `conversations`) | ✅ 0 registros remanescentes |
+| Filtro do `useConversations` esconde sandbox da fila real | ✅ `metadata->>is_sandbox.is.null OR .neq.true` confirmado |
+
+**Conclusão.** O sandbox executa a **mesma pipeline de produção** sobre uma conversa isolada e descartável, sem poluir métricas/fila. Princípio "espelho automático" cumprido — qualquer ajuste futuro em `ai-support-chat` ou `_shared/sales-pipeline/` aparece no sandbox sem mudança no código do sandbox.
+
+**Pendente de validação do usuário.**
+1. Abrir `/atendimento` → aba **IA Teste** logado num tenant que o usuário tem acesso.
+2. Mandar 2–3 mensagens reais como cliente (saudação + pergunta de produto).
+3. Trocar de aba ou clicar em **Reiniciar** e confirmar que a conversa some do banco (não aparece em nenhum lugar do CRM).
+4. Conferir que a aba **Atendimento** continua sem listar a conversa sandbox.
+
 ---
 
 ## Registro #2.10 — Focus Snapshot + Exact-Match Boost (aplicado, em validação) — 30/abr/2026
