@@ -183,3 +183,88 @@ export function gateGreetingMirrorFallback(input: {
     } as TurnClassification,
   });
 }
+
+// ----------------------------------------------------------------
+// [Reg #2.11] Enforce Checkout URL In Text
+// Garante que, se a tool generate_checkout_link foi chamada com sucesso
+// e devolveu uma URL, ela apareça textualmente na resposta final.
+// Antes ficava só na "narrativa" da LLM ("aqui está o link...") sem URL.
+// Latência zero; idempotente; não duplica se a URL já estiver no texto.
+// ----------------------------------------------------------------
+
+export interface CheckoutUrlGateResult {
+  scrubbed: boolean;
+  before: string;
+  after: string;
+  reason: string;
+  url: string | null;
+}
+
+const URL_RE = /https?:\/\/[^\s<>"')]+/i;
+
+export function enforceCheckoutUrlInText(input: {
+  aiResponse: string;
+  toolResults: Array<{ tool: string; parsed: unknown }>;
+}): CheckoutUrlGateResult {
+  const { aiResponse, toolResults } = input;
+  const noop: CheckoutUrlGateResult = {
+    scrubbed: false,
+    before: aiResponse,
+    after: aiResponse,
+    reason: "noop",
+    url: null,
+  };
+
+  // Pega o ÚLTIMO checkout_url bem-sucedido (caso a tool tenha sido
+  // chamada várias vezes no mesmo turno).
+  let url: string | null = null;
+  for (let i = toolResults.length - 1; i >= 0; i--) {
+    const r = toolResults[i];
+    if (r.tool !== "generate_checkout_link") continue;
+    const p = r.parsed as Record<string, unknown> | null;
+    if (p && typeof p === "object" && p.success === true && typeof p.checkout_url === "string") {
+      url = p.checkout_url as string;
+      break;
+    }
+  }
+
+  if (!url) return { ...noop, reason: "no_checkout_url_in_tool_results" };
+  if (!aiResponse) {
+    // Resposta vazia: substitui pelo link mínimo.
+    return {
+      scrubbed: true,
+      before: aiResponse,
+      after: `Segue o link do pagamento:\n${url}`,
+      reason: "injected_url_into_empty_response",
+      url,
+    };
+  }
+
+  // Se a URL exata já está no texto, ok.
+  if (aiResponse.includes(url)) return { ...noop, reason: "url_already_in_text", url };
+
+  // Se a IA colou OUTRA URL (não deveria), substitui pela correta.
+  const otherUrlMatch = URL_RE.exec(aiResponse);
+  if (otherUrlMatch && otherUrlMatch[0] !== url) {
+    const after = aiResponse.replace(URL_RE, url);
+    return {
+      scrubbed: true,
+      before: aiResponse,
+      after,
+      reason: "replaced_wrong_url",
+      url,
+    };
+  }
+
+  // Caso comum: IA narrou "aqui está o link" sem colar a URL.
+  // Anexa a URL ao final, em linha separada.
+  const sep = aiResponse.endsWith("\n") ? "" : "\n\n";
+  const after = `${aiResponse}${sep}${url}`;
+  return {
+    scrubbed: true,
+    before: aiResponse,
+    after,
+    reason: "appended_missing_url",
+    url,
+  };
+}
