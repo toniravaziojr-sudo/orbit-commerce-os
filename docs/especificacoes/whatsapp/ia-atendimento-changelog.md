@@ -459,4 +459,38 @@ Memórias a criar e indexar quando os blocos forem aplicados (cada uma vira 1 en
 
 ---
 
-*Última atualização: 30/abr/2026 (Reg. #2.9 Onda 3 aplicado).*
+## Registro #2.10 — Fechamento explícito + Greeting Mirror sem TPR (aplicado)
+
+**Data:** 01/mai/2026
+**Conversa de origem:** roteiro de teste automatizado de 6 turnos no sandbox da IA Teste (tenant Respeite o Homem).
+
+### Sintomas observados
+1. **Saudação ainda não espelha** o cliente ("Boa noite" → "Oi"/"Olá"). Já fora detectado nos Reg #2.6 e #2.8 com correções, mas voltou.
+2. **Handoff agressivo no fechamento**: cliente diz "Manda o link" em estado avançado, IA responde com pergunta confirmatória ("posso finalizar?"), o scrubber Eixo 1.7 detecta loop e força handoff comercial — sem nunca gerar o link de checkout.
+3. **Procedimento de teste falho** (constatação interna): turnos do roteiro foram registrados em `ai_support_turn_log` apontando para uma `conversation_id` que não existia em `conversations` — sinal de que o teste anterior não passou pela edge `ai-test-sandbox`, e por isso não houve isolamento `is_sandbox=true` nem mensagens persistidas.
+
+### Diagnóstico técnico
+- **Item 2:** o detector `CHECKOUT_REQUEST_PATTERNS` em `transitions.ts` cobria apenas `"me manda o link"` (com "me") — `"manda o link"` solto não casava. A intenção caía em `purchase_intent` (decision), e o FIX-B (que força `tool_choice = generate_checkout_link`) só era elegível quando o estado já era `checkout_assist`. Como a transição pra `checkout_assist` só acontece DEPOIS do link existir (linha 654 — `hasCheckoutLink || generate_checkout_link in toolsCalled`), formava-se um deadlock: o cliente nunca recebia o link e a IA caía na pergunta confirmatória, ativando o Eixo 1.7 → handoff.
+- **Item 1:** o `gateGreetingMirror` (Reg #2.8) só roda quando `turnClassification.source === 'llm'`. Quando o TPR cai (timeout, rate limit, fallback), o código pulava direto pro `scrubGreetingReciprocity` legado, que tem o bug AND/OR conhecido (não força o período espelhado quando saudação degenerada vem como "Oi!" puro).
+- **Item 3:** o "teste" anterior chamou diretamente `ai-support-chat` em vez de `ai-test-sandbox`, perdendo o gate de isolamento.
+
+### Correção aplicada
+1. **`transitions.ts → CHECKOUT_REQUEST_PATTERNS`**: agora reconhece `"manda/envia/envie/mande/gera/gere (o) link"` com OU sem "me", e `"pode mandar/enviar/gerar/finalizar (o) link/pedido/checkout"`.
+2. **`ai-support-chat/index.ts → FIX-B`**: regra de elegibilidade estendida — passa a forçar `tool_choice = generate_checkout_link` também quando o estado é `recommendation/product_detail/decision` E `explicitBuyNow=true` E `checkoutChecklist.ready=true`. Combinada com a correção #1, o cliente que diz "Manda o link" recebe o link no mesmo turno, sem deadlock.
+3. **`output-gates.ts → gateGreetingMirrorFallback` (novo)**: detector determinístico que lê o período do dia direto da mensagem do cliente (sem precisar do TPR). Plugado em `ai-support-chat` antes do scrub legado bugado.
+4. **Procedimento de teste**: testes sequenciais de roteiro completo serão feitos exclusivamente via `ai-test-sandbox` (com Agent Mode quando backend) ou via canal real do WhatsApp do Antonio. Validação: a conversa criada DEVE existir em `conversations` com `metadata.is_sandbox=true`.
+
+### Validação técnica executada
+- ✅ `deno check supabase/functions/ai-support-chat/index.ts` passa sem erros.
+- ✅ Deploy concluído: `ai-support-chat` e `ai-test-sandbox`.
+- ✅ Regex nova validada manualmente contra os 5 padrões alvo: "manda o link", "me manda o link", "envia o link", "pode mandar o link", "gera link".
+- ⚠️ Pendente — teste E2E no canal real: usuário deve enviar pelo WhatsApp do Antonio (`5573991681425`) o roteiro `Boa noite, tudo bem?` → `Tô com a barba ressecada e com falhas, qual seria o tratamento?` → `Pode me indicar então` → `Quanto custa?` → `Beleza, pode separar` → `Manda o link`, conferindo: (a) abertura "Boa noite, tudo bem?", (b) recomendação multi-família sem preço, (c) preço só após pergunta, (d) `add_to_cart` no "pode separar", (e) `generate_checkout_link` no "Manda o link" sem handoff, (f) link com domínio `respeiteohomem.com.br` e carrinho hidratado.
+
+### Anti-regressão
+- Memória nova: `mem://constraints/checkout-trigger-must-not-deadlock-on-state` — FIX-B precisa ser elegível ANTES de `checkout_assist` quando há intenção explícita; senão deadlock.
+- Memória nova: `mem://constraints/greeting-mirror-must-work-without-tpr` — todo gate determinístico precisa de fallback que não dependa do classificador LLM.
+- Memória nova: `mem://constraints/ai-test-must-use-sandbox-edge` — testes sequenciais de roteiro só são válidos quando passam pela `ai-test-sandbox` (verificável pela conversa existir em `conversations` com `is_sandbox=true`).
+
+---
+
+*Última atualização: 01/mai/2026 (Reg. #2.10 aplicado, validação E2E pendente).*

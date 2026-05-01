@@ -142,3 +142,44 @@ export function gateGreetingMirror(input: {
     mandatoryOpening,
   };
 }
+
+// ----------------------------------------------------------------
+// [Reg #2.10] Greeting Mirror Fallback — sem depender do TPR.
+// Detecta direto na mensagem do cliente o período do dia e a pergunta
+// "tudo bem?". Usado quando TPR.source !== 'llm' (timeout, rate limit,
+// fallback regex). Antes, sem TPR, o gate não rodava e a saudação
+// degenerada ("Oi!" pra "Boa tarde") passava.
+// ----------------------------------------------------------------
+
+const PERIOD_WORDS: Record<string, "bom dia" | "boa tarde" | "boa noite"> = {
+  "bom dia": "bom dia",
+  "boa tarde": "boa tarde",
+  "boa noite": "boa noite",
+};
+
+const HOW_ARE_YOU_RE = /\btudo\s+(bem|bom|certo|tranquilo|joia|jóia)\b|\bcomo\s+(vai|est[áa])\b|\bbeleza\??\b/i;
+
+export function gateGreetingMirrorFallback(input: {
+  pipelineState: string;
+  aiResponse: string;
+  customerMessage: string;
+}): GreetingGateResult {
+  const { pipelineState, aiResponse, customerMessage } = input;
+  const lc = (customerMessage || "").toLowerCase();
+  let period: "bom dia" | "boa tarde" | "boa noite" | null = null;
+  for (const w of Object.keys(PERIOD_WORDS)) {
+    if (lc.includes(w)) { period = PERIOD_WORDS[w]; break; }
+  }
+  const askedHow = HOW_ARE_YOU_RE.test(lc);
+
+  // Reusa gateGreetingMirror passando uma classification sintética
+  return gateGreetingMirror({
+    pipelineState,
+    aiResponse,
+    classification: {
+      // só os 2 campos lidos pelo gate
+      greeting_period: period,
+      asked_how_are_you: askedHow,
+    } as TurnClassification,
+  });
+}

@@ -79,6 +79,7 @@ import {
   broadenCatalogForPain,
   scrubUnsolicitedPrice,
   gateGreetingMirror,
+  gateGreetingMirrorFallback,
   // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (shadow mode)
   loadSalesState,
   patchSalesState,
@@ -4940,8 +4941,20 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             const generateCheckoutAvailable = pipelineFilteredTools.some(
               (t: any) => t?.function?.name === "generate_checkout_link"
             );
+            // [Reg #2.10] FIX-B estendido: também dispara quando o estado
+            // ainda é consideration/decision/recommendation MAS o cliente
+            // pediu o link explicitamente e o carrinho tem item. Antes,
+            // exigir checkout_assist criava loop "posso finalizar?" → handoff,
+            // porque a transição pra checkout_assist só acontece DEPOIS de
+            // gerar o link.
+            const eligibleStateForForce =
+              pipelineState === "checkout_assist" ||
+              ((pipelineState === "decision" ||
+                pipelineState === "recommendation" ||
+                pipelineState === "product_detail") &&
+                explicitBuyNow);
             const forceCheckoutLink =
-              pipelineState === "checkout_assist" &&
+              eligibleStateForForce &&
               checkoutChecklist.ready &&
               generateCheckoutAvailable &&
               (salesIntentFlags.buy || explicitBuyNow || recentPurchaseIntentBefore);
@@ -6064,17 +6077,32 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           greetingScrubApplied = true;
         }
       } else {
-        // Fallback: scrub legado por regex
-        const scrub = scrubGreetingReciprocity({
+        // [Reg #2.10] Sem TPR: tenta o gate determinístico (sem LLM)
+        // que detecta período direto na mensagem do cliente. Antes
+        // pulava direto pro scrub legado bugado.
+        const fallbackGate = gateGreetingMirrorFallback({
           pipelineState,
-          customerMessage: lastMessageContent || "",
           aiResponse: aiContent || "",
+          customerMessage: lastMessageContent || "",
         });
-        greetingScrubReason = scrub.reason;
-        if (scrub.scrubbed) {
-          console.log(`[ai-support-chat] [Reg #2 - 3.3 fallback] greeting scrub (${scrub.reason})`);
-          aiContent = scrub.after;
+        if (fallbackGate.scrubbed) {
+          console.log(`[ai-support-chat] [Reg #2.10] greeting fallback gate (${fallbackGate.reason})`);
+          aiContent = fallbackGate.after;
           greetingScrubApplied = true;
+          greetingScrubReason = fallbackGate.reason;
+        } else {
+          // Fallback do fallback: scrub legado por regex
+          const scrub = scrubGreetingReciprocity({
+            pipelineState,
+            customerMessage: lastMessageContent || "",
+            aiResponse: aiContent || "",
+          });
+          greetingScrubReason = scrub.reason;
+          if (scrub.scrubbed) {
+            console.log(`[ai-support-chat] [Reg #2 - 3.3 fallback] greeting scrub (${scrub.reason})`);
+            aiContent = scrub.after;
+            greetingScrubApplied = true;
+          }
         }
       }
     } catch (e) {

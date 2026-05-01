@@ -157,7 +157,10 @@ const SUPPORT_PATTERNS = [
 
 const CHECKOUT_REQUEST_PATTERNS = [
   /\b(finaliza(r)?|fechar)\s+(a\s+)?compra\b/i,
-  /\bme\s+manda\s+o\s+link\b/i,
+  // [Reg #2.10] "manda/envia/gera o link" — com ou sem "me", com ou sem artigo.
+  // Inclui também "pode mandar/enviar/gerar (o) link" e "manda/envia (o) link pra mim".
+  /\b(me\s+)?(manda|envia|envie|mande|gera|gere)\s+(o\s+)?link\b/i,
+  /\bpode\s+(mandar|enviar|gerar|finalizar)\s+(o\s+)?(link|pedido|checkout)\b/i,
   /\bgera\s+(o\s+)?link\b/i,
 ];
 
