@@ -79,6 +79,7 @@ import {
   broadenCatalogForPain,
   scrubUnsolicitedPrice,
   gateGreetingMirror,
+  gateGreetingMirrorFallback,
   // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (shadow mode)
   loadSalesState,
   patchSalesState,
