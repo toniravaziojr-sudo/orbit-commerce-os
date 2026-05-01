@@ -44,6 +44,9 @@ const ORDER_TRANSITIONS: Record<string, string[]> = {
   payment_expired: [],
   invoice_rejected: ['ready_to_invoice'],
   invoice_cancelled: [],
+  // Chargeback states
+  chargeback_detected: ['chargeback_lost', 'ready_to_invoice', 'invoice_issued', 'dispatched', 'completed'],
+  chargeback_lost: [],
   // Legacy transitions (backward compat)
   pending: ['awaiting_confirmation', 'ready_to_invoice', 'paid', 'cancelled', 'payment_expired'],
   awaiting_payment: ['awaiting_confirmation', 'ready_to_invoice', 'paid', 'cancelled', 'payment_expired'],
@@ -58,10 +61,11 @@ const ORDER_TRANSITIONS: Record<string, string[]> = {
 
 const PAYMENT_TRANSITIONS: Record<PaymentStatus, PaymentStatus[]> = {
   awaiting_payment: ['paid', 'declined', 'cancelled'],
-  paid: ['refunded'],
+  paid: ['refunded', 'under_review'],
   declined: ['awaiting_payment', 'cancelled'],
   cancelled: [],
   refunded: [],
+  under_review: ['paid', 'refunded'],
 };
 
 const SHIPPING_TRANSITIONS: Record<ShippingStatus, ShippingStatus[]> = {
