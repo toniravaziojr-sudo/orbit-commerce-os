@@ -128,6 +128,10 @@ const DEFAULTS = Object.freeze({
   use_emojis: true,
   max_response_length: 500,
   sales_mode_enabled: false,
+  // [B.1] ai_model AFETA chamada real do modelo (custo/latência/comportamento).
+  // Default mantido alinhado com o handler atual (`effectiveConfig.ai_model || "gpt-5.2"`).
+  // Se este default mudar, custo e latência mudam silenciosamente para tenants
+  // sem ai_model configurado — alterar requer revisão de impacto.
   ai_model: "gpt-5.2",
 });
 

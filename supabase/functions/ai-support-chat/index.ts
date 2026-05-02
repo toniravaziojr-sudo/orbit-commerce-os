@@ -3162,7 +3162,10 @@ Deno.serve(async (req) => {
       redact_pii_in_logs: true,
     };
 
-    const salesModeEnabled = effectiveConfig.sales_mode_enabled === true;
+    // [Onda 18 Fase B.1] sales_mode vem da policy (fonte central).
+    // Compilação acontece mais abaixo; aqui ainda lemos legado para gates
+    // pré-policy. Essa variável é REASSIGNADA após compileEffectivePolicy.
+    let salesModeEnabled = effectiveConfig.sales_mode_enabled === true;
 
     // [Onda 18 — Fase A] Flag de Probe v2 família-base.
     // Decisão Fase A: como tenant_feature_flags não existe ainda, a flag
