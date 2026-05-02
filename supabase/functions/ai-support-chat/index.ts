@@ -5722,8 +5722,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         const isActionable = intentClassification?.intent === "complaint" ||
           intentClassification?.intent === "action_request" ||
           intentClassification?.requires_action === true;
-        const lastInboundForFb = recentMessages
-          ?.filter((m: any) => m.sender_type === "customer")
+        const lastInboundForFb = (messages || [])
+          .filter((m: any) => m.sender_type === "customer")
           ?.slice(-1)?.[0];
         const inboundIsMediaFb = !!(lastInboundForFb?.media_url ||
           lastInboundForFb?.message_type === "image" ||
