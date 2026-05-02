@@ -14,6 +14,7 @@ export interface PaymentTransaction {
   status: string;
   amount: number;
   paid_amount: number | null;
+  refunded_amount: number | null;
   currency: string;
   error_message: string | null;
   paid_at: string | null;
