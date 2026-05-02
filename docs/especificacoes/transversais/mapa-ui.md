@@ -202,6 +202,8 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/orders/:id` — Detalhe do pedido (inclui `OrderRegressionBanner` quando há NF-e/etiqueta com `requires_action = true` por regressão de status — ver `pedidos.md` §4.6)
 - `/abandoned-checkouts` — Checkouts abandonados
 - `/products` — Produtos. Na criação/edição, o formulário usa o scroll global do `AppShell`; a barra fixa inferior do formulário não pode criar área branca extra no fim do documento
+
+**Regra estrutural do AppShell (admin):** ao montar o painel administrativo, o documento (`html`, `body` e `#root`) deve ficar com overflow bloqueado; a única rolagem vertical permitida é a do `main` interno do shell.
 - `/customers` — Clientes
 - `/checkout-links` — Link Checkout (links personalizados de checkout)
 - `/customers/:id` — Detalhe do cliente
