@@ -50,3 +50,31 @@ Cada campo do `EffectivePolicy` carrega `{ value, source }` com `source ∈ { ba
 ## Kill switch
 
 A Fase B NÃO criou flag de rollout. Sob o novo contexto (piloto único = Respeite o Homem), o compiler ativa direto. Se for necessário desligar emergencialmente, a opção é reverter o commit do handler — o módulo `policy-compiler.ts` é função pura sem efeito colateral, então remover suas chamadas restaura o caminho legado.
+
+## Fase B.1 — Saneamento (02/mai/2026)
+
+### `ai_model` afeta roteamento real (não é informativo)
+`effectivePolicy.ai_model.value` é consumido por `configuredModel` no handler e roteia a chamada do gateway (com normalização Gemini→GPT). Default do compiler é `"gpt-5.2"` — alinhado com o handler legado. Mudar esse default altera custo/latência silenciosamente para tenants sem `ai_model` configurado.
+
+### Migrações B.1 (effectiveConfig → policy)
+- `sales_mode_enabled` → `effectivePolicy.sales_mode_enabled.value` (reassign após compileEffectivePolicy).
+- `rules` → `effectivePolicy.rules.value`.
+- `handoff_keywords` → `effectivePolicy.handoff_keywords.value`.
+- `system_prompt` no `buildPromptForState` → `effectivePolicy.system_prompt.value`.
+- `channelConfig.custom_instructions` no `buildPromptForState` → `effectivePolicy.custom_instructions.value`.
+- `ai_model` no roteamento de modelo → `effectivePolicy.ai_model.value`.
+
+### Leituras residuais MANTIDAS (com motivo técnico)
+- `effectiveConfig.is_enabled` — gate de circuit-breaker pré-policy (precisa rodar antes de compilar).
+- `effectiveConfig.metadata?.arch18_catalog_base_forced` — kill switch técnico de Fase A; vive em metadata, não é política.
+- `effectiveConfig.rag_top_k`, `rag_similarity_threshold`, `rag_min_evidence_chunks`, `handoff_on_no_evidence` — parâmetros técnicos do RAG, fora do escopo de política.
+- `effectiveConfig.redact_pii_in_logs` — flag operacional de logging, não comportamento da IA.
+- `effectiveConfig.max_response_length`/`use_emojis`/`forbidden_topics` no bloco `policy_divergence` — leitura LEGADA usada PROPOSITALMENTE para detectar divergência vs policy. Remover quando o log estabilizar (1 semana de produção limpa).
+
+### Hierarquia de autoridade no prompt (POLICY_AUTHORITY_PREAMBLE)
+Topo do system prompt SEMPRE inclui o preamble:
+1. Invariantes da plataforma > qualquer instrução.
+2. Resultado real de tools > texto livre (catálogo/preço/estoque/frete/checkout só via tool).
+3. Instruções de tenant/canal são complementares e cedem se conflitarem com (1) ou (2).
+
+Custom_instructions e system_prompt_override do canal continuam em blocos separados ABAIXO do preamble — nunca substituem nem precedem essas regras.
