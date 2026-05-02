@@ -653,9 +653,9 @@ Quando um pedido é criado, o sistema inicia verificação ativa do status de pa
 3. Se nenhuma resolução em 15 dias → mesma ação de "chargeback perdido"
 4. Estornos diretos (sem chargeback) → `payment_status = refunded` (status do pedido não muda)
 
-### 7.2.1 Estorno administrativo via gateway (Ondas 1 + 2 — backend)
+### 7.2.1 Estorno administrativo via gateway (Ondas 1 + 2 + 3)
 
-> **Status:** Onda 1 + Onda 2 entregues — router unificado e adapters PagBank, Pagar.me e Mercado Pago operacionais. UI dedicada em backlog (Onda 3).
+> **Status:** Backend (router + adapters PagBank, Pagar.me, Mercado Pago) e UI dedicada entregues. Acesso restrito a `owner`/`admin`.
 
 **Arquitetura:**
 
@@ -682,6 +682,13 @@ Quando um pedido é criado, o sistema inicia verificação ativa do status de pa
 - Transação já `refunded` rejeita novo estorno (erro `ALREADY_REFUNDED`).
 
 **Fluxo automático preservado:** webhooks de chargeback continuam intocados. O router é exclusivo para ação manual administrativa.
+
+**UI (Onda 3):**
+
+- No detalhe do pedido (`/orders/:id`), o card *Tentativas de Pagamento* exibe o botão **"Estornar pagamento"** somente para `owner`/`admin` e somente quando existe transação aprovada (`approved`/`paid`/`partially_refunded`) em gateway suportado (PagBank, Pagar.me, Mercado Pago).
+- O botão abre o `RefundPaymentDialog` com: gateway, valor original, já estornado (se houver), valor disponível, campo de valor (default = total disponível, editável para estorno parcial) e motivo obrigatório.
+- Ao confirmar, chama `payment-refund` (router). O sucesso invalida cache de transações, detalhe do pedido, histórico e lista de pedidos para refletir o novo `payment_status` e o registro `[OVERRIDE ADMIN]` no histórico.
+- Operador (`operator`) **não vê o botão**. Mesmo se forçar a chamada, o router rejeita por role.
 
 
 ### 7.3 Sistema de Identificação de Clientes (v2026-04-05)

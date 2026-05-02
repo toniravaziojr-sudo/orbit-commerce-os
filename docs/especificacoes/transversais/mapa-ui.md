@@ -199,7 +199,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 **E-commerce:**
 - `/orders` — Lista de pedidos
 - `/orders/new` — Novo pedido manual. A rolagem vertical da tela deve acontecer no contêiner principal do `AppShell`; é proibido manter um segundo scroll estrutural no shell ou inflar a altura do documento com viewport fixa legado
-- `/orders/:id` — Detalhe do pedido (inclui `OrderRegressionBanner` quando há NF-e/etiqueta com `requires_action = true` por regressão de status — ver `pedidos.md` §4.6)
+- `/orders/:id` — Detalhe do pedido (inclui `OrderRegressionBanner` quando há NF-e/etiqueta com `requires_action = true` por regressão de status — ver `pedidos.md` §4.6). O card *Tentativas de Pagamento* exibe a ação **"Estornar pagamento"** (`RefundPaymentDialog`) apenas para `owner`/`admin` quando há transação aprovada em gateway suportado — ver `pedidos.md` §7.2.1.
 - `/abandoned-checkouts` — Checkouts abandonados
 - `/products` — Produtos. Na criação/edição, o formulário usa o scroll global do `AppShell`; a barra fixa inferior do formulário não pode criar área branca extra no fim do documento
 
