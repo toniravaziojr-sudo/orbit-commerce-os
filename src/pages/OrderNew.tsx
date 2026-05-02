@@ -287,7 +287,7 @@ export default function OrderNew() {
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
   return (
-    <div className="space-y-6 animate-fade-in pb-16">
+    <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Novo Pedido"
         description="Criar pedido manual"
