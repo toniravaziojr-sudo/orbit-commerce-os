@@ -200,6 +200,8 @@ interface Order {
 **Legado — Ghost Orders (encerrado em 2026-05-02):**
 O conceito de "ghost order" (`payment_gateway_id IS NULL`) foi eliminado na v2026-04-04 pela regra gateway-first. Em 2026-05-02, os 79 pedidos legados pré-19/abr restantes (que ficaram pendentes/expirados sem `payment_gateway_id`) foram migrados para `cancelled` com motivo "Órfão pré-gateway-first". A partir desta data, **a listagem de pedidos NÃO filtra mais por `payment_gateway_id`** — esse filtro estava bloqueando indevidamente pedidos manuais (criados via `/orders/new`) e importações de marketplace, que legitimamente não têm `payment_gateway_id`. Regra anti-regressão: nunca reintroduzir `.not('payment_gateway_id', 'is', null)` em queries de listagem de pedidos. A integridade contra ghost orders é garantida pelo gateway-first na criação, não por filtro na leitura.
 
+**Validação E2E (2026-05-02):** Pedido manual #392 (PIX/Pago) e #393 (Boleto/Pago, transportadora Correios) criados via `/orders/new` apareceram corretamente em `/orders`, `/fiscal?tab=pedidos` (status "Pronto para emitir NF") e `/logistica` (aba Aguardando Envio). Confirma que a remoção do filtro não introduziu efeitos colaterais e que pedidos manuais transitam pelo pipeline atomic-order-draft-trigger igual a pedidos do storefront.
+
 ---
 
 ### 3.2 Tipos de Status
