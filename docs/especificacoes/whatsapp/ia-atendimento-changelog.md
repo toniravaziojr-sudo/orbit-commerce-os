@@ -981,3 +981,40 @@ Todas as Regs da Onda 17 (#11, #14, #15, #16, #17.1–17.6) confirmadas em produ
 Helper `isBotMessage(m)` em `_shared` continua recomendado para encerrar a família `role` vs `sender_type` definitivamente. Decisão do usuário quanto à criação imediata.
 
 📌 **STATUS DA ENTREGA:** Corrigido e validado.
+
+---
+
+## Registro #19 — Onda 18 Fase B: Policy Compiler (EffectivePolicy + source_trace) — 02/mai/2026
+
+**Contexto.** Sob o novo contexto oficial (Respeite o Homem como piloto único de produção), a Fase B implementa o **Policy Compiler** como fonte central da política efetiva da IA. Antes da Fase B, o handler `ai-support-chat` lia `ai_support_config` e `ai_channel_config` em pontos espalhados, com override manual incompleto: `system_prompt_override` e `custom_instructions` do canal eram persistidos mas **nunca chegavam no prompt**. A Fase B fecha esse gap e padroniza precedência, invariantes e observabilidade.
+
+**Escopo da Fase B (somente isso).**
+1. Novo módulo `_shared/sales-pipeline/policy-compiler.ts` — função pura, sem efeito colateral.
+2. `compileEffectivePolicy({ tenantConfig, channelConfig, channelType })` retorna `EffectivePolicy` com `{ value, source }` por campo.
+3. Camada `base` com `PLATFORM_INVARIANTS` freezada (isolamento, segurança, honestidade da pipeline, integridade de dados).
+4. Precedência: `default → tenant → channel`. Channel só sobrescreve `system_prompt_override`, `forbidden_topics` (união), `max_response_length`, `use_emojis`, `custom_instructions`.
+5. Integração no `ai-support-chat`: persona/tom/limites/forbidden/system_prompt/custom_knowledge/custom_instructions agora vêm de `effectivePolicy.*.value`.
+6. Log estruturado de `policySourceTrace` no início do turno + log de `policy_divergence` comparando policy vs leitura legada (auditoria temporária).
+7. **NÃO** mexido nesta fase: Turn Aggregator, TPR v2, Planner, Critic, Tool Executor, remoção de gates antigos.
+
+**Sem flag de rollout.** Sob piloto único, o compiler ativa direto. Kill switch técnico = reverter as chamadas no handler (módulo é função pura, sem migration/sem schema).
+
+**Sem migration.** Tabelas `ai_support_config` e `ai_channel_config` já existiam com todos os campos necessários.
+
+**Validação técnica executada.**
+- 9/9 testes unitários passaram (`policy-compiler.test.ts`): default, tenant-only, channel override, fallbacks, frozen invariants, source_trace, união determinística de forbidden_topics.
+- 9/9 testes da Fase A continuam passando (sem regressão).
+- Estado real do Respeite o Homem confirmado via SQL: `ai_support_config` presente (sales_mode=true, use_emojis=false), `ai_channel_config` ausente → fallback seguro para tenant em todos os campos sobrescrevíveis.
+
+**Critérios de aceite.**
+1. ✅ EffectivePolicy gerado para Respeite o Homem (testado pela compilação real do handler + traços).
+2. ✅ Channel sobrescreve tenant nos campos permitidos (testes unitários cobrem).
+3. ✅ Tenant sobrescreve default (testes unitários cobrem).
+4. ✅ Invariantes frozen, ignoram tenant/channel (teste dedicado).
+5. ✅ source_trace cobre 14 campos com origem real.
+6. ✅ Tenant sem channel config funciona (caso real do Respeite o Homem hoje).
+7. ✅ ai-support-chat passou a usar effectivePolicy em persona/tom/maxLen/use_emojis/forbidden/system_prompt/custom_knowledge/custom_instructions.
+8. ✅ Log de divergência ativo (`[Onda18-B] policy_divergence ...`).
+9. ✅ Fase A intacta: `enforceFamilyBaseFirst`, `ai_turn_traces`, kill switch `arch18_catalog_base_forced`.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação: enviar mensagens reais no WhatsApp do Respeite o Homem e confirmar nos logs `[Onda18-B] effective_policy` o source_trace correto + ausência de `policy_divergence`.

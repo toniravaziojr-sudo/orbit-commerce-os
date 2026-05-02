@@ -80,6 +80,9 @@ import {
   // [Onda 18 — Fase A] Probe v2 família-base + detector de família por regex
   enforceFamilyBaseFirst,
   detectFamilyInText,
+  // [Onda 18 — Fase B] Policy Compiler — fonte central da política efetiva
+  compileEffectivePolicy,
+  policySourceTrace,
   scrubUnsolicitedPrice,
   gateGreetingMirror,
   gateGreetingMirrorFallback,
@@ -3354,6 +3357,27 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ============================================
+    // [Onda 18 — Fase B] EFFECTIVE POLICY (fonte central)
+    // ============================================
+    // Compila base (invariantes) + tenant (ai_support_config) + channel
+    // (ai_channel_config) em um único objeto com source_trace por campo.
+    // A partir daqui, persona/tom/limites/forbidden/use_emojis/system_prompt
+    // DEVEM ser lidos de `effectivePolicy.*.value`, NÃO de effectiveConfig
+    // ou channelConfig direto. effectiveConfig segue vivo só para campos
+    // técnicos não cobertos pela policy (RAG, handoff, ai_model legado,
+    // metadata.arch18_*, etc.).
+    const effectivePolicy = compileEffectivePolicy({
+      tenantConfig: aiConfig as any,
+      channelConfig: channelConfig as any,
+      channelType,
+    });
+    const policyTrace = policySourceTrace(effectivePolicy);
+    console.log(
+      `[ai-support-chat] [Onda18-B] effective_policy tenant=${tenant_id} channel=${channelType} ` +
+      `trace=${JSON.stringify(policyTrace)}`
+    );
+
     // [Fase A] Janela de histórico CORRIGIDA:
     // Antes: .order(asc).limit(20) → pegava os 20 PRIMEIROS turnos. Em conversas
     // longas, a mensagem atual do cliente NUNCA entrava no contexto, e a IA
@@ -3930,22 +3954,46 @@ Deno.serve(async (req) => {
     // ============================================
     // STEP 5: BUILD SYSTEM PROMPT
     // ============================================
-    let personalityTone = effectiveConfig.personality_tone || "amigável e profissional";
-    let personalityName = effectiveConfig.personality_name || "Assistente";
-    let maxLength = effectiveConfig.max_response_length || 500;
-    let useEmojis = effectiveConfig.use_emojis ?? true;
-    let forbiddenTopics: string[] = effectiveConfig.forbidden_topics || [];
+    // [Onda 18 — Fase B] Persona/tom/limites/forbidden vêm do EffectivePolicy.
+    // Channel override é tratado dentro do compileEffectivePolicy. Não fazer
+    // override manual aqui — qualquer divergência entre policy e leitura legada
+    // é loggada para diagnóstico.
+    let personalityTone = effectivePolicy.personality_tone.value;
+    let personalityName = effectivePolicy.personality_name.value;
+    let maxLength = effectivePolicy.max_response_length.value;
+    let useEmojis = effectivePolicy.use_emojis.value;
+    let forbiddenTopics: string[] = effectivePolicy.forbidden_topics.value;
 
-    // Channel overrides
-    if (channelConfig) {
-      if (channelConfig.max_response_length) maxLength = channelConfig.max_response_length;
-      if (channelConfig.use_emojis !== null) useEmojis = channelConfig.use_emojis;
-      if (channelConfig.forbidden_topics?.length) {
-        forbiddenTopics = [...new Set([...forbiddenTopics, ...channelConfig.forbidden_topics])];
+    // [Onda 18 — Fase B] Log de divergência: comparar com leitura legada
+    // (effectiveConfig direto) só para auditoria. Pode ser removido após
+    // 1 semana de produção estável.
+    try {
+      const legacyMax = effectiveConfig.max_response_length || 500;
+      const legacyEmojis = effectiveConfig.use_emojis ?? true;
+      const legacyForbidden = effectiveConfig.forbidden_topics || [];
+      const channelMaxRaw = (channelConfig as any)?.max_response_length;
+      const channelEmojisRaw = (channelConfig as any)?.use_emojis;
+      const channelForbidden = (channelConfig as any)?.forbidden_topics || [];
+      const legacyChannelMax = channelMaxRaw && channelMaxRaw > 0 ? channelMaxRaw : legacyMax;
+      const legacyChannelEmojis = channelEmojisRaw !== undefined && channelEmojisRaw !== null ? channelEmojisRaw : legacyEmojis;
+      const legacyChannelForbidden = channelForbidden.length
+        ? [...new Set([...legacyForbidden, ...channelForbidden])]
+        : legacyForbidden;
+
+      const divergences: string[] = [];
+      if (legacyChannelMax !== maxLength) divergences.push(`max_response_length legacy=${legacyChannelMax} policy=${maxLength}`);
+      if (legacyChannelEmojis !== useEmojis) divergences.push(`use_emojis legacy=${legacyChannelEmojis} policy=${useEmojis}`);
+      if (JSON.stringify(legacyChannelForbidden) !== JSON.stringify(forbiddenTopics)) {
+        divergences.push(`forbidden_topics legacy=${JSON.stringify(legacyChannelForbidden)} policy=${JSON.stringify(forbiddenTopics)}`);
       }
+      if (divergences.length > 0) {
+        console.warn(`[ai-support-chat] [Onda18-B] policy_divergence tenant=${tenant_id} channel=${channelType} ${divergences.join(" | ")}`);
+      }
+    } catch (e) {
+      console.warn(`[ai-support-chat] [Onda18-B] divergence_check_failed: ${(e as Error).message}`);
     }
 
-    let systemPrompt = effectiveConfig.system_prompt || `Você é ${personalityName}, atende a loja ${storeName} pelo WhatsApp.
+    let systemPrompt = effectivePolicy.system_prompt.value || `Você é ${personalityName}, atende a loja ${storeName} pelo WhatsApp.
 
 Você NÃO é um bot de FAQ nem um assistente virtual genérico. Você é uma pessoa real respondendo do celular, em português do Brasil, com tom de conversa natural, leve e profissional.
 
@@ -4632,9 +4680,15 @@ Cliente: "vocês entregam em SP?"
       console.warn("[ai-support-chat] Learning fetch error:", e);
     }
 
-    // Add custom knowledge from config
-    if (effectiveConfig.custom_knowledge) {
-      systemPrompt += `\n\n### Conhecimento adicional:\n${effectiveConfig.custom_knowledge}`;
+    // [Onda 18 — Fase B] Conhecimento adicional via EffectivePolicy.
+    if (effectivePolicy.custom_knowledge.value) {
+      systemPrompt += `\n\n### Conhecimento adicional:\n${effectivePolicy.custom_knowledge.value}`;
+    }
+    // [Onda 18 — Fase B] Instruções específicas do canal (custom_instructions).
+    // Antes da Fase B, esse campo de ai_channel_config era persistido mas
+    // NUNCA chegava no prompt. Agora vai como bloco dedicado.
+    if (effectivePolicy.custom_instructions.value) {
+      systemPrompt += `\n\n### Instruções específicas deste canal (${effectivePolicy.channel_type.value}):\n${effectivePolicy.custom_instructions.value}`;
     }
 
     // Add active rules
