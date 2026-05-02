@@ -7298,10 +7298,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // [Pacote B] Libera o lock antes de devolver. Tolerante a falha.
     await releaseProcessingLock(supabase, conversation_id, myLockId).catch(() => {});
 
+    // [Reg #17.5] Sincroniza o snapshot retornado com o conteúdo final
+    // pós-gates. O `newMessage` foi inserido antes dos scrubbers e da
+    // regeneração; o cliente da edge function precisa ver exatamente o
+    // texto que foi enviado pelo canal e persistido em `messages.content`.
+    const finalMessageSnapshot = newMessage
+      ? { ...newMessage, content: aiContent }
+      : newMessage;
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: newMessage,
+        message: finalMessageSnapshot,
         handoff: shouldHandoff,
         handoff_reason: handoffReason || null,
         matched_rule: matchedRule?.id,
