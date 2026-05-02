@@ -781,6 +781,11 @@ async function executeSalesTool(
     // [Reg #2.8] Quando o TPR detecta DOR/OBJETIVO concreto, search_products
     // aplica Catalog Probe (1 representante por família, não filtra estrito).
     shouldBroadenForPain?: boolean;
+    // [Onda 18 — Fase A] Quando true, aplica enforceFamilyBaseFirst após enrichment
+    // e grava traces estruturados em ai_turn_traces.
+    arch18CatalogBaseForced?: boolean;
+    // [Onda 18 — Fase A] Identificador do turno atual (usado em ai_turn_traces).
+    turnId?: string;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
@@ -3040,6 +3045,14 @@ Deno.serve(async (req) => {
 
     const salesModeEnabled = effectiveConfig.sales_mode_enabled === true;
 
+    // [Onda 18 — Fase A] Flag de Probe v2 família-base.
+    // Decisão Fase A: como tenant_feature_flags não existe ainda, a flag
+    // mora em ai_support_config.metadata.arch18_catalog_base_forced (boolean).
+    // Quando true, search_products roda enforceFamilyBaseFirst após enrichment
+    // e grava ai_turn_traces (sampling 100% no tenant ativo).
+    const arch18CatalogBaseForced =
+      ((effectiveConfig as any)?.metadata?.arch18_catalog_base_forced) === true;
+
     if (effectiveConfig.is_enabled === false) {
       return new Response(
         JSON.stringify({ success: false, error: "AI support is disabled for this tenant", code: "AI_DISABLED" }),
@@ -5042,6 +5055,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // [Reg #2.8] Sinaliza ao search_products que aplique Catalog Probe
         // (1 representante por família) ao invés do filtro estrito.
         shouldBroadenForPain: turnClassification?.should_broaden_catalog_for_pain === true,
+        // [Onda 18 — Fase A] Probe v2 família-base + trace estruturado.
+        arch18CatalogBaseForced,
+        turnId: `${conversation_id}-${Date.now()}`,
       };
 
       let response: Response | null = null;
