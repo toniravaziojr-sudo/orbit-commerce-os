@@ -5158,23 +5158,26 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // gpt-5 vira FALLBACK explícito (ativado mais abaixo, no loop de modelos),
     // só quando o estado é decision/checkout_assist E houve falha de tool-calling.
     // Não tem mais "upgrade global para gpt-5" — isso destruía a latência.
-    // [B.1] ai_model via policy. Source pode ser `tenant` (ai_support_config.ai_model)
-    // ou `default` ("gpt-5.2"). Channel não controla modelo.
-    let configuredModel = effectivePolicy.ai_model.value;
+    // [B.2] Modelo principal de resposta vem de `model_response_composer`.
+    // Papéis separados: TPR usa flash-lite (no turn-pre-router), composer usa
+    // o modelo forte definido no policy. Não há mais "downgrade silencioso"
+    // do composer para gpt-5-mini só por estar em sales mode quando o tenant/
+    // default já especificou um modelo forte (gpt-5*, pro).
+    let configuredModel = effectivePolicy.model_response_composer.value;
     if (salesModeEnabled) {
-      // Força o piso em gpt-5-mini (tool-calling confiável + ~3-5x mais rápido
-      // que gpt-5). nano não chama tools com confiabilidade suficiente.
       const cm = configuredModel.toLowerCase();
+      // Só rebaixa para gpt-5-mini se o composer for fraco (nano/flash-lite/flash/mini).
+      // Modelos fortes (gpt-5, gpt-5.2, gemini-pro) são preservados.
       if (cm.includes("nano") || cm.includes("flash-lite")) {
-        console.log(`[ai-support-chat] [PERF] sales-mode: raising ${configuredModel} → gpt-5-mini (nano/lite não tool-call)`);
+        console.log(`[ai-support-chat] [B.2] sales-mode: raising weak composer ${configuredModel} → gpt-5-mini`);
         configuredModel = "gpt-5-mini";
-      } else if (cm.includes("flash") || cm.includes("mini")) {
-        // Mantém intenção de "rápido" do tenant em gpt-5-mini.
+      } else if (cm.includes("flash") || (cm.includes("mini") && !cm.includes("gpt-5"))) {
+        console.log(`[ai-support-chat] [B.2] sales-mode: raising weak composer ${configuredModel} → gpt-5-mini`);
         configuredModel = "gpt-5-mini";
       }
-      // Se o tenant pediu gpt-5 ou gpt-5.2 explicitamente, respeitamos.
+      // gpt-5 / gpt-5-mini explícito / gpt-5.2 / pro → mantidos
     }
-    
+
     const modelMapping: Record<string, string> = {
       "google/gemini-2.5-flash": "gpt-5-mini",
       "google/gemini-2.5-pro": "gpt-5",
@@ -5184,9 +5187,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       "openai/gpt-5-nano": "gpt-5-nano",
       "openai/gpt-5.2": "gpt-5.2",
     };
-    
+
     const aiModel = modelMapping[configuredModel] || configuredModel;
     modelUsed = aiModel;
+    console.log(`[ai-support-chat] [B.2] composer=${aiModel} source=${effectivePolicy.model_response_composer.source} tpr=${effectivePolicy.model_classifier_tpr.value}`);
 
     // [F1] Rastreio de tools chamadas no turno (escopo do handler, alimenta máquina de estado)
     const toolsCalledThisTurn: string[] = [];
