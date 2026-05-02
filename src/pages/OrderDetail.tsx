@@ -560,7 +560,7 @@ export default function OrderDetail() {
           </Card>
 
           {/* Payment Attempts */}
-          <PaymentAttemptsCard orderId={order.id} />
+          <PaymentAttemptsCard orderId={order.id} canRefund={canOverride} />
 
           {/* Shipments Section with Shipping Status */}
           <Card>
