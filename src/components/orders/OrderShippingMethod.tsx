@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useShippingProviders } from '@/hooks/useShippingProviders';
+import { useAvailableShippingMethods } from '@/hooks/useAvailableShippingMethods';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -78,6 +79,7 @@ const PROVIDER_NAMES: Record<string, string> = {
 
 export function OrderShippingMethod({ address, items, value, onChange }: OrderShippingMethodProps) {
   const { providers, isLoading: providersLoading } = useShippingProviders();
+  const { methods: contractMethods } = useAvailableShippingMethods();
   
   const [selectedMethodType, setSelectedMethodType] = useState<'integrated' | 'manual' | ''>('');
   const [selectedProvider, setSelectedProvider] = useState<string>('');
@@ -319,16 +321,46 @@ export function OrderShippingMethod({ address, items, value, onChange }: OrderSh
                 </Alert>
                 <div className="space-y-2">
                   <Label htmlFor="manual_service_name">Serviço / Modalidade</Label>
-                  <Input
-                    id="manual_service_name"
-                    value={value.shipping_carrier}
-                    onChange={(e) => onChange({
-                      ...value,
-                      shipping_method: selectedProvider,
-                      shipping_carrier: e.target.value,
-                    })}
-                    placeholder="Ex: SEDEX, PAC, Expresso..."
-                  />
+                  {(() => {
+                    // Lista serviços conhecidos do provedor (do contrato configurado, ou fallback completo)
+                    const providerServices = contractMethods.filter(m => m.provider === selectedProvider);
+                    if (providerServices.length > 0) {
+                      return (
+                        <Select
+                          value={value.shipping_carrier}
+                          onValueChange={(v) => onChange({
+                            ...value,
+                            shipping_method: selectedProvider,
+                            shipping_carrier: v,
+                          })}
+                        >
+                          <SelectTrigger id="manual_service_name">
+                            <SelectValue placeholder="Selecione o serviço" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {providerServices.map(svc => (
+                              <SelectItem key={svc.value} value={svc.value}>
+                                {svc.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    }
+                    // Fallback: input livre quando não há serviços conhecidos
+                    return (
+                      <Input
+                        id="manual_service_name"
+                        value={value.shipping_carrier}
+                        onChange={(e) => onChange({
+                          ...value,
+                          shipping_method: selectedProvider,
+                          shipping_carrier: e.target.value,
+                        })}
+                        placeholder="Ex: SEDEX, PAC, Expresso..."
+                      />
+                    );
+                  })()}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="manual_cost">Valor do Frete (R$)</Label>
