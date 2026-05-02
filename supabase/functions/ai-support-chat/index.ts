@@ -5080,7 +5080,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             // mais uma pergunta confirmatória ("Quer que eu finalize?").
             // Isto elimina o loop infinito observado em produção.
             const lcMsgForBuy = (lastMessageContent || "").toLowerCase();
-            const explicitBuyNow = /\b(pode (gerar|mandar|enviar)|gera o link|manda o link|envia o link|finaliza|fechar (o )?pedido|quero (fechar|comprar|finalizar)|vou levar|pode finalizar|sim,? (pode|fecha|quero))\b/.test(lcMsgForBuy);
+            // [Reg #9] Regex ampliada com falas reais observadas em teste E2E:
+            // "sim pode fechar", "fecha pra mim", "bora fechar", "fechado",
+            // "quero levar", "me manda o link/pagamento", "como pago", "quero pagar".
+            const explicitBuyNow = /\b(pode (gerar|mandar|enviar|fechar|finalizar)|gera (o )?link|manda (o |a )?(link|pagamento)|envia (o )?link|finaliza|fechar (o )?pedido|quero (fechar|comprar|finalizar|levar|pagar)|vou levar|pode finalizar|sim,? (pode|fecha|quero|manda|gera)|fecha (pra|para) mim|bora fechar|fechado|me manda (o |a )?(link|pagamento)|como (eu )?pago|quero pagar)\b/.test(lcMsgForBuy);
             const generateCheckoutAvailable = pipelineFilteredTools.some(
               (t: any) => t?.function?.name === "generate_checkout_link"
             );
