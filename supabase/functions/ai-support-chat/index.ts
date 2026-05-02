@@ -5627,7 +5627,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         const toolsAlreadyRan = toolsCalledThisTurn.length > 0;
         const FALLBACK_PROMISE_BY_STATE: Record<PipelineState, string> = {
           greeting:        "Oi! Tudo bem? Me conta o que você está procurando.",
-          discovery:       "Deixa eu entender melhor. Você procura algo específico ou quer ver opções?",
+          discovery:       "Me conta um pouco do que você precisa que eu já te indico.",
           recommendation:  "Só um instante, deixa eu ver as opções aqui pra você.",
           product_detail:  "Deixa eu confirmar essa informação aqui pra você, um segundo.",
           decision:        "Perfeito, vou organizar isso pra você. Me dá um minutinho.",
