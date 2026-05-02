@@ -176,11 +176,13 @@ export function useOrders(options?: {
     queryFn: async () => {
       if (!currentTenant?.id) return { data: [], count: 0 };
       
+      // Listagem confia na regra gateway-first (pedidos.md §16): qualquer pedido sem
+      // payment_gateway_id hoje só pode ser manual, marketplace/import ou órfão pré-19/abr.
+      // NUNCA reintroduzir filtro por payment_gateway_id aqui — bloqueia pedidos manuais.
       let query = supabase
         .from('orders')
         .select('*', { count: 'exact' })
-        .eq('tenant_id', currentTenant.id)
-        .not('payment_gateway_id', 'is', null);
+        .eq('tenant_id', currentTenant.id);
 
       if (search) {
         query = query.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
