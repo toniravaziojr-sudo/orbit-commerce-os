@@ -44,10 +44,11 @@ interface RefundPaymentDialogProps {
 export function RefundPaymentDialog({ open, onOpenChange, orderId, transaction }: RefundPaymentDialogProps) {
   const queryClient = useQueryClient();
 
-  // paid_amount já considera estornos parciais (alguns gateways), mas usamos amount - refunded como base
+  // Lê o valor REAL já estornado da transação (atualizado pelos adapters de gateway).
+  // Fallback: se status='refunded' assume total; caso contrário 0.
   const alreadyRefunded = useMemo(() => {
-    // refunded_amount não está no tipo PaymentTransaction; recuperamos via amount - paid_amount quando aplicável
-    // Para evitar confusão, baseamos em status: se refunded => total estornado; senão => 0
+    const real = Number(transaction.refunded_amount ?? 0);
+    if (Number.isFinite(real) && real > 0) return Math.round(real);
     if (transaction.status === 'refunded') return transaction.amount;
     return 0;
   }, [transaction]);
