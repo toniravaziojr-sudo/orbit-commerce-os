@@ -19,7 +19,7 @@ O módulo de Produtos é o núcleo do catálogo do e-commerce. Permite gerenciar
 
 | Arquivo | Responsabilidade |
 |---------|------------------|
-| `src/pages/Products.tsx` | Página principal com alternância entre lista, criação e edição |
+| `src/pages/Products.tsx` | Página principal com alternância entre lista, criação e edição. Em modo formulário, deve usar apenas o scroll global do `AppShell`; compensações locais servem só para a barra fixa de ações |
 
 ### 2.2 Componentes
 
