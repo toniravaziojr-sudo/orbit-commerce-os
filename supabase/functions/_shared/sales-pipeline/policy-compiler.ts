@@ -111,7 +111,15 @@ export interface EffectivePolicy {
   handoff_keywords: PolicyField<string[]>;
 
   // Modelo & regras estruturadas
-  ai_model: PolicyField<string>;
+  // [B.2] Papéis de modelo separados. `ai_model` é alias deprecated do composer.
+  // - response_composer: gera a resposta final ao cliente (qualidade > latência)
+  // - classifier_tpr: classifica turno/intenção (latência > qualidade)
+  // - planner / critic: placeholders para fases C+ (Planner/Critic ainda não rodam)
+  ai_model: PolicyField<string>; // alias do response_composer (compat)
+  model_response_composer: PolicyField<string>;
+  model_classifier_tpr: PolicyField<string>;
+  model_planner: PolicyField<string | null>;
+  model_critic: PolicyField<string | null>;
   rules: PolicyField<unknown[]>;
 
   // Metadata útil para debugging (não sobrescrevível pelo cliente)
@@ -128,11 +136,16 @@ const DEFAULTS = Object.freeze({
   use_emojis: true,
   max_response_length: 500,
   sales_mode_enabled: false,
-  // [B.1] ai_model AFETA chamada real do modelo (custo/latência/comportamento).
-  // Default mantido alinhado com o handler atual (`effectiveConfig.ai_model || "gpt-5.2"`).
-  // Se este default mudar, custo e latência mudam silenciosamente para tenants
-  // sem ai_model configurado — alterar requer revisão de impacto.
-  ai_model: "gpt-5.2",
+  // [B.2] Papéis separados. Default do composer ELEVADO de "gpt-5.2" → "openai/gpt-5"
+  // após constatação (Respeite o Homem) de que `gemini-2.5-flash` herdado caía em
+  // `gpt-5-mini` no handler — fraco para venda consultiva.
+  // - composer: raciocínio + tool-calling consistente
+  // - tpr: rápido + barato, só rotula turno
+  // - planner/critic: null até Fase C+
+  model_response_composer: "openai/gpt-5",
+  model_classifier_tpr: "google/gemini-2.5-flash-lite",
+  model_planner: null as string | null,
+  model_critic: null as string | null,
 });
 
 function pick<T>(
@@ -251,12 +264,41 @@ export function compileEffectivePolicy(input: CompilePolicyInput): EffectivePoli
     : { value: [], source: "default" };
 
   // ----- Modelo & regras -----
-  const ai_model = pick<string>(
-    null,
-    tenant.ai_model,
-    DEFAULTS.ai_model,
-    false
-  );
+  // [B.2] `tenant.ai_model` continua sendo lido como override do COMPOSER (compat).
+  // Tenants antigos com "google/gemini-2.5-flash" ou variantes "flash"/"mini"
+  // são considerados default acidental e ignorados em favor do composer default
+  // (gpt-5). Override explícito só vale se for um modelo "forte" (gpt-5*, pro).
+  const tenantAiModelRaw = typeof tenant.ai_model === "string" ? tenant.ai_model.trim() : null;
+  const isStrongComposer = (m: string | null): boolean => {
+    if (!m) return false;
+    const lc = m.toLowerCase();
+    if (lc.includes("flash-lite") || lc.includes("nano")) return false;
+    if (lc.includes("flash") || lc.includes("mini")) return false;
+    return true; // gpt-5, gpt-5.2, gemini-2.5-pro, gemini-3-pro, etc
+  };
+  const composerOverride = isStrongComposer(tenantAiModelRaw) ? tenantAiModelRaw : null;
+  const model_response_composer: PolicyField<string> = composerOverride
+    ? { value: composerOverride, source: "tenant" }
+    : { value: DEFAULTS.model_response_composer, source: "default" };
+
+  // alias deprecated — sempre espelha o composer pra não quebrar consumidores
+  const ai_model: PolicyField<string> = {
+    value: model_response_composer.value,
+    source: model_response_composer.source,
+  };
+
+  const model_classifier_tpr: PolicyField<string> = {
+    value: DEFAULTS.model_classifier_tpr,
+    source: "default",
+  };
+  const model_planner: PolicyField<string | null> = {
+    value: DEFAULTS.model_planner,
+    source: "default",
+  };
+  const model_critic: PolicyField<string | null> = {
+    value: DEFAULTS.model_critic,
+    source: "default",
+  };
 
   const rules: PolicyField<unknown[]> = Array.isArray(tenant.rules)
     ? { value: tenant.rules as unknown[], source: "tenant" }
@@ -275,6 +317,10 @@ export function compileEffectivePolicy(input: CompilePolicyInput): EffectivePoli
     forbidden_topics,
     handoff_keywords,
     ai_model,
+    model_response_composer,
+    model_classifier_tpr,
+    model_planner,
+    model_critic,
     rules,
     channel_type: { value: input.channelType, source: "base" },
     invariants: PLATFORM_INVARIANTS,
@@ -299,6 +345,10 @@ export function flattenPolicy(p: EffectivePolicy) {
     forbidden_topics: p.forbidden_topics.value,
     handoff_keywords: p.handoff_keywords.value,
     ai_model: p.ai_model.value,
+    model_response_composer: p.model_response_composer.value,
+    model_classifier_tpr: p.model_classifier_tpr.value,
+    model_planner: p.model_planner.value,
+    model_critic: p.model_critic.value,
     rules: p.rules.value,
     channel_type: p.channel_type.value,
     invariants: p.invariants,
@@ -322,6 +372,10 @@ export function policySourceTrace(p: EffectivePolicy): Record<string, PolicySour
     forbidden_topics: p.forbidden_topics.source,
     handoff_keywords: p.handoff_keywords.source,
     ai_model: p.ai_model.source,
+    model_response_composer: p.model_response_composer.source,
+    model_classifier_tpr: p.model_classifier_tpr.source,
+    model_planner: p.model_planner.source,
+    model_critic: p.model_critic.source,
     rules: p.rules.source,
     channel_type: p.channel_type.source,
   };

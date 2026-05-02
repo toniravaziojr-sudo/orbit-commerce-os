@@ -1045,3 +1045,61 @@ Helper `isBotMessage(m)` em `_shared` continua recomendado para encerrar a famí
 **Sem migration. Sem flag de rollout.** Kill switch = reverter o commit.
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação: enviar mensagens reais no WhatsApp do Respeite o Homem e confirmar que o preamble está no system prompt + ausência de `policy_divergence`.
+
+---
+
+## Registro #21 — Onda 18 Fase B.2 — Papéis de modelo separados (Composer / TPR / Planner / Critic)
+
+**Data:** 2026-05-02
+**Tipo:** Refatoração estrutural — separação de papéis de modelo
+**Escopo:** Global (Respeite o Homem como piloto único)
+
+### Por quê
+Auditoria pós-B.1 mostrou que `EffectivePolicy.ai_model = "google/gemini-2.5-flash"` no tenant Respeite o Homem. O handler remapeava `flash → gpt-5-mini` em sales mode. Resultado: o Response Composer real era `gpt-5-mini`, fraco para venda consultiva. Origem do valor: default antigo herdado, não escolha consciente.
+
+### O que mudou
+1. `EffectivePolicy` ganha 4 campos novos:
+   - `model_response_composer` (default `openai/gpt-5`)
+   - `model_classifier_tpr` (default `google/gemini-2.5-flash-lite`)
+   - `model_planner` (default `null` — Fase C+)
+   - `model_critic` (default `null` — Fase C+)
+2. `ai_model` vira alias deprecated do composer (compat). Override do tenant em `ai_support_config.ai_model` só vale como composer **se for um modelo forte** (gpt-5*, pro). Valores `flash`/`mini`/`nano` são considerados ruído de default antigo e ignorados.
+3. Handler `ai-support-chat/index.ts` (linhas ~5161-5193): consome `model_response_composer`. Em sales mode, **não rebaixa** composer forte (gpt-5, gpt-5.2) — só rebaixa fracos (nano/flash-lite/flash/mini-não-gpt5).
+4. Migration: `UPDATE ai_support_config SET ai_model='openai/gpt-5'` para o tenant piloto.
+5. Log por turno: `[B.2] composer=<modelo> source=<...> tpr=<modelo>`.
+
+### Modelo antes / depois (Respeite o Homem)
+| Papel | Antes | Depois |
+|---|---|---|
+| Composer (resposta principal) | `gpt-5-mini` (rebaixado de `gemini-2.5-flash`) | **`gpt-5`** |
+| TPR (classificação de turno) | `gemini-2.5-flash-lite` | `gemini-2.5-flash-lite` (sem mudança) |
+| classifyIntent (legado, gpt-4o direto) | `gpt-4o` | `gpt-4o` (não tocado, fora do escopo) |
+
+### Impacto custo/latência (Respeite o Homem)
+- Composer: ~5x mais caro (gpt-5 vs gpt-5-mini), latência ~2-3x maior por turno.
+- TPR: sem mudança.
+- Trade-off aceito: piloto único + qualidade de venda consultiva é a meta.
+
+### Como validar (WhatsApp real, tenant Respeite o Homem)
+1. "você tem alguma loção pra crescer cabelo?" → deve trazer loções **base** (Fase A) com texto consultivo de gpt-5.
+2. "só tem essa?" → continuidade na mesma família.
+3. "é frete grátis?" → comportamento de frete preservado.
+4. "qual você recomenda para entradas?" → **resposta consultiva e comparativa** (não lista crua).
+
+Logs esperados: `[B.2] composer=gpt-5 source=tenant tpr=google/gemini-2.5-flash-lite`.
+
+### Como reverter
+SQL no piloto (volta para `gpt-5-mini`, ainda forte e não rebaixado):
+```sql
+UPDATE ai_support_config SET ai_model='openai/gpt-5-mini'
+WHERE tenant_id='d1a4d0ed-8842-495e-b741-540a9a345b25';
+```
+Reverter o default global do composer exige editar `policy-compiler.ts` (`DEFAULTS.model_response_composer`).
+
+### Não implementado nesta fase
+Turn Aggregator, TPR v2, Planner, Critic, Tool Executor, redução de gates.
+
+### Anti-regressão
+Memória `mem://features/ai/arch18-fase-b2-model-roles`.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação: enviar as 4 frases-teste no WhatsApp real e confirmar nos logs `composer=gpt-5` + qualidade perceptível superior nas respostas consultivas.
