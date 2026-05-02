@@ -230,6 +230,7 @@ Deno.serve(async (req) => {
       {
         success: true,
         conversation_id,
+        simulated_channel: simulatedChannel,
         ai_result: aiPayload,
         replies,
       },
