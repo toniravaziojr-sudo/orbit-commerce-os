@@ -3954,22 +3954,46 @@ Deno.serve(async (req) => {
     // ============================================
     // STEP 5: BUILD SYSTEM PROMPT
     // ============================================
-    let personalityTone = effectiveConfig.personality_tone || "amigável e profissional";
-    let personalityName = effectiveConfig.personality_name || "Assistente";
-    let maxLength = effectiveConfig.max_response_length || 500;
-    let useEmojis = effectiveConfig.use_emojis ?? true;
-    let forbiddenTopics: string[] = effectiveConfig.forbidden_topics || [];
+    // [Onda 18 — Fase B] Persona/tom/limites/forbidden vêm do EffectivePolicy.
+    // Channel override é tratado dentro do compileEffectivePolicy. Não fazer
+    // override manual aqui — qualquer divergência entre policy e leitura legada
+    // é loggada para diagnóstico.
+    let personalityTone = effectivePolicy.personality_tone.value;
+    let personalityName = effectivePolicy.personality_name.value;
+    let maxLength = effectivePolicy.max_response_length.value;
+    let useEmojis = effectivePolicy.use_emojis.value;
+    let forbiddenTopics: string[] = effectivePolicy.forbidden_topics.value;
 
-    // Channel overrides
-    if (channelConfig) {
-      if (channelConfig.max_response_length) maxLength = channelConfig.max_response_length;
-      if (channelConfig.use_emojis !== null) useEmojis = channelConfig.use_emojis;
-      if (channelConfig.forbidden_topics?.length) {
-        forbiddenTopics = [...new Set([...forbiddenTopics, ...channelConfig.forbidden_topics])];
+    // [Onda 18 — Fase B] Log de divergência: comparar com leitura legada
+    // (effectiveConfig direto) só para auditoria. Pode ser removido após
+    // 1 semana de produção estável.
+    try {
+      const legacyMax = effectiveConfig.max_response_length || 500;
+      const legacyEmojis = effectiveConfig.use_emojis ?? true;
+      const legacyForbidden = effectiveConfig.forbidden_topics || [];
+      const channelMaxRaw = (channelConfig as any)?.max_response_length;
+      const channelEmojisRaw = (channelConfig as any)?.use_emojis;
+      const channelForbidden = (channelConfig as any)?.forbidden_topics || [];
+      const legacyChannelMax = channelMaxRaw && channelMaxRaw > 0 ? channelMaxRaw : legacyMax;
+      const legacyChannelEmojis = channelEmojisRaw !== undefined && channelEmojisRaw !== null ? channelEmojisRaw : legacyEmojis;
+      const legacyChannelForbidden = channelForbidden.length
+        ? [...new Set([...legacyForbidden, ...channelForbidden])]
+        : legacyForbidden;
+
+      const divergences: string[] = [];
+      if (legacyChannelMax !== maxLength) divergences.push(`max_response_length legacy=${legacyChannelMax} policy=${maxLength}`);
+      if (legacyChannelEmojis !== useEmojis) divergences.push(`use_emojis legacy=${legacyChannelEmojis} policy=${useEmojis}`);
+      if (JSON.stringify(legacyChannelForbidden) !== JSON.stringify(forbiddenTopics)) {
+        divergences.push(`forbidden_topics legacy=${JSON.stringify(legacyChannelForbidden)} policy=${JSON.stringify(forbiddenTopics)}`);
       }
+      if (divergences.length > 0) {
+        console.warn(`[ai-support-chat] [Onda18-B] policy_divergence tenant=${tenant_id} channel=${channelType} ${divergences.join(" | ")}`);
+      }
+    } catch (e) {
+      console.warn(`[ai-support-chat] [Onda18-B] divergence_check_failed: ${(e as Error).message}`);
     }
 
-    let systemPrompt = effectiveConfig.system_prompt || `Você é ${personalityName}, atende a loja ${storeName} pelo WhatsApp.
+    let systemPrompt = effectivePolicy.system_prompt.value || `Você é ${personalityName}, atende a loja ${storeName} pelo WhatsApp.
 
 Você NÃO é um bot de FAQ nem um assistente virtual genérico. Você é uma pessoa real respondendo do celular, em português do Brasil, com tom de conversa natural, leve e profissional.
 
