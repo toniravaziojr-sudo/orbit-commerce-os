@@ -136,11 +136,16 @@ const DEFAULTS = Object.freeze({
   use_emojis: true,
   max_response_length: 500,
   sales_mode_enabled: false,
-  // [B.1] ai_model AFETA chamada real do modelo (custo/latência/comportamento).
-  // Default mantido alinhado com o handler atual (`effectiveConfig.ai_model || "gpt-5.2"`).
-  // Se este default mudar, custo e latência mudam silenciosamente para tenants
-  // sem ai_model configurado — alterar requer revisão de impacto.
-  ai_model: "gpt-5.2",
+  // [B.2] Papéis separados. Default do composer ELEVADO de "gpt-5.2" → "openai/gpt-5"
+  // após constatação (Respeite o Homem) de que `gemini-2.5-flash` herdado caía em
+  // `gpt-5-mini` no handler — fraco para venda consultiva.
+  // - composer: raciocínio + tool-calling consistente
+  // - tpr: rápido + barato, só rotula turno
+  // - planner/critic: null até Fase C+
+  model_response_composer: "openai/gpt-5",
+  model_classifier_tpr: "google/gemini-2.5-flash-lite",
+  model_planner: null as string | null,
+  model_critic: null as string | null,
 });
 
 function pick<T>(
