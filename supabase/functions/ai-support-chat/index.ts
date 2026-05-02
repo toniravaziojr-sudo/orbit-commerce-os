@@ -6461,6 +6461,42 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.warn("[ai-support-chat] [Reg #9] promise/data-ask gates failed:", (e as Error).message);
     }
 
+    // [Reg #15] Mídia inbound — sem tool de visão, proibido prometer "analiso".
+    try {
+      const lastInbound = (messages || []).filter((m: any) => m.role === "user").slice(-1)[0];
+      const inboundIsMedia = !!(lastInbound?.media_url || lastInbound?.message_type === "image" || lastInbound?.message_type === "audio" || lastInbound?.message_type === "document");
+      const hasVisionTool = (pipelineFilteredTools || []).some((t: any) => t?.function?.name === "analyze_image");
+      const { gateMediaInbound } = await import("../_shared/sales-pipeline/output-gates.ts");
+      const mg = gateMediaInbound({ aiResponse: aiContent || "", hasVisionTool, inboundIsMedia });
+      if (mg.scrubbed) {
+        console.log(`[ai-support-chat] [Reg #15] media gate (${mg.reason})`);
+        aiContent = mg.after;
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #15] media gate failed:", (e as Error).message);
+    }
+
+    // [Reg #16] Anti-repetição semântica — pergunta de qualificação aberta repetida.
+    try {
+      const { data: recentBotRows } = await supabase
+        .from("messages")
+        .select("content")
+        .eq("conversation_id", conversation_id)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(2);
+      const recentBotMessages = (recentBotRows || []).map((r: any) => r?.content || "");
+      const { gateSemanticRepetition } = await import("../_shared/sales-pipeline/output-gates.ts");
+      const sem = gateSemanticRepetition({ aiResponse: aiContent || "", recentBotMessages });
+      if (sem.closeLoopDetected) {
+        closeLoopDetected = true;
+        closeLoopReason = closeLoopReason === "noop" ? "semantic_repetition" : `${closeLoopReason}+semantic_repetition`;
+        console.log(`[ai-support-chat] [Reg #16] semantic_repetition match`);
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #16] semantic gate failed:", (e as Error).message);
+    }
+
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
     // Persistida no turn log; usada para detectar repetição por intenção
     // (não só por hash exato) confrontando com as últimas famílias da conversa.
