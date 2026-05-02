@@ -668,7 +668,7 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        "relative flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300",
+        "relative flex h-dvh min-h-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300",
         collapsed ? "w-[60px]" : "w-60"
       )}
     >
