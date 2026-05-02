@@ -4584,7 +4584,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             `O nome registrado neste contato (${rawName}) parece ser nome de empresa/loja, não de pessoa física. ` +
             `NÃO use vocativo neste atendimento — fale direto, sem chamar pelo nome. Canal: ${channelType}.`,
         });
-        console.log(`[ai-support-chat] [name-policy] suppressing vocative for corporate-like name: "${rawName}"`);
+        // [Reg #10] Captura tokens proibidos para o scrubber determinístico
+        // de vocativo (output-gates.stripForbiddenVocative).
+        const tokensToBlock = new Set<string>();
+        tokensToBlock.add(rawName);
+        if (firstName) tokensToBlock.add(firstName);
+        for (const m of rawName.matchAll(/\b(cliente|teste|test|contato|usu[áa]rio|customer|lead|prospect|visitante|desconhecid[oa])\b/gi)) {
+          tokensToBlock.add(m[0]);
+        }
+        forbiddenVocativeTokens = Array.from(tokensToBlock);
+        console.log(`[ai-support-chat] [name-policy] suppressing vocative for corporate-like name: "${rawName}" tokens=${forbiddenVocativeTokens.join(",")}`);
       }
     }
 
