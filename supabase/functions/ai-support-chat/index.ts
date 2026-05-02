@@ -4552,6 +4552,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       { role: "system", content: systemPrompt },
     ];
 
+    // [Reg #10] Tokens proibidos como vocativo (preenchidos no bloco abaixo
+    // se o nome for corporativo/placeholder). Usados pelo scrubber
+    // determinístico stripForbiddenVocative no fim do pipeline.
+    let forbiddenVocativeTokens: string[] = [];
+
     if (conversation.customer_name) {
       // [PIPELINE-FIX 2026-04-29] Uso estratégico do nome:
       // - Só primeiro nome.
