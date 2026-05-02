@@ -3357,6 +3357,27 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ============================================
+    // [Onda 18 — Fase B] EFFECTIVE POLICY (fonte central)
+    // ============================================
+    // Compila base (invariantes) + tenant (ai_support_config) + channel
+    // (ai_channel_config) em um único objeto com source_trace por campo.
+    // A partir daqui, persona/tom/limites/forbidden/use_emojis/system_prompt
+    // DEVEM ser lidos de `effectivePolicy.*.value`, NÃO de effectiveConfig
+    // ou channelConfig direto. effectiveConfig segue vivo só para campos
+    // técnicos não cobertos pela policy (RAG, handoff, ai_model legado,
+    // metadata.arch18_*, etc.).
+    const effectivePolicy = compileEffectivePolicy({
+      tenantConfig: aiConfig as any,
+      channelConfig: channelConfig as any,
+      channelType,
+    });
+    const policyTrace = policySourceTrace(effectivePolicy);
+    console.log(
+      `[ai-support-chat] [Onda18-B] effective_policy tenant=${tenant_id} channel=${channelType} ` +
+      `trace=${JSON.stringify(policyTrace)}`
+    );
+
     // [Fase A] Janela de histórico CORRIGIDA:
     // Antes: .order(asc).limit(20) → pegava os 20 PRIMEIROS turnos. Em conversas
     // longas, a mensagem atual do cliente NUNCA entrava no contexto, e a IA
