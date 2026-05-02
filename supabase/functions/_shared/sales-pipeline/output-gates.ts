@@ -580,7 +580,19 @@ export function gateMediaInbound(input: {
 // não podem se repetir 2+ turnos seguidos do bot. Se acontecer, sinaliza
 // closeLoopDetected para forçar regeneração progredindo o pipeline.
 // ----------------------------------------------------------------
-const SEMANTIC_OPEN_QUESTION_RE = /(procura|busca)\s+(algo\s+)?espec[íi]fico\s+(ou|e)\s+(prefere\s+)?(ver\s+)?(op[çc][õo]es|alternativas)/i;
+// [Reg #17.2] Regex ampliada — cobre variantes "quer ver opções",
+// "deixa eu entender melhor", "me conta o que está procurando" e
+// composições com "específico/opções/alternativas/sugestões".
+const SEMANTIC_OPEN_QUESTION_RE = new RegExp(
+  [
+    "(procura|busca|quer|prefere)\\s+(algo\\s+)?espec[íi]fico",
+    "(ver|conhecer|mostrar)\\s+(as\\s+)?(op[çc][õo]es|alternativas|sugest[õo]es)",
+    "deixa\\s+eu\\s+entender\\s+melhor",
+    "me\\s+conta\\s+(um\\s+pouco\\s+)?(o\\s+que|sobre\\s+o\\s+que)\\s+(voc[êe]\\s+)?(est[áa]\\s+)?(procura|buscando|querendo)",
+    "(o\\s+que|qual)\\s+(voc[êe]\\s+)?(t[áa]|est[áa])\\s+(procurando|buscando)",
+  ].join("|"),
+  "i",
+);
 export function gateSemanticRepetition(input: {
   aiResponse: string;
   recentBotMessages: string[]; // últimos turnos do bot, ordem do mais recente

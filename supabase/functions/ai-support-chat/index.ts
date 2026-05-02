@@ -5841,6 +5841,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           /\b(anexei|inclu[íi]\s+no\s+pedido|adicionei\s+ao\s+pedido)\b/i,
           /\b(solicitei|pedi)\s+(o\s+)?(reset|redefini[çc][ãa]o|recupera[çc][ãa]o)\s+(da\s+)?senha/i,
           /\b(enviei|mandei)\s+(o\s+)?link\s+de\s+redefini[çc][ãa]o/i,
+          // [Reg #17.4] Família 1b — promessas em terceira pessoa / indiretas
+          // ("vou pedir pra equipe anexar", "vou solicitar que gerem o boleto").
+          /\b(vou|irei|posso)\s+(pedir|solicitar)\b.*\b(anexar|gerar|enviar|emitir|reenviar|encaminhar)\b/i,
+          /\b(pedi|solicitei)\s+(pra|para)\s+(a\s+)?(equipe|suporte|financeiro|log[íi]stica)\b.*\b(anexar|gerar|enviar|emitir)\b/i,
           // Família 2 — promessa de futuro sem job
           /\b(te\s+aviso|vou\s+te\s+avisar|vou\s+avisar|aviso\s+voc[êe]|notifico\s+voc[êe])\s+(quando|assim\s+que|t[ãa]o\s+logo)/i,
           /\b(fico\s+no\s+aguardo|aguardo\s+(o\s+)?sistema|fico\s+atento)\b/i,
@@ -6478,11 +6482,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // [Reg #16] Anti-repetição semântica — pergunta de qualificação aberta repetida.
     try {
+      // [Reg #17.3] Coluna correta é sender_type='bot' (não role='assistant').
+      // O bug anterior fazia o histórico vir vazio e o gate semântico nunca
+      // disparava em produção.
       const { data: recentBotRows } = await supabase
         .from("messages")
         .select("content")
         .eq("conversation_id", conversation_id)
-        .eq("role", "assistant")
+        .eq("sender_type", "bot")
         .order("created_at", { ascending: false })
         .limit(2);
       const recentBotMessages = (recentBotRows || []).map((r: any) => r?.content || "");
