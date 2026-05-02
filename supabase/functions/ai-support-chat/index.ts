@@ -77,6 +77,9 @@ import {
   fallbackClassification,
   type TurnClassification,
   broadenCatalogForPain,
+  // [Onda 18 — Fase A] Probe v2 família-base + detector de família por regex
+  enforceFamilyBaseFirst,
+  detectFamilyInText,
   scrubUnsolicitedPrice,
   gateGreetingMirror,
   gateGreetingMirrorFallback,
