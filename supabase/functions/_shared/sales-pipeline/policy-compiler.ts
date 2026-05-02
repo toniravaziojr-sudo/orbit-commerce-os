@@ -111,7 +111,15 @@ export interface EffectivePolicy {
   handoff_keywords: PolicyField<string[]>;
 
   // Modelo & regras estruturadas
-  ai_model: PolicyField<string>;
+  // [B.2] Papéis de modelo separados. `ai_model` é alias deprecated do composer.
+  // - response_composer: gera a resposta final ao cliente (qualidade > latência)
+  // - classifier_tpr: classifica turno/intenção (latência > qualidade)
+  // - planner / critic: placeholders para fases C+ (Planner/Critic ainda não rodam)
+  ai_model: PolicyField<string>; // alias do response_composer (compat)
+  model_response_composer: PolicyField<string>;
+  model_classifier_tpr: PolicyField<string>;
+  model_planner: PolicyField<string | null>;
+  model_critic: PolicyField<string | null>;
   rules: PolicyField<unknown[]>;
 
   // Metadata útil para debugging (não sobrescrevível pelo cliente)
