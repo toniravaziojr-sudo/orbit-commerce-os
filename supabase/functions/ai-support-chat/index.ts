@@ -1883,13 +1883,7 @@ async function executeSalesTool(
             // [Reg #10] Estende Reg #2.15: além de "presented_count==1", também
             // dispara quando há foco de produto persistido (mesmo com vários
             // apresentados, o cliente já filtrou a conversa para 1 SKU).
-            const focusFromMeta = (() => {
-              try {
-                const meta = (conversation?.metadata as Record<string, unknown>) || {};
-                const pf = meta.product_focus as { product_id?: string } | null | undefined;
-                return pf?.product_id || null;
-              } catch { return null; }
-            })();
+            const focusFromMeta = ctx.productFocus?.product_id || null;
 
             let candidateId: string | null = null;
             let pickReason = "none";
