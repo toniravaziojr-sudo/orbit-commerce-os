@@ -487,6 +487,8 @@ graph TD
 
 ## 6. UI/UX
 
+**Regra de layout (2026-05-02):** a tela `/orders/new` usa exclusivamente o scroll vertical do `AppShell`. O conteúdo não deve adicionar padding inferior artificial na raiz da página. Em grids de múltiplas colunas, cards laterais de resumo/status devem usar altura intrínseca (sem esticar até a coluna principal), para não amplificar a percepção de “espaço branco” no fim da tela.
+
 ### 6.1 Lista de Pedidos
 
 | Coluna | Largura | Conteúdo |
