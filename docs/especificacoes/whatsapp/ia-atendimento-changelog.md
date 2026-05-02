@@ -37,7 +37,7 @@
 
 | Comportamento | Status | Mecanismo de defesa | Última verificação |
 |---|---|---|---|
-| Não inventar ação executada ("já encaminhei…") | ✅ Coberto | Scrubber `unsupported_action_promised` | Reg. #1 |
+| Não inventar ação executada ("já encaminhei…", "anexei o PDF", "te aviso quando voltar") | ✅ Coberto | Scrubber `unsupported_action_promised` com vocabulário estendido (3 famílias: pretérito sem tool, promessa de futuro sem job, reset de senha) | Reg. #11 |
 | Não trocar produto após confirmação | ✅ Coberto | `PRODUCT_LOCK_MISMATCH` + resolver com `focusProductId` | Reg. #1 |
 | Não pedir nova confirmação após "sim/manda" | ✅ Coberto | FIX-B `tool_choice` forçado + scrubber `confirmation_loop_detected` | Reg. #1 |
 | Não repetir a mesma frase/intenção | ⚠️ Parcial | Hash de prefixo (não pega família semântica) | Reg. #2 — pendente 3.4 |
