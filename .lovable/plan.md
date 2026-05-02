@@ -23,8 +23,7 @@ Plano aprovado em 2026-04-30 / 2026-05-01 com 9 frentes paralelas para sanar pro
 | — | **Reg #8 — Hotfix `customerName` re-resolvido por call site** | ✅ Formalizado 02/mai/2026 | #8 | Memória `greeting-mirror-vars-must-be-declared-at-handler-scope` indexada |
 
 ## Pendências formais conhecidas
-- **Reg #8 — hotfix `customerName` (variável escopo handler):** já aplicada no código, mas falta virar registro formal no changelog + memória `mem://constraints/greeting-mirror-vars-must-be-declared-at-handler-scope`.
-- **Validação prática pelo usuário** das Reg #2.10, #2.11, #2.13, #4, #5, #6, #7 em conversas reais (logs `[Reg #2.x]`, `[Reg #2.8]`, badge "Venda IA" em pedido pago real).
+- **Validação prática pelo usuário** das Reg #2.10, #2.11, #2.13, #4, #5, #6, #7, #8 em conversas reais (logs `[Reg #2.x]`, `[Reg #2.8]`, badge "Venda IA" em pedido pago real, abertura com nome em cliente recorrente).
 
 ## Próximos passos disponíveis (a definir com o usuário)
 1. **Frente 1 — Sandbox stale:** invalidar cache de config quando admin salvar, recarregar snapshot a cada turno.
