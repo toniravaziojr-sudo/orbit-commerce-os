@@ -60,6 +60,42 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #11 — Scrubber de ação inventada com vocabulário estendido (Onda 11 da auditoria Respeite o Homem) — 02/mai/2026
+
+**Sintoma (auditoria de 7 dias do tenant Respeite o Homem, WhatsApp + Chat):**
+- Antônio (#convs Antônio): IA respondeu "anexei o PDF da nota ao seu pedido" sem ter tool de anexo.
+- Romero: IA respondeu "reenviei o link de redefinição de senha pra você" — sistema não tem tool de reset de senha.
+- Romero: "encaminhei pro suporte com seu e-mail" sem tool de encaminhamento por e-mail.
+- 9 conversas (Geraldo, Anthero, Handy, Gilson, William, e outros): "te aviso quando voltar ao estoque", "te aviso quando for postado", "fico no aguardo do sistema" — sem job real de notificação.
+
+**Diagnóstico:**
+- O regex `ACTION_INVENTION_PATTERNS` do FIX-D (Reg #1.1) só cobria `reenviei|cancelei|acionei|atualizei seu cadastro|abri chamado`.
+- Faltavam três famílias inteiras de fala que o modelo emite com frequência:
+  1. Pretérito sem tool: `anexei`, `incluí no pedido`, `encaminhei por e-mail`, `solicitei o reset`, `enviei o link de redefinição`.
+  2. Promessa de futuro sem job real: `te aviso quando`, `vou te avisar`, `fico no aguardo`, `quando voltar/postado/o e-mail chegar`.
+  3. Reset de senha: o sistema não tem tool — qualquer afirmação no tema é mentira.
+
+**Correção aplicada:**
+- `supabase/functions/ai-support-chat/index.ts` (FIX-D, ~linha 5780): regex ampliado para 14 padrões cobrindo as 3 famílias. Comportamento mantido: ao detectar promessa sem tool de respaldo (`request_human_handoff`, `save_customer_data`, `update_customer_record`), substitui texto por "Vou chamar alguém da equipe pra resolver isso direto com você" e força `shouldHandoff = true` com `reason='unsupported_action_promised'`.
+- Não foi necessário criar gate novo — o FIX-D já tinha o mecanismo, faltava só o vocabulário.
+
+**Validação técnica executada:**
+- ✅ `rg` confirma 14 padrões no regex (3 famílias).
+- ✅ Edge function `ai-support-chat` deploy pendente após esta entrega.
+- ⏳ Replay determinístico das 3 conversas-âncora (Antônio, Romero, Geraldo) depende do usuário rodar nova bateria — o gate dispara silenciosamente em produção a cada inbound real.
+
+**Anti-regressão (memória indexada):**
+- `mem://constraints/ai-no-fake-action-extended-vocabulary`
+
+**Pendências da auditoria Respeite o Homem (próximas ondas, ainda não implementadas):**
+- Onda 12 — Handoff terminal real: lock server-side da IA quando `conversations.status='waiting_agent'` E ticket sem assignment; cron de auto-escalonamento >2h; painel de fila com SLA.
+- Onda 13 — Detecção de pós-venda + tool `lookup_order_by_conversation_context`; fallback de `lookup_customer` por phone normalizado.
+- Onda 14 — Greeting não reseta thread ativa.
+- Onda 15 — Resposta determinística para mídia recebida (sem "analisando…" órfão).
+- Onda 16 — Anti-repetição por classe semântica (não só prefix hash).
+
+---
+
 ## Registro #9 — Vocativo genérico, promessa sem ação e pedido de dados de checkout no WhatsApp — 02/mai/2026
 
 **Sintoma (rodada de teste E2E pelo sandbox, tenant Respeite o Homem):**
