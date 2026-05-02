@@ -197,8 +197,8 @@ interface Order {
 - NENHUMA numeração é consumida
 - A `checkout_session` permanece `active` → pode virar `abandoned` após 30 min
 
-**Legado — Ghost Orders:**
-O conceito de "ghost order" (`payment_gateway_id IS NULL`) foi eliminado na v2026-04-04. Pedidos legados sem `payment_gateway_id` podem existir na base, mas novos pedidos sempre terão este campo preenchido. O filtro `.not('payment_gateway_id', 'is', null)` pode ser mantido temporariamente para compatibilidade com dados antigos, mas não é mais necessário para novos pedidos.
+**Legado — Ghost Orders (encerrado em 2026-05-02):**
+O conceito de "ghost order" (`payment_gateway_id IS NULL`) foi eliminado na v2026-04-04 pela regra gateway-first. Em 2026-05-02, os 79 pedidos legados pré-19/abr restantes (que ficaram pendentes/expirados sem `payment_gateway_id`) foram migrados para `cancelled` com motivo "Órfão pré-gateway-first". A partir desta data, **a listagem de pedidos NÃO filtra mais por `payment_gateway_id`** — esse filtro estava bloqueando indevidamente pedidos manuais (criados via `/orders/new`) e importações de marketplace, que legitimamente não têm `payment_gateway_id`. Regra anti-regressão: nunca reintroduzir `.not('payment_gateway_id', 'is', null)` em queries de listagem de pedidos. A integridade contra ghost orders é garantida pelo gateway-first na criação, não por filtro na leitura.
 
 ---
 
