@@ -214,6 +214,7 @@ export function gateGreetingMirrorFallback(input: {
   customerMessage: string;
   isRecurring?: boolean;
   customerName?: string | null;
+  isMidThread?: boolean;
 }): GreetingGateResult {
   const { pipelineState, aiResponse, customerMessage } = input;
   const lc = (customerMessage || "").toLowerCase();
@@ -232,6 +233,7 @@ export function gateGreetingMirrorFallback(input: {
     } as TurnClassification,
     isRecurring: input.isRecurring,
     customerName: input.customerName,
+    isMidThread: input.isMidThread,
   });
 }
 
