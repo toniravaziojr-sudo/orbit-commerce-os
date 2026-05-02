@@ -149,19 +149,11 @@ Deno.serve(async (req) => {
         adapterFn = 'pagbank-refund';
         break;
       case 'pagarme':
-        // TODO Onda 2 — adapter Pagar.me
-        return jsonResponse({
-          success: false,
-          error: 'Estorno via Pagar.me ainda não implementado',
-          code: 'ADAPTER_NOT_IMPLEMENTED',
-        });
+        adapterFn = 'pagarme-refund';
+        break;
       case 'mercadopago':
-        // TODO Onda 2 — adapter Mercado Pago
-        return jsonResponse({
-          success: false,
-          error: 'Estorno via Mercado Pago ainda não implementado',
-          code: 'ADAPTER_NOT_IMPLEMENTED',
-        });
+        adapterFn = 'mercadopago-refund';
+        break;
       default:
         return jsonResponse({
           success: false,
