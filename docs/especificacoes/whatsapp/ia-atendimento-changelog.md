@@ -40,10 +40,10 @@
 | Não inventar ação executada ("já encaminhei…", "anexei o PDF", "te aviso quando voltar") | ✅ Coberto | Scrubber `unsupported_action_promised` com vocabulário estendido (3 famílias: pretérito sem tool, promessa de futuro sem job, reset de senha) | Reg. #11 |
 | Não trocar produto após confirmação | ✅ Coberto | `PRODUCT_LOCK_MISMATCH` + resolver com `focusProductId` | Reg. #1 |
 | Não pedir nova confirmação após "sim/manda" | ✅ Coberto | FIX-B `tool_choice` forçado + scrubber `confirmation_loop_detected` | Reg. #1 |
-| Não repetir a mesma frase/intenção | ⚠️ Parcial | Hash de prefixo (não pega família semântica) | Reg. #2 — pendente 3.4 |
+| Não repetir a mesma frase/intenção (incl. "específico ou opções?") | ✅ Coberto | Hash de prefixo + `gateSemanticRepetition` (regex de classe semântica) | Reg. #16 |
 | Não citar preço sem o cliente perguntar | ✅ Coberto | Regra global `PRICE-ON-DEMAND` em `base.ts` + reforço em discovery/recommendation | Reg. #2.3 |
 | Não trocar conjunto ofertado por kit consolidado | ✅ Coberto | `BUNDLE LOCK` global em `base.ts` + reforço em recommendation; trava de SKU já existente cobre execução | Reg. #2.3 |
-| Espelhar saudação ("boa tarde" → "boa tarde") | ✅ Coberto | `greeting-mirror.ts` mecânico (já em produção) + regra dura em greeting prompt | Reg. #2 (já existia, confirmado) |
+| Espelhar saudação ("boa tarde" → "boa tarde") sem resetar thread ativa | ✅ Coberto | `greeting-mirror.ts` + `gateGreetingMirror` com `isMidThread` (<30min vira "Oi de novo") | Reg. #14 |
 | Honrar pergunta consultiva antes de listar produto | ⚠️ Só prompt | Sem regra dura | Reg. #2 — pendente 3.6 |
 | Enviar imagem na 1ª apresentação real do produto | ✅ Coberto | `product-detail` exige `send_product_image` na 1ª menção (1x/produto) | Reg. #2.3 |
 | Link de checkout no domínio próprio da loja | ✅ Coberto | `ai-support-chat` consulta `tenant_domains` (preferindo `is_primary`) | Reg. #2.1 |
@@ -55,6 +55,9 @@
 | Não chamar cliente por placeholder genérico ("Cliente", "Teste", "Contato", "Lead") | ✅ Coberto | Heurística `looksGenericOrCorporate` em `ai-support-chat` suprime vocativo | Reg. #9 |
 | Não prometer link de checkout sem chamar a tool | ✅ Coberto | Gate `enforcePromiseWithoutAction` em `output-gates.ts` força regeneração com `tool_choice` | Reg. #9 |
 | Não pedir CEP/CPF/email/forma de pagamento via WhatsApp | ✅ Coberto | Gate `enforceNoCheckoutDataAsk` em `output-gates.ts` força regeneração com `tool_choice` | Reg. #9 |
+| Handoff é terminal — IA silencia até atribuição humana | ✅ Coberto | Lock `HANDOFF_AWAITING_HUMAN` no início do handler quando `waiting_agent` + `assigned_to=null` | Reg. #12 |
+| Lookup de cliente recorrente não falha por case/format | ✅ Coberto | `lookup_customer` normaliza email (lowercase+ilike) e phone (dígitos + variantes 55) | Reg. #13 |
+| Mídia inbound não gera "analisando…" órfão | ✅ Coberto | `gateMediaInbound` substitui por pedido de descrição em texto quando não há tool de visão | Reg. #15 |
 
 Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
@@ -93,6 +96,48 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 - Onda 14 — Greeting não reseta thread ativa.
 - Onda 15 — Resposta determinística para mídia recebida (sem "analisando…" órfão).
 - Onda 16 — Anti-repetição por classe semântica (não só prefix hash).
+
+---
+
+---
+
+## Registros #12 a #16 — Auditoria Respeite o Homem (Ondas 12 a 16) — 02/mai/2026
+
+**Origem:** auditoria de 7 dias (WhatsApp + Chat) do tenant Respeite o Homem que revelou dezenas de falhas recorrentes não cobertas pelas defesas existentes. Cada onda fecha um vetor distinto.
+
+### Reg #12 — Handoff terminal real (lock server-side)
+- **Sintoma:** após `request_human_handoff`, IA continuava respondendo aos próximos inbounds e inventando ações (Moacir, Joel, Anthero, Gilson).
+- **Correção:** `ai-support-chat/index.ts` ganhou lock no início do handler — se `conversations.status='waiting_agent'` E `assigned_to IS NULL`, retorna `{ skipped:true, code:'HANDOFF_AWAITING_HUMAN' }` sem chamar o modelo.
+- **Memória:** `mem://constraints/handoff-must-silence-ai-until-human-assigns`.
+- **Pendência (próxima entrega):** painel de fila de handoffs com SLA + cron de auto-escalonamento >2h (ainda não implementados nesta rodada por escopo).
+
+### Reg #13 — Normalização de lookup_customer
+- **Sintoma:** clientes recorrentes (William, Handy) caindo em "não encontrado" por case de email ou formatação E.164.
+- **Correção:** `lookup_customer` usa `ilike` no email lowercased/trimmed e tenta phone como dígitos puros + variante com/sem prefixo 55.
+- **Memória:** `mem://constraints/lookup-customer-must-normalize-email-and-phone`.
+- **Pendência:** tool nova `lookup_order_by_conversation_context` para pós-venda automatizado (não entregue nesta rodada).
+
+### Reg #14 — Greeting não reseta thread ativa
+- **Sintoma:** "Oi" do cliente no meio da conversa fazia IA emitir "Me conta o que está procurando", apagando discovery (Geraldo, Antônio).
+- **Correção:** `gateGreetingMirror` aceita `isMidThread` e, quando última mensagem do bot tem <30min, substitui resposta inteira por "Oi de novo[, Nome]. Em que posso continuar te ajudando?". Wired em `ai-support-chat/index.ts` com cálculo do timestamp da última `assistant`.
+- **Memória:** `mem://constraints/greeting-must-not-restart-mid-thread`.
+
+### Reg #15 — Resposta determinística para mídia inbound
+- **Sintoma:** "estou analisando, já te respondo" sem nunca voltar (Anthero, Geraldo, Handy, Gilson, William). Não existe tool `analyze_image`.
+- **Correção:** novo `gateMediaInbound` em `output-gates.ts` substitui a frase por pedido de descrição em texto. Wired após gates Reg #9.
+- **Memória:** `mem://constraints/media-inbound-must-have-deterministic-reply`.
+
+### Reg #16 — Anti-repetição semântica
+- **Sintoma:** "você procura algo específico ou prefere ver opções?" repetida 3x (Geraldo, Anthero) — hash de prefixo não pegava por causa de variação textual.
+- **Correção:** novo `gateSemanticRepetition` detecta o regex de classe semântica em até 2 turnos passados do bot e injeta `closeLoopDetected=true` reusando o pipeline de regeneração existente.
+- **Memória:** `mem://constraints/anti-repetition-must-use-semantic-class-not-just-prefix`.
+
+**Validação técnica executada:**
+- ✅ Edge function `ai-support-chat` deployada com sucesso após cada onda.
+- ✅ `rg` confirma todos os gates novos no código e wirings nos call sites corretos.
+- ⏳ Validação E2E real (rodar bateria de teste contra fixtures das conversas-âncora) depende do usuário — está pedindo agora "vamos testar".
+
+**Pendências conhecidas, não entregues nesta rodada:** cron de auto-escalonamento de handoff antigo (>2h sem assignment) + painel UI de fila de handoffs com SLA + tool `lookup_order_by_conversation_context` (pós-venda). Vão para próximo ciclo.
 
 ---
 

@@ -2064,18 +2064,37 @@ async function executeSalesTool(
       }
 
       case "lookup_customer": {
-        const phone = args.phone as string | undefined;
-        const email = args.email as string | undefined;
+        // Reg #13: normalização de email/phone para evitar falso "não encontrado"
+        // por mismatch de case/whitespace ou formatação E.164.
+        const rawPhone = (args.phone as string | undefined) || "";
+        const rawEmail = (args.email as string | undefined) || "";
+        const phoneDigits = rawPhone.replace(/\D+/g, "");
+        const email = rawEmail.trim().toLowerCase();
 
-        let query = supabase
-          .from("customers")
-          .select("id, full_name, email, phone, cpf, person_type, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
-          .eq("tenant_id", tenantId);
-
-        if (phone) query = query.or(`phone.eq.${phone}`);
-        if (email) query = query.or(`email.eq.${email}`);
-
-        const { data: customer } = await query.maybeSingle();
+        let customer: any = null;
+        if (email) {
+          const { data } = await supabase
+            .from("customers")
+            .select("id, full_name, email, phone, cpf, person_type, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
+            .eq("tenant_id", tenantId)
+            .ilike("email", email)
+            .maybeSingle();
+          customer = data;
+        }
+        if (!customer && phoneDigits) {
+          // tenta variantes: dígitos puros, e com prefixo 55 quando faltar
+          const variants = Array.from(new Set([
+            phoneDigits,
+            phoneDigits.startsWith("55") ? phoneDigits.slice(2) : `55${phoneDigits}`,
+          ]));
+          const { data } = await supabase
+            .from("customers")
+            .select("id, full_name, email, phone, cpf, person_type, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
+            .eq("tenant_id", tenantId)
+            .or(variants.map((v) => `phone.eq.${v}`).join(","))
+            .maybeSingle();
+          customer = data;
+        }
 
         if (!customer) return JSON.stringify({ found: false, message: "Cliente não encontrado no cadastro" });
 
@@ -3086,6 +3105,32 @@ Deno.serve(async (req) => {
         conversation.status = "bot";
         conversation.resolved_at = null;
       }
+    }
+
+    // ============================================
+    // [Reg #12] HANDOFF É TERMINAL — LOCK SERVER-SIDE
+    // Se a conversa está em waiting_agent E ninguém da equipe assumiu
+    // (assigned_to IS NULL), a IA NÃO deve responder. Spec:
+    //   - docs/especificacoes/whatsapp/modo-vendas-whatsapp.md §5.3
+    //   - docs/especificacoes/crm/crm-atendimento.md §4.2 ("Handoff é terminal")
+    // Sem este lock, mesmo com `request_human_handoff` chamada, a IA continuava
+    // respondendo aos próximos inbounds e inventando ações ("já abri chamado",
+    // "te aviso quando voltar"), causando o padrão visto na auditoria
+    // Respeite o Homem mai/2026 (Moacir, Joel, Anthero, Gilson).
+    // ============================================
+    if (conversation.status === "waiting_agent" && !conversation.assigned_to) {
+      console.log(
+        `[ai-support-chat] [HANDOFF-LOCK] conv=${conversation_id} status=waiting_agent + assigned_to=null → IA silenciada até atribuição humana.`,
+      );
+      return new Response(
+        JSON.stringify({
+          success: false,
+          skipped: true,
+          reason: "handoff_terminal_lock",
+          code: "HANDOFF_AWAITING_HUMAN",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // [F1] Estado comercial atual (fonte de verdade: conversations.sales_state)
@@ -6255,6 +6300,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // [Reg #5] Saudação formal: passa contexto de recorrência + nome
       const greetIsRecurring = (messages?.length ?? 0) > 1 || !!customerId;
       const greetCustomerName = conversation?.customer_name || null;
+      // [Reg #14] Detecta thread ativa (última mensagem do bot < 30 min)
+      // para evitar reset de contexto via "Oi" no meio da conversa.
+      const greetIsMidThread = (() => {
+        try {
+          const last = (messages || []).filter((m: any) => m.role === "assistant").slice(-1)[0];
+          if (!last?.created_at) return false;
+          const ageMs = Date.now() - new Date(last.created_at).getTime();
+          return ageMs < 30 * 60 * 1000;
+        } catch { return false; }
+      })();
 
       if (turnClassification.source === "llm") {
         const greetGate = gateGreetingMirror({
@@ -6263,6 +6318,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           classification: turnClassification,
           isRecurring: greetIsRecurring,
           customerName: greetCustomerName,
+          isMidThread: greetIsMidThread,
         });
         greetingScrubReason = greetGate.reason;
         if (greetGate.scrubbed) {
@@ -6277,6 +6333,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           customerMessage: lastMessageContent || "",
           isRecurring: greetIsRecurring,
           customerName: greetCustomerName,
+          isMidThread: greetIsMidThread,
         });
         if (fallbackGate.scrubbed) {
           console.log(`[ai-support-chat] [Reg #2.10] greeting fallback gate (${fallbackGate.reason})`);
@@ -6402,6 +6459,42 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
     } catch (e) {
       console.warn("[ai-support-chat] [Reg #9] promise/data-ask gates failed:", (e as Error).message);
+    }
+
+    // [Reg #15] Mídia inbound — sem tool de visão, proibido prometer "analiso".
+    try {
+      const lastInbound = (messages || []).filter((m: any) => m.role === "user").slice(-1)[0];
+      const inboundIsMedia = !!(lastInbound?.media_url || lastInbound?.message_type === "image" || lastInbound?.message_type === "audio" || lastInbound?.message_type === "document");
+      const hasVisionTool = (pipelineFilteredTools || []).some((t: any) => t?.function?.name === "analyze_image");
+      const { gateMediaInbound } = await import("../_shared/sales-pipeline/output-gates.ts");
+      const mg = gateMediaInbound({ aiResponse: aiContent || "", hasVisionTool, inboundIsMedia });
+      if (mg.scrubbed) {
+        console.log(`[ai-support-chat] [Reg #15] media gate (${mg.reason})`);
+        aiContent = mg.after;
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #15] media gate failed:", (e as Error).message);
+    }
+
+    // [Reg #16] Anti-repetição semântica — pergunta de qualificação aberta repetida.
+    try {
+      const { data: recentBotRows } = await supabase
+        .from("messages")
+        .select("content")
+        .eq("conversation_id", conversation_id)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(2);
+      const recentBotMessages = (recentBotRows || []).map((r: any) => r?.content || "");
+      const { gateSemanticRepetition } = await import("../_shared/sales-pipeline/output-gates.ts");
+      const sem = gateSemanticRepetition({ aiResponse: aiContent || "", recentBotMessages });
+      if (sem.closeLoopDetected) {
+        closeLoopDetected = true;
+        closeLoopReason = closeLoopReason === "noop" ? "semantic_repetition" : `${closeLoopReason}+semantic_repetition`;
+        console.log(`[ai-support-chat] [Reg #16] semantic_repetition match`);
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #16] semantic gate failed:", (e as Error).message);
     }
 
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).

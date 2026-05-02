@@ -88,3 +88,8 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [AI Promise Without Action](mem://constraints/ai-promise-without-action-forces-regeneration) — Reg #9: "tô gerando o link" sem tool dispara regeneração com tool_choice=generate_checkout_link.
 - [AI Must Not Ask Checkout Data on WhatsApp](mem://constraints/ai-must-not-ask-checkout-data-on-whatsapp) — Reg #9: pedido de CEP/CPF/email/forma de pagamento via WhatsApp dispara regen com tool_choice.
 - [AI No-Fake-Action Extended Vocabulary](mem://constraints/ai-no-fake-action-extended-vocabulary) — Reg #11: scrubber FIX-D cobre 3 famílias (pretérito sem tool, promessa de futuro sem job, redefinição de senha) — auditoria Respeite o Homem mai/2026.
+- [Handoff Terminal Lock](mem://constraints/handoff-must-silence-ai-until-human-assigns) — Reg #12: ai-support-chat retorna HANDOFF_AWAITING_HUMAN quando waiting_agent + assigned_to=null.
+- [Lookup Customer Normalize](mem://constraints/lookup-customer-must-normalize-email-and-phone) — Reg #13: email lowercase/trim via ilike, phone só dígitos com variantes 55.
+- [Greeting No-Restart Mid-Thread](mem://constraints/greeting-must-not-restart-mid-thread) — Reg #14: "Oi" em thread <30min vira "Oi de novo. Em que posso continuar te ajudando?".
+- [Media Inbound Deterministic](mem://constraints/media-inbound-must-have-deterministic-reply) — Reg #15: sem tool analyze_image, "estou analisando" vira pedido de descrição em texto.
+- [Anti-Repetition Semantic](mem://constraints/anti-repetition-must-use-semantic-class-not-just-prefix) — Reg #16: pergunta "procura específico ou opções" repetida força closeLoopDetected.
