@@ -200,6 +200,8 @@ interface Order {
 **Legado — Ghost Orders (encerrado em 2026-05-02):**
 O conceito de "ghost order" (`payment_gateway_id IS NULL`) foi eliminado na v2026-04-04 pela regra gateway-first. Em 2026-05-02, os 79 pedidos legados pré-19/abr restantes (que ficaram pendentes/expirados sem `payment_gateway_id`) foram migrados para `cancelled` com motivo "Órfão pré-gateway-first". A partir desta data, **a listagem de pedidos NÃO filtra mais por `payment_gateway_id`** — esse filtro estava bloqueando indevidamente pedidos manuais (criados via `/orders/new`) e importações de marketplace, que legitimamente não têm `payment_gateway_id`. Regra anti-regressão: nunca reintroduzir `.not('payment_gateway_id', 'is', null)` em queries de listagem de pedidos. A integridade contra ghost orders é garantida pelo gateway-first na criação, não por filtro na leitura.
 
+**Validação E2E (2026-05-02):** Pedido manual #392 (PIX/Pago) e #393 (Boleto/Pago, transportadora Correios) criados via `/orders/new` apareceram corretamente em `/orders`, `/fiscal?tab=pedidos` (status "Pronto para emitir NF") e `/logistica` (aba Aguardando Envio). Confirma que a remoção do filtro não introduziu efeitos colaterais e que pedidos manuais transitam pelo pipeline atomic-order-draft-trigger igual a pedidos do storefront.
+
 ---
 
 ### 3.2 Tipos de Status
@@ -699,9 +701,26 @@ Mudanças por webhook, verificação ativa e cron registradas automaticamente:
 
 ### 8.2 Exclusão
 
-- Apenas `pending` ou `cancelled` podem ser excluídos
-- Pedidos pagos/processados: cancelar, não excluir
-- `core-orders.deleteOrder` valida regras
+**Onde:** Lista `/orders` → menu "..." de cada linha → opção **Excluir** (única superfície de UI). Não há ação equivalente nas telas de Fiscal nem de Logística — esses módulos apenas refletem o pedido; a exclusão é sempre originada no módulo Pedidos.
+
+**Quem pode:** Apenas pedidos com `status = 'pending'` ou `status = 'cancelled'`. Qualquer outro status (incluindo `awaiting_confirmation`, `ready_to_invoice`, `paid`, `dispatched`, etc.) é rejeitado pelo `core-orders` com `code: 'CANNOT_DELETE'`. Pedidos pagos ou em fluxo fiscal/logístico devem ser **cancelados**, não excluídos.
+
+**O que é apagado (cascata):**
+- `orders` (registro principal)
+- `order_items` (itens do pedido)
+- `order_history` (histórico de status)
+
+**O que NÃO é apagado automaticamente:**
+- `fiscal_invoices` vinculadas (NF-e) — não devem existir em `pending`/`cancelled`, mas se existirem ficam órfãs
+- `shipments` vinculadas — idem
+- `payment_transactions` (histórico de tentativas) — preservadas para auditoria
+- `audit_log` e evento `order.deleted` — preservados
+
+**Auditoria:** Toda exclusão grava `audit_log` com `before_json` completo do pedido e emite o evento `order.deleted` no event bus.
+
+**Implicação prática para pedidos manuais:** Um pedido manual recém-criado nasce em `awaiting_confirmation` ou já avança para `ready_to_invoice` (caso do #392/#393, criados com pagamento marcado como Pago). Nesses status **a exclusão é bloqueada** — o operador precisa primeiro **cancelar** o pedido (mudar status para `cancelled`) e só então excluir. O cancelamento dispara as triggers de regressão (`cancel_pending_drafts_on_regression` + `requires_action` em NF-e/remessa) descritas em §8.13, garantindo que rascunhos fiscais e logísticos pendentes sejam cancelados ou sinalizados para ação humana.
+
+**Lacuna conhecida:** Não há ação "Excluir" em massa nem ação direta para `ready_to_invoice` (status canônico mais comum hoje). Roadmap: avaliar permitir exclusão direta de pedidos manuais que nunca emitiram NF-e nem geraram etiqueta, sem exigir o passo intermediário de cancelar.
 
 ### 8.3 Estoque
 
