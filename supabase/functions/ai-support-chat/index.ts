@@ -1879,8 +1879,29 @@ async function executeSalesTool(
               .maybeSingle();
 
             const presented = (salesState?.presented_product_ids as string[] | null) || [];
+
+            // [Reg #10] Estende Reg #2.15: além de "presented_count==1", também
+            // dispara quando há foco de produto persistido (mesmo com vários
+            // apresentados, o cliente já filtrou a conversa para 1 SKU).
+            const focusFromMeta = (() => {
+              try {
+                const meta = (conversation?.metadata as Record<string, unknown>) || {};
+                const pf = meta.product_focus as { product_id?: string } | null | undefined;
+                return pf?.product_id || null;
+              } catch { return null; }
+            })();
+
+            let candidateId: string | null = null;
+            let pickReason = "none";
             if (presented.length === 1) {
-              const candidateId = presented[0];
+              candidateId = presented[0];
+              pickReason = "single_presented_product";
+            } else if (focusFromMeta && (presented.length === 0 || presented.includes(focusFromMeta))) {
+              candidateId = focusFromMeta;
+              pickReason = "product_focus";
+            }
+
+            if (candidateId) {
               const { data: candidateProduct } = await supabase
                 .from("products")
                 .select("id, name, price, status, has_variants")
@@ -1888,8 +1909,6 @@ async function executeSalesTool(
                 .eq("tenant_id", tenantId)
                 .maybeSingle();
 
-              // Só auto-popula se: produto ativo + SEM variantes mandatórias.
-              // Com variantes, exigir add_to_cart explícito (gate de variante).
               if (
                 candidateProduct &&
                 candidateProduct.status === "active" &&
@@ -1928,11 +1947,10 @@ async function executeSalesTool(
                 }
 
                 console.log(
-                  `[ai-support-chat] [Reg #2.15] auto_add_on_empty_cart product_id=${candidateProduct.id} ` +
-                  `name="${candidateProduct.name}" reason=single_presented_product`
+                  `[ai-support-chat] [Reg #10] auto_add_on_focus product_id=${candidateProduct.id} ` +
+                  `name="${candidateProduct.name}" reason=${pickReason} presented_count=${presented.length}`
                 );
 
-                // Recarrega o cart para o fluxo padrão de geração de link.
                 const { data: refreshed } = await supabase
                   .from("whatsapp_carts")
                   .select("*")
@@ -1943,17 +1961,17 @@ async function executeSalesTool(
                 cart = refreshed ?? null;
               } else {
                 console.log(
-                  `[ai-support-chat] [Reg #2.15] auto_add_skipped reason=${
+                  `[ai-support-chat] [Reg #10] auto_add_skipped reason=${
                     !candidateProduct ? "product_not_found" :
                     candidateProduct.status !== "active" ? "product_inactive" :
                     "has_mandatory_variants"
-                  } product_id=${candidateId}`
+                  } product_id=${candidateId} pick=${pickReason}`
                 );
               }
             } else {
               console.log(
-                `[ai-support-chat] [Reg #2.15] auto_add_skipped reason=presented_count=${presented.length} ` +
-                `(precisa ser exatamente 1)`
+                `[ai-support-chat] [Reg #10] auto_add_skipped reason=no_candidate ` +
+                `presented_count=${presented.length} focus=${focusFromMeta ?? "none"}`
               );
             }
           } catch (e) {
