@@ -6516,11 +6516,87 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
         if (regenResp.ok) {
           const regenData = await regenResp.json();
-          const regenText = regenData.choices?.[0]?.message?.content;
+          let regenText: string | null = regenData.choices?.[0]?.message?.content || null;
+          const regenToolCalls = regenData.choices?.[0]?.message?.tool_calls;
           if (regenData.usage) {
             inputTokens += regenData.usage.prompt_tokens || 0;
             outputTokens += regenData.usage.completion_tokens || 0;
           }
+
+          // [Reg #10 Corr C] Se forçamos generate_checkout_link e o modelo
+          // chamou a tool, executamos AGORA, anexamos o resultado e fazemos
+          // um follow-up textual final para entregar a URL ao cliente.
+          if (forceCheckoutTool && Array.isArray(regenToolCalls) && regenToolCalls.length > 0) {
+            try {
+              const tc = regenToolCalls.find((c: any) => c?.function?.name === "generate_checkout_link") || regenToolCalls[0];
+              const fnName = tc.function.name;
+              const fnArgs = (() => { try { return JSON.parse(tc.function.arguments || "{}"); } catch { return {}; } })();
+              console.log(`[ai-support-chat] [Reg #10 Corr C] regen executing forced tool: ${fnName}`);
+              const toolStartedAt = Date.now();
+              let toolSuccess = true;
+              let toolError: string | null = null;
+              let result = "";
+              try {
+                result = await executeSalesTool(fnName, fnArgs, salesToolCtx);
+              } catch (e) {
+                toolSuccess = false;
+                toolError = (e as Error)?.message || String(e);
+                result = JSON.stringify({ error: toolError });
+              }
+              recordToolCall(supabase, {
+                tenant_id,
+                conversation_id,
+                message_id: null,
+                turn_correlation_id: turnCorrelationId,
+                iteration: ++toolIterationCounter,
+                tool_name: fnName,
+                args: fnArgs,
+                result_preview: result,
+                success: toolSuccess,
+                error_message: toolError,
+                duration_ms: Date.now() - toolStartedAt,
+                blocked: false,
+                pipeline_state_before: pipelineState,
+                pipeline_state_after: pipelineState,
+                business_context_source: businessContextSourceForTurn,
+                model: modelUsed,
+              });
+              toolsCalledArr.push(fnName);
+              try { toolResultsThisTurn.push({ tool: fnName, parsed: JSON.parse(result) }); }
+              catch { toolResultsThisTurn.push({ tool: fnName, parsed: result }); }
+
+              // Follow-up textual obrigatório com tool_choice="none"
+              const followBody: Record<string, unknown> = {
+                model: modelUsed,
+                messages: [
+                  ...aiMessages,
+                  { role: "assistant", content: null, tool_calls: regenToolCalls },
+                  { role: "tool", tool_call_id: tc.id, content: result },
+                ],
+                tool_choice: "none",
+              };
+              if (!isGpt5Regen) followBody.temperature = 0.5;
+
+              const followResp = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+                body: JSON.stringify(followBody),
+              });
+              if (followResp.ok) {
+                const followData = await followResp.json();
+                regenText = followData.choices?.[0]?.message?.content || regenText;
+                if (followData.usage) {
+                  inputTokens += followData.usage.prompt_tokens || 0;
+                  outputTokens += followData.usage.completion_tokens || 0;
+                }
+              } else {
+                console.error(`[ai-support-chat] [Reg #10 Corr C] follow-up HTTP ${followResp.status}`);
+              }
+            } catch (forcedErr) {
+              console.error(`[ai-support-chat] [Reg #10 Corr C] forced tool exec failed:`, forcedErr);
+            }
+          }
+
           if (regenText && regenText.trim().length > 0) {
             const regenHash = await hashResponse(regenText);
             if (regenHash !== responseHash) {
