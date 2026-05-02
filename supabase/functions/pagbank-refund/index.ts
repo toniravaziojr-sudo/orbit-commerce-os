@@ -60,6 +60,50 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
+    // ===== Authorization gate =====
+    // Aceita apenas: (a) chamada interna do router payment-refund com service-role
+    // OU (b) chamada autenticada por owner/admin do tenant.
+    const isInternal = req.headers.get('x-internal-call') === 'payment-refund';
+    if (!isInternal) {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader?.startsWith('Bearer ')) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Não autenticado' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const supabaseAuth = createClient(SUPABASE_URL!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const token = authHeader.replace('Bearer ', '');
+      const { data: claimsData } = await supabaseAuth.auth.getClaims(token);
+      const userId = claimsData?.claims?.sub;
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Sessão inválida' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!payload.tenant_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'tenant_id obrigatório' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const { data: roleRow } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('tenant_id', payload.tenant_id)
+        .single();
+      if (!roleRow || !['owner', 'admin'].includes(roleRow.role)) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas owner/admin podem estornar pagamentos' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Find transaction
     let transaction: any = null;
     
