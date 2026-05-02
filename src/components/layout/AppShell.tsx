@@ -15,7 +15,7 @@ export function AppShell() {
   return (
     <AdminModeProvider>
       <AdminErrorBoundary>
-        <div className="flex h-screen w-full overflow-hidden bg-background">
+        <div className="flex h-dvh w-full overflow-hidden bg-background">
           <AppSidebar />
           <div className="flex flex-1 flex-col overflow-hidden min-w-0">
             <AppHeader />
