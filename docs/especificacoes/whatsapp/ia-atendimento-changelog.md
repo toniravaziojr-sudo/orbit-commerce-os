@@ -63,6 +63,44 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #18 — Onda 18 Fase A: Probe v2 família-base + trace estruturado (em validação) — 02/mai/2026
+
+**Contexto.** A auditoria estrutural identificou que correções pontuais não resolveram a "cegueira de família-base" da IA: consultas como *"você tem alguma loção pra crescer cabelo?"* às vezes traziam packs/kits no topo escondendo o produto-base, porque o ranking exact-match + pain_match não distingue **kit de quantidade** (Nx do mesmo SKU) de **kit complementar** (combina produtos diferentes). Após análise crítica, optamos por **MVP cognitivo faseado** — esta é a **Fase A**, com escopo travado.
+
+**Escopo da Fase A (somente isso).**
+1. Nova tabela `ai_turn_traces` (trace estruturado por turno, acesso só service_role).
+2. Função pura `enforceFamilyBaseFirst()` em `_shared/sales-pipeline/catalog-probe.ts` + helper `detectFamilyInText()`.
+3. Plug atrás de flag `arch18_catalog_base_forced` em `ai_support_config.metadata` (decisão Fase A: usar metadata em vez de criar `tenant_feature_flags` agora).
+4. 6 traces mínimos no `search_products`: `turn_input` → `search_products_input` → `candidate_set_raw` → `enriched_partition` → `probe_v2_decision` → `final_ranking`.
+5. Flag ativa **apenas no tenant Respeite o Homem** (`d1a4d0ed-…`).
+6. **NÃO** mexido nesta fase: Turn Aggregator, Policy Compiler, TPR v2, Planner, Critic, Tool Executor, redução de gates.
+
+**Regra do Probe v2 (alinhada com decisão de produto).**
+- Particiona o pool em `bases_pain` / `bases_outras` / `kits_complementares` / `kits_quantidade`.
+- Quando há família detectada por regex no input do turno **e** ≥1 base elegível: TODAS as bases vêm primeiro (pain antes de outras), kits complementares vêm depois, **kits de quantidade NÃO entram na vitrine inicial**.
+- Quando não há base elegível para a família: fail-safe devolve a lista original.
+- Respeita filtros de elegibilidade já aplicados pelo `search_products` (tenant, ativo, deleted_at null).
+- `family_shipping_summary` permanece intacto; apenas `base_has_free_shipping` vai pro trace (não pra resposta).
+
+**Validação técnica executada.**
+- 9 testes determinísticos da função pura — `9 passed | 0 failed`.
+- Migration aplicada com sucesso, RLS bloqueando anon/authenticated por design.
+- Edge function `ai-support-chat` deployada.
+- Flag confirmada via SQL: `metadata->'arch18_catalog_base_forced' = true` apenas no Respeite o Homem.
+
+**Validação pendente do usuário (golden set 3 frases).**
+1. *"você tem alguma loção pra crescer cabelo?"* → deve retornar a(s) loção(ões) base no topo, kits-quantidade ausentes.
+2. *"só tem essa?"* → deve mostrar demais bases da família se houver, sem inventar.
+3. *"é frete grátis?"* → comportamento atual preservado (summary intacto).
+
+**Rollback.** `UPDATE ai_support_config SET metadata = metadata - 'arch18_catalog_base_forced' WHERE tenant_id='d1a4d0ed-…'` → comportamento comercial volta ao anterior. Traces continuam disponíveis para auditoria histórica.
+
+**Anti-regressão.** Memória `mem://features/ai/arch18-fase-a-catalog-base-forced` indexada.
+
+**Status:** Ajuste aplicado. Pendente de validação no WhatsApp real do Respeite o Homem.
+
+---
+
 ## Registro #11 — Scrubber de ação inventada com vocabulário estendido (Onda 11 da auditoria Respeite o Homem) — 02/mai/2026
 
 **Sintoma (auditoria de 7 dias do tenant Respeite o Homem, WhatsApp + Chat):**

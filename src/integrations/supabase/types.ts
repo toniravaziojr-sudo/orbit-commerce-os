@@ -3172,6 +3172,36 @@ export type Database = {
           },
         ]
       }
+      ai_turn_traces: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          id: string
+          payload: Json
+          stage: string
+          tenant_id: string
+          turn_id: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          stage: string
+          tenant_id: string
+          turn_id?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          stage?: string
+          tenant_id?: string
+          turn_id?: string | null
+        }
+        Relationships: []
+      }
       audience_sync_logs: {
         Row: {
           action: string
