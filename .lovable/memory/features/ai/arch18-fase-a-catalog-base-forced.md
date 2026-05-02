@@ -31,6 +31,10 @@ Sampling Fase A: 100% no tenant Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9
 - **NÃO escopo da Fase A:** Turn Aggregator, Policy Compiler, TPR v2, Planner, Critic Layer, Tool Executor decoupling, redução de gates antigos. Esses ficam para Fases B-J.
 - **Função pura:** `enforceFamilyBaseFirst` NÃO consulta DB. Quem chama (`search_products`) resolve `kitComponentMap` via `product_components` antes.
 
+## Reposicionamento da flag (pós-saneamento, contexto piloto único)
+
+A IA de atendimento/vendas roda HOJE somente no tenant *Respeite o Homem* (piloto único de produção). Por isso, a flag `arch18_catalog_base_forced` deixa de ser tratada como "rollout conservador por tenant" e passa a ser **kill switch técnico**: liga por padrão em quem usa a IA, e só desliga em caso de regressão grave em produção. Próximas fases (B em diante) NÃO precisam criar novas flags de rollout por tenant — implementam diretamente no módulo, mantendo apenas kill switch técnico quando o risco estrutural justificar.
+
 ## Rollback
 
 ```sql
