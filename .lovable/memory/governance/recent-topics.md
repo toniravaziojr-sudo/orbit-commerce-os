@@ -6,16 +6,15 @@ type: reference
 
 # Assuntos recentes (rotativo)
 
-## 1) IA de Atendimento — Plano principal (RETOMADA EM ANDAMENTO)
-- Status: Plano vivo. Frentes 1 (Reg #2.8 a #2.13), 2 (Reg #6 — variantes obrigatórias) e 3 (Reg #7 — fechamento sem loop) aplicadas e em validação. Frente 2.10 (Focus Snapshot + Exact Match) aplicada e em observação.
-- Doc formal único: `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` (706 linhas, registros #1 a #7 + #2.x).
-- Pendências conhecidas:
-  - Hotfix `customerName` precisa virar memória `mem://constraints/greeting-mirror-vars-must-be-declared-at-handler-scope` e entrar como Reg #8 no changelog (citado em recent-topics anterior, ainda aberto).
-  - Validação prática das Reg #2.10/#2.11/#2.13 em conversas reais (logs `[Reg #2.10]`, `[Reg #2.8]`, etc.).
-  - Confirmar com usuário próximas frentes do plano principal (Frente 4+ ainda não definida).
+## 1) IA de Atendimento — Plano principal de 9 frentes (RETOMADA EM ANDAMENTO)
+- Status: 6 frentes entregues (9, 8, 2, 7, 5, 3); 2 parciais (6, 4); 1 pendente (1 — sandbox stale); Reg #8 (`customerName`) por formalizar.
+- Plano completo: `.lovable/plan.md` (reconstruído 2026-05-02 a partir do chat #9727-#9815 + changelog formal).
+- Doc fonte de verdade: `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` (Reg #1 a #7 + #2.x).
+- Próximo passo: aguardando usuário escolher entre Frente 1 (sandbox stale), Frente 4 (loop confirmação edge cases), Frente 6 (tom robótico), Reg #8 (formalizar) ou rodar validação prática pelo sandbox.
+- Memórias técnicas chave: `sales-pipeline-tpr-and-output-gates` (#2.8), `sales-pipeline-v2-9-working-memory-shadow-mode`, `sales-pipeline-v2-10-focus-snapshot-and-exact-match`, `sales-attribution-venda-ia-tag` (#4), `greeting-formal-tone-no-slang` (#5).
 
 ## 2) Pedidos — Plano de Pedido Manual + Estorno Multi-Gateway (ENCERRADO)
 - Status: ✅ Concluído e validado em 2026-05-01.
-- Entregas: enums canônicos alinhados, `core-orders.create_order` com overrides, tela Novo Pedido refatorada, estorno real PagBank/Pagar.me/Mercado Pago, espelhamento de pedido manual no fluxo automático (fila fiscal + remessa).
+- Entregas: enums canônicos, `core-orders.create_order` com overrides, tela Novo Pedido refatorada, estorno real PagBank/Pagar.me/Mercado Pago, espelhamento de pedido manual no fluxo automático (fila fiscal + remessa).
 - Memórias indexadas: `order-status-vocabulary-canonical`, `order-status-manual-override-policy`, `manual-order-must-mirror-checkout-pipeline`, `refund-multi-gateway-admin-only`.
 - Sem pendências.
