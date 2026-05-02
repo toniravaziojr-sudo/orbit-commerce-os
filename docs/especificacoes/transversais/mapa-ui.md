@@ -437,6 +437,13 @@ AppShell
 | `ModuleGate` | `src/components/layout/ModuleGate.tsx` | Bloqueio de módulo com modo preview |
 | `FeatureGate` | `src/components/layout/FeatureGate.tsx` | Gate inline para features |
 
+### 7.2.1 Contrato de rolagem do Admin
+
+- O `AppShell` é a única área rolável vertical padrão do painel admin (`main` com `overflow-y-auto`).
+- Páginas internas como `/orders/new` e `/products` não devem adicionar padding inferior extra na raiz apenas para “dar respiro” visual.
+- Quando houver barra de ação fixa dentro da própria tela, a compensação inferior deve existir somente no container do conteúdo realmente coberto por essa barra, nunca duplicada na página pai.
+- Em layouts com grid, colunas laterais resumidas devem usar altura intrínseca (`self-start`) quando o estiramento da grid aumentar artificialmente a área visual vazia.
+
 ### 7.3 Providers
 
 | Provider | Contexto | Função |

@@ -34,7 +34,7 @@ export default function Products() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-16">
+    <div className="space-y-6 animate-fade-in">
       {view === 'list' && (
         <>
           <PageHeader

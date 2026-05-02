@@ -289,8 +289,10 @@ graph TD
 Fixos na parte inferior (`fixed bottom-0`):
 - Fundo `bg-background` + `border-t`
 - Largura `calc(100% - sidebar)`
-- `z-10`, `pb-20` no container principal
+- `z-10`, reserva vertical apenas equivalente à barra fixa no container principal
 - Mensagem de erros de validação ao lado dos botões
+
+**Regra de layout (2026-05-02):** a página `/products` usa o scroll do `AppShell` como área rolável única. É proibido somar padding inferior extra na página pai além da compensação estritamente necessária para a barra fixa do formulário, pois isso cria espaço em branco artificial no fim da rolagem.
 
 ### 6.4 Produtos Relacionados
 

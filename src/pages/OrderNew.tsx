@@ -287,7 +287,7 @@ export default function OrderNew() {
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
   return (
-    <div className="space-y-6 animate-fade-in pb-16">
+    <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Novo Pedido"
         description="Criar pedido manual"
@@ -449,7 +449,7 @@ export default function OrderNew() {
         </Card>
 
         {/* Order Summary */}
-        <Card>
+        <Card className="self-start">
           <CardHeader>
             <CardTitle>Resumo</CardTitle>
           </CardHeader>
@@ -607,7 +607,7 @@ export default function OrderNew() {
         </Card>
 
         {/* Shipping Method + Status do Envio agrupados */}
-        <div className="space-y-4">
+        <div className="space-y-4 self-start">
           <OrderShippingMethod
             address={{
               postal_code: formData.shipping_postal_code,
