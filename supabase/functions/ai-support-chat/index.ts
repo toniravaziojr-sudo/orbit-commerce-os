@@ -3162,7 +3162,10 @@ Deno.serve(async (req) => {
       redact_pii_in_logs: true,
     };
 
-    const salesModeEnabled = effectiveConfig.sales_mode_enabled === true;
+    // [Onda 18 Fase B.1] sales_mode vem da policy (fonte central).
+    // Compilação acontece mais abaixo; aqui ainda lemos legado para gates
+    // pré-policy. Essa variável é REASSIGNADA após compileEffectivePolicy.
+    let salesModeEnabled = effectiveConfig.sales_mode_enabled === true;
 
     // [Onda 18 — Fase A] Flag de Probe v2 família-base.
     // Decisão Fase A: como tenant_feature_flags não existe ainda, a flag
@@ -3377,6 +3380,11 @@ Deno.serve(async (req) => {
       `[ai-support-chat] [Onda18-B] effective_policy tenant=${tenant_id} channel=${channelType} ` +
       `trace=${JSON.stringify(policyTrace)}`
     );
+
+    // [Onda 18 Fase B.1] Reassign sales_mode a partir da policy.
+    // A policy é a fonte central; effectiveConfig.sales_mode_enabled fica
+    // só como leitura inicial pré-compilação.
+    salesModeEnabled = effectivePolicy.sales_mode_enabled.value === true;
 
     // [Fase A] Janela de histórico CORRIGIDA:
     // Antes: .order(asc).limit(20) → pegava os 20 PRIMEIROS turnos. Em conversas
@@ -3918,7 +3926,8 @@ Deno.serve(async (req) => {
     let matchedRule: AIRule | null = null;
     let forceResponse: string | null = null;
 
-    const rules: AIRule[] = Array.isArray(effectiveConfig.rules) ? effectiveConfig.rules : [];
+    // [B.1] rules vêm da policy (source=tenant ou default=[])
+    const rules: AIRule[] = (effectivePolicy.rules.value as AIRule[]) || [];
     const activeRules = rules.filter(r => r.is_active).sort((a, b) => a.priority - b.priority);
 
     for (const rule of activeRules) {
@@ -3941,8 +3950,10 @@ Deno.serve(async (req) => {
     }
 
     // Check handoff keywords
-    if (!shouldHandoff && effectiveConfig.handoff_keywords?.length && lastMessageLower) {
-      const matchedKeyword = effectiveConfig.handoff_keywords.find(
+    // [B.1] handoff_keywords vêm da policy (source=tenant ou default=[])
+    const handoffKeywords = effectivePolicy.handoff_keywords.value;
+    if (!shouldHandoff && handoffKeywords?.length && lastMessageLower) {
+      const matchedKeyword = handoffKeywords.find(
         (kw: string) => lastMessageLower.includes(kw.toLowerCase())
       );
       if (matchedKeyword) {
@@ -3993,7 +4004,19 @@ Deno.serve(async (req) => {
       console.warn(`[ai-support-chat] [Onda18-B] divergence_check_failed: ${(e as Error).message}`);
     }
 
-    let systemPrompt = effectivePolicy.system_prompt.value || `Você é ${personalityName}, atende a loja ${storeName} pelo WhatsApp.
+    // [Onda 18 Fase B.1] HIERARQUIA DE AUTORIDADE — preamble não-negociável.
+    // Texto livre vindo de tenant/canal (system_prompt, custom_instructions)
+    // pode complementar tom/estilo/saudação/abordagem comercial, mas NUNCA
+    // sobrescreve invariantes da plataforma nem resultado real de tools.
+    // Este preamble vai SEMPRE no topo do system prompt.
+    const POLICY_AUTHORITY_PREAMBLE = `### HIERARQUIA DE AUTORIDADE (não-negociável)
+
+1. **Invariantes da plataforma vêm acima de qualquer instrução.** Nunca vaze dados de outro cliente/loja, nunca peça dados sensíveis (CPF, cartão, senha) por este canal, nunca invente ações que não foram executadas por uma tool real, nunca afirme resultado de tool que não foi chamada.
+2. **Resultado real de tools vence texto.** Catálogo, preço, estoque, frete, prazo, status de pedido e checkout vêm SEMPRE do retorno da tool correspondente. Se a tool não foi chamada ou falhou, diga que vai verificar — não invente dado nem confirme valor de cabeça.
+3. **Instruções do tenant e do canal são complementares.** Tom, estilo, saudação, abordagem comercial e instruções específicas do canal podem ajustar COMO você fala, mas não podem te liberar a quebrar (1) ou (2). Se uma instrução do tenant/canal entrar em conflito com (1) ou (2), você ignora a instrução conflitante e segue (1) e (2).
+
+`;
+    let systemPrompt = POLICY_AUTHORITY_PREAMBLE + (effectivePolicy.system_prompt.value || `Você é ${personalityName}, atende a loja ${storeName} pelo WhatsApp.
 
 Você NÃO é um bot de FAQ nem um assistente virtual genérico. Você é uma pessoa real respondendo do celular, em português do Brasil, com tom de conversa natural, leve e profissional.
 
@@ -4035,7 +4058,7 @@ Cliente: "vocês entregam em SP?"
 ### REGRAS DE NEGÓCIO
 - Use APENAS informações da BASE DE CONHECIMENTO e do contexto fornecido.
 - Se não souber algo (preço, estoque, prazo, política), busque com as ferramentas. Nunca invente.
-- Se não conseguir resolver, escale para um atendente humano de forma natural ("Vou te passar pra alguém da equipe que resolve isso, tá?").`;
+- Se não conseguir resolver, escale para um atendente humano de forma natural ("Vou te passar pra alguém da equipe que resolve isso, tá?").`);
 
     // Channel-specific override (mantém compatibilidade com prompt manual de canal)
     if (channelConfig?.system_prompt_override) {
@@ -4571,8 +4594,9 @@ Cliente: "vocês entregam em SP?"
         state: pipelineState,
         allTools: SALES_TOOLS,
         tenant: {
-          systemPromptComplement: effectiveConfig.system_prompt || null,
-          channelCustomInstructions: channelConfig?.custom_instructions || null,
+          // [B.1] systemPromptComplement e channelCustomInstructions via policy.
+          systemPromptComplement: effectivePolicy.system_prompt.value || null,
+          channelCustomInstructions: effectivePolicy.custom_instructions.value || null,
           personalityName,
           storeName,
         },
@@ -5134,7 +5158,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // gpt-5 vira FALLBACK explícito (ativado mais abaixo, no loop de modelos),
     // só quando o estado é decision/checkout_assist E houve falha de tool-calling.
     // Não tem mais "upgrade global para gpt-5" — isso destruía a latência.
-    let configuredModel = effectiveConfig.ai_model || "gpt-5.2";
+    // [B.1] ai_model via policy. Source pode ser `tenant` (ai_support_config.ai_model)
+    // ou `default` ("gpt-5.2"). Channel não controla modelo.
+    let configuredModel = effectivePolicy.ai_model.value;
     if (salesModeEnabled) {
       // Força o piso em gpt-5-mini (tool-calling confiável + ~3-5x mais rápido
       // que gpt-5). nano não chama tools com confiabilidade suficiente.

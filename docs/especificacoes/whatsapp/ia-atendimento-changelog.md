@@ -1018,3 +1018,30 @@ Helper `isBotMessage(m)` em `_shared` continua recomendado para encerrar a famí
 9. ✅ Fase A intacta: `enforceFamilyBaseFirst`, `ai_turn_traces`, kill switch `arch18_catalog_base_forced`.
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação: enviar mensagens reais no WhatsApp do Respeite o Homem e confirmar nos logs `[Onda18-B] effective_policy` o source_trace correto + ausência de `policy_divergence`.
+
+---
+
+## Registro #20 — Onda 18 Fase B.1: Saneamento do Policy Compiler — 02/mai/2026
+
+**Contexto.** Mini-fase de saneamento pós-B antes de avançar para C. Três pontos: (1) confirmar se `ai_model` é informativo ou afeta roteamento real; (2) eliminar leituras residuais de `effectiveConfig` no caminho principal; (3) reforçar hierarquia de autoridade no prompt para impedir que texto livre de tenant/canal sobreponha invariantes ou resultado de tools.
+
+**Resultados.**
+
+1. **`ai_model` AFETA chamada real do modelo** (linha 5137 → `configuredModel` → gateway). Default `"gpt-5.2"` mantido alinhado com o handler legado e documentado como "mudança aqui altera custo/latência silenciosamente". Migrado para `effectivePolicy.ai_model.value`.
+
+2. **Leituras residuais migradas:** `sales_mode_enabled`, `rules`, `handoff_keywords`, `system_prompt` (em `buildPromptForState`), `channelConfig.custom_instructions` (em `buildPromptForState`), `ai_model`.
+
+3. **Leituras residuais MANTIDAS (com motivo):** `is_enabled` (circuit-breaker pré-policy), `metadata.arch18_catalog_base_forced` (kill switch técnico Fase A), `rag_*` + `handoff_on_no_evidence` (parâmetros técnicos RAG), `redact_pii_in_logs` (flag de logging), e a leitura legada dentro do bloco `policy_divergence` (proposital para detectar divergência — remover após 1 semana estável).
+
+4. **Hierarquia de autoridade no prompt.** Adicionado `POLICY_AUTHORITY_PREAMBLE` SEMPRE no topo do system prompt:
+   - (1) Invariantes da plataforma > qualquer instrução.
+   - (2) Resultado real de tools > texto livre.
+   - (3) Tenant/canal são complementares e cedem em conflito.
+
+**Validação técnica.**
+- 18/18 testes do sales-pipeline passaram (Fase A 9/9 + Compiler 9/9).
+- `deno check` reportou apenas erro pré-existente (`salesToolCtx`) fora do escopo B.1.
+
+**Sem migration. Sem flag de rollout.** Kill switch = reverter o commit.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação: enviar mensagens reais no WhatsApp do Respeite o Homem e confirmar que o preamble está no system prompt + ausência de `policy_divergence`.
