@@ -1,52 +1,77 @@
 
-# Plano de correção — Rodada de testes pós Reg #8
+# Plano de correção — Reg #10 (rodada pós Reg #9)
 
-Doc fonte: `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` (Mapa de qualidade + Reg #2.x e #5/#7/#8).
+Doc fonte: `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` (Mapa + Reg #9 + Reg #2.15/#2.16).
 
-## O que o teste mostrou
-1. **Vocativo genérico** — IA chamou o cliente de "Cliente" porque `customer_name = "Cliente de teste"`. O filtro atual só barra nomes corporativos (loja/ltda/me), não placeholders de teste/contato.
-2. **Promessa sem ação (Reg #1.7 violada na borda)** — IA respondeu "tô gerando o link" sem chamar `generate_checkout_link`, e ainda perguntou CEP + forma de pagamento. O `forceCheckoutLink` (FIX-B) não disparou porque `explicitBuyNow` regex não cobriu a fala do cliente desse turno.
-3. **Pediu CEP / forma de pagamento pelo WhatsApp** — esses dados são preenchidos na própria página de checkout. O prompt já diz isso (linha 4196 do handler), mas a IA continuou pedindo.
-4. **(Observação)** Latência 24–25s em turnos com tool — diagnóstico, não corrigido nesta rodada.
+## O que o novo teste mostrou (conv `e44ad453`)
+
+Mesmo com Reg #9 deployada e o log `[name-policy] suppressing vocative for corporate-like name: "Cliente de teste"` aparecendo, três falhas reais persistiram:
+
+1. **Vocativo "Cliente" voltou:** a IA respondeu *"Fechado, Cliente, tô gerando o link."* — o sistema só **instrui** o LLM a não usar vocativo via system prompt; o `gpt-5-mini` ignorou. Defesa atual é prompt, não determinística.
+2. **Promessa sem ação + pedido de CEP/pagamento sobreviveram:** *"tô gerando o link… Me passa o CEP pra eu calcular o prazo"* e depois *"Qual forma de pagamento prefere: cartão ou PIX?"*. Os gates `enforcePromiseWithoutAction` e `enforceNoCheckoutDataAsk` da Reg #9 sinalizaram `closeLoopDetected=true`, mas a regeneração usa o caminho do **Pacote E v2** com `tool_choice="none"` — não força `generate_checkout_link`, só pede texto novo. Resultado: a IA repete a mesma promessa.
+3. **Auto-add não disparou (Reg #2.15):** log `auto_add_skipped reason=presented_count=3`. Quando a IA apresenta Shampoo + Loção + Balm e depois o cliente conversa só sobre o **Balm** ("Me fala mais do balm" 3×, "Quanto custa?", "Pode separar 1 pra mim, quero fechar"), o foco já está consolidado no Balm — mas o auto-add exige `presented_count==1` e ignora `product_focus`. Resultado: carrinho vazio na hora do "Pode fechar" → tool falha → IA cai no caminho de pedir CEP.
+
+Bonus observado nos logs: `gpt-5-mini` rejeita o parâmetro `reasoning` no primeiro try e faz retry (+3-4s de latência por turno). Não é alvo desta rodada — vai para diagnóstico próprio.
+
+## Causa raiz (uma frase)
+
+A Reg #9 fechou o sintoma errado: instalou gates de **detecção** mas o gatilho de regeneração existente só refaz texto, não força a tool; e o auto-add elegível ignora o sinal mais forte que temos sobre a escolha do cliente — o `product_focus`.
 
 ## Correções propostas
 
-### Correção 1 — Sanitizar vocativo de placeholders genéricos
-- Local: `supabase/functions/ai-support-chat/index.ts`, bloco `[PIPELINE-FIX 2026-04-29] Uso estratégico do nome` (linha ~4548).
-- Ampliar a heurística `looksCorporate` para incluir também placeholders: `cliente`, `teste`, `contato`, `usuário`, `customer`, `test`, `lead`, `prospect`, `visitante`, `whatsapp`, `desconhecido`. Quando bater, segue o mesmo caminho já existente: instruir o modelo a NÃO usar vocativo. Renomear a variável para `looksGenericOrCorporate` para refletir a intenção.
-- Resultado: IA volta a abrir formal sem nome ("Olá, boa tarde, tudo bem?…") em vez de "Olá, Cliente, …".
+### Correção A — Scrubber determinístico de vocativo proibido (latência zero)
+- Local novo: `supabase/functions/_shared/sales-pipeline/output-gates.ts` → `stripForbiddenVocative({ aiResponse, suppressedNameTokens })`.
+- Quando o handler decide suprimir vocativo, passa os tokens (`["Cliente","Cliente de teste","teste"]` etc.) para o scrubber, que regrava removendo as construções `^(Olá|Oi|Fala|Boa tarde|Bom dia|Boa noite|Fechado|Show|Beleza)[ ,]+(<token>)\b[,]?` e `\b,\s*<token>\b` no início ou no meio da frase.
+- Wiring no `ai-support-chat/index.ts` no mesmo bloco de `enforceCloseOnConfirmedIntent`/Reg #9, **antes** de persistir a mensagem.
 
-### Correção 2 — Fechar de verdade quando intenção é confirmada
-Defesa em duas camadas (espelho do que a Reg #2.16 já aplicou para "Posso gerar o link?", agora estendido para o outro lado: cliente disse "sim, fecha pra mim" e IA escapou pelo lado da promessa).
+### Correção B — Auto-add por `product_focus` quando há mais de 1 produto apresentado
+- Local: `ai-support-chat/index.ts` handler `generate_checkout_link` (~linha 1866, bloco Reg #2.15).
+- Hoje: só auto-adiciona se `presented_product_ids.length === 1`.
+- Mudar para: se vazio, tentar nesta ordem:
+  1. `presented_product_ids.length === 1` (regra atual).
+  2. `currentProductFocus.product_id` definido E presente em `presented_product_ids` E produto sem variantes mandatórias.
+  3. `presented_product_ids.length > 1` E há **um único produto recentemente debatido em profundidade** — derivado do contador de menções no histórico recente (já calculamos famílias em `intent-fingerprint`).
+- Em (2) e (3), mesmo critério atual de `status='active'` + `has_variants=false`. Logar `[Reg #10] auto_add_on_focus product_id=… reason=focus|recent_debate`.
 
-- **2a — `explicitBuyNow` (handler, linha ~5077):** ampliar a regex para cobrir também as falas reais do teste: `sim,? pode fechar`, `fecha pra mim`, `pode fechar`, `bora fechar`, `fechado`, `quero levar`, `me manda (a|o) (link|pagamento)`, `como pago`, `como (eu )?pago`, `quero pagar`. Mantém filtro `eligibleStateForForce` (decision/recommendation/product_detail/checkout_assist) já existente.
-- **2b — Output gate `enforcePromiseWithoutAction`** novo em `supabase/functions/_shared/sales-pipeline/output-gates.ts`. Detecta no texto da IA padrões de promessa de link sem `generate_checkout_link` chamada com `success=true` neste turno: `/tô gerando|estou gerando|vou gerar (o )?link|gerando seu link|preparando o link|aguarde (um|só) instante.*link/i`. Ação: marca `semanticDuplicateDetected=true` (mesma rede de segurança da Reg #2.16) para forçar regeneração com `tool_choice = generate_checkout_link`. NÃO reescreve texto.
-- Logar: `[Frente 4] promise_without_action match="…"`.
+### Correção C — Regen com `tool_choice` forçado quando o motivo é "promise/data_ask"
+- Local: `ai-support-chat/index.ts` ~linha 6310 + bloco do Pacote E v2 (~linha 6395).
+- Hoje: `closeLoopDetected` herda em `semanticDuplicateDetected`, mas o caminho de regen usa `tool_choice="none"` (só texto).
+- Mudar: introduzir flag `forceCheckoutOnRegen` (true quando `closeLoopReason ∈ {client_confirmed_but_ai_asked_again, promise_without_action, checkout_data_ask}` E `generateCheckoutAvailable` E `checkoutChecklist.ready`). No regen, em vez de `tool_choice="none"`, usa `tool_choice={type:"function", function:{name:"generate_checkout_link"}}` e re-roda o loop de tools (1 iteração extra). Limite hardcoded de 1 regen por turno (mantém custo).
+- Caso `checkoutChecklist.ready` esteja falso mas a Correção B tenha condições, primeiro chama o auto-add server-side **antes** da regen.
 
-### Correção 3 — Bloquear pedido de CEP / forma de pagamento via WhatsApp
-- Novo gate `enforceNoCheckoutDataAsk` em `output-gates.ts`. Em estados `recommendation|decision|checkout_assist`, se a resposta da IA contiver pedido de dados de checkout (`/qual (o )?seu (cep|endereço|cpf|e-?mail)|me (passa|envia|manda) (o )?(cep|cpf|endereço|e-?mail)|qual a forma de pagamento|como (você )?(prefere|quer) pagar|cartão ou pix|pix ou (cartão|boleto)/i`), e há tool `generate_checkout_link` disponível: marca `semanticDuplicateDetected=true` para regeneração com `tool_choice=generate_checkout_link`. Mesmo padrão da 2b.
-- Reforço de prompt redundante NÃO será adicionado (já existe na linha 4196). A defesa nova é determinística.
+### Correção D — Bloquear "promise/data_ask" também quando a tool foi chamada e falhou
+- Local: `output-gates.ts` `enforcePromiseWithoutAction` (linha 388).
+- Hoje: `checkoutCalledOk` retorna true se a tool foi chamada com `success=true`. OK.
+- Adicionar contraparte explícita: se a tool foi chamada com `success=false` (cart vazio etc.), o gate deve disparar igualmente — atualmente cai em `noop` por causa do regex de promessa não bater quando o texto não promete (mas no nosso caso real o texto promete). Garantir cobertura via teste unit-style mental: `toolFailed = chamou e success=false` → vira sinal forte para a Correção C usar.
+
+### Não escopo desta rodada
+- Latência (gpt-5-mini reasoning rejection + 25s) — vira Reg #11 de diagnóstico.
+- Eixo 1.7 (handoff por loop) continua como rede final.
+- Working Memory shadow → ativo: aguarda Reg #2.9 sair de observação.
 
 ## Validação técnica obrigatória
-1. `rg` confirma novas regex e novos gates no código.
-2. Build sem erros.
-3. Bateria E2E pelo `ai-test-sandbox` (mesmo tenant Respeite o Homem) com 3 cenários:
-   - "Cliente de teste" abre a conversa → resposta não usa vocativo.
-   - Cliente "manda o link aí" → resposta contém URL `https://…/checkout?…` no mesmo turno.
-   - Cliente "pode fechar" + IA promete link → próximo turno (forçado) traz a URL e NÃO pergunta CEP/pagamento.
-4. Logs esperados: `[FIX-B] forcing tool_choice=generate_checkout_link explicit=true` e/ou `[Frente 4] promise_without_action match=…`.
+1. `rg` confirma novos símbolos (`stripForbiddenVocative`, `forceCheckoutOnRegen`, log `[Reg #10]`).
+2. Build sem erro + deploy `ai-support-chat`.
+3. Bateria E2E pelo `ai-test-sandbox` (tenant Respeite o Homem) com **roteiro completo de venda**:
+   - Saudação ("Oi, tudo bem?") → resposta sem vocativo "Cliente".
+   - Dor ("Tô com queda de cabelo") → 3 produtos.
+   - Foco ("Me fala mais do balm") + preço + "Pode separar 1, quero fechar" → URL no mesmo turno; sem pedido de CEP/pagamento.
+4. Conferir nos logs:
+   - `[Reg #10] auto_add_on_focus`
+   - `[Reg #10] forcing tool_choice=generate_checkout_link reason=promise_without_action|checkout_data_ask`
+   - Ausência de `Carrinho vazio` no resultado final.
+5. Conferir em `messages` que a mensagem persistida da IA contém `https://`.
 
 ## Documentação obrigatória pós-implementação
-- **Adicionar Registro #9** em `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` com sintoma do teste, diagnóstico, correções 1/2/3, validação técnica e anti-regressão.
-- **Atualizar Mapa de qualidade** (linhas 38–55): manter ✅ as linhas já cobertas e acrescentar nova linha "Não pedir CEP/forma de pagamento pelo WhatsApp" → ✅ Reg #9.
+- **Registro #10** em `ia-atendimento-changelog.md` com sintoma, diagnóstico, correções A–D, validação e anti-regressão.
+- **Atualizar Mapa de qualidade** (linhas 53–57): rebaixar Reg #9 onde aplicável e adicionar:
+  - "Vocativo proibido removido determinísticamente" → ✅ Reg #10
+  - "Auto-add on focus quando há múltiplos produtos apresentados" → ✅ Reg #10
+  - "Regen pós-loop força tool de checkout" → ✅ Reg #10
 - **Memórias anti-regressão** (`mem://constraints/`):
-  - `ai-vocative-must-skip-generic-placeholders` — lista canônica de placeholders a suprimir.
-  - `ai-promise-without-action-forces-regeneration` — promessa de link sem tool dispara regeneração com `tool_choice` forçado.
-  - `ai-must-not-ask-checkout-data-on-whatsapp` — CEP/CPF/email/forma de pagamento são coletados na página de checkout.
-- Indexar as 3 memórias em `mem://index.md`.
-
-## Fora desta rodada
-- Latência de 24–25s em turnos com tool — vai virar diagnóstico em rodada própria (precisa medir tool por tool antes de mexer).
-- Frente 1 (sandbox stale) e Frente 6 (auditoria de tom robótico) seguem na fila do plano principal.
+  - `ai-vocative-suppression-must-be-deterministic-not-prompt-only`
+  - `checkout-auto-add-must-use-product-focus-when-multiple-presented`
+  - `close-loop-regen-must-force-checkout-tool-choice`
+- Indexar as 3 em `mem://index.md`.
 
 📌 STATUS DA ENTREGA: Proposta — aguardando confirmação para implementar.
