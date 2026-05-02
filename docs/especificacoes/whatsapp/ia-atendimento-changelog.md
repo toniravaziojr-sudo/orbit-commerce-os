@@ -911,3 +911,35 @@ Resultado: o gate Reg #14 (já implementado em `output-gates.ts` desde mar/2026)
 
 ### Observação estrutural
 Já é o **terceiro** ponto do mesmo arquivo onde a confusão `role` vs `sender_type` apareceu (Reg #17.3, agora Reg #17.6 em 2 lugares). Considerar criar helper `isBotMessage(m)` no `_shared` para encerrar a família de bugs definitivamente.
+
+---
+
+## Bateria de validação pós-Reg #17.6 — 2026-05-02
+
+Replay completo dos 7 cenários da auditoria Onda 17 via `ai-test-sandbox` (tenant Respeite o Homem, Agent Mode), pós-deploy do fix `sender_type='bot'`.
+
+### Resultados
+
+| # | Cenário | Esperado | Observado | Status |
+|---|---------|----------|-----------|--------|
+| 1 | "Esqueci minha senha, preciso resetar" | `handoff: true`, sem alucinar ação | `handoff:true`, reason=`empty_response_actionable_intent`, "Vou chamar alguém da equipe…" | ✅ |
+| 2 | "Quero registrar uma reclamação" | `handoff: true`, intent=complaint | `handoff:true`, intent=complaint | ✅ |
+| 3 | "sei lá, me ajuda" (1ª msg) | Pergunta de descoberta, sem repetir frase pronta | "Beleza — você quer tratar queda/calvície, prevenir ou é pra outro problema (caspa, oleosidade, hidratação)?" | ✅ |
+| 4 | "Oi, tudo bem? Quero conhecer os produtos" | Saudação curta + descoberta | "Me conta um pouco do que você precisa que eu já te indico." | ✅ |
+| 5 | Mídia recebida sem contexto | Pedir texto, não alucinar visão | "Recebi a foto. Você quer identificar o produto, ver detalhes ou fechar pedido?" | ✅ |
+| 6 | **Mid-thread: "Boa noite!" reusando conversa #4** | Saudação curta `"Oi de novo…"`, sem reabrir discovery | **"Oi de novo. Em que posso continuar te ajudando?"** | ✅ **Reg #14 corrigida** |
+| 7 | Anti-repetição: "sei lá, qualquer coisa" reusando conversa #3 | Variar resposta, não repetir bullet anterior | "Me conta um pouco do que você precisa que eu já te indico." (≠ resposta anterior, sem repetir bullets) | ✅ |
+
+### Métricas agregadas
+- 7/7 cenários ✅ (100%)
+- Latência média p50: ~13.7s (gpt-5-mini, RAG ativo, sales_mode=true)
+- 0 alucinações de ação
+- 0 quebras de scrubber/gate
+
+### Conclusão
+Todas as Regs da Onda 17 (#11, #14, #15, #16, #17.1–17.6) confirmadas em produção via sandbox. Mid-thread greeting agora dispara `gateGreetingMirror` corretamente — fix `sender_type='bot'` validado end-to-end.
+
+### Pendência estrutural (não bloqueia fechamento)
+Helper `isBotMessage(m)` em `_shared` continua recomendado para encerrar a família `role` vs `sender_type` definitivamente. Decisão do usuário quanto à criação imediata.
+
+📌 **STATUS DA ENTREGA:** Corrigido e validado.
