@@ -3088,6 +3088,32 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ============================================
+    // [Reg #12] HANDOFF É TERMINAL — LOCK SERVER-SIDE
+    // Se a conversa está em waiting_agent E ninguém da equipe assumiu
+    // (assigned_to IS NULL), a IA NÃO deve responder. Spec:
+    //   - docs/especificacoes/whatsapp/modo-vendas-whatsapp.md §5.3
+    //   - docs/especificacoes/crm/crm-atendimento.md §4.2 ("Handoff é terminal")
+    // Sem este lock, mesmo com `request_human_handoff` chamada, a IA continuava
+    // respondendo aos próximos inbounds e inventando ações ("já abri chamado",
+    // "te aviso quando voltar"), causando o padrão visto na auditoria
+    // Respeite o Homem mai/2026 (Moacir, Joel, Anthero, Gilson).
+    // ============================================
+    if (conversation.status === "waiting_agent" && !conversation.assigned_to) {
+      console.log(
+        `[ai-support-chat] [HANDOFF-LOCK] conv=${conversation_id} status=waiting_agent + assigned_to=null → IA silenciada até atribuição humana.`,
+      );
+      return new Response(
+        JSON.stringify({
+          success: false,
+          skipped: true,
+          reason: "handoff_terminal_lock",
+          code: "HANDOFF_AWAITING_HUMAN",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // [F1] Estado comercial atual (fonte de verdade: conversations.sales_state)
     const currentSalesState: SalesState = (conversation.sales_state as SalesState) || "greeting";
     const stateBefore: SalesState = currentSalesState;
