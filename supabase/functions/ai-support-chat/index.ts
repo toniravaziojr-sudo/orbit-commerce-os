@@ -2064,18 +2064,37 @@ async function executeSalesTool(
       }
 
       case "lookup_customer": {
-        const phone = args.phone as string | undefined;
-        const email = args.email as string | undefined;
+        // Reg #13: normalização de email/phone para evitar falso "não encontrado"
+        // por mismatch de case/whitespace ou formatação E.164.
+        const rawPhone = (args.phone as string | undefined) || "";
+        const rawEmail = (args.email as string | undefined) || "";
+        const phoneDigits = rawPhone.replace(/\D+/g, "");
+        const email = rawEmail.trim().toLowerCase();
 
-        let query = supabase
-          .from("customers")
-          .select("id, full_name, email, phone, cpf, person_type, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
-          .eq("tenant_id", tenantId);
-
-        if (phone) query = query.or(`phone.eq.${phone}`);
-        if (email) query = query.or(`email.eq.${email}`);
-
-        const { data: customer } = await query.maybeSingle();
+        let customer: any = null;
+        if (email) {
+          const { data } = await supabase
+            .from("customers")
+            .select("id, full_name, email, phone, cpf, person_type, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
+            .eq("tenant_id", tenantId)
+            .ilike("email", email)
+            .maybeSingle();
+          customer = data;
+        }
+        if (!customer && phoneDigits) {
+          // tenta variantes: dígitos puros, e com prefixo 55 quando faltar
+          const variants = Array.from(new Set([
+            phoneDigits,
+            phoneDigits.startsWith("55") ? phoneDigits.slice(2) : `55${phoneDigits}`,
+          ]));
+          const { data } = await supabase
+            .from("customers")
+            .select("id, full_name, email, phone, cpf, person_type, total_orders, total_spent, first_order_at, last_order_at, loyalty_tier, tags")
+            .eq("tenant_id", tenantId)
+            .or(variants.map((v) => `phone.eq.${v}`).join(","))
+            .maybeSingle();
+          customer = data;
+        }
 
         if (!customer) return JSON.stringify({ found: false, message: "Cliente não encontrado no cadastro" });
 
