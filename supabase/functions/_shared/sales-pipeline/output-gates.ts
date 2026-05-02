@@ -119,6 +119,7 @@ export function gateGreetingMirror(input: {
   classification: TurnClassification;
   isRecurring?: boolean;
   customerName?: string | null;
+  isMidThread?: boolean; // Reg #14: já houve mensagem nesta thread nos últimos 30min
   nowMs?: number;
 }): GreetingGateResult {
   const { pipelineState, aiResponse, classification: c } = input;
@@ -143,6 +144,25 @@ export function gateGreetingMirror(input: {
   };
   if (pipelineState !== "greeting") return { ...noop, reason: "not_greeting_state" };
   if (!aiResponse) return { ...noop, reason: "empty_response" };
+
+  // [Reg #14] Saudação não reseta thread ativa.
+  // Se cliente acabou de mandar "Oi" mas a thread tem mensagem do bot
+  // nos últimos 30min, NÃO emite "Me conta o que está procurando" — só
+  // reconhece o retorno e devolve o controle. Evita perda de contexto
+  // visto na auditoria Respeite o Homem (Geraldo, Antônio).
+  if (input.isMidThread) {
+    const shortOpening = customerName
+      ? `Oi de novo, ${customerName}. Em que posso continuar te ajudando?`
+      : `Oi de novo. Em que posso continuar te ajudando?`;
+    if (aiResponse.trim() === shortOpening) return { ...noop, reason: "mid_thread_already_short" };
+    return {
+      scrubbed: true,
+      before: aiResponse,
+      after: shortOpening,
+      reason: "mid_thread_short_opening",
+      mandatoryOpening: shortOpening,
+    };
+  }
 
   const head = aiResponse.toLowerCase().slice(0, 100);
   const periodOk = head.includes(period);
