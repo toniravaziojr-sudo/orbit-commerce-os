@@ -699,9 +699,26 @@ Mudanças por webhook, verificação ativa e cron registradas automaticamente:
 
 ### 8.2 Exclusão
 
-- Apenas `pending` ou `cancelled` podem ser excluídos
-- Pedidos pagos/processados: cancelar, não excluir
-- `core-orders.deleteOrder` valida regras
+**Onde:** Lista `/orders` → menu "..." de cada linha → opção **Excluir** (única superfície de UI). Não há ação equivalente nas telas de Fiscal nem de Logística — esses módulos apenas refletem o pedido; a exclusão é sempre originada no módulo Pedidos.
+
+**Quem pode:** Apenas pedidos com `status = 'pending'` ou `status = 'cancelled'`. Qualquer outro status (incluindo `awaiting_confirmation`, `ready_to_invoice`, `paid`, `dispatched`, etc.) é rejeitado pelo `core-orders` com `code: 'CANNOT_DELETE'`. Pedidos pagos ou em fluxo fiscal/logístico devem ser **cancelados**, não excluídos.
+
+**O que é apagado (cascata):**
+- `orders` (registro principal)
+- `order_items` (itens do pedido)
+- `order_history` (histórico de status)
+
+**O que NÃO é apagado automaticamente:**
+- `fiscal_invoices` vinculadas (NF-e) — não devem existir em `pending`/`cancelled`, mas se existirem ficam órfãs
+- `shipments` vinculadas — idem
+- `payment_transactions` (histórico de tentativas) — preservadas para auditoria
+- `audit_log` e evento `order.deleted` — preservados
+
+**Auditoria:** Toda exclusão grava `audit_log` com `before_json` completo do pedido e emite o evento `order.deleted` no event bus.
+
+**Implicação prática para pedidos manuais:** Um pedido manual recém-criado nasce em `awaiting_confirmation` ou já avança para `ready_to_invoice` (caso do #392/#393, criados com pagamento marcado como Pago). Nesses status **a exclusão é bloqueada** — o operador precisa primeiro **cancelar** o pedido (mudar status para `cancelled`) e só então excluir. O cancelamento dispara as triggers de regressão (`cancel_pending_drafts_on_regression` + `requires_action` em NF-e/remessa) descritas em §8.13, garantindo que rascunhos fiscais e logísticos pendentes sejam cancelados ou sinalizados para ação humana.
+
+**Lacuna conhecida:** Não há ação "Excluir" em massa nem ação direta para `ready_to_invoice` (status canônico mais comum hoje). Roadmap: avaliar permitir exclusão direta de pedidos manuais que nunca emitiram NF-e nem geraram etiqueta, sem exigir o passo intermediário de cancelar.
 
 ### 8.3 Estoque
 
