@@ -87,3 +87,4 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [AI Vocative Skip Generic Placeholders](mem://constraints/ai-vocative-must-skip-generic-placeholders) — Reg #9: suprimir vocativo quando customer_name é "Cliente de teste"/"Lead"/"Contato"/etc.
 - [AI Promise Without Action](mem://constraints/ai-promise-without-action-forces-regeneration) — Reg #9: "tô gerando o link" sem tool dispara regeneração com tool_choice=generate_checkout_link.
 - [AI Must Not Ask Checkout Data on WhatsApp](mem://constraints/ai-must-not-ask-checkout-data-on-whatsapp) — Reg #9: pedido de CEP/CPF/email/forma de pagamento via WhatsApp dispara regen com tool_choice.
+- [AI No-Fake-Action Extended Vocabulary](mem://constraints/ai-no-fake-action-extended-vocabulary) — Reg #11: scrubber FIX-D cobre 3 famílias (pretérito sem tool, promessa de futuro sem job, redefinição de senha) — auditoria Respeite o Homem mai/2026.
