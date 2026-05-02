@@ -198,10 +198,10 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 
 **E-commerce:**
 - `/orders` — Lista de pedidos
-- `/orders/new` — Novo pedido manual
+- `/orders/new` — Novo pedido manual. A rolagem vertical da tela deve acontecer no contêiner principal do `AppShell`; é proibido manter um segundo scroll estrutural no shell ou inflar a altura do documento com viewport fixa legado
 - `/orders/:id` — Detalhe do pedido (inclui `OrderRegressionBanner` quando há NF-e/etiqueta com `requires_action = true` por regressão de status — ver `pedidos.md` §4.6)
 - `/abandoned-checkouts` — Checkouts abandonados
-- `/products` — Produtos
+- `/products` — Produtos. Na criação/edição, o formulário usa o scroll global do `AppShell`; a barra fixa inferior do formulário não pode criar área branca extra no fim do documento
 - `/customers` — Clientes
 - `/checkout-links` — Link Checkout (links personalizados de checkout)
 - `/customers/:id` — Detalhe do cliente
