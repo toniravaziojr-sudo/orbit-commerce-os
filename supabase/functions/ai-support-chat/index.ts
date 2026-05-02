@@ -6329,9 +6329,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       const greetCustomerName = conversation?.customer_name || null;
       // [Reg #14] Detecta thread ativa (última mensagem do bot < 30 min)
       // para evitar reset de contexto via "Oi" no meio da conversa.
+      // [Reg #17.6] Coluna correta é sender_type='bot' (não role='assistant').
+      // O bug original deixava greetIsMidThread=false permanente, fazendo a IA
+      // reabrir saudação completa no meio da thread (auditoria Onda 17).
       const greetIsMidThread = (() => {
         try {
-          const last = (messages || []).filter((m: any) => m.role === "assistant").slice(-1)[0];
+          const last = (messages || [])
+            .filter((m: any) => m.sender_type === "bot")
+            .slice(-1)[0];
           if (!last?.created_at) return false;
           const ageMs = Date.now() - new Date(last.created_at).getTime();
           return ageMs < 30 * 60 * 1000;
@@ -6764,6 +6769,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                   }
                   const _greetIsRecurring = (messages?.length ?? 0) > 1 || !!customerId;
                   const _greetCustomerName = conversation?.customer_name || null;
+                  // [Reg #17.6] Repassa isMidThread no pós-regen para não reabrir saudação.
+                  const _greetIsMidThread = (() => {
+                    try {
+                      const last = (messages || [])
+                        .filter((m: any) => m.sender_type === "bot")
+                        .slice(-1)[0];
+                      if (!last?.created_at) return false;
+                      const ageMs = Date.now() - new Date(last.created_at).getTime();
+                      return ageMs < 30 * 60 * 1000;
+                    } catch { return false; }
+                  })();
                   const gg = turnClassification.source === "llm"
                     ? gateGreetingMirror({
                         pipelineState,
@@ -6771,6 +6787,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                         classification: turnClassification,
                         isRecurring: _greetIsRecurring,
                         customerName: _greetCustomerName,
+                        isMidThread: _greetIsMidThread,
                       })
                     : gateGreetingMirrorFallback({
                         pipelineState,
@@ -6778,6 +6795,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
                         customerMessage: lastMessageContent || "",
                         isRecurring: _greetIsRecurring,
                         customerName: _greetCustomerName,
+                        isMidThread: _greetIsMidThread,
                       });
                   if (gg.scrubbed) {
                     console.log(`[ai-support-chat] [Reg #2.11] post-regen greeting gate (${gg.reason})`);

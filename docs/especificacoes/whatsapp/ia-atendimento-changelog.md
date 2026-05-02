@@ -879,3 +879,35 @@ Quatro falhas estruturais:
 - Memória nova: `mem://constraints/empty-response-fallback-must-route-by-intent`
 - Memória nova: `mem://constraints/bot-history-query-must-use-sender-type`
 - Memória nova: `mem://constraints/edge-response-must-reflect-post-gates-content`
+
+## Reg #17.6 — Onda 17 follow-up: greeting mid-thread regredido (mai/2026)
+
+### Sintoma observado (bateria pós-Reg #17)
+Cenário multi-turno na sandbox: cliente abre com "Oi, tudo bem?" → IA responde greeting → cliente pede "Quero ver os shampoos" → IA apresenta linhas → cliente digita "Boa noite!" como cumprimento mid-thread → IA respondeu **"Olá, boa noite, tudo bem? Como posso ajudar hoje? Me conta o que você está procurando."**, reabrindo saudação completa e ignorando o contexto de shampoo já estabelecido. Regressão direta da Reg #14.
+
+### Diagnóstico
+Mesma família do bug Reg #17.3 (`role="assistant"` vs `sender_type='bot'`), mas em outro ponto do `ai-support-chat/index.ts`:
+1. **Cálculo de `greetIsMidThread`** (linha ~6332): usava `messages.filter(m => m.role === "assistant")`. Como `messages` vem de `public.messages` (coluna `sender_type`), o filtro retornava SEMPRE vazio → `greetIsMidThread = false` permanente → `gateGreetingMirror` nunca aplicava o caminho `mid_thread_short_opening`.
+2. **Bloco pós-regeneração** (linha ~6765): chamava `gateGreetingMirror`/`gateGreetingMirrorFallback` **sem** passar `isMidThread`, mesmo quando o cálculo principal estivesse correto.
+
+Resultado: o gate Reg #14 (já implementado em `output-gates.ts` desde mar/2026) nunca disparou em produção.
+
+### Correção aplicada
+- **Reg #17.6** — `ai-support-chat/index.ts`:
+  - Cálculo principal de `greetIsMidThread` agora usa `m.sender_type === "bot"`.
+  - Bloco pós-regeneração calcula `_greetIsMidThread` localmente (mesma lógica) e o passa em ambos os gates (`gateGreetingMirror` e `gateGreetingMirrorFallback`).
+- Comentário inline aponta para auditoria Onda 17.
+
+### Validação técnica executada
+- ✅ Edge `ai-support-chat` deploy pendente (próximo passo).
+- ✅ Mudança cirúrgica: 2 blocos, troca de campo + recálculo no pós-regen. Não altera contrato de nenhum gate.
+- ⚠️ Pendente — sandbox: replay do roteiro Onda 14 (greeting → discovery → "Boa noite!") e confirmar resposta `"Oi de novo. Em que posso continuar te ajudando?"` em vez de saudação cheia.
+
+### Mapa de qualidade (atualização)
+- Linha "Saudação não reseta thread ativa (Reg #14)": ⚠️ Parcial → ✅ OK após Reg #17.6 + validação sandbox.
+
+### Anti-regressão
+- Memória nova: `mem://constraints/mid-thread-detection-must-use-sender-type-bot` — toda leitura de histórico do bot dentro de `ai-support-chat` usa `sender_type='bot'`, nunca `role='assistant'`.
+
+### Observação estrutural
+Já é o **terceiro** ponto do mesmo arquivo onde a confusão `role` vs `sender_type` apareceu (Reg #17.3, agora Reg #17.6 em 2 lugares). Considerar criar helper `isBotMessage(m)` no `_shared` para encerrar a família de bugs definitivamente.
