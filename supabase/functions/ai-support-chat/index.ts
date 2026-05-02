@@ -6307,6 +6307,42 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.warn("[ai-support-chat] [Frente 3] close loop gate failed:", (e as Error).message);
     }
 
+    // [Reg #9] Promise without action + checkout-data-ask gates.
+    // Reusam a mesma rede de regeneração com tool_choice da Reg #2.16.
+    try {
+      const { enforcePromiseWithoutAction, enforceNoCheckoutDataAsk } = await import("../_shared/sales-pipeline/output-gates.ts");
+      const promiseGate = enforcePromiseWithoutAction({
+        aiResponse: aiContent || "",
+        toolResults: toolResultsThisTurn,
+      });
+      if (promiseGate.loopDetected) {
+        closeLoopDetected = true;
+        closeLoopReason = "promise_without_action";
+        closeLoopMatch = closeLoopMatch || promiseGate.matchedPattern;
+        console.log(
+          `[ai-support-chat] [Reg #9] promise_without_action match="${promiseGate.matchedPattern}"`
+        );
+      }
+      const generateCheckoutAvailable = (pipelineFilteredTools || []).some(
+        (t: any) => t?.function?.name === "generate_checkout_link"
+      );
+      const dataAskGate = enforceNoCheckoutDataAsk({
+        pipelineState,
+        aiResponse: aiContent || "",
+        generateCheckoutAvailable,
+      });
+      if (dataAskGate.loopDetected) {
+        closeLoopDetected = true;
+        closeLoopReason = closeLoopReason === "noop" ? "checkout_data_ask" : `${closeLoopReason}+checkout_data_ask`;
+        closeLoopMatch = closeLoopMatch || dataAskGate.matchedPattern;
+        console.log(
+          `[ai-support-chat] [Reg #9] checkout_data_ask match="${dataAskGate.matchedPattern}"`
+        );
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #9] promise/data-ask gates failed:", (e as Error).message);
+    }
+
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).
     // Persistida no turn log; usada para detectar repetição por intenção
     // (não só por hash exato) confrontando com as últimas famílias da conversa.
