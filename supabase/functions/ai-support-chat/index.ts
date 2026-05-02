@@ -6300,6 +6300,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // [Reg #5] Saudação formal: passa contexto de recorrência + nome
       const greetIsRecurring = (messages?.length ?? 0) > 1 || !!customerId;
       const greetCustomerName = conversation?.customer_name || null;
+      // [Reg #14] Detecta thread ativa (última mensagem do bot < 30 min)
+      // para evitar reset de contexto via "Oi" no meio da conversa.
+      const greetIsMidThread = (() => {
+        try {
+          const last = (messages || []).filter((m: any) => m.role === "assistant").slice(-1)[0];
+          if (!last?.created_at) return false;
+          const ageMs = Date.now() - new Date(last.created_at).getTime();
+          return ageMs < 30 * 60 * 1000;
+        } catch { return false; }
+      })();
 
       if (turnClassification.source === "llm") {
         const greetGate = gateGreetingMirror({
@@ -6308,6 +6318,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           classification: turnClassification,
           isRecurring: greetIsRecurring,
           customerName: greetCustomerName,
+          isMidThread: greetIsMidThread,
         });
         greetingScrubReason = greetGate.reason;
         if (greetGate.scrubbed) {
@@ -6322,6 +6333,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           customerMessage: lastMessageContent || "",
           isRecurring: greetIsRecurring,
           customerName: greetCustomerName,
+          isMidThread: greetIsMidThread,
         });
         if (fallbackGate.scrubbed) {
           console.log(`[ai-support-chat] [Reg #2.10] greeting fallback gate (${fallbackGate.reason})`);
