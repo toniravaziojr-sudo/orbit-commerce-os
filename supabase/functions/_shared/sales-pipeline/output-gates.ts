@@ -548,3 +548,51 @@ export function stripForbiddenVocative(input: {
     removedTokens: removed,
   };
 }
+
+// ----------------------------------------------------------------
+// [Reg #15] Mídia inbound — resposta determinística.
+// Quando o sistema NÃO tem tool de visão habilitada, é proibido
+// responder "estou analisando" / "só um instante enquanto eu vejo".
+// Substitui por pedido de descrição em texto.
+// ----------------------------------------------------------------
+const MEDIA_PROMISE_RE = /\b(estou\s+analisando|s[óo]\s+um\s+instante\s+(enquanto\s+)?(eu\s+)?(analiso|vejo|olho)|j[áa]\s+olho\s+e\s+(te\s+)?retorno|vou\s+analisar\s+(a\s+)?(imagem|foto|m[ií]dia|[áa]udio))/i;
+export function gateMediaInbound(input: {
+  aiResponse: string;
+  hasVisionTool: boolean;
+  inboundIsMedia: boolean;
+}): { scrubbed: boolean; before: string; after: string; reason: string } {
+  const { aiResponse, hasVisionTool, inboundIsMedia } = input;
+  if (!aiResponse) return { scrubbed: false, before: aiResponse, after: aiResponse, reason: "empty" };
+  if (hasVisionTool) return { scrubbed: false, before: aiResponse, after: aiResponse, reason: "vision_enabled" };
+  if (!inboundIsMedia && !MEDIA_PROMISE_RE.test(aiResponse)) {
+    return { scrubbed: false, before: aiResponse, after: aiResponse, reason: "not_media_context" };
+  }
+  if (!MEDIA_PROMISE_RE.test(aiResponse) && !inboundIsMedia) {
+    return { scrubbed: false, before: aiResponse, after: aiResponse, reason: "no_promise" };
+  }
+  const after = "Recebi sua mídia. Pra eu entender melhor, me descreve em texto o que você precisa que eu olhe?";
+  return { scrubbed: true, before: aiResponse, after, reason: "media_promise_replaced" };
+}
+
+// ----------------------------------------------------------------
+// [Reg #16] Anti-repetição semântica — pergunta de qualificação aberta.
+// "você procura algo específico ou prefere ver opções?" e variantes
+// não podem se repetir 2+ turnos seguidos do bot. Se acontecer, sinaliza
+// closeLoopDetected para forçar regeneração progredindo o pipeline.
+// ----------------------------------------------------------------
+const SEMANTIC_OPEN_QUESTION_RE = /(procura|busca)\s+(algo\s+)?espec[íi]fico\s+(ou|e)\s+(prefere\s+)?(ver\s+)?(op[çc][õo]es|alternativas)/i;
+export function gateSemanticRepetition(input: {
+  aiResponse: string;
+  recentBotMessages: string[]; // últimos turnos do bot, ordem do mais recente
+}): { closeLoopDetected: boolean; reason: string } {
+  const { aiResponse, recentBotMessages } = input;
+  if (!SEMANTIC_OPEN_QUESTION_RE.test(aiResponse || "")) {
+    return { closeLoopDetected: false, reason: "no_semantic_pattern" };
+  }
+  const repeats = (recentBotMessages || []).slice(0, 2)
+    .filter((m) => SEMANTIC_OPEN_QUESTION_RE.test(m || "")).length;
+  if (repeats >= 1) {
+    return { closeLoopDetected: true, reason: "semantic_open_question_repeated" };
+  }
+  return { closeLoopDetected: false, reason: "first_occurrence" };
+}
