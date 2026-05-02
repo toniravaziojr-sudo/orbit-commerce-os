@@ -63,7 +63,8 @@ export function useAvailableShippingMethods() {
     const seen = new Set<string>();
 
     for (const provider of providers) {
-      if (!provider.is_enabled || !provider.supports_quote) continue;
+      // Inclui provedor habilitado mesmo sem cotação automática (contratos manuais ainda têm serviços conhecidos)
+      if (!provider.is_enabled) continue;
 
       const providerKey = provider.provider.toLowerCase();
 
