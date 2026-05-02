@@ -20,3 +20,5 @@ export * from "./working-memory.ts";
 export * from "./stage-machine.ts";
 // [Reg #2.9] Onda 3 — Working Memory Prompt Block
 export * from "./working-memory-prompt.ts";
+// [Onda 18 — Fase B] Policy Compiler — fonte central da política efetiva
+export * from "./policy-compiler.ts";
