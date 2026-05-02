@@ -5779,13 +5779,29 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     if (aiContent && typeof aiContent === "string") {
       try {
+        // Reg #11 (mai/2026): vocabulário ampliado a partir da auditoria
+        // Respeite o Homem (Antônio "anexei o PDF", Romero "reenviei reset",
+        // Geraldo "te aviso quando voltar"). Cobre 3 famílias:
+        //   1) Ações de pretérito sem tool (anexar, encaminhar, abrir chamado, solicitar reset).
+        //   2) Promessas de futuro sem job real ("te aviso quando", "fico no aguardo").
+        //   3) Reset/recuperação de senha (não há tool — sempre handoff).
         const ACTION_INVENTION_PATTERNS: RegExp[] = [
-          /\b(reenviei|reenviarei|j[áa]\s+reenviei)\s+(o\s+)?(e-?mail|email|c[óo]digo|link)/i,
-          /\b(encaminhei|j[áa]\s+encaminhei|vou\s+encaminhar\s+agora)\s+(pra|para|ao)\s+(equipe|suporte|financeiro|log[íi]stica)/i,
+          // Família 1 — pretérito sem tool
+          /\b(reenviei|reenviarei|j[áa]\s+reenviei|enviei\s+novamente)\s+(o\s+)?(e-?mail|email|c[óo]digo|link)/i,
+          /\b(encaminhei|j[áa]\s+encaminhei|vou\s+encaminhar\s+agora|encaminhei\s+por\s+e-?mail)\s+(pra|para|ao|por)\s+(equipe|suporte|financeiro|log[íi]stica|e-?mail)/i,
           /\b(acionei|j[áa]\s+acionei|disparei)\s+(o\s+)?(suporte|t[ée]cnico|financeiro|log[íi]stica)/i,
           /\b(atualizei|alterei|corrigi)\s+(seu|o\s+seu)\s+(cadastro|endere[çc]o|email|telefone|cpf|dado)/i,
           /\b(cancelei|estornei|reembolsei)\s+(seu|o\s+seu)?\s*(pedido|compra|pagamento)/i,
           /\bj[áa]\s+abri\s+(um\s+)?(chamado|ticket|protocolo)/i,
+          /\b(anexei|inclu[íi]\s+no\s+pedido|adicionei\s+ao\s+pedido)\b/i,
+          /\b(solicitei|pedi)\s+(o\s+)?(reset|redefini[çc][ãa]o|recupera[çc][ãa]o)\s+(da\s+)?senha/i,
+          /\b(enviei|mandei)\s+(o\s+)?link\s+de\s+redefini[çc][ãa]o/i,
+          // Família 2 — promessa de futuro sem job
+          /\b(te\s+aviso|vou\s+te\s+avisar|vou\s+avisar|aviso\s+voc[êe]|notifico\s+voc[êe])\s+(quando|assim\s+que|t[ãa]o\s+logo)/i,
+          /\b(fico\s+no\s+aguardo|aguardo\s+(o\s+)?sistema|fico\s+atento)\b/i,
+          /\bquando\s+(voltar|estiver\s+dispon[íi]vel|chegar|sair\s+do\s+faturamento|for\s+postado|o\s+e-?mail\s+chegar)\b/i,
+          // Família 3 — senha (não existe tool)
+          /\bredefini[çc][ãa]o\s+de\s+senha\s+(foi\s+)?enviada/i,
         ];
         const hasInvention = ACTION_INVENTION_PATTERNS.some((re) => re.test(aiContent));
         if (hasInvention) {
