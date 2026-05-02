@@ -3381,6 +3381,11 @@ Deno.serve(async (req) => {
       `trace=${JSON.stringify(policyTrace)}`
     );
 
+    // [Onda 18 Fase B.1] Reassign sales_mode a partir da policy.
+    // A policy é a fonte central; effectiveConfig.sales_mode_enabled fica
+    // só como leitura inicial pré-compilação.
+    salesModeEnabled = effectivePolicy.sales_mode_enabled.value === true;
+
     // [Fase A] Janela de histórico CORRIGIDA:
     // Antes: .order(asc).limit(20) → pegava os 20 PRIMEIROS turnos. Em conversas
     // longas, a mensagem atual do cliente NUNCA entrava no contexto, e a IA
@@ -3921,7 +3926,8 @@ Deno.serve(async (req) => {
     let matchedRule: AIRule | null = null;
     let forceResponse: string | null = null;
 
-    const rules: AIRule[] = Array.isArray(effectiveConfig.rules) ? effectiveConfig.rules : [];
+    // [B.1] rules vêm da policy (source=tenant ou default=[])
+    const rules: AIRule[] = (effectivePolicy.rules.value as AIRule[]) || [];
     const activeRules = rules.filter(r => r.is_active).sort((a, b) => a.priority - b.priority);
 
     for (const rule of activeRules) {
@@ -3944,8 +3950,10 @@ Deno.serve(async (req) => {
     }
 
     // Check handoff keywords
-    if (!shouldHandoff && effectiveConfig.handoff_keywords?.length && lastMessageLower) {
-      const matchedKeyword = effectiveConfig.handoff_keywords.find(
+    // [B.1] handoff_keywords vêm da policy (source=tenant ou default=[])
+    const handoffKeywords = effectivePolicy.handoff_keywords.value;
+    if (!shouldHandoff && handoffKeywords?.length && lastMessageLower) {
+      const matchedKeyword = handoffKeywords.find(
         (kw: string) => lastMessageLower.includes(kw.toLowerCase())
       );
       if (matchedKeyword) {
@@ -4574,8 +4582,9 @@ Cliente: "vocês entregam em SP?"
         state: pipelineState,
         allTools: SALES_TOOLS,
         tenant: {
-          systemPromptComplement: effectiveConfig.system_prompt || null,
-          channelCustomInstructions: channelConfig?.custom_instructions || null,
+          // [B.1] systemPromptComplement e channelCustomInstructions via policy.
+          systemPromptComplement: effectivePolicy.system_prompt.value || null,
+          channelCustomInstructions: effectivePolicy.custom_instructions.value || null,
           personalityName,
           storeName,
         },
@@ -5137,7 +5146,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // gpt-5 vira FALLBACK explícito (ativado mais abaixo, no loop de modelos),
     // só quando o estado é decision/checkout_assist E houve falha de tool-calling.
     // Não tem mais "upgrade global para gpt-5" — isso destruía a latência.
-    let configuredModel = effectiveConfig.ai_model || "gpt-5.2";
+    // [B.1] ai_model via policy. Source pode ser `tenant` (ai_support_config.ai_model)
+    // ou `default` ("gpt-5.2"). Channel não controla modelo.
+    let configuredModel = effectivePolicy.ai_model.value;
     if (salesModeEnabled) {
       // Força o piso em gpt-5-mini (tool-calling confiável + ~3-5x mais rápido
       // que gpt-5). nano não chama tools com confiabilidade suficiente.
