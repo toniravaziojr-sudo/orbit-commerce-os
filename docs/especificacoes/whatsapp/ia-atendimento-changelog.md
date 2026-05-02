@@ -84,6 +84,25 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #8 — Hotfix `customerName` re-resolvido por call site — 02/mai/2026
+
+**Sintoma:** em um ramo da regeneração pós-anti-repetição, a abertura formal saía sem o nome do cliente recorrente ("Olá, boa tarde, tudo bem?" em vez de "Olá, João, boa tarde, tudo bem?"), mesmo com `conversation.customer_name` preenchido.
+
+**Diagnóstico:** os gates de saudação (`gateGreetingMirror`, `gateGreetingMirrorFallback`) recebiam `customerName=undefined` em alguns ramos porque a variável era herdada por closure de um bloco onde não estava declarada. A pipeline tem múltiplos ramos (TPR ok, TPR fallback, regeneração após anti-repetição, scrub legado) e nem todos compartilhavam o mesmo escopo.
+
+**Correção aplicada:**
+- `ai-support-chat/index.ts`: cada call site dos gates de saudação agora re-resolve localmente `greetCustomerName = conversation?.customer_name || null` e `greetIsRecurring = (messages?.length ?? 0) > 1 || !!customerId` antes de invocar o gate. 6 pontos de chamada cobertos (linhas 4280, 4937, 6206/6214/6228, 6242, 6432/6439/6446).
+- Nenhuma mudança de prompt ou tool — apenas correção de escopo.
+
+**Validação técnica:**
+- ✅ `rg` confirma 6 call sites com `greetCustomerName` re-resolvido por bloco; nenhum mais depende de variável herdada.
+- ✅ Build sem erros.
+- ⏳ Validação E2E (cliente recorrente João recebe "Olá, João, [período], tudo bem? Como posso ajudar hoje?" mesmo após anti-repetição forçar regeneração) depende de teste no sandbox.
+
+**Anti-regressão:** memória `mem://constraints/greeting-mirror-vars-must-be-declared-at-handler-scope` registra que toda nova chamada aos gates DEVE re-resolver as variáveis no próprio bloco — proibido herdar por closure.
+
+---
+
 ## Registro #5 — Saudação formal padrão (sem gírias) — 01/mai/2026
 
 **Regra de produto definida pelo usuário:** a IA SEMPRE responde de forma formal, mesmo que o cliente abra com gíria ("Eai", "Opa", "Salve"). Se o tenant quiser tom casual, criará regra própria nas configurações futuramente.
