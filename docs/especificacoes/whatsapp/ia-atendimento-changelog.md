@@ -55,6 +55,9 @@
 | Não chamar cliente por placeholder genérico ("Cliente", "Teste", "Contato", "Lead") | ✅ Coberto | Heurística `looksGenericOrCorporate` em `ai-support-chat` suprime vocativo | Reg. #9 |
 | Não prometer link de checkout sem chamar a tool | ✅ Coberto | Gate `enforcePromiseWithoutAction` em `output-gates.ts` força regeneração com `tool_choice` | Reg. #9 |
 | Não pedir CEP/CPF/email/forma de pagamento via WhatsApp | ✅ Coberto | Gate `enforceNoCheckoutDataAsk` em `output-gates.ts` força regeneração com `tool_choice` | Reg. #9 |
+| Handoff é terminal — IA silencia até atribuição humana | ✅ Coberto | Lock `HANDOFF_AWAITING_HUMAN` no início do handler quando `waiting_agent` + `assigned_to=null` | Reg. #12 |
+| Lookup de cliente recorrente não falha por case/format | ✅ Coberto | `lookup_customer` normaliza email (lowercase+ilike) e phone (dígitos + variantes 55) | Reg. #13 |
+| Mídia inbound não gera "analisando…" órfão | ✅ Coberto | `gateMediaInbound` substitui por pedido de descrição em texto quando não há tool de visão | Reg. #15 |
 
 Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
