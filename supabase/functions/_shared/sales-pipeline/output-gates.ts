@@ -446,3 +446,83 @@ export function enforceNoCheckoutDataAsk(input: {
     matchedPattern: m[0],
   };
 }
+
+// ----------------------------------------------------------------
+// [Reg #10] Strip Forbidden Vocative
+//
+// Quando o handler decidiu suprimir vocativo (nome corporativo ou
+// placeholder genérico tipo "Cliente de teste"), o LLM ainda pode
+// ignorar a instrução e cuspir "Fechado, Cliente, ..." ou "Olá,
+// Teste, tudo bem?". Este scrubber remove de forma determinística
+// essas ocorrências do texto antes de persistir/enviar.
+//
+// NÃO regenera. Apenas regrava removendo o vocativo.
+// ----------------------------------------------------------------
+
+export interface VocativeScrubResult {
+  scrubbed: boolean;
+  before: string;
+  after: string;
+  reason: string;
+  removedTokens: string[];
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function stripForbiddenVocative(input: {
+  aiResponse: string;
+  forbiddenTokens: string[];
+}): VocativeScrubResult {
+  const { aiResponse } = input;
+  const forbidden = (input.forbiddenTokens || [])
+    .map((t) => (t || "").trim())
+    .filter((t) => t.length >= 2 && t.length <= 30);
+
+  const noop: VocativeScrubResult = {
+    scrubbed: false, before: aiResponse, after: aiResponse,
+    reason: "noop", removedTokens: [],
+  };
+  if (!aiResponse || forbidden.length === 0) return { ...noop, reason: "empty_or_no_tokens" };
+
+  const removed: string[] = [];
+  let after = aiResponse;
+  for (const tok of forbidden) {
+    const t = escapeRegex(tok);
+    // 1) Vocativo no MEIO: ", Cliente,"  ou  ", Cliente."  ou  ", Cliente!"
+    const midRe = new RegExp(`,\\s*${t}\\b\\s*([,.!?;:])`, "gi");
+    // 2) Vocativo APÓS abridor: "Olá, Cliente," / "Fechado, Cliente." / "Bom dia, Cliente!"
+    const openRe = new RegExp(
+      `\\b(Ol[áa]|Oi|Opa|Eai|Hey|Hello|Bom\\s+dia|Boa\\s+tarde|Boa\\s+noite|Fechado|Beleza|Show|Perfeito|Claro|Combinado)\\b\\s*,\\s*${t}\\b\\s*[,.!?]?`,
+      "gi"
+    );
+    let mutated = after;
+    mutated = mutated.replace(midRe, "$1");
+    mutated = mutated.replace(openRe, (_m, opener) => `${opener},`);
+    // 3) Vocativo isolado no início: "Cliente, ..." => apaga "Cliente, "
+    const startRe = new RegExp(`^\\s*${t}\\b\\s*[,.!?:]\\s*`, "i");
+    mutated = mutated.replace(startRe, "");
+    if (mutated !== after) {
+      removed.push(tok);
+      after = mutated;
+    }
+  }
+
+  // Limpeza final
+  after = after
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/,\s*,/g, ",")
+    .replace(/\s+,/g, ",")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (after === aiResponse.trim()) return { ...noop, reason: "no_vocative_match" };
+  return {
+    scrubbed: true,
+    before: aiResponse,
+    after,
+    reason: `stripped_vocative_${removed.join("|")}`,
+    removedTokens: removed,
+  };
+}
