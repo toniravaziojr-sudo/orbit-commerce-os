@@ -4548,10 +4548,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       const rawName = String(conversation.customer_name).trim();
       const tokens = rawName.split(/\s+/);
       const firstName = tokens[0] || "";
-      const looksCorporate = /\b(loja|comando|comercial|ltda|me\b|distribuidora|store|shop|sa\b|s\/a|eireli|mei)\b/i.test(rawName)
+      // [Reg #9] Suprime vocativo também quando o nome é placeholder genérico
+      // ("Cliente de teste", "Contato WhatsApp", "Lead", "Visitante", etc.).
+      // Antes só barrava nomes corporativos; placeholders escapavam e a IA
+      // chamava o cliente literalmente de "Cliente".
+      const looksGenericOrCorporate =
+        /\b(loja|comando|comercial|ltda|me\b|distribuidora|store|shop|sa\b|s\/a|eireli|mei)\b/i.test(rawName)
+        || /\b(cliente|teste|test|contato|usu[áa]rio|customer|lead|prospect|visitante|whatsapp|desconhecid[oa]|sem nome|n[ãa]o informad[oa])\b/i.test(rawName)
         || tokens.length > 3
         || firstName.length < 2;
-      if (firstName && !looksCorporate) {
+      if (firstName && !looksGenericOrCorporate) {
         aiMessages.push({
           role: "system",
           content:
