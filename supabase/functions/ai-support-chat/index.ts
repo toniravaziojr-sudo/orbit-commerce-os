@@ -5627,7 +5627,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         const toolsAlreadyRan = toolsCalledThisTurn.length > 0;
         const FALLBACK_PROMISE_BY_STATE: Record<PipelineState, string> = {
           greeting:        "Oi! Tudo bem? Me conta o que você está procurando.",
-          discovery:       "Deixa eu entender melhor. Você procura algo específico ou quer ver opções?",
+          discovery:       "Me conta um pouco do que você precisa que eu já te indico.",
           recommendation:  "Só um instante, deixa eu ver as opções aqui pra você.",
           product_detail:  "Deixa eu confirmar essa informação aqui pra você, um segundo.",
           decision:        "Perfeito, vou organizar isso pra você. Me dá um minutinho.",
@@ -5713,15 +5713,38 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           handoff:         "Vou te passar pra alguém da equipe.",
         };
 
-        if (toolsAlreadyRan) {
+        // [Reg #17.1] Roteamento por intenção, eliminando a muleta universal
+        // "Deixa eu entender melhor…". Quando a resposta do modelo vem vazia:
+        //  - Se o cliente fez pedido de ação (action_request) ou reclamação
+        //    (complaint) e nenhuma tool de ação rodou → handoff humano.
+        //  - Se o inbound foi mídia sem vision tool → pedir descrição em texto.
+        //  - Caso contrário, usar fallback do estado (sem o catch-all genérico).
+        const isActionable = intentClassification?.intent === "complaint" ||
+          intentClassification?.intent === "action_request" ||
+          intentClassification?.requires_action === true;
+        const lastInboundForFb = (messages || [])
+          .filter((m: any) => m.sender_type === "customer")
+          ?.slice(-1)?.[0];
+        const inboundIsMediaFb = !!(lastInboundForFb?.media_url ||
+          lastInboundForFb?.message_type === "image" ||
+          lastInboundForFb?.message_type === "audio" ||
+          lastInboundForFb?.message_type === "document");
+
+        if (isActionable && !toolsAlreadyRan) {
+          aiContent = "Vou chamar alguém da equipe pra resolver isso direto com você. Já te respondem por aqui.";
+          shouldHandoff = true;
+          handoffReason = handoffReason || "empty_response_actionable_intent";
+        } else if (inboundIsMediaFb) {
+          aiContent = "Não consegui abrir o arquivo aqui. Você consegue me descrever em texto o que precisa? Assim eu já te ajudo.";
+        } else if (toolsAlreadyRan) {
           const humanized = buildHumanFallbackFromTools();
-          aiContent = humanized || FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] || "Pode me dizer um pouco mais do que você procura?";
+          aiContent = humanized || FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] || "Me conta um pouco mais do que você procura.";
         } else {
           aiContent = FALLBACK_PROMISE_BY_STATE[pipelineState] || "Já te respondo.";
         }
         emptyResponseFallbackApplied = true;
         console.warn(
-          `[ai-support-chat] [PACOTE B v2] fallback aplicado state=${pipelineState} conclusive=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
+          `[ai-support-chat] [Reg #17.1] empty-response fallback state=${pipelineState} intent=${intentClassification?.intent ?? "n/a"} actionable=${isActionable} media=${inboundIsMediaFb} tools=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
         );
       }
     }
@@ -5841,6 +5864,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           /\b(anexei|inclu[íi]\s+no\s+pedido|adicionei\s+ao\s+pedido)\b/i,
           /\b(solicitei|pedi)\s+(o\s+)?(reset|redefini[çc][ãa]o|recupera[çc][ãa]o)\s+(da\s+)?senha/i,
           /\b(enviei|mandei)\s+(o\s+)?link\s+de\s+redefini[çc][ãa]o/i,
+          // [Reg #17.4] Família 1b — promessas em terceira pessoa / indiretas
+          // ("vou pedir pra equipe anexar", "vou solicitar que gerem o boleto").
+          /\b(vou|irei|posso)\s+(pedir|solicitar)\b.*\b(anexar|gerar|enviar|emitir|reenviar|encaminhar)\b/i,
+          /\b(pedi|solicitei)\s+(pra|para)\s+(a\s+)?(equipe|suporte|financeiro|log[íi]stica)\b.*\b(anexar|gerar|enviar|emitir)\b/i,
           // Família 2 — promessa de futuro sem job
           /\b(te\s+aviso|vou\s+te\s+avisar|vou\s+avisar|aviso\s+voc[êe]|notifico\s+voc[êe])\s+(quando|assim\s+que|t[ãa]o\s+logo)/i,
           /\b(fico\s+no\s+aguardo|aguardo\s+(o\s+)?sistema|fico\s+atento)\b/i,
@@ -6478,11 +6505,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
 
     // [Reg #16] Anti-repetição semântica — pergunta de qualificação aberta repetida.
     try {
+      // [Reg #17.3] Coluna correta é sender_type='bot' (não role='assistant').
+      // O bug anterior fazia o histórico vir vazio e o gate semântico nunca
+      // disparava em produção.
       const { data: recentBotRows } = await supabase
         .from("messages")
         .select("content")
         .eq("conversation_id", conversation_id)
-        .eq("role", "assistant")
+        .eq("sender_type", "bot")
         .order("created_at", { ascending: false })
         .limit(2);
       const recentBotMessages = (recentBotRows || []).map((r: any) => r?.content || "");
@@ -7268,10 +7298,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // [Pacote B] Libera o lock antes de devolver. Tolerante a falha.
     await releaseProcessingLock(supabase, conversation_id, myLockId).catch(() => {});
 
+    // [Reg #17.5] Sincroniza o snapshot retornado com o conteúdo final
+    // pós-gates. O `newMessage` foi inserido antes dos scrubbers e da
+    // regeneração; o cliente da edge function precisa ver exatamente o
+    // texto que foi enviado pelo canal e persistido em `messages.content`.
+    const finalMessageSnapshot = newMessage
+      ? { ...newMessage, content: aiContent }
+      : newMessage;
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: newMessage,
+        message: finalMessageSnapshot,
         handoff: shouldHandoff,
         handoff_reason: handoffReason || null,
         matched_rule: matchedRule?.id,

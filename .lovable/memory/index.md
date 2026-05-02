@@ -93,3 +93,6 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Greeting No-Restart Mid-Thread](mem://constraints/greeting-must-not-restart-mid-thread) — Reg #14: "Oi" em thread <30min vira "Oi de novo. Em que posso continuar te ajudando?".
 - [Media Inbound Deterministic](mem://constraints/media-inbound-must-have-deterministic-reply) — Reg #15: sem tool analyze_image, "estou analisando" vira pedido de descrição em texto.
 - [Anti-Repetition Semantic](mem://constraints/anti-repetition-must-use-semantic-class-not-just-prefix) — Reg #16: pergunta "procura específico ou opções" repetida força closeLoopDetected.
+- [Empty Response Intent Routing](mem://constraints/empty-response-fallback-must-route-by-intent) — Reg #17.1: fallback de vazio roteia por intenção (handoff p/ complaint/action_request, prompt de descrição p/ mídia), nunca usar muleta universal de descoberta.
+- [Bot History Sender Type](mem://constraints/bot-history-query-must-use-sender-type) — Reg #17.3: queries de histórico do bot usam sender_type='bot', nunca role='assistant' (coluna inexistente).
+- [Edge Response Post-Gates](mem://constraints/edge-response-must-reflect-post-gates-content) — Reg #17.5: JSON retornado pelo ai-support-chat carrega `aiContent` final pós-gates, não o snapshot pré-gate inserido em STEP 9.

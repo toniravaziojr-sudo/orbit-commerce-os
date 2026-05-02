@@ -848,3 +848,34 @@ Duas falhas combinadas:
 
 ### Anti-regressão
 - Memória nova: `mem://constraints/ai-close-on-confirmed-intent-no-loop` — fechamento confirmado nunca pode resultar em pergunta confirmatória; defesa em 2 camadas (FIX-B estendido + gate pós-resposta).
+
+## Reg #17 — Onda 17: correções estruturais pós-bateria de testes (mai/2026)
+
+### Sintomas observados
+Bateria executada após Ondas 11–16 ainda mostrava: (a) IA caindo na frase universal "Deixa eu entender melhor. Você procura algo específico ou quer ver opções?" como muleta de vazio em cenários de reset de senha e mídia; (b) gate de anti-repetição semântica nunca disparando em produção; (c) snapshot retornado pelo edge function divergindo do texto pós-gates; (d) FIX-D não pegava promessas indiretas em terceira pessoa.
+
+### Diagnóstico
+Quatro falhas estruturais:
+1. **Muleta universal** em `FALLBACK_PROMISE_BY_STATE.discovery` mascarava reclamações e pedidos de ação.
+2. **Query errada** no gate de anti-repetição semântica usando `.eq("role", "assistant")` numa tabela cuja coluna é `sender_type`. Sempre retornava vazio.
+3. **Regex `SEMANTIC_OPEN_QUESTION_RE`** não cobria a variante "deixa eu entender melhor / me conta o que está procurando".
+4. **Snapshot retornado** (`message: newMessage`) era pré-gate; testes e dashboards viam texto diferente do entregue.
+5. **`ACTION_INVENTION_PATTERNS`** não cobria "vou pedir pra equipe anexar/gerar".
+
+### Correção aplicada
+- **Reg #17.1** — `index.ts` linha ~5716: roteamento por intenção no fallback de vazio (handoff para `complaint`/`action_request`/`requires_action`; prompt de mídia quando inbound é mídia; senão fallback de estado).
+- **Reg #17.2** — `output-gates.ts`: `SEMANTIC_OPEN_QUESTION_RE` ampliada para cobrir "deixa eu entender melhor", "me conta o que está procurando", variantes com sugestões/alternativas.
+- **Reg #17.3** — `index.ts` Reg #16: query corrigida para `.eq("sender_type", "bot")`.
+- **Reg #17.4** — `index.ts` `ACTION_INVENTION_PATTERNS`: novos padrões `\b(vou|irei|posso)\s+(pedir|solicitar)\b.*\b(anexar|gerar|enviar|emitir|reenviar|encaminhar)\b` e variante "pedi/solicitei pra equipe".
+- **Reg #17.5** — `index.ts` retorno final: `message: { ...newMessage, content: aiContent }` para refletir conteúdo pós-gates.
+- Removida muleta `discovery` do `FALLBACK_PROMISE_BY_STATE` (substituída por "Me conta um pouco do que você precisa que eu já te indico.").
+
+### Validação técnica executada
+- ✅ Edge `ai-support-chat` deployada.
+- ✅ Build sem erros (TypeScript do projeto valida no harness).
+- ⚠️ Pendente — bateria nova de sandbox para confirmar: (a) cenário senha sem tool gera handoff, não muleta; (b) inbound de áudio sem vision tool retorna prompt de descrição; (c) `gateSemanticRepetition` dispara após 2 turnos com pergunta aberta; (d) snapshot retornado bate com `messages.content` no banco; (e) "vou pedir pra equipe anexar" é scrubbed.
+
+### Anti-regressão
+- Memória nova: `mem://constraints/empty-response-fallback-must-route-by-intent`
+- Memória nova: `mem://constraints/bot-history-query-must-use-sender-type`
+- Memória nova: `mem://constraints/edge-response-must-reflect-post-gates-content`
