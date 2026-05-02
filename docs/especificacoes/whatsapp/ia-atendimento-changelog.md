@@ -40,10 +40,10 @@
 | Não inventar ação executada ("já encaminhei…", "anexei o PDF", "te aviso quando voltar") | ✅ Coberto | Scrubber `unsupported_action_promised` com vocabulário estendido (3 famílias: pretérito sem tool, promessa de futuro sem job, reset de senha) | Reg. #11 |
 | Não trocar produto após confirmação | ✅ Coberto | `PRODUCT_LOCK_MISMATCH` + resolver com `focusProductId` | Reg. #1 |
 | Não pedir nova confirmação após "sim/manda" | ✅ Coberto | FIX-B `tool_choice` forçado + scrubber `confirmation_loop_detected` | Reg. #1 |
-| Não repetir a mesma frase/intenção | ⚠️ Parcial | Hash de prefixo (não pega família semântica) | Reg. #2 — pendente 3.4 |
+| Não repetir a mesma frase/intenção (incl. "específico ou opções?") | ✅ Coberto | Hash de prefixo + `gateSemanticRepetition` (regex de classe semântica) | Reg. #16 |
 | Não citar preço sem o cliente perguntar | ✅ Coberto | Regra global `PRICE-ON-DEMAND` em `base.ts` + reforço em discovery/recommendation | Reg. #2.3 |
 | Não trocar conjunto ofertado por kit consolidado | ✅ Coberto | `BUNDLE LOCK` global em `base.ts` + reforço em recommendation; trava de SKU já existente cobre execução | Reg. #2.3 |
-| Espelhar saudação ("boa tarde" → "boa tarde") | ✅ Coberto | `greeting-mirror.ts` mecânico (já em produção) + regra dura em greeting prompt | Reg. #2 (já existia, confirmado) |
+| Espelhar saudação ("boa tarde" → "boa tarde") sem resetar thread ativa | ✅ Coberto | `greeting-mirror.ts` + `gateGreetingMirror` com `isMidThread` (<30min vira "Oi de novo") | Reg. #14 |
 | Honrar pergunta consultiva antes de listar produto | ⚠️ Só prompt | Sem regra dura | Reg. #2 — pendente 3.6 |
 | Enviar imagem na 1ª apresentação real do produto | ✅ Coberto | `product-detail` exige `send_product_image` na 1ª menção (1x/produto) | Reg. #2.3 |
 | Link de checkout no domínio próprio da loja | ✅ Coberto | `ai-support-chat` consulta `tenant_domains` (preferindo `is_primary`) | Reg. #2.1 |
