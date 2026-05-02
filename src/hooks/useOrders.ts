@@ -245,8 +245,7 @@ export function useOrders(options?: {
         let q = supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', currentTenant!.id)
-          .not('payment_gateway_id', 'is', null);
+          .eq('tenant_id', currentTenant!.id);
 
         if (search) {
           q = q.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
