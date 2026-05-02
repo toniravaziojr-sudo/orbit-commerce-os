@@ -3,11 +3,14 @@
 // Exibido nos detalhes do pedido (sidebar)
 // =============================================
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { History, AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { History, AlertCircle, CheckCircle, Clock, XCircle, RotateCcw } from 'lucide-react';
 import { usePaymentTransactions, type PaymentTransaction } from '@/hooks/usePaymentTransactions';
+import { RefundPaymentDialog } from './RefundPaymentDialog';
 
 const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof CheckCircle }> = {
   paid: { label: 'Aprovado', variant: 'default', icon: CheckCircle },
@@ -97,38 +100,75 @@ function TransactionRow({ tx, isLast }: { tx: PaymentTransaction; isLast: boolea
 
 interface PaymentAttemptsCardProps {
   orderId: string;
+  /** Quando true, exibe o botão "Estornar pagamento" para owner/admin. */
+  canRefund?: boolean;
 }
 
-export function PaymentAttemptsCard({ orderId }: PaymentAttemptsCardProps) {
+const REFUNDABLE_STATUSES = new Set(['approved', 'paid', 'partially_refunded']);
+const REFUNDABLE_PROVIDERS = new Set(['pagbank', 'pagarme', 'mercadopago']);
+
+export function PaymentAttemptsCard({ orderId, canRefund = false }: PaymentAttemptsCardProps) {
   const { data: transactions = [], isLoading } = usePaymentTransactions(orderId);
+  const [refundTx, setRefundTx] = useState<PaymentTransaction | null>(null);
 
   // Não renderiza se não há tentativas
   if (!isLoading && transactions.length === 0) return null;
 
+  // Encontrar transação aprovada mais recente elegível para estorno
+  const refundableTx = transactions.find(
+    (tx) => REFUNDABLE_STATUSES.has(tx.status) && REFUNDABLE_PROVIDERS.has(tx.provider),
+  );
+  const showRefundButton = canRefund && !!refundableTx;
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <History className="h-4 w-4" />
-          Tentativas de Pagamento
-          {transactions.length > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-5 ml-auto">
-              {transactions.length}
-            </Badge>
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <History className="h-4 w-4" />
+            Tentativas de Pagamento
+            {transactions.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] h-5 ml-auto">
+                {transactions.length}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-2">Carregando...</p>
+          ) : (
+            <div className="space-y-0">
+              {transactions.map((tx, i) => (
+                <TransactionRow key={tx.id} tx={tx} isLast={i === transactions.length - 1} />
+              ))}
+            </div>
           )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground text-center py-2">Carregando...</p>
-        ) : (
-          <div className="space-y-0">
-            {transactions.map((tx, i) => (
-              <TransactionRow key={tx.id} tx={tx} isLast={i === transactions.length - 1} />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          {showRefundButton && refundableTx && (
+            <>
+              <Separator className="my-3" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => setRefundTx(refundableTx)}
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-2" />
+                Estornar pagamento
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {refundTx && (
+        <RefundPaymentDialog
+          open={!!refundTx}
+          onOpenChange={(v) => { if (!v) setRefundTx(null); }}
+          orderId={orderId}
+          transaction={refundTx}
+        />
+      )}
+    </>
   );
 }
