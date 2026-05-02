@@ -99,6 +99,48 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+---
+
+## Registros #12 a #16 — Auditoria Respeite o Homem (Ondas 12 a 16) — 02/mai/2026
+
+**Origem:** auditoria de 7 dias (WhatsApp + Chat) do tenant Respeite o Homem que revelou dezenas de falhas recorrentes não cobertas pelas defesas existentes. Cada onda fecha um vetor distinto.
+
+### Reg #12 — Handoff terminal real (lock server-side)
+- **Sintoma:** após `request_human_handoff`, IA continuava respondendo aos próximos inbounds e inventando ações (Moacir, Joel, Anthero, Gilson).
+- **Correção:** `ai-support-chat/index.ts` ganhou lock no início do handler — se `conversations.status='waiting_agent'` E `assigned_to IS NULL`, retorna `{ skipped:true, code:'HANDOFF_AWAITING_HUMAN' }` sem chamar o modelo.
+- **Memória:** `mem://constraints/handoff-must-silence-ai-until-human-assigns`.
+- **Pendência (próxima entrega):** painel de fila de handoffs com SLA + cron de auto-escalonamento >2h (ainda não implementados nesta rodada por escopo).
+
+### Reg #13 — Normalização de lookup_customer
+- **Sintoma:** clientes recorrentes (William, Handy) caindo em "não encontrado" por case de email ou formatação E.164.
+- **Correção:** `lookup_customer` usa `ilike` no email lowercased/trimmed e tenta phone como dígitos puros + variante com/sem prefixo 55.
+- **Memória:** `mem://constraints/lookup-customer-must-normalize-email-and-phone`.
+- **Pendência:** tool nova `lookup_order_by_conversation_context` para pós-venda automatizado (não entregue nesta rodada).
+
+### Reg #14 — Greeting não reseta thread ativa
+- **Sintoma:** "Oi" do cliente no meio da conversa fazia IA emitir "Me conta o que está procurando", apagando discovery (Geraldo, Antônio).
+- **Correção:** `gateGreetingMirror` aceita `isMidThread` e, quando última mensagem do bot tem <30min, substitui resposta inteira por "Oi de novo[, Nome]. Em que posso continuar te ajudando?". Wired em `ai-support-chat/index.ts` com cálculo do timestamp da última `assistant`.
+- **Memória:** `mem://constraints/greeting-must-not-restart-mid-thread`.
+
+### Reg #15 — Resposta determinística para mídia inbound
+- **Sintoma:** "estou analisando, já te respondo" sem nunca voltar (Anthero, Geraldo, Handy, Gilson, William). Não existe tool `analyze_image`.
+- **Correção:** novo `gateMediaInbound` em `output-gates.ts` substitui a frase por pedido de descrição em texto. Wired após gates Reg #9.
+- **Memória:** `mem://constraints/media-inbound-must-have-deterministic-reply`.
+
+### Reg #16 — Anti-repetição semântica
+- **Sintoma:** "você procura algo específico ou prefere ver opções?" repetida 3x (Geraldo, Anthero) — hash de prefixo não pegava por causa de variação textual.
+- **Correção:** novo `gateSemanticRepetition` detecta o regex de classe semântica em até 2 turnos passados do bot e injeta `closeLoopDetected=true` reusando o pipeline de regeneração existente.
+- **Memória:** `mem://constraints/anti-repetition-must-use-semantic-class-not-just-prefix`.
+
+**Validação técnica executada:**
+- ✅ Edge function `ai-support-chat` deployada com sucesso após cada onda.
+- ✅ `rg` confirma todos os gates novos no código e wirings nos call sites corretos.
+- ⏳ Validação E2E real (rodar bateria de teste contra fixtures das conversas-âncora) depende do usuário — está pedindo agora "vamos testar".
+
+**Pendências conhecidas, não entregues nesta rodada:** cron de auto-escalonamento de handoff antigo (>2h sem assignment) + painel UI de fila de handoffs com SLA + tool `lookup_order_by_conversation_context` (pós-venda). Vão para próximo ciclo.
+
+---
+
 ## Registro #9 — Vocativo genérico, promessa sem ação e pedido de dados de checkout no WhatsApp — 02/mai/2026
 
 **Sintoma (rodada de teste E2E pelo sandbox, tenant Respeite o Homem):**
