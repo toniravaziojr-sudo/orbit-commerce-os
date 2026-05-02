@@ -74,6 +74,25 @@
 
 ---
 
+### 1.3 Scroll excedente por padding duplicado dentro do AppShell
+
+**Problema:** Telas administrativas dentro do `AppShell` exibiam rolagem além do conteúdo real, criando uma faixa branca no fim da página.
+
+**Sintoma:** Em formulários como Novo Pedido e Produtos, a barra de rolagem descia mais do que deveria e deixava uma área vazia aparente no rodapé.
+
+**Causa raiz:** O `AppShell` já é a área rolável vertical oficial do admin. As páginas afetadas somavam `padding-bottom` local na raiz, duplicando a folga do layout. No caso de Novo Pedido, a grid ainda esticava a coluna lateral curta até a altura da coluna principal, amplificando a percepção visual do branco sobrando.
+
+**Solução:**
+1. Remover `padding-bottom` artificial da raiz da página quando não houver necessidade real.
+2. Quando existir barra fixa local, manter apenas a compensação estritamente necessária no container coberto por ela.
+3. Em grids com cards laterais resumidos, aplicar altura intrínseca (`self-start`) nas colunas curtas para evitar stretch visual desnecessário.
+
+**Onde ocorreu:** `OrderNew.tsx`, `Products.tsx` e `ProductForm.tsx` (maio/2026).
+
+**Regra derivada:** Dentro do admin, o scroll vertical deve ter fonte única no `AppShell`. Padding inferior de página e compensação de footer fixo nunca podem ser duplicados.
+
+---
+
 ## 2. Edge Functions — Deno / Supabase
 
 ### 2.1 Valores hardcoded vs configuráveis por tenant
