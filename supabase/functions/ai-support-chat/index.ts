@@ -4548,10 +4548,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       const rawName = String(conversation.customer_name).trim();
       const tokens = rawName.split(/\s+/);
       const firstName = tokens[0] || "";
-      const looksCorporate = /\b(loja|comando|comercial|ltda|me\b|distribuidora|store|shop|sa\b|s\/a|eireli|mei)\b/i.test(rawName)
+      // [Reg #9] Suprime vocativo também quando o nome é placeholder genérico
+      // ("Cliente de teste", "Contato WhatsApp", "Lead", "Visitante", etc.).
+      // Antes só barrava nomes corporativos; placeholders escapavam e a IA
+      // chamava o cliente literalmente de "Cliente".
+      const looksGenericOrCorporate =
+        /\b(loja|comando|comercial|ltda|me\b|distribuidora|store|shop|sa\b|s\/a|eireli|mei)\b/i.test(rawName)
+        || /\b(cliente|teste|test|contato|usu[áa]rio|customer|lead|prospect|visitante|whatsapp|desconhecid[oa]|sem nome|n[ãa]o informad[oa])\b/i.test(rawName)
         || tokens.length > 3
         || firstName.length < 2;
-      if (firstName && !looksCorporate) {
+      if (firstName && !looksGenericOrCorporate) {
         aiMessages.push({
           role: "system",
           content:
@@ -5074,7 +5080,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             // mais uma pergunta confirmatória ("Quer que eu finalize?").
             // Isto elimina o loop infinito observado em produção.
             const lcMsgForBuy = (lastMessageContent || "").toLowerCase();
-            const explicitBuyNow = /\b(pode (gerar|mandar|enviar)|gera o link|manda o link|envia o link|finaliza|fechar (o )?pedido|quero (fechar|comprar|finalizar)|vou levar|pode finalizar|sim,? (pode|fecha|quero))\b/.test(lcMsgForBuy);
+            // [Reg #9] Regex ampliada com falas reais observadas em teste E2E:
+            // "sim pode fechar", "fecha pra mim", "bora fechar", "fechado",
+            // "quero levar", "me manda o link/pagamento", "como pago", "quero pagar".
+            const explicitBuyNow = /\b(pode (gerar|mandar|enviar|fechar|finalizar)|gera (o )?link|manda (o |a )?(link|pagamento)|envia (o )?link|finaliza|fechar (o )?pedido|quero (fechar|comprar|finalizar|levar|pagar)|vou levar|pode finalizar|sim,? (pode|fecha|quero|manda|gera)|fecha (pra|para) mim|bora fechar|fechado|me manda (o |a )?(link|pagamento)|como (eu )?pago|quero pagar)\b/.test(lcMsgForBuy);
             const generateCheckoutAvailable = pipelineFilteredTools.some(
               (t: any) => t?.function?.name === "generate_checkout_link"
             );
@@ -6296,6 +6305,42 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
     } catch (e) {
       console.warn("[ai-support-chat] [Frente 3] close loop gate failed:", (e as Error).message);
+    }
+
+    // [Reg #9] Promise without action + checkout-data-ask gates.
+    // Reusam a mesma rede de regeneração com tool_choice da Reg #2.16.
+    try {
+      const { enforcePromiseWithoutAction, enforceNoCheckoutDataAsk } = await import("../_shared/sales-pipeline/output-gates.ts");
+      const promiseGate = enforcePromiseWithoutAction({
+        aiResponse: aiContent || "",
+        toolResults: toolResultsThisTurn,
+      });
+      if (promiseGate.loopDetected) {
+        closeLoopDetected = true;
+        closeLoopReason = "promise_without_action";
+        closeLoopMatch = closeLoopMatch || promiseGate.matchedPattern;
+        console.log(
+          `[ai-support-chat] [Reg #9] promise_without_action match="${promiseGate.matchedPattern}"`
+        );
+      }
+      const generateCheckoutAvailable = (pipelineFilteredTools || []).some(
+        (t: any) => t?.function?.name === "generate_checkout_link"
+      );
+      const dataAskGate = enforceNoCheckoutDataAsk({
+        pipelineState,
+        aiResponse: aiContent || "",
+        generateCheckoutAvailable,
+      });
+      if (dataAskGate.loopDetected) {
+        closeLoopDetected = true;
+        closeLoopReason = closeLoopReason === "noop" ? "checkout_data_ask" : `${closeLoopReason}+checkout_data_ask`;
+        closeLoopMatch = closeLoopMatch || dataAskGate.matchedPattern;
+        console.log(
+          `[ai-support-chat] [Reg #9] checkout_data_ask match="${dataAskGate.matchedPattern}"`
+        );
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #9] promise/data-ask gates failed:", (e as Error).message);
     }
 
     // [Reg #2 - 3.4] Classificação semântica do turno (intent family).

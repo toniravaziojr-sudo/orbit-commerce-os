@@ -355,3 +355,94 @@ export function enforceCloseOnConfirmedIntent(input: {
     matchedPattern: m[0],
   };
 }
+
+// ----------------------------------------------------------------
+// [Reg #9] Enforce Promise Without Action
+//
+// Detecta quando a IA prometeu gerar/mandar o link ("tô gerando…",
+// "vou gerar o link", "preparando seu link") SEM ter chamado a tool
+// generate_checkout_link com sucesso neste turno. Marca como loop
+// para forçar regeneração com tool_choice (mesma rede de segurança
+// do enforceCloseOnConfirmedIntent — Reg #2.16).
+//
+// NÃO reescreve o texto. Apenas sinaliza ao orquestrador.
+// ----------------------------------------------------------------
+
+const PROMISE_LINK_RE =
+  /\b(t[ôo] gerando|estou gerando|vou gerar (o )?link|gerando (o |seu )?link|preparando (o |seu )?link|aguarde (um|s[óo]) (instante|momento)[^.\n]*link|j[áa] (vou|t[ôo]) gerando|j[áa] (vou|t[ôo]) mandando o link|deixa eu gerar (o )?link|vou (te )?mandar (o )?link)\b/i;
+
+export interface PromiseWithoutActionResult {
+  loopDetected: boolean;
+  reason: string;
+  matchedPattern: string | null;
+}
+
+export function enforcePromiseWithoutAction(input: {
+  aiResponse: string;
+  toolResults: Array<{ tool: string; parsed: unknown }>;
+}): PromiseWithoutActionResult {
+  const { aiResponse, toolResults } = input;
+  const noop: PromiseWithoutActionResult = { loopDetected: false, reason: "noop", matchedPattern: null };
+  if (!aiResponse) return { ...noop, reason: "empty_response" };
+
+  const checkoutCalledOk = toolResults.some((r) => {
+    if (r.tool !== "generate_checkout_link") return false;
+    const p = r.parsed as Record<string, unknown> | null;
+    return !!(p && typeof p === "object" && p.success === true && typeof p.checkout_url === "string");
+  });
+  if (checkoutCalledOk) return { ...noop, reason: "checkout_link_generated_ok" };
+
+  // Se já tem URL no texto, link foi entregue por outro caminho.
+  if (/https?:\/\/[^\s]+/i.test(aiResponse)) return { ...noop, reason: "url_already_in_text" };
+
+  const m = PROMISE_LINK_RE.exec(aiResponse);
+  if (!m) return { ...noop, reason: "no_promise_pattern" };
+
+  return {
+    loopDetected: true,
+    reason: "ai_promised_link_without_calling_tool",
+    matchedPattern: m[0],
+  };
+}
+
+// ----------------------------------------------------------------
+// [Reg #9] Enforce No Checkout Data Ask
+//
+// Em recommendation/decision/checkout_assist, se a IA pede CEP / CPF /
+// email / endereço / forma de pagamento pelo WhatsApp e a tool
+// generate_checkout_link existe, marcamos como loop. Esses dados são
+// preenchidos pelo cliente NA PÁGINA de checkout — não devem ser
+// pedidos pelo WhatsApp.
+// ----------------------------------------------------------------
+
+const CHECKOUT_DATA_ASK_RE =
+  /\b(qual (o |seu |teu )?(cep|endere[çc]o|cpf|e-?mail)|me (passa|envia|manda|d[áa]) (o |seu |teu )?(cep|cpf|endere[çc]o|e-?mail)|qual (a |sua )?forma de pagamento|como (voc[êe] )?(prefere|quer|deseja) pagar|cart[ãa]o ou pix|pix ou (cart[ãa]o|boleto)|pagamento (em )?(pix|boleto|cart[ãa]o)\?|prefere (pix|boleto|cart[ãa]o))\b/i;
+
+const CHECKOUT_DATA_STATES = new Set(["recommendation", "decision", "checkout_assist", "product_detail"]);
+
+export interface CheckoutDataAskResult {
+  loopDetected: boolean;
+  reason: string;
+  matchedPattern: string | null;
+}
+
+export function enforceNoCheckoutDataAsk(input: {
+  pipelineState: string;
+  aiResponse: string;
+  generateCheckoutAvailable: boolean;
+}): CheckoutDataAskResult {
+  const { pipelineState, aiResponse, generateCheckoutAvailable } = input;
+  const noop: CheckoutDataAskResult = { loopDetected: false, reason: "noop", matchedPattern: null };
+  if (!aiResponse) return { ...noop, reason: "empty_response" };
+  if (!CHECKOUT_DATA_STATES.has(pipelineState)) return { ...noop, reason: "state_not_eligible" };
+  if (!generateCheckoutAvailable) return { ...noop, reason: "generate_checkout_link_unavailable" };
+
+  const m = CHECKOUT_DATA_ASK_RE.exec(aiResponse);
+  if (!m) return { ...noop, reason: "no_data_ask_pattern" };
+
+  return {
+    loopDetected: true,
+    reason: "ai_asked_checkout_data_via_whatsapp",
+    matchedPattern: m[0],
+  };
+}
