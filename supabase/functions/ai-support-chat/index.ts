@@ -5713,15 +5713,38 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           handoff:         "Vou te passar pra alguém da equipe.",
         };
 
-        if (toolsAlreadyRan) {
+        // [Reg #17.1] Roteamento por intenção, eliminando a muleta universal
+        // "Deixa eu entender melhor…". Quando a resposta do modelo vem vazia:
+        //  - Se o cliente fez pedido de ação (action_request) ou reclamação
+        //    (complaint) e nenhuma tool de ação rodou → handoff humano.
+        //  - Se o inbound foi mídia sem vision tool → pedir descrição em texto.
+        //  - Caso contrário, usar fallback do estado (sem o catch-all genérico).
+        const isActionable = intentClassification?.intent === "complaint" ||
+          intentClassification?.intent === "action_request" ||
+          intentClassification?.requires_action === true;
+        const lastInboundForFb = recentMessages
+          ?.filter((m: any) => m.sender_type === "customer")
+          ?.slice(-1)?.[0];
+        const inboundIsMediaFb = !!(lastInboundForFb?.media_url ||
+          lastInboundForFb?.message_type === "image" ||
+          lastInboundForFb?.message_type === "audio" ||
+          lastInboundForFb?.message_type === "document");
+
+        if (isActionable && !toolsAlreadyRan) {
+          aiContent = "Vou chamar alguém da equipe pra resolver isso direto com você. Já te respondem por aqui.";
+          shouldHandoff = true;
+          handoffReason = handoffReason || "empty_response_actionable_intent";
+        } else if (inboundIsMediaFb) {
+          aiContent = "Não consegui abrir o arquivo aqui. Você consegue me descrever em texto o que precisa? Assim eu já te ajudo.";
+        } else if (toolsAlreadyRan) {
           const humanized = buildHumanFallbackFromTools();
-          aiContent = humanized || FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] || "Pode me dizer um pouco mais do que você procura?";
+          aiContent = humanized || FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] || "Me conta um pouco mais do que você procura.";
         } else {
           aiContent = FALLBACK_PROMISE_BY_STATE[pipelineState] || "Já te respondo.";
         }
         emptyResponseFallbackApplied = true;
         console.warn(
-          `[ai-support-chat] [PACOTE B v2] fallback aplicado state=${pipelineState} conclusive=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
+          `[ai-support-chat] [Reg #17.1] empty-response fallback state=${pipelineState} intent=${intentClassification?.intent ?? "n/a"} actionable=${isActionable} media=${inboundIsMediaFb} tools=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
         );
       }
     }
