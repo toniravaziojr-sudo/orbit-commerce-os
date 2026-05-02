@@ -6463,15 +6463,44 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           `Resposta original a evitar:\n"""${aiContent.slice(0, 600)}"""`;
 
         const isGpt5Regen = modelUsed.startsWith("gpt-5");
+
+        // [Reg #10 — Correção C] Se o motivo do loop é checkout-relacionado
+        // (promise_without_action ou checkout_data_ask) e a tool generate_checkout_link
+        // está disponível, FORÇAMOS o modelo a chamá-la em vez de só refrasear.
+        // Sem isso, o modelo continua prometendo o link sem gerá-lo, ou pedindo
+        // CEP/CPF pelo WhatsApp em loop infinito.
+        const checkoutLoopReason =
+          closeLoopReason.includes("promise_without_action") ||
+          closeLoopReason.includes("checkout_data_ask");
+        const checkoutToolAvailable = (pipelineFilteredTools || []).some(
+          (t: any) => t?.function?.name === "generate_checkout_link",
+        );
+        const forceCheckoutTool = closeLoopDetected && checkoutLoopReason && checkoutToolAvailable;
+
+        const regenInstruction = forceCheckoutTool
+          ? `O cliente já confirmou que quer fechar a compra. Pare de prometer ou pedir dados — CHAME generate_checkout_link AGORA. ` +
+            `Os dados pessoais (CEP/CPF/email/endereço/forma de pagamento) são preenchidos pelo CLIENTE NA PÁGINA de checkout. ` +
+            `NÃO peça nenhum desses dados pelo WhatsApp. Gere o link e responda com a URL de fechamento.`
+          : variationInstruction;
+
         const regenBody: Record<string, unknown> = {
           model: modelUsed,
           messages: [
             ...aiMessages,
             { role: "assistant", content: aiContent },
-            { role: "system", content: variationInstruction },
+            { role: "system", content: regenInstruction },
           ],
-          tool_choice: "none",
+          tool_choice: forceCheckoutTool
+            ? { type: "function", function: { name: "generate_checkout_link" } }
+            : "none",
         };
+        if (forceCheckoutTool) {
+          regenBody.tools = pipelineFilteredTools;
+          console.log(
+            `[ai-support-chat] [Reg #10 Corr C] regeneration FORCING tool_choice=generate_checkout_link ` +
+            `(closeLoopReason=${closeLoopReason})`,
+          );
+        }
         if (!isGpt5Regen) {
           regenBody.temperature = 0.8;
         }
