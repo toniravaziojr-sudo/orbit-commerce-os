@@ -4058,7 +4058,7 @@ Cliente: "vocês entregam em SP?"
 ### REGRAS DE NEGÓCIO
 - Use APENAS informações da BASE DE CONHECIMENTO e do contexto fornecido.
 - Se não souber algo (preço, estoque, prazo, política), busque com as ferramentas. Nunca invente.
-- Se não conseguir resolver, escale para um atendente humano de forma natural ("Vou te passar pra alguém da equipe que resolve isso, tá?").`;
+- Se não conseguir resolver, escale para um atendente humano de forma natural ("Vou te passar pra alguém da equipe que resolve isso, tá?").`);
 
     // Channel-specific override (mantém compatibilidade com prompt manual de canal)
     if (channelConfig?.system_prompt_override) {
