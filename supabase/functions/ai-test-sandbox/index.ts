@@ -34,6 +34,9 @@ interface SendBody {
   tenant_id: string;
   conversation_id?: string | null;
   message: string;
+  // B.3: permite simular o canal real ('whatsapp') no sandbox.
+  // Default 'chat' mantém retrocompat. Aceita apenas 'chat' | 'whatsapp'.
+  simulated_channel?: "chat" | "whatsapp";
 }
 
 interface CleanupBody {
@@ -139,18 +142,21 @@ Deno.serve(async (req) => {
     }
 
     // -------- Cria conversa sandbox se não existir --------
+    const simulatedChannel: "chat" | "whatsapp" =
+      (body as SendBody).simulated_channel === "whatsapp" ? "whatsapp" : "chat";
     if (!conversation_id) {
       const fakePhone = `sandbox_${userId.slice(0, 8)}_${Date.now()}`;
       const { data: created, error: createErr } = await supabase
         .from("conversations")
         .insert({
           tenant_id,
-          channel_type: "chat",
+          channel_type: simulatedChannel,
           customer_name: "Cliente de teste",
           customer_phone: fakePhone,
           status: "bot",
           metadata: {
             is_sandbox: true,
+            simulated_channel: simulatedChannel,
             sandbox_user_id: userId,
             sandbox_started_at: new Date().toISOString(),
           },
