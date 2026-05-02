@@ -123,6 +123,34 @@ useEffect(() => {
 
 ---
 
+---
+
+### 1.4 Pedidos manuais não aparecem na listagem (filtro `payment_gateway_id`)
+
+**Problema:** Pedidos criados via "Novo Pedido" no admin (`/orders/new`) eram inseridos corretamente no banco, mas nunca apareciam na listagem nem nos contadores. Mensagem de sucesso era exibida, criando a sensação de "pedido sumiu".
+
+**Sintoma:** Usuário cria pedido manual #392 → toast "Pedido criado com sucesso" → lista de Pedidos continua mostrando #391 como último → contador permanece em 303.
+
+**Causa raiz:** O hook `useOrders.ts` aplicava `.not('payment_gateway_id', 'is', null)` tanto na query principal quanto nas queries de estatísticas. Esse filtro foi introduzido para esconder "ghost orders" (pedidos pré-criados antes da resposta do gateway) que existiam **antes** da regra gateway-first entrar em vigor (v2026-04-19). Após a regra gateway-first, o filtro virou contradição: bloqueava pedidos legítimos que naturalmente não têm `payment_gateway_id` — manuais, importações de marketplace, Shopify.
+
+**Solução definitiva (2026-05-02):**
+1. Removido o filtro `.not('payment_gateway_id', 'is', null)` em `useOrders.ts` (query principal e query de stats).
+2. Migração retroativa única: 79 órfãos pré-19/abr (status `pending`/`payment_expired` sem gateway) marcados como `cancelled` com motivo "Órfão pré-gateway-first".
+3. Doc atualizado em `docs/especificacoes/ecommerce/pedidos.md` §3.1 (Legado — Ghost Orders).
+
+**Por que essa solução é segura:**
+- Regra gateway-first (`pedidos.md` §16, em vigor desde 19/abr) já garante que **nenhum novo pedido do storefront** seja criado sem `payment_gateway_id`. A integridade contra ghost orders é **na criação**, não na leitura.
+- Pedidos manuais, marketplace e importações nunca tiveram `payment_gateway_id` — aparecerem na lista é o comportamento correto, não uma regressão.
+
+**Regra derivada (anti-regressão):**
+1. **Nunca** reintroduzir `.not('payment_gateway_id', 'is', null)` em queries de listagem/stats de pedidos. Se aparecer "ghost order" novo na base, o problema é na criação (gateway-first violada), não na leitura.
+2. Pedidos sem `payment_gateway_id` são legítimos quando: `sales_channel = 'admin'/'manual'`, `source_platform IS NOT NULL` (marketplace), ou `marketplace_source IS NOT NULL`.
+3. Quando um filtro existe "pra esconder dados ruins", investigar se a fonte do dado ruim foi corrigida — se sim, **remover o filtro** em vez de mantê-lo "por garantia".
+
+**Padrão de diagnóstico:** Se usuário reclama "criei X mas não aparece", **primeiro** rodar `SELECT * FROM tabela WHERE ... ORDER BY created_at DESC LIMIT 5` no banco. Se o registro está lá, o problema é na query/cache da listagem, não na criação. Não perder tempo investigando triggers ou RLS antes desse passo.
+
+---
+
 ## 2. Edge Functions — Deno / Supabase
 
 ### 2.1 Valores hardcoded vs configuráveis por tenant
