@@ -6329,9 +6329,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       const greetCustomerName = conversation?.customer_name || null;
       // [Reg #14] Detecta thread ativa (última mensagem do bot < 30 min)
       // para evitar reset de contexto via "Oi" no meio da conversa.
+      // [Reg #17.6] Coluna correta é sender_type='bot' (não role='assistant').
+      // O bug original deixava greetIsMidThread=false permanente, fazendo a IA
+      // reabrir saudação completa no meio da thread (auditoria Onda 17).
       const greetIsMidThread = (() => {
         try {
-          const last = (messages || []).filter((m: any) => m.role === "assistant").slice(-1)[0];
+          const last = (messages || [])
+            .filter((m: any) => m.sender_type === "bot")
+            .slice(-1)[0];
           if (!last?.created_at) return false;
           const ageMs = Date.now() - new Date(last.created_at).getTime();
           return ageMs < 30 * 60 * 1000;
