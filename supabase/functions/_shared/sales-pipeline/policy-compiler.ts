@@ -372,6 +372,10 @@ export function policySourceTrace(p: EffectivePolicy): Record<string, PolicySour
     forbidden_topics: p.forbidden_topics.source,
     handoff_keywords: p.handoff_keywords.source,
     ai_model: p.ai_model.source,
+    model_response_composer: p.model_response_composer.source,
+    model_classifier_tpr: p.model_classifier_tpr.source,
+    model_planner: p.model_planner.source,
+    model_critic: p.model_critic.source,
     rules: p.rules.source,
     channel_type: p.channel_type.source,
   };
