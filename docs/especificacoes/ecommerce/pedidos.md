@@ -653,31 +653,36 @@ Quando um pedido é criado, o sistema inicia verificação ativa do status de pa
 3. Se nenhuma resolução em 15 dias → mesma ação de "chargeback perdido"
 4. Estornos diretos (sem chargeback) → `payment_status = refunded` (status do pedido não muda)
 
-### 7.2.1 Estorno administrativo via gateway (Onda 1 — backend)
+### 7.2.1 Estorno administrativo via gateway (Ondas 1 + 2 — backend)
 
-> **Status:** Onda 1 entregue (router + adapter PagBank). Pagar.me e Mercado Pago em backlog (Onda 2). UI dedicada em backlog (Onda 3).
+> **Status:** Onda 1 + Onda 2 entregues — router unificado e adapters PagBank, Pagar.me e Mercado Pago operacionais. UI dedicada em backlog (Onda 3).
 
 **Arquitetura:**
 
 - Edge router único: `payment-refund` é a porta de entrada. Recebe `order_id` (ou `transaction_id`), `amount` opcional (centavos; ausente = total) e `reason` opcional.
 - O router identifica o gateway pela `payment_transactions.provider` da transação aprovada mais recente do pedido e roteia para o adapter específico.
-- Cada gateway tem seu adapter dedicado (`pagbank-refund`, futuro `pagarme-refund`, futuro `mercadopago-refund`). O adapter chama a API do gateway, atualiza `payment_transactions.status` (`refunded` ou `partially_refunded`) e atualiza `orders.payment_status` quando vinculado.
+- Adapters por gateway:
+  - **PagBank** → `pagbank-refund` → `POST /charges/{charge_id}/cancel` (sandbox/produção conforme `payment_providers.environment`).
+  - **Pagar.me** → `pagarme-refund` → `POST https://api.pagar.me/core/v5/charges/{charge_id}/operations/refund` (Basic Auth com `api_key` em `payment_providers`).
+  - **Mercado Pago** → `mercadopago-refund` → `POST https://api.mercadopago.com/v1/payments/{payment_id}/refunds` (Bearer com `access_token` do OAuth do tenant; valor em REAIS, não centavos; `X-Idempotency-Key` por transação).
+- Cada adapter atualiza `payment_transactions` (`status`, `refunded_amount` acumulado, `payment_data.last_refund`) e `orders.payment_status` quando vinculado.
 
 **Segurança (defense-in-depth):**
 
 - Router exige usuário autenticado com role `owner` ou `admin` no tenant atual. Operadores são bloqueados.
 - Adapters validam a origem: aceitam (a) chamada interna do router via header `x-internal-call: payment-refund` com service-role, ou (b) chamada autenticada por `owner`/`admin` do tenant. Chamadas anônimas ou de operador são rejeitadas.
-- Validação de tenant da transação é feita no router antes do roteamento.
-- `order_history` recebe entrada com prefixo `[OVERRIDE ADMIN]` indicando estorno total/parcial, gateway e motivo.
+- Validação de tenant da transação é feita no router antes do roteamento, e revalidada no adapter.
+- `order_history` recebe entrada do router com prefixo `[OVERRIDE ADMIN]` (gateway + total/parcial + motivo). Adapters só logam histórico próprio quando chamados diretamente (fora do router), evitando duplicidade.
 
 **Regras de valor:**
 
-- `amount > 0` e `amount <= payment_transactions.amount`.
+- `amount > 0` e `(refunded_amount acumulado + amount) <= payment_transactions.amount`.
 - Estorno total marca transação como `refunded` e pedido como `payment_status = refunded`.
-- Estorno parcial marca transação como `partially_refunded` (mesmo status no pedido).
+- Estorno parcial marca transação como `partially_refunded` (mesmo status no pedido) e acumula em `refunded_amount` para permitir estornos parciais sucessivos.
 - Transação já `refunded` rejeita novo estorno (erro `ALREADY_REFUNDED`).
 
 **Fluxo automático preservado:** webhooks de chargeback continuam intocados. O router é exclusivo para ação manual administrativa.
+
 
 ### 7.3 Sistema de Identificação de Clientes (v2026-04-05)
 
