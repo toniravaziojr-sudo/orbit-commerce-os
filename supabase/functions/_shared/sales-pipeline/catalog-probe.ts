@@ -132,3 +132,207 @@ export function broadenCatalogForPain<T extends { id: string; name: string; is_k
     families_returned: filtered.map((f) => classifyProductFamily(f.name)),
   };
 }
+
+// ============================================================
+// Onda 18 — Fase A: enforceFamilyBaseFirst
+//
+// Problema: consultas como "tem alguma loção pra crescer cabelo?"
+// podem ranquear kits/packs antes de produtos-base, escondendo a loção
+// unitária real. O ranking atual (exact-match + pain_match) NÃO sabe
+// distinguir "kit de quantidade" (2x, 3x, 6x do mesmo produto) de
+// "kit complementar" (combina produtos diferentes), e às vezes empurra
+// um pack pra cima da base.
+//
+// Esta função roda APENAS atrás da flag arch18_catalog_base_forced
+// (decisão Fase A), DEPOIS do enrichment e ANTES do limit final.
+//
+// Regras (alinhadas com a decisão do produto):
+//  1. Particiona em: bases_pain, bases_outras, kits_complementares, kits_quantidade.
+//     - "kit complementar"  = pack com ≥2 component_product_ids distintos.
+//     - "kit de quantidade" = pack com 1 component_product_id (Nx do mesmo).
+//  2. Quando há família detectada e há ≥1 base elegível:
+//     - TODAS as bases relevantes vêm primeiro (pain primeiro, depois outras).
+//     - Kits complementares vêm depois (secundário, opcional).
+//     - Kits de quantidade NÃO entram na vitrine inicial.
+//  3. Quando não há base elegível, devolve a lista original (fail-safe).
+//  4. Função pura: NÃO consulta banco. Quem chama deve passar `kitComponentMap`
+//     resolvido (parent_product_id → array de component_product_ids).
+// ============================================================
+
+export type KitClass = "complementary" | "quantity" | "not_a_kit";
+
+export interface BaseFirstInput<T extends { id: string; name: string; is_kit?: boolean; match_reason?: string }> {
+  /** Pool já enriquecido (após enrichList). */
+  enriched: T[];
+  /** Família detectada por regex no input do turno (pode ser null). */
+  familyDetected: string | null;
+  /**
+   * Mapa parent_product_id → array de component_product_ids únicos.
+   * Permite classificar kit como complementar (≥2 components distintos)
+   * vs kit de quantidade (1 component repetido). Quem chama resolve via DB.
+   */
+  kitComponentMap: Map<string, string[]>;
+  /** Limite comercial. */
+  limit: number;
+}
+
+export interface BaseFirstResult<T> {
+  filtered: T[];
+  forced_base: boolean;
+  reason: string;
+  bases_pain_count: number;
+  bases_outras_count: number;
+  kits_complementary_count: number;
+  kits_quantity_excluded_count: number;
+}
+
+export function classifyKit(
+  productId: string,
+  isKit: boolean,
+  kitComponentMap: Map<string, string[]>
+): KitClass {
+  if (!isKit) return "not_a_kit";
+  const comps = kitComponentMap.get(productId) || [];
+  const distinct = new Set(comps);
+  // 0 components conhecidos: trata como complementar conservador (não esconde).
+  if (distinct.size === 0) return "complementary";
+  if (distinct.size === 1) return "quantity";
+  return "complementary";
+}
+
+export function enforceFamilyBaseFirst<T extends { id: string; name: string; is_kit?: boolean; match_reason?: string }>(
+  input: BaseFirstInput<T>
+): BaseFirstResult<T> {
+  const { enriched, familyDetected, kitComponentMap, limit } = input;
+
+  if (!enriched?.length) {
+    return {
+      filtered: [],
+      forced_base: false,
+      reason: "empty_pool",
+      bases_pain_count: 0,
+      bases_outras_count: 0,
+      kits_complementary_count: 0,
+      kits_quantity_excluded_count: 0,
+    };
+  }
+
+  // Família efetiva: a detectada no input. Se vazia, tentamos inferir
+  // pela maioria do pool (fallback raro — só pra não perder oportunidade).
+  const familyOf = (name: string) => classifyProductFamily(name);
+  const targetFamily =
+    familyDetected ||
+    (() => {
+      const counts = new Map<string, number>();
+      for (const it of enriched) {
+        const f = familyOf(it.name);
+        if (f === "other" || f === "kit" || f === "combo") continue;
+        counts.set(f, (counts.get(f) || 0) + 1);
+      }
+      let best: string | null = null;
+      let max = 0;
+      for (const [f, c] of counts) {
+        if (c > max) {
+          max = c;
+          best = f;
+        }
+      }
+      return best;
+    })();
+
+  // Particiona
+  const basesPain: T[] = [];
+  const basesOutras: T[] = [];
+  const kitsComplementary: T[] = [];
+  let kitsQuantityExcluded = 0;
+
+  for (const item of enriched) {
+    const itemFamily = familyOf(item.name);
+    const kitClass = classifyKit(item.id, !!item.is_kit, kitComponentMap);
+
+    if (kitClass === "quantity") {
+      // Kit de quantidade NÃO entra na vitrine inicial.
+      kitsQuantityExcluded += 1;
+      continue;
+    }
+
+    if (kitClass === "complementary") {
+      // Só inclui se a família-alvo aparecer entre os components OU
+      // se não houver família-alvo definida (deixa LLM oferecer kit misto).
+      kitsComplementary.push(item);
+      continue;
+    }
+
+    // não-kit (base)
+    if (!targetFamily) {
+      basesOutras.push(item);
+      continue;
+    }
+    if (itemFamily !== targetFamily) {
+      // Base de outra família — não entra (manteria comportamento de filtro estrito).
+      continue;
+    }
+
+    if (item.match_reason === "pain_match") {
+      basesPain.push(item);
+    } else {
+      basesOutras.push(item);
+    }
+  }
+
+  const totalBases = basesPain.length + basesOutras.length;
+
+  // Fail-safe: se não conseguimos isolar base relevante, devolve o original.
+  // Isso protege casos em que o regex detectou família que não existe no pool.
+  if (totalBases === 0) {
+    return {
+      filtered: enriched.slice(0, limit),
+      forced_base: false,
+      reason: targetFamily
+        ? `no_base_for_family_${targetFamily}_keep_original`
+        : "no_family_no_base_keep_original",
+      bases_pain_count: 0,
+      bases_outras_count: 0,
+      kits_complementary_count: kitsComplementary.length,
+      kits_quantity_excluded_count: kitsQuantityExcluded,
+    };
+  }
+
+  // Ordem final: TODAS as bases pain → TODAS as bases outras → kits complementares.
+  // Respeita o limit comercial.
+  const ordered: T[] = [];
+  for (const it of basesPain) {
+    if (ordered.length >= limit) break;
+    ordered.push(it);
+  }
+  for (const it of basesOutras) {
+    if (ordered.length >= limit) break;
+    ordered.push(it);
+  }
+  for (const it of kitsComplementary) {
+    if (ordered.length >= limit) break;
+    ordered.push(it);
+  }
+
+  return {
+    filtered: ordered,
+    forced_base: true,
+    reason: `family_${targetFamily ?? "auto"}_base_first`,
+    bases_pain_count: basesPain.length,
+    bases_outras_count: basesOutras.length,
+    kits_complementary_count: kitsComplementary.length,
+    kits_quantity_excluded_count: kitsQuantityExcluded,
+  };
+}
+
+// Detecta família mencionada no texto livre do cliente (input do turno).
+// Reusa FAMILY_NAME_PATTERNS — determinístico, zero LLM.
+export function detectFamilyInText(text: string): string | null {
+  const t = String(text || "");
+  for (const [family, re] of Object.entries(FAMILY_NAME_PATTERNS)) {
+    // pula kit/combo: cliente que pede "kit" não está pedindo família-base.
+    if (family === "kit" || family === "combo") continue;
+    if (re.test(t)) return family;
+  }
+  return null;
+}
