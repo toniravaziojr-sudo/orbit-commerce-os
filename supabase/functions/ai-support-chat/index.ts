@@ -5286,14 +5286,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // Compat com referências antigas no arquivo (logs).
       const isSimpleState = isLightState;
 
-      // [PERF — Pacote 3] Reordenação de modelos por estado:
-      // - sales mode: SEMPRE prioriza gpt-5-mini (rápido + tool-calling confiável).
-      //   gpt-5 vira o 2º da fila — fallback automático se gpt-5-mini retornar erro
-      //   incompatível ou parse de tool falhar. Não é "default" — é exceção.
+      // [B.2] Reordenação de modelos por estado:
+      // - sales mode: começa pelo COMPOSER configurado na policy (`aiModel`),
+      //   depois fallbacks gpt-5-mini → gpt-5 → gpt-5.2. Antes (B.1) a ordem
+      //   era fixa em gpt-5-mini, o que mascarava o composer escolhido pelo
+      //   tenant. Agora respeita `model_response_composer`.
       // - estados simples (não sales): mantém prioridade de modelos rápidos.
       // - estados complexos (não sales): mantém ordem de qualidade configurada.
+      const salesFallbacks = ["gpt-5-mini", "gpt-5", "gpt-5.2"];
       const baseOrder = salesModeEnabled
-        ? ["gpt-5-mini", "gpt-5", "gpt-5.2", ...OPENAI_MODELS.filter(m => !["gpt-5-mini", "gpt-5", "gpt-5.2"].includes(m))]
+        ? [aiModel, ...salesFallbacks, ...OPENAI_MODELS.filter(m => m !== aiModel && !salesFallbacks.includes(m))]
         : (isSimpleState
           ? [...FAST_MODELS_FOR_SIMPLE_STATES, ...OPENAI_MODELS.filter(m => !FAST_MODELS_FOR_SIMPLE_STATES.includes(m))]
           : [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)]);
