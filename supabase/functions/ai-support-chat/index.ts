@@ -6308,6 +6308,25 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     } catch (e) {
       console.warn("[ai-support-chat] [Reg #2.11] checkout url gate failed:", (e as Error).message);
     }
+
+    // [Reg #10] Vocative scrubber determinístico — remove "Cliente", "Teste",
+    // etc. caso o LLM tenha ignorado a instrução de não usar vocativo.
+    try {
+      if (forbiddenVocativeTokens.length > 0 && aiContent) {
+        const { stripForbiddenVocative } = await import("../_shared/sales-pipeline/output-gates.ts");
+        const vg = stripForbiddenVocative({
+          aiResponse: aiContent,
+          forbiddenTokens: forbiddenVocativeTokens,
+        });
+        if (vg.scrubbed) {
+          console.log(`[ai-support-chat] [Reg #10] vocative_stripped tokens=${vg.removedTokens.join("|")} reason=${vg.reason}`);
+          aiContent = vg.after;
+        }
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #10] vocative scrubber failed:", (e as Error).message);
+    }
+
     // [Frente 3 — Reg #2.16] Enforce Close On Confirmed Intent.
     // Se o cliente confirmou fechamento (TPR) e a IA voltou com pergunta
     // confirmatória sem chamar generate_checkout_link, marcamos como
