@@ -80,6 +80,9 @@ import {
   // [Onda 18 — Fase A] Probe v2 família-base + detector de família por regex
   enforceFamilyBaseFirst,
   detectFamilyInText,
+  // [Onda 18 — Fase B] Policy Compiler — fonte central da política efetiva
+  compileEffectivePolicy,
+  policySourceTrace,
   scrubUnsolicitedPrice,
   gateGreetingMirror,
   gateGreetingMirrorFallback,
