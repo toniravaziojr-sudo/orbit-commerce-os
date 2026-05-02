@@ -4680,9 +4680,15 @@ Cliente: "vocês entregam em SP?"
       console.warn("[ai-support-chat] Learning fetch error:", e);
     }
 
-    // Add custom knowledge from config
-    if (effectiveConfig.custom_knowledge) {
-      systemPrompt += `\n\n### Conhecimento adicional:\n${effectiveConfig.custom_knowledge}`;
+    // [Onda 18 — Fase B] Conhecimento adicional via EffectivePolicy.
+    if (effectivePolicy.custom_knowledge.value) {
+      systemPrompt += `\n\n### Conhecimento adicional:\n${effectivePolicy.custom_knowledge.value}`;
+    }
+    // [Onda 18 — Fase B] Instruções específicas do canal (custom_instructions).
+    // Antes da Fase B, esse campo de ai_channel_config era persistido mas
+    // NUNCA chegava no prompt. Agora vai como bloco dedicado.
+    if (effectivePolicy.custom_instructions.value) {
+      systemPrompt += `\n\n### Instruções específicas deste canal (${effectivePolicy.channel_type.value}):\n${effectivePolicy.custom_instructions.value}`;
     }
 
     // Add active rules
