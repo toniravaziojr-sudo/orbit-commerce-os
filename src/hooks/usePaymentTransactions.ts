@@ -30,7 +30,7 @@ export function usePaymentTransactions(orderId?: string) {
 
       const { data, error } = await supabase
         .from('payment_transactions')
-        .select('id, order_id, provider, provider_transaction_id, method, status, amount, paid_amount, currency, error_message, paid_at, created_at, updated_at')
+        .select('id, order_id, provider, provider_transaction_id, method, status, amount, paid_amount, refunded_amount, currency, error_message, paid_at, created_at, updated_at')
         .eq('order_id', orderId)
         .order('created_at', { ascending: false });
 
