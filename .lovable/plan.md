@@ -20,6 +20,7 @@ Plano aprovado em 2026-04-30 / 2026-05-01 com 9 frentes paralelas para sanar pro
 | 6 | Tom robótico residual | ⚠️ Parcial | — | Coberto indiretamente por #5 (saudação formal) — falta auditoria dedicada |
 | 4 | Loop de confirmação edge cases | ⚠️ Parcial | — | Coberto por #7 (fechamento sem loop) — falta auditoria de edge cases (ambiguidade no "sim", "fechado") |
 | 1 | Sandbox stale (atualização de config sem F5) | ❌ Pendente | — | Não foi atacada; sandbox usa snapshot de config no boot da sessão |
+| — | **Reg #8 — Hotfix `customerName` re-resolvido por call site** | ✅ Formalizado 02/mai/2026 | #8 | Memória `greeting-mirror-vars-must-be-declared-at-handler-scope` indexada |
 
 ## Pendências formais conhecidas
 - **Reg #8 — hotfix `customerName` (variável escopo handler):** já aplicada no código, mas falta virar registro formal no changelog + memória `mem://constraints/greeting-mirror-vars-must-be-declared-at-handler-scope`.
