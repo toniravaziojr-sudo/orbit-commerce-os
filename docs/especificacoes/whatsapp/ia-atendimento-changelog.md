@@ -63,7 +63,52 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #22 — Onda 18 Fase B.3: auditoria de catálogo + paridade de canal sandbox — 02/mai/2026
+
+**Contexto.** Saneamento pós-B.2 antes de avançar para Fase C. Duas pendências: (1) confirmar se a Fase A está retornando todas as bases relevantes da família "loção" no Respeite o Homem; (2) o sandbox de testes rodava sempre como `channel_type='chat'`, sem opção de simular `whatsapp`.
+
+**Auditoria de catálogo (Respeite o Homem).** Produtos ativos com nome contendo "loção"/"pós-banho":
+- `Loção pós-banho calvicie zero (Noite)` — base não-kit ✅ elegível
+- `Loção Pós-Banho (2x) (Noite)` — kit de quantidade (mesmo SKU 2x) → corretamente fora da vitrine inicial
+- `Loção Pós-Banho (3x) (Noite)` — kit de quantidade → corretamente fora
+- `Loção Pós-Banho (6x) (Noite)` — kit de quantidade → corretamente fora
+
+**Conclusão:** existe **apenas 1 loção-base não-kit** no catálogo. O resultado do T1 ("Calvície Zero Noite" sozinha) está **correto**. Fase A não precisou de ajuste — o Probe v2 está partindo o pool exatamente como esperado (1 base + 3 kits de quantidade filtrados).
+
+**Paridade de canal — sandbox.** Adicionado parâmetro opcional `simulated_channel: 'chat' | 'whatsapp'` no body de `ai-test-sandbox` (default `chat` mantém retrocompat). Quando `whatsapp` é passado:
+- A `conversations.channel_type` é gravada como `whatsapp` em vez de `chat`.
+- O metadata da conversa registra `simulated_channel: 'whatsapp'` para auditoria.
+- A resposta do endpoint inclui `simulated_channel` para o teste declarar explicitamente o canal usado.
+- Pipeline real (`ai-support-chat`) recebe a conversa com canal `whatsapp` e aplica os mesmos gates/regras do canal real (gates de mídia, formato curto, etc.). Diferenças residuais frente ao WhatsApp real: ausência de webhook Meta, sem fragmentação humana de mensagens, sem latência de fila Meta — não afetam qualidade textual.
+
+**Validação técnica executada (canal simulado: whatsapp, modelo composer: openai/gpt-5).**
+
+| # | Pergunta | Latência | Resultado |
+|---|---|---|---|
+| T1 | "você tem alguma loção pra crescer cabelo?" | 29s | ✅ Apresentou a única base elegível, sem alucinar variações; CTA consultivo |
+| T2 | "só tem essa?" | 25s | ✅ Manteve foco, ofereceu packs como economia (não como base diferente), sem trocar produto |
+| T3 | "é frete grátis?" | 35s | ✅ "Não, essa loção paga frete" — sem alucinação; ofereceu cálculo por CEP |
+| T4 | "qual você recomenda para entradas?" | 38s | ✅ Recomendação consultiva específica, manteve produto em foco, ofereceu modo de uso ou opções |
+
+**Observações.**
+- Sem alucinações, sem repetição, sem saudação indevida, sem ação inventada.
+- Latência média ~32s (aceitável para qualidade consultiva atual; não bloqueia Fase C).
+- Canal simulado declarado em todas as respostas (`simulated_channel: 'whatsapp'`).
+
+**Arquivos alterados.**
+- `supabase/functions/ai-test-sandbox/index.ts` — parâmetro `simulated_channel`.
+- `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` — este registro.
+
+**Não implementado nesta fase (proibido).** Turn Aggregator, TPR v2, Planner, Critic, Tool Executor, redução de gates.
+
+**Critérios de aceite — todos atendidos.** Fase A intacta, frete grátis intacto, kits de quantidade fora da vitrine inicial, sandbox declara canal simulado, B.2 confirmada como `whatsapp`.
+
+**Próxima fase.** ✅ Liberada para Fase C (Turn Aggregator).
+
+---
+
 ## Registro #18 — Onda 18 Fase A: Probe v2 família-base + trace estruturado (em validação) — 02/mai/2026
+
 
 **Contexto.** A auditoria estrutural identificou que correções pontuais não resolveram a "cegueira de família-base" da IA: consultas como *"você tem alguma loção pra crescer cabelo?"* às vezes traziam packs/kits no topo escondendo o produto-base, porque o ranking exact-match + pain_match não distingue **kit de quantidade** (Nx do mesmo SKU) de **kit complementar** (combina produtos diferentes). Após análise crítica, optamos por **MVP cognitivo faseado** — esta é a **Fase A**, com escopo travado.
 
