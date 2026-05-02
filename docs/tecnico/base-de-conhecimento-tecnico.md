@@ -74,22 +74,52 @@
 
 ---
 
-### 1.3 Scroll excedente por padding duplicado dentro do AppShell
+### 1.3 Faixa branca no fim das telas admin (scroll duplo do documento × shell)
 
-**Problema:** Telas administrativas dentro do `AppShell` exibiam rolagem além do conteúdo real, criando uma faixa branca no fim da página.
+**Problema:** Em telas administrativas (notadamente Novo Pedido e Produtos) aparecia uma faixa branca no rodapé que só era alcançada rolando "além" do conteúdo real.
 
-**Sintoma:** Em formulários como Novo Pedido e Produtos, a barra de rolagem descia mais do que deveria e deixava uma área vazia aparente no rodapé.
+**Sintoma:** Existiam dois scrolls verticais simultâneos: um interno do `<main>` do `AppShell` (correto) e outro do próprio documento (`html`/`body`), invisível a olho nu mas presente. O scroll do documento podia ir além do conteúdo, expondo a cor de fundo embaixo do shell.
 
-**Causa raiz:** O `AppShell` já é a área rolável vertical oficial do admin. As páginas afetadas somavam `padding-bottom` local na raiz, duplicando a folga do layout. No caso de Novo Pedido, a grid ainda esticava a coluna lateral curta até a altura da coluna principal, amplificando a percepção visual do branco sobrando.
+**Causa raiz (definitiva):** A página HTML raiz (`html`, `body`, `#root`) não tinha `overflow: hidden` nem altura fixa. Mesmo com `AppShell` em `h-dvh` e `<main>` como única área rolável projetada, o documento global continuava rolável por fora do shell — e qualquer pequena diferença de altura (barra de ferramentas dinâmica do mobile, fontes, paddings) gerava esse "ghost scroll" do navegador.
 
-**Solução:**
-1. Remover `padding-bottom` artificial da raiz da página quando não houver necessidade real.
-2. Quando existir barra fixa local, manter apenas a compensação estritamente necessária no container coberto por ela.
-3. Em grids com cards laterais resumidos, aplicar altura intrínseca (`self-start`) nas colunas curtas para evitar stretch visual desnecessário.
+Causas secundárias (já corrigidas anteriormente, mas não eram suficientes sozinhas):
+- Padding inferior duplicado na raiz das páginas.
+- Stretch da coluna lateral curta em grids 2 colunas.
+- Mistura de unidades: `AppShell` em `h-dvh` enquanto `AppSidebar` ainda em `h-screen`.
 
-**Onde ocorreu:** `OrderNew.tsx`, `Products.tsx` e `ProductForm.tsx` (maio/2026).
+**Solução definitiva:** No `AppShell`, via `useEffect` no mount, travar `overflow: hidden` e `height: 100dvh` em `html`, `body` e `#root`, restaurando os valores originais no unmount. Isso elimina o scroll do documento e deixa o `<main>` do shell como única região rolável vertical do admin.
 
-**Regra derivada:** Dentro do admin, o scroll vertical deve ter fonte única no `AppShell`. Padding inferior de página e compensação de footer fixo nunca podem ser duplicados.
+```tsx
+useEffect(() => {
+  const html = document.documentElement;
+  const body = document.body;
+  const root = document.getElementById('root');
+  const prev = { /* salvar overflow/height anteriores */ };
+  html.style.overflow = 'hidden'; html.style.height = '100dvh';
+  body.style.overflow = 'hidden'; body.style.height = '100dvh';
+  if (root) { root.style.overflow = 'hidden'; root.style.height = '100dvh'; }
+  return () => { /* restaurar prev */ };
+}, []);
+```
+
+**Por que `useEffect` em vez de CSS global?** O lock vale só dentro do admin. Storefront público, checkout, /auth e builders precisam manter scroll do documento. Aplicar via mount/unmount do `AppShell` garante isolamento por rota.
+
+**Efeitos colaterais avaliados (sem regressão):**
+- Radix Dialog/Sheet/Drawer: já travam `body.overflow` ao abrir e restauram ao fechar — o lock do shell apenas duplica o efeito, sem conflito.
+- Storefront, checkout, /auth, builders: fora do `AppShell`, não são afetados.
+- iOS Safari: `100dvh` lida com a barra dinâmica corretamente.
+- Cleanup: salva valores anteriores e restaura no unmount, então sair do admin não deixa `body` travado.
+
+**Onde ocorreu:** `AppShell.tsx`, `AppSidebar.tsx`, `OrderNew.tsx`, `Products.tsx`, `ProductForm.tsx` (maio/2026).
+
+**Regra derivada (anti-regressão):**
+1. Em rotas administrativas, o documento global (`html`/`body`/`#root`) **deve** ficar com `overflow: hidden` e altura fixa em `100dvh`, gerenciado pelo `AppShell`.
+2. O `<main>` do `AppShell` é a **única** área rolável vertical do admin.
+3. Páginas admin nunca devem aplicar `min-h-screen`/`h-screen` na raiz — usam altura intrínseca dentro do main rolável.
+4. `AppShell` e `AppSidebar` devem usar a mesma régua de altura (`h-dvh` + `min-h-0`); misturar `h-screen` legado em qualquer um dos dois reabre o problema.
+5. Padding inferior de página e compensação de footer fixo nunca podem ser duplicados.
+
+**Padrão de diagnóstico para sintomas semelhantes:** Se aparecer "espaço em branco no fim" em qualquer tela com layout aparentemente correto, antes de mexer em padding/grid, abrir DevTools e checar se `document.documentElement.scrollHeight > window.innerHeight` — se sim, o problema é scroll do documento, não do componente.
 
 ---
 

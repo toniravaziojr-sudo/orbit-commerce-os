@@ -1,16 +1,19 @@
 ---
 name: Admin Scroll Single Source Layout
-description: Em telas do admin dentro do AppShell, o scroll vertical deve vir só do shell; evitar padding inferior duplicado e colunas esticadas que criam branco artificial.
+description: Em rotas admin, AppShell trava overflow do html/body/#root via useEffect; <main> do shell é a única área rolável. Mexer em padding/grid antes disso é perda de tempo.
 type: constraint
 ---
 
-Em telas administrativas renderizadas dentro do AppShell, a área rolável vertical única é o `main` do shell.
+Em rotas administrativas (dentro do `AppShell`), o scroll vertical é único e fica no `<main>` do shell. O documento global (`html`, `body`, `#root`) é travado em `overflow: hidden` + `height: 100dvh` por um `useEffect` no mount do `AppShell`, com restauração no unmount.
 
 Regras obrigatórias:
-- Não adicionar padding-bottom extra na raiz da página só para “respiro”.
-- Se houver barra de ação fixa local, a compensação inferior deve existir apenas no container coberto por ela.
-- Em grids com sidebar/resumo, usar altura intrínseca (`self-start`) nas colunas curtas quando o stretch da grid gerar sensação de espaço branco falso no fim da rolagem.
-- A cadeia estrutural `AppShell → coluna principal → main` e a `AppSidebar` devem compartilhar viewport dinâmico (`h-dvh`) e `min-h-0`; misturar `h-screen` legado na sidebar com shell dinâmico volta a inflar o scroll do sistema.
-- Em rotas administrativas, o documento global (`html`, `body`, `#root`) deve ficar com `overflow: hidden`; se o browser/documento voltar a rolar por fora do shell, reaparece a faixa branca no fim mesmo com o layout interno correto.
+- Não remover o `useEffect` de lock global no `AppShell.tsx` — sem ele a faixa branca no fim das telas (Novo Pedido, Produtos, etc.) volta.
+- `AppShell` e `AppSidebar` compartilham régua de altura: ambos `h-dvh` + `min-h-0`. Não misturar `h-screen` legado.
+- Páginas admin não usam `min-h-screen`/`h-screen` na raiz.
+- Não duplicar `padding-bottom` na raiz da página + compensação de footer fixo.
+- Em grids com coluna lateral curta, usar `self-start` para evitar stretch que amplifica o falso branco.
+- Lock do shell não conflita com Radix Dialog/Sheet (que também trava body) — o cleanup do shell preserva ordem.
 
-Why: em 2026-05-02 as telas de Novo Pedido e Produtos passaram a criar scroll excedente por três causas combinadas: padding inferior local, stretch da coluna lateral do grid e desencontro estrutural entre `AppShell` em `h-dvh` e `AppSidebar` ainda em `h-screen`, o que ampliava artificialmente o documento global.
+Diagnóstico para sintomas semelhantes ("espaço em branco no fim" em qualquer tela admin): antes de mexer em padding/grid, conferir no DevTools se `document.documentElement.scrollHeight > window.innerHeight`. Se sim, é scroll do documento (lock global), não do componente.
+
+Why: em 2026-05-02 as telas Novo Pedido e Produtos exibiam faixa branca no fim mesmo após corrigir padding, stretch de grid e unificar `h-dvh` em shell+sidebar. A causa raiz era o documento global continuar rolável por fora do shell. Só travar `html`/`body`/`#root` com `overflow:hidden` + `100dvh` no mount do `AppShell` resolveu definitivamente.
