@@ -25,7 +25,7 @@ O módulo de Pedidos gerencia todo o ciclo de vida de uma venda, desde a criaç�
 |---------|------------------|
 | `src/pages/Orders.tsx` | Lista de pedidos com filtros, estatísticas e paginação |
 | `src/pages/OrderDetail.tsx` | Detalhes do pedido, itens, histórico, notas, rastreio |
-| `src/pages/OrderNew.tsx` | Criação manual de pedidos |
+| `src/pages/OrderNew.tsx` | Criação manual de pedidos. Depende do scroll global único do `AppShell`; não deve criar segundo scroll estrutural nem compensação extra de altura no contêiner raiz |
 
 ### 2.2 Componentes
 

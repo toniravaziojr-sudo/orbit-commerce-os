@@ -10,5 +10,6 @@ Regras obrigatórias:
 - Não adicionar padding-bottom extra na raiz da página só para “respiro”.
 - Se houver barra de ação fixa local, a compensação inferior deve existir apenas no container coberto por ela.
 - Em grids com sidebar/resumo, usar altura intrínseca (`self-start`) nas colunas curtas quando o stretch da grid gerar sensação de espaço branco falso no fim da rolagem.
+- A cadeia estrutural `AppShell → coluna principal → main` e a `AppSidebar` devem compartilhar viewport dinâmico (`h-dvh`) e `min-h-0`; misturar `h-screen` legado na sidebar com shell dinâmico volta a inflar o scroll do sistema.
 
-Why: em 2026-05-02 as telas de Novo Pedido e Produtos passaram a criar scroll excedente por somar padding inferior local ao scroll do AppShell, e no Pedido o stretch da coluna lateral agravava a percepção do bug.
+Why: em 2026-05-02 as telas de Novo Pedido e Produtos passaram a criar scroll excedente por três causas combinadas: padding inferior local, stretch da coluna lateral do grid e desencontro estrutural entre `AppShell` em `h-dvh` e `AppSidebar` ainda em `h-screen`, o que ampliava artificialmente o documento global.
