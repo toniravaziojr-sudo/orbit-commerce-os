@@ -1114,7 +1114,123 @@ async function executeSalesTool(
           }
         }
 
+        // ============================================================
+        // [Onda 18 — Fase A] PROBE v2 — FAMÍLIA-BASE FIRST
+        // Roda APENAS atrás da flag arch18_catalog_base_forced.
+        // Garante que produtos-base relevantes da família detectada
+        // venham antes de kits/packs, e EXCLUI kits de quantidade da
+        // vitrine inicial. Não toca no caminho legado quando flag=OFF.
+        // ============================================================
+        const arch18On = !!ctx.arch18CatalogBaseForced;
+        const traceTurnId = ctx.turnId || `${ctx.conversationId}-${Date.now()}`;
+        const writeTrace = async (stage: string, payload: Record<string, unknown>) => {
+          if (!arch18On) return;
+          try {
+            await supabase.from("ai_turn_traces").insert({
+              tenant_id: ctx.tenantId,
+              conversation_id: ctx.conversationId,
+              turn_id: traceTurnId,
+              stage,
+              payload,
+            });
+          } catch (e) {
+            console.warn(`[ai-support-chat][trace] falha ao gravar stage=${stage}:`, (e as Error).message);
+          }
+        };
+
+        if (arch18On) {
+          // Trace 1 — input do turno + família detectada por regex no input
+          const familyDetected = detectFamilyInText(lastUserMessageContentForTools);
+          await writeTrace("turn_input", {
+            user_text: String(lastUserMessageContentForTools || "").slice(0, 500),
+            family_detected: familyDetected,
+          });
+          // Trace 2 — args recebidos pela tool
+          await writeTrace("search_products_input", {
+            query, pain_hint: painHintRaw, include_kits: includeKits, limit: requestedLimit,
+            family_focus: familyFocusActive, family_mentioned_now: familyMentionedNow,
+          });
+          // Trace 3 — candidate set bruto
+          await writeTrace("candidate_set_raw", {
+            count: pool.length,
+            ids: pool.map(p => ({ id: p.id, name: p.name })).slice(0, 30),
+          });
+
+          // Resolver kitComponentMap só pros itens enriquecidos marcados como kit.
+          const kitIds = enriched.filter(p => p.is_kit).map(p => p.id);
+          const kitComponentMap = new Map<string, string[]>();
+          if (kitIds.length) {
+            try {
+              const { data: compRows } = await supabase
+                .from("product_components")
+                .select("parent_product_id, component_product_id")
+                .in("parent_product_id", kitIds);
+              for (const r of (compRows ?? []) as any[]) {
+                const arr = kitComponentMap.get(r.parent_product_id) || [];
+                arr.push(r.component_product_id);
+                kitComponentMap.set(r.parent_product_id, arr);
+              }
+            } catch (e) {
+              console.warn(`[ai-support-chat][probe v2] resolve kit components falhou:`, (e as Error).message);
+            }
+          }
+
+          const v2 = enforceFamilyBaseFirst({
+            enriched: filtered as any,
+            familyDetected,
+            kitComponentMap,
+            limit: requestedLimit,
+          });
+
+          // Trace 4 — partição enriquecida
+          await writeTrace("enriched_partition", {
+            family_detected: familyDetected,
+            bases_pain_count: v2.bases_pain_count,
+            bases_outras_count: v2.bases_outras_count,
+            kits_complementary_count: v2.kits_complementary_count,
+            kits_quantity_excluded_count: v2.kits_quantity_excluded_count,
+          });
+
+          // base_has_free_shipping (decisão #4 do usuário): só vai pro trace,
+          // NÃO altera response da tool nem family_shipping_summary.
+          const baseHasFreeShipping = (v2.filtered as any[])
+            .filter(p => !p.is_kit)
+            .some(p => p.free_shipping === true);
+
+          // Trace 5 — decisão do Probe v2
+          await writeTrace("probe_v2_decision", {
+            forced_base: v2.forced_base,
+            reason: v2.reason,
+            base_has_free_shipping: baseHasFreeShipping,
+            output_count: v2.filtered.length,
+          });
+
+          if (v2.forced_base) {
+            filtered = v2.filtered as typeof enriched;
+            console.log(
+              `[ai-support-chat][search_products] [Onda18-A] base_first ` +
+              `family=${familyDetected} bases=${v2.bases_pain_count}+${v2.bases_outras_count} ` +
+              `kits_compl=${v2.kits_complementary_count} kits_qty_excl=${v2.kits_quantity_excluded_count} ` +
+              `reason=${v2.reason}`
+            );
+          } else {
+            console.log(
+              `[ai-support-chat][search_products] [Onda18-A] keep_original reason=${v2.reason}`
+            );
+          }
+        }
+
         const finalList = partitionAndLimit(filtered);
+
+        // Trace 6 — ranking final (após partitionAndLimit)
+        if (arch18On) {
+          await writeTrace("final_ranking", {
+            count: finalList.length,
+            items: (finalList as any[]).map(p => ({
+              id: p.id, name: p.name, is_kit: !!p.is_kit, match_reason: p.match_reason,
+            })),
+          });
+        }
 
         // [F2-FS-CROSS] Sumário cruzado de FRETE GRÁTIS — escopo: MESMA LINHA.
         // "Mesma linha" = mesmo produto-base resolvido via product_components,
