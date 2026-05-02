@@ -1879,8 +1879,23 @@ async function executeSalesTool(
               .maybeSingle();
 
             const presented = (salesState?.presented_product_ids as string[] | null) || [];
+
+            // [Reg #10] Estende Reg #2.15: além de "presented_count==1", também
+            // dispara quando há foco de produto persistido (mesmo com vários
+            // apresentados, o cliente já filtrou a conversa para 1 SKU).
+            const focusFromMeta = ctx.productFocus?.product_id || null;
+
+            let candidateId: string | null = null;
+            let pickReason = "none";
             if (presented.length === 1) {
-              const candidateId = presented[0];
+              candidateId = presented[0];
+              pickReason = "single_presented_product";
+            } else if (focusFromMeta && (presented.length === 0 || presented.includes(focusFromMeta))) {
+              candidateId = focusFromMeta;
+              pickReason = "product_focus";
+            }
+
+            if (candidateId) {
               const { data: candidateProduct } = await supabase
                 .from("products")
                 .select("id, name, price, status, has_variants")
@@ -1888,8 +1903,6 @@ async function executeSalesTool(
                 .eq("tenant_id", tenantId)
                 .maybeSingle();
 
-              // Só auto-popula se: produto ativo + SEM variantes mandatórias.
-              // Com variantes, exigir add_to_cart explícito (gate de variante).
               if (
                 candidateProduct &&
                 candidateProduct.status === "active" &&
@@ -1928,11 +1941,10 @@ async function executeSalesTool(
                 }
 
                 console.log(
-                  `[ai-support-chat] [Reg #2.15] auto_add_on_empty_cart product_id=${candidateProduct.id} ` +
-                  `name="${candidateProduct.name}" reason=single_presented_product`
+                  `[ai-support-chat] [Reg #10] auto_add_on_focus product_id=${candidateProduct.id} ` +
+                  `name="${candidateProduct.name}" reason=${pickReason} presented_count=${presented.length}`
                 );
 
-                // Recarrega o cart para o fluxo padrão de geração de link.
                 const { data: refreshed } = await supabase
                   .from("whatsapp_carts")
                   .select("*")
@@ -1943,17 +1955,17 @@ async function executeSalesTool(
                 cart = refreshed ?? null;
               } else {
                 console.log(
-                  `[ai-support-chat] [Reg #2.15] auto_add_skipped reason=${
+                  `[ai-support-chat] [Reg #10] auto_add_skipped reason=${
                     !candidateProduct ? "product_not_found" :
                     candidateProduct.status !== "active" ? "product_inactive" :
                     "has_mandatory_variants"
-                  } product_id=${candidateId}`
+                  } product_id=${candidateId} pick=${pickReason}`
                 );
               }
             } else {
               console.log(
-                `[ai-support-chat] [Reg #2.15] auto_add_skipped reason=presented_count=${presented.length} ` +
-                `(precisa ser exatamente 1)`
+                `[ai-support-chat] [Reg #10] auto_add_skipped reason=no_candidate ` +
+                `presented_count=${presented.length} focus=${focusFromMeta ?? "none"}`
               );
             }
           } catch (e) {
@@ -4540,6 +4552,11 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       { role: "system", content: systemPrompt },
     ];
 
+    // [Reg #10] Tokens proibidos como vocativo (preenchidos no bloco abaixo
+    // se o nome for corporativo/placeholder). Usados pelo scrubber
+    // determinístico stripForbiddenVocative no fim do pipeline.
+    let forbiddenVocativeTokens: string[] = [];
+
     if (conversation.customer_name) {
       // [PIPELINE-FIX 2026-04-29] Uso estratégico do nome:
       // - Só primeiro nome.
@@ -4572,7 +4589,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             `O nome registrado neste contato (${rawName}) parece ser nome de empresa/loja, não de pessoa física. ` +
             `NÃO use vocativo neste atendimento — fale direto, sem chamar pelo nome. Canal: ${channelType}.`,
         });
-        console.log(`[ai-support-chat] [name-policy] suppressing vocative for corporate-like name: "${rawName}"`);
+        // [Reg #10] Captura tokens proibidos para o scrubber determinístico
+        // de vocativo (output-gates.stripForbiddenVocative).
+        const tokensToBlock = new Set<string>();
+        tokensToBlock.add(rawName);
+        if (firstName) tokensToBlock.add(firstName);
+        for (const m of rawName.matchAll(/\b(cliente|teste|test|contato|usu[áa]rio|customer|lead|prospect|visitante|desconhecid[oa])\b/gi)) {
+          tokensToBlock.add(m[0]);
+        }
+        forbiddenVocativeTokens = Array.from(tokensToBlock);
+        console.log(`[ai-support-chat] [name-policy] suppressing vocative for corporate-like name: "${rawName}" tokens=${forbiddenVocativeTokens.join(",")}`);
       }
     }
 
@@ -6282,6 +6308,25 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     } catch (e) {
       console.warn("[ai-support-chat] [Reg #2.11] checkout url gate failed:", (e as Error).message);
     }
+
+    // [Reg #10] Vocative scrubber determinístico — remove "Cliente", "Teste",
+    // etc. caso o LLM tenha ignorado a instrução de não usar vocativo.
+    try {
+      if (forbiddenVocativeTokens.length > 0 && aiContent) {
+        const { stripForbiddenVocative } = await import("../_shared/sales-pipeline/output-gates.ts");
+        const vg = stripForbiddenVocative({
+          aiResponse: aiContent,
+          forbiddenTokens: forbiddenVocativeTokens,
+        });
+        if (vg.scrubbed) {
+          console.log(`[ai-support-chat] [Reg #10] vocative_stripped tokens=${vg.removedTokens.join("|")} reason=${vg.reason}`);
+          aiContent = vg.after;
+        }
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #10] vocative scrubber failed:", (e as Error).message);
+    }
+
     // [Frente 3 — Reg #2.16] Enforce Close On Confirmed Intent.
     // Se o cliente confirmou fechamento (TPR) e a IA voltou com pergunta
     // confirmatória sem chamar generate_checkout_link, marcamos como
