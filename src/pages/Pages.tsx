@@ -597,6 +597,26 @@ export default function Pages() {
                     <p className="text-xs text-muted-foreground">{formData.seo_description.length}/160 caracteres</p>
                   </div>
                 </div>
+
+                <div className="border-t pt-4 space-y-2">
+                  <Label className="text-sm font-medium">Usar esta página como fonte da IA?</Label>
+                  <p className="text-xs text-muted-foreground">
+                    A IA de atendimento usará o conteúdo desta página como fonte oficial de FAQ ou de Políticas (frete, troca, privacidade, etc.).
+                  </p>
+                  <div className="flex gap-2 pt-1">
+                    {(['none', 'faq', 'policy'] as const).map((opt) => (
+                      <Button
+                        key={opt}
+                        type="button"
+                        size="sm"
+                        variant={formData.ai_role === opt ? 'default' : 'outline'}
+                        onClick={() => setFormData({ ...formData, ai_role: opt })}
+                      >
+                        {opt === 'none' ? 'Nenhum' : opt === 'faq' ? 'FAQ' : 'Política'}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
             {!editingPage && (
