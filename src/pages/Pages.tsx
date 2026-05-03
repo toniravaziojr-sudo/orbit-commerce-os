@@ -86,6 +86,7 @@ export default function Pages() {
   const [essentialBusinessContext, setEssentialBusinessContext] = useState('');
   const [formData, setFormData] = useState({
     title: '', slug: '', seo_title: '', seo_description: '',
+    ai_role: 'none' as 'none' | 'faq' | 'policy',
   });
 
   // Get tenant's public URL for LPs
