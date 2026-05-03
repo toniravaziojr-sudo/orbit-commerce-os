@@ -3140,7 +3140,18 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // [Reg #2.13] Helper de freshness check + reopen + dispatch processor.
+    // [Reg #2.13 Fase C — pre_send/claim_lost split]
+    // Diferencia 2 razões de "stale":
+    //   - new_messages   → cliente mandou novo input que o snapshot da resposta
+    //                      não considera. SEMPRE abortar e reabrir o turno.
+    //   - claim_lost     → outro worker reclama o turno mas o conteúdo do
+    //                      snapshot continua o mesmo. Em pre_tool: abortar
+    //                      (side-effect). Em pre_send: a idempotência
+    //                      (índice único `messages_unique_bot_per_logical_turn`
+    //                      + complete_turn checa claim_token) garante que
+    //                      apenas uma bot message é persistida e enviada.
+    //                      Não matar a resposta — deixa o INSERT ser árbitro.
+    //   - buffer_missing → turno já fechado/abortado: parar sem reabrir.
     async function freshnessGate(stage: "pre_tool" | "pre_send", toolName?: string): Promise<boolean> {
       if (!isOrchestratorCall) return true;
       const { data: fr, error: frErr } = await supabase.rpc("check_turn_freshness", {
@@ -3153,7 +3164,25 @@ Deno.serve(async (req) => {
         return true;
       }
       if ((fr as any)?.fresh) return true;
-      console.log(`[ai-support-chat] [TURN-ORCH][${stage}] STALE reason=${(fr as any)?.reason} tool=${toolName ?? "n/a"} → reopen+dispatch`);
+
+      const reason = (fr as any)?.reason as string | undefined;
+      console.log(`[ai-support-chat] [TURN-ORCH][${stage}] STALE reason=${reason} tool=${toolName ?? "n/a"}`);
+
+      // pre_send + claim_lost puro → NÃO abortar. A idempotência por logical_turn_id
+      // garante exatamente 1 envio. Se outro worker já enviou, o INSERT cai em 23505
+      // e o handler trata (retorna duplicate_bot_already_sent / in_flight).
+      if (stage === "pre_send" && reason === "claim_lost") {
+        console.log(`[ai-support-chat] [TURN-ORCH][pre_send] claim_lost sem mudança de snapshot → seguir, idempotência protege`);
+        return true;
+      }
+
+      // buffer_missing → turno já encerrado. Não reabrir.
+      if (reason === "buffer_missing") {
+        console.log(`[ai-support-chat] [TURN-ORCH][${stage}] buffer_missing → abort sem reopen`);
+        return false;
+      }
+
+      // new_messages (ou pre_tool/claim_lost) → reabrir e despachar.
       const { error: rErr } = await supabase.rpc("reopen_turn", {
         p_conversation_id: conversation_id,
         p_logical_turn_id: orchestratorCtx.logical_turn_id,
@@ -3638,7 +3667,40 @@ Deno.serve(async (req) => {
         : null,
     );
 
-    if (mediaGate.had_pending && !mediaGate.all_ready) {
+    // [Reg #2.13 Fase C — media_wait_reply guard]
+    // media_wait_reply só pode rodar quando a mídia é o conteúdo principal
+    // do turno. Se o turno tem texto comercial declarado (dor/produto/pergunta)
+    // anterior à imagem, NÃO engolir o turno: seguimos para a IA gerar a
+    // resposta comercial e injetamos um aviso de que não conseguimos analisar
+    // a imagem (sem vision tool).
+    let turnHasCommercialText = false;
+    if (isOrchestratorCall) {
+      try {
+        const { data: bufRow0 } = await supabase
+          .from("ai_turn_buffers")
+          .select("snapshot_message_ids, message_ids")
+          .eq("conversation_id", conversation_id)
+          .eq("logical_turn_id", orchestratorCtx.logical_turn_id)
+          .maybeSingle();
+        const ids: string[] = (bufRow0?.snapshot_message_ids?.length
+          ? bufRow0.snapshot_message_ids
+          : bufRow0?.message_ids) || [];
+        const turnText = messages
+          .filter(m => m.sender_type === "customer" && !m.is_internal && !m.is_note)
+          .filter(m => (ids.length ? ids.includes(m.id) : true))
+          .map(m => (m.content_type === "text" ? (m.content || "") : "").trim())
+          .filter(Boolean)
+          .join(" \n ");
+        const COMMERCIAL_LEX_MEDIA = /\b(entrada|entradas|coroa|falha|falhas|calv[ií]cie|queda|cabelo|shampoo|loc[aã]o|balm|kit|produto|tratamento|serve|recomend|funciona|preço|preco|valor|comprar|barba|perfume|sab[oô]nete|condicionador|t[ôo]nico|creme|bom|melhor)\b/i;
+        const QUESTIONISH_MEDIA = /[?]|\b(qual|como|quanto|onde|quando|tem|h[áa]|posso|quero|preciso|me\s+(ajud|fal|d[iê]z))/i;
+        turnHasCommercialText = COMMERCIAL_LEX_MEDIA.test(turnText) && QUESTIONISH_MEDIA.test(turnText);
+        if (turnHasCommercialText) {
+          console.log(`[ai-support-chat] [D7][media-guard] turno tem texto comercial — não engolir com media_wait_reply (turnText="${turnText.slice(0,80)}")`);
+        }
+      } catch { /* noop */ }
+    }
+
+    if (mediaGate.had_pending && !mediaGate.all_ready && !turnHasCommercialText) {
       // Timeout: envia (no máx 1x) a resposta de espera e encerra esta execução.
       if (mediaGate.wait_reply && !mediaGate.wait_already_sent) {
         const orchMeta: Record<string, unknown> = isOrchestratorCall
@@ -3685,6 +3747,12 @@ Deno.serve(async (req) => {
     if (mediaGate.had_pending && mediaGate.all_ready && mediaGate.context_block) {
       lastMessageContent = `${lastMessageContent}\n\n${mediaGate.context_block}`.trim();
       console.log(`[ai-support-chat] [D7] media context injected (${mediaGate.attachment_ids.length} attachments)`);
+    } else if (mediaGate.had_pending && !mediaGate.all_ready && turnHasCommercialText) {
+      // [Reg #2.13 Fase C] Texto comercial + mídia sem vision/processamento:
+      // injeta nota para a IA dizer que não consegue analisar a imagem mas
+      // responde à pergunta textual. NÃO descarta resposta comercial.
+      lastMessageContent = `${lastMessageContent}\n\n[Sistema] O cliente enviou uma imagem mas não temos análise visual disponível neste momento. Responda normalmente à pergunta textual e mencione brevemente que não conseguiu avaliar a imagem em detalhes por aqui.`.trim();
+      console.log(`[ai-support-chat] [D7][media-guard] mídia pendente + texto comercial → seguir com nota de limitação visual`);
     }
 
     // ============================================

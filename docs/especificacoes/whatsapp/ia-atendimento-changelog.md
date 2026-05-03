@@ -63,6 +63,41 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #24 — Fase C: pre_send freshness split + media_wait_reply guard + processor 90s — 03/mai/2026
+
+**Contexto.** Teste real de rajada no WhatsApp do Respeite o Homem (conversa `ab3d720d`, buffer `94f870a3`, 5 mensagens textuais comerciais "oi" → "tenho falhas na coroa" → "esse shampoo serve" → "ou tem algum bom" → "?" + uma imagem subsequente). A IA não respondeu nenhuma mensagem comercial. O cliente recebeu apenas o "Recebi sua mídia, só um instante…" da imagem.
+
+**Diagnóstico.**
+1. **Turn Orchestrator funcionou** — agregou as 5 mensagens em um único `logical_turn_id`. Consolidação OK. GPT-5 gerou a resposta comercial correta sobre entradas/coroa/shampoo.
+2. **`pre_send` matou a resposta** — cada nova mensagem do cliente rotacionou o `claim_token` no banco. Quando o processor chegou ao `pre_send`, `check_turn_freshness` retornou `claim_lost`, e o gate tratava qualquer "stale" como motivo para abortar + reopen + dispatch. A resposta comercial gerada nunca foi persistida.
+3. **`media_wait_reply` engoliu o turno** — quando a imagem chegou, a função entrou no ramo de mídia pendente sem vision (Reg #15) e enviou apenas "Recebi sua mídia, só um instante…", descartando todo o contexto comercial textual anterior do mesmo turno consolidado.
+4. **Timeout de 55s** — adequado em condições normais, mas estava mascarando os dois bugs anteriores ao reprocessar.
+
+**Correção aplicada.**
+- **Pre_send split (`ai-support-chat/index.ts`):** `freshnessGate("pre_send")` agora distingue 3 razões.
+  - `new_messages` → abortar + reopen + dispatch (resposta velha de fato).
+  - `claim_lost` puro (snapshot inalterado) → **seguir**. A idempotência (índice único `messages_unique_bot_per_logical_turn` + `complete_turn` checa claim_token + handler de 23505) garante exatamente 1 envio. Não há risco de duplicidade.
+  - `buffer_missing` → abort sem reopen.
+  - `pre_tool` continua abortando em qualquer "stale" (side-effect tool não pode ser duplicado).
+- **Media guard (`ai-support-chat/index.ts`):** `turnHasCommercialText` lê `snapshot_message_ids` do buffer e verifica léxico comercial + token de pergunta. Se há texto comercial no turno e mídia pendente sem vision: NÃO dispara `media_wait_reply`; injeta nota `[Sistema] O cliente enviou uma imagem mas não temos análise visual disponível...` no `lastMessageContent` e segue o pipeline normal. Resposta final é comercial + linha curta de limitação visual.
+- **Processor timeout (`turn-orchestrator-processor/index.ts`):** `AI_INVOCATION_TIMEOUT_MS` 55s → 90s; `PROCESSOR_HARD_TIMEOUT_MS` 65s → 100s. Liberado SOMENTE após os dois fixes acima — não é muleta para loop lógico.
+- **Buffer afetado:** `94f870a3` marcado com `metadata.audit_incident='phaseC_pre_send_media_swallow_2026_05_03'`. Status `processed` (já estava), watchdog não reabre (filtra `open|claimed|send_failed`).
+- **Flag desligada por segurança:** `ai_support_config.metadata.turn_orchestrator_enabled=false` para o tenant Respeite o Homem até nova autorização para teste real.
+
+**Validação técnica executada.**
+- ✅ Deploy `ai-support-chat` e `turn-orchestrator-processor` concluído.
+- ✅ Flag confirmada `false` no banco; 0 buffers em `open|claimed|send_failed` no tenant.
+- ✅ Buffer `94f870a3` marcado com audit_incident; status `processed`.
+- ⚠️ Testes A/B/C/D/E em sandbox dry_run dependem de execução do usuário (a função tem guard rail interno que bloqueia envio real fora do allowlist; sandbox sintético via curl autenticado é o caminho).
+- ⚠️ Teste real só após autorização explícita do usuário para religar a flag.
+
+**Anti-regressão:**
+- Memória nova: `mem://constraints/turn-orchestrator-pre-send-and-media-guard`.
+- Memória existente respeitada: `mem://constraints/media-inbound-must-have-deterministic-reply` (Reg #15) — `gateMediaInbound` continua substituindo "estou analisando" por pedido de descrição em texto quando `hasVisionTool=false`.
+- Memória existente respeitada: `mem://constraints/turn-orchestrator-early-return-contract` (Reg #2.13 Fase C) — early-returns continuam fechando buffer via `finalizeOrchestratedTurn`.
+
+---
+
 ## Registro #22 — Onda 18 Fase B.3: auditoria de catálogo + paridade de canal sandbox — 02/mai/2026
 
 **Contexto.** Saneamento pós-B.2 antes de avançar para Fase C. Duas pendências: (1) confirmar se a Fase A está retornando todas as bases relevantes da família "loção" no Respeite o Homem; (2) o sandbox de testes rodava sempre como `channel_type='chat'`, sem opção de simular `whatsapp`.
