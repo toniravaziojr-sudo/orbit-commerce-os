@@ -23,6 +23,23 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import type { AIRule } from "@/hooks/useAiSupportConfig";
 export type { AIRule };
@@ -83,6 +100,78 @@ const DEFAULT_RULES: AIRule[] = [
     category: 'reclamacao',
   },
 ];
+
+interface SortableRuleRowProps {
+  rule: AIRule;
+  onToggle: (id: string, is_active: boolean) => void;
+  onEdit: (rule: AIRule) => void;
+  onDelete: (id: string) => void;
+}
+
+function SortableRuleRow({ rule, onToggle, onEdit, onDelete }: SortableRuleRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: rule.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-start gap-3 p-3 border rounded-lg group hover:bg-muted/50 bg-background"
+    >
+      <button
+        type="button"
+        className="touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+        {...attributes}
+        {...listeners}
+        aria-label="Arrastar para reordenar"
+      >
+        <GripVertical className="h-4 w-4 mt-1" />
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-medium text-sm">Quando: {rule.condition}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Badge
+            variant={
+              rule.action === "transfer"
+                ? "destructive"
+                : rule.action === "respond"
+                ? "default"
+                : "secondary"
+            }
+          >
+            {ACTION_TYPES.find((a) => a.value === rule.action)?.label}
+          </Badge>
+          {rule.response && (
+            <span className="truncate max-w-[200px]">→ "{rule.response}"</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Switch
+          checked={rule.is_active}
+          onCheckedChange={(checked) => onToggle(rule.id, checked)}
+        />
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(rule)}>
+          <Edit className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => onDelete(rule.id)}
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function AIRulesEditor({ rules, onChange }: AIRulesEditorProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -158,6 +247,32 @@ export function AIRulesEditor({ rules, onChange }: AIRulesEditorProps) {
     ));
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (categoryValue: string) => (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const inCategory = displayRules
+      .filter(r => r.category === categoryValue)
+      .sort((a, b) => a.priority - b.priority);
+
+    const oldIndex = inCategory.findIndex(r => r.id === active.id);
+    const newIndex = inCategory.findIndex(r => r.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(inCategory, oldIndex, newIndex);
+    const priorityMap = new Map<string, number>();
+    reordered.forEach((r, idx) => priorityMap.set(r.id, idx + 1));
+
+    onChange(displayRules.map(r =>
+      priorityMap.has(r.id) ? { ...r, priority: priorityMap.get(r.id)! } : r
+    ));
+  };
+
   // Group rules by category
   const groupedRules = displayRules.reduce((acc, rule) => {
     if (!acc[rule.category]) acc[rule.category] = [];
@@ -207,55 +322,28 @@ export function AIRulesEditor({ rules, onChange }: AIRulesEditorProps) {
                         Nenhuma regra nesta categoria
                       </p>
                     ) : (
-                      <div className="space-y-2">
-                        {categoryRules.sort((a, b) => a.priority - b.priority).map(rule => (
-                          <div 
-                            key={rule.id}
-                            className="flex items-start gap-3 p-3 border rounded-lg group hover:bg-muted/50"
-                          >
-                            <GripVertical className="h-4 w-4 mt-1 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-grab" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm">
-                                  Quando: {rule.condition}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Badge variant={rule.action === 'transfer' ? 'destructive' : rule.action === 'respond' ? 'default' : 'secondary'}>
-                                  {ACTION_TYPES.find(a => a.value === rule.action)?.label}
-                                </Badge>
-                                {rule.response && (
-                                  <span className="truncate max-w-[200px]">
-                                    → "{rule.response}"
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Switch
-                                checked={rule.is_active}
-                                onCheckedChange={(checked) => handleToggle(rule.id, checked)}
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd(category.value)}
+                      >
+                        <SortableContext
+                          items={categoryRules.sort((a, b) => a.priority - b.priority).map(r => r.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div className="space-y-2">
+                            {categoryRules.sort((a, b) => a.priority - b.priority).map(rule => (
+                              <SortableRuleRow
+                                key={rule.id}
+                                rule={rule}
+                                onToggle={handleToggle}
+                                onEdit={handleOpenEdit}
+                                onDelete={handleDelete}
                               />
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleOpenEdit(rule)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleDelete(rule.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </SortableContext>
+                      </DndContext>
                     )}
                   </AccordionContent>
                 </AccordionItem>

@@ -27,6 +27,7 @@ import { AIIntentObjectionEditor } from "./AIIntentObjectionEditor";
 import { AIBusinessContextSection } from "./AIBusinessContextSection";
 import { AIContextChecklistCard } from "./AIContextChecklistCard";
 import { AIPageRoleSummary } from "./AIPageRoleSummary";
+import { AICatalogSourcesSummary } from "./AICatalogSourcesSummary";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -235,63 +236,15 @@ export function AIConfigPanel() {
             <AIPageRoleSummary />
           </div>
 
-          {/* Fontes automáticas (Produtos / Categorias) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Fontes automáticas de catálogo</CardTitle>
-              <CardDescription>
-                A IA aprende automaticamente sobre produtos e categorias da sua loja.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label>Produtos</Label>
-                    <p className="text-xs text-muted-foreground">Catálogo, preços, descrições</p>
-                  </div>
-                  <Switch
-                    checked={getValue("auto_import_products") ?? true}
-                    onCheckedChange={(checked) => updateField("auto_import_products", checked)}
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label>Categorias</Label>
-                    <p className="text-xs text-muted-foreground">Organização do catálogo</p>
-                  </div>
-                  <Switch
-                    checked={getValue("auto_import_categories") ?? true}
-                    onCheckedChange={(checked) => updateField("auto_import_categories", checked)}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Fontes automáticas (Produtos / Categorias) — informativo */}
+          <AICatalogSourcesSummary />
         </TabsContent>
 
         {/* ========== ATENDIMENTO ========== */}
         <TabsContent value="atendimento" className="space-y-4 mt-4">
-          {/* Regras gerais de atendimento — fonte única (movido de Conhecimento Essencial) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Regras gerais de atendimento</CardTitle>
-              <CardDescription>
-                Como a IA deve conduzir a conversa, quando perguntar, quando escalar para humano, regras comerciais.
-                Para regras condicionais (Quando X → faça Y), use o bloco abaixo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div id="bloco-regras" className="scroll-mt-24">
-                <Textarea
-                  placeholder="Ex.: Atender de forma cordial e consultiva. Sempre perguntar o objetivo do cliente antes de recomendar. Nunca prometer prazo de resultado. Em reclamações, escalar para humano se não houver solução imediata."
-                  value={getValue("attendance_rules") || ""}
-                  onChange={(e) => updateField("attendance_rules", e.target.value)}
-                  rows={6}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          {/* Regras gerais de atendimento agora ficam exclusivamente no card
+             "Regras condicionais" abaixo (drag-and-drop). Removido card de
+             texto livre duplicado para evitar duas fontes da mesma informação. */}
 
           {/* Identidade + Linguagem agrupados */}
           <Card>
@@ -335,7 +288,7 @@ export function AIConfigPanel() {
             <CardHeader>
               <CardTitle className="text-lg">Regras condicionais (Quando X → faça Y)</CardTitle>
               <CardDescription>
-                Para regras gerais em texto livre, use a aba Conhecimento Essencial.
+                Defina como a IA deve reagir em situações específicas. Arraste pelo ícone à esquerda para reordenar a prioridade dentro de cada categoria.
               </CardDescription>
             </CardHeader>
             <CardContent>
