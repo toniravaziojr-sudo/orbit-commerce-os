@@ -137,7 +137,125 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`[meta-whatsapp-send][${traceId}] Tenant: ${tenant_id}, Phone: ${phone}, message_id: ${message_id ?? "—"}`);
+    // ============================================================
+    // [SANDBOX GUARD RAIL — Reg #2.13 Fase C]
+    // Bloqueia envio real se origem for sandbox/teste/dry_run.
+    // Avalia ANTES de qualquer formatação de telefone.
+    // ============================================================
+    const allowRealSendHeader = (req.headers.get("x-allow-real-send") || "").toLowerCase() === "true";
+    const recipientOverride = (params.recipient_override || "").trim();
+    const allowlistRaw = Deno.env.get("TEST_WHATSAPP_RECIPIENT_ALLOWLIST") || "";
+    const allowlist = allowlistRaw.split(",").map((s) => s.replace(/\D/g, "")).filter(Boolean);
+
+    let convoMeta: Record<string, any> = {};
+    let msgMeta: Record<string, any> = {};
+    if (message_id) {
+      const { data: msgRow0 } = await supabase
+        .from("messages")
+        .select("metadata, conversation_id")
+        .eq("id", message_id)
+        .maybeSingle();
+      msgMeta = (msgRow0?.metadata as any) || {};
+      if (msgRow0?.conversation_id) {
+        const { data: convRow } = await supabase
+          .from("conversations")
+          .select("metadata")
+          .eq("id", msgRow0.conversation_id)
+          .maybeSingle();
+        convoMeta = (convRow?.metadata as any) || {};
+      }
+    }
+
+    const isSandboxConv = convoMeta.is_sandbox === true || msgMeta.is_sandbox === true;
+    const dryFlag = params.dry_send === true || msgMeta.dry_send === true || convoMeta.dry_send === true;
+    const realSendMeta = msgMeta.real_send === true || convoMeta.real_send === true;
+    const sandboxPattern = /^(sandbox|test|fake|mock)|sandbox_burst|_test_|fake_/i;
+    const phoneLooksFake = sandboxPattern.test(String(phone || ""));
+
+    const isSandboxOrigin = isSandboxConv || dryFlag || phoneLooksFake;
+
+    if (isSandboxOrigin) {
+      // Tenta liberar somente se TODOS os requisitos forem satisfeitos
+      const overrideDigits = recipientOverride.replace(/\D/g, "");
+      const allowed =
+        allowRealSendHeader &&
+        recipientOverride.length > 0 &&
+        allowlist.length > 0 &&
+        allowlist.includes(overrideDigits) &&
+        realSendMeta === true &&
+        dryFlag === false;
+
+      if (!allowed) {
+        // DRY-RUN — não chama Meta
+        const reason = !allowRealSendHeader
+          ? "missing_x_allow_real_send"
+          : !recipientOverride
+          ? "missing_recipient_override"
+          : allowlist.length === 0
+          ? "empty_allowlist"
+          : !allowlist.includes(overrideDigits)
+          ? "recipient_not_in_allowlist"
+          : !realSendMeta
+          ? "missing_real_send_metadata"
+          : dryFlag
+          ? "dry_send_active"
+          : "guard_rail";
+        console.warn(`[meta-whatsapp-send][${traceId}] [GUARD-RAIL] sandbox real_send DENIED reason=${reason} phone=${phone}`);
+
+        // Simular falha sem chamar Meta?
+        const forceFailure = params.sandbox_force_send_failure === true || msgMeta.sandbox_force_send_failure === true;
+        if (forceFailure) {
+          if (message_id) {
+            await supabase.from("messages").update({
+              delivery_status: "failed",
+              failure_reason: `sandbox_simulated_send_failure`,
+              metadata: { ...msgMeta, delivery_adapter: "dry_run", real_send: false, dry_send: true, sandbox_force_send_failure: true },
+            }).eq("id", message_id);
+          }
+          return new Response(JSON.stringify({
+            success: false,
+            managed_status: !!message_id,
+            dry_run: true,
+            real_send_allowed: false,
+            simulated_failure: true,
+            error: "sandbox_simulated_send_failure",
+            guard_reason: reason,
+          }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        // DRY-RUN sucesso técnico (NUNCA chamou Meta)
+        if (message_id) {
+          await supabase.from("messages").update({
+            delivery_status: "dry_run",
+            external_message_id: null,
+            failure_reason: null,
+            metadata: { ...msgMeta, delivery_adapter: "dry_run", real_send: false, dry_send: true, sandbox_dry_run_at: new Date().toISOString() },
+          }).eq("id", message_id);
+        }
+        return new Response(JSON.stringify({
+          success: true,
+          managed_status: !!message_id,
+          dry_run: true,
+          real_send_allowed: false,
+          wamid: null,
+          message_id: null,
+          guard_reason: reason,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Liberado — substituir phone pelo override autorizado e prosseguir
+      console.warn(`[meta-whatsapp-send][${traceId}] [GUARD-RAIL] sandbox real_send_allowed=true override=${overrideDigits}`);
+      phone = overrideDigits;
+    }
+
+    if (!tenant_id || !phone) {
+      return new Response(JSON.stringify({ success: false, error: "tenant_id e phone são obrigatórios (post-guard)" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log(`[meta-whatsapp-send][${traceId}] Tenant: ${tenant_id}, Phone: ${phone}, message_id: ${message_id ?? "—"}, sandbox=${isSandboxOrigin}`);
 
     // ===== IDEMPOTENCY LOCK (Reliability v2) =====
     // If message_id is provided, we use a lock baseado no estado persistido em messages.metadata.delivery_lock.
