@@ -58,8 +58,7 @@ export function ProductAIVisionSection({ productId, hasComponents }: Props) {
   const [whenNot, setWhenNot] = useState(payload?.when_not_to_indicate ?? "");
   const [notes, setNotes] = useState(payload?.recommendation_notes ?? "");
 
-  // sync when payload loads
-  useState(() => {
+  useEffect(() => {
     if (payload) {
       setRole(payload.commercial_role);
       setKind(payload.product_kind);
@@ -69,7 +68,7 @@ export function ProductAIVisionSection({ productId, hasComponents }: Props) {
       setWhenNot(payload.when_not_to_indicate ?? "");
       setNotes(payload.recommendation_notes ?? "");
     }
-  });
+  }, [payload]);
 
   const showBasePicker = kind === "pack" || kind === "upgrade" || kind === "replacement";
   const isKit = kind === "kit" || kind === "combo" || kind === "bundle";
