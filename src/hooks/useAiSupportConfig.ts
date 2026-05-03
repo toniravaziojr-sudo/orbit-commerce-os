@@ -46,6 +46,7 @@ export interface AiSupportConfig {
   // Onda 1A — novos campos oficiais (ainda não lidos pelo prompt em runtime)
   business_context: string | null;
   attendance_rules: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
