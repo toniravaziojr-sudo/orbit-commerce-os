@@ -52,7 +52,21 @@ Hook unificado: `src/hooks/useProductAIVision.ts` — leitura/escrita atômica d
 ## Runtime
 **Onda 1B:** sem leitura runtime.
 
-**Onda 1C (entregue, dry_run):** dois módulos `_shared` foram adicionados — `product-ai-vision-reader.ts` e `product-recommendation-context-builder.ts`. São acionados em `ai-support-chat` dentro do handler de `search_products`, **somente quando** `ai_support_config.metadata.arch1c_recommendation_context_builder_enabled=true` e `arch1c_recommendation_context_builder_mode='dry_run'`. Em dry_run o builder roda, grava 1 linha em `ai_turn_traces` (`stage='arch1c_dry_run'`), mas **não altera shape, ranking, payload, family_shipping_summary nem a resposta enviada ao cliente**. Modo `active` não foi ligado em nenhum tenant.
+**Onda 1C (entregue, dry_run):** três módulos `_shared` foram adicionados — `product-ai-vision-reader.ts`, `product-recommendation-context-builder.ts` e `product-ai-vision-explicit-request.ts`. São acionados em `ai-support-chat` dentro do handler de `search_products`, **somente quando** `ai_support_config.metadata.arch1c_recommendation_context_builder_enabled=true` e `arch1c_recommendation_context_builder_mode='dry_run'`. Em dry_run o builder roda, grava 1 linha em `ai_turn_traces` (`stage='arch1c_dry_run'`), mas **não altera shape, ranking, payload, family_shipping_summary nem a resposta enviada ao cliente**. Modo `active` continua **bloqueado** até validação suficiente.
+
+### Hardening da Onda 1C (dry_run)
+
+- **explicit_request (obrigatório antes de active):** detector determinístico em `product-ai-vision-explicit-request.ts`. Marca produto como `explicit_request` quando: SKU literal aparece como token isolado no texto; nome "core" (sem parênteses/sufixos) está contido no texto; nome core + padrão `Nx` (`2x`, `3x`, `6x`, `12x`) batem com a variação específica; ou `kit/combo/completo` + nome do kit. Item marcado é preservado mesmo sendo pack/kit (não cai em `pack_capped`).
+- **pack_orphan_in_pool (gap conhecido):** ocorria quando `search_products` cortava o produto-base pelo `POOL_LIMIT` mas trazia os packs. Era resolvido como `no_classifiable_products`.
+- **base_hydrated_from_pack (defesa em dry_run):** `hydrateMissingPackBases` lê os `base_product_id` referenciados pelos packs do pool, busca esses produtos-base **tenant-scoped** (≤3 hidratações por turno, batched, sem N+1) e os adiciona ao bundle. O builder então monta a base e agrupa o pack sob ela. Warning `base_hydrated_from_pack` é registrado por base hidratada; bases que não puderam ser resolvidas (não existem, soft-deleted, archived ou cross-tenant) recebem `pack_orphan_unresolved`.
+
+### Catálogo de kits do tenant Respeite o Homem (referência)
+
+- Kits **Dia** = Shampoo + Balm.
+- Kits **Noite** = Shampoo + Loção.
+- Kits **FLEX** ou sem sufixo = Shampoo + Balm + Loção.
+
+Composição é fonte de verdade em `product_components`. `ai_product_relations` nunca é usado para composição física.
 
 Regras determinísticas, limites de payload, NULL legacy, pedido explícito e contrato anti-regressão estão consolidados em `mem://features/ai/recommendation-context-builder-v1`.
 

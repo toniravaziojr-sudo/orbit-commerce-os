@@ -164,3 +164,146 @@ export async function loadProductAIVision(
     unclassifiedProductIds,
   };
 }
+
+// ============================================================
+// Onda 1C — Defesa pack_orphan (dry_run only)
+//
+// Quando search_products devolve packs cujo base_product_id NÃO está
+// no pool (cortado pelo POOL_LIMIT), o builder marca pack_orphan_in_pool
+// e pode terminar em no_classifiable_products.
+//
+// Esta função batched/tenant-scoped:
+//   1. lê packsByBase do bundle inicial (payloads com base_product_id)
+//   2. identifica baseIds ausentes do pool
+//   3. carrega esses produtos-base via SELECT em products (tenant-scoped)
+//   4. carrega os payloads dessas bases
+//   5. devolve { hydratedBaseProducts, hydratedBaseIds } para o caller
+//      decidir se inclui no enriched + bundle do dry_run.
+//
+// Limites:
+//   - máximo MAX_HYDRATIONS bases por turno (proteção payload).
+//   - NUNCA confia em IDs vindos do cliente.
+//   - NUNCA cross-tenant (filtra por tenant_id explicitamente).
+// ============================================================
+
+export interface HydratedBaseProduct {
+  id: string;
+  name: string;
+  price: number | null;
+  is_kit: boolean;
+}
+
+export interface HydrationResult {
+  hydratedBaseProducts: HydratedBaseProduct[];
+  /** baseIds efetivamente hidratados (para warning base_hydrated_from_pack). */
+  hydratedBaseIds: string[];
+  /** baseIds que aparecem em packs mas NÃO puderam ser hidratados (não existem ou outro tenant). */
+  unresolvedBaseIds: string[];
+}
+
+const MAX_HYDRATIONS = 3;
+
+export async function hydrateMissingPackBases(opts: {
+  supabase: any;
+  tenantId: string;
+  poolIds: string[];
+  bundle: ProductAIVisionBundle;
+}): Promise<HydrationResult> {
+  const { supabase, tenantId, poolIds, bundle } = opts;
+  const empty: HydrationResult = {
+    hydratedBaseProducts: [],
+    hydratedBaseIds: [],
+    unresolvedBaseIds: [],
+  };
+  if (!tenantId || !poolIds?.length) return empty;
+
+  const poolSet = new Set(poolIds);
+  const missingBaseIds = new Set<string>();
+  for (const [, payload] of bundle.payloadByProductId) {
+    const baseId = payload.base_product_id;
+    if (!baseId) continue;
+    if (poolSet.has(baseId)) continue;
+    if (baseId === payload.product_id) continue;
+    missingBaseIds.add(baseId);
+  }
+  if (missingBaseIds.size === 0) return empty;
+
+  const ids = Array.from(missingBaseIds).slice(0, MAX_HYDRATIONS);
+
+  const { data: prodRows } = await supabase
+    .from("products")
+    .select("id, name, price, product_format, tenant_id, deleted_at, status")
+    .eq("tenant_id", tenantId)
+    .in("id", ids);
+
+  const products = (prodRows ?? []).filter(
+    (r: any) => r.tenant_id === tenantId && !r.deleted_at && r.status !== "archived"
+  );
+  const resolvedIds = new Set(products.map((p: any) => p.id));
+  const unresolvedBaseIds = Array.from(missingBaseIds).filter(id => !resolvedIds.has(id));
+
+  if (products.length === 0) {
+    return { ...empty, unresolvedBaseIds };
+  }
+
+  // Carrega payloads dessas bases e mescla no bundle existente.
+  const payloadIds = products.map((p: any) => p.id);
+  const { data: payloadRows } = await supabase
+    .from("ai_product_commercial_payload")
+    .select(
+      "product_id, commercial_role, product_kind, base_product_id, is_base_candidate, when_to_recommend, when_not_to_indicate, recommendation_notes, tenant_id"
+    )
+    .eq("tenant_id", tenantId)
+    .in("product_id", payloadIds);
+
+  for (const r of (payloadRows ?? []) as any[]) {
+    if (r.tenant_id && r.tenant_id !== tenantId) continue;
+    bundle.payloadByProductId.set(r.product_id, {
+      product_id: r.product_id,
+      commercial_role: r.commercial_role ?? null,
+      product_kind: r.product_kind ?? null,
+      base_product_id: r.base_product_id ?? null,
+      is_base_candidate: r.is_base_candidate,
+      when_to_recommend: r.when_to_recommend ?? null,
+      when_not_to_indicate: r.when_not_to_indicate ?? null,
+      recommendation_notes: r.recommendation_notes ?? null,
+    });
+  }
+
+  // Carrega relations dessas bases também (para complementares na vitrine).
+  const { data: relRows } = await supabase
+    .from("ai_product_relations")
+    .select("source_product_id, target_product_id, relation_type, position, tenant_id")
+    .eq("tenant_id", tenantId)
+    .in("source_product_id", payloadIds);
+  for (const r of (relRows ?? []) as any[]) {
+    if (r.tenant_id && r.tenant_id !== tenantId) continue;
+    const arr = bundle.relationsBySourceId.get(r.source_product_id) ?? [];
+    arr.push({
+      source_product_id: r.source_product_id,
+      target_product_id: r.target_product_id,
+      relation_type: r.relation_type,
+      position: typeof r.position === "number" ? r.position : 0,
+    });
+    arr.sort((a, b) => a.position - b.position);
+    bundle.relationsBySourceId.set(r.source_product_id, arr);
+  }
+
+  const hydratedBaseProducts: HydratedBaseProduct[] = products.map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    price: typeof p.price === "number" ? p.price : null,
+    is_kit: p.product_format === "with_composition",
+  }));
+
+  // Remove dos "unclassified" qualquer base hidratada que agora tem payload.
+  bundle.unclassifiedProductIds = bundle.unclassifiedProductIds.filter(
+    id => !resolvedIds.has(id)
+  );
+
+  return {
+    hydratedBaseProducts,
+    hydratedBaseIds: Array.from(resolvedIds) as string[],
+    unresolvedBaseIds,
+  };
+}

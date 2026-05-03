@@ -42,15 +42,21 @@ Acionado em `ai-support-chat/index.ts` dentro do handler de `search_products`, *
 - `ai_product_relations` já tem trigger cross-tenant (Onda 1B). `product_components` herda tenant via parent.
 
 ## Onde está
-- Reader: `supabase/functions/_shared/product-ai-vision-reader.ts`.
+- Reader + hidratação pack_orphan: `supabase/functions/_shared/product-ai-vision-reader.ts` (`loadProductAIVision` + `hydrateMissingPackBases`).
 - Builder: `supabase/functions/_shared/product-recommendation-context-builder.ts`.
+- Detector explicit_request: `supabase/functions/_shared/product-ai-vision-explicit-request.ts`.
 - Testes A–J: `supabase/functions/_shared/__tests__/product-recommendation-context-builder.test.ts`.
 - Integração dry_run: `supabase/functions/ai-support-chat/index.ts` (search_products, após `partitionAndLimit`).
 - Flag inicial: tenant Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
+
+## Hardening dry_run (obrigatório antes de active)
+- **explicit_request**: detector determinístico SKU/nome-core/Nx/kit. Item explícito nunca cai em `pack_capped`/`kit_capped`/`pack_orphan_in_pool`. Os matches vão no trace (`explicit_matches`).
+- **base_hydrated_from_pack**: quando o pool tem pack mas a base ficou fora do `POOL_LIMIT`, o reader hidrata a base via `products` (tenant-scoped, ≤3 hidratações, batched). Warning `base_hydrated_from_pack` por base hidratada e `pack_orphan_unresolved` quando a base não existe/é cross-tenant/soft-deleted.
 
 ## Anti-regressão
 - PR que faça `dry_run` mutar `filtered`/`finalList`/shape devolvido → bloqueado.
 - PR que use `ai_product_relations` para compor kit (em vez de `product_components`) → bloqueado.
 - PR que rebaixe `is_base_candidate IS NULL` como `false` → bloqueado.
-- Builder consultando banco diretamente → bloqueado (caller carrega via Reader).
+- Builder consultando banco diretamente → bloqueado (caller carrega via Reader/hidratação).
+- Hidratação cross-tenant ou >3 bases por turno → bloqueado.
 - Promover para `active` sem snapshot test G+H validando paridade com dry_run → bloqueado.
