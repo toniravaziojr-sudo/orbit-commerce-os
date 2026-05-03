@@ -11,6 +11,19 @@ import {
 } from "../_shared/turn-dynamics.ts";
 import { enqueueMedia } from "../_shared/media-enqueue.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
+// [Reg #2.13] Fase C — Turn Orchestrator
+import {
+  classifyTurnCompleteness,
+  enqueueTurnMessage,
+  claimTurn,
+  waitQuietWindow,
+  type BufferedMessage,
+} from "../_shared/sales-pipeline/turn-completeness.ts";
+import {
+  enqueueTurnMessage as enqTurn,
+  claimTurn as claimT,
+  waitQuietWindow as waitQ,
+} from "../_shared/sales-pipeline/turn-orchestrator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
