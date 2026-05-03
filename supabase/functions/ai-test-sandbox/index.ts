@@ -44,7 +44,19 @@ interface CleanupBody {
   conversation_id: string;
 }
 
-type Body = SendBody | CleanupBody;
+// [Reg #2.13 — Fase C] Burst que valida o pipeline do Turn Orchestrator
+// (webhook→buffer→processor→ai-support-chat). Não chama ai-support-chat direto.
+interface BurstBody {
+  action: "burst";
+  tenant_id: string;
+  conversation_id?: string | null;
+  messages: string[];          // 2..10 mensagens
+  gap_ms?: number;             // intervalo entre cada inbound (default 250ms)
+  simulated_channel?: "chat" | "whatsapp"; // default 'whatsapp' (objetivo da Fase C)
+  wait_for_bot_ms?: number;    // tempo máx esperando resposta após dispatch (default 30000ms)
+}
+
+type Body = SendBody | CleanupBody | BurstBody;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
