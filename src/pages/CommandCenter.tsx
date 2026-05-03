@@ -6,10 +6,8 @@ import {
   CalendarClock,
   ClipboardList,
   Lightbulb,
-  HeartPulse,
 } from "lucide-react";
 import { AgendaContent } from "@/components/command-center/agenda";
-import { ContextHealthTab } from "@/components/command-center/ContextHealthTab";
 import { EmbeddedCommandAssistant } from "@/components/command-assistant/EmbeddedCommandAssistant";
 import { PageHeader } from "@/components/ui/page-header";
 import { DashboardTab } from "@/components/command-center/DashboardTab";
@@ -52,10 +50,6 @@ export default function CommandCenter() {
               <span className="hidden sm:inline">Insights</span>
             </TabsTrigger>
           </InfoTooltip>
-          <TabsTrigger value="context-health" className="gap-2">
-            <HeartPulse className="h-4 w-4" />
-            <span className="hidden sm:inline">Saúde do Contexto</span>
-          </TabsTrigger>
           <InfoTooltip tooltipKey="cc.tab.assistant">
             <TabsTrigger value="assistant" className="gap-2">
               <Bot className="h-4 w-4" />
@@ -80,10 +74,6 @@ export default function CommandCenter() {
 
         <TabsContent value="insights" className="mt-6">
           <InsightsTab />
-        </TabsContent>
-
-        <TabsContent value="context-health" className="mt-6">
-          <ContextHealthTab />
         </TabsContent>
 
         <TabsContent value="assistant" className="mt-6">
