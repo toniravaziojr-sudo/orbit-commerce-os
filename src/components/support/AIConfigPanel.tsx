@@ -386,7 +386,7 @@ export function AIConfigPanel() {
             <CardHeader>
               <CardTitle className="text-lg">O que evitar nas conversas</CardTitle>
               <CardDescription>
-                Diferente de <em>claims/promessas proibidas</em> (aba Essencial), que são promessas comerciais ou jurídicas que sua marca não pode fazer.
+                Diferente de <em>claims/promessas proibidas</em> (aba Conhecimento Essencial), que são promessas comerciais ou jurídicas que sua marca não pode fazer.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
