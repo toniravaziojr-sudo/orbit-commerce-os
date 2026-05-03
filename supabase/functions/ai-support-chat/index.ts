@@ -3140,7 +3140,18 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // [Reg #2.13] Helper de freshness check + reopen + dispatch processor.
+    // [Reg #2.13 Fase C — pre_send/claim_lost split]
+    // Diferencia 2 razões de "stale":
+    //   - new_messages   → cliente mandou novo input que o snapshot da resposta
+    //                      não considera. SEMPRE abortar e reabrir o turno.
+    //   - claim_lost     → outro worker reclama o turno mas o conteúdo do
+    //                      snapshot continua o mesmo. Em pre_tool: abortar
+    //                      (side-effect). Em pre_send: a idempotência
+    //                      (índice único `messages_unique_bot_per_logical_turn`
+    //                      + complete_turn checa claim_token) garante que
+    //                      apenas uma bot message é persistida e enviada.
+    //                      Não matar a resposta — deixa o INSERT ser árbitro.
+    //   - buffer_missing → turno já fechado/abortado: parar sem reabrir.
     async function freshnessGate(stage: "pre_tool" | "pre_send", toolName?: string): Promise<boolean> {
       if (!isOrchestratorCall) return true;
       const { data: fr, error: frErr } = await supabase.rpc("check_turn_freshness", {
@@ -3153,7 +3164,25 @@ Deno.serve(async (req) => {
         return true;
       }
       if ((fr as any)?.fresh) return true;
-      console.log(`[ai-support-chat] [TURN-ORCH][${stage}] STALE reason=${(fr as any)?.reason} tool=${toolName ?? "n/a"} → reopen+dispatch`);
+
+      const reason = (fr as any)?.reason as string | undefined;
+      console.log(`[ai-support-chat] [TURN-ORCH][${stage}] STALE reason=${reason} tool=${toolName ?? "n/a"}`);
+
+      // pre_send + claim_lost puro → NÃO abortar. A idempotência por logical_turn_id
+      // garante exatamente 1 envio. Se outro worker já enviou, o INSERT cai em 23505
+      // e o handler trata (retorna duplicate_bot_already_sent / in_flight).
+      if (stage === "pre_send" && reason === "claim_lost") {
+        console.log(`[ai-support-chat] [TURN-ORCH][pre_send] claim_lost sem mudança de snapshot → seguir, idempotência protege`);
+        return true;
+      }
+
+      // buffer_missing → turno já encerrado. Não reabrir.
+      if (reason === "buffer_missing") {
+        console.log(`[ai-support-chat] [TURN-ORCH][${stage}] buffer_missing → abort sem reopen`);
+        return false;
+      }
+
+      // new_messages (ou pre_tool/claim_lost) → reabrir e despachar.
       const { error: rErr } = await supabase.rpc("reopen_turn", {
         p_conversation_id: conversation_id,
         p_logical_turn_id: orchestratorCtx.logical_turn_id,
