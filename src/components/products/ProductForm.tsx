@@ -31,7 +31,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, ArrowLeft, ImageIcon, Link2, Package, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, ImageIcon, Link2, Package, AlertCircle, Sparkles } from 'lucide-react';
+import { ProductAIVisionSection } from './ai-vision/ProductAIVisionSection';
 import { Badge } from '@/components/ui/badge';
 import { ProductImageManager } from './ProductImageManager';
 import { ProductImageUploader, type PendingImage } from './ProductImageUploader';
