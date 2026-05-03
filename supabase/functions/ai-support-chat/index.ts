@@ -3667,7 +3667,40 @@ Deno.serve(async (req) => {
         : null,
     );
 
-    if (mediaGate.had_pending && !mediaGate.all_ready) {
+    // [Reg #2.13 Fase C — media_wait_reply guard]
+    // media_wait_reply só pode rodar quando a mídia é o conteúdo principal
+    // do turno. Se o turno tem texto comercial declarado (dor/produto/pergunta)
+    // anterior à imagem, NÃO engolir o turno: seguimos para a IA gerar a
+    // resposta comercial e injetamos um aviso de que não conseguimos analisar
+    // a imagem (sem vision tool).
+    let turnHasCommercialText = false;
+    if (isOrchestratorCall) {
+      try {
+        const { data: bufRow0 } = await supabase
+          .from("ai_turn_buffers")
+          .select("snapshot_message_ids, message_ids")
+          .eq("conversation_id", conversation_id)
+          .eq("logical_turn_id", orchestratorCtx.logical_turn_id)
+          .maybeSingle();
+        const ids: string[] = (bufRow0?.snapshot_message_ids?.length
+          ? bufRow0.snapshot_message_ids
+          : bufRow0?.message_ids) || [];
+        const turnText = messages
+          .filter(m => m.sender_type === "customer" && !m.is_internal && !m.is_note)
+          .filter(m => (ids.length ? ids.includes(m.id) : true))
+          .map(m => (m.content_type === "text" ? (m.content || "") : "").trim())
+          .filter(Boolean)
+          .join(" \n ");
+        const COMMERCIAL_LEX_MEDIA = /\b(entrada|entradas|coroa|falha|falhas|calv[ií]cie|queda|cabelo|shampoo|loc[aã]o|balm|kit|produto|tratamento|serve|recomend|funciona|preço|preco|valor|comprar|barba|perfume|sab[oô]nete|condicionador|t[ôo]nico|creme|bom|melhor)\b/i;
+        const QUESTIONISH_MEDIA = /[?]|\b(qual|como|quanto|onde|quando|tem|h[áa]|posso|quero|preciso|me\s+(ajud|fal|d[iê]z))/i;
+        turnHasCommercialText = COMMERCIAL_LEX_MEDIA.test(turnText) && QUESTIONISH_MEDIA.test(turnText);
+        if (turnHasCommercialText) {
+          console.log(`[ai-support-chat] [D7][media-guard] turno tem texto comercial — não engolir com media_wait_reply (turnText="${turnText.slice(0,80)}")`);
+        }
+      } catch { /* noop */ }
+    }
+
+    if (mediaGate.had_pending && !mediaGate.all_ready && !turnHasCommercialText) {
       // Timeout: envia (no máx 1x) a resposta de espera e encerra esta execução.
       if (mediaGate.wait_reply && !mediaGate.wait_already_sent) {
         const orchMeta: Record<string, unknown> = isOrchestratorCall
