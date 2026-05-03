@@ -75,9 +75,6 @@ export function AILanguageDictionaryEditor() {
   const { dictionary, isLoading, upsert } = useAiLanguageDictionary();
   const [tone, setTone] = useState('consultivo');
   const [pronoun, setPronoun] = useState('voce');
-  const [useEmojis, setUseEmojis] = useState(true);
-  const [emojiList, setEmojiList] = useState('');
-  const [forbiddenTerms, setForbiddenTerms] = useState('');
   const [vocab, setVocab] = useState<DictPair[]>([]);
   const [aliases, setAliases] = useState<DictPair[]>([]);
   const [phrases, setPhrases] = useState<DictPair[]>([]);
@@ -86,9 +83,6 @@ export function AILanguageDictionaryEditor() {
     if (!dictionary) return;
     setTone(dictionary.tone_style || 'consultivo');
     setPronoun(dictionary.treatment_pronoun || 'voce');
-    setUseEmojis(dictionary.use_emojis ?? true);
-    setEmojiList((dictionary.emoji_whitelist || []).join(' '));
-    setForbiddenTerms((dictionary.forbidden_terms || []).join(', '));
     setVocab(toPairs(dictionary.niche_vocabulary));
     setAliases(toPairs(dictionary.product_aliases));
     setPhrases(toPairs(dictionary.preferred_phrases));
@@ -98,9 +92,6 @@ export function AILanguageDictionaryEditor() {
     const updates: Partial<AiLanguageDictionary> = {
       tone_style: tone,
       treatment_pronoun: pronoun,
-      use_emojis: useEmojis,
-      emoji_whitelist: emojiList.split(/\s+/).filter(Boolean),
-      forbidden_terms: forbiddenTerms.split(',').map(s => s.trim()).filter(Boolean),
       niche_vocabulary: fromPairs(vocab),
       product_aliases: fromPairs(aliases),
       preferred_phrases: fromPairs(phrases),
