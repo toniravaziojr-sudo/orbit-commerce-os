@@ -3515,6 +3515,11 @@ Deno.serve(async (req) => {
       console.log(
         `[ai-support-chat] [LOCK] turn already in progress for conversation ${conversation_id} — skipping (lock alive)`,
       );
+      // [Reg #2.13 Fase C] Em chamada orquestrada, marcamos como no_send para
+      // não deixar o watchdog reprocessar. O outro worker (que tem o lock) vai
+      // tentar complete_turn com o mesmo claim_token; o primeiro vence, o
+      // segundo recebe claim_lost. Sem mensagem ao cliente — outro worker envia.
+      await finalizeOrchestratedTurn({ outcome: "no_send", reason: "processing_lock_alive", kind: "concurrent_worker" });
       return new Response(
         JSON.stringify({
           success: false,
