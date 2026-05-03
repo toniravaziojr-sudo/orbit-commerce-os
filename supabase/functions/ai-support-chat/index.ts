@@ -7727,6 +7727,36 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         .eq("id", newMessage.id);
     }
 
+    // [Reg #2.13] complete_turn / fail_turn — SOMENTE após o resultado do envio.
+    // "Envio aceito" = meta-whatsapp-send.success === true (Cloud API retornou wamid)
+    // OU canal chat (entrega imediata) OU email com success.
+    // suppressed_duplicate também conta como "concluído" (decisão de não enviar é determinística).
+    if (isOrchestratorCall) {
+      const sendAccepted = sendResult.success === true || dupCheck.duplicate === true;
+      try {
+        if (sendAccepted) {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: orchestratorCtx.logical_turn_id,
+            p_claim_token: orchestratorCtx.claim_token,
+            p_bot_message_id: newMessage.id,
+          });
+          console.log(`[ai-support-chat] [TURN-ORCH] complete_turn OK bot_msg=${newMessage.id} (post-send)`);
+        } else {
+          await supabase.rpc("fail_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: orchestratorCtx.logical_turn_id,
+            p_claim_token: orchestratorCtx.claim_token,
+            p_bot_message_id: newMessage.id,
+            p_error: `send_failed:${(sendResult.error || "unknown").slice(0, 200)}`,
+          });
+          console.warn(`[ai-support-chat] [TURN-ORCH] fail_turn (send rejected) bot_msg=${newMessage.id} err=${sendResult.error}`);
+        }
+      } catch (rpcErr) {
+        console.warn(`[ai-support-chat] [TURN-ORCH] complete/fail rpc warning:`, rpcErr);
+      }
+    }
+
     console.log(`[ai-support-chat] Response ${sendResult.success ? "sent" : "failed"} via ${channelType}. Model: ${modelUsed}, Sales: ${salesModeEnabled}, RAG: ${similarityScores.length} chunks, Latency: ${latencyMs}ms`);
 
     // [Pacote B] Libera o lock antes de devolver. Tolerante a falha.
