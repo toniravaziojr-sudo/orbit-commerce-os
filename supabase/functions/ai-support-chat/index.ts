@@ -3415,6 +3415,17 @@ Deno.serve(async (req) => {
     const arch18CatalogBaseForced =
       ((effectiveConfig as any)?.metadata?.arch18_catalog_base_forced) === true;
 
+    // [Onda 1C] Recommendation Context Builder — flag por tenant.
+    // Modos: 'off' (default) | 'dry_run' | 'active'. NESTA ENTREGA, 'active'
+    // não é ligado em nenhum tenant. dry_run apenas grava trace.
+    const arch1cEnabled =
+      ((effectiveConfig as any)?.metadata?.arch1c_recommendation_context_builder_enabled) === true;
+    const arch1cModeRaw =
+      String((effectiveConfig as any)?.metadata?.arch1c_recommendation_context_builder_mode || "off")
+        .toLowerCase();
+    const arch1cMode: "off" | "dry_run" | "active" =
+      arch1cModeRaw === "dry_run" || arch1cModeRaw === "active" ? arch1cModeRaw : "off";
+
     if (effectiveConfig.is_enabled === false) {
       return new Response(
         JSON.stringify({ success: false, error: "AI support is disabled for this tenant", code: "AI_DISABLED" }),
