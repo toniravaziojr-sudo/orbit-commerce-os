@@ -72,7 +72,7 @@ function PairList({ label, description, keyPlaceholder, valuePlaceholder, pairs,
 }
 
 export function AILanguageDictionaryEditor() {
-  const { dictionary, isLoading, upsert, regenerate } = useAiLanguageDictionary();
+  const { dictionary, isLoading, upsert } = useAiLanguageDictionary();
   const [tone, setTone] = useState('consultivo');
   const [pronoun, setPronoun] = useState('voce');
   const [useEmojis, setUseEmojis] = useState(true);
