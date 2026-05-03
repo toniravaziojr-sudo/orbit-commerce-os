@@ -44,6 +44,21 @@ Garantir que a IA responda **um turno lógico consolidado** do cliente — não 
 - `messages_unique_bot_per_logical_turn` impede duas respostas para o mesmo turno.
 - Em duplicate (23505) → completa o turno sem erro ao usuário.
 
+## Ordem INSERT → SEND → COMPLETE/FAIL (Reg #2.13 Fase C)
+1. `INSERT` da mensagem `bot` com `metadata.logical_turn_id` e `delivery_status='queued'`.
+2. `meta-whatsapp-send` (ou chat/email) — chamada síncrona com timeout.
+3. **Envio aceito** = `success === true` (Cloud API retornou wamid) **OU** canal `chat`/`email` com sucesso **OU** `dupCheck.duplicate === true` (decisão determinística de não enviar) **OU**, em sandbox, `dry_run:true`.
+4. `complete_turn(bot_message_id)` somente se aceito; caso contrário `fail_turn(bot_message_id, error)` com retry idempotente reutilizando o mesmo `bot_message_id` (índice único impede 2ª resposta).
+5. Em retry pós `fail_turn`, o claim seguinte detecta a bot já existente e `complete_turn` é chamado sem novo INSERT.
+
+## Sandbox (dry_run) e proteção contra leak para Meta
+- `ai-test-sandbox` (action `burst`): `dry_send=true` é o **default**. Conversa carrega `metadata.dry_send=true`, `metadata.real_send=false`, `metadata.delivery_adapter='dry_run'`.
+- `meta-whatsapp-send` aplica **GUARD RAIL** ANTES de qualquer formatação de telefone: bloqueia envio real se origem for sandbox/teste/dry_run, exceto se TODOS forem satisfeitos: header `x-allow-real-send: true` + `recipient_override` + número ∈ `TEST_WHATSAPP_RECIPIENT_ALLOWLIST` + `metadata.real_send=true` + `dry_send !== true`.
+- Allowlist **vazia hoje** → todo real_send sandbox é negado.
+- Sandbox simula falha sem chamar Meta via `force_send_failure=true` → `delivery_status='failed'`, `failure_reason='sandbox_simulated_send_failure'`, `success:false` (dispara `fail_turn` no orquestrador).
+- Sandbox sucesso técnico: `delivery_status='dry_run'` (status terminal — NUNCA contar como entrega real).
+- Histórico do incidente e lista oficial dos 5 wamids vazados em 02–03/05/2026: ver `mem://constraints/sandbox-real-meta-leak`.
+
 ## Como desligar (kill switch)
 ```sql
 UPDATE public.ai_support_config
