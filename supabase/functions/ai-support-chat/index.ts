@@ -3708,14 +3708,43 @@ Deno.serve(async (req) => {
       typeof convMetaForAmbig.ambiguous_input_count === "number"
         ? (convMetaForAmbig.ambiguous_input_count as number)
         : 0;
+    const lastAmbigLtid = typeof convMetaForAmbig.last_ambiguous_logical_turn_id === "string"
+      ? (convMetaForAmbig.last_ambiguous_logical_turn_id as string)
+      : null;
 
-    const isDegenerate = isDegenerateInput(lastMessageContent);
+    // [Reg #2.13 Fase C] Em chamada orquestrada, classificação de ambiguidade
+    // DEVE usar o turno consolidado completo, não o último fragmento.
+    // "oi" + "tenho entradas" + "?" NÃO é ambíguo — é consulta comercial.
+    let ambiguityProbeText = lastMessageContent || "";
+    if (isOrchestratorCall) {
+      const aggregated = [...messages]
+        .filter(m => m.sender_type === "customer" && !m.is_internal && !m.is_note)
+        .slice(-8)
+        .map(m => (m.content || "").trim())
+        .filter(Boolean)
+        .join(" \n ");
+      if (aggregated.length > ambiguityProbeText.length) {
+        ambiguityProbeText = aggregated;
+      }
+    }
+
+    // Heurística comercial: se o turno consolidado tem palavras de dor / produto /
+    // intenção comercial, NÃO marcar como ambíguo, mesmo se a última msg for "?".
+    const COMMERCIAL_LEX = /\b(entrada|entradas|coroa|falha|falhas|calv[ií]cie|queda|cabelo|shampoo|loc[aã]o|balm|kit|produto|tratamento|serve|recomend|funciona|preço|preco|valor|comprar|barba|perfume|sab[oô]nete|condicionador|t[ôo]nico|creme|bom|melhor)\b/i;
+    const QUESTIONISH = /[?]|\b(qual|como|quanto|onde|quando|tem|h[áa]|posso|quero|preciso|me\s+(ajud|fal|d[iê]z))/i;
+
+    const isCommercialTurn = COMMERCIAL_LEX.test(ambiguityProbeText) && QUESTIONISH.test(ambiguityProbeText);
+
+    const isDegenerate = isDegenerateInput(ambiguityProbeText) && !isCommercialTurn;
     const isPastInitial = messages.length > 5;
 
     if (isDegenerate && isPastInitial) {
-      const newCount = ambigCountBefore + 1;
+      // [Reg #2.13 Fase C] Idempotência por logical_turn_id: o mesmo turno
+      // reprocessado pelo watchdog não pode incrementar o contador várias vezes.
+      const sameLtid = isOrchestratorCall && lastAmbigLtid && lastAmbigLtid === orchestratorCtx.logical_turn_id;
+      const newCount = sameLtid ? ambigCountBefore : ambigCountBefore + 1;
       console.log(
-        `[ai-support-chat] [Eixo 1.3] degenerate input detected (count=${newCount}, msgs=${messages.length}, raw="${(lastMessageContent || "").slice(0, 40)}")`,
+        `[ai-support-chat] [Eixo 1.3] degenerate input detected (count=${newCount}, msgs=${messages.length}, sameLtid=${!!sameLtid}, raw="${(ambiguityProbeText || "").slice(0, 40)}")`,
       );
 
       if (newCount >= 3) {
@@ -3732,9 +3761,10 @@ Deno.serve(async (req) => {
 
         const ticketMeta = {
           source: "whatsapp_sales",
+          channel: "whatsapp", // schema real não tem coluna; vai em metadata
           handoff_reason: "ambiguous_input",
           ambiguous_input_count: newCount,
-          last_customer_text: (lastMessageContent || "").slice(0, 200),
+          last_customer_text: (ambiguityProbeText || "").slice(0, 200),
           captured_at: new Date().toISOString(),
         };
 
@@ -3751,13 +3781,14 @@ Deno.serve(async (req) => {
             .eq("id", existingTicket.id);
           console.log(`[ai-support-chat] [Eixo 1.3] reused ticket=${existingTicket.id} for ambiguous_input`);
         } else {
+          // [Fix Fase C] schema real de support_tickets NÃO tem coluna `channel`.
+          // Persistido em metadata.channel.
           const { error: ticketErr } = await supabase.from("support_tickets").insert({
             tenant_id,
-            customer_id: conversation.customer_id ?? null,
             source_conversation_id: conversation_id,
-            channel: "whatsapp",
             status: "open",
             priority: "normal",
+            category: "ambiguous_input",
             subject: "Cliente com mensagens não compreendidas pela IA",
             metadata: ticketMeta,
           });
@@ -3770,7 +3801,12 @@ Deno.serve(async (req) => {
           "Vou chamar um atendente humano para te ajudar melhor. " +
           "Em instantes alguém da equipe assume essa conversa com você.";
 
-        await supabase.from("messages").insert({
+        const handoffMeta: Record<string, unknown> = {
+          kind: "ambiguous_input_handoff",
+          ambiguous_input_count: newCount,
+          ...(isOrchestratorCall ? { logical_turn_id: orchestratorCtx.logical_turn_id, claim_token: orchestratorCtx.claim_token } : {}),
+        };
+        const { data: handoffMsg } = await supabase.from("messages").insert({
           conversation_id,
           tenant_id,
           direction: "outbound",
@@ -3782,8 +3818,8 @@ Deno.serve(async (req) => {
           is_ai_generated: true,
           is_internal: false,
           is_note: false,
-          metadata: { kind: "ambiguous_input_handoff", ambiguous_input_count: newCount },
-        });
+          metadata: handoffMeta,
+        }).select("id").maybeSingle();
 
         await supabase
           .from("conversations")
@@ -3794,9 +3830,20 @@ Deno.serve(async (req) => {
               ...convMetaForAmbig,
               ambiguous_input_count: 0,
               last_ambiguous_handoff_at: new Date().toISOString(),
+              last_ambiguous_logical_turn_id: orchestratorCtx.logical_turn_id ?? null,
             },
           })
           .eq("id", conversation_id);
+
+        // [Reg #2.13 Fase C] Envia + finalize via helper.
+        await finalizeOrchestratedTurn({
+          outcome: "send",
+          botMessageId: handoffMsg?.id ?? null,
+          botContent: handoffReply,
+          kind: "ambiguous_input_handoff",
+          conversationRef: conversation,
+        });
+        await releaseProcessingLock(supabase, conversation_id, myLockId).catch(() => {});
 
         return new Response(
           JSON.stringify({
@@ -3810,7 +3857,12 @@ Deno.serve(async (req) => {
 
       // <3 ambíguas: pede reformulação. NÃO mexe em sales_state.
       const askReply = "Não entendi sua última mensagem, pode reescrever, por favor?";
-      await supabase.from("messages").insert({
+      const askMeta: Record<string, unknown> = {
+        kind: "ambiguous_input_ask_rephrase",
+        ambiguous_input_count: newCount,
+        ...(isOrchestratorCall ? { logical_turn_id: orchestratorCtx.logical_turn_id, claim_token: orchestratorCtx.claim_token } : {}),
+      };
+      const { data: askMsg } = await supabase.from("messages").insert({
         conversation_id,
         tenant_id,
         direction: "outbound",
@@ -3822,8 +3874,8 @@ Deno.serve(async (req) => {
         is_ai_generated: true,
         is_internal: false,
         is_note: false,
-        metadata: { kind: "ambiguous_input_ask_rephrase", ambiguous_input_count: newCount },
-      });
+        metadata: askMeta,
+      }).select("id").maybeSingle();
 
       await supabase
         .from("conversations")
@@ -3832,9 +3884,19 @@ Deno.serve(async (req) => {
           metadata: {
             ...convMetaForAmbig,
             ambiguous_input_count: newCount,
+            last_ambiguous_logical_turn_id: orchestratorCtx.logical_turn_id ?? null,
           },
         })
         .eq("id", conversation_id);
+
+      await finalizeOrchestratedTurn({
+        outcome: "send",
+        botMessageId: askMsg?.id ?? null,
+        botContent: askReply,
+        kind: "ambiguous_input_ask_rephrase",
+        conversationRef: conversation,
+      });
+      await releaseProcessingLock(supabase, conversation_id, myLockId).catch(() => {});
 
       return new Response(
         JSON.stringify({
