@@ -6289,6 +6289,46 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     // STEP 9: SAVE MESSAGE
     // ============================================
+    // [Reg #2.13] Freshness check pré-envio (turno pode ter recebido nova msg
+    // enquanto o GPT-5 gerava a resposta). Se stale → reopen+dispatch+abortar.
+    if (isOrchestratorCall) {
+      const fresh = await freshnessGate("pre_send");
+      if (!fresh) {
+        console.log(`[ai-support-chat] [TURN-ORCH] aborting send — turn reopened`);
+        return new Response(
+          JSON.stringify({ success: true, action: "freshness_reopen_pre_send" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    const botInsertMetadata: Record<string, any> = {
+      rag_enabled: true,
+      chunks_found: similarityScores.length,
+      avg_similarity: similarityScores.length > 0
+        ? similarityScores.reduce((a, b) => a + b, 0) / similarityScores.length
+        : null,
+      intent_classification: effectiveConfig.redact_pii_in_logs
+        ? { ...intentClassification, summary: intentClassification?.summary ? redactPII(intentClassification.summary) : "" }
+        : intentClassification,
+      no_evidence_handoff: noEvidenceHandoff,
+      customer_id: customerId,
+      matched_rule: matchedRule?.id,
+      channel_type: channelType,
+      handoff_reason: handoffReason || null,
+      sales_mode: salesModeEnabled,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      embedding_tokens: embeddingTokens,
+      cost_cents: costCents,
+      latency_ms: latencyMs,
+      provider: "openai",
+    };
+    if (isOrchestratorCall) {
+      botInsertMetadata.logical_turn_id = orchestratorCtx.logical_turn_id;
+      botInsertMetadata.claim_token = orchestratorCtx.claim_token;
+    }
+
     const { data: newMessage, error: msgError } = await supabase
       .from("messages")
       .insert({
@@ -6305,38 +6345,64 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         is_note: false,
         ai_model_used: forceResponse ? "rule-based" : modelUsed,
         ai_confidence: forceResponse ? 1.0 : (similarityScores[0] || 0.9),
-        ai_context_used: { 
-          rag_enabled: true,
-          chunks_found: similarityScores.length,
-          avg_similarity: similarityScores.length > 0 
-            ? similarityScores.reduce((a, b) => a + b, 0) / similarityScores.length 
-            : null,
-          intent_classification: effectiveConfig.redact_pii_in_logs 
-            ? { ...intentClassification, summary: intentClassification?.summary ? redactPII(intentClassification.summary) : "" }
-            : intentClassification,
-          no_evidence_handoff: noEvidenceHandoff,
-          customer_id: customerId,
-          matched_rule: matchedRule?.id,
-          channel_type: channelType,
-          handoff_reason: handoffReason || null,
-          sales_mode: salesModeEnabled,
-          input_tokens: inputTokens,
-          output_tokens: outputTokens,
-          embedding_tokens: embeddingTokens,
-          cost_cents: costCents,
-          latency_ms: latencyMs,
-          provider: "openai",
-        },
+        metadata: isOrchestratorCall ? { logical_turn_id: orchestratorCtx.logical_turn_id } : undefined,
+        ai_context_used: botInsertMetadata,
       })
       .select()
       .single();
 
     if (msgError) {
+      // [Reg #2.13] Pode ter colidido com índice único de logical_turn_id
+      // (significa que outro worker já persistiu — turno está completo).
+      const isDup = (msgError as any)?.code === "23505" ||
+        /duplicate|unique/i.test(msgError.message || "");
+      if (isDup && isOrchestratorCall) {
+        console.log(`[ai-support-chat] [TURN-ORCH] duplicate bot insert — already persisted by another worker, completing turn`);
+        // Marca complete (idempotente — outro worker provavelmente já marcou)
+        try {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: orchestratorCtx.logical_turn_id,
+            p_claim_token: orchestratorCtx.claim_token,
+            p_bot_message_id: null,
+          });
+        } catch { /* noop */ }
+        return new Response(
+          JSON.stringify({ success: true, action: "duplicate_bot_skipped" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       console.error("[ai-support-chat] Error saving AI message:", msgError);
+      if (isOrchestratorCall) {
+        try {
+          await supabase.rpc("fail_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: orchestratorCtx.logical_turn_id,
+            p_claim_token: orchestratorCtx.claim_token,
+            p_bot_message_id: null,
+            p_error: `save_error:${msgError.message || "unknown"}`,
+          });
+        } catch { /* noop */ }
+      }
       return new Response(
         JSON.stringify({ success: false, error: "Error saving response", code: "SAVE_ERROR" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // [Reg #2.13] Marca turno como processado (envio em si é assíncrono via support-send-message)
+    if (isOrchestratorCall && newMessage?.id) {
+      try {
+        await supabase.rpc("complete_turn", {
+          p_conversation_id: conversation_id,
+          p_logical_turn_id: orchestratorCtx.logical_turn_id,
+          p_claim_token: orchestratorCtx.claim_token,
+          p_bot_message_id: newMessage.id,
+        });
+        console.log(`[ai-support-chat] [TURN-ORCH] complete_turn OK bot_msg=${newMessage.id}`);
+      } catch (compErr) {
+        console.warn(`[ai-support-chat] [TURN-ORCH] complete_turn warning:`, compErr);
+      }
     }
 
     // [F1] Calcula próximo estado comercial (servidor, não modelo)
