@@ -31,7 +31,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, ArrowLeft, ImageIcon, Link2, Package, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, ImageIcon, Link2, Package, AlertCircle, Sparkles } from 'lucide-react';
+import { ProductAIVisionSection } from './ai-vision/ProductAIVisionSection';
 import { Badge } from '@/components/ui/badge';
 import { ProductImageManager } from './ProductImageManager';
 import { ProductImageUploader, type PendingImage } from './ProductImageUploader';
@@ -682,7 +683,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                 ) : null;
 
               return (
-                <TabsList className="grid w-full grid-cols-8">
+                <TabsList className={`grid w-full ${isEditing ? 'grid-cols-9' : 'grid-cols-8'}`}>
                   <TabsTrigger value="basic" className="flex items-center gap-1">
                     Básico
                     <ErrorBadge count={tabErrors.basic} />
@@ -713,6 +714,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                     <Link2 className="h-4 w-4 mr-1" />
                     Relacionados
                   </TabsTrigger>
+                  {isEditing && (
+                    <TabsTrigger value="ai-vision" className="flex items-center gap-1">
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Visão IA
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="seo" className="flex items-center gap-1">
                     SEO
                     <ErrorBadge count={tabErrors.seo} />
@@ -1369,6 +1376,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                 />
               )}
             </TabsContent>
+
+            {isEditing && product && (
+              <TabsContent value="ai-vision" className="space-y-4 mt-4">
+                <ProductAIVisionSection
+                  productId={product.id}
+                  hasComponents={form.watch('product_format') === 'with_composition' ? hasSavedComponents : undefined}
+                />
+              </TabsContent>
+            )}
 
             <TabsContent value="seo" className="space-y-4 mt-4">
               <Card>

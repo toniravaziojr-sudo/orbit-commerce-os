@@ -1,6 +1,6 @@
 # Motor de Contexto Comercial da IA — Visão Geral
 
-**Status:** Onda A entregue (somente leitura). Ondas B–F planejadas.
+**Status:** Onda A entregue (somente leitura). **Onda 1B parcialmente entregue** — camada manual editável de "Visão da IA" no Cadastro de Produto (ver `visao-ia-produto.md`). Cron de inferência e Approval Center ainda planejados.
 
 ## Objetivo
 Construir, de forma multi-tenant e sem hardcode por segmento, a base de inteligência que a IA de atendimento/vendas precisa para:

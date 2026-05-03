@@ -30,7 +30,7 @@ export function useAiContextChecklist() {
       if (!currentTenant?.id) return null;
       const tenantId = currentTenant.id;
 
-      const [objections, kbDocs, productsWithoutPayload] = await Promise.all([
+      const [objections, kbDocs, productsWithoutPayload, packsNoBase] = await Promise.all([
         supabase
           .from("ai_intent_objection_map")
           .select("id", { count: "exact", head: true })
@@ -44,6 +44,12 @@ export function useAiContextChecklist() {
           .select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId)
           .not("commercial_role", "is", null),
+        (supabase as any)
+          .from("ai_product_commercial_payload")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .eq("product_kind", "pack")
+          .is("base_product_id", null),
       ]);
 
       const productsTotal = await supabase
@@ -57,6 +63,7 @@ export function useAiContextChecklist() {
         kbDocsCount: kbDocs.count ?? 0,
         productsWithRoleCount: productsWithoutPayload.count ?? 0,
         productsTotalCount: productsTotal.count ?? 0,
+        packsWithoutBaseCount: (packsNoBase as any).count ?? 0,
       };
     },
     enabled: !!currentTenant?.id,
@@ -138,15 +145,15 @@ export function useAiContextChecklist() {
     cta: { kind: "route", target: "/produtos", label: "Disponível na próxima onda" },
   });
 
-  // Pack/kit sem produto-base — fica informativo até Onda 1B
+  const packsNoBase = agg?.packsWithoutBaseCount ?? 0;
   items.push({
     id: "packs_without_base",
-    label: "Packs/kits sem produto-base relacionado",
-    severity: "informativo",
+    label: packsNoBase > 0 ? `${packsNoBase} pack(s) sem produto-base` : "Packs com produto-base",
+    severity: packsNoBase > 0 ? "recomendado" : "informativo",
     why:
-      "A IA pode oferecer um pack quando deveria começar pelo produto-base. Será habilitado quando o cadastro de produto receber a seção 'Visão da IA' (próxima onda).",
-    resolved: false,
-    cta: undefined,
+      "Packs de quantidade devem apontar para o produto-base puro, senão a IA pode oferecer o pack quando deveria começar pelo produto-base.",
+    resolved: packsNoBase === 0,
+    cta: packsNoBase > 0 ? { kind: "route", target: "/produtos", label: "Revisar packs" } : undefined,
   });
 
   return {
