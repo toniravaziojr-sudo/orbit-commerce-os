@@ -6331,7 +6331,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       botInsertMetadata.claim_token = orchestratorCtx.claim_token;
     }
 
-    const { data: newMessage, error: msgError } = await supabase
+    let { data: newMessage, error: msgError } = await supabase
       .from("messages")
       .insert({
         conversation_id,
