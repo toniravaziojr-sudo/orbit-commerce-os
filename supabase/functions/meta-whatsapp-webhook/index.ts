@@ -768,23 +768,30 @@ Deno.serve(async (req) => {
                   }
 
                   // Outcome final do customer flow — gravado pelo `finally`.
+                  const isOrchestrator = !!aiSkippedReason && aiSkippedReason.startsWith("turn_orchestrator(");
                   outcomeStatus = !decision.should_respond
                     ? "skipped"
-                    : aiSkippedReason
-                      ? "skipped"
-                      : aiOk
-                        ? "processed"
-                        : "failed";
+                    : isOrchestrator
+                      ? "processed" // turno enfileirado; processor cuidará da resposta
+                      : aiSkippedReason
+                        ? "skipped"
+                        : aiOk
+                          ? "processed"
+                          : "failed";
                   outcomeProcessedBy = !decision.should_respond
                     ? `gate:${decision.reason}`
+                    : isOrchestrator
+                      ? aiSkippedReason!
+                      : aiSkippedReason
+                        ? aiSkippedReason
+                        : aiOk
+                          ? "ai_support"
+                          : "ai_failed";
+                  outcomeError = isOrchestrator
+                    ? null
                     : aiSkippedReason
-                      ? aiSkippedReason
-                      : aiOk
-                        ? "ai_support"
-                        : "ai_failed";
-                  outcomeError = aiSkippedReason
-                    ? `debounce_owner=${debounceOwner} merged=${debounceMerged}`
-                    : (aiOk || !decision.should_respond ? null : "ai_support invocation failed");
+                      ? `debounce_owner=${debounceOwner} merged=${debounceMerged}`
+                      : (aiOk || !decision.should_respond ? null : "ai_support invocation failed");
                   outcomeConversationId = conversationId;
                 }
               }
