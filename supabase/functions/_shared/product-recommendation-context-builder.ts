@@ -366,11 +366,19 @@ export function buildRecommendationContext(input: BuilderInput): RecommendationC
   ctx.bases = baseOrdered;
   ctx.packs_by_base = packsOut;
   ctx.kits = kitsOut;
-  ctx.complements = complementsOut;
 
+  // Cap global de payload p/ proteção de contexto LLM (≤ 8).
+  // Bases/packs/kits têm prioridade sobre complementares — se exceder, corta complementares.
+  const MAX_TOTAL = 8;
   const packCount = Object.values(packsOut).reduce((s, arr) => s + arr.length, 0);
-  ctx.proposed_payload_count =
-    baseOrdered.length + packCount + kitsOut.length + complementsOut.length;
+  const fixedCount = baseOrdered.length + packCount + kitsOut.length;
+  const complementsBudget = Math.max(0, MAX_TOTAL - fixedCount);
+  const trimmedComplements = complementsOut.slice(0, complementsBudget);
+  for (const dropped of complementsOut.slice(complementsBudget)) {
+    ctx.hidden.push({ product_id: dropped.target_product_id, reason: "complement_capped_by_budget" });
+  }
+  ctx.complements = trimmedComplements;
+  ctx.proposed_payload_count = fixedCount + trimmedComplements.length;
 
   ctx.applied = baseOrdered.length > 0 || kitsOut.length > 0 || packCount > 0;
   ctx.reason = ctx.applied
