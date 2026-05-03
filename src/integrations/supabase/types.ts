@@ -3182,12 +3182,15 @@ export type Database = {
           conversation_id: string
           created_at: string
           debounce_ms: number
+          failed_reason: string | null
           id: string
+          last_attempt_at: string | null
           last_error: string | null
           last_message_at: string
           logical_turn_id: string
           message_ids: string[]
           metadata: Json
+          next_retry_at: string | null
           process_after: string
           snapshot_message_ids: string[]
           status: string
@@ -3203,12 +3206,15 @@ export type Database = {
           conversation_id: string
           created_at?: string
           debounce_ms?: number
+          failed_reason?: string | null
           id?: string
+          last_attempt_at?: string | null
           last_error?: string | null
           last_message_at?: string
           logical_turn_id?: string
           message_ids?: string[]
           metadata?: Json
+          next_retry_at?: string | null
           process_after: string
           snapshot_message_ids?: string[]
           status?: string
@@ -3224,12 +3230,15 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           debounce_ms?: number
+          failed_reason?: string | null
           id?: string
+          last_attempt_at?: string | null
           last_error?: string | null
           last_message_at?: string
           logical_turn_id?: string
           message_ids?: string[]
           metadata?: Json
+          next_retry_at?: string | null
           process_after?: string
           snapshot_message_ids?: string[]
           status?: string
@@ -23410,6 +23419,24 @@ export type Database = {
       }
       get_resilience_kpis: { Args: never; Returns: Json }
       get_security_flag: { Args: { p_flag_key: string }; Returns: boolean }
+      get_stuck_turn_buffers: {
+        Args: {
+          p_claim_stale_seconds?: number
+          p_limit?: number
+          p_max_attempts?: number
+          p_now?: string
+        }
+        Returns: {
+          attempts: number
+          claimed_at: string
+          conversation_id: string
+          last_error: string
+          logical_turn_id: string
+          process_after: string
+          status: string
+          tenant_id: string
+        }[]
+      }
       get_system_health_overview: { Args: never; Returns: Json }
       get_tenant_module_access: { Args: { p_tenant_id: string }; Returns: Json }
       get_top_slow_queries: {
@@ -23563,6 +23590,10 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: undefined
+      }
+      mark_dead_turn_buffers: {
+        Args: { p_max_attempts?: number }
+        Returns: number
       }
       mark_learning_used: {
         Args: { p_learning_ids: string[] }
