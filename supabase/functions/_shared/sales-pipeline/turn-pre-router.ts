@@ -1,23 +1,35 @@
 // ============================================================
 // Pipeline F2 — Turn Pre-Router (TPR) — Reg #2.8
 //
-// UMA chamada LLM curta (Gemini Flash-Lite via Lovable AI Gateway)
-// que classifica o turno do cliente em JSON estruturado, via tool
+// UMA chamada LLM curta (modelo Gemini Flash-Lite logical) que
+// classifica o turno do cliente em JSON estruturado, via tool
 // calling. Vira a fonte única de verdade para todas as decisões
 // determinísticas do turno: greeting scrub, gate consultivo, price
 // scrubber, catalog probe, gate de fechamento.
 //
-// Substitui regex frágeis por entendimento real do modelo. Latência
-// ~300-500ms, custo ~US$ 0.0002 por turno.
+// AI Provider Routing (Fase 1 — 2026-05-03):
+// Em vez de chamar https://ai.gateway.lovable.dev diretamente, o TPR
+// agora usa _shared/ai-router.ts. Hierarquia:
+//   1) Gemini Native (se GEMINI_API_KEY)
+//   2) OpenAI Native (se OPENAI_API_KEY) — gpt-4o-mini equivalente
+//   3) Lovable AI Gateway (fallback final)
+// O contrato OpenAI-compatible (tool_calls) é preservado em todos os
+// providers — o output do TPR não muda.
 //
-// FALLBACK: se a chamada falhar (rate limit, timeout, parse), o
-// pipeline cai nos detectores antigos (regex) — nunca derruba o turno.
+// FALLBACK: se TODOS os providers falharem (rate limit, timeout, parse),
+// o pipeline cai nos detectores antigos (regex) — nunca derruba o turno.
+// Doc: docs/especificacoes/ia/ai-provider-routing.md
 // ============================================================
 
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-// Modelo deliberadamente pequeno: latência baixa + custo baixo + boa
-// classificação. Não é o modelo de geração da resposta — só rotula o turno.
+import { aiChatCompletionJSON } from "../ai-router.ts";
+
+// Modelo lógico (mapeado pelo ai-router para o provider real disponível).
 const TPR_MODEL = "google/gemini-2.5-flash-lite";
+
+// Feature flag de rollback de emergência: setar TPR_USE_LEGACY_GATEWAY=1
+// no env para voltar ao caminho direto antigo (Lovable Gateway only).
+const USE_LEGACY_GATEWAY = Deno.env.get("TPR_USE_LEGACY_GATEWAY") === "1";
+const LEGACY_LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 export type TurnGreetingPeriod = "bom dia" | "boa tarde" | "boa noite" | null;
 
@@ -157,10 +169,6 @@ export interface TPRInput {
  */
 export async function classifyTurn(input: TPRInput): Promise<TurnClassification> {
   const start = Date.now();
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) {
-    return emptyClassification("fallback", Date.now() - start, "missing_LOVABLE_API_KEY");
-  }
 
   const productHint = (input.productNamesHint || []).slice(0, 30).join(" | ");
   const historyText = (input.recentHistory || [])
@@ -175,57 +183,93 @@ export async function classifyTurn(input: TPRInput): Promise<TurnClassification>
     (productHint ? `CATÁLOGO CONHECIDO (nomes possíveis):\n${productHint}\n\n` : "") +
     `Classifique o turno chamando a tool classify_turn.`;
 
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), input.timeoutMs ?? 4000);
+  const requestBody = {
+    messages: [
+      { role: "system", content: TPR_SYSTEM },
+      { role: "user", content: userBlock },
+    ],
+    tools: [TPR_TOOL],
+    tool_choice: { type: "function", function: { name: "classify_turn" } },
+    temperature: 0.1,
+    max_tokens: 400,
+  };
+
+  const timeoutMs = input.timeoutMs ?? 4000;
+
+  // ─── Caminho LEGADO (rollback de emergência via env TPR_USE_LEGACY_GATEWAY=1) ───
+  if (USE_LEGACY_GATEWAY) {
+    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!apiKey) {
+      return emptyClassification("fallback", Date.now() - start, "missing_LOVABLE_API_KEY");
+    }
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const resp = await fetch(LEGACY_LOVABLE_AI_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: TPR_MODEL, ...requestBody }),
+        signal: controller.signal,
+      });
+      clearTimeout(t);
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.warn(`[turn-pre-router][legacy] HTTP ${resp.status}: ${text.slice(0, 200)}`);
+        return emptyClassification("fallback", Date.now() - start, `http_${resp.status}`);
+      }
+      const data = await resp.json();
+      const argsStr = data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+      if (!argsStr) return emptyClassification("fallback", Date.now() - start, "no_tool_call");
+      const parsed = JSON.parse(argsStr);
+      console.log(`[turn-pre-router] provider=lovable model=${TPR_MODEL} latency=${Date.now() - start}ms source=llm fallback=false (legacy)`);
+      return { ...emptyClassification("llm", Date.now() - start), ...parsed, source: "llm", latency_ms: Date.now() - start };
+    } catch (e) {
+      clearTimeout(t);
+      const msg = (e as Error)?.message || String(e);
+      console.warn(`[turn-pre-router][legacy] error: ${msg}`);
+      return emptyClassification("fallback", Date.now() - start, msg.slice(0, 120));
+    }
+  }
+
+  // ─── Caminho NOVO (Fase 1 AI Provider Routing): ai-router com fallback ───
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || undefined;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || undefined;
+
+  // Timeout via Promise.race — o router não aceita AbortSignal direto.
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`tpr_timeout_${timeoutMs}ms`)), timeoutMs),
+  );
 
   try {
-    const resp = await fetch(LOVABLE_AI_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: TPR_MODEL,
-        messages: [
-          { role: "system", content: TPR_SYSTEM },
-          { role: "user", content: userBlock },
-        ],
-        tools: [TPR_TOOL],
-        tool_choice: { type: "function", function: { name: "classify_turn" } },
-        temperature: 0.1,
-        // O retorno é só uma tool call curta — basta pouquíssimo token.
-        max_tokens: 400,
+    const result = await Promise.race([
+      aiChatCompletionJSON(TPR_MODEL, requestBody, {
+        supabaseUrl,
+        supabaseServiceKey,
+        logPrefix: "[turn-pre-router][router]",
+        // TPR é latency-sensitive: poucos retries por provider, fallback rápido.
+        maxRetries: 1,
+        baseDelayMs: 1500,
       }),
-      signal: controller.signal,
-    });
+      timeoutPromise,
+    ]);
 
-    clearTimeout(t);
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      console.warn(`[turn-pre-router] HTTP ${resp.status}: ${text.slice(0, 200)}`);
-      return emptyClassification("fallback", Date.now() - start, `http_${resp.status}`);
-    }
-
-    const data = await resp.json();
-    const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
-    const argsStr = toolCall?.function?.arguments;
+    const argsStr = result.data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     if (!argsStr) {
+      console.warn(`[turn-pre-router] no_tool_call provider=${result.provider} model=${result.model}`);
       return emptyClassification("fallback", Date.now() - start, "no_tool_call");
     }
     const parsed = JSON.parse(argsStr);
-    const result: TurnClassification = {
-      ...emptyClassification("llm", Date.now() - start),
+    const latency = Date.now() - start;
+    console.log(`[turn-pre-router] provider=${result.provider} model=${result.model} latency=${latency}ms source=llm fallback=${result.provider !== 'gemini' ? 'true' : 'false'}`);
+    return {
+      ...emptyClassification("llm", latency),
       ...parsed,
       source: "llm",
-      latency_ms: Date.now() - start,
+      latency_ms: latency,
     };
-    return result;
   } catch (e) {
-    clearTimeout(t);
     const msg = (e as Error)?.message || String(e);
-    console.warn(`[turn-pre-router] error: ${msg}`);
+    console.warn(`[turn-pre-router] all providers failed or timeout: ${msg}`);
     return emptyClassification("fallback", Date.now() - start, msg.slice(0, 120));
   }
 }
