@@ -117,25 +117,15 @@ export function AILanguageDictionaryEditor() {
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle className="text-lg">Dicionário de Linguagem</CardTitle>
+              <CardTitle className="text-lg">Vocabulário e dicionário do nicho</CardTitle>
               <CardDescription>
-                Define como a IA fala com seus clientes — tom, vocabulário do nicho, apelidos e expressões preferidas.
+                Define como a IA fala — vocabulário do mercado, apelidos de produtos e expressões preferidas.
+                Para gerar tudo automaticamente use "Preencher com IA" no topo.
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              {dictionary?.has_manual_overrides && (
-                <Badge variant="secondary" className="text-xs">Editado manualmente</Badge>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => regenerate.mutate()}
-                disabled={regenerate.isPending}
-              >
-                <Sparkles className="h-4 w-4 mr-1" />
-                {regenerate.isPending ? 'Gerando...' : 'Regenerar com IA'}
-              </Button>
-            </div>
+            {dictionary?.has_manual_overrides && (
+              <Badge variant="secondary" className="text-xs">Editado manualmente</Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
