@@ -288,7 +288,7 @@ export function AIConfigPanel() {
             <CardHeader>
               <CardTitle className="text-lg">Regras condicionais (Quando X → faça Y)</CardTitle>
               <CardDescription>
-                Para regras gerais em texto livre, use a aba Conhecimento Essencial.
+                Defina como a IA deve reagir em situações específicas. Arraste pelo ícone à esquerda para reordenar a prioridade dentro de cada categoria.
               </CardDescription>
             </CardHeader>
             <CardContent>
