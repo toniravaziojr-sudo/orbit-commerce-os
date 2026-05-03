@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
         console.warn(`[meta-whatsapp-send][${traceId}] [GUARD-RAIL] sandbox real_send DENIED reason=${reason} phone=${phone}`);
 
         // Simular falha sem chamar Meta?
-        const forceFailure = params.sandbox_force_send_failure === true || msgMeta.sandbox_force_send_failure === true;
+        const forceFailure = params.sandbox_force_send_failure === true || msgMeta.sandbox_force_send_failure === true || convoMeta.sandbox_force_send_failure === true;
         if (forceFailure) {
           if (message_id) {
             await supabase.from("messages").update({
