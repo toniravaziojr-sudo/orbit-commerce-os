@@ -250,55 +250,28 @@ export function AIRulesEditor({ rules, onChange }: AIRulesEditorProps) {
                         Nenhuma regra nesta categoria
                       </p>
                     ) : (
-                      <div className="space-y-2">
-                        {categoryRules.sort((a, b) => a.priority - b.priority).map(rule => (
-                          <div 
-                            key={rule.id}
-                            className="flex items-start gap-3 p-3 border rounded-lg group hover:bg-muted/50"
-                          >
-                            <GripVertical className="h-4 w-4 mt-1 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-grab" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm">
-                                  Quando: {rule.condition}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Badge variant={rule.action === 'transfer' ? 'destructive' : rule.action === 'respond' ? 'default' : 'secondary'}>
-                                  {ACTION_TYPES.find(a => a.value === rule.action)?.label}
-                                </Badge>
-                                {rule.response && (
-                                  <span className="truncate max-w-[200px]">
-                                    → "{rule.response}"
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Switch
-                                checked={rule.is_active}
-                                onCheckedChange={(checked) => handleToggle(rule.id, checked)}
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd(category.value)}
+                      >
+                        <SortableContext
+                          items={categoryRules.sort((a, b) => a.priority - b.priority).map(r => r.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div className="space-y-2">
+                            {categoryRules.sort((a, b) => a.priority - b.priority).map(rule => (
+                              <SortableRuleRow
+                                key={rule.id}
+                                rule={rule}
+                                onToggle={handleToggle}
+                                onEdit={handleOpenEdit}
+                                onDelete={handleDelete}
                               />
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleOpenEdit(rule)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleDelete(rule.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </SortableContext>
+                      </DndContext>
                     )}
                   </AccordionContent>
                 </AccordionItem>
