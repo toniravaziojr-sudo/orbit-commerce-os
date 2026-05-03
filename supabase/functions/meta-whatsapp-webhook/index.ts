@@ -618,75 +618,150 @@ Deno.serve(async (req) => {
                   let debounceMerged = 0;
 
                   if (decision.should_respond) {
-                    // ── PACOTE A: Debounce/agrupamento ──
-                    // Enfileira esta mensagem; se houver outra mensagem do mesmo
-                    // cliente chegando dentro da janela, só a ÚLTIMA dispara a IA.
-                    const enq = await enqueueInboundForDebounce({
-                      supabase,
-                      tenant_id: tenantId,
-                      conversation_id: conversationId,
-                      customer_phone: customerPhone,
-                      message_id: null,
-                      external_message_id: message.id,
-                      message_content: messageContent,
-                    });
+                    // [Reg #2.13] Verifica flag turn_orchestrator_enabled
+                    let orchestratorEnabled = false;
+                    try {
+                      const { data: cfg } = await supabase
+                        .from("ai_support_config")
+                        .select("metadata")
+                        .eq("tenant_id", tenantId)
+                        .maybeSingle();
+                      orchestratorEnabled =
+                        cfg?.metadata?.turn_orchestrator_enabled === true;
+                    } catch (cfgErr) {
+                      console.warn(`[meta-whatsapp-webhook][${traceId}] orchestrator flag lookup failed:`, cfgErr);
+                    }
 
-                    if (enq.enqueued && enq.shouldWait && enq.rowId) {
-                      // [ETAPA 1] Debounce ADAPTATIVO.
-                      // Conta inbound recentes da MESMA conversa nos últimos 8s
-                      // (excluindo a linha atual). 0 → 0ms (turno isolado),
-                      // 1 → 3.5s, 2+ → 6s. `channel` reservado p/ evolução futura.
-                      let recentInboundCount = 0;
-                      try {
-                        const sinceIso = new Date(
-                          Date.now() - ADAPTIVE_DEBOUNCE_LOOKBACK_MS,
-                        ).toISOString();
-                        const { count } = await supabase
-                          .from("whatsapp_inbound_debounce")
-                          .select("id", { count: "exact", head: true })
-                          .eq("tenant_id", tenantId)
-                          .eq("customer_phone", customerPhone)
-                          .neq("id", enq.rowId)
-                          .gte("received_at", sinceIso);
-                        recentInboundCount = count ?? 0;
-                      } catch (lookupErr) {
-                        console.warn(`[meta-whatsapp-webhook][${traceId}] adaptive debounce lookup failed (fallback to fixed):`, lookupErr);
-                        recentInboundCount = 1; // fallback conservador → 3.5s
-                      }
-                      const adaptiveMs = getAdaptiveDebounceMs({
-                        recentInboundCount,
-                        channel: "whatsapp",
-                      });
-                      console.log(`[meta-whatsapp-webhook][${traceId}] DEBOUNCE adaptive: recent=${recentInboundCount} wait=${adaptiveMs}ms (was fixed ${DEBOUNCE_WINDOW_MS}ms)`);
-                      if (adaptiveMs > 0) {
-                        await new Promise((r) => setTimeout(r, adaptiveMs));
-                      }
-                      const claim = await tryClaimDebounceFlush(
-                        supabase,
+                    if (orchestratorEnabled && insertedMsg?.id) {
+                      // ═══ TURN ORCHESTRATOR (Fase C) ═══
+                      // 1) Classifica completude do turno (apenas com a msg atual;
+                      //    o classifier será reaplicado no enqueue se houver burst)
+                      const buffered: BufferedMessage[] = [{
+                        id: insertedMsg.id,
+                        text: messageContent,
+                        media_type: message.type !== "text" ? message.type : null,
+                        media_caption: (message as any)?.[message.type]?.caption || null,
+                        created_at: new Date().toISOString(),
+                      }];
+                      const classification = classifyTurnCompleteness(buffered, {});
+                      console.log(`[meta-whatsapp-webhook][${traceId}] [TURN-ORCH] completeness=${classification.completeness} debounce=${classification.debounceMs}ms reason=${classification.reason}`);
+
+                      // 2) Enfileira no buffer atômico
+                      const enqueued = await enqueueTurnMessage(supabase, {
                         tenantId,
-                        customerPhone,
-                        enq.rowId,
-                      );
-                      debounceOwner = claim.isOwner;
-                      debounceMerged = claim.mergedCount;
+                        conversationId,
+                        messageId: insertedMsg.id,
+                        completeness: classification.completeness,
+                        debounceMs: classification.debounceMs,
+                      });
 
-                      if (!claim.isOwner) {
-                        aiSkippedReason = `debounce_merged(${claim.mergedCount})`;
-                        console.log(`[meta-whatsapp-webhook][${traceId}] DEBOUNCE: not owner, merged into newer msg (${claim.mergedCount} msgs in window)`);
+                      if (!enqueued) {
+                        // Falha no enqueue → cai pro caminho legado para não perder o turno
+                        console.warn(`[meta-whatsapp-webhook][${traceId}] [TURN-ORCH] enqueue failed, falling back to legacy debounce`);
+                        orchestratorEnabled = false;
                       } else {
-                        console.log(`[meta-whatsapp-webhook][${traceId}] DEBOUNCE: owner, flushing ${claim.mergedCount} msgs as 1 turn`);
+                        console.log(`[meta-whatsapp-webhook][${traceId}] [TURN-ORCH] enqueued logical_turn=${enqueued.logical_turn_id} buffer_size=${enqueued.buffer_size} created=${enqueued.created}`);
+
+                        // 3) Dispara processor via waitUntil (não bloqueia 200 da Meta)
+                        const processorPayload = {
+                          tenant_id: tenantId,
+                          conversation_id: conversationId,
+                          logical_turn_id: enqueued.logical_turn_id,
+                          source: "webhook" as const,
+                        };
+                        const processorPromise = fetch(
+                          `${supabaseUrl}/functions/v1/turn-orchestrator-processor`,
+                          {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              Authorization: `Bearer ${supabaseServiceKey}`,
+                            },
+                            body: JSON.stringify(processorPayload),
+                          },
+                        ).then((r) => {
+                          console.log(`[meta-whatsapp-webhook][${traceId}] [TURN-ORCH] processor dispatched status=${r.status}`);
+                        }).catch((err) => {
+                          console.error(`[meta-whatsapp-webhook][${traceId}] [TURN-ORCH] processor dispatch failed:`, err);
+                        });
+
+                        // EdgeRuntime.waitUntil mantém o handler vivo até o fetch completar,
+                        // mas não bloqueia a resposta para a Meta.
+                        try {
+                          // @ts-ignore Deno edge runtime
+                          (globalThis as any).EdgeRuntime?.waitUntil?.(processorPromise);
+                        } catch { /* noop */ }
+
+                        aiOk = true;
+                        aiSkippedReason = `turn_orchestrator(${enqueued.logical_turn_id.slice(0, 8)})`;
                       }
                     }
 
-                    if (aiSkippedReason === null) {
-                      console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=GREEN, invoking ai-support-chat...`);
-                      const aiRes = await invokeAiSupportChat(
-                        supabaseUrl,
-                        supabaseServiceKey,
-                        { conversation_id: conversationId, tenant_id: tenantId },
-                      );
-                      aiOk = aiRes.ok;
-                      console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiRes.status}):`, aiRes.bodyText);
+                    if (!orchestratorEnabled) {
+                      // ═══ CAMINHO LEGADO ═══ (kill switch OFF)
+                      const enq = await enqueueInboundForDebounce({
+                        supabase,
+                        tenant_id: tenantId,
+                        conversation_id: conversationId,
+                        customer_phone: customerPhone,
+                        message_id: null,
+                        external_message_id: message.id,
+                        message_content: messageContent,
+                      });
+
+                      if (enq.enqueued && enq.shouldWait && enq.rowId) {
+                        let recentInboundCount = 0;
+                        try {
+                          const sinceIso = new Date(
+                            Date.now() - ADAPTIVE_DEBOUNCE_LOOKBACK_MS,
+                          ).toISOString();
+                          const { count } = await supabase
+                            .from("whatsapp_inbound_debounce")
+                            .select("id", { count: "exact", head: true })
+                            .eq("tenant_id", tenantId)
+                            .eq("customer_phone", customerPhone)
+                            .neq("id", enq.rowId)
+                            .gte("received_at", sinceIso);
+                          recentInboundCount = count ?? 0;
+                        } catch (lookupErr) {
+                          console.warn(`[meta-whatsapp-webhook][${traceId}] adaptive debounce lookup failed (fallback to fixed):`, lookupErr);
+                          recentInboundCount = 1;
+                        }
+                        const adaptiveMs = getAdaptiveDebounceMs({
+                          recentInboundCount,
+                          channel: "whatsapp",
+                        });
+                        console.log(`[meta-whatsapp-webhook][${traceId}] DEBOUNCE adaptive: recent=${recentInboundCount} wait=${adaptiveMs}ms (was fixed ${DEBOUNCE_WINDOW_MS}ms)`);
+                        if (adaptiveMs > 0) {
+                          await new Promise((r) => setTimeout(r, adaptiveMs));
+                        }
+                        const claim = await tryClaimDebounceFlush(
+                          supabase,
+                          tenantId,
+                          customerPhone,
+                          enq.rowId,
+                        );
+                        debounceOwner = claim.isOwner;
+                        debounceMerged = claim.mergedCount;
+
+                        if (!claim.isOwner) {
+                          aiSkippedReason = `debounce_merged(${claim.mergedCount})`;
+                          console.log(`[meta-whatsapp-webhook][${traceId}] DEBOUNCE: not owner, merged into newer msg (${claim.mergedCount} msgs in window)`);
+                        } else {
+                          console.log(`[meta-whatsapp-webhook][${traceId}] DEBOUNCE: owner, flushing ${claim.mergedCount} msgs as 1 turn`);
+                        }
+                      }
+
+                      if (aiSkippedReason === null) {
+                        console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=GREEN, invoking ai-support-chat...`);
+                        const aiRes = await invokeAiSupportChat(
+                          supabaseUrl,
+                          supabaseServiceKey,
+                          { conversation_id: conversationId, tenant_id: tenantId },
+                        );
+                        aiOk = aiRes.ok;
+                        console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiRes.status}):`, aiRes.bodyText);
+                      }
                     }
                   } else {
                     console.log(`[meta-whatsapp-webhook][${traceId}] AI gate=BLOCKED (${decision.reason})`);
