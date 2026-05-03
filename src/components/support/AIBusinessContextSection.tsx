@@ -15,6 +15,8 @@ interface Props {
     business_context?: string;
     attendance_rules?: string;
   }) => void;
+  /** Quando true, esconde o bloco "Regras gerais de atendimento" (fonte única em Atendimento). */
+  hideRules?: boolean;
 }
 
 const EXAMPLE_BUSINESS = `Somos uma loja de [segmento — ex.: cosméticos masculinos para tratamento da calvície]. Nosso público é [avatar — ex.: homens de 25 a 50 anos, urbanos, que perceberam queda capilar e querem agir cedo, sem ir ao médico]. Nosso carro-chefe é [produto/linha principal — ex.: Kit Banho Calvície Zero, composto por Shampoo, Balm e Loção], que entrega o tratamento completo e tem o melhor custo-benefício. Também vendemos [linhas complementares — ex.: itens avulsos da mesma linha e produtos de manutenção]. Diferenciais: [ex.: fórmula sem corantes, fabricação nacional, atendimento por especialista, garantia de 30 dias, frete grátis acima de R$X]. Como funciona o uso/serviço: [ex.: aplicação diária pós-banho, resultados visíveis a partir de X semanas com uso contínuo]. Canais de venda: [ex.: site oficial e WhatsApp].`;
