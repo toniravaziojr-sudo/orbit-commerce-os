@@ -1,23 +1,35 @@
 // ============================================================
 // Pipeline F2 — Turn Pre-Router (TPR) — Reg #2.8
 //
-// UMA chamada LLM curta (Gemini Flash-Lite via Lovable AI Gateway)
-// que classifica o turno do cliente em JSON estruturado, via tool
+// UMA chamada LLM curta (modelo Gemini Flash-Lite logical) que
+// classifica o turno do cliente em JSON estruturado, via tool
 // calling. Vira a fonte única de verdade para todas as decisões
 // determinísticas do turno: greeting scrub, gate consultivo, price
 // scrubber, catalog probe, gate de fechamento.
 //
-// Substitui regex frágeis por entendimento real do modelo. Latência
-// ~300-500ms, custo ~US$ 0.0002 por turno.
+// AI Provider Routing (Fase 1 — 2026-05-03):
+// Em vez de chamar https://ai.gateway.lovable.dev diretamente, o TPR
+// agora usa _shared/ai-router.ts. Hierarquia:
+//   1) Gemini Native (se GEMINI_API_KEY)
+//   2) OpenAI Native (se OPENAI_API_KEY) — gpt-4o-mini equivalente
+//   3) Lovable AI Gateway (fallback final)
+// O contrato OpenAI-compatible (tool_calls) é preservado em todos os
+// providers — o output do TPR não muda.
 //
-// FALLBACK: se a chamada falhar (rate limit, timeout, parse), o
-// pipeline cai nos detectores antigos (regex) — nunca derruba o turno.
+// FALLBACK: se TODOS os providers falharem (rate limit, timeout, parse),
+// o pipeline cai nos detectores antigos (regex) — nunca derruba o turno.
+// Doc: docs/especificacoes/ia/ai-provider-routing.md
 // ============================================================
 
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-// Modelo deliberadamente pequeno: latência baixa + custo baixo + boa
-// classificação. Não é o modelo de geração da resposta — só rotula o turno.
+import { aiChatCompletionJSON } from "../ai-router.ts";
+
+// Modelo lógico (mapeado pelo ai-router para o provider real disponível).
 const TPR_MODEL = "google/gemini-2.5-flash-lite";
+
+// Feature flag de rollback de emergência: setar TPR_USE_LEGACY_GATEWAY=1
+// no env para voltar ao caminho direto antigo (Lovable Gateway only).
+const USE_LEGACY_GATEWAY = Deno.env.get("TPR_USE_LEGACY_GATEWAY") === "1";
+const LEGACY_LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 export type TurnGreetingPeriod = "bom dia" | "boa tarde" | "boa noite" | null;
 
