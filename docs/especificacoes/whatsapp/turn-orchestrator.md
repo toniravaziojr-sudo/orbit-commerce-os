@@ -33,11 +33,29 @@ Garantir que a IA responda **um turno lógico consolidado** do cliente — não 
 
 ## Limites técnicos
 - Quiet window cap: **7s** (`MAX_QUIET_WINDOW_MS`).
-- AI invocation timeout: **55s** (`AI_INVOCATION_TIMEOUT_MS`).
-- Processor hard timeout: **65s** (`PROCESSOR_HARD_TIMEOUT_MS`).
+- AI invocation timeout: **90s** (`AI_INVOCATION_TIMEOUT_MS`) — subiu de 55s em 03/mai/2026 (Reg #24 do changelog) APÓS correção do pre_send/media guard. Não usar timeout maior como muleta de loop lógico.
+- Processor hard timeout: **100s** (`PROCESSOR_HARD_TIMEOUT_MS`).
 - Claim stale: **90s** (após isso watchdog reclama).
 - Max attempts: **5** → status `dead`.
 - Backoff progressivo: 2s, 5s, 15s, 45s, 120s.
+
+## Pre_send freshness — split obrigatório (Reg #2.13 Fase C — Reg #24)
+`freshnessGate("pre_send")` distingue 3 razões de "não fresh":
+- **`new_messages`** → cliente mandou input novo fora do snapshot. Sempre abortar + `reopen_turn` + dispatch processor (`source: freshness_reopen`). Resposta velha.
+- **`claim_lost`** puro (snapshot inalterado, claim_token rotacionou) → **não abortar em `pre_send`**. A idempotência (índice único `messages_unique_bot_per_logical_turn` + `complete_turn` valida claim_token + handler de 23505 cobre `duplicate_bot_already_sent` / `_in_flight`) garante exatamente 1 envio. Em `pre_tool` (side-effect) continua abortando.
+- **`buffer_missing`** → turno já encerrado, abort sem reopen.
+
+Histórico: incidente real 03/mai/2026 (conversa `ab3d720d`, buffer `94f870a3`) — antes do split, `claim_lost` puro matava resposta comercial mesmo com snapshot estável.
+
+## Media inbound + texto comercial (Reg #2.13 Fase C — Reg #24)
+`media_wait_reply` SÓ pode rodar quando o turno consolidado **não tem texto comercial** (lex `entrada|coroa|falha|shampoo|kit|tratamento|...` + token de pergunta, calculado a partir de `snapshot_message_ids`).
+
+Quando há texto comercial + mídia pendente sem vision tool:
+- Pular `media_wait_reply`.
+- Injetar nota `[Sistema] O cliente enviou uma imagem mas não temos análise visual disponível...` em `lastMessageContent`.
+- Pipeline gera resposta comercial completa + linha curta de limitação visual.
+
+Reg #15 (`gateMediaInbound`) continua válido para o caso oposto (mídia isolada sem texto útil).
 
 ## Idempotência
 - `claim_turn` atômico (UPDATE com FOR UPDATE) — múltiplos `waitUntil` para o mesmo buffer convergem em 1 worker.
