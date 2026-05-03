@@ -156,23 +156,6 @@ export function AILanguageDictionaryEditor() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Switch checked={useEmojis} onCheckedChange={setUseEmojis} id="lang-use-emojis" />
-            <Label htmlFor="lang-use-emojis">Usar emojis</Label>
-          </div>
-
-          {useEmojis && (
-            <div className="space-y-2">
-              <Label>Emojis permitidos</Label>
-              <Input
-                placeholder="😊 🙌 ✨ 🎉"
-                value={emojiList}
-                onChange={(e) => setEmojiList(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">Separados por espaço. Deixe em branco para liberar todos.</p>
-            </div>
-          )}
-
           <PairList
             label="Vocabulário do nicho"
             description="Termos específicos do seu mercado e o significado deles."
@@ -199,16 +182,6 @@ export function AILanguageDictionaryEditor() {
             pairs={phrases}
             onChange={setPhrases}
           />
-
-          <div className="space-y-2">
-            <Label>Termos proibidos</Label>
-            <Input
-              placeholder="política, religião, concorrentes"
-              value={forbiddenTerms}
-              onChange={(e) => setForbiddenTerms(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">Separados por vírgula. A IA nunca usará esses termos.</p>
-          </div>
 
           <div className="flex justify-end pt-2">
             <Button onClick={handleSave} disabled={upsert.isPending}>
