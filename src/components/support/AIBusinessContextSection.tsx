@@ -91,31 +91,32 @@ export function AIBusinessContextSection({
           </details>
         </div>
 
-        {/* 2. Regras gerais */}
-        <div id="bloco-regras" className="space-y-2 scroll-mt-24 pt-4 border-t">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2 text-sm font-semibold">
-              <MessageSquare className="h-4 w-4" />
-              Regras gerais de atendimento
-              <Badge className="text-[10px]">Recomendado</Badge>
-            </Label>
-            <Counter value={attendanceRules} />
+        {/* 2. Regras gerais — fonte única em Atendimento; oculto aqui quando hideRules */}
+        {!hideRules && (
+          <div id="bloco-regras" className="space-y-2 scroll-mt-24 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2 text-sm font-semibold">
+                <MessageSquare className="h-4 w-4" />
+                Regras gerais de atendimento
+                <Badge className="text-[10px]">Recomendado</Badge>
+              </Label>
+              <Counter value={attendanceRules} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Como a IA deve conduzir a conversa, quando perguntar, quando escalar para humano, regras comerciais.
+            </p>
+            <Textarea
+              placeholder={EXAMPLE_RULES}
+              value={attendanceRules}
+              onChange={(e) => onChange({ attendance_rules: e.target.value })}
+              rows={6}
+            />
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer hover:text-foreground">Ver exemplo</summary>
+              <pre className="mt-2 whitespace-pre-wrap p-2 rounded bg-muted/50">{EXAMPLE_RULES}</pre>
+            </details>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Como a IA deve conduzir a conversa, quando perguntar, quando escalar para humano, regras comerciais.
-            Para regras condicionais (Quando X → faça Y), use a aba Atendimento.
-          </p>
-          <Textarea
-            placeholder={EXAMPLE_RULES}
-            value={attendanceRules}
-            onChange={(e) => onChange({ attendance_rules: e.target.value })}
-            rows={6}
-          />
-          <details className="text-xs text-muted-foreground">
-            <summary className="cursor-pointer hover:text-foreground">Ver exemplo</summary>
-            <pre className="mt-2 whitespace-pre-wrap p-2 rounded bg-muted/50">{EXAMPLE_RULES}</pre>
-          </details>
-        </div>
+        )}
 
         {/* 3. Claims/promessas proibidas — vai para tenant_brand_context */}
         <div id="bloco-claims" className="space-y-3 scroll-mt-24 pt-4 border-t">
