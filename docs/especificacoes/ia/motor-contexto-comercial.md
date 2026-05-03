@@ -31,8 +31,9 @@ Pipeline base  <  Configuração geral da IA  <  Configuração por canal  <  Es
 Ver `docs/especificacoes/ia/context-health.md`.
 
 ## Roadmap (Ondas B–F)
-- **B — Product Intelligence persistida:** novas colunas em `ai_product_commercial_payload` (`customer_needs`, `use_cases`, `complementary_product_ids`, `base_product_id`, `is_pack_or_bundle`, `approval_status`) + cron de inferência → status `pendente_revisao`.
-- **C — Approval Center:** UI para aprovar/rejeitar inferências em massa, integrado a `ai_brain_insights` com novos `insight_type`.
-- **D — Context Compiler:** módulo `_shared/context-compiler/` aplicado primeiro em `ai-support-chat` e depois propagado.
-- **E — Playbooks completos:** vocabulário e regras detalhadas por segmento; override manual por tenant.
-- **F — Aprendizado regenerativo:** crons que monitoram lacunas e abrem insights automáticos.
+- **B — Product Intelligence persistida:** Onda 1B entregue (estrutura de dados + UI). Cron de inferência ainda não.
+- **1C — Recommendation Context Builder (dry_run, entregue):** módulos `_shared/product-ai-vision-reader.ts` e `_shared/product-recommendation-context-builder.ts`. Acionados em `search_products` apenas quando flag `arch1c_recommendation_context_builder_enabled=true` e mode `dry_run`. Não muta runtime — só grava trace `arch1c_dry_run` em `ai_turn_traces`. Ligado **apenas** no tenant Respeite o Homem. Detalhes em `visao-ia-produto.md` e `mem://features/ai/recommendation-context-builder-v1`.
+- **C — Approval Center:** UI para aprovar/rejeitar inferências em massa.
+- **D — Context Compiler:** consome o ProductRecommendationContextBuilder e funde com persona/canal/estado.
+- **E — Playbooks completos:** vocabulário e regras por segmento.
+- **F — Aprendizado regenerativo:** crons que monitoram lacunas.

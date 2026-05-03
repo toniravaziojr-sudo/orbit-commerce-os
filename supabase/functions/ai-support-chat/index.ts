@@ -789,6 +789,10 @@ async function executeSalesTool(
     arch18CatalogBaseForced?: boolean;
     // [Onda 18 — Fase A] Identificador do turno atual (usado em ai_turn_traces).
     turnId?: string;
+    // [Onda 1C] Recommendation Context Builder — modos: off | dry_run | active.
+    // dry_run apenas grava trace, NÃO altera shape devolvido ao modelo.
+    arch1cRecommendationContextBuilderEnabled?: boolean;
+    arch1cRecommendationContextBuilderMode?: "off" | "dry_run" | "active";
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
@@ -1233,6 +1237,78 @@ async function executeSalesTool(
               id: p.id, name: p.name, is_kit: !!p.is_kit, match_reason: p.match_reason,
             })),
           });
+        }
+
+        // ============================================================
+        // [Onda 1C] Recommendation Context Builder — DRY_RUN ONLY
+        // - Roda APENAS quando flag enabled === true E mode === 'dry_run'.
+        // - NÃO altera `filtered` nem `finalList`. NÃO altera shape devolvido.
+        // - Apenas grava trace comparando original vs proposed.
+        // - 'active' não é executado nesta entrega.
+        // ============================================================
+        if (
+          ctx.arch1cRecommendationContextBuilderEnabled === true &&
+          ctx.arch1cRecommendationContextBuilderMode === "dry_run" &&
+          finalList.length > 0
+        ) {
+          try {
+            const t0 = Date.now();
+            const { loadProductAIVision } = await import("../_shared/product-ai-vision-reader.ts");
+            const { buildRecommendationContext } = await import("../_shared/product-recommendation-context-builder.ts");
+            const poolIds = (finalList as any[]).map(p => p.id);
+            const vision = await loadProductAIVision({
+              supabase,
+              tenantId: ctx.tenantId,
+              productIds: poolIds,
+            });
+            const proposed = buildRecommendationContext({
+              enriched: (finalList as any[]).map(p => ({
+                id: p.id, name: p.name, price: p.price ?? null, is_kit: !!p.is_kit, match_reason: p.match_reason,
+              })),
+              vision,
+              userText: lastUserMessageContentForTools,
+              familyDetected: detectFamilyInText(lastUserMessageContentForTools),
+              // Pedido explícito por enquanto fica vazio; pré-Context Compiler resolve isso.
+              explicitRequestProductIds: [],
+            });
+            const elapsed_ms = Date.now() - t0;
+            await supabase.from("ai_turn_traces").insert({
+              tenant_id: ctx.tenantId,
+              conversation_id: ctx.conversationId,
+              turn_id: ctx.turnId || `${ctx.conversationId}-${Date.now()}`,
+              stage: "arch1c_dry_run",
+              payload: {
+                mode: "dry_run",
+                elapsed_ms,
+                original_product_ids: poolIds,
+                proposed: {
+                  applied: proposed.applied,
+                  reason: proposed.reason,
+                  kit_intent: proposed.kit_intent,
+                  explicit_request_ids: proposed.explicit_request_ids,
+                  bases: proposed.bases,
+                  packs_by_base: proposed.packs_by_base,
+                  kits: proposed.kits,
+                  complements: proposed.complements,
+                  hidden: proposed.hidden,
+                  warnings: proposed.warnings,
+                  proposed_payload_count: proposed.proposed_payload_count,
+                },
+                vision_summary: {
+                  payload_count: vision.payloadByProductId.size,
+                  relations_sources: vision.relationsBySourceId.size,
+                  components_parents: vision.componentsByParentId.size,
+                  unclassified_count: vision.unclassifiedProductIds.length,
+                },
+              },
+            });
+            console.log(
+              `[ai-support-chat][arch1c][dry_run] ${proposed.reason} ` +
+              `count=${proposed.proposed_payload_count} elapsed=${elapsed_ms}ms`
+            );
+          } catch (e) {
+            console.warn(`[ai-support-chat][arch1c][dry_run] falhou (segue normal):`, (e as Error).message);
+          }
         }
 
         // [F2-FS-CROSS] Sumário cruzado de FRETE GRÁTIS — escopo: MESMA LINHA.
@@ -3410,6 +3486,17 @@ Deno.serve(async (req) => {
     // e grava ai_turn_traces (sampling 100% no tenant ativo).
     const arch18CatalogBaseForced =
       ((effectiveConfig as any)?.metadata?.arch18_catalog_base_forced) === true;
+
+    // [Onda 1C] Recommendation Context Builder — flag por tenant.
+    // Modos: 'off' (default) | 'dry_run' | 'active'. NESTA ENTREGA, 'active'
+    // não é ligado em nenhum tenant. dry_run apenas grava trace.
+    const arch1cEnabled =
+      ((effectiveConfig as any)?.metadata?.arch1c_recommendation_context_builder_enabled) === true;
+    const arch1cModeRaw =
+      String((effectiveConfig as any)?.metadata?.arch1c_recommendation_context_builder_mode || "off")
+        .toLowerCase();
+    const arch1cMode: "off" | "dry_run" | "active" =
+      arch1cModeRaw === "dry_run" || arch1cModeRaw === "active" ? arch1cModeRaw : "off";
 
     if (effectiveConfig.is_enabled === false) {
       return new Response(
@@ -5656,6 +5743,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // [Onda 18 — Fase A] Probe v2 família-base + trace estruturado.
         arch18CatalogBaseForced,
         turnId: `${conversation_id}-${Date.now()}`,
+        // [Onda 1C] Recommendation Context Builder em dry_run (não muta shape).
+        arch1cRecommendationContextBuilderEnabled: arch1cEnabled,
+        arch1cRecommendationContextBuilderMode: arch1cMode,
       };
 
       let response: Response | null = null;

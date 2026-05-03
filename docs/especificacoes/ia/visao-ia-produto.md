@@ -50,7 +50,11 @@ Hook unificado: `src/hooks/useProductAIVision.ts` — leitura/escrita atômica d
 - Importação: nunca bloqueia.
 
 ## Runtime
-**Não alterado nesta onda.** `ai-support-chat`, `search_products`, sales pipeline e Orchestrator não leem ainda os novos campos. Ficam para onda futura (Context Compiler).
+**Onda 1B:** sem leitura runtime.
+
+**Onda 1C (entregue, dry_run):** dois módulos `_shared` foram adicionados — `product-ai-vision-reader.ts` e `product-recommendation-context-builder.ts`. São acionados em `ai-support-chat` dentro do handler de `search_products`, **somente quando** `ai_support_config.metadata.arch1c_recommendation_context_builder_enabled=true` e `arch1c_recommendation_context_builder_mode='dry_run'`. Em dry_run o builder roda, grava 1 linha em `ai_turn_traces` (`stage='arch1c_dry_run'`), mas **não altera shape, ranking, payload, family_shipping_summary nem a resposta enviada ao cliente**. Modo `active` não foi ligado em nenhum tenant.
+
+Regras determinísticas, limites de payload, NULL legacy, pedido explícito e contrato anti-regressão estão consolidados em `mem://features/ai/recommendation-context-builder-v1`.
 
 ## Checklist da IA
 Item "Packs sem produto-base" passa a ser real e navegável (`/produtos`).
