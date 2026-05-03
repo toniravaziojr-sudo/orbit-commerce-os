@@ -187,6 +187,7 @@ export default function Pages() {
         title: page.name, slug: page.slug,
         seo_title: page.seo_title || page.meta_title || '',
         seo_description: page.seo_description || page.meta_description || '',
+        ai_role: ((originalPage as any)?.ai_role as 'faq' | 'policy' | null) || 'none',
       });
       setIsDialogOpen(true);
     }
@@ -207,7 +208,8 @@ export default function Pages() {
         id: editingPage.id, title: formData.title, slug,
         seo_title: formData.seo_title || null, seo_description: formData.seo_description || null,
         meta_title: formData.seo_title || null, meta_description: formData.seo_description || null,
-      });
+        ai_role: formData.ai_role === 'none' ? null : formData.ai_role,
+      } as any);
       setIsDialogOpen(false); resetForm();
     } else {
       setIsCreating(true);
