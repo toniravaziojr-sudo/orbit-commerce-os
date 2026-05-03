@@ -175,6 +175,32 @@ export function AIRulesEditor({ rules, onChange }: AIRulesEditorProps) {
     ));
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (categoryValue: string) => (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const inCategory = displayRules
+      .filter(r => r.category === categoryValue)
+      .sort((a, b) => a.priority - b.priority);
+
+    const oldIndex = inCategory.findIndex(r => r.id === active.id);
+    const newIndex = inCategory.findIndex(r => r.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(inCategory, oldIndex, newIndex);
+    const priorityMap = new Map<string, number>();
+    reordered.forEach((r, idx) => priorityMap.set(r.id, idx + 1));
+
+    onChange(displayRules.map(r =>
+      priorityMap.has(r.id) ? { ...r, priority: priorityMap.get(r.id)! } : r
+    ));
+  };
+
   // Group rules by category
   const groupedRules = displayRules.reduce((acc, rule) => {
     if (!acc[rule.category]) acc[rule.category] = [];
