@@ -683,7 +683,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                 ) : null;
 
               return (
-                <TabsList className="grid w-full grid-cols-8">
+                <TabsList className={`grid w-full ${isEditing ? 'grid-cols-9' : 'grid-cols-8'}`}>
                   <TabsTrigger value="basic" className="flex items-center gap-1">
                     Básico
                     <ErrorBadge count={tabErrors.basic} />
@@ -714,6 +714,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                     <Link2 className="h-4 w-4 mr-1" />
                     Relacionados
                   </TabsTrigger>
+                  {isEditing && (
+                    <TabsTrigger value="ai-vision" className="flex items-center gap-1">
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Visão IA
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="seo" className="flex items-center gap-1">
                     SEO
                     <ErrorBadge count={tabErrors.seo} />
