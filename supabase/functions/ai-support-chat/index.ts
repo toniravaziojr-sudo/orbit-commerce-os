@@ -3467,6 +3467,8 @@ Deno.serve(async (req) => {
       console.log(
         `[ai-support-chat] [HANDOFF-LOCK] conv=${conversation_id} status=waiting_agent + assigned_to=null → IA silenciada até atribuição humana.`,
       );
+      // [Reg #2.13 Fase C] Estado terminal — fecha buffer sem retry, sem mensagem.
+      await finalizeOrchestratedTurn({ outcome: "abort", reason: "handoff_terminal_lock", kind: "handoff_awaiting_human" });
       return new Response(
         JSON.stringify({
           success: false,
