@@ -18,6 +18,7 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 
 ## Memories
 - [Turn Orchestrator logical_turn_id](mem://constraints/turn-orchestrator-logical-turn-id) — Reg #2.13: bot carrega metadata.logical_turn_id; freshness pré-tool e pré-envio; status open/claimed/processed/send_failed/dead; complete_turn somente após envio aceito.
+- [Turn Orchestrator Early-Return Contract](mem://constraints/turn-orchestrator-early-return-contract) — Reg #2.13 Fase C: helper finalizeOrchestratedTurn (send/no_send/abort) obrigatório em todo early-return; classificação ambíguo usa turno consolidado; idempotência por last_ambiguous_logical_turn_id; support_tickets sem coluna channel.
 - [Sandbox Real Meta Leak](mem://constraints/sandbox-real-meta-leak) — Reg #2.13 Fase C: guard rail no meta-whatsapp-send + dry_send default; allowlist obrigatória; lista oficial dos 5 wamids vazados em 02–03/05/2026.
 - [Observability Over Automation Rule](mem://constraints/observability-over-automation-rule) — Onda 2: fluxos sensíveis (WhatsApp inbound, pagamentos) priorizam visibilidade + ação manual em vez de reprocessamento automático
 - [Platform Admin Auth + Observability RPC Standard](mem://constraints/platform-admin-auth-and-observability-rpc-standard) — Hook unificado via is_platform_admin(), RPCs de observabilidade em passe único, normalização de erro PostgREST, KPI "Indisponível" em vez de 0
