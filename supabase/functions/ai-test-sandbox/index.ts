@@ -139,6 +139,11 @@ Deno.serve(async (req) => {
       return json({ success: true, cleaned: true }, 200);
     }
 
+    // ============== BURST (Fase C — Turn Orchestrator pipeline) ==============
+    if (body.action === "burst") {
+      return await handleBurst({ supabase, supabaseUrl, serviceKey, body, isAgentMode, userId });
+    }
+
     // ============== SEND ==============
     if (body.action !== "send") {
       return json({ success: false, error: "invalid action" }, 200);
