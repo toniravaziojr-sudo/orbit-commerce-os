@@ -324,3 +324,23 @@ Escopo mínimo da Onda 1 (a aprovar separadamente):
 - [x] `mapa-ui.md` atualizado.
 - [x] `ai-support-chat`, `search_products`, sales pipeline, Orchestrator, `ai_product_commercial_payload`: zero alteração.
 - [x] Este documento publicado.
+
+---
+
+## 12. Onda 1A — Entregue
+
+**Escopo executado** (subset da Onda 1, restante adiado para 1B):
+
+- Migration aditiva em `ai_support_config`: criados `business_context text` e `attendance_rules text`. Nenhum campo antigo alterado.
+- Não criados nesta onda: `forbidden_claims`, `additional_knowledge`, `base_product_id`, `complementary_product_ids`.
+- **Claims/promessas proibidas**: continuam em `tenant_brand_context.banned_claims` e `tenant_brand_context.do_not_do`. A nova UI edita diretamente nessas colunas (sem duplicar fonte).
+- **Conhecimento adicional**: continua em `ai_support_config.custom_knowledge`. Apenas o rótulo da UI muda.
+- **Prompt do sistema legado**: preservado, agora mostrado em "campo avançado/legado" colapsável dentro da nova aba Negócio.
+- **UI**: nova aba "Negócio" como primeira em Configurações Gerais da IA, com 4 blocos (Contexto do negócio, Regras gerais, Claims, Conhecimento adicional). Card de checklist diagnóstico no topo da tela. Sem nova rota, sem nova aba na Central de Comando.
+- **Cadastro de Produto**: não alterado (Onda 1B).
+- **Configurações por Canal**: não alterada (etapa posterior).
+- **Atendimento real**: nenhum dos novos campos é lido em runtime ainda. `ai-support-chat`, `search_products`, sales pipeline e Orchestrator: zero diff. Leitura entrará na Onda 2 (Context Compiler).
+
+**Itens do checklist implementados** (diagnóstico, não bloqueia):
+contexto do negócio, regras de atendimento, claims proibidas, conhecimento adicional, FAQ/base de conhecimento, objeções comuns, produtos sem visão da IA (informativo), packs/kits sem produto-base (informativo, ativo na 1B).
+
