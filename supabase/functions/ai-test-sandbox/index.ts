@@ -307,6 +307,9 @@ async function handleBurst(params: {
   const wait_for_bot_ms: number = Math.max(5000, Math.min(60000, body.wait_for_bot_ms ?? 30000));
   const simulatedChannel: "chat" | "whatsapp" =
     body.simulated_channel === "chat" ? "chat" : "whatsapp";
+  // [GUARD RAIL] dry_send default = true. Real send NUNCA do sandbox sem allowlist + header.
+  const dry_send: boolean = body.dry_send !== false;
+  const force_send_failure: boolean = body.force_send_failure === true;
 
   if (!tenant_id || messages.length < 1) {
     return json({ success: false, error: "tenant_id and messages[] required" }, 200);
@@ -339,6 +342,10 @@ async function handleBurst(params: {
           simulated_channel: simulatedChannel,
           burst: true,
           sandbox_user_id: userId,
+          dry_send,
+          real_send: false,
+          delivery_adapter: dry_send ? "dry_run" : "real",
+          sandbox_force_send_failure: force_send_failure,
         },
       })
       .select("id")
