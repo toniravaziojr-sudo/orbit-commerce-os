@@ -3747,6 +3747,12 @@ Deno.serve(async (req) => {
     if (mediaGate.had_pending && mediaGate.all_ready && mediaGate.context_block) {
       lastMessageContent = `${lastMessageContent}\n\n${mediaGate.context_block}`.trim();
       console.log(`[ai-support-chat] [D7] media context injected (${mediaGate.attachment_ids.length} attachments)`);
+    } else if (mediaGate.had_pending && !mediaGate.all_ready && turnHasCommercialText) {
+      // [Reg #2.13 Fase C] Texto comercial + mídia sem vision/processamento:
+      // injeta nota para a IA dizer que não consegue analisar a imagem mas
+      // responde à pergunta textual. NÃO descarta resposta comercial.
+      lastMessageContent = `${lastMessageContent}\n\n[Sistema] O cliente enviou uma imagem mas não temos análise visual disponível neste momento. Responda normalmente à pergunta textual e mencione brevemente que não conseguiu avaliar a imagem em detalhes por aqui.`.trim();
+      console.log(`[ai-support-chat] [D7][media-guard] mídia pendente + texto comercial → seguir com nota de limitação visual`);
     }
 
     // ============================================
