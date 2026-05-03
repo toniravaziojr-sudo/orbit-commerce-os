@@ -1253,24 +1253,60 @@ async function executeSalesTool(
         ) {
           try {
             const t0 = Date.now();
-            const { loadProductAIVision } = await import("../_shared/product-ai-vision-reader.ts");
+            const { loadProductAIVision, hydrateMissingPackBases } = await import("../_shared/product-ai-vision-reader.ts");
             const { buildRecommendationContext } = await import("../_shared/product-recommendation-context-builder.ts");
+            const { detectExplicitRequestIds } = await import("../_shared/product-ai-vision-explicit-request.ts");
             const poolIds = (finalList as any[]).map(p => p.id);
             const vision = await loadProductAIVision({
               supabase,
               tenantId: ctx.tenantId,
               productIds: poolIds,
             });
+
+            // [Onda 1C hardening] Defesa pack_orphan: hidratar base ausente do pool.
+            const hydration = await hydrateMissingPackBases({
+              supabase,
+              tenantId: ctx.tenantId,
+              poolIds,
+              bundle: vision,
+            });
+            const enrichedForBuilder = (finalList as any[]).map(p => ({
+              id: p.id, name: p.name, price: p.price ?? null, is_kit: !!p.is_kit, match_reason: p.match_reason,
+            }));
+            for (const hb of hydration.hydratedBaseProducts) {
+              if (!enrichedForBuilder.some(e => e.id === hb.id)) {
+                enrichedForBuilder.push({
+                  id: hb.id, name: hb.name, price: hb.price, is_kit: hb.is_kit, match_reason: "base_hydrated_from_pack",
+                });
+              }
+            }
+
+            // [Onda 1C hardening] Detector de explicit_request por nome/SKU/qty.
+            const explicitMatches = detectExplicitRequestIds(
+              lastUserMessageContentForTools,
+              enrichedForBuilder.map(e => {
+                const src = (finalList as any[]).find(p => p.id === e.id);
+                return { id: e.id, name: e.name, sku: src?.sku ?? null };
+              })
+            );
+            const explicitIds = explicitMatches.map(m => m.product_id);
+
             const proposed = buildRecommendationContext({
-              enriched: (finalList as any[]).map(p => ({
-                id: p.id, name: p.name, price: p.price ?? null, is_kit: !!p.is_kit, match_reason: p.match_reason,
-              })),
+              enriched: enrichedForBuilder,
               vision,
               userText: lastUserMessageContentForTools,
               familyDetected: detectFamilyInText(lastUserMessageContentForTools),
-              // Pedido explícito por enquanto fica vazio; pré-Context Compiler resolve isso.
-              explicitRequestProductIds: [],
+              explicitRequestProductIds: explicitIds,
             });
+
+            // Anota warning base_hydrated_from_pack para cada base hidratada.
+            for (const hbId of hydration.hydratedBaseIds) {
+              proposed.warnings.push({ product_id: hbId, warning: "base_hydrated_from_pack" });
+            }
+            for (const orphanId of hydration.unresolvedBaseIds) {
+              proposed.warnings.push({ product_id: orphanId, warning: "pack_orphan_unresolved" });
+            }
+
             const elapsed_ms = Date.now() - t0;
             await supabase.from("ai_turn_traces").insert({
               tenant_id: ctx.tenantId,
@@ -1281,6 +1317,9 @@ async function executeSalesTool(
                 mode: "dry_run",
                 elapsed_ms,
                 original_product_ids: poolIds,
+                explicit_matches: explicitMatches,
+                hydrated_base_ids: hydration.hydratedBaseIds,
+                unresolved_base_ids: hydration.unresolvedBaseIds,
                 proposed: {
                   applied: proposed.applied,
                   reason: proposed.reason,
@@ -1304,7 +1343,8 @@ async function executeSalesTool(
             });
             console.log(
               `[ai-support-chat][arch1c][dry_run] ${proposed.reason} ` +
-              `count=${proposed.proposed_payload_count} elapsed=${elapsed_ms}ms`
+              `count=${proposed.proposed_payload_count} explicit=${explicitIds.length} ` +
+              `hydrated=${hydration.hydratedBaseIds.length} elapsed=${elapsed_ms}ms`
             );
           } catch (e) {
             console.warn(`[ai-support-chat][arch1c][dry_run] falhou (segue normal):`, (e as Error).message);
