@@ -30,7 +30,7 @@ export function useAiContextChecklist() {
       if (!currentTenant?.id) return null;
       const tenantId = currentTenant.id;
 
-      const [objections, kbDocs, productsWithoutPayload] = await Promise.all([
+      const [objections, kbDocs, productsWithoutPayload, packsNoBase] = await Promise.all([
         supabase
           .from("ai_intent_objection_map")
           .select("id", { count: "exact", head: true })
@@ -44,6 +44,12 @@ export function useAiContextChecklist() {
           .select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId)
           .not("commercial_role", "is", null),
+        (supabase as any)
+          .from("ai_product_commercial_payload")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .eq("product_kind", "pack")
+          .is("base_product_id", null),
       ]);
 
       const productsTotal = await supabase
@@ -57,6 +63,7 @@ export function useAiContextChecklist() {
         kbDocsCount: kbDocs.count ?? 0,
         productsWithRoleCount: productsWithoutPayload.count ?? 0,
         productsTotalCount: productsTotal.count ?? 0,
+        packsWithoutBaseCount: (packsNoBase as any).count ?? 0,
       };
     },
     enabled: !!currentTenant?.id,
