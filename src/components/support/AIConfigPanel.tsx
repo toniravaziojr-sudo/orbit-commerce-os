@@ -103,40 +103,25 @@ export function AIConfigPanel() {
       <AIContextChecklistCard onNavigateAnchor={handleAnchorNavigate} />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="essencial" className="gap-2">
-            <Sparkles className="h-4 w-4" />
-            Essencial
-          </TabsTrigger>
-          <TabsTrigger value="conhecimento" className="gap-2">
             <Brain className="h-4 w-4" />
-            Conhecimento
+            Conhecimento Essencial
           </TabsTrigger>
           <TabsTrigger value="atendimento" className="gap-2">
             <MessageCircle className="h-4 w-4" />
             Atendimento
           </TabsTrigger>
-          <TabsTrigger value="vendas" className="gap-2">
-            <ShoppingCart className="h-4 w-4" />
-            Vendas
-          </TabsTrigger>
-          <TabsTrigger value="avancado" className="gap-2">
-            <Settings2 className="h-4 w-4" />
-            Avançado
-          </TabsTrigger>
         </TabsList>
 
-        {/* ========== ESSENCIAL ========== */}
+        {/* ========== CONHECIMENTO ESSENCIAL ========== */}
         <TabsContent value="essencial" className="space-y-4 mt-4">
           <AIBusinessContextSection
             businessContext={getValue("business_context") || ""}
             attendanceRules={getValue("attendance_rules") || ""}
             onChange={(patch) => setLocalConfig((prev) => ({ ...prev, ...patch }))}
           />
-        </TabsContent>
 
-        {/* ========== CONHECIMENTO ========== */}
-        <TabsContent value="conhecimento" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Fontes de Conhecimento</CardTitle>
@@ -203,19 +188,48 @@ export function AIConfigPanel() {
             </CardContent>
           </Card>
 
-          {/* Vocabulário e linguagem do nicho — antiga aba "Linguagem" */}
-          <div>
-            <div className="mb-2 px-1">
-              <h3 className="text-sm font-semibold">Vocabulário e linguagem do nicho</h3>
-              <p className="text-xs text-muted-foreground">
-                Estilo de tom, tratamento, vocabulário, apelidos e frases preferidas — tudo que a IA precisa para falar como sua marca.
-              </p>
-            </div>
-            <AILanguageDictionaryEditor />
-          </div>
+          {/* Modo Vendas (antiga aba Vendas) */}
+          <Card id="bloco-vendas" className="scroll-mt-24">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                Modo Vendas
+                <Badge variant={getValue("sales_mode_enabled") ? "default" : "secondary"}>
+                  {getValue("sales_mode_enabled") ? "Ativo" : "Inativo"}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Quando ativado, a IA pode buscar produtos, oferecer cupons, montar carrinho e gerar links de checkout durante a conversa.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                <div className="space-y-1">
+                  <Label className="text-base font-medium">Ativar Modo Vendas</Label>
+                  <p className="text-sm text-muted-foreground">
+                    A IA poderá sugerir produtos, aplicar cupons e gerar links de checkout durante o atendimento.
+                  </p>
+                </div>
+                <Switch
+                  checked={getValue("sales_mode_enabled") ?? false}
+                  onCheckedChange={(checked) => updateField("sales_mode_enabled", checked)}
+                />
+              </div>
+              {getValue("sales_mode_enabled") && (
+                <div className="space-y-2 pl-4 border-l-2 border-primary/30 text-sm text-muted-foreground">
+                  <p className="font-medium">Com o Modo Vendas ativo, a IA poderá:</p>
+                  <ul className="space-y-1">
+                    <li>• Buscar e sugerir produtos do catálogo</li>
+                    <li>• Verificar cupons e elegibilidade para descontos</li>
+                    <li>• Montar carrinho conversacional</li>
+                    <li>• Oferecer upsells quando disponíveis</li>
+                    <li>• Gerar link de checkout pré-preenchido</li>
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* ========== ATENDIMENTO ========== */}
         <TabsContent value="atendimento" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
