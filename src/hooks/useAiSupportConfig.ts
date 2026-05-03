@@ -46,9 +46,7 @@ export interface AiSupportConfig {
   // Onda 1A — novos campos oficiais (ainda não lidos pelo prompt em runtime)
   business_context: string | null;
   attendance_rules: string | null;
-  // Onda 1A.2 — vinculo com paginas oficiais da loja
-  faq_page_ids: string[];
-  policy_page_ids: string[];
+  metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }

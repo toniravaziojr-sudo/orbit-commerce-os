@@ -26,7 +26,7 @@ import { AILanguageDictionaryEditor } from "./AILanguageDictionaryEditor";
 import { AIIntentObjectionEditor } from "./AIIntentObjectionEditor";
 import { AIBusinessContextSection } from "./AIBusinessContextSection";
 import { AIContextChecklistCard } from "./AIContextChecklistCard";
-import { AIConfigPagePicker } from "./AIConfigPagePicker";
+import { AIPageRoleSummary } from "./AIPageRoleSummary";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -207,6 +207,7 @@ export function AIConfigPanel() {
             businessContext={getValue("business_context") || ""}
             attendanceRules={getValue("attendance_rules") || ""}
             onChange={(patch) => setLocalConfig((prev) => ({ ...prev, ...patch }))}
+            hideRules
           />
 
           {/* Conhecimento adicional (texto livre) */}
@@ -229,14 +230,9 @@ export function AIConfigPanel() {
             </CardContent>
           </Card>
 
-          {/* Páginas oficiais (FAQ + Políticas) */}
+          {/* Páginas oficiais (FAQ + Políticas) — agora marcadas dentro de cada página */}
           <div id="bloco-paginas" className="scroll-mt-24">
-            <AIConfigPagePicker
-              faqIds={getValue("faq_page_ids") || []}
-              policyIds={getValue("policy_page_ids") || []}
-              onChangeFaq={(ids) => updateField("faq_page_ids", ids)}
-              onChangePolicy={(ids) => updateField("policy_page_ids", ids)}
-            />
+            <AIPageRoleSummary />
           </div>
 
           {/* Fontes automáticas (Produtos / Categorias) */}
@@ -276,6 +272,27 @@ export function AIConfigPanel() {
 
         {/* ========== ATENDIMENTO ========== */}
         <TabsContent value="atendimento" className="space-y-4 mt-4">
+          {/* Regras gerais de atendimento — fonte única (movido de Conhecimento Essencial) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Regras gerais de atendimento</CardTitle>
+              <CardDescription>
+                Como a IA deve conduzir a conversa, quando perguntar, quando escalar para humano, regras comerciais.
+                Para regras condicionais (Quando X → faça Y), use o bloco abaixo.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div id="bloco-regras" className="scroll-mt-24">
+                <Textarea
+                  placeholder="Ex.: Atender de forma cordial e consultiva. Sempre perguntar o objetivo do cliente antes de recomendar. Nunca prometer prazo de resultado. Em reclamações, escalar para humano se não houver solução imediata."
+                  value={getValue("attendance_rules") || ""}
+                  onChange={(e) => updateField("attendance_rules", e.target.value)}
+                  rows={6}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Identidade + Linguagem agrupados */}
           <Card>
             <CardHeader>
@@ -380,7 +397,7 @@ export function AIConfigPanel() {
               <CardDescription>Como a IA lida com imagens, áudios e arquivos</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={getValue("handle_images") ?? true}
@@ -401,6 +418,17 @@ export function AIConfigPanel() {
                     onCheckedChange={(checked) => updateField("handle_files", checked)}
                   />
                   <Label>Analisar documentos</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="interpret-emojis"
+                    checked={Boolean(((getValue("metadata") as Record<string, unknown> | undefined)?.interpret_emojis) ?? true)}
+                    onCheckedChange={(checked) => {
+                      const meta = (getValue("metadata") as Record<string, unknown> | undefined) || {};
+                      updateField("metadata", { ...meta, interpret_emojis: checked } as never);
+                    }}
+                  />
+                  <Label htmlFor="interpret-emojis">Interpretar/responder a emojis</Label>
                 </div>
               </div>
             </CardContent>

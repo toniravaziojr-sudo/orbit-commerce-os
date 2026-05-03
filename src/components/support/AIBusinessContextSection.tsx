@@ -15,6 +15,8 @@ interface Props {
     business_context?: string;
     attendance_rules?: string;
   }) => void;
+  /** Quando true, esconde o bloco "Regras gerais de atendimento" (fonte única em Atendimento). */
+  hideRules?: boolean;
 }
 
 const EXAMPLE_BUSINESS = `Somos uma loja de [segmento — ex.: cosméticos masculinos para tratamento da calvície]. Nosso público é [avatar — ex.: homens de 25 a 50 anos, urbanos, que perceberam queda capilar e querem agir cedo, sem ir ao médico]. Nosso carro-chefe é [produto/linha principal — ex.: Kit Banho Calvície Zero, composto por Shampoo, Balm e Loção], que entrega o tratamento completo e tem o melhor custo-benefício. Também vendemos [linhas complementares — ex.: itens avulsos da mesma linha e produtos de manutenção]. Diferenciais: [ex.: fórmula sem corantes, fabricação nacional, atendimento por especialista, garantia de 30 dias, frete grátis acima de R$X]. Como funciona o uso/serviço: [ex.: aplicação diária pós-banho, resultados visíveis a partir de X semanas com uso contínuo]. Canais de venda: [ex.: site oficial e WhatsApp].`;
@@ -35,6 +37,7 @@ export function AIBusinessContextSection({
   businessContext,
   attendanceRules,
   onChange,
+  hideRules = false,
 }: Props) {
   const { brand, upsert } = useTenantBrandContext();
   const [bannedClaimsDraft, setBannedClaimsDraft] = useState<string | null>(null);
@@ -88,31 +91,32 @@ export function AIBusinessContextSection({
           </details>
         </div>
 
-        {/* 2. Regras gerais */}
-        <div id="bloco-regras" className="space-y-2 scroll-mt-24 pt-4 border-t">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2 text-sm font-semibold">
-              <MessageSquare className="h-4 w-4" />
-              Regras gerais de atendimento
-              <Badge className="text-[10px]">Recomendado</Badge>
-            </Label>
-            <Counter value={attendanceRules} />
+        {/* 2. Regras gerais — fonte única em Atendimento; oculto aqui quando hideRules */}
+        {!hideRules && (
+          <div id="bloco-regras" className="space-y-2 scroll-mt-24 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2 text-sm font-semibold">
+                <MessageSquare className="h-4 w-4" />
+                Regras gerais de atendimento
+                <Badge className="text-[10px]">Recomendado</Badge>
+              </Label>
+              <Counter value={attendanceRules} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Como a IA deve conduzir a conversa, quando perguntar, quando escalar para humano, regras comerciais.
+            </p>
+            <Textarea
+              placeholder={EXAMPLE_RULES}
+              value={attendanceRules}
+              onChange={(e) => onChange({ attendance_rules: e.target.value })}
+              rows={6}
+            />
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer hover:text-foreground">Ver exemplo</summary>
+              <pre className="mt-2 whitespace-pre-wrap p-2 rounded bg-muted/50">{EXAMPLE_RULES}</pre>
+            </details>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Como a IA deve conduzir a conversa, quando perguntar, quando escalar para humano, regras comerciais.
-            Para regras condicionais (Quando X → faça Y), use a aba Atendimento.
-          </p>
-          <Textarea
-            placeholder={EXAMPLE_RULES}
-            value={attendanceRules}
-            onChange={(e) => onChange({ attendance_rules: e.target.value })}
-            rows={6}
-          />
-          <details className="text-xs text-muted-foreground">
-            <summary className="cursor-pointer hover:text-foreground">Ver exemplo</summary>
-            <pre className="mt-2 whitespace-pre-wrap p-2 rounded bg-muted/50">{EXAMPLE_RULES}</pre>
-          </details>
-        </div>
+        )}
 
         {/* 3. Claims/promessas proibidas — vai para tenant_brand_context */}
         <div id="bloco-claims" className="space-y-3 scroll-mt-24 pt-4 border-t">

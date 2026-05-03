@@ -213,7 +213,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/storefront/builder` — Builder visual (fora do AppShell)
 - `/categories` — Categorias
 - `/menus` — Menus de navegação
-- `/pages` — Páginas da loja
+- `/pages` — Páginas da loja (inclui marcação opcional de cada página como **fonte da IA**: FAQ, Política ou Nenhum — campo `store_pages.ai_role`)
 - `/pages/:pageId/builder` — Builder de página (fora do AppShell)
 - `/page-templates` — Templates de páginas
 - `/page-templates/:templateId/builder` — Builder de template (fora do AppShell)

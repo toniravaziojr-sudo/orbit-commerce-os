@@ -86,6 +86,7 @@ export default function Pages() {
   const [essentialBusinessContext, setEssentialBusinessContext] = useState('');
   const [formData, setFormData] = useState({
     title: '', slug: '', seo_title: '', seo_description: '',
+    ai_role: 'none' as 'none' | 'faq' | 'policy',
   });
 
   // Get tenant's public URL for LPs
@@ -174,7 +175,7 @@ export default function Pages() {
   // HANDLERS
   // =============================================
   const resetForm = () => {
-    setFormData({ title: '', slug: '', seo_title: '', seo_description: '' });
+    setFormData({ title: '', slug: '', seo_title: '', seo_description: '', ai_role: 'none' });
     setEditingPage(null);
   };
 
@@ -186,6 +187,7 @@ export default function Pages() {
         title: page.name, slug: page.slug,
         seo_title: page.seo_title || page.meta_title || '',
         seo_description: page.seo_description || page.meta_description || '',
+        ai_role: ((originalPage as any)?.ai_role as 'faq' | 'policy' | null) || 'none',
       });
       setIsDialogOpen(true);
     }
@@ -206,7 +208,8 @@ export default function Pages() {
         id: editingPage.id, title: formData.title, slug,
         seo_title: formData.seo_title || null, seo_description: formData.seo_description || null,
         meta_title: formData.seo_title || null, meta_description: formData.seo_description || null,
-      });
+        ai_role: formData.ai_role === 'none' ? null : formData.ai_role,
+      } as any);
       setIsDialogOpen(false); resetForm();
     } else {
       setIsCreating(true);
@@ -592,6 +595,26 @@ export default function Pages() {
                     <Label className="text-sm font-medium">Descrição SEO</Label>
                     <Textarea value={formData.seo_description} onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })} placeholder="Descrição para mecanismos de busca" className="min-h-[60px] resize-none" maxLength={160} />
                     <p className="text-xs text-muted-foreground">{formData.seo_description.length}/160 caracteres</p>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 space-y-2">
+                  <Label className="text-sm font-medium">Usar esta página como fonte da IA?</Label>
+                  <p className="text-xs text-muted-foreground">
+                    A IA de atendimento usará o conteúdo desta página como fonte oficial de FAQ ou de Políticas (frete, troca, privacidade, etc.).
+                  </p>
+                  <div className="flex gap-2 pt-1">
+                    {(['none', 'faq', 'policy'] as const).map((opt) => (
+                      <Button
+                        key={opt}
+                        type="button"
+                        size="sm"
+                        variant={formData.ai_role === opt ? 'default' : 'outline'}
+                        onClick={() => setFormData({ ...formData, ai_role: opt })}
+                      >
+                        {opt === 'none' ? 'Nenhum' : opt === 'faq' ? 'FAQ' : 'Política'}
+                      </Button>
+                    ))}
                   </div>
                 </div>
               </div>
