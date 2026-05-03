@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Sparkles, ShoppingCart, Brain, MessageCircle, Settings2 } from "lucide-react";
+import { Bot, Brain, MessageCircle } from "lucide-react";
 import { useAiSupportConfig, type AiSupportConfig, type AIRule } from "@/hooks/useAiSupportConfig";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AIRulesEditor } from "./AIRulesEditor";
