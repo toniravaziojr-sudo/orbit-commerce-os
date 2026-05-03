@@ -5671,6 +5671,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // [Onda 18 — Fase A] Probe v2 família-base + trace estruturado.
         arch18CatalogBaseForced,
         turnId: `${conversation_id}-${Date.now()}`,
+        // [Onda 1C] Recommendation Context Builder em dry_run (não muta shape).
+        arch1cRecommendationContextBuilderEnabled: arch1cEnabled,
+        arch1cRecommendationContextBuilderMode: arch1cMode,
       };
 
       let response: Response | null = null;
