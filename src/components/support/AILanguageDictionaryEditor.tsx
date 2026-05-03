@@ -3,11 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Trash2, Sparkles } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useAiLanguageDictionary, type AiLanguageDictionary } from "@/hooks/useAiLanguageDictionary";
 
 type DictPair = { key: string; value: string };
@@ -73,12 +72,9 @@ function PairList({ label, description, keyPlaceholder, valuePlaceholder, pairs,
 }
 
 export function AILanguageDictionaryEditor() {
-  const { dictionary, isLoading, upsert, regenerate } = useAiLanguageDictionary();
+  const { dictionary, isLoading, upsert } = useAiLanguageDictionary();
   const [tone, setTone] = useState('consultivo');
   const [pronoun, setPronoun] = useState('voce');
-  const [useEmojis, setUseEmojis] = useState(true);
-  const [emojiList, setEmojiList] = useState('');
-  const [forbiddenTerms, setForbiddenTerms] = useState('');
   const [vocab, setVocab] = useState<DictPair[]>([]);
   const [aliases, setAliases] = useState<DictPair[]>([]);
   const [phrases, setPhrases] = useState<DictPair[]>([]);
@@ -87,9 +83,6 @@ export function AILanguageDictionaryEditor() {
     if (!dictionary) return;
     setTone(dictionary.tone_style || 'consultivo');
     setPronoun(dictionary.treatment_pronoun || 'voce');
-    setUseEmojis(dictionary.use_emojis ?? true);
-    setEmojiList((dictionary.emoji_whitelist || []).join(' '));
-    setForbiddenTerms((dictionary.forbidden_terms || []).join(', '));
     setVocab(toPairs(dictionary.niche_vocabulary));
     setAliases(toPairs(dictionary.product_aliases));
     setPhrases(toPairs(dictionary.preferred_phrases));
@@ -99,9 +92,6 @@ export function AILanguageDictionaryEditor() {
     const updates: Partial<AiLanguageDictionary> = {
       tone_style: tone,
       treatment_pronoun: pronoun,
-      use_emojis: useEmojis,
-      emoji_whitelist: emojiList.split(/\s+/).filter(Boolean),
-      forbidden_terms: forbiddenTerms.split(',').map(s => s.trim()).filter(Boolean),
       niche_vocabulary: fromPairs(vocab),
       product_aliases: fromPairs(aliases),
       preferred_phrases: fromPairs(phrases),
@@ -117,25 +107,15 @@ export function AILanguageDictionaryEditor() {
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle className="text-lg">Dicionário de Linguagem</CardTitle>
+              <CardTitle className="text-lg">Vocabulário e dicionário do nicho</CardTitle>
               <CardDescription>
-                Define como a IA fala com seus clientes — tom, vocabulário do nicho, apelidos e expressões preferidas.
+                Define como a IA fala — vocabulário do mercado, apelidos de produtos e expressões preferidas.
+                Para gerar tudo automaticamente use "Preencher com IA" no topo.
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              {dictionary?.has_manual_overrides && (
-                <Badge variant="secondary" className="text-xs">Editado manualmente</Badge>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => regenerate.mutate()}
-                disabled={regenerate.isPending}
-              >
-                <Sparkles className="h-4 w-4 mr-1" />
-                {regenerate.isPending ? 'Gerando...' : 'Regenerar com IA'}
-              </Button>
-            </div>
+            {dictionary?.has_manual_overrides && (
+              <Badge variant="secondary" className="text-xs">Editado manualmente</Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -166,23 +146,6 @@ export function AILanguageDictionaryEditor() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Switch checked={useEmojis} onCheckedChange={setUseEmojis} id="lang-use-emojis" />
-            <Label htmlFor="lang-use-emojis">Usar emojis</Label>
-          </div>
-
-          {useEmojis && (
-            <div className="space-y-2">
-              <Label>Emojis permitidos</Label>
-              <Input
-                placeholder="😊 🙌 ✨ 🎉"
-                value={emojiList}
-                onChange={(e) => setEmojiList(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">Separados por espaço. Deixe em branco para liberar todos.</p>
-            </div>
-          )}
-
           <PairList
             label="Vocabulário do nicho"
             description="Termos específicos do seu mercado e o significado deles."
@@ -209,16 +172,6 @@ export function AILanguageDictionaryEditor() {
             pairs={phrases}
             onChange={setPhrases}
           />
-
-          <div className="space-y-2">
-            <Label>Termos proibidos</Label>
-            <Input
-              placeholder="política, religião, concorrentes"
-              value={forbiddenTerms}
-              onChange={(e) => setForbiddenTerms(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">Separados por vírgula. A IA nunca usará esses termos.</p>
-          </div>
 
           <div className="flex justify-end pt-2">
             <Button onClick={handleSave} disabled={upsert.isPending}>

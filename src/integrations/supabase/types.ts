@@ -2870,6 +2870,7 @@ export type Database = {
           created_at: string | null
           custom_knowledge: string | null
           data_retention_days: number | null
+          faq_page_ids: string[]
           forbidden_topics: string[] | null
           greeting_style: string
           handle_audio: boolean | null
@@ -2887,6 +2888,7 @@ export type Database = {
           out_of_hours_message: string | null
           personality_name: string | null
           personality_tone: string | null
+          policy_page_ids: string[]
           rag_min_evidence_chunks: number | null
           rag_similarity_threshold: number | null
           rag_top_k: number | null
@@ -2912,6 +2914,7 @@ export type Database = {
           created_at?: string | null
           custom_knowledge?: string | null
           data_retention_days?: number | null
+          faq_page_ids?: string[]
           forbidden_topics?: string[] | null
           greeting_style?: string
           handle_audio?: boolean | null
@@ -2929,6 +2932,7 @@ export type Database = {
           out_of_hours_message?: string | null
           personality_name?: string | null
           personality_tone?: string | null
+          policy_page_ids?: string[]
           rag_min_evidence_chunks?: number | null
           rag_similarity_threshold?: number | null
           rag_top_k?: number | null
@@ -2954,6 +2958,7 @@ export type Database = {
           created_at?: string | null
           custom_knowledge?: string | null
           data_retention_days?: number | null
+          faq_page_ids?: string[]
           forbidden_topics?: string[] | null
           greeting_style?: string
           handle_audio?: boolean | null
@@ -2971,6 +2976,7 @@ export type Database = {
           out_of_hours_message?: string | null
           personality_name?: string | null
           personality_tone?: string | null
+          policy_page_ids?: string[]
           rag_min_evidence_chunks?: number | null
           rag_similarity_threshold?: number | null
           rag_top_k?: number | null
