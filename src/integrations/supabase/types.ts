@@ -3172,6 +3172,72 @@ export type Database = {
           },
         ]
       }
+      ai_turn_buffers: {
+        Row: {
+          attempts: number
+          bot_message_id: string | null
+          claim_token: string | null
+          claimed_at: string | null
+          completeness: string
+          conversation_id: string
+          created_at: string
+          debounce_ms: number
+          id: string
+          last_error: string | null
+          last_message_at: string
+          logical_turn_id: string
+          message_ids: string[]
+          metadata: Json
+          process_after: string
+          snapshot_message_ids: string[]
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          bot_message_id?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
+          completeness?: string
+          conversation_id: string
+          created_at?: string
+          debounce_ms?: number
+          id?: string
+          last_error?: string | null
+          last_message_at?: string
+          logical_turn_id?: string
+          message_ids?: string[]
+          metadata?: Json
+          process_after: string
+          snapshot_message_ids?: string[]
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          bot_message_id?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
+          completeness?: string
+          conversation_id?: string
+          created_at?: string
+          debounce_ms?: number
+          id?: string
+          last_error?: string | null
+          last_message_at?: string
+          logical_turn_id?: string
+          message_ids?: string[]
+          metadata?: Json
+          process_after?: string
+          snapshot_message_ids?: string[]
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_turn_traces: {
         Row: {
           conversation_id: string | null
@@ -23070,10 +23136,35 @@ export type Database = {
           plan_key: string
         }[]
       }
+      check_turn_freshness: {
+        Args: {
+          p_claim_token: string
+          p_conversation_id: string
+          p_logical_turn_id: string
+        }
+        Returns: Json
+      }
+      claim_turn: {
+        Args: {
+          p_conversation_id: string
+          p_logical_turn_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       cleanup_expired_google_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_meta_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_tiktok_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_youtube_oauth_states: { Args: never; Returns: undefined }
+      complete_turn: {
+        Args: {
+          p_bot_message_id: string
+          p_claim_token: string
+          p_conversation_id: string
+          p_logical_turn_id: string
+        }
+        Returns: Json
+      }
       compute_calendar_item_aggregate_status: {
         Args: { p_calendar_item_id: string }
         Returns: string
@@ -23135,6 +23226,16 @@ export type Database = {
         }
         Returns: string
       }
+      enqueue_turn_message: {
+        Args: {
+          p_completeness: string
+          p_conversation_id: string
+          p_debounce_ms: number
+          p_message_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       ensure_customer_tag: {
         Args: {
           p_customer_id: string
@@ -23146,6 +23247,16 @@ export type Database = {
       ensure_default_email_marketing_lists: {
         Args: { p_tenant_id: string }
         Returns: undefined
+      }
+      fail_turn: {
+        Args: {
+          p_bot_message_id: string
+          p_claim_token: string
+          p_conversation_id: string
+          p_error: string
+          p_logical_turn_id: string
+        }
+        Returns: Json
       }
       generate_billing_checkout_token: {
         Args: { p_session_id: string }
@@ -23487,6 +23598,15 @@ export type Database = {
       }
       record_notification_usage: {
         Args: { p_channel: string; p_count?: number; p_tenant_id: string }
+        Returns: Json
+      }
+      reopen_turn: {
+        Args: {
+          p_claim_token: string
+          p_conversation_id: string
+          p_extend_ms?: number
+          p_logical_turn_id: string
+        }
         Returns: Json
       }
       reserve_credits: {

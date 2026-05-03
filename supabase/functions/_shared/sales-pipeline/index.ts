@@ -22,3 +22,6 @@ export * from "./stage-machine.ts";
 export * from "./working-memory-prompt.ts";
 // [Onda 18 — Fase B] Policy Compiler — fonte central da política efetiva
 export * from "./policy-compiler.ts";
+// [Reg #2.13] Fase C — Turn Orchestrator
+export * from "./turn-completeness.ts";
+export * from "./turn-orchestrator.ts";
