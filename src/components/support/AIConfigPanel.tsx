@@ -236,39 +236,8 @@ export function AIConfigPanel() {
             <AIPageRoleSummary />
           </div>
 
-          {/* Fontes automáticas (Produtos / Categorias) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Fontes automáticas de catálogo</CardTitle>
-              <CardDescription>
-                A IA aprende automaticamente sobre produtos e categorias da sua loja.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label>Produtos</Label>
-                    <p className="text-xs text-muted-foreground">Catálogo, preços, descrições</p>
-                  </div>
-                  <Switch
-                    checked={getValue("auto_import_products") ?? true}
-                    onCheckedChange={(checked) => updateField("auto_import_products", checked)}
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label>Categorias</Label>
-                    <p className="text-xs text-muted-foreground">Organização do catálogo</p>
-                  </div>
-                  <Switch
-                    checked={getValue("auto_import_categories") ?? true}
-                    onCheckedChange={(checked) => updateField("auto_import_categories", checked)}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Fontes automáticas (Produtos / Categorias) — informativo */}
+          <AICatalogSourcesSummary />
         </TabsContent>
 
         {/* ========== ATENDIMENTO ========== */}
