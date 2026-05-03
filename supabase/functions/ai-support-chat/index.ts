@@ -3641,7 +3641,10 @@ Deno.serve(async (req) => {
     if (mediaGate.had_pending && !mediaGate.all_ready) {
       // Timeout: envia (no máx 1x) a resposta de espera e encerra esta execução.
       if (mediaGate.wait_reply && !mediaGate.wait_already_sent) {
-        await supabase.from("messages").insert({
+        const orchMeta: Record<string, unknown> = isOrchestratorCall
+          ? { kind: "media_wait_reply", attachment_ids: mediaGate.attachment_ids, logical_turn_id: orchestratorCtx.logical_turn_id, claim_token: orchestratorCtx.claim_token }
+          : { kind: "media_wait_reply", attachment_ids: mediaGate.attachment_ids };
+        const { data: insertedWait, error: insErr } = await supabase.from("messages").insert({
           conversation_id,
           tenant_id,
           direction: "outbound",
@@ -3653,9 +3656,17 @@ Deno.serve(async (req) => {
           is_ai_generated: true,
           is_internal: false,
           is_note: false,
-          metadata: { kind: "media_wait_reply", attachment_ids: mediaGate.attachment_ids },
+          metadata: orchMeta,
+        }).select("id").maybeSingle();
+        console.log(`[ai-support-chat] [D7] media wait reply queued for msg=${lastCustomerMessage?.id} err=${insErr?.code ?? "none"}`);
+        // [Reg #2.13 Fase C] envia/finaliza pelo helper
+        await finalizeOrchestratedTurn({
+          outcome: "send",
+          botMessageId: insertedWait?.id ?? null,
+          botContent: mediaGate.wait_reply,
+          kind: "media_wait_reply",
+          conversationRef: conversation,
         });
-        console.log(`[ai-support-chat] [D7] media wait reply sent for msg=${lastCustomerMessage?.id}`);
         return new Response(
           JSON.stringify({ success: true, action: "media_wait_reply_sent", attachment_ids: mediaGate.attachment_ids }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -3663,6 +3674,8 @@ Deno.serve(async (req) => {
       }
       // Já enviada antes — nada a fazer agora; reprocesso virá do consumidor.
       console.log(`[ai-support-chat] [D7] media still pending, wait already sent — skipping`);
+      // [Reg #2.13 Fase C] no_send: turno está coberto por outra mensagem já enviada.
+      await finalizeOrchestratedTurn({ outcome: "no_send", reason: "media_pending_already_notified", kind: "media_pending_already" });
       return new Response(
         JSON.stringify({ success: true, action: "media_pending_already_notified" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
