@@ -26,14 +26,15 @@ import { AIContextChecklistCard } from "./AIContextChecklistCard";
  * - banned_claims, do_not_do → tenant_brand_context
  * - ai_language_dictionary, ai_intent_objection_map, knowledge_base_docs inalterados.
  */
-type TabId = "essencial" | "conhecimento" | "atendimento" | "vendas" | "avancado";
+type TabId = "essencial" | "atendimento";
 
 // Maps anchor IDs → tab where the anchor lives. Used by checklist CTAs.
 const ANCHOR_TO_TAB: Record<string, TabId> = {
   "#bloco-contexto": "essencial",
   "#bloco-regras": "essencial",
   "#bloco-claims": "essencial",
-  "#bloco-conhecimento-adicional": "conhecimento",
+  "#bloco-conhecimento-adicional": "essencial",
+  "#bloco-vendas": "essencial",
   "#tab-objections": "atendimento",
 };
 
