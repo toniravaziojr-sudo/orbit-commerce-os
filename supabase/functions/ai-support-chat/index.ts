@@ -3190,6 +3190,152 @@ Deno.serve(async (req) => {
       "send_product_image","send_image","send_media",
     ]);
 
+    // ============================================
+    // [Reg #2.13 Fase C] finalizeOrchestratedTurn — contrato único
+    // Outcomes:
+    //   - send    : insere já feito; envia pelo canal real e roda complete/fail.
+    //   - no_send : sem mensagem ao cliente, mas turno está concluído. complete_turn(null).
+    //   - abort   : estado terminal (handoff/lock), não cria retry. complete_turn(null) + audit.
+    // ============================================
+    type FinalizeOpts = {
+      outcome: "send" | "no_send" | "abort";
+      botMessageId?: string | null;
+      botContent?: string | null;
+      kind?: string;
+      reason?: string;
+      conversationRef?: { channel_type?: string | null; customer_phone?: string | null; customer_email?: string | null } | null;
+    };
+    async function finalizeOrchestratedTurn(opts: FinalizeOpts): Promise<{ ok: boolean; sent?: boolean; error?: string }> {
+      if (!isOrchestratorCall) return { ok: true };
+      const ltid = orchestratorCtx.logical_turn_id!;
+      const ct = orchestratorCtx.claim_token!;
+      const stampMeta = async (extra: Record<string, unknown>) => {
+        try {
+          const { data: bufNow } = await supabase
+            .from("ai_turn_buffers")
+            .select("metadata")
+            .eq("conversation_id", conversation_id)
+            .eq("logical_turn_id", ltid)
+            .maybeSingle();
+          const cur = (bufNow?.metadata as Record<string, unknown> | null) ?? {};
+          await supabase.from("ai_turn_buffers")
+            .update({ metadata: { ...cur, ...extra, finalized_at: new Date().toISOString() } })
+            .eq("conversation_id", conversation_id)
+            .eq("logical_turn_id", ltid);
+        } catch { /* noop */ }
+      };
+
+      if (opts.outcome === "abort") {
+        try {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId ?? null,
+          });
+        } catch (e) { console.warn("[finalize][abort] rpc warn:", e); }
+        await stampMeta({ aborted: true, reason: opts.reason ?? "abort", kind: opts.kind ?? null });
+        console.log(`[ai-support-chat] [TURN-ORCH] finalize abort reason=${opts.reason} kind=${opts.kind}`);
+        return { ok: true };
+      }
+
+      if (opts.outcome === "no_send") {
+        try {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId ?? null,
+          });
+        } catch (e) { console.warn("[finalize][no_send] rpc warn:", e); }
+        await stampMeta({ no_send: true, reason: opts.reason ?? "no_send", kind: opts.kind ?? null });
+        console.log(`[ai-support-chat] [TURN-ORCH] finalize no_send reason=${opts.reason} kind=${opts.kind}`);
+        return { ok: true };
+      }
+
+      // outcome === "send"
+      if (!opts.botMessageId || !opts.botContent) {
+        try {
+          await supabase.rpc("fail_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId ?? null,
+            p_error: "finalize_send_missing_message",
+          });
+        } catch { /* noop */ }
+        return { ok: false, error: "missing_message" };
+      }
+
+      const conv = opts.conversationRef ?? null;
+      const channel = conv?.channel_type ?? null;
+      let sent = false; let errMsg: string | undefined;
+      try {
+        if (channel === "whatsapp" && conv?.customer_phone) {
+          const r = await fetch(`${supabaseUrl}/functions/v1/meta-whatsapp-send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({
+              tenant_id, phone: conv.customer_phone, message: opts.botContent, message_id: opts.botMessageId,
+            }),
+          });
+          const j = await r.json().catch(() => ({}));
+          sent = j?.success === true;
+          errMsg = sent ? undefined : (j?.error || `http_${r.status}`);
+          if (!j?.managed_status) {
+            await supabase.from("messages").update({
+              delivery_status: sent ? "sent" : "failed",
+              external_message_id: j?.message_id || null,
+              failure_reason: sent ? null : errMsg,
+            }).eq("id", opts.botMessageId);
+          }
+        } else if (channel === "chat") {
+          sent = true;
+          await supabase.from("messages").update({ delivery_status: "delivered" }).eq("id", opts.botMessageId);
+        } else if (channel === "email") {
+          const r = await fetch(`${supabaseUrl}/functions/v1/support-send-message`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({ message_id: opts.botMessageId, channel_type: "email" }),
+          });
+          const j = await r.json().catch(() => ({}));
+          sent = j?.success === true; errMsg = sent ? undefined : (j?.error || `http_${r.status}`);
+        } else {
+          sent = false; errMsg = `channel_not_supported:${channel ?? "null"}`;
+        }
+      } catch (e) {
+        sent = false; errMsg = e instanceof Error ? e.message : String(e);
+        try {
+          await supabase.from("messages").update({
+            delivery_status: "failed", failure_reason: errMsg,
+          }).eq("id", opts.botMessageId);
+        } catch { /* noop */ }
+      }
+
+      try {
+        if (sent) {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId,
+          });
+          console.log(`[ai-support-chat] [TURN-ORCH] finalize send OK kind=${opts.kind} bot_msg=${opts.botMessageId}`);
+        } else {
+          await supabase.rpc("fail_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId,
+            p_error: `send_failed:${(errMsg || "unknown").slice(0, 200)}`,
+          });
+          console.warn(`[ai-support-chat] [TURN-ORCH] finalize send FAILED kind=${opts.kind} bot_msg=${opts.botMessageId} err=${errMsg}`);
+        }
+      } catch (e) { console.warn("[finalize][send] rpc warn:", e); }
+      await stampMeta({ sent, kind: opts.kind ?? null, reason: opts.reason ?? "send", last_send_error: errMsg ?? null });
+      return { ok: sent, sent, error: errMsg };
+    }
+
 
     // ============================================
     // LOAD AI SUPPORT CONFIG (with RAG settings)
