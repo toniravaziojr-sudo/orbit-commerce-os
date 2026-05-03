@@ -132,7 +132,7 @@ function EntryRow({ entry, onUpdate, onToggleActive, isPending }: EntryRowProps)
 }
 
 export function AIIntentObjectionEditor() {
-  const { entries, isLoading, update, toggleActive, regenerate } = useAiIntentObjectionMap();
+  const { entries, isLoading, update, toggleActive } = useAiIntentObjectionMap();
 
   const intents = entries.filter(e => e.entry_type === 'intent');
   const objections = entries.filter(e => e.entry_type === 'objection');
@@ -142,24 +142,11 @@ export function AIIntentObjectionEditor() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-lg">Intenções e Objeções</CardTitle>
-            <CardDescription>
-              Catálogo de situações recorrentes nas conversas e como a IA deve responder.
-              Novas entradas chegam pela Central de Insights — aqui você ajusta o que já foi aprovado.
-            </CardDescription>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => regenerate.mutate()}
-            disabled={regenerate.isPending}
-          >
-            <Sparkles className="h-4 w-4 mr-1" />
-            {regenerate.isPending ? 'Gerando...' : 'Regenerar com IA'}
-          </Button>
-        </div>
+        <CardTitle className="text-lg">Intenções e Objeções</CardTitle>
+        <CardDescription>
+          Catálogo de situações recorrentes e como a IA deve responder. Para gerar
+          tudo automaticamente use "Preencher com IA" no topo.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <section className="space-y-3">
