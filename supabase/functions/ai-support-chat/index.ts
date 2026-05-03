@@ -3105,13 +3105,23 @@ Deno.serve(async (req) => {
   let embeddingTokens = 0;
 
   try {
-    const { conversation_id, tenant_id } = await req.json();
+    const reqBody = await req.json();
+    const { conversation_id, tenant_id, logical_turn_id, claim_token } = reqBody;
 
     if (!conversation_id || !tenant_id) {
       return new Response(
         JSON.stringify({ success: false, error: "conversation_id and tenant_id are required" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+    // [Reg #2.13] Turn Orchestrator context
+    const orchestratorCtx: { logical_turn_id: string | null; claim_token: string | null } = {
+      logical_turn_id: typeof logical_turn_id === "string" ? logical_turn_id : null,
+      claim_token: typeof claim_token === "string" ? claim_token : null,
+    };
+    const isOrchestratorCall = !!(orchestratorCtx.logical_turn_id && orchestratorCtx.claim_token);
+    if (isOrchestratorCall) {
+      console.log(`[ai-support-chat] [TURN-ORCH] orchestrator call logical_turn=${orchestratorCtx.logical_turn_id!.slice(0,8)} claim=${orchestratorCtx.claim_token!.slice(0,8)}`);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -3129,6 +3139,55 @@ Deno.serve(async (req) => {
 
     
     const supabase = createClient(supabaseUrl, serviceKey);
+
+    // [Reg #2.13] Helper de freshness check + reopen + dispatch processor.
+    async function freshnessGate(stage: "pre_tool" | "pre_send", toolName?: string): Promise<boolean> {
+      if (!isOrchestratorCall) return true;
+      const { data: fr, error: frErr } = await supabase.rpc("check_turn_freshness", {
+        p_conversation_id: conversation_id,
+        p_logical_turn_id: orchestratorCtx.logical_turn_id,
+        p_claim_token: orchestratorCtx.claim_token,
+      });
+      if (frErr) {
+        console.warn(`[ai-support-chat] [TURN-ORCH][${stage}] freshness rpc error (proceeding):`, frErr.message);
+        return true;
+      }
+      if ((fr as any)?.fresh) return true;
+      console.log(`[ai-support-chat] [TURN-ORCH][${stage}] STALE reason=${(fr as any)?.reason} tool=${toolName ?? "n/a"} → reopen+dispatch`);
+      const { error: rErr } = await supabase.rpc("reopen_turn", {
+        p_conversation_id: conversation_id,
+        p_logical_turn_id: orchestratorCtx.logical_turn_id,
+        p_claim_token: orchestratorCtx.claim_token,
+        p_extend_ms: 1500,
+      });
+      if (rErr) console.warn(`[ai-support-chat] [TURN-ORCH] reopen rpc error:`, rErr.message);
+      try {
+        const dispatchPromise = fetch(
+          `${supabaseUrl}/functions/v1/turn-orchestrator-processor`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({
+              tenant_id, conversation_id,
+              logical_turn_id: orchestratorCtx.logical_turn_id,
+              source: "freshness_reopen",
+            }),
+          },
+        ).catch((e) => console.error("[ai-support-chat] [TURN-ORCH] dispatch failed:", e));
+        // @ts-ignore EdgeRuntime
+        (globalThis as any).EdgeRuntime?.waitUntil?.(dispatchPromise);
+      } catch { /* noop */ }
+      return false;
+    }
+
+    const SIDE_EFFECT_TOOLS_LOCAL = new Set([
+      "add_to_cart","remove_from_cart","update_cart_item",
+      "apply_coupon","remove_coupon",
+      "generate_checkout_link","create_checkout_link",
+      "request_human_handoff","transfer_to_human",
+      "create_order","send_payment_link",
+    ]);
+
 
     // ============================================
     // LOAD AI SUPPORT CONFIG (with RAG settings)
@@ -5599,6 +5658,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             continue;
           }
 
+          // [Reg #2.13] Freshness check antes de tool com efeito colateral
+          if (isOrchestratorCall && SIDE_EFFECT_TOOLS_LOCAL.has(fnName)) {
+            const fresh = await freshnessGate("pre_tool", fnName);
+            if (!fresh) {
+              console.log(`[ai-support-chat] [TURN-ORCH] aborting tool ${fnName} — turn reopened`);
+              return new Response(
+                JSON.stringify({ success: true, action: "freshness_reopen_pre_tool", tool: fnName }),
+                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+              );
+            }
+          }
+
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
           // [D9] Telemetria — tool executada
           const toolStartedAt = Date.now();
@@ -6218,6 +6289,46 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // ============================================
     // STEP 9: SAVE MESSAGE
     // ============================================
+    // [Reg #2.13] Freshness check pré-envio (turno pode ter recebido nova msg
+    // enquanto o GPT-5 gerava a resposta). Se stale → reopen+dispatch+abortar.
+    if (isOrchestratorCall) {
+      const fresh = await freshnessGate("pre_send");
+      if (!fresh) {
+        console.log(`[ai-support-chat] [TURN-ORCH] aborting send — turn reopened`);
+        return new Response(
+          JSON.stringify({ success: true, action: "freshness_reopen_pre_send" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    const botInsertMetadata: Record<string, any> = {
+      rag_enabled: true,
+      chunks_found: similarityScores.length,
+      avg_similarity: similarityScores.length > 0
+        ? similarityScores.reduce((a, b) => a + b, 0) / similarityScores.length
+        : null,
+      intent_classification: effectiveConfig.redact_pii_in_logs
+        ? { ...intentClassification, summary: intentClassification?.summary ? redactPII(intentClassification.summary) : "" }
+        : intentClassification,
+      no_evidence_handoff: noEvidenceHandoff,
+      customer_id: customerId,
+      matched_rule: matchedRule?.id,
+      channel_type: channelType,
+      handoff_reason: handoffReason || null,
+      sales_mode: salesModeEnabled,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      embedding_tokens: embeddingTokens,
+      cost_cents: costCents,
+      latency_ms: latencyMs,
+      provider: "openai",
+    };
+    if (isOrchestratorCall) {
+      botInsertMetadata.logical_turn_id = orchestratorCtx.logical_turn_id;
+      botInsertMetadata.claim_token = orchestratorCtx.claim_token;
+    }
+
     const { data: newMessage, error: msgError } = await supabase
       .from("messages")
       .insert({
@@ -6234,38 +6345,64 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         is_note: false,
         ai_model_used: forceResponse ? "rule-based" : modelUsed,
         ai_confidence: forceResponse ? 1.0 : (similarityScores[0] || 0.9),
-        ai_context_used: { 
-          rag_enabled: true,
-          chunks_found: similarityScores.length,
-          avg_similarity: similarityScores.length > 0 
-            ? similarityScores.reduce((a, b) => a + b, 0) / similarityScores.length 
-            : null,
-          intent_classification: effectiveConfig.redact_pii_in_logs 
-            ? { ...intentClassification, summary: intentClassification?.summary ? redactPII(intentClassification.summary) : "" }
-            : intentClassification,
-          no_evidence_handoff: noEvidenceHandoff,
-          customer_id: customerId,
-          matched_rule: matchedRule?.id,
-          channel_type: channelType,
-          handoff_reason: handoffReason || null,
-          sales_mode: salesModeEnabled,
-          input_tokens: inputTokens,
-          output_tokens: outputTokens,
-          embedding_tokens: embeddingTokens,
-          cost_cents: costCents,
-          latency_ms: latencyMs,
-          provider: "openai",
-        },
+        metadata: isOrchestratorCall ? { logical_turn_id: orchestratorCtx.logical_turn_id } : undefined,
+        ai_context_used: botInsertMetadata,
       })
       .select()
       .single();
 
     if (msgError) {
+      // [Reg #2.13] Pode ter colidido com índice único de logical_turn_id
+      // (significa que outro worker já persistiu — turno está completo).
+      const isDup = (msgError as any)?.code === "23505" ||
+        /duplicate|unique/i.test(msgError.message || "");
+      if (isDup && isOrchestratorCall) {
+        console.log(`[ai-support-chat] [TURN-ORCH] duplicate bot insert — already persisted by another worker, completing turn`);
+        // Marca complete (idempotente — outro worker provavelmente já marcou)
+        try {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: orchestratorCtx.logical_turn_id,
+            p_claim_token: orchestratorCtx.claim_token,
+            p_bot_message_id: null,
+          });
+        } catch { /* noop */ }
+        return new Response(
+          JSON.stringify({ success: true, action: "duplicate_bot_skipped" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       console.error("[ai-support-chat] Error saving AI message:", msgError);
+      if (isOrchestratorCall) {
+        try {
+          await supabase.rpc("fail_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: orchestratorCtx.logical_turn_id,
+            p_claim_token: orchestratorCtx.claim_token,
+            p_bot_message_id: null,
+            p_error: `save_error:${msgError.message || "unknown"}`,
+          });
+        } catch { /* noop */ }
+      }
       return new Response(
         JSON.stringify({ success: false, error: "Error saving response", code: "SAVE_ERROR" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // [Reg #2.13] Marca turno como processado (envio em si é assíncrono via support-send-message)
+    if (isOrchestratorCall && newMessage?.id) {
+      try {
+        await supabase.rpc("complete_turn", {
+          p_conversation_id: conversation_id,
+          p_logical_turn_id: orchestratorCtx.logical_turn_id,
+          p_claim_token: orchestratorCtx.claim_token,
+          p_bot_message_id: newMessage.id,
+        });
+        console.log(`[ai-support-chat] [TURN-ORCH] complete_turn OK bot_msg=${newMessage.id}`);
+      } catch (compErr) {
+        console.warn(`[ai-support-chat] [TURN-ORCH] complete_turn warning:`, compErr);
+      }
     }
 
     // [F1] Calcula próximo estado comercial (servidor, não modelo)
