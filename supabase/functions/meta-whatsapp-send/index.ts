@@ -103,11 +103,16 @@ Deno.serve(async (req) => {
   const testModeAllowed = !!internalTestTokenSecret && internalTestTokenHeader === internalTestTokenSecret;
 
   try {
-    const params: SendMessageParams = await req.json();
+    const params: SendMessageParams & {
+      recipient_override?: string;
+      dry_send?: boolean;
+      sandbox_force_send_failure?: boolean;
+    } = await req.json();
     const {
-      tenant_id, phone, message, template_name, template_language, template_components,
+      tenant_id, message, template_name, template_language, template_components,
       template_body, template_payload, image_url, image_caption, message_id,
     } = params;
+    let phone = params.phone;
 
     // Sanitize test flag — only honored when header token matches
     const injectFailures = testModeAllowed ? Math.max(0, Math.min(MAX_ATTEMPTS, Number(params._test_inject_failures) || 0)) : 0;
