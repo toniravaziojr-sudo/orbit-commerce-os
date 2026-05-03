@@ -5,19 +5,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, EyeOff, Building2, MessageSquare, ShieldAlert, BookOpen } from "lucide-react";
+import { Building2, MessageSquare, ShieldAlert } from "lucide-react";
 import { useTenantBrandContext } from "@/hooks/useTenantBrandContext";
 
 interface Props {
   businessContext: string;
   attendanceRules: string;
-  customKnowledge: string;
-  systemPrompt: string;
   onChange: (patch: {
     business_context?: string;
     attendance_rules?: string;
-    custom_knowledge?: string;
-    system_prompt?: string;
   }) => void;
 }
 
@@ -29,15 +25,18 @@ const Counter = ({ value }: { value: string }) => (
   <span className="text-[10px] text-muted-foreground">{value.length} caracteres</span>
 );
 
+/**
+ * Onda 1A.1 — Aba Essencial.
+ * Contém apenas: contexto do negócio, regras gerais e claims/promessas proibidas.
+ * "Conhecimento adicional" foi movido para a aba Conhecimento (fonte única).
+ * "Prompt do sistema (legado)" foi movido para a aba Avançado.
+ */
 export function AIBusinessContextSection({
   businessContext,
   attendanceRules,
-  customKnowledge,
-  systemPrompt,
   onChange,
 }: Props) {
   const { brand, upsert } = useTenantBrandContext();
-  const [showLegacy, setShowLegacy] = useState(false);
   const [bannedClaimsDraft, setBannedClaimsDraft] = useState<string | null>(null);
   const [doNotDoDraft, setDoNotDoDraft] = useState<string | null>(null);
 
@@ -101,6 +100,7 @@ export function AIBusinessContextSection({
           </div>
           <p className="text-xs text-muted-foreground">
             Como a IA deve conduzir a conversa, quando perguntar, quando escalar para humano, regras comerciais.
+            Para regras condicionais (Quando X → faça Y), use a aba Atendimento.
           </p>
           <Textarea
             placeholder={EXAMPLE_RULES}
@@ -125,7 +125,9 @@ export function AIBusinessContextSection({
             <span className="text-[10px] text-muted-foreground">Salvo no contexto de marca</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            O que a IA <strong>não pode prometer</strong>: resultado garantido, prazo médico, comparação direta com concorrente, etc.
+            Promessas <strong>comerciais ou jurídicas</strong> que sua marca não pode fazer
+            (resultado garantido, prazo médico, comparação direta com concorrente).
+            Diferente de <em>tópicos proibidos</em> (assuntos a evitar) e <em>termos proibidos</em> (palavras a não usar) — esses ficam na aba Atendimento.
           </p>
 
           <div className="space-y-2">
@@ -151,52 +153,6 @@ export function AIBusinessContextSection({
               <Button size="sm" onClick={saveClaims} disabled={upsert.isPending}>
                 {upsert.isPending ? "Salvando…" : "Salvar claims"}
               </Button>
-            </div>
-          )}
-        </div>
-
-        {/* 4. Conhecimento adicional — usa custom_knowledge legado */}
-        <div id="bloco-conhecimento" className="space-y-2 scroll-mt-24 pt-4 border-t">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2 text-sm font-semibold">
-              <BookOpen className="h-4 w-4" />
-              Conhecimento adicional
-              <Badge variant="secondary" className="text-[10px]">Informativo</Badge>
-            </Label>
-            <Counter value={customKnowledge} />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Detalhes específicos da loja, exceções, informações técnicas que não cabem nos blocos acima.
-          </p>
-          <Textarea
-            placeholder="Ex.: O Kit Banho leva 2 dias úteis a mais para envio. Promoção de aniversário começa todo dia 10. Cupom BEMVINDO10 só vale primeira compra."
-            value={customKnowledge}
-            onChange={(e) => onChange({ custom_knowledge: e.target.value })}
-            rows={5}
-          />
-        </div>
-
-        {/* Legado: system_prompt */}
-        <div className="pt-4 border-t">
-          <button
-            type="button"
-            onClick={() => setShowLegacy((v) => !v)}
-            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-          >
-            {showLegacy ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-            {showLegacy ? "Ocultar" : "Mostrar"} prompt do sistema (legado / avançado)
-          </button>
-          {showLegacy && (
-            <div className="space-y-2 mt-3">
-              <Label className="text-xs">Prompt do sistema (legado)</Label>
-              <p className="text-[11px] text-muted-foreground">
-                Mantido por compatibilidade. Use os 4 blocos acima para configurar a IA. Este campo continua sendo lido durante a transição.
-              </p>
-              <Textarea
-                value={systemPrompt}
-                onChange={(e) => onChange({ system_prompt: e.target.value })}
-                rows={4}
-              />
             </div>
           )}
         </div>

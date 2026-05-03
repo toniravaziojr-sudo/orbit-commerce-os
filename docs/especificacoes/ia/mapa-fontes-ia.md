@@ -344,3 +344,34 @@ Escopo mínimo da Onda 1 (a aprovar separadamente):
 **Itens do checklist implementados** (diagnóstico, não bloqueia):
 contexto do negócio, regras de atendimento, claims proibidas, conhecimento adicional, FAQ/base de conhecimento, objeções comuns, produtos sem visão da IA (informativo), packs/kits sem produto-base (informativo, ativo na 1B).
 
+
+---
+
+## 13. Onda 1A.1 — Consolidação de UX (entregue)
+
+**Escopo:** apenas reorganização visual de Configurações Gerais da IA. Sem migration. Sem alteração em `ai-support-chat`, `search_products`, sales pipeline, Orchestrator ou Cadastro de Produto. Fontes de verdade preservadas.
+
+**Estrutura nova — 5 abas** (antes: 8):
+
+| Aba | Conteúdo | Fontes |
+|---|---|---|
+| Essencial | Contexto do negócio · Regras gerais de atendimento · Claims/promessas proibidas | `ai_support_config.business_context`, `ai_support_config.attendance_rules`, `tenant_brand_context.banned_claims/do_not_do` |
+| Conhecimento | Fontes automáticas (4 switches) · Conhecimento adicional · Vocabulário e linguagem do nicho | `ai_support_config.auto_import_*`, `ai_support_config.custom_knowledge`, `ai_language_dictionary` |
+| Atendimento | Identidade (nome/tom/emojis) · Objeções e intenções · Regras condicionais · Transferência humano · Modo aprovação · Tratamento de mídia · Tópicos proibidos | `ai_support_config.personality_*`, `ai_intent_objection_map`, `ai_support_config.rules`, `ai_support_config.handoff_*`, `ai_support_config.handle_*`, `ai_support_config.forbidden_topics` |
+| Vendas | Modo Vendas + capacidades + placeholder de regras comerciais futuras | `ai_support_config.sales_mode_enabled` |
+| Avançado | Modelo de IA · Tamanho máximo de resposta · Metas de tempo · Prompt do sistema (legado, colapsado) | `ai_support_config.ai_model`, `max_response_length`, `target_*`, `system_prompt` |
+
+**Deduplicações executadas:**
+- `custom_knowledge` removido da aba Essencial — agora aparece **apenas** na aba Conhecimento.
+- `system_prompt` removido da aba Essencial — agora **apenas** em Avançado, colapsado.
+- `use_emojis` deixou de aparecer em duas abas — agora **apenas** em Atendimento.
+- `personality_tone` (Personalidade) e `tone_style` (Linguagem) ficaram em abas distintas e complementares: tom de voz curto em Atendimento, estilo discursivo no dicionário (Conhecimento).
+
+**Diferenciação clara dos 3 "proibidos":**
+- **Claims/promessas proibidas** (Essencial) — promessas comerciais/jurídicas que a marca não pode fazer. Fonte: `tenant_brand_context`.
+- **Tópicos proibidos** (Atendimento → "O que evitar nas conversas") — assuntos a não tratar. Fonte: `ai_support_config.forbidden_topics`.
+- **Termos proibidos** (Conhecimento → dicionário) — palavras/frases a não usar. Fonte: `ai_language_dictionary`.
+
+**Checklist compacto:** card colapsado por padrão, mostra `X/Y prontos` e "Ver pendências". Expandido lista itens com severidade e CTA. Os CTAs com âncora trocam a aba ativa antes do scroll. CTA `#bloco-conhecimento-adicional` aponta para a aba Conhecimento.
+
+**Dados de teste no tenant Respeite o Homem (provisórios):** `business_context`, `attendance_rules`, `custom_knowledge`, `banned_claims`, `do_not_do` permanecem preenchidos só para validação visual; não considerar como configuração final.

@@ -101,7 +101,7 @@ export function useAiContextChecklist() {
     severity: "informativo",
     why: "Detalhes específicos da loja que não cabem em outros campos.",
     resolved: has(config?.custom_knowledge),
-    cta: { kind: "anchor", target: "#bloco-conhecimento", label: "Preencher" },
+    cta: { kind: "anchor", target: "#bloco-conhecimento-adicional", label: "Preencher" },
   });
 
   const agg = aggregates.data;
