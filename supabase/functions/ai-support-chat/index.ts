@@ -3181,11 +3181,13 @@ Deno.serve(async (req) => {
     }
 
     const SIDE_EFFECT_TOOLS_LOCAL = new Set([
-      "add_to_cart","remove_from_cart","update_cart_item",
+      "add_to_cart","remove_from_cart","update_cart_item","update_cart",
       "apply_coupon","remove_coupon",
       "generate_checkout_link","create_checkout_link",
       "request_human_handoff","transfer_to_human",
       "create_order","send_payment_link",
+      // [Reg #2.13] Tools que enviam mídia/mensagem externa ao cliente também são side-effects
+      "send_product_image","send_image","send_media",
     ]);
 
 
