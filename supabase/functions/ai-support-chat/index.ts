@@ -3140,6 +3140,55 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, serviceKey);
 
+    // [Reg #2.13] Helper de freshness check + reopen + dispatch processor.
+    async function freshnessGate(stage: "pre_tool" | "pre_send", toolName?: string): Promise<boolean> {
+      if (!isOrchestratorCall) return true;
+      const { data: fr, error: frErr } = await supabase.rpc("check_turn_freshness", {
+        p_conversation_id: conversation_id,
+        p_logical_turn_id: orchestratorCtx.logical_turn_id,
+        p_claim_token: orchestratorCtx.claim_token,
+      });
+      if (frErr) {
+        console.warn(`[ai-support-chat] [TURN-ORCH][${stage}] freshness rpc error (proceeding):`, frErr.message);
+        return true;
+      }
+      if ((fr as any)?.fresh) return true;
+      console.log(`[ai-support-chat] [TURN-ORCH][${stage}] STALE reason=${(fr as any)?.reason} tool=${toolName ?? "n/a"} → reopen+dispatch`);
+      const { error: rErr } = await supabase.rpc("reopen_turn", {
+        p_conversation_id: conversation_id,
+        p_logical_turn_id: orchestratorCtx.logical_turn_id,
+        p_claim_token: orchestratorCtx.claim_token,
+        p_extend_ms: 1500,
+      });
+      if (rErr) console.warn(`[ai-support-chat] [TURN-ORCH] reopen rpc error:`, rErr.message);
+      try {
+        const dispatchPromise = fetch(
+          `${supabaseUrl}/functions/v1/turn-orchestrator-processor`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({
+              tenant_id, conversation_id,
+              logical_turn_id: orchestratorCtx.logical_turn_id,
+              source: "freshness_reopen",
+            }),
+          },
+        ).catch((e) => console.error("[ai-support-chat] [TURN-ORCH] dispatch failed:", e));
+        // @ts-ignore EdgeRuntime
+        (globalThis as any).EdgeRuntime?.waitUntil?.(dispatchPromise);
+      } catch { /* noop */ }
+      return false;
+    }
+
+    const SIDE_EFFECT_TOOLS_LOCAL = new Set([
+      "add_to_cart","remove_from_cart","update_cart_item",
+      "apply_coupon","remove_coupon",
+      "generate_checkout_link","create_checkout_link",
+      "request_human_handoff","transfer_to_human",
+      "create_order","send_payment_link",
+    ]);
+
+
     // ============================================
     // LOAD AI SUPPORT CONFIG (with RAG settings)
     // ============================================
