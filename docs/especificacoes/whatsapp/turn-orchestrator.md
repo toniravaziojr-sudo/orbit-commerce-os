@@ -77,6 +77,23 @@ Webhook detecta a flag a cada inbound e cai automaticamente no caminho legado (`
 - `[ai-support-chat] [TURN-ORCH] complete_turn OK bot_msg=…`
 - `[turn-orchestrator-watchdog] found N stuck buffers` (a cada minuto; 0 é normal)
 
+## Consolidação obrigatória do turno antes do roteamento (Reg #2.13 Fase C)
+Quando `ai-support-chat` é invocado pelo orquestrador (`isOrchestratorCall=true`), o código DEVE consolidar as mensagens do buffer (`snapshot_message_ids` → texto agregado em ordem cronológica) e SOBRESCREVER `lastMessageContent` ANTES de qualquer etapa de roteamento/classificação:
+
+- TPR (`classifyTurn`)
+- detector de input degenerado / `ambiguous_input`
+- `decideNextState` / state machine
+- greeting detection (`isPureGreeting`) e greeting mirror (`detectGreetingEcho`)
+- sales trigger / `detectInformationalProductQuestion` / `detectFamilyMentioned`
+- product/family focus
+- prompt principal e tools (`search_products`)
+
+**Por quê:** sem essa consolidação, o último fragmento da rajada (ex.: `"?"`) determina o roteamento e a IA cai em greeting genérico ignorando dor/produto declarados nos fragmentos anteriores. Incidente real WhatsApp 02–03/mai/2026 (conversa `ab3d720d`). Memória anti-regressão: `mem://constraints/turn-orchestrator-consolidated-text`.
+
+**Sinal de regressão:** bot responde greeting genérico em turno multi-mensagem com dor/produto/pergunta declarados; ou `lastMessageContent` chega ao prompt como apenas o último fragmento (`"?"`, `"ok"`, etc.).
+
+**Placeholders de teste:** `burst`, `sandbox`, `dry_run` estão em `looksGenericOrCorporate` para nunca virarem vocativo.
+
 ## Early-Return Contract (Reg #2.13 Fase C)
 Todo early-return de `ai-support-chat` em chamada orquestrada PASSA pelo helper `finalizeOrchestratedTurn({outcome, botMessageId?, botContent?, kind?, reason?, conversationRef?})`. 3 outcomes:
 - **send** — INSERT bot já feito; helper envia (whatsapp/chat/email) + `complete_turn`/`fail_turn` + atualiza `delivery_status`. Idempotência por índice único `messages_unique_bot_per_logical_turn`.
