@@ -63,7 +63,38 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #25 — AI Provider Routing Fase 1: TPR migrado para `_shared/ai-router.ts` — 03/mai/2026
+
+**Contexto.** Diagnóstico de RATE_LIMIT 429 nos testes da Onda 1C revelou que o TPR (`turn-pre-router.ts`) ainda chamava o Lovable AI Gateway diretamente via `LOVABLE_API_KEY`. Como o Gateway tem rate limit por workspace Lovable (compartilhado com sandbox e todas as funções utilitárias), o TPR — que roda em todo turno do WhatsApp real — virou o principal gargalo de produção.
+
+**Diagnóstico.** O composer principal do `ai-support-chat` já chama OpenAI direto (9 fetches). Só o TPR e ~16 utilitárias dependiam do Gateway primário. Existe `_shared/ai-router.ts` v1.2.0 com hierarquia `Gemini Native → OpenAI Native → Lovable Gateway (fallback)`, retry com backoff, memória curta de provider 429 e mapeamento de modelos lógicos.
+
+**Correção aplicada (Fase 1, escopo restrito).**
+- TPR substituiu o `fetch(LOVABLE_AI_URL)` por `aiChatCompletionJSON("google/gemini-2.5-flash-lite", ...)` do `ai-router`.
+- Contrato preservado: mesmo `tools` + `tool_choice` OpenAI-compat, mesmo schema de saída (`TurnClassification`), mesmo fallback regex em caso de falha total.
+- Timeout TPR enforced via `Promise.race` (router não aceita AbortSignal).
+- `maxRetries=1`, `baseDelayMs=1500` — TPR é latency-sensitive, prefere pular provider rápido a esperar.
+- Rollback de emergência: env var `TPR_USE_LEGACY_GATEWAY=1` volta o caminho direto antigo sem deploy.
+- Logs adicionados: `[turn-pre-router] provider=… model=… latency=…ms source=llm fallback=…`.
+
+**Providers efetivos no momento.** `GEMINI_API_KEY` ainda não está cadastrada → ordem real: **OpenAI Native → Lovable Gateway (fallback)**. Quando Gemini Native for adicionado, o router passará a usá-lo automaticamente, sem deploy.
+
+**Validação.**
+- ✅ Pré-check de chaves: `OPENAI_API_KEY` ✓, `LOVABLE_API_KEY` ✓, `GEMINI_API_KEY` ✗.
+- ✅ Pré-check do router: suporta tool calling, mapeia `google/gemini-2.5-flash-lite` → `gpt-4o-mini` no provider OpenAI.
+- ✅ Deploy do `ai-support-chat` concluído sem erro.
+- ⏳ Validação real de produção depende do próximo turno de WhatsApp do Respeite o Homem (testes ativos pelo usuário). Logs do TPR carregam agora `provider=…` para confirmar.
+
+**O que não foi alterado.** Composer principal segue OpenAI direto. Catalog Probe, `search_products`, ranking, prompt, Orchestrator e Onda 1C `dry_run` permanecem intocados. Nenhuma mudança de UI.
+
+**Anti-regressão.** Memória nova: `mem://infrastructure/ai/provider-router-standard` — fluxos críticos de IA proibidos de chamar Lovable Gateway direto. Indexada em `mem://index.md`.
+
+**Doc formal.** `docs/especificacoes/ia/ai-provider-routing.md` (criado nesta entrega) — hierarquia, fallback, rate limit, sandbox vs produção, plano faseado (Fases 1–5) e rollback.
+
+---
+
 ## Registro #24 — Fase C: pre_send freshness split + media_wait_reply guard + processor 90s — 03/mai/2026
+
 
 **Contexto.** Teste real de rajada no WhatsApp do Respeite o Homem (conversa `ab3d720d`, buffer `94f870a3`, 5 mensagens textuais comerciais "oi" → "tenho falhas na coroa" → "esse shampoo serve" → "ou tem algum bom" → "?" + uma imagem subsequente). A IA não respondeu nenhuma mensagem comercial. O cliente recebeu apenas o "Recebi sua mídia, só um instante…" da imagem.
 
