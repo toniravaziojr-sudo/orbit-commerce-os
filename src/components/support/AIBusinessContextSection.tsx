@@ -37,6 +37,7 @@ export function AIBusinessContextSection({
   businessContext,
   attendanceRules,
   onChange,
+  hideRules = false,
 }: Props) {
   const { brand, upsert } = useTenantBrandContext();
   const [bannedClaimsDraft, setBannedClaimsDraft] = useState<string | null>(null);
