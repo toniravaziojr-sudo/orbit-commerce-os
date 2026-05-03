@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, ChevronDown, ChevronUp, AlertTriangle, MessageSquare } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, MessageSquare } from "lucide-react";
 import {
   useAiIntentObjectionMap,
   type AiIntentObjectionEntry,
