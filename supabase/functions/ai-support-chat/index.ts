@@ -789,6 +789,10 @@ async function executeSalesTool(
     arch18CatalogBaseForced?: boolean;
     // [Onda 18 — Fase A] Identificador do turno atual (usado em ai_turn_traces).
     turnId?: string;
+    // [Onda 1C] Recommendation Context Builder — modos: off | dry_run | active.
+    // dry_run apenas grava trace, NÃO altera shape devolvido ao modelo.
+    arch1cRecommendationContextBuilderEnabled?: boolean;
+    arch1cRecommendationContextBuilderMode?: "off" | "dry_run" | "active";
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
