@@ -207,6 +207,7 @@ export function AIConfigPanel() {
             businessContext={getValue("business_context") || ""}
             attendanceRules={getValue("attendance_rules") || ""}
             onChange={(patch) => setLocalConfig((prev) => ({ ...prev, ...patch }))}
+            hideRules
           />
 
           {/* Conhecimento adicional (texto livre) */}
