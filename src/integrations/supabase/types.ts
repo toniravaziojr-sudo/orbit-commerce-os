@@ -2861,10 +2861,12 @@ export type Database = {
         Row: {
           ai_model: string | null
           approval_mode: boolean | null
+          attendance_rules: string | null
           auto_import_categories: boolean | null
           auto_import_faqs: boolean | null
           auto_import_policies: boolean | null
           auto_import_products: boolean | null
+          business_context: string | null
           created_at: string | null
           custom_knowledge: string | null
           data_retention_days: number | null
@@ -2901,10 +2903,12 @@ export type Database = {
         Insert: {
           ai_model?: string | null
           approval_mode?: boolean | null
+          attendance_rules?: string | null
           auto_import_categories?: boolean | null
           auto_import_faqs?: boolean | null
           auto_import_policies?: boolean | null
           auto_import_products?: boolean | null
+          business_context?: string | null
           created_at?: string | null
           custom_knowledge?: string | null
           data_retention_days?: number | null
@@ -2941,10 +2945,12 @@ export type Database = {
         Update: {
           ai_model?: string | null
           approval_mode?: boolean | null
+          attendance_rules?: string | null
           auto_import_categories?: boolean | null
           auto_import_faqs?: boolean | null
           auto_import_policies?: boolean | null
           auto_import_products?: boolean | null
+          business_context?: string | null
           created_at?: string | null
           custom_knowledge?: string | null
           data_retention_days?: number | null
