@@ -31,6 +31,8 @@ export interface StorePage {
   // Template fields (Shopify-like)
   template_id: string | null;
   individual_content: string | null;
+  // Onda 1A.3 — papel da página para a IA de atendimento
+  ai_role: 'faq' | 'policy' | null;
 }
 
 export type StorePageFormData = {
@@ -49,6 +51,7 @@ export type StorePageFormData = {
   // Template fields
   template_id?: string | null;
   individual_content?: string | null;
+  ai_role?: 'faq' | 'policy' | null;
 };
 
 export function useStorePages() {
