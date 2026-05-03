@@ -295,7 +295,7 @@ export function AIConfigPanel() {
             <CardHeader>
               <CardTitle className="text-lg">Regras condicionais de comportamento</CardTitle>
               <CardDescription>
-                Quando o cliente fizer X, a IA deve fazer Y. Para regras gerais em texto livre, use a aba Essencial.
+                Quando o cliente fizer X, a IA deve fazer Y. Para regras gerais em texto livre, use a aba Conhecimento Essencial.
               </CardDescription>
             </CardHeader>
             <CardContent>
