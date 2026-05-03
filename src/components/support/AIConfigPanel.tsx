@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Brain, Shield, Sparkles, MessageCircle, ShoppingCart, Languages, Target } from "lucide-react";
+import { Bot, Brain, Shield, Sparkles, MessageCircle, ShoppingCart, Languages, Target, Building2 } from "lucide-react";
 import { useAiSupportConfig, type AiSupportConfig, type AIRule } from "@/hooks/useAiSupportConfig";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AIRulesEditor } from "./AIRulesEditor";
 import { AILanguageDictionaryEditor } from "./AILanguageDictionaryEditor";
 import { AIIntentObjectionEditor } from "./AIIntentObjectionEditor";
+import { AIBusinessContextSection } from "./AIBusinessContextSection";
+import { AIContextChecklistCard } from "./AIContextChecklistCard";
 import { useEffect } from "react";
 
 export function AIConfigPanel() {
@@ -78,8 +80,14 @@ export function AIConfigPanel() {
         </div>
       </div>
 
-      <Tabs defaultValue="personality">
-        <TabsList className="grid w-full grid-cols-7">
+      <AIContextChecklistCard />
+
+      <Tabs defaultValue="business">
+        <TabsList className="grid w-full grid-cols-8">
+          <TabsTrigger value="business" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            Negócio
+          </TabsTrigger>
           <TabsTrigger value="personality" className="gap-2">
             <Sparkles className="h-4 w-4" />
             Personalidade
@@ -109,6 +117,16 @@ export function AIConfigPanel() {
             Segurança
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="business" className="space-y-4 mt-4">
+          <AIBusinessContextSection
+            businessContext={getValue('business_context') || ''}
+            attendanceRules={getValue('attendance_rules') || ''}
+            customKnowledge={getValue('custom_knowledge') || ''}
+            systemPrompt={getValue('system_prompt') || ''}
+            onChange={(patch) => setLocalConfig((prev) => ({ ...prev, ...patch }))}
+          />
+        </TabsContent>
 
         <TabsContent value="personality" className="space-y-4 mt-4">
           <Card>
