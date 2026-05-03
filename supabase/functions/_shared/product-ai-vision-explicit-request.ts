@@ -96,36 +96,46 @@ export function detectExplicitRequestIds(
     }
   }
 
-  // 2 + 3) Nome core contido no texto.
+  // 2 + 3) Nome core contido no texto, OU token-chave + qty.
   for (const it of items) {
     if (seen.has(it.id)) continue;
     const core = coreName(it.name);
     if (core.length < 4) continue;
-    if (!text.includes(core)) continue;
 
     const itemPack = extractPackSizeFromName(it.name);
+    const fullCoreInText = text.includes(core);
+
+    // Tokens significativos do core (≥4 chars), excluindo stopwords curtas.
+    const coreTokens = core.split(/\s+/).filter(t => t.length >= 4);
+    const tokenInText = coreTokens.find(t => text.includes(t));
 
     if (itemPack && packSizesInText.length > 0) {
-      if (packSizesInText.includes(itemPack)) {
-        matches.push({ product_id: it.id, reason: "name+pack_size", matched_token: `${core} (${itemPack}x)` });
+      // Variação Nx: precisa qty bater + (nome core completo OU pelo menos um token-chave).
+      if (packSizesInText.includes(itemPack) && (fullCoreInText || tokenInText)) {
+        matches.push({
+          product_id: it.id,
+          reason: "name+pack_size",
+          matched_token: `${tokenInText || core} (${itemPack}x)`,
+        });
         seen.add(it.id);
-        continue;
       }
-      // Nome core bate, mas qty no texto não é a deste item (ex.: pediu 2x e este é 6x).
-      // Não marca como explicit para evitar promover variação errada.
       continue;
     }
 
-    // Sem qty no texto: pega o item-base (sem parênteses) com prioridade.
-    if (!itemPack) {
-      // 4) Kit/combo
-      if (kitMentioned && /\bkit\b/i.test(it.name)) {
-        matches.push({ product_id: it.id, reason: "kit_keyword", matched_token: core });
-      } else {
-        matches.push({ product_id: it.id, reason: "name", matched_token: core });
-      }
-      seen.add(it.id);
+    if (itemPack) {
+      // Item é variação Nx mas o texto não menciona qty: não promove para evitar variação errada.
+      continue;
     }
+
+    if (!fullCoreInText) continue;
+
+    // Sem qty no texto e nome core completo bate: produto-base pedido nominalmente.
+    if (kitMentioned && /\bkit\b/i.test(it.name)) {
+      matches.push({ product_id: it.id, reason: "kit_keyword", matched_token: core });
+    } else {
+      matches.push({ product_id: it.id, reason: "name", matched_token: core });
+    }
+    seen.add(it.id);
   }
 
   return matches;
