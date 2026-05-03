@@ -3105,13 +3105,23 @@ Deno.serve(async (req) => {
   let embeddingTokens = 0;
 
   try {
-    const { conversation_id, tenant_id } = await req.json();
+    const reqBody = await req.json();
+    const { conversation_id, tenant_id, logical_turn_id, claim_token } = reqBody;
 
     if (!conversation_id || !tenant_id) {
       return new Response(
         JSON.stringify({ success: false, error: "conversation_id and tenant_id are required" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+    // [Reg #2.13] Turn Orchestrator context
+    const orchestratorCtx: { logical_turn_id: string | null; claim_token: string | null } = {
+      logical_turn_id: typeof logical_turn_id === "string" ? logical_turn_id : null,
+      claim_token: typeof claim_token === "string" ? claim_token : null,
+    };
+    const isOrchestratorCall = !!(orchestratorCtx.logical_turn_id && orchestratorCtx.claim_token);
+    if (isOrchestratorCall) {
+      console.log(`[ai-support-chat] [TURN-ORCH] orchestrator call logical_turn=${orchestratorCtx.logical_turn_id!.slice(0,8)} claim=${orchestratorCtx.claim_token!.slice(0,8)}`);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
