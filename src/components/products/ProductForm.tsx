@@ -1377,6 +1377,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
               )}
             </TabsContent>
 
+            {isEditing && product && (
+              <TabsContent value="ai-vision" className="space-y-4 mt-4">
+                <ProductAIVisionSection
+                  productId={product.id}
+                  hasComponents={form.watch('product_format') === 'with_composition' ? hasSavedComponents : undefined}
+                />
+              </TabsContent>
+            )}
+
             <TabsContent value="seo" className="space-y-4 mt-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
