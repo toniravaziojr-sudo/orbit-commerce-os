@@ -43,6 +43,9 @@ export interface AiSupportConfig {
   target_resolution_minutes: number;
   rules: AIRule[];
   sales_mode_enabled: boolean;
+  // Onda 1A — novos campos oficiais (ainda não lidos pelo prompt em runtime)
+  business_context: string | null;
+  attendance_rules: string | null;
   created_at: string;
   updated_at: string;
 }
