@@ -145,15 +145,15 @@ export function useAiContextChecklist() {
     cta: { kind: "route", target: "/produtos", label: "Disponível na próxima onda" },
   });
 
-  // Pack/kit sem produto-base — fica informativo até Onda 1B
+  const packsNoBase = agg?.packsWithoutBaseCount ?? 0;
   items.push({
     id: "packs_without_base",
-    label: "Packs/kits sem produto-base relacionado",
-    severity: "informativo",
+    label: packsNoBase > 0 ? `${packsNoBase} pack(s) sem produto-base` : "Packs com produto-base",
+    severity: packsNoBase > 0 ? "recomendado" : "informativo",
     why:
-      "A IA pode oferecer um pack quando deveria começar pelo produto-base. Será habilitado quando o cadastro de produto receber a seção 'Visão da IA' (próxima onda).",
-    resolved: false,
-    cta: undefined,
+      "Packs de quantidade devem apontar para o produto-base puro, senão a IA pode oferecer o pack quando deveria começar pelo produto-base.",
+    resolved: packsNoBase === 0,
+    cta: packsNoBase > 0 ? { kind: "route", target: "/produtos", label: "Revisar packs" } : undefined,
   });
 
   return {
