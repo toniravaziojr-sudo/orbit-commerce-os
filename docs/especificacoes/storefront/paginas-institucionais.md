@@ -686,3 +686,44 @@ O compilador FAQ usa `<details>/<summary>` nativo (zero JS) com chevron animado 
 | Cache purge só no publish | Removido cache purge do saveDraft — só dispara ao publicar. |
 
 **Causa raiz do bug:** O `pageType` era passado como `undefined` quando `entityType === 'page'`, fazendo o save cair no fluxo genérico de versionamento (`store_page_versions`) em vez do caminho direto (`store_pages.content`). Como o editor carrega de `store_pages.content`, o conteúdo salvo "sumia" ao reabrir.
+
+---
+
+## Marcação de Página como Fonte da IA (FAQ / Política) — 2026-05-03
+
+A partir desta versão, qualquer página institucional pode ser marcada como
+**fonte oficial da IA de atendimento**, escolhendo um de dois papéis:
+
+- **FAQ** — a IA usará o conteúdo da página para responder dúvidas frequentes
+  do cliente.
+- **Política** — a IA usará o conteúdo como fonte oficial de regras
+  (frete, troca, devolução, privacidade, termos etc.).
+
+### Regras
+
+- Cada página pode ter **apenas um papel** (FAQ **ou** Política, nunca os dois).
+- O padrão é **Nenhum** (a página não é usada pela IA).
+- A marcação fica salva no campo `store_pages.ai_role` (`'faq' | 'policy' | NULL`),
+  com restrição de banco que aceita somente esses três valores.
+- Apenas páginas **publicadas** são consideradas pela IA.
+- A marcação acontece **dentro da própria página** (editor de Página), não na
+  Configuração da IA.
+
+### Onde marcar
+
+No diálogo de **Editar Página** (`/pages` → Editar), seção *"Usar esta página
+como fonte da IA?"*, escolher entre **Nenhum / FAQ / Política**.
+
+### Onde a IA consome
+
+Em **Atendimento → Configuração da IA → Conhecimento Essencial**, o card
+*"Páginas oficiais da loja (FAQ e Políticas)"* mostra apenas o **resumo**
+(quantas páginas estão marcadas como FAQ e quantas como Política), com link
+para gerenciar páginas. Não há mais seleção de páginas pela tela da IA.
+
+### Migração relacionada
+
+Migration `20260503` adiciona `store_pages.ai_role` (com `CHECK` para
+`faq | policy`) e remove os campos legados `ai_support_config.faq_page_ids`
+e `ai_support_config.policy_page_ids`, criados temporariamente na Onda 1A.2 e
+nunca consumidos em runtime.
