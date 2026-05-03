@@ -3181,11 +3181,13 @@ Deno.serve(async (req) => {
     }
 
     const SIDE_EFFECT_TOOLS_LOCAL = new Set([
-      "add_to_cart","remove_from_cart","update_cart_item",
+      "add_to_cart","remove_from_cart","update_cart_item","update_cart",
       "apply_coupon","remove_coupon",
       "generate_checkout_link","create_checkout_link",
       "request_human_handoff","transfer_to_human",
       "create_order","send_payment_link",
+      // [Reg #2.13] Tools que enviam mídia/mensagem externa ao cliente também são side-effects
+      "send_product_image","send_image","send_media",
     ]);
 
 
@@ -6329,7 +6331,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       botInsertMetadata.claim_token = orchestratorCtx.claim_token;
     }
 
-    const { data: newMessage, error: msgError } = await supabase
+    let { data: newMessage, error: msgError } = await supabase
       .from("messages")
       .insert({
         conversation_id,
@@ -6351,59 +6353,115 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       .select()
       .single();
 
+    // [Reg #2.13] Limite para "queued travada" — se a bot existente tiver sido
+    // criada há mais que isso e ainda estiver queued, tratamos como envio que
+    // nunca completou e disparamos retry idempotente do MESMO conteúdo.
+    const QUEUED_STALE_MS = 20_000;
+
+    let resolvedBotMessage: any = newMessage;
+    let resolvedBotContent: string = aiContent;
+    let skipPrimarySend = false; // true quando o 23505 foi resolvido como "já enviado com sucesso"
+
     if (msgError) {
-      // [Reg #2.13] Pode ter colidido com índice único de logical_turn_id
-      // (significa que outro worker já persistiu — turno está completo).
       const isDup = (msgError as any)?.code === "23505" ||
         /duplicate|unique/i.test(msgError.message || "");
+
       if (isDup && isOrchestratorCall) {
-        console.log(`[ai-support-chat] [TURN-ORCH] duplicate bot insert — already persisted by another worker, completing turn`);
-        // Marca complete (idempotente — outro worker provavelmente já marcou)
-        try {
-          await supabase.rpc("complete_turn", {
-            p_conversation_id: conversation_id,
-            p_logical_turn_id: orchestratorCtx.logical_turn_id,
-            p_claim_token: orchestratorCtx.claim_token,
-            p_bot_message_id: null,
-          });
-        } catch { /* noop */ }
+        // Busca a bot message existente para este logical_turn_id
+        const { data: existingBot } = await supabase
+          .from("messages")
+          .select("id, content, delivery_status, created_at, external_message_id")
+          .eq("conversation_id", conversation_id)
+          .eq("sender_type", "bot")
+          .filter("metadata->>logical_turn_id", "eq", orchestratorCtx.logical_turn_id!)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!existingBot) {
+          console.warn(`[ai-support-chat] [TURN-ORCH] 23505 sem bot existente — falha estrutural, fail_turn`);
+          try {
+            await supabase.rpc("fail_turn", {
+              p_conversation_id: conversation_id,
+              p_logical_turn_id: orchestratorCtx.logical_turn_id,
+              p_claim_token: orchestratorCtx.claim_token,
+              p_bot_message_id: null,
+              p_error: "23505_without_existing_bot",
+            });
+          } catch { /* noop */ }
+          return new Response(
+            JSON.stringify({ success: false, error: "23505_without_existing_bot" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+
+        const ds = existingBot.delivery_status;
+        const ageMs = Date.now() - new Date(existingBot.created_at as string).getTime();
+
+        // Caso (a) — já enviada/aceita pelo gateway: completar idempotente, sem reenviar
+        if (ds === "sent" || ds === "delivered" || ds === "read" || ds === "suppressed_duplicate") {
+          console.log(`[ai-support-chat] [TURN-ORCH] 23505 — bot existente status=${ds}, complete idempotente`);
+          try {
+            await supabase.rpc("complete_turn", {
+              p_conversation_id: conversation_id,
+              p_logical_turn_id: orchestratorCtx.logical_turn_id,
+              p_claim_token: orchestratorCtx.claim_token,
+              p_bot_message_id: existingBot.id,
+            });
+          } catch { /* noop */ }
+          return new Response(
+            JSON.stringify({ success: true, action: "duplicate_bot_already_sent", bot_message_id: existingBot.id }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+
+        // Caso (c.1) — queued recente: outro worker está enviando. Não duplica, não completa.
+        if (ds === "queued" && ageMs < QUEUED_STALE_MS) {
+          console.log(`[ai-support-chat] [TURN-ORCH] 23505 — bot existente queued recente (${ageMs}ms), abort sem completar`);
+          return new Response(
+            JSON.stringify({ success: true, action: "duplicate_bot_in_flight", bot_message_id: existingBot.id }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+
+        // Caso (b) e (c.2) — failed OU queued travada: retry idempotente do MESMO conteúdo
+        console.log(`[ai-support-chat] [TURN-ORCH] 23505 — bot existente status=${ds} age=${ageMs}ms → retry idempotente`);
+        resolvedBotMessage = existingBot;
+        resolvedBotContent = existingBot.content as string;
+        // segue fluxo abaixo: envia a MESMA mensagem; complete/fail rodam pós-send
+      } else {
+        console.error("[ai-support-chat] Error saving AI message:", msgError);
+        if (isOrchestratorCall) {
+          try {
+            await supabase.rpc("fail_turn", {
+              p_conversation_id: conversation_id,
+              p_logical_turn_id: orchestratorCtx.logical_turn_id,
+              p_claim_token: orchestratorCtx.claim_token,
+              p_bot_message_id: null,
+              p_error: `save_error:${msgError.message || "unknown"}`,
+            });
+          } catch { /* noop */ }
+        }
         return new Response(
-          JSON.stringify({ success: true, action: "duplicate_bot_skipped" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          JSON.stringify({ success: false, error: "Error saving response", code: "SAVE_ERROR" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      console.error("[ai-support-chat] Error saving AI message:", msgError);
-      if (isOrchestratorCall) {
-        try {
-          await supabase.rpc("fail_turn", {
-            p_conversation_id: conversation_id,
-            p_logical_turn_id: orchestratorCtx.logical_turn_id,
-            p_claim_token: orchestratorCtx.claim_token,
-            p_bot_message_id: null,
-            p_error: `save_error:${msgError.message || "unknown"}`,
-          });
-        } catch { /* noop */ }
-      }
+    }
+
+    // [Reg #2.13] complete_turn FOI MOVIDO para depois do meta-whatsapp-send.
+    // Aqui apenas garantimos que temos uma mensagem bot resolvida.
+    if (!resolvedBotMessage?.id) {
+      console.error("[ai-support-chat] [TURN-ORCH] no resolved bot message — abort");
       return new Response(
-        JSON.stringify({ success: false, error: "Error saving response", code: "SAVE_ERROR" }),
+        JSON.stringify({ success: false, error: "no_resolved_bot_message" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // [Reg #2.13] Marca turno como processado (envio em si é assíncrono via support-send-message)
-    if (isOrchestratorCall && newMessage?.id) {
-      try {
-        await supabase.rpc("complete_turn", {
-          p_conversation_id: conversation_id,
-          p_logical_turn_id: orchestratorCtx.logical_turn_id,
-          p_claim_token: orchestratorCtx.claim_token,
-          p_bot_message_id: newMessage.id,
-        });
-        console.log(`[ai-support-chat] [TURN-ORCH] complete_turn OK bot_msg=${newMessage.id}`);
-      } catch (compErr) {
-        console.warn(`[ai-support-chat] [TURN-ORCH] complete_turn warning:`, compErr);
-      }
-    }
+    // Reaponta variáveis usadas a jusante para o conteúdo/objeto efetivo
+    // (em retry idempotente, content e id vêm da bot existente, não da nova geração)
+    newMessage = resolvedBotMessage;
+    aiContent = resolvedBotContent;
 
     // [F1] Calcula próximo estado comercial (servidor, não modelo)
     const intentForState: Intent =
@@ -7667,6 +7725,36 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         .from("messages")
         .update({ delivery_status: "delivered" })
         .eq("id", newMessage.id);
+    }
+
+    // [Reg #2.13] complete_turn / fail_turn — SOMENTE após o resultado do envio.
+    // "Envio aceito" = meta-whatsapp-send.success === true (Cloud API retornou wamid)
+    // OU canal chat (entrega imediata) OU email com success.
+    // suppressed_duplicate também conta como "concluído" (decisão de não enviar é determinística).
+    if (isOrchestratorCall) {
+      const sendAccepted = sendResult.success === true || dupCheck.duplicate === true;
+      try {
+        if (sendAccepted) {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: orchestratorCtx.logical_turn_id,
+            p_claim_token: orchestratorCtx.claim_token,
+            p_bot_message_id: newMessage.id,
+          });
+          console.log(`[ai-support-chat] [TURN-ORCH] complete_turn OK bot_msg=${newMessage.id} (post-send)`);
+        } else {
+          await supabase.rpc("fail_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: orchestratorCtx.logical_turn_id,
+            p_claim_token: orchestratorCtx.claim_token,
+            p_bot_message_id: newMessage.id,
+            p_error: `send_failed:${(sendResult.error || "unknown").slice(0, 200)}`,
+          });
+          console.warn(`[ai-support-chat] [TURN-ORCH] fail_turn (send rejected) bot_msg=${newMessage.id} err=${sendResult.error}`);
+        }
+      } catch (rpcErr) {
+        console.warn(`[ai-support-chat] [TURN-ORCH] complete/fail rpc warning:`, rpcErr);
+      }
     }
 
     console.log(`[ai-support-chat] Response ${sendResult.success ? "sent" : "failed"} via ${channelType}. Model: ${modelUsed}, Sales: ${salesModeEnabled}, RAG: ${similarityScores.length} chunks, Latency: ${latencyMs}ms`);
