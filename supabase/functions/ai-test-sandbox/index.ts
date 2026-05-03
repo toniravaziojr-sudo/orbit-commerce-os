@@ -50,10 +50,12 @@ interface BurstBody {
   action: "burst";
   tenant_id: string;
   conversation_id?: string | null;
-  messages: string[];          // 2..10 mensagens
-  gap_ms?: number;             // intervalo entre cada inbound (default 250ms)
-  simulated_channel?: "chat" | "whatsapp"; // default 'whatsapp' (objetivo da Fase C)
-  wait_for_bot_ms?: number;    // tempo máx esperando resposta após dispatch (default 30000ms)
+  messages: (string | { text?: string; media_type?: string | null; media_caption?: string | null })[];
+  gap_ms?: number;
+  simulated_channel?: "chat" | "whatsapp";
+  wait_for_bot_ms?: number;
+  dry_send?: boolean;
+  force_send_failure?: boolean;
 }
 
 type Body = SendBody | CleanupBody | BurstBody;
