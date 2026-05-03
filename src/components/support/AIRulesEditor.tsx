@@ -101,6 +101,78 @@ const DEFAULT_RULES: AIRule[] = [
   },
 ];
 
+interface SortableRuleRowProps {
+  rule: AIRule;
+  onToggle: (id: string, is_active: boolean) => void;
+  onEdit: (rule: AIRule) => void;
+  onDelete: (id: string) => void;
+}
+
+function SortableRuleRow({ rule, onToggle, onEdit, onDelete }: SortableRuleRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: rule.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-start gap-3 p-3 border rounded-lg group hover:bg-muted/50 bg-background"
+    >
+      <button
+        type="button"
+        className="touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+        {...attributes}
+        {...listeners}
+        aria-label="Arrastar para reordenar"
+      >
+        <GripVertical className="h-4 w-4 mt-1" />
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-medium text-sm">Quando: {rule.condition}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Badge
+            variant={
+              rule.action === "transfer"
+                ? "destructive"
+                : rule.action === "respond"
+                ? "default"
+                : "secondary"
+            }
+          >
+            {ACTION_TYPES.find((a) => a.value === rule.action)?.label}
+          </Badge>
+          {rule.response && (
+            <span className="truncate max-w-[200px]">→ "{rule.response}"</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Switch
+          checked={rule.is_active}
+          onCheckedChange={(checked) => onToggle(rule.id, checked)}
+        />
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(rule)}>
+          <Edit className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => onDelete(rule.id)}
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function AIRulesEditor({ rules, onChange }: AIRulesEditorProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AIRule | null>(null);
