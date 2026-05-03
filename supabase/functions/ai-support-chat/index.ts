@@ -6460,7 +6460,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     }
     // Reaponta variáveis usadas a jusante para o conteúdo/objeto efetivo
     // (em retry idempotente, content e id vêm da bot existente, não da nova geração)
-    const newMessageRef = resolvedBotMessage;
+    newMessage = resolvedBotMessage;
     aiContent = resolvedBotContent;
 
     // [F1] Calcula próximo estado comercial (servidor, não modelo)
