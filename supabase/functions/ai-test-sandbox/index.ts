@@ -77,15 +77,18 @@ Deno.serve(async (req) => {
     const jwt = authHeader.replace("Bearer ", "").trim();
     const agentModeHeader = (req.headers.get("x-agent-mode") || "").toLowerCase() === "true";
 
-    // Determina tenant alvo da requisição (para 'send' vem no body, para 'cleanup' será revalidado)
-    const requestedTenant = body.action === "send" ? (body as SendBody).tenant_id : null;
+    // Determina tenant alvo da requisição
+    const requestedTenant =
+      body.action === "send" ? (body as SendBody).tenant_id :
+      body.action === "burst" ? (body as BurstBody).tenant_id :
+      null;
     const isAgentMode = agentModeHeader && (
       body.action === "cleanup" || requestedTenant === AGENT_MODE_ALLOWED_TENANT
     );
 
     let userId: string;
     if (isAgentMode) {
-      if (body.action === "send" && requestedTenant !== AGENT_MODE_ALLOWED_TENANT) {
+      if ((body.action === "send" || body.action === "burst") && requestedTenant !== AGENT_MODE_ALLOWED_TENANT) {
         return json({ success: false, error: "agent_mode_tenant_not_allowed" }, 200);
       }
       userId = "agent-mode";
