@@ -175,7 +175,7 @@ export default function Pages() {
   // HANDLERS
   // =============================================
   const resetForm = () => {
-    setFormData({ title: '', slug: '', seo_title: '', seo_description: '' });
+    setFormData({ title: '', slug: '', seo_title: '', seo_description: '', ai_role: 'none' });
     setEditingPage(null);
   };
 
