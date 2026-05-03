@@ -3688,6 +3688,47 @@ Deno.serve(async (req) => {
     }
 
     // ============================================
+    // [Reg #2.13 Fase C — Patch Roteamento] CONSOLIDAÇÃO DO TURNO
+    // ============================================
+    // Quando o Orchestrator agrega N mensagens em 1 turno lógico
+    // (ex.: "oi" + "tenho entradas" + "esse shampoo serve" + "?"),
+    // toda a pipeline downstream (TPR, greeting mirror, state machine,
+    // sales trigger, search_products, prompt principal) DEVE ler o turno
+    // consolidado, não apenas o último fragmento. Caso contrário, "?"
+    // sozinho cai como greeting/ambíguo e a IA ignora a dor declarada.
+    let consolidatedTurnText: string | null = null;
+    if (isOrchestratorCall) {
+      // Pega o snapshot do buffer para saber EXATAMENTE quais mensagens
+      // pertencem ao turno; fallback para últimas 8 customer msgs.
+      let bufferMsgIds: string[] = [];
+      try {
+        const { data: bufRow } = await supabase
+          .from("ai_turn_buffers")
+          .select("snapshot_message_ids, message_ids")
+          .eq("conversation_id", conversation_id)
+          .eq("logical_turn_id", orchestratorCtx.logical_turn_id)
+          .maybeSingle();
+        if (bufRow) {
+          bufferMsgIds = (bufRow.snapshot_message_ids?.length ? bufRow.snapshot_message_ids : bufRow.message_ids) || [];
+        }
+      } catch { /* noop */ }
+      const customerMsgs = messages.filter(m => m.sender_type === "customer" && !m.is_internal && !m.is_note);
+      const turnMsgs = bufferMsgIds.length
+        ? customerMsgs.filter(m => bufferMsgIds.includes(m.id))
+        : customerMsgs.slice(-8);
+      const aggregated = turnMsgs.map(m => (m.content || "").trim()).filter(Boolean).join(" \n ");
+      if (aggregated && aggregated.length > (lastMessageContent || "").length) {
+        consolidatedTurnText = aggregated;
+        const original = lastMessageContent;
+        lastMessageContent = aggregated;
+        console.log(
+          `[ai-support-chat] [TURN-ORCH][consolidate] msgs=${turnMsgs.length} ` +
+          `original_last="${(original || "").slice(0, 30)}" consolidated="${aggregated.slice(0, 80)}"`,
+        );
+      }
+    }
+
+    // ============================================
     // [Eixo 1.3] DETECTOR DE INPUT DEGENERADO
     // ============================================
     // Em conversas que já passaram da fase inicial (>5 mensagens), tratamos
@@ -5115,7 +5156,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // chamava o cliente literalmente de "Cliente".
       const looksGenericOrCorporate =
         /\b(loja|comando|comercial|ltda|me\b|distribuidora|store|shop|sa\b|s\/a|eireli|mei)\b/i.test(rawName)
-        || /\b(cliente|teste|test|contato|usu[áa]rio|customer|lead|prospect|visitante|whatsapp|desconhecid[oa]|sem nome|n[ãa]o informad[oa])\b/i.test(rawName)
+        || /\b(cliente|teste|test|contato|usu[áa]rio|customer|lead|prospect|visitante|whatsapp|desconhecid[oa]|sem nome|n[ãa]o informad[oa]|burst|sandbox|dry[\s_-]?run)\b/i.test(rawName)
         || tokens.length > 3
         || firstName.length < 2;
       if (firstName && !looksGenericOrCorporate) {
