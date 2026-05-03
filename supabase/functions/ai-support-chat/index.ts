@@ -1239,6 +1239,78 @@ async function executeSalesTool(
           });
         }
 
+        // ============================================================
+        // [Onda 1C] Recommendation Context Builder — DRY_RUN ONLY
+        // - Roda APENAS quando flag enabled === true E mode === 'dry_run'.
+        // - NÃO altera `filtered` nem `finalList`. NÃO altera shape devolvido.
+        // - Apenas grava trace comparando original vs proposed.
+        // - 'active' não é executado nesta entrega.
+        // ============================================================
+        if (
+          ctx.arch1cRecommendationContextBuilderEnabled === true &&
+          ctx.arch1cRecommendationContextBuilderMode === "dry_run" &&
+          finalList.length > 0
+        ) {
+          try {
+            const t0 = Date.now();
+            const { loadProductAIVision } = await import("../_shared/product-ai-vision-reader.ts");
+            const { buildRecommendationContext } = await import("../_shared/product-recommendation-context-builder.ts");
+            const poolIds = (finalList as any[]).map(p => p.id);
+            const vision = await loadProductAIVision({
+              supabase,
+              tenantId: ctx.tenantId,
+              productIds: poolIds,
+            });
+            const proposed = buildRecommendationContext({
+              enriched: (finalList as any[]).map(p => ({
+                id: p.id, name: p.name, price: p.price ?? null, is_kit: !!p.is_kit, match_reason: p.match_reason,
+              })),
+              vision,
+              userText: lastUserMessageContentForTools,
+              familyDetected: detectFamilyInText(lastUserMessageContentForTools),
+              // Pedido explícito por enquanto fica vazio; pré-Context Compiler resolve isso.
+              explicitRequestProductIds: [],
+            });
+            const elapsed_ms = Date.now() - t0;
+            await supabase.from("ai_turn_traces").insert({
+              tenant_id: ctx.tenantId,
+              conversation_id: ctx.conversationId,
+              turn_id: ctx.turnId || `${ctx.conversationId}-${Date.now()}`,
+              stage: "arch1c_dry_run",
+              payload: {
+                mode: "dry_run",
+                elapsed_ms,
+                original_product_ids: poolIds,
+                proposed: {
+                  applied: proposed.applied,
+                  reason: proposed.reason,
+                  kit_intent: proposed.kit_intent,
+                  explicit_request_ids: proposed.explicit_request_ids,
+                  bases: proposed.bases,
+                  packs_by_base: proposed.packs_by_base,
+                  kits: proposed.kits,
+                  complements: proposed.complements,
+                  hidden: proposed.hidden,
+                  warnings: proposed.warnings,
+                  proposed_payload_count: proposed.proposed_payload_count,
+                },
+                vision_summary: {
+                  payload_count: vision.payloadByProductId.size,
+                  relations_sources: vision.relationsBySourceId.size,
+                  components_parents: vision.componentsByParentId.size,
+                  unclassified_count: vision.unclassifiedProductIds.length,
+                },
+              },
+            });
+            console.log(
+              `[ai-support-chat][arch1c][dry_run] ${proposed.reason} ` +
+              `count=${proposed.proposed_payload_count} elapsed=${elapsed_ms}ms`
+            );
+          } catch (e) {
+            console.warn(`[ai-support-chat][arch1c][dry_run] falhou (segue normal):`, (e as Error).message);
+          }
+        }
+
         // [F2-FS-CROSS] Sumário cruzado de FRETE GRÁTIS — escopo: MESMA LINHA.
         // "Mesma linha" = mesmo produto-base resolvido via product_components,
         // não a família ampla por nome. Se o cliente pediu "loção" e o pool
