@@ -366,7 +366,12 @@ async function handleBurst(params: {
   const buffered: any[] = [];
 
   for (let i = 0; i < messages.length; i++) {
-    const text = messages[i];
+    const raw = messages[i];
+    const isObj = typeof raw === "object" && raw !== null;
+    const text = isObj ? ((raw as any).text ?? "") : String(raw);
+    const media_type = isObj ? ((raw as any).media_type ?? null) : null;
+    const media_caption = isObj ? ((raw as any).media_caption ?? null) : null;
+
     const { data: ins, error: insErr } = await supabase
       .from("messages")
       .insert({
@@ -375,10 +380,10 @@ async function handleBurst(params: {
         direction: "inbound",
         sender_type: "customer",
         sender_name: "Burst Cliente",
-        content: text,
-        content_type: "text",
+        content: text || (media_type ? `[${media_type}]` : ""),
+        content_type: media_type ? media_type : "text",
         delivery_status: "delivered",
-        metadata: { is_sandbox: true, burst_index: i },
+        metadata: { is_sandbox: true, burst_index: i, media_type, media_caption },
       })
       .select("id, created_at")
       .single();
@@ -389,8 +394,8 @@ async function handleBurst(params: {
     buffered.push({
       id: ins.id,
       text,
-      media_type: null,
-      media_caption: null,
+      media_type,
+      media_caption,
       created_at: ins.created_at,
     });
 
@@ -406,7 +411,7 @@ async function handleBurst(params: {
       return json({ success: false, error: "enqueue_failed", detail: enqErr.message, step: i }, 200);
     }
     enqueueResults.push({
-      step: i, text,
+      step: i, text, media_type, media_caption,
       completeness: classification.completeness,
       debounce_ms: classification.debounceMs,
       logical_turn_id: enq?.logical_turn_id,
