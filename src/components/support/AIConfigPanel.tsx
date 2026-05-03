@@ -27,6 +27,7 @@ import { AIIntentObjectionEditor } from "./AIIntentObjectionEditor";
 import { AIBusinessContextSection } from "./AIBusinessContextSection";
 import { AIContextChecklistCard } from "./AIContextChecklistCard";
 import { AIPageRoleSummary } from "./AIPageRoleSummary";
+import { AICatalogSourcesSummary } from "./AICatalogSourcesSummary";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
