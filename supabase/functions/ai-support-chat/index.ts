@@ -5156,7 +5156,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // chamava o cliente literalmente de "Cliente".
       const looksGenericOrCorporate =
         /\b(loja|comando|comercial|ltda|me\b|distribuidora|store|shop|sa\b|s\/a|eireli|mei)\b/i.test(rawName)
-        || /\b(cliente|teste|test|contato|usu[áa]rio|customer|lead|prospect|visitante|whatsapp|desconhecid[oa]|sem nome|n[ãa]o informad[oa])\b/i.test(rawName)
+        || /\b(cliente|teste|test|contato|usu[áa]rio|customer|lead|prospect|visitante|whatsapp|desconhecid[oa]|sem nome|n[ãa]o informad[oa]|burst|sandbox|dry[\s_-]?run)\b/i.test(rawName)
         || tokens.length > 3
         || firstName.length < 2;
       if (firstName && !looksGenericOrCorporate) {
