@@ -118,6 +118,16 @@ export function AIConfigPanel() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="business" className="space-y-4 mt-4">
+          <AIBusinessContextSection
+            businessContext={getValue('business_context') || ''}
+            attendanceRules={getValue('attendance_rules') || ''}
+            customKnowledge={getValue('custom_knowledge') || ''}
+            systemPrompt={getValue('system_prompt') || ''}
+            onChange={(patch) => setLocalConfig((prev) => ({ ...prev, ...patch }))}
+          />
+        </TabsContent>
+
         <TabsContent value="personality" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
