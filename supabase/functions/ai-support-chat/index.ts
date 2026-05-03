@@ -5658,6 +5658,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             continue;
           }
 
+          // [Reg #2.13] Freshness check antes de tool com efeito colateral
+          if (isOrchestratorCall && SIDE_EFFECT_TOOLS_LOCAL.has(fnName)) {
+            const fresh = await freshnessGate("pre_tool", fnName);
+            if (!fresh) {
+              console.log(`[ai-support-chat] [TURN-ORCH] aborting tool ${fnName} — turn reopened`);
+              return new Response(
+                JSON.stringify({ success: true, action: "freshness_reopen_pre_tool", tool: fnName }),
+                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+              );
+            }
+          }
+
           console.log(`[ai-support-chat] Executing tool: ${fnName}`, JSON.stringify(fnArgs));
           // [D9] Telemetria — tool executada
           const toolStartedAt = Date.now();
