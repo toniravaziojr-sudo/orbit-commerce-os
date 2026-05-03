@@ -276,6 +276,17 @@ export function AIConfigPanel() {
             </CardContent>
           </Card>
 
+          {/* Vocabulário e linguagem do nicho */}
+          <div>
+            <div className="mb-2 px-1">
+              <h3 className="text-sm font-semibold">Vocabulário e linguagem do nicho</h3>
+              <p className="text-xs text-muted-foreground">
+                Tratamento, vocabulário, apelidos, frases preferidas e termos proibidos — tudo que a IA precisa para falar como sua marca.
+              </p>
+            </div>
+            <AILanguageDictionaryEditor />
+          </div>
+
           <div id="tab-objections" className="scroll-mt-24">
             <AIIntentObjectionEditor />
           </div>
