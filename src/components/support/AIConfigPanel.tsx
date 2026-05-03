@@ -397,7 +397,7 @@ export function AIConfigPanel() {
               <CardDescription>Como a IA lida com imagens, áudios e arquivos</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={getValue("handle_images") ?? true}
@@ -418,6 +418,17 @@ export function AIConfigPanel() {
                     onCheckedChange={(checked) => updateField("handle_files", checked)}
                   />
                   <Label>Analisar documentos</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="interpret-emojis"
+                    checked={Boolean(((getValue("metadata") as Record<string, unknown> | undefined)?.interpret_emojis) ?? true)}
+                    onCheckedChange={(checked) => {
+                      const meta = (getValue("metadata") as Record<string, unknown> | undefined) || {};
+                      updateField("metadata", { ...meta, interpret_emojis: checked } as never);
+                    }}
+                  />
+                  <Label htmlFor="interpret-emojis">Interpretar/responder a emojis</Label>
                 </div>
               </div>
             </CardContent>
