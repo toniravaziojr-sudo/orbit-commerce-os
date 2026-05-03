@@ -229,14 +229,9 @@ export function AIConfigPanel() {
             </CardContent>
           </Card>
 
-          {/* Páginas oficiais (FAQ + Políticas) */}
+          {/* Páginas oficiais (FAQ + Políticas) — agora marcadas dentro de cada página */}
           <div id="bloco-paginas" className="scroll-mt-24">
-            <AIConfigPagePicker
-              faqIds={getValue("faq_page_ids") || []}
-              policyIds={getValue("policy_page_ids") || []}
-              onChangeFaq={(ids) => updateField("faq_page_ids", ids)}
-              onChangePolicy={(ids) => updateField("policy_page_ids", ids)}
-            />
+            <AIPageRoleSummary />
           </div>
 
           {/* Fontes automáticas (Produtos / Categorias) */}
