@@ -17,18 +17,19 @@ export function AICatalogSourcesSummary() {
     queryKey: ["ai-catalog-sources-summary", currentTenant?.id],
     queryFn: async () => {
       if (!currentTenant?.id) return { products: 0, categories: 0 };
-      const [{ count: products }, { count: categories }] = await Promise.all([
-        supabase
-          .from("products")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", currentTenant.id)
-          .neq("status", "archived"),
-        supabase
-          .from("product_categories")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", currentTenant.id),
-      ]);
-      return { products: products ?? 0, categories: categories ?? 0 };
+      const productsRes: any = await (supabase as any)
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", currentTenant.id)
+        .neq("status", "archived");
+      const categoriesRes: any = await (supabase as any)
+        .from("product_categories")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", currentTenant.id);
+      return {
+        products: (productsRes?.count as number) ?? 0,
+        categories: (categoriesRes?.count as number) ?? 0,
+      };
     },
     enabled: !!currentTenant?.id,
   });
