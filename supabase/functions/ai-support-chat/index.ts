@@ -3190,6 +3190,152 @@ Deno.serve(async (req) => {
       "send_product_image","send_image","send_media",
     ]);
 
+    // ============================================
+    // [Reg #2.13 Fase C] finalizeOrchestratedTurn — contrato único
+    // Outcomes:
+    //   - send    : insere já feito; envia pelo canal real e roda complete/fail.
+    //   - no_send : sem mensagem ao cliente, mas turno está concluído. complete_turn(null).
+    //   - abort   : estado terminal (handoff/lock), não cria retry. complete_turn(null) + audit.
+    // ============================================
+    type FinalizeOpts = {
+      outcome: "send" | "no_send" | "abort";
+      botMessageId?: string | null;
+      botContent?: string | null;
+      kind?: string;
+      reason?: string;
+      conversationRef?: { channel_type?: string | null; customer_phone?: string | null; customer_email?: string | null } | null;
+    };
+    async function finalizeOrchestratedTurn(opts: FinalizeOpts): Promise<{ ok: boolean; sent?: boolean; error?: string }> {
+      if (!isOrchestratorCall) return { ok: true };
+      const ltid = orchestratorCtx.logical_turn_id!;
+      const ct = orchestratorCtx.claim_token!;
+      const stampMeta = async (extra: Record<string, unknown>) => {
+        try {
+          const { data: bufNow } = await supabase
+            .from("ai_turn_buffers")
+            .select("metadata")
+            .eq("conversation_id", conversation_id)
+            .eq("logical_turn_id", ltid)
+            .maybeSingle();
+          const cur = (bufNow?.metadata as Record<string, unknown> | null) ?? {};
+          await supabase.from("ai_turn_buffers")
+            .update({ metadata: { ...cur, ...extra, finalized_at: new Date().toISOString() } })
+            .eq("conversation_id", conversation_id)
+            .eq("logical_turn_id", ltid);
+        } catch { /* noop */ }
+      };
+
+      if (opts.outcome === "abort") {
+        try {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId ?? null,
+          });
+        } catch (e) { console.warn("[finalize][abort] rpc warn:", e); }
+        await stampMeta({ aborted: true, reason: opts.reason ?? "abort", kind: opts.kind ?? null });
+        console.log(`[ai-support-chat] [TURN-ORCH] finalize abort reason=${opts.reason} kind=${opts.kind}`);
+        return { ok: true };
+      }
+
+      if (opts.outcome === "no_send") {
+        try {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId ?? null,
+          });
+        } catch (e) { console.warn("[finalize][no_send] rpc warn:", e); }
+        await stampMeta({ no_send: true, reason: opts.reason ?? "no_send", kind: opts.kind ?? null });
+        console.log(`[ai-support-chat] [TURN-ORCH] finalize no_send reason=${opts.reason} kind=${opts.kind}`);
+        return { ok: true };
+      }
+
+      // outcome === "send"
+      if (!opts.botMessageId || !opts.botContent) {
+        try {
+          await supabase.rpc("fail_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId ?? null,
+            p_error: "finalize_send_missing_message",
+          });
+        } catch { /* noop */ }
+        return { ok: false, error: "missing_message" };
+      }
+
+      const conv = opts.conversationRef ?? null;
+      const channel = conv?.channel_type ?? null;
+      let sent = false; let errMsg: string | undefined;
+      try {
+        if (channel === "whatsapp" && conv?.customer_phone) {
+          const r = await fetch(`${supabaseUrl}/functions/v1/meta-whatsapp-send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({
+              tenant_id, phone: conv.customer_phone, message: opts.botContent, message_id: opts.botMessageId,
+            }),
+          });
+          const j = await r.json().catch(() => ({}));
+          sent = j?.success === true;
+          errMsg = sent ? undefined : (j?.error || `http_${r.status}`);
+          if (!j?.managed_status) {
+            await supabase.from("messages").update({
+              delivery_status: sent ? "sent" : "failed",
+              external_message_id: j?.message_id || null,
+              failure_reason: sent ? null : errMsg,
+            }).eq("id", opts.botMessageId);
+          }
+        } else if (channel === "chat") {
+          sent = true;
+          await supabase.from("messages").update({ delivery_status: "delivered" }).eq("id", opts.botMessageId);
+        } else if (channel === "email") {
+          const r = await fetch(`${supabaseUrl}/functions/v1/support-send-message`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({ message_id: opts.botMessageId, channel_type: "email" }),
+          });
+          const j = await r.json().catch(() => ({}));
+          sent = j?.success === true; errMsg = sent ? undefined : (j?.error || `http_${r.status}`);
+        } else {
+          sent = false; errMsg = `channel_not_supported:${channel ?? "null"}`;
+        }
+      } catch (e) {
+        sent = false; errMsg = e instanceof Error ? e.message : String(e);
+        try {
+          await supabase.from("messages").update({
+            delivery_status: "failed", failure_reason: errMsg,
+          }).eq("id", opts.botMessageId);
+        } catch { /* noop */ }
+      }
+
+      try {
+        if (sent) {
+          await supabase.rpc("complete_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId,
+          });
+          console.log(`[ai-support-chat] [TURN-ORCH] finalize send OK kind=${opts.kind} bot_msg=${opts.botMessageId}`);
+        } else {
+          await supabase.rpc("fail_turn", {
+            p_conversation_id: conversation_id,
+            p_logical_turn_id: ltid,
+            p_claim_token: ct,
+            p_bot_message_id: opts.botMessageId,
+            p_error: `send_failed:${(errMsg || "unknown").slice(0, 200)}`,
+          });
+          console.warn(`[ai-support-chat] [TURN-ORCH] finalize send FAILED kind=${opts.kind} bot_msg=${opts.botMessageId} err=${errMsg}`);
+        }
+      } catch (e) { console.warn("[finalize][send] rpc warn:", e); }
+      await stampMeta({ sent, kind: opts.kind ?? null, reason: opts.reason ?? "send", last_send_error: errMsg ?? null });
+      return { ok: sent, sent, error: errMsg };
+    }
+
 
     // ============================================
     // LOAD AI SUPPORT CONFIG (with RAG settings)
@@ -3321,6 +3467,8 @@ Deno.serve(async (req) => {
       console.log(
         `[ai-support-chat] [HANDOFF-LOCK] conv=${conversation_id} status=waiting_agent + assigned_to=null → IA silenciada até atribuição humana.`,
       );
+      // [Reg #2.13 Fase C] Estado terminal — fecha buffer sem retry, sem mensagem.
+      await finalizeOrchestratedTurn({ outcome: "abort", reason: "handoff_terminal_lock", kind: "handoff_awaiting_human" });
       return new Response(
         JSON.stringify({
           success: false,
@@ -3367,6 +3515,11 @@ Deno.serve(async (req) => {
       console.log(
         `[ai-support-chat] [LOCK] turn already in progress for conversation ${conversation_id} — skipping (lock alive)`,
       );
+      // [Reg #2.13 Fase C] Em chamada orquestrada, marcamos como no_send para
+      // não deixar o watchdog reprocessar. O outro worker (que tem o lock) vai
+      // tentar complete_turn com o mesmo claim_token; o primeiro vence, o
+      // segundo recebe claim_lost. Sem mensagem ao cliente — outro worker envia.
+      await finalizeOrchestratedTurn({ outcome: "no_send", reason: "processing_lock_alive", kind: "concurrent_worker" });
       return new Response(
         JSON.stringify({
           success: false,
@@ -3488,7 +3641,10 @@ Deno.serve(async (req) => {
     if (mediaGate.had_pending && !mediaGate.all_ready) {
       // Timeout: envia (no máx 1x) a resposta de espera e encerra esta execução.
       if (mediaGate.wait_reply && !mediaGate.wait_already_sent) {
-        await supabase.from("messages").insert({
+        const orchMeta: Record<string, unknown> = isOrchestratorCall
+          ? { kind: "media_wait_reply", attachment_ids: mediaGate.attachment_ids, logical_turn_id: orchestratorCtx.logical_turn_id, claim_token: orchestratorCtx.claim_token }
+          : { kind: "media_wait_reply", attachment_ids: mediaGate.attachment_ids };
+        const { data: insertedWait, error: insErr } = await supabase.from("messages").insert({
           conversation_id,
           tenant_id,
           direction: "outbound",
@@ -3500,9 +3656,17 @@ Deno.serve(async (req) => {
           is_ai_generated: true,
           is_internal: false,
           is_note: false,
-          metadata: { kind: "media_wait_reply", attachment_ids: mediaGate.attachment_ids },
+          metadata: orchMeta,
+        }).select("id").maybeSingle();
+        console.log(`[ai-support-chat] [D7] media wait reply queued for msg=${lastCustomerMessage?.id} err=${insErr?.code ?? "none"}`);
+        // [Reg #2.13 Fase C] envia/finaliza pelo helper
+        await finalizeOrchestratedTurn({
+          outcome: "send",
+          botMessageId: insertedWait?.id ?? null,
+          botContent: mediaGate.wait_reply,
+          kind: "media_wait_reply",
+          conversationRef: conversation,
         });
-        console.log(`[ai-support-chat] [D7] media wait reply sent for msg=${lastCustomerMessage?.id}`);
         return new Response(
           JSON.stringify({ success: true, action: "media_wait_reply_sent", attachment_ids: mediaGate.attachment_ids }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -3510,6 +3674,8 @@ Deno.serve(async (req) => {
       }
       // Já enviada antes — nada a fazer agora; reprocesso virá do consumidor.
       console.log(`[ai-support-chat] [D7] media still pending, wait already sent — skipping`);
+      // [Reg #2.13 Fase C] no_send: turno está coberto por outra mensagem já enviada.
+      await finalizeOrchestratedTurn({ outcome: "no_send", reason: "media_pending_already_notified", kind: "media_pending_already" });
       return new Response(
         JSON.stringify({ success: true, action: "media_pending_already_notified" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -3542,14 +3708,43 @@ Deno.serve(async (req) => {
       typeof convMetaForAmbig.ambiguous_input_count === "number"
         ? (convMetaForAmbig.ambiguous_input_count as number)
         : 0;
+    const lastAmbigLtid = typeof convMetaForAmbig.last_ambiguous_logical_turn_id === "string"
+      ? (convMetaForAmbig.last_ambiguous_logical_turn_id as string)
+      : null;
 
-    const isDegenerate = isDegenerateInput(lastMessageContent);
+    // [Reg #2.13 Fase C] Em chamada orquestrada, classificação de ambiguidade
+    // DEVE usar o turno consolidado completo, não o último fragmento.
+    // "oi" + "tenho entradas" + "?" NÃO é ambíguo — é consulta comercial.
+    let ambiguityProbeText = lastMessageContent || "";
+    if (isOrchestratorCall) {
+      const aggregated = [...messages]
+        .filter(m => m.sender_type === "customer" && !m.is_internal && !m.is_note)
+        .slice(-8)
+        .map(m => (m.content || "").trim())
+        .filter(Boolean)
+        .join(" \n ");
+      if (aggregated.length > ambiguityProbeText.length) {
+        ambiguityProbeText = aggregated;
+      }
+    }
+
+    // Heurística comercial: se o turno consolidado tem palavras de dor / produto /
+    // intenção comercial, NÃO marcar como ambíguo, mesmo se a última msg for "?".
+    const COMMERCIAL_LEX = /\b(entrada|entradas|coroa|falha|falhas|calv[ií]cie|queda|cabelo|shampoo|loc[aã]o|balm|kit|produto|tratamento|serve|recomend|funciona|preço|preco|valor|comprar|barba|perfume|sab[oô]nete|condicionador|t[ôo]nico|creme|bom|melhor)\b/i;
+    const QUESTIONISH = /[?]|\b(qual|como|quanto|onde|quando|tem|h[áa]|posso|quero|preciso|me\s+(ajud|fal|d[iê]z))/i;
+
+    const isCommercialTurn = COMMERCIAL_LEX.test(ambiguityProbeText) && QUESTIONISH.test(ambiguityProbeText);
+
+    const isDegenerate = isDegenerateInput(ambiguityProbeText) && !isCommercialTurn;
     const isPastInitial = messages.length > 5;
 
     if (isDegenerate && isPastInitial) {
-      const newCount = ambigCountBefore + 1;
+      // [Reg #2.13 Fase C] Idempotência por logical_turn_id: o mesmo turno
+      // reprocessado pelo watchdog não pode incrementar o contador várias vezes.
+      const sameLtid = isOrchestratorCall && lastAmbigLtid && lastAmbigLtid === orchestratorCtx.logical_turn_id;
+      const newCount = sameLtid ? ambigCountBefore : ambigCountBefore + 1;
       console.log(
-        `[ai-support-chat] [Eixo 1.3] degenerate input detected (count=${newCount}, msgs=${messages.length}, raw="${(lastMessageContent || "").slice(0, 40)}")`,
+        `[ai-support-chat] [Eixo 1.3] degenerate input detected (count=${newCount}, msgs=${messages.length}, sameLtid=${!!sameLtid}, raw="${(ambiguityProbeText || "").slice(0, 40)}")`,
       );
 
       if (newCount >= 3) {
@@ -3566,9 +3761,10 @@ Deno.serve(async (req) => {
 
         const ticketMeta = {
           source: "whatsapp_sales",
+          channel: "whatsapp", // schema real não tem coluna; vai em metadata
           handoff_reason: "ambiguous_input",
           ambiguous_input_count: newCount,
-          last_customer_text: (lastMessageContent || "").slice(0, 200),
+          last_customer_text: (ambiguityProbeText || "").slice(0, 200),
           captured_at: new Date().toISOString(),
         };
 
@@ -3585,13 +3781,14 @@ Deno.serve(async (req) => {
             .eq("id", existingTicket.id);
           console.log(`[ai-support-chat] [Eixo 1.3] reused ticket=${existingTicket.id} for ambiguous_input`);
         } else {
+          // [Fix Fase C] schema real de support_tickets NÃO tem coluna `channel`.
+          // Persistido em metadata.channel.
           const { error: ticketErr } = await supabase.from("support_tickets").insert({
             tenant_id,
-            customer_id: conversation.customer_id ?? null,
             source_conversation_id: conversation_id,
-            channel: "whatsapp",
             status: "open",
             priority: "normal",
+            category: "ambiguous_input",
             subject: "Cliente com mensagens não compreendidas pela IA",
             metadata: ticketMeta,
           });
@@ -3604,7 +3801,12 @@ Deno.serve(async (req) => {
           "Vou chamar um atendente humano para te ajudar melhor. " +
           "Em instantes alguém da equipe assume essa conversa com você.";
 
-        await supabase.from("messages").insert({
+        const handoffMeta: Record<string, unknown> = {
+          kind: "ambiguous_input_handoff",
+          ambiguous_input_count: newCount,
+          ...(isOrchestratorCall ? { logical_turn_id: orchestratorCtx.logical_turn_id, claim_token: orchestratorCtx.claim_token } : {}),
+        };
+        const { data: handoffMsg } = await supabase.from("messages").insert({
           conversation_id,
           tenant_id,
           direction: "outbound",
@@ -3616,8 +3818,8 @@ Deno.serve(async (req) => {
           is_ai_generated: true,
           is_internal: false,
           is_note: false,
-          metadata: { kind: "ambiguous_input_handoff", ambiguous_input_count: newCount },
-        });
+          metadata: handoffMeta,
+        }).select("id").maybeSingle();
 
         await supabase
           .from("conversations")
@@ -3628,9 +3830,20 @@ Deno.serve(async (req) => {
               ...convMetaForAmbig,
               ambiguous_input_count: 0,
               last_ambiguous_handoff_at: new Date().toISOString(),
+              last_ambiguous_logical_turn_id: orchestratorCtx.logical_turn_id ?? null,
             },
           })
           .eq("id", conversation_id);
+
+        // [Reg #2.13 Fase C] Envia + finalize via helper.
+        await finalizeOrchestratedTurn({
+          outcome: "send",
+          botMessageId: handoffMsg?.id ?? null,
+          botContent: handoffReply,
+          kind: "ambiguous_input_handoff",
+          conversationRef: conversation,
+        });
+        await releaseProcessingLock(supabase, conversation_id, myLockId).catch(() => {});
 
         return new Response(
           JSON.stringify({
@@ -3644,7 +3857,12 @@ Deno.serve(async (req) => {
 
       // <3 ambíguas: pede reformulação. NÃO mexe em sales_state.
       const askReply = "Não entendi sua última mensagem, pode reescrever, por favor?";
-      await supabase.from("messages").insert({
+      const askMeta: Record<string, unknown> = {
+        kind: "ambiguous_input_ask_rephrase",
+        ambiguous_input_count: newCount,
+        ...(isOrchestratorCall ? { logical_turn_id: orchestratorCtx.logical_turn_id, claim_token: orchestratorCtx.claim_token } : {}),
+      };
+      const { data: askMsg } = await supabase.from("messages").insert({
         conversation_id,
         tenant_id,
         direction: "outbound",
@@ -3656,8 +3874,8 @@ Deno.serve(async (req) => {
         is_ai_generated: true,
         is_internal: false,
         is_note: false,
-        metadata: { kind: "ambiguous_input_ask_rephrase", ambiguous_input_count: newCount },
-      });
+        metadata: askMeta,
+      }).select("id").maybeSingle();
 
       await supabase
         .from("conversations")
@@ -3666,9 +3884,19 @@ Deno.serve(async (req) => {
           metadata: {
             ...convMetaForAmbig,
             ambiguous_input_count: newCount,
+            last_ambiguous_logical_turn_id: orchestratorCtx.logical_turn_id ?? null,
           },
         })
         .eq("id", conversation_id);
+
+      await finalizeOrchestratedTurn({
+        outcome: "send",
+        botMessageId: askMsg?.id ?? null,
+        botContent: askReply,
+        kind: "ambiguous_input_ask_rephrase",
+        conversationRef: conversation,
+      });
+      await releaseProcessingLock(supabase, conversation_id, myLockId).catch(() => {});
 
       return new Response(
         JSON.stringify({
