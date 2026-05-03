@@ -2405,6 +2405,7 @@ export type Database = {
       }
       ai_product_commercial_payload: {
         Row: {
+          base_product_id: string | null
           commercial_name: string | null
           commercial_role: Database["public"]["Enums"]["ai_commercial_role"]
           comparison_arguments: string | null
@@ -2418,6 +2419,7 @@ export type Database = {
           has_mandatory_variants: boolean
           has_manual_overrides: boolean
           id: string
+          is_base_candidate: boolean | null
           main_pain_id: string | null
           manual_overrides: Json
           medium_pitch: string | null
@@ -2425,6 +2427,7 @@ export type Database = {
           needs_regeneration: boolean
           product_id: string
           product_kind: Database["public"]["Enums"]["ai_product_kind"]
+          recommendation_notes: string | null
           secondary_pain_ids: string[] | null
           short_pitch: string | null
           social_proof_snippet: string | null
@@ -2435,8 +2438,10 @@ export type Database = {
           variant_ask_rule: string | null
           variants_summary: Json
           when_not_to_indicate: string | null
+          when_to_recommend: string | null
         }
         Insert: {
+          base_product_id?: string | null
           commercial_name?: string | null
           commercial_role?: Database["public"]["Enums"]["ai_commercial_role"]
           comparison_arguments?: string | null
@@ -2450,6 +2455,7 @@ export type Database = {
           has_mandatory_variants?: boolean
           has_manual_overrides?: boolean
           id?: string
+          is_base_candidate?: boolean | null
           main_pain_id?: string | null
           manual_overrides?: Json
           medium_pitch?: string | null
@@ -2457,6 +2463,7 @@ export type Database = {
           needs_regeneration?: boolean
           product_id: string
           product_kind?: Database["public"]["Enums"]["ai_product_kind"]
+          recommendation_notes?: string | null
           secondary_pain_ids?: string[] | null
           short_pitch?: string | null
           social_proof_snippet?: string | null
@@ -2467,8 +2474,10 @@ export type Database = {
           variant_ask_rule?: string | null
           variants_summary?: Json
           when_not_to_indicate?: string | null
+          when_to_recommend?: string | null
         }
         Update: {
+          base_product_id?: string | null
           commercial_name?: string | null
           commercial_role?: Database["public"]["Enums"]["ai_commercial_role"]
           comparison_arguments?: string | null
@@ -2482,6 +2491,7 @@ export type Database = {
           has_mandatory_variants?: boolean
           has_manual_overrides?: boolean
           id?: string
+          is_base_candidate?: boolean | null
           main_pain_id?: string | null
           manual_overrides?: Json
           medium_pitch?: string | null
@@ -2489,6 +2499,7 @@ export type Database = {
           needs_regeneration?: boolean
           product_id?: string
           product_kind?: Database["public"]["Enums"]["ai_product_kind"]
+          recommendation_notes?: string | null
           secondary_pain_ids?: string[] | null
           short_pitch?: string | null
           social_proof_snippet?: string | null
@@ -2499,8 +2510,16 @@ export type Database = {
           variant_ask_rule?: string | null
           variants_summary?: Json
           when_not_to_indicate?: string | null
+          when_to_recommend?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_product_commercial_payload_base_product_id_fkey"
+            columns: ["base_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ai_product_commercial_payload_main_pain_id_fkey"
             columns: ["main_pain_id"]
@@ -2593,6 +2612,70 @@ export type Database = {
           },
           {
             foreignKeyName: "ai_product_pain_map_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_product_relations: {
+        Row: {
+          confidence_score: number | null
+          created_at: string
+          id: string
+          manual_override: boolean
+          position: number
+          relation_type: string
+          source: Database["public"]["Enums"]["ai_data_source"]
+          source_product_id: string
+          target_product_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          manual_override?: boolean
+          position?: number
+          relation_type: string
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          source_product_id: string
+          target_product_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          manual_override?: boolean
+          position?: number
+          relation_type?: string
+          source?: Database["public"]["Enums"]["ai_data_source"]
+          source_product_id?: string
+          target_product_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_product_relations_source_product_id_fkey"
+            columns: ["source_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_product_relations_target_product_id_fkey"
+            columns: ["target_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_product_relations_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
