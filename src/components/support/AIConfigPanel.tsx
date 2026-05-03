@@ -5,10 +5,20 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Brain, MessageCircle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Bot, Brain, MessageCircle, Sparkles } from "lucide-react";
 import { useAiSupportConfig, type AiSupportConfig, type AIRule } from "@/hooks/useAiSupportConfig";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AIRulesEditor } from "./AIRulesEditor";
@@ -16,33 +26,32 @@ import { AILanguageDictionaryEditor } from "./AILanguageDictionaryEditor";
 import { AIIntentObjectionEditor } from "./AIIntentObjectionEditor";
 import { AIBusinessContextSection } from "./AIBusinessContextSection";
 import { AIContextChecklistCard } from "./AIContextChecklistCard";
+import { AIConfigPagePicker } from "./AIConfigPagePicker";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-/**
- * Onda 1A.1 — Configuração da IA reorganizada em 5 abas:
- * Essencial | Conhecimento | Atendimento | Vendas | Avançado.
- *
- * Apenas reorganização visual. Fontes de verdade preservadas:
- * - business_context, attendance_rules, custom_knowledge, system_prompt → ai_support_config
- * - banned_claims, do_not_do → tenant_brand_context
- * - ai_language_dictionary, ai_intent_objection_map, knowledge_base_docs inalterados.
- */
 type TabId = "essencial" | "atendimento";
 
-// Maps anchor IDs → tab where the anchor lives. Used by checklist CTAs.
 const ANCHOR_TO_TAB: Record<string, TabId> = {
   "#bloco-contexto": "essencial",
   "#bloco-regras": "essencial",
   "#bloco-claims": "essencial",
   "#bloco-conhecimento-adicional": "essencial",
   "#bloco-vendas": "essencial",
+  "#bloco-paginas": "essencial",
   "#tab-objections": "atendimento",
 };
 
 export function AIConfigPanel() {
   const { config, isLoading, upsertConfig } = useAiSupportConfig();
+  const { currentTenant } = useAuth();
+  const queryClient = useQueryClient();
   const [localConfig, setLocalConfig] = useState<Partial<AiSupportConfig>>({});
   const [rules, setRules] = useState<AIRule[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>("essencial");
+  const [bootstrapLoading, setBootstrapLoading] = useState(false);
 
   useEffect(() => {
     if (config?.rules) setRules(config.rules);
@@ -63,6 +72,26 @@ export function AIConfigPanel() {
     if (tab && tab !== activeTab) setActiveTab(tab);
   };
 
+  const handleBootstrap = async () => {
+    if (!currentTenant?.id) return;
+    setBootstrapLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-config-bootstrap", {
+        body: { tenant_id: currentTenant.id },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Falha ao gerar");
+      // limpa o draft local para refletir o que veio do servidor
+      setLocalConfig({});
+      await queryClient.invalidateQueries({ queryKey: ["ai-support-config"] });
+      toast.success("Configurações preenchidas pela IA. Revise e ajuste antes de salvar alterações.");
+    } catch (e) {
+      toast.error(`Erro ao preencher com IA: ${(e as Error).message}`);
+    } finally {
+      setBootstrapLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4 p-4">
@@ -73,27 +102,85 @@ export function AIConfigPanel() {
     );
   }
 
+  const aiActive = getValue("is_enabled") ?? true;
+  const salesActive = getValue("sales_mode_enabled") ?? false;
+
   return (
     <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
+      {/* HEADER MASTER */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <Bot className="h-5 w-5" />
             Configuração da IA
           </h2>
           <p className="text-sm text-muted-foreground">
-            Personalize como a IA atende seus clientes
+            Personalize como a IA atende e vende para seus clientes
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Master toggle */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card">
             <Switch
-              id="ai-enabled"
-              checked={getValue("is_enabled") ?? true}
+              id="ai-master"
+              checked={aiActive}
               onCheckedChange={(checked) => updateField("is_enabled", checked)}
             />
-            <Label htmlFor="ai-enabled">IA Ativa</Label>
+            <Label htmlFor="ai-master" className="font-medium">
+              {aiActive ? "IA Ativa" : "Ativar IA"}
+            </Label>
           </div>
+
+          {/* Sub-toggles aparecem só quando IA Ativa */}
+          {aiActive && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/30">
+              <span className="text-xs font-medium text-muted-foreground mr-1">Modos:</span>
+              <div className="flex items-center gap-2 pr-3 border-r">
+                <Switch id="mode-attendance" checked disabled />
+                <Label htmlFor="mode-attendance" className="text-sm">Atendimento</Label>
+              </div>
+              <div className="flex items-center gap-2 pl-1">
+                <Switch
+                  id="mode-sales"
+                  checked={salesActive}
+                  onCheckedChange={(checked) => updateField("sales_mode_enabled", checked)}
+                />
+                <Label htmlFor="mode-sales" className="text-sm">Modo Vendas</Label>
+              </div>
+            </div>
+          )}
+
+          {/* Botão central de bootstrap */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" disabled={bootstrapLoading}>
+                <Sparkles className="h-4 w-4 mr-1" />
+                {bootstrapLoading ? "Gerando..." : "Preencher com IA"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Preencher configurações com IA?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  A IA vai analisar seu catálogo e gerar automaticamente o
+                  <strong> Contexto do negócio</strong>, as <strong>Regras gerais
+                  de atendimento</strong> e o <strong>Conhecimento adicional</strong>.
+                  <br /><br />
+                  <strong className="text-destructive">Tudo que você já preencheu nesses três campos será substituído.</strong>
+                  <br /><br />
+                  Use isso como ponto de partida — depois revise e ajuste manualmente o que achar melhor.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleBootstrap}>
+                  Sim, preencher
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           <Button onClick={handleSave} disabled={upsertConfig.isPending}>
             {upsertConfig.isPending ? "Salvando..." : "Salvar"}
           </Button>
@@ -122,14 +209,45 @@ export function AIConfigPanel() {
             onChange={(patch) => setLocalConfig((prev) => ({ ...prev, ...patch }))}
           />
 
+          {/* Conhecimento adicional (texto livre) */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Fontes de Conhecimento</CardTitle>
+              <CardTitle className="text-lg">Conhecimento adicional</CardTitle>
               <CardDescription>
-                A IA aprende automaticamente sobre seu negócio a partir destas fontes
+                Detalhes específicos da loja, exceções, promoções e informações que não cabem nos campos acima.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
+              <div id="bloco-conhecimento-adicional" className="scroll-mt-24">
+                <Textarea
+                  placeholder="Ex.: O Kit Banho leva 2 dias úteis a mais para envio. Cupom BEMVINDO10 só vale primeira compra. Atendemos somente o Brasil."
+                  value={getValue("custom_knowledge") || ""}
+                  onChange={(e) => updateField("custom_knowledge", e.target.value)}
+                  rows={5}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Páginas oficiais (FAQ + Políticas) */}
+          <div id="bloco-paginas" className="scroll-mt-24">
+            <AIConfigPagePicker
+              faqIds={getValue("faq_page_ids") || []}
+              policyIds={getValue("policy_page_ids") || []}
+              onChangeFaq={(ids) => updateField("faq_page_ids", ids)}
+              onChangePolicy={(ids) => updateField("policy_page_ids", ids)}
+            />
+          </div>
+
+          {/* Fontes automáticas (Produtos / Categorias) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Fontes automáticas de catálogo</CardTitle>
+              <CardDescription>
+                A IA aprende automaticamente sobre produtos e categorias da sua loja.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
@@ -151,151 +269,56 @@ export function AIConfigPanel() {
                     onCheckedChange={(checked) => updateField("auto_import_categories", checked)}
                   />
                 </div>
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label>Políticas</Label>
-                    <p className="text-xs text-muted-foreground">Trocas, devoluções, frete</p>
-                  </div>
-                  <Switch
-                    checked={getValue("auto_import_policies") ?? true}
-                    onCheckedChange={(checked) => updateField("auto_import_policies", checked)}
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label>FAQs</Label>
-                    <p className="text-xs text-muted-foreground">Perguntas frequentes</p>
-                  </div>
-                  <Switch
-                    checked={getValue("auto_import_faqs") ?? true}
-                    onCheckedChange={(checked) => updateField("auto_import_faqs", checked)}
-                  />
-                </div>
               </div>
-
-              <div id="bloco-conhecimento-adicional" className="space-y-2 scroll-mt-24 pt-4 border-t">
-                <Label>Conhecimento adicional</Label>
-                <p className="text-xs text-muted-foreground">
-                  Detalhes específicos da loja, exceções, promoções e informações que não cabem nas fontes acima.
-                </p>
-                <Textarea
-                  placeholder="Ex.: O Kit Banho leva 2 dias úteis a mais para envio. Cupom BEMVINDO10 só vale primeira compra."
-                  value={getValue("custom_knowledge") || ""}
-                  onChange={(e) => updateField("custom_knowledge", e.target.value)}
-                  rows={6}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Modo Vendas (antiga aba Vendas) */}
-          <Card id="bloco-vendas" className="scroll-mt-24">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                Modo Vendas
-                <Badge variant={getValue("sales_mode_enabled") ? "default" : "secondary"}>
-                  {getValue("sales_mode_enabled") ? "Ativo" : "Inativo"}
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                Quando ativado, a IA pode buscar produtos, oferecer cupons, montar carrinho e gerar links de checkout durante a conversa.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
-                <div className="space-y-1">
-                  <Label className="text-base font-medium">Ativar Modo Vendas</Label>
-                  <p className="text-sm text-muted-foreground">
-                    A IA poderá sugerir produtos, aplicar cupons e gerar links de checkout durante o atendimento.
-                  </p>
-                </div>
-                <Switch
-                  checked={getValue("sales_mode_enabled") ?? false}
-                  onCheckedChange={(checked) => updateField("sales_mode_enabled", checked)}
-                />
-              </div>
-              {getValue("sales_mode_enabled") && (
-                <div className="space-y-2 pl-4 border-l-2 border-primary/30 text-sm text-muted-foreground">
-                  <p className="font-medium">Com o Modo Vendas ativo, a IA poderá:</p>
-                  <ul className="space-y-1">
-                    <li>• Buscar e sugerir produtos do catálogo</li>
-                    <li>• Verificar cupons e elegibilidade para descontos</li>
-                    <li>• Montar carrinho conversacional</li>
-                    <li>• Oferecer upsells quando disponíveis</li>
-                    <li>• Gerar link de checkout pré-preenchido</li>
-                  </ul>
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
 
+        {/* ========== ATENDIMENTO ========== */}
         <TabsContent value="atendimento" className="space-y-4 mt-4">
+          {/* Identidade + Linguagem agrupados */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Identidade da IA</CardTitle>
-              <CardDescription>Como a IA se apresenta na conversa</CardDescription>
+              <CardTitle className="text-lg">Identidade e linguagem</CardTitle>
+              <CardDescription>
+                Como a IA se apresenta e como ela fala com seus clientes — tudo num lugar só.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Nome do assistente</Label>
-                  <Input
-                    placeholder="Ex: Sofia, Assistente Virtual"
-                    value={getValue("personality_name") || ""}
-                    onChange={(e) => updateField("personality_name", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tom de voz</Label>
-                  <Select
-                    value={getValue("personality_tone") || "friendly"}
-                    onValueChange={(v) =>
-                      updateField("personality_tone", v as "formal" | "friendly" | "casual")
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="formal">Formal</SelectItem>
-                      <SelectItem value="friendly">Amigável</SelectItem>
-                      <SelectItem value="casual">Casual</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label>Nome do assistente</Label>
+                <Input
+                  placeholder="Ex.: Sofia, Assistente Virtual"
+                  value={getValue("personality_name") || ""}
+                  onChange={(e) => updateField("personality_name", e.target.value)}
+                />
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center gap-3 pt-2 border-t">
                 <Switch
                   id="use-emojis"
                   checked={getValue("use_emojis") ?? true}
                   onCheckedChange={(checked) => updateField("use_emojis", checked)}
                 />
-                <Label htmlFor="use-emojis">Usar emojis</Label>
+                <Label htmlFor="use-emojis">Usar emojis nas respostas</Label>
               </div>
             </CardContent>
           </Card>
 
-          {/* Vocabulário e linguagem do nicho */}
-          <div>
-            <div className="mb-2 px-1">
-              <h3 className="text-sm font-semibold">Vocabulário e linguagem do nicho</h3>
-              <p className="text-xs text-muted-foreground">
-                Tratamento, vocabulário, apelidos, frases preferidas e termos proibidos — tudo que a IA precisa para falar como sua marca.
-              </p>
-            </div>
-            <AILanguageDictionaryEditor />
-          </div>
+          {/* Vocabulário & dicionário (contém Estilo do tom + tratamento) */}
+          <AILanguageDictionaryEditor />
 
+          {/* Objeções e intenções */}
           <div id="tab-objections" className="scroll-mt-24">
             <AIIntentObjectionEditor />
           </div>
 
+          {/* Regras condicionais */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Regras condicionais de comportamento</CardTitle>
+              <CardTitle className="text-lg">Regras condicionais (Quando X → faça Y)</CardTitle>
               <CardDescription>
-                Quando o cliente fizer X, a IA deve fazer Y. Para regras gerais em texto livre, use a aba Conhecimento Essencial.
+                Para regras gerais em texto livre, use a aba Conhecimento Essencial.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -303,37 +326,37 @@ export function AIConfigPanel() {
             </CardContent>
           </Card>
 
+          {/* Transferência para humano */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Transferência para humano</CardTitle>
               <CardDescription>Quando a IA deve passar o atendimento para um agente</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Máximo de mensagens antes de sugerir humano</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={getValue("max_messages_before_handoff") || 10}
-                  onChange={(e) => updateField("max_messages_before_handoff", parseInt(e.target.value))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Palavras-chave para transferência</Label>
-                <Input
-                  placeholder="falar com humano, atendente, pessoa"
-                  value={(getValue("handoff_keywords") || []).join(", ")}
-                  onChange={(e) =>
-                    updateField(
-                      "handoff_keywords",
-                      e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
-                    )
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  Separe por vírgula. Quando detectadas, a IA transfere para humano.
-                </p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Máximo de mensagens antes de sugerir humano</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={getValue("max_messages_before_handoff") || 10}
+                    onChange={(e) => updateField("max_messages_before_handoff", parseInt(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Palavras-chave para transferência</Label>
+                  <Input
+                    placeholder="falar com humano, atendente, pessoa"
+                    value={(getValue("handoff_keywords") || []).join(", ")}
+                    onChange={(e) =>
+                      updateField(
+                        "handoff_keywords",
+                        e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
+                      )
+                    }
+                  />
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Switch
@@ -350,6 +373,7 @@ export function AIConfigPanel() {
             </CardContent>
           </Card>
 
+          {/* Mídia */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Tratamento de mídia</CardTitle>
@@ -382,18 +406,20 @@ export function AIConfigPanel() {
             </CardContent>
           </Card>
 
+          {/* Restrições de conversa — UNIFICADO (tópicos + termos) */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">O que evitar nas conversas</CardTitle>
+              <CardTitle className="text-lg">Restrições de conversa</CardTitle>
               <CardDescription>
-                Diferente de <em>claims/promessas proibidas</em> (aba Conhecimento Essencial), que são promessas comerciais ou jurídicas que sua marca não pode fazer.
+                Assuntos e palavras que a IA nunca deve abordar. Para promessas comerciais
+                ou jurídicas, use <em>Claims/promessas proibidas</em> na aba Conhecimento Essencial.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <div className="space-y-2">
-                <Label>Tópicos proibidos</Label>
+                <Label>Lista de restrições (separadas por vírgula)</Label>
                 <Input
-                  placeholder="política, religião, concorrentes"
+                  placeholder="política, religião, concorrentes, palavrão"
                   value={(getValue("forbidden_topics") || []).join(", ")}
                   onChange={(e) =>
                     updateField(
@@ -403,11 +429,8 @@ export function AIConfigPanel() {
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Assuntos que a IA não deve tratar.
+                  A IA não tratará desses assuntos nem usará essas palavras nas respostas.
                 </p>
-              </div>
-              <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                <strong className="text-foreground">Termos proibidos</strong> (palavras/frases específicas que a IA nunca deve usar) ficam em <em>Vocabulário e linguagem do nicho</em>, mais acima nesta aba.
               </div>
             </CardContent>
           </Card>
