@@ -282,3 +282,215 @@ async function userHasTenantAccess(supabase: any, userId: string, tenantId: stri
   }
   return Array.isArray(data) && data.length > 0;
 }
+
+// ============================================================
+// [Reg #2.13 — Fase C] handleBurst
+// Valida o pipeline real do Turn Orchestrator sem chamar
+// ai-support-chat direto. Replica o que o meta-whatsapp-webhook
+// faz por mensagem: insert messages → classify completeness →
+// enqueue_turn_message. Após a última msg, dispara
+// turn-orchestrator-processor (source=webhook) e aguarda a
+// resposta bot ou um estado terminal do buffer.
+// ============================================================
+async function handleBurst(params: {
+  supabase: any;
+  supabaseUrl: string;
+  serviceKey: string;
+  body: any;
+  isAgentMode: boolean;
+  userId: string;
+}): Promise<Response> {
+  const { supabase, supabaseUrl, serviceKey, body, isAgentMode, userId } = params;
+  const tenant_id: string = body.tenant_id;
+  const messages: string[] = Array.isArray(body.messages) ? body.messages : [];
+  const gap_ms: number = Math.max(0, Math.min(2000, body.gap_ms ?? 250));
+  const wait_for_bot_ms: number = Math.max(5000, Math.min(60000, body.wait_for_bot_ms ?? 30000));
+  const simulatedChannel: "chat" | "whatsapp" =
+    body.simulated_channel === "chat" ? "chat" : "whatsapp";
+
+  if (!tenant_id || messages.length < 1) {
+    return json({ success: false, error: "tenant_id and messages[] required" }, 200);
+  }
+
+  if (!isAgentMode) {
+    const allowed = await userHasTenantAccess(supabase, userId, tenant_id);
+    if (!allowed) return json({ success: false, error: "forbidden" }, 200);
+  }
+
+  // Carrega classifier dinamicamente (evita custo pra send)
+  const { classifyTurnCompleteness } = await import(
+    "../_shared/sales-pipeline/turn-completeness.ts"
+  );
+
+  // Cria conversa sandbox
+  let conversation_id: string | null = body.conversation_id ?? null;
+  if (!conversation_id) {
+    const fakePhone = `sandbox_burst_${userId.slice(0, 8)}_${Date.now()}`;
+    const { data: created, error: createErr } = await supabase
+      .from("conversations")
+      .insert({
+        tenant_id,
+        channel_type: simulatedChannel,
+        customer_name: "Burst Sandbox",
+        customer_phone: fakePhone,
+        status: "bot",
+        metadata: {
+          is_sandbox: true,
+          simulated_channel: simulatedChannel,
+          burst: true,
+          sandbox_user_id: userId,
+        },
+      })
+      .select("id")
+      .single();
+    if (createErr || !created) {
+      return json({ success: false, error: "create_conv_failed", detail: createErr?.message }, 200);
+    }
+    conversation_id = created.id;
+  }
+
+  const messageIds: string[] = [];
+  const enqueueResults: any[] = [];
+  let lastLogicalTurnId: string | null = null;
+
+  // Buffer acumulado para classifier (fiel ao webhook que reclassifica a cada burst)
+  const buffered: any[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const text = messages[i];
+    const { data: ins, error: insErr } = await supabase
+      .from("messages")
+      .insert({
+        conversation_id,
+        tenant_id,
+        direction: "inbound",
+        sender_type: "customer",
+        sender_name: "Burst Cliente",
+        content: text,
+        content_type: "text",
+        delivery_status: "delivered",
+        metadata: { is_sandbox: true, burst_index: i },
+      })
+      .select("id, created_at")
+      .single();
+    if (insErr || !ins) {
+      return json({ success: false, error: "insert_msg_failed", detail: insErr?.message, step: i }, 200);
+    }
+    messageIds.push(ins.id);
+    buffered.push({
+      id: ins.id,
+      text,
+      media_type: null,
+      media_caption: null,
+      created_at: ins.created_at,
+    });
+
+    const classification = classifyTurnCompleteness(buffered, {});
+    const { data: enq, error: enqErr } = await supabase.rpc("enqueue_turn_message", {
+      p_tenant_id: tenant_id,
+      p_conversation_id: conversation_id,
+      p_message_id: ins.id,
+      p_completeness: classification.completeness,
+      p_debounce_ms: classification.debounceMs,
+    });
+    if (enqErr) {
+      return json({ success: false, error: "enqueue_failed", detail: enqErr.message, step: i }, 200);
+    }
+    enqueueResults.push({
+      step: i, text,
+      completeness: classification.completeness,
+      debounce_ms: classification.debounceMs,
+      logical_turn_id: enq?.logical_turn_id,
+      buffer_size: enq?.buffer_size,
+      created: enq?.created,
+    });
+    lastLogicalTurnId = enq?.logical_turn_id ?? lastLogicalTurnId;
+
+    if (i < messages.length - 1 && gap_ms > 0) {
+      await new Promise((r) => setTimeout(r, gap_ms));
+    }
+  }
+
+  // Dispara processor (source=webhook) — mesma lógica do meta-whatsapp-webhook
+  let processorStatus = 0;
+  let processorBody = "";
+  try {
+    const r = await fetch(`${supabaseUrl}/functions/v1/turn-orchestrator-processor`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        tenant_id,
+        conversation_id,
+        logical_turn_id: lastLogicalTurnId,
+        source: "webhook",
+      }),
+    });
+    processorStatus = r.status;
+    processorBody = (await r.text()).slice(0, 600);
+  } catch (err) {
+    return json({ success: false, error: "processor_dispatch_failed", detail: String(err) }, 200);
+  }
+
+  // Polling: espera bot message com logical_turn_id OU buffer terminal
+  const startedAt = Date.now();
+  let botMessage: any = null;
+  let bufferFinal: any = null;
+  while (Date.now() - startedAt < wait_for_bot_ms) {
+    const { data: bm } = await supabase
+      .from("messages")
+      .select("id, content, delivery_status, created_at, metadata, external_message_id")
+      .eq("conversation_id", conversation_id)
+      .eq("sender_type", "bot")
+      .filter("metadata->>logical_turn_id", "eq", lastLogicalTurnId!)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (bm) { botMessage = bm; }
+
+    const { data: buf } = await supabase
+      .from("ai_turn_buffers")
+      .select("status, attempts, failed_reason, snapshot_message_ids, claim_token, process_after, next_retry_at")
+      .eq("conversation_id", conversation_id)
+      .eq("logical_turn_id", lastLogicalTurnId!)
+      .maybeSingle();
+    if (buf) { bufferFinal = buf; }
+
+    if (botMessage && bufferFinal && (bufferFinal.status === "processed" || bufferFinal.status === "send_failed" || bufferFinal.status === "dead" || bufferFinal.status === "aborted")) {
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  // Conta TODAS as bot messages do turno (deveria ser 1)
+  const { data: allBot } = await supabase
+    .from("messages")
+    .select("id, delivery_status, created_at")
+    .eq("conversation_id", conversation_id)
+    .eq("sender_type", "bot")
+    .filter("metadata->>logical_turn_id", "eq", lastLogicalTurnId!)
+    .order("created_at", { ascending: true });
+
+  return json({
+    success: true,
+    conversation_id,
+    simulated_channel: simulatedChannel,
+    logical_turn_id: lastLogicalTurnId,
+    inbound_message_ids: messageIds,
+    enqueue_results: enqueueResults,
+    processor_status: processorStatus,
+    processor_body: processorBody,
+    buffer_final: bufferFinal,
+    bot_message: botMessage,
+    bot_messages_count: allBot?.length ?? 0,
+    elapsed_ms: Date.now() - startedAt,
+    summary: {
+      buffers_created: enqueueResults.filter((r) => r.created).length,
+      buffer_status: bufferFinal?.status,
+      bot_count: allBot?.length ?? 0,
+      duplicate_prevented: (allBot?.length ?? 0) <= 1,
+    },
+  }, 200);
+}
