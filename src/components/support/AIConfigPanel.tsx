@@ -80,8 +80,14 @@ export function AIConfigPanel() {
         </div>
       </div>
 
-      <Tabs defaultValue="personality">
-        <TabsList className="grid w-full grid-cols-7">
+      <AIContextChecklistCard />
+
+      <Tabs defaultValue="business">
+        <TabsList className="grid w-full grid-cols-8">
+          <TabsTrigger value="business" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            Negócio
+          </TabsTrigger>
           <TabsTrigger value="personality" className="gap-2">
             <Sparkles className="h-4 w-4" />
             Personalidade
