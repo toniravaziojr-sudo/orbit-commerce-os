@@ -29,9 +29,12 @@ const corsHeaders = {
 const LOG = "[turn-orchestrator-processor]";
 
 // Limites técnicos do processador
+// [Reg #2.13 Fase C] AI_INVOCATION subiu de 55s → 90s após corrigirmos
+// pre_send/media_wait_reply: GPT-5 com tools + consolidação de turno + RAG
+// pode estourar 55s sem indicar loop lógico.
 const MAX_QUIET_WINDOW_MS = 7000;          // cap absoluto do debounce
-const AI_INVOCATION_TIMEOUT_MS = 55_000;   // ai-support-chat (GPT-5)
-const PROCESSOR_HARD_TIMEOUT_MS = 65_000;  // cap geral; sob isso o watchdog retoma
+const AI_INVOCATION_TIMEOUT_MS = 90_000;   // ai-support-chat (GPT-5)
+const PROCESSOR_HARD_TIMEOUT_MS = 100_000; // cap geral; sob isso o watchdog retoma
 
 interface ProcessRequest {
   tenant_id: string;
