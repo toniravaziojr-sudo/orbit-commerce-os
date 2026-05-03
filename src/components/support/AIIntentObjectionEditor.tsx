@@ -156,7 +156,7 @@ export function AIIntentObjectionEditor() {
           </div>
           {objections.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">
-              Nenhuma objeção cadastrada. Use "Regenerar com IA" ou aprove sugestões na Central de Insights.
+              Nenhuma objeção cadastrada. Use "Preencher com IA" no topo ou aprove sugestões na Central de Insights.
             </p>
           ) : (
             <div className="space-y-2">
@@ -180,7 +180,7 @@ export function AIIntentObjectionEditor() {
           </div>
           {intents.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">
-              Nenhuma intenção cadastrada. Use "Regenerar com IA" ou aprove sugestões na Central de Insights.
+              Nenhuma intenção cadastrada. Use "Preencher com IA" no topo ou aprove sugestões na Central de Insights.
             </p>
           ) : (
             <div className="space-y-2">
