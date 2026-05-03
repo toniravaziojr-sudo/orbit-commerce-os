@@ -77,6 +77,20 @@ Webhook detecta a flag a cada inbound e cai automaticamente no caminho legado (`
 - `[ai-support-chat] [TURN-ORCH] complete_turn OK bot_msg=…`
 - `[turn-orchestrator-watchdog] found N stuck buffers` (a cada minuto; 0 é normal)
 
+## Early-Return Contract (Reg #2.13 Fase C)
+Todo early-return de `ai-support-chat` em chamada orquestrada PASSA pelo helper `finalizeOrchestratedTurn({outcome, botMessageId?, botContent?, kind?, reason?, conversationRef?})`. 3 outcomes:
+- **send** — INSERT bot já feito; helper envia (whatsapp/chat/email) + `complete_turn`/`fail_turn` + atualiza `delivery_status`. Idempotência por índice único `messages_unique_bot_per_logical_turn`.
+- **no_send** — sem mensagem; `complete_turn(bot_message_id=null)`. Casos: `processing_lock_alive`, `media_pending_already_notified`.
+- **abort** — terminal sem retry; `complete_turn(null)` (não `fail_turn`, que recoloca em `send_failed`). Caso: `handoff_terminal_lock`.
+
+Cobertura atual de early-returns: `handoff_terminal_lock`(abort), `processing_lock_alive`(no_send), `media_wait_reply`(send), `media_pending_already_notified`(no_send), `ambiguous_input_ask_rephrase`(send), `ambiguous_input_handoff`(send + waiting_agent).
+
+Classificação de ambiguidade em turno orquestrado: usa texto consolidado das últimas msgs do cliente + heurística comercial (entradas, coroa, falhas, calvície, shampoo, kit, produto, recomenda, preço…) + token de pergunta. Se comercial → não cai em ambiguous_input.
+
+Idempotência do contador: `conversations.metadata.last_ambiguous_logical_turn_id`. Reprocessamento do mesmo `logical_turn_id` NÃO incrementa `ambiguous_input_count`.
+
+Schema: `support_tickets` NÃO tem coluna `channel`. Sempre persistir em `metadata.channel`.
+
 ## Riscos remanescentes
 - `EdgeRuntime.waitUntil` ainda é não-documentado oficialmente como "garantido"; o watchdog é a rede de segurança.
 - `ai-support-chat` é grande; 3 inserts auxiliares (handoff_ambíguo, ask_rephrase, media_wait) **não** carregam `logical_turn_id` — eles agem em early-returns ANTES de o orquestrador chegar; o índice único só atinge o save principal. Em rajada extrema com handoff é teoricamente possível 1 dessas mensagens + 1 bot final convencional. Aceito (não causa duplicidade visível ao cliente, são tipos diferentes).
