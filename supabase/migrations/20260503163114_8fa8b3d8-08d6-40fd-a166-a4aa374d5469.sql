@@ -1,0 +1,1 @@
+ALTER VIEW public.ai_context_health_view SET (security_invoker = true);

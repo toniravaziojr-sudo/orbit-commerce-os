@@ -28,7 +28,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 
 | # | Grupo | Item | Rota | Módulo (plan) | blockedFeature | ownerOnly | Observações |
 |---|-------|------|------|---------------|----------------|-----------|-------------|
-| 1 | Principal | Central de Comando | `/command-center` | central | — | — | Sempre visível |
+| 1 | Principal | Central de Comando | `/command-center` | central | — | — | Sempre visível. Abas: Dashboard, Execuções, Insights, **Saúde do Contexto** (`?tab=context-health` — Onda A do Motor de Contexto Comercial), Assistente, Agenda |
 | 2 | Principal | ChatGPT | `/chatgpt` | central | `assistant` | — | Badge "Upgrade" se bloqueado |
 | 3 | E-commerce | Pedidos | `/orders` | ecommerce | — | — | — |
 | 4 | E-commerce | Checkout Abandonado | `/abandoned-checkouts` | ecommerce | — | — | — |
