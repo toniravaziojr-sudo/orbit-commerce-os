@@ -286,7 +286,8 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 
 **Conta:**
 - `/account/data` — Dados da conta
-- `/account/billing` — Minha assinatura
+- `/account/billing` — Minha assinatura (foco em plano/faturas; **não** duplica gestão de créditos)
+- `/account/credits` — **Hub de créditos do tenant (especificado, ainda não implementado).** Abas previstas: Visão geral (default), Comprar créditos (`?tab=buy`), **Extrato de uso** (`?tab=ledger` — histórico oficial de gastos de créditos do tenant), Estimador (`?tab=estimator`). Header global passará a exibir um **chip de saldo de créditos** clicável que navega para esta rota. `/ai-packages` será futuramente redirecionado/incorporado em `/account/credits?tab=buy`. Ver `docs/especificacoes/sistema/ux-creditos-lojista.md`.
 
 **IA e Suporte:**
 - `/chatgpt` — ChatGPT (FeatureGated: `assistant`)
