@@ -12,9 +12,9 @@ Tabela `public.platform_external_costs` (RLS: `is_platform_admin()`).
 - **Apenas serviços com API pública de saldo são sincronizados.** Hoje: **SendGrid** (créditos de e-mail).
 - Demais serviços são manuais por limitação dos provedores:
   - **Fal.AI** — não expõe endpoint de saldo.
-  - **OpenAI** — endpoint de billing descontinuado; novos endpoints exigem Admin Key e retornam custo, não saldo.
-  - **Google Cloud** — Cloud Billing API exige Service Account + BigQuery export; sem conceito de saldo.
-  - **Cloudflare / Lovable / Firecrawl / Nuvem Fiscal** — assinatura mensal fixa.
+  - **OpenAI** — endpoint de billing descontinuado.
+  - **Google Cloud** — exige Service Account + BigQuery export.
+  - **Cloudflare / Lovable / Firecrawl / Focus NFe** — assinatura mensal fixa.
   - **Gemini** — pay-as-you-go, sem saldo.
 - O botão "Sincronizar saldos" só aparece quando há ≥1 serviço em modo `auto`.
 
@@ -22,11 +22,8 @@ Tabela `public.platform_external_costs` (RLS: `is_platform_admin()`).
 Banner fixo no topo de `/platform/*` quando há serviço com renovação ≤7 dias (warning) ou ≤3 dias (crítico).
 
 ## Serviços ativos
-SendGrid (auto), Cloudflare, Lovable, Firecrawl, Nuvem Fiscal, Fal.AI, OpenAI, Google Cloud, Gemini.
+SendGrid (auto), Cloudflare, Lovable, Firecrawl, **Focus NFe**, Fal.AI, OpenAI, Google Cloud, Gemini.
 
 ## Removidos
 - **Z-API** (WhatsApp), **Late** (social), **ElevenLabs**: removidos na Onda 1.
-- **Focus NFe**: removido — substituído integralmente por Nuvem Fiscal.
-
-## Pendente (Onda 2)
-Implementar adapter completo Nuvem Fiscal (emissão/cancelamento/CCe/inutilização) com branch em `fiscal-submit` por `fiscal_settings.provider`, migrar 3 tenants (`focusnfe → nuvem_fiscal`), validar emissão real e só então remover Focus NFe do código + secret.
+- **Nuvem Fiscal**: removida — substituída integralmente por **Focus NFe** (token único da plataforma).
