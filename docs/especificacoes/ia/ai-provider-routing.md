@@ -99,14 +99,39 @@ Hoje o sandbox de testes da IA roda no MESMO `ai-support-chat` da
 produção, então compartilha quotas. Risco aceito até a Fase 5, mas
 mitigações já aplicadas:
 
-- TPR (Fase 1) usa OpenAI Native como rota primária real (já que
-  `GEMINI_API_KEY` ainda não está cadastrada). Isolado do bucket
-  Lovable.
+- TPR (Fase 1) usa **Gemini Native** como rota primária real
+  (validado em smoke test 2026-05-04 — provider=gemini,
+  model=gemini-2.5-flash, latência ~2s). Isolado do bucket Lovable.
 - Se `LOVABLE_API_KEY` for atingida por testes, atendimento real
-  continua funcionando via OpenAI/Gemini.
+  continua funcionando via Gemini/OpenAI nativos.
 
 **Fase 5** prevê header `x-ai-context: sandbox|production` para forçar
 sandbox a usar Lovable Gateway primeiro, blindando produção.
+
+---
+
+## 6.1. Hierarquia de credenciais (resolveAPIKeys)
+
+A resolução de chaves no `_shared/ai-router.ts` segue ordem estrita:
+
+1. **Fonte primária:** `platform_credentials` (banco) — via `getCredential`.
+2. **Fallback condicional:** variável de ambiente do projeto Supabase
+   (`Deno.env.get`) — usada SOMENTE se o banco não retornou chave válida.
+
+⚠️ **Bug histórico (corrigido em 2026-05-04):** a v1.2.0 do router
+consultava o banco e em seguida sobrescrevia incondicionalmente
+`openaiKey`/`geminiKey` com `Deno.env.get(...) || null`. Como
+`OPENAI_API_KEY`/`GEMINI_API_KEY` não existem como env var do projeto
+(estão só no banco), o resultado era `null` para ambos e o router
+caía sempre no Lovable Gateway — anulando o objetivo da Fase 1.
+
+A correção tornou o fallback **condicional** (`if (!openaiKey) ...`),
+adicionou `trim()` para evitar string vazia, e mantém o contrato do
+router intacto.
+
+**Validação obrigatória:** Fase 1 só pode ser considerada fechada
+após smoke test confirmar `provider=gemini` ou `provider=openai`
+nos logs do TPR — nunca `provider=lovable` como primário.
 
 ---
 
@@ -114,7 +139,7 @@ sandbox a usar Lovable Gateway primeiro, blindando produção.
 
 | Fase | Escopo | Status |
 |------|--------|--------|
-| 1 | Migrar **TPR** (`turn-pre-router.ts`) para `ai-router`. | ✅ 2026-05-03 |
+| 1 | Migrar **TPR** (`turn-pre-router.ts`) para `ai-router`. | ✅ Fechada 2026-05-04 (Gemini Native validado) |
 | 2 | Migrar composer principal (9 chamadas OpenAI direto) em `ai-support-chat/index.ts` para `ai-router` (consolidar fallback). | Planejada |
 | 3 | Migrar 16 funções utilitárias que ainda chamam o Gateway direto. | Planejada |
 | 4 | Tabela `ai_provider_calls` por tenant + alertas de consumo. | Planejada |
