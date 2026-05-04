@@ -223,6 +223,8 @@ export default function PlatformExternalCosts() {
   const subscription = list.filter((c) => c.billing_model === "subscription");
   const prepaid = list.filter((c) => c.billing_model === "prepaid");
   const payg = list.filter((c) => c.billing_model === "payg");
+  const hasAutoSync = list.some((c) => c.sync_mode === "auto");
+  const autoSyncNames = list.filter((c) => c.sync_mode === "auto").map((c) => c.display_name).join(", ");
 
   const alerts = list.map((c) => ({ cost: c, level: isCostAlerting(c) })).filter((a) => a.level);
   const total = list.reduce((sum, c) => sum + (c.monthly_cost_brl ?? (c.monthly_cost_usd ?? 0) * 5.5), 0);
