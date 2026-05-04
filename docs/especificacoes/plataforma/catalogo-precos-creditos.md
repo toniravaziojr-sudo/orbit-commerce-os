@@ -157,3 +157,15 @@ Tenant deve receber, via RPC, apenas:
 
 - A chave oficial em `metadata` para registrar a origem de uma linha (backfill, sistema gerador, fluxo emissor) é **`source`**.
 - Forma `metadata.origin_table` está obsoleta e não deve ser introduzida em código novo. Onde aparecer, refatorar para `source` antes de plug em produção.
+
+---
+
+## 13. Fase 2B — Catálogo não-IA seedado (2026-05-04)
+
+- 19 registros não-IA inseridos: email (4), fiscal Focus NFe (7), whatsapp (6, janelas 24h `is_active=false`), scrape (2).
+- Todos com `metadata.placeholder=true`, `approved_for_live=false`, `price_source='manual_placeholder'`, `requires_review=true`, `created_by_phase='2B'`.
+- Provider fiscal real: **Focus NFe** (`provider='focus_nfe'`). Nuvem Fiscal não é usada.
+- Gate `PRICE_NOT_APPROVED`: `reserve_credits_v2` e `charge_credits_v2` recusam tenant-paid live quando `placeholder=true` e `approved_for_live=false`. `record_platform_cost` e `estimate_*` não são afetados.
+- Aprovação live é bloqueada quando `placeholder=true` e `price_source='manual_placeholder'` (exige preço real validado primeiro).
+- Versionamento: `admin_pricing_version` fecha vigência atual e cria nova; nunca recalcula ledger histórico.
+- Tabela `service_pricing_audit` registra todas as ações com `reason` obrigatório, restrita a platform_admin.
