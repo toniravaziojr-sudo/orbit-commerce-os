@@ -60,6 +60,7 @@ export function AppShell() {
           <AppSidebar />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <AppHeader />
+            {isPlatformRoute && <PlatformCostsAlertBanner />}
             <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 scrollbar-thin">
               <div className="mx-auto max-w-[1600px]">
                 <PermissionGuard>
