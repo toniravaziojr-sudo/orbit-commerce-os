@@ -289,21 +289,7 @@ Deno.serve(async (req) => {
           META_APP_SECRET: metaAppSecret.source || '',
         },
       },
-      late: {
-        name: 'Late',
-        description: 'Agendamento de publicações em redes sociais (Facebook/Instagram)',
-        icon: 'Calendar',
-        docs: 'https://getlate.dev/docs',
-        secrets: {
-          LATE_API_KEY: lateApiKey.exists,
-        },
-        previews: {
-          LATE_API_KEY: lateApiKey.preview || '',
-        },
-        sources: {
-          LATE_API_KEY: lateApiKey.source || '',
-        },
-      },
+      // late: removido (não usamos mais)
       mercadolivre: {
         name: 'Mercado Livre',
         description: 'Integração com marketplace Mercado Livre',
