@@ -105,3 +105,48 @@ Estrutura espelhada sem `tenant_id`. Visível apenas para platform_admin.
 - `docs/especificacoes/plataforma/motor-creditos.md`
 - `docs/especificacoes/plataforma/funcoes-pagas.md`
 - `docs/especificacoes/plataforma/ux-admin-creditos-custos.md`
+
+---
+
+## 8. Cron de reservas órfãs v2 (Fase 2A)
+
+### 8.1 Edge function
+
+- **Nome:** `credits-release-orphan-reservations`
+- **Agendamento:** a cada 15 minutos (`pg_cron` job `credits-release-orphan-reservations-15m`).
+- **Acesso:** invocada pelo cron via `service_role`.
+
+### 8.2 Critérios de identificação de reserva órfã
+
+Uma linha de `credit_ledger` é considerada reserva órfã quando **todas** as condições abaixo são verdadeiras:
+
+1. `transaction_type = 'reserve'`.
+2. `metadata->>'motor_version' = 'v2'`.
+3. `reservation_expires_at < now()` **OU** (`reservation_expires_at IS NULL` E `created_at < now() - interval '30 minutes'`).
+4. **Não existe** linha em `credit_ledger` com `reference_ledger_id = <id da reserva>` e `transaction_type IN ('capture','release')`.
+5. **Não existe** registro em `service_usage_events` com `reservation_ledger_id = <id da reserva>` e `status = 'in_progress'` atualizado nos últimos 30 minutos.
+
+### 8.3 Regras críticas (anti-regressão)
+
+- O cron **nunca** toca reservas v1. Filtro `metadata->>'motor_version' = 'v2'` é obrigatório em toda query.
+- O cron **nunca** usa apenas `transaction_type = 'reserve'` como critério.
+- O cron **nunca** opera em reservas sem `metadata.motor_version = 'v2'`.
+- O cron **nunca** chama provedor externo. Ele apenas libera crédito reservado.
+
+### 8.4 Ação executada
+
+- Chama `release_reservation(reservation_id, reason='orphan_auto_release', metadata={...})` via helper universal.
+- Linha de `release` resultante carrega `reference_ledger_id` apontando para a reserva original.
+- `service_usage_events` correspondente é atualizado para refletir liberação.
+- Volume anormal (`released > 10` em uma execução) gera log de alerta para revisão admin.
+
+### 8.5 Validação esperada
+
+- Reserva v2 fake com `reservation_expires_at` no passado deve ser liberada na próxima execução.
+- Reserva v1 (sem `metadata.motor_version='v2'`) deve ser ignorada, mesmo que tenha mesma idade.
+- Reserva v2 com `service_usage_events.status='in_progress'` recente deve ser ignorada.
+
+### 8.6 Documentos relacionados
+
+- `docs/especificacoes/plataforma/motor-creditos.md` §14.4, §14.9
+- `docs/especificacoes/plataforma/funcoes-pagas.md`
