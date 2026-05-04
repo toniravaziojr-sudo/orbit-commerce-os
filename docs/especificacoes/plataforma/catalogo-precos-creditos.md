@@ -143,3 +143,17 @@ Tenant deve receber, via RPC, apenas:
 - `docs/especificacoes/plataforma/motor-creditos.md`
 - `docs/especificacoes/plataforma/funcoes-pagas.md`
 - `docs/especificacoes/plataforma/ux-admin-creditos-custos.md`
+
+---
+
+## 11. Estado pós-Fase 2A
+
+- `service_pricing` foi criada e populada via backfill de `ai_pricing` (30) + `ai_model_pricing` (4) — total 34 linhas, todas categoria IA.
+- Catálogo **não-IA** ainda não foi seedado. Categorias `email`, `fiscal`, `whatsapp`, `scrape` ficam para **Fase 2B**.
+- UI admin de `service_pricing` (CRUD vigência, markup override) também é **Fase 2B**.
+- Antes de seedar `fiscal`: auditar provider fiscal real em uso. **Não assumir Nuvem Fiscal** se o sistema atual usa Focus NFe — confirmar antes de criar entradas de catálogo.
+
+## 12. Padrão `metadata.source`
+
+- A chave oficial em `metadata` para registrar a origem de uma linha (backfill, sistema gerador, fluxo emissor) é **`source`**.
+- Forma `metadata.origin_table` está obsoleta e não deve ser introduzida em código novo. Onde aparecer, refatorar para `source` antes de plug em produção.
