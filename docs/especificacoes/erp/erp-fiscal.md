@@ -9,7 +9,7 @@
 
 ## Visão Geral
 
-Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e compras/estoque.
+Módulo de gestão empresarial: fiscal (NF-e via **Focus NFe**), financeiro, e compras/estoque.
 
 ---
 
@@ -17,7 +17,7 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 
 | Submódulo | Rota | Status |
 |-----------|------|--------|
-| Fiscal | `/fiscal` | ✅ Ready (Nuvem Fiscal) |
+| Fiscal | `/fiscal` | ✅ Ready (Focus NFe) |
 | Financeiro | `/finance` | 🟧 Pending |
 | Compras | `/purchases` | 🟧 Pending |
 | Logística | `/shipping` | 🟧 Pending (ver logistica.md) |
@@ -36,7 +36,7 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | `src/components/fiscal/settings/OperationNaturesContent.tsx` | Aba Natureza Jurídica — gestão das naturezas de operação |
 | `src/components/fiscal/settings/OutrosSettings.tsx` | Aba Outros — inutilização de numeração, automações de emissão/remessa/e-mail, desmembramento de kits |
 | `src/pages/FiscalProductsConfig.tsx` | NCM/CFOP por produto |
-| `src/components/integrations/FiscalPlatformSettings.tsx` | Config global Nuvem Fiscal |
+| `src/components/integrations/FiscalPlatformSettings.tsx` | Config global Focus NFe (token único da plataforma) |
 
 ### Atualização em Tempo Real (v8.22.0)
 
@@ -53,8 +53,17 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 
 | Função | Descrição |
 |--------|-----------|
-| `fiscal-sync-nuvem-fiscal` | Sincroniza empresa + certificado na Nuvem Fiscal |
-| `fiscal-emit` | Emissão da NF-e via Nuvem Fiscal |
+| `fiscal-sync-focus-nfe` | Sincroniza empresa + certificado na Focus NFe (cria/atualiza `focus_empresa_id`) |
+| `fiscal-emit` | Emissão da NF-e via Focus NFe (rota síncrona) |
+| `fiscal-submit` | Submissão assíncrona via Focus NFe (cria `focus_ref`) |
+| `fiscal-check-status` / `fiscal-get-status` | Polling de status na Focus NFe |
+| `fiscal-webhook` | Callback assíncrono da Focus NFe |
+| `fiscal-cancel` | Cancelamento de NF-e na Focus NFe |
+| `fiscal-cce` | Carta de Correção (CC-e) via Focus NFe |
+| `fiscal-inutilizar` | Inutilização de numeração via Focus NFe |
+| `fiscal-test-connection` | Validação do token Focus NFe (admin da plataforma) |
+| `fiscal-upload-certificate` | Upload do certificado A1 do tenant (sincroniza com Focus automaticamente) |
+| `dce-emit` | Declaração de Conteúdo Eletrônica via Focus NFe |
 | `fiscal-create-draft` | Cria rascunho de NF-e a partir de pedido |
 | `fiscal-create-manual` | Cria NF-e manualmente (sem pedido) |
 | `fiscal-auto-create-drafts` | Criação automática de rascunhos (cron 5min + manual) |
@@ -109,9 +118,12 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 ### Funcionalidades
 | Feature | Status | Descrição |
 |---------|--------|-----------|
-| Emissão NF-e | ✅ Ready | Via Nuvem Fiscal |
-| Sincronização Empresa | ✅ Ready | Cadastro automático na Nuvem Fiscal |
-| Upload Certificado | ✅ Ready | A3/A1 via Nuvem Fiscal |
+| Emissão NF-e | ✅ Ready | Via Focus NFe (produção) |
+| Sincronização Empresa | ✅ Ready | Cadastro automático na Focus NFe (`focus_empresa_id`) |
+| Upload Certificado | ✅ Ready | A1 enviado para Focus NFe (sincronização automática após upload) |
+| Cancelamento de NF-e | ✅ Ready | Via Focus NFe (`fiscal-cancel`) |
+| Carta de Correção (CC-e) | ✅ Ready | Via Focus NFe (`fiscal-cce`) |
+| Inutilização de numeração | ✅ Ready | Via Focus NFe (`fiscal-inutilizar`) |
 | Consulta CNPJ | 🟧 Pending | Dados do cliente |
 | NCM/CFOP | ✅ Ready | Configuração por produto |
 | ICMS/PIS/COFINS | 🟧 Pending | Cálculo automático |
@@ -158,90 +170,92 @@ Kit vendido por R$ 100,00
 
 ---
 
-## Integração Nuvem Fiscal
+## Integração Focus NFe
+
+> **Provedor único e em produção.** A migração da Nuvem Fiscal foi concluída em 2026-05-04. Não há mais qualquer dependência da Nuvem Fiscal no sistema (código, secrets, banco ou UI).
 
 ### Credenciais (Platform-level)
-Configuradas via `platform_secrets`:
 | Secret | Descrição |
 |--------|-----------|
-| `NUVEM_FISCAL_CLIENT_ID` | Client ID OAuth2 |
-| `NUVEM_FISCAL_CLIENT_SECRET` | Client Secret OAuth2 |
+| `FOCUS_NFE_TOKEN` | Token único de produção da plataforma. Configurado em `/platform-integrations` → aba **Fiscal**. |
+
+> O token é compartilhado por todos os tenants. A separação de responsabilidades por CNPJ é feita por meio do `focus_empresa_id` armazenado em `fiscal_settings` de cada tenant.
 
 ### Configuração por Tenant (`fiscal_settings`)
 ```typescript
 {
   tenant_id: uuid,
+  provider: 'focusnfe',
   ambiente: 'homologacao' | 'producao',
-  certificado_pfx: string,      // Certificado em base64 (criptografado)
-  certificado_senha: string,    // Senha do certificado (criptografada)
-  razao_social: string,
-  cnpj: string,
-  ie: string,
-  crt: '1' | '2' | '3',         // Regime tributário
-  codigo_municipio: string,     // Código IBGE do município
-  endereco_*: string,           // Dados do emitente
-  desmembrar_estrutura: boolean,// Desmembrar kits na NF
-  nuvem_fiscal_id: string,      // ID da empresa na Nuvem Fiscal
-  sync_status: 'pending' | 'synced' | 'error',
-  last_sync_at: timestamp,
-  sync_error: string,
+  certificado_pfx: bytea,         // Certificado A1 (criptografado)
+  certificado_senha: text,        // Senha (criptografada via FISCAL_ENCRYPTION_KEY)
+  certificado_valido_ate: timestamptz,
+  certificado_cnpj: text,
+  razao_social: text,
+  cnpj: text,
+  inscricao_estadual: text,
+  crt: integer,                   // 1=Simples, 2=Simples Excesso, 3=Regime Normal
+  endereco_municipio_codigo: text,// IBGE
+  endereco_*: text,               // Logradouro, bairro, UF, CEP, etc.
+  desmembrar_estrutura: boolean,  // Desmembrar kits na NF
+  focus_empresa_id: text,         // ID da empresa na Focus NFe
+  focus_ambiente: text,           // 'producao' | 'homologacao'
+  focus_empresa_criada_em: timestamptz,
+  focus_ultima_sincronizacao: timestamptz,
+  emissao_automatica: boolean,
+  emitir_apos_status: text,
 }
 ```
 
-### Arquitetura Nuvem Fiscal
+### Arquitetura Focus NFe
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    SHARED MODULES                                │
 ├─────────────────────────────────────────────────────────────────┤
-│  nuvem-fiscal-client.ts     │  nuvem-fiscal-adapter.ts          │
+│  focus-nfe-client.ts        │  focus-nfe-adapter.ts             │
 │  ─────────────────────────  │  ────────────────────────────     │
-│  • OAuth2 token management  │  • buildEmpresaPayload()          │
-│  • syncEmpresa()            │  • buildCertificadoPayload()      │
-│  • cadastrarCertificado()   │  • buildNFePayload()              │
-│  • emitirNFe()              │  • parseNFeResponse()             │
-│  • consultarNFe()           │  • CRT/UF/Payment mappings        │
-│  • cancelarNFe()            │                                   │
-│  • downloadXML/PDF()        │                                   │
+│  • Basic Auth (token único) │  • buildEmpresaPayload()          │
+│  • syncEmpresa()            │  • buildNFePayload()              │
+│  • sendNFe() (assíncrono)   │  • generateNFeRef()               │
+│  • getNFeStatus()           │  • mapFocusStatusToInternal()     │
+│  • cancelNFe()              │  • CRT/UF/Payment mappings        │
+│  • downloadXML/DANFE        │                                   │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    EDGE FUNCTIONS                                │
 ├─────────────────────────────────────────────────────────────────┤
-│  fiscal-sync-nuvem-fiscal   │  fiscal-emit                      │
-│  ─────────────────────────  │  ────────────────────────────     │
-│  1. Load fiscal_settings    │  1. Load invoice + items          │
-│  2. Build empresa payload   │  2. Build NF-e payload            │
-│  3. syncEmpresa()           │  3. emitirNFe()                   │
-│  4. cadastrarCertificado()  │  4. Map Sefaz status              │
-│  5. Update sync_status      │  5. Update fiscal_invoices        │
+│  fiscal-sync-focus-nfe      │  fiscal-submit / fiscal-emit      │
+│  fiscal-upload-certificate  │  fiscal-check-status              │
+│  fiscal-cancel              │  fiscal-get-status                │
+│  fiscal-cce                 │  fiscal-webhook                   │
+│  fiscal-inutilizar          │  dce-emit                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Fluxo de Sincronização
+### Fluxo de Sincronização (Tenant)
 ```
-1. Tenant configura dados fiscais (CNPJ, certificado, endereço)
-2. Chama fiscal-sync-nuvem-fiscal
+1. Tenant configura dados fiscais e faz upload do certificado A1
+2. fiscal-upload-certificate dispara automaticamente fiscal-sync-focus-nfe
 3. Edge function:
-   a. Carrega fiscal_settings
-   b. Descriptografa certificado (FISCAL_ENCRYPTION_KEY)
-   c. Resolve código IBGE via RPC
-   d. Chama NuvemFiscalClient.syncEmpresa()
-   e. Cadastra certificado na Nuvem Fiscal
-   f. Atualiza fiscal_settings com nuvem_fiscal_id
+   a. Carrega fiscal_settings + decrypta certificado (FISCAL_ENCRYPTION_KEY)
+   b. Resolve código IBGE via RPC
+   c. Chama Focus NFe (POST /v2/empresas) com Basic Auth (FOCUS_NFE_TOKEN)
+   d. Anexa certificado A1
+   e. Persiste focus_empresa_id e focus_ultima_sincronizacao em fiscal_settings
 ```
 
 ### Fluxo de Emissão
 ```
-1. Invoice em status 'draft' ou 'pending'
-2. Chama fiscal-emit com invoice_id
-3. Edge function:
-   a. Carrega invoice + items + fiscal_settings
-   b. Monta payload via buildNFePayload()
-   c. Chama NuvemFiscalClient.emitirNFe()
-   d. Mapeia status Sefaz → status interno
-   e. Atualiza fiscal_invoices (chave, protocolo, URLs)
+1. Pedido pago → trigger trg_enqueue_fiscal_draft enfileira em fiscal_draft_queue
+2. scheduler-tick consome a fila e cria rascunho em fiscal_invoices (status 'draft')
+3. fiscal-submit envia o rascunho à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
+   → status 'processando_autorizacao'
+4. fiscal-webhook OU fiscal-check-status (polling) atualizam status final:
+   → 'authorized' | 'rejected' | 'denied'
+5. nfe-shipment-link (helper) propaga o vínculo para shipments quando autorizada
 ```
 
 ### Mapeamento de Status NF-e (Sefaz → Interno)
@@ -495,10 +509,11 @@ Detalhe completo do pipeline: `docs/especificacoes/ecommerce/pedidos.md` §4.6.
 
 ## Pendências
 
-- [x] Migração Focus NFe → Nuvem Fiscal
-- [x] Sincronização de empresa na Nuvem Fiscal
-- [x] Upload de certificado via Nuvem Fiscal
-- [x] Emissão de NF-e via Nuvem Fiscal
+- [x] Migração para Focus NFe (provedor único, produção) — 2026-05-04
+- [x] Sincronização de empresa na Focus NFe
+- [x] Upload e sincronização automática de certificado A1
+- [x] Emissão, cancelamento, CC-e e inutilização via Focus NFe
+- [x] Remoção total da Nuvem Fiscal (código, secrets, schema, UI, docs)
 - [ ] Dashboard financeiro
 - [ ] Módulo de compras
 - [ ] Relatórios fiscais
@@ -596,7 +611,7 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 | **Localização** | Todas as 20 edge functions `fiscal-*` + 8 componentes frontend fiscais |
 | **Contexto** | Iniciativa global de sanitização de erros para evitar vazamento de dados técnicos |
 | **Descrição** | Substituído `error.message` por `errorResponse()` (contrato padronizado) em todas as edge functions fiscais. No frontend, substituído `toast.error(error.message)` por `showErrorToast()` com sanitização automática. |
-| **Edge Functions afetadas** | fiscal-emit, fiscal-submit, fiscal-cancel, fiscal-webhook, fiscal-get-status, fiscal-create-draft, fiscal-create-manual, fiscal-validate-order, fiscal-settings, fiscal-upload-certificate, fiscal-send-nfe-email, fiscal-auto-create-drafts, fiscal-sync-focus-nfe, fiscal-sync-nuvem-fiscal, fiscal-test-connection, fiscal-check-status, fiscal-remove-certificate, fiscal-cce, fiscal-inutilizar, fiscal-update-draft |
+| **Edge Functions afetadas** | fiscal-emit, fiscal-submit, fiscal-cancel, fiscal-webhook, fiscal-get-status, fiscal-create-draft, fiscal-create-manual, fiscal-validate-order, fiscal-settings, fiscal-upload-certificate, fiscal-send-nfe-email, fiscal-auto-create-drafts, fiscal-sync-focus-nfe, fiscal-test-connection, fiscal-check-status, fiscal-remove-certificate, fiscal-cce, fiscal-inutilizar, fiscal-update-draft, dce-emit |
 | **Componentes afetados** | CancelInvoiceDialog, EmitInvoiceButton, CorrectInvoiceDialog, InutilizarNumerosDialog, ManualInvoiceDialog, EntryInvoiceDialog |
 | **Afeta** | Módulo Fiscal inteiro — nenhum erro técnico vaza mais para o usuário |
 

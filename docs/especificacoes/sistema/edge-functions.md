@@ -149,7 +149,7 @@ console.log(`[function-name][${VERSION}] Request received`);
 | `google_ad_assets` | `google-ads-assets`, `ads-autopilot-execute-approved` |
 | `google_ad_insights` | `google-ads-insights`, `ads-autopilot-analyze`, `ads-autopilot-strategist` |
 | `fiscal_invoices` | `fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual`, `fiscal-emit` |
-| `fiscal_settings` | `fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual`, `fiscal-sync-nuvem-fiscal` |
+| `fiscal_settings` | `fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual`, `fiscal-sync-focus-nfe`, `fiscal-upload-certificate` |
 | `storefront_visits` | `storefront-html` (beacon JS inline) |
 | `storefront_prerendered_pages` | `storefront-prerender`, `storefront-html`, `menuAutoUpdate()` (client) |
 | `menu_items` | `import-menus`, `MenuPanel.tsx` (admin) |
@@ -169,8 +169,8 @@ console.log(`[function-name][${VERSION}] Request received`);
 |--------|------------------|-----------|
 | `_shared/fiscal-numbering.ts` | `fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual` | Numeração fiscal anti-colisão: `getNextFiscalNumber`, `insertFiscalInvoiceWithRetry`, `syncFiscalNumberCursor` |
 | `_shared/kit-unbundler.ts` | `fiscal-auto-create-drafts`, `fiscal-create-draft` | Desmembra kits/composições em componentes individuais na NF-e |
-| `_shared/nuvem-fiscal-client.ts` | `fiscal-sync-nuvem-fiscal`, `fiscal-emit` | Client OAuth2 para API Nuvem Fiscal |
-| `_shared/nuvem-fiscal-adapter.ts` | `fiscal-sync-nuvem-fiscal`, `fiscal-emit` | Payloads e parsers para Nuvem Fiscal |
+| `_shared/focus-nfe-client.ts` | `fiscal-sync-focus-nfe`, `fiscal-submit`, `fiscal-cancel`, `fiscal-cce`, `fiscal-check-status`, `fiscal-get-status` | Client Basic Auth para API Focus NFe (token único da plataforma) |
+| `_shared/focus-nfe-adapter.ts` | `fiscal-submit`, `fiscal-check-status`, `fiscal-get-status`, `fiscal-sync-focus-nfe` | Payloads, refs e mapeamento de status Focus NFe → interno |
 | `_shared/ai-router.ts` | 22+ funções IA | Roteamento multi-provedor com fallback |
 | `_shared/resolveTenant.ts` | `storefront-html`, `storefront-bootstrap`, `resolve-domain` | Resolução de tenant por hostname |
 

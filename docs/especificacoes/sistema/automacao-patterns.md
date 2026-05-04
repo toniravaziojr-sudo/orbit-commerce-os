@@ -122,7 +122,7 @@ CREATE TABLE public.<module>_queue (
 - Falha é visível (o usuário vê o erro)
 
 **Exemplo no sistema:**
-- Emissão de NF (Nuvem Fiscal)
+- Emissão de NF (Focus NFe)
 - Geração de criativos (IA)
 - Criação de cobrança (Pagar.me / Mercado Pago)
 
