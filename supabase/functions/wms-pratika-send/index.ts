@@ -172,7 +172,7 @@ Deno.serve(async (req) => {
       // Get invoice with xml_url
       const { data: invoice } = await supabase
         .from('fiscal_invoices')
-        .select('id, chave_acesso, xml_url, nuvem_fiscal_id')
+        .select('id, chave_acesso, xml_url, focus_ref')
         .eq('id', invoice_id)
         .eq('tenant_id', tenantId)
         .single();
@@ -186,30 +186,20 @@ Deno.serve(async (req) => {
 
       let xmlContent = '';
 
-      // Try to download XML from Nuvem Fiscal
-      if (invoice.nuvem_fiscal_id) {
-        const nfClientId = Deno.env.get('NUVEM_FISCAL_CLIENT_ID');
-        const nfClientSecret = Deno.env.get('NUVEM_FISCAL_CLIENT_SECRET');
-
-        if (nfClientId && nfClientSecret) {
-          try {
-            // Get token
-            const tokenResp = await fetch('https://auth.nuvemfiscal.com.br/oauth/token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: `grant_type=client_credentials&client_id=${nfClientId}&client_secret=${nfClientSecret}&scope=nfe`,
-            });
-            const tokenData = await tokenResp.json();
-
-            // Download XML
-            const xmlResp = await fetch(
-              `https://api.nuvemfiscal.com.br/nfe/${invoice.nuvem_fiscal_id}/xml`,
-              { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
-            );
-            xmlContent = await xmlResp.text();
-          } catch (err: any) {
-            console.error('[wms-pratika] Error downloading XML:', err);
+      // Try to download XML from Focus NFe via persisted xml_url (already absolute)
+      if (invoice.xml_url) {
+        try {
+          const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
+          const headers: Record<string, string> = {};
+          if (focusToken && invoice.xml_url.includes('focusnfe.com.br')) {
+            headers['Authorization'] = 'Basic ' + btoa(focusToken + ':');
           }
+          const resp = await fetch(invoice.xml_url, { headers });
+          if (resp.ok) {
+            xmlContent = await resp.text();
+          }
+        } catch (err: any) {
+          console.error('[wms-pratika] Error downloading XML from Focus NFe:', err);
         }
       }
 

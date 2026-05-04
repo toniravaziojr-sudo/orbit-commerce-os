@@ -1,7 +1,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { emitirNFe, type NuvemFiscalConfig } from "../_shared/nuvem-fiscal-client.ts";
-import { buildNFePayload, parseNFeResponse } from "../_shared/nuvem-fiscal-adapter.ts";
+import { sendNFe, getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
+import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
@@ -19,18 +19,16 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const clientId = Deno.env.get('NUVEM_FISCAL_CLIENT_ID');
-  const clientSecret = Deno.env.get('NUVEM_FISCAL_CLIENT_SECRET');
+  const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
 
-  if (!clientId || !clientSecret) {
+  if (!focusToken) {
     return new Response(
-      JSON.stringify({ success: false, error: 'Credenciais Nuvem Fiscal não configuradas' }),
+      JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
   try {
-    // Autenticar usuário
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -52,7 +50,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Obter tenant
     const { data: profile } = await supabaseClient
       .from('profiles')
       .select('current_tenant_id')
@@ -68,7 +65,6 @@ Deno.serve(async (req) => {
 
     const tenantId = profile.current_tenant_id;
 
-    // Obter invoice_id do body
     const body = await req.json();
     const { invoice_id } = body;
 
@@ -81,7 +77,6 @@ Deno.serve(async (req) => {
 
     console.log(`[fiscal-emit] Processando NF-e ${invoice_id} para tenant ${tenantId}`);
 
-    // Buscar NF-e
     const { data: invoice, error: invoiceError } = await supabaseClient
       .from('fiscal_invoices')
       .select('*')
@@ -96,7 +91,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verificar status
     if (invoice.status !== 'draft' && invoice.status !== 'rejected') {
       return new Response(
         JSON.stringify({ success: false, error: `NF-e não pode ser enviada no status: ${invoice.status}` }),
@@ -104,7 +98,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar itens da NF-e
     const { data: items, error: itemsError } = await supabaseClient
       .from('fiscal_invoice_items')
       .select('*')
@@ -118,7 +111,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar configurações fiscais
     const { data: settings, error: settingsError } = await supabaseClient
       .from('fiscal_settings')
       .select('*')
@@ -132,54 +124,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verificar se empresa está sincronizada com Nuvem Fiscal
-    if (!settings.nuvem_fiscal_id) {
+    // Verificar se empresa está sincronizada com Focus NFe
+    if (!settings.focus_empresa_id) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Empresa não cadastrada na Nuvem Fiscal. Sincronize primeiro em Configurações > Fiscal.' 
+        JSON.stringify({
+          success: false,
+          error: 'Empresa não cadastrada na Focus NFe. Sincronize primeiro em Configurações > Fiscal.'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const ambiente = (settings.ambiente || 'homologacao') as 'homologacao' | 'producao';
-    console.log(`[fiscal-emit] Ambiente: ${ambiente}`);
+    const ambiente = (settings.focus_ambiente || settings.ambiente || 'producao') as 'homologacao' | 'producao';
+    console.log(`[fiscal-emit] Ambiente Focus NFe: ${ambiente}`);
 
-    // Configurar cliente Nuvem Fiscal
-    const nuvemFiscalConfig: NuvemFiscalConfig = {
-      clientId,
-      clientSecret,
+    const focusConfig: FocusNFeConfig = {
+      token: focusToken,
       ambiente,
     };
 
-    // Buscar dados do pedido para destinatário
+    // Buscar destinatário
     let destinatario: any;
-    
     if (invoice.order_id) {
       const { data: order } = await supabaseClient
         .from('orders')
-        .select(`
-          *,
-          customer:customers(*)
-        `)
+        .select(`*, customer:customers(*)`)
         .eq('id', invoice.order_id)
         .single();
 
       if (order) {
         const cpfCnpj = (order.customer?.cpf || invoice.dest_cpf_cnpj)?.replace(/\D/g, '') || '';
         const isCnpj = cpfCnpj.length === 14;
-        
-        // Buscar código IBGE do município
-        let codigoMunicipio = '';
-        if (order.shipping_city && order.shipping_state) {
-          const { data: ibge } = await supabaseClient.rpc('get_ibge_municipio_codigo', {
-            p_municipio: order.shipping_city,
-            p_uf: order.shipping_state
-          });
-          codigoMunicipio = ibge || '';
-        }
-        
+
         destinatario = {
           nome: order.customer?.full_name || order.shipping_name || invoice.dest_nome || 'CONSUMIDOR FINAL',
           cpf: !isCnpj ? cpfCnpj : undefined,
@@ -189,8 +165,7 @@ Deno.serve(async (req) => {
           numero: order.shipping_number || invoice.dest_endereco_numero || 'S/N',
           complemento: order.shipping_complement || invoice.dest_endereco_complemento,
           bairro: order.shipping_neighborhood || invoice.dest_endereco_bairro || '',
-          municipio: order.shipping_city || invoice.dest_endereco_municipio || '',
-          codigo_municipio: codigoMunicipio,
+          cidade: order.shipping_city || invoice.dest_endereco_municipio || '',
           uf: order.shipping_state || invoice.dest_endereco_uf || '',
           cep: (order.shipping_postal_code || invoice.dest_endereco_cep || '').replace(/\D/g, ''),
           telefone: order.customer?.phone || invoice.dest_telefone,
@@ -199,11 +174,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fallback para dados da invoice
     if (!destinatario) {
       const cpfCnpj = invoice.dest_cpf_cnpj?.replace(/\D/g, '') || '';
       const isCnpj = cpfCnpj.length === 14;
-      
+
       destinatario = {
         nome: invoice.dest_nome || 'CONSUMIDOR FINAL',
         cpf: !isCnpj ? cpfCnpj : undefined,
@@ -213,8 +187,7 @@ Deno.serve(async (req) => {
         numero: invoice.dest_endereco_numero || 'S/N',
         complemento: invoice.dest_endereco_complemento,
         bairro: invoice.dest_endereco_bairro || '',
-        municipio: invoice.dest_endereco_municipio || '',
-        codigo_municipio: invoice.dest_endereco_municipio_codigo || '',
+        cidade: invoice.dest_endereco_municipio || '',
         uf: invoice.dest_endereco_uf || '',
         cep: (invoice.dest_endereco_cep || '').replace(/\D/g, ''),
         telefone: invoice.dest_telefone,
@@ -222,51 +195,31 @@ Deno.serve(async (req) => {
       };
     }
 
-    // Validar campos obrigatórios
     const camposObrigatorios = [
-      { campo: 'bairro', valor: destinatario.bairro, nome: 'Bairro do destinatário' },
-      { campo: 'logradouro', valor: destinatario.logradouro, nome: 'Logradouro do destinatário' },
-      { campo: 'municipio', valor: destinatario.municipio, nome: 'Cidade do destinatário' },
-      { campo: 'uf', valor: destinatario.uf, nome: 'UF do destinatário' },
-      { campo: 'cep', valor: destinatario.cep, nome: 'CEP do destinatário' },
+      { valor: destinatario.bairro, nome: 'Bairro do destinatário' },
+      { valor: destinatario.logradouro, nome: 'Logradouro do destinatário' },
+      { valor: destinatario.cidade, nome: 'Cidade do destinatário' },
+      { valor: destinatario.uf, nome: 'UF do destinatário' },
+      { valor: destinatario.cep, nome: 'CEP do destinatário' },
     ];
 
-    const camposFaltando = camposObrigatorios.filter(c => !c.valor || c.valor.trim() === '');
-    
+    const camposFaltando = camposObrigatorios.filter(c => !c.valor || String(c.valor).trim() === '');
     if (camposFaltando.length > 0) {
       const faltando = camposFaltando.map(c => c.nome).join(', ');
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Campos obrigatórios não preenchidos: ${faltando}. Verifique os dados de endereço.` 
-        }),
+        JSON.stringify({ success: false, error: `Campos obrigatórios não preenchidos: ${faltando}.` }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Preparar dados do emitente
-    const emitente = {
-      cnpj: settings.cnpj?.replace(/\D/g, ''),
-      razao_social: settings.razao_social,
-      nome_fantasia: settings.nome_fantasia,
-      inscricao_estadual: settings.inscricao_estadual,
-      crt: String(settings.crt || 1),
-      logradouro: settings.endereco_logradouro,
-      numero: settings.endereco_numero,
-      complemento: settings.endereco_complemento,
-      bairro: settings.endereco_bairro,
-      cidade: settings.endereco_municipio,
-      codigo_municipio: settings.endereco_municipio_codigo,
-      uf: settings.endereco_uf,
-      cep: settings.endereco_cep?.replace(/\D/g, ''),
-    };
+    const emitenteUf = (settings.endereco_uf || '').toUpperCase();
+    const destUf = (destinatario.uf || '').toUpperCase();
 
-    // Converter itens para formato Nuvem Fiscal
     const nfeItems = items.map((item, index) => ({
       numero_item: item.numero_item || index + 1,
       codigo_produto: item.codigo_produto || item.product_id?.substring(0, 60) || `PROD${index + 1}`,
       descricao: item.descricao || 'PRODUTO',
-      cfop: item.cfop || (emitente.uf === destinatario.uf ? '5102' : '6102'),
+      cfop: item.cfop || (emitenteUf === destUf ? '5102' : '6102'),
       ncm: item.ncm || '00000000',
       unidade: item.unidade || 'UN',
       quantidade: item.quantidade || 1,
@@ -274,51 +227,48 @@ Deno.serve(async (req) => {
       valor_total: item.valor_total || 0,
       valor_desconto: item.valor_desconto,
       origem: item.origem || '0',
-      csosn: item.csosn || '102',
+      csosn: item.csosn,
+      cst_icms: item.cst_icms,
       cst_pis: item.cst_pis || '07',
       cst_cofins: item.cst_cofins || '07',
     }));
 
-    // Preparar payment
-    const payment = invoice.order_id ? { 
-      forma: 'other', 
-      valor: invoice.valor_total || 0 
+    const payment = invoice.order_id ? {
+      forma: invoice.pagamento_meio || 'other',
+      valor: invoice.valor_total || 0
     } : undefined;
 
-    // Montar payload NF-e
+    const ref = invoice.focus_ref || generateNFeRef(invoice_id);
+
     const nfePayload = buildNFePayload(
       {
         id: invoice_id,
         natureza_operacao: invoice.natureza_operacao || 'VENDA DE MERCADORIA',
         tipo_operacao: invoice.tipo_operacao || 'saida',
-        finalidade: invoice.finalidade || '1',
+        finalidade: invoice.finalidade || 'normal',
         valor_produtos: invoice.valor_produtos || 0,
         valor_frete: invoice.valor_frete || 0,
         valor_desconto: invoice.valor_desconto || 0,
         valor_total: invoice.valor_total || 0,
         informacoes_complementares: invoice.informacoes_complementares,
-        numero: invoice.numero || settings.numero_nfe_atual || 1,
-        serie: invoice.serie || settings.serie_nfe || 1,
       },
-      emitente,
       destinatario,
       nfeItems,
-      ambiente,
+      { cnpj: settings.cnpj?.replace(/\D/g, '') || '' },
       payment
     );
 
-    console.log(`[fiscal-emit] Enviando NF-e para Nuvem Fiscal...`);
+    console.log(`[fiscal-emit] Enviando NF-e para Focus NFe (ref=${ref})...`);
 
-    // Enviar para Nuvem Fiscal
-    const result = await emitirNFe(nuvemFiscalConfig, nfePayload);
-    
+    const result = await sendNFe(focusConfig, ref, nfePayload);
+
     if (!result.success) {
-      // Atualizar status para rejected
       await supabaseClient
         .from('fiscal_invoices')
         .update({
           status: 'rejected',
           mensagem_sefaz: result.error,
+          focus_ref: ref,
           updated_at: new Date().toISOString(),
         })
         .eq('id', invoice_id);
@@ -329,62 +279,55 @@ Deno.serve(async (req) => {
       );
     }
 
-    const parsed = parseNFeResponse(result.data);
+    // Focus NFe geralmente retorna 202 (processando) — consultar status
+    let statusData = result.data;
+    if (statusData?.status === 'processando_autorizacao') {
+      // Aguardar 2s e consultar
+      await new Promise(r => setTimeout(r, 2000));
+      const statusResult = await getNFeStatus(focusConfig, ref);
+      if (statusResult.success && statusResult.data) {
+        statusData = statusResult.data;
+      }
+    }
 
-    console.log(`[fiscal-emit] Resposta Nuvem Fiscal:`, JSON.stringify(parsed));
+    const focusStatus = statusData?.status || 'processando_autorizacao';
+    const internalStatus = mapFocusStatusToInternal(focusStatus);
 
-    // Mapear status
-    const statusMap: Record<string, string> = {
-      'autorizado': 'authorized',
-      'processando': 'processing',
-      'pendente': 'pending',
-      'erro': 'rejected',
-      'rejeitado': 'rejected',
-      'cancelado': 'cancelled',
-    };
-    const internalStatus = statusMap[parsed.status] || 'processing';
+    console.log(`[fiscal-emit] Status Focus NFe: ${focusStatus} -> ${internalStatus}`);
 
-    // Atualizar NF-e com dados da resposta
     const updateData: any = {
       status: internalStatus,
-      nuvem_fiscal_id: result.data?.id,
-      mensagem_sefaz: parsed.mensagem,
+      focus_ref: ref,
+      mensagem_sefaz: statusData?.mensagem_sefaz,
       submitted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    // Se autorizado
-    if (parsed.status === 'autorizado' && parsed.chave) {
-      updateData.chave_acesso = parsed.chave;
-      updateData.numero = parsed.numero;
-      updateData.serie = parsed.serie;
-      updateData.protocolo = parsed.protocolo;
-      updateData.xml_url = parsed.xml_url;
-      updateData.danfe_url = parsed.pdf_url;
+    if (focusStatus === 'autorizado' && statusData?.chave_nfe) {
+      const baseUrl = ambiente === 'producao'
+        ? 'https://api.focusnfe.com.br'
+        : 'https://homologacao.focusnfe.com.br';
+
+      updateData.chave_acesso = statusData.chave_nfe;
+      updateData.numero = statusData.numero ? parseInt(String(statusData.numero), 10) : undefined;
+      updateData.serie = statusData.serie ? parseInt(String(statusData.serie), 10) : undefined;
+      updateData.xml_url = statusData.caminho_xml_nota_fiscal ? `${baseUrl}${statusData.caminho_xml_nota_fiscal}` : null;
+      updateData.danfe_url = statusData.caminho_danfe ? `${baseUrl}${statusData.caminho_danfe}` : null;
       updateData.authorized_at = new Date().toISOString();
 
-      // Atualizar numeração
-      await supabaseClient
-        .from('fiscal_settings')
-        .update({ numero_nfe_atual: (parsed.numero || 0) + 1 })
-        .eq('tenant_id', tenantId);
-
-      // Vincular NF-e ao rascunho logístico e gerenciar remessa
       if (invoice.order_id) {
         await linkNFeToShipment({
           supabaseClient,
           orderId: invoice.order_id,
           invoiceId: invoice_id,
           tenantId,
-          chaveAcesso: parsed.chave,
+          chaveAcesso: statusData.chave_nfe,
           autoCreateShipment: !!settings.auto_create_shipment,
           callerModule: 'fiscal-emit',
         });
       }
-      
-      // Enviar email se habilitado
+
       if (settings.enviar_email_nfe !== false) {
-        console.log(`[fiscal-emit] Sending NF-e email for invoice ${invoice_id}`);
         fetch(`${supabaseUrl}/functions/v1/fiscal-send-nfe-email`, {
           method: 'POST',
           headers: {
@@ -395,7 +338,6 @@ Deno.serve(async (req) => {
         }).catch(err => console.error('[fiscal-emit] Email error:', err));
       }
 
-      // WMS Pratika — fire-and-forget
       fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
         method: 'POST',
         headers: {
@@ -411,29 +353,27 @@ Deno.serve(async (req) => {
       .update(updateData)
       .eq('id', invoice_id);
 
-    // Registrar evento
     await supabaseClient
       .from('fiscal_invoice_events')
       .insert({
         invoice_id,
         tenant_id: tenantId,
-        event_type: parsed.status === 'autorizado' ? 'authorized' : 'submitted',
-        event_data: { nuvem_fiscal_response: result, parsed },
+        event_type: focusStatus === 'autorizado' ? 'authorized' : 'submitted',
+        event_data: { focus_response: statusData, ref },
       });
 
-    console.log(`[fiscal-emit] NF-e ${invoice_id} processada com status: ${parsed.status}`);
+    console.log(`[fiscal-emit] NF-e ${invoice_id} processada — status=${focusStatus}`);
 
     return new Response(
       JSON.stringify({
-        success: parsed.status !== 'erro' && parsed.status !== 'rejeitado',
+        success: focusStatus !== 'erro_autorizacao' && focusStatus !== 'denegado',
         status: internalStatus,
-        nuvem_fiscal_status: parsed.status,
-        chave_acesso: parsed.chave,
-        numero: parsed.numero,
-        serie: parsed.serie,
-        protocolo: parsed.protocolo,
-        mensagem: parsed.mensagem,
-        erros: parsed.erros,
+        focus_status: focusStatus,
+        chave_acesso: statusData?.chave_nfe,
+        numero: statusData?.numero,
+        serie: statusData?.serie,
+        mensagem: statusData?.mensagem_sefaz,
+        erros: statusData?.erros,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

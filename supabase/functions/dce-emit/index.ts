@@ -1,11 +1,11 @@
-// dce-emit — issues Electronic Content Declaration (DC-e) via Nuvem Fiscal
+// dce-emit — issues Electronic Content Declaration (DC-e) via Focus NFe
 // Used as alternative to NF-e for non-fiscal shipments (e.g., samples, returns)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const NUVEM_FISCAL_TOKEN = Deno.env.get("NUVEM_FISCAL_TOKEN");
+const FOCUS_NFE_TOKEN = Deno.env.get("FOCUS_NFE_TOKEN");
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -55,17 +55,17 @@ Deno.serve(async (req) => {
 
       if (draftErr) throw draftErr;
 
-      // TODO: real Nuvem Fiscal DC-e endpoint integration
+      // TODO: real Focus NFe DC-e endpoint integration
       // For now, leave in 'queued' state — real call to be implemented when
-      // Nuvem Fiscal endpoint contract is finalized for this tenant.
+      // Focus NFe endpoint contract is finalized for this tenant.
       // The structure is ready: status flows queued → processing → authorized | rejected.
 
-      if (!NUVEM_FISCAL_TOKEN) {
-        results.push({ order_id: orderId, success: true, dce_id: draft.id, status: "queued", note: "queued — Nuvem Fiscal token not configured" });
+      if (!FOCUS_NFE_TOKEN) {
+        results.push({ order_id: orderId, success: true, dce_id: draft.id, status: "queued", note: "queued — Focus NFe token not configured" });
         continue;
       }
 
-      // Placeholder: when ready, call Nuvem Fiscal endpoint here, update status to 'authorized'
+      // Placeholder: when ready, call Focus NFe endpoint here, update status to 'authorized'
       // and trigger order status transition to 'fulfilled'.
       results.push({ order_id: orderId, success: true, dce_id: draft.id, status: "queued" });
     } catch (err: any) {
