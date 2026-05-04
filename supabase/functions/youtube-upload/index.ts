@@ -392,6 +392,21 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
       p_from_reserve: true,
     });
 
+    // === [shadow-v2] Motor v2 paralelo (não cobra, não toca wallet) ===
+    try {
+      await recordShadowV2(supabase, {
+        tenantId,
+        jobId,
+        videoId,
+        v1Credits: creditsUsed,
+        hasThumbnail: !!uploadJob.thumbnail_url,
+        hasCaptions: !!uploadJob.metadata?.enable_captions,
+        idempotencyKey: uploadJob.metadata?.idempotency_key || `youtube_${jobId}`,
+      });
+    } catch (shadowErr) {
+      console.warn(`[youtube-upload][shadow-v2] Falha silenciosa:`, shadowErr instanceof Error ? shadowErr.message : shadowErr);
+    }
+
     await supabase
       .from('youtube_uploads')
       .update({
