@@ -405,114 +405,7 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
       });
     } catch (shadowErr) {
       console.warn(`[youtube-upload][shadow-v2] Falha silenciosa:`, shadowErr instanceof Error ? shadowErr.message : shadowErr);
-}
-
-// === [shadow-v2] Helper: registra evento shadow se tenant estiver configurado ===
-const SHADOW_SERVICE_KEY = 'platform.youtube_upload';
-
-async function recordShadowV2(supabase: any, args: {
-  tenantId: string;
-  jobId: string;
-  videoId?: string;
-  v1Credits: number;
-  hasThumbnail: boolean;
-  hasCaptions: boolean;
-  idempotencyKey: string;
-}) {
-  // 1) Verifica config do tenant
-  const { data: cfg } = await supabase
-    .from('tenant_credit_motor_config')
-    .select('shadow_service_keys')
-    .eq('tenant_id', args.tenantId)
-    .maybeSingle();
-
-  const shadowKeys: string[] = cfg?.shadow_service_keys ?? [];
-  if (!shadowKeys.includes(SHADOW_SERVICE_KEY)) {
-    return; // tenant não está em shadow para este serviço
-  }
-
-  // 2) Idempotência: chave determinística
-  const shadowIdempotencyKey = `youtube-upload-shadow-v2:${args.tenantId}:${args.videoId ?? args.jobId}`;
-
-  // 3) Evita duplicidade (mesmo job/video)
-  const { data: existing } = await supabase
-    .from('service_usage_events')
-    .select('id')
-    .eq('tenant_id', args.tenantId)
-    .eq('service_key', SHADOW_SERVICE_KEY)
-    .eq('status', 'shadow')
-    .filter('metadata->>idempotency_key', 'eq', shadowIdempotencyKey)
-    .limit(1)
-    .maybeSingle();
-
-  if (existing?.id) {
-    console.log(`[youtube-upload][shadow-v2] Evento já existe para job ${args.jobId}, skip.`);
-    return;
-  }
-
-  // 4) Estima v2 via RPC (dry-run inerente: só cálculo)
-  const units = { upload: 1, thumbnail: args.hasThumbnail, captions: args.hasCaptions };
-  const { data: estData, error: estErr } = await supabase.rpc('estimate_credits_internal', {
-    p_service_key: SHADOW_SERVICE_KEY,
-    p_units: units,
-  });
-
-  let v2Credits = 0;
-  let estimateError: string | null = null;
-  let pricingModel = 'fixed_credits';
-
-  if (estErr) {
-    estimateError = estErr.message;
-  } else {
-    const row = Array.isArray(estData) ? estData[0] : estData;
-    if (row?.success) {
-      v2Credits = Number(row.credits_estimated ?? 0);
-    } else {
-      estimateError = row?.error_message ?? 'estimate_failed';
     }
-  }
-
-  const deltaAbs = Math.abs(v2Credits - args.v1Credits);
-  const deltaPct = args.v1Credits > 0 ? (deltaAbs / args.v1Credits) * 100 : 0;
-  const divergenceAlert = deltaPct > 5;
-
-  // 5) Insere evento shadow (NÃO toca wallet, NÃO cria credit_ledger)
-  const { error: insErr } = await supabase
-    .from('service_usage_events')
-    .insert({
-      tenant_id: args.tenantId,
-      cost_owner: 'tenant',
-      service_key: SHADOW_SERVICE_KEY,
-      category: 'platform_internal',
-      provider: 'youtube',
-      status: 'shadow',
-      origin_function: 'youtube-upload',
-      units_json: units,
-      metadata: {
-        motor_version: 'v2',
-        mode: 'shadow',
-        pricing_model: pricingModel,
-        feature: 'youtube-upload',
-        job_id: args.jobId,
-        video_id: args.videoId ?? null,
-        idempotency_key: shadowIdempotencyKey,
-        v1_credits: args.v1Credits,
-        v2_credits_estimated: v2Credits,
-        delta_abs: deltaAbs,
-        delta_pct: Number(deltaPct.toFixed(4)),
-        divergence_alert: divergenceAlert,
-        shadow_error: estimateError ? true : false,
-        error: estimateError,
-      },
-    });
-
-  if (insErr) {
-    console.warn(`[youtube-upload][shadow-v2] Falha ao inserir evento:`, insErr.message);
-    return;
-  }
-
-  console.log(`[youtube-upload][shadow-v2] Registrado: v1=${args.v1Credits} v2=${v2Credits} delta=${deltaPct.toFixed(2)}%${divergenceAlert ? ' [ALERT]' : ''}`);
-}
 
     await supabase
       .from('youtube_uploads')
@@ -577,4 +470,103 @@ async function refreshYouTubeToken(refreshToken: string): Promise<{
     console.error(`[youtube-upload][${VERSION}] Token refresh error:`, error);
     return { success: false };
   }
+}
+
+// === [shadow-v2] Helper: registra evento shadow se tenant estiver configurado ===
+const SHADOW_SERVICE_KEY = 'platform.youtube_upload';
+
+async function recordShadowV2(supabase: any, args: {
+  tenantId: string;
+  jobId: string;
+  videoId?: string;
+  v1Credits: number;
+  hasThumbnail: boolean;
+  hasCaptions: boolean;
+  idempotencyKey: string;
+}) {
+  const { data: cfg } = await supabase
+    .from('tenant_credit_motor_config')
+    .select('shadow_service_keys')
+    .eq('tenant_id', args.tenantId)
+    .maybeSingle();
+
+  const shadowKeys: string[] = cfg?.shadow_service_keys ?? [];
+  if (!shadowKeys.includes(SHADOW_SERVICE_KEY)) return;
+
+  const shadowIdempotencyKey = `youtube-upload-shadow-v2:${args.tenantId}:${args.videoId ?? args.jobId}`;
+
+  const { data: existing } = await supabase
+    .from('service_usage_events')
+    .select('id')
+    .eq('tenant_id', args.tenantId)
+    .eq('service_key', SHADOW_SERVICE_KEY)
+    .eq('status', 'shadow')
+    .filter('metadata->>idempotency_key', 'eq', shadowIdempotencyKey)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) {
+    console.log(`[youtube-upload][shadow-v2] Evento ja existe para job ${args.jobId}, skip.`);
+    return;
+  }
+
+  const units = { upload: 1, thumbnail: args.hasThumbnail, captions: args.hasCaptions };
+  const { data: estData, error: estErr } = await supabase.rpc('estimate_credits_internal', {
+    p_service_key: SHADOW_SERVICE_KEY,
+    p_units: units,
+  });
+
+  let v2Credits = 0;
+  let estimateError: string | null = null;
+
+  if (estErr) {
+    estimateError = estErr.message;
+  } else {
+    const row = Array.isArray(estData) ? estData[0] : estData;
+    if (row?.success) {
+      v2Credits = Number(row.credits_estimated ?? 0);
+    } else {
+      estimateError = row?.error_message ?? 'estimate_failed';
+    }
+  }
+
+  const deltaAbs = Math.abs(v2Credits - args.v1Credits);
+  const deltaPct = args.v1Credits > 0 ? (deltaAbs / args.v1Credits) * 100 : 0;
+  const divergenceAlert = deltaPct > 5;
+
+  const { error: insErr } = await supabase
+    .from('service_usage_events')
+    .insert({
+      tenant_id: args.tenantId,
+      cost_owner: 'tenant',
+      service_key: SHADOW_SERVICE_KEY,
+      category: 'platform_internal',
+      provider: 'youtube',
+      status: 'shadow',
+      origin_function: 'youtube-upload',
+      units_json: units,
+      metadata: {
+        motor_version: 'v2',
+        mode: 'shadow',
+        pricing_model: 'fixed_credits',
+        feature: 'youtube-upload',
+        job_id: args.jobId,
+        video_id: args.videoId ?? null,
+        idempotency_key: shadowIdempotencyKey,
+        v1_credits: args.v1Credits,
+        v2_credits_estimated: v2Credits,
+        delta_abs: deltaAbs,
+        delta_pct: Number(deltaPct.toFixed(4)),
+        divergence_alert: divergenceAlert,
+        shadow_error: estimateError ? true : false,
+        error: estimateError,
+      },
+    });
+
+  if (insErr) {
+    console.warn(`[youtube-upload][shadow-v2] Falha ao inserir evento:`, insErr.message);
+    return;
+  }
+
+  console.log(`[youtube-upload][shadow-v2] Registrado: v1=${args.v1Credits} v2=${v2Credits} delta=${deltaPct.toFixed(2)}%${divergenceAlert ? ' [ALERT]' : ''}`);
 }
