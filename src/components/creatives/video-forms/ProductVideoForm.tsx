@@ -1,7 +1,7 @@
 /**
  * Product Video Form — Vídeos promocionais de produto
  * 
- * Pipeline: Runway ML (video) + ElevenLabs (narration)
+ * Pipeline: Runway ML (video) + TTS (narration)
  * Sem pessoas — foco em efeitos visuais, rotação, cenários
  */
 
