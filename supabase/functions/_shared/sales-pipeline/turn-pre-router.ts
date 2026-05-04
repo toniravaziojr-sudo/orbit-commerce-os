@@ -69,6 +69,11 @@ export interface TurnClassification {
   source: "llm" | "fallback";
   latency_ms: number;
   raw_error?: string;
+  // Observabilidade do provider real usado pelo TPR (Fase 1 AI Provider Routing).
+  // Persistido em ai_support_turn_log.metadata.tpr para auditoria.
+  // Opcionais para manter retrocompatibilidade com chamadores existentes.
+  provider?: "gemini" | "openai" | "lovable" | null;
+  model?: string | null;
 }
 
 const TPR_SYSTEM = `Você é um classificador de turnos de uma conversa de vendas no WhatsApp em português brasileiro.
