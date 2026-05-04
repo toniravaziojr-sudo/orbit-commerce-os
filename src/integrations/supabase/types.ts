@@ -15259,6 +15259,7 @@ export type Database = {
         Row: {
           balance_threshold_pct: number | null
           balance_unit: string | null
+          billing_model: string
           category: string
           created_at: string
           current_balance: number | null
@@ -15282,6 +15283,7 @@ export type Database = {
         Insert: {
           balance_threshold_pct?: number | null
           balance_unit?: string | null
+          billing_model?: string
           category: string
           created_at?: string
           current_balance?: number | null
@@ -15305,6 +15307,7 @@ export type Database = {
         Update: {
           balance_threshold_pct?: number | null
           balance_unit?: string | null
+          billing_model?: string
           category?: string
           created_at?: string
           current_balance?: number | null
