@@ -10,7 +10,7 @@ import { useTenantAccess } from "@/hooks/useTenantAccess";
  */
 export function PlatformCostsAlertBanner() {
   const access = useTenantAccess();
-  const isPlatformAdmin = access?.isPlatformAdmin ?? false;
+  const isPlatformAdmin = access?.isPlatform ?? false;
   const { alerts, hasCritical } = usePlatformCostsAlerts();
 
   if (!isPlatformAdmin || alerts.length === 0) return null;
