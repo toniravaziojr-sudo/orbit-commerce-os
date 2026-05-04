@@ -163,6 +163,8 @@ remover/zerar a variável.
 
 ## 9. Observabilidade mínima (Fase 1)
 
+### 9.1 Logs stdout (fonte auxiliar)
+
 O TPR loga em todas as chamadas:
 ```
 [turn-pre-router] provider=<gemini|openai|lovable> model=<real-model> latency=<ms>ms source=llm fallback=<true|false>
@@ -171,7 +173,36 @@ Em falha total:
 ```
 [turn-pre-router] all providers failed or timeout: <reason>
 ```
-Sem novas tabelas nesta fase.
+
+⚠️ Logs stdout são **voláteis** (rotacionam, sem retenção longa) e não permitem agregação histórica por turno/conversa. Servem só para debug em janela curta.
+
+### 9.2 Auditoria persistente — `ai_support_turn_log.metadata.tpr`
+
+**Lacuna histórica:** até 2026-05-04 a única evidência do provider real usado pelo TPR vinha do stdout. A validação observacional do dia constatou que `ai_support_turn_log.metadata.tpr` não existia, então não havia auditoria histórica do TPR — impossível responder, dias depois, "qual provider o TPR usou nesse turno?".
+
+**Correção aplicada (2026-05-04):**
+
+1. `TurnClassification` ganhou dois campos opcionais não-breaking: `provider: "gemini" | "openai" | "lovable" | null` e `model: string | null`. Preenchidos nos 3 caminhos do TPR (router-success, no_tool_call, legacy gateway).
+2. O ponto único de persistência de `ai_support_turn_log` no `ai-support-chat` agora inclui `metadata.tpr` com o snapshot do TPR já calculado no turno. Persistência protegida por try/catch externo — falha de log nunca derruba o atendimento.
+
+Forma do `metadata.tpr`:
+```json
+{
+  "source": "llm" | "fallback",
+  "provider": "gemini" | "openai" | "lovable" | null,
+  "model": "gemini-2.5-flash" | "gpt-4o-mini" | "google/gemini-2.5-flash-lite" | null,
+  "latency_ms": 2005,
+  "fallback": false,
+  "error": null,
+  "timestamp": "2026-05-04T13:17:29.000Z"
+}
+```
+
+**Hierarquia de fontes de auditoria do TPR:**
+1. `ai_support_turn_log.metadata.tpr` — fonte de verdade persistente.
+2. Stdout `[turn-pre-router] ...` — fonte auxiliar para janela curta.
+
+**Garantias preservadas:** classificação, contrato `TurnClassification`, prompt, tool calling, conteúdo enviado ao modelo, resposta final, ranking, Catalog Probe, Orchestrator e Onda 1C continuam intactos. Esta entrega é puramente observacional.
 
 ---
 

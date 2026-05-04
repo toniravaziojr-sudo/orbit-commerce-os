@@ -8027,6 +8027,19 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           processing_lock_id: myLockId,
           processing_lock_reason: lockResult.reason || null,
           raw_is_greeting: rawIsGreeting,
+          // [Reg #2.8 — Fase 1 AI Provider Routing] Auditoria persistente do TPR.
+          // Antes só existia em stdout volátil [turn-pre-router]; agora vira
+          // fonte de verdade para validar provider real (gemini/openai/lovable),
+          // latência e fallback. NÃO altera comportamento da IA.
+          tpr: turnClassification ? {
+            source: turnClassification.source,
+            provider: turnClassification.provider ?? null,
+            model: turnClassification.model ?? null,
+            latency_ms: turnClassification.latency_ms,
+            fallback: turnClassification.source === "fallback",
+            error: turnClassification.raw_error ?? null,
+            timestamp: new Date().toISOString(),
+          } : null,
         },
       });
       if (turnLogErr) {

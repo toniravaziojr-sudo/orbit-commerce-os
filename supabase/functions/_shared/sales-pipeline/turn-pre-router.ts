@@ -69,6 +69,11 @@ export interface TurnClassification {
   source: "llm" | "fallback";
   latency_ms: number;
   raw_error?: string;
+  // Observabilidade do provider real usado pelo TPR (Fase 1 AI Provider Routing).
+  // Persistido em ai_support_turn_log.metadata.tpr para auditoria.
+  // Opcionais para manter retrocompatibilidade com chamadores existentes.
+  provider?: "gemini" | "openai" | "lovable" | null;
+  model?: string | null;
 }
 
 const TPR_SYSTEM = `Você é um classificador de turnos de uma conversa de vendas no WhatsApp em português brasileiro.
@@ -222,7 +227,7 @@ export async function classifyTurn(input: TPRInput): Promise<TurnClassification>
       if (!argsStr) return emptyClassification("fallback", Date.now() - start, "no_tool_call");
       const parsed = JSON.parse(argsStr);
       console.log(`[turn-pre-router] provider=lovable model=${TPR_MODEL} latency=${Date.now() - start}ms source=llm fallback=false (legacy)`);
-      return { ...emptyClassification("llm", Date.now() - start), ...parsed, source: "llm", latency_ms: Date.now() - start };
+      return { ...emptyClassification("llm", Date.now() - start), ...parsed, source: "llm", latency_ms: Date.now() - start, provider: "lovable", model: TPR_MODEL };
     } catch (e) {
       clearTimeout(t);
       const msg = (e as Error)?.message || String(e);
@@ -256,7 +261,10 @@ export async function classifyTurn(input: TPRInput): Promise<TurnClassification>
     const argsStr = result.data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     if (!argsStr) {
       console.warn(`[turn-pre-router] no_tool_call provider=${result.provider} model=${result.model}`);
-      return emptyClassification("fallback", Date.now() - start, "no_tool_call");
+      const empty = emptyClassification("fallback", Date.now() - start, "no_tool_call");
+      empty.provider = (result.provider as "gemini" | "openai" | "lovable") ?? null;
+      empty.model = result.model ?? null;
+      return empty;
     }
     const parsed = JSON.parse(argsStr);
     const latency = Date.now() - start;
@@ -266,6 +274,8 @@ export async function classifyTurn(input: TPRInput): Promise<TurnClassification>
       ...parsed,
       source: "llm",
       latency_ms: latency,
+      provider: (result.provider as "gemini" | "openai" | "lovable") ?? null,
+      model: result.model ?? null,
     };
   } catch (e) {
     const msg = (e as Error)?.message || String(e);
