@@ -202,3 +202,106 @@ Antes de iniciar Fase 1 (fundação de banco e contratos):
 - `docs/especificacoes/plataforma/ux-admin-creditos-custos.md`
 - `docs/especificacoes/transversais/custos-externos.md`
 - `docs/especificacoes/transversais/mapa-ui.md`
+
+---
+
+## 14. Fase 2A — Camada operacional (executada, sem cutover)
+
+A Fase 2A entregou a fundação operacional do motor v2 sem plugar nenhuma edge function paga em produção, sem ativar nenhum tenant e sem alterar nenhum pacote de créditos. v1 continua sendo o motor real em uso.
+
+### 14.1 RPCs v2 criadas (9)
+
+| RPC | Finalidade | Acesso |
+|---|---|---|
+| `estimate_credits_internal(category, service_key, units, model, variant)` | Cálculo administrativo, retorna `cost_usd`, `markup`, `sell_usd`, `credits`, `cost_brl`, `sell_brl`. Usa catálogo `service_pricing` + `fx_rates`. | service_role / platform_admin |
+| `estimate_credits_public(category, service_key, units, model, variant)` | Versão sanitizada para tenant: retorna apenas `credits` e `approx_brl`. Sem custo, sem markup, sem fx. | authenticated (tenant) |
+| `check_credit_balance_v2(tenant_id, credits_required)` | Verifica `balance - reserved >= required`. Não muta estado. | service_role |
+| `reserve_credits_v2(tenant_id, credits, idempotency_key, metadata, expires_minutes)` | Reserva créditos. Aumenta `reserved_credits`. `credits_delta=0` no ledger. Bloqueio duro se saldo insuficiente. | service_role |
+| `capture_reservation(reservation_id, actual_credits, metadata)` | Finaliza reserva: debita `actual_credits`, libera diferença. Vínculo via `reference_ledger_id`. | service_role |
+| `release_reservation(reservation_id, reason, metadata)` | Cancela reserva integralmente. Vínculo via `reference_ledger_id`. | service_role |
+| `charge_credits_v2(tenant_id, credits, idempotency_key, metadata)` | Débito direto (reserve+capture atômico) para operações curtas. | service_role |
+| `refund_credits(consume_or_capture_ledger_id, credits, reason, metadata)` | Reembolso pós-débito. Linha `refund` com `reference_ledger_id`. | service_role |
+| `record_platform_cost(category, provider, service_key, cost_usd, metadata)` | Registra custo absorvido pela plataforma em `platform_cost_ledger`. Não toca wallet. | service_role |
+
+**Diferença `internal` vs `public`:** `estimate_credits_internal` expõe `cost_usd`, `markup_pct`, `sell_usd`, `fx_rate` — uso admin/relatórios. `estimate_credits_public` retorna apenas `credits` e `approx_brl` arredondado — único caminho permitido para o tenant/frontend.
+
+### 14.2 Segurança das RPCs mutáveis
+
+- `EXECUTE` revogado para `PUBLIC`, `anon` e `authenticated` em: `reserve_credits_v2`, `capture_reservation`, `release_reservation`, `charge_credits_v2`, `refund_credits`, `record_platform_cost`, `check_credit_balance_v2`, `estimate_credits_internal`.
+- Chamada exclusivamente via `service_role` em edge functions internas (helper universal).
+- Tenant **nunca** chama RPC mutável diretamente. Frontend só consome `estimate_credits_public` e leituras sanitizadas (wallet, view do ledger).
+
+### 14.3 Helper universal — `supabase/functions/_shared/credits/charge.ts`
+
+Único ponto de entrada para edge functions consumirem o motor v2. Funções exportadas:
+
+- `estimateCredits` — wrapper de `estimate_credits_internal`.
+- `checkBalance` — wrapper de `check_credit_balance_v2`.
+- `reserveCredits` — wrapper de `reserve_credits_v2`.
+- `chargeCredits` — wrapper de `charge_credits_v2`.
+- `captureReservation` — wrapper de `capture_reservation`.
+- `releaseReservation` — wrapper de `release_reservation`.
+- `refundCredits` — wrapper de `refund_credits`.
+- `recordPlatformCost` — wrapper de `record_platform_cost`.
+- `buildIdempotencyKey(parts[])` — geração canônica de chave.
+- `normalizeCreditError(err)` — normalização de erros para envelope `{ success:false, error_code, ... }`.
+
+Suporta modos `live` e `shadow` (configuráveis via `tenant_credit_motor_config`).
+
+### 14.4 Semântica do ledger v2
+
+| transaction_type | balance_credits | reserved_credits | credits_delta | reference_ledger_id | metadata.motor_version |
+|---|---|---|---|---|---|
+| `reserve` | inalterado | aumenta | `0` | NULL | `'v2'` (+ `metadata.reserved_credits`) |
+| `release` | inalterado | reduz | `0` | aponta para `reserve` | `'v2'` |
+| `capture` | reduz | reduz pelo total reservado | negativo | aponta para `reserve` | `'v2'` |
+| `consume` | reduz | inalterado | negativo | NULL | `'v2'` |
+| `refund` | aumenta | inalterado | positivo | aponta para `consume`/`capture` | `'v2'` |
+
+**`reference_ledger_id`** é o vínculo estrutural oficial entre `reserve` ↔ `capture`/`release` e entre `consume`/`capture` ↔ `refund`. Reconciliação e cron de órfãs **não** dependem de `metadata` ou `job_id` para identificar finalização.
+
+### 14.5 Política de overflow em capture
+
+- `capture_reservation` **nunca** gera saldo negativo.
+- Se `actual_credits > reserved`, captura no máximo o reservado.
+- Excesso é registrado em `metadata.overage_uncollected_credits` na linha de `capture`.
+- Alerta/log para revisão admin quando overage > 0.
+
+### 14.6 Shadow mode
+
+- Estrutura preparada via `tenant_credit_motor_config(tenant_id, category, mode)` com `mode in ('off','shadow','live')`.
+- Em `shadow`: helper calcula custo/créditos via v2 e registra `service_usage_events` com `status='shadow'`. **Não** muta `credit_wallet`, **não** cria linha financeira em `credit_ledger`.
+- Permite comparar v1 vs v2 sem risco de cobrança duplicada.
+- Tabela criada vazia. Nenhum tenant ativado. Nenhuma categoria em `live`.
+
+### 14.7 Hardening do `fx_rates`
+
+- Leitura para `authenticated` removida.
+- Acesso restrito a `platform_admin` / `service_role`.
+- Tenant nunca lê tabela bruta. Vê BRL apenas via `credit_ledger_tenant_view` (snapshot já calculado) ou `estimate_credits_public` (`approx_brl`).
+
+### 14.8 Padronização de `metadata.source`
+
+- `metadata.source` é a chave oficial para registrar origem de backfill, sistema gerador ou fluxo emissor de uma linha de ledger.
+- Substitui qualquer referência anterior a `metadata.origin_table`. Esta forma fica obsoleta — qualquer referência futura a `origin_table` em código novo deve ser refatorada para `source` antes de plug.
+
+### 14.9 Estrutura de dados adicional
+
+Campos novos em `credit_ledger`: `reference_ledger_id` (FK self), `operation_status`, `reservation_expires_at`.  
+Campos novos em `service_usage_events`: `updated_at` (com trigger), `reservation_ledger_id`.  
+Tabela nova: `tenant_credit_motor_config` (admin-only).
+
+### 14.10 Estado de rollout pós-Fase 2A
+
+- ❌ Nenhuma edge function paga foi plugada no motor v2.
+- ❌ `youtube-upload` continua em v1.
+- ❌ Nenhum tenant ativado em `tenant_credit_motor_config`.
+- ❌ Nenhum cutover.
+- ❌ Pacotes de crédito (15K/50K) não foram alterados.
+- ✅ Cron de reservas órfãs ativo, restrito a v2 (ver `workers-crons-pagos.md` §8).
+
+### 14.11 Pendências para Fase 2B / Fase 3
+
+- **Fase 2B:** seed do catálogo não-IA (`email`, `fiscal`, `whatsapp`, `scrape`); UI admin de `service_pricing`; auditar provider fiscal real (Focus NFe vs Nuvem Fiscal) antes de seedar `fiscal`.
+- **Fase 3:** plug real das edge functions pagas no motor v2, começando por `youtube-upload`; ativar shadow mode em tenant piloto; depois `live` por categoria.
+- **Fase comercial posterior:** reprecificação de pacotes 15K/50K conforme câmbio + markup atualizados.
