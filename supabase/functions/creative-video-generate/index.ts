@@ -13,7 +13,7 @@
  * 1. Preprocess - Verificar produto + imagem
  * 2. Rewrite - Converter prompt do usuário em prompt otimizado
  * 3. Generate - Produzir vídeo via fal.ai
- * 4. Narration (opcional) - ElevenLabs TTS + Kling Lipsync
+ * 4. Narration (opcional) - TTS + Kling Lipsync
  * 5. Fallback - Imagem estática se vídeo falhar
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
