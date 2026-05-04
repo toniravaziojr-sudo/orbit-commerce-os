@@ -115,9 +115,7 @@ Deno.serve(async (req) => {
     // Recebedor da plataforma vai em payment_providers (Minha Loja → Pagamentos)
     const mpClientId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_CLIENT_ID');
     const mpClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_CLIENT_SECRET');
-    // Nuvem Fiscal
-    const nuvemFiscalClientId = await checkCredential(supabaseUrl, supabaseServiceKey, 'NUVEM_FISCAL_CLIENT_ID');
-    const nuvemFiscalClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'NUVEM_FISCAL_CLIENT_SECRET');
+    // Nuvem Fiscal removido — usamos Focus NFe
     // Fal.AI (Geração de Imagens e Vídeos)
     const falApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'FAL_API_KEY');
     // Google Gemini (Geração de Imagens Nativa)
