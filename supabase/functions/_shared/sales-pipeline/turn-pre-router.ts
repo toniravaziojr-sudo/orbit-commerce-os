@@ -261,7 +261,10 @@ export async function classifyTurn(input: TPRInput): Promise<TurnClassification>
     const argsStr = result.data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     if (!argsStr) {
       console.warn(`[turn-pre-router] no_tool_call provider=${result.provider} model=${result.model}`);
-      return emptyClassification("fallback", Date.now() - start, "no_tool_call");
+      const empty = emptyClassification("fallback", Date.now() - start, "no_tool_call");
+      empty.provider = (result.provider as "gemini" | "openai" | "lovable") ?? null;
+      empty.model = result.model ?? null;
+      return empty;
     }
     const parsed = JSON.parse(argsStr);
     const latency = Date.now() - start;
