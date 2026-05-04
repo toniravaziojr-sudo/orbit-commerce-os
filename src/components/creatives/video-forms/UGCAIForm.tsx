@@ -1,7 +1,7 @@
 /**
  * UGC AI Form — Pessoa 100% IA segurando/usando Produto
  * 
- * Pipeline: Runway ML (video) + ElevenLabs (TTS) + Sync Labs (lipsync)
+ * Pipeline: Runway ML (video) + TTS + Sync Labs (lipsync)
  */
 
 import { useState, useEffect } from 'react';
