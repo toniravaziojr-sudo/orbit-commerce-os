@@ -244,7 +244,7 @@ Exemplo:
                     <Badge variant="secondary" className="text-[10px]">Recomendado</Badge>
                   </Label>
                    <p className="text-xs text-muted-foreground mt-0.5">
-                     Narração em PT-BR{isSpecial ? ' via ElevenLabs' : ''} + sincronização labial
+                     Narração em PT-BR + sincronização labial
                    </p>
                 </div>
               </div>
