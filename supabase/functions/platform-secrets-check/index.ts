@@ -136,27 +136,9 @@ Deno.serve(async (req) => {
     const shopeePartnerKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'SHOPEE_PARTNER_KEY');
     
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
-      nuvem_fiscal: {
-        name: 'Nuvem Fiscal',
-        description: 'Emissão de NF-e para todos os tenants',
-        icon: 'Cloud',
-        docs: 'https://dev.nuvemfiscal.com.br/',
-        secrets: {
-          NUVEM_FISCAL_CLIENT_ID: nuvemFiscalClientId.exists,
-          NUVEM_FISCAL_CLIENT_SECRET: nuvemFiscalClientSecret.exists,
-        },
-        previews: {
-          NUVEM_FISCAL_CLIENT_ID: nuvemFiscalClientId.preview || '',
-          NUVEM_FISCAL_CLIENT_SECRET: nuvemFiscalClientSecret.preview || '',
-        },
-        sources: {
-          NUVEM_FISCAL_CLIENT_ID: nuvemFiscalClientId.source || '',
-          NUVEM_FISCAL_CLIENT_SECRET: nuvemFiscalClientSecret.source || '',
-        },
-      },
       focus_nfe: {
-        name: 'Focus NFe (Legado)',
-        description: 'Emissão de NF-e (migrado para Nuvem Fiscal)',
+        name: 'Focus NFe',
+        description: 'Emissão de NF-e para todos os tenants (token único da plataforma)',
         icon: 'FileText',
         docs: 'https://focusnfe.com.br/doc/',
         secrets: {
