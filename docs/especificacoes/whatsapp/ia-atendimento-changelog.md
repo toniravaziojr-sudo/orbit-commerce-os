@@ -63,6 +63,29 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #27 — AI Provider Routing Fase 1.1: persistência defensiva do log canônico em falha do composer — 04/mai/2026
+
+**Contexto.** A validação observacional pós-Registro #26 tentou confirmar `metadata.tpr` em produção. Um turno “Oi” real (13:33Z) provou que o TPR rodou em Gemini Native (`source=llm`, `model=gemini-2.5-flash-lite`, latency=2477ms) — mas `ai_support_turn_log` ficou vazio para esse turno.
+
+**Sintoma.** `metadata.tpr` ausente do banco apesar de o TPR ter funcionado em stdout.
+
+**Diagnóstico.** O insert canônico de `ai_support_turn_log` (linha ~7951 do `ai-support-chat/index.ts`) só roda no caminho de SUCESSO do composer. O turno “Oi” falhou no composer com 429 `insufficient_quota` (saldo OpenAI esgotado), o handler retornou early com `code=RATE_LIMIT` e nenhum log foi gravado. Isso é cegueira arquitetural: qualquer falha do composer apaga toda a observabilidade do turno, inclusive do TPR que rodou bem antes do composer.
+
+**Correção aplicada.** Inserido um log defensivo no caminho de erro do composer (antes dos returns 429/AI_ERROR) que persiste:
+- Campos canônicos mínimos do turno (`tenant_id`, `conversation_id`, `last_user_message`, `model_used`).
+- `metadata.tpr` — snapshot do TPR já calculado.
+- `metadata.composer_error` — `{ stage, code, message (≤240 chars, sem chars de controle), http_status, provider, model, timestamp }` com sanitização contra vazamento de tokens/payload.
+- Try/catch externo: falha de log nunca derruba atendimento.
+- Idempotência por caminho: insert de falha e insert de sucesso são mutuamente exclusivos no mesmo turno.
+
+**Garantias preservadas.** Composer não migrado, prompt intacto, ranking intacto, Catalog Probe / search_products / Orchestrator / Onda 1C intactos. Shape da resposta (`{success:false, error, code}`) inalterado.
+
+**Validação.** Build deployed com sucesso (boot 13:37:47Z, sem erro de bundle). Validação observacional final aguarda novo turno “Oi” (este insert só dispara em falha do composer; com OPENAI_API_KEY recarregada, valida-se o caminho de sucesso).
+
+**Anti-regressão.** Documentado em `docs/especificacoes/ia/ai-provider-routing.md` seção 9.3.
+
+---
+
 ## Registro #26 — AI Provider Routing Fase 1: bug de hierarquia de credenciais corrigido (Fase 1 fechada de verdade) — 04/mai/2026
 
 **Contexto.** Em 03/mai/2026 (Registro #25) o TPR foi migrado para `_shared/ai-router.ts` esperando que rodasse em Gemini Native. A validação posterior pediu prova nos logs e descobriu que o TPR continuava caindo no Lovable Gateway — a Fase 1 estava aberta.

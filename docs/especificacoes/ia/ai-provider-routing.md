@@ -204,6 +204,35 @@ Forma do `metadata.tpr`:
 
 **Garantias preservadas:** classificação, contrato `TurnClassification`, prompt, tool calling, conteúdo enviado ao modelo, resposta final, ranking, Catalog Probe, Orchestrator e Onda 1C continuam intactos. Esta entrega é puramente observacional.
 
+### 9.3 Persistência defensiva em falha do composer (Fase 1.1 — 2026-05-04)
+
+**Lacuna descoberta na validação observacional pós-9.2:** o insert canônico de `ai_support_turn_log` (linha ~7951 do `ai-support-chat/index.ts`) só executava no caminho de SUCESSO do composer. Se o composer falhasse (HTTP 429, `insufficient_quota`, exception de fetch, qualquer erro OpenAI), o handler retornava early com `{ success: false, code: "RATE_LIMIT" | "AI_ERROR" }` SEM gravar log algum. Resultado: cegueira total do turno — inclusive do TPR, mesmo quando ele rodou com sucesso antes do composer.
+
+**Correção aplicada:** no caminho de erro do composer (`if (!response || !response.ok)`), antes dos returns 429/AI_ERROR, é executado um insert mínimo em `ai_support_turn_log` com:
+
+- Campos canônicos básicos: `conversation_id`, `tenant_id`, `message_id`, `last_user_message`, `last_user_message_at`, `model_used`, `response_length=0`, `duration_ms=null`.
+- `metadata.tpr` — mesmo snapshot do caminho de sucesso (provider/model/source/latency/fallback).
+- `metadata.composer_error` — resumo seguro do erro:
+  ```json
+  {
+    "stage": "composer",
+    "code": "insufficient_quota" | "429" | "fetch_error",
+    "message": "<até 240 chars, sem chars de controle>",
+    "http_status": 429 | 500 | null,
+    "provider": "openai",
+    "model": "gpt-5",
+    "timestamp": "2026-05-04T13:33:35.000Z"
+  }
+  ```
+
+**Garantias:**
+- Sanitização: nunca grava token/secret/payload bruto. Mensagem é parseada como JSON quando possível (extrai `error.code`/`error.message`); se não for JSON, usa texto truncado a 240 chars sem caracteres de controle.
+- Não-bloqueante: insert dentro de `try/catch`; falha de gravação só vai para stdout (`[F1-FAIL]`).
+- Idempotência por caminho: insert de falha só roda no `if (!response || !response.ok)`; insert de sucesso só roda no caminho ok. Mutuamente exclusivos → sem duplicação.
+- Runtime inalterado: shape `{ success: false, error, code }` permanece igual; nenhum prompt/ranking/conteúdo tocado.
+
+**Hierarquia de auditoria reafirmada:** `ai_support_turn_log.metadata.tpr` agora é fonte principal mesmo quando o composer falha. Stdout segue auxiliar.
+
 ---
 
 ## 10. O que NÃO foi feito nesta entrega
