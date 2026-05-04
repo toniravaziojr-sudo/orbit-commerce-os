@@ -88,7 +88,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 8 | Tutoriais por Módulo | `/platform/tutorials` | — |
 | 9 | Tenants | `/platform/tenants` | — |
 | 10 | Ferramentas | `/platform/tools` | — |
-| 11 | Custos Externos | `/platform/external-costs` | Painel de serviços de terceiros, sync 6h, banner de alerta |
+| 11 | Custos Externos | `/platform/external-costs` | Painel de serviços de terceiros, sync 6h, banner de alerta. **Expansão futura prevista** (especificada, ainda não implementada): abas Consumo por tenant, Consumo por categoria, Consumo por provedor, Catálogo de preços, Reconciliação e Margens. Ver `docs/especificacoes/plataforma/ux-admin-creditos-custos.md`. |
 
 ---
 
@@ -286,12 +286,13 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 
 **Conta:**
 - `/account/data` — Dados da conta
-- `/account/billing` — Minha assinatura
+- `/account/billing` — Minha assinatura (foco em plano/faturas; **não** duplica gestão de créditos)
+- `/account/credits` — **Hub de créditos do tenant (especificado, ainda não implementado).** Abas previstas: Visão geral (default), Comprar créditos (`?tab=buy`), **Extrato de uso** (`?tab=ledger` — histórico oficial de gastos de créditos do tenant), Estimador (`?tab=estimator`). Header global passará a exibir um **chip de saldo de créditos** clicável que navega para esta rota. `/ai-packages` será futuramente redirecionado/incorporado em `/account/credits?tab=buy`. Ver `docs/especificacoes/sistema/ux-creditos-lojista.md`.
 
 **IA e Suporte:**
 - `/chatgpt` — ChatGPT (FeatureGated: `assistant`)
 - `/ai-memories` — Memórias de IA
-- `/ai-packages` — Pacotes IA
+- `/ai-packages` — Pacotes IA (rota legada — futuramente redirect/incorporação em `/account/credits?tab=buy`)
 - `/support-center` — Central de suporte. **Abas oficiais:** Tickets, AI Config (com toggle Modo Vendas; **rev Onda 1A.1 2026-05-03:** painel reorganizado em **5 abas** — Essencial (contexto do negócio, regras gerais, claims/promessas proibidas), Conhecimento (fontes automáticas, conhecimento adicional, vocabulário e linguagem do nicho), Atendimento (identidade, objeções, regras condicionais, transferência, mídia, tópicos proibidos), Vendas (Modo Vendas), Avançado (modelo de IA, limites, metas, prompt do sistema legado colapsado). Card de **Diagnóstico do contexto da IA** no topo, agora compacto e expansível. Claims gravam em `tenant_brand_context`; `custom_knowledge` aparece em um único lugar (Conhecimento)), Conversas, **Funil WhatsApp** (`WhatsappSalesFunnel.tsx`, consome `whatsapp_sales_funnel_view`: carrinhos, convertidos, handoffs, pedidos, receita, taxa de conversão), **IA Teste** (`AISandboxChat.tsx` — chat sandbox que invoca a IA de Atendimento de produção, conversa em memória, cleanup automático ao fechar; ver `mem://constraints/ai-test-sandbox-mirror-only`). Doc funcional: `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md`. **Histórico de diagnósticos e correções da IA:** `docs/especificacoes/whatsapp/ia-atendimento-changelog.md`.
 - `/getting-started` — Guia inicial
 
