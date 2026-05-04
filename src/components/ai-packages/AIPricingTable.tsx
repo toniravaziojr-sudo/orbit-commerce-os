@@ -42,6 +42,28 @@ export function AIPricingTable() {
     );
   }
 
+  // Quando o tenant não tem acesso ao catálogo bruto (admin-only),
+  // exibe fallback informativo. Sem custo real, markup ou margem.
+  if (!pricing || pricing.length === 0) {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-6 text-sm text-muted-foreground">
+        <div className="flex items-start gap-3">
+          <Info className="h-5 w-5 mt-0.5 text-primary" />
+          <div className="space-y-1">
+            <p className="font-medium text-foreground">
+              Os créditos são calculados automaticamente conforme o uso real
+            </p>
+            <p>
+              Cada operação de IA consome créditos de acordo com a complexidade
+              (tokens, segundos de vídeo, imagens etc.). Você pode acompanhar o
+              consumo detalhado na aba <span className="font-medium">Histórico</span>.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Build pricing rows from database
   const rows: PricingRow[] = [];
 
