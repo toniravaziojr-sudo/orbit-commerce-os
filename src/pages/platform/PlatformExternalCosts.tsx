@@ -340,6 +340,12 @@ export default function PlatformExternalCosts() {
       />
 
       <EditCostDialog cost={editing} onClose={() => setEditing(null)} />
+        </TabsContent>
+
+        <TabsContent value="pricing" className="mt-4">
+          <PricingCatalogTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
