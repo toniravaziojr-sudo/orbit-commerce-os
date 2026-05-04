@@ -1,7 +1,7 @@
 # Motor Universal de Créditos — Comando Central
 
 > **Camada:** Layer 2/3 — Especificação de Plataforma  
-> **Status:** Ativo (Fase 0 — fundação documental)  
+> **Status:** Ativo (Fase 2A — camada operacional preparada, sem cutover)  
 > **Última atualização:** 2026-05-04  
 > **Fonte de verdade para:** regra de débito de créditos, ledger, idempotência, política de cobrança plataforma vs tenant, reserva/captura/refund, workers/crons pagos.
 
