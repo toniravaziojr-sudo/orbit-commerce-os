@@ -63,6 +63,28 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #26 — AI Provider Routing Fase 1: bug de hierarquia de credenciais corrigido (Fase 1 fechada de verdade) — 04/mai/2026
+
+**Contexto.** Em 03/mai/2026 (Registro #25) o TPR foi migrado para `_shared/ai-router.ts` esperando que rodasse em Gemini Native. A validação posterior pediu prova nos logs e descobriu que o TPR continuava caindo no Lovable Gateway — a Fase 1 estava aberta.
+
+**Diagnóstico.** Bug em `_shared/ai-router.ts` v1.2.0, função `resolveAPIKeys`, linhas 110-111. O código consultava `platform_credentials` (banco) corretamente para `OPENAI_API_KEY` e `GEMINI_API_KEY`, mas em seguida sobrescrevia ambas as variáveis com `Deno.env.get(...) || null`. Como nenhuma das duas existe como env var do projeto Supabase (estão só no banco), o resultado era `openaiKey=null, geminiKey=null` e o router caía sempre no único provider restante: Lovable Gateway. A Fase 1 estava neutralizada.
+
+**Correção aplicada.** Trocada a sobrescrita incondicional por fallback condicional com `trim()` para evitar string vazia: `if (!openaiKey || !openaiKey.trim()) openaiKey = (Deno.env.get("OPENAI_API_KEY") || "").trim() || null;` (idem para Gemini). Hierarquia agora é estrita: **`platform_credentials` (banco) → `Deno.env.get` (fallback condicional)**. Contrato do router (assinatura, schema `TurnClassification`, mapeamento de modelos) intacto. Nenhuma alteração em composer, Catalog Probe, search_products, Orchestrator, Onda 1C, prompt ou UI.
+
+**Validação técnica executada.** Smoke test isolado (edge function efêmera `tpr-smoke-test`, removida após uso) chamou `classifyTurn` duas vezes:
+- "Oi" → `provider=gemini model=gemini-2.5-flash latency=2067ms source=llm fallback=false`, `is_pure_greeting=true` ✅
+- "Tenho entradas e quero saber qual produto serve" → `provider=gemini model=gemini-2.5-flash succeeded`, mas Gemini não emitiu tool_call (`raw_error=no_tool_call`) e o TPR caiu para o `fallbackClassification` regex — comportamento esperado do contrato (rede de segurança), não regressão.
+
+**Provider real confirmado:** Gemini Native em ambos os testes. Lovable Gateway só fica como fallback final. Composer principal segue chamando OpenAI direto (Fase 2 ainda planejada).
+
+**Status do sistema (inalterado).** Onda 1C continua em `dry_run`. Orchestrator desligado. Nenhum secret cadastrado/alterado. Rollback `TPR_USE_LEGACY_GATEWAY=1` continua disponível.
+
+**Anti-regressão.** Memória `mem://infrastructure/ai/provider-router-standard` atualizada com a regra "Hierarquia de credenciais": é PROIBIDO sobrescrever incondicionalmente chave do banco com `Deno.env.get(...) || null`. Doc formal `docs/especificacoes/ia/ai-provider-routing.md` ganhou seção 6.1 com a hierarquia obrigatória e o histórico do bug. Fase 1 só pode ser declarada fechada após smoke test confirmar `provider=gemini` ou `provider=openai`.
+
+**Status:** ✅ Corrigido e validado — Fase 1 fechada.
+
+---
+
 ## Registro #25 — AI Provider Routing Fase 1: TPR migrado para `_shared/ai-router.ts` — 03/mai/2026
 
 **Contexto.** Diagnóstico de RATE_LIMIT 429 nos testes da Onda 1C revelou que o TPR (`turn-pre-router.ts`) ainda chamava o Lovable AI Gateway diretamente via `LOVABLE_API_KEY`. Como o Gateway tem rate limit por workspace Lovable (compartilhado com sandbox e todas as funções utilitárias), o TPR — que roda em todo turno do WhatsApp real — virou o principal gargalo de produção.

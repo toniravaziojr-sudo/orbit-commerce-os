@@ -41,9 +41,21 @@ para o modelo real do provider — ninguém deve hard-codear o nome real.
   usa `TPR_USE_LEGACY_GATEWAY=1`).
 - Logar provider/modelo/latência/fallback em toda chamada.
 
+## Hierarquia de credenciais (regra crítica)
+
+`resolveAPIKeys` em `_shared/ai-router.ts` DEVE seguir a ordem:
+**1) `platform_credentials` (banco) → 2) `Deno.env.get` (fallback condicional)**.
+O fallback de env var só pode ser usado quando o banco não retornou
+chave válida (`if (!key || !key.trim())`). Sobrescrever incondicionalmente
+a chave do banco com `Deno.env.get(...) || null` é PROIBIDO — foi
+exatamente esse bug que anulou a Fase 1 em 2026-05-03 e foi corrigido
+em 2026-05-04 (smoke test confirmou `provider=gemini`).
+
 ## Fonte de verdade
 
-- Doc formal: `docs/especificacoes/ia/ai-provider-routing.md`.
+- Doc formal: `docs/especificacoes/ia/ai-provider-routing.md`
+  (seções 6.1 e 7).
 - Código: `supabase/functions/_shared/ai-router.ts`,
   `supabase/functions/_shared/sales-pipeline/turn-pre-router.ts`.
-- Status do plano: Fase 1 aplicada (TPR) em 2026-05-03.
+- Status do plano: Fase 1 ✅ fechada em 2026-05-04 (Gemini Native real,
+  validado em smoke test isolado).

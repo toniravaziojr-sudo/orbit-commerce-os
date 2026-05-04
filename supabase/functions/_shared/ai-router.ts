@@ -98,17 +98,31 @@ async function resolveAPIKeys(supabaseUrl?: string, supabaseServiceKey?: string)
 
   let openaiKey: string | null = null;
   let geminiKey: string | null = null;
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY") || null;
+  const lovableRaw = Deno.env.get("LOVABLE_API_KEY");
+  const lovableKey = lovableRaw && lovableRaw.trim() ? lovableRaw.trim() : null;
 
   if (supabaseUrl && supabaseServiceKey) {
-    // Buscar do banco (platform_credentials) com fallback para env
+    // 1) Fonte primária: platform_credentials (banco)
     [openaiKey, geminiKey] = await Promise.all([
       getCredential(supabaseUrl, supabaseServiceKey, "OPENAI_API_KEY"),
       getCredential(supabaseUrl, supabaseServiceKey, "GEMINI_API_KEY"),
     ]);
-    // Fallback sem supabase context — ainda tentar env vars
-    openaiKey = Deno.env.get("OPENAI_API_KEY") || null;
-    geminiKey = Deno.env.get("GEMINI_API_KEY") || null;
+  }
+
+  // 2) Fallback condicional: env var SOMENTE se DB não retornou chave válida
+  //    (corrige bug v1.2.0 que sobrescrevia chaves do DB com env null)
+  if (!openaiKey || !openaiKey.trim()) {
+    const envOpenai = Deno.env.get("OPENAI_API_KEY");
+    openaiKey = envOpenai && envOpenai.trim() ? envOpenai.trim() : null;
+  } else {
+    openaiKey = openaiKey.trim();
+  }
+
+  if (!geminiKey || !geminiKey.trim()) {
+    const envGemini = Deno.env.get("GEMINI_API_KEY");
+    geminiKey = envGemini && envGemini.trim() ? envGemini.trim() : null;
+  } else {
+    geminiKey = geminiKey.trim();
   }
 
   _cachedKeys = { openai: openaiKey, gemini: geminiKey, lovable: lovableKey };
