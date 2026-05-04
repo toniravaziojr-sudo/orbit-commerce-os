@@ -6035,14 +6035,84 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       if (!response || !response.ok) {
         const errorText = lastErrorText || "No response";
         console.error("[ai-support-chat] OpenAI API error:", response?.status, errorText);
-        
+
+        // [Reg #2.8 — Fase 1.1 AI Provider Routing] Persistência defensiva do log canônico
+        // em caminho de FALHA do composer. Antes, qualquer erro (429/quota/exception) saía
+        // pelo early return acima sem gravar ai_support_turn_log, criando cegueira total
+        // do TPR mesmo quando ele rodou com sucesso. Agora gravamos linha mínima com
+        // metadata.tpr (provider/model/source/latency/fallback) + metadata.composer_error
+        // (code/message resumida/provider/model/stage). NUNCA bloqueia atendimento:
+        // qualquer falha aqui só é logada em stdout. Idempotência: este insert só roda
+        // no caminho de erro; o insert de sucesso (linha ~7951) só roda no caminho ok.
+        try {
+          // Resumo seguro do erro do composer — sem vazar tokens/secrets/payload bruto.
+          let safeErrCode: string | null = response?.status ? String(response.status) : "fetch_error";
+          let safeErrMessage: string = "composer_failed";
+          try {
+            const parsed = JSON.parse(errorText || "{}");
+            const innerCode = parsed?.error?.code || parsed?.code || null;
+            const innerMsg = parsed?.error?.message || parsed?.message || null;
+            if (innerCode) safeErrCode = String(innerCode).slice(0, 64);
+            if (innerMsg) safeErrMessage = String(innerMsg).slice(0, 240);
+          } catch (_) {
+            // Não era JSON: usar prefixo do texto, truncado e sem chars de controle.
+            safeErrMessage = String(errorText || "composer_failed")
+              .replace(/[\x00-\x1F]/g, " ")
+              .slice(0, 240);
+          }
+
+          const failureMetadata: Record<string, unknown> = {
+            sales_mode: salesModeEnabled,
+            channel: channelType,
+            composer_error: {
+              stage: "composer",
+              code: safeErrCode,
+              message: safeErrMessage,
+              http_status: response?.status ?? null,
+              provider: "openai",
+              model: usedModel || modelUsed || null,
+              timestamp: new Date().toISOString(),
+            },
+            tpr: turnClassification ? {
+              source: turnClassification.source,
+              provider: (turnClassification as any).provider ?? null,
+              model: (turnClassification as any).model ?? null,
+              latency_ms: turnClassification.latency_ms,
+              fallback: turnClassification.source === "fallback",
+              error: turnClassification.raw_error ?? null,
+              timestamp: new Date().toISOString(),
+            } : null,
+          };
+
+          const { error: failLogErr } = await supabase
+            .from("ai_support_turn_log")
+            .insert({
+              conversation_id,
+              tenant_id,
+              message_id: lastCustomerMessage?.id ?? null,
+              last_user_message: (lastMessageContent || "").slice(0, 500),
+              last_user_message_at: conversation?.last_customer_message_at ?? null,
+              model_used: usedModel || modelUsed || null,
+              response_length: 0,
+              duration_ms: latencyMs ?? null,
+              metadata: failureMetadata,
+            });
+          if (failLogErr) {
+            console.error("[ai-support-chat] [F1-FAIL] composer-fail turn log insert error:", failLogErr);
+          } else {
+            console.log("[ai-support-chat] [F1-FAIL] composer-fail turn log persisted (tpr+composer_error)");
+          }
+        } catch (logErr) {
+          console.error("[ai-support-chat] [F1-FAIL] composer-fail turn log threw:", logErr);
+        }
+
         if (response?.status === 429) {
           return new Response(
             JSON.stringify({ success: false, error: "Rate limit exceeded", code: "RATE_LIMIT" }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        
+
         return new Response(
           JSON.stringify({ success: false, error: "Error generating AI response", code: "AI_ERROR" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
