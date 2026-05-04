@@ -37,7 +37,7 @@ export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformInteg
     shopee_platform: 'shopee',
     mercadolivre: 'mercadolivre',
     mercadopago_platform: 'mercadopago',
-    nuvem_fiscal: 'fiscal',
+    
     fal_ai: 'ai',
     gemini: 'ai',
   };
