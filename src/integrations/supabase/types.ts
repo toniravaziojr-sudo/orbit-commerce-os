@@ -5783,54 +5783,84 @@ export type Database = {
       }
       credit_ledger: {
         Row: {
+          balance_after: number | null
+          balance_before: number | null
+          category: string | null
+          cost_brl: number | null
           cost_usd: number | null
           created_at: string
           credits_delta: number
           description: string | null
           feature: string | null
+          fx_rate_usd_brl: number | null
+          fx_source: string | null
           id: string
           idempotency_key: string | null
           job_id: string | null
+          markup_pct_snap: number | null
           metadata: Json | null
           model: string | null
+          pricing_id: string | null
           provider: string | null
+          sell_brl: number | null
           sell_usd: number | null
+          service_key: string | null
           tenant_id: string
           transaction_type: string
           units_json: Json | null
           user_id: string | null
         }
         Insert: {
+          balance_after?: number | null
+          balance_before?: number | null
+          category?: string | null
+          cost_brl?: number | null
           cost_usd?: number | null
           created_at?: string
           credits_delta: number
           description?: string | null
           feature?: string | null
+          fx_rate_usd_brl?: number | null
+          fx_source?: string | null
           id?: string
           idempotency_key?: string | null
           job_id?: string | null
+          markup_pct_snap?: number | null
           metadata?: Json | null
           model?: string | null
+          pricing_id?: string | null
           provider?: string | null
+          sell_brl?: number | null
           sell_usd?: number | null
+          service_key?: string | null
           tenant_id: string
           transaction_type: string
           units_json?: Json | null
           user_id?: string | null
         }
         Update: {
+          balance_after?: number | null
+          balance_before?: number | null
+          category?: string | null
+          cost_brl?: number | null
           cost_usd?: number | null
           created_at?: string
           credits_delta?: number
           description?: string | null
           feature?: string | null
+          fx_rate_usd_brl?: number | null
+          fx_source?: string | null
           id?: string
           idempotency_key?: string | null
           job_id?: string | null
+          markup_pct_snap?: number | null
           metadata?: Json | null
           model?: string | null
+          pricing_id?: string | null
           provider?: string | null
+          sell_brl?: number | null
           sell_usd?: number | null
+          service_key?: string | null
           tenant_id?: string
           transaction_type?: string
           units_json?: Json | null
@@ -5842,6 +5872,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_credit_ledger_pricing"
+            columns: ["pricing_id"]
+            isOneToOne: false
+            referencedRelation: "service_pricing"
             referencedColumns: ["id"]
           },
         ]
@@ -9143,6 +9180,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fx_rates: {
+        Row: {
+          base: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          id: string
+          quote: string
+          rate: number
+          source: string
+        }
+        Insert: {
+          base?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          id?: string
+          quote?: string
+          rate: number
+          source?: string
+        }
+        Update: {
+          base?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          id?: string
+          quote?: string
+          rate?: number
+          source?: string
+        }
+        Relationships: []
       }
       gateway_sync_queue: {
         Row: {
@@ -15216,6 +15286,57 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_cost_ledger: {
+        Row: {
+          category: string
+          cost_brl: number
+          cost_usd: number
+          created_at: string
+          fx_rate_usd_brl: number
+          fx_source: string
+          id: string
+          idempotency_key: string | null
+          metadata: Json
+          origin_function: string | null
+          provider: string
+          reason: string
+          service_key: string
+          units_json: Json
+        }
+        Insert: {
+          category: string
+          cost_brl: number
+          cost_usd: number
+          created_at?: string
+          fx_rate_usd_brl: number
+          fx_source?: string
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          origin_function?: string | null
+          provider: string
+          reason: string
+          service_key: string
+          units_json?: Json
+        }
+        Update: {
+          category?: string
+          cost_brl?: number
+          cost_usd?: number
+          created_at?: string
+          fx_rate_usd_brl?: number
+          fx_source?: string
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          origin_function?: string | null
+          provider?: string
+          reason?: string
+          service_key?: string
+          units_json?: Json
+        }
+        Relationships: []
+      }
       platform_credentials: {
         Row: {
           created_at: string
@@ -17014,6 +17135,111 @@ export type Database = {
           updated_at?: string
           user_id?: string
           user_name?: string | null
+        }
+        Relationships: []
+      }
+      service_pricing: {
+        Row: {
+          category: string
+          cost_usd: number
+          created_at: string
+          display_name: string
+          effective_from: string
+          effective_until: string | null
+          id: string
+          is_active: boolean
+          markup_pct: number
+          metadata: Json
+          min_credits_charge: number | null
+          model: string | null
+          provider: string
+          service_key: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          cost_usd: number
+          created_at?: string
+          display_name: string
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          is_active?: boolean
+          markup_pct?: number
+          metadata?: Json
+          min_credits_charge?: number | null
+          model?: string | null
+          provider: string
+          service_key: string
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          cost_usd?: number
+          created_at?: string
+          display_name?: string
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          is_active?: boolean
+          markup_pct?: number
+          metadata?: Json
+          min_credits_charge?: number | null
+          model?: string | null
+          provider?: string
+          service_key?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      service_usage_events: {
+        Row: {
+          category: string
+          cost_owner: string
+          created_at: string
+          credit_ledger_id: string | null
+          id: string
+          metadata: Json
+          origin_function: string | null
+          platform_cost_ledger_id: string | null
+          provider: string
+          service_key: string
+          status: string
+          tenant_id: string | null
+          units_json: Json
+        }
+        Insert: {
+          category: string
+          cost_owner: string
+          created_at?: string
+          credit_ledger_id?: string | null
+          id?: string
+          metadata?: Json
+          origin_function?: string | null
+          platform_cost_ledger_id?: string | null
+          provider: string
+          service_key: string
+          status: string
+          tenant_id?: string | null
+          units_json?: Json
+        }
+        Update: {
+          category?: string
+          cost_owner?: string
+          created_at?: string
+          credit_ledger_id?: string | null
+          id?: string
+          metadata?: Json
+          origin_function?: string | null
+          platform_cost_ledger_id?: string | null
+          provider?: string
+          service_key?: string
+          status?: string
+          tenant_id?: string | null
+          units_json?: Json
         }
         Relationships: []
       }
@@ -23135,6 +23361,71 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_brain_insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_ledger_tenant_view: {
+        Row: {
+          balance_after: number | null
+          category: string | null
+          created_at: string | null
+          credits_delta: number | null
+          description: string | null
+          feature: string | null
+          id: string | null
+          idempotency_key: string | null
+          job_id: string | null
+          model: string | null
+          provider: string | null
+          sell_brl: number | null
+          tenant_id: string | null
+          transaction_type: string | null
+          units_json: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          balance_after?: number | null
+          category?: string | null
+          created_at?: string | null
+          credits_delta?: number | null
+          description?: string | null
+          feature?: string | null
+          id?: string | null
+          idempotency_key?: string | null
+          job_id?: string | null
+          model?: string | null
+          provider?: string | null
+          sell_brl?: number | null
+          tenant_id?: string | null
+          transaction_type?: string | null
+          units_json?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          balance_after?: number | null
+          category?: string | null
+          created_at?: string | null
+          credits_delta?: number | null
+          description?: string | null
+          feature?: string | null
+          id?: string | null
+          idempotency_key?: string | null
+          job_id?: string | null
+          model?: string | null
+          provider?: string | null
+          sell_brl?: number | null
+          tenant_id?: string | null
+          transaction_type?: string | null
+          units_json?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_ledger_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
