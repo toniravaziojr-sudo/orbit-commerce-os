@@ -8,6 +8,7 @@ export interface PlatformExternalCost {
   category: "email" | "infra" | "ai" | "fiscal" | "cloud" | "payments" | "other";
   description: string | null;
   vendor_url: string | null;
+  billing_model: "subscription" | "prepaid" | "payg";
   monthly_cost_usd: number | null;
   monthly_cost_brl: number | null;
   current_balance: number | null;
