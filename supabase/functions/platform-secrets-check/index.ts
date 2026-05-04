@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
     // META_CONFIG_ID removido na V4 — config_id agora vive em meta_auth_profiles
     // WhatsApp Cross-Business — Business ID parceiro da plataforma (Fase 1 híbrido)
     const whatsappPartnerBusinessId = await checkCredential(supabaseUrl, supabaseServiceKey, 'WHATSAPP_META_PARTNER_BUSINESS_ID');
-    const lateApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LATE_API_KEY');
+    // Late removido (não usamos mais)
     const meliAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_APP_ID');
     const meliClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_CLIENT_SECRET');
     // Mercado Pago Integrador (OAuth — para lojistas conectarem)
