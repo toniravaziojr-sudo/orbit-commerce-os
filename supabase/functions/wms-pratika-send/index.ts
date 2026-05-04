@@ -203,15 +203,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Fallback: try xml_url
-      if (!xmlContent && invoice.xml_url) {
-        try {
-          const resp = await fetch(invoice.xml_url);
-          xmlContent = await resp.text();
-        } catch (err: any) {
-          console.error('[wms-pratika] Error fetching xml_url:', err);
-        }
-      }
 
       if (!xmlContent) {
         await supabase.from('wms_pratika_logs').insert({
