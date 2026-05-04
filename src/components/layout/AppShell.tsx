@@ -1,11 +1,12 @@
 import { useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { AdminModeProvider } from "@/contexts/AdminModeContext";
 import { AdminErrorBoundary } from "./AdminErrorBoundary";
 import { MFAEnrollmentBanner } from "@/components/auth/MFAEnrollmentBanner";
+import { PlatformCostsAlertBanner } from "@/components/platform/PlatformCostsAlertBanner";
 
 export function AppShell() {
   useEffect(() => {
