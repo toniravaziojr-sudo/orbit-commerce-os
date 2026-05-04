@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -173,8 +172,8 @@ function EditCostDialog({ cost, onClose }: { cost: PlatformExternalCost | null; 
   );
 }
 
-function PlatformExternalCostsContent() {
-  const { data, isLoading } = usePlatformExternalCosts();
+export default function PlatformExternalCosts() {
+  const { data, isLoading, error } = usePlatformExternalCosts();
   const sync = useSyncExternalCosts();
   const [editing, setEditing] = useState<PlatformExternalCost | null>(null);
 
@@ -228,6 +227,16 @@ function PlatformExternalCostsContent() {
       </Card>
 
       {isLoading && <div className="text-muted-foreground">Carregando…</div>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Erro ao carregar custos</AlertTitle>
+          <AlertDescription>{error instanceof Error ? error.message : String(error)}</AlertDescription>
+        </Alert>
+      )}
+      {!isLoading && !error && (data ?? []).length === 0 && (
+        <div className="text-muted-foreground border rounded-md p-6 text-center">Nenhum serviço cadastrado.</div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {(data ?? []).map((c) => <CostCard key={c.id} cost={c} onEdit={setEditing} />)}
@@ -235,13 +244,5 @@ function PlatformExternalCostsContent() {
 
       <EditCostDialog cost={editing} onClose={() => setEditing(null)} />
     </div>
-  );
-}
-
-export default function PlatformExternalCosts() {
-  return (
-    <PlatformAdminGate>
-      <PlatformExternalCostsContent />
-    </PlatformAdminGate>
   );
 }
