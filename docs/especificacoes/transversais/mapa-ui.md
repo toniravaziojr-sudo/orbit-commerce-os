@@ -292,7 +292,7 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 **IA e Suporte:**
 - `/chatgpt` — ChatGPT (FeatureGated: `assistant`)
 - `/ai-memories` — Memórias de IA
-- `/ai-packages` — Pacotes IA
+- `/ai-packages` — Pacotes IA (rota legada — futuramente redirect/incorporação em `/account/credits?tab=buy`)
 - `/support-center` — Central de suporte. **Abas oficiais:** Tickets, AI Config (com toggle Modo Vendas; **rev Onda 1A.1 2026-05-03:** painel reorganizado em **5 abas** — Essencial (contexto do negócio, regras gerais, claims/promessas proibidas), Conhecimento (fontes automáticas, conhecimento adicional, vocabulário e linguagem do nicho), Atendimento (identidade, objeções, regras condicionais, transferência, mídia, tópicos proibidos), Vendas (Modo Vendas), Avançado (modelo de IA, limites, metas, prompt do sistema legado colapsado). Card de **Diagnóstico do contexto da IA** no topo, agora compacto e expansível. Claims gravam em `tenant_brand_context`; `custom_knowledge` aparece em um único lugar (Conhecimento)), Conversas, **Funil WhatsApp** (`WhatsappSalesFunnel.tsx`, consome `whatsapp_sales_funnel_view`: carrinhos, convertidos, handoffs, pedidos, receita, taxa de conversão), **IA Teste** (`AISandboxChat.tsx` — chat sandbox que invoca a IA de Atendimento de produção, conversa em memória, cleanup automático ao fechar; ver `mem://constraints/ai-test-sandbox-mirror-only`). Doc funcional: `docs/especificacoes/whatsapp/modo-vendas-whatsapp.md`. **Histórico de diagnósticos e correções da IA:** `docs/especificacoes/whatsapp/ia-atendimento-changelog.md`.
 - `/getting-started` — Guia inicial
 
