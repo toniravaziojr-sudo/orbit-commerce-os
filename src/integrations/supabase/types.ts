@@ -17218,6 +17218,53 @@ export type Database = {
         }
         Relationships: []
       }
+      service_pricing_audit: {
+        Row: {
+          action: string
+          after: Json | null
+          before: Json | null
+          changed_at: string
+          changed_by: string | null
+          id: string
+          metadata: Json
+          reason: string
+          service_key: string
+          service_pricing_id: string | null
+        }
+        Insert: {
+          action: string
+          after?: Json | null
+          before?: Json | null
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          metadata?: Json
+          reason: string
+          service_key: string
+          service_pricing_id?: string | null
+        }
+        Update: {
+          action?: string
+          after?: Json | null
+          before?: Json | null
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          metadata?: Json
+          reason?: string
+          service_key?: string
+          service_pricing_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_pricing_audit_service_pricing_id_fkey"
+            columns: ["service_pricing_id"]
+            isOneToOne: false
+            referencedRelation: "service_pricing"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_usage_events: {
         Row: {
           category: string
@@ -23654,6 +23701,53 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: number
+      }
+      admin_pricing_create: {
+        Args: { p_payload: Json; p_reason: string }
+        Returns: {
+          error_code: string
+          error_message: string
+          pricing_id: string
+          success: boolean
+        }[]
+      }
+      admin_pricing_history: {
+        Args: { p_service_key: string }
+        Returns: {
+          action: string
+          after: Json
+          before: Json
+          changed_at: string
+          changed_by: string
+          id: string
+          reason: string
+          service_key: string
+        }[]
+      }
+      admin_pricing_set_active: {
+        Args: { p_active: boolean; p_id: string; p_reason: string }
+        Returns: {
+          error_code: string
+          error_message: string
+          success: boolean
+        }[]
+      }
+      admin_pricing_set_live_approval: {
+        Args: { p_approved: boolean; p_id: string; p_reason: string }
+        Returns: {
+          error_code: string
+          error_message: string
+          success: boolean
+        }[]
+      }
+      admin_pricing_version: {
+        Args: { p_current_id: string; p_payload: Json; p_reason: string }
+        Returns: {
+          error_code: string
+          error_message: string
+          new_pricing_id: string
+          success: boolean
+        }[]
       }
       ai_daily_snapshot_reconciliation: { Args: never; Returns: Json }
       append_delivery_attempt: {
