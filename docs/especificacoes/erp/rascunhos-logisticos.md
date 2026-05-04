@@ -83,7 +83,7 @@ Rastreamento (polling automático — PENDENTE)
 
 Módulo `_shared/nfe-shipment-link.ts` centraliza o vínculo NF-e → Remessa. Chamado por:
 - `fiscal-submit` (Focus NFe)
-- `fiscal-emit` (Nuvem Fiscal)
+- `fiscal-emit` (Focus NFe — rota síncrona)
 - `fiscal-webhook` (callback assíncrono)
 - `fiscal-check-status` (polling manual)
 - `fiscal-get-status` (consulta Focus)

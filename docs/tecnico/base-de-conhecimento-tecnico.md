@@ -171,15 +171,11 @@ useEffect(() => {
 1. Remover ou renomear `deno.lock` e tentar novamente
 2. Preferir `npm:` specifiers em vez de `esm.sh` para estabilidade
 
-### 2.3 platform-secrets-check não verificava credenciais novas
+### 2.3 platform-secrets-check não verificava credenciais novas (regra de migração de provedor)
 
-**Problema:** Após migrar de Focus NFe para Nuvem Fiscal, o Admin exibia "Não configurado" para o módulo Fiscal, apesar das credenciais estarem presentes no ambiente.
+**Histórico:** Em 2026-05-04 foi feita a migração reversa — abandonamos a Nuvem Fiscal e voltamos para a **Focus NFe** como provedor fiscal único e em produção. O `platform-secrets-check` agora verifica apenas `FOCUS_NFE_TOKEN`. Não há mais código, secrets ou referências à Nuvem Fiscal.
 
-**Causa raiz:** A edge function `platform-secrets-check` não foi atualizada para verificar `NUVEM_FISCAL_CLIENT_ID` e `NUVEM_FISCAL_CLIENT_SECRET`. Ela ainda procurava pelas chaves antigas da Focus.
-
-**Solução:** Atualizar `platform-secrets-check` para incluir as novas variáveis da Nuvem Fiscal na verificação.
-
-**Regra derivada:** Ao migrar de provedor, atualizar todas as referências ao provedor antigo em edge functions utilitárias (health checks, secrets checks, dashboards).
+**Regra derivada (permanente):** Ao migrar de provedor, atualizar TODAS as referências ao provedor antigo em: edge functions de domínio, shared adapters/clients, edge functions utilitárias (`platform-secrets-check`, health checks, dashboards), `platform_external_costs`, secrets, colunas legadas em tabelas e documentação Layer 2/3/4. A migração não pode ser declarada concluída até a busca global por `grep -ri "<provedor antigo>"` retornar zero resultados em código ativo.
 
 ### 2.4 Busca de clientes no Fiscal — campo e tabela errados
 

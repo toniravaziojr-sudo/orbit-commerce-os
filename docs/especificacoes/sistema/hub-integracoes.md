@@ -40,7 +40,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 | Resumo | Dashboard de status geral |
 | Email e Domínios | SendGrid, Cloudflare (plataforma) |
 | WhatsApp | Meta WhatsApp Cloud API (único provider) |
-| Fiscal | Nuvem Fiscal, Focus NFe |
+| Fiscal | Focus NFe (token único da plataforma — provedor único em produção) |
 | Logística | Loggi OAuth global |
 | IA | Gemini Nativa, OpenAI Nativa, Lovable AI Gateway (fallback), Firecrawl |
 | **Meta** | Meta Ads/Pixel (APP_ID, APP_SECRET) — GRAPH_API_VERSION e WEBHOOK_VERIFY_TOKEN são internos |
