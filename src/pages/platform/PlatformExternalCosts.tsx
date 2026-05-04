@@ -302,18 +302,18 @@ export default function PlatformExternalCosts() {
         title="Assinatura mensal"
         description="Serviços com mensalidade fixa e data de renovação."
         costs={subscription}
-        columns={["monthly", "renewal"]}
-        headers={["Custo mensal", "Renovação"]}
+        columns={["monthly", "renewal", "balance", "lastSync"]}
+        headers={["Custo mensal", "Renovação", "Saldo/Cota", "Última sync"]}
+        action={syncButton}
         onEdit={setEditing}
       />
 
       <Section
         title="Saldo pré-pago"
-        description="Serviços com créditos comprados antecipadamente. Recarregue antes que zere."
+        description="Serviços com créditos comprados antecipadamente. Sem API pública de saldo — atualize manualmente após cada recarga."
         costs={prepaid}
-        columns={["balance", "monthly", "lastSync"]}
-        headers={["Saldo", "Gasto no mês", "Última sync"]}
-        action={syncButton}
+        columns={["balance", "monthly"]}
+        headers={["Saldo (manual)", "Gasto no mês"]}
         onEdit={setEditing}
       />
 
