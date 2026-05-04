@@ -227,7 +227,7 @@ export async function classifyTurn(input: TPRInput): Promise<TurnClassification>
       if (!argsStr) return emptyClassification("fallback", Date.now() - start, "no_tool_call");
       const parsed = JSON.parse(argsStr);
       console.log(`[turn-pre-router] provider=lovable model=${TPR_MODEL} latency=${Date.now() - start}ms source=llm fallback=false (legacy)`);
-      return { ...emptyClassification("llm", Date.now() - start), ...parsed, source: "llm", latency_ms: Date.now() - start };
+      return { ...emptyClassification("llm", Date.now() - start), ...parsed, source: "llm", latency_ms: Date.now() - start, provider: "lovable", model: TPR_MODEL };
     } catch (e) {
       clearTimeout(t);
       const msg = (e as Error)?.message || String(e);
@@ -271,6 +271,8 @@ export async function classifyTurn(input: TPRInput): Promise<TurnClassification>
       ...parsed,
       source: "llm",
       latency_ms: latency,
+      provider: (result.provider as "gemini" | "openai" | "lovable") ?? null,
+      model: result.model ?? null,
     };
   } catch (e) {
     const msg = (e as Error)?.message || String(e);
