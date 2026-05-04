@@ -19913,8 +19913,10 @@ export type Database = {
       tenant_credit_motor_config: {
         Row: {
           live_categories: string[]
+          live_service_keys: string[]
           motor_v2_enabled: boolean
           shadow_categories: string[]
+          shadow_service_keys: string[]
           shadow_started_at: string | null
           tenant_id: string
           updated_at: string
@@ -19922,8 +19924,10 @@ export type Database = {
         }
         Insert: {
           live_categories?: string[]
+          live_service_keys?: string[]
           motor_v2_enabled?: boolean
           shadow_categories?: string[]
+          shadow_service_keys?: string[]
           shadow_started_at?: string | null
           tenant_id: string
           updated_at?: string
@@ -19931,8 +19935,10 @@ export type Database = {
         }
         Update: {
           live_categories?: string[]
+          live_service_keys?: string[]
           motor_v2_enabled?: boolean
           shadow_categories?: string[]
+          shadow_service_keys?: string[]
           shadow_started_at?: string | null
           tenant_id?: string
           updated_at?: string
