@@ -6094,7 +6094,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
               last_user_message_at: conversation?.last_customer_message_at ?? null,
               model_used: usedModel || modelUsed || null,
               response_length: 0,
-              duration_ms: latencyMs ?? null,
+              duration_ms: null,
               metadata: failureMetadata,
             });
           if (failLogErr) {
