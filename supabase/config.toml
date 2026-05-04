@@ -262,9 +262,6 @@ verify_jwt = false
 [functions.fiscal-sync-focus-nfe]
 verify_jwt = true
 
-[functions.fiscal-sync-nuvem-fiscal]
-verify_jwt = true
-
 [functions.fiscal-emit]
 verify_jwt = true
 
