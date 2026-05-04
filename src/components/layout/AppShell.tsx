@@ -1,13 +1,17 @@
 import { useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { AdminModeProvider } from "@/contexts/AdminModeContext";
 import { AdminErrorBoundary } from "./AdminErrorBoundary";
 import { MFAEnrollmentBanner } from "@/components/auth/MFAEnrollmentBanner";
+import { PlatformCostsAlertBanner } from "@/components/platform/PlatformCostsAlertBanner";
 
 export function AppShell() {
+  const location = useLocation();
+  const isPlatformRoute = location.pathname.startsWith("/platform");
+
   useEffect(() => {
     document.title = 'Comando Central';
   }, []);
@@ -56,6 +60,7 @@ export function AppShell() {
           <AppSidebar />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <AppHeader />
+            {isPlatformRoute && <PlatformCostsAlertBanner />}
             <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 scrollbar-thin">
               <div className="mx-auto max-w-[1600px]">
                 <PermissionGuard>

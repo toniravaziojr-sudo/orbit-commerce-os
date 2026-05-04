@@ -24,8 +24,7 @@ const EDITABLE_CREDENTIALS = [
   'FIRECRAWL_API_KEY',
   
   'OPENAI_API_KEY',
-  'LATE_API_KEY',
-  'LATE_WEBHOOK_SECRET',
+  // Late removido (não usamos mais)
   // Mercado Livre (Marketplace)
   'MELI_APP_ID',
   'MELI_CLIENT_SECRET',

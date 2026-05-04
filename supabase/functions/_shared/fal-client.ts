@@ -493,7 +493,7 @@ export async function generateVideoWithFal(
 
 /**
  * Aplica lipsync ao vídeo usando Kling Lipsync via fal.ai.
- * Requer vídeo + áudio (TTS via ElevenLabs).
+ * Requer vídeo + áudio (TTS).
  */
 export async function applyLipsyncWithFal(
   apiKey: string,

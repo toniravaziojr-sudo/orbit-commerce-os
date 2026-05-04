@@ -15255,6 +15255,78 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_external_costs: {
+        Row: {
+          balance_threshold_pct: number | null
+          balance_unit: string | null
+          category: string
+          created_at: string
+          current_balance: number | null
+          description: string | null
+          display_name: string
+          id: string
+          is_active: boolean
+          last_sync_at: string | null
+          last_sync_error: string | null
+          last_sync_status: string | null
+          metadata: Json
+          monthly_cost_brl: number | null
+          monthly_cost_usd: number | null
+          notes: string | null
+          renewal_date: string | null
+          service_key: string
+          sync_mode: string
+          updated_at: string
+          vendor_url: string | null
+        }
+        Insert: {
+          balance_threshold_pct?: number | null
+          balance_unit?: string | null
+          category: string
+          created_at?: string
+          current_balance?: number | null
+          description?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          metadata?: Json
+          monthly_cost_brl?: number | null
+          monthly_cost_usd?: number | null
+          notes?: string | null
+          renewal_date?: string | null
+          service_key: string
+          sync_mode?: string
+          updated_at?: string
+          vendor_url?: string | null
+        }
+        Update: {
+          balance_threshold_pct?: number | null
+          balance_unit?: string | null
+          category?: string
+          created_at?: string
+          current_balance?: number | null
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          metadata?: Json
+          monthly_cost_brl?: number | null
+          monthly_cost_usd?: number | null
+          notes?: string | null
+          renewal_date?: string | null
+          service_key?: string
+          sync_mode?: string
+          updated_at?: string
+          vendor_url?: string | null
+        }
+        Relationships: []
+      }
       post_sale_backfill_items: {
         Row: {
           created_at: string

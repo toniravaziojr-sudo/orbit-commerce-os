@@ -1,7 +1,7 @@
 /**
  * UGC Real Form — Transformar vídeo gravado pelo cliente
  * 
- * Pipeline: Akool (face swap) + ElevenLabs (voice) + Sync Labs (lipsync)
+ * Pipeline: Akool (face swap) + TTS + Sync Labs (lipsync)
  */
 
 import { useState } from 'react';
@@ -115,7 +115,7 @@ export function UGCRealForm() {
               </div>
             </div>
 
-            {/* Trocar Voz (ElevenLabs) */}
+            {/* Trocar Voz */}
             <div className="flex items-start gap-3 p-3 rounded-lg border">
               <Checkbox 
                 id="swap-voice" 
@@ -126,7 +126,6 @@ export function UGCRealForm() {
                 <Label htmlFor="swap-voice" className="flex items-center gap-2 cursor-pointer">
                    <Mic className="h-4 w-4" />
                    Trocar Voz
-                   {isSpecial && <Badge variant="outline" className="text-[10px]">ElevenLabs</Badge>}
                 </Label>
                 <p className="text-xs text-muted-foreground mt-1">
                   Gerar nova voz via TTS ou clonar uma voz de referência

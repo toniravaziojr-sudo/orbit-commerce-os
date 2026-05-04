@@ -6,7 +6,7 @@
  * 
  * Stack de Vídeo v2.0:
  * - Runway ML (geração de vídeo)
- * - ElevenLabs (TTS PT-BR)
+ * - TTS PT-BR
  * - Sync Labs (lipsync)
  * - Akool (face swap)
  * - HeyGen (avatares)

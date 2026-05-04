@@ -1,8 +1,8 @@
 // =============================================================
 // Phase 1 — Shared AI decision gate (single source of truth)
 // =============================================================
-// Used by ALL inbound webhooks (Meta WhatsApp, Z-API support-webhook,
-// Meta Page/Messenger, Instagram, Email) to decide if the AI engine
+// Used by ALL inbound webhooks (Meta WhatsApp, Meta Page/Messenger,
+// Instagram, Email) to decide if the AI engine
 // should be invoked AFTER the inbound message is already persisted.
 //
 // CRITICAL CONTRACT:

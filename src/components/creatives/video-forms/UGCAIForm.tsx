@@ -1,7 +1,7 @@
 /**
  * UGC AI Form — Pessoa 100% IA segurando/usando Produto
  * 
- * Pipeline: Runway ML (video) + ElevenLabs (TTS) + Sync Labs (lipsync)
+ * Pipeline: Runway ML (video) + TTS + Sync Labs (lipsync)
  */
 
 import { useState, useEffect } from 'react';
@@ -244,7 +244,7 @@ Exemplo:
                     <Badge variant="secondary" className="text-[10px]">Recomendado</Badge>
                   </Label>
                    <p className="text-xs text-muted-foreground mt-0.5">
-                     Narração em PT-BR{isSpecial ? ' via ElevenLabs' : ''} + sincronização labial
+                     Narração em PT-BR + sincronização labial
                    </p>
                 </div>
               </div>
