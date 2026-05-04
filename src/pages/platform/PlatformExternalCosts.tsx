@@ -239,7 +239,7 @@ export default function PlatformExternalCosts() {
     }
   };
 
-  const syncButton = (
+  const syncButton = hasAutoSync ? (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -249,11 +249,11 @@ export default function PlatformExternalCosts() {
           </Button>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
-          Consulta as APIs dos fornecedores e atualiza o saldo dos serviços pré-pagos. Roda automaticamente a cada 6h.
+          Consulta apenas serviços com API pública de saldo: <strong>{autoSyncNames}</strong>. Roda automaticamente a cada 6h. Os demais devem ser atualizados manualmente.
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
+  ) : null;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
