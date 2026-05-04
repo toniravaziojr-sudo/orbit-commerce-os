@@ -258,13 +258,23 @@ export default function PlatformExternalCosts() {
     </TooltipProvider>
   ) : null;
 
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "pricing" ? "pricing" : "costs";
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Custos Externos</h1>
-        <p className="text-muted-foreground">Serviços de terceiros pagos pela plataforma, agrupados por modelo de cobrança.</p>
+        <p className="text-muted-foreground">Serviços de terceiros pagos pela plataforma e catálogo de preços do Motor de Créditos.</p>
       </div>
 
+      <Tabs value={tab} onValueChange={(v) => setParams(v === "pricing" ? { tab: "pricing" } : {})}>
+        <TabsList>
+          <TabsTrigger value="costs">Custos da plataforma</TabsTrigger>
+          <TabsTrigger value="pricing">Catálogo de preços</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="costs" className="space-y-6 mt-4">
       {alerts.length > 0 && (
         <Alert variant={alerts.some((a) => a.level === "critical") ? "destructive" : "default"}>
           <AlertTriangle className="h-4 w-4" />
