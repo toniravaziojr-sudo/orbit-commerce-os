@@ -9,6 +9,9 @@ import { MFAEnrollmentBanner } from "@/components/auth/MFAEnrollmentBanner";
 import { PlatformCostsAlertBanner } from "@/components/platform/PlatformCostsAlertBanner";
 
 export function AppShell() {
+  const location = useLocation();
+  const isPlatformRoute = location.pathname.startsWith("/platform");
+
   useEffect(() => {
     document.title = 'Comando Central';
   }, []);
