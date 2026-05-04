@@ -223,6 +223,8 @@ export default function PlatformExternalCosts() {
   const subscription = list.filter((c) => c.billing_model === "subscription");
   const prepaid = list.filter((c) => c.billing_model === "prepaid");
   const payg = list.filter((c) => c.billing_model === "payg");
+  const hasAutoSync = list.some((c) => c.sync_mode === "auto");
+  const autoSyncNames = list.filter((c) => c.sync_mode === "auto").map((c) => c.display_name).join(", ");
 
   const alerts = list.map((c) => ({ cost: c, level: isCostAlerting(c) })).filter((a) => a.level);
   const total = list.reduce((sum, c) => sum + (c.monthly_cost_brl ?? (c.monthly_cost_usd ?? 0) * 5.5), 0);
@@ -237,7 +239,7 @@ export default function PlatformExternalCosts() {
     }
   };
 
-  const syncButton = (
+  const syncButton = hasAutoSync ? (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -247,11 +249,11 @@ export default function PlatformExternalCosts() {
           </Button>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
-          Consulta as APIs dos fornecedores e atualiza o saldo dos serviços pré-pagos. Roda automaticamente a cada 6h.
+          Consulta apenas serviços com API pública de saldo: <strong>{autoSyncNames}</strong>. Roda automaticamente a cada 6h. Os demais devem ser atualizados manualmente.
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
+  ) : null;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -300,18 +302,18 @@ export default function PlatformExternalCosts() {
         title="Assinatura mensal"
         description="Serviços com mensalidade fixa e data de renovação."
         costs={subscription}
-        columns={["monthly", "renewal"]}
-        headers={["Custo mensal", "Renovação"]}
+        columns={["monthly", "renewal", "balance", "lastSync"]}
+        headers={["Custo mensal", "Renovação", "Saldo/Cota", "Última sync"]}
+        action={syncButton}
         onEdit={setEditing}
       />
 
       <Section
         title="Saldo pré-pago"
-        description="Serviços com créditos comprados antecipadamente. Recarregue antes que zere."
+        description="Serviços com créditos comprados antecipadamente. Sem API pública de saldo — atualize manualmente após cada recarga."
         costs={prepaid}
-        columns={["balance", "monthly", "lastSync"]}
-        headers={["Saldo", "Gasto no mês", "Última sync"]}
-        action={syncButton}
+        columns={["balance", "monthly"]}
+        headers={["Saldo (manual)", "Gasto no mês"]}
         onEdit={setEditing}
       />
 
