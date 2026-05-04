@@ -11,6 +11,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, RefreshCcw, ExternalLink, Pencil, Info } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PricingCatalogTab from "@/components/platform/PricingCatalogTab";
+import { useSearchParams } from "react-router-dom";
 import {
   usePlatformExternalCosts,
   useSyncExternalCosts,
