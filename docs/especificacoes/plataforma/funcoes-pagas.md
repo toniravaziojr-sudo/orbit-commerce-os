@@ -182,3 +182,57 @@ Catalogar toda edge function que consome (ou pode consumir) custo externo pago. 
 - `docs/especificacoes/plataforma/motor-creditos.md`
 - `docs/especificacoes/plataforma/catalogo-precos-creditos.md`
 - `docs/especificacoes/plataforma/workers-crons-pagos.md`
+
+---
+
+## Fase 3 — Primeiro plug em shadow mode (youtube-upload)
+
+**Status:** Ativo desde 2026-05-04. Piloto: Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
+
+### Decisões aprovadas
+
+- `youtube-upload` continua usando RPCs v1 (`check_credit_balance`, `reserve_credits`, `consume_credits`) como **única** fonte de cobrança real.
+- Motor v2 roda em **modo paralelo** (shadow), apenas calculando créditos via `estimate_credits_internal` e gravando em `service_usage_events` com `status='shadow'`.
+- v2 **não** altera `credit_wallet` e **não** insere linhas financeiras em `credit_ledger`.
+- Falha do v2 nunca propaga para o usuário (try/catch silencioso, log `WARN`).
+
+### Service pricing
+
+- `service_key`: `platform.youtube_upload`
+- `category`: `platform_internal` (nova categoria, monetização interna sem custo externo direto)
+- `provider`: `youtube`, `unit`: `upload`, `display_name`: `YouTube Upload`
+- `metadata.pricing_model`: `fixed_credits` — base 16, +1 thumbnail, +2 captions (espelha v1)
+- `metadata.placeholder=true`, `metadata.approved_for_live=false`, `metadata.shadow_only=true`
+- `cost_usd=0.005` é apenas placeholder técnico; não representa venda em créditos para este caso (cálculo usa `fixed_credits`).
+
+### Ativação por tenant
+
+`tenant_credit_motor_config` ganhou as colunas `shadow_service_keys` e `live_service_keys` (text[]).
+A ativação shadow é **por service_key**, não por categoria, sempre que tecnicamente possível.
+
+```text
+motor_v2_enabled       = false
+shadow_categories      = []
+live_categories        = []
+shadow_service_keys    = ['platform.youtube_upload']
+live_service_keys      = []
+```
+
+### Critérios de divergência
+
+- `delta_abs = |v2_credits − v1_credits|`
+- `delta_pct = delta_abs / v1_credits × 100`
+- `≤ 1%` ideal; `> 5%` marca `metadata.divergence_alert=true`. Erro v2 marca `metadata.shadow_error=true`.
+- Divergência **não bloqueia** o usuário.
+
+### Idempotência shadow
+
+Chave determinística: `youtube-upload-shadow-v2:{tenant_id}:{video_id ou job_id}`. Retry não duplica evento (verificação prévia em `service_usage_events`).
+
+### Rollback
+
+Remover `platform.youtube_upload` de `shadow_service_keys` no tenant. v1 continua intacto. Eventos shadow são preservados para auditoria.
+
+### Janela de avaliação
+
+7 dias antes de avaliar GO/NO-GO para live. Critério provisório de live: 0 erros v2 + |delta_pct médio| ≤ 1% em ≥50 eventos.
