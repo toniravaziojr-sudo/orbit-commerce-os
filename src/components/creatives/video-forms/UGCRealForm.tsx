@@ -1,7 +1,7 @@
 /**
  * UGC Real Form — Transformar vídeo gravado pelo cliente
  * 
- * Pipeline: Akool (face swap) + ElevenLabs (voice) + Sync Labs (lipsync)
+ * Pipeline: Akool (face swap) + TTS + Sync Labs (lipsync)
  */
 
 import { useState } from 'react';
