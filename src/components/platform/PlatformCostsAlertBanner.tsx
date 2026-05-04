@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import { usePlatformCostsAlerts } from "@/hooks/usePlatformExternalCosts";
-import { useTenantAccess } from "@/hooks/useTenantAccess";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 
 /**
  * Banner fixo de alertas de custos externos.
@@ -9,11 +9,10 @@ import { useTenantAccess } from "@/hooks/useTenantAccess";
  * Apenas para platform admins.
  */
 export function PlatformCostsAlertBanner() {
-  const access = useTenantAccess();
-  const isPlatformAdmin = access?.isPlatform ?? false;
+  const { isPlatformOperator } = usePlatformOperator();
   const { alerts, hasCritical } = usePlatformCostsAlerts();
 
-  if (!isPlatformAdmin || alerts.length === 0) return null;
+  if (!isPlatformOperator || alerts.length === 0) return null;
 
   return (
     <div
