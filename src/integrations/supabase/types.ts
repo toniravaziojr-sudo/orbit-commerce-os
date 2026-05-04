@@ -5800,8 +5800,11 @@ export type Database = {
           markup_pct_snap: number | null
           metadata: Json | null
           model: string | null
+          operation_status: string | null
           pricing_id: string | null
           provider: string | null
+          reference_ledger_id: string | null
+          reservation_expires_at: string | null
           sell_brl: number | null
           sell_usd: number | null
           service_key: string | null
@@ -5828,8 +5831,11 @@ export type Database = {
           markup_pct_snap?: number | null
           metadata?: Json | null
           model?: string | null
+          operation_status?: string | null
           pricing_id?: string | null
           provider?: string | null
+          reference_ledger_id?: string | null
+          reservation_expires_at?: string | null
           sell_brl?: number | null
           sell_usd?: number | null
           service_key?: string | null
@@ -5856,8 +5862,11 @@ export type Database = {
           markup_pct_snap?: number | null
           metadata?: Json | null
           model?: string | null
+          operation_status?: string | null
           pricing_id?: string | null
           provider?: string | null
+          reference_ledger_id?: string | null
+          reservation_expires_at?: string | null
           sell_brl?: number | null
           sell_usd?: number | null
           service_key?: string | null
@@ -5867,6 +5876,20 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "credit_ledger_reference_ledger_id_fkey"
+            columns: ["reference_ledger_id"]
+            isOneToOne: false
+            referencedRelation: "credit_ledger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_ledger_reference_ledger_id_fkey"
+            columns: ["reference_ledger_id"]
+            isOneToOne: false
+            referencedRelation: "credit_ledger_tenant_view"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "credit_ledger_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -17206,10 +17229,12 @@ export type Database = {
           origin_function: string | null
           platform_cost_ledger_id: string | null
           provider: string
+          reservation_ledger_id: string | null
           service_key: string
           status: string
           tenant_id: string | null
           units_json: Json
+          updated_at: string
         }
         Insert: {
           category: string
@@ -17221,10 +17246,12 @@ export type Database = {
           origin_function?: string | null
           platform_cost_ledger_id?: string | null
           provider: string
+          reservation_ledger_id?: string | null
           service_key: string
           status: string
           tenant_id?: string | null
           units_json?: Json
+          updated_at?: string
         }
         Update: {
           category?: string
@@ -17236,12 +17263,29 @@ export type Database = {
           origin_function?: string | null
           platform_cost_ledger_id?: string | null
           provider?: string
+          reservation_ledger_id?: string | null
           service_key?: string
           status?: string
           tenant_id?: string | null
           units_json?: Json
+          updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "service_usage_events_reservation_ledger_id_fkey"
+            columns: ["reservation_ledger_id"]
+            isOneToOne: false
+            referencedRelation: "credit_ledger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_usage_events_reservation_ledger_id_fkey"
+            columns: ["reservation_ledger_id"]
+            isOneToOne: false
+            referencedRelation: "credit_ledger_tenant_view"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       shipment_events: {
         Row: {
@@ -19812,6 +19856,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tenant_business_context_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_credit_motor_config: {
+        Row: {
+          live_categories: string[]
+          motor_v2_enabled: boolean
+          shadow_categories: string[]
+          shadow_started_at: string | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          live_categories?: string[]
+          motor_v2_enabled?: boolean
+          shadow_categories?: string[]
+          shadow_started_at?: string | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          live_categories?: string[]
+          motor_v2_enabled?: boolean
+          shadow_categories?: string[]
+          shadow_started_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_credit_motor_config_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "tenants"
@@ -23535,6 +23617,30 @@ export type Database = {
       }
     }
     Functions: {
+      _compute_units_quantity: {
+        Args: { p_unit: string; p_units: Json }
+        Returns: number
+      }
+      _get_active_fx: {
+        Args: { p_base?: string; p_quote?: string }
+        Returns: {
+          rate: number
+          source: string
+        }[]
+      }
+      _get_active_pricing: {
+        Args: { p_service_key: string }
+        Returns: {
+          category: string
+          cost_usd: number
+          id: string
+          is_active: boolean
+          markup_pct: number
+          provider: string
+          service_key: string
+          unit: string
+        }[]
+      }
       accept_invitation: {
         Args: { p_token: string; p_user_id: string }
         Returns: Json
@@ -23567,13 +23673,65 @@ export type Database = {
         }
         Returns: number
       }
+      capture_reservation: {
+        Args: {
+          p_actual_units: Json
+          p_idempotency_key?: string
+          p_metadata?: Json
+          p_provider_cost_usd?: number
+          p_reservation_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          balance_after: number
+          credits_charged: number
+          credits_released_diff: number
+          error_code: string
+          error_message: string
+          ledger_id: string
+          success: boolean
+        }[]
+      }
       capture_system_health_snapshot: { Args: never; Returns: string }
+      charge_credits_v2: {
+        Args: {
+          p_dry_run?: boolean
+          p_feature?: string
+          p_idempotency_key: string
+          p_job_id?: string
+          p_metadata?: Json
+          p_service_key: string
+          p_tenant_id: string
+          p_units: Json
+          p_user_id: string
+        }
+        Returns: {
+          balance_after: number
+          credits_charged: number
+          error_code: string
+          error_message: string
+          ledger_id: string
+          success: boolean
+        }[]
+      }
       check_credit_balance: {
         Args: { p_credits_needed: number; p_tenant_id: string }
         Returns: {
           credits_missing: number
           current_balance: number
           has_balance: boolean
+        }[]
+      }
+      check_credit_balance_v2: {
+        Args: { p_credits_needed?: number; p_tenant_id: string }
+        Returns: {
+          available_credits: number
+          balance_credits: number
+          has_balance: boolean
+          missing_credits: number
+          requested_credits: number
+          reserved_credits: number
+          success: boolean
         }[]
       }
       check_learning_content_safety: {
@@ -23714,6 +23872,36 @@ export type Database = {
       ensure_default_email_marketing_lists: {
         Args: { p_tenant_id: string }
         Returns: undefined
+      }
+      estimate_credits_internal: {
+        Args: { p_service_key: string; p_units?: Json }
+        Returns: {
+          category: string
+          cost_usd_snap: number
+          credits_estimated: number
+          error_code: string
+          error_message: string
+          fx_rate_snap: number
+          markup_pct_snap: number
+          pricing_id: string
+          sell_brl_snap: number
+          sell_usd_snap: number
+          service_key: string
+          success: boolean
+        }[]
+      }
+      estimate_credits_public: {
+        Args: { p_service_key: string; p_tenant_id: string; p_units?: Json }
+        Returns: {
+          category: string
+          credits_estimated: number
+          error_code: string
+          error_message: string
+          pricing_id: string
+          sell_brl_estimated: number
+          service_key: string
+          success: boolean
+        }[]
       }
       fail_turn: {
         Args: {
@@ -24089,6 +24277,57 @@ export type Database = {
         Args: { p_channel: string; p_count?: number; p_tenant_id: string }
         Returns: Json
       }
+      record_platform_cost: {
+        Args: {
+          p_cost_usd: number
+          p_idempotency_key?: string
+          p_metadata?: Json
+          p_origin: string
+          p_origin_id?: string
+          p_service_key: string
+          p_units: Json
+        }
+        Returns: {
+          error_code: string
+          error_message: string
+          ledger_id: string
+          success: boolean
+        }[]
+      }
+      refund_credits: {
+        Args: {
+          p_credits: number
+          p_idempotency_key?: string
+          p_metadata?: Json
+          p_reason?: string
+          p_reference_ledger_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          balance_after: number
+          credits_refunded: number
+          error_code: string
+          error_message: string
+          ledger_id: string
+          success: boolean
+        }[]
+      }
+      release_reservation: {
+        Args: {
+          p_idempotency_key?: string
+          p_metadata?: Json
+          p_reason?: string
+          p_reservation_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          credits_released: number
+          error_code: string
+          error_message: string
+          ledger_id: string
+          success: boolean
+        }[]
+      }
       reopen_turn: {
         Args: {
           p_claim_token: string
@@ -24108,6 +24347,30 @@ export type Database = {
         Returns: {
           error_message: string
           new_balance: number
+          success: boolean
+        }[]
+      }
+      reserve_credits_v2: {
+        Args: {
+          p_dry_run?: boolean
+          p_feature?: string
+          p_idempotency_key: string
+          p_job_id?: string
+          p_metadata?: Json
+          p_reservation_ttl_minutes?: number
+          p_service_key: string
+          p_tenant_id: string
+          p_units: Json
+          p_user_id: string
+        }
+        Returns: {
+          balance_after: number
+          credits_reserved: number
+          error_code: string
+          error_message: string
+          pricing_id: string
+          reservation_id: string
+          sell_brl_snap: number
           success: boolean
         }[]
       }
