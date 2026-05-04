@@ -132,3 +132,19 @@ A UI admin **não** calcula valores no frontend. Toda agregação vem de:
 - `docs/especificacoes/plataforma/workers-crons-pagos.md`
 - `docs/especificacoes/transversais/custos-externos.md`
 - `docs/especificacoes/sistema/ux-creditos-lojista.md`
+
+---
+
+## 12. Aba "Catálogo de preços" — implementada (Fase 2B, 2026-05-04)
+
+Rota: `/platform/external-costs?tab=pricing`. Acesso: platform_admin (RLS + UI gate).
+
+**Colunas:** service_key, display_name, category, provider, unit, cost_usd, markup_pct, sell_usd estimado, vigência, badges (ativo, placeholder, live ✓/✗, bloqueado).
+**Filtros:** busca livre, category, provider, ativo/inativo, placeholder yes/no, approved_for_live yes/no.
+**Ações:** Novo preço, Versionar, Histórico, Ativar/Desativar, Aprovar/Revogar live, Exportar CSV.
+**Regras:**
+- Reason obrigatório (≥3 chars) em todas as ações.
+- Versionar não faz UPDATE retroativo — fecha `effective_until` e cria nova linha.
+- Aprovar live bloqueado para placeholders com `price_source='manual_placeholder'`.
+- Reativar bloqueado se já existe versão ativa mais recente do mesmo `service_key`.
+- Histórico vem de `admin_pricing_history` RPC.

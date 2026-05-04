@@ -88,7 +88,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 8 | Tutoriais por Módulo | `/platform/tutorials` | — |
 | 9 | Tenants | `/platform/tenants` | — |
 | 10 | Ferramentas | `/platform/tools` | — |
-| 11 | Custos Externos | `/platform/external-costs` | Painel de serviços de terceiros, sync 6h, banner de alerta. **Expansão futura prevista** (especificada, ainda não implementada): abas Consumo por tenant, Consumo por categoria, Consumo por provedor, Catálogo de preços, Reconciliação e Margens. Ver `docs/especificacoes/plataforma/ux-admin-creditos-custos.md`. |
+| 11 | Custos Externos | `/platform/external-costs` | Abas: **Custos da plataforma** (sync 6h, banner alerta) e **Catálogo de preços** (`?tab=pricing`, Fase 2B — CRUD versionado de `service_pricing`, gate `approved_for_live`, auditoria com motivo obrigatório, platform_admin only). Expansão futura prevista: Consumo por tenant/categoria/provedor, Reconciliação, Margens. Ver `docs/especificacoes/plataforma/ux-admin-creditos-custos.md`. |
 
 ---
 
