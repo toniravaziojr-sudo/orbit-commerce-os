@@ -13,6 +13,7 @@ export interface OrderDraftCustomer {
   email: string;
   phone: string;
   cpf: string;
+  birthDate: string; // ISO yyyy-MM-dd
   shippingStreet: string;
   shippingNumber: string;
   shippingComplement: string;
