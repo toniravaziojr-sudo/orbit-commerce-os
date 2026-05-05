@@ -36,7 +36,7 @@ type: reference
 
 ---
 
-## Auto #1) Motor Universal de Créditos — Fase 3 shadow mode youtube-upload (PAUSADO, aguardando conexão YouTube real)
+## 📌 PINNED — Motor Universal de Créditos — Fase 3 shadow mode youtube-upload (PAUSADO, aguardando conexão YouTube real)
 
 **Status macro:**
 - Fase 0/1/2A/2B ✅ executadas e validadas.
