@@ -193,6 +193,7 @@ async function recordImageShadowV2(supabase: any, args: {
   imageUrl?: string | null;
   preRouteDecision?: PreRouteDecision | null;
   preRouterError?: string | null;
+  shadowReservationMeta?: ShadowReservationMetadata | null;
 }): Promise<void> {
   try {
     // 1) Verifica se tenant está habilitado em shadow_service_keys
@@ -322,6 +323,7 @@ async function recordImageShadowV2(supabase: any, args: {
           idempotency_key: idempotencyKey,
           shadow_error: est.success ? null : (est.error_message || est.error_code || null),
           ...sidecarMeta,
+          ...(args.shadowReservationMeta ? args.shadowReservationMeta : {}),
         },
       });
 
@@ -338,9 +340,12 @@ async function recordImageShadowV2(supabase: any, args: {
   }
 }
 
-// ========== PRE-ROUTER GATE (Fase A1) ==========
-// Avalia metadata.pre_router_enabled no tenant antes de invocar o sidecar.
-async function isPreRouterEnabledForTenant(supabase: any, tenantId: string): Promise<boolean> {
+// ========== PRE-ROUTER GATE (Fase A1) + SHADOW RESERVATION GATE (Fase A2) ==========
+// Avalia metadata.pre_router_enabled e metadata.shadow_reservation_enabled no tenant.
+async function loadTenantMotorGates(supabase: any, tenantId: string): Promise<{
+  preRouterEnabled: boolean;
+  shadowReservationEnabled: boolean;
+}> {
   try {
     const { data } = await supabase
       .from('tenant_credit_motor_config')
@@ -348,10 +353,59 @@ async function isPreRouterEnabledForTenant(supabase: any, tenantId: string): Pro
       .eq('tenant_id', tenantId)
       .maybeSingle();
     const meta = (data?.metadata || {}) as Record<string, any>;
-    return meta.pre_router_enabled === true;
+    return {
+      preRouterEnabled: meta.pre_router_enabled === true,
+      shadowReservationEnabled: isShadowReservationEnabled(meta),
+    };
   } catch (e: any) {
-    console.warn('[creative-image.pre-router] gate check failed (default off):', e?.message || e);
-    return false;
+    console.warn('[creative-image.motor-gates] check failed (default off):', e?.message || e);
+    return { preRouterEnabled: false, shadowReservationEnabled: false };
+  }
+}
+
+// Helper: lê pricing ativo da service_key prevista (apenas SELECT)
+async function loadActivePricingForKey(supabase: any, serviceKey: string): Promise<PricingSnapshotInput | null> {
+  try {
+    const { data } = await supabase
+      .from('service_pricing')
+      .select('id, service_key, cost_usd, markup_pct, unit, is_active, effective_until, metadata')
+      .eq('service_key', serviceKey)
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      pricing_id: data.id,
+      service_key: data.service_key,
+      cost_usd: Number(data.cost_usd),
+      markup_pct: Number(data.markup_pct),
+      unit: data.unit,
+      is_active: data.is_active,
+      effective_until: data.effective_until,
+      approved_for_live: (data.metadata as any)?.approved_for_live ?? null,
+    };
+  } catch (e: any) {
+    console.warn('[creative-image.shadow-reservation] pricing load failed:', e?.message || e);
+    return null;
+  }
+}
+
+// Helper: lê wallet do tenant (apenas SELECT, jamais muta)
+async function loadWalletSnapshot(supabase: any, tenantId: string): Promise<WalletSnapshotInput> {
+  try {
+    const { data } = await supabase
+      .from('credit_wallet')
+      .select('balance_credits, reserved_credits')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    return {
+      balance_credits: Number(data?.balance_credits ?? 0),
+      reserved_credits: Number(data?.reserved_credits ?? 0),
+    };
+  } catch (e: any) {
+    console.warn('[creative-image.shadow-reservation] wallet load failed:', e?.message || e);
+    return { balance_credits: 0, reserved_credits: 0 };
   }
 }
 
