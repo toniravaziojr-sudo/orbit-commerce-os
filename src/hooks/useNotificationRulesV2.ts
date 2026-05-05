@@ -118,6 +118,9 @@ function getTriggerEventType(ruleType: RuleType, condition: TriggerCondition): s
   if (ruleType === 'post_sale') {
     return 'customer.first_order';
   }
+  if (ruleType === 'customer_birthday') {
+    return 'customer.birthday';
+  }
   return 'order.created';
 }
 
@@ -130,6 +133,7 @@ function getDedupeScope(ruleType: RuleType): 'order' | 'customer' | 'cart' | 'no
     case 'abandoned_checkout':
       return 'cart';
     case 'post_sale':
+    case 'customer_birthday':
       return 'customer';
     default:
       return 'none';
