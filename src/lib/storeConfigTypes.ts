@@ -375,5 +375,8 @@ export function parseCheckoutConfig(data: unknown): CheckoutConfig {
     showPix: obj.showPix !== false,
     showBoleto: obj.showBoleto !== false,
     showCreditCard: obj.showCreditCard !== false,
+    // Birth date capture
+    requestBirthDate: Boolean(obj.requestBirthDate),
+    birthDateRequired: Boolean(obj.birthDateRequired),
   };
 }
