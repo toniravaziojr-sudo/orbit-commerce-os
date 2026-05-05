@@ -105,7 +105,7 @@ async function buildCustomerLookup(supabase: any, tenantId: string) {
   while (true) {
     const { data: rows } = await supabase
       .from("customers")
-      .select("email, phone, full_name, birth_date, gender, addresses:customer_addresses(city, state, zip_code, country, is_default)")
+      .select("email, phone, full_name, birth_date, gender, addresses:customer_addresses(city, state, postal_code, country, is_default)")
       .eq("tenant_id", tenantId)
       .is("deleted_at", null)
       .range(from, from + PAGE - 1);
