@@ -1,4 +1,4 @@
-import { CreditCard, Truck, ShoppingCart, Users } from "lucide-react";
+import { CreditCard, Truck, ShoppingCart, Users, Cake } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useTenantAccess } from "@/hooks/useTenantAccess";
