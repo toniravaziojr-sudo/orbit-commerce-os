@@ -302,6 +302,55 @@ Notas observadas no Gerenciador de Eventos da Meta no dia da entrega da v8.28.0 
 
 ---
 
+## Técnica 7 — Cofre estendido (`db`/`ge`/`lead_id`/`external_id` array) — v8.30.0
+
+**Problema observado.** Mesmo com o cofre `_sf_identity` (v8.28.0) cobrindo nome/cidade/UF/CEP, o sistema não enviava à Meta dois parâmetros oficiais de alto peso para EMQ — `db` (date of birth) e `ge` (gender) — nem aproveitava o `external_id` como **array** ([visitor + customer]) quando o cliente está identificado.
+
+### Mudanças (4 quick wins + cofre estendido)
+
+1. **Cofre `_sf_identity` v8.30 — novos campos:**
+   - `db_hash` — SHA-256 de `YYYYMMDD` da data de nascimento.
+   - `ge_hash` — SHA-256 de `m`/`f` (single char, lowercase).
+   - `lead_id` — UUID gerado em `trackLead`, persistido para reuso em Purchase.
+   - `customer_id` — quando logado, persistido para `external_id` array.
+2. **`external_id` como array** `[sf_vid, customer_id]` — visitor + customer ID.
+3. **`predicted_ltv`** — em `Purchase`, valor = `value × 1.8` (multiplier conservador).
+4. **`delivery_category: 'home_delivery'`** — em AddToCart, InitiateCheckout, AddShippingInfo, AddPaymentInfo, Purchase.
+5. **`lead_id` em `custom_data`** — gerado em Lead, replicado em Purchase para fechamento de funil de Lead Ads.
+
+### Captura de `db` e `ge`
+
+Coleta opcional, controlada pelo lojista via toggles:
+- **Builder > Tema > Página Checkout > "Pedir data de nascimento"** (`requestBirthDate` + `birthDateRequired`).
+- **Builder > Tema > Rodapé > Newsletter > "Pedir data de nascimento"** (`newsletterShowBirthDate` + `newsletterBirthDateRequired`).
+- Blocos `newsletter_form` e `newsletter_popup` (props `showBirthDate` / `birthDateRequired`).
+
+Validação universal: idade mínima 13, máxima 120 anos. Persistência:
+- `checkout_sessions.customer_birth_date` (DATE)
+- `orders.customer_birth_date` (DATE)
+- `customers.birth_date` (DATE — primeira ocorrência via política de enriquecimento)
+- Cofre `_sf_identity.db_hash` (SHA-256 do formato `YYYYMMDD`)
+
+`ge` permanece preparado no cofre, sem coleta ativa nesta entrega.
+
+### Backend — campos aceitos
+
+`supabase/functions/_shared/meta-capi-sender.ts`:
+- `date_of_birth_hashed` → `user_data.db`
+- `gender_hashed` → `user_data.ge`
+- `external_id` array → enviado como recebido (sem hash)
+
+### Cobertura esperada
+
+| Evento | EMQ esperado |
+|---|---|
+| Lead | ≥9.3 (era 8.0) |
+| Purchase | ≥9.5 (era 7.5) |
+
+A edge `audience-sync-weekly` (v1.2.0) também passa a enriquecer com dados demográficos hashados — ver `audience-sync-weekly.md`.
+
+---
+
 ## Configurações por Tenant
 
 `store_settings.checkout_config`:
