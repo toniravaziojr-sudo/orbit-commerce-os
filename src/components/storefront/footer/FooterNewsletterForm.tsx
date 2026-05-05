@@ -1,12 +1,15 @@
 // =============================================
 // FOOTER NEWSLETTER FORM - Horizontal newsletter form for footer
 // Uses marketing-form-submit edge function for lead capture
+// Optional birth_date capture (toggle in Tema → Rodapé → Newsletter)
 // =============================================
 
 import { useState } from 'react';
-import { Send, Loader2, Check } from 'lucide-react';
+import { Send, Loader2, Check, Calendar as CalendarIcon } from 'lucide-react';
+import { format, parse } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 
 interface FooterNewsletterFormProps {
   tenantId?: string;
@@ -20,6 +23,8 @@ interface FooterNewsletterFormProps {
   buttonBgColor?: string;
   buttonTextColor?: string;
   isEditing?: boolean;
+  showBirthDate?: boolean;
+  birthDateRequired?: boolean;
 }
 
 export function FooterNewsletterForm({
@@ -34,8 +39,11 @@ export function FooterNewsletterForm({
   buttonBgColor,
   buttonTextColor,
   isEditing = false,
+  showBirthDate = false,
+  birthDateRequired = false,
 }: FooterNewsletterFormProps) {
   const [email, setEmail] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -43,11 +51,16 @@ export function FooterNewsletterForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isEditing) return;
-    
+
     const trimmedEmail = email.trim().toLowerCase();
-    
+
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
       setError('Por favor, insira um e-mail válido');
+      return;
+    }
+
+    if (showBirthDate && birthDateRequired && !birthDate) {
+      setError('Por favor, informe sua data de nascimento');
       return;
     }
 
@@ -59,7 +72,10 @@ export function FooterNewsletterForm({
         body: {
           tenant_id: tenantId,
           list_id: listId || undefined,
-          fields: { email: trimmedEmail },
+          fields: {
+            email: trimmedEmail,
+            ...(showBirthDate && birthDate ? { birth_date: birthDate } : {}),
+          },
           source: 'footer_newsletter',
         },
       });
@@ -70,7 +86,8 @@ export function FooterNewsletterForm({
 
       setIsSuccess(true);
       setEmail('');
-      
+      setBirthDate('');
+
       // Reset success state after 5 seconds
       setTimeout(() => setIsSuccess(false), 5000);
     } catch (err: unknown) {
@@ -86,14 +103,14 @@ export function FooterNewsletterForm({
     return (
       <div className="flex flex-col gap-2">
         {title && (
-          <h4 
+          <h4
             className="text-sm font-semibold uppercase tracking-wide"
             style={{ color: textColor || undefined }}
           >
             {title}
           </h4>
         )}
-        <div 
+        <div
           className="flex items-center gap-2 text-sm"
           style={{ color: textColor || undefined }}
         >
@@ -108,17 +125,17 @@ export function FooterNewsletterForm({
     <div className="flex flex-col gap-2 w-full">
       {/* Title - only show if provided and not empty */}
       {title && title.trim() !== '' && (
-        <h4 
+        <h4
           className="text-sm font-semibold uppercase tracking-wide"
           style={{ color: textColor || undefined }}
         >
           {title}
         </h4>
       )}
-      
+
       {/* Subtitle - only show if provided and not empty */}
       {subtitle && subtitle.trim() !== '' && (
-        <p 
+        <p
           className="text-xs opacity-80"
           style={{ color: textColor || undefined }}
         >
@@ -126,58 +143,77 @@ export function FooterNewsletterForm({
         </p>
       )}
 
-      {/* Form - full width horizontal layout */}
-      <form onSubmit={handleSubmit} className="flex items-stretch w-full">
-        <div className="relative flex-1">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (error) setError('');
-            }}
-            placeholder={placeholder}
-            disabled={isLoading || isEditing}
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2 w-full">
+        <div className="flex items-stretch w-full">
+          <div className="relative flex-1">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError('');
+              }}
+              placeholder={placeholder}
+              disabled={isLoading || isEditing}
+              className={cn(
+                "w-full h-11 px-4 text-sm rounded-l-md",
+                "border border-r-0 bg-white/15 backdrop-blur-sm",
+                "placeholder:opacity-70 focus:outline-none focus:ring-2 focus:ring-primary/30",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+                error && "border-destructive"
+              )}
+              style={{
+                color: textColor || undefined,
+                borderColor: textColor ? `${textColor}30` : undefined,
+              }}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading || isEditing || !email.trim()}
             className={cn(
-              "w-full h-11 px-4 text-sm rounded-l-md",
-              "border border-r-0 bg-white/15 backdrop-blur-sm",
-              "placeholder:opacity-70 focus:outline-none focus:ring-2 focus:ring-primary/30",
+              "h-11 px-5 rounded-r-md flex items-center justify-center",
+              "transition-all duration-200",
               "disabled:opacity-50 disabled:cursor-not-allowed",
-              error && "border-destructive"
+              "hover:opacity-90 active:scale-[0.98]"
             )}
-            style={{ 
-              color: textColor || undefined,
-              borderColor: textColor ? `${textColor}30` : undefined,
+            style={buttonBgColor ? {
+              backgroundColor: buttonBgColor,
+              color: buttonTextColor || '#ffffff',
+            } : {
+              backgroundColor: 'var(--theme-button-primary-bg, #1a1a1a)',
+              color: buttonTextColor || 'var(--theme-button-primary-text, #ffffff)',
             }}
-          />
+            aria-label={buttonText || 'Inscrever-se'}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : buttonText ? (
+              <span className="text-sm font-medium whitespace-nowrap">{buttonText}</span>
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </button>
         </div>
-        
-        <button
-          type="submit"
-          disabled={isLoading || isEditing || !email.trim()}
-          className={cn(
-            "h-11 px-5 rounded-r-md flex items-center justify-center",
-            "transition-all duration-200",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
-            "hover:opacity-90 active:scale-[0.98]"
-          )}
-          style={buttonBgColor ? {
-            backgroundColor: buttonBgColor,
-            color: buttonTextColor || '#ffffff',
-          } : {
-            backgroundColor: 'var(--theme-button-primary-bg, #1a1a1a)',
-            color: buttonTextColor || 'var(--theme-button-primary-text, #ffffff)',
-          }}
-          aria-label={buttonText || 'Inscrever-se'}
-        >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : buttonText ? (
-            <span className="text-sm font-medium whitespace-nowrap">{buttonText}</span>
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </button>
+
+        {/* Optional Birth Date field */}
+        {showBirthDate && (
+          <div className="flex items-center gap-2 w-full">
+            <CalendarIcon className="h-4 w-4 opacity-70" style={{ color: textColor || undefined }} />
+            <div className="flex-1">
+              <DatePickerField
+                value={birthDate ? parse(birthDate, 'yyyy-MM-dd', new Date()) : undefined}
+                onChange={(date) => setBirthDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                placeholder={`Data de nascimento${birthDateRequired ? ' *' : ' (opcional)'}`}
+                maxDate={new Date()}
+                disabled={isLoading || isEditing}
+                clearable={!birthDateRequired}
+              />
+            </div>
+          </div>
+        )}
       </form>
 
       {/* Error message */}
