@@ -48,6 +48,7 @@ const emptyCustomer: OrderDraftCustomer = {
   email: '',
   phone: '',
   cpf: '',
+  birthDate: '',
   shippingStreet: '',
   shippingNumber: '',
   shippingComplement: '',
