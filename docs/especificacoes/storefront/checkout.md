@@ -831,11 +831,12 @@ O `CheckoutStepWizard` foi decomposto em 7 arquivos sob `src/components/storefro
 
 ---
 
-## Data de Nascimento (opcional) — v8.30
+## Data de Nascimento — v8.30
 
 Toggle controlado pelo lojista em **Builder > Tema > Configurações > Página Checkout > "Pedir data de nascimento"** (`requestBirthDate`) e "Tornar obrigatório" (`birthDateRequired`).
 
 - Campo aparece no Step 1 (Dados pessoais) abaixo do telefone.
+- **Rótulo (regra UI v8.31.1):** quando obrigatório, exibe `Data de nascimento *`. Quando opcional, exibe apenas `Data de nascimento` (sem sufixo "(opcional)"). A ausência do asterisco é o indicador visual padrão de campo não-obrigatório em todo o checkout — não duplicar com texto.
 - Validação: idade ≥13 e ≤120 anos.
 - Persistência: `checkout_sessions.customer_birth_date`, `orders.customer_birth_date`, `customers.birth_date` — atualizado automaticamente pela **Política de Enriquecimento do Cadastro** quando o pedido transita para pagamento aprovado (ver `docs/especificacoes/ecommerce/clientes.md` › "Enriquecimento automático pelo pedido aprovado").
 - Uso: enriquecimento Meta CAPI (`db` no cofre `_sf_identity`), audience-sync semanal (DOBY/DOBM/DOBD) e gatilho diário de aniversário (`customer.birthday`).

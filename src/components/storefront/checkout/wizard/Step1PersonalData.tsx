@@ -109,7 +109,7 @@ export function Step1PersonalData({
           {requestBirthDate && (
             <div>
               <Label htmlFor="customerBirthDate">
-                Data de nascimento{birthDateRequired ? ' *' : ' (opcional)'}
+                Data de nascimento{birthDateRequired ? ' *' : ''}
               </Label>
               <Input
                 id="customerBirthDate"
