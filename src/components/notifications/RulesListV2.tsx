@@ -34,6 +34,7 @@ const ruleTypeConfig: Record<RuleType, { label: string; description: string }> =
   shipping: { label: 'Envios', description: 'Notificações sobre rastreio e entrega' },
   abandoned_checkout: { label: 'Checkout Abandonado', description: 'Recuperação de carrinhos abandonados' },
   post_sale: { label: 'Pós-vendas', description: 'Mensagens após a compra do cliente' },
+  customer_birthday: { label: 'Aniversário do cliente', description: 'Disparo automático no dia do aniversário' },
 };
 
 const triggerConditionLabels: Record<string, string> = {
