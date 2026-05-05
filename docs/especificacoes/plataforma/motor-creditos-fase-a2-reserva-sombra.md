@@ -1,8 +1,8 @@
 # Motor Universal de Créditos — Fase A2 Reserva Sombra (IA Imagem)
 
 > **Camada:** Layer 3 — Especificação de Plataforma
-> **Status:** 🟡 Implementada — pendente de coleta dos 10 jobs reais para validação final
-> **Última atualização:** 2026-05-05
+> **Status:** ✅ Validada para o caminho primário Fal.AI `medium_1024` — fallback Gemini/OpenAI/Lovable é **gap conhecido** a ser tratado na A2.1
+> **Última atualização:** 2026-05-05 (fechamento da coleta dos 10 jobs)
 > **Relacionado a:** [`motor-creditos.md`](./motor-creditos.md), [`motor-creditos-fase-3b-shadow.md`](./motor-creditos-fase-3b-shadow.md), [`motor-creditos-fase-a1-pre-router-sidecar.md`](./motor-creditos-fase-a1-pre-router-sidecar.md), [`catalogo-precos-creditos.md`](./catalogo-precos-creditos.md)
 
 ---
