@@ -369,11 +369,20 @@ function sendServerEvent(tenantId: string, payload: {
     //  - stored hashes only fill fields that are NOT already provided
     //    (in either plaintext or pre-hashed form).
     const explicit = payload.user_data || {};
+    // external_id: when both visitor and customer ids exist, send as array (Meta best practice)
+    let externalIdValue: string | string[] | undefined = explicit.external_id;
+    if (!externalIdValue) {
+      const ids: string[] = [];
+      if (metaIds.external_id) ids.push(metaIds.external_id);
+      if (stored.customer_id && stored.customer_id !== metaIds.external_id) ids.push(stored.customer_id);
+      externalIdValue = ids.length === 0 ? undefined : ids.length === 1 ? ids[0] : ids;
+    }
+
     const userData: Record<string, any> = {
       ...explicit,
       fbp: resolvedFbp || metaIds.fbp || undefined,
       fbc: metaIds.fbc || undefined,
-      external_id: metaIds.external_id || undefined,
+      external_id: externalIdValue,
     };
 
     // Email
@@ -407,6 +416,21 @@ function sendServerEvent(tenantId: string, payload: {
     // Country
     if (stored.country_hash && !explicit.country && !explicit.country_hashed) {
       userData.country_hashed = stored.country_hash;
+    }
+    // Birth date (db) — Meta date_of_birth, format YYYYMMDD pre-hashed
+    if (stored.db_hash && !explicit.date_of_birth && !explicit.date_of_birth_hashed) {
+      userData.date_of_birth_hashed = stored.db_hash;
+    }
+    // Gender (ge)
+    if (stored.ge_hash && !explicit.gender && !explicit.gender_hashed) {
+      userData.gender_hashed = stored.ge_hash;
+    }
+    // Lead id (server-side correlatable; not part of CAPI user_data spec but echoed in custom_data)
+    const customDataMerged = {
+      ...(payload.custom_data || {}),
+    };
+    if (stored.lead_id && customDataMerged.lead_id === undefined) {
+      customDataMerged.lead_id = stored.lead_id;
     }
 
     const body = JSON.stringify({
