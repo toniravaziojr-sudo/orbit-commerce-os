@@ -399,21 +399,50 @@ async function syncMetaAudiences(
 
       for (let i = 0; i < members.length; i += BATCH_SIZE) {
         const batch = members.slice(i, i + BATCH_SIZE);
-        const schema = ["EMAIL", "PHONE", "FN", "LN"];
+        // Multi-key schema: extra demographic fields (DOBY/DOBM/DOBD, FN, LN, CT, ST, ZIP, COUNTRY, GEN)
+        const schema = ["EMAIL", "PHONE", "FN", "LN", "CT", "ST", "ZIP", "COUNTRY", "DOBY", "DOBM", "DOBD", "GEN"];
         const dataRows: string[][] = [];
 
         for (const m of batch) {
           const sub = m.email_marketing_subscribers;
           if (!sub?.email) continue;
 
-          const { first, last } = splitName(sub.name);
-          const phone = normalizePhone(sub.phone);
+          const ek = normEmailKey(sub.email);
+          const pk = phoneDigits(sub.phone);
+          const cust = (ek && customerLookup.byEmail[ek]) || (pk && customerLookup.byPhone[pk]) || null;
+
+          // Prefer customers.full_name if subscriber.name is empty
+          const fullName = sub.name || cust?.full_name || null;
+          const { first, last } = splitName(fullName);
+          const phone = normalizePhone(sub.phone || cust?.phone || null);
+
+          const addr = pickAddress(cust);
+          const city = normCity(addr?.city);
+          const st = normState(addr?.state);
+          const zip = normZip(addr?.postal_code);
+          const country = (addr?.country || (city || st || zip ? "br" : "")).toString().toLowerCase().substring(0, 2);
+
+          // Birth date split
+          let doby = "", dobm = "", dobd = "";
+          if (cust?.birth_date) {
+            const [y, mo, d] = String(cust.birth_date).split("-");
+            if (y && mo && d) { doby = y; dobm = mo; dobd = d; }
+          }
+          const gen = normGender(cust?.gender);
 
           dataRows.push([
             await sha256(sub.email),
             phone ? await sha256(phone) : "",
             first ? await sha256(first) : "",
             last ? await sha256(last) : "",
+            city ? await sha256(city) : "",
+            st ? await sha256(st) : "",
+            zip ? await sha256(zip) : "",
+            country ? await sha256(country) : "",
+            doby ? await sha256(doby) : "",
+            dobm ? await sha256(dobm) : "",
+            dobd ? await sha256(dobd) : "",
+            gen ? await sha256(gen) : "",
           ]);
         }
 
