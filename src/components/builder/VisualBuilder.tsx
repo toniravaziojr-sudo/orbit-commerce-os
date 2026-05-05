@@ -1080,8 +1080,48 @@ export function VisualBuilder({
           pageType: pageType as 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail',
           content: contentToSave,
         });
+
+        // SCOPE-AWARE PUBLISH (Onda 19+): Decide which pages need re-prerender.
+        // - Theme/header/footer drafts → global (afeta todas as páginas públicas)
+        // - Edição de home/category/product templates → global (afeta múltiplas páginas)
+        // - Edição apenas de checkout/cart/thank_you/account → 'none' (são SPA, não prerenderizadas)
+        const draftThemeRef = getGlobalDraftThemeRef();
+        const headerDraftRef = getGlobalHeaderDraftRef();
+        const footerDraftRef = getGlobalFooterDraftRef();
+        const miniCartDraftRef = getGlobalMiniCartDraftRef();
+        const popupDraftRef = getGlobalPopupDraftRef();
+        const supportWidgetDraftRef = getGlobalSupportWidgetDraftRef();
+        const hasGlobalImpactDrafts =
+          (draftThemeRef?.hasDraftChanges ?? false) ||
+          (headerDraftRef?.hasDraftChanges ?? false) ||
+          (footerDraftRef?.hasDraftChanges ?? false) ||
+          (miniCartDraftRef?.hasDraftChanges ?? false) ||
+          (popupDraftRef?.hasDraftChanges ?? false) ||
+          (supportWidgetDraftRef?.hasDraftChanges ?? false);
+
+        const spaOnlyPageTypes: string[] = ['checkout', 'cart', 'thank_you', 'account', 'account_orders', 'account_order_detail'];
+        const isSpaOnlyPage = spaOnlyPageTypes.includes(pageType);
+
+        let changeScope: { type: 'global' } | { type: 'home' } | { type: 'none' };
+        if (hasGlobalImpactDrafts) {
+          changeScope = { type: 'global' };
+        } else if (isSpaOnlyPage && !store.isDirty) {
+          // Only page-settings of a SPA-only page changed → no public HTML impact
+          changeScope = { type: 'none' };
+        } else if (isSpaOnlyPage && store.isDirty) {
+          // Edited blocks inside checkout/cart layout → checkout is SPA, still no public HTML
+          // (Checkout HTML is rendered client-side, not via storefront-prerender)
+          changeScope = { type: 'none' };
+        } else if (pageType === 'home' && !hasGlobalImpactDrafts) {
+          changeScope = { type: 'home' };
+        } else {
+          // category/product templates affect many pages — keep global
+          changeScope = { type: 'global' };
+        }
+        console.log('[handlePublish] changeScope decided:', changeScope, { pageType, hasGlobalImpactDrafts, storeDirty: store.isDirty });
+
         // Then publish the template set
-        await publishTemplateSet.mutateAsync({ templateSetId });
+        await publishTemplateSet.mutateAsync({ templateSetId, changeScope });
         pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
         store.markClean();
         queryClient.invalidateQueries({ queryKey: ['has-pending-publish', templateSetId] });
