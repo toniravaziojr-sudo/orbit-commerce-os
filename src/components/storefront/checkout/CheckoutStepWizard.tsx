@@ -519,6 +519,26 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       } else if (!isValidCpf(formData.customerCpf)) {
         errors.customerCpf = 'CPF inválido. Verifique os números digitados.';
       }
+      // Birth date validation (when capture is enabled)
+      if (checkoutConfig.requestBirthDate) {
+        const bd = (formData.customerBirthDate || '').trim();
+        if (!bd) {
+          if (checkoutConfig.birthDateRequired) {
+            errors.customerBirthDate = 'Data de nascimento é obrigatória';
+          }
+        } else {
+          const parsed = new Date(bd + 'T00:00:00');
+          if (isNaN(parsed.getTime())) {
+            errors.customerBirthDate = 'Data inválida';
+          } else {
+            const today = new Date();
+            const age = today.getFullYear() - parsed.getFullYear() -
+              (today < new Date(today.getFullYear(), parsed.getMonth(), parsed.getDate()) ? 1 : 0);
+            if (age < 13) errors.customerBirthDate = 'Idade mínima de 13 anos';
+            else if (age > 120) errors.customerBirthDate = 'Data inválida';
+          }
+        }
+      }
     }
 
     if (step === 2) {
@@ -1012,6 +1032,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 disabled={isProcessing}
                 isExistingCustomer={isExistingCustomer}
                 isCheckingEmail={isCheckingEmail}
+                requestBirthDate={checkoutConfig.requestBirthDate}
+                birthDateRequired={checkoutConfig.birthDateRequired}
               />
             )}
             {currentStep === 2 && (
