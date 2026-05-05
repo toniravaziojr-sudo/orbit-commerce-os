@@ -548,6 +548,8 @@ export function StorefrontFooterContent({
   const newsletterButtonText = getString('newsletterButtonText', null, '');
   const newsletterSuccessMessage = getString('newsletterSuccessMessage', null, 'Inscrito com sucesso!') || 'Inscrito com sucesso!';
   const newsletterListId = getString('newsletterListId', null, '');
+  const newsletterShowBirthDate = !!(props as any)?.newsletterShowBirthDate;
+  const newsletterBirthDateRequired = !!(props as any)?.newsletterBirthDateRequired;
 
   // Fetch tenant_id for newsletter form — use bootstrap when available
   const { data: tenantData } = useQuery({
