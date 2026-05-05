@@ -3,7 +3,7 @@ import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION =====
-const VERSION = "v1.1.1"; // Fix: multi-key schema without is_raw, paginated member fetch, correct ad account selection
+const VERSION = "v1.2.0"; // Enrichment: JOIN customers for FN/LN/CT/ST/ZIP/COUNTRY/DOB/GEN hashed
 // ===================
 
 const corsHeaders = {
