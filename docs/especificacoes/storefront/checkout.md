@@ -837,7 +837,10 @@ Toggle controlado pelo lojista em **Builder > Tema > Configurações > Página C
 
 - Campo aparece no Step 1 (Dados pessoais) abaixo do telefone.
 - Validação: idade ≥13 e ≤120 anos.
-- Persistência: `checkout_sessions.customer_birth_date`, `orders.customer_birth_date`, `customers.birth_date` (primeira ocorrência).
+- Persistência: `checkout_sessions.customer_birth_date`, `orders.customer_birth_date`, `customers.birth_date` (primeira ocorrência via Profile Enrichment Policy — só preenche quando nulo, nunca sobrescreve).
 - Uso: enriquecimento Meta CAPI (`db` no cofre `_sf_identity`), audience-sync semanal (DOBY/DOBM/DOBD) e gatilho diário de aniversário (`customer.birthday`).
 
+**Publicação SPA-only (v2.1.0):** Como o Checkout é página SPA (sem HTML pré-renderizado), alterar este toggle e publicar **NÃO dispara re-prerender da loja pública** — `VisualBuilder.handlePublish` classifica essa mudança como `changeScope=none`, gravando apenas `published_content` do template_set. O efeito é imediato no checkout sem reprocessar as páginas públicas. Ver `builder.md` › "Resiliência de Publicação v2.1.0".
+
 Detalhes técnicos: `docs/especificacoes/marketing/meta-tracking.md` (Técnica 7).
+
