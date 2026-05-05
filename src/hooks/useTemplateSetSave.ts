@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { cachePurge } from '@/lib/storefrontCachePurge';
-import { triggerPrerenderWithRetry } from '@/lib/prerenderRetry';
+import { triggerPrerenderWithRetry, type PrerenderScope } from '@/lib/prerenderRetry';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
 import { showErrorToast } from '@/lib/error-toast';
@@ -22,6 +22,8 @@ interface SaveToTemplateSetParams {
 
 interface PublishTemplateSetParams {
   templateSetId: string;
+  /** Optional scope to limit prerender. Default = global (re-render all). Use { type: 'none' } to skip prerender entirely (e.g., checkout/cart/thank_you settings that don't affect public HTML). */
+  changeScope?: PrerenderScope;
 }
 
 export function useTemplateSetSave() {
@@ -74,7 +76,7 @@ export function useTemplateSetSave() {
 
   // Publish template set (copy draft to published and set as active)
   const publishTemplateSet = useMutation({
-    mutationFn: async ({ templateSetId }: PublishTemplateSetParams) => {
+    mutationFn: async ({ templateSetId, changeScope }: PublishTemplateSetParams) => {
       if (!currentTenant?.id) throw new Error('No tenant');
 
       // Fetch current draft_content
@@ -171,12 +173,15 @@ export function useTemplateSetSave() {
       queryClient.invalidateQueries({ queryKey: ['category-settings-published'] });
       queryClient.invalidateQueries({ queryKey: ['public-storefront'] });
 
-      // PHASE 5: Purge edge-rendered HTML cache (fire-and-forget)
-      if (currentTenant?.id) {
+      // PHASE 5: Purge edge-rendered HTML cache + trigger prerender — SCOPE-AWARE
+      // changeScope.type === 'none' → settings de páginas SPA-only (checkout/cart/thank_you/account)
+      // que não afetam HTML público. Pula purge + prerender (economia de ~58 páginas reprocessadas).
+      const effectiveScope = variables.changeScope || { type: 'global' as const };
+      if (currentTenant?.id && effectiveScope.type !== 'none') {
         cachePurge.template(currentTenant.id);
-        
-        // PHASE 6: Trigger server-side pre-render WITH retry and feedback
-        triggerPrerenderWithRetry(currentTenant.id);
+        triggerPrerenderWithRetry(currentTenant.id, effectiveScope);
+      } else if (effectiveScope.type === 'none') {
+        console.log('[publishTemplateSet] Scope=none — pulando cache purge e prerender (sem impacto em HTML público)');
       }
       
       toast.success('Template publicado com sucesso!');
