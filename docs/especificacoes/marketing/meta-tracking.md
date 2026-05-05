@@ -271,6 +271,37 @@ Notas observadas no Gerenciador de Eventos da Meta no dia da entrega da v8.28.0 
 
 ---
 
+## Técnica 6 — Envio resiliente a navegação imediata (v8.29.0)
+
+**Problema observado.** Em fluxos com navegação imediata após o clique (botão "Comprar agora" que vai direto para `/checkout`, e o próprio "Ir para checkout" do carrinho), o `fetch` do CAPI é cancelado pelo navegador antes de sair da máquina do usuário. O Pixel browser dispara síncrono e chega na Meta; o CAPI não. Resultado: Meta sinaliza alerta amarelo em `AddToCart` e `InitiateCheckout` por baixa cobertura de identificadores no servidor.
+
+**Causa raiz.** `sendServerEvent` chamava `waitForFbp(5000)` antes de qualquer envio. Mesmo quando `_fbp` já existia (cofre sintético do edge HTML), o polling adicionava 0–250ms de atraso, suficiente para a navegação cancelar a request.
+
+**Ajuste aplicado.**
+
+1. **Fast-path síncrono.** `sendServerEvent` lê `_fbp` síncrono no início. Se presente, dispara `fetch` imediatamente, sem polling. Vale para todos os eventos.
+2. **Janela curta para eventos pré-navegação.** `trackAddToCart` e `trackInitiateCheckout` passam `fbp_wait_ms: 800` (default permanece 5000 para os demais).
+3. **`sendBeacon` como fallback estendido.** O bloco que antes só protegia `Purchase` agora cobre também `AddToCart` e `InitiateCheckout`. Se o `fetch` falhar por cancelamento/unload, `navigator.sendBeacon` é disparado com `text/plain`.
+
+**Eventos não afetados.** PageView, ViewContent, ViewCategory, Lead, AddShippingInfo, AddPaymentInfo, Purchase mantêm `fbp_wait_ms = 5000` e estratégia atual. Score de Purchase preservado.
+
+**Cobertura esperada após v8.29.0:**
+
+| Evento | Cobertura `_fbp` esperada | Score esperado |
+|---|---|---|
+| PageView | ≥95% | 6–7 |
+| ViewContent | ≥95% | 7–8 |
+| AddToCart | **≥95% (era ~17%)** | **7–9** |
+| InitiateCheckout | ≥95% | 8–9 |
+| Lead | ≥98% | ≥9 |
+| AddShippingInfo | ≥98% | ≥9 |
+| AddPaymentInfo | ≥98% | ≥9 |
+| Purchase | ≥99% | ≥9.3 |
+
+**Validação pós-deploy.** Janela de observação de 7 dias antes de qualquer nova alteração. Critério de sucesso: alerta amarelo em `AddToCart` fechado no Events Manager e score de Purchase ≥9.0 mantido.
+
+---
+
 ## Configurações por Tenant
 
 `store_settings.checkout_config`:
