@@ -22,6 +22,13 @@ import {
   resolveImageServiceKey,
   buildImageShadowIdempotencyKey,
 } from "../_shared/credits/image-resolver.ts";
+import {
+  preRouteImageGeneration,
+  computePreRouteMatch,
+  normalizeProviderForMatch,
+  PRE_ROUTER_VERSION,
+  type PreRouteDecision,
+} from "../_shared/credits/image-prerouter.ts";
 
 const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
 
@@ -174,21 +181,25 @@ async function recordImageShadowV2(supabase: any, args: {
   quality?: string;
   providerResponseId?: string | null;
   imageUrl?: string | null;
+  preRouteDecision?: PreRouteDecision | null;
+  preRouterError?: string | null;
 }): Promise<void> {
   try {
     // 1) Verifica se tenant está habilitado em shadow_service_keys
     const { data: cfg } = await supabase
       .from('tenant_credit_motor_config')
-      .select('shadow_service_keys')
+      .select('shadow_service_keys, metadata')
       .eq('tenant_id', args.tenantId)
       .maybeSingle();
     const shadowKeys: string[] = cfg?.shadow_service_keys || [];
+    const tenantMeta: Record<string, any> = cfg?.metadata || {};
+
     if (!shadowKeys.length) {
       console.log('[creative-image.shadow] skip: tenant_not_enabled', { tenant_id: args.tenantId });
       return;
     }
 
-    // 2) Resolve service_key
+    // 2) Resolve service_key real
     const resolved = resolveImageServiceKey({
       provider: args.actualProvider,
       actualProvider: args.actualProvider,
@@ -198,7 +209,19 @@ async function recordImageShadowV2(supabase: any, args: {
     });
 
     if (!resolved.resolved) {
-      console.log('[creative-image.shadow] skip:', resolved.skip_reason, resolved.detail);
+      // WARN estruturado quando evento shadow não pode ser gravado
+      console.warn(JSON.stringify({
+        evt: 'creative-image.shadow.event_not_recorded',
+        tenant_id: args.tenantId,
+        job_id: args.jobId,
+        variation_index: args.variationIndex,
+        actual_provider: args.actualProvider,
+        actual_model: args.model,
+        predicted_provider: args.preRouteDecision?.predicted_provider ?? null,
+        predicted_service_key: args.preRouteDecision?.predicted_service_key ?? null,
+        event_not_recorded_reason: resolved.skip_reason,
+        detail: resolved.detail,
+      }));
       return;
     }
 
@@ -228,7 +251,39 @@ async function recordImageShadowV2(supabase: any, args: {
       providerResponseId: args.providerResponseId,
     });
 
-    // 5) Insert service_usage_events status='shadow' (cost_owner='platform' + tenant_id real)
+    // 5) Sidecar pre-router metadata (Fase A1) — não bloqueia shadow se ausente
+    let sidecarMeta: Record<string, any> = {};
+    if (args.preRouteDecision) {
+      const matchInfo = computePreRouteMatch(args.preRouteDecision, {
+        provider: normalizeProviderForMatch(args.actualProvider),
+        model: args.model,
+        service_key: resolved.service_key,
+      });
+      sidecarMeta = {
+        pre_router_version: args.preRouteDecision.pre_router_version,
+        pre_route_decision: args.preRouteDecision,
+        predicted_provider: args.preRouteDecision.predicted_provider,
+        predicted_model: args.preRouteDecision.predicted_model,
+        predicted_service_key: args.preRouteDecision.predicted_service_key,
+        actual_provider: normalizeProviderForMatch(args.actualProvider),
+        actual_model: args.model,
+        actual_service_key: resolved.service_key,
+        pre_route_match: matchInfo.match,
+        pre_route_match_dimensions: matchInfo.dimensions,
+        mismatch_reason: matchInfo.mismatch_reason,
+        would_block_in_live: args.preRouteDecision.would_block_in_live,
+        actual_pricing_missing: false,
+        no_billing: true,
+      };
+    } else if (args.preRouterError) {
+      sidecarMeta = {
+        pre_router_version: PRE_ROUTER_VERSION,
+        pre_router_error: args.preRouterError,
+        no_billing: true,
+      };
+    }
+
+    // 6) Insert service_usage_events status='shadow' (cost_owner='platform' + tenant_id real)
     const { error: insErr } = await supabase
       .from('service_usage_events')
       .insert({
@@ -256,6 +311,7 @@ async function recordImageShadowV2(supabase: any, args: {
           is_internal_shadow: true,
           idempotency_key: idempotencyKey,
           shadow_error: est.success ? null : (est.error_message || est.error_code || null),
+          ...sidecarMeta,
         },
       });
 
@@ -265,9 +321,27 @@ async function recordImageShadowV2(supabase: any, args: {
     }
     console.log('[creative-image.shadow] recorded', {
       tenant_id: args.tenantId, service_key: resolved.service_key, v2_credits_estimated: v2CreditsEstimated,
+      pre_route_match: sidecarMeta.pre_route_match ?? null,
     });
   } catch (e: any) {
     console.warn('[creative-image.shadow] error (ignored):', e?.message || e);
+  }
+}
+
+// ========== PRE-ROUTER GATE (Fase A1) ==========
+// Avalia metadata.pre_router_enabled no tenant antes de invocar o sidecar.
+async function isPreRouterEnabledForTenant(supabase: any, tenantId: string): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from('tenant_credit_motor_config')
+      .select('metadata')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    const meta = (data?.metadata || {}) as Record<string, any>;
+    return meta.pre_router_enabled === true;
+  } catch (e: any) {
+    console.warn('[creative-image.pre-router] gate check failed (default off):', e?.message || e);
+    return false;
   }
 }
 
@@ -452,15 +526,58 @@ Deno.serve(async (req) => {
           model: string;
           imageBase64: string;
           scores: QAScores;
+          preRouteDecision: PreRouteDecision | null;
+          preRouterError: string | null;
         }> = [];
         let totalCostCents = 0;
+
+        // ===== Fase A1: gate do pre-router (sidecar) =====
+        const preRouterEnabled = await isPreRouterEnabledForTenant(supabase, tenant_id);
+        console.log('[creative-image.pre-router] gate', { tenant_id, enabled: preRouterEnabled, version: PRE_ROUTER_VERSION });
 
         for (let varIdx = 0; varIdx < numVariations; varIdx++) {
           const variantPrompt = varIdx === 0 
             ? finalPrompt 
             : `${finalPrompt}\n\n🔄 VARIAÇÃO ${varIdx + 1}: Varie sutilmente ângulo, iluminação ou composição.`;
 
-          // Use unified resilientGenerate from visual-engine
+          // ===== SIDECAR PRE-ROUTER (Fase A1) — observabilidade pura, antes da chamada real =====
+          let preRouteDecision: PreRouteDecision | null = null;
+          let preRouterError: string | null = null;
+          if (preRouterEnabled) {
+            try {
+              preRouteDecision = preRouteImageGeneration({
+                tenant_id,
+                feature: 'creative_product_image',
+                job_id: jobId,
+                variation_index: varIdx + 1,
+                outputSize: '1024x1024',
+                quality: 'medium',
+                has_reference_image: !!product_image_url,
+                available_keys: {
+                  fal: !!falApiKey,
+                  gemini: !!geminiApiKey,
+                  openai: !!openaiApiKey,
+                  lovable: !!lovableApiKey,
+                },
+              });
+              console.log('[creative-image.pre-router] decision', {
+                job_id: jobId,
+                variation_index: varIdx + 1,
+                predicted_provider: preRouteDecision.predicted_provider,
+                predicted_service_key: preRouteDecision.predicted_service_key,
+                would_block_in_live: preRouteDecision.would_block_in_live,
+              });
+            } catch (e: any) {
+              preRouterError = e?.message || 'pre_router_unknown_error';
+              console.warn(JSON.stringify({
+                evt: 'creative-image.pre-router.error',
+                tenant_id, job_id: jobId, variation_index: varIdx + 1,
+                error: preRouterError,
+              }));
+            }
+          }
+
+          // Use unified resilientGenerate from visual-engine (INALTERADO)
           const result = await resilientGenerate({
             lovableApiKey,
             openaiApiKey,
@@ -491,8 +608,11 @@ Deno.serve(async (req) => {
             model: result.model,
             imageBase64: result.imageBase64,
             scores,
+            preRouteDecision,
+            preRouterError,
           });
         }
+
 
         allResults.sort((a, b) => b.scores.overall - a.scores.overall);
 
@@ -521,7 +641,7 @@ Deno.serve(async (req) => {
                 isWinner: i === 0,
               });
 
-              // SHADOW v2 — Motor de Créditos (Fase 3B): roda após persistência, sem custo, sem re-chamar provider
+              // SHADOW v2 — Motor de Créditos (Fase 3B + Fase A1 sidecar): roda após persistência, sem custo, sem re-chamar provider
               await recordImageShadowV2(supabase, {
                 tenantId: tenant_id,
                 jobId,
@@ -532,6 +652,8 @@ Deno.serve(async (req) => {
                 quality: 'medium',
                 providerResponseId: null,
                 imageUrl: publicUrlData.publicUrl,
+                preRouteDecision: result.preRouteDecision,
+                preRouterError: result.preRouterError,
               });
             }
           } catch (error) {

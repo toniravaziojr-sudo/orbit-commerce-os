@@ -19941,6 +19941,7 @@ export type Database = {
         Row: {
           live_categories: string[]
           live_service_keys: string[]
+          metadata: Json
           motor_v2_enabled: boolean
           shadow_categories: string[]
           shadow_service_keys: string[]
@@ -19952,6 +19953,7 @@ export type Database = {
         Insert: {
           live_categories?: string[]
           live_service_keys?: string[]
+          metadata?: Json
           motor_v2_enabled?: boolean
           shadow_categories?: string[]
           shadow_service_keys?: string[]
@@ -19963,6 +19965,7 @@ export type Database = {
         Update: {
           live_categories?: string[]
           live_service_keys?: string[]
+          metadata?: Json
           motor_v2_enabled?: boolean
           shadow_categories?: string[]
           shadow_service_keys?: string[]
