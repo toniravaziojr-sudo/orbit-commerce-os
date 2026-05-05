@@ -641,7 +641,7 @@ Deno.serve(async (req) => {
                 isWinner: i === 0,
               });
 
-              // SHADOW v2 — Motor de Créditos (Fase 3B): roda após persistência, sem custo, sem re-chamar provider
+              // SHADOW v2 — Motor de Créditos (Fase 3B + Fase A1 sidecar): roda após persistência, sem custo, sem re-chamar provider
               await recordImageShadowV2(supabase, {
                 tenantId: tenant_id,
                 jobId,
@@ -652,6 +652,8 @@ Deno.serve(async (req) => {
                 quality: 'medium',
                 providerResponseId: null,
                 imageUrl: publicUrlData.publicUrl,
+                preRouteDecision: result.preRouteDecision,
+                preRouterError: result.preRouterError,
               });
             }
           } catch (error) {
