@@ -287,6 +287,7 @@ export const initialCheckoutFormData: CheckoutFormData = {
   customerEmail: '',
   customerPhone: '',
   customerCpf: '',
+  customerBirthDate: '',
   shippingStreet: '',
   shippingNumber: '',
   shippingComplement: '',
