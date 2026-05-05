@@ -173,12 +173,15 @@ export function useTemplateSetSave() {
       queryClient.invalidateQueries({ queryKey: ['category-settings-published'] });
       queryClient.invalidateQueries({ queryKey: ['public-storefront'] });
 
-      // PHASE 5: Purge edge-rendered HTML cache (fire-and-forget)
-      if (currentTenant?.id) {
+      // PHASE 5: Purge edge-rendered HTML cache + trigger prerender — SCOPE-AWARE
+      // changeScope.type === 'none' → settings de páginas SPA-only (checkout/cart/thank_you/account)
+      // que não afetam HTML público. Pula purge + prerender (economia de ~58 páginas reprocessadas).
+      const effectiveScope = variables.changeScope || { type: 'global' as const };
+      if (currentTenant?.id && effectiveScope.type !== 'none') {
         cachePurge.template(currentTenant.id);
-        
-        // PHASE 6: Trigger server-side pre-render WITH retry and feedback
-        triggerPrerenderWithRetry(currentTenant.id);
+        triggerPrerenderWithRetry(currentTenant.id, effectiveScope);
+      } else if (effectiveScope.type === 'none') {
+        console.log('[publishTemplateSet] Scope=none — pulando cache purge e prerender (sem impacto em HTML público)');
       }
       
       toast.success('Template publicado com sucesso!');
