@@ -20,6 +20,7 @@ const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 5000;
 
 export type PrerenderScope =
+  | { type: 'none' }
   | { type: 'global' }
   | { type: 'home' }
   | { type: 'product'; ids: string[] }
