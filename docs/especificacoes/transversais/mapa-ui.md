@@ -2,7 +2,7 @@
 
 > **Camada:** Layer 3 — Especificação Transversal  
 > **Status:** Ativo  
-> **Última atualização:** 2026-04-12  
+> **Última atualização:** 2026-05-05  
 > **Fonte de verdade para:** navegação, rotas, sidebar, visibilidade de telas e regras de posicionamento de UI
 
 ---
@@ -46,8 +46,8 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 15 | Marketing Avançado | Email Marketing | `/email-marketing` | marketing_avancado | `email_marketing` | — | Badge "Upgrade" se bloqueado |
 | 16 | Marketing Avançado | Quizzes | `/quizzes` | marketing_avancado | `quizzes` | — | Badge "Upgrade" se bloqueado |
 | 17 | Marketing Avançado | Gestor de Tráfego IA | `/ads` | marketing_avancado | — | — | — |
-| 18 | Central de Conteúdo | Calendário de Conteúdo | `/media` | central_conteudo | — | — | — |
-| 19 | Central de Conteúdo | Estúdio de Criativos | `/creatives` | central_conteudo | — | — | — |
+| 18 | Central de Conteúdo | Calendário de Conteúdo | `/media` | central_conteudo | — | — | Planejamento e agenda de publicações. **Não chama** o edge `creative-image-generate` diretamente — geração visual é feita no Estúdio de Criativos. |
+| 19 | Central de Conteúdo | Estúdio de Criativos | `/creatives` | central_conteudo | — | — | **3 abas:** **Vídeos** (default — edge `creative-video-generate`), **Imagens** (edge `creative-image-generate` — instrumentado pelo Motor Universal de Créditos / Fase 3B shadow), **Galeria** (somente leitura). É a única tela do tenant que aciona `creative-image-generate`. |
 | 20 | CRM | Notificações | `/notifications` | crm | `whatsapp_notifications` | — | Badge "Upgrade" se bloqueado |
 | 21 | CRM | Atendimento | `/support` | crm | `support_chat` | — | Badge "Upgrade" se bloqueado |
 | 22 | CRM | Emails | `/emails` | crm | `emails` | — | Badge "Upgrade" se bloqueado |
@@ -194,6 +194,12 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/create-store` — Criar loja (usuário autenticado sem tenant)
 - `/no-access` — Sem acesso (convite removido)
 - `/admin/qa/storefront` — QA de storefront (platform admin)
+- `/saude-do-sistema` — **Redirect legado** → `/platform/system-health`
+
+### 4.5.1 Rotas do Storefront Público (fora do escopo deste mapa)
+
+O storefront público do lojista (loja virtual vista pelo consumidor) **não é coberto por este documento**. Suas rotas (`/`, `/carrinho`, `/cart`, `/checkout`, `/obrigado`, `/conta/*`, `/minha-conta/*`, `/minhas-compras`, `/conta/pedidos/:orderId`, `/busca`, `/rastreio`, `/quiz/:quizSlug`, `/avaliar/:token`, `/store/:tenantSlug`, `/store/:tenantSlug/ai-lp/:lpSlug`) estão especificadas em `docs/especificacoes/storefront/*` (ver `loja-virtual.md`, `carrinho.md`, `checkout.md`, `pagina-obrigado.md`).
+
 
 ### 4.6 Rotas do Painel Admin (dentro do AppShell)
 
