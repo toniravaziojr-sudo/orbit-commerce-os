@@ -186,8 +186,7 @@ Deno.serve(async (req) => {
         status: 'running',
         trigger_type,
         total_pages: pagesToRender.length,
-        publish_version: publishVersion,
-        metadata: { scope, version: VERSION },
+        metadata: { scope, version: VERSION, publish_version: publishVersion, hostname },
       })
       .select('id').single();
     const jobId = job?.id;
