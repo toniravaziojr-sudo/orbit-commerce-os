@@ -140,26 +140,41 @@ Resultado esperado em shadow: **nenhuma linha relacionada ao job shadow**.
 
 ---
 
-## 9. Pendência separada — pipeline_version
+## 9. Pendência separada — pipeline_version (corrigido tecnicamente; pendente validação)
 
-Foi detectada divergência de rótulo entre frontend e backend:
+**Histórico da divergência:**
 
-- Frontend (`ImageGenerationTabV3`) declara `pipeline_version: '10.0'` no payload.
-- Backend (`creative-image-generate`) sobrescreve e persiste `pipeline_version = '9.0.0'` em `creative_jobs`.
+- Frontend (`ImageGenerationTabV3`) enviava `pipeline_version: '10.0'` no payload.
+- Backend (`creative-image-generate`) sobrescrevia e persistia `pipeline_version = '9.0.0'` em `creative_jobs`.
+- O backend corretamente não aceita versão arbitrária vinda do cliente — o valor persistido é definido por constante interna.
+
+**Causa raiz:**
+
+- Constante `VERSION = '9.0.0'` **hardcoded** no edge `creative-image-generate`, desalinhada do rótulo `10.0` declarado pelo frontend.
+
+**Correção aplicada:**
+
+- Constante backend atualizada para `VERSION = '10.0'`.
+- Edge `creative-image-generate` redeployada.
+- **Jobs antigos não foram migrados** — o histórico permanece com `pipeline_version = '9.0.0'` por design (sem reescrita de auditoria passada).
+- A correção afeta **apenas novos jobs** gerados a partir do redeploy.
 
 **Classificação:** bug **não bloqueador** — apenas rótulo de auditoria.
 
 **Impacto:**
 
-- ❌ Não afeta shadow.
-- ❌ Não afeta cobrança.
-- ❌ Não afeta geração visual.
-- ✅ Afeta apenas leitura de auditoria/observabilidade.
+- ❌ Não afetou shadow.
+- ❌ Não afetou cobrança.
+- ❌ Não afetou geração visual.
+- ❌ Não tocou em `credit_wallet`, `credit_ledger`, `service_usage_events`, `service_pricing` ou `tenant_credit_motor_config`.
+- ✅ Afeta apenas o rótulo de auditoria/observabilidade em `creative_jobs.settings->>'pipeline_version'`.
 
-**Tratamento:**
+**Validação pendente:**
 
-- Deve ser corrigido em **PR separado** alinhando `creative-image-generate` ao rótulo `10.0` declarado por `ImageGenerationTabV3`.
-- **Não** misturar essa correção com esta documentação anti-regressão.
+- O próximo job real de IA Imagem deve gravar `creative_jobs.settings->>'pipeline_version' = '10.0'`.
+- Até que esse job exista e seja conferido, a correção permanece **pendente de validação**.
+
+**Status:** 📌 **corrigido tecnicamente; pendente validação no próximo job real.**
 
 ---
 
