@@ -459,6 +459,7 @@ Deno.serve(async (req) => {
         customer_email: normalizedEmail,
         customer_phone: payload.customer.phone,
         customer_cpf: payload.customer.cpf || null,
+        customer_birth_date: payload.customer.birth_date || null,
         status: payload.payment_gateway_status === 'paid' ? 'paid'
               : payload.payment_gateway_status === 'declined' || payload.payment_gateway_status === 'failed' ? 'pending'
               : payload.payment_gateway_status === 'pending' || payload.payment_gateway_status === 'processing' || payload.payment_gateway_status === 'awaiting_payment' ? 'awaiting_payment'
