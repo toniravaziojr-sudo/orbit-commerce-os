@@ -36,7 +36,7 @@ type: reference
 
 ---
 
-## Auto #1) Motor Universal de Créditos — Fase 3 shadow mode youtube-upload (PAUSADO, aguardando conexão YouTube real)
+## 📌 PINNED — Motor Universal de Créditos — Fase 3 shadow mode youtube-upload (PAUSADO, aguardando conexão YouTube real)
 
 **Status macro:**
 - Fase 0/1/2A/2B ✅ executadas e validadas.
@@ -58,7 +58,7 @@ type: reference
 
 ---
 
-## Auto #2) IA de Atendimento — AI Provider Routing (PAUSADO, aguardando OpenAI quota)
+## 📌 PINNED — IA de Atendimento — AI Provider Routing (PAUSADO, aguardando OpenAI quota)
 
 **Onde paramos exatamente:**
 - Fase 1 (TPR via ai-router com Gemini Native primário, OpenAI Native, Lovable Gateway só fallback) ✅ FECHADA e validada (smoke test 2026-05-04, `provider=gemini` real).
