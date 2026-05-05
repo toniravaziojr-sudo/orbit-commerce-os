@@ -662,6 +662,27 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
                   className="h-7 text-xs"
                 />
               </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <div>
+                  <Label className="text-[11px] font-medium">Pedir Data de Nascimento</Label>
+                  <p className="text-[10px] text-muted-foreground">Coleta opcional para Meta CAPI e gatilho de aniversário</p>
+                </div>
+                <Switch
+                  checked={!!localProps.newsletterShowBirthDate}
+                  onCheckedChange={(v) => updateProp('newsletterShowBirthDate', v)}
+                />
+              </div>
+
+              {localProps.newsletterShowBirthDate && (
+                <div className="flex items-center justify-between pl-3 border-l-2 border-muted">
+                  <Label className="text-[10px]">Obrigatório</Label>
+                  <Switch
+                    checked={!!localProps.newsletterBirthDateRequired}
+                    onCheckedChange={(v) => updateProp('newsletterBirthDateRequired', v)}
+                  />
+                </div>
+              )}
             </>
           )}
         </CollapsibleContent>
