@@ -440,11 +440,14 @@ function sendServerEvent(tenantId: string, payload: {
             console.warn(`[MarketingTracker] CAPI network error for ${payload.event_name}, retrying...`);
             setTimeout(() => doFetch(2), 3000);
           } else {
-            if (payload.event_name === 'Purchase' && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+            // v8.29.0: extend sendBeacon fallback to pre-navigation events
+            // that may be cancelled by immediate route changes.
+            const beaconEligible = ['Purchase', 'AddToCart', 'InitiateCheckout'];
+            if (beaconEligible.includes(payload.event_name) && typeof navigator !== 'undefined' && navigator.sendBeacon) {
               const beaconUrl = `${url}?apikey=${encodeURIComponent(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')}`;
               const blob = new Blob([body], { type: 'text/plain' });
               const sent = navigator.sendBeacon(beaconUrl, blob);
-              console.warn(`[MarketingTracker] CAPI Purchase fetch failed, beacon fallback: ${sent ? 'queued' : 'FAILED'} (event_id: ${payload.event_id})`);
+              console.warn(`[MarketingTracker] CAPI ${payload.event_name} fetch failed, beacon fallback: ${sent ? 'queued' : 'FAILED'} (event_id: ${payload.event_id})`);
             } else {
               console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed after retry:`, err);
             }
@@ -455,7 +458,12 @@ function sendServerEvent(tenantId: string, payload: {
     doFetch(1);
   };
 
-  waitForFbp(fbpWaitMs).then(doSend);
+  // v8.29.0: synchronous fast-path when _fbp already exists.
+  if (synchronousFbp) {
+    doSend(synchronousFbp);
+  } else {
+    waitForFbp(fbpWaitMs).then(doSend);
+  }
 }
 
 export class MarketingTracker {
