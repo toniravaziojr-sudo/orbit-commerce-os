@@ -131,3 +131,4 @@ Body: { "tenant_id": "uuid-do-tenant", "dry_run": true }
 |------------|---------|
 | 2026-04-12 | Criação do módulo. Tabelas, Edge Function e cron configurados. |
 | 2026-04-12 | Fix: seleção correta de conta de anúncios (prioridade integração "anuncios"), paginação para listas >1000 membros, correção do schema multi-key sem `is_raw`. Teste real com Respeite o Homem: 8.029 membros sincronizados com sucesso. |
+| 2026-05-05 | **v1.2.0 — Enriquecimento demográfico.** LEFT JOIN com `customers` por email/telefone. Envio hashado SHA-256 de FN/LN/CT/ST/ZIP/COUNTRY/DOBY/DOBM/DOBD/GEN para Meta e FN/LN/ZIP/COUNTRY para Google Ads. Schema multi-key dinâmico (apenas chaves preenchidas). |
