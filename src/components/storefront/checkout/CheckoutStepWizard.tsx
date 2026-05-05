@@ -625,6 +625,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           email: formData.customerEmail,
           phone: formData.customerPhone,
           name: formData.customerName,
+          birthDate: formData.customerBirthDate || undefined,
         });
       }
 
