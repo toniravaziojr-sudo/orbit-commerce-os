@@ -521,6 +521,19 @@ Deno.serve(async (req) => {
                 scores: result.scores,
                 isWinner: i === 0,
               });
+
+              // SHADOW v2 — Motor de Créditos (Fase 3B): roda após persistência, sem custo, sem re-chamar provider
+              await recordImageShadowV2(supabase, {
+                tenantId: tenant_id,
+                jobId,
+                variationIndex: i + 1,
+                actualProvider: result.actualProvider,
+                model: result.model,
+                outputSize: '1024x1024',
+                quality: 'medium',
+                providerResponseId: null,
+                imageUrl: publicUrlData.publicUrl,
+              });
             }
           } catch (error) {
             console.error('[creative-image] Upload error:', error);
