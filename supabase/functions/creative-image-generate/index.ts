@@ -240,7 +240,6 @@ async function recordImageShadowV2(supabase: any, args: {
         status: 'shadow',
         cost_owner: 'platform',
         origin_function: 'creative-image-generate',
-        idempotency_key: idempotencyKey,
         metadata: {
           motor_version: 'v2',
           mode: 'shadow',
