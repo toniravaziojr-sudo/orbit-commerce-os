@@ -1999,15 +1999,18 @@ function buildFullPage(opts: {
       if(!email||email.indexOf('@')<0)return;
       var name=(fd.get('name')||'').toString();
       var phone=(fd.get('phone')||'').toString();
+      var birthDate=(fd.get('birth_date')||'').toString();
       var listId=form.dataset.listId||null;
       var source=form.dataset.source||'newsletter_form';
       var blockId=form.dataset.blockId||null;
       var btn=form.querySelector('button[type=submit]');
       setBusy(btn,true);
+      var payloadFields={email:email,name:name,phone:phone};
+      if(birthDate)payloadFields.birth_date=birthDate;
       fetch(SU+'/functions/v1/marketing-form-submit',{
         method:'POST',
         headers:{'Content-Type':'application/json','apikey':SK,'Authorization':'Bearer '+SK},
-        body:JSON.stringify({tenant_id:TID,fields:{email:email,name:name,phone:phone},list_id:listId,source:source,block_id:blockId,page_slug:pageSlug()})
+        body:JSON.stringify({tenant_id:TID,fields:payloadFields,list_id:listId,source:source,block_id:blockId,page_slug:pageSlug()})
       }).then(function(r){return r.json().catch(function(){return {success:false}})}).then(function(j){
         var ok=j&&j.success;
         var msg=form.querySelector('[data-sf-newsletter-inline-msg]');
