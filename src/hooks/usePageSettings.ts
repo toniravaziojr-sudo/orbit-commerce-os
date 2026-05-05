@@ -446,7 +446,7 @@ export function useCheckoutSettings(tenantId: string, templateSetId?: string) {
             ? 'all_orders'
             : baseSettings?.purchaseEventAllOrders === true
               ? 'all_orders'
-              : 'paid_only';
+              : 'all_orders';
       
       return {
         ...baseSettings,
