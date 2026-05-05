@@ -190,6 +190,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         customerEmail: draft.customer.email || '',
         customerPhone: draft.customer.phone || '',
         customerCpf: draft.customer.cpf || '',
+        customerBirthDate: draft.customer.birthDate || '',
         shippingStreet: draft.customer.shippingStreet || '',
         shippingNumber: draft.customer.shippingNumber || '',
         shippingComplement: draft.customer.shippingComplement || '',
