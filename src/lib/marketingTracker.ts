@@ -439,7 +439,7 @@ function sendServerEvent(tenantId: string, payload: {
       event_id: payload.event_id,
       event_source_url: payload.event_source_url || window.location.href,
       user_data: userData,
-      custom_data: payload.custom_data,
+      custom_data: customDataMerged,
     });
 
     const headers = {
