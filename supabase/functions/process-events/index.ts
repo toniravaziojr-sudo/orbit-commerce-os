@@ -324,8 +324,8 @@ function ruleMatchesEventV2(rule: NotificationRuleV2, eventType: string, payload
       }
     }
 
-    // For abandoned_checkout and post_sale, no condition matching needed
-    if (rule_type === 'abandoned_checkout' || rule_type === 'post_sale') {
+    // For abandoned_checkout, post_sale, customer_birthday — no condition matching needed
+    if (rule_type === 'abandoned_checkout' || rule_type === 'post_sale' || rule_type === 'customer_birthday') {
       return true;
     }
   }
