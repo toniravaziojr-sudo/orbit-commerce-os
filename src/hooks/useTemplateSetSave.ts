@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { cachePurge } from '@/lib/storefrontCachePurge';
-import { triggerPrerenderWithRetry } from '@/lib/prerenderRetry';
+import { triggerPrerenderWithRetry, type PrerenderScope } from '@/lib/prerenderRetry';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
 import { showErrorToast } from '@/lib/error-toast';
@@ -22,6 +22,8 @@ interface SaveToTemplateSetParams {
 
 interface PublishTemplateSetParams {
   templateSetId: string;
+  /** Optional scope to limit prerender. Default = global (re-render all). Use { type: 'none' } to skip prerender entirely (e.g., checkout/cart/thank_you settings that don't affect public HTML). */
+  changeScope?: PrerenderScope;
 }
 
 export function useTemplateSetSave() {
