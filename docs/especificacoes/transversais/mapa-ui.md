@@ -194,6 +194,12 @@ Estas rotas **não passam** pela verificação de permissão no `PermissionGuard
 - `/create-store` — Criar loja (usuário autenticado sem tenant)
 - `/no-access` — Sem acesso (convite removido)
 - `/admin/qa/storefront` — QA de storefront (platform admin)
+- `/saude-do-sistema` — **Redirect legado** → `/platform/system-health`
+
+### 4.5.1 Rotas do Storefront Público (fora do escopo deste mapa)
+
+O storefront público do lojista (loja virtual vista pelo consumidor) **não é coberto por este documento**. Suas rotas (`/`, `/carrinho`, `/cart`, `/checkout`, `/obrigado`, `/conta/*`, `/minha-conta/*`, `/minhas-compras`, `/conta/pedidos/:orderId`, `/busca`, `/rastreio`, `/quiz/:quizSlug`, `/avaliar/:token`, `/store/:tenantSlug`, `/store/:tenantSlug/ai-lp/:lpSlug`) estão especificadas em `docs/especificacoes/storefront/*` (ver `loja-virtual.md`, `carrinho.md`, `checkout.md`, `pagina-obrigado.md`).
+
 
 ### 4.6 Rotas do Painel Admin (dentro do AppShell)
 
