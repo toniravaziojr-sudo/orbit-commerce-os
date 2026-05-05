@@ -1543,6 +1543,7 @@ interface SettingConfig {
   inputType?: 'toggle' | 'slider'; // Default is toggle
   min?: number;
   max?: number;
+  dependsOn?: string; // If set, this setting only renders when settings[dependsOn] === true
 }
 
 function getSettingsConfig(pageType: string): SettingConfig[] {
