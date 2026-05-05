@@ -711,6 +711,7 @@ export class MarketingTracker {
       value,
       currency,
       contents: [{ id: metaId, quantity: item.quantity, item_price: item.price }],
+      delivery_category: 'home_delivery',
     }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
   }
 
@@ -769,6 +770,7 @@ export class MarketingTracker {
       currency,
       num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       contents: cart.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+      delivery_category: 'home_delivery',
     }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
   }
 
@@ -1033,6 +1035,7 @@ export class MarketingTracker {
       currency,
       shipping_tier: shipping.shippingTier,
       contents: shipping.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+      delivery_category: 'home_delivery',
     }, shipping.userData);
   }
 
