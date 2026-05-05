@@ -89,6 +89,9 @@ export function footerToStaticHTML(context: CompilerContext): string {
   // Newsletter bar — uses universal [data-sf-newsletter] handler injected by storefront-html
   let newsletterHtml = '';
   if (showNewsletter) {
+    const birthDateField = newsletterShowBirthDate
+      ? `<input type="date" name="birth_date" max="${new Date().toISOString().slice(0,10)}" ${newsletterBirthDateRequired ? 'required' : ''} placeholder="Data de nascimento" aria-label="Data de nascimento${newsletterBirthDateRequired ? '' : ' (opcional)'}" style="padding:10px 14px;border:1px solid rgba(255,255,255,0.2);border-radius:4px;background:rgba(255,255,255,0.1);color:#fff;font-size:13px;outline:none;min-width:160px;color-scheme:dark;">`
+      : '';
     newsletterHtml = `
       <div style="background:${escapeHtml(footerBgColor)};padding:32px 16px;border-bottom:1px solid rgba(255,255,255,0.1);">
         <div class="sf-footer-newsletter-row" style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px;">
@@ -96,11 +99,14 @@ export function footerToStaticHTML(context: CompilerContext): string {
             <h3 style="font-size:18px;font-weight:700;color:${escapeHtml(footerTitlesColor)};text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">${escapeHtml(newsletterTitle)}</h3>
             ${newsletterSubtitle ? `<p style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;">${escapeHtml(newsletterSubtitle)}</p>` : ''}
           </div>
-          <form data-sf-newsletter data-tenant-id="${escapeHtml(tenantIdForForm)}" data-list-id="${escapeHtml(newsletterListId)}" data-source="footer_newsletter" style="display:flex;gap:0;min-width:300px;max-width:500px;flex:1;flex-wrap:wrap;">
-            <input type="email" name="email" required placeholder="${escapeHtml(newsletterPlaceholder)}" style="flex:1;padding:10px 16px;border:1px solid rgba(255,255,255,0.2);border-right:none;border-radius:4px 0 0 4px;background:rgba(255,255,255,0.1);color:#fff;font-size:14px;outline:none;min-width:0;">
-            <button type="submit" class="sf-btn-primary" style="padding:10px 20px;border:none;border-radius:0 4px 4px 0;font-weight:600;cursor:pointer;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
+          <form data-sf-newsletter data-tenant-id="${escapeHtml(tenantIdForForm)}" data-list-id="${escapeHtml(newsletterListId)}" data-source="footer_newsletter" style="display:flex;gap:8px;min-width:300px;max-width:560px;flex:1;flex-wrap:wrap;align-items:stretch;">
+            <div style="display:flex;flex:1;min-width:240px;">
+              <input type="email" name="email" required placeholder="${escapeHtml(newsletterPlaceholder)}" style="flex:1;padding:10px 16px;border:1px solid rgba(255,255,255,0.2);border-right:none;border-radius:4px 0 0 4px;background:rgba(255,255,255,0.1);color:#fff;font-size:14px;outline:none;min-width:0;">
+              <button type="submit" class="sf-btn-primary" style="padding:10px 20px;border:none;border-radius:0 4px 4px 0;font-weight:600;cursor:pointer;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            ${birthDateField}
           </form>
         </div>
       </div>`;
