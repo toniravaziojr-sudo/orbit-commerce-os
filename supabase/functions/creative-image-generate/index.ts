@@ -769,6 +769,7 @@ Deno.serve(async (req) => {
                 imageUrl: publicUrlData.publicUrl,
                 preRouteDecision: result.preRouteDecision,
                 preRouterError: result.preRouterError,
+                shadowReservationMeta: result.shadowReservationMeta,
               });
             }
           } catch (error) {
