@@ -29,6 +29,16 @@ import {
   PRE_ROUTER_VERSION,
   type PreRouteDecision,
 } from "../_shared/credits/image-prerouter.ts";
+import {
+  buildShadowReservationMetadata,
+  finalizeShadowReservationOutcome,
+  isShadowReservationEnabled,
+  SHADOW_RESERVATION_VERSION,
+  SHADOW_RESERVATION_SUPPORTED_KEYS,
+  type ShadowReservationMetadata,
+  type PricingSnapshotInput,
+  type WalletSnapshotInput,
+} from "../_shared/credits/shadow-reservation.ts";
 
 const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
 
