@@ -687,7 +687,7 @@ export class MarketingTracker {
       value,
       currency,
       contents: [{ id: metaId, quantity: item.quantity, item_price: item.price }],
-    });
+    }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
   }
 
   // Track initiate checkout — Phase 6: item_price in browser contents
