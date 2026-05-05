@@ -29,6 +29,16 @@ import {
   PRE_ROUTER_VERSION,
   type PreRouteDecision,
 } from "../_shared/credits/image-prerouter.ts";
+import {
+  buildShadowReservationMetadata,
+  finalizeShadowReservationOutcome,
+  isShadowReservationEnabled,
+  SHADOW_RESERVATION_VERSION,
+  SHADOW_RESERVATION_SUPPORTED_KEYS,
+  type ShadowReservationMetadata,
+  type PricingSnapshotInput,
+  type WalletSnapshotInput,
+} from "../_shared/credits/shadow-reservation.ts";
 
 const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
 
@@ -183,6 +193,7 @@ async function recordImageShadowV2(supabase: any, args: {
   imageUrl?: string | null;
   preRouteDecision?: PreRouteDecision | null;
   preRouterError?: string | null;
+  shadowReservationMeta?: ShadowReservationMetadata | null;
 }): Promise<void> {
   try {
     // 1) Verifica se tenant está habilitado em shadow_service_keys
@@ -312,6 +323,7 @@ async function recordImageShadowV2(supabase: any, args: {
           idempotency_key: idempotencyKey,
           shadow_error: est.success ? null : (est.error_message || est.error_code || null),
           ...sidecarMeta,
+          ...(args.shadowReservationMeta ? args.shadowReservationMeta : {}),
         },
       });
 
@@ -328,9 +340,12 @@ async function recordImageShadowV2(supabase: any, args: {
   }
 }
 
-// ========== PRE-ROUTER GATE (Fase A1) ==========
-// Avalia metadata.pre_router_enabled no tenant antes de invocar o sidecar.
-async function isPreRouterEnabledForTenant(supabase: any, tenantId: string): Promise<boolean> {
+// ========== PRE-ROUTER GATE (Fase A1) + SHADOW RESERVATION GATE (Fase A2) ==========
+// Avalia metadata.pre_router_enabled e metadata.shadow_reservation_enabled no tenant.
+async function loadTenantMotorGates(supabase: any, tenantId: string): Promise<{
+  preRouterEnabled: boolean;
+  shadowReservationEnabled: boolean;
+}> {
   try {
     const { data } = await supabase
       .from('tenant_credit_motor_config')
@@ -338,10 +353,59 @@ async function isPreRouterEnabledForTenant(supabase: any, tenantId: string): Pro
       .eq('tenant_id', tenantId)
       .maybeSingle();
     const meta = (data?.metadata || {}) as Record<string, any>;
-    return meta.pre_router_enabled === true;
+    return {
+      preRouterEnabled: meta.pre_router_enabled === true,
+      shadowReservationEnabled: isShadowReservationEnabled(meta),
+    };
   } catch (e: any) {
-    console.warn('[creative-image.pre-router] gate check failed (default off):', e?.message || e);
-    return false;
+    console.warn('[creative-image.motor-gates] check failed (default off):', e?.message || e);
+    return { preRouterEnabled: false, shadowReservationEnabled: false };
+  }
+}
+
+// Helper: lê pricing ativo da service_key prevista (apenas SELECT)
+async function loadActivePricingForKey(supabase: any, serviceKey: string): Promise<PricingSnapshotInput | null> {
+  try {
+    const { data } = await supabase
+      .from('service_pricing')
+      .select('id, service_key, cost_usd, markup_pct, unit, is_active, effective_until, metadata')
+      .eq('service_key', serviceKey)
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      pricing_id: data.id,
+      service_key: data.service_key,
+      cost_usd: Number(data.cost_usd),
+      markup_pct: Number(data.markup_pct),
+      unit: data.unit,
+      is_active: data.is_active,
+      effective_until: data.effective_until,
+      approved_for_live: (data.metadata as any)?.approved_for_live ?? null,
+    };
+  } catch (e: any) {
+    console.warn('[creative-image.shadow-reservation] pricing load failed:', e?.message || e);
+    return null;
+  }
+}
+
+// Helper: lê wallet do tenant (apenas SELECT, jamais muta)
+async function loadWalletSnapshot(supabase: any, tenantId: string): Promise<WalletSnapshotInput> {
+  try {
+    const { data } = await supabase
+      .from('credit_wallet')
+      .select('balance_credits, reserved_credits')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    return {
+      balance_credits: Number(data?.balance_credits ?? 0),
+      reserved_credits: Number(data?.reserved_credits ?? 0),
+    };
+  } catch (e: any) {
+    console.warn('[creative-image.shadow-reservation] wallet load failed:', e?.message || e);
+    return { balance_credits: 0, reserved_credits: 0 };
   }
 }
 
@@ -528,12 +592,30 @@ Deno.serve(async (req) => {
           scores: QAScores;
           preRouteDecision: PreRouteDecision | null;
           preRouterError: string | null;
+          shadowReservationMeta: ShadowReservationMetadata | null;
         }> = [];
         let totalCostCents = 0;
 
-        // ===== Fase A1: gate do pre-router (sidecar) =====
-        const preRouterEnabled = await isPreRouterEnabledForTenant(supabase, tenant_id);
-        console.log('[creative-image.pre-router] gate', { tenant_id, enabled: preRouterEnabled, version: PRE_ROUTER_VERSION });
+        // ===== Fase A1 + A2: gates do motor (sidecar pre-router + reserva sombra) =====
+        const motorGates = await loadTenantMotorGates(supabase, tenant_id);
+        const preRouterEnabled = motorGates.preRouterEnabled;
+        const shadowReservationEnabled = motorGates.shadowReservationEnabled;
+        console.log('[creative-image.motor-gates]', {
+          tenant_id,
+          pre_router_enabled: preRouterEnabled,
+          pre_router_version: PRE_ROUTER_VERSION,
+          shadow_reservation_enabled: shadowReservationEnabled,
+          shadow_reservation_version: SHADOW_RESERVATION_VERSION,
+        });
+
+        // Cache pricing+wallet uma vez por job (apenas leitura — jamais muta)
+        let pricingSnapshot: PricingSnapshotInput | null = null;
+        let walletSnapshot: WalletSnapshotInput | null = null;
+        if (shadowReservationEnabled) {
+          const sk = SHADOW_RESERVATION_SUPPORTED_KEYS[0];
+          pricingSnapshot = await loadActivePricingForKey(supabase, sk);
+          walletSnapshot = await loadWalletSnapshot(supabase, tenant_id);
+        }
 
         for (let varIdx = 0; varIdx < numVariations; varIdx++) {
           const variantPrompt = varIdx === 0 
@@ -577,6 +659,30 @@ Deno.serve(async (req) => {
             }
           }
 
+          // ===== SHADOW RESERVATION (Fase A2) — simulação financeira ANTES da chamada =====
+          let shadowReservationMeta: ShadowReservationMetadata | null = null;
+          if (
+            shadowReservationEnabled &&
+            preRouteDecision &&
+            preRouteDecision.predicted_service_key &&
+            (SHADOW_RESERVATION_SUPPORTED_KEYS as readonly string[]).includes(preRouteDecision.predicted_service_key)
+          ) {
+            shadowReservationMeta = buildShadowReservationMetadata({
+              pricing: pricingSnapshot,
+              wallet: walletSnapshot ?? { balance_credits: 0, reserved_credits: 0 },
+              service_key: preRouteDecision.predicted_service_key,
+              units_quantity: 1,
+            });
+            console.log('[creative-image.shadow-reservation] reserve', {
+              job_id: jobId,
+              variation_index: varIdx + 1,
+              service_key: preRouteDecision.predicted_service_key,
+              credits: shadowReservationMeta.shadow_reserve.credits,
+              would_run: shadowReservationMeta.shadow_reserve.would_run,
+              would_block: shadowReservationMeta.shadow_would_block_provider_call,
+            });
+          }
+
           // Use unified resilientGenerate from visual-engine (INALTERADO)
           const result = await resilientGenerate({
             lovableApiKey,
@@ -589,6 +695,14 @@ Deno.serve(async (req) => {
             outputSize: '1024x1024',
             slotLabel: `product-v${varIdx + 1}`,
           });
+
+          // ===== SHADOW RESERVATION (Fase A2) — finalização capture/release =====
+          if (shadowReservationMeta) {
+            shadowReservationMeta = finalizeShadowReservationOutcome(shadowReservationMeta, {
+              succeeded: !!result.imageBase64,
+              failure_reason: result.imageBase64 ? null : (result.error || 'generation_failed'),
+            });
+          }
 
           if (!result.imageBase64) {
             console.warn(`[creative-image] Variation ${varIdx + 1} failed: ${result.error}`);
@@ -610,6 +724,7 @@ Deno.serve(async (req) => {
             scores,
             preRouteDecision,
             preRouterError,
+            shadowReservationMeta,
           });
         }
 
@@ -654,6 +769,7 @@ Deno.serve(async (req) => {
                 imageUrl: publicUrlData.publicUrl,
                 preRouteDecision: result.preRouteDecision,
                 preRouterError: result.preRouterError,
+                shadowReservationMeta: result.shadowReservationMeta,
               });
             }
           } catch (error) {
