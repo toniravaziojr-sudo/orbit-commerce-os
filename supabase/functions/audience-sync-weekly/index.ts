@@ -673,8 +673,16 @@ async function syncGoogleAudiences(
           const sub = m.email_marketing_subscribers;
           if (!sub?.email) continue;
 
-          const { first, last } = splitName(sub.name);
-          const phone = normalizePhone(sub.phone);
+          const ek = normEmailKey(sub.email);
+          const pk = phoneDigits(sub.phone);
+          const cust = (ek && customerLookup.byEmail[ek]) || (pk && customerLookup.byPhone[pk]) || null;
+
+          const fullName = sub.name || cust?.full_name || null;
+          const { first, last } = splitName(fullName);
+          const phone = normalizePhone(sub.phone || cust?.phone || null);
+          const addr = pickAddress(cust);
+          const zip = normZip(addr?.postal_code);
+          const country = (addr?.country || "BR").toString().toUpperCase().substring(0, 2);
 
           const userIdentifiers: any[] = [
             { hashedEmail: await sha256(sub.email) },
@@ -685,11 +693,13 @@ async function syncGoogleAudiences(
           }
 
           if (first) {
-            userIdentifiers[0].addressInfo = {
+            const addressInfo: any = {
               hashedFirstName: await sha256(first),
               ...(last ? { hashedLastName: await sha256(last) } : {}),
-              countryCode: "BR",
+              countryCode: country,
             };
+            if (zip) addressInfo.postalCode = zip;
+            userIdentifiers[0].addressInfo = addressInfo;
           }
 
           operations.push({
