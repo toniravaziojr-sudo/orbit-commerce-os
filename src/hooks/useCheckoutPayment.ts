@@ -45,6 +45,7 @@ export interface CustomerData {
   email: string;
   phone: string;
   cpf: string;
+  birthDate?: string; // ISO yyyy-MM-dd
 }
 
 export interface ShippingData {
