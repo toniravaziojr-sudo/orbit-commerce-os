@@ -22,20 +22,28 @@ Exemplo: `Clientes - Atualizado 12/04/2026`
 
 ## Dados Enviados
 
-### Meta (Custom Audiences)
+### Meta (Custom Audiences) — v1.2.0 (enriquecido)
 Todos os dados são enviados como **hash SHA-256** (requisito obrigatório da API):
 
 | Campo | Origem |
 |-------|--------|
 | EMAIL | `email_marketing_subscribers.email` |
-| PHONE | `email_marketing_subscribers.phone` (normalizado E.164) |
-| FN (First Name) | Primeira parte de `subscribers.name` |
-| LN (Last Name) | Restante de `subscribers.name` |
+| PHONE | `subscribers.phone` (normalizado E.164) |
+| FN (First Name) | `customers.name` (primeira palavra) ou subscribers.name |
+| LN (Last Name) | `customers.name` (resto) ou subscribers.name |
+| CT (City) | `customers.city` |
+| ST (State) | `customers.state` |
+| ZIP (Postal) | `customers.cep` |
+| COUNTRY | `BR` |
+| DOBY / DOBM / DOBD | `customers.birth_date` decomposta (ano/mês/dia) |
+| GEN | `customers.gender` (`m`/`f`) — quando disponível |
+
+Origem do enriquecimento: **LEFT JOIN** com `customers` por `email` e por `phone` normalizado. Se o lead estiver na tabela `customers`, todos os campos disponíveis são enviados. Caso contrário, apenas EMAIL/PHONE/FN/LN do subscriber.
 
 - Tipo: `CUSTOM` com `customer_file_source: USER_PROVIDED_ONLY`
 - Batches: 10.000 registros por chamada
 - API: `POST /{audience_id}/users`
-- Schema multi-key: `["EMAIL", "PHONE", "FN", "LN"]`
+- Schema multi-key dinâmico (apenas chaves preenchidas).
 
 **Nota sobre matching:** A Meta faz deduplicação e matching interno. Nem todos os membros enviados serão correspondidos a perfis reais. Taxa de match típica: ~85-90%.
 
