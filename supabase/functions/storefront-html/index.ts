@@ -677,6 +677,7 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
   const nameField = config.show_name ? `<input type="text" name="name" placeholder="Seu nome" ${config.name_required ? 'required' : ''} style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">` : '';
   const emailField = `<input type="email" name="email" placeholder="Seu e-mail" required style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">`;
   const phoneField = config.show_phone ? `<input type="tel" name="phone" placeholder="Seu telefone" ${config.phone_required ? 'required' : ''} style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">` : '';
+  const birthDateField = config.show_birth_date ? `<input type="date" name="birth_date" max="${new Date().toISOString().slice(0,10)}" placeholder="Data de nascimento" aria-label="Data de nascimento${config.birth_date_required ? '' : ' (opcional)'}" ${config.birth_date_required ? 'required' : ''} style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">` : '';
 
   // Mobile: hide image, render simple centered popup. Desktop: show side-image.
   const imageHtml = (layout === 'side-image' && imageUrl) ? `<div class="sf-popup-image" style="flex:1;min-width:200px;max-width:300px;"><img src="${escapeHtml(optimizeImageUrl(imageUrl, 400))}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:12px 0 0 12px;"></div>` : '';
@@ -696,6 +697,7 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
           ${nameField}
           ${emailField}
           ${phoneField}
+          ${birthDateField}
           <button type="submit" style="width:100%;padding:12px;background:${btnBg};color:${btnText};border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity 0.2s;">${buttonText}</button>
         </form>
         <div data-sf-newsletter-success style="display:none;text-align:center;padding:20px 0;">
@@ -756,16 +758,18 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
     if(form)form.addEventListener("submit",function(e){
       e.preventDefault();
       var fd=new FormData(form);
-      var email=fd.get("email");var name=fd.get("name")||"";var phone=fd.get("phone")||"";
+      var email=fd.get("email");var name=fd.get("name")||"";var phone=fd.get("phone")||"";var birthDate=fd.get("birth_date")||"";
       var tenantId=form.dataset.tenantId;var listId=form.dataset.listId;var popupId=form.dataset.popupId;
       var supabaseUrl="${Deno.env.get('SUPABASE_URL')}";
       var supabaseKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
       var btn=form.querySelector("button[type=submit]");
       if(btn){btn.disabled=true;btn.textContent="Enviando...";}
+      var fields={email:email,name:name,phone:phone};
+      if(birthDate)fields.birth_date=birthDate;
       fetch(supabaseUrl+"/functions/v1/marketing-form-submit",{
         method:"POST",
         headers:{"Content-Type":"application/json","apikey":supabaseKey,"Authorization":"Bearer "+supabaseKey},
-        body:JSON.stringify({tenant_id:tenantId,fields:{email:email,name:name,phone:phone},list_id:listId||null,source:"popup",block_id:popupId})
+        body:JSON.stringify({tenant_id:tenantId,fields:fields,list_id:listId||null,source:"popup",block_id:popupId})
       }).then(function(r){return r.json()}).then(function(){
         form.style.display="none";
         popup.querySelector("[data-sf-newsletter-success]").style.display="block";
@@ -1999,15 +2003,18 @@ function buildFullPage(opts: {
       if(!email||email.indexOf('@')<0)return;
       var name=(fd.get('name')||'').toString();
       var phone=(fd.get('phone')||'').toString();
+      var birthDate=(fd.get('birth_date')||'').toString();
       var listId=form.dataset.listId||null;
       var source=form.dataset.source||'newsletter_form';
       var blockId=form.dataset.blockId||null;
       var btn=form.querySelector('button[type=submit]');
       setBusy(btn,true);
+      var payloadFields={email:email,name:name,phone:phone};
+      if(birthDate)payloadFields.birth_date=birthDate;
       fetch(SU+'/functions/v1/marketing-form-submit',{
         method:'POST',
         headers:{'Content-Type':'application/json','apikey':SK,'Authorization':'Bearer '+SK},
-        body:JSON.stringify({tenant_id:TID,fields:{email:email,name:name,phone:phone},list_id:listId,source:source,block_id:blockId,page_slug:pageSlug()})
+        body:JSON.stringify({tenant_id:TID,fields:payloadFields,list_id:listId,source:source,block_id:blockId,page_slug:pageSlug()})
       }).then(function(r){return r.json().catch(function(){return {success:false}})}).then(function(j){
         var ok=j&&j.success;
         var msg=form.querySelector('[data-sf-newsletter-inline-msg]');

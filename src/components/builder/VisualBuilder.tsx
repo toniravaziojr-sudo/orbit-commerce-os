@@ -725,9 +725,9 @@ export function VisualBuilder({
               ? 'all_orders'
               : resolvedCheckoutSource.purchaseEventTiming === 'paid_only'
                 ? 'paid_only'
-                : resolvedCheckoutSource.purchaseEventAllOrders === true
-                  ? 'all_orders'
-                  : 'paid_only';
+                : resolvedCheckoutSource.purchaseEventAllOrders === false
+                  ? 'paid_only'
+                  : 'all_orders';
             
             const normalizedCheckoutSettings = pendingCheckoutSettings
               ? {
@@ -761,10 +761,18 @@ export function VisualBuilder({
               if (storeSettingsError) throw storeSettingsError;
 
               const currentCheckoutConfig = (existingStoreSettings?.checkout_config as Record<string, unknown> | null) || {};
-              const updatedCheckoutConfig = {
+              // Frente C: Sync canonical checkout fields (purchaseEventTiming, requestBirthDate,
+              // birthDateRequired, paymentMethodsOrder, paymentMethodLabels) from draft → store_settings
+              // so backend (Edge HTML, Pixel/CAPI senders) reads from a single source of truth.
+              const checkoutSrc = (normalizedCheckoutSettings || resolvedCheckoutSource) as Record<string, unknown>;
+              const updatedCheckoutConfig: Record<string, unknown> = {
                 ...currentCheckoutConfig,
                 purchaseEventTiming: finalTiming,
               };
+              if (checkoutSrc.requestBirthDate !== undefined) updatedCheckoutConfig.requestBirthDate = Boolean(checkoutSrc.requestBirthDate);
+              if (checkoutSrc.birthDateRequired !== undefined) updatedCheckoutConfig.birthDateRequired = Boolean(checkoutSrc.birthDateRequired);
+              if (Array.isArray(checkoutSrc.paymentMethodsOrder)) updatedCheckoutConfig.paymentMethodsOrder = checkoutSrc.paymentMethodsOrder;
+              if (checkoutSrc.paymentMethodLabels && typeof checkoutSrc.paymentMethodLabels === 'object') updatedCheckoutConfig.paymentMethodLabels = checkoutSrc.paymentMethodLabels;
 
               if (existingStoreSettings?.id) {
                 const { error: checkoutConfigError } = await supabase

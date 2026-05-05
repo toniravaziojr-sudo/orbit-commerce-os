@@ -215,8 +215,8 @@ export const DEFAULT_CHECKOUT_SETTINGS: CheckoutSettings = {
   showSecuritySeals: true,
   paymentMethodsOrder: ['pix', 'credit_card', 'boleto'],
   paymentMethodLabels: {},
-  purchaseEventTiming: 'paid_only',
-  purchaseEventAllOrders: false,
+  purchaseEventTiming: 'all_orders',
+  purchaseEventAllOrders: true,
 };
 
 export const DEFAULT_THANKYOU_SETTINGS: ThankYouSettings = {
@@ -446,7 +446,7 @@ export function useCheckoutSettings(tenantId: string, templateSetId?: string) {
             ? 'all_orders'
             : baseSettings?.purchaseEventAllOrders === true
               ? 'all_orders'
-              : 'paid_only';
+              : 'all_orders';
       
       return {
         ...baseSettings,

@@ -203,7 +203,7 @@ export const defaultCheckoutConfig: CheckoutConfig = {
   orderBumpEnabled: true,
   testimonialsEnabled: false,
   paymentMethodsOrder: ['pix', 'credit_card', 'boleto'],
-  purchaseEventTiming: 'paid_only',
+  purchaseEventTiming: 'all_orders',
   paymentMethodLabels: {},
   // NEW: Default to show all payment methods
   showPix: true,
