@@ -218,6 +218,8 @@ export interface ThemeFooterConfig {
   newsletterButtonText?: string;
   newsletterSuccessMessage?: string;
   newsletterListId?: string;
+  newsletterShowBirthDate?: boolean;
+  newsletterBirthDateRequired?: boolean;
   // Visual menu style configuration
   menuVisualStyle?: MenuVisualStyle;
   // Badge size for footer seals/icons (small, medium, large)
