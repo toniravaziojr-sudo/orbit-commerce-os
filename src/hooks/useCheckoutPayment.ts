@@ -222,6 +222,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
               email: customer.email,
               phone: customer.phone,
               cpf: customer.cpf,
+              birth_date: customer.birthDate || undefined,
             },
             shipping: {
               street: shipping.street,
