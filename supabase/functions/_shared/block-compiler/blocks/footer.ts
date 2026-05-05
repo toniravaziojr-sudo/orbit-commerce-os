@@ -64,6 +64,8 @@ export function footerToStaticHTML(context: CompilerContext): string {
   const newsletterSubtitle = getString('newsletterSubtitle', null, 'Inscreva-se para receber descontos exclusivos direto no seu e-mail!');
   const newsletterPlaceholder = getString('newsletterPlaceholder', null, 'Seu e-mail') || 'Seu e-mail';
   const newsletterListId = getString('newsletterListId', null, '') || '';
+  const newsletterShowBirthDate = getBoolean('newsletterShowBirthDate', false);
+  const newsletterBirthDateRequired = getBoolean('newsletterBirthDateRequired', false);
   const tenantIdForForm = tenant?.id || '';
   
   // Menu names
