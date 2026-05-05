@@ -245,6 +245,8 @@ function getExpectedEventTypes(ruleType: string): string[] {
       return ['checkout.abandoned', 'checkout_abandoned'];
     case 'post_sale': 
       return ['customer_first_order', 'customer.first_order'];
+    case 'customer_birthday':
+      return ['customer_birthday', 'customer.birthday'];
     default: 
       return [];
   }
