@@ -359,3 +359,37 @@ Remover `platform.youtube_upload` de `shadow_service_keys` no tenant. v1 continu
 ### Janela de avaliação
 
 7 dias antes de avaliar GO/NO-GO para live. Critério provisório de live: 0 erros v2 + |delta_pct médio| ≤ 1% em ≥50 eventos.
+
+---
+
+## Fase 3B — Piloto shadow v2 de IA Imagem (2026-05)
+
+### Contexto
+O piloto anterior (`youtube-upload`) ficou pausado por ausência de OAuth ativo. A Fase 3B usa **IA Imagem** como novo piloto prático de shadow mode v2, começando exclusivamente pelo edge `creative-image-generate` e apenas para caminhos **Fal.AI / gpt-image-1.5**.
+
+### Decisões estruturais (correções transversais do motor v2)
+1. `service_usage_events.status` agora aceita o valor oficial `'shadow'`, junto com os demais (`estimated`, `reserved`, `captured`, `released`, `refunded`, `failed`).
+2. `chk_sue_owner_tenant` foi ajustada para permitir a combinação `cost_owner='platform'` + `tenant_id NOT NULL` **somente** quando `status='shadow'`. Para qualquer outro status essa combinação continua proibida.
+3. Eventos shadow são **observabilidade interna da plataforma**: `cost_owner='platform'` impede que o tenant veja o evento; o `tenant_id` real permanece preenchido para análise admin (filtro por tenant, relatórios, auditoria). RLS já existente em `service_usage_events` continua bloqueando leitura tenant para `cost_owner='platform'`.
+
+### Particularidades de IA Imagem
+- IA Imagem **não possui cobrança v1** real hoje. Logo, o shadow v2 calibra preços futuros sem `delta_pct` contra v1.
+- O shadow registra apenas `metadata.v2_credits_estimated`, `metadata.v1_credits=null`, `metadata.provider_cost_source='service_pricing_estimate'`.
+- Custo USD, markup e margem **não** vão em metadata; o tenant nunca vê custo real.
+
+### Regra de não-duplicação
+- O shadow é executado **somente após** geração concluída, upload no Storage e persistência do job. **Nunca** chama o provedor uma segunda vez.
+- Falha no shadow vira `WARN` e **não** afeta a geração.
+
+### Escopo plugado nesta fase
+- Edge: `creative-image-generate` apenas.
+- Provider: Fal.AI / gpt-image-1.5 apenas.
+- Demais providers (`gemini`, `openai legacy`, `lovable`) retornam **skip controlado** com `skip_reason` claro. Pricing de Gemini/Nano Banana fica como pendência futura (ver `catalogo-precos-creditos.md`).
+- v2 shadow **não** chama `charge_credits_v2`, **não** chama `reserve_credits_v2`, **não** chama `capture_reservation`, **não** altera `credit_wallet`, **não** cria `credit_ledger` financeiro.
+
+### Tenant piloto
+- `Respeite o Homem` (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
+- `motor_v2_enabled=false`. `live_service_keys=[]`. `shadow_service_keys` recebe as 8 chaves Fal.AI ativas + `platform.youtube_upload` preservada.
+
+### Idempotência
+- Chave determinística via `buildImageShadowIdempotencyKey({tenant, job, variation_index, service_key, provider_response_id})`. Retry da mesma geração não duplica `service_usage_events`.

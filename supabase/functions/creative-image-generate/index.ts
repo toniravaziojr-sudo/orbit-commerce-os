@@ -17,6 +17,11 @@ import {
   type ActualProvider,
   type ResilientGenerateResult,
 } from "../_shared/visual-engine.ts";
+import { estimateCredits } from "../_shared/credits/charge.ts";
+import {
+  resolveImageServiceKey,
+  buildImageShadowIdempotencyKey,
+} from "../_shared/credits/image-resolver.ts";
 
 const VERSION = '9.0.0'; // Unified engine v10.0
 
@@ -154,6 +159,116 @@ function getCostBucketFromProvider(provider: ActualProvider): string {
   if (provider === 'gemini') return 'gemini';
   if (provider === 'openai') return 'openai';
   return 'lovable';
+}
+
+// ========== SHADOW v2 (Motor de Créditos — Fase 3B) ==========
+// Registra service_usage_events com status='shadow' SEM debitar wallet, SEM credit_ledger,
+// SEM chamar provider duas vezes. Falhas viram log WARN e não afetam a geração.
+async function recordImageShadowV2(supabase: any, args: {
+  tenantId: string;
+  jobId: string;
+  variationIndex: number;
+  actualProvider: ActualProvider;
+  model: string;
+  outputSize: string;
+  quality?: string;
+  providerResponseId?: string | null;
+  imageUrl?: string | null;
+}): Promise<void> {
+  try {
+    // 1) Verifica se tenant está habilitado em shadow_service_keys
+    const { data: cfg } = await supabase
+      .from('tenant_credit_motor_config')
+      .select('shadow_service_keys')
+      .eq('tenant_id', args.tenantId)
+      .maybeSingle();
+    const shadowKeys: string[] = cfg?.shadow_service_keys || [];
+    if (!shadowKeys.length) {
+      console.log('[creative-image.shadow] skip: tenant_not_enabled', { tenant_id: args.tenantId });
+      return;
+    }
+
+    // 2) Resolve service_key
+    const resolved = resolveImageServiceKey({
+      provider: args.actualProvider,
+      actualProvider: args.actualProvider,
+      model: args.model,
+      size: args.outputSize,
+      quality: args.quality || 'medium',
+    });
+
+    if (!resolved.resolved) {
+      console.log('[creative-image.shadow] skip:', resolved.skip_reason, resolved.detail);
+      return;
+    }
+
+    if (!shadowKeys.includes(resolved.service_key)) {
+      console.log('[creative-image.shadow] skip: service_key_not_in_tenant_shadow', {
+        service_key: resolved.service_key, tenant_id: args.tenantId,
+      });
+      return;
+    }
+
+    // 3) Estima créditos v2 (sem debitar)
+    const units = { quantity: 1, size: resolved.resolution, quality: resolved.quality };
+    const est = await estimateCredits({
+      tenantId: args.tenantId,
+      serviceKey: resolved.service_key,
+      units,
+      publicSafe: false,
+    });
+    const v2CreditsEstimated = (est.data as any)?.credits ?? (est.data as any)?.total_credits ?? null;
+
+    // 4) Idempotency key
+    const idempotencyKey = buildImageShadowIdempotencyKey({
+      tenantId: args.tenantId,
+      jobId: args.jobId,
+      variationIndex: args.variationIndex,
+      serviceKey: resolved.service_key,
+      providerResponseId: args.providerResponseId,
+    });
+
+    // 5) Insert service_usage_events status='shadow' (cost_owner='platform' + tenant_id real)
+    const { error: insErr } = await supabase
+      .from('service_usage_events')
+      .insert({
+        tenant_id: args.tenantId,
+        service_key: resolved.service_key,
+        category: 'ai_image',
+        provider: resolved.provider,
+        units_json: units,
+        status: 'shadow',
+        cost_owner: 'platform',
+        origin_function: 'creative-image-generate',
+        metadata: {
+          motor_version: 'v2',
+          mode: 'shadow',
+          shadow_for_tenant_id: args.tenantId,
+          provider: args.actualProvider,
+          model: args.model,
+          size: args.outputSize,
+          quality: args.quality || 'medium',
+          provider_response_id: args.providerResponseId || null,
+          image_url: args.imageUrl || null,
+          v1_credits: null,
+          v2_credits_estimated: v2CreditsEstimated,
+          provider_cost_source: 'service_pricing_estimate',
+          is_internal_shadow: true,
+          idempotency_key: idempotencyKey,
+          shadow_error: est.success ? null : (est.error_message || est.error_code || null),
+        },
+      });
+
+    if (insErr) {
+      console.warn('[creative-image.shadow] insert failed:', insErr.message);
+      return;
+    }
+    console.log('[creative-image.shadow] recorded', {
+      tenant_id: args.tenantId, service_key: resolved.service_key, v2_credits_estimated: v2CreditsEstimated,
+    });
+  } catch (e: any) {
+    console.warn('[creative-image.shadow] error (ignored):', e?.message || e);
+  }
 }
 
 // ========== MAIN HANDLER ==========
@@ -404,6 +519,19 @@ Deno.serve(async (req) => {
                 model: result.model,
                 scores: result.scores,
                 isWinner: i === 0,
+              });
+
+              // SHADOW v2 — Motor de Créditos (Fase 3B): roda após persistência, sem custo, sem re-chamar provider
+              await recordImageShadowV2(supabase, {
+                tenantId: tenant_id,
+                jobId,
+                variationIndex: i + 1,
+                actualProvider: result.actualProvider,
+                model: result.model,
+                outputSize: '1024x1024',
+                quality: 'medium',
+                providerResponseId: null,
+                imageUrl: publicUrlData.publicUrl,
               });
             }
           } catch (error) {
