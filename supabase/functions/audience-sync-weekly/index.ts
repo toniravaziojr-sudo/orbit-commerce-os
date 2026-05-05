@@ -54,6 +54,84 @@ function formatDateBR(): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+// Normalize email key (lowercase trim)
+function normEmailKey(e?: string | null): string | null {
+  if (!e) return null;
+  return e.trim().toLowerCase();
+}
+
+// Build phone digits-only (without +) for join key against customers.phone (free format)
+function phoneDigits(p?: string | null): string | null {
+  if (!p) return null;
+  const d = p.replace(/[^0-9]/g, "");
+  return d.length >= 8 ? d : null;
+}
+
+// Normalize gender to single letter (m|f) per Meta spec
+function normGender(g?: string | null): string | null {
+  if (!g) return null;
+  const v = g.trim().toLowerCase();
+  if (v.startsWith("m") || v === "masculino" || v === "male") return "m";
+  if (v.startsWith("f") || v === "feminino" || v === "female") return "f";
+  return null;
+}
+
+// Strip accents and non-letters; lowercase
+function normCity(c?: string | null): string | null {
+  if (!c) return null;
+  return c.normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/[^a-z]/gi, "").toLowerCase() || null;
+}
+
+// State 2-letter
+function normState(s?: string | null): string | null {
+  if (!s) return null;
+  const v = s.trim().toLowerCase();
+  return v.length >= 2 ? v.substring(0, 2) : null;
+}
+
+// Zip digits
+function normZip(z?: string | null): string | null {
+  if (!z) return null;
+  const d = z.replace(/[^0-9]/g, "");
+  return d || null;
+}
+
+// Build a customer lookup map (email + phoneDigits -> customer row)
+async function buildCustomerLookup(supabase: any, tenantId: string) {
+  const byEmail: Record<string, any> = {};
+  const byPhone: Record<string, any> = {};
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    const { data: rows } = await supabase
+      .from("customers")
+      .select("email, phone, full_name, birth_date, gender, addresses:customer_addresses(city, state, zip_code, country, is_default)")
+      .eq("tenant_id", tenantId)
+      .is("deleted_at", null)
+      .range(from, from + PAGE - 1);
+    if (!rows || rows.length === 0) break;
+    for (const r of rows) {
+      const ek = normEmailKey(r.email);
+      if (ek) byEmail[ek] = r;
+      const pk = phoneDigits(r.phone);
+      if (pk) byPhone[pk] = r;
+    }
+    if (rows.length < PAGE) break;
+    from += PAGE;
+    if (from > 100000) break;
+  }
+  return { byEmail, byPhone };
+}
+
+// Pick best address (default else first)
+function pickAddress(c: any) {
+  const list = c?.addresses || [];
+  if (!list.length) return null;
+  const def = list.find((a: any) => a.is_default);
+  return def || list[0];
+}
+
+
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
   console.log(`[audience-sync-weekly][${VERSION}][${traceId}] ${req.method}`);
