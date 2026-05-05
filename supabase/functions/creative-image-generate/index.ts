@@ -592,12 +592,30 @@ Deno.serve(async (req) => {
           scores: QAScores;
           preRouteDecision: PreRouteDecision | null;
           preRouterError: string | null;
+          shadowReservationMeta: ShadowReservationMetadata | null;
         }> = [];
         let totalCostCents = 0;
 
-        // ===== Fase A1: gate do pre-router (sidecar) =====
-        const preRouterEnabled = await isPreRouterEnabledForTenant(supabase, tenant_id);
-        console.log('[creative-image.pre-router] gate', { tenant_id, enabled: preRouterEnabled, version: PRE_ROUTER_VERSION });
+        // ===== Fase A1 + A2: gates do motor (sidecar pre-router + reserva sombra) =====
+        const motorGates = await loadTenantMotorGates(supabase, tenant_id);
+        const preRouterEnabled = motorGates.preRouterEnabled;
+        const shadowReservationEnabled = motorGates.shadowReservationEnabled;
+        console.log('[creative-image.motor-gates]', {
+          tenant_id,
+          pre_router_enabled: preRouterEnabled,
+          pre_router_version: PRE_ROUTER_VERSION,
+          shadow_reservation_enabled: shadowReservationEnabled,
+          shadow_reservation_version: SHADOW_RESERVATION_VERSION,
+        });
+
+        // Cache pricing+wallet uma vez por job (apenas leitura — jamais muta)
+        let pricingSnapshot: PricingSnapshotInput | null = null;
+        let walletSnapshot: WalletSnapshotInput | null = null;
+        if (shadowReservationEnabled) {
+          const sk = SHADOW_RESERVATION_SUPPORTED_KEYS[0];
+          pricingSnapshot = await loadActivePricingForKey(supabase, sk);
+          walletSnapshot = await loadWalletSnapshot(supabase, tenant_id);
+        }
 
         for (let varIdx = 0; varIdx < numVariations; varIdx++) {
           const variantPrompt = varIdx === 0 
@@ -641,6 +659,30 @@ Deno.serve(async (req) => {
             }
           }
 
+          // ===== SHADOW RESERVATION (Fase A2) — simulação financeira ANTES da chamada =====
+          let shadowReservationMeta: ShadowReservationMetadata | null = null;
+          if (
+            shadowReservationEnabled &&
+            preRouteDecision &&
+            preRouteDecision.predicted_service_key &&
+            (SHADOW_RESERVATION_SUPPORTED_KEYS as readonly string[]).includes(preRouteDecision.predicted_service_key)
+          ) {
+            shadowReservationMeta = buildShadowReservationMetadata({
+              pricing: pricingSnapshot,
+              wallet: walletSnapshot ?? { balance_credits: 0, reserved_credits: 0 },
+              service_key: preRouteDecision.predicted_service_key,
+              units_quantity: 1,
+            });
+            console.log('[creative-image.shadow-reservation] reserve', {
+              job_id: jobId,
+              variation_index: varIdx + 1,
+              service_key: preRouteDecision.predicted_service_key,
+              credits: shadowReservationMeta.shadow_reserve.credits,
+              would_run: shadowReservationMeta.shadow_reserve.would_run,
+              would_block: shadowReservationMeta.shadow_would_block_provider_call,
+            });
+          }
+
           // Use unified resilientGenerate from visual-engine (INALTERADO)
           const result = await resilientGenerate({
             lovableApiKey,
@@ -653,6 +695,14 @@ Deno.serve(async (req) => {
             outputSize: '1024x1024',
             slotLabel: `product-v${varIdx + 1}`,
           });
+
+          // ===== SHADOW RESERVATION (Fase A2) — finalização capture/release =====
+          if (shadowReservationMeta) {
+            shadowReservationMeta = finalizeShadowReservationOutcome(shadowReservationMeta, {
+              succeeded: !!result.imageBase64,
+              failure_reason: result.imageBase64 ? null : (result.error || 'generation_failed'),
+            });
+          }
 
           if (!result.imageBase64) {
             console.warn(`[creative-image] Variation ${varIdx + 1} failed: ${result.error}`);
@@ -674,6 +724,7 @@ Deno.serve(async (req) => {
             scores,
             preRouteDecision,
             preRouterError,
+            shadowReservationMeta,
           });
         }
 
