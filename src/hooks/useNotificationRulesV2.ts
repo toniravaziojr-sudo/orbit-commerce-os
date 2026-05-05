@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import type { Json } from "@/integrations/supabase/types";
 
 // Rule Types
-export type RuleType = 'payment' | 'shipping' | 'abandoned_checkout' | 'post_sale';
+export type RuleType = 'payment' | 'shipping' | 'abandoned_checkout' | 'post_sale' | 'customer_birthday';
 
 // Trigger conditions by type
 export type PaymentCondition = 
