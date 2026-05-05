@@ -46,8 +46,8 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 15 | Marketing Avançado | Email Marketing | `/email-marketing` | marketing_avancado | `email_marketing` | — | Badge "Upgrade" se bloqueado |
 | 16 | Marketing Avançado | Quizzes | `/quizzes` | marketing_avancado | `quizzes` | — | Badge "Upgrade" se bloqueado |
 | 17 | Marketing Avançado | Gestor de Tráfego IA | `/ads` | marketing_avancado | — | — | — |
-| 18 | Central de Conteúdo | Calendário de Conteúdo | `/media` | central_conteudo | — | — | — |
-| 19 | Central de Conteúdo | Estúdio de Criativos | `/creatives` | central_conteudo | — | — | — |
+| 18 | Central de Conteúdo | Calendário de Conteúdo | `/media` | central_conteudo | — | — | Planejamento e agenda de publicações. **Não chama** o edge `creative-image-generate` diretamente — geração visual é feita no Estúdio de Criativos. |
+| 19 | Central de Conteúdo | Estúdio de Criativos | `/creatives` | central_conteudo | — | — | **3 abas:** **Vídeos** (default — edge `creative-video-generate`), **Imagens** (edge `creative-image-generate` — instrumentado pelo Motor Universal de Créditos / Fase 3B shadow), **Galeria** (somente leitura). É a única tela do tenant que aciona `creative-image-generate`. |
 | 20 | CRM | Notificações | `/notifications` | crm | `whatsapp_notifications` | — | Badge "Upgrade" se bloqueado |
 | 21 | CRM | Atendimento | `/support` | crm | `support_chat` | — | Badge "Upgrade" se bloqueado |
 | 22 | CRM | Emails | `/emails` | crm | `emails` | — | Badge "Upgrade" se bloqueado |
