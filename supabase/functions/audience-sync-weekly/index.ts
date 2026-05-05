@@ -288,6 +288,10 @@ async function syncMetaAudiences(
   const syncResults: any[] = [];
   const cleanAdAccountId = adAccountId.replace("act_", "");
 
+  // Build customer enrichment lookup once per tenant
+  const customerLookup = await buildCustomerLookup(supabase, tenantId);
+  console.log(`${tag} Customer lookup built: ${Object.keys(customerLookup.byEmail).length} byEmail, ${Object.keys(customerLookup.byPhone).length} byPhone`);
+
   for (const list of lists) {
     const startTime = Date.now();
     const audienceName = `${list.name} - Atualizado ${dateSuffix}`;
