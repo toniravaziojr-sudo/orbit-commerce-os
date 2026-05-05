@@ -640,8 +640,10 @@ export class MarketingTracker {
       content_name: product.name,
       content_type: 'product',
       content_category: product.category,
+      contents: [{ id: metaId, quantity: 1, item_price: product.price }],
       value: product.price,
       currency,
+      delivery_category: 'home_delivery',
     });
   }
 
@@ -843,6 +845,7 @@ export class MarketingTracker {
       order_id: order.order_id,
       delivery_category: 'home_delivery',
       predicted_ltv: predictedLtv,
+      order_status: 'completed', // v8.31.0: Meta recommended for Purchase
     }, order.userData);
 
     // v8.28.0: Persist FULL identity into the cofre — Purchase is the most
