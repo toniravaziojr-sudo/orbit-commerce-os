@@ -697,6 +697,7 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
           ${nameField}
           ${emailField}
           ${phoneField}
+          ${birthDateField}
           <button type="submit" style="width:100%;padding:12px;background:${btnBg};color:${btnText};border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity 0.2s;">${buttonText}</button>
         </form>
         <div data-sf-newsletter-success style="display:none;text-align:center;padding:20px 0;">
