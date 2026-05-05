@@ -30,6 +30,8 @@ export interface CheckoutUserData {
   city?: string;
   state?: string;
   zip?: string;
+  /** ISO YYYY-MM-DD birth date (when collected via Builder toggle) */
+  birthDate?: string;
 }
 
 /**
@@ -136,11 +138,12 @@ export function useMarketingEvents() {
     });
   }, [tracker, items, subtotal, shipping.selected, trackOnce, mapCartItemsForTracker]);
 
-  // Track lead (personal info submitted) — Phase 5: includes PII
+  // Track lead (personal info submitted) — Phase 5: includes PII; v8.30: birthDate
   const trackLead = useCallback((customer: {
     email?: string;
     phone?: string;
     name?: string;
+    birthDate?: string;
   }) => {
     if (!tracker) return;
     const key = `lead_${customer.email || 'anon'}`;
@@ -149,6 +152,7 @@ export function useMarketingEvents() {
         email: customer.email,
         phone: customer.phone,
         name: customer.name,
+        birthDate: customer.birthDate,
         value: subtotal,
         currency: 'BRL',
       });
