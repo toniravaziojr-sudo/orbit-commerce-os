@@ -22,6 +22,13 @@ import {
   resolveImageServiceKey,
   buildImageShadowIdempotencyKey,
 } from "../_shared/credits/image-resolver.ts";
+import {
+  preRouteImageGeneration,
+  computePreRouteMatch,
+  normalizeProviderForMatch,
+  PRE_ROUTER_VERSION,
+  type PreRouteDecision,
+} from "../_shared/credits/image-prerouter.ts";
 
 const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
 
