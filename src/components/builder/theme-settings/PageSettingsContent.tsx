@@ -1073,7 +1073,12 @@ export function PageSettingsContent({
                     </button>
                   </div>
                 )}
-                {group.settings.map((config) => (
+                {group.settings.map((config) => {
+                  // Conditional rendering: hide if dependency is off
+                  if (config.dependsOn && !Boolean(settings[config.dependsOn] ?? false)) {
+                    return null;
+                  }
+                  return (
                   <div key={config.key} className="space-y-2">
                     {config.inputType === 'slider' ? (
                       /* Slider input for numeric values like bannerOverlayOpacity */
