@@ -289,9 +289,34 @@ O ciclo de vida do cliente é gerenciado por **dois triggers complementares** na
 
 | Trigger | Função | Tipo | O que faz |
 |---------|--------|------|-----------|
-| `trg_after_order_approved_sync` | `after_order_approved_sync()` | AFTER UPDATE | Quando `payment_status` muda para `approved`: 1) Garante tag "Cliente" via `ensure_customer_tag`; 2) Recalcula métricas via `recalc_customer_metrics` (com o pedido já commitado); 3) Sincroniza subscriber na lista "Clientes" via `upsert_subscriber_only` |
+| `trg_after_order_approved_sync` | `after_order_approved_sync()` | AFTER UPDATE | Quando `payment_status` muda para `approved`: 1) Garante tag "Cliente" via `ensure_customer_tag`; 2) Recalcula métricas via `recalc_customer_metrics` (com o pedido já commitado); 3) **Enriquece o cadastro do cliente com os dados do pedido** via `enrich_customer_from_order` (ver §4.6.1); 4) Sincroniza subscriber na lista "Clientes" via `upsert_subscriber_only` |
 
 > **Por que AFTER:** O `recalc_customer_metrics` precisa enxergar o pedido com status `approved` já persistido. No padrão anterior (BEFORE), a query de métricas não via o pedido corrente, resultando em `total_orders = 0`.
+
+#### 4.6.1 Enriquecimento automático pelo pedido aprovado (v8.31)
+
+Toda vez que um pedido transita para `payment_status = 'approved'`, o cadastro do cliente vinculado é atualizado com os dados desse pedido. O e-mail nunca é tocado — é a chave imutável de identidade dentro do tenant.
+
+**Princípio:** o pedido mais recente é a fonte de verdade mais atual sobre o cliente. Se o cliente declarou um CPF diferente, mudou o telefone ou se mudou de endereço, o cadastro reflete a última declaração.
+
+**Campos pessoais (atualização campo-a-campo):**
+
+| Campo no cadastro | Origem no pedido | Regra |
+|-------------------|------------------|-------|
+| `full_name` | `customer_name` | Sobrescreve se o pedido tem valor não-vazio; preserva caso contrário |
+| `cpf` | `customer_cpf` | Sobrescreve se não-vazio; preserva caso contrário |
+| `phone` | `customer_phone` | Sobrescreve se não-vazio; preserva caso contrário |
+| `birth_date` | `customer_birth_date` | Sobrescreve se não-nulo; preserva caso contrário |
+
+**Endereço principal (bloco atômico):** os 7 campos `address_postal_code`, `address_street`, `address_number`, `address_complement`, `address_neighborhood`, `address_city`, `address_state` são tratados como conjunto coerente. Se o pedido tem CEP preenchido (`shipping_postal_code` não-vazio), o bloco inteiro é substituído pelos campos de envio do pedido — evitando inconsistência tipo "CEP novo + bairro velho". Se o pedido não tem CEP, nada é tocado.
+
+**Quando dispara:** apenas na transição para `approved` (mesmo `IF` do trigger acima). Pedidos já aprovados não disparam novamente. Pedidos sem `customer_id` vinculado não disparam.
+
+**Padrão arquitetural:** Padrão 1 — Pure SQL Trigger (ver `docs/especificacoes/sistema/automacao-patterns.md`). Apenas um UPDATE em uma tabela, sem chamada externa. Latência zero, atômico, sem fila, sem cron, sem `pg_net`.
+
+**Função:** `public.enrich_customer_from_order(p_tenant_id, p_customer_id, p_order_id)` — `SECURITY DEFINER`, `search_path=public`, EXECUTE restrito a `service_role`. Wrap em `BEGIN ... EXCEPTION WHEN OTHERS THEN RAISE WARNING` dentro do trigger — uma falha de enriquecimento nunca derruba a aprovação do pedido.
+
+**Fora do escopo:** histórico de endereços / múltiplos endereços por cliente (entidade futura), pedidos não aprovados, pedidos de marketplace (Mercado Livre/Shopee — fluxo próprio), importação em massa (importer mantém merge próprio).
 
 #### Trigger legado (mantido por compatibilidade)
 
