@@ -178,6 +178,30 @@ Resultado esperado em shadow: **nenhuma linha relacionada ao job shadow**.
 
 ---
 
-## 10. Status
+## 10. Continuação — Fase A1 (pre-router shadow sidecar)
 
-📌 **STATUS DA ENTREGA:** Fase 3B IA Imagem — **validada end-to-end em shadow mode**. Cutover para live **não autorizado** e **não executado**.
+A Fase A1 foi implantada como **continuação evolutiva** da Fase 3B, sem alterar nada do que foi validado aqui.
+
+**O que a Fase A1 adiciona:**
+
+- Pre-router de IA Imagem em **modo shadow sidecar**, executado em paralelo a `resilientGenerate` em `creative-image-generate`.
+- Decisão prevista (`predicted_provider`, `predicted_model`, `predicted_service_key`) gravada em `service_usage_events.metadata` ao lado da decisão real, junto com `pre_route_match` e `mismatch_reason`.
+- Gate dedicado via `tenant_credit_motor_config.metadata.pre_router_enabled = true`, ativado **apenas** no tenant piloto Respeite o Homem.
+- Marcador `metadata.pre_router_version = '0.1.0-shadow-sidecar'` em todos os eventos instrumentados pela A1.
+
+**O que a Fase A1 NÃO altera:**
+
+- Não ativa live, não cria reserva nem captura de créditos.
+- Não altera `credit_wallet`, `credit_ledger`, `service_pricing`, `service_usage_events` (apenas estende `metadata`), RPCs, RLS ou UI.
+- Não refatora `visual-engine.ts` nem o contrato de `image-resolver.ts`.
+- Não muda o comportamento real da geração — `resilientGenerate` segue como única fonte de execução.
+
+**Critério de validação da Fase A1:**
+
+Coletar **no mínimo 10 jobs reais** em `service_usage_events` com `metadata->>'pre_router_version' = '0.1.0-shadow-sidecar'` antes de qualquer avaliação de coerência ou avanço para a Fase A2. Detalhes em [`motor-creditos-fase-a1-pre-router-sidecar.md`](./motor-creditos-fase-a1-pre-router-sidecar.md).
+
+---
+
+## 11. Status
+
+📌 **STATUS DA ENTREGA:** Fase 3B IA Imagem — **validada end-to-end em shadow mode**. Cutover para live **não autorizado** e **não executado**. Fase A1 (pre-router sidecar) — **aplicada; pendente de validação** (mínimo de 10 jobs reais com `pre_router_version = '0.1.0-shadow-sidecar'`).
