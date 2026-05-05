@@ -1,7 +1,7 @@
 # Motor Universal de Créditos — Fase A1 Pre-Router Sidecar (IA Imagem)
 
 > **Camada:** Layer 3 — Especificação de Plataforma
-> **Status:** Implantado em shadow sidecar — pendente coleta de amostras (≥10 jobs reais)
+> **Status:** ✅ Concluída e validada no escopo shadow sidecar / observacional (10/10 jobs reais, 100% match). Live **não** ativado. Cobrança **não** ativada.
 > **Última atualização:** 2026-05-05
 > **Relacionado a:** [`motor-creditos.md`](./motor-creditos.md), [`motor-creditos-fase-3b-shadow.md`](./motor-creditos-fase-3b-shadow.md), [`catalogo-precos-creditos.md`](./catalogo-precos-creditos.md)
 
@@ -268,9 +268,77 @@ A Fase A2 **não** será iniciada sem novo prompt PLANNER e validação dos crit
 
 ---
 
-## 11. Status
+## 11. Fechamento da coleta (2026-05-05)
 
-📌 **STATUS DA ENTREGA:** Fase A1 IA Imagem — **implantada em shadow sidecar**. Pendente:
+A Fase A1 foi validada com **10 jobs reais** no tenant piloto **Respeite o Homem** (`d1a4d0ed-8842-495e-b741-540a9a345b25`), gerados manualmente pelo usuário, 1 imagem por vez, com prompts neutros e técnicos.
 
-- Coletar ≥10 jobs reais para validar critério de coerência.
-- `pipeline_version=10.0` no backend pendente de validação no próximo job real (separado, não bloqueante).
+### 11.1 Resultados da query oficial de coerência
+
+| Métrica | Resultado |
+|---|---|
+| `total_jobs` | **10** |
+| `matches` (pre_route_match=true) | **10** |
+| `mismatches` (pre_route_match=false) | **0** |
+| Concordância de `provider` | **100%** |
+| Concordância de `service_key` | **100%** |
+| `would_block_in_live` | **0** |
+| `service_keys` preditas distintas | 1 (`fal.gpt-image-1.5.per_image.medium_1024`) |
+| `service_keys` reais distintas | 1 (`fal.gpt-image-1.5.per_image.medium_1024`) |
+
+### 11.2 Carteira e ledger (intocados)
+
+- `credit_wallet`: `balance_credits=500`, `reserved_credits=0`, `lifetime_consumed=0`.
+- `credit_ledger`: 1 entrada histórica, anterior à Fase A1. Nenhuma nova entrada criada pela Fase A1.
+- `motor_v2_enabled=false`, `live_service_keys=[]`, `metadata.pre_router_enabled=true`.
+- **Live nunca foi ativado** durante toda a coleta.
+
+### 11.3 Divergência de `model` — interpretação oficial
+
+Em todos os 10 jobs houve diferença literal entre:
+
+- `predicted_model = 'gpt-image-1.5'` (alias curto/canônico interno)
+- `actual_model = 'fal-ai/gpt-image-1/edit-image'` (caminho real do endpoint Fal.AI)
+
+**Classificação:** divergência **cosmética**, **não bloqueante**.
+
+**Regra oficial de interpretação para a transição futura para reserva/captura:** o critério dominante de cobrança é o par `provider + service_key`. Igualdade literal de `model` **não é** requisito. Como `provider` e `service_key` bateram 100%, a Fase A1 atingiu seu objetivo técnico.
+
+A normalização do alias de `model` (curto vs endpoint Fal) pode ser endereçada em fase futura como melhoria observacional, sem impacto em cobrança.
+
+### 11.4 Critério de saída — atingido
+
+Todos os critérios da seção 8.1 foram atingidos:
+
+- ✅ `total_jobs >= 10` (10)
+- ✅ `matches / total_jobs >= 0.90` (1.00)
+- ✅ `would_block = 0`
+- ✅ Wallet/ledger/UI intocados
+- ✅ Live nunca ativado
+- ✅ Sem exceções críticas no sidecar
+
+### 11.5 Status final
+
+📌 **STATUS DA ENTREGA:** ✅ **Fase A1 — concluída e validada no escopo shadow sidecar / observacional.**
+
+**O que isso significa:**
+
+- A camada observacional de pre-routing prevê corretamente `provider + service_key` para IA Imagem em 100% dos jobs reais coletados.
+- O sidecar não interfere no fluxo real de geração.
+- Wallet, ledger, RPCs de cobrança e `service_pricing` continuam intocados.
+
+**O que isso NÃO significa:**
+
+- ❌ Live **não** está ativo (`motor_v2_enabled=false`, `live_service_keys=[]`).
+- ❌ Cobrança real **não** foi ativada.
+- ❌ Reserva/captura de créditos **não** está em execução.
+- ❌ Nenhum tenant está sendo cobrado por geração de imagem.
+
+### 11.6 Próxima fase recomendada
+
+**Fase A2 — Reserva Sombra** (a ser planejada via prompt PLANNER):
+
+- Simular `reserve → capture | release` ainda em shadow (sem mexer em wallet/ledger reais).
+- Validar aritmética end-to-end de `units_json → cost`.
+- Definir critérios de saída e plano de rollback antes de qualquer EXECUÇÃO.
+
+A Fase A2 **não** será iniciada sem novo prompt PLANNER aprovado.
