@@ -385,7 +385,8 @@ A edge `audience-sync-weekly` (v1.2.0) também passa a enriquecer com dados demo
 
 | Versão | Data | Resumo |
 |---|---|---|
-| **v8.29.0** | **2026-05-05** | **CAPI resiliente a navegação imediata: fast-path síncrono quando `_fbp` já existe; `fbp_wait_ms=800` em AddToCart/InitiateCheckout; `sendBeacon` fallback estendido aos dois eventos. Sem mudança em PageView/ViewContent/Lead/Shipping/Payment/Purchase.** |
+| **v8.30.0** | **2026-05-05** | **Cofre estendido: `db_hash` (data nascimento), `ge_hash`, `lead_id`, `customer_id`. 4 quick wins: `external_id` array, `predicted_ltv` em Purchase, `delivery_category` em todos os eventos de conversão, `lead_id` em `custom_data`. Coleta opcional de data de nascimento em Checkout, Popup, Newsletter Footer e bloco Newsletter Form. `audience-sync-weekly` v1.2.0 com enriquecimento demográfico.** |
+| v8.29.0 | 2026-05-05 | CAPI resiliente a navegação imediata: fast-path síncrono quando `_fbp` já existe; `fbp_wait_ms=800` em AddToCart/InitiateCheckout; `sendBeacon` fallback estendido aos dois eventos. |
 | **v8.28.0** | **2026-04-29** | **Cofre `_sf_identity` (PII hashada cumulativa, TTL 30d); backend aceita `first_name_hashed`/`last_name_hashed`/`city_hashed`/`state_hashed`/`zip_hashed`; PageView gated por `_fbp` (polling 5s); checkout passa `userData` completo em AddShippingInfo/AddPaymentInfo; invalidação de 89 prerenders ativos** |
 | v8.27.0 | 2026-04-19 | Persistência 30d do Purchase (`purchaseDedup.ts`); event_id normalizado; cookies sintéticos `_fbp`/`_fbc` no edge; `email_hashed`/`phone_hashed` em meio de funil |
 | v8.26.0 | 2026-04-15 | `client_ip_from_browser` priorizado sobre headers em CAPI |
