@@ -209,6 +209,9 @@ export const defaultCheckoutConfig: CheckoutConfig = {
   showPix: true,
   showBoleto: true,
   showCreditCard: true,
+  // Birth date defaults: off
+  requestBirthDate: false,
+  birthDateRequired: false,
 };
 
 // Parse functions for database JSONB
