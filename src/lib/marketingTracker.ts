@@ -918,24 +918,35 @@ export class MarketingTracker {
     });
   }
 
-  // Phase 5: Lead already sends PII — keeping as-is
+  // Phase 5: Lead already sends PII — keeping as-is. Quick-win: emits lead_id (UUID).
   trackLead(customer: {
     email?: string;
     phone?: string;
     name?: string;
+    birthDate?: string;
     value?: number;
     currency?: string;
   }): void {
     const eventId = generateEventId();
     const currency = customer.currency || 'BRL';
 
-    // v8.28.0: Persist captured PII into the cofre BEFORE dispatching the
-    // CAPI event — so `sendServerEvent` already sees these values and
+    // Generate (or reuse) a stable lead_id for this funnel
+    let leadId: string | undefined;
+    try {
+      const existing = (getStoredIdentity() as { lead_id?: string }).lead_id;
+      if (existing) leadId = existing;
+      else if (typeof crypto !== 'undefined' && crypto.randomUUID) leadId = crypto.randomUUID();
+    } catch {}
+
+    // v8.28.0: Persist captured PII (+ lead_id, birthDate) into the cofre BEFORE dispatching
+    // the CAPI event — so `sendServerEvent` already sees these values and
     // every subsequent funnel event in the same session inherits them.
     void storeIdentity({
       email: customer.email,
       phone: customer.phone,
       name: customer.name,
+      birthDate: customer.birthDate,
+      leadId,
     });
 
     if (this.config.meta_enabled) {
@@ -962,6 +973,7 @@ export class MarketingTracker {
     this.sendCapi('Lead', eventId, {
       value: customer.value || 0,
       currency,
+      lead_id: leadId,
     }, {
       email: customer.email,
       phone: customer.phone,
