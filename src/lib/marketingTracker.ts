@@ -347,7 +347,13 @@ function sendServerEvent(tenantId: string, payload: {
   const url = `https://${projectId}.supabase.co/functions/v1/marketing-capi-track`;
 
   // v8.28.0: Wait for _fbp on ALL Meta events. Timeout per event (default 5s).
+  // v8.29.0: Pre-navigation events (AddToCart, InitiateCheckout) pass shorter
+  // timeouts (800ms) so the request leaves before the page unloads.
   const fbpWaitMs = payload.fbp_wait_ms ?? 5000;
+
+  // v8.29.0: If _fbp is already present synchronously, skip the polling delay
+  // entirely. Eliminates race against immediate navigation ("Comprar agora").
+  const synchronousFbp = getTrackingIdentity().fbp;
 
   const doSend = (resolvedFbp: string | null) => {
     // Phase 4: Include external_id + identity
@@ -434,11 +440,14 @@ function sendServerEvent(tenantId: string, payload: {
             console.warn(`[MarketingTracker] CAPI network error for ${payload.event_name}, retrying...`);
             setTimeout(() => doFetch(2), 3000);
           } else {
-            if (payload.event_name === 'Purchase' && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+            // v8.29.0: extend sendBeacon fallback to pre-navigation events
+            // that may be cancelled by immediate route changes.
+            const beaconEligible = ['Purchase', 'AddToCart', 'InitiateCheckout'];
+            if (beaconEligible.includes(payload.event_name) && typeof navigator !== 'undefined' && navigator.sendBeacon) {
               const beaconUrl = `${url}?apikey=${encodeURIComponent(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')}`;
               const blob = new Blob([body], { type: 'text/plain' });
               const sent = navigator.sendBeacon(beaconUrl, blob);
-              console.warn(`[MarketingTracker] CAPI Purchase fetch failed, beacon fallback: ${sent ? 'queued' : 'FAILED'} (event_id: ${payload.event_id})`);
+              console.warn(`[MarketingTracker] CAPI ${payload.event_name} fetch failed, beacon fallback: ${sent ? 'queued' : 'FAILED'} (event_id: ${payload.event_id})`);
             } else {
               console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed after retry:`, err);
             }
@@ -449,7 +458,12 @@ function sendServerEvent(tenantId: string, payload: {
     doFetch(1);
   };
 
-  waitForFbp(fbpWaitMs).then(doSend);
+  // v8.29.0: synchronous fast-path when _fbp already exists.
+  if (synchronousFbp) {
+    doSend(synchronousFbp);
+  } else {
+    waitForFbp(fbpWaitMs).then(doSend);
+  }
 }
 
 export class MarketingTracker {
@@ -673,7 +687,7 @@ export class MarketingTracker {
       value,
       currency,
       contents: [{ id: metaId, quantity: item.quantity, item_price: item.price }],
-    });
+    }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
   }
 
   // Track initiate checkout — Phase 6: item_price in browser contents
@@ -731,7 +745,7 @@ export class MarketingTracker {
       currency,
       num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       contents: cart.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
-    });
+    }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
   }
 
   // Track purchase — Phase 2: accepts external event_id, Phase 5: accepts userData, Phase 6: item_price

@@ -30,5 +30,12 @@ Todo PII coletado durante a sessão (Lead → Shipping → Payment → Purchase)
 ## Regra 7 — PageView sincronizado com `_fbp` (Onda 6)
 O snippet do edge HTML DEVE atrasar `fbq('track','PageView')` e o CAPI PageView até o `_fbp` estar disponível (polling 250ms × 20 = 5s). Garante que Pixel browser e CAPI server compartilhem o mesmo `fbp` no PageView (deduplicação correta + score consistente). Mesmo princípio aplica-se a qualquer novo evento iniciado pelo edge HTML antes do `_sfMetaReady=true`.
 
+## Regra 8 — CAPI resiliente a navegação imediata (v8.29.0)
+Eventos pré-navegação (`AddToCart`, `InitiateCheckout`) DEVEM:
+1. Usar `fbp_wait_ms = 800` (em vez do default 5000) ao chamar `sendServerEvent`, evitando que a navegação cancele o `fetch`.
+2. Ter `sendBeacon` como fallback no `catch` final do `doFetch` (mesmo bloco que já protegia `Purchase`).
+Adicionalmente, `sendServerEvent` DEVE checar `_fbp` síncronamente no início — se já presente, dispara `fetch` imediato sem polling. Eventos sem risco de navegação imediata (PageView, ViewContent, Lead, Shipping, Payment, Purchase) mantêm `fbp_wait_ms = 5000` e fluxo atual.
+
 ## Doc formal de referência
-`docs/especificacoes/marketing/meta-tracking.md` — seções "Estratégia de Cobertura de Identificadores" e "Cofre de Identidade Cumulativo".
+`docs/especificacoes/marketing/meta-tracking.md` — seções "Estratégia de Cobertura de Identificadores", "Cofre de Identidade Cumulativo" e "Técnica 6 — Envio resiliente a navegação imediata".
+
