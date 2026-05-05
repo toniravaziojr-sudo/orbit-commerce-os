@@ -223,3 +223,10 @@ Remover `platform.youtube_upload` de `shadow_service_keys` no tenant. v1 continu
 ### Janela de avaliação
 
 7 dias antes de avaliar GO/NO-GO para live. Critério provisório de live: 0 erros v2 + |delta_pct médio| ≤ 1% em ≥50 eventos.
+
+---
+
+## Lacunas conhecidas (Fase 3B — 2026-05)
+
+- **Gemini / Nano Banana (IA Imagem):** sem `service_pricing` ativo. O resolver de IA Imagem (`_shared/credits/image-resolver.ts`) retorna `skip_reason='pricing_not_ready'` para esses caminhos. Pendência: definir custo USD por imagem (incluindo Nano Banana 2 / Pro) e cadastrar service_keys via `admin_pricing_create`.
+- **OpenAI legacy (IA Imagem):** fora do piloto inicial — `skip_reason='legacy_provider_not_in_pilot'`. Decisão de produto pendente para reincluir ou descontinuar.
