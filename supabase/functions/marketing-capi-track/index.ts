@@ -69,7 +69,7 @@ interface TrackRequest {
     currency?: string;
     content_ids?: string[];
     content_type?: string;
-    contents?: Array<{ id: string; quantity: number; item_price?: number }>;
+    contents?: Array<{ id: string; quantity: number; item_price?: number; delivery_category?: string }>;
     content_name?: string;
     content_category?: string;
     num_items?: number;
@@ -78,6 +78,12 @@ interface TrackRequest {
     shipping_tier?: string;
     payment_method?: string;
     status?: string;
+    // v8.31.0: Full Meta CAPI parameter coverage
+    delivery_category?: string;
+    predicted_ltv?: number;
+    order_status?: string;
+    lead_id?: string;
+    [key: string]: unknown;
   };
 }
 
@@ -192,20 +198,10 @@ Deno.serve(async (req) => {
         gender: payload.user_data?.gender,
         date_of_birth: payload.user_data?.date_of_birth,
       },
+      // v8.31.0: Pass full custom_data through (allowlist + extra Meta fields)
       custom_data: payload.custom_data ? {
-        value: payload.custom_data.value,
+        ...payload.custom_data,
         currency: payload.custom_data.currency || 'BRL',
-        content_ids: payload.custom_data.content_ids,
-        content_type: payload.custom_data.content_type,
-        contents: payload.custom_data.contents,
-        content_name: payload.custom_data.content_name,
-        content_category: payload.custom_data.content_category,
-        num_items: payload.custom_data.num_items,
-        order_id: payload.custom_data.order_id,
-        search_string: payload.custom_data.search_string,
-        shipping_tier: payload.custom_data.shipping_tier,
-        payment_method: payload.custom_data.payment_method,
-        status: payload.custom_data.status,
       } : undefined,
     };
 

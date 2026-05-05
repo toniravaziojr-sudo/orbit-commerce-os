@@ -607,6 +607,8 @@ export class MarketingTracker {
         content_category: product.category,
         value: product.price,
         currency,
+        delivery_category: 'home_delivery',
+        contents: [{ id: metaId, quantity: 1, item_price: product.price }],
       }, eventId);
     }
 
@@ -640,8 +642,10 @@ export class MarketingTracker {
       content_name: product.name,
       content_type: 'product',
       content_category: product.category,
+      contents: [{ id: metaId, quantity: 1, item_price: product.price }],
       value: product.price,
       currency,
+      delivery_category: 'home_delivery',
     });
   }
 
@@ -669,10 +673,11 @@ export class MarketingTracker {
         content_category: item.category,
         value,
         currency,
+        delivery_category: 'home_delivery',
         contents: [{
           id: metaId,
           quantity: item.quantity,
-          item_price: item.price, // Phase 6
+          item_price: item.price,
         }],
       }, eventId);
     }
@@ -730,11 +735,12 @@ export class MarketingTracker {
         content_type: 'product',
         value: cart.value,
         currency,
+        delivery_category: 'home_delivery',
         num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
         contents: cart.items.map(i => ({
           id: resolveMetaContentId(i),
           quantity: i.quantity,
-          item_price: i.price, // Phase 6
+          item_price: i.price,
         })),
       }, eventId);
     }
@@ -797,11 +803,13 @@ export class MarketingTracker {
         content_type: 'product',
         value: order.value,
         currency,
+        delivery_category: 'home_delivery',
+        order_id: order.order_id,
         num_items: order.items.reduce((sum, i) => sum + i.quantity, 0),
         contents: order.items.map(i => ({
           id: resolveMetaContentId(i),
           quantity: i.quantity,
-          item_price: i.price, // Phase 6
+          item_price: i.price,
         })),
       }, eventId);
     }
@@ -843,6 +851,7 @@ export class MarketingTracker {
       order_id: order.order_id,
       delivery_category: 'home_delivery',
       predicted_ltv: predictedLtv,
+      order_status: 'completed', // v8.31.0: Meta recommended for Purchase
     }, order.userData);
 
     // v8.28.0: Persist FULL identity into the cofre — Purchase is the most
