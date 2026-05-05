@@ -347,7 +347,13 @@ function sendServerEvent(tenantId: string, payload: {
   const url = `https://${projectId}.supabase.co/functions/v1/marketing-capi-track`;
 
   // v8.28.0: Wait for _fbp on ALL Meta events. Timeout per event (default 5s).
+  // v8.29.0: Pre-navigation events (AddToCart, InitiateCheckout) pass shorter
+  // timeouts (800ms) so the request leaves before the page unloads.
   const fbpWaitMs = payload.fbp_wait_ms ?? 5000;
+
+  // v8.29.0: If _fbp is already present synchronously, skip the polling delay
+  // entirely. Eliminates race against immediate navigation ("Comprar agora").
+  const synchronousFbp = getTrackingIdentity().fbp;
 
   const doSend = (resolvedFbp: string | null) => {
     // Phase 4: Include external_id + identity
