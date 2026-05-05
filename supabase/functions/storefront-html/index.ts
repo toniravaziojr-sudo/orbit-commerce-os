@@ -758,16 +758,18 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
     if(form)form.addEventListener("submit",function(e){
       e.preventDefault();
       var fd=new FormData(form);
-      var email=fd.get("email");var name=fd.get("name")||"";var phone=fd.get("phone")||"";
+      var email=fd.get("email");var name=fd.get("name")||"";var phone=fd.get("phone")||"";var birthDate=fd.get("birth_date")||"";
       var tenantId=form.dataset.tenantId;var listId=form.dataset.listId;var popupId=form.dataset.popupId;
       var supabaseUrl="${Deno.env.get('SUPABASE_URL')}";
       var supabaseKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
       var btn=form.querySelector("button[type=submit]");
       if(btn){btn.disabled=true;btn.textContent="Enviando...";}
+      var fields={email:email,name:name,phone:phone};
+      if(birthDate)fields.birth_date=birthDate;
       fetch(supabaseUrl+"/functions/v1/marketing-form-submit",{
         method:"POST",
         headers:{"Content-Type":"application/json","apikey":supabaseKey,"Authorization":"Bearer "+supabaseKey},
-        body:JSON.stringify({tenant_id:tenantId,fields:{email:email,name:name,phone:phone},list_id:listId||null,source:"popup",block_id:popupId})
+        body:JSON.stringify({tenant_id:tenantId,fields:fields,list_id:listId||null,source:"popup",block_id:popupId})
       }).then(function(r){return r.json()}).then(function(){
         form.style.display="none";
         popup.querySelector("[data-sf-newsletter-success]").style.display="block";
