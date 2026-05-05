@@ -335,10 +335,6 @@ Todos os critérios da seção 8.1 foram atingidos:
 
 ### 11.6 Próxima fase recomendada
 
-**Fase A2 — Reserva Sombra** (a ser planejada via prompt PLANNER):
+**Fase A2 — Reserva Sombra** — implementada em 2026-05-05. Documentação oficial: [`motor-creditos-fase-a2-reserva-sombra.md`](./motor-creditos-fase-a2-reserva-sombra.md).
 
-- Simular `reserve → capture | release` ainda em shadow (sem mexer em wallet/ledger reais).
-- Validar aritmética end-to-end de `units_json → cost`.
-- Definir critérios de saída e plano de rollback antes de qualquer EXECUÇÃO.
-
-A Fase A2 **não** será iniciada sem novo prompt PLANNER aprovado.
+Simula `reserve → capture | release` em metadata do mesmo evento shadow, sem mexer em wallet/ledger/RPCs reais. Validação final pendente da coleta dos 10 jobs reais com `shadow_reservation_version='0.1.0'`.
