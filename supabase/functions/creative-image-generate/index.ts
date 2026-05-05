@@ -17,6 +17,11 @@ import {
   type ActualProvider,
   type ResilientGenerateResult,
 } from "../_shared/visual-engine.ts";
+import { estimateCredits } from "../_shared/credits/charge.ts";
+import {
+  resolveImageServiceKey,
+  buildImageShadowIdempotencyKey,
+} from "../_shared/credits/image-resolver.ts";
 
 const VERSION = '9.0.0'; // Unified engine v10.0
 
