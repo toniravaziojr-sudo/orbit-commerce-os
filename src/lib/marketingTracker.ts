@@ -745,7 +745,7 @@ export class MarketingTracker {
       currency,
       num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       contents: cart.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
-    });
+    }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
   }
 
   // Track purchase — Phase 2: accepts external event_id, Phase 5: accepts userData, Phase 6: item_price
