@@ -224,6 +224,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       updateCustomer({
         name: formData.customerName, email: formData.customerEmail,
         phone: formData.customerPhone, cpf: formData.customerCpf,
+        birthDate: formData.customerBirthDate || '',
         shippingStreet: formData.shippingStreet, shippingNumber: formData.shippingNumber,
         shippingComplement: formData.shippingComplement, shippingNeighborhood: formData.shippingNeighborhood,
         shippingCity: formData.shippingCity, shippingState: formData.shippingState,
