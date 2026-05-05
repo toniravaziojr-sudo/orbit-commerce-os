@@ -279,6 +279,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       customer: {
         name: formData.customerName, email: formData.customerEmail,
         phone: formData.customerPhone, cpf: formData.customerCpf,
+        birthDate: formData.customerBirthDate || undefined,
       },
       card: paymentMethod === 'credit_card' ? cardData : undefined,
       checkoutSessionId: sessionId || undefined,
