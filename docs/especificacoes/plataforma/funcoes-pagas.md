@@ -236,3 +236,18 @@ Remover `platform.youtube_upload` de `shadow_service_keys` no tenant. v1 continu
 ### Janela de avaliação
 
 7 dias antes de avaliar GO/NO-GO para live. Critério provisório de live: 0 erros v2 + |delta_pct médio| ≤ 1% em ≥50 eventos.
+
+---
+
+## Fase 3B (2026-05) — Atualização de status
+
+| Função | Categoria | Status atual | Escopo |
+|---|---|---|---|
+| `creative-image-generate` | ai_image | **shadow v2 piloto** | Apenas Fal.AI / gpt-image-1.5. Gemini/Nano Banana → skip (`pricing_not_ready`). OpenAI legacy → skip (`legacy_provider_not_in_pilot`). |
+| `media-generate-image` | ai_image | aguardando | Não plugado nesta fase. |
+| `creative-generate` | ai_image | aguardando | Não plugado nesta fase. |
+| `ads-autopilot-creative-generate` | ai_image | aguardando | Não plugado nesta fase. |
+| `ai-landing-page-enhance-images` | ai_image | aguardando | Não plugado nesta fase. |
+| `youtube-upload` | youtube_publish | shadow v2 — pausado | Sem OAuth ativo em nenhum tenant. |
+
+**Regra:** outras funções pagas de IA Imagem só serão plugadas após validação do piloto e autorização explícita.
