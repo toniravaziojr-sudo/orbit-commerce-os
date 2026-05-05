@@ -181,21 +181,25 @@ async function recordImageShadowV2(supabase: any, args: {
   quality?: string;
   providerResponseId?: string | null;
   imageUrl?: string | null;
+  preRouteDecision?: PreRouteDecision | null;
+  preRouterError?: string | null;
 }): Promise<void> {
   try {
     // 1) Verifica se tenant está habilitado em shadow_service_keys
     const { data: cfg } = await supabase
       .from('tenant_credit_motor_config')
-      .select('shadow_service_keys')
+      .select('shadow_service_keys, metadata')
       .eq('tenant_id', args.tenantId)
       .maybeSingle();
     const shadowKeys: string[] = cfg?.shadow_service_keys || [];
+    const tenantMeta: Record<string, any> = cfg?.metadata || {};
+
     if (!shadowKeys.length) {
       console.log('[creative-image.shadow] skip: tenant_not_enabled', { tenant_id: args.tenantId });
       return;
     }
 
-    // 2) Resolve service_key
+    // 2) Resolve service_key real
     const resolved = resolveImageServiceKey({
       provider: args.actualProvider,
       actualProvider: args.actualProvider,
@@ -205,7 +209,19 @@ async function recordImageShadowV2(supabase: any, args: {
     });
 
     if (!resolved.resolved) {
-      console.log('[creative-image.shadow] skip:', resolved.skip_reason, resolved.detail);
+      // WARN estruturado quando evento shadow não pode ser gravado
+      console.warn(JSON.stringify({
+        evt: 'creative-image.shadow.event_not_recorded',
+        tenant_id: args.tenantId,
+        job_id: args.jobId,
+        variation_index: args.variationIndex,
+        actual_provider: args.actualProvider,
+        actual_model: args.model,
+        predicted_provider: args.preRouteDecision?.predicted_provider ?? null,
+        predicted_service_key: args.preRouteDecision?.predicted_service_key ?? null,
+        event_not_recorded_reason: resolved.skip_reason,
+        detail: resolved.detail,
+      }));
       return;
     }
 
@@ -235,7 +251,39 @@ async function recordImageShadowV2(supabase: any, args: {
       providerResponseId: args.providerResponseId,
     });
 
-    // 5) Insert service_usage_events status='shadow' (cost_owner='platform' + tenant_id real)
+    // 5) Sidecar pre-router metadata (Fase A1) — não bloqueia shadow se ausente
+    let sidecarMeta: Record<string, any> = {};
+    if (args.preRouteDecision) {
+      const matchInfo = computePreRouteMatch(args.preRouteDecision, {
+        provider: normalizeProviderForMatch(args.actualProvider),
+        model: args.model,
+        service_key: resolved.service_key,
+      });
+      sidecarMeta = {
+        pre_router_version: args.preRouteDecision.pre_router_version,
+        pre_route_decision: args.preRouteDecision,
+        predicted_provider: args.preRouteDecision.predicted_provider,
+        predicted_model: args.preRouteDecision.predicted_model,
+        predicted_service_key: args.preRouteDecision.predicted_service_key,
+        actual_provider: normalizeProviderForMatch(args.actualProvider),
+        actual_model: args.model,
+        actual_service_key: resolved.service_key,
+        pre_route_match: matchInfo.match,
+        pre_route_match_dimensions: matchInfo.dimensions,
+        mismatch_reason: matchInfo.mismatch_reason,
+        would_block_in_live: args.preRouteDecision.would_block_in_live,
+        actual_pricing_missing: false,
+        no_billing: true,
+      };
+    } else if (args.preRouterError) {
+      sidecarMeta = {
+        pre_router_version: PRE_ROUTER_VERSION,
+        pre_router_error: args.preRouterError,
+        no_billing: true,
+      };
+    }
+
+    // 6) Insert service_usage_events status='shadow' (cost_owner='platform' + tenant_id real)
     const { error: insErr } = await supabase
       .from('service_usage_events')
       .insert({
@@ -263,6 +311,7 @@ async function recordImageShadowV2(supabase: any, args: {
           is_internal_shadow: true,
           idempotency_key: idempotencyKey,
           shadow_error: est.success ? null : (est.error_message || est.error_code || null),
+          ...sidecarMeta,
         },
       });
 
@@ -272,9 +321,27 @@ async function recordImageShadowV2(supabase: any, args: {
     }
     console.log('[creative-image.shadow] recorded', {
       tenant_id: args.tenantId, service_key: resolved.service_key, v2_credits_estimated: v2CreditsEstimated,
+      pre_route_match: sidecarMeta.pre_route_match ?? null,
     });
   } catch (e: any) {
     console.warn('[creative-image.shadow] error (ignored):', e?.message || e);
+  }
+}
+
+// ========== PRE-ROUTER GATE (Fase A1) ==========
+// Avalia metadata.pre_router_enabled no tenant antes de invocar o sidecar.
+async function isPreRouterEnabledForTenant(supabase: any, tenantId: string): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from('tenant_credit_motor_config')
+      .select('metadata')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    const meta = (data?.metadata || {}) as Record<string, any>;
+    return meta.pre_router_enabled === true;
+  } catch (e: any) {
+    console.warn('[creative-image.pre-router] gate check failed (default off):', e?.message || e);
+    return false;
   }
 }
 
