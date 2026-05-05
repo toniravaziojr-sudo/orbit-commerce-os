@@ -58,6 +58,13 @@ export async function triggerPrerenderWithRetry(
   let lastError: string | null = null;
   const effectiveScope = scope || { type: 'global' };
 
+  // SCOPE 'none' = no public HTML changed (e.g. checkout/cart/thank_you settings).
+  // Skip prerender entirely; storefront SPA reads settings live from public-template query.
+  if (effectiveScope.type === 'none') {
+    console.log('[prerender-retry] Scope=none — skipping prerender (no public HTML affected)');
+    return;
+  }
+
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       if (attempt > 0) {
