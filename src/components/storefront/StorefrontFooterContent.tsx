@@ -697,6 +697,8 @@ export function StorefrontFooterContent({
                   buttonBgColor={primaryColor}
                   buttonTextColor={undefined}
                   isEditing={isEditing}
+                  showBirthDate={newsletterShowBirthDate}
+                  birthDateRequired={newsletterBirthDateRequired}
                 />
               </div>
             </div>
