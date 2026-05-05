@@ -15,24 +15,13 @@ type: reference
 
 # Assuntos recentes
 
-## 📌 PINNED — Profile Enrichment Policy — validação real PENDENTE (2026-05-05)
+## 📌 PINNED — Profile Enrichment Policy — ✅ VALIDADA E LIMPA (2026-05-05)
 
 **Status macro:**
-- Implementação ✅ aplicada (função `enrich_customer_from_order` + extensão do trigger `after_order_approved_sync`).
-- Backfill manual do pedido #409 (Respeite o Homem) ✅ validado: cadastro do cliente populado com CPF, nascimento e endereço completo.
-- **Validação real em produção PENDENTE:** aguardando entrada de um novo pedido aprovado para confirmar que o trigger dispara automaticamente fim-a-fim (sem intervenção manual).
+- Implementação ✅ aplicada e validada em produção real (pedido #410, Respeite o Homem): trigger `after_order_approved_sync` → `enrich_customer_from_order` populou CPF, nascimento, telefone, nome e bloco completo de endereço sem tocar em e-mail.
+- Higiene ✅ aplicada: removido bloco "ENRICH" duplicado em `trg_recalc_customer_on_order`. Agora `enrich_customer_from_order` é fonte única de enriquecimento. Anti-regressão registrada em `mem://features/customers/profile-enrichment-policy-standard`.
 
-**Combinado com o usuário:**
-- Quando entrar um pedido novo aprovado, o usuário avisa.
-- Lovable então valida: (a) trigger disparou, (b) `enrich_customer_from_order` rodou sem warning, (c) cadastro do cliente foi atualizado com os dados do pedido novo (pessoais campo-a-campo + endereço como bloco atômico se CEP veio), (d) e-mail intocado.
-
-**Tenant de validação:** Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
-
-**Fonte de verdade documental:**
-- `docs/especificacoes/ecommerce/clientes.md` §3.1 e §4.6.1
-- `docs/especificacoes/storefront/checkout.md`
-- `docs/especificacoes/sistema/automacao-patterns.md` (histórico 2026-05-05)
-- `mem://features/customers/profile-enrichment-policy-standard`
+**Próximo passo:** seguir com SendGrid.
 
 ---
 
