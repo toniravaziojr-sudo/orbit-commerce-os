@@ -108,7 +108,18 @@ interface Customer {
   
   // === Notas ===
   notes: string | null;          // Campo de texto livre
-  
+
+  // === Endereço principal (atualizado pelo último pedido aprovado — v8.31) ===
+  // Bloco atômico: substituído inteiro quando o pedido tem CEP. Nunca apaga se o pedido vem sem CEP.
+  // Não substitui `customer_addresses` (múltiplos endereços) — é o endereço-mestre do cadastro.
+  address_postal_code: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_neighborhood: string | null;
+  address_city: string | null;
+  address_state: string | null;  // UF (2 caracteres, sempre uppercase)
+
   created_at: string;
   updated_at: string;
 }
