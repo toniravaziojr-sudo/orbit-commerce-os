@@ -130,6 +130,9 @@ export interface CheckoutConfig {
   showPix?: boolean;
   showBoleto?: boolean;
   showCreditCard?: boolean;
+  // Birth date capture in Step1 (Lead)
+  requestBirthDate?: boolean;
+  birthDateRequired?: boolean;
 }
 
 // Default configurations
