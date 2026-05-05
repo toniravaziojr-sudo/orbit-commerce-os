@@ -419,6 +419,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         customerEmail: prev.customerEmail || draft.customer.email || '',
         customerPhone: draft.customer.phone || '',
         customerCpf: draft.customer.cpf || '',
+        customerBirthDate: draft.customer.birthDate || prev.customerBirthDate || '',
         shippingStreet: draft.customer.shippingStreet || '',
         shippingNumber: draft.customer.shippingNumber || '',
         shippingComplement: draft.customer.shippingComplement || '',
@@ -445,6 +446,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         email: formData.customerEmail,
         phone: formData.customerPhone,
         cpf: formData.customerCpf,
+        birthDate: formData.customerBirthDate || '',
         shippingStreet: formData.shippingStreet,
         shippingNumber: formData.shippingNumber,
         shippingComplement: formData.shippingComplement,
@@ -518,6 +520,26 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         errors.customerCpf = 'CPF é obrigatório';
       } else if (!isValidCpf(formData.customerCpf)) {
         errors.customerCpf = 'CPF inválido. Verifique os números digitados.';
+      }
+      // Birth date validation (when capture is enabled)
+      if (checkoutConfig.requestBirthDate) {
+        const bd = (formData.customerBirthDate || '').trim();
+        if (!bd) {
+          if (checkoutConfig.birthDateRequired) {
+            errors.customerBirthDate = 'Data de nascimento é obrigatória';
+          }
+        } else {
+          const parsed = new Date(bd + 'T00:00:00');
+          if (isNaN(parsed.getTime())) {
+            errors.customerBirthDate = 'Data inválida';
+          } else {
+            const today = new Date();
+            const age = today.getFullYear() - parsed.getFullYear() -
+              (today < new Date(today.getFullYear(), parsed.getMonth(), parsed.getDate()) ? 1 : 0);
+            if (age < 13) errors.customerBirthDate = 'Idade mínima de 13 anos';
+            else if (age > 120) errors.customerBirthDate = 'Data inválida';
+          }
+        }
       }
     }
 
@@ -603,6 +625,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           email: formData.customerEmail,
           phone: formData.customerPhone,
           name: formData.customerName,
+          birthDate: formData.customerBirthDate || undefined,
         });
       }
 
@@ -776,6 +799,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           email: formData.customerEmail,
           phone: formData.customerPhone,
           cpf: formData.customerCpf,
+          birthDate: formData.customerBirthDate || undefined,
         },
         card: paymentMethod === 'credit_card' ? cardData : undefined,
         checkoutSessionId: sessionId || undefined,
@@ -1012,6 +1036,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 disabled={isProcessing}
                 isExistingCustomer={isExistingCustomer}
                 isCheckingEmail={isCheckingEmail}
+                requestBirthDate={checkoutConfig.requestBirthDate}
+                birthDateRequired={checkoutConfig.birthDateRequired}
               />
             )}
             {currentStep === 2 && (

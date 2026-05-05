@@ -38,6 +38,7 @@ export interface OrderDetails {
   customer_name: string;
   customer_email: string;
   customer_phone?: string;
+  customer_birth_date?: string | null;
   // NOTE: customer_cpf is NOT exposed to the frontend (resolved server-side)
   shipping_street?: string;
   shipping_number?: string;

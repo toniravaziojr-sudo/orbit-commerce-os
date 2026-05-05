@@ -11,7 +11,18 @@ interface Step1Props {
   disabled: boolean;
   isExistingCustomer: boolean;
   isCheckingEmail: boolean;
+  /** Show optional birth date field (configured via Builder → Checkout) */
+  requestBirthDate?: boolean;
+  /** When true, birth date must be filled to proceed */
+  birthDateRequired?: boolean;
 }
+
+// Today minus 13 years, clamped to YYYY-MM-DD (Meta age policy + LGPD)
+const MAX_BIRTH_DATE = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 13);
+  return d.toISOString().slice(0, 10);
+})();
 
 // Step 1: Personal Data
 export function Step1PersonalData({
@@ -21,6 +32,8 @@ export function Step1PersonalData({
   disabled,
   isExistingCustomer,
   isCheckingEmail,
+  requestBirthDate = false,
+  birthDateRequired = false,
 }: Step1Props) {
   return (
     <div className="space-y-6">
@@ -79,17 +92,39 @@ export function Step1PersonalData({
           </div>
         </div>
 
-        <div className="max-w-xs">
-          <Label htmlFor="customerCpf">CPF *</Label>
-          <Input
-            id="customerCpf"
-            value={formData.customerCpf}
-            onChange={(e) => onChange('customerCpf', handleCpfInput(e.target.value))}
-            placeholder="000.000.000-00"
-            disabled={disabled}
-            className={errors.customerCpf ? 'border-destructive' : ''}
-          />
-          {errors.customerCpf && <p className="text-sm text-destructive mt-1">{errors.customerCpf}</p>}
+        <div className={requestBirthDate ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'max-w-xs'}>
+          <div>
+            <Label htmlFor="customerCpf">CPF *</Label>
+            <Input
+              id="customerCpf"
+              value={formData.customerCpf}
+              onChange={(e) => onChange('customerCpf', handleCpfInput(e.target.value))}
+              placeholder="000.000.000-00"
+              disabled={disabled}
+              className={errors.customerCpf ? 'border-destructive' : ''}
+            />
+            {errors.customerCpf && <p className="text-sm text-destructive mt-1">{errors.customerCpf}</p>}
+          </div>
+
+          {requestBirthDate && (
+            <div>
+              <Label htmlFor="customerBirthDate">
+                Data de nascimento{birthDateRequired ? ' *' : ' (opcional)'}
+              </Label>
+              <Input
+                id="customerBirthDate"
+                type="date"
+                value={formData.customerBirthDate || ''}
+                onChange={(e) => onChange('customerBirthDate', e.target.value)}
+                max={MAX_BIRTH_DATE}
+                disabled={disabled}
+                className={errors.customerBirthDate ? 'border-destructive' : ''}
+              />
+              {errors.customerBirthDate && (
+                <p className="text-sm text-destructive mt-1">{errors.customerBirthDate}</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Info about account creation - now on Thank You page */}

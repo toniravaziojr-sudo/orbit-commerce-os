@@ -369,11 +369,20 @@ function sendServerEvent(tenantId: string, payload: {
     //  - stored hashes only fill fields that are NOT already provided
     //    (in either plaintext or pre-hashed form).
     const explicit = payload.user_data || {};
+    // external_id: when both visitor and customer ids exist, send as array (Meta best practice)
+    let externalIdValue: string | string[] | undefined = explicit.external_id;
+    if (!externalIdValue) {
+      const ids: string[] = [];
+      if (metaIds.external_id) ids.push(metaIds.external_id);
+      if (stored.customer_id && stored.customer_id !== metaIds.external_id) ids.push(stored.customer_id);
+      externalIdValue = ids.length === 0 ? undefined : ids.length === 1 ? ids[0] : ids;
+    }
+
     const userData: Record<string, any> = {
       ...explicit,
       fbp: resolvedFbp || metaIds.fbp || undefined,
       fbc: metaIds.fbc || undefined,
-      external_id: metaIds.external_id || undefined,
+      external_id: externalIdValue,
     };
 
     // Email
@@ -408,6 +417,21 @@ function sendServerEvent(tenantId: string, payload: {
     if (stored.country_hash && !explicit.country && !explicit.country_hashed) {
       userData.country_hashed = stored.country_hash;
     }
+    // Birth date (db) — Meta date_of_birth, format YYYYMMDD pre-hashed
+    if (stored.db_hash && !explicit.date_of_birth && !explicit.date_of_birth_hashed) {
+      userData.date_of_birth_hashed = stored.db_hash;
+    }
+    // Gender (ge)
+    if (stored.ge_hash && !explicit.gender && !explicit.gender_hashed) {
+      userData.gender_hashed = stored.ge_hash;
+    }
+    // Lead id (server-side correlatable; not part of CAPI user_data spec but echoed in custom_data)
+    const customDataMerged = {
+      ...(payload.custom_data || {}),
+    };
+    if (stored.lead_id && customDataMerged.lead_id === undefined) {
+      customDataMerged.lead_id = stored.lead_id;
+    }
 
     const body = JSON.stringify({
       tenant_id: tenantId,
@@ -415,7 +439,7 @@ function sendServerEvent(tenantId: string, payload: {
       event_id: payload.event_id,
       event_source_url: payload.event_source_url || window.location.href,
       user_data: userData,
-      custom_data: payload.custom_data,
+      custom_data: customDataMerged,
     });
 
     const headers = {
@@ -687,6 +711,7 @@ export class MarketingTracker {
       value,
       currency,
       contents: [{ id: metaId, quantity: item.quantity, item_price: item.price }],
+      delivery_category: 'home_delivery',
     }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
   }
 
@@ -745,6 +770,7 @@ export class MarketingTracker {
       currency,
       num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       contents: cart.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+      delivery_category: 'home_delivery',
     }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
   }
 
@@ -755,7 +781,7 @@ export class MarketingTracker {
     currency?: string;
     items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
     event_id?: string;  // Phase 2: deterministic event_id
-    userData?: { email?: string; phone?: string; name?: string; city?: string; state?: string; zip?: string }; // Phase 5
+    userData?: { email?: string; phone?: string; name?: string; city?: string; state?: string; zip?: string; birthDate?: string }; // Phase 5
   }): void {
     const eventId = order.event_id || generateEventId();
     const currency = order.currency || 'BRL';
@@ -805,7 +831,8 @@ export class MarketingTracker {
       }, eventId);
     }
 
-    // Phase 5: Include PII userData in CAPI
+    // Phase 5: Include PII userData in CAPI; quick-win: predicted_ltv = AOV × 1.8
+    const predictedLtv = Math.round(order.value * 1.8 * 100) / 100;
     this.sendCapi('Purchase', eventId, {
       content_ids: order.items.map(i => resolveMetaContentId(i)),
       content_type: 'product',
@@ -814,6 +841,8 @@ export class MarketingTracker {
       num_items: order.items.reduce((sum, i) => sum + i.quantity, 0),
       contents: order.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
       order_id: order.order_id,
+      delivery_category: 'home_delivery',
+      predicted_ltv: predictedLtv,
     }, order.userData);
 
     // v8.28.0: Persist FULL identity into the cofre — Purchase is the most
@@ -829,6 +858,7 @@ export class MarketingTracker {
         city: order.userData.city,
         state: order.userData.state,
         zip: order.userData.zip,
+        birthDate: (order.userData as { birthDate?: string }).birthDate,
       });
     }
   }
@@ -888,24 +918,35 @@ export class MarketingTracker {
     });
   }
 
-  // Phase 5: Lead already sends PII — keeping as-is
+  // Phase 5: Lead already sends PII — keeping as-is. Quick-win: emits lead_id (UUID).
   trackLead(customer: {
     email?: string;
     phone?: string;
     name?: string;
+    birthDate?: string;
     value?: number;
     currency?: string;
   }): void {
     const eventId = generateEventId();
     const currency = customer.currency || 'BRL';
 
-    // v8.28.0: Persist captured PII into the cofre BEFORE dispatching the
-    // CAPI event — so `sendServerEvent` already sees these values and
+    // Generate (or reuse) a stable lead_id for this funnel
+    let leadId: string | undefined;
+    try {
+      const existing = (getStoredIdentity() as { lead_id?: string }).lead_id;
+      if (existing) leadId = existing;
+      else if (typeof crypto !== 'undefined' && crypto.randomUUID) leadId = crypto.randomUUID();
+    } catch {}
+
+    // v8.28.0: Persist captured PII (+ lead_id, birthDate) into the cofre BEFORE dispatching
+    // the CAPI event — so `sendServerEvent` already sees these values and
     // every subsequent funnel event in the same session inherits them.
     void storeIdentity({
       email: customer.email,
       phone: customer.phone,
       name: customer.name,
+      birthDate: customer.birthDate,
+      leadId,
     });
 
     if (this.config.meta_enabled) {
@@ -932,6 +973,7 @@ export class MarketingTracker {
     this.sendCapi('Lead', eventId, {
       value: customer.value || 0,
       currency,
+      lead_id: leadId,
     }, {
       email: customer.email,
       phone: customer.phone,
@@ -1009,6 +1051,7 @@ export class MarketingTracker {
       currency,
       shipping_tier: shipping.shippingTier,
       contents: shipping.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+      delivery_category: 'home_delivery',
     }, shipping.userData);
   }
 
@@ -1081,6 +1124,7 @@ export class MarketingTracker {
       currency,
       payment_method: payment.paymentMethod,
       contents: payment.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+      delivery_category: 'home_delivery',
     }, payment.userData);
   }
 }

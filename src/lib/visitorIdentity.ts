@@ -219,6 +219,14 @@ export interface StoredIdentity {
   st_hash?: string;
   zp_hash?: string;
   country_hash?: string;
+  /** SHA-256 of date_of_birth in YYYYMMDD (Meta `db`) */
+  db_hash?: string;
+  /** SHA-256 of gender single char `m`/`f` (Meta `ge`) */
+  ge_hash?: string;
+  /** Server-correlatable lead identifier (UUID, plaintext) */
+  lead_id?: string;
+  /** Logged-in customer id (plaintext UUID) — enriches `external_id` array */
+  customer_id?: string;
   updated_at?: number;
 }
 
@@ -235,6 +243,14 @@ export interface StoreIdentityInput {
   /** CEP (digits only or formatted — sanitized to digits before hashing) */
   zip?: string;
   country?: string;
+  /** Birth date — accepts ISO `YYYY-MM-DD`; converted to `YYYYMMDD` before hashing */
+  birthDate?: string;
+  /** Gender — `m`/`f`/`male`/`female`; normalized to single char */
+  gender?: string;
+  /** Lead UUID — stored plaintext (server correlation) */
+  leadId?: string;
+  /** Customer UUID — stored plaintext for external_id enrichment */
+  customerId?: string;
 }
 
 async function sha256Lower(value: string): Promise<string | null> {
@@ -299,6 +315,10 @@ export function getStoredIdentity(): StoredIdentity {
   if (raw.st_hash) out.st_hash = raw.st_hash;
   if (raw.zp_hash) out.zp_hash = raw.zp_hash;
   if (raw.country_hash) out.country_hash = raw.country_hash;
+  if (raw.db_hash) out.db_hash = raw.db_hash;
+  if (raw.ge_hash) out.ge_hash = raw.ge_hash;
+  if (raw.lead_id) out.lead_id = raw.lead_id;
+  if (raw.customer_id) out.customer_id = raw.customer_id;
   return out;
 }
 
@@ -362,6 +382,26 @@ export async function storeIdentity(input: StoreIdentityInput): Promise<void> {
     const h = await sha256Lower(input.country);
     if (h) next.country_hash = h;
   }
+  if (input.birthDate) {
+    // Accept YYYY-MM-DD or YYYYMMDD; output YYYYMMDD for Meta `db`
+    const digits = input.birthDate.replace(/\D/g, '');
+    if (digits.length === 8) {
+      const h = await sha256Lower(digits);
+      if (h) next.db_hash = h;
+    }
+  }
+  if (input.gender) {
+    const v = input.gender.trim().toLowerCase();
+    let g: 'm' | 'f' | null = null;
+    if (v.startsWith('m')) g = 'm';
+    else if (v.startsWith('f')) g = 'f';
+    if (g) {
+      const h = await sha256Lower(g);
+      if (h) next.ge_hash = h;
+    }
+  }
+  if (input.leadId) next.lead_id = input.leadId;
+  if (input.customerId) next.customer_id = input.customerId;
 
   writeIdentity(next);
 
