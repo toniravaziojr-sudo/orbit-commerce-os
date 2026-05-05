@@ -218,6 +218,8 @@ export interface ThemeFooterConfig {
   newsletterButtonText?: string;
   newsletterSuccessMessage?: string;
   newsletterListId?: string;
+  newsletterShowBirthDate?: boolean;
+  newsletterBirthDateRequired?: boolean;
   // Visual menu style configuration
   menuVisualStyle?: MenuVisualStyle;
   // Badge size for footer seals/icons (small, medium, large)
@@ -369,6 +371,8 @@ export const DEFAULT_THEME_FOOTER: ThemeFooterConfig = {
   newsletterButtonText: '',
   newsletterSuccessMessage: 'Inscrito com sucesso!',
   newsletterListId: '',
+  newsletterShowBirthDate: false,
+  newsletterBirthDateRequired: false,
 };
 
 export const DEFAULT_THEME_MINI_CART: ThemeMiniCartConfig = {

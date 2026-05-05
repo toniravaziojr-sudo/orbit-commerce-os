@@ -548,6 +548,8 @@ export function StorefrontFooterContent({
   const newsletterButtonText = getString('newsletterButtonText', null, '');
   const newsletterSuccessMessage = getString('newsletterSuccessMessage', null, 'Inscrito com sucesso!') || 'Inscrito com sucesso!';
   const newsletterListId = getString('newsletterListId', null, '');
+  const newsletterShowBirthDate = getBoolean('newsletterShowBirthDate', false);
+  const newsletterBirthDateRequired = getBoolean('newsletterBirthDateRequired', false);
 
   // Fetch tenant_id for newsletter form — use bootstrap when available
   const { data: tenantData } = useQuery({
@@ -695,6 +697,8 @@ export function StorefrontFooterContent({
                   buttonBgColor={primaryColor}
                   buttonTextColor={undefined}
                   isEditing={isEditing}
+                  showBirthDate={newsletterShowBirthDate}
+                  birthDateRequired={newsletterBirthDateRequired}
                 />
               </div>
             </div>
