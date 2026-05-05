@@ -23,7 +23,7 @@ import {
   buildImageShadowIdempotencyKey,
 } from "../_shared/credits/image-resolver.ts";
 
-const VERSION = '9.0.0'; // Unified engine v10.0
+const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
