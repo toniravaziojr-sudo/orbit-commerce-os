@@ -6311,6 +6311,13 @@ export type Database = {
           accepts_marketing: boolean | null
           accepts_sms_marketing: boolean | null
           accepts_whatsapp_marketing: boolean | null
+          address_city: string | null
+          address_complement: string | null
+          address_neighborhood: string | null
+          address_number: string | null
+          address_postal_code: string | null
+          address_state: string | null
+          address_street: string | null
           auth_user_id: string | null
           average_ticket: number | null
           birth_date: string | null
@@ -6350,6 +6357,13 @@ export type Database = {
           accepts_marketing?: boolean | null
           accepts_sms_marketing?: boolean | null
           accepts_whatsapp_marketing?: boolean | null
+          address_city?: string | null
+          address_complement?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
+          address_street?: string | null
           auth_user_id?: string | null
           average_ticket?: number | null
           birth_date?: string | null
@@ -6389,6 +6403,13 @@ export type Database = {
           accepts_marketing?: boolean | null
           accepts_sms_marketing?: boolean | null
           accepts_whatsapp_marketing?: boolean | null
+          address_city?: string | null
+          address_complement?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
+          address_street?: string | null
           auth_user_id?: string | null
           average_ticket?: number | null
           birth_date?: string | null
@@ -23966,6 +23987,10 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: Json
+      }
+      enrich_customer_from_order: {
+        Args: { p_customer_id: string; p_order_id: string; p_tenant_id: string }
+        Returns: undefined
       }
       ensure_customer_tag: {
         Args: {
