@@ -1271,7 +1271,8 @@ export function PageSettingsContent({
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
                 
                 {/* Ordenação padrão dos produtos (categoria) */}
                 {pageType === 'category' && group.id === 'structure' && (
