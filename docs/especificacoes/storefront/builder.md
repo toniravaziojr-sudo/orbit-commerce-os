@@ -3444,15 +3444,16 @@ As props condicionais usam `showWhen: { layout: 'carousel' }` ou `showWhen: { la
 
 A loja pública pode levar alguns minutos para refletir mudanças após publicação. O Preview (`?preview=1`) NÃO tem cache (`staleTime: 0`).
 
-### Resiliência de Publicação: Prerender com Retry + Invalidação Granular (v2.0.0 — 2026-05-05)
+### Resiliência de Publicação: Prerender com Retry + Invalidação Granular (v2.1.0 — 2026-05-05)
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Função Utilitária + Edge Function |
-| **Localização** | `src/lib/prerenderRetry.ts` + `supabase/functions/storefront-prerender/index.ts` |
+| **Localização** | `src/lib/prerenderRetry.ts` + `src/hooks/useTemplateSetSave.ts` + `src/components/builder/VisualBuilder.tsx` + `supabase/functions/storefront-prerender/index.ts` |
 | **Contexto** | Chamada após publicação no Builder (templates globais e páginas institucionais) |
 | **Descrição** | Dispara pré-renderização **escopada** do storefront com retry automático, batch resiliente a rate-limit e feedback visual contextual |
 | **Invalidação Granular (v2.0.0)** | Aceita um `scope` (`global`, `home`, `product`, `category`, `page`, `post`) com `ids[]` opcional. Editar **uma única página institucional** marca como `stale` apenas aquela `entity_id` e re-renderiza somente ela — não rebuilda 20+ páginas como antes. Templates globais (header/footer/tema) continuam disparando `scope=global`. |
+| **Escopo `none` para SPA-only (v2.1.0)** | `VisualBuilder.handlePublish` calcula um `changeScope` antes de publicar. Quando o único conteúdo alterado pertence a páginas SPA (Checkout, Carrinho, Página de Obrigado, Conta do Cliente — incluindo toggles em `pageSettings.checkout` como `requestBirthDate`), o `changeScope` é `none`: a publicação grava `published_content` mas **não dispara prerender nem purge de cache da loja**. Resultado: economia de reprocessamento das páginas públicas e zero risco de stragglers. Mudanças em theme/header/footer/popup/miniCart/supportWidget continuam `global`. Mudança apenas em Home → `home`. |
 | **Resiliência (rate-limit)** | `BATCH_SIZE=3` + `BATCH_PAUSE_MS=750` entre lotes. `fetchPageWithRetry` lê header `Retry-After` em respostas 429 e re-tenta até 3x. Páginas que falham por rate-limit vão para uma fila `stragglers` processada serialmente com gap de 2s ao final do job. |
 | **Status do job** | `pending → running → completed` (todas OK), `partial` (algumas pendentes — elegível para reconciliação por cron) ou `failed`. Toast no Builder reflete o status: verde (completo), amarelo (parcial — orienta tentar de novo), vermelho (falha total). |
 | **Comportamento** | 1. Chama `storefront-prerender` com `scope`. 2. Se a invocação falhar, aguarda 5s e tenta novamente (máx 3x). 3. Páginas individuais com 429 são tratadas dentro do edge via `Retry-After` + stragglers. |
