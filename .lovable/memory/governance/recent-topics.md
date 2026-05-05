@@ -6,7 +6,28 @@ type: reference
 
 # Assuntos recentes (rotativo)
 
-## 1) Motor Universal de Créditos — Fase 3 shadow mode youtube-upload (EM ANDAMENTO, aguardando conexão YouTube real)
+## 1) Profile Enrichment Policy — validação real PENDENTE (2026-05-05)
+
+**Status macro:**
+- Implementação ✅ aplicada (função `enrich_customer_from_order` + extensão do trigger `after_order_approved_sync`).
+- Backfill manual do pedido #409 (Respeite o Homem) ✅ validado: cadastro do cliente populado com CPF, nascimento e endereço completo.
+- **Validação real em produção PENDENTE:** aguardando entrada de um novo pedido aprovado para confirmar que o trigger dispara automaticamente fim-a-fim (sem intervenção manual).
+
+**Combinado com o usuário:**
+- Quando entrar um pedido novo aprovado, o usuário avisa.
+- Lovable então valida: (a) trigger disparou, (b) `enrich_customer_from_order` rodou sem warning, (c) cadastro do cliente foi atualizado com os dados do pedido novo (pessoais campo-a-campo + endereço como bloco atômico se CEP veio), (d) e-mail intocado.
+
+**Tenant de validação:** Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
+
+**Fonte de verdade documental:**
+- `docs/especificacoes/ecommerce/clientes.md` §3.1 e §4.6.1
+- `docs/especificacoes/storefront/checkout.md`
+- `docs/especificacoes/sistema/automacao-patterns.md` (histórico 2026-05-05)
+- `mem://features/customers/profile-enrichment-policy-standard`
+
+---
+
+## 2) Motor Universal de Créditos — Fase 3 shadow mode youtube-upload (EM ANDAMENTO, aguardando conexão YouTube real)
 
 **Status macro:**
 - Fase 0 (documental) ✅ aprovada.
@@ -23,33 +44,14 @@ type: reference
 - Validações READ-ONLY OK: snapshot pré-upload limpo (0 eventos shadow), config motor intacta, RLS em `service_pricing` confirmado (tenant não lê `cost_usd`/markup/margin).
 
 **Onde paramos exatamente (bloqueio atual):**
-- Query de tenants com YouTube conectado retornou **0** em produção (nem `youtube_connections` legado nem `google_connections` com scope `youtube`). Nenhum upload pode ser executado ainda.
+- Query de tenants com YouTube conectado retornou **0** em produção. Nenhum upload pode ser executado ainda.
 - Recomendação atual: **NO-GO** para iniciar janela de 7 dias até existir 1 upload piloto + 1 upload não-piloto validados.
-
-**O que falta fazer (próximos passos combinados):**
-1. Usuário conecta YouTube no tenant piloto (Respeite o Homem) via OAuth. Pode exigir cadastro como Test User no Consent Screen (modo Testing) ou ativar `billing_feature_flags.youtube_enabled_for_all_tenants`.
-2. Usuário conecta YouTube em 1 tenant não-piloto com wallet ≥ 20 créditos e SEM `platform.youtube_upload` em `shadow_service_keys`.
-3. Executar 1 upload curto (≤30s, vídeo privado) em cada tenant; registrar UTC + VideoId/JobId.
-4. Lovable roda Validações B/C/D/E/F:
-   - B: `service_usage_events` no piloto = 1 evento shadow com campos esperados, sem linha v2 em `credit_ledger`, débito v1 normal em `credit_wallet`.
-   - C: `service_usage_events` no não-piloto = 0 eventos shadow.
-   - D: idempotência (re-execução com mesmo `videoId`/`jobId` não duplica).
-   - E: logs `[shadow-v2]` presentes em youtube-upload.
-   - F: nenhum `cost_usd`/markup vazado para o tenant.
-5. Se OK → **iniciar janela de observação de 7 dias** com query diária agregando delta_pct, divergence_alert, shadow_error.
-6. Após 7 dias estáveis → planejar próximo plug (futuras funções pagas, ainda em shadow), só depois cutover gradual para live.
 
 **Restrições ativas (NÃO violar ao retomar):**
 - Não ativar live (`motor_v2_enabled` segue `false`).
 - Não fazer cutover.
 - Não plugar outras funções pagas em shadow ainda.
-- Não alterar pacotes de crédito.
-- Não expor custo real (USD/markup/margem) para tenant.
-- Não alterar cobrança v1.
-- Não criar trigger `on_tenant_created` nem fazer backfill de wallet dos 4 tenants legados restantes nesta fase (gap estrutural documentado, fica para fase própria).
-
-**Gaps documentais pendentes:**
-- `docs/especificacoes/sistema/ux-creditos-lojista.md` deve registrar o gap estrutural de `credit_wallet` em tenants legados e a pendência de trigger + backfill (fase própria, fora da Fase 3).
+- Não criar trigger `on_tenant_created` nem fazer backfill de wallet dos 4 tenants legados restantes nesta fase.
 
 **Docs fonte de verdade:**
 - `docs/especificacoes/plataforma/motor-creditos.md`
@@ -57,31 +59,3 @@ type: reference
 - `docs/especificacoes/plataforma/funcoes-pagas.md`
 - `docs/especificacoes/plataforma/ux-admin-creditos-custos.md`
 - `docs/especificacoes/sistema/ux-creditos-lojista.md`
-
-**Arquivos tocados na Fase 3 até aqui:**
-- `supabase/functions/youtube-upload/index.ts` (instrumentação shadow).
-- 2 migrations Fase 3 (config motor piloto + provisionamento wallet de teste).
-- `src/integrations/supabase/types.ts` (regen automático).
-- Docs acima.
-
----
-
-## 2) IA de Atendimento — AI Provider Routing (PAUSADO, aguardando OpenAI quota)
-
-**Onde paramos exatamente:**
-- Fase 1 (TPR via ai-router com Gemini Native primário, OpenAI Native, Lovable Gateway só fallback) ✅ FECHADA e validada (smoke test 2026-05-04, `provider=gemini` real).
-- Fase 1.1 (observabilidade resiliente do TPR) ✅ FECHADA. `ai_support_turn_log.metadata.tpr` é fonte canônica de auditoria; `metadata.composer_error` sanitizado é persistido mesmo quando o composer falha.
-- **Bloqueio atual:** `OPENAI_API_KEY` retornando `insufficient_quota` (HTTP 429) no composer principal. Validação observacional dos 5–10 turnos não pode rodar até a chave/saldo ser regularizado.
-- **Próximo passo combinado:** usuário regulariza `OPENAI_API_KEY`, manda "Oi" na IA Teste, Lovable roda query de validação do caminho de sucesso. Após sucesso, liberar validação observacional de 5–10 turnos reais.
-
-**Restrições ativas (NÃO violar ao retomar):**
-- Não iniciar Fase 2.
-- Não migrar composer para ai-router.
-- Não alterar chamadas OpenAI diretas do composer/ai-support-chat.
-- Não mexer em Catalog Probe / search_products / Orchestrator.
-- Não promover Onda 1C para `active` (segue `dry_run`).
-- Não alterar prompt nem UI.
-
-**Fonte de verdade documental:** `docs/especificacoes/ia/ai-provider-routing.md` + `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` (Reg #27).
-
-**Memórias técnicas relacionadas:** `infrastructure/ai/provider-router-standard`, `constraints/sales-pipeline-tpr-and-output-gates`.
