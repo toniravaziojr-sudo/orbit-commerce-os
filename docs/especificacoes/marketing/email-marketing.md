@@ -633,3 +633,15 @@ Toda tentativa de projetar um customer para o módulo de email marketing é audi
 - [x] **Tabelas de automação com RLS**
 - [x] **Persistência de fluxos (save/load)**
 - [x] **Listagem de automações na aba com contagem de nós e status**
+
+---
+
+## Gatilho de Aniversário — v8.30
+
+- **Trigger type:** `customer_birthday`.
+- **Cron:** `birthday-daily-trigger` agendada via pg_cron (Job 52) — `0 11 * * *` UTC = 08:00 BRT.
+- **Lógica:** varre `customers WHERE to_char(birth_date,'MM-DD') = today_brt` e enfileira eventos `customer.birthday` em `events_inbox` com idempotência diária por cliente.
+- **Disponível em:** fluxos de e-mail marketing e regras de notificação (E-mail + WhatsApp).
+- **Observação:** se o lojista quiser enviar um cupom no aniversário, criar um cupom específico antes e referenciá-lo no template — não há cupom automático.
+
+Coleta da data de nascimento: ver `docs/especificacoes/storefront/checkout.md` e `docs/especificacoes/storefront/footer.md`.

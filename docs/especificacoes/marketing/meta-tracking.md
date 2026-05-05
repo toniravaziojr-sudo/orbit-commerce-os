@@ -1,9 +1,9 @@
 # Meta Tracking — Pixel + Conversions API (CAPI)
 
 > **Status:** 🟢 Ativo
-> **Versão:** 8.28.0
+> **Versão:** 8.30.0
 > **Camada:** Layer 3 — Especificações / Marketing
-> **Última atualização:** 2026-04-29
+> **Última atualização:** 2026-05-05
 > **Doc relacionado:** `docs/meta-tracking-changelog.md` (histórico de notas e cobertura)
 
 ---
@@ -302,6 +302,55 @@ Notas observadas no Gerenciador de Eventos da Meta no dia da entrega da v8.28.0 
 
 ---
 
+## Técnica 7 — Cofre estendido (`db`/`ge`/`lead_id`/`external_id` array) — v8.30.0
+
+**Problema observado.** Mesmo com o cofre `_sf_identity` (v8.28.0) cobrindo nome/cidade/UF/CEP, o sistema não enviava à Meta dois parâmetros oficiais de alto peso para EMQ — `db` (date of birth) e `ge` (gender) — nem aproveitava o `external_id` como **array** ([visitor + customer]) quando o cliente está identificado.
+
+### Mudanças (4 quick wins + cofre estendido)
+
+1. **Cofre `_sf_identity` v8.30 — novos campos:**
+   - `db_hash` — SHA-256 de `YYYYMMDD` da data de nascimento.
+   - `ge_hash` — SHA-256 de `m`/`f` (single char, lowercase).
+   - `lead_id` — UUID gerado em `trackLead`, persistido para reuso em Purchase.
+   - `customer_id` — quando logado, persistido para `external_id` array.
+2. **`external_id` como array** `[sf_vid, customer_id]` — visitor + customer ID.
+3. **`predicted_ltv`** — em `Purchase`, valor = `value × 1.8` (multiplier conservador).
+4. **`delivery_category: 'home_delivery'`** — em AddToCart, InitiateCheckout, AddShippingInfo, AddPaymentInfo, Purchase.
+5. **`lead_id` em `custom_data`** — gerado em Lead, replicado em Purchase para fechamento de funil de Lead Ads.
+
+### Captura de `db` e `ge`
+
+Coleta opcional, controlada pelo lojista via toggles:
+- **Builder > Tema > Página Checkout > "Pedir data de nascimento"** (`requestBirthDate` + `birthDateRequired`).
+- **Builder > Tema > Rodapé > Newsletter > "Pedir data de nascimento"** (`newsletterShowBirthDate` + `newsletterBirthDateRequired`).
+- Blocos `newsletter_form` e `newsletter_popup` (props `showBirthDate` / `birthDateRequired`).
+
+Validação universal: idade mínima 13, máxima 120 anos. Persistência:
+- `checkout_sessions.customer_birth_date` (DATE)
+- `orders.customer_birth_date` (DATE)
+- `customers.birth_date` (DATE — primeira ocorrência via política de enriquecimento)
+- Cofre `_sf_identity.db_hash` (SHA-256 do formato `YYYYMMDD`)
+
+`ge` permanece preparado no cofre, sem coleta ativa nesta entrega.
+
+### Backend — campos aceitos
+
+`supabase/functions/_shared/meta-capi-sender.ts`:
+- `date_of_birth_hashed` → `user_data.db`
+- `gender_hashed` → `user_data.ge`
+- `external_id` array → enviado como recebido (sem hash)
+
+### Cobertura esperada
+
+| Evento | EMQ esperado |
+|---|---|
+| Lead | ≥9.3 (era 8.0) |
+| Purchase | ≥9.5 (era 7.5) |
+
+A edge `audience-sync-weekly` (v1.2.0) também passa a enriquecer com dados demográficos hashados — ver `audience-sync-weekly.md`.
+
+---
+
 ## Configurações por Tenant
 
 `store_settings.checkout_config`:
@@ -336,7 +385,8 @@ Notas observadas no Gerenciador de Eventos da Meta no dia da entrega da v8.28.0 
 
 | Versão | Data | Resumo |
 |---|---|---|
-| **v8.29.0** | **2026-05-05** | **CAPI resiliente a navegação imediata: fast-path síncrono quando `_fbp` já existe; `fbp_wait_ms=800` em AddToCart/InitiateCheckout; `sendBeacon` fallback estendido aos dois eventos. Sem mudança em PageView/ViewContent/Lead/Shipping/Payment/Purchase.** |
+| **v8.30.0** | **2026-05-05** | **Cofre estendido: `db_hash` (data nascimento), `ge_hash`, `lead_id`, `customer_id`. 4 quick wins: `external_id` array, `predicted_ltv` em Purchase, `delivery_category` em todos os eventos de conversão, `lead_id` em `custom_data`. Coleta opcional de data de nascimento em Checkout, Popup, Newsletter Footer e bloco Newsletter Form. `audience-sync-weekly` v1.2.0 com enriquecimento demográfico.** |
+| v8.29.0 | 2026-05-05 | CAPI resiliente a navegação imediata: fast-path síncrono quando `_fbp` já existe; `fbp_wait_ms=800` em AddToCart/InitiateCheckout; `sendBeacon` fallback estendido aos dois eventos. |
 | **v8.28.0** | **2026-04-29** | **Cofre `_sf_identity` (PII hashada cumulativa, TTL 30d); backend aceita `first_name_hashed`/`last_name_hashed`/`city_hashed`/`state_hashed`/`zip_hashed`; PageView gated por `_fbp` (polling 5s); checkout passa `userData` completo em AddShippingInfo/AddPaymentInfo; invalidação de 89 prerenders ativos** |
 | v8.27.0 | 2026-04-19 | Persistência 30d do Purchase (`purchaseDedup.ts`); event_id normalizado; cookies sintéticos `_fbp`/`_fbc` no edge; `email_hashed`/`phone_hashed` em meio de funil |
 | v8.26.0 | 2026-04-15 | `client_ip_from_browser` priorizado sobre headers em CAPI |

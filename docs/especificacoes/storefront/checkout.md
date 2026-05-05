@@ -828,3 +828,16 @@ O `CheckoutStepWizard` foi decomposto em 7 arquivos sob `src/components/storefro
 ---
 
 *Fim do documento.*
+
+---
+
+## Data de Nascimento (opcional) — v8.30
+
+Toggle controlado pelo lojista em **Builder > Tema > Configurações > Página Checkout > "Pedir data de nascimento"** (`requestBirthDate`) e "Tornar obrigatório" (`birthDateRequired`).
+
+- Campo aparece no Step 1 (Dados pessoais) abaixo do telefone.
+- Validação: idade ≥13 e ≤120 anos.
+- Persistência: `checkout_sessions.customer_birth_date`, `orders.customer_birth_date`, `customers.birth_date` (primeira ocorrência).
+- Uso: enriquecimento Meta CAPI (`db` no cofre `_sf_identity`), audience-sync semanal (DOBY/DOBM/DOBD) e gatilho diário de aniversário (`customer.birthday`).
+
+Detalhes técnicos: `docs/especificacoes/marketing/meta-tracking.md` (Técnica 7).

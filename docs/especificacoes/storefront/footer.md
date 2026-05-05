@@ -495,3 +495,15 @@ O `StorefrontFooterContent.tsx` implementa um componente `FooterLink` que detect
 | 2025-01-24 | Integração com EmailListSelector para seleção de lista destino |
 | 2025-01-19 | Adicionado componente `PaymentIconsQuickSelect` para seleção rápida de bandeiras |
 | 2025-01-19 | 12 ícones de pagamento pré-definidos (Visa, Mastercard, Elo, PIX, Boleto, etc.) |
+
+---
+
+## Newsletter — Data de Nascimento (opcional) — v8.30
+
+Toggles em **Builder > Tema > Rodapé > Newsletter**:
+- `newsletterShowBirthDate` — exibe campo de data de nascimento.
+- `newsletterBirthDateRequired` — torna obrigatório.
+
+Validação: idade ≥13 e ≤120 anos. O valor é enviado para `marketing-form-submit` no payload `birth_date` e armazenado em `email_marketing_subscribers`. Mesmo padrão aplicado nos blocos `newsletter_form` e `newsletter_popup`.
+
+Uso: enriquecimento Meta CAPI, audience-sync semanal e gatilho de aniversário em e-mail marketing/notificações.
