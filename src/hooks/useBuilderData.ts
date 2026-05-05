@@ -504,18 +504,33 @@ export function usePublish() {
       }
 
       // Fire-and-forget: invalidate prerender + CDN cache + regenerate for published pages
+      // SCOPE-AWARE (Onda 19): If editing a single institutional page, only re-render that page.
       if (currentTenant?.id && (variables.pageType === 'institutional' || variables.pageType === 'landing_page')) {
-        // 1. Mark all prerendered pages as stale (Edge Function stops serving old HTML)
-        supabase
-          .from('storefront_prerendered_pages')
-          .update({ status: 'stale' })
-          .eq('tenant_id', currentTenant.id)
-          .eq('status', 'active')
-          .then(() => console.log('[publish] Prerendered pages marked stale'));
-        // 2. Purge Cloudflare Worker cache (covers all routes including /page/...)
+        const isSinglePage = variables.entityType === 'page' && !!variables.pageId;
+        // 1. Mark only the affected page(s) as stale to keep other snapshots intact
+        if (isSinglePage) {
+          supabase
+            .from('storefront_prerendered_pages')
+            .update({ status: 'stale' })
+            .eq('tenant_id', currentTenant.id)
+            .eq('entity_id', variables.pageId)
+            .then(() => console.log('[publish] Single page marked stale:', variables.pageId));
+        } else {
+          supabase
+            .from('storefront_prerendered_pages')
+            .update({ status: 'stale' })
+            .eq('tenant_id', currentTenant.id)
+            .eq('status', 'active')
+            .then(() => console.log('[publish] All prerendered pages marked stale'));
+        }
+        // 2. Purge Cloudflare Worker cache
         cachePurge.full(currentTenant.id);
-        // 3. Trigger background re-prerender with retry and user feedback
-        triggerPrerenderWithRetry(currentTenant.id);
+        // 3. Trigger background re-prerender — granular when possible
+        if (isSinglePage) {
+          triggerPrerenderWithRetry(currentTenant.id, { type: 'page', ids: [variables.pageId!] });
+        } else {
+          triggerPrerenderWithRetry(currentTenant.id);
+        }
       }
 
       toast({ title: 'Publicado com sucesso!' });
