@@ -393,3 +393,11 @@ O piloto anterior (`youtube-upload`) ficou pausado por ausência de OAuth ativo.
 
 ### Idempotência
 - Chave determinística via `buildImageShadowIdempotencyKey({tenant, job, variation_index, service_key, provider_response_id})`. Retry da mesma geração não duplica `service_usage_events`.
+
+---
+
+## Fase 3B IA Imagem — validação shadow
+
+A Fase 3B IA Imagem foi **validada end-to-end em shadow mode** no tenant `Respeite o Homem`. Detalhes técnicos, regra anti-regressão e queries oficiais de validação estão no documento dedicado: [`motor-creditos-fase-3b-shadow.md`](./motor-creditos-fase-3b-shadow.md).
+
+> **Anti-regressão:** validação de shadow consulta `service_usage_events` (`status='shadow'`, `metadata.motor_version='v2'`). **Nunca** consultar `credit_ledger` para validar shadow.
