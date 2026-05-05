@@ -3,7 +3,7 @@ import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION =====
-const VERSION = "v1.1.1"; // Fix: multi-key schema without is_raw, paginated member fetch, correct ad account selection
+const VERSION = "v1.2.0"; // Enrichment: JOIN customers for FN/LN/CT/ST/ZIP/COUNTRY/DOB/GEN hashed
 // ===================
 
 const corsHeaders = {
@@ -53,6 +53,84 @@ function formatDateBR(): string {
   const yyyy = now.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
 }
+
+// Normalize email key (lowercase trim)
+function normEmailKey(e?: string | null): string | null {
+  if (!e) return null;
+  return e.trim().toLowerCase();
+}
+
+// Build phone digits-only (without +) for join key against customers.phone (free format)
+function phoneDigits(p?: string | null): string | null {
+  if (!p) return null;
+  const d = p.replace(/[^0-9]/g, "");
+  return d.length >= 8 ? d : null;
+}
+
+// Normalize gender to single letter (m|f) per Meta spec
+function normGender(g?: string | null): string | null {
+  if (!g) return null;
+  const v = g.trim().toLowerCase();
+  if (v.startsWith("m") || v === "masculino" || v === "male") return "m";
+  if (v.startsWith("f") || v === "feminino" || v === "female") return "f";
+  return null;
+}
+
+// Strip accents and non-letters; lowercase
+function normCity(c?: string | null): string | null {
+  if (!c) return null;
+  return c.normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/[^a-z]/gi, "").toLowerCase() || null;
+}
+
+// State 2-letter
+function normState(s?: string | null): string | null {
+  if (!s) return null;
+  const v = s.trim().toLowerCase();
+  return v.length >= 2 ? v.substring(0, 2) : null;
+}
+
+// Zip digits
+function normZip(z?: string | null): string | null {
+  if (!z) return null;
+  const d = z.replace(/[^0-9]/g, "");
+  return d || null;
+}
+
+// Build a customer lookup map (email + phoneDigits -> customer row)
+async function buildCustomerLookup(supabase: any, tenantId: string) {
+  const byEmail: Record<string, any> = {};
+  const byPhone: Record<string, any> = {};
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    const { data: rows } = await supabase
+      .from("customers")
+      .select("email, phone, full_name, birth_date, gender, addresses:customer_addresses(city, state, postal_code, country, is_default)")
+      .eq("tenant_id", tenantId)
+      .is("deleted_at", null)
+      .range(from, from + PAGE - 1);
+    if (!rows || rows.length === 0) break;
+    for (const r of rows) {
+      const ek = normEmailKey(r.email);
+      if (ek) byEmail[ek] = r;
+      const pk = phoneDigits(r.phone);
+      if (pk) byPhone[pk] = r;
+    }
+    if (rows.length < PAGE) break;
+    from += PAGE;
+    if (from > 100000) break;
+  }
+  return { byEmail, byPhone };
+}
+
+// Pick best address (default else first)
+function pickAddress(c: any) {
+  const list = c?.addresses || [];
+  if (!list.length) return null;
+  const def = list.find((a: any) => a.is_default);
+  return def || list[0];
+}
+
 
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
@@ -210,6 +288,10 @@ async function syncMetaAudiences(
   const syncResults: any[] = [];
   const cleanAdAccountId = adAccountId.replace("act_", "");
 
+  // Build customer enrichment lookup once per tenant
+  const customerLookup = await buildCustomerLookup(supabase, tenantId);
+  console.log(`${tag} Customer lookup built: ${Object.keys(customerLookup.byEmail).length} byEmail, ${Object.keys(customerLookup.byPhone).length} byPhone`);
+
   for (const list of lists) {
     const startTime = Date.now();
     const audienceName = `${list.name} - Atualizado ${dateSuffix}`;
@@ -317,21 +399,50 @@ async function syncMetaAudiences(
 
       for (let i = 0; i < members.length; i += BATCH_SIZE) {
         const batch = members.slice(i, i + BATCH_SIZE);
-        const schema = ["EMAIL", "PHONE", "FN", "LN"];
+        // Multi-key schema: extra demographic fields (DOBY/DOBM/DOBD, FN, LN, CT, ST, ZIP, COUNTRY, GEN)
+        const schema = ["EMAIL", "PHONE", "FN", "LN", "CT", "ST", "ZIP", "COUNTRY", "DOBY", "DOBM", "DOBD", "GEN"];
         const dataRows: string[][] = [];
 
         for (const m of batch) {
           const sub = m.email_marketing_subscribers;
           if (!sub?.email) continue;
 
-          const { first, last } = splitName(sub.name);
-          const phone = normalizePhone(sub.phone);
+          const ek = normEmailKey(sub.email);
+          const pk = phoneDigits(sub.phone);
+          const cust = (ek && customerLookup.byEmail[ek]) || (pk && customerLookup.byPhone[pk]) || null;
+
+          // Prefer customers.full_name if subscriber.name is empty
+          const fullName = sub.name || cust?.full_name || null;
+          const { first, last } = splitName(fullName);
+          const phone = normalizePhone(sub.phone || cust?.phone || null);
+
+          const addr = pickAddress(cust);
+          const city = normCity(addr?.city);
+          const st = normState(addr?.state);
+          const zip = normZip(addr?.postal_code);
+          const country = (addr?.country || (city || st || zip ? "br" : "")).toString().toLowerCase().substring(0, 2);
+
+          // Birth date split
+          let doby = "", dobm = "", dobd = "";
+          if (cust?.birth_date) {
+            const [y, mo, d] = String(cust.birth_date).split("-");
+            if (y && mo && d) { doby = y; dobm = mo; dobd = d; }
+          }
+          const gen = normGender(cust?.gender);
 
           dataRows.push([
             await sha256(sub.email),
             phone ? await sha256(phone) : "",
             first ? await sha256(first) : "",
             last ? await sha256(last) : "",
+            city ? await sha256(city) : "",
+            st ? await sha256(st) : "",
+            zip ? await sha256(zip) : "",
+            country ? await sha256(country) : "",
+            doby ? await sha256(doby) : "",
+            dobm ? await sha256(dobm) : "",
+            dobd ? await sha256(dobd) : "",
+            gen ? await sha256(gen) : "",
           ]);
         }
 
@@ -419,6 +530,7 @@ async function syncGoogleAudiences(
   const tag = `[${traceId}][google]`;
   const dateSuffix = formatDateBR();
   const syncResults: any[] = [];
+  const customerLookup = await buildCustomerLookup(supabase, tenantId);
   const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
 
   if (!developerToken) {
@@ -561,8 +673,16 @@ async function syncGoogleAudiences(
           const sub = m.email_marketing_subscribers;
           if (!sub?.email) continue;
 
-          const { first, last } = splitName(sub.name);
-          const phone = normalizePhone(sub.phone);
+          const ek = normEmailKey(sub.email);
+          const pk = phoneDigits(sub.phone);
+          const cust = (ek && customerLookup.byEmail[ek]) || (pk && customerLookup.byPhone[pk]) || null;
+
+          const fullName = sub.name || cust?.full_name || null;
+          const { first, last } = splitName(fullName);
+          const phone = normalizePhone(sub.phone || cust?.phone || null);
+          const addr = pickAddress(cust);
+          const zip = normZip(addr?.postal_code);
+          const country = (addr?.country || "BR").toString().toUpperCase().substring(0, 2);
 
           const userIdentifiers: any[] = [
             { hashedEmail: await sha256(sub.email) },
@@ -573,11 +693,13 @@ async function syncGoogleAudiences(
           }
 
           if (first) {
-            userIdentifiers[0].addressInfo = {
+            const addressInfo: any = {
               hashedFirstName: await sha256(first),
               ...(last ? { hashedLastName: await sha256(last) } : {}),
-              countryCode: "BR",
+              countryCode: country,
             };
+            if (zip) addressInfo.postalCode = zip;
+            userIdentifiers[0].addressInfo = addressInfo;
           }
 
           operations.push({

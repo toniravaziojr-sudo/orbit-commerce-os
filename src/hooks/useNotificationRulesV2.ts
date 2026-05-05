@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import type { Json } from "@/integrations/supabase/types";
 
 // Rule Types
-export type RuleType = 'payment' | 'shipping' | 'abandoned_checkout' | 'post_sale';
+export type RuleType = 'payment' | 'shipping' | 'abandoned_checkout' | 'post_sale' | 'customer_birthday';
 
 // Trigger conditions by type
 export type PaymentCondition = 
@@ -118,6 +118,9 @@ function getTriggerEventType(ruleType: RuleType, condition: TriggerCondition): s
   if (ruleType === 'post_sale') {
     return 'customer.first_order';
   }
+  if (ruleType === 'customer_birthday') {
+    return 'customer.birthday';
+  }
   return 'order.created';
 }
 
@@ -130,6 +133,7 @@ function getDedupeScope(ruleType: RuleType): 'order' | 'customer' | 'cart' | 'no
     case 'abandoned_checkout':
       return 'cart';
     case 'post_sale':
+    case 'customer_birthday':
       return 'customer';
     default:
       return 'none';

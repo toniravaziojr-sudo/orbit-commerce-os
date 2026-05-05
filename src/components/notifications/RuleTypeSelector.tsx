@@ -1,4 +1,4 @@
-import { CreditCard, Truck, ShoppingCart, Users } from "lucide-react";
+import { CreditCard, Truck, ShoppingCart, Users, Cake } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useTenantAccess } from "@/hooks/useTenantAccess";
@@ -34,6 +34,12 @@ const ruleTypes: { value: RuleType; label: string; description: string; icon: ty
     label: 'Pós-Vendas',
     description: 'Baseado no primeiro pedido',
     icon: Users,
+  },
+  {
+    value: 'customer_birthday',
+    label: 'Aniversário',
+    description: 'Disparo no dia do aniversário',
+    icon: Cake,
   },
 ];
 

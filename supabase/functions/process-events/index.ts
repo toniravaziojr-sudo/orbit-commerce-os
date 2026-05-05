@@ -245,6 +245,8 @@ function getExpectedEventTypes(ruleType: string): string[] {
       return ['checkout.abandoned', 'checkout_abandoned'];
     case 'post_sale': 
       return ['customer_first_order', 'customer.first_order'];
+    case 'customer_birthday':
+      return ['customer_birthday', 'customer.birthday'];
     default: 
       return [];
   }
@@ -322,8 +324,8 @@ function ruleMatchesEventV2(rule: NotificationRuleV2, eventType: string, payload
       }
     }
 
-    // For abandoned_checkout and post_sale, no condition matching needed
-    if (rule_type === 'abandoned_checkout' || rule_type === 'post_sale') {
+    // For abandoned_checkout, post_sale, customer_birthday — no condition matching needed
+    if (rule_type === 'abandoned_checkout' || rule_type === 'post_sale' || rule_type === 'customer_birthday') {
       return true;
     }
   }
