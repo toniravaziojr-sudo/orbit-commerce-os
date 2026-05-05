@@ -147,6 +147,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
         city: order.shipping_city,
         state: order.shipping_state,
         zip: order.shipping_postal_code,
+        birthDate: order.customer_birth_date || undefined,
       },
     });
 
