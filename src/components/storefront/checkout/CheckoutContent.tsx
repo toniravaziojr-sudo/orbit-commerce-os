@@ -190,6 +190,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         customerEmail: draft.customer.email || '',
         customerPhone: draft.customer.phone || '',
         customerCpf: draft.customer.cpf || '',
+        customerBirthDate: draft.customer.birthDate || '',
         shippingStreet: draft.customer.shippingStreet || '',
         shippingNumber: draft.customer.shippingNumber || '',
         shippingComplement: draft.customer.shippingComplement || '',
@@ -223,6 +224,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       updateCustomer({
         name: formData.customerName, email: formData.customerEmail,
         phone: formData.customerPhone, cpf: formData.customerCpf,
+        birthDate: formData.customerBirthDate || '',
         shippingStreet: formData.shippingStreet, shippingNumber: formData.shippingNumber,
         shippingComplement: formData.shippingComplement, shippingNeighborhood: formData.shippingNeighborhood,
         shippingCity: formData.shippingCity, shippingState: formData.shippingState,
@@ -277,6 +279,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       customer: {
         name: formData.customerName, email: formData.customerEmail,
         phone: formData.customerPhone, cpf: formData.customerCpf,
+        birthDate: formData.customerBirthDate || undefined,
       },
       card: paymentMethod === 'credit_card' ? cardData : undefined,
       checkoutSessionId: sessionId || undefined,

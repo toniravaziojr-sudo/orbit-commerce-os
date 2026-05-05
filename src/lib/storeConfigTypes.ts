@@ -130,6 +130,9 @@ export interface CheckoutConfig {
   showPix?: boolean;
   showBoleto?: boolean;
   showCreditCard?: boolean;
+  // Birth date capture in Step1 (Lead)
+  requestBirthDate?: boolean;
+  birthDateRequired?: boolean;
 }
 
 // Default configurations
@@ -206,6 +209,9 @@ export const defaultCheckoutConfig: CheckoutConfig = {
   showPix: true,
   showBoleto: true,
   showCreditCard: true,
+  // Birth date defaults: off
+  requestBirthDate: false,
+  birthDateRequired: false,
 };
 
 // Parse functions for database JSONB
@@ -369,5 +375,8 @@ export function parseCheckoutConfig(data: unknown): CheckoutConfig {
     showPix: obj.showPix !== false,
     showBoleto: obj.showBoleto !== false,
     showCreditCard: obj.showCreditCard !== false,
+    // Birth date capture
+    requestBirthDate: Boolean(obj.requestBirthDate),
+    birthDateRequired: Boolean(obj.birthDateRequired),
   };
 }

@@ -4362,6 +4362,7 @@ export type Database = {
           converted_at: string | null
           created_at: string
           currency: string
+          customer_birth_date: string | null
           customer_email: string | null
           customer_id: string | null
           customer_name: string | null
@@ -4397,6 +4398,7 @@ export type Database = {
           converted_at?: string | null
           created_at?: string
           currency?: string
+          customer_birth_date?: string | null
           customer_email?: string | null
           customer_id?: string | null
           customer_name?: string | null
@@ -4432,6 +4434,7 @@ export type Database = {
           converted_at?: string | null
           created_at?: string
           currency?: string
+          customer_birth_date?: string | null
           customer_email?: string | null
           customer_id?: string | null
           customer_name?: string | null
@@ -14338,6 +14341,7 @@ export type Database = {
           checkout_link_id: string | null
           created_at: string
           currency: string | null
+          customer_birth_date: string | null
           customer_cnpj: string | null
           customer_cpf: string | null
           customer_email: string
@@ -14434,6 +14438,7 @@ export type Database = {
           checkout_link_id?: string | null
           created_at?: string
           currency?: string | null
+          customer_birth_date?: string | null
           customer_cnpj?: string | null
           customer_cpf?: string | null
           customer_email: string
@@ -14530,6 +14535,7 @@ export type Database = {
           checkout_link_id?: string | null
           created_at?: string
           currency?: string | null
+          customer_birth_date?: string | null
           customer_cnpj?: string | null
           customer_cpf?: string | null
           customer_email?: string

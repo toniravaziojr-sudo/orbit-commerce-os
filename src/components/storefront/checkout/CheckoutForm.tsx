@@ -19,6 +19,7 @@ export interface CheckoutFormData {
   customerEmail: string;
   customerPhone: string;
   customerCpf: string;
+  customerBirthDate: string; // ISO yyyy-MM-dd, empty when not captured
   shippingStreet: string;
   shippingNumber: string;
   shippingComplement: string;
@@ -286,6 +287,7 @@ export const initialCheckoutFormData: CheckoutFormData = {
   customerEmail: '',
   customerPhone: '',
   customerCpf: '',
+  customerBirthDate: '',
   shippingStreet: '',
   shippingNumber: '',
   shippingComplement: '',
