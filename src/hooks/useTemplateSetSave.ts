@@ -76,7 +76,7 @@ export function useTemplateSetSave() {
 
   // Publish template set (copy draft to published and set as active)
   const publishTemplateSet = useMutation({
-    mutationFn: async ({ templateSetId }: PublishTemplateSetParams) => {
+    mutationFn: async ({ templateSetId, changeScope }: PublishTemplateSetParams) => {
       if (!currentTenant?.id) throw new Error('No tenant');
 
       // Fetch current draft_content
