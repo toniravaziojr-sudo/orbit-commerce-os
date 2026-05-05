@@ -4,7 +4,25 @@
 
 > **Camada:** Layer 3 — Especificações / Marketing  
 > **Migrado de:** `docs/regras/criativos.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-05-05
+
+---
+
+## Como chegar nesta tela (navegação do tenant)
+
+**Sidebar → grupo "Central de Conteúdo" → "Estúdio de Criativos"** (rota `/creatives`).
+
+> ⚠️ **Não confundir** com "Calendário de Conteúdo" (`/media`), que está no mesmo grupo mas é tela de planejamento e **não chama** os edges de geração visual.
+
+### Mapa Aba → Edge → Instrumentação
+
+| Aba (UI) | Edge function | Instrumentação Motor de Créditos |
+|----------|---------------|----------------------------------|
+| **Vídeos** (default) | `creative-video-generate` | Não instrumentada (Fase 3C — futura) |
+| **Imagens** | `creative-image-generate` | ✅ **Shadow mode v2 (Fase 3B)** — caminho Fal.AI registra evento `service_usage_events` com `status='shadow'` e `cost_owner='platform'` |
+| **Galeria** | — (somente leitura via `useCreativeStats`/`useCreativesFolder`) | n/a |
+
+**Fonte de verdade do mapa de navegação:** `docs/especificacoes/transversais/mapa-ui.md` linha 19.
 
 
 ## Arquivos Relacionados
