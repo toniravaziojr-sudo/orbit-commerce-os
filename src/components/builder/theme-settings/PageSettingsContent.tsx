@@ -1595,6 +1595,8 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       { key: 'showTimeline', label: 'Timeline de etapas', description: 'Mostra progresso do checkout', defaultValue: true, group: 'features' },
       { key: 'showTrustBadges', label: 'Selos de confiança', description: 'Badges de confiança no checkout', defaultValue: true, group: 'features' },
       { key: 'showSecuritySeals', label: 'Selos de segurança', description: 'Ícones de segurança no checkout', defaultValue: true, group: 'features' },
+      { key: 'requestBirthDate', label: 'Pedir data de nascimento', description: 'Exibe campo de data de nascimento na etapa de Lead (gera gatilhos de aniversário e melhora a qualidade do rastreamento Meta)', defaultValue: false, group: 'features' },
+      { key: 'birthDateRequired', label: 'Data de nascimento obrigatória', description: 'Quando ativo, o cliente precisa informar a data para concluir o pedido', defaultValue: false, group: 'features', dependsOn: 'requestBirthDate' },
       // Formas de pagamento (visibilidade)
       { key: 'showPix', label: 'Exibir PIX', description: 'Mostrar opção PIX no checkout', defaultValue: true, group: 'payment' },
       { key: 'showBoleto', label: 'Exibir Boleto', description: 'Mostrar opção Boleto no checkout', defaultValue: true, group: 'payment' },
