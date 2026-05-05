@@ -725,9 +725,9 @@ export function VisualBuilder({
               ? 'all_orders'
               : resolvedCheckoutSource.purchaseEventTiming === 'paid_only'
                 ? 'paid_only'
-                : resolvedCheckoutSource.purchaseEventAllOrders === true
-                  ? 'all_orders'
-                  : 'paid_only';
+                : resolvedCheckoutSource.purchaseEventAllOrders === false
+                  ? 'paid_only'
+                  : 'all_orders';
             
             const normalizedCheckoutSettings = pendingCheckoutSettings
               ? {
