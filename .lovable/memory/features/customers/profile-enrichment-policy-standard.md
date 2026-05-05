@@ -41,6 +41,7 @@ Antes desta regra a "Profile Enrichment Policy" era apenas conceitual nos docs �
 - Nunca quebrar a regra do bloco atômico do endereço (todos os 7 campos juntos).
 - Nunca remover o wrap `EXCEPTION WHEN OTHERS` do trigger — pagamento aprovado não pode falhar por erro de enriquecimento.
 - Nunca disparar enriquecimento fora da transição para `approved` (overhead desnecessário em todo UPDATE de pedido).
+- **Fonte única de enriquecimento:** apenas `enrich_customer_from_order` (chamada por `after_order_approved_sync`) pode preencher/atualizar campos pessoais e endereço do cliente a partir de pedido. É proibido reintroduzir lógica de "ENRICH" dentro de `trg_recalc_customer_on_order` ou de qualquer outro trigger/função paralela. O trigger BEFORE de métricas é responsável só por: localizar/criar cliente por e-mail, vincular `customer_id` e marcar `is_first_sale`.
 
 ### Docs formais
 `docs/especificacoes/ecommerce/clientes.md` §3.1 (schema) e §4.6.1 (regra).
