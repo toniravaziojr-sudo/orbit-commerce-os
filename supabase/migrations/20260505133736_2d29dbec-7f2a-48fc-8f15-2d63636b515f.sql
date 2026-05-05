@@ -1,0 +1,2 @@
+REVOKE ALL ON FUNCTION public.enrich_customer_from_order(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.enrich_customer_from_order(uuid, uuid, uuid) TO service_role;

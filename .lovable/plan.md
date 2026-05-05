@@ -1,45 +1,99 @@
-# Plano — Data de nascimento + enriquecimento Meta + gatilhos de aniversário
+## Como funciona hoje
 
-## ✅ Concluído (v8.30.0 — 2026-05-05)
+- Cliente é identificado pelo e-mail normalizado dentro do tenant — regra 100% validada.
+- Quando um pedido é aprovado, o trigger `after_order_approved_sync` apenas garante a tag "Cliente", recalcula métricas e sincroniza listas. **Não** copia nenhum dado do pedido para o cadastro do cliente.
+- A "Profile Enrichment Policy" mencionada nos docs nunca foi implementada de fato.
+- Resultado: pedido #409 enviou CPF, data de nascimento e endereço completo, mas o cadastro do cliente continuou com esses campos em branco.
+- Endereços do cliente: hoje não existe tabela separada de endereços vinculada a `customers` — o endereço vive em colunas próprias do cliente e nas colunas de envio do pedido (`shipping_*`).
 
-### Captura
-- Migração: `customer_birth_date` em `checkout_sessions` e `orders`; índice `idx_customers_birthday_mmdd`.
-- Toggles no Builder: Checkout (`requestBirthDate`/`birthDateRequired`), Footer Newsletter (`newsletterShowBirthDate`/`newsletterBirthDateRequired`), Bloco Newsletter Form e Popup (`showBirthDate`/`birthDateRequired`).
-- UI Step 1 do checkout com `DatePickerField` e validação 13-120 anos.
-- Footer Newsletter com `DatePickerField` e envio para `marketing-form-submit`.
+## O problema
 
-### Cofre `_sf_identity` v8.30 + 4 quick wins Meta
-- Novos campos no cofre: `db_hash`, `ge_hash`, `lead_id`, `customer_id`.
-- `external_id` como array `[sf_vid, customer_id]` em todos os eventos.
-- `predicted_ltv = value × 1.8` em Purchase.
-- `delivery_category: 'home_delivery'` em AddToCart, InitiateCheckout, AddShippingInfo, AddPaymentInfo, Purchase.
-- `lead_id` UUID gerado em Lead, propagado em Purchase via `custom_data`.
-- Backend `meta-capi-sender.ts` aceita `date_of_birth_hashed` e `gender_hashed`.
+O cadastro do cliente fica desatualizado em relação ao último pedido aprovado. Não há mecanismo automático de propagação dos dados de um pedido novo para o cadastro mestre — nem dados pessoais (CPF, telefone, nome, nascimento), nem endereço completo.
 
-### Audience Sync Weekly v1.2.0
-- LEFT JOIN com `customers` por email/telefone normalizado.
-- Envio hashado SHA-256: Meta (FN, LN, CT, ST, ZIP, COUNTRY, DOBY, DOBM, DOBD, GEN) e Google Ads (FN, LN, ZIP, COUNTRY).
-- Schema multi-key dinâmico (apenas chaves preenchidas).
+## O que eu faria
 
-### Aniversário (gatilho diário)
-- Edge `birthday-daily-trigger` + pg_cron Job 52 (`0 11 * * *` UTC = 08:00 BRT).
-- Enfileira eventos `customer.birthday` com idempotência diária.
-- `process-events` mapeia `rule_type='customer_birthday'` → `customer.birthday`.
-- UI: opção "Aniversário" em `RuleTypeSelector` (Notificações E-mail + WhatsApp) e tipo de gatilho em fluxos de E-mail Marketing.
+### Regra de negócio (nova)
 
-### Documentação
-- `meta-tracking.md` v8.30.0 — Técnica 7 + entrada no versionamento.
-- `audience-sync-weekly.md` — seção Meta enriquecida + histórico v1.2.0.
-- `checkout.md` — seção "Data de Nascimento (opcional)".
-- `footer.md` — seção "Newsletter — Data de Nascimento (opcional)".
-- `email-marketing.md` — seção "Gatilho de Aniversário".
-- Memória: `mem://features/marketing/birthday-and-meta-extended-vault-v8-30` + entrada no índice.
+Toda vez que um pedido transita para pagamento aprovado, o cadastro do cliente vinculado é atualizado com os dados desse pedido — porque o pedido mais novo é a fonte de verdade mais recente do que o cliente declarou. E-mail nunca é tocado (é a chave de identidade).
 
-## 🔍 Validação técnica pendente (depende do usuário em produção)
+**Campos pessoais enriquecidos:**
+- Nome completo
+- CPF
+- CNPJ / Razão Social / IE (PJ)
+- Telefone
+- Data de nascimento
+- Gênero
 
-1. Após 24-48h do deploy, verificar no Events Manager da Meta:
-   - Lead EMQ ≥ 9.3
-   - Purchase EMQ ≥ 9.5
-   - Presença de `db` no `user_data` quando o cliente preencheu nascimento.
-2. Executar `audience-sync-weekly` manual em um tenant com clientes que têm `birth_date` populado e verificar log de match.
-3. No próximo dia 5 (aniversário do tenant teste), confirmar que a edge `birthday-daily-trigger` enfileirou e disparou notificação.
+**Endereço enriquecido (bloco completo, tratado como conjunto coerente):**
+- CEP
+- Rua/Logradouro
+- Número
+- Complemento
+- Bairro
+- Cidade
+- Estado (UF)
+
+Endereço é tratado como **bloco atômico**: se o pedido tem endereço (CEP preenchido), substitui o endereço inteiro do cliente — não mistura CEP novo com rua antiga. Isso evita inconsistência (cliente mudou de cidade e o cadastro fica com CEP novo + bairro velho).
+
+**Comportamento por campo pessoal:**
+- Pedido tem valor preenchido e diferente → atualiza.
+- Pedido tem valor vazio → não toca no cadastro (preserva dado existente).
+- Igual → no-op.
+
+**Comportamento do bloco endereço:**
+- Pedido tem CEP válido → substitui o endereço inteiro pelo do pedido (CEP, rua, número, complemento, bairro, cidade, estado). Complemento vazio no pedido sobrescreve para vazio (faz parte do bloco).
+- Pedido sem CEP → não toca no endereço.
+
+**Quando dispara:**
+- Apenas na transição para `payment_status = 'approved'` (mesmo gatilho que já existe). Nunca em updates subsequentes — sem sobrecarga.
+- Apenas quando `customer_id` está vinculado ao pedido.
+
+### Implementação técnica
+
+1. **Migração: novas colunas em `public.customers`** para armazenar o endereço principal (não existem hoje):
+   - `address_postal_code`, `address_street`, `address_number`, `address_complement`, `address_neighborhood`, `address_city`, `address_state`.
+   - Todas nullable, sem default. Apenas para refletir o último endereço aprovado do cliente. (Não substitui uma futura tabela de múltiplos endereços — é o "endereço principal" do cadastro.)
+
+2. **Nova função SQL** `public.enrich_customer_from_order(p_tenant_id, p_customer_id, p_order_id)`:
+   - SECURITY DEFINER, search_path=public.
+   - Lê o pedido e faz UPDATE em `customers`:
+     - Campos pessoais: `field = COALESCE(NULLIF(TRIM(order.field), ''), customers.field)`.
+     - Bloco endereço: se `order.shipping_postal_code` não-vazio → sobrescreve os 7 campos de endereço inteiros. Se vazio → preserva tudo.
+   - Atualiza `updated_at`.
+
+3. **Extensão do trigger existente** `after_order_approved_sync`:
+   - Mantém toda lógica atual.
+   - Adiciona chamada a `enrich_customer_from_order(...)` no mesmo `IF` de transição para approved.
+   - Wrap em `BEGIN ... EXCEPTION WHEN OTHERS THEN RAISE WARNING` — nunca derruba a aprovação.
+
+4. **Padrão arquitetural**: Padrão 1 (Pure SQL Trigger). Apenas UPDATE em uma tabela, sem chamada externa. Latência zero, atômico.
+
+5. **Backfill do pedido #409**: rodar a função uma vez para o pedido #409 do tenant respeiteohomem como validação técnica.
+
+### Validação técnica obrigatória
+
+- Confirmar antes/depois do backfill: cadastro do cliente do #409 com CPF, data de nascimento e endereço completo (CEP, rua, número, complemento, bairro, cidade, estado).
+- Confirmar que o telefone/nome existentes não foram apagados se o pedido não trouxe valor diferente.
+- Confirmar que pedidos antigos já aprovados não disparam (trigger só age na transição).
+- Verificar logs de erro (sem warnings inesperados).
+
+### Documentação a atualizar
+
+- `docs/especificacoes/ecommerce/clientes.md` — nova seção "Enriquecimento automático pelo pedido aprovado" + novas colunas de endereço no schema documentado.
+- `docs/especificacoes/storefront/checkout.md` — corrigir o texto atual sobre Profile Enrichment Policy (deixou de ser "só preenche quando nulo" — agora sobrescreve com valor não-vazio do pedido mais recente; endereço é bloco atômico).
+- `docs/especificacoes/sistema/automacao-patterns.md` — entrada no histórico citando a extensão do trigger.
+- `docs/especificacoes/transversais/mapa-ui.md` — nenhuma rota nova, mas a tela de detalhe do cliente passa a refletir o endereço principal: registrar isso se aplicável.
+- Atualizar memória `mem://features/customers/profile-enrichment-policy-standard` (overwrite com fonte = pedido mais novo aprovado, e-mail intocado, endereço como bloco atômico).
+
+### Fora do escopo (declarado)
+
+- Histórico de endereços / múltiplos endereços por cliente (entidade futura).
+- Pedidos não aprovados.
+- Importação em massa (importer mantém merge próprio).
+- Pedidos de marketplace (Mercado Livre/Shopee) — esta regra age sobre pedidos com `customer_id` vinculado e transição para `payment_status='approved'`, o que já cobre o checkout próprio. Marketplaces seguem fluxo próprio.
+
+## Resultado final
+
+Todo pedido novo aprovado mantém o cadastro do cliente sempre alinhado com a última informação declarada: dados pessoais (CPF, telefone, nome, nascimento, dados PJ, gênero) e endereço completo (CEP, rua, número, complemento, bairro, cidade, estado). Sem sobrecarga: uma única função SQL adicional dentro do trigger que já roda uma vez por aprovação. Sem risco de apagar dado existente (campos pessoais vazios são ignorados). Endereço tratado como bloco atômico para nunca ficar inconsistente. E-mail permanece como chave imutável.
+
+É isso? Confirma que eu ajusto?
