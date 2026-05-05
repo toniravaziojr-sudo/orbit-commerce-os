@@ -35,6 +35,12 @@ const ruleTypes: { value: RuleType; label: string; description: string; icon: ty
     description: 'Baseado no primeiro pedido',
     icon: Users,
   },
+  {
+    value: 'customer_birthday',
+    label: 'Aniversário',
+    description: 'Disparo no dia do aniversário',
+    icon: Cake,
+  },
 ];
 
 export function RuleTypeSelector({ value, onChange, disabled }: RuleTypeSelectorProps) {
