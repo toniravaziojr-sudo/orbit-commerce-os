@@ -526,15 +526,58 @@ Deno.serve(async (req) => {
           model: string;
           imageBase64: string;
           scores: QAScores;
+          preRouteDecision: PreRouteDecision | null;
+          preRouterError: string | null;
         }> = [];
         let totalCostCents = 0;
+
+        // ===== Fase A1: gate do pre-router (sidecar) =====
+        const preRouterEnabled = await isPreRouterEnabledForTenant(supabase, tenant_id);
+        console.log('[creative-image.pre-router] gate', { tenant_id, enabled: preRouterEnabled, version: PRE_ROUTER_VERSION });
 
         for (let varIdx = 0; varIdx < numVariations; varIdx++) {
           const variantPrompt = varIdx === 0 
             ? finalPrompt 
             : `${finalPrompt}\n\n🔄 VARIAÇÃO ${varIdx + 1}: Varie sutilmente ângulo, iluminação ou composição.`;
 
-          // Use unified resilientGenerate from visual-engine
+          // ===== SIDECAR PRE-ROUTER (Fase A1) — observabilidade pura, antes da chamada real =====
+          let preRouteDecision: PreRouteDecision | null = null;
+          let preRouterError: string | null = null;
+          if (preRouterEnabled) {
+            try {
+              preRouteDecision = preRouteImageGeneration({
+                tenant_id,
+                feature: 'creative_product_image',
+                job_id: jobId,
+                variation_index: varIdx + 1,
+                outputSize: '1024x1024',
+                quality: 'medium',
+                has_reference_image: !!product_image_url,
+                available_keys: {
+                  fal: !!falApiKey,
+                  gemini: !!geminiApiKey,
+                  openai: !!openaiApiKey,
+                  lovable: !!lovableApiKey,
+                },
+              });
+              console.log('[creative-image.pre-router] decision', {
+                job_id: jobId,
+                variation_index: varIdx + 1,
+                predicted_provider: preRouteDecision.predicted_provider,
+                predicted_service_key: preRouteDecision.predicted_service_key,
+                would_block_in_live: preRouteDecision.would_block_in_live,
+              });
+            } catch (e: any) {
+              preRouterError = e?.message || 'pre_router_unknown_error';
+              console.warn(JSON.stringify({
+                evt: 'creative-image.pre-router.error',
+                tenant_id, job_id: jobId, variation_index: varIdx + 1,
+                error: preRouterError,
+              }));
+            }
+          }
+
+          // Use unified resilientGenerate from visual-engine (INALTERADO)
           const result = await resilientGenerate({
             lovableApiKey,
             openaiApiKey,
@@ -565,8 +608,11 @@ Deno.serve(async (req) => {
             model: result.model,
             imageBase64: result.imageBase64,
             scores,
+            preRouteDecision,
+            preRouterError,
           });
         }
+
 
         allResults.sort((a, b) => b.scores.overall - a.scores.overall);
 
