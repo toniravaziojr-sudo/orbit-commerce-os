@@ -2,7 +2,7 @@
 
 > **Camada:** Layer 3 — Especificação Transversal  
 > **Status:** Ativo  
-> **Última atualização:** 2026-04-12  
+> **Última atualização:** 2026-05-05  
 > **Fonte de verdade para:** navegação, rotas, sidebar, visibilidade de telas e regras de posicionamento de UI
 
 ---
