@@ -530,6 +530,7 @@ async function syncGoogleAudiences(
   const tag = `[${traceId}][google]`;
   const dateSuffix = formatDateBR();
   const syncResults: any[] = [];
+  const customerLookup = await buildCustomerLookup(supabase, tenantId);
   const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
 
   if (!developerToken) {
