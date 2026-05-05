@@ -251,3 +251,9 @@ Remover `platform.youtube_upload` de `shadow_service_keys` no tenant. v1 continu
 | `youtube-upload` | youtube_publish | shadow v2 — pausado | Sem OAuth ativo em nenhum tenant. |
 
 **Regra:** outras funções pagas de IA Imagem só serão plugadas após validação do piloto e autorização explícita.
+
+---
+
+### Validação Fase 3B IA Imagem
+
+`creative-image-generate` foi validado em shadow no tenant `Respeite o Homem`. Documento de referência e regra anti-regressão: [`motor-creditos-fase-3b-shadow.md`](./motor-creditos-fase-3b-shadow.md).
