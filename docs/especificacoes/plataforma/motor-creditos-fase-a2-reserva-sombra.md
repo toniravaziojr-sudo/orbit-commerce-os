@@ -262,10 +262,85 @@ Nenhum teste chama RPC, banco, wallet, ledger ou provider.
 
 ---
 
-## 12. Próxima fase (futura, condicional)
+## 12. Próxima fase (condicional, **NÃO autorizada automaticamente**)
 
-Após coleta de ≥10 jobs reais com critérios da seção 9.1 atingidos:
+A Fase A3 (live seletivo) **não deve ser ativada** antes da decisão explícita sobre como tratar fallback (ver Seção 14). Mantida como direção futura:
 
-- Avaliar Fase A3 — ativação seletiva de `reserve → execute → capture | release` em live limitado a `fal.gpt-image-1.5.per_image.medium_1024` no Respeite o Homem.
+- Avaliar Fase A3 — ativação seletiva de `reserve → execute → capture | release` em live limitado a `fal.gpt-image-1.5.per_image.medium_1024` no Respeite o Homem, **somente após A2.1**.
 - Definir gate dedicado A3 e plano de rollback antes de qualquer EXECUÇÃO.
 - Normalização do alias `model` (cosmético, herdado da A1) pode entrar como melhoria observacional.
+
+---
+
+## 13. Fechamento da coleta — evidências (2026-05-05)
+
+### 13.1 Janela e escopo
+
+- **Tenant:** Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`)
+- **Janela UTC:** 2026-05-05 23:15 → 23:29
+- **Modo:** shadow sidecar (live desligado)
+
+### 13.2 Cobertura dos jobs
+
+| Métrica | Valor |
+|---|---|
+| Jobs gerados (`creative_jobs`) | **10** |
+| Jobs `succeeded` | **10/10** |
+| Jobs com evento A2 (`shadow_reservation_version='0.1.0'`) | **9/10** |
+| Jobs **sem** evento A2 | **1/10** — `1bc6496d-57b4-43ce-a470-f3e39469517f` (caiu em fallback Gemini, fora do escopo A2) |
+
+### 13.3 Coerência dos 9 eventos A2 (caminho primário Fal.AI)
+
+| Critério | Resultado |
+|---|---|
+| `pre_route_match=true` | **9/9** ✅ |
+| `predicted_provider=fal` e `actual_provider=fal` | **9/9** ✅ |
+| `predicted_service_key = fal.gpt-image-1.5.per_image.medium_1024` | **9/9** ✅ |
+| `shadow_pricing_snapshot.cost_usd_snap` | **0.034** (constante) |
+| `shadow_pricing_snapshot.markup_pct_snap` | **50** |
+| `shadow_pricing_snapshot.sell_usd_snap` | **0.051** |
+| `shadow_reserve.credits = 6` / `would_run=true` | **9/9** ✅ |
+| `shadow_capture.would_run=true` (jobs `succeeded`) | **9/9** ✅ |
+| `shadow_release.would_run=false` | **9/9** ✅ |
+| `shadow_would_block_provider_call=false` | **9/9** ✅ |
+| `would_block_in_live=false` | **9/9** ✅ |
+| `cost_owner='platform'` (snapshots USD protegidos) | **9/9** ✅ |
+| `shadow_balance_simulation.insufficient=false` | **9/9** ✅ |
+| `balance_before / balance_after` (simulação) | **500 / 494** |
+
+### 13.4 Estado financeiro real (intocado)
+
+| Item | Antes | Depois |
+|---|---|---|
+| `credit_wallet.balance_credits` | 500 | **500** ✅ |
+| `credit_wallet.reserved_credits` | 0 | **0** ✅ |
+| `credit_wallet.lifetime_consumed` | 0 | **0** ✅ |
+| `credit_ledger` (count) | 1 | **1** ✅ |
+| `motor_v2_enabled` | false | **false** ✅ |
+| `live_service_keys` | `[]` | **`[]`** ✅ |
+
+### 13.5 Status preciso da Fase A2
+
+- ✅ **Validada** para o caminho primário **Fal.AI `medium_1024`**.
+- ⚠️ **Não cobre** fallbacks Gemini / OpenAI / Lovable — **gap conhecido**.
+- ❌ **Não** equivale a validação completa de todos os providers/caminhos.
+- ❌ **A3 live NÃO é autorizada automaticamente** por esta validação.
+- ✅ Wallet, ledger, `service_pricing`, `tenant_credit_motor_config`, RLS, UI e código permaneceram intocados durante a coleta.
+- ✅ Nenhuma cobrança real, nenhuma reserva real, nenhum live ativado.
+
+---
+
+## 14. Próxima etapa recomendada — PLANNER A2.1 (Fallback Shadow)
+
+Antes de qualquer decisão sobre A3 live, criar **PLANNER da Fase A2.1 — Fallback Shadow** para definir como registrar/simular fallback quando Fal.AI falha e o fluxo cai em Gemini / OpenAI / Lovable.
+
+A A2.1 deve avaliar (sem implementar):
+
+- **Opção A** — evento shadow separado para fallback, **sem pricing** (apenas observabilidade do fato).
+- **Opção B** — metadata de fallback **vinculada ao job**, mesmo sem evento A2 do Fal (extensão do evento existente ou ligação cruzada).
+- **Opção C** — em live futuro, se Fal.AI falhar, **liberar reserva** e **bloquear fallback sem pricing** (release determinístico).
+- **Opção D** — **cadastrar pricing** de Gemini/OpenAI/Lovable antes de permitir fallback live (homologação financeira por trilha).
+- **Opção E** — fallback **apenas em shadow/free** até pricing aprovado por trilha (rollout faseado).
+
+A A2.1 é **planejamento documental**. Não implementa, não ativa live, não toca pricing.
+
