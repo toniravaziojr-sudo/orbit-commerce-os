@@ -1608,6 +1608,18 @@ Deno.serve(async (req) => {
     // Determine intent for response metadata
     const adjustmentIntent = promptType === 'adjustment' ? classifyIntent(prompt) : null;
 
+    try {
+      await chargeAfter({
+        tenantId,
+        userId,
+        serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+        units: { tokens_in: 12000, tokens_out: 8000 },
+        jobId: String(landingPageId) + ":v" + newVersion,
+        feature: "ai-landing-page-generate",
+        metadata: { promptType, sections: finalSchema.sections.length, ai_refinement: aiRefinementUsed },
+      });
+    } catch (e) { console.warn("[ai-landing-page-generate] charge skipped", String(e)); }
+
     return new Response(
       JSON.stringify({
         success: true,
