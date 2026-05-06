@@ -99,7 +99,7 @@ Hub único para todas as interações do lojista com o sistema de créditos. Sub
 | Rota atual | Destino futuro |
 |---|---|
 | `/ai-packages` | Redirect 301 para `/account/credits?tab=buy`. Manter rota antiga ativa por 1 release antes de remover. |
-| `/account/billing` | Mantém foco em plano/faturas da assinatura SaaS. **Não** duplica gestão de créditos. Pode ter card "Saldo de créditos: X — gerenciar" linkando para `/account/credits`. |
+| `/account/billing` | Mantém foco em plano/faturas da assinatura SaaS. **Etapa 1C Fase A3.2 (2026-05-06):** ganhou seção provisória "Extrato de Créditos" (cards Disponível/Reservado/Consumido + histórico via RPC `get_credit_history`, filtros período/tipo, paginação, mascaramento server-side de custo/margem). Quando `/account/credits` for entregue, esta seção será movida para `/account/credits?tab=ledger` e Billing voltará a ter apenas link "Saldo de créditos: X — gerenciar". |
 
 ## 9. Regras de visibilidade — o que o tenant **NÃO** vê
 
