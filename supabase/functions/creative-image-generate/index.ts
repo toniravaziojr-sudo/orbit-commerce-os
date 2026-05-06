@@ -39,6 +39,12 @@ import {
   type PricingSnapshotInput,
   type WalletSnapshotInput,
 } from "../_shared/credits/shadow-reservation.ts";
+import {
+  isFallbackShadowEnabled,
+  recordFallbackShadowEvent,
+  normalizeProviderForFallback,
+  FALLBACK_SHADOW_VERSION,
+} from "../_shared/credits/fallback-shadow.ts";
 
 const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
 
@@ -345,6 +351,7 @@ async function recordImageShadowV2(supabase: any, args: {
 async function loadTenantMotorGates(supabase: any, tenantId: string): Promise<{
   preRouterEnabled: boolean;
   shadowReservationEnabled: boolean;
+  fallbackShadowEnabled: boolean;
 }> {
   try {
     const { data } = await supabase
@@ -356,10 +363,11 @@ async function loadTenantMotorGates(supabase: any, tenantId: string): Promise<{
     return {
       preRouterEnabled: meta.pre_router_enabled === true,
       shadowReservationEnabled: isShadowReservationEnabled(meta),
+      fallbackShadowEnabled: isFallbackShadowEnabled(meta),
     };
   } catch (e: any) {
     console.warn('[creative-image.motor-gates] check failed (default off):', e?.message || e);
-    return { preRouterEnabled: false, shadowReservationEnabled: false };
+    return { preRouterEnabled: false, shadowReservationEnabled: false, fallbackShadowEnabled: false };
   }
 }
 
@@ -606,6 +614,8 @@ Deno.serve(async (req) => {
           pre_router_version: PRE_ROUTER_VERSION,
           shadow_reservation_enabled: shadowReservationEnabled,
           shadow_reservation_version: SHADOW_RESERVATION_VERSION,
+          fallback_shadow_enabled: motorGates.fallbackShadowEnabled,
+          fallback_shadow_version: FALLBACK_SHADOW_VERSION,
         });
 
         // Cache pricing+wallet uma vez por job (apenas leitura — jamais muta)
@@ -771,6 +781,36 @@ Deno.serve(async (req) => {
                 preRouterError: result.preRouterError,
                 shadowReservationMeta: result.shadowReservationMeta,
               });
+
+              // FALLBACK SHADOW (Fase A2.1) — observabilidade de vencedores fora da cobertura A2.
+              // Dispara quando o provider real normalizado não é Fal OU quando A2 não emitiu reserve para esta variação.
+              if (motorGates.fallbackShadowEnabled) {
+                const normalized = normalizeProviderForFallback(result.actualProvider);
+                const a2Covered = !!result.shadowReservationMeta && normalized === 'fal';
+                if (!a2Covered) {
+                  try {
+                    await recordFallbackShadowEvent(supabase, {
+                      tenantId: tenant_id,
+                      creative_job_id: jobId,
+                      variation_index: i + 1,
+                      predicted_provider: result.preRouteDecision?.predicted_provider ?? null,
+                      predicted_model: result.preRouteDecision?.predicted_model ?? null,
+                      predicted_service_key: result.preRouteDecision?.predicted_service_key ?? null,
+                      actual_provider: result.actualProvider,
+                      actual_model: result.model,
+                      winner_provider: result.actualProvider,
+                      winner_model: result.model,
+                      fallback_reason: result.shadowReservationMeta
+                        ? 'winner_outside_a2_scope'
+                        : (normalized === 'fal' ? 'fal_without_pricing_match' : 'winner_not_fal'),
+                      providers_requested: enabledProviders,
+                      enable_fallback,
+                    });
+                  } catch (e: any) {
+                    console.warn('[creative-image.fallback-shadow] error (ignored):', e?.message || e);
+                  }
+                }
+              }
             }
           } catch (error) {
             console.error('[creative-image] Upload error:', error);

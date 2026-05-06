@@ -344,3 +344,12 @@ A A2.1 deve avaliar (sem implementar):
 
 A A2.1 é **planejamento documental**. Não implementa, não ativa live, não toca pricing.
 
+### 14.1 Atualização (2026-05-06) — A2.1 implementada (gate desligado)
+
+A Fase A2.1 foi **implementada** (Opção A — evento shadow separado, sem pricing). Detalhes em
+[motor-creditos-fase-a2-1-fallback-shadow.md](./motor-creditos-fase-a2-1-fallback-shadow.md).
+
+- Status: 🟡 código + testes + docs entregues; **gate desligado para todos os tenants**.
+- Próxima etapa: prompt separado de EXECUÇÃO para ativar `fallback_shadow_enabled=true` no tenant Respeite o Homem e validar 1 evento real.
+- A2 (Fal `medium_1024` com pricing) **não foi alterada** — continua emitindo evento normal.
+
