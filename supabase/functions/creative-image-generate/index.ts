@@ -625,6 +625,19 @@ Deno.serve(async (req) => {
           fallback_shadow_version: FALLBACK_SHADOW_VERSION,
         });
 
+        // ===== Fase A3.1: gate fino LIVE por service_key (Motor v2) =====
+        const liveServiceKeys = await loadLiveServiceKeys(supabase, tenant_id);
+        const LIVE_TARGET_KEY = 'fal.gpt-image-1.5.per_image.medium_1024';
+        const liveTargetEnabled = liveServiceKeys.has(LIVE_TARGET_KEY);
+        if (liveTargetEnabled) {
+          console.log('[creative-image.live]', JSON.stringify({
+            evt: 'live_gate_enabled',
+            tenant_id,
+            service_key: LIVE_TARGET_KEY,
+            live_keys_count: liveServiceKeys.size,
+          }));
+        }
+
         // Cache pricing+wallet uma vez por job (apenas leitura — jamais muta)
         let pricingSnapshot: PricingSnapshotInput | null = null;
         let walletSnapshot: WalletSnapshotInput | null = null;
