@@ -45,6 +45,13 @@ import {
   normalizeProviderForFallback,
   FALLBACK_SHADOW_VERSION,
 } from "../_shared/credits/fallback-shadow.ts";
+import {
+  callReserveCreditsV2,
+  callCaptureReservation,
+  callReleaseReservation,
+  loadLiveServiceKeys,
+} from "../_shared/credits/live-v2.ts";
+import { generateImageWithGptImage1, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
 const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
 
