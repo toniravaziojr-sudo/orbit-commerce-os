@@ -779,6 +779,36 @@ Deno.serve(async (req) => {
                 preRouterError: result.preRouterError,
                 shadowReservationMeta: result.shadowReservationMeta,
               });
+
+              // FALLBACK SHADOW (Fase A2.1) — observabilidade de vencedores fora da cobertura A2.
+              // Dispara quando o provider real normalizado não é Fal OU quando A2 não emitiu reserve para esta variação.
+              if (motorGates.fallbackShadowEnabled) {
+                const normalized = normalizeProviderForFallback(result.actualProvider);
+                const a2Covered = !!result.shadowReservationMeta && normalized === 'fal';
+                if (!a2Covered) {
+                  try {
+                    await recordFallbackShadowEvent(supabase, {
+                      tenantId: tenant_id,
+                      creative_job_id: jobId,
+                      variation_index: i + 1,
+                      predicted_provider: result.preRouteDecision?.predicted_provider ?? null,
+                      predicted_model: result.preRouteDecision?.predicted_model ?? null,
+                      predicted_service_key: result.preRouteDecision?.predicted_service_key ?? null,
+                      actual_provider: result.actualProvider,
+                      actual_model: result.model,
+                      winner_provider: result.actualProvider,
+                      winner_model: result.model,
+                      fallback_reason: result.shadowReservationMeta
+                        ? 'winner_outside_a2_scope'
+                        : (normalized === 'fal' ? 'fal_without_pricing_match' : 'winner_not_fal'),
+                      providers_requested: enabledProviders,
+                      enable_fallback,
+                    });
+                  } catch (e: any) {
+                    console.warn('[creative-image.fallback-shadow] error (ignored):', e?.message || e);
+                  }
+                }
+              }
             }
           } catch (error) {
             console.error('[creative-image] Upload error:', error);
