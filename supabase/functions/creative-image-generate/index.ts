@@ -945,7 +945,7 @@ Deno.serve(async (req) => {
               prompt: variantPrompt,
               referenceImageBase64: productBase64,
               referenceImageUrl: product_image_url,
-              outputSize: '1024x1024',
+              outputSize,
               slotLabel: `product-v${varIdx + 1}`,
             });
           }
@@ -1020,8 +1020,8 @@ Deno.serve(async (req) => {
                   variationIndex: i + 1,
                   actualProvider: result.actualProvider,
                   model: result.model,
-                  outputSize: '1024x1024',
-                  quality: 'medium',
+                  outputSize,
+                  quality,
                   providerResponseId: null,
                   imageUrl: publicUrlData.publicUrl,
                   preRouteDecision: result.preRouteDecision,
