@@ -39,6 +39,12 @@ import {
   type PricingSnapshotInput,
   type WalletSnapshotInput,
 } from "../_shared/credits/shadow-reservation.ts";
+import {
+  isFallbackShadowEnabled,
+  recordFallbackShadowEvent,
+  normalizeProviderForFallback,
+  FALLBACK_SHADOW_VERSION,
+} from "../_shared/credits/fallback-shadow.ts";
 
 const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
 
