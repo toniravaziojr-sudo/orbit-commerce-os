@@ -35,7 +35,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTimeShortBR } from "@/lib/date-format";
-import { formatCredits, type CreditHistoryItem } from "@/hooks/useCreditHistory";
+import { formatCredits } from "@/hooks/useCredits";
+import type { CreditHistoryItem } from "@/hooks/useCreditHistory";
 
 interface CreditHistoryTableProps {
   items: CreditHistoryItem[];
