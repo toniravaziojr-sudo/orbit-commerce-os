@@ -53,7 +53,7 @@ export function CreditAggregateCards({ items }: CreditAggregateCardsProps) {
         <Card>
           <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Créditos consumidos
+              Créditos consumidos exibidos
             </CardTitle>
             <Coins className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -65,7 +65,7 @@ export function CreditAggregateCards({ items }: CreditAggregateCardsProps) {
         <Card>
           <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Custo
+              Custo dos registros exibidos
             </CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -79,7 +79,7 @@ export function CreditAggregateCards({ items }: CreditAggregateCardsProps) {
         <Card>
           <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Receita
+              Receita dos registros exibidos
             </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -93,7 +93,7 @@ export function CreditAggregateCards({ items }: CreditAggregateCardsProps) {
         <Card>
           <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Margem
+              Margem dos registros exibidos
             </CardTitle>
             <Percent className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
