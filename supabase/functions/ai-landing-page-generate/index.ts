@@ -7,6 +7,7 @@
 // =============================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
 import {
   resolveEnginePlan,
