@@ -1,7 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+
+const PLATFORM_TENANT_ID = "cc000000-0000-0000-0000-000000000001";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -195,6 +198,16 @@ Deno.serve(async (req: Request) => {
       provider_message_id: result.messageId,
       sent_at: new Date().toISOString(),
     });
+
+    // Cobrança pós-envio (motor universal)
+    chargeAfter({
+      tenantId: PLATFORM_TENANT_ID,
+      serviceKey: "email-system-send",
+      units: { count: 1 },
+      jobId: result.messageId ?? `${Date.now()}-${to}`,
+      feature: "send-system-email",
+      metadata: { recipient: to, email_type },
+    }).catch(() => {});
 
     // Update last test info if it's a test email
     if (email_type === "test") {
