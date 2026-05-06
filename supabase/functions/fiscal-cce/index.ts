@@ -1,6 +1,6 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -193,9 +193,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    chargeAfter({
+      tenantId,
+      serviceKey: "nfe-cce",
+      units: { count: 1 },
+      jobId: `cce-${invoice_id}-${numeroSequencia}`,
+      feature: "fiscal-cce",
+    }).catch(() => {});
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         cce: savedCce,
         protocolo: responseData.protocolo,
       }),
