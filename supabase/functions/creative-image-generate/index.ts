@@ -922,21 +922,24 @@ Deno.serve(async (req) => {
                 isWinner: i === 0,
               });
 
-              // SHADOW v2 — Motor de Créditos (Fase 3B + Fase A1 sidecar): roda após persistência, sem custo, sem re-chamar provider
-              await recordImageShadowV2(supabase, {
-                tenantId: tenant_id,
-                jobId,
-                variationIndex: i + 1,
-                actualProvider: result.actualProvider,
-                model: result.model,
-                outputSize: '1024x1024',
-                quality: 'medium',
-                providerResponseId: null,
-                imageUrl: publicUrlData.publicUrl,
-                preRouteDecision: result.preRouteDecision,
-                preRouterError: result.preRouterError,
-                shadowReservationMeta: result.shadowReservationMeta,
-              });
+              // SHADOW v2 — Motor de Créditos (Fase 3B + Fase A1 sidecar): roda após persistência, sem custo, sem re-chamar provider.
+              // Em LIVE (A3.1) não duplicamos evento financeiro: as RPCs reserve/capture/release já criaram o service_usage_events canônico.
+              if (!result.liveSuppressFallbackShadow) {
+                await recordImageShadowV2(supabase, {
+                  tenantId: tenant_id,
+                  jobId,
+                  variationIndex: i + 1,
+                  actualProvider: result.actualProvider,
+                  model: result.model,
+                  outputSize: '1024x1024',
+                  quality: 'medium',
+                  providerResponseId: null,
+                  imageUrl: publicUrlData.publicUrl,
+                  preRouteDecision: result.preRouteDecision,
+                  preRouterError: result.preRouterError,
+                  shadowReservationMeta: result.shadowReservationMeta,
+                });
+              }
 
               // FALLBACK SHADOW (Fase A2.1) — observabilidade de vencedores fora da cobertura A2.
               // Dispara quando o provider real normalizado não é Fal OU quando A2 não emitiu reserve para esta variação.
