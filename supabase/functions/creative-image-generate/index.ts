@@ -608,6 +608,7 @@ Deno.serve(async (req) => {
           preRouteDecision: PreRouteDecision | null;
           preRouterError: string | null;
           shadowReservationMeta: ShadowReservationMetadata | null;
+          liveSuppressFallbackShadow?: boolean;
         }> = [];
         let totalCostCents = 0;
 
