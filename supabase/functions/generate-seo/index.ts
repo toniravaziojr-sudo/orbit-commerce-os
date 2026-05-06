@@ -1,9 +1,11 @@
 // =============================================
 // EDGE FUNCTION: Generate SEO with AI
 // Generates optimized SEO title and description based on content
+// Integrado com Motor Universal de Créditos v2.
 // =============================================
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
-import { errorResponse } from "../_shared/error-response.ts";
+import { withCreditMotor, isMotorEnabledForTenant } from "../_shared/credits/with-motor.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,13 +16,17 @@ interface SeoInput {
   type: 'product' | 'category' | 'blog' | 'page';
   name: string;
   description?: string;
-  content?: string; // For blog/pages - can be HTML or plain text
+  content?: string;
   excerpt?: string;
   tags?: string[];
   imageUrl?: string;
   price?: number;
   storeName?: string;
+  tenant_id?: string;
 }
+
+const MODEL = "google/gemini-2.5-flash";
+const SERVICE_KEY = "gemini.gemini-2.5-flash.per_1m_tokens_in";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -34,43 +40,18 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     // Build context for AI
-    let contextParts: string[] = [];
-    
+    const contextParts: string[] = [];
     contextParts.push(`Tipo: ${input.type}`);
     contextParts.push(`Nome/Título: ${input.name}`);
-    
-    if (input.description) {
-      contextParts.push(`Descrição: ${input.description}`);
-    }
-    
+    if (input.description) contextParts.push(`Descrição: ${input.description}`);
     if (input.content) {
-      // Strip HTML tags for cleaner content
-      const cleanContent = input.content
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 2000); // Limit content length
-      if (cleanContent) {
-        contextParts.push(`Conteúdo: ${cleanContent}`);
-      }
+      const cleanContent = input.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 2000);
+      if (cleanContent) contextParts.push(`Conteúdo: ${cleanContent}`);
     }
-    
-    if (input.excerpt) {
-      contextParts.push(`Resumo: ${input.excerpt}`);
-    }
-    
-    if (input.tags && input.tags.length > 0) {
-      contextParts.push(`Tags: ${input.tags.join(', ')}`);
-    }
-    
-    if (input.price) {
-      contextParts.push(`Preço: R$ ${Number(input.price).toFixed(2)}`);
-    }
-    
-    if (input.storeName) {
-      contextParts.push(`Loja: ${input.storeName}`);
-    }
-
+    if (input.excerpt) contextParts.push(`Resumo: ${input.excerpt}`);
+    if (input.tags && input.tags.length > 0) contextParts.push(`Tags: ${input.tags.join(', ')}`);
+    if (input.price) contextParts.push(`Preço: R$ ${Number(input.price).toFixed(2)}`);
+    if (input.storeName) contextParts.push(`Loja: ${input.storeName}`);
     const contextText = contextParts.join('\n');
 
     const systemPrompt = `Você é um especialista em SEO para e-commerce brasileiro. Sua tarefa é gerar um título SEO e uma meta descrição otimizados para mecanismos de busca.
@@ -91,84 +72,84 @@ RESPONDA APENAS com JSON válido no formato:
   "seo_description": "descrição aqui"
 }`;
 
-    const userPrompt = `Gere título SEO e meta descrição otimizados para o seguinte conteúdo:
+    const userPrompt = `Gere título SEO e meta descrição otimizados para o seguinte conteúdo:\n\n${contextText}\n\nLembre-se: título máximo 60 caracteres, descrição máximo 160 caracteres.`;
 
-${contextText}
+    // Estimativa: contexto + prompt (~ tokens_in) + ~200 tokens_out
+    const estTokensIn = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+    const estTokensOut = 200;
 
-Lembre-se: título máximo 60 caracteres, descrição máximo 160 caracteres.`;
+    const callProvider = async () => {
+      const response = await aiChatCompletion(MODEL, {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }, { supabaseUrl, supabaseServiceKey, logPrefix: "[generate-seo]" });
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`AI ${response.status}: ${errText}`);
+      }
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || "";
+      const usage = data.usage || {};
+      return { data, content, usage };
+    };
 
-    console.log("[generate-seo] Calling AI with context:", contextText.substring(0, 500));
+    const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
+    const tenantId = input.tenant_id;
+    const useMotor = !!tenantId && (await isMotorEnabledForTenant(supabaseService, tenantId, SERVICE_KEY));
 
-    const response = await aiChatCompletion("google/gemini-2.5-flash", {
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }, {
-      supabaseUrl,
-      supabaseServiceKey,
-      logPrefix: "[generate-seo]",
-    });
+    let aiContent = "";
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[generate-seo] AI error:", response.status, errorText);
-      
-      if (response.status === 429) {
+    if (useMotor) {
+      const motorResult = await withCreditMotor(
+        {
+          tenantId: tenantId!,
+          serviceKey: SERVICE_KEY,
+          units: { tokens_in: estTokensIn, tokens_out: estTokensOut },
+          jobId: crypto.randomUUID(),
+          feature: "generate-seo",
+          metadata: { content_type: input.type, name: input.name?.slice(0, 80) },
+        },
+        async () => {
+          const r = await callProvider();
+          const tIn = r.usage?.prompt_tokens ?? r.usage?.input_tokens ?? estTokensIn;
+          const tOut = r.usage?.completion_tokens ?? r.usage?.output_tokens ?? estTokensOut;
+          return {
+            providerResult: r.content,
+            actualUnits: { tokens_in: tIn, tokens_out: tOut },
+          };
+        },
+      );
+      if (!motorResult.success) {
         return new Response(
-          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ success: false, error: motorResult.userMessage, code: motorResult.errorCode }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Créditos de IA esgotados. Adicione créditos ao workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      throw new Error(`AI error: ${response.status}`);
+      aiContent = motorResult.providerResult;
+    } else {
+      const r = await callProvider();
+      aiContent = r.content;
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-
-    console.log("[generate-seo] AI response:", content);
-
-    // Parse JSON from response
+    // Parse JSON
     let seoResult: { seo_title: string; seo_description: string };
-    
     try {
-      // Try to extract JSON from markdown code blocks
-      const jsonMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-      if (jsonMatch) {
-        seoResult = JSON.parse(jsonMatch[1].trim());
-      } else {
-        // Try direct JSON parse
-        seoResult = JSON.parse(content.trim());
-      }
-    } catch (parseError) {
-      console.error("[generate-seo] Failed to parse AI response:", parseError);
-      
-      // Fallback: try to extract title and description manually
-      const titleMatch = content.match(/"seo_title"\s*:\s*"([^"]+)"/);
-      const descMatch = content.match(/"seo_description"\s*:\s*"([^"]+)"/);
-      
+      const jsonMatch = aiContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      seoResult = jsonMatch ? JSON.parse(jsonMatch[1].trim()) : JSON.parse(aiContent.trim());
+    } catch {
+      const titleMatch = aiContent.match(/"seo_title"\s*:\s*"([^"]+)"/);
+      const descMatch = aiContent.match(/"seo_description"\s*:\s*"([^"]+)"/);
       if (titleMatch && descMatch) {
-        seoResult = {
-          seo_title: titleMatch[1],
-          seo_description: descMatch[1],
-        };
+        seoResult = { seo_title: titleMatch[1], seo_description: descMatch[1] };
       } else {
         throw new Error("Failed to parse SEO from AI response");
       }
     }
 
-    // Validate and truncate if needed
     seoResult.seo_title = (seoResult.seo_title || "").substring(0, 60);
     seoResult.seo_description = (seoResult.seo_description || "").substring(0, 160);
-
-    console.log("[generate-seo] Final result:", seoResult);
 
     return new Response(JSON.stringify(seoResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
