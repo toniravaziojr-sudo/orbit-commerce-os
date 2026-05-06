@@ -148,3 +148,36 @@ Rota: `/platform/external-costs?tab=pricing`. Acesso: platform_admin (RLS + UI g
 - Aprovar live bloqueado para placeholders com `price_source='manual_placeholder'`.
 - Reativar bloqueado se já existe versão ativa mais recente do mesmo `service_key`.
 - Histórico vem de `admin_pricing_history` RPC.
+
+---
+
+## 13. Painel "Créditos da Plataforma" — `/platform/credits` (Etapa 1D Fase A3.2, 2026-05-06)
+
+Rota nova, complementar a `/platform/external-costs`. Acesso: platform_admin (`PlatformAdminGate` + RLS na RPC).
+
+### Diferença entre os dois painéis admin
+
+| Painel | Foco | Granularidade |
+|---|---|---|
+| `/platform/external-costs` | Custos externos por provedor + Catálogo de preços (`service_pricing`) | Provedor / serviço, agregado |
+| `/platform/credits` | Auditoria de movimentos de crédito por **tenant** | Linha-a-linha do `credit_ledger` enriquecido |
+
+### Funcionalidades desta etapa
+
+- **Seletor obrigatório de tenant** (sem "Todos os tenants" nesta etapa).
+- **Filtros:** período (7d, 30d, 90d), tipo, status, categoria, provider, service_key, checkbox "incluir transações de plataforma".
+- **Tabela:** `CreditHistoryTable` com `showAdminColumns=true` — exibe provider, service_key, custo USD, venda USD além das colunas tenant.
+- **Cards:** Créditos consumidos / Custo / Receita / Margem.
+  - Considera apenas `transaction_type='capture'` dos registros visíveis.
+  - **Label obrigatório:** "Resumo dos registros exibidos — não representa o total do período."
+  - Custo / Receita / Margem aparecem como `—` quando os registros visíveis não trazem `cost_brl` / `sell_brl` (fallback explícito).
+- **Paginação:** 50 itens, anterior/próxima.
+- **Hook dedicado:** `usePlatformCreditHistory` (não compartilha com tenant `useCreditHistory`, para não regredir `/account/billing`).
+
+### Decisões da Etapa 1D
+
+- "Todos os tenants" diferido (exigiria ampliar `get_credit_history` para aceitar `p_tenant_id=NULL` em admin — fora do escopo).
+- Agregados globais por período diferidos (exigiriam RPC `get_credit_aggregates` — fora do escopo).
+- Exportação CSV diferida.
+- RPC `get_credit_history` não foi alterada nesta etapa.
+
