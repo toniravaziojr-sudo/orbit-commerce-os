@@ -108,3 +108,50 @@ Pré-condições remanescentes:
 
 - `20260506150027_b6402d7c-05ce-41cf-b987-5637716e6256.sql` — A3.0.2 (`balance_after` ambíguo).
 - `20260506_a3_0_3_provider_in_service_usage_events.sql` — A3.0.3 (`provider` nos 4 INSERTs).
+
+---
+
+# Fase A3.1 — Live Fal-only para `creative-image-generate` (executada em 2026-05-06)
+
+## Escopo
+
+- Tenant: **Respeite o Homem** (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
+- Service key: **`fal.gpt-image-1.5.per_image.medium_1024`** (custo: 6 créditos).
+- Gate: `live_service_keys = ['fal.gpt-image-1.5.per_image.medium_1024']`, `motor_v2_enabled` permaneceu **false** globalmente.
+- `service_pricing.metadata.approved_for_live = true` apenas nessa chave.
+- Fallback bloqueado em modo live (sem Gemini/OpenAI/Lovable).
+
+## Implementação
+
+- Novo helper: `supabase/functions/_shared/credits/live-v2.ts` (reserve_credits_v2 → provider → capture_reservation / release_reservation).
+- Branch live ativada em `creative-image-generate` (idempotência `v2|reserve|...`, `v2|capture|...`, `v2|release|...`).
+- Supressão de reserva sombra A2 e eventos financeiros duplicados quando `isLive=true`.
+
+## Validação real (2 tentativas controladas)
+
+### Tentativa 1 — falha do provider Fal (timeout 60s, sync mode)
+- `reserve_success` → `provider_started` → `fal-client: GPT Image 1 timeout after 60s` → `release_success` → `fallback_blocked_without_pricing`.
+- Reserva: `59d92d65-…` (status `reserved`).
+- Release: `cce3a82c-…` (status `released`).
+- Saldo: **500 → 500** (intacto). Nada cobrado. Motor cobriu o cenário negativo conforme projetado.
+
+### Tentativa 2 — sucesso, primeira cobrança real do motor v2
+- Job `4356b480-fa2d-4f28-9aa0-be691ba49cf2`.
+- Reserve ledger `27c4c16c-…` (status `reserved`, idempotency `v2|reserve|d1a4d0ed-…|4356b480-…|fal.gpt-image-1.5.per_image.medium_1024|1`).
+- Capture ledger `be5118ca-…` (status `captured`, `credits_delta=-6`, `balance_before=500`, `balance_after=494`, idempotency `v2|capture|27c4c16c-…`).
+- `service_usage_events` (`9db2bee4-…`): status `captured`, provider `fal`, `credit_ledger_id=27c4c16c-…`, metadata com `capture_ledger_id`, `credits_charged=6`, `motor_version=v2`, `pipeline_version=10.0`.
+- Wallet pós-captura: **`balance_credits=494`**, **`reserved_credits=0`**, **`lifetime_consumed=6`**.
+
+## Rollback executado
+
+- `UPDATE tenant_credit_motor_config SET live_service_keys = ARRAY[]::text[]` no tenant Respeite o Homem.
+- Estado pós-rollback confirmado: `live_service_keys=[]`, `motor_v2_enabled=false`.
+- Nenhum outro tenant impactado em qualquer momento.
+
+## Pendência aberta
+
+- **Timeout do Fal GPT Image 1.5 em sync mode (60s)**: causou a falha da tentativa 1. Tratar em fase separada (avaliar async submit/poll do Fal ou aumento de timeout cirúrgico em `_shared/fal-client`). Não bloqueia A3.x; o motor já demonstrou comportamento correto em ambos os cenários.
+
+## Status
+
+✅ A3.1 concluída e validada com cobrança real canônica de 6 créditos (500 → 494). Motor v2 desligado para shadow após sucesso.
