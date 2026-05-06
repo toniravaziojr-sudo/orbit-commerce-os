@@ -82,10 +82,18 @@ const CATEGORY_ICON: Record<string, React.ReactNode> = {
 };
 
 function describeItem(item: CreditHistoryItem): string {
-  if (item.description) return item.description;
-  if (item.creative_product_name) return item.creative_product_name;
-  if (item.category) return CATEGORY_LABEL[item.category] ?? item.category;
-  if (item.feature) return item.feature;
+  const categoryLabel = item.category
+    ? (CATEGORY_LABEL[item.category] ?? item.category)
+    : null;
+  const detail =
+    item.description ||
+    item.creative_product_name ||
+    item.feature ||
+    null;
+
+  if (categoryLabel && detail) return `${categoryLabel} — ${detail}`;
+  if (detail) return detail;
+  if (categoryLabel) return categoryLabel;
   return "Movimento de crédito";
 }
 

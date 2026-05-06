@@ -292,7 +292,7 @@ O storefront público do lojista (loja virtual vista pelo consumidor) **não é 
 
 **Conta:**
 - `/account/data` — Dados da conta
-- `/account/billing` — Minha assinatura (foco em plano/faturas) + seção **Extrato de Créditos** (Etapa 1C Fase A3.2: cards Disponível/Reservado/Consumido + histórico via RPC `get_credit_history`, filtros período/tipo, paginação, mascaramento server-side de custo/margem para tenant). Hub completo de créditos segue planejado em `/account/credits`.
+- `/account/billing` — Minha assinatura (foco em plano/faturas) + seção **Extrato de Créditos** (Etapa 1C Fase A3.2: cards Disponível/Reservado/Consumido + histórico via RPC `get_credit_history`, filtros período/tipo, paginação, mascaramento server-side de custo/margem para tenant). Etapa 1C.1: bloco antigo "Uso de Créditos de IA" removido por contradizer o Extrato; descrição das linhas agora exibe "Categoria — Detalhe". Hub completo de créditos segue planejado em `/account/credits`.
 - `/account/credits` — **Hub de créditos do tenant (especificado, ainda não implementado).** Abas previstas: Visão geral (default), Comprar créditos (`?tab=buy`), **Extrato de uso** (`?tab=ledger` — histórico oficial de gastos de créditos do tenant), Estimador (`?tab=estimator`). Header global passará a exibir um **chip de saldo de créditos** clicável que navega para esta rota. `/ai-packages` será futuramente redirecionado/incorporado em `/account/credits?tab=buy`. Ver `docs/especificacoes/sistema/ux-creditos-lojista.md`.
 
 **IA e Suporte:**

@@ -458,3 +458,38 @@ interface UseCreditHistoryResult {
 - Knowledge / mem:// — não criados.
 
 **Status:** ✅ Etapa 1C entregue, pendente de validação visual pelo usuário com Respeite o Homem. **GO** condicional para Etapa 1D.
+
+---
+
+# Fase A3.2 — Etapa 1C.1 — Ajuste de UX pós-validação visual (2026-05-06)
+
+Validação visual em `/account/billing` (tenant Respeite o Homem) confirmou: seção "Extrato de Créditos" exibe 494/0/6, captura de -6 e movimentos de reserva/liberação/ajuste; nenhum campo sensível (`cost_usd`, `sell_usd`, `markup`, `metadata_admin`, `service_key` técnico) é exposto ao tenant; live continua desligado.
+
+Pontos de UX corrigidos nesta sub-etapa (apenas frontend, sem tocar motor/dados/live):
+
+1. **Bloco antigo "Uso de Créditos de IA" (`AIUsageBreakdown`) removido de `/account/billing`.**
+   - Motivo: contradizia o novo Extrato de Créditos (mostrava "Nenhum consumo registrado" mesmo com 6 créditos consumidos no extrato), confundindo o lojista.
+   - O componente `src/components/billing/AIUsageBreakdown.tsx` permanece no repositório (não deletado) para uso futuro quando for reescrito como detalhamento real por funcionalidade dentro de `/account/credits`.
+   - Nenhuma rota/regra de visibilidade nova foi criada — apenas remoção da renderização em `Billing.tsx`.
+
+2. **Descrição das linhas do extrato passou a incluir a categoria amigável.**
+   - `CreditHistoryTable.describeItem` agora retorna `"<Categoria> — <detalhe>"` (ex.: `IA Imagem — Fast Upgrade`) em vez de só `"Fast Upgrade"`.
+   - Categoria continua vindo do mapeamento `CATEGORY_LABEL` (`ai_image → IA Imagem`, etc.); detalhe usa `description || creative_product_name || feature`.
+   - Sem mudança de contrato no hook nem na RPC.
+
+## Validação técnica executada
+
+- ✅ `Billing.tsx` não importa mais `AIUsageBreakdown` (grep confirmado).
+- ✅ `CreditHistoryTable.describeItem` cobre os 4 casos: ambos, só detalhe, só categoria, fallback.
+- ✅ Wallet, credit_ledger, service_usage_events, RPC `get_credit_history`, pricing e config de motor permanecem intocados.
+- ✅ Live continua desligado (`live_service_keys=[]`, `motor_v2_enabled=false`).
+- ⏳ Re-validação visual pelo lojista para confirmar que: (a) o bloco antigo sumiu; (b) a captura aparece como `IA Imagem — <detalhe>`.
+
+## Não escopo (mantido)
+
+- Painel admin `/platform/credits` — Etapa 1D.
+- Reescrita futura de `AIUsageBreakdown` como detalhamento real — pendência de produto, será tratada quando o hub `/account/credits` for entregue.
+- Knowledge / mem:// — não criados.
+
+**Status:** ✅ Etapa 1C.1 entregue, pendente de re-validação visual pelo lojista. **GO** condicional para Etapa 1D.
+
