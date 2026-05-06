@@ -1,5 +1,6 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -331,6 +332,17 @@ Deno.serve(async (req) => {
     });
 
     console.log(`[fiscal-send-nfe-email] Email ${result.success ? "sent" : "failed"}: ${result.messageId || result.error}`);
+
+    if (result.success) {
+      chargeAfter({
+        tenantId: tenant_id,
+        serviceKey: "nfe-email-send",
+        units: { count: 1 },
+        jobId: result.messageId ?? `nfe-email-${invoice_id}`,
+        feature: "fiscal-send-nfe-email",
+        metadata: { invoice_id, recipient: customerEmail },
+      }).catch(() => {});
+    }
 
     return new Response(
       JSON.stringify({
