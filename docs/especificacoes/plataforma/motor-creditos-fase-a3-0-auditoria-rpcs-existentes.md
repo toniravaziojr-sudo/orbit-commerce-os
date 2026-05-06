@@ -178,4 +178,41 @@ Pré-condições remanescentes:
 
 **Status da Onda 1:** ✅ Aplicada como **mitigação**, NÃO solução definitiva. Cobre p95 do Fal GPT Image 1.5, mas não p99.
 
-**Onda 2 (pendente, exige PLANNER próprio antes de implementar):** migrar `generateImageWithGptImage1` para fluxo `submitToQueue` + `pollStatus` + `fetchResult` (padrão já usado por FLUX e vídeos), com probe prévio para validar se a Fal queue ainda retorna 405 nesse modelo.
+### Validação funcional Onda 1 — 2026-05-06 17:00 UTC
+
+Geração manual de 1 imagem pela UI (Criativos → Imagens com IA), tenant Respeite o Homem, em modo **shadow** (live continua desligado).
+
+**Resultado do job:**
+- `creative_jobs.id` = `4ff8f8a5-21e1-44bb-8f29-0ad9c16baf9f`
+- `status` = `succeeded`
+- `provider` vencedor = `fal`
+- `external_model_id` = `fal-ai/gpt-image-1/edit-image` (= GPT Image 1.5)
+- `service_key` = `fal.gpt-image-1.5.per_image.medium_1024`
+- `pipeline_version` = `10.0`
+- `processing_time_ms` = **`60286`** (~60,3 s)
+- `n_outputs` = 1
+- `cost_cents` = 40 (custo de provider Fal pago pela plataforma, registrado em `creative_jobs`)
+
+**Evidência crítica:** o job concluiu **acima do antigo timeout de 60.000 ms** (60.286 ms). Com a configuração anterior, esta exata geração teria falhado por `AbortError`, idêntica à Tentativa 1 da A3.1. Com `GPT_IMAGE_1_TIMEOUT_MS = 120_000` (Onda 1), o cliente Fal aguardou e capturou o resultado com sucesso. Prova empírica direta da causa raiz e da eficácia da mitigação.
+
+**Estado financeiro/configuração — pré (16:55:45 UTC) vs pós (17:00:13 UTC):**
+- `live_service_keys` = `[]` → `[]` (inalterado)
+- `motor_v2_enabled` = `false` → `false` (inalterado)
+- Wallet: `balance_credits=494`, `reserved_credits=0`, `lifetime_consumed=6` → **idem** (intacto)
+- `credit_ledger` count = 5 → **5** (zero cobrança real)
+- `service_usage_events` count = 25 → 26 (+1 evento **shadow** apenas)
+
+**Evento shadow registrado** (`service_usage_events.id` = `da581c01-2ab2-473e-9ccf-aa18e5c652f4`):
+- `service_key` = `fal.gpt-image-1.5.per_image.medium_1024`
+- `provider` = `fal`
+- `status` = `shadow`
+- `metadata.mode` = `shadow`
+- `metadata.motor_version` = `v2`
+- `credit_ledger_id` = `null`
+- `reservation_ledger_id` = `null`
+
+**Observação sobre logs:** o log estruturado com `timeout_ms_configured=120000` só é emitido no caminho do `AbortError`. Como o job teve sucesso, esse log não disparou — comportamento correto. Evidência indireta porém definitiva: 60.286 ms > 60 s antigo ⇒ sucesso só possível com 120 s.
+
+**Classificação:** ✅ **Onda 1 validada funcionalmente.**
+
+**Onda 2 (pendente, exige PLANNER próprio antes de implementar) — prioridade média:** migrar `generateImageWithGptImage1` para fluxo `submitToQueue` + `pollStatus` + `fetchResult` (padrão já usado por FLUX e vídeos), com probe prévio para validar se a Fal queue ainda retorna 405 nesse modelo. Onda 1 cobre o caso real observado (60–120 s); Onda 2 é a solução definitiva para p99 e cargas pesadas.
