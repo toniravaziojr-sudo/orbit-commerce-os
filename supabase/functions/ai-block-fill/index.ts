@@ -6,6 +6,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 const VERSION = "v1.0.0";
 
