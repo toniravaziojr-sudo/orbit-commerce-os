@@ -21,12 +21,15 @@ import {
 import { useProductsWithImages } from '@/hooks/useProducts';
 import { useCreateCreativeJob, useCreativeJobs } from '@/hooks/useCreatives';
 import { CreativeJobsList } from '../CreativeJobsList';
-import { IMAGE_FORMAT_CONFIG, type ImageFormat } from './types';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Info } from 'lucide-react';
+import { IMAGE_FORMAT_CONFIG, DEFAULT_IMAGE_QUALITY, type ImageFormat } from './types';
 
 export function ImageGenerationTabV3() {
   const [productId, setProductId] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [format, setFormat] = useState<ImageFormat>('1:1');
+  const [format, setFormat] = useState<ImageFormat>('square');
   const [variations, setVariations] = useState<number[]>([2]);
 
   const { products, isLoading: productsLoading } = useProductsWithImages();
@@ -51,11 +54,13 @@ export function ImageGenerationTabV3() {
       product_image_url: productImageUrl,
       settings: {
         format,
+        output_size: IMAGE_FORMAT_CONFIG[format].resolution,
+        quality: DEFAULT_IMAGE_QUALITY,
         variations: variations[0],
         enable_qa: true,
         enable_fallback: true,
         label_lock: true,
-        pipeline_version: '10.0',
+        pipeline_version: '10.1',
       },
     });
   };
@@ -158,6 +163,26 @@ export function ImageGenerationTabV3() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* QUALIDADE — fixa em medium nesta fase */}
+            <div className="space-y-2 col-span-2">
+              <Label>Qualidade</Label>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">Média (padrão)</Badge>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs max-w-xs">
+                        Low e High serão liberados futuramente.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
             </div>
 
             <div className="space-y-2">

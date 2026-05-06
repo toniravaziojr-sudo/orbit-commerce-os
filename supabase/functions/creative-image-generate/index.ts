@@ -53,7 +53,67 @@ import {
 } from "../_shared/credits/live-v2.ts";
 import { generateImageWithGptImage1, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
+const VERSION = '10.1'; // Catálogo Fal alinhado: square/portrait/landscape, quality medium default
+
+// ========== NORMALIZAÇÃO format/size/quality (alinhado catálogo Fal GPT Image 1.5) ==========
+type NormalizedImageFormat = 'square' | 'portrait' | 'landscape';
+type NormalizedImageSize = '1024x1024' | '1024x1536' | '1536x1024';
+type NormalizedImageQuality = 'low' | 'medium' | 'high';
+
+interface NormalizedImageOptions {
+  format: NormalizedImageFormat;
+  outputSize: NormalizedImageSize;
+  quality: NormalizedImageQuality;
+}
+
+const FORMAT_TO_SIZE: Record<NormalizedImageFormat, NormalizedImageSize> = {
+  square: '1024x1024',
+  portrait: '1024x1536',
+  landscape: '1536x1024',
+};
+
+const SIZE_TO_FORMAT: Record<NormalizedImageSize, NormalizedImageFormat> = {
+  '1024x1024': 'square',
+  '1024x1536': 'portrait',
+  '1536x1024': 'landscape',
+};
+
+/**
+ * Normaliza opções de imagem vindas do payload (settings) em um único contrato.
+ * Aceita aliases legados (1:1, 9:16, 16:9) por compatibilidade, mas SEMPRE
+ * resolve para um size existente em service_pricing. Defaults seguros:
+ * format=square (1024x1024), quality=medium.
+ */
+function normalizeImageGenerationOptions(input: {
+  format?: string | null;
+  output_size?: string | null;
+  size?: string | null;
+  quality?: string | null;
+}): NormalizedImageOptions {
+  const rawFormat = (input.format || '').toLowerCase().trim();
+  const rawSize = (input.output_size || input.size || '').toLowerCase().replace(/\s+/g, '');
+  const rawQuality = (input.quality || '').toLowerCase().trim();
+
+  let format: NormalizedImageFormat = 'square';
+  if (rawFormat === 'square' || rawFormat === '1:1') format = 'square';
+  else if (rawFormat === 'portrait' || rawFormat === '9:16' || rawFormat === '2:3') format = 'portrait';
+  else if (rawFormat === 'landscape' || rawFormat === '16:9' || rawFormat === '3:2') format = 'landscape';
+  else if (rawSize === '1024x1024') format = 'square';
+  else if (rawSize === '1024x1536') format = 'portrait';
+  else if (rawSize === '1536x1024') format = 'landscape';
+
+  // Size derivado do format (ignora outputSize fora de catálogo)
+  let outputSize: NormalizedImageSize = FORMAT_TO_SIZE[format];
+  if (rawSize === '1024x1024' || rawSize === '1024x1536' || rawSize === '1536x1024') {
+    outputSize = rawSize as NormalizedImageSize;
+    format = SIZE_TO_FORMAT[outputSize];
+  }
+
+  const quality: NormalizedImageQuality =
+    rawQuality === 'low' || rawQuality === 'high' ? rawQuality : 'medium';
+
+  return { format, outputSize, quality };
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -125,10 +185,14 @@ function buildPromptForStyle(config: {
 }): string {
   const { productName, style, styleConfig, contextBrief, format } = config;
   const formatDesc = {
-    '1:1': 'formato quadrado 1:1 (1024x1024)',
-    '9:16': 'formato vertical 9:16 (1024x1792)',
-    '16:9': 'formato horizontal 16:9 (1792x1024)',
-  }[format] || 'formato quadrado 1:1';
+    square:    'formato quadrado (1024x1024)',
+    portrait:  'formato retrato vertical (1024x1536)',
+    landscape: 'formato paisagem horizontal (1536x1024)',
+    // Aliases legados (compat retroativa apenas no texto do prompt)
+    '1:1':  'formato quadrado (1024x1024)',
+    '9:16': 'formato retrato vertical (1024x1536)',
+    '16:9': 'formato paisagem horizontal (1536x1024)',
+  }[format] || 'formato quadrado (1024x1024)';
 
   // If user provided a custom prompt, prioritize it over style templates
   if (contextBrief && contextBrief.length > 20) {
@@ -507,13 +571,31 @@ Deno.serve(async (req) => {
     const {
       providers = ['openai', 'gemini'] as Provider[],
       generation_style = 'product_natural' as ImageStyle,
-      format = '1:1',
+      format: rawFormat,
+      output_size: rawOutputSize,
+      size: rawSize,
+      quality: rawQuality,
       variations = 1,
       style_config = {},
       enable_qa = true,
       enable_fallback = true,
       label_lock = true,
     } = settings;
+
+    // Normalização única — alinha payload ao catálogo Fal GPT Image 1.5
+    const normalized = normalizeImageGenerationOptions({
+      format: rawFormat,
+      output_size: rawOutputSize,
+      size: rawSize,
+      quality: rawQuality,
+    });
+    const format = normalized.format;
+    const outputSize = normalized.outputSize;
+    const quality = normalized.quality;
+    console.log('[creative-image.normalize]', JSON.stringify({
+      raw: { format: rawFormat, output_size: rawOutputSize, quality: rawQuality },
+      normalized,
+    }));
 
     const numVariations = Math.min(Math.max(1, variations), 4);
     const enabledProviders = providers.filter((p: string) => p === 'openai' || p === 'gemini') as Provider[];
@@ -560,6 +642,7 @@ Deno.serve(async (req) => {
         prompt: prompt || '', product_id, product_name, product_image_url,
         settings: {
           providers: enabledProviders, generation_style, format,
+          output_size: outputSize, quality,
           variations: numVariations, style_config, enable_qa, enable_fallback,
           label_lock, pipeline_version: VERSION,
         },
@@ -627,14 +710,20 @@ Deno.serve(async (req) => {
         });
 
         // ===== Fase A3.1: gate fino LIVE por service_key (Motor v2) =====
+        // Derivado do tamanho normalizado: cada (size,quality) tem sua service_key.
         const liveServiceKeys = await loadLiveServiceKeys(supabase, tenant_id);
-        const LIVE_TARGET_KEY = 'fal.gpt-image-1.5.per_image.medium_1024';
+        const LIVE_TARGET_KEY = (() => {
+          const sizeSuffix = outputSize === '1024x1024' ? '1024' : outputSize;
+          return `fal.gpt-image-1.5.per_image.${quality}_${sizeSuffix}`;
+        })();
         const liveTargetEnabled = liveServiceKeys.has(LIVE_TARGET_KEY);
         if (liveTargetEnabled) {
           console.log('[creative-image.live]', JSON.stringify({
             evt: 'live_gate_enabled',
             tenant_id,
             service_key: LIVE_TARGET_KEY,
+            output_size: outputSize,
+            quality,
             live_keys_count: liveServiceKeys.size,
           }));
         }
@@ -663,8 +752,8 @@ Deno.serve(async (req) => {
                 feature: 'creative_product_image',
                 job_id: jobId,
                 variation_index: varIdx + 1,
-                outputSize: '1024x1024',
-                quality: 'medium',
+                outputSize,
+                quality,
                 has_reference_image: !!product_image_url,
                 available_keys: {
                   fal: !!falApiKey,
@@ -747,8 +836,8 @@ Deno.serve(async (req) => {
               provider: 'fal',
               model: 'gpt-image-1.5',
               service_key: LIVE_TARGET_KEY,
-              quality: 'medium',
-              size: '1024x1024',
+              quality,
+              size: outputSize,
               variation_index: varIdx + 1,
               tenant_id,
               creative_job_id: jobId,
@@ -786,7 +875,7 @@ Deno.serve(async (req) => {
                 falApiKey,
                 variantPrompt,
                 [product_image_url],
-                '1024x1024',
+                outputSize,
               );
               const b64 = gptResult?.imageUrl ? await falDownloadImage(gptResult.imageUrl) : null;
               if (!b64) throw new Error('fal_no_image');
@@ -856,7 +945,7 @@ Deno.serve(async (req) => {
               prompt: variantPrompt,
               referenceImageBase64: productBase64,
               referenceImageUrl: product_image_url,
-              outputSize: '1024x1024',
+              outputSize,
               slotLabel: `product-v${varIdx + 1}`,
             });
           }
@@ -931,8 +1020,8 @@ Deno.serve(async (req) => {
                   variationIndex: i + 1,
                   actualProvider: result.actualProvider,
                   model: result.model,
-                  outputSize: '1024x1024',
-                  quality: 'medium',
+                  outputSize,
+                  quality,
                   providerResponseId: null,
                   imageUrl: publicUrlData.publicUrl,
                   preRouteDecision: result.preRouteDecision,
