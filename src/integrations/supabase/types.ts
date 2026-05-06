@@ -23785,6 +23785,20 @@ export type Database = {
           success: boolean
         }[]
       }
+      admin_tenant_economics: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          by_category: Json
+          events_count: number
+          margin_pct: number
+          margin_usd: number
+          tenant_id: string
+          tenant_name: string
+          tenant_slug: string
+          total_cost_usd: number
+          total_sell_usd: number
+        }[]
+      }
       ai_daily_snapshot_reconciliation: { Args: never; Returns: Json }
       append_delivery_attempt: {
         Args: { _attempt: Json; _message_id: string }
