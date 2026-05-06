@@ -216,3 +216,110 @@ Geração manual de 1 imagem pela UI (Criativos → Imagens com IA), tenant Resp
 **Classificação:** ✅ **Onda 1 validada funcionalmente.**
 
 **Onda 2 (pendente, exige PLANNER próprio antes de implementar) — prioridade média:** migrar `generateImageWithGptImage1` para fluxo `submitToQueue` + `pollStatus` + `fetchResult` (padrão já usado por FLUX e vídeos), com probe prévio para validar se a Fal queue ainda retorna 405 nesse modelo. Onda 1 cobre o caso real observado (60–120 s); Onda 2 é a solução definitiva para p99 e cargas pesadas.
+
+---
+
+# Fase A3.2 — Etapa 1A — RPC `get_credit_history` (executada em 2026-05-06)
+
+## Escopo
+
+Criar somente a função de leitura `public.get_credit_history`, sem UI, sem hook, sem alteração no motor v2 e sem ativação live. Fonte canônica de movimentos: `credit_ledger`. Enriquecimento: `service_usage_events` + `creative_jobs`. Saldo continua sendo lido de `credit_wallet` por `useCreditWallet` — **não** é responsabilidade desta RPC.
+
+## Auditoria prévia
+
+- Não existia função `get_credit_history` nem equivalente. ✅ Sem duplicação.
+- `credit_ledger` (29 colunas) confirmado como fonte canônica financeira (`balance_before`, `balance_after`, `transaction_type ∈ {reserve,capture,release,adjust}`, `operation_status ∈ {reserved,released,captured,completed}`).
+- `service_usage_events` (15 colunas) confirmado: vínculo via `credit_ledger_id`, `reservation_ledger_id`, `metadata->>'capture_ledger_id'`. `cost_owner ∈ {tenant,platform}`, `status ∈ {captured,released,shadow}`.
+- `creative_jobs` enriquecimento por `id` ↔ `credit_ledger.job_id`, expondo `product_name`.
+- Helpers existentes reutilizados: `is_platform_admin_by_auth()`, `user_has_tenant_access(uuid)`.
+
+## Contrato final
+
+```sql
+get_credit_history(
+  p_tenant_id uuid,
+  p_start_date timestamptz default null,
+  p_end_date   timestamptz default null,
+  p_transaction_type text default null,
+  p_operation_status text default null,
+  p_category   text default null,
+  p_service_key text default null,
+  p_provider   text default null,
+  p_job_id     uuid default null,
+  p_include_platform boolean default false,
+  p_limit      int default 50,    -- clampado entre 1 e 100
+  p_offset     int default 0
+) RETURNS TABLE (
+  event_id, ledger_id, tenant_id, created_at,
+  transaction_type, operation_status, category,
+  service_key_public, service_key, provider, feature,
+  credits_delta, balance_before, balance_after, description,
+  job_id, creative_job_id, creative_product_name,
+  source_function,
+  cost_usd, sell_usd, markup_pct_snap, cost_brl, sell_brl, fx_rate_usd_brl,
+  metadata_public, metadata_admin,
+  total_count
+)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
+```
+
+`GRANT EXECUTE` apenas para `authenticated`. `REVOKE` de `PUBLIC` (anon não pode executar — confirmado: chamada anônima retorna `42501 permission denied`).
+
+## Estratégia de deduplicação
+
+1 linha por movimento de `credit_ledger`. Enriquecimento via `LATERAL` com `LIMIT 1`, prioridade determinística:
+
+1. `service_usage_events.credit_ledger_id = ledger.id`
+2. `service_usage_events.reservation_ledger_id = ledger.id`
+3. `metadata->>'capture_ledger_id' = ledger.id`
+4. `created_at DESC` como desempate
+
+Movimentos `purchase`/`adjust`/`bonus`/`release` sem evento associado retornam normalmente, com colunas operacionais nulas.
+
+## Tenant Identity Guard e mascaramento
+
+- Não-admin sem `user_has_tenant_access(p_tenant_id)` → `RAISE EXCEPTION 'forbidden' (42501)`.
+- Não-admin: `p_include_platform` forçado a `false`; eventos `cost_owner='platform'` ou `status='shadow'` filtrados.
+- Não-admin: `service_key`, `provider`, `cost_usd`, `sell_usd`, `markup_pct_snap`, `cost_brl`, `sell_brl`, `fx_rate_usd_brl`, `source_function`, `metadata_admin` retornam **NULL server-side**.
+- `service_key_public` sempre disponível (categoria amigável: `category` ou primeiro segmento de `service_key`, ex.: `fal`).
+- Admin: enxerga campos crus + `metadata_admin` agregando `ledger.metadata` e `service_usage_events.metadata`.
+
+## Validação executada (Respeite o Homem `d1a4d0ed-...`)
+
+Simulação direta da query interna (admin) retornou 5 linhas, exatamente correspondentes ao `credit_ledger` do tenant, sem multiplicação:
+
+| transaction_type | operation_status | credits_delta | balance_after | sue vinculado | sue_status |
+|---|---|---:|---:|---|---|
+| capture  | captured  | -6  | 494 | `9db2bee4` (via `capture_ledger_id`) | captured |
+| reserve  | reserved  |  0  | 500 | `9db2bee4` (via `reservation_ledger_id`) | captured |
+| release  | released  |  0  | 500 | (sem evento — release sem SUE) | — |
+| reserve  | reserved  |  0  | 500 | `55cb4c4c` | released |
+| adjust   | completed | +500| 500 | (sem evento — purchase manual) | — |
+
+`total_count = 5` consistente.
+
+**Saldo:** validado **fora da RPC** via `credit_wallet`: `balance=494`, `reserved=0`, `lifetime_consumed=6` ✅ (responsabilidade segue de `useCreditWallet`).
+
+## Validações de segurança
+
+- ✅ Chamada anônima (sem JWT) → `42501 permission denied for function get_credit_history` (REVOKE FROM PUBLIC funcionando).
+- ✅ Não-admin sem acesso ao tenant → `forbidden` (Tenant Identity Guard).
+- ✅ Não-admin com `p_include_platform=true` → forçado a `false` internamente; nenhum evento `cost_owner='platform'` ou `status='shadow'` retornado.
+- ✅ Campos sensíveis mascarados server-side (não dependem do frontend).
+- ✅ `LIMIT` clampado em 100, `OFFSET` ≥ 0.
+
+## Garantias de não-impacto
+
+- Nenhuma alteração em `credit_ledger`, `service_usage_events`, `credit_wallet`, `service_pricing` ou `tenant_credit_motor_config`.
+- Nenhuma RLS modificada.
+- Nenhuma RPC de cobrança alterada.
+- Wallet do Respeite o Homem permanece `494/0/6`.
+- `motor_v2_enabled=false`, `live_service_keys=[]` permanecem como estavam.
+
+## Próximos passos (Etapa 1B)
+
+1. Criar `src/hooks/useCreditHistory.ts` consumindo a RPC com filtros tipados.
+2. Refatorar `src/components/ai-packages/CreditLedgerTable.tsx` para o novo shape (incluindo `operation_status`, `service_key_public`, `creative_product_name`).
+3. UI tenant em `/account/billing` e UI admin em `/platform/credits` ficam para Etapa 2.
+
+**Status:** ✅ Etapa 1A entregue e validada. **GO** para Etapa 1B.
