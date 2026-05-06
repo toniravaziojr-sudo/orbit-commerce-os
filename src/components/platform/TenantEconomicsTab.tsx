@@ -17,6 +17,9 @@ interface TenantEconomicsRow {
   margin_pct: number;
   events_count: number;
   by_category: Record<string, { cost_usd: number; sell_usd: number; count: number }>;
+  infra_cost_brl: number;
+  net_margin_brl: number;
+  net_margin_pct: number;
 }
 
 const RANGES = {
@@ -56,14 +59,18 @@ export default function TenantEconomicsTab() {
         acc.cost += Number(r.total_cost_usd) || 0;
         acc.sell += Number(r.total_sell_usd) || 0;
         acc.events += Number(r.events_count) || 0;
+        acc.infraBRL += Number(r.infra_cost_brl) || 0;
+        acc.netBRL += Number(r.net_margin_brl) || 0;
         return acc;
       },
-      { cost: 0, sell: 0, events: 0 }
+      { cost: 0, sell: 0, events: 0, infraBRL: 0, netBRL: 0 }
     );
   }, [data]);
 
   const totalMargin = totals.sell - totals.cost;
   const totalMarginPct = totals.sell > 0 ? (totalMargin / totals.sell) * 100 : 0;
+  const grossBRL = totalMargin * FX;
+  const netPct = grossBRL > 0 ? (totals.netBRL / grossBRL) * 100 : 0;
 
   return (
     <div className="space-y-4">
