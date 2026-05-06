@@ -141,6 +141,7 @@ export function HomeStructureDialog({
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const { currentTenant } = useAuth();
 
   const handleApplyPreset = (preset: PresetStructure) => {
     const content = buildPageContent(preset.blocks);
