@@ -48,16 +48,19 @@ export function PlatformAdminGate({
     return null;
   }
 
-  // Not a platform operator at all
-  if (!isPlatformOperator || !platformAdmin) {
+  // Canonical authorization: RPC is_platform_admin() is the single source of truth.
+  // If the RPC denied, block.
+  if (!isPlatformOperator) {
     return <>{fallback}</>;
   }
 
-  // Check role if specified
-  if (requiredRole === 'super_admin' && platformAdmin.role !== 'super_admin') {
+  // Role check only when metadata profile is available.
+  // If metadata failed to load (RLS timing/cache), trust the RPC and let the user in —
+  // backend RLS still enforces every sensitive action.
+  if (requiredRole === 'super_admin' && platformAdmin && platformAdmin.role !== 'super_admin') {
     return <>{fallback}</>;
   }
 
-  // User is a valid platform admin with required role
+  // Authorized
   return <>{children}</>;
 }
