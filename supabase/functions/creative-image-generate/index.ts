@@ -571,13 +571,31 @@ Deno.serve(async (req) => {
     const {
       providers = ['openai', 'gemini'] as Provider[],
       generation_style = 'product_natural' as ImageStyle,
-      format = '1:1',
+      format: rawFormat,
+      output_size: rawOutputSize,
+      size: rawSize,
+      quality: rawQuality,
       variations = 1,
       style_config = {},
       enable_qa = true,
       enable_fallback = true,
       label_lock = true,
     } = settings;
+
+    // Normalização única — alinha payload ao catálogo Fal GPT Image 1.5
+    const normalized = normalizeImageGenerationOptions({
+      format: rawFormat,
+      output_size: rawOutputSize,
+      size: rawSize,
+      quality: rawQuality,
+    });
+    const format = normalized.format;
+    const outputSize = normalized.outputSize;
+    const quality = normalized.quality;
+    console.log('[creative-image.normalize]', JSON.stringify({
+      raw: { format: rawFormat, output_size: rawOutputSize, quality: rawQuality },
+      normalized,
+    }));
 
     const numVariations = Math.min(Math.max(1, variations), 4);
     const enabledProviders = providers.filter((p: string) => p === 'openai' || p === 'gemini') as Provider[];
