@@ -836,8 +836,8 @@ Deno.serve(async (req) => {
               provider: 'fal',
               model: 'gpt-image-1.5',
               service_key: LIVE_TARGET_KEY,
-              quality: 'medium',
-              size: '1024x1024',
+              quality,
+              size: outputSize,
               variation_index: varIdx + 1,
               tenant_id,
               creative_job_id: jobId,
@@ -875,7 +875,7 @@ Deno.serve(async (req) => {
                 falApiKey,
                 variantPrompt,
                 [product_image_url],
-                '1024x1024',
+                outputSize,
               );
               const b64 = gptResult?.imageUrl ? await falDownloadImage(gptResult.imageUrl) : null;
               if (!b64) throw new Error('fal_no_image');
