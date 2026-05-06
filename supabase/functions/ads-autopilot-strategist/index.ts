@@ -3525,6 +3525,16 @@ Deno.serve(async (req) => {
 
     // Manual invocation (with optional account filter)
     const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId, revisionFeedback, body);
+    try {
+      await chargeAfter({
+        tenantId,
+        serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+        units: { tokens_in: 30000, tokens_out: 8000 },
+        jobId: crypto.randomUUID(),
+        feature: "ads-autopilot-strategist",
+        metadata: { trigger, target_account_id: targetAccountId },
+      });
+    } catch (e) { console.warn("[ads-autopilot-strategist] charge skipped", String(e)); }
     return ok(result);
   } catch (err: any) {
     console.error(`[ads-autopilot-strategist][${VERSION}] Fatal:`, err.message);
