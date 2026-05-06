@@ -323,3 +323,93 @@ Simulação direta da query interna (admin) retornou 5 linhas, exatamente corres
 3. UI tenant em `/account/billing` e UI admin em `/platform/credits` ficam para Etapa 2.
 
 **Status:** ✅ Etapa 1A entregue e validada. **GO** para Etapa 1B.
+
+---
+
+# Fase A3.2 — Etapa 1B — Hook `useCreditHistory` + componente `CreditHistoryTable` (executada em 2026-05-06)
+
+## Escopo
+
+Conectar o frontend à RPC `get_credit_history` via:
+
+- **Hook novo:** `src/hooks/useCreditHistory.ts`
+- **Componente novo:** `src/components/ai-packages/CreditHistoryTable.tsx`
+
+`CreditLedgerTable.tsx` antigo permanece **intacto** — segue acoplado ao shape direto de `credit_ledger` e continua sendo usado por `AIPackages.tsx`. A nova tabela é aditiva.
+
+## Contrato do hook
+
+```ts
+useCreditHistory(filters?: CreditHistoryFilters): UseCreditHistoryResult
+
+interface CreditHistoryFilters {
+  tenantId?: string;            // default = currentTenant.id
+  startDate?: string | null;
+  endDate?: string | null;
+  transactionType?: CreditTransactionType | null;
+  operationStatus?: CreditOperationStatus | null;
+  category?: string | null;
+  serviceKey?: string | null;
+  provider?: string | null;
+  jobId?: string | null;
+  includePlatform?: boolean;    // forçado false server-side se não-admin
+  limit?: number;               // clamp [1..100] no frontend e backend
+  offset?: number;              // clamp >=0
+}
+
+interface UseCreditHistoryResult {
+  data: CreditHistoryItem[];
+  totalCount: number;           // extraído de items[0].total_count
+  isLoading: boolean;
+  isError: boolean;
+  error: Error | null;
+  refetch: () => void;
+}
+```
+
+- React Query com `queryKey` estável incluindo todos os filtros + `tenantId`.
+- Tratamento de erro `forbidden` (42501): mensagem genérica "Sem permissão para acessar este extrato.", sem expor detalhes técnicos.
+- Demais erros: "Não foi possível carregar o extrato de créditos." (sem stack/detalhe ao tenant).
+
+## Componente `CreditHistoryTable`
+
+- Props: `items`, `isLoading`, `isError`, `totalCount`, `limit`, `offset`, `onPageChange`, `showAdminColumns` (default false).
+- Colunas tenant: Data, Tipo (badge PT-BR), Status (label PT-BR), Descrição (preferindo `description` → `creative_product_name` → categoria amigável), Créditos (com sinal/cor), Saldo após.
+- Colunas admin extras (somente se `showAdminColumns=true`): Provider, Service key (mono), Custo USD, Venda USD.
+- Helpers de label PT-BR para `transaction_type`, `operation_status` e `category` conforme planejado.
+- Empty state: "Nenhum movimento no período."
+- Loading: skeleton rows.
+- Erro: ícone + mensagem genérica.
+- Paginação controlada via `onPageChange(newOffset)` quando `totalCount > limit`.
+- **Nunca renderiza** `null`/`undefined`/string técnica; campos ausentes viram `—`.
+
+## Validação executada
+
+| Cenário | Resultado |
+|---|---|
+| Anon sem JWT chamando RPC | ✅ `42501 permission denied` (Etapa 1A) |
+| Admin (simulação SQL direta) com `tenant_id=d1a4d0ed-...` retorna 5 linhas, `total_count=5`, sem multiplicação | ✅ (Etapa 1A) |
+| Captura -6 créditos da A3.1 presente, `balance_after=494`, vinculada via `capture_ledger_id` | ✅ |
+| Build TypeScript após hook + componente | ✅ Sem erros |
+| Wallet `credit_wallet` Respeite o Homem | ✅ `494/0/6` inalterado |
+| `credit_ledger` count | ✅ 5 inalterado |
+| `service_usage_events` | ✅ Inalterado |
+| `motor_v2_enabled` / `live_service_keys` | ✅ `false` / `[]` |
+
+**Pendente:** validação visual real ainda não exercida porque a Etapa 1B explicitamente **não cria UI**. O hook será exercido na Etapa 1C ao montar a aba em `/account/billing`. Mascaramento server-side já está provado em 1A, então o tenant comum logado, mesmo invocando a RPC diretamente, recebe `cost_*`, `sell_*`, `markup_pct_snap`, `provider`, `service_key`, `metadata_admin`, `source_function` com valor NULL — sem dependência do frontend.
+
+**Validação admin:** não exercida nesta etapa (sem UI admin ainda). Pendência aberta para Etapa 1D.
+
+## Garantias de não-impacto
+
+- Nenhuma alteração em `CreditLedgerTable.tsx`, `useCredits.ts`, `useCreditOperations`, motor v2, RPC de cobrança, RLS, wallet, ledger, eventos, pricing ou config de motor.
+- Nenhum dado financeiro alterado.
+- Live continua desligado.
+- `mapa-ui.md`, `ux-creditos-lojista.md`, `ux-admin-creditos-custos.md` **não** atualizados (escopo).
+
+## Próximos passos
+
+- **Etapa 1C:** inserir aba "Extrato de Créditos" em `/account/billing` consumindo `useCreditHistory` + `CreditHistoryTable`, atualizar `mapa-ui.md` e `ux-creditos-lojista.md`.
+- **Etapa 1D:** painel admin `/platform/credits` com `showAdminColumns=true`, filtros por tenant e `includePlatform`, atualizar `ux-admin-creditos-custos.md`.
+
+**Status:** ✅ Etapa 1B entregue. **GO** para Etapa 1C.
