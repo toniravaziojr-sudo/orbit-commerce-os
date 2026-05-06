@@ -118,7 +118,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       }
 
       const { data, error } = await supabase.functions.invoke('firecrawl-scrape', {
-        body: { url: formattedUrl, options: { formats: ['html', 'links'], onlyMainContent: false } }
+        body: { url: formattedUrl, options: { formats: ['html', 'links'], onlyMainContent: false }, tenant_id: tenantId }
       });
 
       if (error) throw error;
