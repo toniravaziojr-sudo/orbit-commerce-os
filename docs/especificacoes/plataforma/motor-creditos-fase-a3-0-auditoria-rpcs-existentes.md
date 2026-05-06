@@ -503,7 +503,7 @@ Pontos de UX corrigidos nesta sub-etapa (apenas frontend, sem tocar motor/dados/
 - Página `src/pages/platform/PlatformCredits.tsx`.
 - Hook admin separado `src/hooks/usePlatformCreditHistory.ts` (não toca em `useCreditHistory` tenant).
 - Componentes `src/components/platform/credits/TenantCombobox.tsx` (lê `tenants` direto, mesmo padrão de `PlatformTenants`) e `src/components/platform/credits/CreditAggregateCards.tsx`.
-- Item de sidebar admin "Créditos" em **Plataforma**, abaixo de "Custos Externos".
+- Item de sidebar admin "Créditos por Tenant" em **Plataforma**, abaixo de "Custos Externos".
 - Reuso de `CreditHistoryTable` da Etapa 1B com `showAdminColumns=true`.
 
 ### Decisões aplicadas
@@ -520,5 +520,18 @@ Pontos de UX corrigidos nesta sub-etapa (apenas frontend, sem tocar motor/dados/
 - Live continua desligado (`live_service_keys=[]`, `motor_v2_enabled=false`).
 - `/account/billing` (extrato tenant) continua funcionando — usa `useCreditHistory`, não foi modificado.
 
-**Status:** ✅ Etapa 1D entregue. Pendente validação visual pelo platform_admin.
+### Ajustes pós-validação (2026-05-06)
+- Sidebar renomeada `Créditos` → `Consumo por Tenant` → **`Créditos por Tenant`** (final, conforme decisão do usuário).
+- Cards renomeados para deixar explícito o escopo: `Créditos consumidos exibidos`, `Custo dos registros exibidos`, `Receita dos registros exibidos`, `Margem dos registros exibidos`.
+- `PlatformAdminGate` ajustado: confia na RPC canônica `is_platform_admin()` como fonte única de autorização; só bloqueia por `requiredRole='super_admin'` se o metadata profile tiver carregado. Evita falso negativo quando a query secundária à `platform_admins` falha por timing/cache, sem reduzir segurança (backend RLS continua sendo a barreira real).
+
+### Validação visual (2026-05-06)
+Confirmado pelo usuário no tenant Respeite o Homem:
+- rota carrega; tenant selecionado; movimento capture −6 da A3.1 visível;
+- provider=`fal`, service_key=`fal.gpt-image-1.5.per_image.medium_1024` visíveis (admin-only);
+- cards mostram créditos consumidos, custo, receita e margem;
+- label "Resumo dos registros exibidos — não representa o total do período" presente;
+- live continua desligado; nenhum dado financeiro alterado.
+
+**Status:** ✅ **Etapa 1D VALIDADA**. GO para próxima etapa.
 
