@@ -13,6 +13,7 @@ import { AlertTriangle, RefreshCcw, ExternalLink, Pencil, Info } from "lucide-re
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PricingCatalogTab from "@/components/platform/PricingCatalogTab";
+import TenantEconomicsTab from "@/components/platform/TenantEconomicsTab";
 import { useSearchParams } from "react-router-dom";
 import {
   usePlatformExternalCosts,
