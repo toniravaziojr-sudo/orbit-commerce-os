@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { withCreditMotor, isMotorEnabledForTenant } from "../_shared/credits/with-motor.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
