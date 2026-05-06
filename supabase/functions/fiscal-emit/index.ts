@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendNFe, getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -363,6 +364,18 @@ Deno.serve(async (req) => {
       });
 
     console.log(`[fiscal-emit] NF-e ${invoice_id} processada — status=${focusStatus}`);
+
+    // Cobrança pós-emissão (apenas se autorizada)
+    if (focusStatus === 'autorizado') {
+      chargeAfter({
+        tenantId,
+        serviceKey: "nfe-emit",
+        units: { count: 1 },
+        jobId: invoice_id,
+        feature: "fiscal-emit",
+        metadata: { ref, chave: statusData?.chave_nfe },
+      }).catch(() => {});
+    }
 
     return new Response(
       JSON.stringify({
