@@ -155,3 +155,27 @@ Pré-condições remanescentes:
 ## Status
 
 ✅ A3.1 concluída e validada com cobrança real canônica de 6 créditos (500 → 494). Motor v2 desligado para shadow após sucesso.
+
+---
+
+## A3.1 — Onda 1 — Mitigação do timeout Fal GPT Image 1.5 (2026-05-06)
+
+**Contexto:** A tentativa 1 da A3.1 falhou pelo timeout sync de 60s no `fal.run/fal-ai/gpt-image-1/edit-image`. Motor v2 lidou corretamente (release + fallback bloqueado), sem débito.
+
+**Mudança aplicada (cirúrgica, isolada):**
+- Arquivo: `supabase/functions/_shared/fal-client.ts`
+- Função: `generateImageWithGptImage1` (única tocada)
+- Constante local nova: `GPT_IMAGE_1_TIMEOUT_MS = 120_000` (60s → 120s)
+- Logs estruturados no `AbortError` agora incluem `latency_ms`, `timeout_ms_configured`, `model`, `endpoint` e mensagem dinâmica baseada no valor real configurado.
+- Mensagens de erro/sucesso passaram a registrar `latency_ms` real.
+
+**Não tocado:** `generateImageWithFalPro`, `generateImageWithFalTurbo`, `generateVideoWithFal`, `applyLipsyncWithFal`, qualquer RPC, `credit_wallet`, `credit_ledger`, `service_usage_events`, `service_pricing`, `tenant_credit_motor_config`, `creative-image-generate` (apenas redeploy por dependência).
+
+**Estado pré e pós-execução do tenant Respeite o Homem (inalterado):**
+- `live_service_keys = []`
+- `motor_v2_enabled = false`
+- Wallet: `balance_credits=494`, `reserved_credits=0`, `lifetime_consumed=6`
+
+**Status da Onda 1:** ✅ Aplicada como **mitigação**, NÃO solução definitiva. Cobre p95 do Fal GPT Image 1.5, mas não p99.
+
+**Onda 2 (pendente, exige PLANNER próprio antes de implementar):** migrar `generateImageWithGptImage1` para fluxo `submitToQueue` + `pollStatus` + `fetchResult` (padrão já usado por FLUX e vídeos), com probe prévio para validar se a Fal queue ainda retorna 405 nesse modelo.

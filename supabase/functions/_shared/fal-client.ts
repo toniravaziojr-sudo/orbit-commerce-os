@@ -323,12 +323,15 @@ export async function generateImageWithGptImage1(
     };
 
     // GPT Image 1 edit-image: use synchronous fal.run (queue polling returns 405 for this model)
+    // Onda 1 (A3.1 mitigação): timeout sync aumentado de 60s -> 120s. Onda 2 (queue/poll) pendente.
+    const GPT_IMAGE_1_TIMEOUT_MS = 120_000;
     const FAL_SYNC_BASE = "https://fal.run";
     const url = `${FAL_SYNC_BASE}/${FAL_MODELS.GPT_IMAGE_1_EDIT}`;
-    
+
+    const startedAt = Date.now();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60_000);
-    
+    const timeout = setTimeout(() => controller.abort(), GPT_IMAGE_1_TIMEOUT_MS);
+
     try {
       const response = await fetch(url, {
         method: "POST",
@@ -340,7 +343,7 @@ export async function generateImageWithGptImage1(
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[fal-client] GPT Image 1 sync error ${response.status}:`, errorText.substring(0, 500));
+        console.error(`[fal-client] GPT Image 1 sync error ${response.status} (latency_ms=${Date.now() - startedAt}):`, errorText.substring(0, 500));
         return null;
       }
 
@@ -349,12 +352,12 @@ export async function generateImageWithGptImage1(
       };
 
       if (!result.images?.[0]?.url) {
-        console.warn("[fal-client] GPT Image 1 returned no image");
+        console.warn(`[fal-client] GPT Image 1 returned no image (latency_ms=${Date.now() - startedAt})`);
         return null;
       }
 
       const img = result.images[0];
-      console.log(`[fal-client] ✅ GPT Image 1 image generated: ${img.url.substring(0, 80)}...`);
+      console.log(`[fal-client] ✅ GPT Image 1 image generated in ${Date.now() - startedAt}ms: ${img.url.substring(0, 80)}...`);
       return {
         imageUrl: img.url,
         seed: 0,
@@ -364,10 +367,19 @@ export async function generateImageWithGptImage1(
       };
     } catch (fetchError) {
       clearTimeout(timeout);
+      const latency_ms = Date.now() - startedAt;
       if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-        console.error("[fal-client] GPT Image 1 timeout after 60s");
+        console.error(JSON.stringify({
+          tag: "[fal-client]",
+          event: "gpt_image_1_timeout",
+          model: FAL_MODELS.GPT_IMAGE_1_EDIT,
+          endpoint: url,
+          latency_ms,
+          timeout_ms_configured: GPT_IMAGE_1_TIMEOUT_MS,
+          message: `GPT Image 1 timeout after ${Math.round(GPT_IMAGE_1_TIMEOUT_MS / 1000)}s`,
+        }));
       } else {
-        console.error("[fal-client] GPT Image 1 fetch error:", fetchError);
+        console.error(`[fal-client] GPT Image 1 fetch error (latency_ms=${latency_ms}):`, fetchError);
       }
       return null;
     }
