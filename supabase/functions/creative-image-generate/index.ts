@@ -345,6 +345,7 @@ async function recordImageShadowV2(supabase: any, args: {
 async function loadTenantMotorGates(supabase: any, tenantId: string): Promise<{
   preRouterEnabled: boolean;
   shadowReservationEnabled: boolean;
+  fallbackShadowEnabled: boolean;
 }> {
   try {
     const { data } = await supabase
@@ -356,10 +357,11 @@ async function loadTenantMotorGates(supabase: any, tenantId: string): Promise<{
     return {
       preRouterEnabled: meta.pre_router_enabled === true,
       shadowReservationEnabled: isShadowReservationEnabled(meta),
+      fallbackShadowEnabled: isFallbackShadowEnabled(meta),
     };
   } catch (e: any) {
     console.warn('[creative-image.motor-gates] check failed (default off):', e?.message || e);
-    return { preRouterEnabled: false, shadowReservationEnabled: false };
+    return { preRouterEnabled: false, shadowReservationEnabled: false, fallbackShadowEnabled: false };
   }
 }
 
