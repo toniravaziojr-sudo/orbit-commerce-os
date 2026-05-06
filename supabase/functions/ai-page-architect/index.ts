@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { prompt, pageName, context } = await req.json();
+    const { prompt, pageName, context, tenantId } = await req.json();
 
     if (!prompt || !pageName) {
       return new Response(
