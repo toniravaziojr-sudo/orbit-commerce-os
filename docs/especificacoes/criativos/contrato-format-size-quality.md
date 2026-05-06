@@ -71,7 +71,18 @@ onde `sizeSuffix` é `1024` para 1024x1024 ou o próprio `outputSize` para retan
 
 Matriz coberta por `supabase/functions/_shared/credits/image-resolver_matrix_test.ts` (9 testes — 3 sizes × 3 qualidades + caso crítico Retrato+medium + bloqueio dos sizes legados 1024x1792/1792x1024). Comando: `supabase functions test`.
 
+## Validação shadow 2026-05-06
+
+- Job `70937d38-8382-4996-9a69-7d89be809efe` (tenant Respeite o Homem) — `succeeded`.
+- `format=portrait`, `output_size=1024x1536`, `quality=medium`, `pipeline_version=10.1`, winner `fal-ai/gpt-image-1/edit-image`.
+- Evento shadow principal: `service_key=fal.gpt-image-1.5.per_image.medium_1024x1536`, `pre_route_match=true`, `mode=shadow`, `no_billing=true`.
+- Wallet 494/0/6 e `credit_ledger` preservados (sem cobrança).
+
+### Nota — evento `fallback.fal.fal-ai-gpt-image-1-edit-image.unpriced`
+
+Em paralelo ao evento principal foi gravado um evento informativo de A2.1 (`recordFallbackShadowEvent`) com `fallback_reason=fal_without_pricing_match`, `absorbed_by_platform=true`, `no_billing=true`, `no_ledger_mutation=true`. Causa: o sidecar A2 indexa pelo endpoint Fal (`fal-ai/gpt-image-1/edit-image`) e não pela chave canônica de pricing (`fal.gpt-image-1.5.per_image.*`), então `shadowReservationMeta` ficou nulo e a guarda `!a2Covered` disparou — mesmo com `predicted_service_key = actual_service_key` no evento principal. Classificação: **observabilidade shadow pura**. Em live é suprimido por `liveSuppressFallbackShadow=true` (creative-image-generate linhas 821–822 e 1035), nunca mutaciona wallet/ledger/reserve/capture e só aparece no painel admin com `includePlatform=true`. **Não bloqueia retomada da A3.3.**
+
 ## Histórico
 
 - **v10.0** (2026-04): UI prompt-only, formatos 1:1/9:16/16:9 com sizes 1024x1024/1024x1792/1792x1024. Hardcodes espalhados no edge.
-- **v10.1** (2026-05-06): este contrato. Formatos alinhados ao catálogo, normalização centralizada, badge de qualidade, LIVE_TARGET_KEY dinâmica.
+- **v10.1** (2026-05-06): este contrato. Formatos alinhados ao catálogo, normalização centralizada, badge de qualidade, LIVE_TARGET_KEY dinâmica. Validação shadow aprovada; fallback.unpriced classificado como observabilidade segura.
