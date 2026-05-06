@@ -2,6 +2,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { syncEmpresa, getEmpresa, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { buildEmpresaPayload } from "../_shared/focus-nfe-adapter.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -191,6 +192,14 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[fiscal-sync-focus-nfe] Empresa sincronizada com sucesso: ${newEmpresaId}`);
+
+    chargeAfter({
+      tenantId,
+      serviceKey: "focus-nfe-sync",
+      units: { count: 1 },
+      jobId: `focus-sync-${tenantId}-${Date.now()}`,
+      feature: "fiscal-sync-focus-nfe",
+    }).catch(() => {});
 
     return new Response(
       JSON.stringify({

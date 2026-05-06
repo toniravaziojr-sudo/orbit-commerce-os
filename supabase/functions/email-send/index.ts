@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -336,9 +337,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .eq('id', mailbox_id);
     }
 
+    // Cobrança pós-envio (motor universal). Pular tenant da plataforma.
+    if (mailbox.tenant_id && mailbox.tenant_id !== PLATFORM_TENANT_ID) {
+      chargeAfter({
+        tenantId: mailbox.tenant_id,
+        userId: user.id,
+        serviceKey: "email-transactional-send",
+        units: { count: (to_emails?.length ?? 1) + (cc_emails?.length ?? 0) + (bcc_emails?.length ?? 0) },
+        jobId: messageId ?? `${Date.now()}-${mailbox_id}`,
+        feature: "email-send",
+        metadata: { mailbox_id, subject },
+      }).catch(() => {});
+    }
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message_id: messageId,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

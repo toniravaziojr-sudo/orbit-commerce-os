@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -229,6 +230,14 @@ Deno.serve(async (req) => {
         }).catch(err => console.error('[fiscal-check-status] Email send error:', err));
       }
     }
+
+    chargeAfter({
+      tenantId,
+      serviceKey: "nfe-status-query",
+      units: { count: 1 },
+      jobId: `status-${invoiceId}-${Date.now()}`,
+      feature: "fiscal-check-status",
+    }).catch(() => {});
 
     return new Response(
       JSON.stringify({

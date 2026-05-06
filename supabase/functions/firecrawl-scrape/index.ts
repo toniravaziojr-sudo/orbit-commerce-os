@@ -1,4 +1,5 @@
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,7 +14,7 @@ Deno.serve(async (req) => {
   await loadPlatformCredentials();
 
   try {
-    const { url, options } = await req.json();
+    const { url, options, tenant_id } = await req.json();
 
     if (!url) {
       return new Response(
@@ -31,7 +32,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Format URL
     let formattedUrl = url.trim();
     if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
       formattedUrl = `https://${formattedUrl}`;
@@ -39,14 +39,11 @@ Deno.serve(async (req) => {
 
     console.log('Scraping URL:', formattedUrl);
 
-    // Determine formats - include screenshot if requested
     const includeScreenshot = options?.includeScreenshot ?? false;
     const baseFormats = options?.formats || ['markdown', 'html', 'links'];
-    const formats = includeScreenshot && !baseFormats.includes('screenshot') 
+    const formats = includeScreenshot && !baseFormats.includes('screenshot')
       ? [...baseFormats, 'screenshot']
       : baseFormats;
-
-    console.log('Formats requested:', formats);
 
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
@@ -58,11 +55,10 @@ Deno.serve(async (req) => {
         url: formattedUrl,
         formats,
         onlyMainContent: options?.onlyMainContent ?? false,
-        waitFor: options?.waitFor || (includeScreenshot ? 3000 : undefined), // Wait longer for screenshot
+        waitFor: options?.waitFor || (includeScreenshot ? 3000 : undefined),
         location: options?.location,
-        // Screenshot options
         screenshot: includeScreenshot ? {
-          fullPage: options?.fullPageScreenshot ?? true, // Full page by default
+          fullPage: options?.fullPageScreenshot ?? true,
         } : undefined,
       }),
     });
@@ -77,13 +73,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Extract screenshot from response if present
     const screenshot = data.data?.screenshot || data.screenshot;
-    if (screenshot) {
-      console.log(`Screenshot captured: ${typeof screenshot === 'string' ? screenshot.substring(0, 50) + '...' : 'present'}`);
+    console.log('Scrape successful', screenshot ? '(with screenshot)' : '(no screenshot)');
+
+    // Cobrança pós-uso (motor universal). Requer tenant_id no body.
+    if (tenant_id) {
+      chargeAfter({
+        tenantId: tenant_id,
+        serviceKey: "firecrawl-scrape-page",
+        units: { pages: 1 },
+        jobId: `${Date.now()}-${formattedUrl}`,
+        feature: "firecrawl-scrape",
+        metadata: { url: formattedUrl, screenshot: !!screenshot },
+      }).catch(() => {});
     }
 
-    console.log('Scrape successful', screenshot ? '(with screenshot)' : '(no screenshot)');
     return new Response(
       JSON.stringify(data),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -1,6 +1,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { cancelNFe, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -194,6 +195,14 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[fiscal-cancel] NF-e ${invoice_id} cancelada com sucesso`);
+
+    chargeAfter({
+      tenantId,
+      serviceKey: "nfe-cancel",
+      units: { count: 1 },
+      jobId: `cancel-${invoice_id}`,
+      feature: "fiscal-cancel",
+    }).catch(() => {});
 
     return new Response(
       JSON.stringify({

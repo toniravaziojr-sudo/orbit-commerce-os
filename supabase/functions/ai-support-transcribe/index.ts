@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { maybeTriggerReprocessAfterMedia } from "../_shared/media-context.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -255,6 +256,17 @@ Deno.serve(async (req) => {
         p_audio_count: 1,
         p_audio_seconds: estimatedDurationSeconds,
       });
+
+      // Cobrança no motor universal de créditos (Whisper / per_minute)
+      const minutes = Math.max(0.01, estimatedDurationSeconds / 60);
+      chargeAfter({
+        tenantId,
+        serviceKey: "openai.whisper-1.per_minute",
+        units: { minutes },
+        jobId: targetAttachmentId ?? `${Date.now()}-${tenantId}`,
+        feature: "ai-support-transcribe",
+        metadata: { duration_seconds: estimatedDurationSeconds },
+      }).catch(() => {});
     }
 
     return new Response(
