@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { withCreditMotor, isMotorEnabledForTenant } from "../_shared/credits/with-motor.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
