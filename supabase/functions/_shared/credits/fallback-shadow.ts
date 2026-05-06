@@ -146,7 +146,7 @@ export interface FallbackShadowMetadata {
 export function buildFallbackShadowMetadata(
   input: BuildFallbackShadowMetadataInput,
 ): FallbackShadowMetadata {
-  return {
+  const base: FallbackShadowMetadata = {
     motor_version: "v2",
     mode: "shadow",
     is_fallback_event: true,
@@ -175,6 +175,16 @@ export function buildFallbackShadowMetadata(
     live_behavior: "block_without_pricing",
     admin_visibility: true,
   };
+  const extras: Record<string, unknown> = {};
+  if (input.synthetic === true) extras.synthetic = true;
+  if (input.technical_validation === true) extras.technical_validation = true;
+  if (typeof input.validation_run_id === "string" && input.validation_run_id.length > 0) {
+    extras.validation_run_id = input.validation_run_id;
+  }
+  if (typeof input.validation_type === "string" && input.validation_type.length > 0) {
+    extras.validation_type = input.validation_type;
+  }
+  return { ...base, ...extras } as FallbackShadowMetadata;
 }
 
 export interface RecordFallbackShadowArgs extends BuildFallbackShadowMetadataInput {
