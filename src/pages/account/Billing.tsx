@@ -1,24 +1,97 @@
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CreditCard, FileText, TrendingUp, Package } from "lucide-react";
+import {
+  ArrowLeft,
+  CreditCard,
+  FileText,
+  TrendingUp,
+  Package,
+  Coins,
+  Clock,
+  ArrowDownCircle,
+} from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { AIUsageBreakdown } from "@/components/billing/AIUsageBreakdown";
+import { useCreditWallet, formatCredits } from "@/hooks/useCredits";
+import {
+  useCreditHistory,
+  type CreditTransactionType,
+  type CreditOperationStatus,
+} from "@/hooks/useCreditHistory";
+import { CreditHistoryTable } from "@/components/ai-packages/CreditHistoryTable";
+
+type PeriodKey = "7d" | "30d" | "90d" | "all";
+
+const PERIOD_DAYS: Record<PeriodKey, number | null> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+  all: null,
+};
+
+const PAGE_SIZE = 25;
+
+function startDateForPeriod(period: PeriodKey): string | null {
+  const days = PERIOD_DAYS[period];
+  if (!days) return null;
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
 
 export default function Billing() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
 
-  // Get plan - fallback to free if not set
   const tenantPlan = "free";
-
   const currentPlan = {
     name: tenantPlan,
     label: "Gratuito",
     price: "R$ 0/mês",
   };
+
+  // Wallet (saldo)
+  const { data: wallet, isLoading: walletLoading } = useCreditWallet();
+  const balance = wallet?.balance_credits ?? 0;
+  const reserved = wallet?.reserved_credits ?? 0;
+  const available = balance - reserved;
+  const lifetimeConsumed = wallet?.lifetime_consumed ?? 0;
+
+  // Filtros do extrato
+  const [period, setPeriod] = useState<PeriodKey>("30d");
+  const [transactionType, setTransactionType] = useState<"all" | CreditTransactionType>("all");
+  const [offset, setOffset] = useState(0);
+
+  const startDate = useMemo(() => startDateForPeriod(period), [period]);
+
+  const {
+    data: historyItems,
+    totalCount,
+    isLoading: historyLoading,
+    isError: historyError,
+  } = useCreditHistory({
+    startDate,
+    transactionType: transactionType === "all" ? null : transactionType,
+    limit: PAGE_SIZE,
+    offset,
+  });
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -68,6 +141,117 @@ export default function Billing() {
       {/* AI Usage Breakdown */}
       <AIUsageBreakdown />
 
+      {/* Extrato de Créditos */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Coins className="h-5 w-5" />
+            Extrato de Créditos
+          </CardTitle>
+          <CardDescription>
+            Histórico de movimentos de créditos de IA do seu tenant
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Saldo cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Coins className="h-4 w-4 text-primary" />
+                Disponível
+              </div>
+              <p className="mt-2 text-2xl font-bold">
+                {walletLoading ? "—" : formatCredits(available)}
+              </p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                Reservado
+              </div>
+              <p className="mt-2 text-2xl font-bold">
+                {walletLoading ? "—" : formatCredits(reserved)}
+              </p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <ArrowDownCircle className="h-4 w-4 text-destructive" />
+                Consumido total
+              </div>
+              <p className="mt-2 text-2xl font-bold">
+                {walletLoading ? "—" : formatCredits(lifetimeConsumed)}
+              </p>
+            </div>
+          </div>
+
+          {/* Filtros */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Período:</span>
+              <Select
+                value={period}
+                onValueChange={(v) => {
+                  setPeriod(v as PeriodKey);
+                  setOffset(0);
+                }}
+              >
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30d">Últimos 30 dias</SelectItem>
+                  <SelectItem value="90d">Últimos 90 dias</SelectItem>
+                  <SelectItem value="all">Todo o período</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Tipo:</span>
+              <Select
+                value={transactionType}
+                onValueChange={(v) => {
+                  setTransactionType(v as "all" | CreditTransactionType);
+                  setOffset(0);
+                }}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="capture">Captura</SelectItem>
+                  <SelectItem value="reserve">Reserva</SelectItem>
+                  <SelectItem value="release">Liberação</SelectItem>
+                  <SelectItem value="refund">Estorno</SelectItem>
+                  <SelectItem value="purchase">Compra</SelectItem>
+                  <SelectItem value="bonus">Bônus</SelectItem>
+                  <SelectItem value="adjust">Ajuste</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Tabela */}
+          {!currentTenant ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              Selecione uma loja para ver o extrato.
+            </div>
+          ) : (
+            <CreditHistoryTable
+              items={historyItems}
+              isLoading={historyLoading}
+              isError={historyError}
+              totalCount={totalCount}
+              limit={PAGE_SIZE}
+              offset={offset}
+              onPageChange={setOffset}
+              showAdminColumns={false}
+            />
+          )}
+        </CardContent>
+      </Card>
+
       {/* Payment Methods */}
       <Card>
         <CardHeader>
@@ -101,9 +285,7 @@ export default function Billing() {
             <FileText className="h-5 w-5" />
             Histórico de Faturamento
           </CardTitle>
-          <CardDescription>
-            Visualize suas faturas anteriores
-          </CardDescription>
+          <CardDescription>Visualize suas faturas anteriores</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-8 text-center">

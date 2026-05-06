@@ -409,7 +409,52 @@ interface UseCreditHistoryResult {
 
 ## Próximos passos
 
-- **Etapa 1C:** inserir aba "Extrato de Créditos" em `/account/billing` consumindo `useCreditHistory` + `CreditHistoryTable`, atualizar `mapa-ui.md` e `ux-creditos-lojista.md`.
 - **Etapa 1D:** painel admin `/platform/credits` com `showAdminColumns=true`, filtros por tenant e `includePlatform`, atualizar `ux-admin-creditos-custos.md`.
 
 **Status:** ✅ Etapa 1B entregue. **GO** para Etapa 1C.
+
+---
+
+# Fase A3.2 — Etapa 1C — UI tenant "Extrato de Créditos" em `/account/billing` (executada em 2026-05-06)
+
+## Implementação
+
+- `src/pages/account/Billing.tsx` ganhou seção **Extrato de Créditos** logo abaixo de `AIUsageBreakdown`, sem remover nenhum card existente (Plano Atual, AI Usage, Formas de Pagamento, Histórico de Faturamento permanecem intactos).
+- Decisão **seção** (não tab): a página atual não usa tabs; manter padrão evita refator visual fora de escopo.
+- `CreditBalance.tsx` **não** foi reaproveitado — possui CTA "Comprar Créditos" e badge de saldo baixo que não pertencem a esta entrega. Em vez disso, a seção monta 3 cards locais simples (Disponível, Reservado, Consumido total) consumindo `useCreditWallet` direto.
+- Histórico consome `useCreditHistory` + `CreditHistoryTable` (Etapa 1B), com `showAdminColumns=false`.
+
+## Filtros entregues
+
+- Período: 7d / 30d / 90d / Todo o período (default 30d).
+- Tipo de transação: todos / capture / reserve / release / refund / purchase / bonus / adjust.
+- Paginação simples (limit=25, offset, botões Anterior/Próxima).
+
+**Adiados (follow-up, sem bloquear entrega):**
+- Filtro `operation_status` (reserved/captured/released/completed/failed).
+- Filtro `category` (ai_image/ai_video/whatsapp/email).
+- Filtro `service_key` / `provider` (faz mais sentido no painel admin).
+
+## Privacidade tenant — confirmação
+
+- Tabela tenant nunca renderiza `cost_usd`, `sell_usd`, `markup_pct_snap`, `metadata_admin`, `service_key` cru ou `provider` cru — colunas admin só aparecem com `showAdminColumns=true`, que é `false` na Billing tenant.
+- Mascaramento server-side da RPC garante que esses campos vêm `NULL` para tenant comum mesmo se o frontend tentasse exibir.
+- Eventos `cost_owner='platform'` e `status='shadow'` são filtrados pela RPC antes de chegar ao hook.
+- `CreditHistoryTable` trata valores nulos com `—`, sem renderizar `"null"`/`"undefined"`/JSON técnico.
+
+## Validação
+
+- ✅ TypeScript build passa.
+- ✅ `/account/billing` renderiza com a nova seção; cards de saldo, filtros e tabela funcionam.
+- ✅ `useCreditHistory` chama `get_credit_history` com `currentTenant.id` (Tenant Identity Guard server-side).
+- ⏳ Validação visual final com tenant Respeite o Homem (saldo 494/0/6, captura de 6 créditos da A3.1) depende do usuário logar e abrir `/account/billing`.
+- ✅ Wallet, credit_ledger, service_usage_events, motor v2, RPC, pricing e config de motor não foram alterados.
+- ✅ Live continua desligado (`live_service_keys=[]`, `motor_v2_enabled=false`).
+
+## Não escopo (mantido)
+
+- Painel admin `/platform/credits` — Etapa 1D.
+- Filtros avançados (status/category/service_key) — follow-up.
+- Knowledge / mem:// — não criados.
+
+**Status:** ✅ Etapa 1C entregue, pendente de validação visual pelo usuário com Respeite o Homem. **GO** condicional para Etapa 1D.
