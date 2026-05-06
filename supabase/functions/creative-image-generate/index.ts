@@ -642,6 +642,7 @@ Deno.serve(async (req) => {
         prompt: prompt || '', product_id, product_name, product_image_url,
         settings: {
           providers: enabledProviders, generation_style, format,
+          output_size: outputSize, quality,
           variations: numVariations, style_config, enable_qa, enable_fallback,
           label_lock, pipeline_version: VERSION,
         },
@@ -709,14 +710,20 @@ Deno.serve(async (req) => {
         });
 
         // ===== Fase A3.1: gate fino LIVE por service_key (Motor v2) =====
+        // Derivado do tamanho normalizado: cada (size,quality) tem sua service_key.
         const liveServiceKeys = await loadLiveServiceKeys(supabase, tenant_id);
-        const LIVE_TARGET_KEY = 'fal.gpt-image-1.5.per_image.medium_1024';
+        const LIVE_TARGET_KEY = (() => {
+          const sizeSuffix = outputSize === '1024x1024' ? '1024' : outputSize;
+          return `fal.gpt-image-1.5.per_image.${quality}_${sizeSuffix}`;
+        })();
         const liveTargetEnabled = liveServiceKeys.has(LIVE_TARGET_KEY);
         if (liveTargetEnabled) {
           console.log('[creative-image.live]', JSON.stringify({
             evt: 'live_gate_enabled',
             tenant_id,
             service_key: LIVE_TARGET_KEY,
+            output_size: outputSize,
+            quality,
             live_keys_count: liveServiceKeys.size,
           }));
         }
@@ -745,8 +752,8 @@ Deno.serve(async (req) => {
                 feature: 'creative_product_image',
                 job_id: jobId,
                 variation_index: varIdx + 1,
-                outputSize: '1024x1024',
-                quality: 'medium',
+                outputSize,
+                quality,
                 has_reference_image: !!product_image_url,
                 available_keys: {
                   fal: !!falApiKey,
