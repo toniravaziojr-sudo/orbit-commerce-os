@@ -162,6 +162,7 @@ export function HomeStructureDialog({
           prompt: customPrompt.trim(),
           pageName: storeName,
           context: 'home',
+          tenantId: currentTenant?.id,
         },
       });
 
