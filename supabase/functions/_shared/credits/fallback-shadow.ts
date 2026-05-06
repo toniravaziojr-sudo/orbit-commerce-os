@@ -98,6 +98,14 @@ export interface BuildFallbackShadowMetadataInput {
   fallback_reason?: string | null;
   providers_requested?: Array<string> | null;
   enable_fallback?: boolean | null;
+  /** Marca evento como sintético (validação técnica controlada A2.1). Default ausente. */
+  synthetic?: boolean;
+  /** Marca evento como gerado por validação técnica (não tráfego real). Default ausente. */
+  technical_validation?: boolean;
+  /** Identificador da rodada de validação técnica controlada. */
+  validation_run_id?: string;
+  /** Tipo de validação técnica (ex.: 'synthetic_db_integration'). */
+  validation_type?: string;
 }
 
 export interface FallbackShadowMetadata {
@@ -138,7 +146,7 @@ export interface FallbackShadowMetadata {
 export function buildFallbackShadowMetadata(
   input: BuildFallbackShadowMetadataInput,
 ): FallbackShadowMetadata {
-  return {
+  const base: FallbackShadowMetadata = {
     motor_version: "v2",
     mode: "shadow",
     is_fallback_event: true,
@@ -167,6 +175,16 @@ export function buildFallbackShadowMetadata(
     live_behavior: "block_without_pricing",
     admin_visibility: true,
   };
+  const extras: Record<string, unknown> = {};
+  if (input.synthetic === true) extras.synthetic = true;
+  if (input.technical_validation === true) extras.technical_validation = true;
+  if (typeof input.validation_run_id === "string" && input.validation_run_id.length > 0) {
+    extras.validation_run_id = input.validation_run_id;
+  }
+  if (typeof input.validation_type === "string" && input.validation_type.length > 0) {
+    extras.validation_type = input.validation_type;
+  }
+  return { ...base, ...extras } as FallbackShadowMetadata;
 }
 
 export interface RecordFallbackShadowArgs extends BuildFallbackShadowMetadataInput {

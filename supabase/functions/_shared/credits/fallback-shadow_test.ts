@@ -121,6 +121,61 @@ Deno.test("buildFallbackShadowMetadata trata valores ausentes", () => {
   assertEquals(meta.fallback_reason, null);
 });
 
+Deno.test("buildFallbackShadowMetadata: campos opcionais ausentes não poluem produção", () => {
+  const meta = buildFallbackShadowMetadata({
+    creative_job_id: "job-prod",
+    variation_index: 1,
+    actual_provider: "gemini",
+    actual_model: "gemini-2.5-flash-image",
+  }) as unknown as Record<string, unknown>;
+  assertEquals(meta.synthetic, undefined);
+  assertEquals(meta.technical_validation, undefined);
+  assertEquals(meta.validation_run_id, undefined);
+  assertEquals(meta.validation_type, undefined);
+});
+
+Deno.test("buildFallbackShadowMetadata: synthetic/technical_validation/validation_run_id propagados", () => {
+  const meta = buildFallbackShadowMetadata({
+    creative_job_id: "synthetic-a21-validation-2026-05-05",
+    variation_index: 1,
+    actual_provider: "gemini",
+    actual_model: "gemini-2.5-flash-image",
+    synthetic: true,
+    technical_validation: true,
+    validation_run_id: "a2-1-controlled-validation-2026-05-05",
+    validation_type: "synthetic_db_integration",
+  }) as unknown as Record<string, unknown>;
+  assertEquals(meta.synthetic, true);
+  assertEquals(meta.technical_validation, true);
+  assertEquals(meta.validation_run_id, "a2-1-controlled-validation-2026-05-05");
+  assertEquals(meta.validation_type, "synthetic_db_integration");
+  // Invariantes preservadas
+  assertEquals(meta.no_billing, true);
+  assertEquals(meta.no_wallet_mutation, true);
+  assertEquals(meta.no_ledger_mutation, true);
+  assertEquals(meta.pricing_status, "missing");
+  assertEquals(meta.cost_usd_snap, undefined);
+  assertEquals(meta.sell_usd_snap, undefined);
+  assertEquals(meta.credits, undefined);
+});
+
+Deno.test("buildFallbackShadowMetadata: synthetic=false não vira true", () => {
+  const meta = buildFallbackShadowMetadata({
+    creative_job_id: "j",
+    variation_index: 1,
+    actual_provider: "gemini",
+    actual_model: "g",
+    synthetic: false,
+    technical_validation: false,
+    validation_run_id: "",
+    validation_type: "",
+  }) as unknown as Record<string, unknown>;
+  assertEquals(meta.synthetic, undefined);
+  assertEquals(meta.technical_validation, undefined);
+  assertEquals(meta.validation_run_id, undefined);
+  assertEquals(meta.validation_type, undefined);
+});
+
 // ====== Mock supabase para testar recordFallbackShadowEvent ======
 
 function makeMockSupabase(opts: { fail?: boolean } = {}) {

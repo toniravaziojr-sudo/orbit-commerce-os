@@ -178,3 +178,60 @@ Painel futuro (estensão de `/platform/external-costs`): aba **"Fallbacks IA nã
 1. **Próximo prompt (EXECUÇÃO):** ativar gate apenas para Respeite o Homem + 1 geração real para validar evento + auditar invariantes.
 2. **Médio prazo:** estender painel admin de custos com aba de fallbacks não precificados.
 3. **Longo prazo:** se decisão de produto for permitir fallback live, cadastrar pricing oficial Gemini/OpenAI/Lovable e promover a `live_service_keys`.
+
+---
+
+## 15. Validação técnica controlada — 2026-05-05
+
+**Contexto.** Após ativação do gate A2.1 apenas no tenant Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`), 12 jobs reais consecutivos venceram com Fal.AI `medium_1024`. O caminho fallback (Gemini/OpenAI/Lovable) nunca foi exercitado em produção por viés determinístico do motor v10. Para fechar A2.1 tecnicamente sem alterar motor, pricing, wallet ou ledger, foi executada a **Opção C** do PLANNER: validação técnica sintética via integração direta com banco real usando privilégio `service_role`.
+
+**Execução.** Inserção idempotente de 1 evento sintético em `service_usage_events`, marcado explicitamente como `synthetic=true`, `technical_validation=true`, com `validation_run_id` e `validation_type` dedicados, mantido como evidência permanente. O helper `recordFallbackShadowEvent` foi exercido pelo teste unitário (mock); o INSERT real usa o mesmo schema/payload produzido por `buildFallbackShadowMetadata` com os campos opcionais aprovados.
+
+**Identificadores.**
+- `evidence_id`: `1eab2cc6-3ab1-4bae-9a1a-f0e1a28cd759`
+- `tenant_id`: `d1a4d0ed-8842-495e-b741-540a9a345b25`
+- `validation_run_id`: `a2-1-controlled-validation-2026-05-05`
+- `validation_type`: `synthetic_db_integration`
+- `creative_job_id`: `synthetic-a21-validation-2026-05-05`
+- `provider` simulado: `gemini` / `gemini-2.5-flash-image`
+- `service_key`: `fallback.gemini.gemini-2.5-flash-image.unpriced`
+- `created_at`: `2026-05-06 01:06:03 UTC`
+
+**Asserts confirmados.**
+- `status='shadow'`, `cost_owner='platform'`, `category='ai_image'`, `origin_function='creative-image-generate'`, `units_json.images=1`.
+- `service_key` casa `^fallback\..+\.unpriced$`.
+- `metadata.is_fallback_event=true`, `fallback_shadow_version='0.1.0'`, `pricing_status='missing'`, `unpriced=true`, `no_billing=true`, `no_wallet_mutation=true`, `no_ledger_mutation=true`, `live_behavior='block_without_pricing'`, `admin_visibility=true`.
+- `metadata.synthetic=true`, `technical_validation=true`, `validation_run_id`/`validation_type` gravados.
+- `credit_ledger_id`, `reservation_ledger_id`, `platform_cost_ledger_id` = NULL.
+- Ausentes: `cost_usd_snap`, `sell_usd_snap`, `credits`, `shadow_reserve`, `shadow_capture`, `shadow_release`.
+
+**Isolamento confirmado (antes vs depois).**
+- `credit_wallet`: `balance_credits=500`, `reserved_credits=0` — inalterado.
+- `credit_ledger` count: 1 — inalterado.
+- `tenant_credit_motor_config.motor_v2_enabled=false`, `live_service_keys=[]` — inalterado.
+- `service_pricing` count: 54 — inalterado.
+
+**RLS.** Acesso ao evento mediado por `service_role`. Tenant/anon não enxergam linhas com `cost_owner='platform'` (RLS já validada na Onda 6 e em A1/A2). O caminho de leitura por platform_admin é o mesmo do painel de custos externos.
+
+**Query oficial para localizar evidência.**
+```sql
+SELECT id, tenant_id, status, cost_owner, service_key, provider, metadata, created_at
+FROM service_usage_events
+WHERE metadata->>'validation_run_id'='a2-1-controlled-validation-2026-05-05'
+  AND metadata->>'synthetic'='true'
+  AND metadata->>'technical_validation'='true'
+ORDER BY created_at DESC;
+-- esperado: exatamente 1 linha
+```
+
+**Idempotência.** O teste integrado `fallback-shadow_integration_test.ts` consulta o `validation_run_id` antes do INSERT; se já existir 1 evento, valida o existente e não cria novo; se existir mais de 1, falha por duplicidade. No ambiente de teste sem `SUPABASE_SERVICE_ROLE_KEY`, o teste skipa graceful (logando o motivo) — a validação real foi executada via ferramenta de banco com privilégio `service_role`.
+
+**Garantias operacionais.**
+- Nenhuma imagem foi gerada.
+- Nenhum provider foi chamado.
+- `live` permanece desligado.
+- `motor_v2_enabled=false`, `live_service_keys=[]`.
+- Wallet/ledger/config/pricing intocados.
+- Helper `recordFallbackShadowEvent` validado por unit tests (mock) + payload real validado por INSERT direto.
+
+**Conclusão.** **A2.1 fechada tecnicamente** por validação sintética. Quando ocorrer um vencedor natural Gemini/OpenAI/Lovable em produção, será evidência complementar (não bloqueante).
