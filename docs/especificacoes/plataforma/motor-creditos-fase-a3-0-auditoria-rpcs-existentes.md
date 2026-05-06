@@ -89,20 +89,20 @@ Antes e depois da fase, sem nenhuma variação:
 - ❌ RLS, UI e edge functions de produção não foram alteradas.
 - ✅ Cleanup 100% — zero órfãos no banco.
 
-## Pendências antes de A3.1
+## Limpeza pós-fase
 
-1. **Decidir destino da edge `a3-rpc-test`** (obrigatório antes de iniciar A3.1):
-   - **Opção A (recomendada):** remover do repositório agora que a auditoria foi concluída.
-   - **Opção B:** converter em teste Deno permanente sob `supabase/functions/a3-rpc-test/*_test.ts`, removendo o handler HTTP exposto.
-   - Manter exposta sem decisão é vetado.
+Em **2026-05-06**, após validação 11/11 verde:
+- Edge `a3-rpc-test` **removida** do repositório (`supabase/functions/a3-rpc-test/`) e do projeto Supabase (`delete_edge_functions`).
+- Live permaneceu desligado durante a remoção.
+- Respeite o Homem permaneceu intocado (balance=500, reserved=0, lifetime=0, ledger=1, motor_v2=false, live_keys=[]).
+- Nenhum dado sintético criado durante a limpeza.
 
 ## Próxima fase
 
-**A3.1 — Live Fal-only para `creative-image-generate`** (PLANNER).
-Pré-condições para iniciar:
-1. Edge `a3-rpc-test` removida ou neutralizada.
-2. Definição do conjunto exato de `live_service_keys` que entra primeiro (apenas chaves Fal aprovadas via `approved_for_live=true` em `service_pricing`).
-3. Plano de rollback documentado.
+**A3.1 — Live Fal-only para `creative-image-generate`** (PLANNER) — liberado para iniciar.
+Pré-condições remanescentes:
+1. Definição do conjunto exato de `live_service_keys` que entra primeiro (apenas chaves Fal aprovadas via `approved_for_live=true` em `service_pricing`).
+2. Plano de rollback documentado.
 
 ## Migrations aplicadas
 
