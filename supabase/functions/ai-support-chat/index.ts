@@ -8312,6 +8312,42 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     // [Pacote B] Libera o lock antes de devolver. Tolerante a falha.
     await releaseProcessingLock(supabase, conversation_id, myLockId).catch(() => {});
 
+    // [Motor Universal de Créditos] Cobrança pós-turno por tokens reais.
+    // Modelo OpenAI (gpt-5.2 ou gpt-4o); cada métrica é cobrada pela service_key
+    // específica de input/output. Falha de cobrança não bloqueia a resposta.
+    try {
+      const { chargeAfter } = await import("../_shared/credits/charge-after.ts");
+      const modelKey = (modelUsed || "").toLowerCase().includes("gpt-4o")
+        ? "openai.gpt-4o"
+        : (modelUsed || "").toLowerCase().includes("gpt-5")
+          ? "openai.gpt-5.2"
+          : null;
+      if (modelKey && newMessage?.id && (inputTokens > 0 || outputTokens > 0)) {
+        if (inputTokens > 0) {
+          await chargeAfter({
+            tenantId: tenant_id,
+            serviceKey: `${modelKey}.per_1m_tokens_in`,
+            units: { tokens: inputTokens },
+            jobId: `${newMessage.id}:in`,
+            feature: "ai-support-chat",
+            metadata: { conversation_id, model: modelUsed, sales_mode: salesModeEnabled },
+          });
+        }
+        if (outputTokens > 0) {
+          await chargeAfter({
+            tenantId: tenant_id,
+            serviceKey: `${modelKey}.per_1m_tokens_out`,
+            units: { tokens: outputTokens },
+            jobId: `${newMessage.id}:out`,
+            feature: "ai-support-chat",
+            metadata: { conversation_id, model: modelUsed },
+          });
+        }
+      }
+    } catch (chargeErr) {
+      console.warn("[ai-support-chat] charge-after exception:", String((chargeErr as any)?.message || chargeErr));
+    }
+
     // [Reg #17.5] Sincroniza o snapshot retornado com o conteúdo final
     // pós-gates. O `newMessage` foi inserido antes dos scrubbers e da
     // regeneração; o cliente da edge function precisa ver exatamente o
