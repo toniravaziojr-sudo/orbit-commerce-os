@@ -13,6 +13,7 @@ import { AlertTriangle, RefreshCcw, ExternalLink, Pencil, Info } from "lucide-re
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PricingCatalogTab from "@/components/platform/PricingCatalogTab";
+import TenantEconomicsTab from "@/components/platform/TenantEconomicsTab";
 import { useSearchParams } from "react-router-dom";
 import {
   usePlatformExternalCosts,
@@ -259,19 +260,21 @@ export default function PlatformExternalCosts() {
   ) : null;
 
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "pricing" ? "pricing" : "costs";
+  const tabParam = params.get("tab");
+  const tab = tabParam === "pricing" ? "pricing" : tabParam === "economics" ? "economics" : "costs";
 
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Custos Externos</h1>
-        <p className="text-muted-foreground">Serviços de terceiros pagos pela plataforma e catálogo de preços do Motor de Créditos.</p>
+        <p className="text-muted-foreground">Custos fixos da plataforma, catálogo de preços do Motor de Créditos e economia por tenant.</p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setParams(v === "pricing" ? { tab: "pricing" } : {})}>
+      <Tabs value={tab} onValueChange={(v) => setParams(v === "costs" ? {} : { tab: v })}>
         <TabsList>
           <TabsTrigger value="costs">Custos da plataforma</TabsTrigger>
           <TabsTrigger value="pricing">Catálogo de preços</TabsTrigger>
+          <TabsTrigger value="economics">Economia por tenant</TabsTrigger>
         </TabsList>
 
         <TabsContent value="costs" className="space-y-6 mt-4">
@@ -344,6 +347,10 @@ export default function PlatformExternalCosts() {
 
         <TabsContent value="pricing" className="mt-4">
           <PricingCatalogTab />
+        </TabsContent>
+
+        <TabsContent value="economics" className="mt-4">
+          <TenantEconomicsTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface SeoInput {
   type: 'product' | 'category' | 'blog' | 'page';
@@ -44,6 +45,7 @@ export function GenerateSeoButton({
   size = 'sm',
 }: GenerateSeoButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const { currentTenant } = useAuth();
 
   const handleGenerate = async () => {
     if (!input.name?.trim()) {
@@ -55,7 +57,7 @@ export function GenerateSeoButton({
 
     try {
       const { data, error } = await supabase.functions.invoke('generate-seo', {
-        body: input,
+        body: { ...input, tenant_id: currentTenant?.id },
       });
 
       if (error) {
