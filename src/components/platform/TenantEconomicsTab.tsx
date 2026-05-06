@@ -17,6 +17,9 @@ interface TenantEconomicsRow {
   margin_pct: number;
   events_count: number;
   by_category: Record<string, { cost_usd: number; sell_usd: number; count: number }>;
+  infra_cost_brl: number;
+  net_margin_brl: number;
+  net_margin_pct: number;
 }
 
 const RANGES = {
@@ -56,14 +59,18 @@ export default function TenantEconomicsTab() {
         acc.cost += Number(r.total_cost_usd) || 0;
         acc.sell += Number(r.total_sell_usd) || 0;
         acc.events += Number(r.events_count) || 0;
+        acc.infraBRL += Number(r.infra_cost_brl) || 0;
+        acc.netBRL += Number(r.net_margin_brl) || 0;
         return acc;
       },
-      { cost: 0, sell: 0, events: 0 }
+      { cost: 0, sell: 0, events: 0, infraBRL: 0, netBRL: 0 }
     );
   }, [data]);
 
   const totalMargin = totals.sell - totals.cost;
   const totalMarginPct = totals.sell > 0 ? (totalMargin / totals.sell) * 100 : 0;
+  const grossBRL = totalMargin * FX;
+  const netPct = grossBRL > 0 ? (totals.netBRL / grossBRL) * 100 : 0;
 
   return (
     <div className="space-y-4">
@@ -92,28 +99,41 @@ export default function TenantEconomicsTab() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Custo total (provedor)</CardTitle></CardHeader>
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Custo provedor</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmtUSD(totals.cost)}</div>
+            <div className="text-xl font-bold">{fmtUSD(totals.cost)}</div>
             <div className="text-xs text-muted-foreground">{fmtBRL(totals.cost)}</div>
           </CardContent>
         </Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Receita de uso (créditos)</CardTitle></CardHeader>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Receita créditos</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmtUSD(totals.sell)}</div>
+            <div className="text-xl font-bold">{fmtUSD(totals.sell)}</div>
             <div className="text-xs text-muted-foreground">{fmtBRL(totals.sell)}</div>
           </CardContent>
         </Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Margem</CardTitle></CardHeader>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Margem bruta</CardTitle></CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${totalMargin >= 0 ? "text-emerald-600" : "text-destructive"}`}>{fmtUSD(totalMargin)}</div>
+            <div className={`text-xl font-bold ${totalMargin >= 0 ? "text-emerald-600" : "text-destructive"}`}>{fmtUSD(totalMargin)}</div>
             <div className="text-xs text-muted-foreground">{totalMarginPct.toFixed(1)}%</div>
           </CardContent>
         </Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Eventos cobrados</CardTitle></CardHeader>
+        <Card title="Custo Lovable Cloud + AI absorvido pela plataforma (proporcional ao período)">
+          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Custo infra</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totals.events.toLocaleString("pt-BR")}</div>
+            <div className="text-xl font-bold">R$ {totals.infraBRL.toFixed(2)}</div>
+            <div className="text-xs text-muted-foreground">no período</div>
+          </CardContent>
+        </Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Margem líquida</CardTitle></CardHeader>
+          <CardContent>
+            <div className={`text-xl font-bold ${totals.netBRL >= 0 ? "text-emerald-600" : "text-destructive"}`}>R$ {totals.netBRL.toFixed(2)}</div>
+            <div className="text-xs text-muted-foreground">{netPct.toFixed(1)}%</div>
+          </CardContent>
+        </Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground font-normal">Eventos</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{totals.events.toLocaleString("pt-BR")}</div>
             <div className="text-xs text-muted-foreground">no período</div>
           </CardContent>
         </Card>
@@ -136,8 +156,9 @@ export default function TenantEconomicsTab() {
                   <th className="py-2 px-4 font-medium">Tenant</th>
                   <th className="py-2 px-4 font-medium">Custo</th>
                   <th className="py-2 px-4 font-medium">Receita</th>
-                  <th className="py-2 px-4 font-medium">Margem</th>
-                  <th className="py-2 px-4 font-medium">% Margem</th>
+                  <th className="py-2 px-4 font-medium">Margem bruta</th>
+                  <th className="py-2 px-4 font-medium">Custo infra</th>
+                  <th className="py-2 px-4 font-medium">Margem líquida</th>
                   <th className="py-2 px-4 font-medium">Eventos</th>
                   <th className="py-2 px-4 font-medium">Categorias</th>
                 </tr>
@@ -146,6 +167,7 @@ export default function TenantEconomicsTab() {
                 {(data ?? []).map((r) => {
                   const cats = Object.entries(r.by_category ?? {});
                   const positive = Number(r.margin_usd) >= 0;
+                  const netPositive = Number(r.net_margin_brl) >= 0;
                   return (
                     <tr key={r.tenant_id}>
                       <td className="py-3 px-4">
@@ -156,8 +178,13 @@ export default function TenantEconomicsTab() {
                       <td className="py-3 px-4 text-sm">{fmtUSD(Number(r.total_sell_usd))}</td>
                       <td className={`py-3 px-4 text-sm font-medium ${positive ? "text-emerald-600" : "text-destructive"}`}>
                         {fmtUSD(Number(r.margin_usd))}
+                        <div className="text-[10px] text-muted-foreground font-normal">{Number(r.margin_pct).toFixed(1)}%</div>
                       </td>
-                      <td className="py-3 px-4 text-sm">{Number(r.margin_pct).toFixed(1)}%</td>
+                      <td className="py-3 px-4 text-sm">R$ {Number(r.infra_cost_brl ?? 0).toFixed(2)}</td>
+                      <td className={`py-3 px-4 text-sm font-medium ${netPositive ? "text-emerald-600" : "text-destructive"}`}>
+                        R$ {Number(r.net_margin_brl ?? 0).toFixed(2)}
+                        <div className="text-[10px] text-muted-foreground font-normal">{Number(r.net_margin_pct ?? 0).toFixed(1)}%</div>
+                      </td>
                       <td className="py-3 px-4 text-sm">{Number(r.events_count).toLocaleString("pt-BR")}</td>
                       <td className="py-3 px-4">
                         <div className="flex flex-wrap gap-1">
