@@ -98,6 +98,14 @@ export interface BuildFallbackShadowMetadataInput {
   fallback_reason?: string | null;
   providers_requested?: Array<string> | null;
   enable_fallback?: boolean | null;
+  /** Marca evento como sintético (validação técnica controlada A2.1). Default ausente. */
+  synthetic?: boolean;
+  /** Marca evento como gerado por validação técnica (não tráfego real). Default ausente. */
+  technical_validation?: boolean;
+  /** Identificador da rodada de validação técnica controlada. */
+  validation_run_id?: string;
+  /** Tipo de validação técnica (ex.: 'synthetic_db_integration'). */
+  validation_type?: string;
 }
 
 export interface FallbackShadowMetadata {
