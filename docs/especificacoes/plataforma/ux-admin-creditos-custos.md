@@ -41,8 +41,11 @@ Hub admin para custos externos da plataforma e tudo relacionado ao Motor Univers
 | `sell_usd` | Valor vendido em USD. |
 | `sell_brl` | Valor vendido em BRL. |
 | `margem_usd` | `sell_usd - cost_usd`. |
-| `margem_brl` | `sell_brl - cost_brl`. |
+| `margem_brl` | `sell_brl - cost_brl` (margem **bruta**). |
 | `margem_pct` | `(sell - cost) / sell × 100`. |
+| `infra_cost_brl` | Custo Lovable Cloud + AI absorvido pela plataforma no período (proporcional aos meses tocados, vem de `tenant_infra_monthly_costs`). Editado manualmente por platform_admin. |
+| `net_margin_brl` | Margem **líquida** = `margem_brl - infra_cost_brl`. |
+| `net_margin_pct` | Margem líquida sobre receita BRL. |
 | Período | Período aplicado pelo filtro. |
 
 ### 3.2 Filtros admin
