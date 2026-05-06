@@ -677,6 +677,18 @@ ${storeCtx.supportHours ? `<p style="margin-top:0.5rem;font-size:0.9rem;"><stron
       throw new Error(`Erro ao salvar páginas: ${insertError.message}`);
     }
 
+    // Cobrança postpaid agregada (8 páginas geradas via Gemini Flash)
+    try {
+      await chargeAfter({
+        tenantId,
+        serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+        units: { tokens_in: 8000, tokens_out: 12000 },
+        jobId: crypto.randomUUID(),
+        feature: "ai-essential-pages",
+        metadata: { pages_created: insertedPages?.length || 0 },
+      });
+    } catch (e) { console.warn("[ai-essential-pages] charge skipped", String(e)); }
+
     return new Response(JSON.stringify({
       success: true,
       created: insertedPages?.length || 0,
