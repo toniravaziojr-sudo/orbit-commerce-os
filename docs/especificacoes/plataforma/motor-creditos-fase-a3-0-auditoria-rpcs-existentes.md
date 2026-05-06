@@ -493,3 +493,32 @@ Pontos de UX corrigidos nesta sub-etapa (apenas frontend, sem tocar motor/dados/
 
 **Status:** ✅ Etapa 1C.1 entregue, pendente de re-validação visual pelo lojista. **GO** condicional para Etapa 1D.
 
+
+---
+
+## Etapa 1D — Painel admin `/platform/credits` (2026-05-06)
+
+### Entregue
+- Rota `/platform/credits` protegida por `PlatformAdminGate` + `PlatformAccessDenied`.
+- Página `src/pages/platform/PlatformCredits.tsx`.
+- Hook admin separado `src/hooks/usePlatformCreditHistory.ts` (não toca em `useCreditHistory` tenant).
+- Componentes `src/components/platform/credits/TenantCombobox.tsx` (lê `tenants` direto, mesmo padrão de `PlatformTenants`) e `src/components/platform/credits/CreditAggregateCards.tsx`.
+- Item de sidebar admin "Créditos" em **Plataforma**, abaixo de "Custos Externos".
+- Reuso de `CreditHistoryTable` da Etapa 1B com `showAdminColumns=true`.
+
+### Decisões aplicadas
+- Tenant **obrigatório**. Empty state quando não selecionado: "Selecione um tenant para visualizar o extrato de créditos." RPC não é chamada nesse estado.
+- "Todos os tenants" não implementado nesta etapa.
+- RPC `get_credit_history` **não foi alterada** (`p_tenant_id` continua NOT NULL).
+- Cards são **resumo dos registros exibidos**, com label obrigatório.
+- Filtros: período (7d/30d/90d), tipo, status, categoria, provider, service_key, incluir plataforma.
+- Paginação com `limit=50`.
+- Exportação CSV e `get_credit_aggregates` ficam fora desta etapa.
+
+### Não alterado
+- `credit_wallet`, `credit_ledger`, `service_usage_events`, `service_pricing`, `tenant_credit_motor_config` — intocados.
+- Live continua desligado (`live_service_keys=[]`, `motor_v2_enabled=false`).
+- `/account/billing` (extrato tenant) continua funcionando — usa `useCreditHistory`, não foi modificado.
+
+**Status:** ✅ Etapa 1D entregue. Pendente validação visual pelo platform_admin.
+
