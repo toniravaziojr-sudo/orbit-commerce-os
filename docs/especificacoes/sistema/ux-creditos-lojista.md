@@ -99,7 +99,7 @@ Hub único para todas as interações do lojista com o sistema de créditos. Sub
 | Rota atual | Destino futuro |
 |---|---|
 | `/ai-packages` | Redirect 301 para `/account/credits?tab=buy`. Manter rota antiga ativa por 1 release antes de remover. |
-| `/account/billing` | Mantém foco em plano/faturas da assinatura SaaS. **Etapa 1C Fase A3.2 (2026-05-06):** ganhou seção provisória "Extrato de Créditos" (cards Disponível/Reservado/Consumido + histórico via RPC `get_credit_history`, filtros período/tipo, paginação, mascaramento server-side de custo/margem). Quando `/account/credits` for entregue, esta seção será movida para `/account/credits?tab=ledger` e Billing voltará a ter apenas link "Saldo de créditos: X — gerenciar". |
+| `/account/billing` | Mantém foco em plano/faturas da assinatura SaaS. **Etapa 1C Fase A3.2 (2026-05-06):** ganhou seção provisória "Extrato de Créditos" (cards Disponível/Reservado/Consumido + histórico via RPC `get_credit_history`, filtros período/tipo, paginação, mascaramento server-side de custo/margem). **Etapa 1C.1 (2026-05-06):** o bloco antigo "Uso de Créditos de IA" (`AIUsageBreakdown`) foi removido de Billing porque contradizia o Extrato; será reescrito futuramente como detalhamento real dentro de `/account/credits`. Linhas do extrato agora mostram "Categoria — Detalhe" (ex.: `IA Imagem — Fast Upgrade`). Quando `/account/credits` for entregue, esta seção será movida para `/account/credits?tab=ledger` e Billing voltará a ter apenas link "Saldo de créditos: X — gerenciar". |
 
 ## 9. Regras de visibilidade — o que o tenant **NÃO** vê
 
