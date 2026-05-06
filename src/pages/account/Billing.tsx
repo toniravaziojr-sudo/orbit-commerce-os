@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import { AIUsageBreakdown } from "@/components/billing/AIUsageBreakdown";
+
 import { useCreditWallet, formatCredits } from "@/hooks/useCredits";
 import {
   useCreditHistory,
@@ -138,10 +138,8 @@ export default function Billing() {
         </CardContent>
       </Card>
 
-      {/* AI Usage Breakdown */}
-      <AIUsageBreakdown />
-
-      {/* Extrato de Créditos */}
+      {/* Extrato de Créditos (substitui o antigo "Uso de Créditos de IA",
+          que ficava desalinhado em relação ao saldo real do tenant) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
