@@ -24090,6 +24090,52 @@ export type Database = {
         }[]
       }
       get_auth_user_email: { Args: never; Returns: string }
+      get_credit_history: {
+        Args: {
+          p_category?: string
+          p_end_date?: string
+          p_include_platform?: boolean
+          p_job_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_operation_status?: string
+          p_provider?: string
+          p_service_key?: string
+          p_start_date?: string
+          p_tenant_id: string
+          p_transaction_type?: string
+        }
+        Returns: {
+          balance_after: number
+          balance_before: number
+          category: string
+          cost_brl: number
+          cost_usd: number
+          created_at: string
+          creative_job_id: string
+          creative_product_name: string
+          credits_delta: number
+          description: string
+          event_id: string
+          feature: string
+          fx_rate_usd_brl: number
+          job_id: string
+          ledger_id: string
+          markup_pct_snap: number
+          metadata_admin: Json
+          metadata_public: Json
+          operation_status: string
+          provider: string
+          sell_brl: number
+          sell_usd: number
+          service_key: string
+          service_key_public: string
+          source_function: string
+          tenant_id: string
+          total_count: number
+          transaction_type: string
+        }[]
+      }
       get_cron_jobs_status: {
         Args: never
         Returns: {
