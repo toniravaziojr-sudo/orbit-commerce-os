@@ -53,7 +53,67 @@ import {
 } from "../_shared/credits/live-v2.ts";
 import { generateImageWithGptImage1, downloadImageAsBase64 as falDownloadImage } from "../_shared/fal-client.ts";
 
-const VERSION = '10.0'; // Unified engine v10.0 (alinhado ao frontend ImageGenerationTabV3)
+const VERSION = '10.1'; // Catálogo Fal alinhado: square/portrait/landscape, quality medium default
+
+// ========== NORMALIZAÇÃO format/size/quality (alinhado catálogo Fal GPT Image 1.5) ==========
+type NormalizedImageFormat = 'square' | 'portrait' | 'landscape';
+type NormalizedImageSize = '1024x1024' | '1024x1536' | '1536x1024';
+type NormalizedImageQuality = 'low' | 'medium' | 'high';
+
+interface NormalizedImageOptions {
+  format: NormalizedImageFormat;
+  outputSize: NormalizedImageSize;
+  quality: NormalizedImageQuality;
+}
+
+const FORMAT_TO_SIZE: Record<NormalizedImageFormat, NormalizedImageSize> = {
+  square: '1024x1024',
+  portrait: '1024x1536',
+  landscape: '1536x1024',
+};
+
+const SIZE_TO_FORMAT: Record<NormalizedImageSize, NormalizedImageFormat> = {
+  '1024x1024': 'square',
+  '1024x1536': 'portrait',
+  '1536x1024': 'landscape',
+};
+
+/**
+ * Normaliza opções de imagem vindas do payload (settings) em um único contrato.
+ * Aceita aliases legados (1:1, 9:16, 16:9) por compatibilidade, mas SEMPRE
+ * resolve para um size existente em service_pricing. Defaults seguros:
+ * format=square (1024x1024), quality=medium.
+ */
+function normalizeImageGenerationOptions(input: {
+  format?: string | null;
+  output_size?: string | null;
+  size?: string | null;
+  quality?: string | null;
+}): NormalizedImageOptions {
+  const rawFormat = (input.format || '').toLowerCase().trim();
+  const rawSize = (input.output_size || input.size || '').toLowerCase().replace(/\s+/g, '');
+  const rawQuality = (input.quality || '').toLowerCase().trim();
+
+  let format: NormalizedImageFormat = 'square';
+  if (rawFormat === 'square' || rawFormat === '1:1') format = 'square';
+  else if (rawFormat === 'portrait' || rawFormat === '9:16' || rawFormat === '2:3') format = 'portrait';
+  else if (rawFormat === 'landscape' || rawFormat === '16:9' || rawFormat === '3:2') format = 'landscape';
+  else if (rawSize === '1024x1024') format = 'square';
+  else if (rawSize === '1024x1536') format = 'portrait';
+  else if (rawSize === '1536x1024') format = 'landscape';
+
+  // Size derivado do format (ignora outputSize fora de catálogo)
+  let outputSize: NormalizedImageSize = FORMAT_TO_SIZE[format];
+  if (rawSize === '1024x1024' || rawSize === '1024x1536' || rawSize === '1536x1024') {
+    outputSize = rawSize as NormalizedImageSize;
+    format = SIZE_TO_FORMAT[outputSize];
+  }
+
+  const quality: NormalizedImageQuality =
+    rawQuality === 'low' || rawQuality === 'high' ? rawQuality : 'medium';
+
+  return { format, outputSize, quality };
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
