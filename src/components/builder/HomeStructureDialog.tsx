@@ -32,6 +32,7 @@ import { generateBlockId } from '@/lib/builder/utils';
 import type { BlockNode } from '@/lib/builder/types';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface HomeStructureDialogProps {
   open: boolean;
