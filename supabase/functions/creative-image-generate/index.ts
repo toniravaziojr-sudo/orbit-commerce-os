@@ -940,7 +940,7 @@ Deno.serve(async (req) => {
 
               // FALLBACK SHADOW (Fase A2.1) — observabilidade de vencedores fora da cobertura A2.
               // Dispara quando o provider real normalizado não é Fal OU quando A2 não emitiu reserve para esta variação.
-              if (motorGates.fallbackShadowEnabled) {
+              if (motorGates.fallbackShadowEnabled && !result.liveSuppressFallbackShadow) {
                 const normalized = normalizeProviderForFallback(result.actualProvider);
                 const a2Covered = !!result.shadowReservationMeta && normalized === 'fal';
                 if (!a2Covered) {
