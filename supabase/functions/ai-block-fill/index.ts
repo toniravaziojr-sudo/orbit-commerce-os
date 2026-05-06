@@ -6,6 +6,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 const VERSION = "v1.0.0";
 
@@ -395,6 +396,21 @@ Deno.serve(async (req) => {
     const filledProps = validateOutput(rawOutput, validatedSchema);
 
     console.log(`[ai-block-fill][${VERSION}] ✅ Generated ${Object.keys(filledProps).length} props via ${provider} (${model})`);
+
+    // Cobrança postpaid (não bloqueia entrega)
+    try {
+      const usage = (aiResponse as any)?.usage || {};
+      const tIn = usage.prompt_tokens ?? usage.input_tokens ?? 1500;
+      const tOut = usage.completion_tokens ?? usage.output_tokens ?? 400;
+      await chargeAfter({
+        tenantId, userId,
+        serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+        units: { tokens_in: tIn, tokens_out: tOut },
+        jobId: crypto.randomUUID(),
+        feature: "ai-block-fill",
+        metadata: { block_type: blockType, provider, model },
+      });
+    } catch (e) { console.warn("[ai-block-fill] charge skipped", String(e)); }
 
     return new Response(
       JSON.stringify({ success: true, filledProps }),

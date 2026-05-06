@@ -7,6 +7,7 @@
 // =============================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
 import {
   resolveEnginePlan,
@@ -1606,6 +1607,18 @@ Deno.serve(async (req) => {
 
     // Determine intent for response metadata
     const adjustmentIntent = promptType === 'adjustment' ? classifyIntent(prompt) : null;
+
+    try {
+      await chargeAfter({
+        tenantId,
+        userId,
+        serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+        units: { tokens_in: 12000, tokens_out: 8000 },
+        jobId: String(landingPageId) + ":v" + newVersion,
+        feature: "ai-landing-page-generate",
+        metadata: { promptType, sections: finalSchema.sections.length, ai_refinement: aiRefinementUsed },
+      });
+    } catch (e) { console.warn("[ai-landing-page-generate] charge skipped", String(e)); }
 
     return new Response(
       JSON.stringify({

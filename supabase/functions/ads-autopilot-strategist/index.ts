@@ -3,6 +3,7 @@ import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.49.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
@@ -3524,6 +3525,16 @@ Deno.serve(async (req) => {
 
     // Manual invocation (with optional account filter)
     const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId, revisionFeedback, body);
+    try {
+      await chargeAfter({
+        tenantId,
+        serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+        units: { tokens_in: 30000, tokens_out: 8000 },
+        jobId: crypto.randomUUID(),
+        feature: "ads-autopilot-strategist",
+        metadata: { trigger, target_account_id: targetAccountId },
+      });
+    } catch (e) { console.warn("[ads-autopilot-strategist] charge skipped", String(e)); }
     return ok(result);
   } catch (err: any) {
     console.error(`[ads-autopilot-strategist][${VERSION}] Fatal:`, err.message);
