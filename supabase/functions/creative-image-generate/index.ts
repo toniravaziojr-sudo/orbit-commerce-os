@@ -804,7 +804,7 @@ Deno.serve(async (req) => {
                 providerCostUsd: null,
                 metadata: {
                   ...liveMetadata,
-                  fal_request_id: gptResult?.requestId ?? null,
+                  fal_seed: gptResult?.seed ?? null,
                   latency_ms: latencyMs,
                 },
               });
