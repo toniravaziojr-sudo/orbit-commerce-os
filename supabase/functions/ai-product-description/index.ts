@@ -294,9 +294,10 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { type, productName, fullDescription, userPrompt, referenceLinks, mode, url: linkUrl, components } = body;
+    const { type, productName, fullDescription, userPrompt, referenceLinks, mode, url: linkUrl, components, tenantId, tenant_id } = body;
+    const tId: string | null = tenantId ?? tenant_id ?? null;
 
-    console.log(`[ai-product-description][${VERSION}] type=${type}, mode=${mode || 'default'}, product=${productName}`);
+    console.log(`[ai-product-description][${VERSION}] type=${type}, mode=${mode || 'default'}, product=${productName}, tenant=${tId || 'unknown'}`);
 
     if (!type || !productName) {
       return new Response(
