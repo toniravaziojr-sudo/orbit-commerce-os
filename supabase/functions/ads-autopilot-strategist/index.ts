@@ -3,6 +3,7 @@ import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { getBrainContextForPrompt } from "../_shared/brain-context.ts";
+import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.49.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
