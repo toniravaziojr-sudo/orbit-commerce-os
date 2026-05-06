@@ -271,6 +271,31 @@ Deno.serve(async (req) => {
       );
     }
 
+    // [Motor Universal de Créditos] Cobrança pós-geração (tokens reais do Gemini Flash).
+    try {
+      if (tenantId) {
+        const usage = data?.usage || {};
+        const tIn = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0);
+        const tOut = Number(usage.completion_tokens ?? usage.output_tokens ?? 0);
+        if (tIn > 0 || tOut > 0) {
+          const { chargeAfter } = await import("../_shared/credits/charge-after.ts");
+          const jobBase = `architect:${crypto.randomUUID()}`;
+          if (tIn > 0) await chargeAfter({
+            tenantId, serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+            units: { tokens: tIn }, jobId: `${jobBase}:in`, feature: "ai-page-architect",
+            metadata: { page_name: pageName, context: context ?? null },
+          });
+          if (tOut > 0) await chargeAfter({
+            tenantId, serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_out",
+            units: { tokens: tOut }, jobId: `${jobBase}:out`, feature: "ai-page-architect",
+            metadata: { page_name: pageName },
+          });
+        }
+      }
+    } catch (chargeErr) {
+      console.warn("[ai-page-architect] charge-after exception:", String((chargeErr as any)?.message || chargeErr));
+    }
+
     return new Response(
       JSON.stringify({ success: true, blocks: validBlocks }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
