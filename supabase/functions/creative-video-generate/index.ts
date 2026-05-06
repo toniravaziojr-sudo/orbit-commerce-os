@@ -292,6 +292,30 @@ async function processVideoJob(
         qa_summary: { total_candidates: 1, passed_count: 1, best_score: 1.0, fallback_used: false },
       }).eq("id", job.id);
 
+      // [Motor Universal de Créditos] Cobrança pós-geração de vídeo (per second).
+      try {
+        const { chargeAfter } = await import("../_shared/credits/charge-after.ts");
+        const seconds = parseInt(duration) || 5;
+        // tier "premium" → kling-video.pro; "audio_native" → veo-3.1 standard audio; default → veo-3.1 fast noaudio (proxy de wan/baixo custo)
+        const serviceKey = tier === "premium"
+          ? "fal.kling-video.per_second.pro"
+          : tier === "audio_native"
+            ? "fal.veo-3.1.per_second.standard.audio"
+            : "fal.veo-3.1.per_second.fast.noaudio";
+        await chargeAfter({
+          tenantId: job.tenant_id,
+          userId: job.user_id ?? null,
+          serviceKey,
+          units: { seconds },
+          jobId: job.id,
+          feature: "creative-video-generate",
+          providerCostUsd: totalCostUsd,
+          metadata: { tier, duration_s: seconds, candidate_id: candidate?.id ?? null },
+        });
+      } catch (chargeErr) {
+        console.warn("[creative-video-generate] charge-after exception:", String((chargeErr as any)?.message || chargeErr));
+      }
+
       // Register in Drive
       try {
         const { ensureFolderPathEdge } = await import("../_shared/drive-register.ts");
