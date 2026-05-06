@@ -89,6 +89,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 9 | Tenants | `/platform/tenants` | — |
 | 10 | Ferramentas | `/platform/tools` | — |
 | 11 | Custos Externos | `/platform/external-costs` | Abas: **Custos da plataforma** (sync 6h, banner alerta) e **Catálogo de preços** (`?tab=pricing`, Fase 2B — CRUD versionado de `service_pricing`, gate `approved_for_live`, auditoria com motivo obrigatório, platform_admin only). Expansão futura prevista: Consumo por tenant/categoria/provedor, Reconciliação, Margens. Ver `docs/especificacoes/plataforma/ux-admin-creditos-custos.md`. |
+| 12 | Créditos | `/platform/credits` | **Etapa 1D Fase A3.2 (2026-05-06):** painel admin de auditoria de créditos por tenant. Consome RPC `get_credit_history` em modo platform_admin (`showAdminColumns=true`), com seletor obrigatório de tenant, filtros (período 7d/30d/90d, tipo, status, categoria, provider, service_key), checkbox "incluir transações de plataforma" e paginação. Cards de **Resumo dos registros exibidos — não representa o total do período** (créditos consumidos, custo, receita, margem). Sem "Todos os tenants", sem CSV, sem agregados globais nesta etapa. Protegido por `PlatformAdminGate`. |
 
 ---
 
@@ -316,6 +317,8 @@ O storefront público do lojista (loja virtual vista pelo consumidor) **não é 
 - `/platform/tutorials` — Tutoriais por módulo
 - `/platform/tenants` — Gerenciamento de tenants
 - `/platform/tools` — Ferramentas da plataforma
+- `/platform/external-costs` — Custos externos e catálogo de preços
+- `/platform/credits` — Auditoria de créditos por tenant (Etapa 1D Fase A3.2)
 
 ### 4.8 Redirects e Rotas Legadas
 
