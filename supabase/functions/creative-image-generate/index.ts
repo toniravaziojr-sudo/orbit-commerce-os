@@ -614,6 +614,8 @@ Deno.serve(async (req) => {
           pre_router_version: PRE_ROUTER_VERSION,
           shadow_reservation_enabled: shadowReservationEnabled,
           shadow_reservation_version: SHADOW_RESERVATION_VERSION,
+          fallback_shadow_enabled: motorGates.fallbackShadowEnabled,
+          fallback_shadow_version: FALLBACK_SHADOW_VERSION,
         });
 
         // Cache pricing+wallet uma vez por job (apenas leitura — jamais muta)
