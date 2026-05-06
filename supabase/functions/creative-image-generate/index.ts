@@ -689,9 +689,19 @@ Deno.serve(async (req) => {
             }
           }
 
-          // ===== SHADOW RESERVATION (Fase A2) — simulação financeira ANTES da chamada =====
+          // ===== Fase A3.1 — decisão LIVE por variação (gate fino por service_key) =====
+          // Para creative-image-generate medium 1024x1024 a service_key prevista é
+          // fal.gpt-image-1.5.per_image.medium_1024. Quando essa chave estiver no
+          // live_service_keys do tenant, ativa fluxo Motor v2 (reserve→Fal→capture/release)
+          // e SUPRIME reserva sombra A2 + fallback-shadow A2.1 nesta variação.
+          const isLiveVariation = liveTargetEnabled
+            && (preRouteDecision?.predicted_service_key === LIVE_TARGET_KEY
+                || (!preRouteDecision && true)); // conservador: usa live se gate ativo
+
+          // ===== SHADOW RESERVATION (Fase A2) — só roda quando NÃO é live =====
           let shadowReservationMeta: ShadowReservationMetadata | null = null;
           if (
+            !isLiveVariation &&
             shadowReservationEnabled &&
             preRouteDecision &&
             preRouteDecision.predicted_service_key &&
@@ -713,18 +723,142 @@ Deno.serve(async (req) => {
             });
           }
 
-          // Use unified resilientGenerate from visual-engine (INALTERADO)
-          const result = await resilientGenerate({
-            lovableApiKey,
-            openaiApiKey,
-            geminiApiKey,
-            falApiKey,
-            prompt: variantPrompt,
-            referenceImageBase64: productBase64,
-            referenceImageUrl: product_image_url,
-            outputSize: '1024x1024',
-            slotLabel: `product-v${varIdx + 1}`,
-          });
+          // ===== LIVE branch (Fase A3.1 — Fal-only, sem fallback) =====
+          let liveReservationId: string | null = null;
+          let liveSuppressFallbackShadow = false;
+          let result: ResilientGenerateResult;
+
+          if (isLiveVariation) {
+            liveSuppressFallbackShadow = true;
+
+            if (!falApiKey || !product_image_url) {
+              console.warn('[creative-image.live]', JSON.stringify({
+                evt: 'live_skipped_missing_prereq',
+                has_fal_key: !!falApiKey,
+                has_ref: !!product_image_url,
+              }));
+              continue;
+            }
+
+            const liveMetadata = {
+              motor_version: 'v2',
+              pipeline_version: VERSION,
+              provider: 'fal',
+              model: 'gpt-image-1.5',
+              service_key: LIVE_TARGET_KEY,
+              quality: 'medium',
+              size: '1024x1024',
+              variation_index: varIdx + 1,
+              tenant_id,
+              creative_job_id: jobId,
+              feature: 'creative_image',
+            };
+
+            const reserve = await callReserveCreditsV2(supabase, {
+              tenantId: tenant_id,
+              userId: userId,
+              serviceKey: LIVE_TARGET_KEY,
+              units: { images: 1 },
+              jobId,
+              variationIndex: varIdx + 1,
+              feature: 'creative_image',
+              metadata: liveMetadata,
+              reservationTtlMinutes: 30,
+            });
+
+            if (!reserve.success || !reserve.reservationId) {
+              // não chama provider; segue para próxima variação
+              continue;
+            }
+            liveReservationId = reserve.reservationId;
+
+            // Chamada Fal direta — sem cadeia de fallback
+            console.log('[creative-image.live]', JSON.stringify({
+              evt: 'provider_started',
+              provider: 'fal',
+              reservation_id: liveReservationId,
+              variation_index: varIdx + 1,
+            }));
+            const providerStartedAt = Date.now();
+            try {
+              const gptResult = await generateImageWithGptImage1(
+                falApiKey,
+                variantPrompt,
+                [product_image_url],
+                '1024x1024',
+              );
+              const b64 = gptResult?.imageUrl ? await falDownloadImage(gptResult.imageUrl) : null;
+              if (!b64) throw new Error('fal_no_image');
+              const latencyMs = Date.now() - providerStartedAt;
+              console.log('[creative-image.live]', JSON.stringify({
+                evt: 'provider_success',
+                reservation_id: liveReservationId,
+                latency_ms: latencyMs,
+              }));
+
+              const capture = await callCaptureReservation(supabase, {
+                tenantId: tenant_id,
+                reservationId: liveReservationId,
+                actualUnits: { images: 1 },
+                providerCostUsd: null,
+                metadata: {
+                  ...liveMetadata,
+                  fal_request_id: gptResult?.requestId ?? null,
+                  latency_ms: latencyMs,
+                },
+              });
+
+              if (!capture.success) {
+                // Incidente crítico — provider já entregou mas capture falhou.
+                // Não duplica cobrança, não chama fallback. Mantém ledger reserve.
+                console.error('[creative-image.live]', JSON.stringify({
+                  evt: 'provider_success_capture_failed',
+                  reservation_id: liveReservationId,
+                  error_code: capture.errorCode,
+                  error_message: capture.errorMessage,
+                }));
+              }
+
+              result = {
+                imageBase64: b64,
+                model: 'fal-ai/gpt-image-1/edit-image',
+                actualProvider: 'fal-ai',
+              };
+            } catch (err: any) {
+              const latencyMs = Date.now() - providerStartedAt;
+              console.warn('[creative-image.live]', JSON.stringify({
+                evt: 'provider_failed',
+                reservation_id: liveReservationId,
+                latency_ms: latencyMs,
+                error_message: String(err?.message || err),
+              }));
+              await callReleaseReservation(supabase, {
+                tenantId: tenant_id,
+                reservationId: liveReservationId,
+                reason: 'provider_failed',
+                metadata: { ...liveMetadata, error_message: String(err?.message || err) },
+              });
+              console.warn('[creative-image.live]', JSON.stringify({
+                evt: 'fallback_blocked_without_pricing',
+                reservation_id: liveReservationId,
+                live_behavior: 'block_without_pricing',
+              }));
+              continue; // não tenta Gemini/OpenAI/Lovable em live
+            }
+          } else {
+            // Use unified resilientGenerate from visual-engine (INALTERADO)
+            result = await resilientGenerate({
+              lovableApiKey,
+              openaiApiKey,
+              geminiApiKey,
+              falApiKey,
+              prompt: variantPrompt,
+              referenceImageBase64: productBase64,
+              referenceImageUrl: product_image_url,
+              outputSize: '1024x1024',
+              slotLabel: `product-v${varIdx + 1}`,
+            });
+          }
 
           // ===== SHADOW RESERVATION (Fase A2) — finalização capture/release =====
           if (shadowReservationMeta) {
@@ -755,6 +889,7 @@ Deno.serve(async (req) => {
             preRouteDecision,
             preRouterError,
             shadowReservationMeta,
+            liveSuppressFallbackShadow,
           });
         }
 
