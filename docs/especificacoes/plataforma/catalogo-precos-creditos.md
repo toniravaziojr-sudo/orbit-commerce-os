@@ -230,3 +230,23 @@ Remover `platform.youtube_upload` de `shadow_service_keys` no tenant. v1 continu
 
 - **Gemini / Nano Banana (IA Imagem):** sem `service_pricing` ativo. O resolver de IA Imagem (`_shared/credits/image-resolver.ts`) retorna `skip_reason='pricing_not_ready'` para esses caminhos. Pendência: definir custo USD por imagem (incluindo Nano Banana 2 / Pro) e cadastrar service_keys via `admin_pricing_create`.
 - **OpenAI legacy (IA Imagem):** fora do piloto inicial — `skip_reason='legacy_provider_not_in_pilot'`. Decisão de produto pendente para reincluir ou descontinuar.
+
+---
+
+## Placeholders de Fallback Shadow (Fase A2.1, 2026-05-06)
+
+Service_keys com prefixo `fallback.` e sufixo `.unpriced` são **placeholders textuais** registrados em
+`service_usage_events` pela Fase A2.1 (Fallback Shadow IA Imagem) para observabilidade de jobs cujo
+vencedor real não está coberto pelo pricing oficial.
+
+Padrão: `fallback.<provider>.<model_slug>.unpriced`
+Exemplos: `fallback.gemini.gemini-2.5-flash-image.unpriced`, `fallback.openai.gpt-image-1.unpriced`,
+`fallback.lovable.gemini-2.5-flash-image.unpriced`.
+
+Regras:
+
+- **Não são pricing real** — não existem em `service_pricing`.
+- **Não permitem cobrança** — `cost_owner='platform'`, sem `credit_ledger_id`, sem `cost_usd_snap`/`sell_usd_snap`/`credits` no metadata.
+- **Nunca devem entrar em `live_service_keys` ou `shadow_service_keys`** dos tenants.
+- **Servem apenas para observabilidade administrativa** (`metadata.is_fallback_event=true`, `metadata.pricing_status='missing'`).
+- Detalhe completo em [motor-creditos-fase-a2-1-fallback-shadow.md](./motor-creditos-fase-a2-1-fallback-shadow.md).
