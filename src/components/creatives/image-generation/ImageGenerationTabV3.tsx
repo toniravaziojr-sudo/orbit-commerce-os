@@ -165,6 +165,26 @@ export function ImageGenerationTabV3() {
               </Select>
             </div>
 
+            {/* QUALIDADE — fixa em medium nesta fase */}
+            <div className="space-y-2 col-span-2">
+              <Label>Qualidade</Label>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">Média (padrão)</Badge>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs max-w-xs">
+                        Low e High serão liberados futuramente.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Variações: {variations[0]}</Label>
               <Slider
