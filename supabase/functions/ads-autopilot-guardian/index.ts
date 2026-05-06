@@ -909,6 +909,17 @@ async function runGuardianForTenant(supabase: any, tenantId: string, cycle: Guar
 
   console.log(`[ads-autopilot-guardian][${VERSION}] ${cycle} completed: ${activeConfigs.length} accounts, ${totalPlanned} planned, ${totalExecuted} executed, ${totalRejected} rejected in ${durationMs}ms`);
 
+  try {
+    await chargeAfter({
+      tenantId,
+      serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+      units: { tokens_in: 15000 * Math.max(activeConfigs.length, 1), tokens_out: 4000 * Math.max(activeConfigs.length, 1) },
+      jobId: sessionId,
+      feature: "ads-autopilot-guardian",
+      metadata: { cycle, accounts: activeConfigs.length, actions_planned: totalPlanned },
+    });
+  } catch (e) { console.warn("[ads-autopilot-guardian] charge skipped", String(e)); }
+
   return {
     cycle,
     session_id: sessionId,
