@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { withCreditMotor, isMotorEnabledForTenant } from "../_shared/credits/with-motor.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
@@ -293,9 +294,10 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { type, productName, fullDescription, userPrompt, referenceLinks, mode, url: linkUrl, components } = body;
+    const { type, productName, fullDescription, userPrompt, referenceLinks, mode, url: linkUrl, components, tenantId, tenant_id } = body;
+    const tId: string | null = tenantId ?? tenant_id ?? null;
 
-    console.log(`[ai-product-description][${VERSION}] type=${type}, mode=${mode || 'default'}, product=${productName}`);
+    console.log(`[ai-product-description][${VERSION}] type=${type}, mode=${mode || 'default'}, product=${productName}, tenant=${tId || 'unknown'}`);
 
     if (!type || !productName) {
       return new Response(
@@ -385,23 +387,82 @@ Deno.serve(async (req) => {
 
     console.log(`[ai-product-description][${VERSION}] Calling AI...`);
 
-    const aiResponse = await aiChatCompletion("google/gemini-2.5-pro", {
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
-      ],
-      max_tokens: 8192,
-    }, {
-      supabaseUrl,
-      supabaseServiceKey,
-      logPrefix: "[ai-product-description]",
-    });
+    // ─── Motor Universal de Créditos ─────────────
+    const SERVICE_KEY_IN = "gemini.gemini-2.5-flash.per_1m_tokens_in";
+    const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
+    const useMotor = !!tId && (await isMotorEnabledForTenant(supabaseService, tId, SERVICE_KEY_IN));
 
-    if (!aiResponse.ok) {
-      const status = aiResponse.status;
-      const errorText = await aiResponse.text();
-      console.error(`[ai-product-description] AI gateway error: ${status} - ${errorText}`);
+    const callAI = async () => {
+      const aiResponse = await aiChatCompletion("google/gemini-2.5-pro", {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+        max_tokens: 8192,
+      }, {
+        supabaseUrl,
+        supabaseServiceKey,
+        logPrefix: "[ai-product-description]",
+      });
 
+      if (!aiResponse.ok) {
+        const status = aiResponse.status;
+        const errorText = await aiResponse.text();
+        const err: any = new Error(`AI gateway ${status}: ${errorText}`);
+        err.status = status;
+        throw err;
+      }
+
+      const aiData = await aiResponse.json();
+      let generatedText = aiData.choices?.[0]?.message?.content;
+      if (generatedText && type === "full_description") {
+        generatedText = cleanGeneratedHtml(generatedText);
+      }
+      if (!generatedText) {
+        throw new Error("IA não retornou conteúdo");
+      }
+      const usage = aiData.usage || {};
+      const tokensIn = Number(usage.prompt_tokens || usage.input_tokens || Math.ceil((systemPrompt.length + userContent.length) / 4));
+      const tokensOut = Number(usage.completion_tokens || usage.output_tokens || Math.ceil(generatedText.length / 4));
+      return { generatedText, tokensIn, tokensOut };
+    };
+
+    let generatedText: string;
+    try {
+      if (useMotor) {
+        const estIn = Math.ceil((systemPrompt.length + userContent.length) / 4);
+        const estOut = 2000;
+        const motorResult = await withCreditMotor(
+          {
+            tenantId: tId!,
+            serviceKey: SERVICE_KEY_IN,
+            units: { tokens_in: estIn, tokens_out: estOut },
+            jobId: crypto.randomUUID(),
+            feature: "ai-product-description",
+            metadata: { type, mode: mode || "default" },
+          },
+          async () => {
+            const r = await callAI();
+            return {
+              providerResult: r.generatedText,
+              actualUnits: { tokens_in: r.tokensIn, tokens_out: r.tokensOut },
+            };
+          },
+        );
+        if (!motorResult.success) {
+          return new Response(
+            JSON.stringify({ success: false, error: motorResult.userMessage }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        generatedText = motorResult.providerResult;
+      } else {
+        const r = await callAI();
+        generatedText = r.generatedText;
+      }
+    } catch (e: any) {
+      const status = e?.status;
+      console.error(`[ai-product-description] AI error:`, e?.message || e);
       if (status === 429) {
         return new Response(
           JSON.stringify({ success: false, error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
@@ -414,25 +475,8 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
       return new Response(
         JSON.stringify({ success: false, error: "Erro ao gerar descrição. Tente novamente." }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const aiData = await aiResponse.json();
-    let generatedText = aiData.choices?.[0]?.message?.content;
-
-    // Clean HTML output for full descriptions
-    if (generatedText && type === "full_description") {
-      generatedText = cleanGeneratedHtml(generatedText);
-    }
-
-    if (!generatedText) {
-      console.error("[ai-product-description] No content in AI response");
-      return new Response(
-        JSON.stringify({ success: false, error: "IA não retornou conteúdo" }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
