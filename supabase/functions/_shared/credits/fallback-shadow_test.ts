@@ -98,7 +98,7 @@ Deno.test("buildFallbackShadowMetadata invariantes obrigatórios", () => {
   assertEquals(meta.admin_visibility, true);
 
   // Não deve haver cost/sell/credits
-  const asAny = meta as Record<string, unknown>;
+  const asAny = meta as unknown as Record<string, unknown>;
   assertEquals(asAny.cost_usd_snap, undefined);
   assertEquals(asAny.sell_usd_snap, undefined);
   assertEquals(asAny.credits, undefined);
