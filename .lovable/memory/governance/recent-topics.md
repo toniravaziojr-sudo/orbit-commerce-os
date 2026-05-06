@@ -33,68 +33,48 @@ type: reference
 
 ---
 
-## 📌 PINNED — Motor Universal de Créditos — PAUSADO em A3.0.1 (testes funcionais das RPCs transacionais bloqueados por deploy de edge function)
+## 📌 PINNED — Motor Universal de Créditos — ROLLOUT EM ANDAMENTO (Lote 3 entregue 2026-05-06)
 
-**Linha do tempo completa do que foi feito:**
+**Status macro:** Motor universal de cobrança real por consumo plugado em produção via 2 helpers padronizados:
+- `_shared/credits/with-motor.ts` (`withCreditMotor`) — pré-pago síncrono (token-based ANTES da chamada).
+- `_shared/credits/charge-after.ts` (`chargeAfter`) — pós-pago postpaid (reserve+capture imediato após operação concluída). Falha NUNCA bloqueia o fluxo.
+- Flag por tenant: `tenant_credit_motor_config.motor_v2_enabled`. Tenant piloto: **respeite-o-homem**.
+- Painel admin: `/platform/external-costs` → aba **Economia por tenant** (RPC `admin_tenant_economics` calcula custo provider vs receita créditos com margem).
 
-- **Fase 0/1/2A/2B** ✅ executadas e validadas (fundação: wallet, ledger, pricing, estimate_credits, charge_credits_v2, service_usage_events).
-- **Fase 3 (shadow inicial youtube-upload)** ✅ plugado em shadow v2, mas bloqueado por ausência de tenant com YouTube conectado em produção. Foi superado por nova frente prioritária: IA Imagem Fal.AI medium_1024.
+**Lotes migrados (concluídos):**
+1. **IA core:** `ai-generate-embedding`, `ai-product-description`, `generate-seo`, `ai-block-fill`, `ai-essential-pages`, `ai-landing-page-generate`.
+2. **Ads:** `ads-autopilot-strategist`, `ads-autopilot-guardian`.
+3. **Comunicação/E-mail:** `send-system-email`, `email-send`, `meta-whatsapp-send` (template marketing/utility/auth), `ai-support-transcribe` (Whisper por minuto).
+4. **Fiscal completo:** `fiscal-emit` (só se autorizada), `fiscal-cancel`, `fiscal-cce`, `fiscal-inutilizar`, `fiscal-send-nfe-email`, `fiscal-check-status`, `fiscal-sync-focus-nfe`.
+5. **Scrape:** `firecrawl-scrape` (com `tenant_id` no body via `GuidedImportWizard.tsx`).
+6. **Lote 3 (último — 2026-05-06):**
+   - `ai-support-chat`: cobrança POR TURNO em tokens reais OpenAI (input + output separados, jobId `${newMessage.id}:in/out`).
+   - `creative-video-generate`: cobrança por segundo do tier (`premium`→`fal.kling-video.per_second.pro`, `audio_native`→`fal.veo-3.1.per_second.standard.audio`, default→`fal.veo-3.1.per_second.fast.noaudio`).
+   - `ai-page-architect`: contrato passou a aceitar `tenantId` no body; cobra Gemini Flash (`gemini.gemini-2.5-flash.per_1m_tokens_in/out`). Callers atualizados: `src/pages/Pages.tsx` e `src/components/builder/HomeStructureDialog.tsx` (este último ganhou `useAuth().currentTenant`).
 
-- **Fase A1 — Pre-router Shadow Sidecar** ✅ FECHADA. 10/10 jobs reais com 100% match de provider e service_key. Live desligado, wallet/ledger intocados.
-- **Fase A2 — Reserva Sombra (Fal.AI medium_1024)** ✅ FECHADA. 9/9 eventos com aritmética correta (cost 0.034 + markup 50% = 6 créditos). Cobertura por testes unitários puros em `supabase/functions/_shared/credits/shadow-reservation_test.ts`.
-- **Fase A2.1 — Fallback Shadow IA Imagem** ✅ implementada com gate ativo somente no tenant Respeite o Homem. Testes unitários em `supabase/functions/_shared/credits/fallback-shadow_test.ts`. Bloqueio: motor v10 dominou Fal.AI medium_1024 em todas as tentativas reais — nenhum winner Gemini/OpenAI/Lovable foi obtido por UI. Validação foi feita via teste Deno integrado sintético em `fallback-shadow_integration_test.ts` (sem chamar provider, sem gerar imagem, sem mexer em wallet/ledger). A2.1 considerada validada por evento sintético controlado.
+**Próximo lote (retomar daqui):**
+- `creative-image-generate` — já tem motor v2 LIVE validado em A3.3 (ledger v2 ativo via `_shared/credits/live-v2.ts`); avaliar migração para padrão `chargeAfter` e remover hardcodes residuais.
+- `ads-autopilot-creative-generate` — cobrança por imagem/variação gerada.
+- Restantes de mídia: `media-generate-video`, `media-video-generate`, `creative-generate`, `creative-process`, `meta-ads-creatives`.
 
-- **Fase A3 PLANNER (1ª rodada)** — premissa errada: assumiu que `reserve_credits_v2`, `capture_reservation`, `release_reservation` não existiam (information_schema.routines retornou vazio). Recomendou criar RPCs do zero.
-- **Fase A3.0 EXECUÇÃO (corretiva)** — re-auditoria via `pg_proc` confirmou que as 3 RPCs JÁ EXISTEM em produção (`SECURITY DEFINER`, `search_path=public`, gate service_role/backend, `p_units jsonb`). Funções correlatas também existem: `charge_credits_v2`, `consume_credits`, `refund_credits`, `reserve_credits` (v1), `add_credits`, `check_credit_balance_v2`, `estimate_credits_internal`, `estimate_credits_public`. Schemas `credit_wallet` e `credit_ledger` confirmados com todos os campos esperados. Plano original A3.0 (criar RPCs) descartado. Nada foi escrito.
-- **Fase A3.0 RE-PLANNER** — replanejada como auditoria funcional read-only das RPCs existentes. Achados:
-  - `reserve_credits_v2` usa `estimate_credits_internal` para checar saldo e bloquear pricing placeholder não-aprovado.
-  - `capture_reservation` debita `balance_credits` e zera `reserved_credits`.
-  - `release_reservation` zera reserva sem afetar balance.
-  - Contrato de p_units para `fal.gpt-image-1.5.per_image.medium_1024` = `{"images": 1}` → 6 créditos.
-  - Helper `_shared/credits/charge.ts` já existe, mas `creative-image-generate` ainda NÃO chama.
-  - `service_usage_events` é responsabilidade das RPCs (criação + update com `cost_owner='tenant'`).
-- **Fase A3.0.1 EXECUÇÃO (testes funcionais isolados)** — criada edge function `supabase/functions/a3-rpc-test/index.ts` com 10 cenários (dry-run, reserve, idempotência, capture, release, saldo insuficiente, conflito capture-after-release, gate PRICE_NOT_APPROVED, etc). Baseline do Respeite o Homem capturado: balance=500, reserved=0, motor_v2_enabled=false. **BLOQUEIO ATUAL: edge function retorna 404 persistente após criação — deploy não propagou.** Nenhum teste rodou. Nenhum dado sintético criado.
-
-**Onde paramos exatamente:**
-- A3.0.1 NÃO executada por falha de deploy da edge function `a3-rpc-test`.
-- Recomendação aberta: ou re-tentar deploy de `a3-rpc-test`, ou pivotar para script Deno standalone executado via `supabase--test_edge_functions`.
-- **NO-GO para Fase A3.1** (plug live de `creative-image-generate` no motor para Fal.AI medium_1024) até A3.0.1 passar nos 10 cenários.
-
-**Estado da plataforma neste momento:**
-- `motor_v2_enabled` = `false` (live desligado universalmente).
-- Wallet do Respeite o Homem: balance=500, reserved=0 — INTOCADA.
-- `service_pricing` inalterado.
-- `creative-image-generate` NÃO plugado no motor (continua usando o fluxo legado).
-- Nenhuma imagem foi gerada por iniciativa do motor. Nenhum provider foi chamado.
+**Decisões pendentes do usuário (NÃO assumir):**
+- Quais planos (Gratuito/Básico/Médio/Completo) terão acesso a quais features e quantos créditos bônus mensais cada plano recebe.
+- Compra de créditos extras = soma ao saldo atual do tenant ✅ confirmado conceitualmente.
 
 **Restrições ativas (NÃO violar ao retomar):**
-- Não ativar live (`motor_v2_enabled` segue `false`).
-- Não plugar `creative-image-generate` em live.
-- Não criar/sobrescrever as 3 RPCs existentes.
-- Não mexer em wallet/ledger reais.
-- Não alterar `service_pricing`.
-- Não gerar imagem real.
-- Não chamar provider real.
-- Não criar trigger `on_tenant_created` nem fazer backfill de wallet dos tenants legados.
-- Quando rodar A3.0.1, isolar/limpar dados sintéticos ao final.
+- Não ativar `motor_v2_enabled` em tenant que não seja o piloto sem autorização explícita.
+- Não alterar `service_pricing` sem aprovação.
+- Não criar trigger `on_tenant_created` nem fazer backfill de wallet em tenants legados.
+- Falhas de cobrança continuam não bloqueantes — manter padrão `chargeAfter` postpaid como default.
 
-**Próximo passo ao retomar:**
-- Decidir entre: (A) re-tentar deploy de `supabase/functions/a3-rpc-test/index.ts` e investigar 404; (B) migrar os 10 cenários para teste Deno standalone (`*_integration_test.ts`) e executar via `supabase--test_edge_functions` com tenant sintético; (C) executar os cenários diretamente via `supabase--read_query` + `supabase--migration` em transações isoladas.
-- Após A3.0.1 verde nos 10 cenários → PLANNER da Fase A3.1 (plug live controlado de `creative-image-generate` para Fal.AI medium_1024 apenas no Respeite o Homem).
+**Memória técnica detalhada:** `mem://features/platform/motor-universal-creditos-rollout`.
 
 **Docs fonte de verdade:**
 - `docs/especificacoes/plataforma/motor-creditos.md`
 - `docs/especificacoes/plataforma/catalogo-precos-creditos.md`
 - `docs/especificacoes/plataforma/funcoes-pagas.md`
-- `docs/especificacoes/plataforma/motor-creditos-fase-a2-1-fallback-shadow.md`
 - `docs/especificacoes/plataforma/ux-admin-creditos-custos.md`
 - `docs/especificacoes/sistema/ux-creditos-lojista.md`
-
-**Arquivos técnicos relevantes:**
-- `supabase/functions/_shared/credits/shadow-reservation.ts` + `_test.ts` (A2)
-- `supabase/functions/_shared/credits/fallback-shadow.ts` + `_test.ts` + `_integration_test.ts` (A2.1)
-- `supabase/functions/_shared/credits/charge.ts` (helper para reserve/capture/release — já existe, ainda não usado pelo creative-image-generate)
-- `supabase/functions/a3-rpc-test/index.ts` (criada para A3.0.1, deploy bloqueado em 404)
 
 ---
 
