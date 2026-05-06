@@ -397,6 +397,21 @@ Deno.serve(async (req) => {
 
     console.log(`[ai-block-fill][${VERSION}] ✅ Generated ${Object.keys(filledProps).length} props via ${provider} (${model})`);
 
+    // Cobrança postpaid (não bloqueia entrega)
+    try {
+      const usage = (aiResponse as any)?.usage || {};
+      const tIn = usage.prompt_tokens ?? usage.input_tokens ?? 1500;
+      const tOut = usage.completion_tokens ?? usage.output_tokens ?? 400;
+      await chargeAfter({
+        tenantId, userId,
+        serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+        units: { tokens_in: tIn, tokens_out: tOut },
+        jobId: crypto.randomUUID(),
+        feature: "ai-block-fill",
+        metadata: { block_type: blockType, provider, model },
+      });
+    } catch (e) { console.warn("[ai-block-fill] charge skipped", String(e)); }
+
     return new Response(
       JSON.stringify({ success: true, filledProps }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
