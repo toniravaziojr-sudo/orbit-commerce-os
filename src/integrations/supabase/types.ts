@@ -20084,6 +20084,50 @@ export type Database = {
           },
         ]
       }
+      tenant_infra_monthly_costs: {
+        Row: {
+          cost_brl: number
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          reference_month: string
+          source: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          cost_brl: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          reference_month: string
+          source?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          cost_brl?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          reference_month?: string
+          source?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_infra_monthly_costs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_invites: {
         Row: {
           accepted_at: string | null
@@ -23790,8 +23834,11 @@ export type Database = {
         Returns: {
           by_category: Json
           events_count: number
+          infra_cost_brl: number
           margin_pct: number
           margin_usd: number
+          net_margin_brl: number
+          net_margin_pct: number
           tenant_id: string
           tenant_name: string
           tenant_slug: string
