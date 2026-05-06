@@ -255,7 +255,7 @@ export default function Pages() {
     setIsGeneratingAI(true);
     try {
       const { data: aiResult, error: fnError } = await supabase.functions.invoke('ai-page-architect', {
-        body: { prompt: aiPagePrompt, pageName: aiPageName.trim() },
+        body: { prompt: aiPagePrompt, pageName: aiPageName.trim(), tenantId: currentTenant?.id },
       });
 
       if (fnError) throw new Error(fnError.message || 'Erro na geração com IA');

@@ -32,6 +32,7 @@ import { generateBlockId } from '@/lib/builder/utils';
 import type { BlockNode } from '@/lib/builder/types';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface HomeStructureDialogProps {
   open: boolean;
@@ -140,6 +141,7 @@ export function HomeStructureDialog({
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const { currentTenant } = useAuth();
 
   const handleApplyPreset = (preset: PresetStructure) => {
     const content = buildPageContent(preset.blocks);
@@ -160,6 +162,7 @@ export function HomeStructureDialog({
           prompt: customPrompt.trim(),
           pageName: storeName,
           context: 'home',
+          tenantId: currentTenant?.id,
         },
       });
 
