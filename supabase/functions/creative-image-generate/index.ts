@@ -185,10 +185,14 @@ function buildPromptForStyle(config: {
 }): string {
   const { productName, style, styleConfig, contextBrief, format } = config;
   const formatDesc = {
-    '1:1': 'formato quadrado 1:1 (1024x1024)',
-    '9:16': 'formato vertical 9:16 (1024x1792)',
-    '16:9': 'formato horizontal 16:9 (1792x1024)',
-  }[format] || 'formato quadrado 1:1';
+    square:    'formato quadrado (1024x1024)',
+    portrait:  'formato retrato vertical (1024x1536)',
+    landscape: 'formato paisagem horizontal (1536x1024)',
+    // Aliases legados (compat retroativa apenas no texto do prompt)
+    '1:1':  'formato quadrado (1024x1024)',
+    '9:16': 'formato retrato vertical (1024x1536)',
+    '16:9': 'formato paisagem horizontal (1536x1024)',
+  }[format] || 'formato quadrado (1024x1024)';
 
   // If user provided a custom prompt, prioritize it over style templates
   if (contextBrief && contextBrief.length > 20) {
