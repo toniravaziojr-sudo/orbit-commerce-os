@@ -698,6 +698,35 @@ Deno.serve(async (req) => {
 
       console.log(`[meta-whatsapp-send][${traceId}] SUCCESS in ${attempts.length} attempt(s). final_status=${finalStatus}`);
 
+      // Cobrança no motor universal (apenas templates, não mensagens livres)
+      if (template_name) {
+        try {
+          const { chargeAfter } = await import("../_shared/credits/charge-after.ts");
+          const { data: tpl } = await supabase
+            .from("whatsapp_templates")
+            .select("category")
+            .eq("tenant_id", tenant_id)
+            .eq("name", template_name)
+            .maybeSingle();
+          const cat = String(tpl?.category ?? "utility").toLowerCase();
+          const serviceKey = cat === "marketing"
+            ? "whatsapp-template-marketing"
+            : cat === "authentication"
+              ? "whatsapp-template-authentication"
+              : "whatsapp-template-utility";
+          chargeAfter({
+            tenantId: tenant_id,
+            serviceKey,
+            units: { count: 1 },
+            jobId: finalMessageId ?? `wa-${Date.now()}-${formattedPhone}`,
+            feature: "meta-whatsapp-send",
+            metadata: { template_name, phone: formattedPhone },
+          }).catch(() => {});
+        } catch (e) {
+          console.warn("[meta-whatsapp-send] chargeAfter error:", e);
+        }
+      }
+
       return new Response(JSON.stringify({
         success: true,
         managed_status: managedStatus,
