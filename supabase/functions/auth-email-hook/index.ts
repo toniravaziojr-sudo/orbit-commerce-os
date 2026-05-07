@@ -241,7 +241,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         units: { count: 1 },
         costUsd: 0.00060,
         origin: "auth-email-hook",
-        originId: emailResult.messageId ?? null,
+        originId: null, // provider_message_id do SendGrid não é UUID; vai em metadata
         idempotencyKey,
         metadata: {
           provider: "sendgrid",
