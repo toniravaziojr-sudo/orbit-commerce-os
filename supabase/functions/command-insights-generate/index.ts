@@ -334,7 +334,15 @@ function hasSignificantData(metrics: any): boolean {
   );
 }
 
-async function generateInsights(metrics: any, supabaseUrl: string, supabaseKey: string): Promise<InsightItem[]> {
+interface AIInsightsResult {
+  insights: InsightItem[];
+  usage: any | null;
+  provider: string | null;
+  model: string | null;
+  responseId: string | null;
+}
+
+async function generateInsights(metrics: any, supabaseUrl: string, supabaseKey: string): Promise<AIInsightsResult> {
   const systemPrompt = `Você é um analista de negócios de e-commerce brasileiro. Analise as métricas semanais fornecidas e gere insights acionáveis. Seja direto e prático. Foque em:
 - Tendências de vendas e receita
 - Problemas operacionais (envios pendentes, NF-e, chargebacks)
@@ -345,7 +353,7 @@ Gere entre 3 e 6 insights relevantes. Se os números forem baixos ou normais, de
 
   const userPrompt = `Métricas da semana:\n${JSON.stringify(metrics, null, 2)}`;
 
-  const { data: aiResponse } = await aiChatCompletionJSON(
+  const { data: aiResponse, provider, model } = await aiChatCompletionJSON(
     "google/gemini-2.5-flash",
     {
       messages: [
@@ -393,16 +401,19 @@ Gere entre 3 e 6 insights relevantes. Se os números forem baixos ou normais, de
     { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: LOG, maxRetries: 2, baseDelayMs: 3000 }
   );
 
+  const usage = aiResponse?.usage ?? null;
+  const responseId = aiResponse?.id ?? null;
+
   try {
     const toolCall = aiResponse?.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall?.function?.arguments) {
       console.error(`${LOG} No tool call in AI response`);
-      return [];
+      return { insights: [], usage, provider, model, responseId };
     }
     const parsed = JSON.parse(toolCall.function.arguments);
-    return parsed.insights || [];
+    return { insights: parsed.insights || [], usage, provider, model, responseId };
   } catch (e) {
     console.error(`${LOG} Failed to parse AI response:`, e);
-    return [];
+    return { insights: [], usage, provider, model, responseId };
   }
 }
