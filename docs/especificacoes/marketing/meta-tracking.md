@@ -1,9 +1,9 @@
 # Meta Tracking — Pixel + Conversions API (CAPI)
 
 > **Status:** 🟢 Ativo
-> **Versão:** 8.30.0
+> **Versão:** 8.32.0
 > **Camada:** Layer 3 — Especificações / Marketing
-> **Última atualização:** 2026-05-05
+> **Última atualização:** 2026-05-07
 > **Doc relacionado:** `docs/meta-tracking-changelog.md` (histórico de notas e cobertura)
 
 ---
@@ -387,6 +387,7 @@ A edge `audience-sync-weekly` (v1.2.0) também passa a enriquecer com dados demo
 |---|---|---|
 | **v8.31.0** | **2026-05-05** | **Cobertura CAPI máxima: `marketing-capi-track` aceita custom_data passthrough completo (allowlist removida); Pixel browser inclui `delivery_category=home_delivery` em ViewContent/AddToCart/InitiateCheckout/Purchase; Purchase server-side adiciona `order_status=completed`; ViewContent envia `contents[]` com `item_price` (paridade com AddToCart).** |
 | **v8.30.0** | **2026-05-05** | **Cofre estendido: `db_hash` (data nascimento), `ge_hash`, `lead_id`, `customer_id`. 4 quick wins: `external_id` array, `predicted_ltv` em Purchase, `delivery_category` em todos os eventos de conversão, `lead_id` em `custom_data`. Coleta opcional de data de nascimento em Checkout, Popup, Newsletter Footer e bloco Newsletter Form. `audience-sync-weekly` v1.2.0 com enriquecimento demográfico.** |
+| **v8.32.0** | **2026-05-07** | **Paridade Pixel+CAPI de `_fbp` no topo do funil:** `_sfEnsureFbp` no storefront-html sintetiza `_fbp` (formato `fb.1.<ms>.<rand>`, cookie 90d) e expõe `window.__sfFbp` antes de qualquer disparo; tracker React lê via `getEffectiveFbp()` (window > cookie). **Paridade Purchase server-side** em `sendCapiPurchase` (predicted_ltv com guard `value>0`, `delivery_category='home_delivery'`, `order_status='completed'`). **Fallback secundário** em `marketing-capi-track` lendo `_fbp` do header `Cookie` quando ausente em `user_data` (payload do browser sempre vence). **`delivery_category='home_delivery'`** adicionado em AddToCart/InitiateCheckout do storefront-html (Pixel + CAPI), incluindo dentro de `contents[]`. **Beacon-first pré-navegação:** `sendCapi` aceita `beaconFirst=true` para AddToCart/InitiateCheckout do tracker React; se `navigator.sendBeacon` aceitar (`true`), não há fetch duplicado; se falhar, cai em fetch+keepalive (mantém fallback existente). Sem alteração em `purchaseEventTiming`, dedup persistente de 30d ou outbox. Nota: marketing_events_log mede CAPI; Pixel browser deve ser validado no Meta Test Events. EMQ de eventos de topo (PageView/ViewCategory/ViewContent) pode continuar menor para visitantes anônimos sem PII no cofre. Prerenders marcados `stale` para reemitir HTML novo. |
 | v8.29.0 | 2026-05-05 | CAPI resiliente a navegação imediata: fast-path síncrono quando `_fbp` já existe; `fbp_wait_ms=800` em AddToCart/InitiateCheckout; `sendBeacon` fallback estendido aos dois eventos. |
 | **v8.28.0** | **2026-04-29** | **Cofre `_sf_identity` (PII hashada cumulativa, TTL 30d); backend aceita `first_name_hashed`/`last_name_hashed`/`city_hashed`/`state_hashed`/`zip_hashed`; PageView gated por `_fbp` (polling 5s); checkout passa `userData` completo em AddShippingInfo/AddPaymentInfo; invalidação de 89 prerenders ativos** |
 | v8.27.0 | 2026-04-19 | Persistência 30d do Purchase (`purchaseDedup.ts`); event_id normalizado; cookies sintéticos `_fbp`/`_fbc` no edge; `email_hashed`/`phone_hashed` em meio de funil |
