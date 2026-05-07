@@ -58,3 +58,43 @@ Plugar `recordPlatformCost()` em edges classificadas como `cost_owner='platform'
 - `motor-creditos.md`
 - `funcoes-pagas.md`
 - `ux-admin-creditos-custos.md`
+
+---
+
+## Patch F1.1 — Normalização de jobId UUID (2026-05-07)
+
+### Causa raiz
+`reserve_credits_v2(p_job_id UUID)` rejeita strings não-UUID. Providers externos
+(SendGrid `X-Message-Id`, etc.) retornam IDs arbitrários, quebrando a cobrança
+após a entrega do serviço (operação concluída sem débito).
+
+### Solução
+No helper `chargeAfter` (`_shared/credits/charge-after.ts`):
+
+1. Se `jobId` já for UUID → usa como está.
+2. Caso contrário → deriva `billingJobId` via **UUID v5 determinístico**
+   namespaced por `(tenantId, serviceKey, externalJobId)`.
+3. Mesmo input → mesmo UUID (idempotência preservada).
+4. Tenants/serviços diferentes → UUIDs diferentes (sem colisão multi-tenant).
+5. `jobId` original do provider é preservado em `metadata.provider_job_id`.
+6. Quando derivado, `metadata.billing_job_id_derived = true` e `metadata.billing_job_id = <uuid>`.
+
+### Garantias
+- RPCs **não foram alteradas**.
+- Wallet/ledger/service_usage_events **não foram alterados manualmente**.
+- Sem backfill da cobrança falha do teste anterior.
+- Pricing/markup/cost_owner inalterados.
+- Tenant não vê `provider_job_id` nem metadata técnica (RLS bloqueia leitura).
+- Fix vale para **todas as edges** que usam `chargeAfter`, não só email-send.
+
+### Validação executada
+| # | Cenário | Resultado |
+|---|---------|-----------|
+| 1 | UUID válido permanece igual | ✅ |
+| 2 | Não-UUID → UUID v5 válido | ✅ `e04fdab1-78b8-55a6-a779-29fd7fe2a93f` |
+| 3 | Mesmo input → mesmo UUID | ✅ |
+| 4 | Tenants diferentes → UUIDs distintos | ✅ |
+| 5 | Service keys diferentes → UUIDs distintos | ✅ |
+
+### Pendência
+Reenvio manual de 1 e-mail real pela UI para fechar GO/NO-GO funcional da F1.
