@@ -314,3 +314,68 @@ E-mail bruto do destinatário, HTML do corpo, subject completo, conteúdo de tem
 | Falha em `recordPlatformCost` quebra envio | ✅ NÃO |
 
 **Status final F2.5:** ✅ GO — `send-system-email` agora alinhada com `funcoes-pagas.md` (linha 127). Custo de plataforma visível em `platform_cost_ledger`; ledger de tenant sintético deixa de ser contaminado.
+
+---
+
+## 12. F2.6 — `command-insights-generate` e `ai-learning-aggregator` (✅ GO)
+
+### 12.1 `command-insights-generate` (Opção A aprovada)
+
+**Edge:** `supabase/functions/command-insights-generate/index.ts` (v1.1.0).
+**Provider:** Gemini 2.5 Flash via `aiChatCompletionJSON` (router).
+**Decisão:** plugar `recordPlatformCost` após sucesso real do LLM, com custo calculado em runtime via tokens reais (`data.usage`).
+
+| Campo | Valor |
+|---|---|
+| `service_key` | `command-insights-generate` (criada em `service_pricing` como `category=ai_text`, `cost_owner=platform`, `cost_usd=0` marcador, `cost_source=computed_from_token_pricings`) |
+| `cost_owner` | `platform` |
+| `provider` | `gemini` |
+| `category` | `ai_text` |
+| `cost_usd` | calculado em runtime: `(tokens_in_uncached/1M)*0.30 + (cached_tokens/1M)*0.03 + (tokens_out/1M)*2.50` |
+| Pricings-fonte | `gemini.gemini-2.5-flash.per_1m_tokens_in` (0.30), `…per_1m_tokens_in_cached` (0.03), `…per_1m_tokens_out` (2.50) |
+| `origin` | `command-insights-generate` |
+| `origin_id` | `null` (response_id vai em `metadata`/idempotency) |
+| `idempotency_key` | `command-insights-generate:{tenant_id}:{period_start_day}:{response_id|hash determinístico}` |
+| `units_json` | `{count:1, tokens_in, tokens_out, cached_tokens, insights_count}` |
+
+**Por que a idempotência não subconta custo real:** a chave inclui `aiResponse.id` (response_id real do LLM) quando disponível. Quando o provider não devolve `id`, é usado um hash determinístico do conteúdo da resposta (`tenant:periodDay:tokens_in:tokens_out:insights_count`), que muda automaticamente a cada chamada real distinta ao provider (qualquer chamada nova produz contagens/insights diferentes). Retry sobre a mesma resposta é deduplicado; nova chamada paga ao provider gera nova chave.
+
+**Metadata sanitizada (gravada):** `provider`, `model`, `category`, `tenant_id`, `period_start`, `period_end`, `tokens_in`, `tokens_out`, `cached_tokens`, `insights_count`, `origin_function`, `triggered_by`, `cost_source`.
+
+**Proibido em metadata e logs (auditado):** prompts, resposta do LLM, métricas brutas (`metrics`), nomes de produtos, PII, headers sensíveis, API key. Logs carregam apenas: `tenant_id`, `period_start_day`, `provider`, `model`, contagens de tokens, `cost_usd`, `error_code`/`error_message`, `idempotency_key`.
+
+**Regras de execução:**
+- `recordPlatformCost` chamado **apenas** após sucesso do LLM (`insights.length > 0` ou `usage` presente).
+- Se `aiResult.usage` ausente/zerado → SKIP com log `platform_cost_ledger SKIP — no usage in LLM response` (sem inventar custo).
+- Falha de telemetria **nunca** quebra a geração de insights (try/catch silencioso + log sanitizado).
+
+### 12.2 Validação técnica F2.6
+
+| Checagem | Resultado |
+|---|---|
+| service_key `command-insights-generate` registrada | ✅ `category=ai_text`, `cost_owner=platform`, `cost_usd=0` marcador |
+| Edge deploy | ✅ v1.1.0 |
+| Custo fixo inventado | ✅ NÃO (cost_usd vem 100% de tokens reais) |
+| RPC `record_platform_cost` 1ª chamada (`f2.6-validation-001`) | ✅ id `4189d096-cc26-426f-8cd4-afb1c32338a1` |
+| RPC 2ª chamada mesma chave (idempotência) | ✅ retornou mesmo id, sem 2ª linha |
+| Cleanup linha sintética | ✅ DELETE composto (`idempotency_key + id + service_key + origin_function`) |
+| `platform_cost_ledger` pós-cleanup | ✅ 0 linhas com a chave |
+| Chamada real ao Gemini durante validação | ✅ NÃO (validação só via RPC direto) |
+| `credit_wallet` alterada | ✅ NÃO |
+| `credit_ledger` alterado | ✅ NÃO |
+| `service_usage_events` (tenant) alterado | ✅ NÃO |
+| Falha em `recordPlatformCost` quebra geração | ✅ NÃO |
+
+### 12.3 `ai-learning-aggregator` (Opção D — não aplicável)
+
+**Auditoria:** edge não importa nem chama `ai-router`/`aiChatCompletion`/`fetch` para qualquer provider (OpenAI, Gemini, Anthropic, Lovable). Pipeline é puramente `tenant_learning_events` → regex local → upsert em `tenant_learning_memory` → RPC `promote_learning_candidate`.
+
+**Classificação final:** **não aplicável ao Motor de Créditos / F2** — sem custo externo rastreável. Custo de DB/CPU já coberto pela infra Supabase geral.
+
+**Ação:** edge **não foi alterada em runtime**. Apenas reclassificada documentalmente. `funcoes-pagas.md` linha 48 está desatualizada (rotula como `OpenAI/Gemini token`) e deve ser corrigida no próximo passe.
+
+### 12.4 Achado paralelo (NÃO corrigido nesta fase)
+
+Cron `generate-weekly-insights` envia `Authorization: Bearer <ANON_KEY>`, mas a edge só ativa o ramo "service-role / cron mode" quando o header contém `SUPABASE_SERVICE_ROLE_KEY`. Resultado provável: cron cai no ramo "Manual call" e retorna 401 silenciosamente (nenhum tenant é processado). Registrado como ticket separado — fora do escopo F2.6. Conforme `mem://constraints/cron-service-role-key-guc-prohibition`, o padrão do projeto é anon key + validação de role no body, então a correção exige refatorar a edge (não o cron).
+
+**Status final F2.6:** 🟢 GO — telemetria de custo de plataforma plugada em `command-insights-generate`; `ai-learning-aggregator` classificada como não aplicável; nenhum tenant cobrado; nenhum custo fixo inventado.
