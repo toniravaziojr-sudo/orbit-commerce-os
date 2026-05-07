@@ -280,9 +280,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
-      status: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
   } catch (error: any) {
     console.error("[auth-email-hook] Error:", error);
 
