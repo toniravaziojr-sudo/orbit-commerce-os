@@ -1,8 +1,19 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+import { recordPlatformCost } from "../_shared/credits/charge.ts";
 // deno-lint-ignore-file no-explicit-any
 const { Webhook } = await import("https://cdn.jsdelivr.net/npm/standardwebhooks@1.0.0/+esm") as any;
+
+// SHA-256 truncado (16 chars) — evita PII (email completo) em metadata/logs.
+async function hashRecipient(email: string): Promise<string> {
+  const data = new TextEncoder().encode(email.toLowerCase().trim());
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 16);
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
