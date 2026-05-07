@@ -262,3 +262,70 @@ function sanitizeUserMetadata(m: Record<string, unknown>): Record<string, unknow
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Normalização de jobId para p_job_id UUID (RPC reserve_credits_v2)
+// ---------------------------------------------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(v: unknown): v is string {
+  return typeof v === "string" && UUID_RE.test(v);
+}
+
+// Namespace UUID estável do Comando Central para billing_job_id derivado.
+// Não é segredo; só serve para garantir que UUIDs v5 derivados aqui não colidam
+// com namespaces de outros módulos.
+const BILLING_NAMESPACE_UUID = "8f6a2c14-9d3b-5e7a-8b1c-0d2e4a6b8c9f";
+
+/**
+ * Deriva um UUID v5 determinístico a partir de (tenantId, serviceKey, externalJobId).
+ * Mesmo input → mesmo UUID. Tenants/serviços diferentes → UUIDs diferentes.
+ *
+ * RFC 4122 §4.3 — UUID v5 = SHA-1(namespace || name) com bits de version/variant.
+ */
+export async function deriveBillingJobIdV5(
+  tenantId: string,
+  serviceKey: string,
+  externalJobId: string,
+): Promise<string> {
+  const name = `${tenantId}|${serviceKey}|${externalJobId}`;
+  return await uuidV5FromName(BILLING_NAMESPACE_UUID, name);
+}
+
+async function uuidV5FromName(namespaceUuid: string, name: string): Promise<string> {
+  const nsBytes = uuidToBytes(namespaceUuid);
+  const nameBytes = new TextEncoder().encode(name);
+  const buf = new Uint8Array(nsBytes.length + nameBytes.length);
+  buf.set(nsBytes, 0);
+  buf.set(nameBytes, nsBytes.length);
+
+  const hashBuf = await crypto.subtle.digest("SHA-1", buf);
+  const hash = new Uint8Array(hashBuf).slice(0, 16);
+
+  // Set version (5) and variant (RFC 4122) bits.
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+
+  return bytesToUuid(hash);
+}
+
+function uuidToBytes(u: string): Uint8Array {
+  const hex = u.replace(/-/g, "");
+  if (hex.length !== 32) throw new Error("invalid_namespace_uuid");
+  const out = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+
+function bytesToUuid(b: Uint8Array): string {
+  const h: string[] = [];
+  for (let i = 0; i < 16; i++) h.push(b[i].toString(16).padStart(2, "0"));
+  return (
+    h.slice(0, 4).join("") + "-" +
+    h.slice(4, 6).join("") + "-" +
+    h.slice(6, 8).join("") + "-" +
+    h.slice(8, 10).join("") + "-" +
+    h.slice(10, 16).join("")
+  );
+}
