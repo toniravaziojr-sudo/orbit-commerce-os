@@ -1,0 +1,1 @@
+DELETE FROM service_usage_events WHERE origin_function = 'F1_TELEMETRY_TEST';
