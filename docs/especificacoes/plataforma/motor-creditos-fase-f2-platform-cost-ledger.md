@@ -209,3 +209,51 @@ Ver `workers-crons-pagos.md` §2.2 para a regra de classificação `platform_abs
 - `docs/especificacoes/plataforma/motor-creditos-fase-f1-telemetria-chargeafter.md`
 - `docs/especificacoes/plataforma/funcoes-pagas.md`
 - `docs/especificacoes/plataforma/workers-crons-pagos.md`
+
+## 10. F2.4 — `auth-email-hook` plugada (2026-05-07) ✅ GO
+
+**Edge:** `supabase/functions/auth-email-hook/index.ts`
+**Provider:** SendGrid (REST `api.sendgrid.com/v3/mail/send`).
+**Decisão:** Opção A — plugar `recordPlatformCost` diretamente no hook (única edge que envia o e-mail; sem worker/fila intermediário). Sem nova service_key.
+
+### 10.1 Implementação
+
+- `recordPlatformCost` chamado **somente após** `emailResult.success === true` e após `system_email_logs` insert.
+- Aguardado com `await` dentro de `try/catch` para garantir telemetria sem perda; falha NUNCA propaga (catch silencioso + log sanitizado), retornando 200 ao Supabase Auth normalmente.
+- Helper `hashRecipient` (SHA-256 truncado 16 chars) reutiliza padrão F2.2/F2.3.
+
+| Campo | Valor |
+|---|---|
+| `service_key` | `email-system-send` |
+| `cost_owner` | `platform` (via `record_platform_cost` SECURITY DEFINER) |
+| `provider` | `sendgrid` |
+| `cost_usd` | `0.00060` |
+| `origin` | `auth-email-hook` |
+| `origin_id` | `emailResult.messageId ?? null` |
+| `idempotency_key` (primária) | `auth-email-hook:{X-Message-Id}` |
+| `idempotency_key` (fallback) | `auth-email-hook:{email_action_type}:{recipient_hash16}:{minute_bucket}` |
+
+### 10.2 Metadata sanitizada (gravada)
+
+`provider`, `category="email"`, `email_type="auth_hook"`, `email_action_type`, `template_key`, `provider_message_id`, `recipient_hash`, `origin_function="auth-email-hook"`.
+
+### 10.3 Proibido em metadata e logs (auditado)
+
+`token`, `token_hash`, `confirmation_url`, `redirect_to`, e-mail bruto, HTML, subject renderizado, nome do usuário, OTP, JWT, session, headers sensíveis, payload bruto do webhook. Logs de erro/sucesso só carregam: `origin_function`, `email_action_type`, `template_key`, `provider_message_id`, `recipient_hash`, `error_code`/mensagem técnica.
+
+### 10.4 Validação técnica
+
+| Checagem | Resultado |
+|---|---|
+| Edge deploy | ✅ |
+| RPC `record_platform_cost` 1ª chamada (`f2.4-validation-001`) | ✅ id `5b0d171c-4646-4f69-a49a-b14104a87bc6` |
+| RPC 2ª chamada mesma chave (idempotência) | ✅ retornou mesmo id, sem 2ª linha |
+| Cleanup linha sintética | ✅ DELETE composto (`idempotency_key='f2.4-validation-001' AND id='5b0d171c...' AND service_key='email-system-send' AND origin_function='auth-email-hook'`) |
+| `platform_cost_ledger` pós-cleanup | ✅ 0 linhas |
+| SendGrid real disparado em teste | ✅ NÃO |
+| `credit_wallet` alterada | ✅ NÃO |
+| `credit_ledger` alterado | ✅ NÃO |
+| `service_usage_events` (tenant) | ✅ NÃO |
+| Falha em `recordPlatformCost` quebra autenticação | ✅ NÃO (try/catch silencioso) |
+
+**Status final F2.4:** ✅ GO — telemetria de e-mails de auth (signup/recovery/magiclink/invite/email_change) integrada ao `platform_cost_ledger` sem afetar autenticação, sem cobrar tenant, sem expor PII.
