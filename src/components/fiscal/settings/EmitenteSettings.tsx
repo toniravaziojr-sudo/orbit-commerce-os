@@ -101,6 +101,11 @@ export function EmitenteSettings() {
   const isExpiringSoon = !isExpired && daysUntilExpiry <= 30;
   const isConfigured = settings?.is_configured;
 
+  // Divergência CNPJ certificado x CNPJ emitente
+  const cnpjEmitClean = (settings?.cnpj || '').replace(/\D/g, '');
+  const cnpjCertClean = (settings?.certificado_cnpj || '').replace(/\D/g, '');
+  const cnpjMismatch = !!(hasCertificate && cnpjEmitClean && cnpjCertClean && cnpjEmitClean !== cnpjCertClean);
+
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
@@ -320,6 +325,14 @@ export function EmitenteSettings() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
                       {isExpired ? 'Seu certificado expirou. Faça o upload de um novo certificado para continuar emitindo NF-e.' : `Seu certificado expira em ${daysUntilExpiry} dias. Providencie a renovação.`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {cnpjMismatch && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      O CNPJ do certificado digital ({cnpjCertClean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}) é diferente do CNPJ cadastrado como emitente ({cnpjEmitClean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}). A emissão de NF-e está bloqueada até que os CNPJs coincidam — atualize o CNPJ do emitente ou envie o certificado correto.
                     </AlertDescription>
                   </Alert>
                 )}

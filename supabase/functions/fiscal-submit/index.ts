@@ -142,6 +142,20 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validar consistência: CNPJ do certificado deve bater com CNPJ do emitente.
+    const cnpjEmit = (settings.cnpj || '').replace(/\D/g, '');
+    const cnpjCert = (settings.certificado_cnpj || '').replace(/\D/g, '');
+    if (cnpjEmit && cnpjCert && cnpjEmit !== cnpjCert) {
+      console.error('[fiscal-submit] CNPJ divergente entre certificado e emitente', { cnpjEmit, cnpjCert });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'CNPJ do certificado digital diverge do CNPJ do emitente. Reenvie o certificado correto em Configurações > Fiscal antes de emitir a NF-e.'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Configuração Focus NFe
     const focusConfig: FocusNFeConfig = {
       token: focusToken,

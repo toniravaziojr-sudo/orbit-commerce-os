@@ -684,3 +684,31 @@ fiscal_invoice_items (itens)
   ├─ Config fiscal → cfop, origem, csosn
   └─ Defaults → pis_cst=49, cofins_cst=49
 ```
+
+---
+
+## Protocolo de Troca de CNPJ / Substituição de Certificado A1
+
+**Princípio:** o certificado digital é a fonte de verdade do CNPJ emissor. Cada CNPJ corresponde a uma empresa distinta dentro da Focus NFe (`focus_empresa_id`). Trocar o certificado por um de outro CNPJ é tratado como **troca de empresa emissora**.
+
+### Fluxo automático
+
+1. **Upload de novo certificado** (`fiscal-upload-certificate`): valida senha, extrai o CNPJ do certificado e compara com `fiscal_settings.cnpj`.
+2. **CNPJ igual** → apenas atualiza os campos do certificado.
+3. **CNPJ diferente (troca de empresa)** → atualiza `fiscal_settings.cnpj` para o CNPJ do certificado e zera `focus_empresa_id`, `focus_empresa_criada_em` e `focus_ultima_sincronizacao`.
+4. **Sync Focus NFe** (`fiscal-sync-focus-nfe`) é disparado em seguida e, com `focus_empresa_id` nulo, busca a empresa pelo novo CNPJ ou cria uma nova na Focus.
+5. **Próxima emissão** já usa a empresa correta.
+
+### Remoção de certificado
+
+`fiscal-remove-certificate` limpa também `focus_empresa_id`, `focus_empresa_criada_em` e `focus_ultima_sincronizacao` para evitar vínculo órfão entre cadastros distintos.
+
+### Bloqueio de emissão por divergência
+
+`fiscal-emit` e `fiscal-submit` bloqueiam a emissão (200 OK + `success:false`) sempre que `fiscal_settings.certificado_cnpj` ≠ `fiscal_settings.cnpj`. A UI da aba Configurações Fiscais exibe um alerta vermelho explicando a divergência e a ação esperada (reenviar certificado correto ou ajustar o CNPJ do emitente).
+
+### Resumo
+
+- Cadastro inicial na Focus NFe é automático no primeiro upload de certificado.
+- Troca para certificado de outro CNPJ é detectada e resolvida automaticamente, sem intervenção manual.
+- O lojista nunca emite NF-e com vínculo Focus NFe inconsistente.

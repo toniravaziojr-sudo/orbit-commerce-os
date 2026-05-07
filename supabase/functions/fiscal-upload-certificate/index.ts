@@ -280,14 +280,17 @@ Deno.serve(async (req) => {
       .eq('tenant_id', tenantId)
       .maybeSingle();
 
-    // Validate CNPJ match (if tenant has CNPJ configured and cert has CNPJ)
-    // Only warn, don't block - some certificates may have different CNPJ format
+    // Validate CNPJ match. Se for diferente do CNPJ atual em fiscal_settings,
+    // tratar como TROCA DE EMPRESA: atualizar cnpj e zerar vínculo Focus NFe
+    // para que o sync recrie/reaproveite a empresa correta.
     let cnpjMismatch = false;
+    let cnpjSwapped = false;
     if (fiscalSettings?.cnpj && certCnpj) {
       const tenantCnpjClean = fiscalSettings.cnpj.replace(/\D/g, '');
       if (tenantCnpjClean !== certCnpj) {
-        console.warn('[fiscal-upload-certificate] CNPJ mismatch (warning only):', { tenant: tenantCnpjClean, cert: certCnpj });
+        console.warn('[fiscal-upload-certificate] CNPJ swap detected:', { from: tenantCnpjClean, to: certCnpj });
         cnpjMismatch = true;
+        cnpjSwapped = true;
       }
     }
 
@@ -315,7 +318,7 @@ Deno.serve(async (req) => {
       .eq('tenant_id', tenantId)
       .maybeSingle();
 
-    const certificateData = {
+    const certificateData: Record<string, any> = {
       certificado_pfx: encryptedPfx,
       certificado_senha: encryptedPassword,
       certificado_valido_ate: notAfter.toISOString(),
@@ -324,6 +327,14 @@ Deno.serve(async (req) => {
       certificado_cnpj: certCnpj || null,
       certificado_uploaded_at: new Date().toISOString(),
     };
+
+    // Em troca de CNPJ: alinhar cnpj e limpar vínculo Focus NFe da empresa antiga.
+    if (cnpjSwapped && certCnpj) {
+      certificateData.cnpj = certCnpj;
+      certificateData.focus_empresa_id = null;
+      certificateData.focus_empresa_criada_em = null;
+      certificateData.focus_ultima_sincronizacao = null;
+    }
 
     let result;
     if (existing) {
