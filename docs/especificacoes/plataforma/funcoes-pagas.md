@@ -52,7 +52,7 @@ Catalogar toda edge function que consome (ou pode consumir) custo externo pago. 
 | ai-generate-offers / ai-generate-related-products | OpenAI/Gemini | token | frontend | sim | charge | baixo | — |
 | ai-memory-manager | OpenAI/Gemini | token | worker | sim | charge | baixo | — |
 | chatgpt-chat | OpenAI | token | frontend | sim | reserve+capture | alto | Feature dedicada. |
-| command-insights-generate | OpenAI/Gemini | token | cron | **não** | recordPlatformCost | médio | **Cron de plataforma.** Custo absorvido. |
+| command-insights-generate | Gemini | token | cron + admin | **não** | recordPlatformCost | médio | **F2.6 ✅ plugada.** service_key=`command-insights-generate`, custo calculado em runtime via tokens reais (Gemini 2.5 Flash in/cached/out). |
 | infer-business-context | OpenAI/Gemini | token | frontend | sim | charge | baixo | — |
 | meli-generate-description | OpenAI/Gemini | token | frontend | sim | charge | baixo | — |
 | generate-seo / generate-reviews / batch-kit-descriptions | OpenAI/Gemini | token | frontend | sim | charge | médio | — |
