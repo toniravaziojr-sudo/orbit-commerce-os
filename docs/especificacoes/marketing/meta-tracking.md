@@ -381,6 +381,62 @@ A edge `audience-sync-weekly` (v1.2.0) também passa a enriquecer com dados demo
 
 ---
 
+## Auditoria 2026-05-07 — Achados e Correções (v8.32.0)
+
+Auditoria conduzida no tenant **Respeite o Homem** (`d1a4d0ed-8842-495e-b741-540a9a345b25`) a partir de alertas no painel da Meta (predicted_ltv inválido, EMQ baixo no topo de funil, AddToCart com cobertura abaixo de 75%). Os achados abaixo foram confirmados em código e em `marketing_events_log` antes de qualquer correção.
+
+### Achados confirmados
+
+| # | Achado | Causa raiz | Evidência (24h pré-deploy) |
+|---|---|---|---|
+| 1 | **`predicted_ltv` inválido em Purchase server-side** | `sendCapiPurchase` em `_shared/meta-capi-sender.ts` não emitia `predicted_ltv`; quando o browser falhava o evento chegava sem o campo, e quando emitia com `value=0` (cupom 100%) o painel marcava como inválido. | ~91% dos Purchases server-side sem `predicted_ltv`. |
+| 2 | **`_fbp` ausente em CAPI no topo de funil** | `_sfCapi` no `storefront-html` dependia de `document.cookie` no instante do disparo; o cookie `_fbp` é gravado pelo script da Meta de forma assíncrona e não estava disponível no primeiro PageView/ViewCategory/ViewContent. Edge `marketing-capi-track` não tinha fallback. | PageView ~50% com fbp, ViewCategory ~3%, ViewContent 0%. |
+| 3 | **AddToCart com cobertura CAPI baixa no fluxo "Comprar agora"** | O botão Comprar agora dispara AddToCart e em seguida `window.location.href='/checkout'` imediatamente. O `fetch + keepalive` era cancelado pela navegação antes de completar; `sendBeacon` só era usado como fallback após falha do fetch. | ~33% de cobertura em AddToCart vs >75% recomendado pela Meta. |
+| 4 | **Schema divergente em AddToCart/InitiateCheckout do storefront-html** | Os snippets inline emitidos pela edge `storefront-html` não incluíam `delivery_category`, divergindo do tracker React (que já emitia). Painel da Meta sinalizava parâmetro recomendado ausente. | 0 eventos do storefront com `delivery_category` em AddToCart/InitiateCheckout. |
+| 5 | **`view_item_list` aparecendo no painel Meta** (informativo, fora do escopo) | Evento de GA4. Não emitido pelo tracker Meta da plataforma; provavelmente injetado por script externo do tenant. | Não atribuível ao código da plataforma. Mantido como observação. |
+
+### Correções aplicadas (v8.32.0)
+
+| # | Correção | Arquivos |
+|---|---|---|
+| 1 | Paridade Purchase server-side: `delivery_category='home_delivery'`, `order_status='completed'`, `predicted_ltv = round(value*1.8, 2)` apenas quando `value` é número finito > 0. Mesmo guard aplicado no `trackPurchase` do browser. | `supabase/functions/_shared/meta-capi-sender.ts`, `src/lib/marketingTracker.ts` |
+| 2 | Helper `_sfEnsureFbp` no `storefront-html` sintetiza `_fbp` no formato Meta `fb.1.<ms>.<rand>`, persiste cookie 90 dias e expõe `window.__sfFbp` **antes** de qualquer disparo, garantindo paridade Pixel+CAPI já no primeiro PageView. Tracker React passa a usar `getEffectiveFbp()` (window > cookie). Fallback secundário em `marketing-capi-track` lê `_fbp` do header `Cookie` quando ausente em `user_data` — payload explícito do browser sempre vence. | `supabase/functions/storefront-html/index.ts`, `src/lib/visitorIdentity.ts`, `supabase/functions/marketing-capi-track/index.ts` |
+| 3 | **Beacon-first pré-navegação** para AddToCart e InitiateCheckout do tracker React: `sendCapi` aceita `beaconFirst=true`. Se `navigator.sendBeacon` retornar `true`, **não há fetch adicional** (evita duplicar evento). Se retornar `false` ou indisponível, cai no fetch+keepalive existente. Outbox em `localStorage` foi avaliada e descartada por risco de duplicação versus o ganho do sendBeacon-first. | `src/lib/marketingTracker.ts` |
+| 4 | `delivery_category='home_delivery'` adicionado em AddToCart e InitiateCheckout do `storefront-html` (Pixel + CAPI), inclusive dentro de `contents[]` no AddToCart. Cobre os 3 pontos de disparo (PDP, Comprar agora e cart drawer). | `supabase/functions/storefront-html/index.ts` |
+
+### Validação técnica pós-deploy
+
+Executada em 2026-05-07 logo após o deploy. Confirmações:
+
+- ✅ Fallback de `_fbp` via header `Cookie` na edge: PageView de teste com cookie `_fbp` foi registrado em `marketing_events_log` com `fbp` em `user_data_keys` (event_id `v832-test-pv-001`).
+- ✅ Sem cookie e sem `fbp` no payload: `fbp` corretamente **ausente** (event_id `v832-test-pv-002-nofbp`) — o servidor **não** sintetiza `_fbp` próprio, preservando isolamento por visitante.
+- ✅ Prerenders marcados `stale` para reemissão do HTML novo (`UPDATE storefront_prerendered_pages SET status='stale' WHERE status='active'`).
+- ⏳ Cobertura real de `_fbp`/`delivery_category` no tráfego orgânico depende de tráfego pós-deploy (seed `__sfFbp` é client-side). **Validação consolidada agendada para 2026-05-08** (após 24h de tráfego acumulado).
+
+### Garantias preservadas (não alteradas)
+
+- `purchaseEventTiming` — não alterado.
+- Dedup persistente do Purchase (30 dias via `purchaseDedup.ts`) — não alterada, não voltou para `useRef`/memória de aba.
+- Sem novo disparo duplicado de Purchase.
+- Nenhuma PII em plaintext enviada do browser para CAPI.
+- CORS e envelope `200 { success:false }` preservados na edge.
+- Sem mistura de dados entre tenants.
+- GA4, scripts externos, pixels adicionais e `view_item_list` não alterados.
+
+### Limites residuais conhecidos
+
+- **EMQ no topo de funil para visitantes anônimos** (PageView/ViewCategory/ViewContent) seguirá menor enquanto não houver PII no cofre `_sf_identity` — limitação intrínseca da Meta, não corrigível sem identificação do visitante.
+- **Janela de 7 dias da Meta** para EMQ e cobertura refletirem no painel Ads Manager / Events Manager.
+- `marketing_events_log` mede **apenas CAPI**; o Pixel browser deve ser validado pelo **Meta Test Events**.
+
+### Pendências paralelas (fora do escopo desta entrega)
+
+- Bug do cron `generate-weekly-insights` rodando com anon key em vez de service role — registrado, sem correção nesta rodada.
+- Bug do `get_auth_user_email` — registrado, sem correção nesta rodada.
+- Investigação a fundo de `view_item_list` no painel Meta — provavelmente script externo do tenant.
+
+---
+
 ## Versionamento
 
 | Versão | Data | Resumo |
