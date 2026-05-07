@@ -135,3 +135,111 @@ export async function chargeAfter(args: ChargeAfterArgs): Promise<ChargeAfterRes
     return { charged: false, error: String(e?.message || e) };
   }
 }
+
+// ---------------------------------------------------------------------------
+// F1 — Telemetria universal de chargeAfter (service_usage_events captured)
+// ---------------------------------------------------------------------------
+
+interface RecordUsageArgs {
+  tenantId: string;
+  serviceKey: string;
+  units: Record<string, unknown>;
+  feature: string;
+  jobId: string;
+  ledgerId: string | null;
+  creditsCharged: number;
+  providerCostUsd?: number | null;
+  idempotencyKey: string;
+  userMetadata: Record<string, unknown>;
+}
+
+/**
+ * Registra evento de uso (status='captured', cost_owner='tenant') espelhando
+ * o débito já realizado em credit_ledger pelo chargeAfter.
+ *
+ * Idempotência:
+ *  - UNIQUE parcial em service_usage_events(credit_ledger_id) garante 1 evento
+ *    por linha de ledger. Retry com mesmo ledger_id não duplica.
+ *  - Quando ledger_id é nulo (raro), usa fallback determinístico em metadata.
+ *
+ * NUNCA toca wallet/ledger. Erros são silenciosos (cobrança já entregue).
+ */
+async function recordChargeAfterUsageEvent(args: RecordUsageArgs): Promise<void> {
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false } },
+  );
+
+  // Resolve category/provider canônicos do catálogo (sem expor pricing/markup).
+  let category = "unknown";
+  let provider = "unknown";
+  try {
+    const { data: pricing } = await supabase
+      .from("service_pricing")
+      .select("category, provider")
+      .eq("service_key", args.serviceKey)
+      .limit(1)
+      .maybeSingle();
+    if (pricing) {
+      category = pricing.category ?? "unknown";
+      provider = pricing.provider ?? "unknown";
+    }
+  } catch (_) { /* segue com unknown */ }
+
+  const insertRow: Record<string, unknown> = {
+    tenant_id: args.tenantId,
+    service_key: args.serviceKey,
+    category,
+    provider,
+    units_json: args.units ?? {},
+    status: "captured",
+    cost_owner: "tenant",
+    origin_function: args.feature,
+    credit_ledger_id: args.ledgerId,
+    metadata: {
+      motor_version: "v2",
+      mode: "live",
+      source: "charge_after_telemetry_v1",
+      feature: args.feature,
+      job_id: args.jobId,
+      credits_charged: args.creditsCharged,
+      provider_cost_usd_snapshot: args.providerCostUsd ?? null,
+      idempotency_key: args.idempotencyKey,
+      // metadata segura para painel admin (tenant nunca lê via RLS)
+      user_metadata: sanitizeUserMetadata(args.userMetadata),
+    },
+  };
+
+  const { error } = await supabase.from("service_usage_events").insert(insertRow);
+  if (error) {
+    const msg = error.message || "";
+    if (msg.includes("duplicate key") || msg.includes("uq_sue_credit_ledger_id") || msg.includes("unique")) {
+      console.log("[chargeAfter.telemetry] idempotent_skip", JSON.stringify({
+        ledger_id: args.ledgerId, service_key: args.serviceKey,
+      }));
+      return;
+    }
+    console.warn("[chargeAfter.telemetry] insert_failed", msg);
+    return;
+  }
+  console.log("[chargeAfter.telemetry] recorded", JSON.stringify({
+    tenant_id: args.tenantId, service_key: args.serviceKey,
+    ledger_id: args.ledgerId, credits_charged: args.creditsCharged,
+  }));
+}
+
+/** Remove chaves potencialmente sensíveis antes de persistir em metadata. */
+function sanitizeUserMetadata(m: Record<string, unknown>): Record<string, unknown> {
+  if (!m || typeof m !== "object") return {};
+  const BLOCKED = new Set([
+    "cost_usd", "markup_pct", "sell_usd", "fx_rate",
+    "api_key", "token", "authorization", "secret", "password",
+  ]);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(m)) {
+    if (BLOCKED.has(k.toLowerCase())) continue;
+    out[k] = v;
+  }
+  return out;
+}
