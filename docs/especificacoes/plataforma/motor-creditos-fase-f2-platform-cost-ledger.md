@@ -379,3 +379,78 @@ E-mail bruto do destinatário, HTML do corpo, subject completo, conteúdo de tem
 Cron `generate-weekly-insights` envia `Authorization: Bearer <ANON_KEY>`, mas a edge só ativa o ramo "service-role / cron mode" quando o header contém `SUPABASE_SERVICE_ROLE_KEY`. Resultado provável: cron cai no ramo "Manual call" e retorna 401 silenciosamente (nenhum tenant é processado). Registrado como ticket separado — fora do escopo F2.6. Conforme `mem://constraints/cron-service-role-key-guc-prohibition`, o padrão do projeto é anon key + validação de role no body, então a correção exige refatorar a edge (não o cron).
 
 **Status final F2.6:** 🟢 GO — telemetria de custo de plataforma plugada em `command-insights-generate`; `ai-learning-aggregator` classificada como não aplicável; nenhum tenant cobrado; nenhum custo fixo inventado.
+
+---
+
+## 13. Evidência F2.6 — 2026-05-07 (validação funcional real ponta a ponta)
+
+Validação funcional real (Opção A) executada após GO técnico da seção 12. Chamada real à edge `command-insights-generate` com Gemini real, em escopo controlado.
+
+### 13.1 Escopo
+
+| Item | Valor |
+|---|---|
+| Tenant | Respeite o Homem |
+| `tenant_id` | `d1a4d0ed-8842-495e-b741-540a9a345b25` |
+| Período analisado | `2026-04-30 00:00:00Z` → `2026-05-07 23:59:59Z` |
+| Insights pré-existentes no período | 0 (sem skip, sem overwrite) |
+| Provider / Model | `gemini` / `gemini-2.5-flash` |
+| Cron tocado? | NÃO |
+| Auth tocada? | NÃO |
+| UI tocada? | NÃO |
+| Tenants processados | 1 (apenas o piloto) |
+
+### 13.2 Resultado da 1ª chamada real
+
+| Item | Valor |
+|---|---|
+| HTTP | 200 |
+| `insights_generated` | 4 |
+| `tokens_in` | 564 |
+| `tokens_out` | 313 |
+| `cached_tokens` | 0 |
+| `cost_usd` | `0.00095170` (computed_from_token_pricings) |
+| `cost_brl` | `0.0052` (fx 5,50) |
+| `pricing_id` | `f64f8049-ced5-4fcb-8c7b-8391844cb2b2` (catálogo, sem custo fixo inventado) |
+
+**Linha real em `platform_cost_ledger`:**
+
+| Campo | Valor |
+|---|---|
+| `id` | `4f496e29-af52-430b-a64c-2cad148ff69c` |
+| `service_key` | `command-insights-generate` |
+| `category` | `ai_text` |
+| `provider` | `gemini` |
+| `idempotency_key` | `command-insights-generate:d1a4d0ed…:2026-04-30:wAv8afqaB5CIvdIP4rbJsAg` (response_id real Gemini) |
+| `units_json` | `{count:1, tokens_in:564, tokens_out:313, cached_tokens:0, insights_count:4}` |
+| `metadata` | sanitizada — sem prompt, sem resposta LLM, sem métricas brutas, sem PII, sem nomes de produto |
+
+### 13.3 Validação de idempotência (sem custo extra)
+
+2ª chamada real à edge com mesmo tenant/período:
+- HTTP 200, `insights_generated: 0`
+- Guard `existing insights for period` (linhas 96-106 do `index.ts`) bloqueou **antes** de qualquer chamada ao Gemini.
+- `platform_cost_ledger` continuou com **1 linha** (sem duplicação).
+- Nenhuma chamada paga ao provider na 2ª invocação.
+
+### 13.4 Isolamento tenant ↔ plataforma
+
+| Verificação | Resultado |
+|---|---|
+| `credit_wallet` alterada | NÃO |
+| `credit_ledger` (tenant) com novas linhas | NÃO (0 nas últimas 10min) |
+| `service_usage_events` (tenant) com novas linhas | NÃO (0 nas últimas 10min) |
+| Tenant cobrado | NÃO |
+| `/platform/credits` enxerga o evento (admin, `includePlatform=true`) | SIM |
+| `/platform/external-costs` íntegro | SIM (escopo distinto, sem impacto) |
+
+### 13.5 Confirmações finais
+
+- **`ai-learning-aggregator`** confirmado como **não aplicável** ao Motor de Créditos (sem provider externo). Reclassificação documental, edge sem alteração em runtime.
+- **Achado paralelo — cron `generate-weekly-insights`**: anomalia anon key vs service-role permanece como ticket separado. **NÃO corrigido nesta fase.**
+- **Achado paralelo — `get_auth_user_email`**: `permission denied` na tela de Templates de E-mail registrado como task separada (`b70aa82b`). **NÃO corrigido nesta fase.**
+
+### 13.6 Status final
+
+🟢 **F2.6 — GO funcional confirmado.**
+Telemetria de plataforma real, idempotente, sanitizada, isolada do tenant, com custo calculado por tokens reais e linha rastreável em `platform_cost_ledger`.
