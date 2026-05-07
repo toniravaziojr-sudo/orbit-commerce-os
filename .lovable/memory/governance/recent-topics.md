@@ -97,3 +97,39 @@ type: reference
 **Fonte de verdade documental:** `docs/especificacoes/ia/ai-provider-routing.md` + `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` (Reg #27).
 
 **Memórias técnicas relacionadas:** `infrastructure/ai/provider-router-standard`, `constraints/sales-pipeline-tpr-and-output-gates`.
+
+---
+
+## 🟢 AUTO — F2 Motor de Créditos / platform_cost_ledger — F2.6 GO (07/05/2026)
+
+**Onde paramos exatamente:**
+- F2.5 `send-system-email` ✅ GO (2 envios reais SendGrid validados em 07/05).
+- F2.6 `command-insights-generate` v1.1.0 ✅ GO funcional final em 07/05/2026.
+  - Validação real ponta a ponta no tenant **Respeite o Homem** (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
+  - 4 insights gerados, 564 tokens_in / 313 tokens_out / 0 cached, `cost_usd=0.00095170`, `cost_brl=0.0052`.
+  - Linha real `platform_cost_ledger.id=4f496e29-af52-430b-a64c-2cad148ff69c`, `service_key=command-insights-generate`, `category=ai_text`.
+  - Idempotência confirmada: 2ª chamada bloqueada antes do Gemini, sem 2ª linha.
+  - Tenant não cobrado: `credit_wallet`, `credit_ledger`, `service_usage_events` intactos.
+  - `/platform/credits` enxerga; `/platform/external-costs` íntegro.
+- `ai-learning-aggregator` reclassificado como **não aplicável** (sem provider externo).
+- Doc atualizado: seção 13 "Evidência F2.6 — 2026-05-07" em `docs/especificacoes/plataforma/motor-creditos-fase-f2-platform-cost-ledger.md`.
+
+**Achados paralelos pendentes (NÃO corrigir sem autorização):**
+- Cron `generate-weekly-insights`: anon key vs service-role → cai em Manual call → 401 silencioso. Refatorar a edge (não o cron).
+- `get_auth_user_email`: `permission denied` na tela `/platform/emails` (Templates). Task `b70aa82b`.
+
+**Próximo passo combinado:** abrir **F2.7 em modo PLANNER** (somente diagnóstico). Mapear próxima edge candidata a `recordPlatformCost` (`cost_owner=platform`, provider externo, ainda não plugada).
+
+**Restrições ativas:**
+- Toda nova fase começa em PLANNER; só executa após GO explícito.
+- Validação real sempre em 1 tenant.
+- Não apagar linhas reais de `platform_cost_ledger`.
+- Não corrigir cron nem `get_auth_user_email` sem autorização.
+
+**Docs fonte de verdade:**
+- `docs/especificacoes/plataforma/motor-creditos-fase-f2-platform-cost-ledger.md`
+- `docs/especificacoes/plataforma/funcoes-pagas.md`
+
+**Código:**
+- `supabase/functions/command-insights-generate/index.ts` (v1.1.0)
+- `supabase/functions/_shared/credits/charge.ts` → `recordPlatformCost`
