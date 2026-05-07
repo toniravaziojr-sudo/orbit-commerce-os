@@ -1,7 +1,16 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { recordPlatformCost } from "../_shared/credits/charge.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+
+// Hash parcial determinístico para auditoria sem PII bruta
+async function hashRecipient(email: string): Promise<string> {
+  const data = new TextEncoder().encode(email.toLowerCase().trim());
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, 16);
+}
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -345,6 +354,31 @@ const serve_handler = async (req: Request): Promise<Response> => {
         used_fallback: templateError !== null,
       },
     });
+
+    // F2.2 — Registro de custo absorvido pela plataforma (cost_owner='platform').
+    // Executa apenas após sucesso confirmado do provider. Falha de telemetria
+    // NUNCA quebra o envio — segue padrão chargeAfter (fire-and-forget).
+    try {
+      const recipientHash = await hashRecipient(email);
+      const idem = result.messageId
+        ? `send-auth-email:${result.messageId}`
+        : `send-auth-email:${email_type}:${recipientHash}:${Math.floor(Date.now() / 60000)}`;
+      recordPlatformCost({
+        serviceKey: "email-system-send",
+        units: { count: 1 },
+        costUsd: 0.00060,
+        origin: "send-auth-email",
+        metadata: {
+          email_type,
+          template_key: templateKey,
+          recipient_hash: recipientHash,
+          provider_message_id: result.messageId ?? null,
+        },
+        idempotencyKey: idem,
+      }).catch((e) => console.error("[send-auth-email] recordPlatformCost failed:", e));
+    } catch (e) {
+      console.error("[send-auth-email] platform cost telemetry error:", e);
+    }
 
     return new Response(
       JSON.stringify({ success: true, message_id: result.messageId }),
