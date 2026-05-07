@@ -1,8 +1,22 @@
 # Motor de Créditos — Fase F1: Telemetria universal do `chargeAfter`
 
 > **Camada:** Layer 2 — Especificação de Plataforma
-> **Status:** Ativo (2026-05-07)
+> **Status:** ✅ GO — Validado em produção (2026-05-07, Respeite o Homem, Teste F1.2)
 > **Escopo:** apenas telemetria — sem impacto em wallet, ledger, pricing, markup, RLS, UI.
+
+## Validação real F1 (GO/NO-GO) — 2026-05-07
+
+| # | Item | Resultado |
+|---|------|-----------|
+| 1–9 | Wallet 486→485, ledger reserve+capture, evento `captured`, vínculo `credit_ledger_id`, service_key/provider/category/cost_owner corretos | ✅ |
+| 10 | `provider_job_id` preservado (`C-a4sCVMTTOuAGb3MFOADg`) | ✅ |
+| 11 | `billing_job_id` UUID v5 derivado (`feda1720-...`) | ✅ |
+| 12 | Sem cobrança duplicada | ✅ |
+| 13 | Idempotência: reinsert do mesmo `credit_ledger_id` rejeitado por `uq_sue_credit_ledger_id` | ✅ |
+| 14 | `/platform/credits` enxerga o evento | ✅ |
+| 15 | `/account/billing` mascara custo interno (RLS + RPC) | ✅ |
+
+**Observação:** Evento de `reserve` herda `provider=service_key` da RPC `reserve_credits_v2`. Capture (registrado pelo `chargeAfter`) traz `provider=sendgrid` correto. Ajustar na refatoração de pricing.
 
 ## Problema
 
