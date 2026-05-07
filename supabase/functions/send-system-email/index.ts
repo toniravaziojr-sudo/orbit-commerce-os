@@ -1,10 +1,18 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
-import { chargeAfter } from "../_shared/credits/charge-after.ts";
-
+import { recordPlatformCost } from "../_shared/credits/charge.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 
-const PLATFORM_TENANT_ID = "cc000000-0000-0000-0000-000000000001";
+// SHA-256 truncado (16 chars) — evita PII (email completo) em metadata/logs.
+async function hashRecipient(email: string): Promise<string> {
+  const data = new TextEncoder().encode(email.toLowerCase().trim());
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 16);
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -199,15 +207,57 @@ Deno.serve(async (req: Request) => {
       sent_at: new Date().toISOString(),
     });
 
-    // Cobrança pós-envio (motor universal)
-    chargeAfter({
-      tenantId: PLATFORM_TENANT_ID,
-      serviceKey: "email-system-send",
-      units: { count: 1 },
-      jobId: result.messageId ?? `${Date.now()}-${to}`,
-      feature: "send-system-email",
-      metadata: { recipient: to, email_type },
-    }).catch(() => {});
+    // ============================================================
+    // F2.5 — Motor de Créditos: registrar custo absorvido pela plataforma
+    // SOMENTE após sucesso confirmado do SendGrid.
+    // service_key=email-system-send | provider=sendgrid | cost_owner=platform
+    // Idempotência: provider_message_id quando disponível; fallback determinístico.
+    // Metadata sanitizada: sem token, sem link, sem email bruto, sem HTML, sem subject.
+    // Falha de telemetria NUNCA pode quebrar o envio.
+    // ============================================================
+    try {
+      const recipientHash = await hashRecipient(to);
+      const fromDomain = (config.from_email?.split("@")[1] ?? "").toLowerCase();
+      const idempotencyKey = result.messageId
+        ? `send-system-email:${result.messageId}`
+        : `send-system-email:${email_type}:${recipientHash}:${Math.floor(Date.now() / 60000)}`;
+
+      const costResult = await recordPlatformCost({
+        serviceKey: "email-system-send",
+        units: { count: 1 },
+        costUsd: 0.00060,
+        origin: "send-system-email",
+        originId: result.messageId ?? null,
+        idempotencyKey,
+        metadata: {
+          provider: "sendgrid",
+          category: "email",
+          email_type,
+          provider_message_id: result.messageId ?? null,
+          recipient_hash: recipientHash,
+          from_domain: fromDomain,
+          origin_function: "send-system-email",
+          triggered_by: "platform_admin",
+        },
+      });
+
+      if (!costResult.success) {
+        console.warn("[send-system-email] recordPlatformCost falhou (não bloqueia envio):", {
+          origin_function: "send-system-email",
+          email_type,
+          provider_message_id: result.messageId ?? null,
+          recipient_hash: recipientHash,
+          error_code: costResult.error_code ?? null,
+        });
+      }
+    } catch (e: any) {
+      console.warn("[send-system-email] Erro ao registrar custo (ignorado):", {
+        origin_function: "send-system-email",
+        email_type,
+        error: typeof e?.message === "string" ? e.message : "unknown",
+      });
+    }
+
 
     // Update last test info if it's a test email
     if (email_type === "test") {
