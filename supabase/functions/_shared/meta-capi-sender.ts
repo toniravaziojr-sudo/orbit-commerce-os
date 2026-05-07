@@ -522,15 +522,26 @@ export async function sendCapiPurchase(
       fbp: params.fbp,
       fbc: params.fbc,
     },
-    custom_data: {
-      value: params.value,
-      currency,
-      content_ids: contentIds,
-      content_type: 'product',
-      contents,
-      num_items: numItems,
-      order_id: params.order_number || params.order_id,
-    },
+    custom_data: (() => {
+      // v8.32.0: full parity with browser tracker
+      const cd: Record<string, unknown> = {
+        value: params.value,
+        currency,
+        content_ids: contentIds,
+        content_type: 'product',
+        contents,
+        num_items: numItems,
+        order_id: params.order_number || params.order_id,
+        delivery_category: 'home_delivery',
+        order_status: 'completed',
+      };
+      // predicted_ltv only when value is a valid positive number
+      const v = params.value;
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
+        cd.predicted_ltv = Math.round(v * 1.8 * 100) / 100;
+      }
+      return cd;
+    })(),
   };
 
   return sendMetaCapiEvents(config, [event], {
