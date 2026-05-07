@@ -355,6 +355,7 @@ async function pollJobInBackground(
           console.warn('[creative-process] shadow v2 failed (ignored):', (shadowErr as Error)?.message);
         }
         return;
+      } else if (statusData.status === 'FAILED') {
         throw new Error(`Fal job failed: ${statusData.error || 'Unknown error'}`);
       }
       // IN_PROGRESS or IN_QUEUE - continue polling
