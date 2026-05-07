@@ -105,6 +105,26 @@ export async function chargeAfter(args: ChargeAfterArgs): Promise<ChargeAfterRes
       feature: args.feature, service_key: args.serviceKey, tenant_id: args.tenantId,
       credits_charged: data?.credits_charged,
     }));
+
+    // F1 — Telemetria universal: registra service_usage_events status='captured'
+    // Falhas aqui NUNCA quebram a cobrança (já concluída no ledger).
+    try {
+      await recordChargeAfterUsageEvent({
+        tenantId: args.tenantId,
+        serviceKey: args.serviceKey,
+        units: args.units,
+        feature: args.feature,
+        jobId: args.jobId,
+        ledgerId: data?.ledger_id ?? null,
+        creditsCharged: Number(data?.credits_charged ?? 0),
+        providerCostUsd: args.providerCostUsd ?? null,
+        idempotencyKey: idemReserve,
+        userMetadata: args.metadata ?? {},
+      });
+    } catch (telemetryErr: any) {
+      console.warn("[chargeAfter.telemetry] ignored", String(telemetryErr?.message || telemetryErr));
+    }
+
     return {
       charged: true,
       creditsCharged: Number(data?.credits_charged ?? 0),
