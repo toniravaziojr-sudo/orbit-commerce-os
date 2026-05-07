@@ -16,7 +16,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.28.0"; // WAVE 6: PageView gated on _fbp (5s polling) so pixel + CAPI share fbp; cumulative identity vault enrichment
+const VERSION = "v8.32.0"; // Meta v8.32.0: _sfEnsureFbp seed (parity Pixel+CAPI), delivery_category in AddToCart/InitiateCheckout, beacon-first pre-navigation
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
