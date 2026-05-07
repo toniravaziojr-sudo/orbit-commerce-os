@@ -99,25 +99,52 @@ Inserção controlada com `email-system-send` ($0.00060 USD, sem disparar SendGr
 
 ## 7. GO/NO-GO F2.1
 
-**✅ GO** — fundação corrigida, validada e documentada. RPC e helper estão prontos para receber chamadas reais sem alterar wallet/ledger de tenant.
+**✅ GO** — fundação corrigida, validada e documentada.
 
-## 8. Pendências F2.2 (próxima etapa, não iniciar sem nova autorização)
+## 8. Patch F2.2 — Plug em `send-auth-email` (2026-05-07)
 
-Auditar 1×1 e plugar `recordPlatformCost()` nas edges abaixo somente após validação individual de:
-1. Custo externo real existe?
-2. `cost_owner='platform'`?
-3. Tem `service_key` com pricing confiável?
-4. Não envia comunicação para cliente final em teste?
+### 8.1 Edges avaliadas
 
-Edges candidatas:
-- `send-auth-email`
-- `resend-signup-email`
-- `auth-email-hook`
-- `send-system-email` (separar origem plataforma vs tenant antes — hoje cobra `chargeAfter` no tenant fictício de plataforma)
-- `command-insights-generate` (apenas mapeamento; cron global)
-- `meta-token-health-check`
-- `platform-costs-sync`
-- `ai-learning-aggregator`
+| Edge | Provider | Status F2.2 | Motivo |
+|---|---|---|---|
+| `send-auth-email` | SendGrid | ✅ **PLUGADA** | provider/service_key/custo confiáveis (`email-system-send`, $0.00060) |
+| `resend-signup-email` | **Resend** | ❌ não plugada | Sem `service_pricing` confiável para Resend; plugar exigiria inventar custo. Pendência F2.3. |
+
+### 8.2 Implementação em `send-auth-email`
+
+- Import: `recordPlatformCost` de `_shared/credits/charge.ts`.
+- Chamada **após** sucesso confirmado do SendGrid (logo após log de sucesso), nunca em caminho de erro.
+- Padrão fire-and-forget (`.catch(log)`) — falha de telemetria não quebra envio.
+- `serviceKey='email-system-send'`, `costUsd=0.00060`, `units={count:1}`, `origin='send-auth-email'`.
+- **Idempotência:** `send-auth-email:${result.messageId}` quando há `X-Message-Id` do SendGrid; fallback determinístico `send-auth-email:${email_type}:${sha256(email).slice(0,16)}:${minute_bucket}` quando ausente.
+- **Sanitização de metadata:** apenas `email_type`, `template_key`, `recipient_hash` (SHA-256 truncado em 16 chars), `provider_message_id`. **Nunca** grava token, magic link, código, senha, JWT, corpo do e-mail, e-mail bruto, ou segredo.
+
+### 8.3 Validação técnica F2.2
+
+| Item | Resultado |
+|---|---|
+| Arquivo alterado | `supabase/functions/send-auth-email/index.ts` |
+| Edge deployada | ✅ `send-auth-email` |
+| Inserção controlada via RPC com chave `send-auth-email:sg-test-msgid-001` | ✅ `ledger_id=9c8bc7f6...`, `cost_brl=0.0033` |
+| 2ª chamada mesma chave | ✅ retorna mesmo id, 0 duplicação |
+| `metadata` sem dados sensíveis | ✅ apenas campos técnicos |
+| `credit_ledger` últimos 5min | ✅ 0 alterações |
+| `service_usage_events` últimos 5min | ✅ 0 alterações |
+| Provider pago chamado | ✅ NÃO (validação via RPC direto) |
+| Cleanup linha sintética | ✅ removida |
+
+### 8.4 Falha de provider não registra custo
+
+Por construção: `recordPlatformCost` é chamado **depois** de `if (!result.success) throw new Error(...)`. Em qualquer falha SendGrid (4xx/5xx/exception), o `throw` aborta antes do registro. Garantido por revisão de código.
+
+## 9. Pendências F2.3 (não iniciar sem nova autorização)
+
+| Edge | Bloqueio | Decisão necessária |
+|---|---|---|
+| `resend-signup-email` | Provider Resend sem `service_pricing` | Criar `email-resend-send` em `service_pricing` **OU** migrar para SendGrid e reusar `email-system-send` |
+| `auth-email-hook` | Não auditada nesta etapa | Auditar fluxo (queue vs direct send) antes de plugar |
+| `send-system-email` | Já chama `chargeAfter(PLATFORM_TENANT_ID)` — fluxo misto/legado | Decisão arquitetural: migrar de `chargeAfter` para `recordPlatformCost`? |
+| `command-insights-generate`, `meta-token-health-check`, `platform-costs-sync`, `ai-learning-aggregator` | Apenas mapeadas | Auditar 1×1 |
 
 Ver `workers-crons-pagos.md` §2.2 para a regra de classificação `platform_absorbed`.
 
