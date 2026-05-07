@@ -16,7 +16,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.28.0"; // WAVE 6: PageView gated on _fbp (5s polling) so pixel + CAPI share fbp; cumulative identity vault enrichment
+const VERSION = "v8.32.0"; // Meta v8.32.0: _sfEnsureFbp seed (parity Pixel+CAPI), delivery_category in AddToCart/InitiateCheckout, beacon-first pre-navigation
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
@@ -215,17 +215,36 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     window._sfEvtId=function(){return Date.now()+'-'+Math.random().toString(36).substr(2,7);};
     (function(){var p=new URLSearchParams(location.search);var fc=p.get('fbclid');if(fc){var fbcVal='fb.1.'+Date.now()+'.'+fc;try{localStorage.setItem('_fbc',fbcVal);}catch(e){}var d=new Date();d.setDate(d.getDate()+90);document.cookie='_fbc='+encodeURIComponent(fbcVal)+';path=/;expires='+d.toUTCString()+';SameSite=Lax';}})();
     // v8.26.0: Create _sf_vid EARLY — before any CAPI call (was at bottom of page in visit tracking)
-    window._sfGetOrCreateVid=function(){var m=document.cookie.match(/(?:^|;\s*)_sf_vid=([^;]+)/);if(m)return decodeURIComponent(m[1]);var id='v_'+Math.random().toString(36).slice(2)+Date.now().toString(36);var d=new Date();d.setFullYear(d.getFullYear()+1);document.cookie='_sf_vid='+id+';path=/;expires='+d.toUTCString()+';SameSite=Lax';return id;};
+    window._sfGetOrCreateVid=function(){var m=document.cookie.match(/(?:^|;\\s*)_sf_vid=([^;]+)/);if(m)return decodeURIComponent(m[1]);var id='v_'+Math.random().toString(36).slice(2)+Date.now().toString(36);var d=new Date();d.setFullYear(d.getFullYear()+1);document.cookie='_sf_vid='+id+';path=/;expires='+d.toUTCString()+';SameSite=Lax';return id;};
     window._sfVid=window._sfGetOrCreateVid();
-    window._sfGetFbc=function(){var m=document.cookie.match(/(?:^|;\s*)_fbc=([^;]+)/);if(m)return decodeURIComponent(m[1]);try{return localStorage.getItem('_fbc')||undefined}catch(e){return undefined}};
+    window._sfGetFbc=function(){var m=document.cookie.match(/(?:^|;\\s*)_fbc=([^;]+)/);if(m)return decodeURIComponent(m[1]);try{return localStorage.getItem('_fbc')||undefined}catch(e){return undefined}};
     window._sfGetVid=function(){return window._sfVid||undefined};
     window._sfGetAM=function(){var r={};try{var em=localStorage.getItem('_sf_am_em');var ph=localStorage.getItem('_sf_am_ph');if(em)r.email=em;if(ph)r.phone=ph;}catch(e){}return r;};
+    // v8.32.0: ensure a stable _fbp value exists per visitor BEFORE any CAPI
+    // dispatch. Reads existing cookie first; if missing, synthesizes a Meta-spec
+    // value (fb.1.<ms>.<rand>), persists it to a 90d cookie AND exposes it as
+    // window.__sfFbp so the React tracker (getEffectiveFbp) shares the same id.
+    // This guarantees Pixel + CAPI parity even on the very first PageView.
+    window._sfEnsureFbp=function(){
+      try{
+        var m=document.cookie.match(/(?:^|;\\s*)_fbp=([^;]+)/);
+        if(m){var v=decodeURIComponent(m[1]);window.__sfFbp=v;return v;}
+        var rand=Math.floor(Math.random()*2147483647);
+        var fbp='fb.1.'+Date.now()+'.'+rand;
+        var d=new Date();d.setDate(d.getDate()+90);
+        document.cookie='_fbp='+fbp+';path=/;expires='+d.toUTCString()+';SameSite=Lax';
+        window.__sfFbp=fbp;
+        return fbp;
+      }catch(e){return null;}
+    };
+    window._sfEnsureFbp();
     // v8.26.0: _sfCapi with waitForFbp polling (250ms x 12 = 3s max) and IP capture
+    // v8.32.0: now relies on _sfEnsureFbp so fbp is ALWAYS present in user_data
     window._sfClientIp=null;
     window._sfCapi=function(n,eid,cd,ud){
       var _doSend=function(fbpVal){
         var am=window._sfGetAM();
-        var base={fbp:fbpVal||undefined,fbc:window._sfGetFbc(),external_id:window._sfGetVid()};
+        var base={fbp:fbpVal||window.__sfFbp||undefined,fbc:window._sfGetFbc(),external_id:window._sfGetVid()};
         if(am.email)base.email=am.email;
         if(am.phone)base.phone=am.phone;
         if(window._sfClientIp)base.client_ip_from_browser=window._sfClientIp;
@@ -238,14 +257,9 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
           if(d&&d.detected_ip&&!window._sfClientIp)window._sfClientIp=d.detected_ip;
         }).catch(function(){});
       };
-      // Check _fbp immediately
-      var fbp=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||null;
-      if(fbp){_doSend(fbp);return;}
-      // Poll for _fbp (250ms x 20 = 5s) — Wave 6: increased window
-      var _att=0;var _iv=setInterval(function(){
-        _att++;var f=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||null;
-        if(f||_att>=20){clearInterval(_iv);_doSend(f);}
-      },250);
+      // v8.32.0: _sfEnsureFbp already guarantees _fbp — fire synchronously
+      var fbp=window.__sfFbp||(document.cookie.match(/(?:^|;\\s*)_fbp=([^;]+)/)||[])[1]||null;
+      _doSend(fbp);
     };
     </script>`);
   }
@@ -1294,9 +1308,9 @@ function buildFullPage(opts: {
         var prc=parseFloat(price)||0;
         var _atcEid=window._sfEvtId?_sfEvtId():'';
         // Meta
-        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL'},{eventID:_atcEid});}
+        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL',delivery_category:'home_delivery'},{eventID:_atcEid});}
         if(window.fbq){if(window._sfMetaReady){_atcMeta();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_atcMeta);}}
-        if(window._sfCapi)_sfCapi('AddToCart',_atcEid,{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL',contents:[{id:contentId,quantity:1,item_price:prc}]});
+        if(window._sfCapi)_sfCapi('AddToCart',_atcEid,{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL',delivery_category:'home_delivery',contents:[{id:contentId,quantity:1,item_price:prc,delivery_category:'home_delivery'}]});
         // Google
         function _atcGtag(){gtag('event','add_to_cart',{currency:'BRL',value:prc,items:[{item_id:contentId,item_name:name,price:prc,quantity:1}]});}
         if(window.gtag){if(window._sfGtagReady){_atcGtag();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_atcGtag);}}
@@ -1358,8 +1372,8 @@ function buildFullPage(opts: {
           var _coContentId=btn.dataset.productMetaId||btn.dataset.productSku||btn.dataset.productId;
           var _coPrice=parseFloat(btn.dataset.productPrice)||0;
           var _icEid=window._sfEvtId?_sfEvtId():'';
-          if(window.fbq){var _icM=function(){fbq('track','InitiateCheckout',{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2},{eventID:_icEid});};if(window._sfMetaReady){_icM();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icM);}}
-          if(window._sfCapi)_sfCapi('InitiateCheckout',_icEid,{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2});
+          if(window.fbq){var _icM=function(){fbq('track','InitiateCheckout',{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2,delivery_category:'home_delivery'},{eventID:_icEid});};if(window._sfMetaReady){_icM();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icM);}}
+          if(window._sfCapi)_sfCapi('InitiateCheckout',_icEid,{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2,delivery_category:'home_delivery'});
           if(window.gtag){var _icG=function(){gtag('event','begin_checkout',{currency:'BRL',value:_coPrice,items:[{item_id:_coContentId,price:_coPrice,quantity:qty2}]});};if(window._sfGtagReady){_icG();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icG);}}
           if(window.ttq){var _icT=function(){ttq.track('InitiateCheckout',{content_id:_coContentId,content_type:'product',value:_coPrice,currency:'BRL',quantity:qty2});};if(window._sfTTReady){_icT();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icT);}}
           window.location.href="/checkout";
@@ -1480,8 +1494,8 @@ function buildFullPage(opts: {
             var _icCartItems=cart.map(function(i){return{item_id:i.meta_retailer_id||i.sku||i.product_id,item_name:i.name,price:i.price,quantity:i.quantity}});
             var _icCartEid=window._sfEvtId?_sfEvtId():'';
             var _icCartNumItems=cart.reduce(function(s,i){return s+i.quantity},0);
-            if(window.fbq){var _icMf=function(){fbq('track','InitiateCheckout',{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems},{eventID:_icCartEid});};if(window._sfMetaReady){_icMf();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icMf);}}
-            if(window._sfCapi)_sfCapi('InitiateCheckout',_icCartEid,{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems});
+            if(window.fbq){var _icMf=function(){fbq('track','InitiateCheckout',{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems,delivery_category:'home_delivery'},{eventID:_icCartEid});};if(window._sfMetaReady){_icMf();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icMf);}}
+            if(window._sfCapi)_sfCapi('InitiateCheckout',_icCartEid,{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems,delivery_category:'home_delivery'});
             if(window.gtag){var _icGf=function(){gtag('event','begin_checkout',{currency:'BRL',value:_icCartTotal,items:_icCartItems});};if(window._sfGtagReady){_icGf();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icGf);}}
             if(window.ttq){var _icTf=function(){ttq.track('InitiateCheckout',{content_type:'product',value:_icCartTotal,currency:'BRL',quantity:_icCartNumItems});};if(window._sfTTReady){_icTf();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icTf);}}
           }

@@ -154,10 +154,22 @@ Deno.serve(async (req) => {
     const clientIp = clientIpFromBrowser || headerIp;
     const clientUserAgent = req.headers.get('user-agent') || null;
 
+    // v8.32.0: Secondary fallback — read _fbp from Cookie header when the
+    // browser did not send an explicit value in user_data.fbp. Browser
+    // payload always wins.
+    let resolvedFbp = payload.user_data?.fbp;
+    if (!resolvedFbp) {
+      const cookieHeader = req.headers.get('cookie');
+      if (cookieHeader) {
+        const m = cookieHeader.match(/(?:^|;\s*)_fbp=([^;]+)/);
+        if (m) resolvedFbp = decodeURIComponent(m[1]);
+      }
+    }
+
     // Diagnostic log for IP tracking
     if (payload.event_name === 'PageView') {
       const isV6 = clientIp && clientIp.includes(':');
-      console.log(`[marketing-capi-track] PageView IP diagnostic: selected=${clientIp?.substring(0, 30)}, format=${isV6 ? 'IPv6' : 'IPv4'}, ua=${clientUserAgent?.substring(0, 50)}`);
+      console.log(`[marketing-capi-track] PageView IP diagnostic: selected=${clientIp?.substring(0, 30)}, format=${isV6 ? 'IPv6' : 'IPv4'}, ua=${clientUserAgent?.substring(0, 50)}, fbp=${resolvedFbp ? 'YES' : 'NO'}`);
     }
 
     // Split name into first/last
@@ -193,7 +205,7 @@ Deno.serve(async (req) => {
         external_id: payload.user_data?.external_id,
         client_ip_address: clientIp || undefined,
         client_user_agent: clientUserAgent || undefined,
-        fbp: payload.user_data?.fbp,
+        fbp: resolvedFbp,
         fbc: payload.user_data?.fbc,
         gender: payload.user_data?.gender,
         date_of_birth: payload.user_data?.date_of_birth,

@@ -59,6 +59,24 @@ export function getFbp(): string | null {
 }
 
 /**
+ * v8.32.0 — Resolve effective _fbp using the canonical priority order:
+ *   1. `window.__sfFbp` global injected by storefront-html (synthetic seed)
+ *   2. `_fbp` cookie (set by Meta Pixel script or by storefront-html cookie)
+ *   3. null
+ *
+ * This is a READ-ONLY helper. It never generates a new _fbp value, so it
+ * cannot create concurrent ids, and it never overwrites an existing
+ * _fbp cookie. Safe to call on every CAPI dispatch.
+ */
+export function getEffectiveFbp(): string | null {
+  if (typeof window !== 'undefined') {
+    const seed = (window as any).__sfFbp;
+    if (typeof seed === 'string' && seed.length > 0) return seed;
+  }
+  return getFbp();
+}
+
+/**
  * Get _fbc value. Checks URL for fbclid first, then cookie, then localStorage fallback.
  * Persists in first-party cookie (90 days) for better attribution.
  */
@@ -189,7 +207,7 @@ export interface TrackingIdentity {
 export function getTrackingIdentity(): TrackingIdentity {
   return {
     external_id: getVisitorId(),
-    fbp: getFbp(),
+    fbp: getEffectiveFbp(),
     fbc: getFbc(),
   };
 }

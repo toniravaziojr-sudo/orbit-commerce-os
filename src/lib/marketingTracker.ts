@@ -340,6 +340,13 @@ function sendServerEvent(tenantId: string, payload: {
   custom_data?: Record<string, any>;
   /** v8.28.0: per-event override for waitForFbp timeout. Default 5s. */
   fbp_wait_ms?: number;
+  /**
+   * v8.32.0: For pre-navigation critical events (AddToCart, InitiateCheckout)
+   * try sendBeacon first. If the beacon is queued (returns true), do NOT
+   * fall back to fetch — avoids duplicate dispatch. If beacon fails or is
+   * unavailable, fall back to fetch + keepalive.
+   */
+  beacon_first?: boolean;
 }): void {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   if (!projectId) return;
@@ -353,6 +360,8 @@ function sendServerEvent(tenantId: string, payload: {
 
   // v8.29.0: If _fbp is already present synchronously, skip the polling delay
   // entirely. Eliminates race against immediate navigation ("Comprar agora").
+  // v8.32.0: getTrackingIdentity now also reads `window.__sfFbp` seeded by
+  // storefront-html, so synthetic _fbp is available before any cookie races.
   const synchronousFbp = getTrackingIdentity().fbp;
 
   const doSend = (resolvedFbp: string | null) => {
@@ -360,16 +369,9 @@ function sendServerEvent(tenantId: string, payload: {
     const metaIds = getMetaIdentifiers();
 
     // v8.28.0 — Read persistent identity vault (cofre _sf_identity).
-    // All values stored already SHA-256 hashed. We pass them as `*_hashed`
-    // fields so the backend uses them as-is (no re-hashing).
     const stored = getStoredIdentity();
 
-    // Build user_data with NON-DESTRUCTIVE merge:
-    //  - explicit values from `payload.user_data` ALWAYS win.
-    //  - stored hashes only fill fields that are NOT already provided
-    //    (in either plaintext or pre-hashed form).
     const explicit = payload.user_data || {};
-    // external_id: when both visitor and customer ids exist, send as array (Meta best practice)
     let externalIdValue: string | string[] | undefined = explicit.external_id;
     if (!externalIdValue) {
       const ids: string[] = [];
@@ -380,55 +382,24 @@ function sendServerEvent(tenantId: string, payload: {
 
     const userData: Record<string, any> = {
       ...explicit,
+      // v8.32.0: explicit fbp from browser ALWAYS wins over edge fallback.
       fbp: resolvedFbp || metaIds.fbp || undefined,
       fbc: metaIds.fbc || undefined,
       external_id: externalIdValue,
     };
 
-    // Email
-    if (stored.em_hash && !explicit.email && !explicit.email_hashed) {
-      userData.email_hashed = stored.em_hash;
-    }
-    // Phone
-    if (stored.ph_hash && !explicit.phone && !explicit.phone_hashed) {
-      userData.phone_hashed = stored.ph_hash;
-    }
-    // First name
-    if (stored.fn_hash && !explicit.first_name_hashed && !explicit.name) {
-      userData.first_name_hashed = stored.fn_hash;
-    }
-    // Last name
-    if (stored.ln_hash && !explicit.last_name_hashed && !explicit.name) {
-      userData.last_name_hashed = stored.ln_hash;
-    }
-    // City
-    if (stored.ct_hash && !explicit.city && !explicit.city_hashed) {
-      userData.city_hashed = stored.ct_hash;
-    }
-    // State
-    if (stored.st_hash && !explicit.state && !explicit.state_hashed) {
-      userData.state_hashed = stored.st_hash;
-    }
-    // Zip
-    if (stored.zp_hash && !explicit.zip && !explicit.zip_hashed) {
-      userData.zip_hashed = stored.zp_hash;
-    }
-    // Country
-    if (stored.country_hash && !explicit.country && !explicit.country_hashed) {
-      userData.country_hashed = stored.country_hash;
-    }
-    // Birth date (db) — Meta date_of_birth, format YYYYMMDD pre-hashed
-    if (stored.db_hash && !explicit.date_of_birth && !explicit.date_of_birth_hashed) {
-      userData.date_of_birth_hashed = stored.db_hash;
-    }
-    // Gender (ge)
-    if (stored.ge_hash && !explicit.gender && !explicit.gender_hashed) {
-      userData.gender_hashed = stored.ge_hash;
-    }
-    // Lead id (server-side correlatable; not part of CAPI user_data spec but echoed in custom_data)
-    const customDataMerged = {
-      ...(payload.custom_data || {}),
-    };
+    if (stored.em_hash && !explicit.email && !explicit.email_hashed) userData.email_hashed = stored.em_hash;
+    if (stored.ph_hash && !explicit.phone && !explicit.phone_hashed) userData.phone_hashed = stored.ph_hash;
+    if (stored.fn_hash && !explicit.first_name_hashed && !explicit.name) userData.first_name_hashed = stored.fn_hash;
+    if (stored.ln_hash && !explicit.last_name_hashed && !explicit.name) userData.last_name_hashed = stored.ln_hash;
+    if (stored.ct_hash && !explicit.city && !explicit.city_hashed) userData.city_hashed = stored.ct_hash;
+    if (stored.st_hash && !explicit.state && !explicit.state_hashed) userData.state_hashed = stored.st_hash;
+    if (stored.zp_hash && !explicit.zip && !explicit.zip_hashed) userData.zip_hashed = stored.zp_hash;
+    if (stored.country_hash && !explicit.country && !explicit.country_hashed) userData.country_hashed = stored.country_hash;
+    if (stored.db_hash && !explicit.date_of_birth && !explicit.date_of_birth_hashed) userData.date_of_birth_hashed = stored.db_hash;
+    if (stored.ge_hash && !explicit.gender && !explicit.gender_hashed) userData.gender_hashed = stored.ge_hash;
+
+    const customDataMerged = { ...(payload.custom_data || {}) };
     if (stored.lead_id && customDataMerged.lead_id === undefined) {
       customDataMerged.lead_id = stored.lead_id;
     }
@@ -446,6 +417,23 @@ function sendServerEvent(tenantId: string, payload: {
       'Content-Type': 'application/json',
       'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
     };
+
+    // v8.32.0 — beacon-first path for pre-navigation critical events.
+    // sendBeacon survives navigation reliably; if the browser accepts the
+    // payload (returns true) we skip fetch to avoid duplicate dispatch.
+    if (payload.beacon_first && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      try {
+        const beaconUrl = `${url}?apikey=${encodeURIComponent(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')}`;
+        const blob = new Blob([body], { type: 'text/plain' });
+        const sent = navigator.sendBeacon(beaconUrl, blob);
+        if (sent) {
+          console.log(`[MarketingTracker] CAPI ${payload.event_name} queued via sendBeacon (event_id: ${payload.event_id})`);
+          return;
+        }
+      } catch (err) {
+        console.warn(`[MarketingTracker] sendBeacon threw, falling back to fetch:`, err);
+      }
+    }
 
     const doFetch = (attempt: number) => {
       fetch(url, { method: 'POST', headers, body, keepalive: true })
@@ -465,7 +453,6 @@ function sendServerEvent(tenantId: string, payload: {
             setTimeout(() => doFetch(2), 3000);
           } else {
             // v8.29.0: extend sendBeacon fallback to pre-navigation events
-            // that may be cancelled by immediate route changes.
             const beaconEligible = ['Purchase', 'AddToCart', 'InitiateCheckout'];
             if (beaconEligible.includes(payload.event_name) && typeof navigator !== 'undefined' && navigator.sendBeacon) {
               const beaconUrl = `${url}?apikey=${encodeURIComponent(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')}`;
@@ -482,7 +469,6 @@ function sendServerEvent(tenantId: string, payload: {
     doFetch(1);
   };
 
-  // v8.29.0: synchronous fast-path when _fbp already exists.
   if (synchronousFbp) {
     doSend(synchronousFbp);
   } else {
@@ -500,7 +486,8 @@ export class MarketingTracker {
 
   // Phase 5: sendCapi now accepts userData for PII enrichment
   // v8.28.0: optional fbp_wait_ms override per event
-  private sendCapi(eventName: string, eventId: string, customData?: Record<string, any>, userData?: Record<string, any>, fbpWaitMs?: number): void {
+  // v8.32.0: optional beacon_first for pre-navigation critical events
+  private sendCapi(eventName: string, eventId: string, customData?: Record<string, any>, userData?: Record<string, any>, fbpWaitMs?: number, beaconFirst?: boolean): void {
     if (!this.config.meta_enabled || !this.config.tenantId) return;
     sendServerEvent(this.config.tenantId, {
       event_name: eventName,
@@ -508,6 +495,7 @@ export class MarketingTracker {
       custom_data: customData,
       user_data: userData,
       fbp_wait_ms: fbpWaitMs,
+      beacon_first: beaconFirst,
     });
   }
 
@@ -717,7 +705,7 @@ export class MarketingTracker {
       currency,
       contents: [{ id: metaId, quantity: item.quantity, item_price: item.price }],
       delivery_category: 'home_delivery',
-    }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
+    }, undefined, 800, true); // v8.29.0: short fbp wait + v8.32.0: beacon-first (pre-navigation)
   }
 
   // Track initiate checkout — Phase 6: item_price in browser contents
@@ -777,7 +765,7 @@ export class MarketingTracker {
       num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       contents: cart.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
       delivery_category: 'home_delivery',
-    }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
+    }, undefined, 800, true); // v8.29.0: short fbp wait + v8.32.0: beacon-first (pre-navigation)
   }
 
   // Track purchase — Phase 2: accepts external event_id, Phase 5: accepts userData, Phase 6: item_price
