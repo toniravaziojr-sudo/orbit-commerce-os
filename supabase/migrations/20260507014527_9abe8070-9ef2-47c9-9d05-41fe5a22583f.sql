@@ -1,0 +1,1 @@
+DELETE FROM public.platform_cost_ledger WHERE idempotency_key = 'f2.1-validation-test-001';
