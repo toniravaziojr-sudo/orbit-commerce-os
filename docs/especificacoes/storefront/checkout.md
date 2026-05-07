@@ -838,6 +838,7 @@ Toggle controlado pelo lojista em **Builder > Tema > Configurações > Página C
 - Campo aparece no Step 1 (Dados pessoais) abaixo do telefone.
 - **Rótulo (regra UI v8.31.1):** quando obrigatório, exibe `Data de nascimento *`. Quando opcional, exibe apenas `Data de nascimento` (sem sufixo "(opcional)"). A ausência do asterisco é o indicador visual padrão de campo não-obrigatório em todo o checkout — não duplicar com texto.
 - Validação: idade ≥13 e ≤120 anos.
+- **UX por dispositivo (v8.32):** Desktop usa `<input type="date">` nativo (calendário do SO funciona bem). Mobile usa **input de texto com máscara automática `dd/mm/aaaa`** e teclado numérico (`inputMode="numeric"`, `autocomplete="bday"`), eliminando o seletor nativo mobile que forçava navegação mês a mês. Componente: `src/components/storefront/checkout/wizard/BirthDateInput.tsx`. Fonte de verdade interna permanece ISO `yyyy-MM-dd` (sem mudança em payload, persistência ou contrato).
 - Persistência: `checkout_sessions.customer_birth_date`, `orders.customer_birth_date`, `customers.birth_date` — atualizado automaticamente pela **Política de Enriquecimento do Cadastro** quando o pedido transita para pagamento aprovado (ver `docs/especificacoes/ecommerce/clientes.md` › "Enriquecimento automático pelo pedido aprovado").
 - Uso: enriquecimento Meta CAPI (`db` no cofre `_sf_identity`), audience-sync semanal (DOBY/DOBM/DOBD) e gatilho diário de aniversário (`customer.birthday`).
 
