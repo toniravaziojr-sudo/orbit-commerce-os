@@ -1,0 +1,1 @@
+DELETE FROM public.platform_cost_ledger WHERE idempotency_key = 'send-auth-email:sg-test-msgid-001';
