@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
       .eq('tenant_id', tenantId)
       .maybeSingle();
 
-    const certificateData = {
+    const certificateData: Record<string, any> = {
       certificado_pfx: encryptedPfx,
       certificado_senha: encryptedPassword,
       certificado_valido_ate: notAfter.toISOString(),
@@ -327,6 +327,14 @@ Deno.serve(async (req) => {
       certificado_cnpj: certCnpj || null,
       certificado_uploaded_at: new Date().toISOString(),
     };
+
+    // Em troca de CNPJ: alinhar cnpj e limpar vínculo Focus NFe da empresa antiga.
+    if (cnpjSwapped && certCnpj) {
+      certificateData.cnpj = certCnpj;
+      certificateData.focus_empresa_id = null;
+      certificateData.focus_empresa_criada_em = null;
+      certificateData.focus_ultima_sincronizacao = null;
+    }
 
     let result;
     if (existing) {
