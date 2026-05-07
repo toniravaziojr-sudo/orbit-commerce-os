@@ -839,9 +839,11 @@ export class MarketingTracker {
       }, eventId);
     }
 
-    // Phase 5: Include PII userData in CAPI; quick-win: predicted_ltv = AOV × 1.8
-    const predictedLtv = Math.round(order.value * 1.8 * 100) / 100;
-    this.sendCapi('Purchase', eventId, {
+    // v8.32.0: predicted_ltv only when value is valid > 0
+    const safeValue = typeof order.value === 'number' && Number.isFinite(order.value) && order.value > 0
+      ? order.value
+      : null;
+    const purchaseCustomData: Record<string, any> = {
       content_ids: order.items.map(i => resolveMetaContentId(i)),
       content_type: 'product',
       value: order.value,
@@ -850,9 +852,12 @@ export class MarketingTracker {
       contents: order.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
       order_id: order.order_id,
       delivery_category: 'home_delivery',
-      predicted_ltv: predictedLtv,
-      order_status: 'completed', // v8.31.0: Meta recommended for Purchase
-    }, order.userData);
+      order_status: 'completed',
+    };
+    if (safeValue !== null) {
+      purchaseCustomData.predicted_ltv = Math.round(safeValue * 1.8 * 100) / 100;
+    }
+    this.sendCapi('Purchase', eventId, purchaseCustomData, order.userData);
 
     // v8.28.0: Persist FULL identity into the cofre — Purchase is the most
     // complete capture point. Replaces legacy `storeAdvancedMatchingData`

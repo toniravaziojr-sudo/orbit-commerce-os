@@ -90,6 +90,10 @@ function buildFbcFromFbclid(fbclid: string): string {
 interface MetaCookieDecision {
   setFbp: string | null;
   setFbc: string | null;
+  /** v8.32.0: effective _fbp (existing OR newly synthesized) for inline injection */
+  effectiveFbp: string | null;
+  /** v8.32.0: effective _fbc (existing OR new from fbclid) for inline injection */
+  effectiveFbc: string | null;
 }
 
 /**
@@ -97,15 +101,22 @@ interface MetaCookieDecision {
  * - Always preserves existing cookies (browser is the source of truth)
  * - Sets a synthetic _fbp ONLY if the request had no _fbp at all
  * - Sets _fbc whenever ?fbclid= is present in the URL (refreshes attribution window)
+ * - v8.32.0: also returns effective values so we can inject them inline as window globals
  */
 function decideMetaCookies(req: Request, url: URL): MetaCookieDecision {
   const cookieHeader = req.headers.get('cookie');
   const existingFbp = readCookie(cookieHeader, '_fbp');
+  const existingFbc = readCookie(cookieHeader, '_fbc');
   const fbclid = url.searchParams.get('fbclid');
 
+  const synthetic = existingFbp ? null : buildSyntheticFbp();
+  const newFbc = fbclid ? buildFbcFromFbclid(fbclid) : null;
+
   return {
-    setFbp: existingFbp ? null : buildSyntheticFbp(),
-    setFbc: fbclid ? buildFbcFromFbclid(fbclid) : null,
+    setFbp: synthetic,
+    setFbc: newFbc,
+    effectiveFbp: existingFbp || synthetic,
+    effectiveFbc: newFbc || existingFbc,
   };
 }
 
