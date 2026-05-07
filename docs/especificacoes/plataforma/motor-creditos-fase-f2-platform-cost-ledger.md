@@ -257,3 +257,60 @@ Ver `workers-crons-pagos.md` §2.2 para a regra de classificação `platform_abs
 | Falha em `recordPlatformCost` quebra autenticação | ✅ NÃO (try/catch silencioso) |
 
 **Status final F2.4:** ✅ GO — telemetria de e-mails de auth (signup/recovery/magiclink/invite/email_change) integrada ao `platform_cost_ledger` sem afetar autenticação, sem cobrar tenant, sem expor PII.
+
+---
+
+## 11. F2.5 — `send-system-email` (✅ GO)
+
+**Decisão (Opção B aprovada):** migrar 100% para `recordPlatformCost` e **remover** `chargeAfter(PLATFORM_TENANT_ID)`. Edge é chamada apenas por painéis admin da plataforma (`SystemEmailTemplates`, `SystemEmailSettings`, `EmailAndDomainsPlatformSettings`); não há caller tenant.
+
+### 11.1 Contrato
+
+| Campo | Valor |
+|---|---|
+| `service_key` | `email-system-send` |
+| `cost_owner` | `platform` |
+| `provider` | `sendgrid` |
+| `category` | `email` |
+| `cost_usd` | `0.00060` |
+| `origin` | `send-system-email` |
+| `origin_id` | `result.messageId ?? null` |
+| `idempotency_key` (primária) | `send-system-email:{X-Message-Id}` |
+| `idempotency_key` (fallback) | `send-system-email:{email_type}:{recipient_hash16}:{minute_bucket}` |
+
+Telemetria registrada **apenas após `result.success === true`**, dentro de `try/catch` com `await`. Falha de telemetria **não quebra** o envio (log sanitizado + continue).
+
+### 11.2 Metadata sanitizada (gravada)
+
+`provider="sendgrid"`, `category="email"`, `email_type`, `provider_message_id`, `recipient_hash` (SHA-256 truncado 16), `from_domain` (domínio do remetente), `origin_function="send-system-email"`, `triggered_by="platform_admin"`.
+
+### 11.3 Proibido em metadata e logs (auditado)
+
+E-mail bruto do destinatário, HTML do corpo, subject completo, conteúdo de template, token, link, header `Authorization`, API key, qualquer PII bruta. Logs de fallback carregam apenas `origin_function`, `email_type`, `provider_message_id`, `recipient_hash`, `error_code`.
+
+### 11.4 Descontinuação documentada
+
+`chargeAfter(PLATFORM_TENANT_ID)` foi **removido** desta edge (junto com a constante `PLATFORM_TENANT_ID` e o import legado). Esta era a única edge que usava `chargeAfter` apontando para o tenant sintético da plataforma para custo classificado como `cost_owner=platform`. **Sem backfill**, **sem reversão** de cobranças passadas no tenant sintético — histórico financeiro real preservado.
+
+### 11.5 Validação técnica
+
+| Checagem | Resultado |
+|---|---|
+| Arquivo alterado | ✅ `supabase/functions/send-system-email/index.ts` |
+| `chargeAfter` removido | ✅ (import + chamada + constante `PLATFORM_TENANT_ID`) |
+| Coexistência `chargeAfter` + `recordPlatformCost` | ✅ NÃO (apenas `recordPlatformCost`) |
+| `recordPlatformCost` chamado só após sucesso SendGrid | ✅ |
+| `await` dentro de `try/catch` | ✅ |
+| `system_email_logs` preservado | ✅ |
+| `last_test_at` preservado para `email_type='test'` | ✅ |
+| RPC `record_platform_cost` 1ª chamada (`f2.5-validation-001`) | ✅ inserida |
+| RPC 2ª chamada mesma chave (idempotência) | ✅ sem 2ª linha |
+| Cleanup linha sintética | ✅ `DELETE WHERE idempotency_key='f2.5-validation-001'` |
+| `platform_cost_ledger` pós-cleanup | ✅ 0 linhas |
+| SendGrid real disparado em validação | ✅ NÃO |
+| `credit_wallet` alterada | ✅ NÃO |
+| `credit_ledger` alterado | ✅ NÃO |
+| `service_usage_events` (tenant) alterado | ✅ NÃO |
+| Falha em `recordPlatformCost` quebra envio | ✅ NÃO |
+
+**Status final F2.5:** ✅ GO — `send-system-email` agora alinhada com `funcoes-pagas.md` (linha 127). Custo de plataforma visível em `platform_cost_ledger`; ledger de tenant sintético deixa de ser contaminado.
