@@ -1308,9 +1308,9 @@ function buildFullPage(opts: {
         var prc=parseFloat(price)||0;
         var _atcEid=window._sfEvtId?_sfEvtId():'';
         // Meta
-        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL'},{eventID:_atcEid});}
+        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL',delivery_category:'home_delivery'},{eventID:_atcEid});}
         if(window.fbq){if(window._sfMetaReady){_atcMeta();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_atcMeta);}}
-        if(window._sfCapi)_sfCapi('AddToCart',_atcEid,{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL',contents:[{id:contentId,quantity:1,item_price:prc}]});
+        if(window._sfCapi)_sfCapi('AddToCart',_atcEid,{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL',delivery_category:'home_delivery',contents:[{id:contentId,quantity:1,item_price:prc,delivery_category:'home_delivery'}]});
         // Google
         function _atcGtag(){gtag('event','add_to_cart',{currency:'BRL',value:prc,items:[{item_id:contentId,item_name:name,price:prc,quantity:1}]});}
         if(window.gtag){if(window._sfGtagReady){_atcGtag();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_atcGtag);}}
@@ -1372,8 +1372,8 @@ function buildFullPage(opts: {
           var _coContentId=btn.dataset.productMetaId||btn.dataset.productSku||btn.dataset.productId;
           var _coPrice=parseFloat(btn.dataset.productPrice)||0;
           var _icEid=window._sfEvtId?_sfEvtId():'';
-          if(window.fbq){var _icM=function(){fbq('track','InitiateCheckout',{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2},{eventID:_icEid});};if(window._sfMetaReady){_icM();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icM);}}
-          if(window._sfCapi)_sfCapi('InitiateCheckout',_icEid,{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2});
+          if(window.fbq){var _icM=function(){fbq('track','InitiateCheckout',{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2,delivery_category:'home_delivery'},{eventID:_icEid});};if(window._sfMetaReady){_icM();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icM);}}
+          if(window._sfCapi)_sfCapi('InitiateCheckout',_icEid,{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2,delivery_category:'home_delivery'});
           if(window.gtag){var _icG=function(){gtag('event','begin_checkout',{currency:'BRL',value:_coPrice,items:[{item_id:_coContentId,price:_coPrice,quantity:qty2}]});};if(window._sfGtagReady){_icG();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icG);}}
           if(window.ttq){var _icT=function(){ttq.track('InitiateCheckout',{content_id:_coContentId,content_type:'product',value:_coPrice,currency:'BRL',quantity:qty2});};if(window._sfTTReady){_icT();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icT);}}
           window.location.href="/checkout";
@@ -1494,8 +1494,8 @@ function buildFullPage(opts: {
             var _icCartItems=cart.map(function(i){return{item_id:i.meta_retailer_id||i.sku||i.product_id,item_name:i.name,price:i.price,quantity:i.quantity}});
             var _icCartEid=window._sfEvtId?_sfEvtId():'';
             var _icCartNumItems=cart.reduce(function(s,i){return s+i.quantity},0);
-            if(window.fbq){var _icMf=function(){fbq('track','InitiateCheckout',{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems},{eventID:_icCartEid});};if(window._sfMetaReady){_icMf();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icMf);}}
-            if(window._sfCapi)_sfCapi('InitiateCheckout',_icCartEid,{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems});
+            if(window.fbq){var _icMf=function(){fbq('track','InitiateCheckout',{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems,delivery_category:'home_delivery'},{eventID:_icCartEid});};if(window._sfMetaReady){_icMf();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icMf);}}
+            if(window._sfCapi)_sfCapi('InitiateCheckout',_icCartEid,{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems,delivery_category:'home_delivery'});
             if(window.gtag){var _icGf=function(){gtag('event','begin_checkout',{currency:'BRL',value:_icCartTotal,items:_icCartItems});};if(window._sfGtagReady){_icGf();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icGf);}}
             if(window.ttq){var _icTf=function(){ttq.track('InitiateCheckout',{content_type:'product',value:_icCartTotal,currency:'BRL',quantity:_icCartNumItems});};if(window._sfTTReady){_icTf();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icTf);}}
           }
