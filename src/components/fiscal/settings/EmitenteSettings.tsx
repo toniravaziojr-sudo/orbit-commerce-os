@@ -101,6 +101,11 @@ export function EmitenteSettings() {
   const isExpiringSoon = !isExpired && daysUntilExpiry <= 30;
   const isConfigured = settings?.is_configured;
 
+  // Divergência CNPJ certificado x CNPJ emitente
+  const cnpjEmitClean = (settings?.cnpj || '').replace(/\D/g, '');
+  const cnpjCertClean = (settings?.certificado_cnpj || '').replace(/\D/g, '');
+  const cnpjMismatch = !!(hasCertificate && cnpjEmitClean && cnpjCertClean && cnpjEmitClean !== cnpjCertClean);
+
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
