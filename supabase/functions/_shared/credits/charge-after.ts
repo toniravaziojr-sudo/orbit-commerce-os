@@ -58,16 +58,35 @@ export async function chargeAfter(args: ChargeAfterArgs): Promise<ChargeAfterRes
       }
     }
 
-    const idemReserve = buildIdempotencyKey(["v2", "postpaid", "reserve", args.tenantId, args.jobId, args.serviceKey]);
+    // Normalização de jobId: RPC reserve_credits_v2 exige UUID em p_job_id.
+    // Providers externos (SendGrid X-Message-Id, etc.) retornam strings arbitrárias.
+    // Se já for UUID, mantemos. Caso contrário, derivamos UUID v5 determinístico
+    // namespaced por (tenantId, serviceKey, jobId externo) — mesmo input → mesmo UUID,
+    // tenants/serviços diferentes não colidem.
+    const externalJobId = args.jobId;
+    const billingJobId = isUuid(externalJobId)
+      ? externalJobId
+      : await deriveBillingJobIdV5(args.tenantId, args.serviceKey, externalJobId);
+    const jobIdWasDerived = billingJobId !== externalJobId;
+
+    const enrichedMetadata: Record<string, unknown> = {
+      ...(args.metadata ?? {}),
+      motor_universal: true,
+      postpaid: true,
+      provider_job_id: externalJobId,
+      ...(jobIdWasDerived ? { billing_job_id_derived: true, billing_job_id: billingJobId } : {}),
+    };
+
+    const idemReserve = buildIdempotencyKey(["v2", "postpaid", "reserve", args.tenantId, billingJobId, args.serviceKey]);
     const reserveRes = await reserveCredits({
       tenantId: args.tenantId,
       userId: args.userId ?? null,
       serviceKey: args.serviceKey,
       units: args.units,
       idempotencyKey: idemReserve,
-      jobId: args.jobId,
+      jobId: billingJobId,
       feature: args.feature,
-      metadata: { ...(args.metadata ?? {}), motor_universal: true, postpaid: true },
+      metadata: enrichedMetadata,
       mode: "live",
       reservationTtlMinutes: 5,
     });
