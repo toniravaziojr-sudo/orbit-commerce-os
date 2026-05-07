@@ -328,6 +328,14 @@ export function EmitenteSettings() {
                     </AlertDescription>
                   </Alert>
                 )}
+                {cnpjMismatch && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      O CNPJ do certificado digital ({cnpjCertClean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}) é diferente do CNPJ cadastrado como emitente ({cnpjEmitClean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}). A emissão de NF-e está bloqueada até que os CNPJs coincidam — atualize o CNPJ do emitente ou envie o certificado correto.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Separator />
                 <p className="text-sm text-muted-foreground">Substituir certificado:</p>
               </div>
