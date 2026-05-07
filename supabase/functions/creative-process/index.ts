@@ -170,13 +170,19 @@ async function pollJobInBackground(
     // Buscar job para verificar se tem áudio TTS gerado e o tipo de vídeo
     const { data: jobData } = await supabase
       .from('creative_jobs')
-      .select('settings, reference_audio_url, type')
+      .select('settings, reference_audio_url, type, tenant_id')
       .eq('id', jobId)
       .single();
     
     const generatedAudioUrl = jobData?.settings?.generated_audio_url || jobData?.reference_audio_url;
     const audioMode = jobData?.settings?.audio_mode;
     const jobType = jobData?.type;
+    const jobTenantId: string | null = jobData?.tenant_id || null;
+    const jobDurationSeconds: number | null = (() => {
+      const s = jobData?.settings || {};
+      const d = s.duration ?? s.video_duration ?? s.duration_seconds ?? null;
+      return typeof d === 'number' && d > 0 ? d : null;
+    })();
     
     // Detectar se é vídeo de produto (sem rosto) vs talking head
     // product_video = vídeos de produto SEM pessoa (rotação, efeitos)
