@@ -222,8 +222,64 @@ Deno.serve(async (req: Request): Promise<Response> => {
       },
     });
 
+    // ============================================================
+    // F2.4 — Motor de Créditos: registrar custo absorvido pela plataforma
+    // SOMENTE após sucesso confirmado do SendGrid.
+    // service_key=email-system-send | provider=sendgrid | cost_owner=platform
+    // Idempotência: provider_message_id quando disponível; fallback determinístico.
+    // Metadata sanitizada: sem token, sem link, sem email bruto, sem HTML, sem subject, sem nome.
+    // Falha de telemetria NUNCA pode quebrar autenticação.
+    // ============================================================
+    try {
+      const recipientHash = await hashRecipient(user.email);
+      const idempotencyKey = emailResult.messageId
+        ? `auth-email-hook:${emailResult.messageId}`
+        : `auth-email-hook:${email_action_type}:${recipientHash}:${Math.floor(Date.now() / 60000)}`;
+
+      const costResult = await recordPlatformCost({
+        serviceKey: "email-system-send",
+        units: { count: 1 },
+        costUsd: 0.00060,
+        origin: "auth-email-hook",
+        originId: emailResult.messageId ?? null,
+        idempotencyKey,
+        metadata: {
+          provider: "sendgrid",
+          category: "email",
+          email_type: "auth_hook",
+          email_action_type,
+          template_key: templateKey,
+          provider_message_id: emailResult.messageId ?? null,
+          recipient_hash: recipientHash,
+          origin_function: "auth-email-hook",
+        },
+      });
+
+      if (!costResult.success) {
+        console.warn("[auth-email-hook] recordPlatformCost falhou (não bloqueia auth):", {
+          origin_function: "auth-email-hook",
+          email_action_type,
+          template_key: templateKey,
+          provider_message_id: emailResult.messageId ?? null,
+          recipient_hash: recipientHash,
+          error_code: costResult.error_code ?? null,
+        });
+      }
+    } catch (e: any) {
+      // Telemetria NUNCA pode quebrar autenticação.
+      console.warn("[auth-email-hook] Erro ao registrar custo (ignorado):", {
+        origin_function: "auth-email-hook",
+        email_action_type,
+        template_key: templateKey,
+        error: typeof e?.message === "string" ? e.message : "unknown",
+      });
+    }
+
     // Return success - this tells Supabase we handled the email
     return new Response(JSON.stringify({}), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
