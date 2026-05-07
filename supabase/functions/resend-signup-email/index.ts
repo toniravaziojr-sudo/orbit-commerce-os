@@ -1,39 +1,60 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+import { recordPlatformCost } from "../_shared/credits/charge.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Send email via Resend REST API
-async function sendEmailViaResend(
+// SHA-256 truncado (16 chars) — usado em metadata para evitar PII (email completo).
+async function hashRecipient(email: string): Promise<string> {
+  const data = new TextEncoder().encode(email.toLowerCase().trim());
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 16);
+}
+
+// Send email via SendGrid REST API (provedor padrão da plataforma).
+// Domínio comandocentral.com.br é verified no SendGrid (system_email_config),
+// então o remetente visível atual `noreply@comandocentral.com.br` é preservado.
+async function sendEmailViaSendGrid(
   apiKey: string,
   to: string,
   subject: string,
   html: string,
-  from: string = 'Comando Central <noreply@comandocentral.com.br>'
-): Promise<{ success: boolean; error?: string }> {
+  fromEmail: string,
+  fromName: string,
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from, to: [to], subject, html }),
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: fromEmail, name: fromName },
+        subject,
+        content: [{ type: 'text/html', value: html }],
+      }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Resend API error:', response.status, errorData);
+      const errorText = await response.text().catch(() => '');
+      console.error('SendGrid API error:', response.status, errorText);
       return { success: false, error: `HTTP ${response.status}` };
     }
 
-    return { success: true };
+    const messageId = response.headers.get('X-Message-Id') ?? undefined;
+    return { success: true, messageId };
   } catch (error) {
-    console.error('Resend fetch error:', error);
+    console.error('SendGrid fetch error:', error);
     return { success: false, error: String(error) };
   }
 }
@@ -55,10 +76,10 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    const sendgridApiKey = Deno.env.get('SENDGRID_API_KEY');
     const appUrl = Deno.env.get('APP_URL') || 'https://app.comandocentral.com.br';
 
-    if (!resendApiKey) {
+    if (!sendgridApiKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'Email service not configured' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -218,11 +239,17 @@ Deno.serve(async (req) => {
       </div>
     `;
 
-    const emailResult = await sendEmailViaResend(
-      resendApiKey,
+    // Remetente preservado: domínio comandocentral.com.br é verified no SendGrid.
+    const fromEmail = 'noreply@comandocentral.com.br';
+    const fromName = 'Comando Central';
+
+    const emailResult = await sendEmailViaSendGrid(
+      sendgridApiKey,
       session.email,
       'Crie sua conta — Comando Central',
-      emailHtml
+      emailHtml,
+      fromEmail,
+      fromName,
     );
 
     if (!emailResult.success) {
@@ -239,7 +266,45 @@ Deno.serve(async (req) => {
       .update({ updated_at: new Date().toISOString() })
       .eq('id', session.id);
 
-    console.log('Email resent to:', session.email);
+    // ============================================================
+    // F2.3 — Motor de Créditos: registrar custo absorvido pela plataforma
+    // SOMENTE após sucesso confirmado do SendGrid.
+    // service_key=email-system-send | provider=sendgrid | cost_owner=platform
+    // Idempotência: provider_message_id quando disponível; fallback determinístico.
+    // Metadata sanitizada: sem token, sem link completo, sem email completo, sem HTML.
+    // ============================================================
+    try {
+      const recipientHash = await hashRecipient(session.email);
+      const idemBase = emailResult.messageId
+        ? `resend-signup-email:${emailResult.messageId}`
+        : `resend-signup-email:${session.id}:${recipientHash}:${Math.floor(Date.now() / 60000)}`;
+
+      const costResult = await recordPlatformCost({
+        serviceKey: 'email-system-send',
+        units: { count: 1 },
+        costUsd: 0.00060,
+        origin: 'resend-signup-email',
+        originId: session.id,
+        idempotencyKey: idemBase,
+        metadata: {
+          provider: 'sendgrid',
+          category: 'email',
+          email_type: 'signup_resend',
+          provider_message_id: emailResult.messageId ?? null,
+          recipient_hash: recipientHash,
+          origin_function: 'resend-signup-email',
+        },
+      });
+
+      if (!costResult.success) {
+        console.warn('[resend-signup-email] recordPlatformCost falhou (não bloqueia envio):', costResult.error_message);
+      }
+    } catch (e) {
+      // Telemetria NUNCA pode quebrar o envio.
+      console.warn('[resend-signup-email] Erro ao registrar custo (ignorado):', e);
+    }
+
+    console.log('Email resent to session:', session.id);
 
     return new Response(
       JSON.stringify({ 
