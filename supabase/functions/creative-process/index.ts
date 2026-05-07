@@ -333,8 +333,28 @@ async function pollJobInBackground(
           .eq('id', jobId);
         
         console.log(`[creative-process] Job ${jobId} SUCCEEDED! Cost: ${finalCostCents} centavos BRL (${costUsd.toFixed(4)} USD)`);
+
+        // ============ SHADOW v2 (Fase 3C) ============
+        // Registra service_usage_events status='shadow' para vídeo. SEM cobrança real.
+        // Falha NUNCA bloqueia entrega.
+        try {
+          if (jobTenantId) {
+            await recordMediaShadowEvent(supabase, {
+              tenantId: jobTenantId,
+              originFunction: 'creative-process',
+              jobId,
+              stepKey: 'video_main',
+              modelId: 'kling-i2v-pro',
+              resolveOpts: { seconds: jobDurationSeconds || 5 },
+              providerCostUsd: costUsd > 0 ? costUsd : null,
+              externalRequestId: requestId,
+              outputUrl: finalOutputUrl,
+            });
+          }
+        } catch (shadowErr) {
+          console.warn('[creative-process] shadow v2 failed (ignored):', (shadowErr as Error)?.message);
+        }
         return;
-      } else if (statusData.status === 'FAILED') {
         throw new Error(`Fal job failed: ${statusData.error || 'Unknown error'}`);
       }
       // IN_PROGRESS or IN_QUEUE - continue polling
