@@ -1,7 +1,16 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { recordPlatformCost } from "../_shared/credits/charge.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+
+// Hash parcial determinístico para auditoria sem PII bruta
+async function hashRecipient(email: string): Promise<string> {
+  const data = new TextEncoder().encode(email.toLowerCase().trim());
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, 16);
+}
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
