@@ -188,7 +188,9 @@ Decisão: **migrar para SendGrid** reusando `service_key=email-system-send` ($0.
 | Tenant visualiza custo | ✅ NÃO (`platform_cost_ledger` sem `tenant_id`) |
 | Platform admin enxerga custo | ✅ via `/platform/external-costs` |
 | E-mail enviado a cliente final em teste | ✅ NÃO (validação via RPC direto, sem chamada SendGrid) |
-| Cleanup linha sintética | ✅ removida |
+| Cleanup linha sintética | ✅ removida via migration de data cleanup (2026-05-07) — predicado composto `idempotency_key='f2.3-validation-001' AND id='82b762b4-fd6c-47d0-bf74-4744322be3a3' AND reason='platform_absorbed_cost' AND origin_function='resend-signup-email'`. Pós-cleanup: 0 linhas com essa chave; tabela `platform_cost_ledger` voltou a 0 linhas (nenhum custo real removido). |
+
+**Status final F2.3:** ✅ GO — fundação plugada, edge migrada para SendGrid, telemetria validada, cleanup concluído. Tenant `wallet`, `credit_ledger` e `service_usage_events` permanecem intactos.
 
 ### 9.4 Pendências F2.4 (não iniciar sem nova autorização)
 
