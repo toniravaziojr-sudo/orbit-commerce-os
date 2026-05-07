@@ -13,8 +13,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { recordMediaShadowEvent } from "../_shared/credits/media-shadow-event.ts";
 
-const VERSION = '2.5.1'; // Fix: Use signed URLs for private voice preset bucket
+const VERSION = '2.6.0'; // Fase 3C: shadow v2 plug em vídeo (creative-process)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -169,13 +170,19 @@ async function pollJobInBackground(
     // Buscar job para verificar se tem áudio TTS gerado e o tipo de vídeo
     const { data: jobData } = await supabase
       .from('creative_jobs')
-      .select('settings, reference_audio_url, type')
+      .select('settings, reference_audio_url, type, tenant_id')
       .eq('id', jobId)
       .single();
     
     const generatedAudioUrl = jobData?.settings?.generated_audio_url || jobData?.reference_audio_url;
     const audioMode = jobData?.settings?.audio_mode;
     const jobType = jobData?.type;
+    const jobTenantId: string | null = jobData?.tenant_id || null;
+    const jobDurationSeconds: number | null = (() => {
+      const s = jobData?.settings || {};
+      const d = s.duration ?? s.video_duration ?? s.duration_seconds ?? null;
+      return typeof d === 'number' && d > 0 ? d : null;
+    })();
     
     // Detectar se é vídeo de produto (sem rosto) vs talking head
     // product_video = vídeos de produto SEM pessoa (rotação, efeitos)
@@ -326,6 +333,27 @@ async function pollJobInBackground(
           .eq('id', jobId);
         
         console.log(`[creative-process] Job ${jobId} SUCCEEDED! Cost: ${finalCostCents} centavos BRL (${costUsd.toFixed(4)} USD)`);
+
+        // ============ SHADOW v2 (Fase 3C) ============
+        // Registra service_usage_events status='shadow' para vídeo. SEM cobrança real.
+        // Falha NUNCA bloqueia entrega.
+        try {
+          if (jobTenantId) {
+            await recordMediaShadowEvent(supabase, {
+              tenantId: jobTenantId,
+              originFunction: 'creative-process',
+              jobId,
+              stepKey: 'video_main',
+              modelId: 'kling-i2v-pro',
+              resolveOpts: { seconds: jobDurationSeconds || 5 },
+              providerCostUsd: costUsd > 0 ? costUsd : null,
+              externalRequestId: requestId,
+              outputUrl: finalOutputUrl,
+            });
+          }
+        } catch (shadowErr) {
+          console.warn('[creative-process] shadow v2 failed (ignored):', (shadowErr as Error)?.message);
+        }
         return;
       } else if (statusData.status === 'FAILED') {
         throw new Error(`Fal job failed: ${statusData.error || 'Unknown error'}`);
