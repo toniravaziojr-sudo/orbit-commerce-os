@@ -1,8 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { recordPlatformCost } from "../_shared/credits/charge.ts";
 
-const VERSION = "v1.0.0";
+const VERSION = "v1.1.0"; // F2.6 — telemetria platform_cost_ledger plugada
+
+// Pricing canônico Gemini 2.5 Flash (USD por 1M tokens) — fonte: service_pricing
+const GEMINI_PRICE_PER_1M_IN = 0.30;
+const GEMINI_PRICE_PER_1M_IN_CACHED = 0.03;
+const GEMINI_PRICE_PER_1M_OUT = 2.50;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
