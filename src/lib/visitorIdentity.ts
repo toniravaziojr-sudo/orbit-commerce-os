@@ -207,7 +207,7 @@ export interface TrackingIdentity {
 export function getTrackingIdentity(): TrackingIdentity {
   return {
     external_id: getVisitorId(),
-    fbp: getFbp(),
+    fbp: getEffectiveFbp(),
     fbc: getFbc(),
   };
 }
