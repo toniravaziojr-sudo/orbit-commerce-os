@@ -1,99 +1,137 @@
-## Como funciona hoje
+## Objetivo
 
-- Cliente é identificado pelo e-mail normalizado dentro do tenant — regra 100% validada.
-- Quando um pedido é aprovado, o trigger `after_order_approved_sync` apenas garante a tag "Cliente", recalcula métricas e sincroniza listas. **Não** copia nenhum dado do pedido para o cadastro do cliente.
-- A "Profile Enrichment Policy" mencionada nos docs nunca foi implementada de fato.
-- Resultado: pedido #409 enviou CPF, data de nascimento e endereço completo, mas o cadastro do cliente continuou com esses campos em branco.
-- Endereços do cliente: hoje não existe tabela separada de endereços vinculada a `customers` — o endereço vive em colunas próprias do cliente e nas colunas de envio do pedido (`shipping_*`).
+Fechar o vazamento de custo nas duas únicas edges de mídia ainda fora do motor v2 (`creative-process` e `media-generate-video`), seguindo estritamente o padrão já estabelecido pelo doc e pelo piloto Fase 3B (shadow primeiro, live depois). Sem inventar arquitetura, sem inventar service_keys, sem pular shadow.
 
-## O problema
+## Por que o plano anterior precisou ser refeito
 
-O cadastro do cliente fica desatualizado em relação ao último pedido aprovado. Não há mecanismo automático de propagação dos dados de um pedido novo para o cadastro mestre — nem dados pessoais (CPF, telefone, nome, nascimento), nem endereço completo.
+A investigação dos docs revelou 5 violações graves no plano anterior:
 
-## O que eu faria
+| # | Violação | Correção |
+|---|---|---|
+| 1 | Inventei `service_key` no formato `creative.kling-i2v-pro` | Usar **só** chaves canônicas já em `service_pricing`: `fal.kling-video.per_second.pro`, `fal.veo-3.1.per_second.*`, `fal.gpt-image-1.5.per_image.*` |
+| 2 | Propus `chargeAfter` direto para vídeo (risco crítico no registry) | Vídeo é `reserve+capture` obrigatório com 110% da estimativa (doc §8). `chargeAfter` postpaid não atende. |
+| 3 | Pulei shadow mode | Fase 3B exige shadow primeiro. `creative-image-generate` ainda está em shadow. Live só após validação |
+| 4 | Ignorei o helper `live-v2.ts`/`shadow-reservation.ts` que `creative-image-generate` já usa | Replicar exatamente o mesmo padrão das edges novas — sem helper alternativo |
+| 5 | Não tinha mapeamento `model_id interno → service_key canônica` | Esse mapper é o trabalho real. Pequeno, isolado, testável |
 
-### Regra de negócio (nova)
+## Diagnóstico final do escopo
 
-Toda vez que um pedido transita para pagamento aprovado, o cadastro do cliente vinculado é atualizado com os dados desse pedido — porque o pedido mais novo é a fonte de verdade mais recente do que o cliente declarou. E-mail nunca é tocado (é a chave de identidade).
+| Edge | Estado real | Ação |
+|---|---|---|
+| `creative-image-generate` | Shadow ativo + live-v2 condicional. **Já é o padrão** | Nada |
+| `ads-autopilot-creative-generate` | **Delega** via fetch interno para `creative-image-generate` (linha 329). Cobrança herdada | Verificar só se `tenant_id` propaga |
+| `meta-ads-creatives` | Apenas CRUD/sync da Meta API. **Não gera mídia** | Fora de escopo |
+| `creative-generate` | Cria job + estimativa de display em centavos (hardcode). Não chama provider | Manter como está; cobrança vai no worker |
+| `creative-process` (worker) | Já busca `costUsd` real via Fal Usage API. **Não toca motor** | Plugar shadow + reserve/capture |
+| `media-generate-video` | Gera vídeo direto. **Não toca motor** | Plugar shadow + reserve/capture |
 
-**Campos pessoais enriquecidos:**
-- Nome completo
-- CPF
-- CNPJ / Razão Social / IE (PJ)
-- Telefone
-- Data de nascimento
-- Gênero
+## O que será feito
 
-**Endereço enriquecido (bloco completo, tratado como conjunto coerente):**
-- CEP
-- Rua/Logradouro
-- Número
-- Complemento
-- Bairro
-- Cidade
-- Estado (UF)
+### Etapa 1 — Mapper canônico (helper compartilhado)
 
-Endereço é tratado como **bloco atômico**: se o pedido tem endereço (CEP preenchido), substitui o endereço inteiro do cliente — não mistura CEP novo com rua antiga. Isso evita inconsistência (cliente mudou de cidade e o cadastro fica com CEP novo + bairro velho).
+Criar `supabase/functions/_shared/credits/media-service-key-resolver.ts`:
 
-**Comportamento por campo pessoal:**
-- Pedido tem valor preenchido e diferente → atualiza.
-- Pedido tem valor vazio → não toca no cadastro (preserva dado existente).
-- Igual → no-op.
+- Função `resolveVideoServiceKey(modelId, opts)` → `{ serviceKey, units }` para vídeo.
+  - `kling-i2v-pro` → `fal.kling-video.per_second.pro` + `units = { seconds }`
+  - `kling-avatar*` → `fal.kling-video.per_second.pro`
+  - `veo31-text-video` → `fal.veo-3.1.per_second.fast.audio` (ou variant via opts)
+- Função `resolveImageServiceKey(modelId, opts)` → para imagens (`gpt-image-bg` etc.)
+- Função `resolveAudioServiceKey(modelId, opts)` → para `f5-tts`, `sync-lipsync`, `chatterbox-voice`. Se não houver entrada em `service_pricing`, retornar `null` e a edge faz **skip controlado** com `skip_reason='pricing_not_seeded'` (mesmo padrão da Fase 3B).
+- Tabela única e testável. Próximas edges reusam.
 
-**Comportamento do bloco endereço:**
-- Pedido tem CEP válido → substitui o endereço inteiro pelo do pedido (CEP, rua, número, complemento, bairro, cidade, estado). Complemento vazio no pedido sobrescreve para vazio (faz parte do bloco).
-- Pedido sem CEP → não toca no endereço.
+### Etapa 2 — Plug em `creative-process` (worker)
 
-**Quando dispara:**
-- Apenas na transição para `payment_status = 'approved'` (mesmo gatilho que já existe). Nunca em updates subsequentes — sem sobrecarga.
-- Apenas quando `customer_id` está vinculado ao pedido.
+Após cada step concluído com sucesso e `fetchRealCostFromFalai` resolvido:
 
-### Implementação técnica
+1. `serviceKey, units = resolveVideoServiceKey(step.model_id, { seconds: actualDuration })` (ou Image, conforme tipo).
+2. Se `serviceKey === null`: log `[creative-process.shadow] skip pricing_not_seeded` e segue. **Nunca quebra entrega.**
+3. Caso contrário: chamar **mesma função usada por `creative-image-generate`** (`live-v2.ts` se aplicável, ou shadow via `shadow-reservation.ts`).
+4. Idempotência: `${job.id}:${step.step_id}:${variation_index}`.
+5. Tenant ativa shadow incluindo as novas chaves em `tenant_credit_motor_config.shadow_service_keys` (sem entrar em `live_service_keys` ainda).
 
-1. **Migração: novas colunas em `public.customers`** para armazenar o endereço principal (não existem hoje):
-   - `address_postal_code`, `address_street`, `address_number`, `address_complement`, `address_neighborhood`, `address_city`, `address_state`.
-   - Todas nullable, sem default. Apenas para refletir o último endereço aprovado do cliente. (Não substitui uma futura tabela de múltiplos endereços — é o "endereço principal" do cadastro.)
+### Etapa 3 — Plug em `media-generate-video`
 
-2. **Nova função SQL** `public.enrich_customer_from_order(p_tenant_id, p_customer_id, p_order_id)`:
-   - SECURITY DEFINER, search_path=public.
-   - Lê o pedido e faz UPDATE em `customers`:
-     - Campos pessoais: `field = COALESCE(NULLIF(TRIM(order.field), ''), customers.field)`.
-     - Bloco endereço: se `order.shipping_postal_code` não-vazio → sobrescreve os 7 campos de endereço inteiros. Se vazio → preserva tudo.
-   - Atualiza `updated_at`.
+Mesmo padrão. Vídeo = sempre shadow primeiro. Idempotência: `media-generate-video:${tenant_id}:${request_id}`.
 
-3. **Extensão do trigger existente** `after_order_approved_sync`:
-   - Mantém toda lógica atual.
-   - Adiciona chamada a `enrich_customer_from_order(...)` no mesmo `IF` de transição para approved.
-   - Wrap em `BEGIN ... EXCEPTION WHEN OTHERS THEN RAISE WARNING` — nunca derruba a aprovação.
+### Etapa 4 — Seed de `service_pricing` faltantes (migration)
 
-4. **Padrão arquitetural**: Padrão 1 (Pure SQL Trigger). Apenas UPDATE em uma tabela, sem chamada externa. Latência zero, atômico.
+Auditar gaps. Hoje confirmado:
 
-5. **Backfill do pedido #409**: rodar a função uma vez para o pedido #409 do tenant respeiteohomem como validação técnica.
+- ✅ `fal.kling-video.per_second.pro` (existe)
+- ✅ `fal.veo-3.1.per_second.*` (várias variantes)
+- ✅ `fal.gpt-image-1.5.per_image.*` (várias resoluções)
+- ❌ `fal.pixverse.*` — **faltam**, seedar com `metadata.placeholder=true`
+- ❌ `fal.f5-tts.*`, `fal.sync-lipsync.*` — **faltam**, seedar como placeholder
+- ❌ `fal.kling-video.per_second.standard` (modo std do mascot avatar) — verificar
 
-### Validação técnica obrigatória
+Seed só com `placeholder=true` para chaves não confirmadas; mapper retorna `null` para placeholders → edge faz skip controlado. Sem cobrança shadow errada. Cura quando preço real for confirmado.
 
-- Confirmar antes/depois do backfill: cadastro do cliente do #409 com CPF, data de nascimento e endereço completo (CEP, rua, número, complemento, bairro, cidade, estado).
-- Confirmar que o telefone/nome existentes não foram apagados se o pedido não trouxe valor diferente.
-- Confirmar que pedidos antigos já aprovados não disparam (trigger só age na transição).
-- Verificar logs de erro (sem warnings inesperados).
+### Etapa 5 — Atualizar `tenant_credit_motor_config` do Respeite o Homem
 
-### Documentação a atualizar
+Adicionar em `shadow_service_keys` as novas chaves de vídeo confirmadas (Kling pro, Veo). Pixverse/F5-TTS ficam fora até preço real.
 
-- `docs/especificacoes/ecommerce/clientes.md` — nova seção "Enriquecimento automático pelo pedido aprovado" + novas colunas de endereço no schema documentado.
-- `docs/especificacoes/storefront/checkout.md` — corrigir o texto atual sobre Profile Enrichment Policy (deixou de ser "só preenche quando nulo" — agora sobrescreve com valor não-vazio do pedido mais recente; endereço é bloco atômico).
-- `docs/especificacoes/sistema/automacao-patterns.md` — entrada no histórico citando a extensão do trigger.
-- `docs/especificacoes/transversais/mapa-ui.md` — nenhuma rota nova, mas a tela de detalhe do cliente passa a refletir o endereço principal: registrar isso se aplicável.
-- Atualizar memória `mem://features/customers/profile-enrichment-policy-standard` (overwrite com fonte = pedido mais novo aprovado, e-mail intocado, endereço como bloco atômico).
+### Etapa 6 — Validação técnica obrigatória
 
-### Fora do escopo (declarado)
+Disparar 1 job de cada tipo no piloto e validar via:
 
-- Histórico de endereços / múltiplos endereços por cliente (entidade futura).
-- Pedidos não aprovados.
-- Importação em massa (importer mantém merge próprio).
-- Pedidos de marketplace (Mercado Livre/Shopee) — esta regra age sobre pedidos com `customer_id` vinculado e transição para `payment_status='approved'`, o que já cobre o checkout próprio. Marketplaces seguem fluxo próprio.
+```sql
+SELECT service_key, status, metadata->>'v2_credits_estimated', metadata->>'shadow_error'
+FROM service_usage_events
+WHERE tenant_id='d1a4d0ed-8842-495e-b741-540a9a345b25'
+  AND status='shadow'
+  AND created_at > NOW() - INTERVAL '1 hour'
+ORDER BY created_at DESC;
+```
 
-## Resultado final
+Critérios de sucesso:
+- 0 erros shadow
+- Cada step gerou exatamente 1 evento shadow
+- Idempotência: re-disparo do mesmo job não duplica evento
+- `credit_ledger` permanece intacto (shadow não toca financeiro)
 
-Todo pedido novo aprovado mantém o cadastro do cliente sempre alinhado com a última informação declarada: dados pessoais (CPF, telefone, nome, nascimento, dados PJ, gênero) e endereço completo (CEP, rua, número, complemento, bairro, cidade, estado). Sem sobrecarga: uma única função SQL adicional dentro do trigger que já roda uma vez por aprovação. Sem risco de apagar dado existente (campos pessoais vazios são ignorados). Endereço tratado como bloco atômico para nunca ficar inconsistente. E-mail permanece como chave imutável.
+### Etapa 7 — Janela de avaliação shadow (7 dias)
 
-É isso? Confirma que eu ajusto?
+Antes de promover qualquer chave de vídeo para `live_service_keys`, esperar 7 dias com ≥10 eventos shadow por chave e 0 erros. Mesma régua da Fase 3.
+
+## Documentação a atualizar (no fechamento)
+
+- `docs/especificacoes/plataforma/motor-creditos.md` — nova **Fase 3C — Piloto shadow IA Vídeo + áudio creative** logo abaixo da Fase 3B.
+- `docs/especificacoes/plataforma/motor-creditos-fase-3c-shadow-video.md` — doc dedicado (espelha estrutura do 3b).
+- `mem://features/platform/motor-universal-creditos-rollout` — marcar lote de mídia como "shadow ativo, aguardando janela de 7 dias".
+- `mem://features/ai/creative-pipeline-charging-standard` — nova memória com contrato do `media-service-key-resolver`.
+- `docs/especificacoes/plataforma/funcoes-pagas.md` — atualizar status de `creative-process`, `media-generate-video`, `ads-autopilot-creative-generate` (tudo plugado em shadow).
+
+## Fora deste plano
+
+- **Promoção live de vídeo** — só após janela shadow validada. Mensagem separada.
+- **Auditoria `tenant_ai_usage` zerado** — diagnóstico independente, mensagem separada.
+- **Hardcode em `creative-generate`** — é só estimativa de display, não impacta cobrança real. Limpeza opcional futura.
+
+## Diagrama do fluxo final
+
+```text
+creative-generate (cria job, estima display)
+        ↓
+creative-process (worker)
+   ├─ executa step na Fal
+   ├─ fetchRealCostFromFalai() → costUsd real
+   ├─ salva output
+   ├─ resolveVideoServiceKey(model_id, { seconds }) → { serviceKey, units } | null
+   └─ se serviceKey != null → shadow event via shadow-reservation
+                              (live-v2 só após promoção em config)
+
+media-generate-video
+   ├─ executa geração na Fal
+   ├─ fetchRealCostFromFalai()
+   ├─ resolveVideoServiceKey(...)
+   └─ shadow event (igual acima)
+```
+
+## Riscos e mitigações
+
+| Risco | Mitigação |
+|---|---|
+| Mapper retorna chave errada → cobrança shadow errada | Testes unitários do resolver + janela 7 dias antes de live |
+| Edge quebra se shadow falhar | `shadow-reservation` já tem try/catch silencioso. Falha vira `WARN`, geração entrega normalmente |
+| Pixverse/F5-TTS sem preço seedado vazam custo silencioso | Aceito por enquanto. Pricing real entra em iteração futura, sem bloquear este lote |
+| Chaves canônicas Kling/Veo divergem do `model_id` interno | Mapper centralizado é o único ponto de tradução. Testado |
