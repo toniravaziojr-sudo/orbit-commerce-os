@@ -13,8 +13,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { recordMediaShadowEvent } from "../_shared/credits/media-shadow-event.ts";
 
-const VERSION = '2.5.1'; // Fix: Use signed URLs for private voice preset bucket
+const VERSION = '2.6.0'; // Fase 3C: shadow v2 plug em vídeo (creative-process)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
