@@ -2,6 +2,7 @@ import { Loader2, Check, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { handleCpfInput } from '@/lib/formatCpf';
+import { BirthDateInput } from './BirthDateInput';
 import type { ExtendedFormData } from './types';
 
 interface Step1Props {
@@ -111,11 +112,10 @@ export function Step1PersonalData({
               <Label htmlFor="customerBirthDate">
                 Data de nascimento{birthDateRequired ? ' *' : ''}
               </Label>
-              <Input
+              <BirthDateInput
                 id="customerBirthDate"
-                type="date"
                 value={formData.customerBirthDate || ''}
-                onChange={(e) => onChange('customerBirthDate', e.target.value)}
+                onChange={(v) => onChange('customerBirthDate', v)}
                 max={MAX_BIRTH_DATE}
                 disabled={disabled}
                 className={errors.customerBirthDate ? 'border-destructive' : ''}
