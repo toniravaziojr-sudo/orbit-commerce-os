@@ -45,7 +45,7 @@ Catalogar toda edge function que consome (ou pode consumir) custo externo pago. 
 | ai-snapshot-queue-worker | OpenAI/Gemini | token | worker/cron | parcial | reserve+capture | médio | Herda tenant do job. |
 | ai-media-queue-process | OpenAI/Gemini/Fal | token + image/video | worker | parcial | reserve+capture | alto | Herda tenant do job. |
 | ai-signal-capture / ai-signal-capture-batch / ai-signal-consolidate | OpenAI/Gemini | token | worker | parcial | charge | médio | — |
-| ai-learning-aggregator | OpenAI/Gemini | token | cron | parcial | recordPlatformCost ou tenant | médio | **Classificar antes de Fase 1.** |
+| ai-learning-aggregator | — (sem provider externo) | — | cron | **n/a** | **não aplicável** | nenhum | **F2.6:** auditada — pipeline puramente DB+regex local, sem chamada a OpenAI/Gemini/Anthropic/Lovable. Sem custo externo rastreável. |
 | ai-brain-monthly-review-reminder | OpenAI/Gemini | token | cron | sim | charge | baixo | — |
 | ai-critical-alerts-process | OpenAI/Gemini | token | cron | sim | charge | baixo | — |
 | ai-config-bootstrap | OpenAI/Gemini | token | frontend | sim | charge | baixo | — |
