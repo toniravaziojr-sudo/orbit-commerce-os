@@ -1,8 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { recordPlatformCost } from "../_shared/credits/charge.ts";
 
-const VERSION = "v1.0.0";
+const VERSION = "v1.1.0"; // F2.6 — telemetria platform_cost_ledger plugada
+
+// Pricing canônico Gemini 2.5 Flash (USD por 1M tokens) — fonte: service_pricing
+const GEMINI_PRICE_PER_1M_IN = 0.30;
+const GEMINI_PRICE_PER_1M_IN_CACHED = 0.03;
+const GEMINI_PRICE_PER_1M_OUT = 2.50;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -109,7 +115,8 @@ Deno.serve(async (req) => {
         }
 
         // Generate insights via AI
-        const insights = await generateInsights(metrics, supabaseUrl, supabaseKey);
+        const aiResult = await generateInsights(metrics, supabaseUrl, supabaseKey);
+        const insights = aiResult.insights;
         console.log(`${LOG} Generated ${insights.length} insights for tenant ${tenantId}`);
 
         // Save insights
@@ -132,6 +139,92 @@ Deno.serve(async (req) => {
           } else {
             totalInsights += insights.length;
           }
+        }
+
+        // F2.6 — Telemetria de custo de plataforma (após sucesso do LLM).
+        // Falha NUNCA quebra a geração de insights (try/catch silencioso).
+        // Idempotência por chamada real ao provider: usa response_id quando disponível,
+        // senão cai para tenant+período+attempt-hash determinístico do conteúdo da resposta.
+        try {
+          const usage = aiResult.usage ?? null;
+          if (usage && (usage.prompt_tokens > 0 || usage.completion_tokens > 0)) {
+            const tokensIn = Number(usage.prompt_tokens ?? 0);
+            const tokensOut = Number(usage.completion_tokens ?? 0);
+            const cachedTokens = Number(
+              usage.prompt_tokens_details?.cached_tokens
+                ?? usage.cached_tokens
+                ?? 0
+            );
+            const tokensInUncached = Math.max(0, tokensIn - cachedTokens);
+
+            const costUsd =
+              (tokensInUncached / 1_000_000) * GEMINI_PRICE_PER_1M_IN +
+              (cachedTokens / 1_000_000) * GEMINI_PRICE_PER_1M_IN_CACHED +
+              (tokensOut / 1_000_000) * GEMINI_PRICE_PER_1M_OUT;
+
+            const periodStartDay = periodStart.toISOString().slice(0, 10);
+            const responseId = aiResult.responseId
+              ?? `${tenantId}:${periodStartDay}:${tokensIn}:${tokensOut}:${insights.length}`;
+            const idempotencyKey = `command-insights-generate:${tenantId}:${periodStartDay}:${responseId}`;
+
+            const costResult = await recordPlatformCost({
+              serviceKey: "command-insights-generate",
+              units: {
+                count: 1,
+                tokens_in: tokensIn,
+                tokens_out: tokensOut,
+                cached_tokens: cachedTokens,
+                insights_count: insights.length,
+              },
+              costUsd: Number(costUsd.toFixed(8)),
+              origin: "command-insights-generate",
+              originId: null,
+              metadata: {
+                provider: aiResult.provider,
+                model: aiResult.model,
+                category: "ai_text",
+                tenant_id: tenantId,
+                period_start: periodStart.toISOString(),
+                period_end: periodEnd.toISOString(),
+                tokens_in: tokensIn,
+                tokens_out: tokensOut,
+                cached_tokens: cachedTokens,
+                insights_count: insights.length,
+                origin_function: "command-insights-generate",
+                triggered_by: tenantIds.length > 1 ? "cron" : "admin_or_cron_single",
+                cost_source: "computed_from_token_pricings",
+              },
+              idempotencyKey,
+            });
+
+            if (costResult.success) {
+              console.log(`${LOG} platform_cost_ledger ok`, JSON.stringify({
+                tenant_id: tenantId,
+                period_start: periodStartDay,
+                provider: aiResult.provider,
+                model: aiResult.model,
+                tokens_in: tokensIn,
+                tokens_out: tokensOut,
+                cached_tokens: cachedTokens,
+                cost_usd: Number(costUsd.toFixed(8)),
+              }));
+            } else {
+              console.warn(`${LOG} platform_cost_ledger FAIL`, JSON.stringify({
+                tenant_id: tenantId,
+                period_start: periodStartDay,
+                error_code: costResult.error_code,
+                error_message: costResult.error_message,
+                idempotency_key: idempotencyKey,
+              }));
+            }
+          } else {
+            console.warn(`${LOG} platform_cost_ledger SKIP — no usage in LLM response`, JSON.stringify({
+              tenant_id: tenantId,
+              has_usage: !!usage,
+            }));
+          }
+        } catch (costErr) {
+          console.warn(`${LOG} platform_cost_ledger EXCEPTION (silent)`, String(costErr));
         }
       } catch (tenantErr) {
         console.error(`${LOG} Error processing tenant ${tenantId}:`, tenantErr);
@@ -241,7 +334,15 @@ function hasSignificantData(metrics: any): boolean {
   );
 }
 
-async function generateInsights(metrics: any, supabaseUrl: string, supabaseKey: string): Promise<InsightItem[]> {
+interface AIInsightsResult {
+  insights: InsightItem[];
+  usage: any | null;
+  provider: string | null;
+  model: string | null;
+  responseId: string | null;
+}
+
+async function generateInsights(metrics: any, supabaseUrl: string, supabaseKey: string): Promise<AIInsightsResult> {
   const systemPrompt = `Você é um analista de negócios de e-commerce brasileiro. Analise as métricas semanais fornecidas e gere insights acionáveis. Seja direto e prático. Foque em:
 - Tendências de vendas e receita
 - Problemas operacionais (envios pendentes, NF-e, chargebacks)
@@ -252,7 +353,7 @@ Gere entre 3 e 6 insights relevantes. Se os números forem baixos ou normais, de
 
   const userPrompt = `Métricas da semana:\n${JSON.stringify(metrics, null, 2)}`;
 
-  const { data: aiResponse } = await aiChatCompletionJSON(
+  const { data: aiResponse, provider, model } = await aiChatCompletionJSON(
     "google/gemini-2.5-flash",
     {
       messages: [
@@ -300,16 +401,19 @@ Gere entre 3 e 6 insights relevantes. Se os números forem baixos ou normais, de
     { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: LOG, maxRetries: 2, baseDelayMs: 3000 }
   );
 
+  const usage = aiResponse?.usage ?? null;
+  const responseId = aiResponse?.id ?? null;
+
   try {
     const toolCall = aiResponse?.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall?.function?.arguments) {
       console.error(`${LOG} No tool call in AI response`);
-      return [];
+      return { insights: [], usage, provider, model, responseId };
     }
     const parsed = JSON.parse(toolCall.function.arguments);
-    return parsed.insights || [];
+    return { insights: parsed.insights || [], usage, provider, model, responseId };
   } catch (e) {
     console.error(`${LOG} Failed to parse AI response:`, e);
-    return [];
+    return { insights: [], usage, provider, model, responseId };
   }
 }

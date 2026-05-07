@@ -45,14 +45,14 @@ Catalogar toda edge function que consome (ou pode consumir) custo externo pago. 
 | ai-snapshot-queue-worker | OpenAI/Gemini | token | worker/cron | parcial | reserve+capture | médio | Herda tenant do job. |
 | ai-media-queue-process | OpenAI/Gemini/Fal | token + image/video | worker | parcial | reserve+capture | alto | Herda tenant do job. |
 | ai-signal-capture / ai-signal-capture-batch / ai-signal-consolidate | OpenAI/Gemini | token | worker | parcial | charge | médio | — |
-| ai-learning-aggregator | OpenAI/Gemini | token | cron | parcial | recordPlatformCost ou tenant | médio | **Classificar antes de Fase 1.** |
+| ai-learning-aggregator | — (sem provider externo) | — | cron | **n/a** | **não aplicável** | nenhum | **F2.6:** auditada — pipeline puramente DB+regex local, sem chamada a OpenAI/Gemini/Anthropic/Lovable. Sem custo externo rastreável. |
 | ai-brain-monthly-review-reminder | OpenAI/Gemini | token | cron | sim | charge | baixo | — |
 | ai-critical-alerts-process | OpenAI/Gemini | token | cron | sim | charge | baixo | — |
 | ai-config-bootstrap | OpenAI/Gemini | token | frontend | sim | charge | baixo | — |
 | ai-generate-offers / ai-generate-related-products | OpenAI/Gemini | token | frontend | sim | charge | baixo | — |
 | ai-memory-manager | OpenAI/Gemini | token | worker | sim | charge | baixo | — |
 | chatgpt-chat | OpenAI | token | frontend | sim | reserve+capture | alto | Feature dedicada. |
-| command-insights-generate | OpenAI/Gemini | token | cron | **não** | recordPlatformCost | médio | **Cron de plataforma.** Custo absorvido. |
+| command-insights-generate | Gemini | token | cron + admin | **não** | recordPlatformCost | médio | **F2.6 ✅ plugada.** service_key=`command-insights-generate`, custo calculado em runtime via tokens reais (Gemini 2.5 Flash in/cached/out). |
 | infer-business-context | OpenAI/Gemini | token | frontend | sim | charge | baixo | — |
 | meli-generate-description | OpenAI/Gemini | token | frontend | sim | charge | baixo | — |
 | generate-seo / generate-reviews / batch-kit-descriptions | OpenAI/Gemini | token | frontend | sim | charge | médio | — |
