@@ -98,3 +98,39 @@ No helper `chargeAfter` (`_shared/credits/charge-after.ts`):
 
 ### Pendência
 Reenvio manual de 1 e-mail real pela UI para fechar GO/NO-GO funcional da F1.
+
+---
+
+## Patch F1.2 — Aprovação simbólica temporária do `email-transactional-send` (2026-05-07)
+
+### Contexto
+Após a F1.1, o reenvio real falhou com `PRICE_NOT_APPROVED`: o `service_pricing`
+de `email-transactional-send` estava marcado como placeholder não aprovado para
+live (`approved_for_live=false`, `live_block_reason=placeholder_price_not_approved`).
+
+### Decisão de negócio (operador)
+Aprovar o preço atual como **simbólico temporário** apenas para destravar a
+validação ponta a ponta da F1. Custo e markup mantidos: `cost_usd=0.00060`,
+`markup_pct=100`, `provider=sendgrid`, `category=email`.
+
+### Blast radius confirmado antes da aplicação
+- `service_pricing` é **global por `service_key`** (não tem `tenant_id`).
+- Apenas **1 tenant** possui `motor_v2_enabled=true` em `tenant_credit_motor_config`:
+  Respeite o Homem (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
+- Nenhum outro tenant pode ser cobrado pelo motor v2 hoje.
+
+### Alteração aplicada
+- `metadata.approved_for_live = true`
+- `metadata.placeholder = false`
+- Removidos: `metadata.live_block_reason`, `metadata.requires_review`
+- Adicionados: `approved_at`, `approved_by=operator_manual_f1_validation`,
+  `approval_note` (registra natureza simbólica temporária).
+- **Nada mais** foi alterado: nenhum outro pricing aprovado, sem cobrança
+  retroativa, sem backfill, sem mudança em wallet/ledger/eventos antigos.
+
+### Decisão futura (NÃO implementar agora)
+Criar painel admin para gerenciar custo/preço por `service_key` (e-mail,
+imagem por tipo, vídeo por tipo, etc.). Será especificado em onda separada.
+
+### Pendência
+Reenvio manual de 1 e-mail real pela UI para fechar GO/NO-GO funcional da F1.
