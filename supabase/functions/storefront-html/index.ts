@@ -3177,7 +3177,10 @@ Deno.serve(async (req) => {
       trackingData.category = routeData;
       trackingData.categoryProductIds = (compilerContext.categoryProducts || []).slice(0, 10).map((p: any) => p.id);
     }
-    const marketingScripts = generateMarketingPixelScripts(marketingConfig, trackingData, { tenantId, supabaseUrl: Deno.env.get('SUPABASE_URL') || '', anonKey: Deno.env.get('SUPABASE_ANON_KEY') || '' });
+    // v8.32.0: pass effective _fbp (existing OR newly synthesized cookie)
+    // so the inline scripts can seed `window.__sfFbp` BEFORE any CAPI dispatch.
+    const liveMetaDecision = decideMetaCookies(req, url);
+    const marketingScripts = generateMarketingPixelScripts(marketingConfig, trackingData, { tenantId, supabaseUrl: Deno.env.get('SUPABASE_URL') || '', anonKey: Deno.env.get('SUPABASE_ANON_KEY') || '', effectiveFbp: liveMetaDecision.effectiveFbp });
     
     // === NEWSLETTER POPUP ===
     const newsletterPopupHtml = generateNewsletterPopupHtml(newsletterPopup, tenantId, route.type);
