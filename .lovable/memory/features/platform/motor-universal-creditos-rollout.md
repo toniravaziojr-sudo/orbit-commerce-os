@@ -9,6 +9,7 @@ type: feature
 ## Padrão técnico
 - Helper postpaid: `supabase/functions/_shared/credits/charge-after.ts` (`chargeAfter`).
 - Reserve+capture imediato, idempotente, com flag `motor_v2_enabled` por tenant via `isMotorEnabledForTenant`.
+- **F1 (2026-05-07):** `chargeAfter` agora também grava `service_usage_events` status='captured', cost_owner='tenant', com `credit_ledger_id` preenchido. Idempotência garantida por UNIQUE parcial `uq_sue_credit_ledger_id`. Falhas de telemetria NUNCA quebram a cobrança.
 - Falhas de cobrança NUNCA bloqueiam a operação (apenas log). Tenant piloto: **respeite-o-homem**.
 - Helper síncrono pré-pago (token-based ANTES da chamada): `_shared/credits/with-motor.ts` (`withCreditMotor`) — usado em `ai-generate-embedding` e `ai-product-description`.
 - Helper de **shadow para mídia (Fase 3C)**: `_shared/credits/media-shadow-event.ts` + resolver puro `_shared/credits/media-service-key-resolver.ts`. Padrão idêntico ao `creative-image-generate` (Fase 3B): cost_owner='platform', status='shadow', gate por `shadow_service_keys`, idempotência determinística, NUNCA toca wallet/ledger.
