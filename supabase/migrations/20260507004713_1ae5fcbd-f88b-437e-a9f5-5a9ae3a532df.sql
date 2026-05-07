@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sue_credit_ledger_id ON public.service_usage_events(credit_ledger_id) WHERE credit_ledger_id IS NOT NULL;
