@@ -1,8 +1,19 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+import { recordPlatformCost } from "../_shared/credits/charge.ts";
 // deno-lint-ignore-file no-explicit-any
 const { Webhook } = await import("https://cdn.jsdelivr.net/npm/standardwebhooks@1.0.0/+esm") as any;
+
+// SHA-256 truncado (16 chars) — evita PII (email completo) em metadata/logs.
+async function hashRecipient(email: string): Promise<string> {
+  const data = new TextEncoder().encode(email.toLowerCase().trim());
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 16);
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -210,6 +221,59 @@ Deno.serve(async (req: Request): Promise<Response> => {
         hook: true,
       },
     });
+
+    // ============================================================
+    // F2.4 — Motor de Créditos: registrar custo absorvido pela plataforma
+    // SOMENTE após sucesso confirmado do SendGrid.
+    // service_key=email-system-send | provider=sendgrid | cost_owner=platform
+    // Idempotência: provider_message_id quando disponível; fallback determinístico.
+    // Metadata sanitizada: sem token, sem link, sem email bruto, sem HTML, sem subject, sem nome.
+    // Falha de telemetria NUNCA pode quebrar autenticação.
+    // ============================================================
+    try {
+      const recipientHash = await hashRecipient(user.email);
+      const idempotencyKey = emailResult.messageId
+        ? `auth-email-hook:${emailResult.messageId}`
+        : `auth-email-hook:${email_action_type}:${recipientHash}:${Math.floor(Date.now() / 60000)}`;
+
+      const costResult = await recordPlatformCost({
+        serviceKey: "email-system-send",
+        units: { count: 1 },
+        costUsd: 0.00060,
+        origin: "auth-email-hook",
+        originId: emailResult.messageId ?? null,
+        idempotencyKey,
+        metadata: {
+          provider: "sendgrid",
+          category: "email",
+          email_type: "auth_hook",
+          email_action_type,
+          template_key: templateKey,
+          provider_message_id: emailResult.messageId ?? null,
+          recipient_hash: recipientHash,
+          origin_function: "auth-email-hook",
+        },
+      });
+
+      if (!costResult.success) {
+        console.warn("[auth-email-hook] recordPlatformCost falhou (não bloqueia auth):", {
+          origin_function: "auth-email-hook",
+          email_action_type,
+          template_key: templateKey,
+          provider_message_id: emailResult.messageId ?? null,
+          recipient_hash: recipientHash,
+          error_code: costResult.error_code ?? null,
+        });
+      }
+    } catch (e: any) {
+      // Telemetria NUNCA pode quebrar autenticação.
+      console.warn("[auth-email-hook] Erro ao registrar custo (ignorado):", {
+        origin_function: "auth-email-hook",
+        email_action_type,
+        template_key: templateKey,
+        error: typeof e?.message === "string" ? e.message : "unknown",
+      });
+    }
 
     // Return success - this tells Supabase we handled the email
     return new Response(JSON.stringify({}), {
