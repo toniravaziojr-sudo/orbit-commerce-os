@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
     const tenantId = profile.current_tenant_id;
 
-    // Clear certificate fields from fiscal_settings (using correct column names)
+    // Clear certificate fields AND Focus NFe link (the link belongs to the cert's CNPJ)
     const { error: updateError } = await supabase
       .from("fiscal_settings")
       .update({
@@ -64,6 +64,9 @@ Deno.serve(async (req) => {
         certificado_valido_ate: null,
         certificado_serial: null,
         certificado_uploaded_at: null,
+        focus_empresa_id: null,
+        focus_empresa_criada_em: null,
+        focus_ultima_sincronizacao: null,
         updated_at: new Date().toISOString(),
       })
       .eq("tenant_id", tenantId);
