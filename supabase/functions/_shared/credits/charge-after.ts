@@ -133,12 +133,12 @@ export async function chargeAfter(args: ChargeAfterArgs): Promise<ChargeAfterRes
         serviceKey: args.serviceKey,
         units: args.units,
         feature: args.feature,
-        jobId: args.jobId,
+        jobId: billingJobId,
         ledgerId: data?.ledger_id ?? null,
         creditsCharged: Number(data?.credits_charged ?? 0),
         providerCostUsd: args.providerCostUsd ?? null,
         idempotencyKey: idemReserve,
-        userMetadata: args.metadata ?? {},
+        userMetadata: enrichedMetadata,
       });
     } catch (telemetryErr: any) {
       console.warn("[chargeAfter.telemetry] ignored", String(telemetryErr?.message || telemetryErr));
