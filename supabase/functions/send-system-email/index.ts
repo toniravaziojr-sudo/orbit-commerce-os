@@ -248,6 +248,14 @@ Deno.serve(async (req: Request) => {
           provider_message_id: result.messageId ?? null,
           recipient_hash: recipientHash,
           error_code: costResult.error_code ?? null,
+          error_message: costResult.error_message ?? null,
+          idempotency_key: idempotencyKey,
+        });
+      } else {
+        console.log("[send-system-email] recordPlatformCost OK", {
+          provider_message_id: result.messageId ?? null,
+          recipient_hash: recipientHash,
+          idempotency_key: idempotencyKey,
         });
       }
     } catch (e: any) {
