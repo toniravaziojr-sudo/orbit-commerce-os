@@ -1,7 +1,7 @@
 # Motor de Créditos — Fase F2: Registro de Custos Absorvidos pela Plataforma
 
 > **Camada:** Layer 2 — Especificação de Plataforma
-> **Status:** F2.1 ✅ GO (fundação) — F2.2 pendente (plug de edges)
+> **Status:** F2.1 ✅ GO • F2.2 ✅ GO (`send-auth-email`) • F2.3 ✅ GO (`resend-signup-email` migrada p/ SendGrid)
 > **Última atualização:** 2026-05-07
 
 ---
@@ -137,14 +137,67 @@ Inserção controlada com `email-system-send` ($0.00060 USD, sem disparar SendGr
 
 Por construção: `recordPlatformCost` é chamado **depois** de `if (!result.success) throw new Error(...)`. Em qualquer falha SendGrid (4xx/5xx/exception), o `throw` aborta antes do registro. Garantido por revisão de código.
 
-## 9. Pendências F2.3 (não iniciar sem nova autorização)
+## 9. Patch F2.3 — Migração `resend-signup-email` para SendGrid (2026-05-07)
+
+### 9.1 Decisão (Opção B aprovada pelo operador)
+
+Pré-check em modo PLANNER confirmou que `resend-signup-email`:
+- está **dormente/órfã** (0 chamadores no projeto, 0 sessões pagas em 90d);
+- usava Resend apenas via REST cru (`POST /emails`), sem feature exclusiva;
+- **não há** `service_pricing` confiável para Resend → manter Resend exigiria inventar custo (proibido pela lição F1).
+
+Decisão: **migrar para SendGrid** reusando `service_key=email-system-send` ($0.00060), preservando comportamento, nome da edge e remetente visível.
+
+### 9.2 Implementação
+
+| Item | Valor |
+|---|---|
+| Arquivo alterado | `supabase/functions/resend-signup-email/index.ts` |
+| Provider final | **SendGrid** (`https://api.sendgrid.com/v3/mail/send`) |
+| Remetente preservado | `Comando Central <noreply@comandocentral.com.br>` (domínio `comandocentral.com.br` `verified` em `system_email_config`) |
+| Nome da edge | mantido como `resend-signup-email` (evita quebra de invocações futuras) |
+| `service_key` | `email-system-send` |
+| `cost_usd` | `0.00060` |
+| `cost_owner` | `platform` |
+| `category` | `email` |
+| `provider` registrado | `sendgrid` |
+| `RESEND_API_KEY` | **mantida** — marcada como candidata futura de auditoria/remoção |
+
+**Comportamento funcional preservado:** busca de `billing_checkout_sessions`, validação `status='paid'`, rate-limit 60s, geração/regeneração de `billing_checkout_token` via RPC, link `${APP_URL}/complete-signup?token=...`, assunto `"Crie sua conta — Comando Central"`, HTML 1:1 com versão Resend.
+
+**`recordPlatformCost`:** chamado **somente após** `emailResult.success === true`. Em falha SendGrid, função retorna antes da telemetria → custo NÃO é registrado.
+
+**Idempotência:** `resend-signup-email:${X-Message-Id}` quando SendGrid devolve `X-Message-Id`; fallback determinístico `resend-signup-email:${session_id}:${recipient_hash16}:${minute_bucket}`. UNIQUE parcial `ux_pcl_idem` é a barreira final.
+
+**Sanitização de metadata:** apenas `provider`, `category`, `email_type='signup_resend'`, `provider_message_id`, `recipient_hash` (SHA-256 truncado em 16 chars), `origin_function`. **Nunca** grava: token de complete-signup, link completo, e-mail bruto, HTML, JWT, segredo, owner_name.
+
+### 9.3 Validação técnica F2.3
+
+| Item | Resultado |
+|---|---|
+| Arquivo único alterado | ✅ `supabase/functions/resend-signup-email/index.ts` |
+| Edge mantém o nome | ✅ `resend-signup-email` |
+| Remetente verificado no SendGrid | ✅ `noreply@comandocentral.com.br` (sending_domain verified) |
+| Inserção controlada via RPC com chave `f2.3-validation-001` | ✅ `ledger_id=82b762b4-fd6c-47d0-bf74-4744322be3a3`, `cost_usd=0.00060`, `cost_brl=0.0033` |
+| 2ª chamada mesma chave | ✅ retorna mesmo `ledger_id`, sem 2ª linha |
+| `metadata` sem dados sensíveis | ✅ apenas campos técnicos |
+| Falha de provider → 0 custo registrado | ✅ por construção (`if (!success) return` antes da telemetria) |
+| `credit_wallet` alterada | ✅ NÃO |
+| `credit_ledger` alterado | ✅ NÃO |
+| `service_usage_events` (tenant) alterado | ✅ NÃO |
+| Tenant visualiza custo | ✅ NÃO (`platform_cost_ledger` sem `tenant_id`) |
+| Platform admin enxerga custo | ✅ via `/platform/external-costs` |
+| E-mail enviado a cliente final em teste | ✅ NÃO (validação via RPC direto, sem chamada SendGrid) |
+| Cleanup linha sintética | ✅ removida |
+
+### 9.4 Pendências F2.4 (não iniciar sem nova autorização)
 
 | Edge | Bloqueio | Decisão necessária |
 |---|---|---|
-| `resend-signup-email` | Provider Resend sem `service_pricing` | Criar `email-resend-send` em `service_pricing` **OU** migrar para SendGrid e reusar `email-system-send` |
-| `auth-email-hook` | Não auditada nesta etapa | Auditar fluxo (queue vs direct send) antes de plugar |
+| `auth-email-hook` | Não auditada | Auditar fluxo (queue vs direct send) antes de plugar |
 | `send-system-email` | Já chama `chargeAfter(PLATFORM_TENANT_ID)` — fluxo misto/legado | Decisão arquitetural: migrar de `chargeAfter` para `recordPlatformCost`? |
 | `command-insights-generate`, `meta-token-health-check`, `platform-costs-sync`, `ai-learning-aggregator` | Apenas mapeadas | Auditar 1×1 |
+| `RESEND_API_KEY` | Sem outros usos confirmados | Auditar restante do projeto antes de remover |
 
 Ver `workers-crons-pagos.md` §2.2 para a regra de classificação `platform_absorbed`.
 
