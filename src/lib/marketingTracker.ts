@@ -705,7 +705,7 @@ export class MarketingTracker {
       currency,
       contents: [{ id: metaId, quantity: item.quantity, item_price: item.price }],
       delivery_category: 'home_delivery',
-    }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
+    }, undefined, 800, true); // v8.29.0: short fbp wait + v8.32.0: beacon-first (pre-navigation)
   }
 
   // Track initiate checkout — Phase 6: item_price in browser contents
@@ -765,7 +765,7 @@ export class MarketingTracker {
       num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       contents: cart.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
       delivery_category: 'home_delivery',
-    }, undefined, 800); // v8.29.0: short fbp wait — pre-navigation event
+    }, undefined, 800, true); // v8.29.0: short fbp wait + v8.32.0: beacon-first (pre-navigation)
   }
 
   // Track purchase — Phase 2: accepts external event_id, Phase 5: accepts userData, Phase 6: item_price
