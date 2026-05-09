@@ -133,3 +133,27 @@ type: reference
 **Código:**
 - `supabase/functions/command-insights-generate/index.ts` (v1.1.0)
 - `supabase/functions/_shared/credits/charge.ts` → `recordPlatformCost`
+
+---
+
+## 🟢 AUTO — Edge HTML First-Touch Attribution + Fiscal CNPJ Swap (2026-05-09)
+
+**Onde paramos exatamente:**
+- Diagnóstico dos 4 pedidos do tenant Respeite o Homem: todos com `attribution_source=unknown`, `landing_page=/checkout`, referrer same-domain, UTMs/click IDs vazios — primeiro toque perdido.
+- **Causa raiz:** Edge HTML (Content-First) renderiza home/categoria/produto/carrinho sem React; o hook `useAttribution` só rodava em `/checkout`, sobrescrevendo tudo com landing=`/checkout`.
+- **Correção aplicada e deployed:**
+  1. `supabase/functions/storefront-html/index.ts` → bloco "FIRST-TOUCH ATTRIBUTION CAPTURE (Edge HTML)" injetado em `generateMarketingPixelScripts` (script inline + cookie `_sf_attr` 90d, pula rotas checkout-like).
+  2. `src/hooks/useAttribution.ts` → React agora só lê e só atualiza com novo click ID/UTM; nunca sobrescreve com `/checkout`.
+  3. Anti-regressão: `mem://constraints/edge-html-attribution-capture`.
+  4. Doc atualizado: `docs/especificacoes/marketing/marketing-integracoes.md` seção "Captura de First-Touch (Edge HTML — obrigatório)".
+- **Validação observacional pendente:** novo pedido entrando via `?utm_source=google&gclid=TEST123` (ou tráfego real de Ads) deve mostrar em `order_attribution`: `gclid` preenchido, `landing_page` ≠ `/checkout`, `attribution_source=google_ads`.
+
+**Assunto anterior do mesmo loop (Fiscal CNPJ swap):**
+- Constraint criada: `mem://constraints/fiscal-cnpj-swap-and-focus-link-cleanup` — ao trocar CNPJ do emitente, edges `fiscal-upload-certificate`, `fiscal-remove-certificate`, `fiscal-emit`, `fiscal-submit` devem limpar vínculo Focus NFe órfão. Doc `docs/especificacoes/erp/erp-fiscal.md` atualizado.
+
+**Restrições ativas:**
+- Não tocar em `checkout-create-order` (já lê `order_attribution` corretamente do payload).
+- Não fazer backfill nos 4 pedidos antigos (atribuição perdida — só novos pedidos serão corretos).
+- Não remover o `if (isCheckoutLike) return null` do `useAttribution` (poluiria first-touch).
+
+**Próximo passo:** aguardar novo pedido real do Respeite o Homem para validar observacionalmente o `order_attribution` populado.
