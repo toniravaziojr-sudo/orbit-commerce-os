@@ -213,6 +213,26 @@ A divisão reflete nas permissões:
 }
 ```
 
+### Captura de First-Touch (Edge HTML — obrigatório)
+
+A captura de atribuição de primeiro toque é responsabilidade do **Edge HTML do storefront** (`storefront-html`), NÃO do React. Como home, categoria, produto e carrinho são renderizados como HTML server-side sem React, deixar a captura no hook `useAttribution` faria com que o `landing_page` virasse sempre `/checkout`, o `referrer_domain` virasse o próprio domínio e UTMs/click IDs (gclid, fbclid, ttclid, msclkid) nunca chegassem em `order_attribution`.
+
+**Contrato:**
+
+1. **Edge HTML** injeta script inline em toda página pública (exceto rotas `checkout|carrinho|cart|obrigado|conta|minha-conta`) que:
+   - Lê `utm_*`, `gclid`, `fbclid`, `ttclid`, `msclkid` da URL.
+   - Lê `document.referrer` (descarta same-domain).
+   - Grava `localStorage.attribution_data` + cookie fallback `_sf_attr` (90d) com `landing_page` = primeira página real, `session_id`, `first_touch_at`, `attribution_source`, `attribution_medium`.
+   - Mantém o registro existente quando não há novo click ID nem UTM (modelo first-touch).
+
+2. **React `useAttribution`** apenas lê o que o Edge HTML gravou e só atualiza se a URL atual trouxer novo click ID ou UTM. Nunca sobrescreve com `landing_page=/checkout` nem com referrer same-domain. Se chegar em rota checkout-like sem dados prévios, NÃO grava (Edge HTML não rodou — preferimos `direct/none` a poluir o first-touch).
+
+3. **`checkout-create-order`** lê o payload de atribuição do localStorage e persiste em `order_attribution`.
+
+**Anti-regressão:** `mem://constraints/edge-html-attribution-capture`.
+
+**Sintoma de regressão:** pedidos com `attribution_source=unknown`, `landing_page=/checkout`, `referrer_domain=<próprio domínio>` e click IDs/UTMs vazios apesar do tráfego comprovado de Google/Meta Ads.
+
 ---
 
 ## 3. Email Marketing
