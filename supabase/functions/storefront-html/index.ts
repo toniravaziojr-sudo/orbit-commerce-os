@@ -196,7 +196,9 @@ function parseRoute(path: string): ParsedRoute {
 // MARKETING PIXELS — Deferred script injection
 // ============================================
 function generateMarketingPixelScripts(config: any, trackingData?: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] }, capiContext?: { tenantId: string; supabaseUrl: string; anonKey: string }): string {
-  if (!config) return '';
+  // Note: attribution capture below runs even when no pixel config is present —
+  // it is independent of marketing pixels and required for first-touch tracking.
+  if (!config) config = {};
   const scripts: string[] = [];
   const prefetches: string[] = [];
 
