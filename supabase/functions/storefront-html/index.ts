@@ -200,6 +200,81 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
   const scripts: string[] = [];
   const prefetches: string[] = [];
 
+  // ============================================
+  // FIRST-TOUCH ATTRIBUTION CAPTURE (Edge HTML)
+  // Always injected — captures UTMs, click IDs, referrer and landing_page
+  // on the first real storefront page (home, product, category, etc.)
+  // and persists to localStorage 'attribution_data' so the React hook
+  // on /checkout reads the true first-touch instead of overwriting with
+  // referrer=same-domain and landing_page=/checkout.
+  // ============================================
+  scripts.push(`
+    <script>
+    (function(){
+      try{
+        var KEY='attribution_data';
+        var path=location.pathname||'/';
+        // Never overwrite first-touch when the page itself IS the checkout/cart
+        if(/^\\/(checkout|carrinho|cart|obrigado|conta|minha-conta)(\\/|$)/.test(path))return;
+        var p=new URLSearchParams(location.search);
+        var pick=function(k){var v=p.get(k);return v?v:null;};
+        var clickId=pick('gclid')||pick('fbclid')||pick('ttclid')||pick('msclkid');
+        var hasUtm=!!pick('utm_source');
+        var existing=null;
+        try{var raw=localStorage.getItem(KEY);if(raw)existing=JSON.parse(raw);}catch(e){}
+        if(existing&&!clickId&&!hasUtm)return; // keep first-touch
+        var ref=document.referrer||null;
+        var refDom=null;
+        if(ref){try{refDom=new URL(ref).hostname.replace(/^www\\./,'');}catch(e){}}
+        // Treat same-host referrer as direct (we are not the source of ourselves)
+        if(refDom&&refDom===location.hostname.replace(/^www\\./,''))ref=null,refDom=null;
+        var data={
+          utm_source:pick('utm_source'),utm_medium:pick('utm_medium'),utm_campaign:pick('utm_campaign'),
+          utm_content:pick('utm_content'),utm_term:pick('utm_term'),
+          gclid:pick('gclid'),fbclid:pick('fbclid'),ttclid:pick('ttclid'),msclkid:pick('msclkid'),
+          referrer_url:ref,referrer_domain:refDom,
+          landing_page:path+(location.search||''),
+          session_id:(existing&&existing.session_id)||(Date.now()+'-'+Math.random().toString(36).slice(2,11)),
+          first_touch_at:(existing&&existing.first_touch_at)||new Date().toISOString()
+        };
+        // Derive source/medium (mirrors src/hooks/useAttribution.ts deriveAttribution)
+        var src='direct',med='none';
+        if(data.utm_source){
+          src=data.utm_source.toLowerCase();med=(data.utm_medium||'unknown').toLowerCase();
+          if(src==='google'&&med==='cpc'){src='google_ads';}
+          else if(src==='fb'||src==='facebook'){src='facebook';}
+          else if(src==='ig'||src==='instagram'){src='instagram';}
+          else if(src==='tt'||src==='tiktok'){src='tiktok';}
+        } else if(data.gclid){src='google_ads';med='cpc';}
+        else if(data.fbclid){src='facebook';med='cpc';}
+        else if(data.ttclid){src='tiktok';med='cpc';}
+        else if(data.msclkid){src='bing_ads';med='cpc';}
+        else if(refDom){
+          var d=refDom.toLowerCase();
+          if(d.indexOf('google')>=0){src='google';med='organic';}
+          else if(d.indexOf('bing')>=0||d.indexOf('msn')>=0){src='bing';med='organic';}
+          else if(d.indexOf('yahoo')>=0){src='yahoo';med='organic';}
+          else if(d.indexOf('duckduckgo')>=0){src='duckduckgo';med='organic';}
+          else if(d.indexOf('facebook.com')>=0||d.indexOf('fb.com')>=0){src='facebook';med='social';}
+          else if(d.indexOf('instagram.com')>=0){src='instagram';med='social';}
+          else if(d.indexOf('tiktok.com')>=0){src='tiktok';med='social';}
+          else if(d.indexOf('twitter.com')>=0||d.indexOf('x.com')>=0){src='twitter';med='social';}
+          else if(d.indexOf('linkedin.com')>=0){src='linkedin';med='social';}
+          else if(d.indexOf('youtube.com')>=0){src='youtube';med='social';}
+          else if(d.indexOf('pinterest.com')>=0){src='pinterest';med='social';}
+          else if(d.indexOf('whatsapp.com')>=0||d.indexOf('wa.me')>=0){src='whatsapp';med='social';}
+          else{src=d;med='referral';}
+        }
+        data.attribution_source=src;data.attribution_medium=med;
+        try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){}
+        // Cookie fallback (90d) so it survives even if localStorage is cleared between subdomains
+        try{var dt=new Date();dt.setDate(dt.getDate()+90);
+          document.cookie='_sf_attr='+encodeURIComponent(src+'|'+med)+';path=/;expires='+dt.toUTCString()+';SameSite=Lax';
+        }catch(e){}
+      }catch(e){}
+    })();
+    </script>`);
+
   const metaEnabled = config.meta_enabled && config.meta_pixel_id;
   const googleEnabled = config.google_enabled && config.google_measurement_id;
   const tiktokEnabled = config.tiktok_enabled && config.tiktok_pixel_id;
