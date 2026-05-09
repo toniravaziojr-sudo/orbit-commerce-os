@@ -199,21 +199,32 @@ export function useAttribution() {
     
     const url = new URL(window.location.href);
     const params = url.searchParams;
-    
+    const pathname = window.location.pathname || '/';
+    const isCheckoutLike = /^\/(checkout|carrinho|cart|obrigado|conta|minha-conta)(\/|$)/.test(pathname);
+
     // Check if we already have stored attribution (first-touch model)
     const existingData = getStoredAttribution();
-    
+
     // Only capture new data if:
-    // 1. No existing data, OR
-    // 2. New data has click IDs (paid traffic takes priority), OR
+    // 1. No existing data AND we are NOT on a checkout-like page
+    //    (Edge HTML is the source of truth for first-touch on real pages)
+    // 2. New data has click IDs (paid traffic refreshes attribution window), OR
     // 3. New data has UTM source
     const hasNewClickId = params.has('gclid') || params.has('fbclid') || params.has('ttclid') || params.has('msclkid');
     const hasNewUtm = params.has('utm_source');
-    
+
     if (existingData && !hasNewClickId && !hasNewUtm) {
       // Keep existing first-touch attribution
       console.log('[Attribution] Keeping existing first-touch data:', existingData.attribution_source);
       return existingData;
+    }
+
+    if (!existingData && isCheckoutLike) {
+      // Don't pollute first-touch with /checkout as landing_page; Edge HTML
+      // didn't run (user opened checkout directly). Skip — order_attribution
+      // will fall back to direct/none, which is accurate.
+      console.log('[Attribution] Checkout-like page with no prior data — skipping capture');
+      return null;
     }
     
     // Capture new attribution data
