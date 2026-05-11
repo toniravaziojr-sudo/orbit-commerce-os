@@ -96,6 +96,17 @@ Coluna `text`, contendo `JSON.stringify(...)` válido com:
 
 Em payload não-JSON / parse falho: `{ "parse_error", "content_type", "byte_length" }`. `body_sha256` permanece em coluna própria como chave forense.
 
+### Hash de PII no `body_preview` (Correção F2.13.2.B — PII-Hash)
+
+`wa_id_hashes`, `from_hashes` e `recipient_id_hashes` são gerados por `summarizeWebhookBody()` usando hash **criptográfico determinístico**, truncado a 12 hex chars:
+
+1. Se a env var `LOG_HASH_SECRET` estiver presente → **HMAC-SHA256(LOG_HASH_SECRET, valor)**.
+2. Caso contrário → **SHA-256(valor)** puro como fallback temporário.
+
+**FNV-1a foi removido** desta função: hash não criptográfico é correlacionável/bruteforçável trivialmente para PII previsível como telefone E.164. **Nunca usar `META_APP_SECRET` como pepper de logs** — finalidades distintas (verificação Meta vs. observabilidade interna) não devem compartilhar segredo.
+
+**Pendência futura:** provisionar secret dedicado `LOG_HASH_SECRET` (pepper de observabilidade) e migrar definitivamente para HMAC-SHA256. Enquanto não existir, o fallback SHA-256 truncado está em uso.
+
 ### Allowlist canônica de `headers_json` (F2.13.2.B)
 
 `x-hub-signature-256`, `x-hub-signature`, `content-type`, `content-length`, `user-agent`, `x-request-id`, `cf-ray`, `cf-ipcountry`, `cf-connecting-ip`, `x-forwarded-for`, `x-forwarded-proto`, `host`, `sb-request-id`, `traceparent`, `x-amzn-trace-id`. Qualquer outro header é descartado.
