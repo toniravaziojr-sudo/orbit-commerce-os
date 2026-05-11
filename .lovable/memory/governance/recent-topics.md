@@ -82,39 +82,42 @@ type: reference
 
 ---
 
-## 🟢 AUTO — F2 Motor de Créditos / platform_cost_ledger — F2.6 GO (07/05/2026)
+## 🟢 AUTO — WhatsApp Inbound PII + HMAC SHA-256 (F2.13.2.C-CODE GO + F2.13.3-CODE Fase A em log) — 2026-05-11
 
 **Onde paramos exatamente:**
-- F2.5 `send-system-email` ✅ GO (2 envios reais SendGrid validados em 07/05).
-- F2.6 `command-insights-generate` v1.1.0 ✅ GO funcional final em 07/05/2026.
-  - Validação real ponta a ponta no tenant **Respeite o Homem** (`d1a4d0ed-8842-495e-b741-540a9a345b25`).
-  - 4 insights gerados, 564 tokens_in / 313 tokens_out / 0 cached, `cost_usd=0.00095170`, `cost_brl=0.0052`.
-  - Linha real `platform_cost_ledger.id=4f496e29-af52-430b-a64c-2cad148ff69c`, `service_key=command-insights-generate`, `category=ai_text`.
-  - Idempotência confirmada: 2ª chamada bloqueada antes do Gemini, sem 2ª linha.
-  - Tenant não cobrado: `credit_wallet`, `credit_ledger`, `service_usage_events` intactos.
-  - `/platform/credits` enxerga; `/platform/external-costs` íntegro.
-- `ai-learning-aggregator` reclassificado como **não aplicável** (sem provider externo).
-- Doc atualizado: seção 13 "Evidência F2.6 — 2026-05-07" em `docs/especificacoes/plataforma/motor-creditos-fase-f2-platform-cost-ledger.md`.
 
-**Achados paralelos pendentes (NÃO corrigir sem autorização):**
-- Cron `generate-weekly-insights`: anon key vs service-role → cai em Manual call → 401 silencioso. Refatorar a edge (não o cron).
-- `get_auth_user_email`: `permission denied` na tela `/platform/emails` (Templates). Task `b70aa82b`.
+- **F2.13.2.C-CODE ✅ GO operacional (11/05/2026 20:52Z).**
+  - `meta-whatsapp-webhook` agora grava `raw_payload = NULL` em novos inbounds de `whatsapp_inbound_messages`. Colunas estruturadas (from_phone, to_phone, message_type, message_content, external_message_id, timestamp, processing_status) seguem íntegras.
+  - Validado com inbound real do número 5573998034875 (não-Agenda) durante janela controlada com IA do tenant Respeite o Homem temporariamente desligada (`is_enabled=false` por ~9 min, restaurada para `true` em 20:52:40Z; `sales_mode_enabled` intacto).
+  - Sem acionamento de Agenda, AI Support, IA, cobrança ou outros tenants.
+  - Cron `cleanup_whatsapp_inbound_raw_payload_30d` mantido como rede de segurança para registros antigos.
 
-**Próximo passo combinado:** abrir **F2.7 em modo PLANNER** (somente diagnóstico). Mapear próxima edge candidata a `recordPlatformCost` (`cost_owner=platform`, provider externo, ainda não plugada).
+- **F2.13.3-CODE Fase A ✅ GO em modo LOG (11/05/2026).**
+  - HMAC SHA-256 de `x-hub-signature-256` validado contra `META_APP_SECRET` (lido de `platform_credentials`) sobre `rawBodyText` já capturado antes do `req.json()`.
+  - Comparação timing-safe via Web Crypto. **Nenhuma rejeição** nesta fase: log apenas (`hmac_status` ∈ valid|invalid|missing|malformed|secret_missing), apenas `sig_prefix` (8 chars) é logado — nunca a assinatura completa nem o secret.
+  - GET handshake (`hub.verify_token`) já era validado antes — sem alteração.
+  - Testes sintéticos Deno (7 cenários) ✅. Logs reais em produção mostraram `hmac_status=missing` e `hmac_status=invalid` corretamente, sem quebrar fluxo.
+  - Docs atualizados: `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` §9 e `docs/especificacoes/transversais/politica-pii-logs.md` §11.
 
-**Restrições ativas:**
-- Toda nova fase começa em PLANNER; só executa após GO explícito.
-- Validação real sempre em 1 tenant.
-- Não apagar linhas reais de `platform_cost_ledger`.
-- Não corrigir cron nem `get_auth_user_email` sem autorização.
+**Próximo passo combinado (retomar daqui em alguns dias):**
+- Aguardar **janela observacional de 72h** em modo log para confirmar zero falsos negativos (todo inbound legítimo da Meta com `hmac_status=valid`).
+- Após janela limpa, abrir **F2.13.3-B em PLANNER** para mover de log-mode para enforcement (rejeitar com 401 quando `hmac_status ≠ valid`).
+- Depois disso, **F2.13.3-C** = cleanup do código de log-mode + fechamento documental.
+
+**Restrições ativas (NÃO violar ao retomar):**
+- Não ativar enforcement (rejeição por HMAC) sem GO explícito após análise da janela de 72h.
+- Não alterar fluxo de roteamento (Agenda / AI Support / sales mode).
+- Não voltar a gravar `raw_payload` populado em novos registros.
+- Não logar assinatura completa nem `META_APP_SECRET` — apenas `sig_prefix`.
+- Não mexer em GET verification (já estável).
+- Não desligar IA de outros tenants para teste; janela controlada foi específica do Respeite o Homem.
 
 **Docs fonte de verdade:**
-- `docs/especificacoes/plataforma/motor-creditos-fase-f2-platform-cost-ledger.md`
-- `docs/especificacoes/plataforma/funcoes-pagas.md`
+- `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` (§9 HMAC log-mode)
+- `docs/especificacoes/transversais/politica-pii-logs.md` (§11 redação de secrets)
 
 **Código:**
-- `supabase/functions/command-insights-generate/index.ts` (v1.1.0)
-- `supabase/functions/_shared/credits/charge.ts` → `recordPlatformCost`
+- `supabase/functions/meta-whatsapp-webhook/index.ts` (raw_payload=null + HMAC log-mode integrado)
 
 ---
 
