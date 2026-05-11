@@ -21,7 +21,7 @@ import {
   claimTurn,
   waitQuietWindow,
 } from "../_shared/sales-pipeline/turn-orchestrator.ts";
-import { maskPhone, safeTruncate, safeError } from "../_shared/pii.ts";
+import { maskPhone, safeTruncate, safeError, safeHeaders, summarizeWebhookBody } from "../_shared/pii.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -99,14 +99,16 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   // === RAW AUDIT (anti-regressão): registra TODO POST antes de qualquer parsing ===
+  // F2.13.2.B — body_preview agora é resumo estrutural sanitizado (JSON, cap 2 KB)
+  // e headers_json passa por allowlist canônica. body_sha256 e signature_header
+  // permanecem íntegros para forense/dedupe.
   let rawBodyText: string | null = null;
   if (req.method === "POST") {
     try {
       const cloned = req.clone();
       rawBodyText = await cloned.text();
-      const headersObj: Record<string, string> = {};
-      req.headers.forEach((v, k) => { headersObj[k] = v; });
       const url = new URL(req.url);
+      const contentType = req.headers.get("content-type");
       await supabase.from("whatsapp_webhook_raw_audit").insert({
         trace_id: traceId,
         method: req.method,
@@ -115,13 +117,13 @@ Deno.serve(async (req) => {
         signature_header: req.headers.get("x-hub-signature-256") || req.headers.get("x-hub-signature"),
         content_length: rawBodyText.length,
         body_sha256: await sha256Hex(rawBodyText),
-        body_preview: rawBodyText.substring(0, 4000),
-        headers_json: headersObj,
+        body_preview: summarizeWebhookBody(rawBodyText, contentType),
+        headers_json: safeHeaders(req.headers),
         query_string: url.search,
       });
-      console.log(`[meta-whatsapp-webhook][${traceId}] RAW AUDIT logged (${rawBodyText.length} bytes)`);
+      console.log(`[meta-whatsapp-webhook][${traceId}] RAW AUDIT logged (${rawBodyText.length} bytes, sanitized summary)`);
     } catch (auditErr) {
-      console.error(`[meta-whatsapp-webhook][${traceId}] RAW AUDIT failed:`, auditErr);
+      console.error(`[meta-whatsapp-webhook][${traceId}] RAW AUDIT failed:`, safeError(auditErr));
     }
   }
 
