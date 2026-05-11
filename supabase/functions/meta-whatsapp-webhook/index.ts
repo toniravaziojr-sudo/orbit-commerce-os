@@ -412,7 +412,7 @@ Deno.serve(async (req) => {
                   );
                   const agendaResult = await agendaResponse.text();
                   agendaOk = agendaResponse.ok;
-                  console.log(`[meta-whatsapp-webhook][${traceId}] Agenda response (${agendaResponse.status}):`, agendaResult.substring(0, 300));
+                  console.log(`[meta-whatsapp-webhook][${traceId}] Agenda response status=${agendaResponse.status} ok=${agendaResponse.ok}`);
                 } catch (agendaError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
                 }
@@ -455,7 +455,7 @@ Deno.serve(async (req) => {
                 conversationId = existingConv.id;
                 existingStatus = existingConv.status;
                 existingAssignedTo = existingConv.assigned_to;
-                console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId} status=${existingStatus} assigned=${!!existingAssignedTo} stored_phone=${existingConv.customer_phone}`);
+                console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId} status=${existingStatus} assigned=${!!existingAssignedTo} stored_phone=${maskPhone(existingConv.customer_phone)}`);
 
                 // Regra de reabertura: se a conversa estava resolvida ou
                 // encerrada, nova mensagem do cliente reabre a conversa.
@@ -779,7 +779,7 @@ Deno.serve(async (req) => {
                           { conversation_id: conversationId, tenant_id: tenantId },
                         );
                         aiOk = aiRes.ok;
-                        console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiRes.status}):`, aiRes.bodyText);
+                        console.log(`[meta-whatsapp-webhook][${traceId}] AI response status=${aiRes.status} body_len=${(aiRes.bodyText||'').length}`);
                       }
                     }
                   } else {
