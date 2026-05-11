@@ -698,34 +698,10 @@ Deno.serve(async (req) => {
 
       console.log(`[meta-whatsapp-send][${traceId}] SUCCESS in ${attempts.length} attempt(s). final_status=${finalStatus}`);
 
-      // Cobrança no motor universal (apenas templates, não mensagens livres)
-      if (template_name) {
-        try {
-          const { chargeAfter } = await import("../_shared/credits/charge-after.ts");
-          const { data: tpl } = await supabase
-            .from("whatsapp_templates")
-            .select("category")
-            .eq("tenant_id", tenant_id)
-            .eq("name", template_name)
-            .maybeSingle();
-          const cat = String(tpl?.category ?? "utility").toLowerCase();
-          const serviceKey = cat === "marketing"
-            ? "whatsapp-template-marketing"
-            : cat === "authentication"
-              ? "whatsapp-template-authentication"
-              : "whatsapp-template-utility";
-          chargeAfter({
-            tenantId: tenant_id,
-            serviceKey,
-            units: { count: 1 },
-            jobId: finalMessageId ?? `wa-${Date.now()}-${formattedPhone}`,
-            feature: "meta-whatsapp-send",
-            metadata: { template_name, phone: formattedPhone },
-          }).catch(() => {});
-        } catch (e) {
-          console.warn("[meta-whatsapp-send] chargeAfter error:", e);
-        }
-      }
+      // [F2.12] Envio WhatsApp Meta NÃO gera cobrança de créditos no Comando Central.
+      // O custo de mensagem/template/conversa é pago diretamente pelo cliente à Meta
+      // via WABA dele. O Comando Central só cobra custos próprios da plataforma
+      // (ex.: IA de atendimento em ai-support-chat). Bloco chargeAfter removido.
 
       return new Response(JSON.stringify({
         success: true,
