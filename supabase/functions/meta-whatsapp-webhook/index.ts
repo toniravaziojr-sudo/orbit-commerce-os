@@ -315,7 +315,12 @@ Deno.serve(async (req) => {
                     message_content: messageContent,
                     media_url: mediaUrl,
                     timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-                    raw_payload: message,
+                    // F2.13.2.C-CODE: raw_payload deixou de ser gravado (PII redundante).
+                    // Colunas estruturadas (from_phone, message_content, message_type, media_url,
+                    // external_message_id, timestamp) já cobrem todos os fluxos operacionais.
+                    // Backlog futuro: extrair referral/interactive/context/reaction para colunas
+                    // próprias antes de ativar Click-to-WA Ads, botões IA ou replies contextuais.
+                    raw_payload: null,
                     processing_status: "received",
                   })
                   .select("id")
