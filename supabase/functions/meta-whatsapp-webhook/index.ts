@@ -21,6 +21,7 @@ import {
   claimTurn,
   waitQuietWindow,
 } from "../_shared/sales-pipeline/turn-orchestrator.ts";
+import { maskPhone, safeTruncate, safeError } from "../_shared/pii.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -132,7 +133,7 @@ Deno.serve(async (req) => {
       const token = url.searchParams.get("hub.verify_token");
       const challenge = url.searchParams.get("hub.challenge");
 
-      console.log(`[meta-whatsapp-webhook][${traceId}] Verification request - mode: ${mode}, token: ${token?.substring(0, 8)}...`);
+      console.log(`[meta-whatsapp-webhook][${traceId}] Verification request - mode: ${mode}, token_present: ${!!token}`);
 
       // Get verify token from platform credentials
       const { data: credential } = await supabase
@@ -159,7 +160,25 @@ Deno.serve(async (req) => {
     // POST request: Receive messages and events
     if (req.method === "POST") {
       const payload: WhatsAppWebhookPayload = await req.json();
-      console.log(`[meta-whatsapp-webhook][${traceId}] Webhook payload received:`, JSON.stringify(payload).substring(0, 500));
+      // [F2.13.2.A] Não logar payload Meta cru — apenas contadores e tipos.
+      try {
+        const entriesN = payload.entry?.length ?? 0;
+        let changesN = 0; let messagesN = 0; let statusesN = 0;
+        const msgTypes = new Set<string>();
+        for (const e of payload.entry || []) {
+          changesN += e.changes?.length ?? 0;
+          for (const c of e.changes || []) {
+            messagesN += (c.value as any)?.messages?.length ?? 0;
+            statusesN += (c.value as any)?.statuses?.length ?? 0;
+            for (const m of (c.value as any)?.messages || []) {
+              if (m?.type) msgTypes.add(String(m.type));
+            }
+          }
+        }
+        console.log(`[meta-whatsapp-webhook][${traceId}] Webhook payload received: object=${payload.object} entries=${entriesN} changes=${changesN} messages=${messagesN} statuses=${statusesN} msg_types=[${Array.from(msgTypes).join(',')}]`);
+      } catch {
+        console.log(`[meta-whatsapp-webhook][${traceId}] Webhook payload received (counters_unavailable)`);
+      }
 
       if (payload.object !== "whatsapp_business_account") {
         console.log(`[meta-whatsapp-webhook][${traceId}] Ignoring non-WhatsApp event`);
@@ -393,7 +412,7 @@ Deno.serve(async (req) => {
                   );
                   const agendaResult = await agendaResponse.text();
                   agendaOk = agendaResponse.ok;
-                  console.log(`[meta-whatsapp-webhook][${traceId}] Agenda response (${agendaResponse.status}):`, agendaResult.substring(0, 300));
+                  console.log(`[meta-whatsapp-webhook][${traceId}] Agenda response status=${agendaResponse.status} ok=${agendaResponse.ok}`);
                 } catch (agendaError) {
                   console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
                 }
@@ -436,7 +455,7 @@ Deno.serve(async (req) => {
                 conversationId = existingConv.id;
                 existingStatus = existingConv.status;
                 existingAssignedTo = existingConv.assigned_to;
-                console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId} status=${existingStatus} assigned=${!!existingAssignedTo} stored_phone=${existingConv.customer_phone}`);
+                console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId} status=${existingStatus} assigned=${!!existingAssignedTo} stored_phone=${maskPhone(existingConv.customer_phone)}`);
 
                 // Regra de reabertura: se a conversa estava resolvida ou
                 // encerrada, nova mensagem do cliente reabre a conversa.
@@ -760,7 +779,7 @@ Deno.serve(async (req) => {
                           { conversation_id: conversationId, tenant_id: tenantId },
                         );
                         aiOk = aiRes.ok;
-                        console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiRes.status}):`, aiRes.bodyText);
+                        console.log(`[meta-whatsapp-webhook][${traceId}] AI response status=${aiRes.status} body_len=${(aiRes.bodyText||'').length}`);
                       }
                     }
                   } else {
