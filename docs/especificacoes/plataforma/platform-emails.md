@@ -20,8 +20,12 @@ Módulo exclusivo para **Platform Operators (Superadmins)** configurarem emails 
 | Regra | Descrição |
 |-------|-----------|
 | **Acesso restrito** | Apenas `platform_admins` com `is_active = true` |
-| **Verificação** | Via hook `usePlatformOperator` |
+| **Verificação (UI)** | Via hook `usePlatformOperator` (chama RPC `is_platform_admin()`) |
+| **Verificação (RLS)** | Policies de `system_email_templates` (SELECT/INSERT/UPDATE) usam `public.is_platform_admin()` como gate canônico — mesma fonte de verdade do frontend (`auth.users.email` × `platform_admins`). Onda 1 / Saneamento Plataforma Admin (2026-05). |
 | **Redirect** | Usuários não-admin são redirecionados para `/` |
+| **DELETE** | Não há policy de DELETE — a UI atual não exclui templates. Se um caso de uso real exigir, abrir nova entrega com policy explícita. |
+
+> **Nota Onda 1 (2026-05):** as policies anteriores cruzavam `platform_admins.email` com `profiles.email` via subselect, criando dependência indireta da RLS de `profiles`. Foram substituídas por `public.is_platform_admin()` (SECURITY DEFINER, lê `auth.users.email`), eliminando o risco de "permission denied" por divergência de email entre `profiles` e `auth.users`.
 
 ---
 

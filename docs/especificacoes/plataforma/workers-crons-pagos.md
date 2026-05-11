@@ -150,3 +150,44 @@ Uma linha de `credit_ledger` é considerada reserva órfã quando **todas** as c
 
 - `docs/especificacoes/plataforma/motor-creditos.md` §14.4, §14.9
 - `docs/especificacoes/plataforma/funcoes-pagas.md`
+
+---
+
+## 9. Cron `weekly-command-insights` (Insights da Central de Comando)
+
+### 9.1 Identidade
+
+| Campo | Valor |
+|-------|-------|
+| **Nome canônico do job** | `weekly-command-insights` |
+| **Schedule** | `0 11 * * 1` (segunda-feira 08:00 BRT / 11:00 UTC) |
+| **Edge function chamada** | `command-insights-generate` (POST, body `{}`) |
+| **Classificação** | `platform_absorbed` (custo registrado em `platform_cost_ledger` via `recordPlatformCost`) |
+| **Cobertura** | Todos os tenants ativos (até 200 por execução) |
+
+### 9.2 Padrão de autenticação
+
+A edge `command-insights-generate` aceita modo cron (lote de tenants) **somente** quando o header `Authorization` carrega o **service_role** do projeto:
+
+```
+if (authHeader.includes(SUPABASE_SERVICE_ROLE_KEY)) { /* modo cron */ }
+```
+
+Com chave anon a edge cai no ramo "manual" e devolve `401 Não autorizado`. O `pg_cron`/`net.http_post` não enxerga esse 401 (a request é aceita pelo gateway), o que produz **falha silenciosa**.
+
+> **Padrão obrigatório:** o cron deve enviar `Authorization: Bearer <service_role>`. O segredo **não** pode ser commitado em migration versionada nem exposto em logs. Quando o projeto adotar Vault para `service_role`, este job deve passar a ler via `current_setting('app.settings.service_role_key', true)` ou equivalente. **Hoje (2026-05) não há padrão seguro confirmado** para service_role em cron deste projeto — pendência bloqueante registrada na Onda 1.
+
+### 9.3 Lacuna resolvida na Onda 1 (2026-05) — parcial
+
+- **Diagnóstico (gate read-only):** o job ativo era `generate-weekly-insights` (jobid 22), schedule `0 11 * * 1`, autenticando com **chave anon** → 401 silencioso a cada segunda-feira.
+- **Reschedule:** **não executado** nesta onda. Requer decisão do operador sobre como expor `service_role` para o cron sem violar regra de segredos. Opções abertas para Onda 1.5: (a) Vault + `app.settings.service_role_key`; (b) inserção manual via `cron.schedule` fora de migration versionada (padrão Lovable para schedules com secret); (c) introduzir adapter de auth alternativo na edge (ex.: HMAC com secret dedicado).
+- **Status do cron:** `generate-weekly-insights` permanece ativo e continua devolvendo 401. Geração semanal de insights está **parada**.
+
+### 9.4 Critérios de aceite (quando a correção for aplicada)
+
+- [ ] `cron.job` exibe `weekly-command-insights` com schedule `0 11 * * 1` e header de service_role.
+- [ ] Execução manual via `curl_edge_functions` com Bearer service_role retorna `success: true` (ou explica ausência de tenant elegível sem erro silencioso).
+- [ ] `command_insights` recebe nova linha quando há tenant elegível.
+- [ ] `platform_cost_ledger` recebe linha com `service_key='command-insights-generate'` quando o LLM é efetivamente chamado.
+- [ ] Logs do edge não mostram `Não autorizado` em execuções do cron.
+
