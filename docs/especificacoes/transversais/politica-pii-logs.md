@@ -149,6 +149,16 @@ Aplicado em 11/05/2026:
 - `agenda_command_log.content/from_phone` — manter; revisar RLS service-role-only.
 - Provisionamento futuro de `LOG_HASH_SECRET` para HMAC-SHA256 definitivo (ver §6).
 
+## 11. Validação HMAC do webhook Meta — sigilo (F2.13.3-CODE Fase A)
+
+A partir de 11/05/2026, `meta-whatsapp-webhook` valida `x-hub-signature-256` com `HMAC-SHA256(META_APP_SECRET, rawBody)`. Regras de log dessa validação:
+
+- **`META_APP_SECRET` nunca aparece em log**, nem mascarado, nem parcial.
+- **Assinatura recebida nunca é logada por inteiro** — apenas `sig_prefix=<8 primeiros hex>` para correlação forense.
+- **Logado com sanitização:** `hmac_status ∈ { valid | invalid | missing | malformed | secret_missing }` + `enforce=<bool>`.
+- `whatsapp_webhook_raw_audit.signature_header` continua armazenando o header bruto (incluindo `x-hub-signature` SHA-1 legado) **somente** para forense/dedupe — leitura restrita a service-role e nunca exposta em UI.
+- Detalhes técnicos do fluxo: `docs/especificacoes/whatsapp/fluxo-recepcao-meta.md` §9.
+
 ## 8. Regra de fechamento
 
 Todo PR que adicionar `console.log/warn/error` em edge function deve:
