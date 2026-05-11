@@ -111,3 +111,15 @@ WHERE processed_by = 'silent_exit' AND timestamp > NOW() - INTERVAL '24 hours';
 | jan/2026    | 1.980 mensagens com `processed_at NULL`            | Assinatura `messages` perdida na Meta           | Camada 5         |
 | abr/2026 (1)| 2.657 mensagens em `received` sem desfecho         | Early returns/exceções no webhook sem update    | Camadas 1, 2, 3  |
 | abr/2026 (2)| 367 órfãs, 93% sendo redeliveries duplicadas       | Timeout do edge function antes do `finally` em redeliveries da Meta | Camada 6 |
+
+## 8. Política de PII em Logs
+
+A partir de 11/05/2026 (F2.13.2.A), todos os logs `console.*` deste pipeline seguem a política transversal definida em `docs/especificacoes/transversais/politica-pii-logs.md`:
+
+- Telefone só aparece mascarado (`5573****1425`) via `maskPhone()` de `_shared/pii.ts`.
+- Payload Meta cru não vai para log — apenas contadores (`entries`, `messages`, `statuses`, `msg_types`).
+- `verify_token` nunca é logado, nem parcialmente — apenas `token_present=true/false`.
+- Resposta da IA, resultado do agente Agenda e respostas de tools entram como `status` + `body_len`/`ok`, nunca como conteúdo.
+- `external_message_id`/`wa_id` é preservado cru pois é necessário para a Camada 6 (dedupe de redelivery).
+
+A persistência operacional (`whatsapp_inbound_messages`, `meta_webhook_audit_raw`, `agenda_command_log`) **não foi alterada** por F2.13.2.A. Sanitização de `body_preview` e `headers_json` será tratada em **F2.13.2.B**; retenção de `raw_payload` em **F2.13.2.C**.

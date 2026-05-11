@@ -1455,3 +1455,39 @@ Nenhuma outra edge `agenda-*` encontrada. Cron ativo identificado: **`agenda-dis
 🟢 **GO DOCUMENTAL F2.13.1.1 — fechada.** Família Agenda totalmente classificada no Motor de Créditos: `agenda-process-command` cobrável por IA (validada em produção); `agenda-dispatch-reminders` e `agenda-submit-template` classificadas como **D — Não aplicáveis**.
 
 **Próximo passo recomendado (não executado):** abrir **F2.13.2 em PLANNER** — hardening de PII em logs do `meta-whatsapp-webhook` e do handler `agenda-process-command` (telefone, texto inbound, prompt, resposta IA, `wa_id` bruto, dados do `tenant_user`).
+
+---
+
+## 21.3 F2.13.2.A — Hardening de PII em logs (11/05/2026)
+
+**Escopo:** apenas logs `console.log/warn/error` das edges:
+- `supabase/functions/meta-whatsapp-webhook/index.ts`
+- `supabase/functions/agenda-process-command/index.ts`
+- `supabase/functions/agenda-dispatch-reminders/index.ts`
+
+**Helper criado:** `supabase/functions/_shared/pii.ts` (`maskPhone`, `safeTruncate`, `safeError`, `hashForLog`, `safeHeaders` preparado para F2.13.2.B).
+
+**Política transversal:** `docs/especificacoes/transversais/politica-pii-logs.md`.
+
+**Sanitizações aplicadas:**
+- `verify_token` parcial → `token_present=true/false`
+- `JSON.stringify(payload)` cru → contadores (`entries`/`messages`/`statuses`/`msg_types`)
+- `agendaResult.substring(0,300)` → `status=… ok=…`
+- `aiRes.bodyText` cru → `status=… body_len=…`
+- `customer_phone`/`from_phone`/`phoneRecord.phone` → `maskPhone(...)` (formato `5573****1425`)
+- `message_content.slice(0,80)` → `msg_len=N`
+- `JSON.stringify(toolArgs).slice(0,200)` → `tool=… arg_keys=[…]`
+- `JSON.stringify(result).slice(0,300)` → `status=… ok=…`
+- `AI raw content.substring(0,400)` → `len=N`
+
+**Preservado (rastreabilidade):** `traceId`, `tenant_id.slice(0,8)`, `external_message_id`/`wa_id` (Camada 6 dedupe), `phone_number_id`, status HTTP, contadores, `intent`, tokens (`prompt_tokens`/`completion_tokens`), `body_sha256`.
+
+**Não alterado nesta fase (intencional):**
+- `meta_webhook_audit_raw.body_preview` / `headers_json` → **F2.13.2.B** (reduzir para 512B + allowlist de headers; retenção sugerida 30d)
+- `whatsapp_inbound_messages.raw_payload` → **F2.13.2.C** (retenção sugerida 90d, depois NULL)
+- `agenda_command_log.content` / `from_phone` → mantém persistência; revisar RLS service-role-only
+- Metadata de `chargeAfter` da Agenda — **já estava sanitizada** em F2.13.1 (apenas `intent`, `model`, `tokens_in/out`, `external_message_id_tail.slice(-12)`); não tocada
+
+**Não impactado:** UI/UX, fluxo funcional, dedupe, redelivery, persistência operacional, `credit_ledger`, `wallet`, `service_usage_events`, `platform_cost_ledger`, pricing, RLS, RPC, migrations, providers, crons.
+
+🟢 **GO F2.13.2.A — fechado.** Próximo passo recomendado: **F2.13.2.B em PLANNER** — sanitizar `meta_webhook_audit_raw` (allowlist de headers, redução do `body_preview` para 512B, TTL 30d).
