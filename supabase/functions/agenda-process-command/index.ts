@@ -537,10 +537,17 @@ interface AIResult {
   delegate_args?: Record<string, unknown>;
 }
 
+// F2.13.1 — usage real propagado para chargeAfter (Motor de Créditos)
+export interface AIUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens?: number;
+}
+
 async function callAI(
   messages: Array<{ role: string; content: string }>,
   traceId: string,
-): Promise<{ success: boolean; data?: AIResult; error?: string }> {
+): Promise<{ success: boolean; data?: AIResult; usage?: AIUsage; error?: string }> {
   const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!lovableApiKey) {
     return { success: false, error: "LOVABLE_API_KEY not configured" };
@@ -577,8 +584,28 @@ async function callAI(
 
     console.log(`[agenda-process-command][${traceId}] AI raw:`, content.substring(0, 400));
 
+    // F2.13.1 — captura usage real do gateway (formato OpenAI-compatible).
+    // Não inventar valores: se ausente/inválido, retornamos sem usage e o
+    // handler decide não cobrar (e loga skip sanitizado).
+    const rawUsage = data?.usage;
+    let usage: AIUsage | undefined;
+    if (
+      rawUsage &&
+      typeof rawUsage === "object" &&
+      Number.isFinite(rawUsage.prompt_tokens) &&
+      Number.isFinite(rawUsage.completion_tokens)
+    ) {
+      usage = {
+        prompt_tokens: Math.max(0, Math.floor(rawUsage.prompt_tokens)),
+        completion_tokens: Math.max(0, Math.floor(rawUsage.completion_tokens)),
+        ...(Number.isFinite(rawUsage.total_tokens)
+          ? { total_tokens: Math.max(0, Math.floor(rawUsage.total_tokens)) }
+          : {}),
+      };
+    }
+
     const parsed: AIResult = JSON.parse(content);
-    return { success: true, data: parsed };
+    return { success: true, data: parsed, usage };
   } catch (err) {
     console.error(`[agenda-process-command][${traceId}] AI call error:`, err);
     return { success: false, error: String(err) };
