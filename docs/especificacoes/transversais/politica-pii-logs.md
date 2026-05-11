@@ -57,22 +57,54 @@ Reduzir exposição de PII e segredos em logs runtime (`console.log/warn/error`)
 - Substring de qualquer segredo
 - IP/User-Agent fora de auditoria persistida sob RLS
 
-## 6. Estado por Edge (após F2.13.2.A)
+## 6. Estado por Edge / persistência
 
-| Edge | Status |
+| Alvo | Status |
 |---|---|
-| `meta-whatsapp-webhook` | ✅ Sanitizado em F2.13.2.A |
-| `agenda-process-command` | ✅ Sanitizado em F2.13.2.A |
-| `agenda-dispatch-reminders` | ✅ Sanitizado em F2.13.2.A |
-| `agenda-submit-template` | ✅ Sem PII relevante (auditado) |
+| `meta-whatsapp-webhook` (logs) | ✅ Sanitizado em F2.13.2.A |
+| `agenda-process-command` (logs) | ✅ Sanitizado em F2.13.2.A |
+| `agenda-dispatch-reminders` (logs) | ✅ Sanitizado em F2.13.2.A |
+| `agenda-submit-template` (logs) | ✅ Sem PII relevante (auditado) |
+| `whatsapp_webhook_raw_audit.body_preview` | ✅ Sanitizado em F2.13.2.B (resumo estrutural JSON, cap 2 KB) |
+| `whatsapp_webhook_raw_audit.headers_json` | ✅ Sanitizado em F2.13.2.B (`safeHeaders` allowlist canônica) |
 
-## 7. Fora do escopo desta fase (F2.13.2.A)
+> Correção de nomenclatura (F2.13.2.B): a tabela alvo se chama
+> **`whatsapp_webhook_raw_audit`** no banco — não `meta_webhook_audit_raw`.
+> Versões anteriores deste doc usavam o nome incorreto.
 
-- `meta_webhook_audit_raw.body_preview` — sanitização e redução para 512B → **F2.13.2.B**
-- `meta_webhook_audit_raw.headers_json` — aplicar `safeHeaders` (allowlist) → **F2.13.2.B**
-- TTL/retenção de `body_preview` (sugestão 30d) → **F2.13.2.B**
-- `whatsapp_inbound_messages.raw_payload` retenção (sugestão 90d, depois NULL) → **F2.13.2.C**
-- `agenda_command_log.content/from_phone` — manter; revisar RLS service-role-only
+### Formato canônico de `body_preview` (F2.13.2.B)
+
+Coluna `text`, contendo `JSON.stringify(...)` válido com:
+
+```json
+{
+  "object": "whatsapp_business_account",
+  "entries": 1,
+  "messages": 1,
+  "statuses": 0,
+  "msg_types": ["text"],
+  "phone_number_ids": ["108512..."],
+  "wa_message_ids": ["wamid..."],
+  "wa_id_hashes": ["ddac80e8"],
+  "from_hashes": ["ddac80e8"],
+  "recipient_id_hashes": [],
+  "text_lengths": [42],
+  "has_media": false,
+  "parse_error": null
+}
+```
+
+Em payload não-JSON / parse falho: `{ "parse_error", "content_type", "byte_length" }`. `body_sha256` permanece em coluna própria como chave forense.
+
+### Allowlist canônica de `headers_json` (F2.13.2.B)
+
+`x-hub-signature-256`, `x-hub-signature`, `content-type`, `content-length`, `user-agent`, `x-request-id`, `cf-ray`, `cf-ipcountry`, `cf-connecting-ip`, `x-forwarded-for`, `x-forwarded-proto`, `host`, `sb-request-id`, `traceparent`, `x-amzn-trace-id`. Qualquer outro header é descartado.
+
+## 7. Fora do escopo desta fase
+
+- **F2.13.2.B2** — TTL/retenção de `whatsapp_webhook_raw_audit` (sugestão 30d) e re-sanitização opcional de registros antigos (5.934 linhas pré-11/05/2026).
+- **F2.13.2.C** — `whatsapp_inbound_messages.raw_payload` (sugestão 90d, depois NULL).
+- `agenda_command_log.content/from_phone` — manter; revisar RLS service-role-only.
 
 ## 8. Regra de fechamento
 
@@ -80,3 +112,4 @@ Todo PR que adicionar `console.log/warn/error` em edge function deve:
 1. Importar de `_shared/pii.ts` quando logar telefone, erro ou conteúdo.
 2. Não introduzir nenhum padrão da §5.
 3. Atualizar este doc se criar nova categoria de dado sensível.
+
