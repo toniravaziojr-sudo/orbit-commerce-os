@@ -177,6 +177,61 @@ Deno.serve(async (req) => {
     const aiResult = aiResponse.data!;
     console.log(`[agenda-process-command][${traceId}] AI result: intent=${aiResult.intent}, needs_confirm=${aiResult.needs_confirmation}`);
 
+    // ── F2.13.1 — MOTOR DE CRÉDITOS: cobra IA da Agenda ──
+    // Cobra somente após sucesso real do provider, com usage válido.
+    // Falhas de cobrança/telemetria NUNCA quebram a Agenda (try/catch isolado).
+    // Idempotência: jobId determinístico por external_message_id (+ ":in"/":out").
+    // Dedupe por (tenant_id, external_message_id) já garantiu redelivery na entrada.
+    try {
+      const usage = aiResponse.usage;
+      if (!usage) {
+        console.warn(`[agenda-process-command][${traceId}] charge skipped: usage_missing_from_gateway`);
+      } else {
+        const { chargeAfter } = await import("../_shared/credits/charge-after.ts");
+        const baseMetadata = {
+          conversation: "agenda",
+          intent: aiResult.intent,
+          ...(aiResult.delegate_action ? { delegate_action: aiResult.delegate_action } : {}),
+          model: "google/gemini-2.5-flash",
+          needs_confirmation: aiResult.needs_confirmation,
+          tokens_in: usage.prompt_tokens,
+          tokens_out: usage.completion_tokens,
+          origin_function: "agenda-process-command",
+          external_message_id_tail: external_message_id.slice(-12),
+        };
+        if (usage.prompt_tokens > 0) {
+          await chargeAfter({
+            tenantId: tenant_id,
+            serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+            units: { tokens: usage.prompt_tokens },
+            jobId: `agenda:${external_message_id}:in`,
+            feature: "agenda-process-command",
+            metadata: baseMetadata,
+          });
+        } else {
+          console.log(`[agenda-process-command][${traceId}] charge skipped (in): prompt_tokens=0`);
+        }
+        if (usage.completion_tokens > 0) {
+          await chargeAfter({
+            tenantId: tenant_id,
+            serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_out",
+            units: { tokens: usage.completion_tokens },
+            jobId: `agenda:${external_message_id}:out`,
+            feature: "agenda-process-command",
+            metadata: baseMetadata,
+          });
+        } else {
+          console.log(`[agenda-process-command][${traceId}] charge skipped (out): completion_tokens=0`);
+        }
+      }
+    } catch (chargeErr) {
+      console.warn(
+        `[agenda-process-command][${traceId}] chargeAfter exception:`,
+        String((chargeErr as { message?: string } | null)?.message || chargeErr),
+      );
+    }
+
+
     // ── EXECUTE BASED ON INTENT ──
     let reply = aiResult.reply;
     let actionTaken = aiResult.intent;
