@@ -1483,11 +1483,50 @@ Nenhuma outra edge `agenda-*` encontrada. Cron ativo identificado: **`agenda-dis
 **Preservado (rastreabilidade):** `traceId`, `tenant_id.slice(0,8)`, `external_message_id`/`wa_id` (Camada 6 dedupe), `phone_number_id`, status HTTP, contadores, `intent`, tokens (`prompt_tokens`/`completion_tokens`), `body_sha256`.
 
 **Não alterado nesta fase (intencional):**
-- `meta_webhook_audit_raw.body_preview` / `headers_json` → **F2.13.2.B** (reduzir para 512B + allowlist de headers; retenção sugerida 30d)
+- `whatsapp_webhook_raw_audit.body_preview` / `headers_json` → **F2.13.2.B** (executado em 11/05/2026; ver §21.5)
 - `whatsapp_inbound_messages.raw_payload` → **F2.13.2.C** (retenção sugerida 90d, depois NULL)
 - `agenda_command_log.content` / `from_phone` → mantém persistência; revisar RLS service-role-only
 - Metadata de `chargeAfter` da Agenda — **já estava sanitizada** em F2.13.1 (apenas `intent`, `model`, `tokens_in/out`, `external_message_id_tail.slice(-12)`); não tocada
 
 **Não impactado:** UI/UX, fluxo funcional, dedupe, redelivery, persistência operacional, `credit_ledger`, `wallet`, `service_usage_events`, `platform_cost_ledger`, pricing, RLS, RPC, migrations, providers, crons.
 
-🟢 **GO F2.13.2.A — fechado.** Próximo passo recomendado: **F2.13.2.B em PLANNER** — sanitizar `meta_webhook_audit_raw` (allowlist de headers, redução do `body_preview` para 512B, TTL 30d).
+🟢 **GO F2.13.2.A — fechado.**
+
+---
+
+## 21.5. F2.13.2.B — Sanitização de `whatsapp_webhook_raw_audit` (11/05/2026)
+
+> Correção de nomenclatura: a tabela é **`whatsapp_webhook_raw_audit`**, não `meta_webhook_audit_raw` como aparecia em versões anteriores deste doc e da política PII.
+
+**Alvo:** persistência bruta de auditoria do webhook Meta (Camada 1 do fluxo de recepção). Único insertor: `meta-whatsapp-webhook`. Único leitor: platform admin (RLS `is_platform_admin()`).
+
+**Sanitizações aplicadas:**
+
+1. **`body_preview`** — substituído o substring cru de até 4000B do payload Meta por **resumo estrutural JSON determinístico** (cap rígido 2 KB), produzido por `summarizeWebhookBody()` em `_shared/pii.ts`. Campos: `object`, `entries`, `messages`, `statuses`, `msg_types`, `phone_number_ids`, `wa_message_ids`, `wa_id_hashes`, `from_hashes`, `recipient_id_hashes`, `text_lengths`, `has_media`, `parse_error`. Hashes via FNV-1a 32-bit (8 hex chars) — suficiente para correlação cross-request, sem expor telefone.
+2. **`headers_json`** — passou a usar `safeHeaders()` com **allowlist canônica** (15 headers técnicos/forenses). Authorization, Cookie, Bearer, accept/accept-encoding, baggage, cf-visitor, cf-ew-via, cf-worker, cdn-loop, x-forwarded-port e qualquer outro header são descartados.
+
+**Preservado (forense / dedupe / suporte):**
+`body_sha256` íntegro, `signature_header`, `content_length`, `remote_ip` (IP Meta/Cloudflare), `user_agent`, `trace_id`, `received_at`, `query_string`, `wa_message_ids` (dedupe Camada 6), `phone_number_ids`.
+
+**Removido / mascarado em novos registros:**
+`profile.name`, `text.body`, `wa_id` cru, `message.from` cru, `status.recipient_id` cru, mídia/url assinada, payload bruto, headers fora da allowlist.
+
+**Validação técnica executada:**
+- Payload Meta sintético (texto + status) processado localmente via Deno: resumo gerado com 322B, sem `5573991681425`/`5511999998888`/`João`/`Olá` no output.
+- Allowlist testada com headers `authorization`/`cookie`/`baggage` injetados: descartados; mantidos `x-hub-signature-256`/`content-type`/`user-agent`/`cf-ray`.
+- Payload não-JSON: fallback `{parse_error, content_type, byte_length}` válido.
+- `JSON.parse(body_preview)` válido em ambos os casos.
+
+**Não alterado:**
+- Dados retroativos em `whatsapp_webhook_raw_audit` (5.934 linhas pré-11/05/2026 → tratamento opcional em F2.13.2.B2).
+- `whatsapp_inbound_messages.raw_payload` → F2.13.2.C.
+- `agenda_command_log` → fora desta fase.
+- Schema, RLS, RPC, migrations, UI/UX, wallet, `credit_ledger`, `service_usage_events`, `platform_cost_ledger`, pricing.
+- Nenhum webhook real, IA, mensagem, provider ou cron foi executado.
+
+**Pendências registradas:**
+- **F2.13.2.B2** — TTL/retenção 30 dias para `whatsapp_webhook_raw_audit` + decisão sobre re-sanitização retroativa de registros antigos.
+- **F2.13.2.C** — sanitização e retenção 90d de `whatsapp_inbound_messages.raw_payload`.
+
+🟢 **GO F2.13.2.B — fechado.** Próximo passo recomendado: **F2.13.2.B2 em PLANNER** (TTL e tratamento de dados retroativos).
+
