@@ -1244,3 +1244,88 @@ Meta POST → meta-whatsapp-webhook  [D]
 `meta-whatsapp-webhook` e a cadeia de recepção (persistência + `turn-orchestrator-processor`) estão classificados como **D — não aplicáveis**. `ai-support-chat` permanece como ponto único de cobrança da IA de atendimento. `meta-whatsapp-send` permanece sem cobrança de custo Meta. `agenda-process-command` fica **registrada como IA do tenant cobrável**, com pendência obrigatória **F2.13.1** para auditoria/implementação de `chargeAfter`. Riscos de PII em logs ficam como backlog **F2.13.2**, sem alteração nesta entrega.
 
 **Próximo passo recomendado (não executado):** abrir **F2.13.1 em modo PLANNER** para auditar `agenda-process-command` em profundidade (modelo Gemini real, tokens, pricing, idempotência, ponto de `chargeAfter`, metadata/logs, validação anti-dupla cobrança), antes de qualquer implementação.
+
+---
+
+## §21 — Fase F2.13.1 — chargeAfter ATIVO em agenda-process-command (2026-05-11)
+
+**Regra oficial:** o custo de IA do agente Agenda é da plataforma e **deve ser cobrado do tenant** via Motor de Créditos. Custo Meta da mensagem WhatsApp continua direto cliente↔Meta (F2.12). `command-assistant-execute` continua **não** cobrando — não chama IA hoje; se passar a chamar, exige auditoria F2 antes.
+
+### Implementação
+
+- **Arquivo único alterado:** `supabase/functions/agenda-process-command/index.ts`.
+- **`callAI`** agora retorna `usage` real do Lovable AI Gateway (`prompt_tokens`, `completion_tokens`, `total_tokens?`). Se ausente/inválido: retorno sem `usage`, sem invenção de custo.
+- **Plug do `chargeAfter`** logo após `aiResponse.success === true`, antes de processar intent.
+- **Helper:** `chargeAfter` (postpaid). Não usar `withCreditMotor` (pré-pago) — tokens só são conhecidos pós-resposta.
+
+### service_keys utilizadas (pricing existente, ativo)
+
+| service_key | uso |
+|---|---|
+| `gemini.gemini-2.5-flash.per_1m_tokens_in` | tokens de prompt |
+| `gemini.gemini-2.5-flash.per_1m_tokens_out` | tokens de resposta |
+
+Nenhum pricing novo criado. Nenhum schema/RPC/RLS alterado.
+
+### Idempotência
+
+- `jobId = "agenda:" + external_message_id + ":in" | ":out"`. Determinístico, único por turno.
+- `external_message_id` é validado obrigatório no início do handler (linha 66) — é o `wamid` da Meta, sempre presente.
+- Dedupe natural de 1ª camada: `agenda_command_log` por `(tenant_id, external_message_id)` — em redelivery do webhook, a 2ª execução nem chega ao `chargeAfter`.
+- Dedupe de 2ª camada: `chargeAfter` resolve `jobId` → UUID v5 determinístico namespaced por `(tenantId, serviceKey, jobId)`; UNIQUE em `service_usage_events.credit_ledger_id` bloqueia duplicidade de telemetria (F1).
+
+### Política de cobrança
+
+| Cenário | Cobra IA? |
+|---|---|
+| Provider IA falha (HTTP ≠ 200, parse JSON falha, body vazio) | **NÃO** |
+| Provider OK mas `usage` ausente/inválido | **NÃO** (log `charge skipped: usage_missing_from_gateway`) |
+| Provider OK + `usage` válido + intent OK | **SIM** |
+| Provider OK + `usage` válido + ação interna (criar tarefa / Auxiliar / envio WhatsApp) falha | **SIM** (tokens já consumidos) |
+| Provider OK + `intent=delegate_to_assistant` | **SIM**, apenas a IA da Agenda |
+| `prompt_tokens=0` ou `completion_tokens=0` legitimamente | cobra apenas o lado > 0 (log do skip) |
+
+### Anti-dupla cobrança
+
+- `command-assistant-execute`: confirmado que **não** chama IA hoje (sem `gateway`/`openai`/`gemini`/`chargeAfter` no arquivo).
+- `ai-support-chat`: rotas Agenda vs Suporte são mutuamente exclusivas em `meta-whatsapp-webhook`.
+- `turn-orchestrator-processor`: não roda no fluxo Agenda.
+- `meta-whatsapp-send`: D (custo Meta direto cliente↔Meta).
+
+### Metadata da cobrança (sanitizada)
+
+```json
+{
+  "conversation": "agenda",
+  "intent": "<intent>",
+  "delegate_action": "<se aplicável>",
+  "model": "google/gemini-2.5-flash",
+  "needs_confirmation": <bool>,
+  "tokens_in": <int>,
+  "tokens_out": <int>,
+  "origin_function": "agenda-process-command",
+  "external_message_id_tail": "<últimos 12 chars do wamid>"
+}
+```
+
+**Proibido em metadata** (F2.13.2 trata logs do handler separadamente): `from_phone`, `message_content`, prompt completo, resposta da IA, histórico, `wa_id` bruto, telefone, dados do `tenant_user`, PII.
+
+### Tratamento de erro
+
+`chargeAfter` envolto em `try/catch` próprio. Falha de cobrança/telemetria gera `console.warn` sanitizado e **não quebra o fluxo da Agenda**. `await` confiável: cobrança deve ser efetivada antes de prosseguir, mas exceções não escalam.
+
+### Confirmações de não-impacto
+
+- ✅ Nenhum migration/RPC/RLS/schema/enum alterado.
+- ✅ Nenhum pricing criado/alterado.
+- ✅ Provider real **não** chamado em teste; nenhuma mensagem real enviada; nenhuma ação real executada.
+- ✅ `wallet`, `credit_ledger`, `service_usage_events`, `platform_cost_ledger`: intactos (sem linha sintética).
+- ✅ UI/UX intacta.
+- ✅ `command-assistant-execute`, `meta-whatsapp-send`, `meta-whatsapp-webhook`, `ai-support-chat`, `turn-orchestrator-processor`: intactos.
+- ✅ Fluxo funcional da Agenda preservado.
+- ✅ Dedupe `agenda_command_log` preservado.
+- ✅ PII/logs do handler **não** alterados nesta etapa (escopo F2.13.2).
+
+🟢 **F2.13.1 — GO. chargeAfter ativo em produção sob a flag `motor_v2_enabled` por tenant** (mesmo padrão Lote 3). Cobrança ocorre apenas para tenants com motor habilitado; demais ficam em `skipped: motor_disabled_for_tenant`.
+
+**Próximo passo recomendado (não executado):** abrir **F2.13.1.1 em PLANNER** para auditar `agenda-dispatch-reminders` e `agenda-submit-template` (cron de lembretes pode acionar IA?), e em seguida **F2.13.2** (hardening de PII em logs do webhook + handler Agenda).
