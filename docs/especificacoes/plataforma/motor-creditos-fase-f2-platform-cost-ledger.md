@@ -703,3 +703,110 @@ Riscos identificados nesta auditoria **continuam válidos** como backlog de segu
 As 5 edges (`meta-token-refresh`, `meli-token-refresh`, `tiktok-token-refresh-cron`, `shopee-token-refresh`, `whatsapp-token-healthcheck`) classificadas como **não aplicáveis** ao Motor de Créditos. Regra "refresh OAuth / healthcheck / consulta de status não cobra; emissão cobra" registrada como padrão oficial estendendo §14.4. Riscos de log/secret catalogados como backlog separado de hardening (§15.7), sem correção nesta execução. Nenhuma alteração de runtime, ledger, wallet, evento, token, UI, RPC ou RLS executada.
 
 **Próximo passo recomendado (não executado):** abrir **F2.9 em modo PLANNER** para auditar `google-token-refresh`, `google-token-refresh-cron` e `health-check-run`. Atenção especial a `health-check-run`, que pode envolver chamadas externas reais e merece auditoria cuidadosa antes de classificação.
+
+---
+
+## 16. F2.9 — `google-token-refresh`, `google-token-refresh-cron` e `health-check-run` (✅ GO documental — 2026-05-11)
+
+### 16.1 Objetivo
+
+Auditar 1×1 as 3 edges listadas como pendência futura em §15.7, decidindo se entram em `platform_cost_ledger` ou são classificadas como **não aplicáveis**.
+
+### 16.2 Evidências por edge
+
+#### 16.2.1 `google-token-refresh`
+- **O que faz:** renova `access_token` Google de **um tenant específico** via `https://oauth2.googleapis.com/token` (`grant_type=refresh_token`). Early-return se token ainda válido por >5 min.
+- **Quem chama:** admin/tenant ao reconectar; edges Google internas (Ads, Drive, Calendar, YouTube) que precisam de access_token vivo.
+- **Provider externo:** Google OAuth 2.0.
+- **Cobrança monetária:** **Não.** Endpoint OAuth Google é gratuito; consome apenas quota OAuth por `client_id`.
+- **`service_key` / pricing:** não existem.
+- **Helpers de cobrança presentes:** nenhum (`recordPlatformCost`/`chargeAfter`/`withCreditMotor` ausentes).
+- **Tokens/secrets no fluxo:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `refresh_token`, `access_token`.
+- **Risco de log:** **Alto.** `console.error('Refresh failed:', tokenData)` despeja JSON cru da Google; `last_error = errorMsg` em `google_connections` armazena `error_description` integral sem truncar. Tratado em backlog F2.9.1 (§16.6).
+- **Classificação F2.9:** **D — não aplicável** ao `platform_cost_ledger`.
+
+#### 16.2.2 `google-token-refresh-cron`
+- **O que faz:** renova `access_tokens` de **todas** as `google_connections` ativas que expiram nos próximos 10 min. Cron a cada 5 min.
+- **Quem chama:** scheduler/`pg_cron`.
+- **Provider externo:** Google OAuth 2.0 (mesmo endpoint).
+- **Cobrança monetária:** **Não.** Consome quota OAuth Google.
+- **`service_key` / pricing:** não existem.
+- **Helpers de cobrança presentes:** nenhum.
+- **Tokens/secrets no fluxo:** idem `google-token-refresh`. Lógica especial: marca `connection_status='expired'` em `invalid_grant`.
+- **Risco de log:** **Alto.** `errors[]` retornado integralmente na response do cron contém `errorBody` cru de Google. Tratado em backlog F2.9.1 (§16.6).
+- **Classificação F2.9:** **D — não aplicável** ao `platform_cost_ledger`.
+
+#### 16.2.3 `health-check-run`
+- **O que faz:** orquestrador de observabilidade. Itera `system_health_check_targets.is_enabled=true` e roda 4 suítes em paralelo por target: `domains`, `checkout_tracking`, `coupons`, `payments` (esta última com `dry_run: true`). Persiste em `system_health_checks`, emite eventos em `events_inbox` quando `fail`.
+- **Quem chama:** cron + admin manual.
+- **Providers externos chamados (estado atual):**
+  - **Suíte A (domains):** `fetch` HTTP GET no `storefront_base_url` e `shops_base_url` (Cloudflare/origin público). Sem cobrança.
+  - **Suíte B (checkout_tracking):** chamadas internas a `checkout-session-start`, `-heartbeat`, `-end` (com `cart_id=health-check-${ts}`, `total_estimated=0`, items vazios). Sem provider pago, mas gera linhas reais em `checkout_sessions`. Risco controlado: ver backlog F2.9.2 (§16.6).
+  - **Suíte C (coupons):** chamada interna a `discount-validate`. Sem provider externo pago.
+  - **Suíte D (payments):** chamada a `reconcile-payments` com `dry_run: true`. Sem cobrança no provider externo, **desde que `dry_run` seja respeitado em todos os caminhos** (a confirmar — backlog F2.9.2).
+- **Cobrança monetária no estado atual:** **Não.** Nenhuma chamada a SendGrid, Meta WhatsApp, Focus NFe, LLM, Fal/OpenAI, scraping ou Frenet.
+- **`service_key` / pricing:** não existem.
+- **Helpers de cobrança presentes:** nenhum.
+- **Tokens/secrets no fluxo:** apenas `SUPABASE_SERVICE_ROLE_KEY` em headers Authorization para edges internas; nenhum token de provider externo.
+- **Risco de log:** **Baixo.** Não loga Authorization; `events_inbox.payload_raw` contém apenas labels e nomes de suítes.
+- **Classificação F2.9:** **D — não aplicável** ao `platform_cost_ledger` **no estado atual das suítes**, com regra de governança vinculante em §16.4.
+
+### 16.3 Tabela comparativa F2.9
+
+| Edge | Trigger | Provider externo | Cobrado? | service_key | Helpers | Risco log | Classificação |
+|---|---|---|---|---|---|---|---|
+| `google-token-refresh` | Manual + worker | Google OAuth | Não | — | — | Alto (backlog F2.9.1) | **D — não aplicável** |
+| `google-token-refresh-cron` | Cron 5 min | Google OAuth | Não | — | — | Alto (backlog F2.9.1) | **D — não aplicável** |
+| `health-check-run` | Cron + admin | Storefront público + edges internas | Não (estado atual) | — | — | Baixo | **D — não aplicável (estado atual das suítes)** |
+
+### 16.4 Regra oficial F2.9 — governança específica de `health-check-run`
+
+> **Qualquer nova suíte adicionada ao `health-check-run` deve passar por auditoria F2 antes de merge. É proibido adicionar suíte que chame provider pago, IA, fiscal, WhatsApp, envio real, scraping, gateway, LLM ou qualquer operação cobrável sem auditoria e classificação de custo.**
+
+A classificação D de `health-check-run` vale **somente para o conjunto atual de suítes**. Ampliação de escopo reabre obrigatoriamente a auditoria.
+
+### 16.5 Regra oficial F2.9 — extensão das regras §14.4 e §15.4
+
+A regra "refresh OAuth / healthcheck / consulta de status não cobra; emissão cobra" — formalizada em §14.4 (F2.7) e estendida em §15.4 (F2.8) — **abrange também** os refresh OAuth Google (`google-token-refresh`, `google-token-refresh-cron`) e os orquestradores de observabilidade interna (`health-check-run`), desde que estes últimos não chamem provider externo pago.
+
+### 16.6 Pendências futuras registradas (fora do escopo F2.9)
+
+1. **F2.9.1 — Hardening de logs Google OAuth:** aplicar padrão `scrub & truncate` (§15.7 item 1) em `google-token-refresh` e `google-token-refresh-cron`:
+   - truncar `tokenData`/`errorBody` em `console.error`;
+   - truncar `last_error` (`slice(0,500)`) em `google_connections`;
+   - parar de retornar `errors[]` integral na response do cron (manter apenas counters; persistir detalhes truncados em `last_error`).
+2. **F2.9.2 — Auditoria `reconcile-payments` `dry_run` + isolamento `cart_id=health-check-*`:** confirmar que `reconcile-payments` respeita `dry_run` em **todos** os caminhos (sem tocar gateway real); garantir que `cart_id` no padrão `health-check-*` seja excluído de qualquer trigger de carrinho/abandono/abandono-pixel para evitar virar pedido fake.
+3. **Auditoria futura (sugerida F2.10 PLANNER):** `health-monitor-admin`, `meta-whatsapp-monitor-all`, `whatsapp-orphan-watcher` e `whatsapp-cross-business-detector` (todos hoje listados em §3.11 de `funcoes-pagas.md` sem auditoria formal completa).
+
+**Reforço explícito:** a classificação "não aplicável ao Motor de Créditos" **não foi usada para ignorar** os riscos de log catalogados acima. Eles ficam pendentes em backlog separado de hardening (§16.6.1) para tratamento posterior.
+
+### 16.7 Confirmações de não-impacto (validações obrigatórias F2.9)
+
+| Item | Status |
+|---|---|
+| Código de runtime alterado | NÃO |
+| Migration criada | NÃO |
+| RPC alterada | NÃO |
+| RLS alterada | NÃO |
+| `service_key` criada | NÃO |
+| Preço aprovado | NÃO |
+| Custo registrado em `platform_cost_ledger` | NÃO |
+| Provider real chamado | NÃO |
+| Refresh OAuth Google executado | NÃO |
+| Health check real executado | NÃO |
+| Token alterado/girado | NÃO |
+| Wallet/`credit_ledger`/`service_usage_events` alterados | NÃO |
+| UI alterada | NÃO |
+| `mem://` ou Knowledge novos criados | NÃO |
+| Hardening de logs Google aplicado | NÃO (movido para backlog §16.6 — F2.9.1) |
+| Auditoria `reconcile-payments` `dry_run` executada | NÃO (movida para backlog §16.6 — F2.9.2) |
+| Docs oficiais atualizados | SIM (`funcoes-pagas.md` §3.11; este doc §16) |
+| `workers-crons-pagos.md` revisado | SIM — nenhuma alteração necessária (as 3 edges não estavam classificadas como pagas no doc; os exemplos de `platform_absorbed` em §2.2 permanecem coerentes) |
+
+### 16.8 Status final F2.9
+
+🟢 **F2.9 — GO documental confirmado.**
+
+`google-token-refresh`, `google-token-refresh-cron` e `health-check-run` classificadas como **não aplicáveis** ao Motor de Créditos. Para `health-check-run`, a classificação vale **somente para o conjunto atual de suítes** e fica vinculada à regra de governança §16.4 (suítes futuras exigem auditoria F2 prévia). Riscos de log Google e auditoria de `reconcile-payments dry_run` catalogados como backlog separado (F2.9.1 e F2.9.2 em §16.6), sem correção nesta execução. Nenhuma alteração de runtime, ledger, wallet, evento, token, UI, RPC ou RLS executada.
+
+**Próximo passo recomendado (não executado):** abrir **F2.10 em modo PLANNER** para auditar `health-monitor-admin`, `meta-whatsapp-monitor-all`, `whatsapp-orphan-watcher` e `whatsapp-cross-business-detector` (candidatos hoje listados em `funcoes-pagas.md` §3.11 sem auditoria formal).
