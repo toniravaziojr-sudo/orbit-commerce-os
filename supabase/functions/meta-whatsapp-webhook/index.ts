@@ -185,6 +185,36 @@ Deno.serve(async (req) => {
     }
   }
 
+  // === [F2.13.3-CODE Fase A] Validação HMAC SHA-256 — modo LOG (não rejeita) ===
+  // Acontece DEPOIS do raw audit (forense preservada) e ANTES do parse/roteamento.
+  // Apenas `x-hub-signature-256` é aceito como assinatura HMAC nova.
+  // META_APP_SECRET é lido de platform_credentials (fallback Deno.env). Nunca logado.
+  // Assinatura recebida nunca é logada por inteiro — apenas prefixo curto (8 chars).
+  // Após 72h sem falsos negativos → ativar Fase B (enforcement, retornando 401).
+  if (req.method === "POST" && rawBodyText !== null) {
+    try {
+      const { data: appSecretRow } = await supabase
+        .from("platform_credentials")
+        .select("credential_value")
+        .eq("credential_key", "META_APP_SECRET")
+        .eq("is_active", true)
+        .maybeSingle();
+      const appSecret = appSecretRow?.credential_value ?? Deno.env.get("META_APP_SECRET") ?? null;
+      const sigHeader = req.headers.get("x-hub-signature-256");
+      const hmac = await verifyMetaHmac(rawBodyText, sigHeader, appSecret);
+      console.log(
+        `[meta-whatsapp-webhook][${traceId}] HMAC check (log-mode) hmac_status=${hmac.status}` +
+          (hmac.sigPrefix ? ` sig_prefix=${hmac.sigPrefix}` : "") +
+          ` enforce=false`,
+      );
+    } catch (hmacErr) {
+      console.warn(
+        `[meta-whatsapp-webhook][${traceId}] HMAC check failed unexpectedly (log-mode, ignored):`,
+        safeError(hmacErr),
+      );
+    }
+  }
+
   try {
     // GET request: Webhook verification (Meta challenge)
     if (req.method === "GET") {
