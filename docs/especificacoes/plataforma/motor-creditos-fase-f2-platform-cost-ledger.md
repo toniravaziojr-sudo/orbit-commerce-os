@@ -1562,8 +1562,66 @@ Nenhuma outra edge `agenda-*` encontrada. Cron ativo identificado: **`agenda-dis
 **Não tocado nesta fase:** `whatsapp_inbound_messages.raw_payload`, `agenda_command_log`, wallet, `credit_ledger`, `service_usage_events`, `platform_cost_ledger`, pricing, `service_key`, UI/UX, RLS, RPC, edges. Sem re-sanitização retroativa com hashes. `LOG_HASH_SECRET` não provisionado nesta fase.
 
 **Pendências registradas:**
-- **F2.13.2.C** — sanitização e retenção 90d de `whatsapp_inbound_messages.raw_payload`.
+- **F2.13.2.C** — sanitização e retenção de `whatsapp_inbound_messages.raw_payload` (executada — ver §21.7).
 - Provisionamento futuro de `LOG_HASH_SECRET` (HMAC-SHA256 definitivo).
 
-🟢 **GO F2.13.2.B2 — fechado.** Próximo passo recomendado: **F2.13.2.C em PLANNER** (`whatsapp_inbound_messages.raw_payload`).
+🟢 **GO F2.13.2.B2 — fechado.**
+
+---
+
+## 21.7. F2.13.2.C — TTL e limpeza retroativa de `whatsapp_inbound_messages.raw_payload` (11/05/2026)
+
+**Decisão aplicada:** opção E híbrida, somente parte de dados/retenção. Stop-write em `meta-whatsapp-webhook` fica em pendência separada (F2.13.2.C-CODE).
+
+### Auditoria pré-execução
+- 4.077 linhas, 1 tenant, período 2025-04-20 → 2026-05-11, 100% com `raw_payload` não-nulo.
+- Conteúdo do `raw_payload`: `from` (telefone E.164 cru, 100%), `id` (wamid, 100%), `type` (100%), `timestamp` (100%), `text.body` (91%), `from_user_id` (Meta ID, 51%), metadados de mídia/reação/contexto (<4%). Não contém `profile.name` (esse vive só em `whatsapp_webhook_raw_audit`).
+- **Duplicação confirmada:** `from`/`id`/`type`/`text.body` já existem em `from_phone`/`external_message_id`/`message_type`/`message_content`.
+- **Mapa de uso (rg + análise):** único escritor `meta-whatsapp-webhook:318`; **zero leitores** em edges, SPA, watchers (`whatsapp-orphan-watcher`, `whatsapp-health-summary`, `whatsapp-cross-business-detector`), dedupe (Camada 6 usa `external_message_id`), AI Support, Agenda, cobrança ou UI.
+
+### Cutoffs fixos
+- `cleanup_cutoff = now() − interval '7 days'`
+- `ttl_cutoff = now() − interval '30 days'`
+
+### Snapshot pré
+| Métrica | Valor |
+|---|---|
+| Total | 4.077 |
+| `raw_payload` não-nulo | 4.077 |
+| Alvo limpeza imediata | 3.894 |
+| Preservadas (últimos 7d) | 183 |
+| Alvo TTL prospectivo (>30d) | 1.981 |
+| Com `conversation_id` | 1.468 |
+| Com `media_url` | 0 |
+
+### Execução
+1. **Limpeza imediata:** `UPDATE public.whatsapp_inbound_messages SET raw_payload = NULL WHERE timestamp < (now() - interval '7 days') AND raw_payload IS NOT NULL` → **3.894 linhas atualizadas**.
+2. **Cron prospectivo:** `cleanup_whatsapp_inbound_raw_payload_30d` (jobid 54), schedule `15 6 * * *` (= 03:15 BRT, deslocado 15 min do cron F2.13.2.B2 das 03:00 BRT). Ação: `UPDATE … SET raw_payload = NULL WHERE timestamp < now() − interval '30 days' AND raw_payload IS NOT NULL`.
+
+### Snapshot pós (validação)
+| Validação | Resultado |
+|---|---|
+| Total de linhas | 4.077 (zero deleção) |
+| `raw_payload` não-nulo | 183 (= preservadas dos últimos 7d) |
+| Linhas antigas (>7d) com `raw_payload` residual | **0** |
+| `from_phone` populado | 4.077 (100%) |
+| `message_content` populado | 4.077 (100%) |
+| `external_message_id` populado | 4.077 (100%) |
+| `conversation_id` populado | 1.468 (= snapshot pré) |
+| Cron criado (não duplicado) | jobid 54 ✅ |
+
+### Confirmações de não-impacto
+- ✅ Linha inteira preservada — sem `DELETE` em nenhum momento.
+- ✅ `from_phone`, `to_phone`, `message_content`, `external_message_id`, `message_type`, `timestamp`, `conversation_id`, `media_url`, `processed_at`, `processed_by`, `processing_status`, `processing_error` 100% intactos.
+- ✅ Dedupe Camada 6 segue baseado em `external_message_id`.
+- ✅ AI Support, Agenda, watchers operacionais e UI **não** afetados (não dependem de `raw_payload`).
+- ✅ `whatsapp_webhook_raw_audit`, `agenda_command_log`, wallet, `credit_ledger`, `service_usage_events`, `platform_cost_ledger`, RLS, RPC, edges **não** alterados.
+- ✅ Sem alteração de UI/UX, código de aplicação, schema (apenas DML + cron), ou cobrança.
+
+### Pendências registradas
+- **F2.13.2.C-CODE** — alterar `meta-whatsapp-webhook/index.ts:318` para parar de gravar `raw_payload` em novos inserts (até lá, TTL diário de 30d cobre o prazo).
+- Provisionamento futuro de `LOG_HASH_SECRET` (HMAC-SHA256 definitivo) — herdado de F2.13.2.B.
+
+🟢 **GO F2.13.2.C — fechado.** Próximo passo recomendado: **F2.13.2.C-CODE em PLANNER** (parar a escrita futura de `raw_payload` no `meta-whatsapp-webhook`).
+
 
