@@ -1058,3 +1058,105 @@ A F2.10 fechou o lote de monitores administrativos (`meta-whatsapp-monitor-all`,
 `meta-whatsapp-diagnose`, `meta-whatsapp-recover`, `whatsapp-health-summary`, `whatsapp-open-validation-window` e `whatsapp-check-templates` classificadas como **não aplicáveis** ao Motor de Créditos. `meta-whatsapp-recover` permanece marcada como **operação administrativa sensível** (sem custo monetário no estado atual, mas altera estado da WABA/número), com regra preventiva §18.5 ativa. Riscos de log/PII catalogados como backlog separado (F2.11.1 a F2.11.3 em §18.6), sem correção nesta execução. Nenhuma alteração de runtime, ledger, wallet, evento, token, WABA/número, UI, RPC ou RLS executada. Nenhum provider real chamado. Nenhum diagnose, recover ou check real executado.
 
 **Próximo passo recomendado (não executado):** abrir **F2.12 em modo PLANNER** para auditar o lote de **onboarding/setup e envio/teste WhatsApp/Meta** (`meta-whatsapp-onboarding-start`, `meta-whatsapp-onboarding-callback`, `meta-whatsapp-register-phone`, `meta-whatsapp-set-pin`, `meta-whatsapp-request-code`, `meta-whatsapp-verify-code`, `whatsapp-submit-template`, `meta-whatsapp-test-send`, `meta-whatsapp-send-test-runner`). Atenção especial a `meta-whatsapp-test-send` e `meta-whatsapp-send-test-runner`, que podem efetivamente enviar mensagem real e iniciar conversa cobrável Meta. Em seguida, **F2.13 sugerida** para `meta-whatsapp-webhook` (recepção sem custo direto, mas dispara pipelines pagos a jusante).
+
+---
+
+## 19. F2.12 (2026-05-11) — Correção da regra de cobrança WhatsApp Meta
+
+### 19.1 Regra de negócio oficial
+
+> **Mensagem WhatsApp Meta, template, conversa e envio via WABA do cliente são pagos diretamente pelo cliente à Meta e NÃO devem gerar cobrança de créditos no Comando Central.**
+>
+> O Comando Central cobra **apenas custos próprios da plataforma**: IA de atendimento, geração/interpretação de resposta por IA, automações inteligentes, processamento interno pago e recursos próprios do sistema.
+>
+> **Regra complementar:** qualquer cobrança relacionada ao WhatsApp deve separar **custo Meta pago pelo cliente** de **custo de IA/plataforma cobrado pelo Comando Central**.
+
+### 19.2 Mudanças aplicadas
+
+#### 19.2.1 Código — `meta-whatsapp-send`
+
+Bloco `chargeAfter` de templates removido (linhas ~700-728). Substituído por comentário explícito da regra. Nenhum outro `chargeAfter` existia na edge — confirmado por `grep` antes da remoção. Envio passa a registrar apenas histórico interno em `whatsapp_messages` / `messages` (sem cobrança financeira).
+
+#### 19.2.2 Banco — `service_pricing`
+
+`UPDATE` aplicado (sem `DELETE`, histórico preservado):
+
+| service_key | is_active antes | is_active depois | metadata aplicada |
+|---|---|---|---|
+| whatsapp-template-marketing | true | **false** | `cost_owner=meta`, `paid_directly_by=customer_to_meta`, `not_billable_by_comando_central=true`, `disabled_reason=customer_pays_meta_directly`, `disabled_by_phase=F2.12`, `historical_only=true` |
+| whatsapp-template-utility | true | **false** | idem |
+| whatsapp-template-authentication | true | **false** | idem |
+| whatsapp-window-marketing-24h | false | false | reaffirmed_by_phase=F2.12, mesma metadata informativa |
+| whatsapp-window-utility-24h | false | false | idem |
+| whatsapp-window-service-24h | false | false | idem |
+
+**`usage_owner`:** preservado. A coluna `usage_owner` não existe em `service_pricing` (verificado em `information_schema.columns`); a informação canônica de propriedade do custo passou a residir em `metadata.cost_owner='meta'`. Nenhum enum/schema alterado.
+
+### 19.3 Classificação final F2.12 — 9 edges auditadas
+
+| Edge | Provider | Chama `/messages`? | Cobrança CC | Classificação |
+|---|---|---|---|---|
+| meta-whatsapp-onboarding-start | — (gera URL OAuth) | Não | Zero | **D — não aplicável** |
+| meta-whatsapp-onboarding-callback | Meta OAuth (gratuita) | Não | Zero | **D — não aplicável** |
+| meta-whatsapp-register-phone | Meta Graph admin (gratuita) | Não | Zero | **D — não aplicável** |
+| meta-whatsapp-set-pin | Meta Graph admin (gratuita) | Não | Zero | **D — não aplicável** |
+| meta-whatsapp-request-code | Meta Graph admin (gratuita) | Não | Zero | **D — não aplicável** |
+| meta-whatsapp-verify-code | Meta Graph admin (gratuita) | Não | Zero | **D — não aplicável** |
+| whatsapp-submit-template | Meta Graph (submissão gratuita) | Não | Zero | **D — não aplicável** |
+| meta-whatsapp-test-send | Meta Cloud API `/messages` | **Sim** (admin-only) | **Não cobra créditos** — custo Meta direto na WABA usada; risco operacional de envio real persiste | **D — não aplicável** (admin-only) |
+| meta-whatsapp-send-test-runner | via `meta-whatsapp-send` | Sim (via send) | **Não cobra créditos** — herda regra §19.1; se acionar IA no futuro, IA cobra em `ai-support-chat` | **D — não aplicável** |
+
+### 19.4 Regra de governança
+
+> O envio de WhatsApp via WABA do cliente (qualquer caminho — `meta-whatsapp-send`, `meta-whatsapp-test-send`, `meta-whatsapp-send-test-runner`, `agenda-dispatch-reminders`, replies do `ai-support-chat` ao Meta) **não gera cobrança de créditos no Comando Central**, porque o custo é pago diretamente pelo cliente à Meta. Apenas custos próprios da plataforma (IA, automações inteligentes, processamento interno) entram em `chargeAfter`/`withCreditMotor`/`recordPlatformCost`.
+>
+> Qualquer PR que (re)introduza `chargeAfter` com `serviceKey LIKE 'whatsapp-%'` ou que reative service_keys `whatsapp-template-*` / `whatsapp-window-*` em `service_pricing` **exige reabrir auditoria F2 antes de merge**.
+
+### 19.5 Pontos de cobrança legítima (mantidos intactos)
+
+- `ai-support-chat` continua cobrando IA por tokens reais (`openai.gpt-5.2.per_1m_tokens_in/out`, `openai.gpt-4o.per_1m_tokens_in/out`). **Não foi alterada.**
+- Demais service_keys de IA (Gemini, OpenAI, embedding, video, image) permanecem inalteradas.
+- `service_pricing` para IA: nenhuma mudança.
+- `ai-model-pricing`, `credit_packages`, `credit_wallet`, `credit_ledger`, `service_usage_events`: nenhuma mudança.
+
+### 19.6 Confirmações de não-impacto (validações obrigatórias F2.12)
+
+| Validação | Status |
+|---|---|
+| Bloco `chargeAfter` de templates removido de `meta-whatsapp-send` | SIM |
+| Outro `chargeAfter` removido indevidamente | NÃO (era único bloco) |
+| `ai-support-chat` alterada | NÃO |
+| Cobrança de IA alterada | NÃO |
+| `whatsapp-template-marketing` desativada | SIM (`is_active=false`) |
+| `whatsapp-template-utility` desativada | SIM (`is_active=false`) |
+| `whatsapp-template-authentication` desativada | SIM (`is_active=false`) |
+| `whatsapp-window-*` permanecem inativas | SIM (3/3) |
+| Metadata `cost_owner='meta'` aplicada | SIM (6/6 service_keys) |
+| `usage_owner` alterado | NÃO (coluna não existe; informação em `metadata.cost_owner`) |
+| Histórico de `service_pricing` apagado | NÃO (apenas `is_active=false` + metadata) |
+| `credit_wallet` alterado | NÃO |
+| `credit_ledger` alterado | NÃO (zero registros `whatsapp%` antes e depois) |
+| `service_usage_events` alterado | NÃO |
+| Telemetria zero-custo criada | NÃO (decisão do operador — não nesta etapa) |
+| Migration criada | NÃO (apenas `UPDATE` em dados) |
+| RPC alterada | NÃO |
+| RLS alterada | NÃO |
+| Enum/schema alterado | NÃO |
+| Provider real chamado | NÃO |
+| Mensagem real enviada | NÃO |
+| `/messages` chamado | NÃO |
+| Template submetido/consumido | NÃO |
+| WABA/número alterada | NÃO |
+| Tokens/secrets alterados | NÃO |
+| UI/UX alterada | NÃO |
+| Mem/Knowledge criada | NÃO (decisão do operador) |
+| Docs oficiais atualizados | SIM (`funcoes-pagas.md` §3.9; este doc §19) |
+| Backfill/reversão de ledger | NÃO (não houve cobrança indevida registrada) |
+
+### 19.7 Status final F2.12
+
+🟢 **F2.12 — GO confirmado.**
+
+`meta-whatsapp-send` deixa de cobrar créditos por templates. As 9 edges F2.12 estão classificadas como **D — não aplicáveis** ao Motor de Créditos. As 6 service_keys WhatsApp em `service_pricing` ficam inativas com marcação de custo Meta pago diretamente pelo cliente. `ai-support-chat` permanece como único ponto correto de cobrança no fluxo WhatsApp (IA da plataforma).
+
+**Próximo passo recomendado (não executado):** abrir **F2.13 em modo PLANNER** para auditar `meta-whatsapp-webhook`, `whatsapp-webhook` e pipelines pagos a jusante (recepção de mensagens), confirmando que o webhook **não cobra por mensagem recebida** (regra §19.1) e que a IA/automação acionada por ele continua cobrando apenas o custo de IA via `ai-support-chat` e correlatos.
