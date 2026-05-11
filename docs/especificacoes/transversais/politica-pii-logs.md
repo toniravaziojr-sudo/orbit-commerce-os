@@ -122,9 +122,21 @@ Aplicado em 11/05/2026 (opção D híbrida):
 - **TTL prospectivo de 30 dias:** cron `cleanup_whatsapp_webhook_raw_audit_30d` (jobid 53), schedule `0 6 * * *` (= 03:00 BRT), executa `DELETE FROM public.whatsapp_webhook_raw_audit WHERE received_at < now() - interval '30 days'`. Apaga a linha inteira.
 - **Não foi feita** re-sanitização retroativa com hashes nem aplicação de `LOG_HASH_SECRET` nesta fase.
 
-## 8. Fora do escopo desta fase
+## 8. Retenção e TTL — `whatsapp_inbound_messages.raw_payload` (F2.13.2.C)
 
-- **F2.13.2.C** — `whatsapp_inbound_messages.raw_payload` (sugestão 90d, depois NULL).
+Aplicado em 11/05/2026 (opção E híbrida — somente parte de dados/retenção):
+
+- **Auditoria prévia:** `raw_payload` duplica `from`/`id`/`type`/`text.body` que já estão em colunas estruturadas (`from_phone`, `external_message_id`, `message_type`, `message_content`). Nenhum edge function, componente SPA, watcher, dedupe, AI Support, Agenda ou cobrança lê `raw_payload`. Único escritor: `meta-whatsapp-webhook`.
+- **Cutoffs fixos:** `cleanup_cutoff = now() − 7 days`; `ttl_cutoff = now() − 30 days`.
+- **Snapshot pré:** 4.077 linhas; 4.077 com `raw_payload` não-nulo; 3.894 alvo do cleanup imediato; 183 preservadas (últimos 7d); 1.468 com `conversation_id`; 0 com `media_url`.
+- **Limpeza imediata:** `UPDATE whatsapp_inbound_messages SET raw_payload = NULL WHERE timestamp < cleanup_cutoff AND raw_payload IS NOT NULL` → **3.894 linhas** atualizadas.
+- **Snapshot pós:** 4.077 linhas (sem deleção); 183 com `raw_payload` ainda preenchido (todas dos últimos 7d); 0 linhas antigas com `raw_payload` residual; `from_phone`, `message_content`, `external_message_id`, `message_type`, `timestamp`, `conversation_id` 100% intactos.
+- **TTL prospectivo de 30 dias:** cron `cleanup_whatsapp_inbound_raw_payload_30d` (jobid 54), schedule `15 6 * * *` (= 03:15 BRT, deslocado 15 min do cron de `whatsapp_webhook_raw_audit` para evitar contenção). Ação: `UPDATE … SET raw_payload = NULL WHERE timestamp < now() − interval '30 days' AND raw_payload IS NOT NULL`. **A linha inteira é preservada** — não há `DELETE`.
+- **Preservados indefinidamente:** `id`, `tenant_id`, `provider`, `external_message_id`, `from_phone`, `to_phone`, `message_type`, `message_content`, `media_url`, `timestamp`, `processed_at`, `processed_by`, `processing_status`, `processing_error`, `conversation_id`, `created_at` — registro permanente do atendimento.
+
+## 9. Fora do escopo desta fase
+
+- **F2.13.2.C-CODE** — parar de gravar `raw_payload` em novos inserts no `meta-whatsapp-webhook` (ainda escreve; TTL cuida do prazo de 30d até essa fase).
 - `agenda_command_log.content/from_phone` — manter; revisar RLS service-role-only.
 - Provisionamento futuro de `LOG_HASH_SECRET` para HMAC-SHA256 definitivo (ver §6).
 
