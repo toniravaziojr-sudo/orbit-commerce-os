@@ -1160,3 +1160,87 @@ Bloco `chargeAfter` de templates removido (linhas ~700-728). Substituído por co
 `meta-whatsapp-send` deixa de cobrar créditos por templates. As 9 edges F2.12 estão classificadas como **D — não aplicáveis** ao Motor de Créditos. As 6 service_keys WhatsApp em `service_pricing` ficam inativas com marcação de custo Meta pago diretamente pelo cliente. `ai-support-chat` permanece como único ponto correto de cobrança no fluxo WhatsApp (IA da plataforma).
 
 **Próximo passo recomendado (não executado):** abrir **F2.13 em modo PLANNER** para auditar `meta-whatsapp-webhook`, `whatsapp-webhook` e pipelines pagos a jusante (recepção de mensagens), confirmando que o webhook **não cobra por mensagem recebida** (regra §19.1) e que a IA/automação acionada por ele continua cobrando apenas o custo de IA via `ai-support-chat` e correlatos.
+
+---
+
+## 20. F2.13 — Webhook WhatsApp Meta e pipeline de recepção (2026-05-11)
+
+### 20.1 Regra oficial
+
+> **Recepção WhatsApp Meta não cobra créditos.** Mensagem WhatsApp Meta enviada/recebida também **não cobra créditos no Comando Central**, pois o cliente paga direto à Meta. O que **pode** cobrar créditos são custos próprios da plataforma acionados pelo fluxo, como **IA** (`ai-support-chat`, agente Agenda) e **automações inteligentes** que consumam recurso pago da plataforma.
+>
+> Eixo de cobrança correto:
+> - **WhatsApp Meta (mensagem/template/conversa/envio via WABA):** cliente ↔ Meta. Sem cobrança Comando Central.
+> - **IA / automação inteligente / processamento interno:** Comando Central ↔ tenant. Cobrança via Motor de Créditos.
+
+### 20.2 Edges/pipeline auditados
+
+| Componente | Provedor externo | Cobrança CC | Justificativa | Classificação |
+|---|---|---|---|---|
+| **meta-whatsapp-webhook** | nenhum (recebe POST da Meta) | zero | Recepção pura: dedupe, persiste inbound/conversa/mensagem, decide rota. Não chama `/messages`, não envia, não consome template, não chama provider pago. | **D — não aplicável** |
+| persistência inbound (`whatsapp_inbound_messages`, `conversations`, `messages`, `whatsapp_inbound_debounce`, `whatsapp_logical_turns`) | Postgres interno | zero | Escrita interna, sem custo externo. | **D — não aplicável** |
+| **turn-orchestrator-processor** | nenhum (orquestrador) | zero | Orquestra turno e invoca `ai-support-chat`. **Não deve cobrar** para evitar dupla cobrança — cobrança ocorre dentro do `ai-support-chat`. | **D — não aplicável** |
+| **ai-support-chat** | OpenAI / Gemini | **cobra IA** (tokens in/out) | Ponto único e correto de cobrança da IA de atendimento. Já em produção via `chargeAfter` (Lote 3 do Motor Universal). | **B — chargeAfter (ATIVO)** |
+| **meta-whatsapp-send** (resposta WhatsApp) | Meta Cloud API (WABA do cliente) | zero | Custo Meta pago direto pelo cliente à Meta (regra F2.12). Confirmado sem `chargeAfter`. | **D — não aplicável** |
+| **agenda-process-command** | Gemini (agente IA do tenant) | **deve cobrar IA do tenant** | Agente de IA do tenant: conversa com o tenant no WhatsApp, executa ações no sistema e dialoga com outros agentes de IA. **Não é recepção gratuita nem custo Meta** — é IA da plataforma consumida pelo tenant. **Hoje sem `chargeAfter` aparente** ⇒ custo de IA invisível. | **B — chargeAfter (PENDENTE F2.13.1)** |
+
+### 20.3 Inexistência de `whatsapp-webhook` separado
+
+Inventário em `supabase/functions/`: a única edge de recepção WhatsApp/Meta é `meta-whatsapp-webhook`. As demais `whatsapp-*` (`whatsapp-orphan-watcher`, `whatsapp-cross-business-detector`, `whatsapp-health-summary`, `whatsapp-open-validation-window`, `whatsapp-check-templates`, `whatsapp-token-healthcheck`, `whatsapp-submit-template`) foram auditadas em F2.10/F2.11 e classificadas como D.
+
+### 20.4 Mapa do pipeline a jusante
+
+```text
+Meta POST → meta-whatsapp-webhook  [D]
+  ├─ persist whatsapp_inbound_messages / conversations / messages  [D]
+  ├─ se telefone admin    → agenda-process-command  [B — pendente F2.13.1]
+  ├─ se cliente + GREEN gate
+  │     ├─ orchestrator ON  → turn-orchestrator-processor [D] → ai-support-chat [B — ATIVO]
+  │     └─ orchestrator OFF → debounce → ai-support-chat [B — ATIVO]
+  └─ outcome no finally (Camada 2 do fluxo-recepcao-meta)
+```
+
+### 20.5 Confirmações de não-impacto
+
+| Validação | Status |
+|---|---|
+| Código alterado | NÃO |
+| Migration criada | NÃO |
+| RPC alterada | NÃO |
+| RLS alterada | NÃO |
+| Service_key criada | NÃO |
+| Preço aprovado | NÃO |
+| `platform_cost_ledger` alterado | NÃO |
+| `credit_wallet` alterado | NÃO |
+| `credit_ledger` alterado | NÃO |
+| `service_usage_events` alterado | NÃO |
+| Tokens/integrações alterados | NÃO |
+| Provider real chamado | NÃO |
+| Webhook real simulado | NÃO |
+| Mensagem enviada | NÃO |
+| `/messages` chamado | NÃO |
+| IA executada | NÃO |
+| UI/UX alterada | NÃO |
+| Mem/Knowledge criada | NÃO |
+| Cobrança da Agenda implementada | NÃO (pendente F2.13.1) |
+| Docs oficiais atualizados | SIM (`funcoes-pagas.md` §3.9; este doc §20) |
+
+### 20.6 Pendências formais
+
+- **F2.13.1 — auditoria/implementação de cobrança em `agenda-process-command`** (BLOQUEANTE para fechamento da família F2.13). Escopo mínimo:
+  - identificar o(s) modelo(s) Gemini realmente utilizados;
+  - capturar `usage` real (tokens in/out) por chamada;
+  - confirmar/criar `service_key` correspondente em `service_pricing`;
+  - definir ponto exato de `chargeAfter` (após resposta da IA, com idempotência por `external_message_id` ou turn_id);
+  - garantir que `turn-orchestrator-processor` continue **sem** cobrar (regra anti-dupla cobrança);
+  - validar metadata/logs sem PII excessiva;
+  - rollout shadow → live conforme Motor Universal.
+- **F2.13.2 — hardening de PII em logs do `meta-whatsapp-webhook`** (backlog, não bloqueante): telefone, `wa_id`, texto da mensagem, `profile`, IDs Meta aparecem em `console.log` com `traceId`. Sanitização recomendada em entrega futura dedicada a observabilidade.
+
+### 20.7 Status final F2.13
+
+🟢 **F2.13 — GO documental confirmado.**
+
+`meta-whatsapp-webhook` e a cadeia de recepção (persistência + `turn-orchestrator-processor`) estão classificados como **D — não aplicáveis**. `ai-support-chat` permanece como ponto único de cobrança da IA de atendimento. `meta-whatsapp-send` permanece sem cobrança de custo Meta. `agenda-process-command` fica **registrada como IA do tenant cobrável**, com pendência obrigatória **F2.13.1** para auditoria/implementação de `chargeAfter`. Riscos de PII em logs ficam como backlog **F2.13.2**, sem alteração nesta entrega.
+
+**Próximo passo recomendado (não executado):** abrir **F2.13.1 em modo PLANNER** para auditar `agenda-process-command` em profundidade (modelo Gemini real, tokens, pricing, idempotência, ponto de `chargeAfter`, metadata/logs, validação anti-dupla cobrança), antes de qualquer implementação.
