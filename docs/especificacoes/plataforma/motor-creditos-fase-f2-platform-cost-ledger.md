@@ -810,3 +810,115 @@ A regra "refresh OAuth / healthcheck / consulta de status não cobra; emissão c
 `google-token-refresh`, `google-token-refresh-cron` e `health-check-run` classificadas como **não aplicáveis** ao Motor de Créditos. Para `health-check-run`, a classificação vale **somente para o conjunto atual de suítes** e fica vinculada à regra de governança §16.4 (suítes futuras exigem auditoria F2 prévia). Riscos de log Google e auditoria de `reconcile-payments dry_run` catalogados como backlog separado (F2.9.1 e F2.9.2 em §16.6), sem correção nesta execução. Nenhuma alteração de runtime, ledger, wallet, evento, token, UI, RPC ou RLS executada.
 
 **Próximo passo recomendado (não executado):** abrir **F2.10 em modo PLANNER** para auditar `health-monitor-admin`, `meta-whatsapp-monitor-all`, `whatsapp-orphan-watcher` e `whatsapp-cross-business-detector` (candidatos hoje listados em `funcoes-pagas.md` §3.11 sem auditoria formal).
+
+---
+
+## 17. F2.10 — Auditoria de monitores administrativos (health + WhatsApp/Meta)
+
+**Data:** 2026-05-11  
+**Modo:** PLANNER → EXECUÇÃO documental  
+**Edges auditadas:** `health-monitor-admin`, `meta-whatsapp-monitor-all`, `whatsapp-orphan-watcher`, `whatsapp-cross-business-detector`.
+
+### 17.1 Contexto
+
+Encerrando o lote de monitores não aplicáveis ao Motor de Créditos. Todas as 4 edges são observabilidade ou auto-reparo administrativo gratuito: nenhuma chama operação cobrável de provider externo no estado atual.
+
+### 17.2 Evidência por edge
+
+#### 17.2.1 `health-monitor-admin`
+- **Tipo:** endpoint admin (validação por `platform_admins`).
+- **Provider externo:** nenhum. Apenas `SELECT` em `system_health_checks`, `system_health_check_targets` e `storefront_runtime_violations` via service role.
+- **Custo monetário:** zero.
+- **Helpers de cobrança:** nenhum.
+- **Risco de log:** baixo — loga `user.email` em info/warn (PII operacional admin, não credencial).
+- **Classificação:** **D — não aplicável.**
+- **Herança de governança:** se um dia ganhar `action=run_now` ou disparar `health-check-run` / outra edge cobrável, exige reauditoria F2 (regra §16.4).
+
+#### 17.2.2 `meta-whatsapp-monitor-all`
+- **Tipo:** cron diário.
+- **Provider externo:** Meta Graph **administrativo** indireto via `meta-whatsapp-diagnose` (`/me`, `/{phone_number_id}`, `/{app_id}/subscriptions`, `/{waba_id}/subscribed_apps`) e `meta-whatsapp-recover` (`/{waba_id}/subscribed_apps` POST, `/{phone_number_id}/deregister`, `/{phone_number_id}/register`).
+- **Operações cobráveis Meta (`/messages`, template, conversa):** **NENHUMA**. Endpoints administrativos Meta Graph são gratuitos.
+- **Custo monetário:** zero no estado atual.
+- **Helpers de cobrança:** nenhum.
+- **Risco de rate limit:** Meta App-level — baixo hoje (cron diário × N tenants); merece atenção em escala.
+- **Risco de log:** médio — `summary.details[].result = rec?.data` cru pode vazar IDs Meta. `register_pin` trafega em body service-to-service (baixo risco, não loga).
+- **Classificação:** **D — não aplicável (estado atual).**
+
+#### 17.2.3 `whatsapp-orphan-watcher`
+- **Tipo:** cron a cada 15 min.
+- **Provider externo:** nenhum. Apenas `SELECT/UPDATE/INSERT` em `whatsapp_inbound_messages` e `whatsapp_health_incidents`.
+- **Custo monetário:** zero.
+- **Helpers de cobrança:** nenhum.
+- **Risco de log:** médio — `from_phone` aparece em log e é persistido em `whatsapp_health_incidents.metadata.sample` (PII WhatsApp).
+- **Classificação:** **D — não aplicável.**
+
+#### 17.2.4 `whatsapp-cross-business-detector`
+- **Tipo:** cron diário.
+- **Provider externo:** nenhum. Apenas leitura de `whatsapp_configs` + `whatsapp_inbound_messages` (Sinal 4 hoje no-op) e atualização de `channel_state` / `v2_ui_active_at` em `whatsapp_configs`.
+- **Custo monetário:** zero.
+- **Helpers de cobrança:** nenhum.
+- **Risco de log:** baixo — log final só com agregados (`checked`, `transitions`); sem PII; sem token.
+- **Classificação:** **D — não aplicável.**
+
+### 17.3 Tabela comparativa
+
+| Edge | Trigger | Provider externo | Cobrado? | Helpers | Risco log | Classificação |
+|---|---|---|---|---|---|---|
+| `health-monitor-admin` | Admin (UI) | — | Não | — | Baixo (e-mail admin) | **D — não aplicável** |
+| `meta-whatsapp-monitor-all` | Cron diário | Meta Graph (admin endpoints) gratuitos | Não | — | Médio (`rec.data` cru) | **D — não aplicável (estado atual)** |
+| `whatsapp-orphan-watcher` | Cron 15 min | — | Não | — | Médio (`from_phone`) | **D — não aplicável** |
+| `whatsapp-cross-business-detector` | Cron diário | — | Não | — | Baixo | **D — não aplicável** |
+
+### 17.4 Regra documental — separação obrigatória Meta admin × Meta envio cobrável
+
+> **"Monitoramento administrativo Meta/WhatsApp, leitura de status, diagnóstico, detecção de inconsistência e auto-reparo administrativo gratuito não entram em `platform_cost_ledger` quando não chamam operação cobrável. Envio real de mensagem, template, conversa cobrável ou qualquer chamada a `/messages` deve ser auditado e registrado separadamente."**
+
+Esta regra estende §14.4 (F2.7), §15.4 (F2.8) e §16.5 (F2.9). O custo é registrado **apenas no edge que emite o evento cobrável** (ex.: `meta-whatsapp-send` para template marketing/utility/auth), nunca no monitor administrativo.
+
+### 17.5 Regra preventiva — congelamento de escopo do `meta-whatsapp-monitor-all`
+
+> **"Qualquer ação futura adicionada a `meta-whatsapp-monitor-all` que invoque `/messages`, template pago, conversa cobrável Meta ou qualquer operação monetizável deve reabrir auditoria F2 antes de merge."**
+
+A classificação D desta edge é válida **somente enquanto** o conjunto de ações permanecer restrito a `subscribe_webhook` e `register_phone` (administrativos gratuitos). Adicionar qualquer ação cobrável sem reauditoria F2 é violação direta desta regra.
+
+### 17.6 Backlog de hardening (não aplicado nesta execução)
+
+| ID | Edge | Ação | Severidade |
+|---|---|---|---|
+| **F2.10.1** | `whatsapp-orphan-watcher` | Mascarar `from_phone` (preservar últimos 4 dígitos) em log e em `whatsapp_health_incidents.metadata.sample`. | Média |
+| **F2.10.2** | `meta-whatsapp-monitor-all` | Truncar/sanitizar `rec?.data` em `summary.details` antes de logar/retornar; nunca incluir `register_pin`. | Média |
+| **F2.10.3** | `meta-whatsapp-monitor-all` | Registrar formalmente o congelamento de escopo §17.5 como gate de PR (lint/CI ou checklist obrigatório na Fase 12). | Baixa |
+| **F2.10.4** | `health-monitor-admin` | Considerar substituir `user.email` em log por hash determinístico em produção. | Baixa |
+
+**Reforço explícito:** a classificação "não aplicável ao Motor de Créditos" **não foi usada para ignorar** os riscos de log catalogados acima. Eles ficam pendentes em backlog separado de hardening (§17.6) para tratamento posterior.
+
+### 17.7 Confirmações de não-impacto (validações obrigatórias F2.10)
+
+| Item | Status |
+|---|---|
+| Código de runtime alterado | NÃO |
+| Migration criada | NÃO |
+| RPC alterada | NÃO |
+| RLS alterada | NÃO |
+| `service_key` criada | NÃO |
+| Preço aprovado | NÃO |
+| Custo registrado em `platform_cost_ledger` | NÃO |
+| Provider real chamado | NÃO |
+| Monitor real executado | NÃO |
+| Health check real executado | NÃO |
+| Token alterado/girado | NÃO |
+| Wallet/`credit_ledger`/`service_usage_events` alterados | NÃO |
+| UI alterada | NÃO |
+| `mem://` ou Knowledge novos criados | NÃO |
+| Hardening de logs WhatsApp (`from_phone`) aplicado | NÃO (backlog §17.6 — F2.10.1) |
+| Sanitização de `rec?.data` em `meta-whatsapp-monitor-all` | NÃO (backlog §17.6 — F2.10.2) |
+| Docs oficiais atualizados | SIM (`funcoes-pagas.md` §3.11; este doc §17) |
+| `workers-crons-pagos.md` revisado | SIM — nenhuma alteração necessária (nenhuma das 4 edges estava classificada como paga/cobrável; exemplos de `platform_absorbed` em §2.2 permanecem coerentes) |
+
+### 17.8 Status final F2.10
+
+🟢 **F2.10 — GO documental confirmado.**
+
+`health-monitor-admin`, `meta-whatsapp-monitor-all`, `whatsapp-orphan-watcher` e `whatsapp-cross-business-detector` classificadas como **não aplicáveis** ao Motor de Créditos. Para `meta-whatsapp-monitor-all`, a classificação vale **somente enquanto** não invocar `/messages`, template pago ou conversa cobrável Meta (regra preventiva §17.5). Riscos de log/PII catalogados como backlog separado (F2.10.1 a F2.10.4 em §17.6), sem correção nesta execução. Nenhuma alteração de runtime, ledger, wallet, evento, token, UI, RPC ou RLS executada.
+
+**Próximo passo recomendado (não executado):** abrir **F2.11 em modo PLANNER** para auditar `meta-whatsapp-diagnose`, `meta-whatsapp-recover` (camadas chamadas pelo monitor — confirmar que continuam apenas administrativas) e demais monitores WhatsApp/Meta ainda não auditados.
