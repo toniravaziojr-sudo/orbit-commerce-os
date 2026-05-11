@@ -85,6 +85,64 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// ============================================================================
+// [F2.13.3-CODE — Fase A] Validação HMAC SHA-256 (modo log)
+// ----------------------------------------------------------------------------
+// Calcula HMAC-SHA256 do raw body usando META_APP_SECRET e compara em
+// timing-safe com o header `x-hub-signature-256` (formato `sha256=<hex>`).
+//
+// IMPORTANTE (Fase A — log only):
+//   - Resultado é apenas LOGADO. Nenhum POST é rejeitado nesta fase.
+//   - Apenas `x-hub-signature-256` é aceito como assinatura HMAC.
+//     `x-hub-signature` (SHA-1 legado) é ignorado para validação nova.
+//   - META_APP_SECRET nunca é logado.
+//   - Assinatura recebida nunca é logada por inteiro — apenas prefixo curto.
+//   - Após 72h sem falsos negativos, ativar Fase B (enforcement) que rejeita
+//     com 401 quando hmac_status ∈ {missing, malformed, invalid, secret_missing}.
+// ============================================================================
+type HmacStatus = "valid" | "invalid" | "missing" | "malformed" | "secret_missing";
+
+async function computeHmacSha256Hex(secret: string, data: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+async function verifyMetaHmac(
+  rawBody: string,
+  signatureHeader: string | null,
+  appSecret: string | null,
+): Promise<{ status: HmacStatus; sigPrefix: string | null }> {
+  if (!appSecret) return { status: "secret_missing", sigPrefix: null };
+  if (!signatureHeader) return { status: "missing", sigPrefix: null };
+  const trimmed = signatureHeader.trim();
+  if (!trimmed.toLowerCase().startsWith("sha256=")) {
+    return { status: "malformed", sigPrefix: null };
+  }
+  const received = trimmed.slice("sha256=".length).toLowerCase();
+  // sigPrefix: 8 primeiros chars apenas para correlação de logs (não vaza assinatura)
+  const sigPrefix = received.length >= 8 ? received.slice(0, 8) : null;
+  if (!/^[0-9a-f]+$/.test(received) || received.length !== 64) {
+    return { status: "malformed", sigPrefix };
+  }
+  const expected = await computeHmacSha256Hex(appSecret, rawBody);
+  return { status: timingSafeEqualHex(received, expected) ? "valid" : "invalid", sigPrefix };
+}
+
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
   console.log(`[meta-whatsapp-webhook][${traceId}] Request received: ${req.method}`);
