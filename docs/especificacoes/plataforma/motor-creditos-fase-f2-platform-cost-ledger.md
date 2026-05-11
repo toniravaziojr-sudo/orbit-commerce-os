@@ -1379,3 +1379,79 @@ O turno consumiu **2 créditos** (1 por linha IN + 1 por linha OUT) para um volu
 
 **Próximo passo recomendado:** abrir **F2.13.1.1 em PLANNER** (`agenda-dispatch-reminders` e `agenda-submit-template`), seguido de **F2.13.2** (hardening PII).
 
+
+---
+
+### 21.2 F2.13.1.1 — Auditoria das edges restantes da Agenda (11/05/2026)
+
+Auditoria PLANNER somente leitura das edges restantes da família Agenda para classificá-las no Motor de Créditos. **Nenhum código, UI/UX, provider, cron, mensagem, template, ledger, wallet ou evento financeiro foi alterado nesta etapa.**
+
+**Inventário completo das edges `agenda-*` no repositório:**
+
+1. `agenda-process-command` — já plugada e validada na F2.13.1 (cobrável por IA).
+2. `agenda-dispatch-reminders` — auditada nesta etapa.
+3. `agenda-submit-template` — auditada nesta etapa.
+
+Nenhuma outra edge `agenda-*` encontrada. Cron ativo identificado: **`agenda-dispatch-reminders`** (`*/5 * * * *`, jobid 19, active=true). `agenda-submit-template` é acionada apenas pela UI do tenant.
+
+#### Tabela comparativa
+
+| Edge | Acionador | Chama IA? | Provider externo | Envia WhatsApp? | Usa template? | Custo Meta | Custo IA/plataforma | Classificação Motor de Créditos |
+|---|---|---|---|---|---|---|---|---|
+| agenda-process-command | Webhook Meta (telefone autorizado) | ✅ Gemini 2.5 Flash | Lovable AI Gateway | Indireto (via tools) | — | — | ✅ tenant (chargeAfter in/out) | **Cobrável — já plugada (F2.13.1)** |
+| agenda-dispatch-reminders | Cron `*/5 * * * *` | ❌ | Meta Cloud API (via `meta-whatsapp-send`) | ✅ texto livre (24h) ou template `agenda_lembrete` (fora 24h) | ✅ utility | Direto cliente↔Meta | ❌ | **D — Não aplicável** |
+| agenda-submit-template | UI tenant (admin) | ❌ | Meta Graph (`/message_templates`) | ❌ (apenas submete metadata) | Submissão | ❌ (gratuita) | ❌ | **D — Não aplicável** |
+
+#### Classificação final aprovada
+
+- **`agenda-dispatch-reminders` → D — Não aplicável ao Motor de Créditos.**
+  - Não chama IA.
+  - Mensagens são strings determinísticas (`buildReminderMessage`) ou template fixo (`agenda_lembrete`).
+  - O envio WhatsApp/template ocorre via `meta-whatsapp-send`, mas **não gera cobrança no Comando Central**.
+  - Custo Meta é pago diretamente pelo cliente à Meta (cliente↔Meta).
+  - Sem custo de IA/plataforma próprio.
+
+- **`agenda-submit-template` → D — Não aplicável ao Motor de Créditos.**
+  - Não chama IA.
+  - Apenas submete/consulta o template `agenda_lembrete` na Meta Graph API.
+  - Submissão de template é operação administrativa **gratuita** na Meta.
+  - Sem custo de IA/plataforma próprio.
+
+#### Regra reforçada pós-F2.12 (correção obrigatória)
+
+> **`meta-whatsapp-send` NÃO é "contabilização herdada" para cobrança de créditos do Comando Central.** Após F2.12, envio de WhatsApp/template/conversa via Meta Cloud API é custo direto **cliente↔Meta** e **não gera crédito no Comando Central**.
+
+> **Regra Agenda × Motor de Créditos:** Agenda só gera cobrança no Motor de Créditos quando aciona **IA**, **automação inteligente** ou **provider pago da plataforma**. Envio WhatsApp Meta usado pela Agenda segue a regra **cliente↔Meta** e **não gera crédito no Comando Central**.
+
+#### Estado atual da família Agenda no Motor de Créditos
+
+| Edge | Status | Cobrança própria |
+|---|---|---|
+| agenda-process-command | ✅ Plugada e validada (F2.13.1) | ✅ tenant — IA in/out via `chargeAfter` |
+| agenda-dispatch-reminders | D — Não aplicável | ❌ |
+| agenda-submit-template | D — Não aplicável | ❌ |
+
+**`agenda-process-command` permanece como a única edge Agenda cobrável por IA nesta etapa.**
+
+#### Backlogs registrados (sem implementação nesta etapa)
+
+1. **PII em logs do `agenda-dispatch-reminders`** — telefones de admins autorizados são impressos sem máscara em warnings/erros (`phoneRecord.phone`). Backlog separado de hardening de logs (não bloqueia F2.13.1.1, escopo de hardening Agenda).
+2. **Validação funcional futura do template `agenda_lembrete` fora da janela de 24h** — quando necessário, deve ser executada como **teste funcional WhatsApp/Agenda** (custo Meta real cliente↔Meta), **não como teste do Motor de Créditos**, pois esse envio não gera cobrança no Comando Central.
+
+#### Confirmações desta etapa documental
+
+- ✅ Nenhuma alteração de código.
+- ✅ Nenhuma alteração de UI/UX.
+- ✅ Nenhum migration/RPC/RLS/schema/enum alterado.
+- ✅ Nenhum pricing criado/alterado, nenhum service_key criado.
+- ✅ Nenhum provider real chamado.
+- ✅ Nenhum cron real executado.
+- ✅ Nenhuma mensagem real enviada, nenhum template real submetido.
+- ✅ Nenhum lançamento em `wallet`, `credit_ledger`, `service_usage_events` ou `platform_cost_ledger`.
+- ✅ Nenhum token/integração WhatsApp alterado.
+- ✅ Nenhuma memória/Knowledge criada.
+- ✅ F2.13.2 não iniciada.
+
+🟢 **GO DOCUMENTAL F2.13.1.1 — fechada.** Família Agenda totalmente classificada no Motor de Créditos: `agenda-process-command` cobrável por IA (validada em produção); `agenda-dispatch-reminders` e `agenda-submit-template` classificadas como **D — Não aplicáveis**.
+
+**Próximo passo recomendado (não executado):** abrir **F2.13.2 em PLANNER** — hardening de PII em logs do `meta-whatsapp-webhook` e do handler `agenda-process-command` (telefone, texto inbound, prompt, resposta IA, `wa_id` bruto, dados do `tenant_user`).
