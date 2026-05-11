@@ -157,7 +157,8 @@ Catalogar toda edge function que consome (ou pode consumir) custo externo pago. 
 
 | Função | Padrão futuro | Justificativa |
 |---|---|---|
-| google-token-refresh-cron / google-token-refresh | a auditar (F2.9) | Refresh OAuth Google. Ainda não auditado. |
+| **google-token-refresh** | **não aplicável** | **F2.9 (2026-05-11):** auditada — Google OAuth `oauth2.googleapis.com/token` (`grant_type=refresh_token`), gratuita. Sem cobrança monetária do provider; consome apenas quota OAuth. Ver §16 do doc F2. |
+| **google-token-refresh-cron** | **não aplicável** | **F2.9 (2026-05-11):** auditada — refresh em batch via mesmo endpoint OAuth Google gratuito. Sem cobrança monetária do provider. Ver §16 do doc F2. |
 | **meta-token-refresh** | **não aplicável** | **F2.8 (2026-05-11):** auditada — Meta Graph `/oauth/access_token` (`fb_exchange_token`), gratuita. Sem cobrança monetária do provider. Ver §15 do doc F2. |
 | **meli-token-refresh** | **não aplicável** | **F2.8 (2026-05-11):** auditada — Mercado Livre `/oauth/token` (refresh_token), gratuita. Ver §15 do doc F2. |
 | **tiktok-token-refresh-cron** | **não aplicável** | **F2.8 (2026-05-11):** auditada — TikTok Business + TikTok Shop refresh OAuth, gratuitos em ambos. Ver §15 do doc F2. |
