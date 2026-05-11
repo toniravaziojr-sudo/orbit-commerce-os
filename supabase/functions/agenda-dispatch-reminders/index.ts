@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { errorResponse } from "../_shared/error-response.ts";
+import { maskPhone } from "../_shared/pii.ts";
 
 const VERSION = "v2.0.0"; // Template fallback + atomic claim + improved recurrence
 
@@ -260,7 +261,7 @@ Deno.serve(async (req) => {
             if (sendResult.success) {
               sendSuccess = true;
             } else {
-              console.warn(`[agenda-dispatch] Failed to send to ${phoneRecord.phone}: ${sendResult.error}`);
+              console.warn(`[agenda-dispatch] Failed to send to ${maskPhone(phoneRecord.phone)}: ${sendResult.error}`);
             }
           } catch (err) {
             console.error(`[agenda-dispatch] Send error:`, err);
