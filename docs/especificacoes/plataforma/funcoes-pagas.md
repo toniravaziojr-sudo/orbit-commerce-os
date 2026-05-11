@@ -157,15 +157,19 @@ Catalogar toda edge function que consome (ou pode consumir) custo externo pago. 
 
 | Função | Padrão futuro | Justificativa |
 |---|---|---|
-| google-token-refresh-cron | recordPlatformCost (custo zero, mas registrar uso de quota) | Cron global. |
-| meli-token-refresh / tiktok-token-refresh-cron / shopee-token-refresh / meta-token-refresh | recordPlatformCost | Refresh de tokens de plataforma (a auditar 1×1; provavelmente não aplicáveis — APIs OAuth de refresh não são cobradas). |
+| google-token-refresh-cron / google-token-refresh | a auditar (F2.9) | Refresh OAuth Google. Ainda não auditado. |
+| **meta-token-refresh** | **não aplicável** | **F2.8 (2026-05-11):** auditada — Meta Graph `/oauth/access_token` (`fb_exchange_token`), gratuita. Sem cobrança monetária do provider. Ver §15 do doc F2. |
+| **meli-token-refresh** | **não aplicável** | **F2.8 (2026-05-11):** auditada — Mercado Livre `/oauth/token` (refresh_token), gratuita. Ver §15 do doc F2. |
+| **tiktok-token-refresh-cron** | **não aplicável** | **F2.8 (2026-05-11):** auditada — TikTok Business + TikTok Shop refresh OAuth, gratuitos em ambos. Ver §15 do doc F2. |
+| **shopee-token-refresh** | **não aplicável** | **F2.8 (2026-05-11):** auditada — Shopee `/api/v2/auth/access_token/get` (HMAC-SHA256), gratuita. Ver §15 do doc F2. |
 | **meta-token-health-check** | **não aplicável** | **F2.7 (2026-05-08):** auditada — usa Meta Graph `/me?fields=id`, API gratuita, sem cobrança monetária do provider. Não registra em `platform_cost_ledger`. Ver §14 do doc F2. |
 | audience-sync-weekly | tenant_inherited (job carrega tenant) | Verificar implementação. |
 | sync-ads-dashboard | tenant_inherited | Verificar. |
 | monitor-chargebacks | tenant_inherited | Verificar. |
 | ads-autopilot-* | tenant_inherited | Verificar. |
 | meta-whatsapp-monitor-all | recordPlatformCost | Monitoramento. |
-| whatsapp-token-healthcheck / whatsapp-orphan-watcher / whatsapp-cross-business-detector | recordPlatformCost | Monitoramento. |
+| **whatsapp-token-healthcheck** | **não aplicável** | **F2.8 (2026-05-11):** auditada — Meta Graph `/me?access_token=...` para validar token diariamente, gratuita. Sem cobrança monetária do provider. Ver §15 do doc F2. |
+| whatsapp-orphan-watcher / whatsapp-cross-business-detector | a auditar | Monitoramento WhatsApp; ainda não auditado. |
 | **platform-costs-sync** (orquestrador) | **não aplicável** | **F2.7 (2026-05-08):** auditada — apenas consulta de saldos externos (hoje SendGrid `/v3/user/credits`), sem cobrança monetária. Custo real é registrado pelo edge que **emite** o evento cobrável (ex.: `send-system-email`), nunca pelo orquestrador de sync. Cada novo adapter deve ser auditado individualmente. Ver §14 do doc F2. |
 | health-check-run / health-monitor-admin | recordPlatformCost | Health checks. |
 

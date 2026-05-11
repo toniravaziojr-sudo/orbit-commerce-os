@@ -548,3 +548,158 @@ Etapa **somente documental** — sem alteração de código, sem chamada a provi
 `meta-token-health-check` e `platform-costs-sync` (orquestrador) classificadas como **não aplicáveis** ao Motor de Créditos. Regra "consulta/status não cobra; emissão cobra" registrada como padrão oficial. Pendências futuras catalogadas. Nenhuma alteração de runtime, ledger, wallet, evento ou UI executada.
 
 **Próximo passo recomendado (não executado):** abrir **F2.8 em modo PLANNER** para auditar 1×1 os refresh-cron OAuth restantes (`meta-token-refresh`, `meli-token-refresh`, `tiktok-token-refresh-cron`, `shopee-token-refresh`, `whatsapp-token-healthcheck-daily`).
+
+---
+
+## 15. F2.8 — Refresh OAuth e health check de integrações (✅ GO documental — 2026-05-11)
+
+### 15.1 Objetivo
+
+Auditar 1×1 as 5 edges de refresh/health check de integrações listadas como pendência futura em §14.6, decidindo se entram em `platform_cost_ledger` ou são classificadas como **não aplicáveis**.
+
+Edges auditadas:
+- `meta-token-refresh`
+- `meli-token-refresh`
+- `tiktok-token-refresh-cron`
+- `shopee-token-refresh`
+- `whatsapp-token-healthcheck` (referido no prompt original como `whatsapp-token-healthcheck-daily`; o nome real no repo é sem sufixo `-daily`)
+
+### 15.2 Evidência por edge
+
+#### 15.2.1 `meta-token-refresh`
+| Item | Evidência |
+|---|---|
+| Função | Renova long-lived token Meta via Graph `fb_exchange_token`; modo single-tenant ou batch (grants expirando em <7 dias). |
+| Trigger | Cron diário (`refreshAll: true`) + chamada manual admin/tenant ao reconectar. |
+| Provider | Meta Graph API `/oauth/access_token`. |
+| Chamada externa | Sim. |
+| Cobrança monetária | **Não** — endpoint OAuth Meta é gratuito; consome apenas app-level rate limit. |
+| service_key / pricing | Não existe. |
+| Helpers de cobrança no código | Nenhum (`recordPlatformCost`/`chargeAfter`/`withCreditMotor` ausentes). |
+| Risco se plugar `recordPlatformCost` | Alto — batch diário multiplicaria N tenants × custo zero. |
+| Risco logs/secret | Médio — `console.error` registra `errorMsg` Meta sem truncar/scrub; tokens ficam em querystring (não logada explicitamente). |
+
+#### 15.2.2 `meli-token-refresh`
+| Item | Evidência |
+|---|---|
+| Função | Refresh OAuth Mercado Livre (`/oauth/token`, grant_type=refresh_token), single ou batch (expira <2h). |
+| Trigger | Cron + chamada manual via `connectionId`. |
+| Provider | Mercado Livre OAuth. |
+| Chamada externa | Sim. |
+| Cobrança monetária | **Não** — OAuth ML é gratuito. |
+| service_key / pricing | Não existe. |
+| Helpers de cobrança | Nenhum. |
+| Risco logs/secret | **Alto** — `last_error` no DB armazena `errorData` integral sem truncar; `console.error('Erro para X:', errorData)` despeja resposta crua da API ML. |
+
+#### 15.2.3 `tiktok-token-refresh-cron`
+| Item | Evidência |
+|---|---|
+| Função | Renova tokens TikTok Ads + Shop + Content que expiram em <6h, em batch (3 tabelas). |
+| Trigger | pg_cron a cada 6h. |
+| Provider | TikTok Business API + TikTok Shop Auth API. |
+| Chamada externa | Sim. |
+| Cobrança monetária | **Não** — refresh OAuth gratuito em ambos. |
+| service_key / pricing | Não existe. |
+| Helpers de cobrança | Nenhum. |
+| Risco logs/secret | Baixo-Médio — `last_error` recebe `err.message` cru sem truncar. |
+
+#### 15.2.4 `shopee-token-refresh`
+| Item | Evidência |
+|---|---|
+| Função | Refresh OAuth Shopee (HMAC-SHA256 assinado em `/api/v2/auth/access_token/get`), single ou batch (<2h). |
+| Trigger | Cron + manual. |
+| Provider | Shopee Open Platform. |
+| Chamada externa | Sim. |
+| Cobrança monetária | **Não** — OAuth Shopee é gratuito. |
+| service_key / pricing | Não existe. |
+| Helpers de cobrança | Nenhum. |
+| Risco logs/secret | **Alto** — `last_error` armazena `Refresh failed: ${errorData}` integral; URL com `sign=` HMAC é construída mas não logada explicitamente. |
+
+#### 15.2.5 `whatsapp-token-healthcheck`
+| Item | Evidência |
+|---|---|
+| Função | Health check diário de todos `whatsapp_configs` ativos via Meta Graph `/me?access_token=...`; marca `token_invalid` quando código 190. |
+| Trigger | Cron diário. |
+| Provider | Meta Graph API. |
+| Chamada externa | Sim. |
+| Cobrança monetária | **Não** — `/me` é gratuito (rate limit app-level). |
+| service_key / pricing | Não existe. |
+| Helpers de cobrança | Nenhum. |
+| Risco logs/secret | **Crítico** — `access_token` vai na querystring do fetch; `details[]` retornado na resposta do cron pode incluir mensagens Meta com contexto sem truncar. |
+
+### 15.3 Tabela comparativa final
+
+| Edge | Trigger | Provider | Cobrado? | service_key | Helpers | Risco log | Classificação |
+|---|---|---|---|---|---|---|---|
+| meta-token-refresh | Cron + manual | Meta OAuth | Não | — | — | Médio | **D — não aplicável** |
+| meli-token-refresh | Cron + manual | ML OAuth | Não | — | — | Alto (last_error cru) | **D — não aplicável** |
+| tiktok-token-refresh-cron | Cron 6h | TikTok Biz/Shop | Não | — | — | Baixo-Médio | **D — não aplicável** |
+| shopee-token-refresh | Cron + manual | Shopee OAuth | Não | — | — | Alto (last_error cru) | **D — não aplicável** |
+| whatsapp-token-healthcheck | Cron diário | Meta Graph `/me` | Não | — | — | Crítico (token na URL) | **D — não aplicável** |
+
+### 15.4 Regra oficial F2.8 (extensão da regra F2.7 §14.4)
+
+> **Refresh OAuth, health check, validação de token, consulta de status e sync de saldo NÃO entram em `platform_cost_ledger`** quando forem apenas consulta/renovação/status/healthcheck e não gerarem cobrança monetária direta do provider em USD/BRL.
+>
+> O custo deve ser registrado **apenas** no edge/adapter que emite o evento cobrável (envio de e-mail, emissão de NFe, envio de mensagem WhatsApp, geração LLM real, etc.), nunca no fluxo de manutenção/observabilidade da conexão.
+
+Essa regra estende formalmente a regra de §14.4 e §14.5 a todos os fluxos OAuth/healthcheck do sistema.
+
+### 15.5 Riscos de rate limit (observabilidade — não cobrança)
+
+- **Meta (refresh + healthcheck):** mesmo app, somam contra app-level rate limit; risco real se nº de tenants crescer significativamente.
+- **Mercado Livre / Shopee / TikTok:** rate limit por app/partner_id; sem custo monetário.
+- **Ação:** monitoramento operacional, sem qualquer impacto no Motor de Créditos.
+
+### 15.6 Riscos de log / vazamento de segredo (hardening — backlog separado)
+
+Riscos identificados nesta auditoria **continuam válidos** como backlog de segurança/hardening, mesmo com as 5 edges classificadas como não aplicáveis ao Motor de Créditos. Eles **não foram corrigidos nesta entrega**.
+
+| Edge | Risco | Observação |
+|---|---|---|
+| meta-token-refresh | `errorMsg` Meta sem truncar/scrub | Médio |
+| meli-token-refresh | `last_error` recebe `errorData` cru | Alto |
+| tiktok-token-refresh-cron | `last_error` recebe `err.message` cru | Baixo-Médio |
+| shopee-token-refresh | `last_error` recebe `errorData` cru | Alto |
+| whatsapp-token-healthcheck | `access_token` na URL + `details[]` cru na resposta do cron | Crítico |
+
+**Reforço explícito:** a classificação "não aplicável ao Motor de Créditos" **não foi usada para ignorar** esses riscos. Eles ficam pendentes em backlog de hardening (§15.7) para tratamento separado.
+
+### 15.7 Pendências futuras registradas (fora do escopo F2.8)
+
+1. **Padrão compartilhado de scrub & truncate** em `_shared/` para `last_error` e logs de OAuth (truncar 500 chars + regex de `Bearer\s+\S+`, `access_token=\S+`, `refresh_token=\S+`, `client_secret=\S+`, `sign=\S+`, `partner_key=\S+`).
+2. **Sanitização de `last_error`** em `marketplace_connections`, `tiktok_*_connections` e `whatsapp_configs` (aplicar truncate + scrub antes do persist).
+3. **`whatsapp-token-healthcheck`:** mover token de querystring para header `Authorization: Bearer` (Meta aceita) e enxugar `details[]` na resposta retornada pelo cron.
+4. **Auditoria futura** de `google-token-refresh`, `google-token-refresh-cron` e `health-check-run` (sugerido como **F2.9 PLANNER**). `health-check-run` pode envolver chamadas externas reais e exige auditoria cuidadosa.
+5. **Telemetria sem cobrança** opcional: se quisermos métricas de saúde de refresh, criar registros em `service_usage_events` com `cost_usd=0`/`is_billable=false`, **separados** do ledger — decisão futura, não nesta onda.
+
+### 15.8 Confirmações de não-impacto (validações obrigatórias F2.8)
+
+| Validação | Resultado |
+|---|---|
+| Código de runtime alterado | NÃO |
+| Migration criada | NÃO |
+| RPC alterado | NÃO |
+| RLS alterada | NÃO |
+| service_key criada | NÃO |
+| Preço aprovado | NÃO |
+| Custo registrado em `platform_cost_ledger` | NÃO |
+| `credit_ledger` / `credit_wallet` alterado | NÃO |
+| `service_usage_events` alterado | NÃO |
+| Provider real chamado | NÃO |
+| Refresh real executado | NÃO |
+| Token alterado | NÃO |
+| UI alterada | NÃO |
+| `mem://constraint` criada | NÃO (decisão do operador) |
+| Sanitização de logs aplicada | NÃO (movida para backlog §15.7) |
+| Token do WhatsApp movido para header | NÃO (movida para backlog §15.7) |
+| Docs oficiais atualizados | SIM (`funcoes-pagas.md` §3.11; este doc §15) |
+| `workers-crons-pagos.md` revisado | SIM — nenhuma das 5 edges estava classificada como paga; sem alteração necessária. |
+
+### 15.9 Status final F2.8
+
+🟢 **F2.8 — GO documental confirmado.**
+
+As 5 edges (`meta-token-refresh`, `meli-token-refresh`, `tiktok-token-refresh-cron`, `shopee-token-refresh`, `whatsapp-token-healthcheck`) classificadas como **não aplicáveis** ao Motor de Créditos. Regra "refresh OAuth / healthcheck / consulta de status não cobra; emissão cobra" registrada como padrão oficial estendendo §14.4. Riscos de log/secret catalogados como backlog separado de hardening (§15.7), sem correção nesta execução. Nenhuma alteração de runtime, ledger, wallet, evento, token, UI, RPC ou RLS executada.
+
+**Próximo passo recomendado (não executado):** abrir **F2.9 em modo PLANNER** para auditar `google-token-refresh`, `google-token-refresh-cron` e `health-check-run`. Atenção especial a `health-check-run`, que pode envolver chamadas externas reais e merece auditoria cuidadosa antes de classificação.
