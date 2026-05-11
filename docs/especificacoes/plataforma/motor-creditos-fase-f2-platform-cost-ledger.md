@@ -922,3 +922,139 @@ A classificação D desta edge é válida **somente enquanto** o conjunto de aç
 `health-monitor-admin`, `meta-whatsapp-monitor-all`, `whatsapp-orphan-watcher` e `whatsapp-cross-business-detector` classificadas como **não aplicáveis** ao Motor de Créditos. Para `meta-whatsapp-monitor-all`, a classificação vale **somente enquanto** não invocar `/messages`, template pago ou conversa cobrável Meta (regra preventiva §17.5). Riscos de log/PII catalogados como backlog separado (F2.10.1 a F2.10.4 em §17.6), sem correção nesta execução. Nenhuma alteração de runtime, ledger, wallet, evento, token, UI, RPC ou RLS executada.
 
 **Próximo passo recomendado (não executado):** abrir **F2.11 em modo PLANNER** para auditar `meta-whatsapp-diagnose`, `meta-whatsapp-recover` (camadas chamadas pelo monitor — confirmar que continuam apenas administrativas) e demais monitores WhatsApp/Meta ainda não auditados.
+
+---
+
+## 18. F2.11 — Auditoria de camadas WhatsApp/Meta (diagnose, recover e monitores remanescentes)
+
+**Data:** 2026-05-11
+**Modo:** PLANNER (auditoria) → EXECUÇÃO (atualização documental)
+**Escopo:** `meta-whatsapp-diagnose`, `meta-whatsapp-recover`, `whatsapp-health-summary`, `whatsapp-open-validation-window`, `whatsapp-check-templates`.
+
+### 18.1 Contexto
+
+A F2.10 fechou o lote de monitores administrativos (`meta-whatsapp-monitor-all`, `health-monitor-admin`, `whatsapp-orphan-watcher`, `whatsapp-cross-business-detector`). A F2.11 desce para as **camadas chamadas pelo monitor** e para os **monitores WhatsApp/Meta remanescentes** ainda não auditados, fechando o perímetro WhatsApp/Meta de leitura/diagnóstico/recuperação administrativa antes de avançar para onboarding/setup (F2.12 sugerida) e webhook de recepção (F2.13 sugerida).
+
+### 18.2 Edges auditadas — evidência por edge
+
+#### 18.2.1 `meta-whatsapp-diagnose`
+
+- **O que faz:** diagnóstico read-only por tenant. 4 checks Meta Graph: `/me` (token), `/{phone_number_id}?fields=...,health_status` (status do número), `/{app_id}/subscriptions` (webhook do app), `/{waba_id}/subscribed_apps` (vínculo WABA↔app). Persiste resultado em `whatsapp_configs.last_health_payload`, `last_diagnosed_at`, `webhook_subscribed_at`.
+- **Trigger:** UI tenant (botão diagnose) **e** `meta-whatsapp-monitor-all` via service_role **e** `meta-whatsapp-recover` quando `actions` vem vazio.
+- **Provider externo:** Meta Graph **administrativa, gratuita** (4 GET).
+- **Chama `/messages`?** Não. **Envia mensagem?** Não. **Template pago?** Não. **Conversa cobrável?** Não. **Altera WABA/número?** Não (só lê e persiste status).
+- **Custo monetário:** zero. **Service_key/pricing:** não existem nem se aplicam.
+- **Helpers de cobrança:** nenhum (`recordPlatformCost`/`chargeAfter`/`withCreditMotor` não presentes).
+- **Risco rate limit:** baixo (4 GET × tenants × frequência).
+- **Risco log/PII:** **médio.** `last_health_payload.app_webhook.raw` e `webhook.raw` persistem resposta crua da Meta Graph em DB (`callback_url`, IDs, fields). `phoneData.health_status.entities[].errors[].error_description` também persistido. `access_token` **não** é logado.
+- **Classificação:** **D — não aplicável** ao `platform_cost_ledger`.
+
+#### 18.2.2 `meta-whatsapp-recover`
+
+- **O que faz:** ações de reparo administrativo. `subscribe_webhook` → `POST /{waba_id}/subscribed_apps` (com `subscribed_fields`). `register_phone` → `POST /{phone_number_id}/deregister` + `POST /{phone_number_id}/register` (com PIN). Atualiza `whatsapp_configs.webhook_subscribed_at`, `connection_status`, `register_pin`.
+- **Trigger:** UI tenant (botão recuperar) **e** `meta-whatsapp-monitor-all` via service_role.
+- **Provider externo:** Meta Graph **administrativa, gratuita** (1–3 POST).
+- **Chama `/messages`?** Não. **Envia mensagem?** Não. **Template pago?** Não. **Conversa cobrável?** Não.
+- **Altera WABA/número?** **Sim** — re-inscreve campos do webhook na WABA e re-registra o número Cloud. Operações administrativas gratuitas, mas **mudam estado da WABA/número** → operação sensível.
+- **Custo monetário:** zero no estado atual. **Service_key/pricing:** não existem nem se aplicam.
+- **Helpers de cobrança:** nenhum.
+- **Risco rate limit:** baixo (esporádico).
+- **Risco log/PII:** **médio-alto.** `executed[].detail` faz `JSON.stringify(subData)`/`JSON.stringify(regData)` cru em caso de erro. PIN transitado via body para `/register` (não logado em console) e persistido em `whatsapp_configs.register_pin`. `access_token` não logado.
+- **Classificação:** **D — não aplicável** ao `platform_cost_ledger` no estado atual. **Operação administrativa sensível**, registrada como tal nesta seção.
+
+#### 18.2.3 `whatsapp-health-summary`
+
+- **O que faz:** lê `whatsapp_inbound_messages`, `whatsapp_messages` e `whatsapp_health_incidents` para o card "Central de Comando" (`last_inbound_at`, `last_ai_reply_at`, `subscription_status`, `silence_alert`).
+- **Trigger:** UI tenant.
+- **Provider externo:** nenhum (apenas Postgres).
+- **Chama `/messages`?** Não. **Envia?** Não. **Template pago?** Não. **Conversa cobrável?** Não. **Altera WABA/número?** Não.
+- **Custo monetário:** zero.
+- **Risco log/PII:** baixo.
+- **Classificação:** **D — não aplicável.**
+
+#### 18.2.4 `whatsapp-open-validation-window`
+
+- **O que faz:** marca `whatsapp_configs.validation_window_opened_at` para abrir janela de 10 min. Promoção de estado depende do webhook receber POST real dentro da janela. Não envia nada.
+- **Trigger:** UI tenant.
+- **Provider externo:** nenhum.
+- **Chama `/messages`?** Não. **Envia?** Não. **Template pago?** Não. **Conversa cobrável?** Não. **Altera WABA/número?** Não.
+- **Custo monetário:** zero.
+- **Risco log/PII:** baixo.
+- **Classificação:** **D — não aplicável.**
+
+#### 18.2.5 `whatsapp-check-templates`
+
+- **O que faz:** cron horário. Lê `whatsapp_template_submissions` com `meta_status='pending'`, agrupa por tenant, faz `GET /{waba_id}/message_templates?limit=250` na Meta Graph e atualiza status (`approved`/`rejected`/`not_found`) em `whatsapp_template_submissions` + `notification_rule`.
+- **Trigger:** cron (hora em hora).
+- **Provider externo:** Meta Graph **administrativa, gratuita** (1 GET por WABA com pendentes).
+- **Chama `/messages`?** Não. **Envia template?** Não. **Consome template pago?** Não (só lê status). **Conversa cobrável?** Não. **Altera WABA/número?** Não.
+- **Custo monetário:** zero. Submissão é gratuita; uso (envio) é cobrável e está coberto por `meta-whatsapp-send`.
+- **Risco log/PII:** baixo.
+- **Classificação:** **D — não aplicável.**
+
+### 18.3 Tabela comparativa
+
+| Edge | Trigger | Provider externo | Chama `/messages`? | Envia? | Template pago? | Conversa cobrável? | Altera WABA/número? | Custo monetário | Risco rate limit | Risco log/PII | Classificação |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `meta-whatsapp-diagnose` | UI/cron | Meta Graph admin (4 GET) | Não | Não | Não | Não | Não | Zero | Baixo | Médio | **D** |
+| `meta-whatsapp-recover` | UI/cron | Meta Graph admin (1–3 POST) | Não | Não | Não | Não | **Sim (admin)** | Zero | Baixo | Médio-alto | **D — operação administrativa sensível** |
+| `whatsapp-health-summary` | UI tenant | — | Não | Não | Não | Não | Não | Zero | N/A | Baixo | **D** |
+| `whatsapp-open-validation-window` | UI tenant | — | Não | Não | Não | Não | Não | Zero | N/A | Baixo | **D** |
+| `whatsapp-check-templates` | Cron 1h | Meta Graph admin (1 GET/WABA) | Não | Não | Não | Não | Não | Zero | Baixo | Baixo | **D** |
+
+### 18.4 Regra de governança (extensão de §15.4 / §16.5 / §17.4 e §17.5)
+
+> **WhatsApp/Meta administrativo, diagnóstico, recover e leitura de status ≠ envio cobrável.**
+>
+> Diagnóstico, recover administrativo, leitura de status, abertura de janela de validação e polling de aprovação de template **não entram em `platform_cost_ledger`** quando **não chamam `/messages`, não enviam mensagem, não consomem template pago e não iniciam conversa cobrável Meta**. O custo cobrável Meta/WhatsApp é registrado **exclusivamente** no edge que efetivamente envia mensagem/template/conversa — atualmente `meta-whatsapp-send` (lote 3 do Motor v2, via `chargeAfter` por template).
+
+### 18.5 Regra preventiva — congelamento de escopo de `meta-whatsapp-recover`
+
+> Qualquer ação adicional além de `subscribe_webhook` e `register_phone` adicionada a `meta-whatsapp-recover` — em especial qualquer ação que envolva `/messages`, envio de mensagem, template pago, conversa cobrável Meta ou qualquer operação monetizável — **exige reabrir auditoria F2 antes de merge**.
+>
+> `meta-whatsapp-recover` permanece classificada como **operação administrativa sensível**: **não gera custo financeiro** no estado atual, mas **altera estado administrativo da WABA/número** (re-inscrição de webhook, re-registro Cloud) e deve permanecer restrita aos fluxos autorizados (UI tenant com role válida e cron `meta-whatsapp-monitor-all` via service_role).
+
+### 18.6 Backlog de hardening (não executado nesta entrega)
+
+| ID | Edge | Ação recomendada | Prioridade |
+|---|---|---|---|
+| **F2.11.1** | `meta-whatsapp-diagnose` | Filtrar/recortar `raw` em `last_health_payload` (manter apenas campos derivados úteis: `subscribed`, `has_visible_fields`, `callback_matches`, `active`); truncar `error_description` em logs e payloads persistidos. | Média |
+| **F2.11.2** | `meta-whatsapp-recover` | Substituir `JSON.stringify(subData)`/`JSON.stringify(regData)` em `executed[].detail` por extração tipada (`code`, `message`, `error_user_msg`); auditar permissões/RLS de `whatsapp_configs.register_pin`. | Média |
+| **F2.11.3** | `meta-whatsapp-recover` | Registrar formalmente o congelamento de escopo §18.5 como gate de PR (lint/CI ou checklist obrigatório na Fase 12). | Baixa |
+
+**Reforço explícito:** a classificação "não aplicável ao Motor de Créditos" **não foi usada para ignorar** os riscos de log catalogados acima. Eles ficam pendentes em backlog separado de hardening (§18.6) para tratamento posterior, conforme decisão do operador.
+
+### 18.7 Confirmações de não-impacto (validações obrigatórias F2.11)
+
+| Validação | Status |
+|---|---|
+| Código de runtime alterado | NÃO |
+| Migration criada | NÃO |
+| RPC alterada | NÃO |
+| RLS alterada | NÃO |
+| `service_pricing` criada/alterada | NÃO |
+| `service_key` criada | NÃO |
+| `platform_cost_ledger` alterado | NÃO |
+| `wallet`/`credit_ledger`/`service_usage_events` alterados | NÃO |
+| Provider real chamado | NÃO |
+| Diagnose real executado | NÃO |
+| Recover real executado | NÃO |
+| Check de templates real executado | NÃO |
+| Mensagem enviada | NÃO |
+| Template consumido | NÃO |
+| Conversa cobrável iniciada | NÃO |
+| WABA/número alterada | NÃO |
+| Tokens/secrets alterados | NÃO |
+| UI alterada | NÃO |
+| Mem/Knowledge criada | NÃO (decisão do operador — regras já cobertas pelos docs formais) |
+| Hardening de logs aplicado | NÃO (backlog §18.6 — F2.11.1 / F2.11.2 / F2.11.3) |
+| Docs oficiais atualizados | SIM (`funcoes-pagas.md` §3.11; este doc §18) |
+| `workers-crons-pagos.md` revisado | SIM — nenhuma alteração necessária (`whatsapp-check-templates` é o único cron novo desta leva e não é "absorbed" porque não tem custo; `meta-whatsapp-diagnose` e `meta-whatsapp-recover` não são crons; os 2 internos não envolvem provider) |
+
+### 18.8 Status final F2.11
+
+🟢 **F2.11 — GO documental confirmado.**
+
+`meta-whatsapp-diagnose`, `meta-whatsapp-recover`, `whatsapp-health-summary`, `whatsapp-open-validation-window` e `whatsapp-check-templates` classificadas como **não aplicáveis** ao Motor de Créditos. `meta-whatsapp-recover` permanece marcada como **operação administrativa sensível** (sem custo monetário no estado atual, mas altera estado da WABA/número), com regra preventiva §18.5 ativa. Riscos de log/PII catalogados como backlog separado (F2.11.1 a F2.11.3 em §18.6), sem correção nesta execução. Nenhuma alteração de runtime, ledger, wallet, evento, token, WABA/número, UI, RPC ou RLS executada. Nenhum provider real chamado. Nenhum diagnose, recover ou check real executado.
+
+**Próximo passo recomendado (não executado):** abrir **F2.12 em modo PLANNER** para auditar o lote de **onboarding/setup e envio/teste WhatsApp/Meta** (`meta-whatsapp-onboarding-start`, `meta-whatsapp-onboarding-callback`, `meta-whatsapp-register-phone`, `meta-whatsapp-set-pin`, `meta-whatsapp-request-code`, `meta-whatsapp-verify-code`, `whatsapp-submit-template`, `meta-whatsapp-test-send`, `meta-whatsapp-send-test-runner`). Atenção especial a `meta-whatsapp-test-send` e `meta-whatsapp-send-test-runner`, que podem efetivamente enviar mensagem real e iniciar conversa cobrável Meta. Em seguida, **F2.13 sugerida** para `meta-whatsapp-webhook` (recepção sem custo direto, mas dispara pipelines pagos a jusante).
