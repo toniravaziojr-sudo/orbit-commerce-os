@@ -132,16 +132,17 @@ Catalogar toda edge function que consome (ou pode consumir) custo externo pago. 
 
 ### 3.9 WhatsApp
 
-| Função | Provedor | Unidade Fase 1 | Unidade Fase 2 | Origem | tenant_id | Padrão futuro | Risco |
-|---|---|---|---|---|---|---|---|
-| meta-whatsapp-send | Meta Cloud API | template (quando type=template) | conversation_24h | frontend/worker | sim | charge | alto |
-| meta-whatsapp-test-send | Meta Cloud API | template | conversation_24h | frontend | sim | charge | baixo |
-| meta-whatsapp-send-test-runner | Meta Cloud API | template | conversation_24h | cron | sim | charge | baixo |
-| agenda-dispatch-reminders | Meta Cloud API | template | conversation_24h | cron | sim | charge | médio |
-| ai-support-chat (replies WhatsApp) | Meta Cloud API | conversation_24h (Fase 2) | conversation_24h | webhook | sim | charge | alto |
+> **Regra de negócio oficial (F2.12 — 2026-05-11):** Mensagem WhatsApp Meta, template, conversa e envio via WABA do cliente são **pagos diretamente pelo cliente à Meta** e **não geram cobrança de créditos no Comando Central**. O Comando Central cobra apenas custos próprios da plataforma (IA de atendimento, automações inteligentes, processamento interno). Qualquer cobrança relacionada ao WhatsApp deve separar **custo Meta pago pelo cliente** de **custo de IA/plataforma cobrado pelo Comando Central**.
 
-**Fase 1:** apenas template enviado paga. Texto livre dentro de janela aberta = grátis.  
-**Fase 2:** abertura de janela 24h por `(tenant_id, wa_id, category)` paga uma vez. Cobertura completa do modelo Meta.
+| Função | Provedor | Cobrança Comando Central | Origem | tenant_id | Padrão | Risco |
+|---|---|---|---|---|---|---|
+| meta-whatsapp-send | Meta Cloud API (WABA do cliente) | **não cobra** — cliente paga Meta direto | frontend/worker | sim | **D — não aplicável** | n/a |
+| meta-whatsapp-test-send | Meta Cloud API | **não cobra** — admin-only, custo Meta na WABA usada | frontend admin | não | **D — não aplicável** | operacional (envio real) |
+| meta-whatsapp-send-test-runner | via meta-whatsapp-send | **não cobra** — herda regra acima | cron/teste | sim | **D — não aplicável** | baixo |
+| agenda-dispatch-reminders | Meta Cloud API | **não cobra envio** — IA acionada cobra em `ai-support-chat` | cron | sim | **D para envio** | médio |
+| ai-support-chat (replies WhatsApp) | OpenAI/Gemini | **cobra IA** (tokens in/out) — não cobra envio Meta | webhook | sim | charge (Motor v2) | alto |
+
+**F2.12 (2026-05-11):** bloco `chargeAfter` de templates removido de `meta-whatsapp-send`. Service keys `whatsapp-template-marketing`, `whatsapp-template-utility`, `whatsapp-template-authentication` e `whatsapp-window-*` desativadas em `service_pricing` (`is_active=false`, `metadata.cost_owner='meta'`, `paid_directly_by='customer_to_meta'`, `not_billable_by_comando_central=true`). Histórico preservado. `credit_ledger` permaneceu sem registros `whatsapp%` (zero cobrança indevida). `ai-support-chat` **não foi alterada** — IA continua cobrada normalmente. Ver §19 do doc F2.
 
 ### 3.10 Scrape / Importação
 
