@@ -1329,3 +1329,53 @@ Nenhum pricing novo criado. Nenhum schema/RPC/RLS alterado.
 🟢 **F2.13.1 — GO. chargeAfter ativo em produção sob a flag `motor_v2_enabled` por tenant** (mesmo padrão Lote 3). Cobrança ocorre apenas para tenants com motor habilitado; demais ficam em `skipped: motor_disabled_for_tenant`.
 
 **Próximo passo recomendado (não executado):** abrir **F2.13.1.1 em PLANNER** para auditar `agenda-dispatch-reminders` e `agenda-submit-template` (cron de lembretes pode acionar IA?), e em seguida **F2.13.2** (hardening de PII em logs do webhook + handler Agenda).
+
+---
+
+### 21.1 F2.13.1 — Validação real (11/05/2026)
+
+Validação funcional ponta-a-ponta executada em ambiente real do tenant piloto **Respeite o Homem** (`d1a4d0ed-8842-495e-b741-540a9a345b25`), confirmando que `chargeAfter` está cobrando corretamente a IA da Agenda.
+
+**Fluxo validado:**
+WhatsApp (telefone autorizado em `agenda_authorized_phones`, `is_active=true`) → `meta-whatsapp-webhook` → roteamento para `agenda-process-command` → Gemini real (`gemini-2.5-flash`) → `chargeAfter` (Motor v2).
+
+**Evidência registrada:**
+
+| Item | Resultado |
+|---|---|
+| Mensagem inbound processada | ✅ `processed_by=agenda_agent`, `status=processed` |
+| `external_message_id` | ✅ único, sem redelivery |
+| Tokens IN | 994 |
+| Tokens OUT | 23 |
+| Cobrança IN | ✅ `gemini.gemini-2.5-flash.per_1m_tokens_in`, `captured` |
+| Cobrança OUT | ✅ `gemini.gemini-2.5-flash.per_1m_tokens_out`, `captured` |
+| `credit_ledger` | ✅ 4 lançamentos (2 reserve + 2 capture) |
+| `service_usage_events` | ✅ 2 eventos com `origin_function=agenda-process-command` |
+| `wallet` | ✅ 485 → 483 créditos |
+| `provider_job_id` determinístico | ✅ `agenda:<wamid>:in` e `agenda:<wamid>:out` |
+| `metadata` sanitizada | ✅ sem telefone, sem texto da mensagem, sem prompt, sem resposta da IA, sem PII (apenas `external_message_id_tail`, tokens, model, conversation, motor_universal, mode, source) |
+| `ai-support-chat` | ✅ não foi chamado |
+| `turn-orchestrator-processor` | ✅ não foi chamado |
+| `meta-whatsapp-send` | ✅ não cobrou custo Meta |
+| Fluxo funcional da Agenda | ✅ respondeu normalmente |
+| Dupla cobrança | ✅ ausente |
+
+**Observação técnica — granularidade / minimum charge (NÃO É BUG, requer auditoria dedicada):**
+O turno consumiu **2 créditos** (1 por linha IN + 1 por linha OUT) para um volume baixo de tokens (994 in / 23 out). O comportamento sugere granularidade/arredondamento/mínimo por lançamento no Motor de Créditos. **Não tratar como bug** sem auditoria específica. Registrado como **backlog de auditoria futura** sobre proporcionalidade em usos com baixo volume de tokens (granularidade, arredondamento e minimum charge do Motor).
+
+**Backlogs registrados (sem implementação nesta etapa):**
+1. **HMAC SHA-256** — validação do header `x-hub-signature-256` no `meta-whatsapp-webhook` usando `META_APP_SECRET` (risco residual, não introduzido pela Agenda).
+2. **Auditoria de mudanças** em `agenda_authorized_phones` — registrar `insert/update/delete` com ator e timestamp.
+3. **F2.13.2** — hardening de PII/logs do webhook e do handler da Agenda.
+4. **Auditoria de granularidade / arredondamento / minimum charge** do Motor de Créditos — avaliar proporcionalidade em turnos com baixo volume de tokens.
+
+**Confirmações desta etapa documental:**
+- ✅ Nenhuma nova execução real foi feita (sem chamada de provider, sem envio de mensagem, sem IA).
+- ✅ Nenhum novo lançamento gerado em `wallet`, `credit_ledger`, `service_usage_events` ou `platform_cost_ledger`.
+- ✅ Nenhum código alterado, nenhuma UI/UX alterada, nenhum pricing criado/alterado.
+- ✅ Nenhuma memória/Knowledge criada.
+
+🟢 **GO FINAL F2.13.1 — fechada com validação funcional real em produção.** Cobrança da IA da Agenda operando corretamente sob `motor_v2_enabled` por tenant.
+
+**Próximo passo recomendado:** abrir **F2.13.1.1 em PLANNER** (`agenda-dispatch-reminders` e `agenda-submit-template`), seguido de **F2.13.2** (hardening PII).
+
