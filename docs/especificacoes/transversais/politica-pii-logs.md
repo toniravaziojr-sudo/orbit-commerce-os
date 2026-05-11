@@ -65,8 +65,8 @@ Reduzir exposição de PII e segredos em logs runtime (`console.log/warn/error`)
 | `agenda-process-command` (logs) | ✅ Sanitizado em F2.13.2.A |
 | `agenda-dispatch-reminders` (logs) | ✅ Sanitizado em F2.13.2.A |
 | `agenda-submit-template` (logs) | ✅ Sem PII relevante (auditado) |
-| `whatsapp_webhook_raw_audit.body_preview` | ✅ Sanitizado em F2.13.2.B (resumo estrutural JSON, cap 2 KB) |
-| `whatsapp_webhook_raw_audit.headers_json` | ✅ Sanitizado em F2.13.2.B (`safeHeaders` allowlist canônica) |
+| `whatsapp_webhook_raw_audit.body_preview` | ✅ Sanitizado em F2.13.2.B (resumo estrutural JSON, cap 2 KB) — efetivo em produção a partir de F2.13.2.B-FIX (redeploy 11/05/2026, validado com payload sintético) |
+| `whatsapp_webhook_raw_audit.headers_json` | ✅ Sanitizado em F2.13.2.B (`safeHeaders` allowlist canônica) — efetivo em produção a partir de F2.13.2.B-FIX |
 
 > Correção de nomenclatura (F2.13.2.B): a tabela alvo se chama
 > **`whatsapp_webhook_raw_audit`** no banco — não `meta_webhook_audit_raw`.
