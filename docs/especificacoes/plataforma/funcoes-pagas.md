@@ -168,12 +168,13 @@ Catalogar toda edge function que consome (ou pode consumir) custo externo pago. 
 | sync-ads-dashboard | tenant_inherited | Verificar. |
 | monitor-chargebacks | tenant_inherited | Verificar. |
 | ads-autopilot-* | tenant_inherited | Verificar. |
-| meta-whatsapp-monitor-all | recordPlatformCost | Monitoramento. |
+| **meta-whatsapp-monitor-all** | **não aplicável (estado atual)** | **F2.10 (2026-05-11):** auditada — cron de monitoramento/auto-reparo administrativo Meta. Invoca `meta-whatsapp-diagnose` e `meta-whatsapp-recover`, que usam apenas endpoints administrativos gratuitos da Meta Graph (`/me`, `/{phone_number_id}`, `/subscribed_apps`, `/register`, `/deregister`, `/subscriptions`). **Não chama `/messages`. Não envia template. Não consome conversa cobrável.** Sem cobrança monetária do provider. **Regra preventiva:** qualquer ação futura adicionada a esta edge que invoque `/messages`, template pago, conversa cobrável Meta ou qualquer operação monetizável **deve reabrir auditoria F2 antes de merge**. Ver §17 do doc F2. |
 | **whatsapp-token-healthcheck** | **não aplicável** | **F2.8 (2026-05-11):** auditada — Meta Graph `/me?access_token=...` para validar token diariamente, gratuita. Sem cobrança monetária do provider. Ver §15 do doc F2. |
-| whatsapp-orphan-watcher / whatsapp-cross-business-detector | a auditar | Monitoramento WhatsApp; ainda não auditado. |
+| **whatsapp-orphan-watcher** | **não aplicável** | **F2.10 (2026-05-11):** auditada — cron 15 min, apenas leitura/escrita interna (Postgres) em `whatsapp_inbound_messages` e `whatsapp_health_incidents`. Sem chamada externa, sem envio. Ver §17 do doc F2. |
+| **whatsapp-cross-business-detector** | **não aplicável** | **F2.10 (2026-05-11):** auditada — cron diário, classifica `channel_state` em `whatsapp_configs` com base em sinais internos. Sem chamada externa, sem envio. Ver §17 do doc F2. |
 | **platform-costs-sync** (orquestrador) | **não aplicável** | **F2.7 (2026-05-08):** auditada — apenas consulta de saldos externos (hoje SendGrid `/v3/user/credits`), sem cobrança monetária. Custo real é registrado pelo edge que **emite** o evento cobrável (ex.: `send-system-email`), nunca pelo orquestrador de sync. Cada novo adapter deve ser auditado individualmente. Ver §14 do doc F2. |
 | **health-check-run** | **não aplicável (estado atual das suítes)** | **F2.9 (2026-05-11):** auditada — orquestrador de observabilidade. Suítes atuais (`domains`, `checkout_tracking`, `coupons`, `payments` com `dry_run`) não chamam provider pago. Não registra em `platform_cost_ledger`. **Regra de governança:** qualquer nova suíte exige auditoria F2 antes de merge. Ver §16 do doc F2. |
-| health-monitor-admin | a auditar | Health monitor admin; ainda não auditado (ver F2.10 sugerida). |
+| **health-monitor-admin** | **não aplicável** | **F2.10 (2026-05-11):** auditada — endpoint admin de leitura (`stats/checks/targets/violations`) sobre `system_health_checks`, `system_health_check_targets` e `storefront_runtime_violations`. Sem chamada externa, sem disparo de suíte. Herda regra §16.4: se ganhar ação que dispare `health-check-run` ou outra edge cobrável, exige reauditoria F2. Ver §17 do doc F2. |
 
 **Todos os crons acima precisam de classificação 1×1 antes de Fase 7.** Função sem classificação fica bloqueada para deploy.
 
