@@ -1502,7 +1502,7 @@ Nenhuma outra edge `agenda-*` encontrada. Cron ativo identificado: **`agenda-dis
 
 **Sanitizações aplicadas:**
 
-1. **`body_preview`** — substituído o substring cru de até 4000B do payload Meta por **resumo estrutural JSON determinístico** (cap rígido 2 KB), produzido por `summarizeWebhookBody()` em `_shared/pii.ts`. Campos: `object`, `entries`, `messages`, `statuses`, `msg_types`, `phone_number_ids`, `wa_message_ids`, `wa_id_hashes`, `from_hashes`, `recipient_id_hashes`, `text_lengths`, `has_media`, `parse_error`. Hashes via FNV-1a 32-bit (8 hex chars) — suficiente para correlação cross-request, sem expor telefone.
+1. **`body_preview`** — substituído o substring cru de até 4000B do payload Meta por **resumo estrutural JSON determinístico** (cap rígido 2 KB), produzido por `summarizeWebhookBody()` em `_shared/pii.ts`. Campos: `object`, `entries`, `messages`, `statuses`, `msg_types`, `phone_number_ids`, `wa_message_ids`, `wa_id_hashes`, `from_hashes`, `recipient_id_hashes`, `text_lengths`, `has_media`, `parse_error`. **Hash de PII (Correção PII-Hash):** HMAC-SHA256(`LOG_HASH_SECRET`, valor) truncado em 12 hex chars quando o secret existe; senão fallback SHA-256 truncado em 12 hex. **FNV-1a foi removido** por ser fraco para PII previsível (telefone E.164). `META_APP_SECRET` é proibido como pepper de logs. Pendência: provisionar `LOG_HASH_SECRET` dedicado e migrar para HMAC definitivo.
 2. **`headers_json`** — passou a usar `safeHeaders()` com **allowlist canônica** (15 headers técnicos/forenses). Authorization, Cookie, Bearer, accept/accept-encoding, baggage, cf-visitor, cf-ew-via, cf-worker, cdn-loop, x-forwarded-port e qualquer outro header são descartados.
 
 **Preservado (forense / dedupe / suporte):**

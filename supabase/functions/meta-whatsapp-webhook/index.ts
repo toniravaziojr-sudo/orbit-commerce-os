@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
         signature_header: req.headers.get("x-hub-signature-256") || req.headers.get("x-hub-signature"),
         content_length: rawBodyText.length,
         body_sha256: await sha256Hex(rawBodyText),
-        body_preview: summarizeWebhookBody(rawBodyText, contentType),
+        body_preview: await summarizeWebhookBody(rawBodyText, contentType),
         headers_json: safeHeaders(req.headers),
         query_string: url.search,
       });

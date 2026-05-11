@@ -106,20 +106,54 @@ export function safeHeaders(
 }
 
 /**
- * F2.13.2.B — Resumo estrutural sanitizado de payload Meta WhatsApp.
+ * F2.13.2.B (revisão Correção PII-Hash) — Resumo estrutural sanitizado
+ * de payload Meta WhatsApp.
  *
  * Substitui o `body_preview` cru de `whatsapp_webhook_raw_audit` por
  * JSON técnico determinístico, preservando observabilidade
  * (tipos, contadores, wa_message_ids para dedupe, phone_number_ids,
- * hashes de wa_id/from/recipient_id) sem expor PII.
+ * hashes determinísticos de wa_id/from/recipient_id) sem expor PII.
+ *
+ * Hash de PII (wa_id/from/recipient_id):
+ *  - Se `LOG_HASH_SECRET` estiver presente no ambiente → HMAC-SHA256
+ *    truncado a 12 hex chars.
+ *  - Caso contrário → SHA-256 puro truncado a 12 hex chars (fallback
+ *    temporário até pepper dedicado existir). NUNCA usar
+ *    META_APP_SECRET como pepper de logs.
+ *  - FNV-1a (não criptográfico) foi REMOVIDO desta função: PII
+ *    previsível como telefone/wa_id é facilmente correlacionável e
+ *    bruteforçável com hash não criptográfico.
  *
  * Cap rígido de 2 KB. Em caso de payload não-JSON, devolve resumo
  * mínimo com parse_error sanitizado, content_type e byte_length.
  */
-export function summarizeWebhookBody(
+async function piiHash(value: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(value);
+  const secret = (() => {
+    try { return (globalThis as any).Deno?.env?.get?.("LOG_HASH_SECRET") ?? null; } catch { return null; }
+  })();
+  let buf: ArrayBuffer;
+  if (secret && typeof secret === "string" && secret.length > 0) {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    buf = await crypto.subtle.sign("HMAC", key, data);
+  } else {
+    buf = await crypto.subtle.digest("SHA-256", data);
+  }
+  const bytes = new Uint8Array(buf).slice(0, 6);
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function summarizeWebhookBody(
   rawBodyText: string,
   contentType?: string | null,
-): string {
+): Promise<string> {
   const byteLength = rawBodyText.length;
   const fallback = (parseError: string | null) =>
     JSON.stringify({
@@ -139,26 +173,14 @@ export function summarizeWebhookBody(
     const entries = Array.isArray(payload?.entry) ? payload.entry : [];
     const phoneNumberIds = new Set<string>();
     const waMessageIds: string[] = [];
-    const waIdHashSet = new Set<string>();
-    const fromHashSet = new Set<string>();
-    const recipientHashSet = new Set<string>();
+    const waIdRaw = new Set<string>();
+    const fromRaw = new Set<string>();
+    const recipientRaw = new Set<string>();
     const msgTypes = new Set<string>();
     const textLengths: number[] = [];
     let messages = 0;
     let statuses = 0;
     let hasMedia = false;
-
-    // Hash síncrono curto (FNV-1a 32-bit hex 8) para uso síncrono em
-    // contexto de auditoria. Não expõe o valor original; suficiente
-    // para correlação cross-request dentro do mesmo tenant/dia.
-    const shortHash = (value: string): string => {
-      let h = 0x811c9dc5;
-      for (let i = 0; i < value.length; i++) {
-        h ^= value.charCodeAt(i);
-        h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
-      }
-      return h.toString(16).padStart(8, "0");
-    };
 
     for (const e of entries) {
       const changes = Array.isArray(e?.changes) ? e.changes : [];
@@ -169,24 +191,32 @@ export function summarizeWebhookBody(
         }
         const contacts = Array.isArray(v?.contacts) ? v.contacts : [];
         for (const ct of contacts) {
-          if (ct?.wa_id) waIdHashSet.add(shortHash(String(ct.wa_id)));
+          if (ct?.wa_id) waIdRaw.add(String(ct.wa_id));
         }
         const msgs = Array.isArray(v?.messages) ? v.messages : [];
         for (const m of msgs) {
           messages++;
           if (m?.id) waMessageIds.push(String(m.id));
           if (m?.type) msgTypes.add(String(m.type));
-          if (m?.from) fromHashSet.add(shortHash(String(m.from)));
+          if (m?.from) fromRaw.add(String(m.from));
           if (typeof m?.text?.body === "string") textLengths.push(m.text.body.length);
           if (m?.image || m?.audio || m?.video || m?.document) hasMedia = true;
         }
         const sts = Array.isArray(v?.statuses) ? v.statuses : [];
         for (const s of sts) {
           statuses++;
-          if (s?.recipient_id) recipientHashSet.add(shortHash(String(s.recipient_id)));
+          if (s?.recipient_id) recipientRaw.add(String(s.recipient_id));
         }
       }
     }
+
+    const hashAll = async (set: Set<string>): Promise<string[]> =>
+      Array.from(new Set(await Promise.all(Array.from(set).map(piiHash))));
+    const [waIdHashes, fromHashes, recipientHashes] = await Promise.all([
+      hashAll(waIdRaw),
+      hashAll(fromRaw),
+      hashAll(recipientRaw),
+    ]);
 
     const summary = {
       object: typeof payload?.object === "string" ? payload.object : null,
@@ -196,9 +226,9 @@ export function summarizeWebhookBody(
       msg_types: Array.from(msgTypes),
       phone_number_ids: Array.from(phoneNumberIds),
       wa_message_ids: waMessageIds,
-      wa_id_hashes: Array.from(waIdHashSet),
-      from_hashes: Array.from(fromHashSet),
-      recipient_id_hashes: Array.from(recipientHashSet),
+      wa_id_hashes: waIdHashes,
+      from_hashes: fromHashes,
+      recipient_id_hashes: recipientHashes,
       text_lengths: textLengths,
       has_media: hasMedia,
       parse_error: null as string | null,
