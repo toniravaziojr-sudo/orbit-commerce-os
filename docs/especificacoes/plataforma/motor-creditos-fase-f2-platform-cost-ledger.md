@@ -454,3 +454,97 @@ Validação funcional real (Opção A) executada após GO técnico da seção 12
 
 🟢 **F2.6 — GO funcional confirmado.**
 Telemetria de plataforma real, idempotente, sanitizada, isolada do tenant, com custo calculado por tokens reais e linha rastreável em `platform_cost_ledger`.
+
+---
+
+## 14. F2.7 — `meta-token-health-check` e `platform-costs-sync` (✅ GO documental — 2026-05-08)
+
+### 14.1 Escopo
+
+Auditar 1×1 as duas edges remanescentes mapeadas em §11 (linha "Apenas mapeadas — Auditar 1×1") para definir se entram no Motor de Créditos via `recordPlatformCost`, se ficam pendentes ou se devem ser classificadas como **não aplicáveis**.
+
+Etapa **somente documental** — sem alteração de código, sem chamada a provider real, sem alteração de `platform_cost_ledger`, `credit_ledger`, `credit_wallet`, `service_usage_events`, RPC, RLS, UI, wallet ou qualquer evento financeiro.
+
+### 14.2 `meta-token-health-check` — auditoria
+
+| Item | Resultado |
+|---|---|
+| O que faz | Itera `tenant_meta_auth_grants` ativos, descriptografa token via RPC, faz GET `/me?fields=id` na Meta Graph API; marca `expired` quando recebe erro 190/102. |
+| Caller(s) | Cron `meta-token-health-check-daily` (`0 4 * * *` UTC) + chamada manual admin documentada em `hub-integracoes.md`. **Nenhum caller no front-end.** |
+| Tipo | Cron de plataforma global + admin manual. |
+| `tenant_id` no fluxo | Sim por grant, mas a operação é da **plataforma** (cron global). Não há tenant a ser cobrado. |
+| Provider/API | Meta Graph API — endpoint `/me?fields=id`. |
+| Custo monetário | **Zero.** A Graph API não cobra por chamada (rate-limit only). Marketing API/spend de anúncios é outro produto, não usado aqui. |
+| `service_pricing` existente | Nenhuma chave aplicável. |
+| Helper de cobrança chamado hoje | Nenhum. |
+| Registros existentes em ledger | `platform_cost_ledger` count=0 para qualquer chave correlata. |
+| Risco se plugar `recordPlatformCost` | Alto — uma execução do cron iteraria N grants e geraria N linhas de custo zero, poluindo o ledger sem benefício. |
+| Dados sensíveis | Token é decifrado em memória e enviado na querystring para a Meta. **Logs atuais não imprimem o token** (apenas `grantId`, `tenantId`, `error code/subcode`, mensagem truncada em 500). OK. |
+
+**Classificação final:** **Não aplicável** ao Motor de Créditos.
+
+### 14.3 `platform-costs-sync` — auditoria
+
+| Item | Resultado |
+|---|---|
+| O que faz | Lê `platform_external_costs` (`is_active=true AND sync_mode='auto'`); para cada serviço com adapter registrado, consulta o saldo. **Hoje único adapter:** `sendgrid` → GET `https://api.sendgrid.com/v3/user/credits`. |
+| Caller(s) | Cron `platform-costs-sync-6h` (`0 */6 * * *` UTC) + botão admin no painel `/platform/external-costs` via `usePlatformExternalCosts.ts`. **Nenhum caller tenant.** |
+| Tipo | Cron de plataforma + admin manual. |
+| `tenant_id` no fluxo | Não — saldo é agregado da conta SaaS na SendGrid. |
+| Provider/API | SendGrid `/v3/user/credits` (apenas leitura). |
+| Custo monetário | **Zero.** A consulta de saldo SendGrid não é faturada. O custo real do envio de e-mail já é registrado no edge `send-system-email` (F2.5 ✅). |
+| `service_pricing` existente | Nenhuma chave para o ato de "sync". E não deve existir — emissão de e-mail tem suas próprias chaves. |
+| Helper de cobrança chamado hoje | Nenhum. |
+| Registros existentes em ledger | `platform_cost_ledger` count=0 para a chave. |
+| Risco se plugar `recordPlatformCost` no orquestrador | Alto — 4 execuções/dia × N adapters = poluição com linhas de custo zero. Risco adicional de dupla cobrança no futuro se algum adapter passar a fazer emissão real. |
+| Dados sensíveis | `SENDGRID_API_KEY` no header Authorization. Logs atuais não imprimem a chave. `last_sync_error` recebe `e.message` cru — sem scrub de `Bearer\s+\S+`. Risco baixo hoje; **registrado como melhoria futura** (não aplicar nesta fase). |
+
+**Classificação final:** **Não aplicável** ao Motor de Créditos no nível do orquestrador.
+
+### 14.4 Regra oficial F2.7 — quando NÃO registrar custo no `platform_cost_ledger`
+
+> **Health check, refresh OAuth, sync de saldo e consulta de status NÃO entram em `platform_cost_ledger`** quando forem apenas consulta/renovação/status e não gerarem cobrança monetária do provider.
+>
+> **O custo deve ser registrado somente no edge/adapter que emite o evento cobrável** — envio de e-mail, mensagem WhatsApp, emissão fiscal, chamada IA paga etc.
+
+### 14.5 Regra oficial F2.7 — adapters futuros de `platform-costs-sync`
+
+> Cada novo adapter de `platform-costs-sync` deve ser **auditado individualmente** antes de ser ativado:
+>
+> - Se for **apenas consulta de saldo/status**, não registra custo (segue a regra §14.4).
+> - Se executar **evento cobrável**, o custo deve ser registrado no **ponto específico do adapter/evento cobrável**, nunca no orquestrador genérico.
+>
+> O orquestrador `platform-costs-sync` permanece neutro em relação a custo.
+
+### 14.6 Pendências futuras registradas (fora do escopo F2.7)
+
+1. **Auditoria 1×1 dos demais refresh-cron de OAuth** (`meta-token-refresh`, `meli-token-refresh`, `tiktok-token-refresh-cron`, `shopee-token-refresh`, `whatsapp-token-healthcheck-daily`) — provavelmente também não aplicáveis, mas precisam de auditoria formal (sugerido como F2.8 PLANNER).
+2. **Novos adapters em `platform-costs-sync`** (ex.: Nuvem Fiscal previsto para Onda 2 do painel external-costs) — abrir auditoria pontual no momento da inclusão.
+3. **Melhoria de segurança/logs:** avaliar sanitização adicional de `last_sync_error` em `platform-costs-sync` (scrub de `Bearer\s+\S+` e truncamento explícito ≤500 chars). Não aplicar agora.
+
+### 14.7 Confirmações de não-impacto (validações obrigatórias F2.7)
+
+| Item | Resultado |
+|---|---|
+| Código alterado | NÃO |
+| Migration criada | NÃO |
+| RPC alterada | NÃO |
+| RLS alterada | NÃO |
+| `service_pricing` inserido/alterado | NÃO |
+| `platform_cost_ledger` alterado | NÃO |
+| `credit_wallet` alterada | NÃO |
+| `credit_ledger` alterado | NÃO |
+| `service_usage_events` alterado | NÃO |
+| UI alterada | NÃO |
+| Provider real chamado | NÃO |
+| Sincronização real disparada | NÃO |
+| `mem://constraint` criada | NÃO (decisão do operador) |
+| Docs oficiais atualizados | SIM (`funcoes-pagas.md` §3.11; este doc §14) |
+
+### 14.8 Status final F2.7
+
+🟢 **F2.7 — GO documental confirmado.**
+
+`meta-token-health-check` e `platform-costs-sync` (orquestrador) classificadas como **não aplicáveis** ao Motor de Créditos. Regra "consulta/status não cobra; emissão cobra" registrada como padrão oficial. Pendências futuras catalogadas. Nenhuma alteração de runtime, ledger, wallet, evento ou UI executada.
+
+**Próximo passo recomendado (não executado):** abrir **F2.8 em modo PLANNER** para auditar 1×1 os refresh-cron OAuth restantes (`meta-token-refresh`, `meli-token-refresh`, `tiktok-token-refresh-cron`, `shopee-token-refresh`, `whatsapp-token-healthcheck-daily`).
