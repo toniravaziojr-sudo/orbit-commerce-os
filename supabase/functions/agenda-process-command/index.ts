@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { maskPhone, safeTruncate, safeError } from "../_shared/pii.ts";
 
 const VERSION = "v2.0.0"; // Etapa 3+4: Auxiliar integration, allowlist, template awareness
 
@@ -70,7 +71,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[agenda-process-command][${traceId}] tenant=${tenant_id.slice(0, 8)} phone=${from_phone} msg="${message_content.slice(0, 80)}"`);
+    console.log(`[agenda-process-command][${traceId}] tenant=${tenant_id.slice(0, 8)} phone=${maskPhone(from_phone)} msg_len=${message_content.length}`);
 
     // ── DEDUPLICATION ──
     const { data: existing } = await supabase
@@ -499,7 +500,7 @@ async function delegateToAuxiliar(
   correlationId: string,
   traceId: string,
 ): Promise<{ success: boolean; summary: string; error?: string }> {
-  console.log(`[agenda-process-command][${traceId}] Delegating to Auxiliar: ${toolName}`, JSON.stringify(toolArgs).slice(0, 200));
+  console.log(`[agenda-process-command][${traceId}] Delegating to Auxiliar: tool=${toolName} arg_keys=[${Object.keys(toolArgs || {}).join(',')}]`);
 
   // Get the first owner/admin user for the tenant
   const { data: tenantUser } = await supabase
@@ -540,7 +541,7 @@ async function delegateToAuxiliar(
     clearTimeout(timeout);
 
     const result = await response.json();
-    console.log(`[agenda-process-command][${traceId}] Auxiliar response (${response.status}):`, JSON.stringify(result).slice(0, 300));
+    console.log(`[agenda-process-command][${traceId}] Auxiliar response status=${response.status} ok=${response.ok}`);
 
     if (result.error) {
       return { success: false, summary: "", error: result.error };
@@ -637,7 +638,7 @@ async function callAI(
       return { success: false, error: "Empty AI response" };
     }
 
-    console.log(`[agenda-process-command][${traceId}] AI raw:`, content.substring(0, 400));
+    console.log(`[agenda-process-command][${traceId}] AI raw len=${(content||'').length}`);
 
     // F2.13.1 — captura usage real do gateway (formato OpenAI-compatible).
     // Não inventar valores: se ausente/inválido, retornamos sem usage e o
@@ -869,7 +870,7 @@ async function sendAgendaReply(
       }),
     });
     const result = await response.text();
-    console.log(`[agenda-process-command] WhatsApp reply sent (${response.status}):`, result.substring(0, 200));
+    console.log(`[agenda-process-command] WhatsApp reply sent status=${response.status} ok=${response.ok}`);
   } catch (err) {
     console.error(`[agenda-process-command] Failed to send WhatsApp reply:`, err);
   }
