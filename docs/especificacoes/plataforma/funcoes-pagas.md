@@ -172,7 +172,8 @@ Catalogar toda edge function que consome (ou pode consumir) custo externo pago. 
 | **whatsapp-token-healthcheck** | **não aplicável** | **F2.8 (2026-05-11):** auditada — Meta Graph `/me?access_token=...` para validar token diariamente, gratuita. Sem cobrança monetária do provider. Ver §15 do doc F2. |
 | whatsapp-orphan-watcher / whatsapp-cross-business-detector | a auditar | Monitoramento WhatsApp; ainda não auditado. |
 | **platform-costs-sync** (orquestrador) | **não aplicável** | **F2.7 (2026-05-08):** auditada — apenas consulta de saldos externos (hoje SendGrid `/v3/user/credits`), sem cobrança monetária. Custo real é registrado pelo edge que **emite** o evento cobrável (ex.: `send-system-email`), nunca pelo orquestrador de sync. Cada novo adapter deve ser auditado individualmente. Ver §14 do doc F2. |
-| health-check-run / health-monitor-admin | recordPlatformCost | Health checks. |
+| **health-check-run** | **não aplicável (estado atual das suítes)** | **F2.9 (2026-05-11):** auditada — orquestrador de observabilidade. Suítes atuais (`domains`, `checkout_tracking`, `coupons`, `payments` com `dry_run`) não chamam provider pago. Não registra em `platform_cost_ledger`. **Regra de governança:** qualquer nova suíte exige auditoria F2 antes de merge. Ver §16 do doc F2. |
+| health-monitor-admin | a auditar | Health monitor admin; ainda não auditado (ver F2.10 sugerida). |
 
 **Todos os crons acima precisam de classificação 1×1 antes de Fase 7.** Função sem classificação fica bloqueada para deploy.
 
