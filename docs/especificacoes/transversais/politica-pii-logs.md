@@ -111,11 +111,22 @@ Em payload não-JSON / parse falho: `{ "parse_error", "content_type", "byte_leng
 
 `x-hub-signature-256`, `x-hub-signature`, `content-type`, `content-length`, `user-agent`, `x-request-id`, `cf-ray`, `cf-ipcountry`, `cf-connecting-ip`, `x-forwarded-for`, `x-forwarded-proto`, `host`, `sb-request-id`, `traceparent`, `x-amzn-trace-id`. Qualquer outro header é descartado.
 
-## 7. Fora do escopo desta fase
+## 7. Retenção e TTL — `whatsapp_webhook_raw_audit` (F2.13.2.B2)
 
-- **F2.13.2.B2** — TTL/retenção de `whatsapp_webhook_raw_audit` (sugestão 30d) e re-sanitização opcional de registros antigos (5.934 linhas pré-11/05/2026).
+Aplicado em 11/05/2026 (opção D híbrida):
+
+- **Limpeza imediata de PII em backlog:** `UPDATE` único em registros com `received_at < now() - interval '7 days'` setando `body_preview = NULL` e `headers_json = '{}'::jsonb`.
+  - Snapshot pré: 5.936 linhas, 5.679 alvo, 257 preservadas (últimos 7d).
+  - Snapshot pós: 0 linhas antigas com PII residual; 257 linhas recentes intactas.
+- **Campos forenses preservados em todas as linhas:** `id`, `received_at`, `trace_id`, `method`, `remote_ip`, `user_agent`, `signature_header`, `content_length`, `body_sha256`, `query_string`.
+- **TTL prospectivo de 30 dias:** cron `cleanup_whatsapp_webhook_raw_audit_30d` (jobid 53), schedule `0 6 * * *` (= 03:00 BRT), executa `DELETE FROM public.whatsapp_webhook_raw_audit WHERE received_at < now() - interval '30 days'`. Apaga a linha inteira.
+- **Não foi feita** re-sanitização retroativa com hashes nem aplicação de `LOG_HASH_SECRET` nesta fase.
+
+## 8. Fora do escopo desta fase
+
 - **F2.13.2.C** — `whatsapp_inbound_messages.raw_payload` (sugestão 90d, depois NULL).
 - `agenda_command_log.content/from_phone` — manter; revisar RLS service-role-only.
+- Provisionamento futuro de `LOG_HASH_SECRET` para HMAC-SHA256 definitivo (ver §6).
 
 ## 8. Regra de fechamento
 
