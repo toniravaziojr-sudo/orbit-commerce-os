@@ -1525,8 +1525,45 @@ Nenhuma outra edge `agenda-*` encontrada. Cron ativo identificado: **`agenda-dis
 - Nenhum webhook real, IA, mensagem, provider ou cron foi executado.
 
 **Pendências registradas:**
-- **F2.13.2.B2** — TTL/retenção 30 dias para `whatsapp_webhook_raw_audit` + decisão sobre re-sanitização retroativa de registros antigos.
 - **F2.13.2.C** — sanitização e retenção 90d de `whatsapp_inbound_messages.raw_payload`.
 
-🟢 **GO F2.13.2.B — fechado.** Próximo passo recomendado: **F2.13.2.B2 em PLANNER** (TTL e tratamento de dados retroativos).
+🟢 **GO F2.13.2.B — fechado.**
+
+---
+
+## 21.6. F2.13.2.B2 — TTL e limpeza de PII em backlog (11/05/2026)
+
+**Decisão aplicada:** opção D híbrida (TTL prospectivo + limpeza imediata de backlog, sem re-sanitização com hashes, sem `LOG_HASH_SECRET` nesta fase).
+
+**Cutoffs fixos da execução:**
+- `cleanup_cutoff = 2026-05-04 18:56:40 UTC` (now − 7 dias)
+- `ttl_cutoff = 2026-04-11 18:56:40 UTC` (now − 30 dias)
+
+**Snapshot pré-migration:**
+- Total: 5.936 linhas (min `2026-04-20`, max `2026-05-11 18:36:09Z`)
+- Linhas com `body_preview` não-nulo: 5.936
+- Alvo de limpeza (`< cleanup_cutoff`): 5.679
+- Alvo de TTL imediato (`< ttl_cutoff`): 0
+- Preservadas (últimos 7d): 257
+
+**Ações aplicadas (migration única):**
+1. `UPDATE` em linhas com `received_at < cleanup_cutoff`: `body_preview = NULL`, `headers_json = '{}'::jsonb`. **5.679 linhas atualizadas.**
+2. Cron `cleanup_whatsapp_webhook_raw_audit_30d` (jobid 53), schedule `0 6 * * *` (= 03:00 BRT), comando: `DELETE FROM public.whatsapp_webhook_raw_audit WHERE received_at < now() - interval '30 days'`.
+
+**Snapshot pós-migration:**
+- Total inalterado: 5.936 linhas (TTL atual = 0 linhas elegíveis para delete).
+- `rows_with_body_preview = 257` (todas com `received_at >= now()-7d`).
+- `rows_with_headers <> '{}' = 257` (idem).
+- `leaked_old = 0` — nenhuma PII residual em backlog.
+- `body_sha256`, `signature_header`, `trace_id` preservados em **todas** as 5.936 linhas.
+
+**Validações forenses confirmadas:** `id`, `received_at`, `trace_id`, `method`, `remote_ip`, `user_agent`, `signature_header`, `content_length`, `body_sha256`, `query_string` mantidos em todas as linhas.
+
+**Não tocado nesta fase:** `whatsapp_inbound_messages.raw_payload`, `agenda_command_log`, wallet, `credit_ledger`, `service_usage_events`, `platform_cost_ledger`, pricing, `service_key`, UI/UX, RLS, RPC, edges. Sem re-sanitização retroativa com hashes. `LOG_HASH_SECRET` não provisionado nesta fase.
+
+**Pendências registradas:**
+- **F2.13.2.C** — sanitização e retenção 90d de `whatsapp_inbound_messages.raw_payload`.
+- Provisionamento futuro de `LOG_HASH_SECRET` (HMAC-SHA256 definitivo).
+
+🟢 **GO F2.13.2.B2 — fechado.** Próximo passo recomendado: **F2.13.2.C em PLANNER** (`whatsapp_inbound_messages.raw_payload`).
 
