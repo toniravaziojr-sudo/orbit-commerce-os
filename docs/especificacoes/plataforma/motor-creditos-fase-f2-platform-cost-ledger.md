@@ -1619,7 +1619,7 @@ Nenhuma outra edge `agenda-*` encontrada. Cron ativo identificado: **`agenda-dis
 - ✅ Sem alteração de UI/UX, código de aplicação, schema (apenas DML + cron), ou cobrança.
 
 ### Pendências registradas
-- **F2.13.2.C-CODE** — alterar `meta-whatsapp-webhook/index.ts:318` para parar de gravar `raw_payload` em novos inserts (até lá, TTL diário de 30d cobre o prazo).
+- **F2.13.2.C-CODE** — concluída em 11/05/2026 (ver §21.8).
 - Provisionamento futuro de `LOG_HASH_SECRET` (HMAC-SHA256 definitivo) — herdado de F2.13.2.B.
 
 🟢 **GO F2.13.2.C — fechado.** Próximo passo recomendado: **F2.13.2.C-CODE em PLANNER** (parar a escrita futura de `raw_payload` no `meta-whatsapp-webhook`).
