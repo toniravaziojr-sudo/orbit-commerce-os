@@ -15,24 +15,6 @@ type: reference
 
 # Assuntos recentes
 
-## 📌 PINNED — Profile Enrichment Policy — ✅ VALIDADA E LIMPA + ⏳ pendente verificação de divergência real (2026-05-05)
-
-**Status macro:**
-- Implementação ✅ aplicada e validada em produção real (pedidos #410 e #411, Respeite o Homem): trigger `after_order_approved_sync` → `enrich_customer_from_order` populou CPF, nascimento, telefone, nome e bloco completo de endereço sem tocar em e-mail.
-- Higiene ✅ aplicada: removido bloco "ENRICH" duplicado em `trg_recalc_customer_on_order`. Agora `enrich_customer_from_order` é fonte única de enriquecimento. Anti-regressão registrada em `mem://features/customers/profile-enrichment-policy-standard`.
-
-**⏳ Pendente de validação observacional (aguardando pedido real com divergência):**
-- #410 e #411 vieram 100% idênticos ao cadastro — não exercitaram o caminho de sobrescrita.
-- Quando entrar um próximo pedido aprovado em `respeiteohomem` (ou qualquer tenant) com algum campo diferente do cadastro (CPF, telefone, nome, nascimento ou endereço), validar:
-  1. Campos pessoais não-vazios do pedido SOBRESCREVERAM o cadastro (não preservaram o antigo).
-  2. Se o pedido trouxe CEP, o bloco de endereço inteiro foi substituído (sem mistura CEP novo + bairro velho).
-  3. E-mail permaneceu intocado.
-- Expectativa confirmada com o usuário: o pedido mais novo é fonte de verdade — divergência = sobrescrita, sem alerta, sem histórico (limitação conhecida e aceita por enquanto).
-
-**Próximo passo:** seguir com SendGrid. Verificação de divergência fica em standby até entrar pedido real elegível.
-
----
-
 ## 📌 PINNED — Motor Universal de Créditos — ROLLOUT EM ANDAMENTO (Lote 3 entregue 2026-05-06)
 
 **Status macro:** Motor universal de cobrança real por consumo plugado em produção via 2 helpers padronizados:
