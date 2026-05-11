@@ -177,6 +177,61 @@ Deno.serve(async (req) => {
     const aiResult = aiResponse.data!;
     console.log(`[agenda-process-command][${traceId}] AI result: intent=${aiResult.intent}, needs_confirm=${aiResult.needs_confirmation}`);
 
+    // ── F2.13.1 — MOTOR DE CRÉDITOS: cobra IA da Agenda ──
+    // Cobra somente após sucesso real do provider, com usage válido.
+    // Falhas de cobrança/telemetria NUNCA quebram a Agenda (try/catch isolado).
+    // Idempotência: jobId determinístico por external_message_id (+ ":in"/":out").
+    // Dedupe por (tenant_id, external_message_id) já garantiu redelivery na entrada.
+    try {
+      const usage = aiResponse.usage;
+      if (!usage) {
+        console.warn(`[agenda-process-command][${traceId}] charge skipped: usage_missing_from_gateway`);
+      } else {
+        const { chargeAfter } = await import("../_shared/credits/charge-after.ts");
+        const baseMetadata = {
+          conversation: "agenda",
+          intent: aiResult.intent,
+          ...(aiResult.delegate_action ? { delegate_action: aiResult.delegate_action } : {}),
+          model: "google/gemini-2.5-flash",
+          needs_confirmation: aiResult.needs_confirmation,
+          tokens_in: usage.prompt_tokens,
+          tokens_out: usage.completion_tokens,
+          origin_function: "agenda-process-command",
+          external_message_id_tail: external_message_id.slice(-12),
+        };
+        if (usage.prompt_tokens > 0) {
+          await chargeAfter({
+            tenantId: tenant_id,
+            serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_in",
+            units: { tokens: usage.prompt_tokens },
+            jobId: `agenda:${external_message_id}:in`,
+            feature: "agenda-process-command",
+            metadata: baseMetadata,
+          });
+        } else {
+          console.log(`[agenda-process-command][${traceId}] charge skipped (in): prompt_tokens=0`);
+        }
+        if (usage.completion_tokens > 0) {
+          await chargeAfter({
+            tenantId: tenant_id,
+            serviceKey: "gemini.gemini-2.5-flash.per_1m_tokens_out",
+            units: { tokens: usage.completion_tokens },
+            jobId: `agenda:${external_message_id}:out`,
+            feature: "agenda-process-command",
+            metadata: baseMetadata,
+          });
+        } else {
+          console.log(`[agenda-process-command][${traceId}] charge skipped (out): completion_tokens=0`);
+        }
+      }
+    } catch (chargeErr) {
+      console.warn(
+        `[agenda-process-command][${traceId}] chargeAfter exception:`,
+        String((chargeErr as { message?: string } | null)?.message || chargeErr),
+      );
+    }
+
+
     // ── EXECUTE BASED ON INTENT ──
     let reply = aiResult.reply;
     let actionTaken = aiResult.intent;
@@ -537,10 +592,17 @@ interface AIResult {
   delegate_args?: Record<string, unknown>;
 }
 
+// F2.13.1 — usage real propagado para chargeAfter (Motor de Créditos)
+export interface AIUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens?: number;
+}
+
 async function callAI(
   messages: Array<{ role: string; content: string }>,
   traceId: string,
-): Promise<{ success: boolean; data?: AIResult; error?: string }> {
+): Promise<{ success: boolean; data?: AIResult; usage?: AIUsage; error?: string }> {
   const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!lovableApiKey) {
     return { success: false, error: "LOVABLE_API_KEY not configured" };
@@ -577,8 +639,28 @@ async function callAI(
 
     console.log(`[agenda-process-command][${traceId}] AI raw:`, content.substring(0, 400));
 
+    // F2.13.1 — captura usage real do gateway (formato OpenAI-compatible).
+    // Não inventar valores: se ausente/inválido, retornamos sem usage e o
+    // handler decide não cobrar (e loga skip sanitizado).
+    const rawUsage = data?.usage;
+    let usage: AIUsage | undefined;
+    if (
+      rawUsage &&
+      typeof rawUsage === "object" &&
+      Number.isFinite(rawUsage.prompt_tokens) &&
+      Number.isFinite(rawUsage.completion_tokens)
+    ) {
+      usage = {
+        prompt_tokens: Math.max(0, Math.floor(rawUsage.prompt_tokens)),
+        completion_tokens: Math.max(0, Math.floor(rawUsage.completion_tokens)),
+        ...(Number.isFinite(rawUsage.total_tokens)
+          ? { total_tokens: Math.max(0, Math.floor(rawUsage.total_tokens)) }
+          : {}),
+      };
+    }
+
     const parsed: AIResult = JSON.parse(content);
-    return { success: true, data: parsed };
+    return { success: true, data: parsed, usage };
   } catch (err) {
     console.error(`[agenda-process-command][${traceId}] AI call error:`, err);
     return { success: false, error: String(err) };
