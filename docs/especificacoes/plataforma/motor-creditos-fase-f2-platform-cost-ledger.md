@@ -1624,4 +1624,45 @@ Nenhuma outra edge `agenda-*` encontrada. Cron ativo identificado: **`agenda-dis
 
 🟢 **GO F2.13.2.C — fechado.** Próximo passo recomendado: **F2.13.2.C-CODE em PLANNER** (parar a escrita futura de `raw_payload` no `meta-whatsapp-webhook`).
 
+---
+
+## 21.8. F2.13.2.C-CODE — Stop-write de `raw_payload` em `whatsapp_inbound_messages` (11/05/2026)
+
+**Decisão aplicada:** parar a gravação de PII redundante no `meta-whatsapp-webhook`, mantendo o cron de retenção como rede de segurança.
+
+### Auditoria pré-execução (PLANNER)
+- Writer único: `supabase/functions/meta-whatsapp-webhook/index.ts:318`.
+- Coluna `raw_payload`: `jsonb`, `is_nullable=YES`, sem default, sem CHECK.
+- `information_schema.triggers` em `whatsapp_inbound_messages`: vazio.
+- `information_schema.routines` no schema `public` referenciando `raw_payload`: vazio.
+- Leitores reais (rg em `supabase/functions/` + `src/`): zero (apenas `types.ts`).
+- Dedupe Camada 6 usa `external_message_id`, não `raw_payload`.
+
+### Alteração aplicada
+Mudança cirúrgica de uma única linha no INSERT de `whatsapp_inbound_messages`:
+
+```diff
+- raw_payload: message,
++ raw_payload: null,
+```
+
+Demais campos do INSERT (`tenant_id`, `provider`, `external_message_id`, `from_phone`, `to_phone`, `message_type`, `message_content`, `media_url`, `timestamp`, `processing_status`) intactos. Edge function `meta-whatsapp-webhook` redeployada.
+
+### Cobertura por tipo de mensagem
+- **text / image / video / audio / document / location:** colunas estruturadas cobrem 100% do uso operacional.
+- **reaction / context (reply) / referral (Click-to-WA Ads) / interactive (button/list reply) / system / unsupported:** sem leitor atual; perda apenas forense.
+
+### Confirmações de não-impacto
+- ✅ Cron `cleanup_whatsapp_inbound_raw_payload_30d` (jobid 54) **mantido ativo** como rede de segurança.
+- ✅ Cron `cleanup_whatsapp_webhook_raw_audit_30d` (jobid 53) **não alterado**.
+- ✅ Nenhum dado antigo alterado nesta etapa (sem DML).
+- ✅ AI Support, Agenda, watchers, dedupe, atendimento, UI/UX **não** afetados.
+- ✅ `whatsapp_webhook_raw_audit`, `agenda_command_log`, wallet, `credit_ledger`, `service_usage_events`, `platform_cost_ledger`, RLS, RPC, schema **não** alterados.
+- ✅ Nenhum webhook real, mensagem real, IA ou provider executado nesta etapa.
+
+### Backlog futuro registrado
+- **Extração estruturada de `referral`, `interactive`, `context` e `reaction` para colunas próprias** antes de qualquer ativação de Click-to-WhatsApp Ads, botões IA, replies contextuais ou reações como gatilho. Sem essa extração, esses dados deixam de existir a partir do go-live de F2.13.2.C-CODE.
+- Provisionamento futuro de `LOG_HASH_SECRET` (HMAC-SHA256 definitivo) — herdado de F2.13.2.B.
+
+🟢 **GO F2.13.2.C-CODE — fechado.** Próximo passo recomendado: monitorar primeiros inbounds reais pós-deploy e confirmar `raw_payload IS NULL` no novo registro.
 
