@@ -134,9 +134,18 @@ Aplicado em 11/05/2026 (opção E híbrida — somente parte de dados/retenção
 - **TTL prospectivo de 30 dias:** cron `cleanup_whatsapp_inbound_raw_payload_30d` (jobid 54), schedule `15 6 * * *` (= 03:15 BRT, deslocado 15 min do cron de `whatsapp_webhook_raw_audit` para evitar contenção). Ação: `UPDATE … SET raw_payload = NULL WHERE timestamp < now() − interval '30 days' AND raw_payload IS NOT NULL`. **A linha inteira é preservada** — não há `DELETE`.
 - **Preservados indefinidamente:** `id`, `tenant_id`, `provider`, `external_message_id`, `from_phone`, `to_phone`, `message_type`, `message_content`, `media_url`, `timestamp`, `processed_at`, `processed_by`, `processing_status`, `processing_error`, `conversation_id`, `created_at` — registro permanente do atendimento.
 
-## 9. Fora do escopo desta fase
+## 9. Stop-write em `whatsapp_inbound_messages.raw_payload` (F2.13.2.C-CODE)
 
-- **F2.13.2.C-CODE** — parar de gravar `raw_payload` em novos inserts no `meta-whatsapp-webhook` (ainda escreve; TTL cuida do prazo de 30d até essa fase).
+Aplicado em 11/05/2026:
+
+- **Mudança cirúrgica** em `supabase/functions/meta-whatsapp-webhook/index.ts:318` — `raw_payload: message` → `raw_payload: null`.
+- Demais campos do INSERT preservados; edge function redeployada.
+- Cron `cleanup_whatsapp_inbound_raw_payload_30d` (jobid 54) **mantido** como rede de segurança contra regressão futura.
+- Sem alteração de dados antigos, schema, RLS, RPC ou UI.
+- **Backlog futuro:** se Click-to-WhatsApp Ads, botões IA, replies contextuais ou reactions virarem feature, extrair `referral`/`interactive`/`context`/`reaction` para colunas próprias **antes** do consumo — esses dados deixaram de existir a partir do go-live.
+
+## 10. Fora do escopo desta fase
+
 - `agenda_command_log.content/from_phone` — manter; revisar RLS service-role-only.
 - Provisionamento futuro de `LOG_HASH_SECRET` para HMAC-SHA256 definitivo (ver §6).
 
