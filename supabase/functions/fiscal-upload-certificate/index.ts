@@ -294,15 +294,15 @@ Deno.serve(async (req) => {
 
     if (now < notBefore) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Certificado ainda não está válido' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Este certificado ainda não está válido. Verifique a data de início de validade.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (now > notAfter) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Certificado expirado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Este certificado está expirado. Solicite a renovação do certificado A1 e tente novamente.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
