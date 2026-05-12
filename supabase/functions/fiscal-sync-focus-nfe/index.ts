@@ -176,9 +176,32 @@ Deno.serve(async (req) => {
 
     // Atualizar fiscal_settings com ID da empresa Focus NFe
     const newEmpresaId = result.data?.id || result.data?.cnpj || empresaId;
-    
-    // Atualiza vínculo Focus + metadados de certificado retornados pelo Focus
-    // (validade do cert é o sinal canônico de que o cert foi aceito).
+
+    // Buscar snapshot completo da empresa na Focus para obter metadados do certificado
+    // (PUT/POST nem sempre devolvem certificado_valido_ate / certificado_cnpj).
+    let focusSnapshot: any = result.data || {};
+    try {
+      const snap = await getEmpresa(focusConfig, String(newEmpresaId));
+      if (snap.success && snap.data) {
+        focusSnapshot = { ...focusSnapshot, ...snap.data };
+      }
+    } catch (e) {
+      console.warn('[fiscal-sync-focus-nfe] Falha ao buscar snapshot da empresa:', e);
+    }
+
+    const certValidoAteRaw =
+      focusSnapshot.certificado_valido_ate ||
+      focusSnapshot.certificado_validade ||
+      null;
+    const certCnpjRaw =
+      focusSnapshot.certificado_cnpj ||
+      (result.data?.cnpj ?? settings.cnpj ?? '');
+    const certCnRaw =
+      focusSnapshot.nome ||
+      focusSnapshot.razao_social ||
+      settings.razao_social ||
+      null;
+
     const updatePayload: Record<string, any> = {
       focus_empresa_id: newEmpresaId,
       focus_empresa_criada_em: empresaId ? undefined : new Date().toISOString(),
@@ -186,12 +209,29 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     };
 
-    if (result.data?.certificado_validade) {
-      updatePayload.certificado_valido_ate = new Date(result.data.certificado_validade).toISOString();
-      // CN/CNPJ: se o Focus devolveu razão social, podemos refletir; CNPJ aqui é o do emitente.
-      updatePayload.certificado_cnpj = (result.data.cnpj ?? settings.cnpj ?? '').toString().replace(/\D/g, '') || null;
-      updatePayload.certificado_cn = result.data.razao_social ?? settings.razao_social ?? null;
+    if (certValidoAteRaw) {
+      updatePayload.certificado_valido_ate = new Date(certValidoAteRaw).toISOString();
+      updatePayload.certificado_cnpj = String(certCnpjRaw).replace(/\D/g, '') || null;
+      updatePayload.certificado_cn = certCnRaw;
     }
+
+    // Recalcular is_configured com base nos requisitos canônicos
+    const certValid = updatePayload.certificado_valido_ate
+      ? new Date(updatePayload.certificado_valido_ate) > new Date()
+      : (settings.certificado_valido_ate ? new Date(settings.certificado_valido_ate) > new Date() : false);
+    const hasCert = !!settings.certificado_pfx;
+    updatePayload.is_configured = !!(
+      settings.razao_social &&
+      settings.cnpj &&
+      (settings.ie_isento || settings.inscricao_estadual) &&
+      settings.endereco_logradouro &&
+      settings.endereco_numero &&
+      settings.endereco_municipio &&
+      settings.endereco_uf &&
+      settings.endereco_cep &&
+      settings.serie_nfe &&
+      hasCert && certValid
+    );
 
     const { error: updateError } = await supabaseClient
       .from('fiscal_settings')
