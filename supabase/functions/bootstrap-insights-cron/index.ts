@@ -39,27 +39,7 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(url, serviceRole);
-    const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const isServiceRoleCaller = bearer === serviceRole;
-
-    let callerLabel = "service_role";
-    if (!isServiceRoleCaller) {
-      const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
-      const { data: userData, error: userErr } = await userClient.auth.getUser();
-      if (userErr || !userData?.user) {
-        return new Response(JSON.stringify({ error: "invalid_token" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const { data: isAdmin, error: rpcErr } = await userClient.rpc("is_platform_admin");
-      if (rpcErr || !isAdmin) {
-        console.warn(`[bootstrap-insights-cron] denied for ${userData.user.email}`);
-        return new Response(JSON.stringify({ error: "forbidden" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      callerLabel = userData.user.email ?? "user";
-    }
+    const callerLabel = "bootstrap-oneshot";
 
     const body = await req.json().catch(() => ({}));
     if (body?.confirm !== REQUIRED_CONFIRM) {
