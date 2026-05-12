@@ -77,6 +77,43 @@ export function getEffectiveFbp(): string | null {
 }
 
 /**
+ * v8.33.0 — Client-side seed of `_fbp` for SPA-only routes (parity with
+ * the edge `_sfEnsureFbp`). Mirrors the synthesis logic of `storefront-html`
+ * so any route mounted purely client-side (e.g. `/thank-you` reached after
+ * a payment-gateway redirect) still has a `_fbp` available before the first
+ * CAPI dispatch.
+ *
+ * Behavior:
+ *   1. If `window.__sfFbp` already seeded by edge → no-op.
+ *   2. If `_fbp` cookie already exists → mirror to `window.__sfFbp` and exit.
+ *   3. Otherwise synthesize `fb.1.<ms>.<10-digit-rand>` (Meta canonical),
+ *      persist as cookie (90d, Path=/, SameSite=Lax) and expose on window.
+ *      The Meta Pixel script (`fbq('init')`) respects an existing `_fbp`
+ *      cookie — no concurrent IDs are created.
+ *
+ * Idempotent and safe to call multiple times per session.
+ */
+export function ensureFbp(): string | null {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+
+  const existingSeed = (window as any).__sfFbp;
+  if (typeof existingSeed === 'string' && existingSeed.length > 0) return existingSeed;
+
+  const cookieFbp = getCookie('_fbp');
+  if (cookieFbp) {
+    (window as any).__sfFbp = cookieFbp;
+    return cookieFbp;
+  }
+
+  // Synthesize: fb.1.<ms>.<10-digit-random>  (Meta canonical format)
+  const rand = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000;
+  const synthetic = `fb.1.${Date.now()}.${rand}`;
+  setCookie('_fbp', synthetic, 90);
+  (window as any).__sfFbp = synthetic;
+  return synthetic;
+}
+
+/**
  * Get _fbc value. Checks URL for fbclid first, then cookie, then localStorage fallback.
  * Persists in first-party cookie (90 days) for better attribution.
  */
