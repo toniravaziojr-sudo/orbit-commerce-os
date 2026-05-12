@@ -712,3 +712,25 @@ fiscal_invoice_items (itens)
 - Cadastro inicial na Focus NFe é automático no primeiro upload de certificado.
 - Troca para certificado de outro CNPJ é detectada e resolvida automaticamente, sem intervenção manual.
 - O lojista nunca emite NF-e com vínculo Focus NFe inconsistente.
+
+---
+
+## Padrão de envelope de erro (módulo Fiscal)
+
+Todas as edge functions do módulo fiscal devem retornar **HTTP 200 + `{ success: false, error: "<mensagem clara em PT-BR>" }`** para erros de negócio (senha errada, certificado inválido, CNPJ divergente, validação de dados, recurso não encontrado etc.). Status 4xx/5xx fica reservado para falhas reais de infraestrutura.
+
+Motivo: o cliente do front (`supabase.functions.invoke`) trata respostas ≥400 como erro genérico e a mensagem real não chega ao toast — usuário vê apenas "Erro ao processar fiscal" e o diagnóstico fica impossível.
+
+### Categorização do upload de certificado A1
+
+`fiscal-upload-certificate` distingue obrigatoriamente:
+
+1. **Arquivo em formato PEM** (não PFX) → orienta reexportar como `.pfx` com senha.
+2. **Cifra/algoritmo não suportados** (PFX exportado com PBES2/AES-256 moderno) → orienta reexportar com compatibilidade tradicional (TripleDES) ou solicitar ao emissor um arquivo compatível.
+3. **MAC/Senha inválida** → "Senha do certificado incorreta".
+4. **ASN/DER corrompido** → "Arquivo de certificado inválido ou corrompido".
+5. **Fallback amigável** caso o erro não se encaixe nos anteriores.
+
+Logs de diagnóstico (tamanho do arquivo, primeiros bytes, detecção PEM) são gerados em todo upload para acelerar triagem.
+
+> **Limitação conhecida do leitor PFX:** a biblioteca atual (`node-forge` 1.3) não suporta cifras modernas. Quando o lojista informar que reexportou várias vezes e continua recebendo "formato não suportado", o caminho é trocar o leitor de PFX (já mapeado como evolução pendente — afeta também a assinatura do XML em `_shared/xml-signer.ts`).
