@@ -437,10 +437,61 @@ Executada em 2026-05-07 logo após o deploy. Confirmações:
 
 ---
 
+## Auditoria 2026-05-12 — Gap residual de `_fbp` em Purchase (v8.33.0)
+
+Medição consolidada 5 dias após a v8.32.0 confirmou que **8 de 9 eventos** atingiram a meta de cobertura `_fbp` (PageView 98%, ViewCategory 99%, ViewContent 100%, AddToCart 100%, InitiateCheckout 100%, Lead 100%, AddShipping/PaymentInfo 100%). **Único evento abaixo da meta:** `Purchase` em **76%** (era 71% pré-v8.32).
+
+### Causa raiz
+
+A página de obrigado (`/thank-you`) é uma rota **SPA-only**: não passa pelo edge `storefront-html`, portanto o helper `_sfEnsureFbp` (que sintetiza `_fbp` antes de qualquer disparo) nunca executa nessa rota. Quando o cliente:
+- chega à página de obrigado **direto** após redirect do gateway de pagamento (Mercado Pago, etc.) **sem** ter navegado em rotas servidas pelo edge antes;
+- ou está em sessão privada/anônima onde o script do Pixel ainda não inicializou no momento do disparo de Purchase;
+
+→ não há `_fbp` em cookie nem em `window.__sfFbp`, e o Purchase CAPI vai sem `fbp`. O cofre `_sf_identity` cobre PII, mas **não armazena `_fbp`**, portanto não atua como fallback.
+
+### Correção aplicada (v8.33.0)
+
+Novo helper `ensureFbp()` em `src/lib/visitorIdentity.ts` espelha a lógica do edge `_sfEnsureFbp` no cliente. Chamado em `MarketingTracker.initialize()` antes de qualquer evento. Comportamento:
+
+1. Se `window.__sfFbp` já foi semeado pelo edge → no-op.
+2. Se cookie `_fbp` já existe (Pixel ou edge anterior) → espelha em `window.__sfFbp` e sai.
+3. Caso contrário, sintetiza `fb.1.<ms>.<10-digit-rand>` (formato canônico Meta), persiste como cookie 90d (`Path=/; SameSite=Lax`) e expõe em `window.__sfFbp`.
+
+**Por que é seguro:**
+- `fbq('init')` da Meta **respeita cookie `_fbp` pré-existente** — não cria ID concorrente.
+- Helper é idempotente: múltiplas chamadas no mesmo tab convergem para o mesmo valor.
+- `getEffectiveFbp()` permanece **read-only** conforme contrato existente; toda síntese fica no novo helper.
+- Qualquer evento subsequente (Pixel ou CAPI) encontra `_fbp` disponível sincronamente.
+
+### Arquivos alterados
+
+| Arquivo | Mudança |
+|---|---|
+| `src/lib/visitorIdentity.ts` | Novo `ensureFbp()` (sintetiza+persiste cookie 90d quando ausente). |
+| `src/lib/marketingTracker.ts` | `initialize()` chama `ensureFbp()` após `getOrCreateVisitorId()`. |
+
+### Cobertura esperada pós-v8.33.0
+
+| Evento | `_fbp` esperado |
+|---|---|
+| Purchase | **≥99%** (era 76%) |
+| Demais eventos | mantidos (já em ≥98%) |
+
+### Validação
+
+Aguardar 24-48h de tráfego pós-deploy. Critério de sucesso: `_fbp` em Purchase CAPI ≥99% no `marketing_events_log`. Janela de 7 dias para a Meta refletir EMQ no Events Manager.
+
+### Anti-regressão
+
+Toda nova rota SPA-only que dispare eventos Meta deve assumir que `_fbp` já está garantido por `ensureFbp()` no `initialize` do tracker. **Proibido** sintetizar `_fbp` em outros pontos do código (criaria IDs concorrentes). Ver `mem://constraints/spa-only-route-fbp-seed`.
+
+---
+
 ## Versionamento
 
 | Versão | Data | Resumo |
 |---|---|---|
+| **v8.33.0** | **2026-05-12** | **Seed client-side de `_fbp` para rotas SPA-only:** `ensureFbp()` em `visitorIdentity.ts` espelha `_sfEnsureFbp` do edge — sintetiza `fb.1.<ms>.<rand>`, persiste cookie 90d e expõe `window.__sfFbp` quando ambos estão ausentes. Chamado uma vez em `MarketingTracker.initialize()`. Resolve gap de Purchase `_fbp` de 76% → ≥99% para usuários que entram direto em `/thank-you` após redirect de gateway. `getEffectiveFbp()` permanece read-only. |
 | **v8.31.0** | **2026-05-05** | **Cobertura CAPI máxima: `marketing-capi-track` aceita custom_data passthrough completo (allowlist removida); Pixel browser inclui `delivery_category=home_delivery` em ViewContent/AddToCart/InitiateCheckout/Purchase; Purchase server-side adiciona `order_status=completed`; ViewContent envia `contents[]` com `item_price` (paridade com AddToCart).** |
 | **v8.30.0** | **2026-05-05** | **Cofre estendido: `db_hash` (data nascimento), `ge_hash`, `lead_id`, `customer_id`. 4 quick wins: `external_id` array, `predicted_ltv` em Purchase, `delivery_category` em todos os eventos de conversão, `lead_id` em `custom_data`. Coleta opcional de data de nascimento em Checkout, Popup, Newsletter Footer e bloco Newsletter Form. `audience-sync-weekly` v1.2.0 com enriquecimento demográfico.** |
 | **v8.32.0** | **2026-05-07** | **Paridade Pixel+CAPI de `_fbp` no topo do funil:** `_sfEnsureFbp` no storefront-html sintetiza `_fbp` (formato `fb.1.<ms>.<rand>`, cookie 90d) e expõe `window.__sfFbp` antes de qualquer disparo; tracker React lê via `getEffectiveFbp()` (window > cookie). **Paridade Purchase server-side** em `sendCapiPurchase` (predicted_ltv com guard `value>0`, `delivery_category='home_delivery'`, `order_status='completed'`). **Fallback secundário** em `marketing-capi-track` lendo `_fbp` do header `Cookie` quando ausente em `user_data` (payload do browser sempre vence). **`delivery_category='home_delivery'`** adicionado em AddToCart/InitiateCheckout do storefront-html (Pixel + CAPI), incluindo dentro de `contents[]`. **Beacon-first pré-navegação:** `sendCapi` aceita `beaconFirst=true` para AddToCart/InitiateCheckout do tracker React; se `navigator.sendBeacon` aceitar (`true`), não há fetch duplicado; se falhar, cai em fetch+keepalive (mantém fallback existente). Sem alteração em `purchaseEventTiming`, dedup persistente de 30d ou outbox. Nota: marketing_events_log mede CAPI; Pixel browser deve ser validado no Meta Test Events. EMQ de eventos de topo (PageView/ViewCategory/ViewContent) pode continuar menor para visitantes anônimos sem PII no cofre. Prerenders marcados `stale` para reemitir HTML novo. |
