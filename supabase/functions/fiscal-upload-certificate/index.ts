@@ -142,15 +142,15 @@ Deno.serve(async (req) => {
       password = body.password;
     } else {
       return new Response(
-        JSON.stringify({ success: false, error: 'Envie o certificado em formato JSON com pfx_base64 e password' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Formato de envio inválido. Tente novamente pela tela de configurações fiscais.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!pfxBase64 || !password) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Certificado e senha são obrigatórios' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Selecione o arquivo do certificado e informe a senha.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -162,8 +162,27 @@ Deno.serve(async (req) => {
       pfxDer = atob(pfxBase64);
     } catch {
       return new Response(
-        JSON.stringify({ success: false, error: 'Arquivo PFX inválido (base64 malformado)' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Arquivo de certificado inválido ou corrompido. Reexporte o .pfx e tente novamente.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Diagnostic: file size + first bytes (PEM vs DER)
+    const firstBytes = pfxDer.length >= 2 ? [pfxDer.charCodeAt(0), pfxDer.charCodeAt(1)] : [];
+    const looksLikePem = pfxDer.startsWith('-----');
+    console.log('[fiscal-upload-certificate] PFX diagnostics:', {
+      size: pfxDer.length,
+      firstBytesHex: firstBytes.map((b) => b.toString(16).padStart(2, '0')).join(' '),
+      looksLikePem,
+    });
+
+    if (looksLikePem) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'O arquivo enviado está em formato PEM, não PFX/PKCS#12. Reexporte o certificado A1 como .pfx (com senha) e tente novamente.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -176,11 +195,25 @@ Deno.serve(async (req) => {
     try {
       p12Asn1 = forge.asn1.fromDer(pfxDer);
       p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, password);
-    } catch (e) {
-      console.error('[fiscal-upload-certificate] Failed to open PFX:', e);
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      console.error('[fiscal-upload-certificate] Failed to open PFX:', msg);
+
+      // Categoriza o erro para mensagem clara ao usuário
+      let userError: string;
+      if (/Only \d+, \d+, \d+, or \d+ bits supported/i.test(msg) || /unsupported.*(cipher|algorithm|encryption)/i.test(msg) || /OID.*not.*supported/i.test(msg)) {
+        userError = 'O formato de criptografia deste certificado não é suportado pela plataforma. Reexporte o arquivo .pfx escolhendo "compatibilidade" ou criptografia tradicional (TripleDES) e tente novamente. Se a dúvida persistir, peça ao emissor do certificado um .pfx em formato compatível.';
+      } else if (/PKCS#12 MAC could not be verified|invalid password|mac/i.test(msg)) {
+        userError = 'Senha do certificado incorreta. Verifique a senha e tente novamente.';
+      } else if (/asn|der|invalid|parse/i.test(msg)) {
+        userError = 'Arquivo de certificado inválido ou corrompido. Reexporte o .pfx e tente novamente.';
+      } else {
+        userError = 'Não foi possível abrir o certificado. Verifique se o arquivo é um .pfx válido e se a senha está correta.';
+      }
+
       return new Response(
-        JSON.stringify({ success: false, error: 'Senha incorreta ou certificado inválido' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: userError }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -191,16 +224,16 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.error('[fiscal-upload-certificate] Failed to extract bags:', e);
       return new Response(
-        JSON.stringify({ success: false, error: 'Erro ao extrair certificado do arquivo PFX' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Não foi possível ler o certificado dentro do arquivo. Reexporte o .pfx e tente novamente.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const certBagList = certBags[forge.pki.oids.certBag];
     if (!certBagList || certBagList.length === 0) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Nenhum certificado encontrado no arquivo PFX' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Nenhum certificado encontrado dentro do arquivo .pfx.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -208,8 +241,8 @@ Deno.serve(async (req) => {
     const cert = certBagList[0].cert;
     if (!cert) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Certificado inválido' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Certificado inválido dentro do arquivo .pfx.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
