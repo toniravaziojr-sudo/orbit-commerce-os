@@ -121,24 +121,48 @@ type: reference
 
 ---
 
-## 🟢 AUTO — Edge HTML First-Touch Attribution + Fiscal CNPJ Swap (2026-05-09)
+## 🟢 AUTO — Ajustes Gerais — Onda 3 Billing SaaS vs Pagamentos das Lojas (2026-05-12)
 
 **Onde paramos exatamente:**
-- Diagnóstico dos 4 pedidos do tenant Respeite o Homem: todos com `attribution_source=unknown`, `landing_page=/checkout`, referrer same-domain, UTMs/click IDs vazios — primeiro toque perdido.
-- **Causa raiz:** Edge HTML (Content-First) renderiza home/categoria/produto/carrinho sem React; o hook `useAttribution` só rodava em `/checkout`, sobrescrevendo tudo com landing=`/checkout`.
-- **Correção aplicada e deployed:**
-  1. `supabase/functions/storefront-html/index.ts` → bloco "FIRST-TOUCH ATTRIBUTION CAPTURE (Edge HTML)" injetado em `generateMarketingPixelScripts` (script inline + cookie `_sf_attr` 90d, pula rotas checkout-like).
-  2. `src/hooks/useAttribution.ts` → React agora só lê e só atualiza com novo click ID/UTM; nunca sobrescreve com `/checkout`.
-  3. Anti-regressão: `mem://constraints/edge-html-attribution-capture`.
-  4. Doc atualizado: `docs/especificacoes/marketing/marketing-integracoes.md` seção "Captura de First-Touch (Edge HTML — obrigatório)".
-- **Validação observacional pendente:** novo pedido entrando via `?utm_source=google&gclid=TEST123` (ou tráfego real de Ads) deve mostrar em `order_attribution`: `gclid` preenchido, `landing_page` ≠ `/checkout`, `attribution_source=google_ads`.
+- Onda 3.0 (PLANNER) concluída: separação formal entre Domínio A (Billing SaaS da plataforma — gateway exclusivo Mercado Pago, recebedor = tenant admin) e Domínio B (pagamentos das lojas dos tenants — multi-gateway: MP, Pagar.me e outros). Caso especial Respeite o Homem mantido intocado.
+- Onda 3.0.1 (preflight read-only) + 3.0.2 (saneamento documental) ✅ aplicadas. Sem alterar código funcional, edge functions, UI, schema ou cobranças.
+- Doc novo criado: `docs/especificacoes/sistema/billing-saas-vs-loja.md` (normativo, Layer 3).
+- Doc atualizado: `docs/especificacoes/sistema/planos-billing.md` com bloco normativo de separação + referência cruzada.
 
-**Assunto anterior do mesmo loop (Fiscal CNPJ swap):**
-- Constraint criada: `mem://constraints/fiscal-cnpj-swap-and-focus-link-cleanup` — ao trocar CNPJ do emitente, edges `fiscal-upload-certificate`, `fiscal-remove-certificate`, `fiscal-emit`, `fiscal-submit` devem limpar vínculo Focus NFe órfão. Doc `docs/especificacoes/erp/erp-fiscal.md` atualizado.
+**Estado atual confirmado no banco/código (preflight read-only):**
+- `platform_credentials.mercadopago_client_id` e `mercadopago_client_secret`: ❌ ausentes.
+- `payment_providers` do tenant admin (`cc000000-…0001`): ❌ ausente — recebedor SaaS não conectado.
+- `payment_providers` em geral: 2 registros, ambos `provider='pagarme'` (Amazgan + Respeite o Homem, Domínio B).
+- Divergência canônica do provider MP (BLOQUEIO): helper procura `'mercadopago'`, callback OAuth grava `'mercado_pago'`. Sem padronização, billing fica silenciosamente quebrado mesmo após OAuth bem-sucedido.
 
-**Restrições ativas:**
-- Não tocar em `checkout-create-order` (já lê `order_attribution` corretamente do payload).
-- Não fazer backfill nos 4 pedidos antigos (atribuição perdida — só novos pedidos serão corretos).
-- Não remover o `if (isCheckoutLike) return null` do `useAttribution` (poluiria first-touch).
+**Decisões aprovadas pelo operador (registradas em `billing-saas-vs-loja.md` §5):**
+- Billing SaaS exclusivo Mercado Pago.
+- Sandbox primeiro; produção só após validação.
+- Pix de validação: R$ 100, expiração 1h, reembolso até 24h.
+- Cartão da assinatura: 1x, sem parcelamento nesta fase.
+- Trocar cartão: substituição direta (sem histórico).
+- Cartão recusado: erro amigável + fallback Pix.
+- Inadimplência: mantém regra atual (SaaS Billing Protocol v2.3).
+- Tenants legados com `payment_provider='pagarme'`: histórico inerte; recadastro via fluxo MP novo.
+- Qualquer texto/UI novo de pagamento exige aprovação prévia do operador.
 
-**Próximo passo:** aguardar novo pedido real do Respeite o Homem para validar observacionalmente o `order_attribution` populado.
+**Próximo passo combinado (retomar daqui):**
+- Sub-onda 3.0.1.a: operador cadastra `MP_CLIENT_ID` + `MP_CLIENT_SECRET` da plataforma em `/platform-integrations` (UI já existe). Decidir antes: sandbox ou produção primeiro.
+- Sub-onda 3.0.1.b: padronizar a chave canônica do provider MP (proposta: adotar `'mercado_pago'` snake_case em helper, doc e chamadas em `billing-*`). Sem mudar comportamento de Domínio B.
+- Só então emitir runbook de OAuth para conectar a conta MP recebedora da plataforma no tenant admin.
+- Depois: Onda 3.0.3 (Pix do plano via MP), 3.0.4 (cartão via MP), 3.0.5 (trocar cartão), 3.0.6 (webhook/reconciliação).
+
+**Restrições ativas (NÃO violar ao retomar):**
+- Não usar Pagar.me em fluxos novos de Billing SaaS.
+- Não tocar em registros `payment_providers` de tenants (Domínio B), em especial Respeite o Homem.
+- Não criar cobrança real até sandbox validado.
+- Não alterar UI/copy de pagamento sem aprovação prévia.
+- Não conectar OAuth MP da plataforma enquanto a divergência canônica não for padronizada.
+- Não migrar tenants legados Pagar.me automaticamente.
+
+**Docs fonte de verdade:**
+- `docs/especificacoes/sistema/billing-saas-vs-loja.md` (novo, normativo)
+- `docs/especificacoes/sistema/planos-billing.md` (atualizado)
+- `docs/especificacoes/sistema/hub-integracoes.md` (modelo MP integrador + recebedor)
+
+**Memórias técnicas relacionadas:** `infrastructure/payments/gateway-separation-and-multi-provider-canonical`, `constraints/mercadopago-2-contextos-credentials`, `infrastructure/payments/multi-gateway-assignment-standard`, `features/saas/protocolo-billing-e-inadimplencia-v2-3`.
