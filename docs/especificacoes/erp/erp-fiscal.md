@@ -691,13 +691,22 @@ fiscal_invoice_items (itens)
 
 **Princípio:** o certificado digital é a fonte de verdade do CNPJ emissor. Cada CNPJ corresponde a uma empresa distinta dentro da Focus NFe (`focus_empresa_id`). Trocar o certificado por um de outro CNPJ é tratado como **troca de empresa emissora**.
 
-### Fluxo automático
+### Caminho B — validação delegada ao Focus NFe (rev 2026-05)
 
-1. **Upload de novo certificado** (`fiscal-upload-certificate`): valida senha, extrai o CNPJ do certificado e compara com `fiscal_settings.cnpj`.
-2. **CNPJ igual** → apenas atualiza os campos do certificado.
-3. **CNPJ diferente (troca de empresa)** → atualiza `fiscal_settings.cnpj` para o CNPJ do certificado e zera `focus_empresa_id`, `focus_empresa_criada_em` e `focus_ultima_sincronizacao`.
-4. **Sync Focus NFe** (`fiscal-sync-focus-nfe`) é disparado em seguida e, com `focus_empresa_id` nulo, busca a empresa pelo novo CNPJ ou cria uma nova na Focus.
-5. **Próxima emissão** já usa a empresa correta.
+Desde a adoção do Caminho B, o sistema **não lê mais o `.pfx` localmente** para extrair CNPJ. O upload empacota arquivo + senha em base64 e envia para o Focus NFe, que devolve a categorização do erro (senha incorreta, CNPJ divergente, formato não suportado, etc.). Veja `mem://constraints/pfx-validation-delegated-to-focus-nfe`.
+
+Como consequência, **não existe mais auto-swap silencioso de CNPJ**: o lojista precisa ajustar os dados do emitente antes de reenviar o certificado de outra empresa.
+
+### Fluxo de upload
+
+1. **Upload de certificado** (`fiscal-upload-certificate`): envia `.pfx` + senha ao Focus NFe.
+2. **Focus aceita** → grava `certificado_cn`, `certificado_cnpj`, `certificado_valido_ate`, `certificado_serial` retornados pelo Focus.
+3. **Focus rejeita por divergência de CNPJ** ("Certificado não pertence ao CNPJ informado") → resposta amigável devolvida pela edge (`focus-error-translator.ts`).
+4. **UI exibe banner vermelho dentro do card "Certificado Digital A1"** com:
+   - mensagem clara da divergência;
+   - botão **"Atualizar CNPJ do emitente para XX.XXX.XXX/XXXX-XX"** (preenche o campo CNPJ no formulário e pede para o lojista revisar Razão Social / IE / endereço e clicar em Salvar);
+   - botão alternativo **"Enviar outro certificado"**.
+5. **Após salvar os novos dados**, o lojista reenvia o certificado e o Focus aceita normalmente.
 
 ### Remoção de certificado
 
@@ -705,12 +714,12 @@ fiscal_invoice_items (itens)
 
 ### Bloqueio de emissão por divergência
 
-`fiscal-emit` e `fiscal-submit` bloqueiam a emissão (200 OK + `success:false`) sempre que `fiscal_settings.certificado_cnpj` ≠ `fiscal_settings.cnpj`. A UI da aba Configurações Fiscais exibe um alerta vermelho explicando a divergência e a ação esperada (reenviar certificado correto ou ajustar o CNPJ do emitente).
+`fiscal-emit` e `fiscal-submit` bloqueiam a emissão (200 OK + `success:false`) sempre que `fiscal_settings.certificado_cnpj` ≠ `fiscal_settings.cnpj`. A nova UI já exibe esse bloqueio antes da tentativa de emissão, no Cartão de Prontidão Fiscal (item "CNPJ do certificado coincide com o do emitente" em vermelho) e no banner do card de certificado.
 
 ### Resumo
 
-- Cadastro inicial na Focus NFe é automático no primeiro upload de certificado.
-- Troca para certificado de outro CNPJ é detectada e resolvida automaticamente, sem intervenção manual.
+- Cadastro inicial na Focus NFe é automático no primeiro upload aceito.
+- Troca de CNPJ exige ação consciente do lojista: atualizar dados do emitente → reenviar certificado.
 - O lojista nunca emite NF-e com vínculo Focus NFe inconsistente.
 
 ---
@@ -721,23 +730,36 @@ Todas as edge functions do módulo fiscal devem retornar **HTTP 200 + `{ success
 
 Motivo: o cliente do front (`supabase.functions.invoke`) trata respostas ≥400 como erro genérico e a mensagem real não chega ao toast — usuário vê apenas "Erro ao processar fiscal" e o diagnóstico fica impossível.
 
-### Leitura do certificado A1 (camada única)
+### Validação do certificado A1 (Caminho B — delegada ao Focus NFe)
 
-Toda abertura de arquivo `.pfx` (PKCS#12) no módulo fiscal passa **obrigatoriamente** pela camada única `_shared/pfx-reader.ts` (`readPfx`). É proibido importar `node-forge` diretamente em qualquer função fiscal para abrir PFX. Ver regra anti-regressão: `mem://constraints/pfx-reader-single-source`.
+Desde rev 2026-05, **toda validação de `.pfx` é delegada ao Focus NFe**. O sistema não abre mais o arquivo localmente — não há mais leitor PKI.js/node-forge ativo no upload nem dependência de cifras suportadas localmente. Razões: cifras modernas (AES-256/PBES2) quebravam o leitor legado e geravam falsos "senha incorreta". Veja `mem://constraints/pfx-validation-delegated-to-focus-nfe`.
 
-A camada tenta primeiro o leitor moderno (PKI.js, suporta PBES2/AES-256) e em caso de falha estrutural cai para o leitor legado (node-forge, TripleDES). Senha incorreta NÃO dispara fallback. Os dois pontos de uso são `fiscal-upload-certificate` (validação/cadastro) e `_shared/xml-signer.ts → loadCertificate` (assinatura do XML da NF-e). A assinatura em si segue Web Crypto a partir do PEM da chave privada — não há mudança no formato do XML enviado à SEFAZ.
+Os dois pontos que usam o certificado:
+- **Upload/validação** (`fiscal-upload-certificate`): envia base64 + senha ao Focus NFe e armazena o que o Focus devolve (CN, CNPJ, validade, serial).
+- **Assinatura do XML** (`_shared/xml-signer.ts → loadCertificate`): segue lendo o `.pfx` armazenado para assinar o XML antes de transmitir. A assinatura em si segue Web Crypto a partir do PEM da chave privada.
 
-### Categorização do upload de certificado A1
+### Tradução de erros do Focus NFe
 
-`fiscal-upload-certificate` traduz os códigos do leitor em mensagens de negócio via `pfxErrorToUserMessage`:
+`focus-error-translator.ts` converte as respostas do Focus em mensagens de negócio em PT-BR exibidas no card "Certificado Digital A1":
 
-| Código interno | Cenário | Mensagem ao usuário |
-|---|---|---|
-| `NOT_PFX` | Arquivo PEM ou bytes sem assinatura PKCS#12 | "Reexporte como `.pfx` com senha" |
-| `WRONG_PASSWORD` | MAC inválido nos dois leitores | "Senha do certificado incorreta" |
-| `UNSUPPORTED_CIPHER` | Cifra desconhecida pelos dois leitores | "Solicite ao emissor um `.pfx` padrão" |
-| `CORRUPT` | ASN/DER ou base64 inválido | "Arquivo inválido ou corrompido" |
-| `MISSING_KEY` / `MISSING_CERT` | PFX abre mas não tem chave/cert | mensagem específica |
-| `UNKNOWN` | demais | fallback amigável |
+| Cenário Focus | Mensagem ao usuário |
+|---|---|
+| Senha incorreta | "Senha do certificado incorreta" |
+| CNPJ do certificado ≠ CNPJ do emitente | "O CNPJ do certificado é XX.XXX.XXX/XXXX-XX e o emitente está como YY.YYY.YYY/YYYY-YY. Atualize os dados antes de reenviar." |
+| Arquivo não é PFX/PKCS#12 válido | "Arquivo inválido. Reexporte como `.pfx` com senha." |
+| Certificado expirado | "Certificado expirado. Solicite a renovação." |
+| Demais | mensagem amigável + log técnico para suporte |
 
-Logs de diagnóstico (tamanho, primeiros bytes, qual leitor abriu) são gerados em toda leitura para acelerar triagem.
+Logs de diagnóstico (tamanho, primeiros bytes, resposta bruta do Focus) são gerados em toda chamada para acelerar triagem.
+
+### UI: Configurações Fiscais (rev UX 2026-05)
+
+A tela `/fiscal/configuracoes` (e a aba Fiscal embutida em `/system/settings?tab=fiscal`) foi reorganizada em 5 blocos verticais:
+
+1. **Cartão de Prontidão Fiscal** (topo) — pergunta "Pronto para emitir NF-e?" com selo geral (Pronto / Faltam X / Bloqueado) e checklist acionável de 6 itens (Dados, Endereço, Parâmetros, Certificado, CNPJ-match, Ambiente). Cada item tem link "Ir para" o cartão correspondente.
+2. **Identidade da Empresa** — Dados + Endereço lado a lado em um único cartão.
+3. **Certificado Digital A1** (em destaque, borda colorida conforme estado) — resumo do certificado configurado, banners de divergência/expiração e botão "Substituir certificado" oculto até clique. Quando há divergência de CNPJ, oferece botão "Atualizar CNPJ do emitente para XX.XXX.XXX/XXXX-XX" que preenche o campo automaticamente.
+4. **Parâmetros Fiscais** — Regime, Origem, CFOPs, CSOSN/CST, Série/Número.
+5. **Ambiente de Emissão** — seletor com aviso destacado quando em Homologação.
+
+A barra de **Salvar** é fixa no rodapé, aparece apenas quando há alterações não salvas e tem botões "Descartar" e "Salvar alterações".

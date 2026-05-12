@@ -1,89 +1,108 @@
-## Como funciona hoje
 
-A plataforma usa uma única biblioteca para abrir o arquivo do certificado digital A1 (.pfx) em dois momentos críticos do módulo fiscal:
+# Reformular UX da tela de Configurações Fiscais e alinhar docs ao Caminho B
 
-1. **No envio do certificado** (configurações fiscais), para validar senha, extrair CNPJ, validade e número de série, e sincronizar com a Focus NFe.
-2. **Na assinatura do XML da NF-e** (toda emissão), para extrair a chave privada e assinar o XML antes de enviar à SEFAZ.
+## Objetivo
 
-Essa biblioteca só entende o formato antigo do .pfx (TripleDES). Certificados modernos vêm em formato AES-256/PBES2, e por isso o arquivo nem chega a ser aberto — falha antes mesmo de testar a senha. Esse é o motivo do erro reportado.
+Tornar a tela de Configurações Fiscais clara, informativa e sem bugs visuais — o lojista deve saber exatamente **o que falta**, **o que já está pronto** e **se o certificado foi aceito**. Em paralelo, atualizar os documentos do módulo, que ainda descrevem a arquitetura antiga de leitura local do certificado.
 
-## O problema
+---
 
-- O lojista reexportar em "compatibilidade" resolve um caso pontual, mas qualquer outro tenant com certificado moderno vai bater no mesmo erro.
-- Mesmo se o envio funcionar, a hora de **emitir NF-e** usa exatamente a mesma biblioteca para assinar o XML — o problema reapareceria silenciosamente na emissão.
-- A documentação já reconhece essa limitação como evolução pendente.
+## 1. Reorganização da tela (visual e hierarquia)
 
-## Resultado esperado
+### Topo — Cartão de Status acionável
+Substituir o badge vago "Incompleto" + alerta amarelo genérico por um **Cartão de Prontidão Fiscal**:
 
-- Qualquer certificado A1 padrão de mercado (formato moderno ou antigo) é aceito no envio sem precisar reexportar.
-- A assinatura do XML da NF-e funciona com qualquer um desses certificados.
-- Mensagens de erro continuam claras (senha errada, CNPJ divergente, arquivo corrompido, certificado vencido).
-- Nenhum lojista que já está com certificado salvo perde acesso.
+- Título: "Pronto para emitir NF-e?"
+- Selo grande à direita: **Pronto** (verde) ou **Faltam X itens** (âmbar) ou **Bloqueado** (vermelho, quando há divergência de CNPJ ou certificado expirado).
+- Lista de checagens com ícone ✓ / ⚠ / ✗:
+  - Dados da empresa (Razão Social, CNPJ, IE/Isento)
+  - Endereço fiscal completo
+  - Regime tributário e parâmetros padrão (CRT, Origem, CFOPs)
+  - Certificado Digital A1 enviado e válido
+  - CNPJ do certificado coincide com o CNPJ do emitente
+  - Ambiente selecionado (Homologação/Produção)
+- Cada item com link "Ir para" que rola até o cartão correspondente.
+- Quando o ambiente está em Homologação, faixa âmbar discreta no cartão: "Você está em Homologação — notas não têm valor fiscal."
 
-## Estratégia (cirúrgica e anti-regressão)
+### Reordenação dos cartões
+Hoje: grid 2 colunas com 4 cartões soltos. Proposta:
 
-A troca **não** vai substituir tudo. Vai trocar **apenas a etapa de abrir o .pfx** por uma biblioteca moderna que entende qualquer cifra. Tudo o que vem depois (assinatura XML, geração de PEM, integração com Focus NFe, criptografia em banco) continua igual. Isso minimiza superfície de regressão.
+1. **Cartão de Status** (largura total, primeiro elemento)
+2. **Identidade da Empresa** (largura total — agrupa Dados + Endereço lado a lado dentro do mesmo cartão; campos relacionados ficam visualmente unificados)
+3. **Certificado Digital A1** (destaque — borda mais marcada, ícone de chave em destaque)
+4. **Parâmetros Fiscais** (Regime, Origem, CFOPs, CSOSN/CST, Série/Número)
+5. **Ambiente de Emissão** (cartão pequeno e claro, com aviso visual quando em Homologação)
 
-### Onda A — Camada única e isolada para abrir o PFX
+### Botão Salvar
+Hoje fica perdido no topo direito. Tornar **fixo no rodapé da página** quando há alterações não salvas, com indicador "Alterações não salvas" e botão "Descartar".
 
-Criar um único ponto interno que abre o .pfx e devolve sempre o mesmo formato: chave privada e certificado em PEM (texto), mais metadados (CNPJ, validade, número de série, nome do titular).
+---
 
-- Esse ponto único tenta primeiro a biblioteca moderna. Se ela falhar, faz fallback para a biblioteca antiga (compatibilidade reversa total).
-- Mensagens de erro continuam categorizadas: senha incorreta, formato inválido, ASN corrompido, certificado vencido.
-- Nenhum certificado já salvo é afetado — a leitura no momento da emissão também passa por esse mesmo ponto único.
+## 2. Card do Certificado Digital — corrigir comportamento e clareza
 
-### Onda B — Reaproveitamento nos dois pontos críticos
+### Problemas atuais
+- Após upload bem-sucedido, o card às vezes ainda mostra "Nenhum certificado configurado" (refresh insuficiente do estado).
+- Quando há certificado válido, o formulário de upload continua visível em cima, confundindo.
+- Mensagens de erro do Focus NFe chegam genéricas em alguns cenários.
 
-- **Envio do certificado**: troca a chamada direta à biblioteca antiga pela camada nova. Mantém toda a lógica de validação de CNPJ, divergência com o emitente, sincronização Focus NFe, criptografia para o banco.
-- **Assinatura do XML da NF-e**: troca apenas a abertura do .pfx pela camada nova. A assinatura em si continua usando a mesma biblioteca atual (que assina perfeitamente desde que receba a chave em PEM). Resultado: a SEFAZ recebe XML idêntico ao de hoje, mesmo formato, mesmo padrão de canonicalização.
+### Correções
+- **Refresh imediato:** após upload bem-sucedido ou substituição, recarregar o card com nome do titular, CNPJ, validade e dias restantes — sem precisar atualizar a página.
+- **Estado "vazio" claro:** quando não há certificado, mostrar área grande de drop/upload com instruções: "Envie seu certificado A1 (.pfx) e a senha. Validamos automaticamente com o Focus NFe."
+- **Estado "configurado":** mostrar resumo do certificado em destaque (nome, CNPJ formatado, validade com cor — verde/âmbar/vermelho conforme dias restantes) e esconder o formulário atrás de um botão discreto **"Substituir certificado"**. Ao clicar, abre área de upload com aviso: "Substituir o certificado atual encerra o vínculo anterior e cadastra a nova empresa no Focus NFe."
+- **Estado "divergência de CNPJ":** banner vermelho destacado dentro do card, com a mensagem clara já especificada (CNPJ do certificado vs CNPJ do emitente) e dois botões de ação: **"Atualizar CNPJ do emitente para XX.XXX.XXX/XXXX-XX"** (atualiza o campo automaticamente) e **"Enviar outro certificado"**.
+- **Estado "expirado/expirando":** banner âmbar/vermelho com prazo + botão "Substituir certificado".
+- **Mensagens do Focus NFe:** garantir que toda resposta de erro do Focus seja traduzida e exibida diretamente no card (não só em toast efêmero).
 
-### Onda C — Validação real ponta-a-ponta antes de declarar pronto
+---
 
-Sequência obrigatória de testes antes de fechar:
+## 3. Microinterações e feedback
 
-1. **Caso real do lojista** (certificado moderno que está falhando agora) — envio precisa funcionar.
-2. **Caso compatibilidade** (certificado em TripleDES, formato antigo) — envio precisa continuar funcionando.
-3. **Caso senha errada** — precisa exibir "senha incorreta" e não mensagem genérica.
-4. **Caso CNPJ divergente do emitente** — precisa bloquear com mensagem clara (regra de negócio existente).
-5. **Caso arquivo corrompido / PEM disfarçado** — mensagem categorizada correta.
-6. **Emissão de NF-e em homologação** com o certificado moderno recém-aceito — assinatura precisa ser aceita pela SEFAZ.
-7. **Lojista que já tem certificado salvo no banco** — próxima emissão precisa continuar funcionando sem reenvio.
+- Toast de sucesso após upload muda para **inline persistente** dentro do card por 8 segundos: "Certificado validado pelo Focus NFe. Pronto para emitir NF-e."
+- Botão "Substituir Certificado" fica desabilitado durante upload com texto **"Validando com Focus NFe…"** (hoje só mostra spinner mudo).
+- Campo Senha: ícone de olho para mostrar/ocultar (hoje só password oculto).
+- Mensagem do estado "Aguardando dados da empresa" quando o lojista enviou cert mas não preencheu CNPJ/Razão Social ainda.
 
-A Onda só é declarada concluída quando os 7 casos passarem. O caso 6 e o 7 dependem de você acionar (homologação e uma emissão de teste).
+---
 
-### Onda D — Anti-regressão e governança
+## 4. Validação técnica obrigatória
 
-- Criar uma regra anti-regressão (memória de constraint) declarando que a abertura do .pfx é centralizada num único ponto, e que qualquer função fiscal nova **não pode** abrir o .pfx por conta própria.
-- Atualizar a documentação fiscal removendo a "limitação conhecida" e descrevendo o novo modelo (camada única, fallback, formatos suportados).
-- Atualizar o mapa de UI se a tela de configuração fiscal ganhar algum ajuste de mensagem (provavelmente não muda).
-- Manter o envelope 200 + sucesso/erro em todas as funções fiscais (já implementado).
+Antes de declarar concluído, executar:
 
-## Riscos identificados e como mitigar
+- **Teste 1 — Upload sem certificado prévio:** enviar `.pfx` válido → confirmar que o card atualiza imediatamente com nome + CNPJ + validade vindos do Focus NFe.
+- **Teste 2 — Substituição com mesmo CNPJ:** enviar novo `.pfx` do mesmo CNPJ → confirmar que validade atualiza sem erro de divergência.
+- **Teste 3 — Substituição com CNPJ diferente sem ajustar dados antes:** confirmar que aparece o banner de divergência com botão "Atualizar CNPJ do emitente para XX.XXX.XXX/XXXX-XX" e que o botão funciona.
+- **Teste 4 — Senha errada:** confirmar mensagem amigável "Senha do certificado incorreta" no card (não só no toast).
+- **Teste 5 — Status acionável:** com tenant incompleto, validar que cada item do checklist marca/desmarca corretamente conforme o lojista preenche.
+- **Teste 6 — Logs do Focus:** verificar via logs do servidor que cada cenário gera a resposta esperada e que a tela reflete fielmente.
 
-| Risco | Mitigação |
-|-------|-----------|
-| Biblioteca nova não cobre algum caso raro | Fallback automático para a biblioteca antiga é obrigatório |
-| Assinatura XML rejeitada pela SEFAZ por mudança de formato | Não trocamos o assinador. Só a abertura do PFX muda. A chave em PEM é idêntica. |
-| Lojista que já tem certificado salvo quebra na próxima emissão | A camada única é usada também na emissão; ela aceita o conteúdo já salvo (mesmo conteúdo binário). Caso 7 do plano de teste valida isso. |
-| Performance de assinatura piora | Camada nova só atua na abertura inicial; assinatura continua na mesma biblioteca. Sem impacto em loop por item. |
-| Quebra silenciosa em algum tenant | Logs de diagnóstico (formato detectado, cifra, tamanho) ficam ligados na abertura para rastreio rápido. |
+---
 
-## Cronograma proposto
+## 5. Atualização documental obrigatória
 
-1. Onda A — implementação da camada única (rápida, isolada).
-2. Onda B — substituição nos dois pontos de uso (igualmente isolada).
-3. Onda C — testes 1 a 5 que eu mesmo executo via chamada direta à função.
-4. Onda C — testes 6 e 7 que dependem de você (emissão homologação + verificação de um lojista existente).
-5. Onda D — documentação e regra anti-regressão fechadas como parte da entrega.
+Os documentos atuais ainda descrevem a arquitetura antiga (leitura local do .pfx + auto-swap de CNPJ). Atualizar:
 
-## O que NÃO entra neste escopo (para evitar mistura de frente)
+- **`docs/especificacoes/erp/erp-fiscal.md`** — seção "Protocolo de Troca de CNPJ" deve refletir o novo fluxo: a leitura é delegada ao Focus NFe, a troca de empresa exige que o lojista atualize CNPJ + dados antes do reenvio, e a UI agora oferece um botão "Atualizar CNPJ do emitente" quando detecta divergência. Também atualizar a seção "Leitura do certificado A1" e a tabela "Categorização do upload" — várias dessas categorias hoje vêm do Focus NFe, não do leitor local.
+- **`docs/especificacoes/transversais/mapa-ui.md`** — atualizar a entrada de `/fiscal/configuracoes` descrevendo a nova hierarquia (Cartão de Status no topo, Identidade unificada, Certificado em destaque, Parâmetros, Ambiente, Salvar fixo no rodapé).
+- **Memória do projeto:** atualizar a memória de constraint sobre validação delegada ao Focus NFe (já existe) com nota sobre a UI nova e o botão de auto-correção do CNPJ.
+- **Anti-regressão:** registrar memória nova prevenindo regressão da invalidação do estado pós-upload (problema do "card que não atualiza").
 
-- Mudanças na assinatura XML em si.
-- Mudanças no fluxo Focus NFe ou na sincronização de empresa.
-- Reformulação da tela de configurações fiscais.
-- Suporte a certificados A3 (token físico) — fora do escopo atual.
+---
 
-## Confirmação necessária antes de iniciar
+## Escopo
 
-- Aprovação para iniciar a Onda A imediatamente após você confirmar este plano.
-- Disponibilidade sua para o teste 6 (emitir uma NF-e em homologação com o certificado novo) e o teste 7 (confirmar uma emissão de outro tenant que já tinha certificado funcionando) ao final.
+**Incluído:** apenas tela de Configurações Fiscais (aba Emitente), atualização dos docs e memórias relacionadas.
+
+**Não incluído:** mudanças em emissão de NF-e, sincronização com Focus NFe (já está OK), regras de assinatura, banco de dados, outras abas de configuração (Natureza Jurídica, Outros) — exceto se necessário para coerência visual mínima do header.
+
+---
+
+## Riscos e mitigações
+
+- **Risco:** botão "Atualizar CNPJ do emitente" pode causar inconsistência se o lojista tinha preenchido errado o resto dos dados.  
+  **Mitigação:** o botão só atualiza o campo CNPJ; o lojista ainda precisa revisar Razão Social, IE e endereço (o checklist mostra esses pendentes).
+
+- **Risco:** mudanças visuais podem afetar a aba Fiscal embutida em `/system/settings?tab=fiscal`.  
+  **Mitigação:** o componente é o mesmo (`EmitenteSettings`), então a melhoria aparece nos dois lugares — validar visualmente os dois pontos de entrada.
+
+- **Risco:** docs desatualizados podem confundir suporte.  
+  **Mitigação:** atualizar na mesma entrega (regra obrigatória do projeto).

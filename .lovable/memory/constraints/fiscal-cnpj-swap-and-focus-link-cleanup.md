@@ -1,17 +1,18 @@
 ---
 name: Fiscal CNPJ Swap and Focus NFe Link Cleanup
-description: Toda troca/remoção de certificado A1 deve recalibrar `fiscal_settings.cnpj` e zerar `focus_empresa_id` para evitar emitir NF-e com vínculo Focus NFe de outra empresa.
+description: Troca/remoção de certificado A1 deve preservar consistência entre fiscal_settings.cnpj, certificado_cnpj e focus_empresa_id. Caminho B (rev 2026-05) — sem auto-swap silencioso de CNPJ.
 type: constraint
 ---
 
 **Regra:** O certificado digital A1 é a fonte de verdade do CNPJ emissor.
 
-**Obrigações:**
-1. `fiscal-upload-certificate`: se `certificado_cnpj` ≠ `fiscal_settings.cnpj`, atualizar `cnpj` e zerar `focus_empresa_id`, `focus_empresa_criada_em`, `focus_ultima_sincronizacao` antes de sincronizar com a Focus NFe.
+**Obrigações (Caminho B — rev 2026-05):**
+1. `fiscal-upload-certificate`: delega validação ao Focus NFe. Não lê `.pfx` localmente. Quando o Focus rejeita por CNPJ divergente, devolve resposta amigável (`focus-error-translator.ts`) — não atualiza `fiscal_settings.cnpj` automaticamente. O lojista precisa ajustar dados do emitente e reenviar (UI oferece botão "Atualizar CNPJ do emitente para X" no card do certificado).
 2. `fiscal-remove-certificate`: limpar também `focus_empresa_id`, `focus_empresa_criada_em`, `focus_ultima_sincronizacao` (não deixar vínculo órfão).
 3. `fiscal-emit` e `fiscal-submit`: bloquear emissão quando `certificado_cnpj` ≠ `cnpj` (200 OK + `success:false`, mensagem clara).
-4. UI `EmitenteSettings`: alerta vermelho de divergência de CNPJ no card do certificado.
+4. UI `EmitenteSettings` (rev UX 2026-05): Cartão de Prontidão Fiscal exibe item "CNPJ do certificado coincide com o do emitente" como bloqueado (vermelho) quando há divergência. Card "Certificado Digital A1" mostra banner vermelho com botões: "Atualizar CNPJ do emitente para XX.XXX.XXX/XXXX-XX" (preenche o campo) e "Enviar outro certificado".
+5. Após upload bem-sucedido, `useFiscalSettings.uploadCertificate` invalida `['fiscal-settings']` — o card deve atualizar imediatamente sem refresh manual. Se algum dia for movido para optimistic UI, garantir refetch + reset dos estados locais (`selectedFile`, `certPassword`, `showReplaceForm`).
 
-**Why:** sem isso, ao trocar certificado por outro CNPJ a NF-e era enviada para a empresa errada na Focus (PUT em `focus_empresa_id` antigo), gerando rejeição/inconsistência fiscal.
+**Why:** sem isso, ao trocar certificado por outro CNPJ a NF-e era enviada para a empresa errada na Focus, gerando rejeição/inconsistência fiscal. O auto-swap antigo dependia de leitura local do `.pfx`, que foi removida no Caminho B.
 
-**How to apply:** qualquer mudança nos fluxos de upload/remoção/emissão de NF-e deve preservar essas 4 garantias. Documentado em `docs/especificacoes/erp/erp-fiscal.md` (seção "Protocolo de Troca de CNPJ / Substituição de Certificado A1").
+**How to apply:** qualquer mudança nos fluxos de upload/remoção/emissão de NF-e deve preservar essas 5 garantias. Documentado em `docs/especificacoes/erp/erp-fiscal.md` (seções "Protocolo de Troca de CNPJ / Substituição de Certificado A1" e "Validação do certificado A1 (Caminho B)").
