@@ -721,16 +721,23 @@ Todas as edge functions do módulo fiscal devem retornar **HTTP 200 + `{ success
 
 Motivo: o cliente do front (`supabase.functions.invoke`) trata respostas ≥400 como erro genérico e a mensagem real não chega ao toast — usuário vê apenas "Erro ao processar fiscal" e o diagnóstico fica impossível.
 
+### Leitura do certificado A1 (camada única)
+
+Toda abertura de arquivo `.pfx` (PKCS#12) no módulo fiscal passa **obrigatoriamente** pela camada única `_shared/pfx-reader.ts` (`readPfx`). É proibido importar `node-forge` diretamente em qualquer função fiscal para abrir PFX. Ver regra anti-regressão: `mem://constraints/pfx-reader-single-source`.
+
+A camada tenta primeiro o leitor moderno (PKI.js, suporta PBES2/AES-256) e em caso de falha estrutural cai para o leitor legado (node-forge, TripleDES). Senha incorreta NÃO dispara fallback. Os dois pontos de uso são `fiscal-upload-certificate` (validação/cadastro) e `_shared/xml-signer.ts → loadCertificate` (assinatura do XML da NF-e). A assinatura em si segue Web Crypto a partir do PEM da chave privada — não há mudança no formato do XML enviado à SEFAZ.
+
 ### Categorização do upload de certificado A1
 
-`fiscal-upload-certificate` distingue obrigatoriamente:
+`fiscal-upload-certificate` traduz os códigos do leitor em mensagens de negócio via `pfxErrorToUserMessage`:
 
-1. **Arquivo em formato PEM** (não PFX) → orienta reexportar como `.pfx` com senha.
-2. **Cifra/algoritmo não suportados** (PFX exportado com PBES2/AES-256 moderno) → orienta reexportar com compatibilidade tradicional (TripleDES) ou solicitar ao emissor um arquivo compatível.
-3. **MAC/Senha inválida** → "Senha do certificado incorreta".
-4. **ASN/DER corrompido** → "Arquivo de certificado inválido ou corrompido".
-5. **Fallback amigável** caso o erro não se encaixe nos anteriores.
+| Código interno | Cenário | Mensagem ao usuário |
+|---|---|---|
+| `NOT_PFX` | Arquivo PEM ou bytes sem assinatura PKCS#12 | "Reexporte como `.pfx` com senha" |
+| `WRONG_PASSWORD` | MAC inválido nos dois leitores | "Senha do certificado incorreta" |
+| `UNSUPPORTED_CIPHER` | Cifra desconhecida pelos dois leitores | "Solicite ao emissor um `.pfx` padrão" |
+| `CORRUPT` | ASN/DER ou base64 inválido | "Arquivo inválido ou corrompido" |
+| `MISSING_KEY` / `MISSING_CERT` | PFX abre mas não tem chave/cert | mensagem específica |
+| `UNKNOWN` | demais | fallback amigável |
 
-Logs de diagnóstico (tamanho do arquivo, primeiros bytes, detecção PEM) são gerados em todo upload para acelerar triagem.
-
-> **Limitação conhecida do leitor PFX:** a biblioteca atual (`node-forge` 1.3) não suporta cifras modernas. Quando o lojista informar que reexportou várias vezes e continua recebendo "formato não suportado", o caminho é trocar o leitor de PFX (já mapeado como evolução pendente — afeta também a assinatura do XML em `_shared/xml-signer.ts`).
+Logs de diagnóstico (tamanho, primeiros bytes, qual leitor abriu) são gerados em toda leitura para acelerar triagem.
