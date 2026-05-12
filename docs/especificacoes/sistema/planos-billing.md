@@ -26,6 +26,15 @@
 
 **Anti-regressão:** se billing falhar com "Gateway não configurado", verificar primeiro se existe registro em `payment_providers` para o tenant admin.
 
+> ⚠️ **Separação de domínios obrigatória.** Billing SaaS (esta plataforma cobrando assinatura dos tenants) e pagamentos das lojas dos tenants são **dois domínios independentes**. Ver doc dedicado: [`billing-saas-vs-loja.md`](./billing-saas-vs-loja.md).
+>
+> **Resumo normativo (Onda 3.0.2 — 2026-05-12):**
+> - **Domínio A (Billing SaaS):** gateway exclusivo **Mercado Pago**, recebedor = tenant admin. Pagar.me **proibido** em fluxos novos de Billing SaaS.
+> - **Domínio B (Lojas dos tenants):** multi-gateway (Mercado Pago, Pagar.me e outros), recebedor = próprio tenant. Não tocar nesta etapa.
+> - Tenants legados com `tenant_subscriptions.payment_provider='pagarme'` (Domínio A): histórico inerte, recadastro só via fluxo MP novo.
+> - **Bloqueio ativo:** divergência da chave do provider entre helper (`'mercadopago'`) e callback OAuth (`'mercado_pago'`). Antes de qualquer execução técnica de 3.0.3+, padronizar a chave (sub-onda 3.0.1.b). Detalhes em [`billing-saas-vs-loja.md` §6](./billing-saas-vs-loja.md#6-divergência-crítica-detectada-bloqueio).
+> - Decisões aprovadas (Pix R$100/1h/reembolso 24h, cartão 1x, substituição direta de cartão, fallback Pix em recusa, sandbox primeiro, copy de UI sob aprovação) também em `billing-saas-vs-loja.md` §5.
+
 ---
 
 ## Visão Geral
