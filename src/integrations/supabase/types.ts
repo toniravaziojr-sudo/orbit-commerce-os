@@ -23049,6 +23049,8 @@ export type Database = {
           body_sha256: string | null
           content_length: number | null
           headers_json: Json | null
+          hmac_sig_prefix: string | null
+          hmac_status: string | null
           id: string
           method: string | null
           query_string: string | null
@@ -23063,6 +23065,8 @@ export type Database = {
           body_sha256?: string | null
           content_length?: number | null
           headers_json?: Json | null
+          hmac_sig_prefix?: string | null
+          hmac_status?: string | null
           id?: string
           method?: string | null
           query_string?: string | null
@@ -23077,6 +23081,8 @@ export type Database = {
           body_sha256?: string | null
           content_length?: number | null
           headers_json?: Json | null
+          hmac_sig_prefix?: string | null
+          hmac_status?: string | null
           id?: string
           method?: string | null
           query_string?: string | null

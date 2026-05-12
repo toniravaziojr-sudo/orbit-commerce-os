@@ -137,7 +137,86 @@ A tabela de auditoria raw chama-se **`whatsapp_webhook_raw_audit`** (versões an
 - **Secret:** `META_APP_SECRET` lido de `platform_credentials` (fallback `Deno.env`). **Nunca logado.**
 - **Header aceito:** apenas `x-hub-signature-256`. O legado `x-hub-signature` (SHA-1) **não é aceito** como validação nova — segue armazenado em `whatsapp_webhook_raw_audit.signature_header` apenas para forense/dedupe.
 - **GET verification:** continua usando `META_WEBHOOK_VERIFY_TOKEN` — **não compartilha segredo com HMAC**.
-- **Ordem de execução:** raw audit → HMAC check → `req.json()` → roteamento. Raw body cru (`req.clone().text()`) é o input exato do HMAC, sem trim/reserialização.
+- **Ordem de execução (Onda 2.1, 12/05/2026):** ler raw body (`req.clone().text()`) → calcular HMAC → INSERT único em `whatsapp_webhook_raw_audit` já com `hmac_status` e `hmac_sig_prefix` → `req.json()` → roteamento. O raw body cru é o input exato do HMAC, sem trim/reserialização. Falha em qualquer etapa é capturada e nunca derruba o webhook.
 - **Status logados (sanitizados):** `hmac_status ∈ { valid | invalid | missing | malformed | secret_missing }`. Se houver assinatura, loga apenas `sig_prefix=<8 primeiros hex>` para correlação — **nunca a assinatura completa**.
-- **Modo atual:** `enforce=false`. Nenhum POST é rejeitado nesta fase. Falsos negativos são medidos por 72h.
-- **Pendência F2.13.3-B (enforcement):** após 72h sem falso negativo, a edge passará a retornar **HTTP 401** quando `hmac_status ∈ { missing, malformed, invalid, secret_missing }`, abortando inserção em `whatsapp_inbound_messages` e qualquer roteamento (Agenda / AI Support / cobrança). Raw audit permanece anterior à validação para preservar forense de tentativas inválidas.
+- **Modo atual:** `enforce=false`. Nenhum POST é rejeitado nesta fase.
+
+## 10. Onda 2.1 — Instrumentação observacional do HMAC (12/05/2026)
+
+Sem mudança de comportamento do pipeline. Adicionada apenas observabilidade persistente para decidir, mais à frente, se a Fase B (enforcement) pode ser ligada com segurança.
+
+- **Migration:** `whatsapp_webhook_raw_audit` ganhou as colunas `hmac_status text NULL` e `hmac_sig_prefix text NULL`. Sem CHECK rígido (fase observacional). Linhas anteriores ficam com `hmac_status IS NULL` e **devem ser excluídas do cálculo da janela**.
+- **Edge:** o `meta-whatsapp-webhook` calcula o HMAC antes do INSERT do raw audit e grava ambas as colunas no mesmo INSERT. O resultado anterior em `console.log` foi mantido para correlação operacional. `META_APP_SECRET` continua nunca aparecendo em log; assinatura recebida nunca é logada por inteiro.
+- **GET verification:** inalterado. Continua usando `META_WEBHOOK_VERIFY_TOKEN`.
+- **Pipeline:** mensagens reais continuam sendo processadas exatamente como antes (debounce, IA, Agenda, cobrança, dedupe de redelivery, watcher de órfãs).
+
+### 10.1 Critérios objetivos para GO/NO-GO da Fase B (enforcement)
+
+Avaliar **somente** linhas com `hmac_status IS NOT NULL` (linhas pré-Onda 2.1 ficam fora). Janela contígua de **≥ 72h** com:
+
+1. Volume mínimo: ≥ 200 POSTs observados.
+2. `valid / total ≥ 99,5%`.
+3. `secret_missing = 0`.
+4. `invalid = 0` originados de IPs Meta legítimos (UA `facebookplatform/*`).
+5. `missing` apenas em probes internas reconhecidas (não em POSTs reais da Meta).
+6. Nenhum tenant ativo com `last_inbound_validated_at` parado por > 24h coincidindo com `invalid`.
+
+### 10.2 Queries oficiais de acompanhamento
+
+```sql
+-- Última hora (sanity pós-deploy)
+SELECT hmac_status, COUNT(*)
+FROM public.whatsapp_webhook_raw_audit
+WHERE method = 'POST' AND received_at > now() - interval '1 hour'
+  AND hmac_status IS NOT NULL
+GROUP BY 1;
+
+-- Distribuição na janela observacional de 72h
+SELECT hmac_status, COUNT(*)
+FROM public.whatsapp_webhook_raw_audit
+WHERE method = 'POST' AND received_at > now() - interval '72 hours'
+  AND hmac_status IS NOT NULL
+GROUP BY 1
+ORDER BY 2 DESC;
+
+-- Resumo agregado para gates GO/NO-GO
+SELECT
+  COUNT(*) AS total_observado,
+  COUNT(*) FILTER (WHERE hmac_status = 'valid')          AS validos,
+  COUNT(*) FILTER (WHERE hmac_status = 'invalid')        AS invalidos,
+  COUNT(*) FILTER (WHERE hmac_status = 'missing')        AS sem_assinatura,
+  COUNT(*) FILTER (WHERE hmac_status = 'malformed')      AS malformados,
+  COUNT(*) FILTER (WHERE hmac_status = 'secret_missing') AS sem_secret
+FROM public.whatsapp_webhook_raw_audit
+WHERE method = 'POST' AND received_at > now() - interval '72 hours'
+  AND hmac_status IS NOT NULL;
+```
+
+### 10.3 Regras de PII (válidas para esta fase)
+
+- `META_APP_SECRET`: **nunca** em log e **nunca** em coluna persistida.
+- Assinatura recebida: persistida crua apenas em `signature_header` (campo já existente, RLS service-role); em log somente `hmac_sig_prefix` (≤ 8 hex).
+- Telefone, conteúdo de mensagem, payload bruto Meta: regras anteriores intactas.
+- `whatsapp_inbound_messages.raw_payload` continua nascendo `NULL` (F2.13.2.C-CODE).
+
+### 10.4 Testes sintéticos seguros (executados em 12/05/2026)
+
+Payload usado: `{"object":"hmac_observability_probe_onda_2_1*","entry":[]}` — `object` deliberadamente diferente de `whatsapp_business_account`, garantindo early-return sem roteamento, sem `phone_number_id` válido e sem mensagens.
+
+| Teste | Header `x-hub-signature-256` | Esperado | Resultado real |
+|---|---|---|---|
+| 1 | `sha256=<hex calculado com secret falso>` | HTTP 200, `hmac_status='invalid'`, `sig_prefix` 8 hex | ✅ HTTP 200, `invalid`, prefix `24a61e72` |
+| 2 | ausente | HTTP 200, `hmac_status='missing'`, prefix NULL | ✅ HTTP 200, `missing`, prefix NULL |
+| 3 | `sha256=ZZZZnotHEX` | HTTP 200, `hmac_status='malformed'`, prefix `zzzznoth` | ✅ HTTP 200, `malformed`, prefix `zzzznoth` |
+| 4 | GET handshake com token errado | HTTP 403 | ✅ HTTP 403 |
+
+Validação cruzada pós-testes:
+- `whatsapp_inbound_messages` criadas nos últimos 5 min: **0**.
+- Nenhuma conversa, ticket ou evento downstream gerado.
+- Logs do edge não expõem `META_APP_SECRET`, assinatura completa, telefone cru ou payload bruto.
+
+**`secret_missing` não foi exercitado em produção** (exigiria mexer no secret real ou simular ausência, o que poderia afetar webhook real). Cobertura desse status fica condicionada a (a) eventual ocorrência espontânea durante a janela de 72h ou (b) teste isolado em ambiente de simulação futuro.
+
+### 10.5 Pendência — Fase B (enforcement)
+
+Após 72h com gates 1–6 satisfeitos, planejar Fase B em onda separada: substituir o `console.log` por retorno HTTP 401 quando `hmac_status ∈ { missing, malformed, invalid, secret_missing }`, abortando o pipeline antes do `req.json()`. Raw audit permanece anterior à decisão para preservar forense inclusive de tentativas rejeitadas. Recomendado kill-switch via `platform_credentials.META_HMAC_ENFORCE` (`true|false`) para reverter sem deploy.
