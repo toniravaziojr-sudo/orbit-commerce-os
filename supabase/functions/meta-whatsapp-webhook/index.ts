@@ -156,15 +156,46 @@ Deno.serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // === RAW AUDIT (anti-regressão): registra TODO POST antes de qualquer parsing ===
-  // F2.13.2.B — body_preview agora é resumo estrutural sanitizado (JSON, cap 2 KB)
-  // e headers_json passa por allowlist canônica. body_sha256 e signature_header
-  // permanecem íntegros para forense/dedupe.
+  // === RAW AUDIT + HMAC OBSERVACIONAL (Onda 2.1) ===
+  // Ordem: ler raw body → calcular HMAC (log-mode, NÃO bloqueia) → INSERT único
+  // do raw audit já com hmac_status/hmac_sig_prefix preenchidos. Falha em qualquer
+  // etapa NUNCA derruba o webhook (try/catch isolados).
+  // META_APP_SECRET nunca é logado. Assinatura completa nunca é logada — apenas
+  // os 8 primeiros hex em hmac_sig_prefix.
   let rawBodyText: string | null = null;
   if (req.method === "POST") {
+    let hmacStatus: HmacStatus | null = null;
+    let hmacSigPrefix: string | null = null;
     try {
       const cloned = req.clone();
       rawBodyText = await cloned.text();
+
+      // --- HMAC observacional (log-mode, enforce=false) ---
+      try {
+        const { data: appSecretRow } = await supabase
+          .from("platform_credentials")
+          .select("credential_value")
+          .eq("credential_key", "META_APP_SECRET")
+          .eq("is_active", true)
+          .maybeSingle();
+        const appSecret = appSecretRow?.credential_value ?? Deno.env.get("META_APP_SECRET") ?? null;
+        const sigHeader = req.headers.get("x-hub-signature-256");
+        const hmac = await verifyMetaHmac(rawBodyText, sigHeader, appSecret);
+        hmacStatus = hmac.status;
+        hmacSigPrefix = hmac.sigPrefix;
+        console.log(
+          `[meta-whatsapp-webhook][${traceId}] HMAC check (log-mode) hmac_status=${hmac.status}` +
+            (hmac.sigPrefix ? ` sig_prefix=${hmac.sigPrefix}` : "") +
+            ` enforce=false`,
+        );
+      } catch (hmacErr) {
+        console.warn(
+          `[meta-whatsapp-webhook][${traceId}] HMAC check failed unexpectedly (log-mode, ignored):`,
+          safeError(hmacErr),
+        );
+      }
+
+      // --- INSERT raw audit (já com hmac_status/hmac_sig_prefix) ---
       const url = new URL(req.url);
       const contentType = req.headers.get("content-type");
       await supabase.from("whatsapp_webhook_raw_audit").insert({
@@ -178,40 +209,14 @@ Deno.serve(async (req) => {
         body_preview: await summarizeWebhookBody(rawBodyText, contentType),
         headers_json: safeHeaders(req.headers),
         query_string: url.search,
+        hmac_status: hmacStatus,
+        hmac_sig_prefix: hmacSigPrefix,
       });
-      console.log(`[meta-whatsapp-webhook][${traceId}] RAW AUDIT logged (${rawBodyText.length} bytes, sanitized summary)`);
+      console.log(
+        `[meta-whatsapp-webhook][${traceId}] RAW AUDIT logged (${rawBodyText.length} bytes, sanitized summary, hmac_status=${hmacStatus ?? "unknown"})`,
+      );
     } catch (auditErr) {
       console.error(`[meta-whatsapp-webhook][${traceId}] RAW AUDIT failed:`, safeError(auditErr));
-    }
-  }
-
-  // === [F2.13.3-CODE Fase A] Validação HMAC SHA-256 — modo LOG (não rejeita) ===
-  // Acontece DEPOIS do raw audit (forense preservada) e ANTES do parse/roteamento.
-  // Apenas `x-hub-signature-256` é aceito como assinatura HMAC nova.
-  // META_APP_SECRET é lido de platform_credentials (fallback Deno.env). Nunca logado.
-  // Assinatura recebida nunca é logada por inteiro — apenas prefixo curto (8 chars).
-  // Após 72h sem falsos negativos → ativar Fase B (enforcement, retornando 401).
-  if (req.method === "POST" && rawBodyText !== null) {
-    try {
-      const { data: appSecretRow } = await supabase
-        .from("platform_credentials")
-        .select("credential_value")
-        .eq("credential_key", "META_APP_SECRET")
-        .eq("is_active", true)
-        .maybeSingle();
-      const appSecret = appSecretRow?.credential_value ?? Deno.env.get("META_APP_SECRET") ?? null;
-      const sigHeader = req.headers.get("x-hub-signature-256");
-      const hmac = await verifyMetaHmac(rawBodyText, sigHeader, appSecret);
-      console.log(
-        `[meta-whatsapp-webhook][${traceId}] HMAC check (log-mode) hmac_status=${hmac.status}` +
-          (hmac.sigPrefix ? ` sig_prefix=${hmac.sigPrefix}` : "") +
-          ` enforce=false`,
-      );
-    } catch (hmacErr) {
-      console.warn(
-        `[meta-whatsapp-webhook][${traceId}] HMAC check failed unexpectedly (log-mode, ignored):`,
-        safeError(hmacErr),
-      );
     }
   }
 
