@@ -36,6 +36,11 @@ Eventos pré-navegação (`AddToCart`, `InitiateCheckout`) DEVEM:
 2. Ter `sendBeacon` como fallback no `catch` final do `doFetch` (mesmo bloco que já protegia `Purchase`).
 Adicionalmente, `sendServerEvent` DEVE checar `_fbp` síncronamente no início — se já presente, dispara `fetch` imediato sem polling. Eventos sem risco de navegação imediata (PageView, ViewContent, Lead, Shipping, Payment, Purchase) mantêm `fbp_wait_ms = 5000` e fluxo atual.
 
+## Regra 9 — Comportamentos esperados (PROIBIDO propor "correções")
+Registrado em 2026-05-12. Não propor mexidas sem evidência nova:
+1. **`_fbc` cobertura 30–55% nos eventos de funil** é o teto natural — apenas tráfego com `?fbclid=` (clique em anúncio Meta) gera `_fbc`. Implementação atual já é completa: edge constrói no fbclid, browser persiste cookie 90d + `localStorage` mirror. Persistir além disso causa atribuição incorreta.
+2. **Aviso "IPv6 detected" no Events Manager** é informativo, não erro. Captura via `cf-connecting-ip` é o método oficial Meta. IPv6 é aceito desde 2022. Não converter sinteticamente para IPv4 (degrada matching geográfico).
+
 ## Doc formal de referência
-`docs/especificacoes/marketing/meta-tracking.md` — seções "Estratégia de Cobertura de Identificadores", "Cofre de Identidade Cumulativo" e "Técnica 6 — Envio resiliente a navegação imediata".
+`docs/especificacoes/marketing/meta-tracking.md` — seções "Estratégia de Cobertura de Identificadores", "Cofre de Identidade Cumulativo", "Técnica 6 — Envio resiliente a navegação imediata" e "Comportamentos esperados — NÃO são bugs".
 
