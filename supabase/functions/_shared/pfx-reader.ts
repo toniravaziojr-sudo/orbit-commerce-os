@@ -160,25 +160,28 @@ async function readPfxWithPkijs(
     checkIntegrity: true,
   });
 
-  // 2) Iterar safeContents
+  // 2) Parse dos blocos internos conforme o tipo de cada contentInfo
   const authenticatedSafe = pfx.parsedValue.authenticatedSafe;
-  const safeContentsArr = authenticatedSafe.parsedValue.safeContents;
+  if (!authenticatedSafe) {
+    throw new PfxError("CORRUPT", "AuthenticatedSafe ausente no PFX");
+  }
+
+  await authenticatedSafe.parseInternalValues({
+    safeContents: authenticatedSafe.safeContents.map((contentInfo: any) =>
+      contentInfo.contentType === "1.2.840.113549.1.7.6"
+        ? { password: passwordBuffer }
+        : {}
+    ),
+  });
+
+  const safeContentsArr = authenticatedSafe.parsedValue?.safeContents ?? [];
 
   let pkcs8Der: Uint8Array | null = null;
   let certDer: Uint8Array | null = null;
 
   for (let i = 0; i < safeContentsArr.length; i++) {
-    const safeContent = safeContentsArr[i].value;
-    // SafeContent precisa ser parseado também (pode estar encryptedData)
-    if (typeof safeContent.parseInternalValues === "function") {
-      try {
-        await safeContent.parseInternalValues({ password: passwordBuffer });
-      } catch (_) {
-        // pode já estar parseado
-      }
-    }
-
-    const safeBags = safeContent.parsedValue?.safeBags ?? safeContent.safeBags ?? [];
+    const safeContent = safeContentsArr[i];
+    const safeBags = safeContent?.value?.safeBags ?? [];
     for (const bag of safeBags) {
       const bagValue = bag.bagValue;
 
