@@ -5,7 +5,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 // deno-lint-ignore-file no-explicit-any
-import forge from "https://esm.sh/node-forge@1.3.1?bundle";
+import { readPfx, PfxError, pfxErrorToUserMessage } from "../_shared/pfx-reader.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -156,141 +156,30 @@ Deno.serve(async (req) => {
 
     console.log('[fiscal-upload-certificate] Validating certificate...');
 
-    // Decode PFX from base64
-    let pfxDer: string;
+    // Leitura unificada (PKI.js moderno -> fallback forge legado)
+    let bundle;
     try {
-      pfxDer = atob(pfxBase64);
-    } catch {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Arquivo de certificado inválido ou corrompido. Reexporte o .pfx e tente novamente.' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Diagnostic: file size + first bytes (PEM vs DER)
-    const firstBytes = pfxDer.length >= 2 ? [pfxDer.charCodeAt(0), pfxDer.charCodeAt(1)] : [];
-    const looksLikePem = pfxDer.startsWith('-----');
-    console.log('[fiscal-upload-certificate] PFX diagnostics:', {
-      size: pfxDer.length,
-      firstBytesHex: firstBytes.map((b) => b.toString(16).padStart(2, '0')).join(' '),
-      looksLikePem,
-    });
-
-    if (looksLikePem) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'O arquivo enviado está em formato PEM, não PFX/PKCS#12. Reexporte o certificado A1 como .pfx (com senha) e tente novamente.',
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Try to load and validate the certificate using node-forge
-    let p12Asn1;
-    let p12;
-    let certBags;
-    let keyBags;
-
-    try {
-      p12Asn1 = forge.asn1.fromDer(pfxDer);
-      p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, password);
-    } catch (e: any) {
-      const msg = String(e?.message || e || '');
-      console.error('[fiscal-upload-certificate] Failed to open PFX:', msg);
-
-      // Categoriza o erro para mensagem clara ao usuário
-      let userError: string;
-      if (/Only \d+, \d+, \d+, or \d+ bits supported/i.test(msg) || /unsupported.*(cipher|algorithm|encryption)/i.test(msg) || /OID.*not.*supported/i.test(msg)) {
-        userError = 'O formato de criptografia deste certificado não é suportado pela plataforma. Reexporte o arquivo .pfx escolhendo "compatibilidade" ou criptografia tradicional (TripleDES) e tente novamente. Se a dúvida persistir, peça ao emissor do certificado um .pfx em formato compatível.';
-      } else if (/PKCS#12 MAC could not be verified|invalid password|mac/i.test(msg)) {
-        userError = 'Senha do certificado incorreta. Verifique a senha e tente novamente.';
-      } else if (/asn|der|invalid|parse/i.test(msg)) {
-        userError = 'Arquivo de certificado inválido ou corrompido. Reexporte o .pfx e tente novamente.';
-      } else {
-        userError = 'Não foi possível abrir o certificado. Verifique se o arquivo é um .pfx válido e se a senha está correta.';
-      }
-
+      bundle = await readPfx(pfxBase64, password);
+    } catch (e) {
+      const userError = pfxErrorToUserMessage(e);
+      console.error('[fiscal-upload-certificate] readPfx falhou:', {
+        code: e instanceof PfxError ? e.code : 'UNKNOWN',
+        message: String((e as any)?.message ?? e),
+      });
       return new Response(
         JSON.stringify({ success: false, error: userError }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Extract certificate
-    try {
-      certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
-      keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
-    } catch (e) {
-      console.error('[fiscal-upload-certificate] Failed to extract bags:', e);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Não foi possível ler o certificado dentro do arquivo. Reexporte o .pfx e tente novamente.' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const certBagList = certBags[forge.pki.oids.certBag];
-    if (!certBagList || certBagList.length === 0) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Nenhum certificado encontrado dentro do arquivo .pfx.' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get the certificate (usually the first one is the end-entity cert)
-    const cert = certBagList[0].cert;
-    if (!cert) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Certificado inválido dentro do arquivo .pfx.' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Extract certificate info
-    const subject = cert.subject;
-    const validity = cert.validity;
-    const serialNumber = cert.serialNumber;
-
-    // Get CN (Common Name)
-    const cnAttr = subject.getField('CN');
-    const cn = cnAttr ? cnAttr.value : 'N/A';
-
-    // Get CNPJ from certificate (usually in subject or extensions)
-    let certCnpj = '';
-    
-    // Try to find CNPJ in subject
-    for (const attr of subject.attributes) {
-      // Check in various OID fields that might contain CNPJ
-      if (attr.value && typeof attr.value === 'string') {
-        const cnpjMatch = attr.value.match(/\d{14}/);
-        if (cnpjMatch) {
-          certCnpj = cnpjMatch[0];
-          break;
-        }
-      }
-    }
-
-    // If not found in subject, try OID 2.16.76.1.3.3 (ICP-Brasil CNPJ)
-    if (!certCnpj && cert.extensions) {
-      for (const ext of cert.extensions) {
-        if (ext.name === 'subjectAltName' && ext.altNames) {
-          for (const altName of ext.altNames) {
-            if (altName.value && typeof altName.value === 'string') {
-              const cnpjMatch = altName.value.match(/\d{14}/);
-              if (cnpjMatch) {
-                certCnpj = cnpjMatch[0];
-                break;
-              }
-            }
-          }
-        }
-      }
-    }
+    const cn = bundle.cn ?? 'N/A';
+    const certCnpj = bundle.cnpj ?? '';
+    const serialNumber = bundle.serialNumber;
+    const notBefore = bundle.validity.notBefore;
+    const notAfter = bundle.validity.notAfter;
 
     // Check validity
     const now = new Date();
-    const notBefore = validity.notBefore;
-    const notAfter = validity.notAfter;
 
     if (now < notBefore) {
       return new Response(

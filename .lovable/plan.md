@@ -1,110 +1,89 @@
+## Como funciona hoje
 
-# Análise — Qualidade Pixel + CAPI (Respeite o Homem)
+A plataforma usa uma única biblioteca para abrir o arquivo do certificado digital A1 (.pfx) em dois momentos críticos do módulo fiscal:
 
-## Como funciona hoje (resumo executivo)
+1. **No envio do certificado** (configurações fiscais), para validar senha, extrair CNPJ, validade e número de série, e sincronizar com a Focus NFe.
+2. **Na assinatura do XML da NF-e** (toda emissão), para extrair a chave privada e assinar o XML antes de enviar à SEFAZ.
 
-A loja envia cada evento para a Meta por dois caminhos em paralelo (Pixel no navegador + API de Conversões no servidor), com regras já documentadas para garantir cookies (`_fbp`, `_fbc`), IP, identidade do cliente e desduplicação.
+Essa biblioteca só entende o formato antigo do .pfx (TripleDES). Certificados modernos vêm em formato AES-256/PBES2, e por isso o arquivo nem chega a ser aberto — falha antes mesmo de testar a senha. Esse é o motivo do erro reportado.
 
-Última grande entrega: **v8.32.0 (07/05/2026)** — corrigiu paridade de `_fbp` no topo do funil, `predicted_ltv` no Purchase, beacon-first em AddToCart/InitiateCheckout e `delivery_category` faltando.
+## O problema
 
-O painel da Meta exibido nos prints reflete uma janela de **7 dias**, ou seja, **mistura dados pré e pós 07/05**. Parte do que aparece como "erro ativo" é resíduo dessa janela.
+- O lojista reexportar em "compatibilidade" resolve um caso pontual, mas qualquer outro tenant com certificado moderno vai bater no mesmo erro.
+- Mesmo se o envio funcionar, a hora de **emitir NF-e** usa exatamente a mesma biblioteca para assinar o XML — o problema reapareceria silenciosamente na emissão.
+- A documentação já reconhece essa limitação como evolução pendente.
 
----
+## Resultado esperado
 
-## O que eu confirmei nos dados reais (últimos 7 dias, CAPI)
+- Qualquer certificado A1 padrão de mercado (formato moderno ou antigo) é aceito no envio sem precisar reexportar.
+- A assinatura do XML da NF-e funciona com qualquer um desses certificados.
+- Mensagens de erro continuam claras (senha errada, CNPJ divergente, arquivo corrompido, certificado vencido).
+- Nenhum lojista que já está com certificado salvo perde acesso.
 
-| Evento | Total | `_fbp` | `_fbc` | Email | Telefone | Endereço |
-|---|---:|---:|---:|---:|---:|---:|
-| PageView | 1.779 | 87,6% | 37,7% | 8,9% | 8,9% | 0% |
-| ViewCategory | 854 | 81,9% | 40,7% | 14,2% | 14,2% | 0% |
-| ViewContent | 361 | 79,5% | 30,7% | 8,3% | 8,3% | 0% |
-| AddToCart | 152 | 93,4% | 47,4% | 38,2% | 38,2% | 0% |
-| InitiateCheckout | 142 | 99,3% | 48,6% | 28,9% | 28,9% | 0% |
-| Lead | 80 | 98,8% | 51,3% | 100% | 100% | 0% |
-| AddShippingInfo | 40 | 100% | 37,5% | 100% | 100% | 100% |
-| AddPaymentInfo | 43 | 100% | 39,5% | 100% | 100% | 100% |
-| **Purchase** | 44 | **75,0%** | 29,5% | 100% | 100% | 100% |
+## Estratégia (cirúrgica e anti-regressão)
 
-`predicted_ltv` em Purchase pós-v8.32.0: **100% válido** (39 dos 44 já são pós-deploy).
+A troca **não** vai substituir tudo. Vai trocar **apenas a etapa de abrir o .pfx** por uma biblioteca moderna que entende qualquer cifra. Tudo o que vem depois (assinatura XML, geração de PEM, integração com Focus NFe, criptografia em banco) continua igual. Isso minimiza superfície de regressão.
 
----
+### Onda A — Camada única e isolada para abrir o PFX
 
-## Diagnóstico item a item
+Criar um único ponto interno que abre o .pfx e devolve sempre o mesmo formato: chave privada e certificado em PEM (texto), mais metadados (CNPJ, validade, número de série, nome do titular).
 
-### 1. `_fbc` baixo em todos os eventos — **NORMAL, não é bug**
-O `_fbc` só existe quando o visitante chega num link com `fbclid` (clique em anúncio Meta). Visitantes orgânicos, diretos, vindos do Google, do Instagram bio, de e-mail, etc., **não geram `_fbc`**. É esperado que a cobertura fique entre 15% e 50%, dependendo da fração de tráfego pago Meta.
+- Esse ponto único tenta primeiro a biblioteca moderna. Se ela falhar, faz fallback para a biblioteca antiga (compatibilidade reversa total).
+- Mensagens de erro continuam categorizadas: senha incorreta, formato inválido, ASN corrompido, certificado vencido.
+- Nenhum certificado já salvo é afetado — a leitura no momento da emissão também passa por esse mesmo ponto único.
 
-**Ação:** nenhuma. O comportamento atende a especificação.
+### Onda B — Reaproveitamento nos dois pontos críticos
 
-### 2. Avisos de IPv4/IPv6 em ViewContent / AddToCart / InitiateCheckout — **PRECISA INVESTIGAR**
-A Meta detecta que o Pixel (navegador) reporta IPv6 mas a API de Conversões está enviando IPv4. Isso reduz match e pode disparar alerta "IPs divergentes". O documento já prevê leitura na ordem certa (`cf-connecting-ip` primeiro), mas precisamos confirmar se o navegador moderno está usando IPv6 e o servidor está pegando IPv4 de outro header em algum ponto do pipeline.
+- **Envio do certificado**: troca a chamada direta à biblioteca antiga pela camada nova. Mantém toda a lógica de validação de CNPJ, divergência com o emitente, sincronização Focus NFe, criptografia para o banco.
+- **Assinatura do XML da NF-e**: troca apenas a abertura do .pfx pela camada nova. A assinatura em si continua usando a mesma biblioteca atual (que assina perfeitamente desde que receba a chave em PEM). Resultado: a SEFAZ recebe XML idêntico ao de hoje, mesmo formato, mesmo padrão de canonicalização.
 
-**Ação proposta:** auditar amostras reais de Purchase/InitiateCheckout para verificar qual IP está sendo gravado, confirmar se é IPv4 mesmo quando o cliente é IPv6 e ajustar a fonte de IP se necessário (priorizar IPv6 quando disponível em cf-connecting-ip).
+### Onda C — Validação real ponta-a-ponta antes de declarar pronto
 
-### 3. Erro "predicted_ltv inválido em 40% dos Purchase" — **JÁ CORRIGIDO, aguardando janela**
-A correção v8.32.0 garante `predicted_ltv = value × 1.8` apenas quando o valor é > 0. Os dados reais pós-deploy mostram **100% de cobertura válida**. O alerta no painel ainda mostra 40% porque a Meta usa janela de 7 dias e ainda há eventos pré-correção misturados.
+Sequência obrigatória de testes antes de fechar:
 
-**Ação proposta:** nenhuma técnica. Apenas aguardar até **14/05** para o alerta sair sozinho. Se permanecer após 14/05, reabrir investigação.
+1. **Caso real do lojista** (certificado moderno que está falhando agora) — envio precisa funcionar.
+2. **Caso compatibilidade** (certificado em TripleDES, formato antigo) — envio precisa continuar funcionando.
+3. **Caso senha errada** — precisa exibir "senha incorreta" e não mensagem genérica.
+4. **Caso CNPJ divergente do emitente** — precisa bloquear com mensagem clara (regra de negócio existente).
+5. **Caso arquivo corrompido / PEM disfarçado** — mensagem categorizada correta.
+6. **Emissão de NF-e em homologação** com o certificado moderno recém-aceito — assinatura precisa ser aceita pela SEFAZ.
+7. **Lojista que já tem certificado salvo no banco** — próxima emissão precisa continuar funcionando sem reenvio.
 
-### 4. `_fbp` em Purchase em 75% — **PRECISA INVESTIGAR**
-A meta documental é ≥99% pós-v8.32.0. A página de "obrigado" (origem do Purchase) **não é renderizada pelo edge HTML** — é parte da SPA. Então o helper que sintetiza `_fbp` no servidor não roda nessa rota. Em fluxos onde o cliente é redirecionado ao gateway (Mercado Pago) e volta direto para `/thank-you`, o cookie pode ter sido setado em outro contexto/domínio e o navegador pode chegar sem ele.
+A Onda só é declarada concluída quando os 7 casos passarem. O caso 6 e o 7 dependem de você acionar (homologação e uma emissão de teste).
 
-**Ação proposta:** investigar a rota da página de obrigado e garantir que o `_fbp` esteja disponível antes do disparo do Purchase, seja por leitura do cookie já existente (cenário maioria), seja gerando sintético no momento do Purchase quando ausente. Usar a mesma lógica do edge HTML.
+### Onda D — Anti-regressão e governança
 
-### 5. `_fbp` em PageView/ViewCategory/ViewContent entre 79% e 87% — **PARCIALMENTE RESÍDUO**
-Esperávamos ≥95% após v8.32.0. Hipóteses:
-- HTMLs em cache ainda anteriores ao deploy de 07/05 (mesmo com revalidação marcada).
-- Visitantes com bloqueadores de cookie ou navegação privada.
-- Bots/crawlers que entram sem suportar cookies.
+- Criar uma regra anti-regressão (memória de constraint) declarando que a abertura do .pfx é centralizada num único ponto, e que qualquer função fiscal nova **não pode** abrir o .pfx por conta própria.
+- Atualizar a documentação fiscal removendo a "limitação conhecida" e descrevendo o novo modelo (camada única, fallback, formatos suportados).
+- Atualizar o mapa de UI se a tela de configuração fiscal ganhar algum ajuste de mensagem (provavelmente não muda).
+- Manter o envelope 200 + sucesso/erro em todas as funções fiscais (já implementado).
 
-**Ação proposta:** rodar uma nova invalidação dos prerenders e medir cobertura **só nas últimas 48h** para isolar o efeito real da v8.32.0. Se ainda ficar abaixo de 95%, investigar amostras concretas.
+## Riscos identificados e como mitigar
 
-### 6. Alerta "Baixa taxa de eventos cobertos pela API de Conversões" no AddToCart — **MONITORAR**
-Nossa cobertura CAPI de AddToCart está em 93,4% nos últimos 7 dias, perto do mínimo recomendado (75%). O alerta deve fechar naturalmente, mas se persistir após 14/05, validar se o `beacon-first` da v8.32.0 está sendo aceito em todos os navegadores de produção.
+| Risco | Mitigação |
+|-------|-----------|
+| Biblioteca nova não cobre algum caso raro | Fallback automático para a biblioteca antiga é obrigatório |
+| Assinatura XML rejeitada pela SEFAZ por mudança de formato | Não trocamos o assinador. Só a abertura do PFX muda. A chave em PEM é idêntica. |
+| Lojista que já tem certificado salvo quebra na próxima emissão | A camada única é usada também na emissão; ela aceita o conteúdo já salvo (mesmo conteúdo binário). Caso 7 do plano de teste valida isso. |
+| Performance de assinatura piora | Camada nova só atua na abertura inicial; assinatura continua na mesma biblioteca. Sem impacto em loop por item. |
+| Quebra silenciosa em algum tenant | Logs de diagnóstico (formato detectado, cifra, tamanho) ficam ligados na abertura para rastreio rápido. |
 
-### 7. Email/Telefone baixos em ViewContent/AddToCart — **NORMAL com upside futuro**
-O cofre de identidade só tem dados depois que o visitante deixa Lead/Checkout pelo menos uma vez. A maioria dos visitantes de PDP e carrinho ainda é **anônima na primeira visita**. Score sobe naturalmente com o tempo, conforme o cofre acumula visitantes recorrentes.
+## Cronograma proposto
 
-**Ação:** nenhuma técnica. Pode ser endereçado depois por uma estratégia de captura de e-mail mais cedo (popup já existe, mas conversão é função do design do popup).
+1. Onda A — implementação da camada única (rápida, isolada).
+2. Onda B — substituição nos dois pontos de uso (igualmente isolada).
+3. Onda C — testes 1 a 5 que eu mesmo executo via chamada direta à função.
+4. Onda C — testes 6 e 7 que dependem de você (emissão homologação + verificação de um lojista existente).
+5. Onda D — documentação e regra anti-regressão fechadas como parte da entrega.
 
----
+## O que NÃO entra neste escopo (para evitar mistura de frente)
 
-## O que é normal, o que vou propor mexer
+- Mudanças na assinatura XML em si.
+- Mudanças no fluxo Focus NFe ou na sincronização de empresa.
+- Reformulação da tela de configurações fiscais.
+- Suporte a certificados A3 (token físico) — fora do escopo atual.
 
-| Item | Status | Ação |
-|---|---|---|
-| `_fbc` baixo | Normal | Nada |
-| Email/telefone baixo no topo de funil | Normal | Nada |
-| `predicted_ltv` inválido | Já corrigido | Aguardar janela 14/05 |
-| Cobertura CAPI em AddToCart | Quase no alvo | Monitorar até 14/05 |
-| `_fbp` Purchase em 75% | **Bug residual** | Investigar a página de obrigado e corrigir |
-| Avisos de IPv4/IPv6 | **Bug residual** | Auditar fonte de IP e ajustar prioridade |
-| `_fbp` PageView/ViewContent abaixo de 95% | **Parcialmente resíduo** | Reinvalidar HTML e remedir em 48h |
+## Confirmação necessária antes de iniciar
 
----
-
-## Resultado final esperado
-
-Depois de aplicar os ajustes propostos:
-- Score do Purchase deve subir de ~7,5 para ≥9,0.
-- Os 3 alertas ativos do painel Meta devem fechar até 21/05.
-- Match Quality estabiliza acima do score do Lead em toda a cadeia (cadeia natural respeitada).
-
-Sem nenhum ajuste, o que vai melhorar sozinho até 14/05:
-- Erro de `predicted_ltv` (já corrigido na v8.32.0).
-- Cobertura CAPI de AddToCart (também já endereçado).
-
----
-
-## Detalhe técnico (opcional)
-
-Pontos a auditar na execução:
-- `src/components/storefront/ThankYouContent.tsx` e rota da página de obrigado para ver se `_fbp` está disponível no momento do disparo do Purchase.
-- Ordem efetiva de leitura de IP em `marketing-capi-track` quando o cliente é IPv6 (confirmar se `cf-connecting-ip` está realmente vencendo `x-forwarded-for[0]`).
-- Última lista de prerenders ativos para validar se há HTML pré-07/05 ainda servido.
-
-## Próxima execução recomendada
-
-Investigar **`_fbp` no Purchase (item 4)** primeiro — é o de maior impacto no score do principal evento de conversão. Depois IPv4/IPv6 (item 2). Os demais ou são normais ou se resolvem sozinhos na janela de 7 dias.
-
-**Não é necessário aprovar a correção agora.** Se você quiser que eu prossiga, eu abro a investigação técnica do item 4 e volto com o diagnóstico antes de propor o ajuste.
+- Aprovação para iniciar a Onda A imediatamente após você confirmar este plano.
+- Disponibilidade sua para o teste 6 (emitir uma NF-e em homologação com o certificado novo) e o teste 7 (confirmar uma emissão de outro tenant que já tinha certificado funcionando) ao final.
