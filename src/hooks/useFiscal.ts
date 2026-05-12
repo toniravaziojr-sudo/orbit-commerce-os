@@ -214,7 +214,15 @@ export function useFiscalSettings() {
       queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
       toast.success('Certificado digital salvo com sucesso');
     },
-    onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
+    onError: (err: any) => {
+      // Preserva a mensagem específica devolvida pelo backend (senha errada,
+      // formato não suportado, arquivo corrompido, etc.) em vez de cair no
+      // toast genérico "Erro ao processar fiscal".
+      const friendly = typeof err?.message === 'string' && err.message.length > 0
+        ? err.message
+        : 'Não foi possível enviar o certificado. Tente novamente.';
+      showErrorToast(err, { module: 'fiscal', action: 'processar', message: friendly });
+    },
   });
 
   const removeCertificate = useMutation({
