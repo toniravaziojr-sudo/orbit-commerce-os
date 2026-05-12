@@ -245,6 +245,12 @@ Kit vendido por R$ 100,00
    c. Chama Focus NFe (POST /v2/empresas) com Basic Auth (FOCUS_NFE_TOKEN)
    d. Anexa certificado A1
    e. Persiste focus_empresa_id e focus_ultima_sincronizacao em fiscal_settings
+   f. Pós-sync: chama GET /v2/empresas/{id} (snapshot completo) e grava
+      certificado_valido_ate, certificado_cnpj e razão social retornados
+      pelo Focus em fiscal_settings (POST/PUT podem não devolver esses campos).
+   g. Recalcula is_configured = true quando todos os requisitos canônicos
+      estão presentes (Razão Social, CNPJ, IE, endereço, série NFe e
+      certificado válido). O badge "Pronto/Incompleto" da UI lê esse flag.
 ```
 
 ### Fluxo de Emissão
