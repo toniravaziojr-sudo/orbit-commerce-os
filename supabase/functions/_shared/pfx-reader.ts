@@ -280,7 +280,7 @@ async function readPfxWithForge(
   pfxBytes: Uint8Array,
   password: string,
 ): Promise<PfxBundle> {
-  const forgeModule: any = await import("https://esm.sh/node-forge@1.3.1?bundle");
+  const forgeModule: any = await import("npm:node-forge@1.3.1");
   const forge: any = forgeModule.default || forgeModule;
 
   if (!forge?.util?.decode64 || !forge?.pkcs12) {
