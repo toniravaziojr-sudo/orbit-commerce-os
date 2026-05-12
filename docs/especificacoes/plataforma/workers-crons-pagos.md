@@ -175,18 +175,33 @@ if (authHeader.includes(SUPABASE_SERVICE_ROLE_KEY)) { /* modo cron */ }
 
 Com chave anon a edge cai no ramo "manual" e devolve `401 Não autorizado`. O `pg_cron`/`net.http_post` não enxerga esse 401 (a request é aceita pelo gateway), o que produz **falha silenciosa**.
 
-> **Padrão obrigatório:** o cron deve enviar `Authorization: Bearer <service_role>`. O segredo **não** pode ser commitado em migration versionada nem exposto em logs. Quando o projeto adotar Vault para `service_role`, este job deve passar a ler via `current_setting('app.settings.service_role_key', true)` ou equivalente. **Hoje (2026-05) não há padrão seguro confirmado** para service_role em cron deste projeto — pendência bloqueante registrada na Onda 1.
+> **Padrão obrigatório:** o cron deve enviar `Authorization: Bearer <service_role>`. O segredo **não** pode ser commitado em migration versionada nem exposto em logs. A gravação atual do Bearer no `cron.job.command` foi feita via bootstrap one-shot (ver §9.3), única abordagem viável neste projeto enquanto não houver Vault/GUC seguro. A constraint `mem://constraints/cron-service-role-key-guc-prohibition` proíbe `current_setting('app.settings.service_role_key')` aqui — a GUC nunca foi provisionada.
 
-### 9.3 Lacuna resolvida na Onda 1 (2026-05) — parcial
+### 9.3 Onda 1.5 (2026-05-12) — corrigida e documentada
 
-- **Diagnóstico (gate read-only):** o job ativo era `generate-weekly-insights` (jobid 22), schedule `0 11 * * 1`, autenticando com **chave anon** → 401 silencioso a cada segunda-feira.
-- **Reschedule:** **não executado** nesta onda. Requer decisão do operador sobre como expor `service_role` para o cron sem violar regra de segredos. Opções abertas para Onda 1.5: (a) Vault + `app.settings.service_role_key`; (b) inserção manual via `cron.schedule` fora de migration versionada (padrão Lovable para schedules com secret); (c) introduzir adapter de auth alternativo na edge (ex.: HMAC com secret dedicado).
-- **Status do cron:** `generate-weekly-insights` permanece ativo e continua devolvendo 401. Geração semanal de insights está **parada**.
+- **Job antigo removido:** `generate-weekly-insights` (jobid 22, header com chave anon → 401 silencioso) foi desagendado.
+- **Job canônico ativo:** `weekly-command-insights` (jobid 56), schedule `0 11 * * 1`, alvo `command-insights-generate`, header `Authorization: Bearer ***MASKED***` carregando o `SUPABASE_SERVICE_ROLE_KEY` operacional.
+- **Caminho técnico de correção:** edge bootstrap temporária `bootstrap-insights-cron` + RPC temporária `public._bootstrap_reschedule_cron` (SECURITY DEFINER restrita a `service_role`) executaram o `cron.unschedule`/`cron.schedule` em uma única invocação. **Ambos os artefatos temporários já foram removidos** (arquivo deletado e `DROP FUNCTION` aplicado por migration). Nenhuma rota, função ou RPC temporária permanece ativa.
+- **Motivo da abordagem:** Lovable Cloud não expõe o `service_role` ao operador e este projeto **não possui Vault, helper ou GUC seguro** para injetar o segredo no `cron.job.command`. A bootstrap one-shot foi a única forma de gravar o Bearer correto sem versionar o segredo em migration nem expor no chat.
 
-### 9.4 Critérios de aceite (quando a correção for aplicada)
+### 9.4 Regras de segurança (permanentes)
 
-- [ ] `cron.job` exibe `weekly-command-insights` com schedule `0 11 * * 1` e header de service_role.
-- [ ] Execução manual via `curl_edge_functions` com Bearer service_role retorna `success: true` (ou explica ausência de tenant elegível sem erro silencioso).
+- O `SUPABASE_SERVICE_ROLE_KEY` **nunca** pode ser versionado em migration, código, comentário, doc ou log.
+- Qualquer exibição operacional do `cron.job.command` deve mascarar o token: `Bearer ***MASKED***`.
+- É proibido recriar `bootstrap-insights-cron` ou `_bootstrap_reschedule_cron` fora de uma nova janela de correção autorizada.
+
+### 9.5 Risco remanescente
+
+- **Rotação do `SUPABASE_SERVICE_ROLE_KEY`:** o Bearer está embutido em `cron.job.command`. Se a chave for rotacionada, o cron passa a devolver 401 silencioso. Mitigação: reagendar o job (nova janela bootstrap one-shot) imediatamente após qualquer rotação. Mitigação estrutural futura: migrar `command-insights-generate` para o padrão "anon hardcoded + validação interna" (ver `mem://constraints/cron-service-role-key-guc-prohibition`) e remover a dependência do service_role no header do cron.
+
+### 9.6 Validação desta onda
+
+- Auditoria final read-only (2026-05-12): `generate-weekly-insights` ausente; `weekly-command-insights` ativo com schedule e alvo corretos; header sem chave anon; bootstrap e RPC temporárias confirmadas como inexistentes.
+- **Smoke real não executado** nesta etapa: `command-insights-generate` não possui modo confirmado sem efeito colateral (escreve em `command_insights` e em `platform_cost_ledger`). A primeira execução real ocorrerá na próxima segunda-feira 11:00 UTC ou em janela de smoke autorizada explicitamente.
+
+### 9.7 Critérios de aceite (em aberto, dependem de execução real)
+
+- [ ] Execução real (cron ou curl autorizado) retorna `success: true` ou justificativa sem erro silencioso.
 - [ ] `command_insights` recebe nova linha quando há tenant elegível.
 - [ ] `platform_cost_ledger` recebe linha com `service_key='command-insights-generate'` quando o LLM é efetivamente chamado.
 - [ ] Logs do edge não mostram `Não autorizado` em execuções do cron.
