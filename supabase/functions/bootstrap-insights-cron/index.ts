@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`[bootstrap-insights-cron] OK by ${userData.user.email} — service_role ${mask(serviceRole)}`);
+    console.log(`[bootstrap-insights-cron] OK by ${callerLabel} — service_role ${mask(serviceRole)}`);
 
     return new Response(JSON.stringify({ success: true, result }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
