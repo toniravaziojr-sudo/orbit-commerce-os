@@ -177,14 +177,25 @@ Deno.serve(async (req) => {
     // Atualizar fiscal_settings com ID da empresa Focus NFe
     const newEmpresaId = result.data?.id || result.data?.cnpj || empresaId;
     
+    // Atualiza vínculo Focus + metadados de certificado retornados pelo Focus
+    // (validade do cert é o sinal canônico de que o cert foi aceito).
+    const updatePayload: Record<string, any> = {
+      focus_empresa_id: newEmpresaId,
+      focus_empresa_criada_em: empresaId ? undefined : new Date().toISOString(),
+      focus_ultima_sincronizacao: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (result.data?.certificado_validade) {
+      updatePayload.certificado_valido_ate = new Date(result.data.certificado_validade).toISOString();
+      // CN/CNPJ: se o Focus devolveu razão social, podemos refletir; CNPJ aqui é o do emitente.
+      updatePayload.certificado_cnpj = (result.data.cnpj ?? settings.cnpj ?? '').toString().replace(/\D/g, '') || null;
+      updatePayload.certificado_cn = result.data.razao_social ?? settings.razao_social ?? null;
+    }
+
     const { error: updateError } = await supabaseClient
       .from('fiscal_settings')
-      .update({
-        focus_empresa_id: newEmpresaId,
-        focus_empresa_criada_em: empresaId ? undefined : new Date().toISOString(),
-        focus_ultima_sincronizacao: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('tenant_id', tenantId);
 
     if (updateError) {
