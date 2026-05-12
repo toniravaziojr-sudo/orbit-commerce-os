@@ -506,6 +506,11 @@ export class MarketingTracker {
     captureClickIds();
     getOrCreateVisitorId();
 
+    // v8.33.0: Seed `_fbp` client-side for SPA-only routes that bypass the
+    // edge HTML synthesizer (e.g. `/thank-you` after gateway redirect).
+    // Idempotent: respects existing window seed or cookie.
+    ensureFbp();
+
     // Phase 4: getFbc to capture fbclid from URL
     const identity = getTrackingIdentity();
 
