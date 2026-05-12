@@ -1,137 +1,110 @@
-## Objetivo
 
-Fechar o vazamento de custo nas duas únicas edges de mídia ainda fora do motor v2 (`creative-process` e `media-generate-video`), seguindo estritamente o padrão já estabelecido pelo doc e pelo piloto Fase 3B (shadow primeiro, live depois). Sem inventar arquitetura, sem inventar service_keys, sem pular shadow.
+# Análise — Qualidade Pixel + CAPI (Respeite o Homem)
 
-## Por que o plano anterior precisou ser refeito
+## Como funciona hoje (resumo executivo)
 
-A investigação dos docs revelou 5 violações graves no plano anterior:
+A loja envia cada evento para a Meta por dois caminhos em paralelo (Pixel no navegador + API de Conversões no servidor), com regras já documentadas para garantir cookies (`_fbp`, `_fbc`), IP, identidade do cliente e desduplicação.
 
-| # | Violação | Correção |
+Última grande entrega: **v8.32.0 (07/05/2026)** — corrigiu paridade de `_fbp` no topo do funil, `predicted_ltv` no Purchase, beacon-first em AddToCart/InitiateCheckout e `delivery_category` faltando.
+
+O painel da Meta exibido nos prints reflete uma janela de **7 dias**, ou seja, **mistura dados pré e pós 07/05**. Parte do que aparece como "erro ativo" é resíduo dessa janela.
+
+---
+
+## O que eu confirmei nos dados reais (últimos 7 dias, CAPI)
+
+| Evento | Total | `_fbp` | `_fbc` | Email | Telefone | Endereço |
+|---|---:|---:|---:|---:|---:|---:|
+| PageView | 1.779 | 87,6% | 37,7% | 8,9% | 8,9% | 0% |
+| ViewCategory | 854 | 81,9% | 40,7% | 14,2% | 14,2% | 0% |
+| ViewContent | 361 | 79,5% | 30,7% | 8,3% | 8,3% | 0% |
+| AddToCart | 152 | 93,4% | 47,4% | 38,2% | 38,2% | 0% |
+| InitiateCheckout | 142 | 99,3% | 48,6% | 28,9% | 28,9% | 0% |
+| Lead | 80 | 98,8% | 51,3% | 100% | 100% | 0% |
+| AddShippingInfo | 40 | 100% | 37,5% | 100% | 100% | 100% |
+| AddPaymentInfo | 43 | 100% | 39,5% | 100% | 100% | 100% |
+| **Purchase** | 44 | **75,0%** | 29,5% | 100% | 100% | 100% |
+
+`predicted_ltv` em Purchase pós-v8.32.0: **100% válido** (39 dos 44 já são pós-deploy).
+
+---
+
+## Diagnóstico item a item
+
+### 1. `_fbc` baixo em todos os eventos — **NORMAL, não é bug**
+O `_fbc` só existe quando o visitante chega num link com `fbclid` (clique em anúncio Meta). Visitantes orgânicos, diretos, vindos do Google, do Instagram bio, de e-mail, etc., **não geram `_fbc`**. É esperado que a cobertura fique entre 15% e 50%, dependendo da fração de tráfego pago Meta.
+
+**Ação:** nenhuma. O comportamento atende a especificação.
+
+### 2. Avisos de IPv4/IPv6 em ViewContent / AddToCart / InitiateCheckout — **PRECISA INVESTIGAR**
+A Meta detecta que o Pixel (navegador) reporta IPv6 mas a API de Conversões está enviando IPv4. Isso reduz match e pode disparar alerta "IPs divergentes". O documento já prevê leitura na ordem certa (`cf-connecting-ip` primeiro), mas precisamos confirmar se o navegador moderno está usando IPv6 e o servidor está pegando IPv4 de outro header em algum ponto do pipeline.
+
+**Ação proposta:** auditar amostras reais de Purchase/InitiateCheckout para verificar qual IP está sendo gravado, confirmar se é IPv4 mesmo quando o cliente é IPv6 e ajustar a fonte de IP se necessário (priorizar IPv6 quando disponível em cf-connecting-ip).
+
+### 3. Erro "predicted_ltv inválido em 40% dos Purchase" — **JÁ CORRIGIDO, aguardando janela**
+A correção v8.32.0 garante `predicted_ltv = value × 1.8` apenas quando o valor é > 0. Os dados reais pós-deploy mostram **100% de cobertura válida**. O alerta no painel ainda mostra 40% porque a Meta usa janela de 7 dias e ainda há eventos pré-correção misturados.
+
+**Ação proposta:** nenhuma técnica. Apenas aguardar até **14/05** para o alerta sair sozinho. Se permanecer após 14/05, reabrir investigação.
+
+### 4. `_fbp` em Purchase em 75% — **PRECISA INVESTIGAR**
+A meta documental é ≥99% pós-v8.32.0. A página de "obrigado" (origem do Purchase) **não é renderizada pelo edge HTML** — é parte da SPA. Então o helper que sintetiza `_fbp` no servidor não roda nessa rota. Em fluxos onde o cliente é redirecionado ao gateway (Mercado Pago) e volta direto para `/thank-you`, o cookie pode ter sido setado em outro contexto/domínio e o navegador pode chegar sem ele.
+
+**Ação proposta:** investigar a rota da página de obrigado e garantir que o `_fbp` esteja disponível antes do disparo do Purchase, seja por leitura do cookie já existente (cenário maioria), seja gerando sintético no momento do Purchase quando ausente. Usar a mesma lógica do edge HTML.
+
+### 5. `_fbp` em PageView/ViewCategory/ViewContent entre 79% e 87% — **PARCIALMENTE RESÍDUO**
+Esperávamos ≥95% após v8.32.0. Hipóteses:
+- HTMLs em cache ainda anteriores ao deploy de 07/05 (mesmo com revalidação marcada).
+- Visitantes com bloqueadores de cookie ou navegação privada.
+- Bots/crawlers que entram sem suportar cookies.
+
+**Ação proposta:** rodar uma nova invalidação dos prerenders e medir cobertura **só nas últimas 48h** para isolar o efeito real da v8.32.0. Se ainda ficar abaixo de 95%, investigar amostras concretas.
+
+### 6. Alerta "Baixa taxa de eventos cobertos pela API de Conversões" no AddToCart — **MONITORAR**
+Nossa cobertura CAPI de AddToCart está em 93,4% nos últimos 7 dias, perto do mínimo recomendado (75%). O alerta deve fechar naturalmente, mas se persistir após 14/05, validar se o `beacon-first` da v8.32.0 está sendo aceito em todos os navegadores de produção.
+
+### 7. Email/Telefone baixos em ViewContent/AddToCart — **NORMAL com upside futuro**
+O cofre de identidade só tem dados depois que o visitante deixa Lead/Checkout pelo menos uma vez. A maioria dos visitantes de PDP e carrinho ainda é **anônima na primeira visita**. Score sobe naturalmente com o tempo, conforme o cofre acumula visitantes recorrentes.
+
+**Ação:** nenhuma técnica. Pode ser endereçado depois por uma estratégia de captura de e-mail mais cedo (popup já existe, mas conversão é função do design do popup).
+
+---
+
+## O que é normal, o que vou propor mexer
+
+| Item | Status | Ação |
 |---|---|---|
-| 1 | Inventei `service_key` no formato `creative.kling-i2v-pro` | Usar **só** chaves canônicas já em `service_pricing`: `fal.kling-video.per_second.pro`, `fal.veo-3.1.per_second.*`, `fal.gpt-image-1.5.per_image.*` |
-| 2 | Propus `chargeAfter` direto para vídeo (risco crítico no registry) | Vídeo é `reserve+capture` obrigatório com 110% da estimativa (doc §8). `chargeAfter` postpaid não atende. |
-| 3 | Pulei shadow mode | Fase 3B exige shadow primeiro. `creative-image-generate` ainda está em shadow. Live só após validação |
-| 4 | Ignorei o helper `live-v2.ts`/`shadow-reservation.ts` que `creative-image-generate` já usa | Replicar exatamente o mesmo padrão das edges novas — sem helper alternativo |
-| 5 | Não tinha mapeamento `model_id interno → service_key canônica` | Esse mapper é o trabalho real. Pequeno, isolado, testável |
+| `_fbc` baixo | Normal | Nada |
+| Email/telefone baixo no topo de funil | Normal | Nada |
+| `predicted_ltv` inválido | Já corrigido | Aguardar janela 14/05 |
+| Cobertura CAPI em AddToCart | Quase no alvo | Monitorar até 14/05 |
+| `_fbp` Purchase em 75% | **Bug residual** | Investigar a página de obrigado e corrigir |
+| Avisos de IPv4/IPv6 | **Bug residual** | Auditar fonte de IP e ajustar prioridade |
+| `_fbp` PageView/ViewContent abaixo de 95% | **Parcialmente resíduo** | Reinvalidar HTML e remedir em 48h |
 
-## Diagnóstico final do escopo
+---
 
-| Edge | Estado real | Ação |
-|---|---|---|
-| `creative-image-generate` | Shadow ativo + live-v2 condicional. **Já é o padrão** | Nada |
-| `ads-autopilot-creative-generate` | **Delega** via fetch interno para `creative-image-generate` (linha 329). Cobrança herdada | Verificar só se `tenant_id` propaga |
-| `meta-ads-creatives` | Apenas CRUD/sync da Meta API. **Não gera mídia** | Fora de escopo |
-| `creative-generate` | Cria job + estimativa de display em centavos (hardcode). Não chama provider | Manter como está; cobrança vai no worker |
-| `creative-process` (worker) | Já busca `costUsd` real via Fal Usage API. **Não toca motor** | Plugar shadow + reserve/capture |
-| `media-generate-video` | Gera vídeo direto. **Não toca motor** | Plugar shadow + reserve/capture |
+## Resultado final esperado
 
-## O que será feito
+Depois de aplicar os ajustes propostos:
+- Score do Purchase deve subir de ~7,5 para ≥9,0.
+- Os 3 alertas ativos do painel Meta devem fechar até 21/05.
+- Match Quality estabiliza acima do score do Lead em toda a cadeia (cadeia natural respeitada).
 
-### Etapa 1 — Mapper canônico (helper compartilhado)
+Sem nenhum ajuste, o que vai melhorar sozinho até 14/05:
+- Erro de `predicted_ltv` (já corrigido na v8.32.0).
+- Cobertura CAPI de AddToCart (também já endereçado).
 
-Criar `supabase/functions/_shared/credits/media-service-key-resolver.ts`:
+---
 
-- Função `resolveVideoServiceKey(modelId, opts)` → `{ serviceKey, units }` para vídeo.
-  - `kling-i2v-pro` → `fal.kling-video.per_second.pro` + `units = { seconds }`
-  - `kling-avatar*` → `fal.kling-video.per_second.pro`
-  - `veo31-text-video` → `fal.veo-3.1.per_second.fast.audio` (ou variant via opts)
-- Função `resolveImageServiceKey(modelId, opts)` → para imagens (`gpt-image-bg` etc.)
-- Função `resolveAudioServiceKey(modelId, opts)` → para `f5-tts`, `sync-lipsync`, `chatterbox-voice`. Se não houver entrada em `service_pricing`, retornar `null` e a edge faz **skip controlado** com `skip_reason='pricing_not_seeded'` (mesmo padrão da Fase 3B).
-- Tabela única e testável. Próximas edges reusam.
+## Detalhe técnico (opcional)
 
-### Etapa 2 — Plug em `creative-process` (worker)
+Pontos a auditar na execução:
+- `src/components/storefront/ThankYouContent.tsx` e rota da página de obrigado para ver se `_fbp` está disponível no momento do disparo do Purchase.
+- Ordem efetiva de leitura de IP em `marketing-capi-track` quando o cliente é IPv6 (confirmar se `cf-connecting-ip` está realmente vencendo `x-forwarded-for[0]`).
+- Última lista de prerenders ativos para validar se há HTML pré-07/05 ainda servido.
 
-Após cada step concluído com sucesso e `fetchRealCostFromFalai` resolvido:
+## Próxima execução recomendada
 
-1. `serviceKey, units = resolveVideoServiceKey(step.model_id, { seconds: actualDuration })` (ou Image, conforme tipo).
-2. Se `serviceKey === null`: log `[creative-process.shadow] skip pricing_not_seeded` e segue. **Nunca quebra entrega.**
-3. Caso contrário: chamar **mesma função usada por `creative-image-generate`** (`live-v2.ts` se aplicável, ou shadow via `shadow-reservation.ts`).
-4. Idempotência: `${job.id}:${step.step_id}:${variation_index}`.
-5. Tenant ativa shadow incluindo as novas chaves em `tenant_credit_motor_config.shadow_service_keys` (sem entrar em `live_service_keys` ainda).
+Investigar **`_fbp` no Purchase (item 4)** primeiro — é o de maior impacto no score do principal evento de conversão. Depois IPv4/IPv6 (item 2). Os demais ou são normais ou se resolvem sozinhos na janela de 7 dias.
 
-### Etapa 3 — Plug em `media-generate-video`
-
-Mesmo padrão. Vídeo = sempre shadow primeiro. Idempotência: `media-generate-video:${tenant_id}:${request_id}`.
-
-### Etapa 4 — Seed de `service_pricing` faltantes (migration)
-
-Auditar gaps. Hoje confirmado:
-
-- ✅ `fal.kling-video.per_second.pro` (existe)
-- ✅ `fal.veo-3.1.per_second.*` (várias variantes)
-- ✅ `fal.gpt-image-1.5.per_image.*` (várias resoluções)
-- ❌ `fal.pixverse.*` — **faltam**, seedar com `metadata.placeholder=true`
-- ❌ `fal.f5-tts.*`, `fal.sync-lipsync.*` — **faltam**, seedar como placeholder
-- ❌ `fal.kling-video.per_second.standard` (modo std do mascot avatar) — verificar
-
-Seed só com `placeholder=true` para chaves não confirmadas; mapper retorna `null` para placeholders → edge faz skip controlado. Sem cobrança shadow errada. Cura quando preço real for confirmado.
-
-### Etapa 5 — Atualizar `tenant_credit_motor_config` do Respeite o Homem
-
-Adicionar em `shadow_service_keys` as novas chaves de vídeo confirmadas (Kling pro, Veo). Pixverse/F5-TTS ficam fora até preço real.
-
-### Etapa 6 — Validação técnica obrigatória
-
-Disparar 1 job de cada tipo no piloto e validar via:
-
-```sql
-SELECT service_key, status, metadata->>'v2_credits_estimated', metadata->>'shadow_error'
-FROM service_usage_events
-WHERE tenant_id='d1a4d0ed-8842-495e-b741-540a9a345b25'
-  AND status='shadow'
-  AND created_at > NOW() - INTERVAL '1 hour'
-ORDER BY created_at DESC;
-```
-
-Critérios de sucesso:
-- 0 erros shadow
-- Cada step gerou exatamente 1 evento shadow
-- Idempotência: re-disparo do mesmo job não duplica evento
-- `credit_ledger` permanece intacto (shadow não toca financeiro)
-
-### Etapa 7 — Janela de avaliação shadow (7 dias)
-
-Antes de promover qualquer chave de vídeo para `live_service_keys`, esperar 7 dias com ≥10 eventos shadow por chave e 0 erros. Mesma régua da Fase 3.
-
-## Documentação a atualizar (no fechamento)
-
-- `docs/especificacoes/plataforma/motor-creditos.md` — nova **Fase 3C — Piloto shadow IA Vídeo + áudio creative** logo abaixo da Fase 3B.
-- `docs/especificacoes/plataforma/motor-creditos-fase-3c-shadow-video.md` — doc dedicado (espelha estrutura do 3b).
-- `mem://features/platform/motor-universal-creditos-rollout` — marcar lote de mídia como "shadow ativo, aguardando janela de 7 dias".
-- `mem://features/ai/creative-pipeline-charging-standard` — nova memória com contrato do `media-service-key-resolver`.
-- `docs/especificacoes/plataforma/funcoes-pagas.md` — atualizar status de `creative-process`, `media-generate-video`, `ads-autopilot-creative-generate` (tudo plugado em shadow).
-
-## Fora deste plano
-
-- **Promoção live de vídeo** — só após janela shadow validada. Mensagem separada.
-- **Auditoria `tenant_ai_usage` zerado** — diagnóstico independente, mensagem separada.
-- **Hardcode em `creative-generate`** — é só estimativa de display, não impacta cobrança real. Limpeza opcional futura.
-
-## Diagrama do fluxo final
-
-```text
-creative-generate (cria job, estima display)
-        ↓
-creative-process (worker)
-   ├─ executa step na Fal
-   ├─ fetchRealCostFromFalai() → costUsd real
-   ├─ salva output
-   ├─ resolveVideoServiceKey(model_id, { seconds }) → { serviceKey, units } | null
-   └─ se serviceKey != null → shadow event via shadow-reservation
-                              (live-v2 só após promoção em config)
-
-media-generate-video
-   ├─ executa geração na Fal
-   ├─ fetchRealCostFromFalai()
-   ├─ resolveVideoServiceKey(...)
-   └─ shadow event (igual acima)
-```
-
-## Riscos e mitigações
-
-| Risco | Mitigação |
-|---|---|
-| Mapper retorna chave errada → cobrança shadow errada | Testes unitários do resolver + janela 7 dias antes de live |
-| Edge quebra se shadow falhar | `shadow-reservation` já tem try/catch silencioso. Falha vira `WARN`, geração entrega normalmente |
-| Pixverse/F5-TTS sem preço seedado vazam custo silencioso | Aceito por enquanto. Pricing real entra em iteração futura, sem bloquear este lote |
-| Chaves canônicas Kling/Veo divergem do `model_id` interno | Mapper centralizado é o único ponto de tradução. Testado |
+**Não é necessário aprovar a correção agora.** Se você quiser que eu prossiga, eu abro a investigação técnica do item 4 e volto com o diagnóstico antes de propor o ajuste.
