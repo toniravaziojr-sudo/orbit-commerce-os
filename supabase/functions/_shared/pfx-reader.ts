@@ -151,14 +151,26 @@ async function readPfxWithPkijs(
 
   const pfx = new pkijs.PFX({ schema: asn1.result });
 
-  // Senha como ArrayBuffer (UTF-8 não — PKCS#12 usa BMPString)
-  const passwordBuffer = new TextEncoder().encode(password).buffer;
+  // PKCS#12 exige a senha codificada como BMPString (UTF-16BE) com null terminator,
+  // mas o pkijs 3.x faz essa codificação internamente quando recebe a senha como
+  // ArrayBuffer de bytes UTF-8. Passamos os bytes UTF-8 da senha original.
+  const pwBytes = new TextEncoder().encode(password);
+  const passwordBuffer = pwBytes.buffer.slice(pwBytes.byteOffset, pwBytes.byteOffset + pwBytes.byteLength);
 
-  // 1) Parse AuthenticatedSafe
-  await pfx.parseInternalValues({
-    password: passwordBuffer,
-    checkIntegrity: true,
-  });
+  // 1) Parse AuthenticatedSafe + verificação de MAC (senha)
+  try {
+    await pfx.parseInternalValues({
+      password: passwordBuffer,
+      checkIntegrity: true,
+    });
+  } catch (e: any) {
+    // pkijs lança erros como "Invalid MAC" / "Integrity check failed" quando a senha está errada
+    const m = String(e?.message ?? e).toLowerCase();
+    if (/mac|integrity|password/.test(m)) {
+      throw new PfxError("WRONG_PASSWORD", "Senha do certificado incorreta");
+    }
+    throw e;
+  }
 
   // 2) Parse dos blocos internos conforme o tipo de cada contentInfo
   const authenticatedSafe = pfx.parsedValue.authenticatedSafe;
@@ -167,8 +179,8 @@ async function readPfxWithPkijs(
   }
 
   await authenticatedSafe.parseInternalValues({
-    safeContents: authenticatedSafe.safeContents.map((contentInfo: any) =>
-      contentInfo.contentType === "1.2.840.113549.1.7.6"
+    safeContents: (authenticatedSafe.safeContents ?? []).map((contentInfo: any) =>
+      contentInfo?.contentType === "1.2.840.113549.1.7.6"
         ? { password: passwordBuffer }
         : {}
     ),
@@ -181,39 +193,36 @@ async function readPfxWithPkijs(
 
   for (let i = 0; i < safeContentsArr.length; i++) {
     const safeContent = safeContentsArr[i];
-    const safeBags = safeContent?.value?.safeBags ?? [];
+    const safeBags = safeContent?.value?.safeBags ?? safeContent?.safeBags ?? [];
     for (const bag of safeBags) {
       const bagValue = bag.bagValue;
+      const bagId = bag.bagId;
 
-      // PKCS8ShroudedKeyBag → bagValue é encrypted, precisa decifrar
-      if (bag.bagId === "1.2.840.113549.1.12.10.1.2" && bagValue) {
+      // PKCS8ShroudedKeyBag → bagValue é PKCS8ShroudedKeyBag (encrypted), precisa decifrar
+      if (bagId === "1.2.840.113549.1.12.10.1.2" && bagValue && !pkcs8Der) {
         if (typeof bagValue.parseInternalValues === "function") {
           await bagValue.parseInternalValues({ password: passwordBuffer });
         }
-        const pk = bagValue.parsedValue ?? bagValue;
-        const pkSchema = pk.toSchema?.() ?? pk;
-        const pkBer = pkSchema.toBER ? pkSchema.toBER(false) : pkSchema;
-        if (pkBer instanceof ArrayBuffer) {
-          pkcs8Der = new Uint8Array(pkBer);
+        // Após parseInternalValues, parsedValue é o PrivateKeyInfo (PKCS#8)
+        const pki = bagValue.parsedValue;
+        if (pki && typeof pki.toSchema === "function") {
+          const ber = pki.toSchema().toBER(false);
+          if (ber instanceof ArrayBuffer) pkcs8Der = new Uint8Array(ber);
         }
       }
-      // KeyBag (não cifrado)
-      if (bag.bagId === "1.2.840.113549.1.12.10.1.1" && bagValue && !pkcs8Der) {
-        const pkSchema = bagValue.toSchema?.() ?? bagValue;
-        const pkBer = pkSchema.toBER ? pkSchema.toBER(false) : pkSchema;
-        if (pkBer instanceof ArrayBuffer) {
-          pkcs8Der = new Uint8Array(pkBer);
+      // KeyBag (não cifrado) → bagValue já é PrivateKeyInfo
+      if (bagId === "1.2.840.113549.1.12.10.1.1" && bagValue && !pkcs8Der) {
+        if (typeof bagValue.toSchema === "function") {
+          const ber = bagValue.toSchema().toBER(false);
+          if (ber instanceof ArrayBuffer) pkcs8Der = new Uint8Array(ber);
         }
       }
-      // CertBag → x509
-      if (bag.bagId === "1.2.840.113549.1.12.10.1.3" && bagValue && !certDer) {
-        const certBuf = bagValue.parsedValue?.toSchema
-          ? bagValue.parsedValue.toSchema().toBER(false)
-          : bagValue.certValue?.valueBlock?.valueHex;
-        if (certBuf instanceof ArrayBuffer) {
-          certDer = new Uint8Array(certBuf);
-        } else if (certBuf?.byteLength) {
-          certDer = new Uint8Array(certBuf);
+      // CertBag → bagValue.parsedValue é o Certificate
+      if (bagId === "1.2.840.113549.1.12.10.1.3" && bagValue && !certDer) {
+        const certObj = bagValue.parsedValue;
+        if (certObj && typeof certObj.toSchema === "function") {
+          const ber = certObj.toSchema().toBER(false);
+          if (ber instanceof ArrayBuffer) certDer = new Uint8Array(ber);
         }
       }
     }
