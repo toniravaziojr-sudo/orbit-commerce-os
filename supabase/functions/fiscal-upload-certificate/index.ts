@@ -5,7 +5,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 // deno-lint-ignore-file no-explicit-any
-import forge from "https://esm.sh/node-forge@1.3.1?bundle";
+import { readPfx, PfxError, pfxErrorToUserMessage } from "../_shared/pfx-reader.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
