@@ -485,6 +485,14 @@ Aguardar 24-48h de tráfego pós-deploy. Critério de sucesso: `_fbp` em Purchas
 
 Toda nova rota SPA-only que dispare eventos Meta deve assumir que `_fbp` já está garantido por `ensureFbp()` no `initialize` do tracker. **Proibido** sintetizar `_fbp` em outros pontos do código (criaria IDs concorrentes). Ver `mem://constraints/spa-only-route-fbp-seed`.
 
+### Comportamentos esperados — NÃO são bugs (não propor "correções")
+
+Registrado em 2026-05-12 após investigação completa. Futuras IAs **não devem propor mexidas** nestes pontos sem evidência nova:
+
+1. **Cobertura de `_fbc` entre 30–55% nos eventos de funil.** É o **teto natural** do tráfego misto: somente visitantes que chegam com `?fbclid=` (clique em anúncio Meta) terão `_fbc`. Tráfego orgânico, direto, Google, e-mail e WhatsApp **nunca** terão `fbclid`. A implementação atual já cobre todos os pontos possíveis: edge `storefront-html` constrói `_fbc` quando detecta `fbclid` (refresh de janela de atribuição); `visitorIdentity.ts` faz captura redundante no browser, persiste cookie 90d + cópia em `localStorage` (sobrevive a limpezas parciais), espelha `localStorage → cookie` quando o cookie é apagado. **Persistir além disso causaria atribuição incorreta** (creditar conversão a anúncio antigo após visitante voltar por outro canal).
+
+2. **Aviso "IPv6 detected" no Events Manager.** É **informativo**, não erro. Captamos o IP real via Cloudflare (`cf-connecting-ip`) — método oficial recomendado pela Meta. Visitantes com conectividade IPv6-only (cada vez mais comuns no Brasil) sempre gerarão IPv6, e a Meta aceita IPv6 na CAPI desde 2022. **Não existe forma legítima de "converter" IPv6 em IPv4** — são endereços distintos. Forçar conversão sintética degradaria o matching geográfico.
+
 ---
 
 ## Versionamento
