@@ -772,3 +772,7 @@ schedule = "0 */6 * * *"
 
 [functions.log-login-attempt]
 verify_jwt = false
+
+[functions.bootstrap-insights-cron]
+verify_jwt = false
+
