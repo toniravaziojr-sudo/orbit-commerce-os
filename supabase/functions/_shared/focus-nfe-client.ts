@@ -122,6 +122,10 @@ export interface FocusEmpresaResponse {
   habilita_nfe?: boolean;
   habilita_nfce?: boolean;
   certificado_validade?: string;
+  certificado_valido_ate?: string;
+  certificado_valido_de?: string;
+  certificado_cnpj?: string;
+  nome?: string;
   erros?: Array<{ codigo: string; mensagem: string; campo?: string }>;
 }
 
