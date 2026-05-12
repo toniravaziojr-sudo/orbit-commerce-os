@@ -129,8 +129,8 @@ async function readPfxWithPkijs(
   pfxBytes: Uint8Array,
   password: string,
 ): Promise<PfxBundle> {
-  const pkijs: any = await import("https://esm.sh/pkijs@3.2.4");
-  const asn1js: any = await import("https://esm.sh/asn1js@3.0.5");
+  const pkijs: any = await import("npm:pkijs@3.2.4");
+  const asn1js: any = await import("npm:asn1js@3.0.5");
 
   const engine = new pkijs.CryptoEngine({
     name: "webcrypto",
