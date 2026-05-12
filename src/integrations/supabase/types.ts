@@ -23744,6 +23744,15 @@ export type Database = {
       }
     }
     Functions: {
+      _bootstrap_reschedule_cron: {
+        Args: {
+          p_command: string
+          p_schedule: string
+          p_schedule_name: string
+          p_unschedule_name: string
+        }
+        Returns: Json
+      }
       _compute_units_quantity: {
         Args: { p_unit: string; p_units: Json }
         Returns: number
