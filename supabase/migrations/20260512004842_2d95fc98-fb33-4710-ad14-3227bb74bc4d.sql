@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public._bootstrap_reschedule_cron(text, text, text, text);

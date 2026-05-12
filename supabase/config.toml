@@ -772,3 +772,4 @@ schedule = "0 */6 * * *"
 
 [functions.log-login-attempt]
 verify_jwt = false
+
