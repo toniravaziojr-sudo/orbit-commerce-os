@@ -175,7 +175,7 @@ if (authHeader.includes(SUPABASE_SERVICE_ROLE_KEY)) { /* modo cron */ }
 
 Com chave anon a edge cai no ramo "manual" e devolve `401 Não autorizado`. O `pg_cron`/`net.http_post` não enxerga esse 401 (a request é aceita pelo gateway), o que produz **falha silenciosa**.
 
-> **Padrão obrigatório:** o cron deve enviar `Authorization: Bearer <service_role>`. O segredo **não** pode ser commitado em migration versionada nem exposto em logs. Quando o projeto adotar Vault para `service_role`, este job deve passar a ler via `current_setting('app.settings.service_role_key', true)` ou equivalente. **Hoje (2026-05) não há padrão seguro confirmado** para service_role em cron deste projeto — pendência bloqueante registrada na Onda 1.
+> **Padrão obrigatório:** o cron deve enviar `Authorization: Bearer <service_role>`. O segredo **não** pode ser commitado em migration versionada nem exposto em logs. A gravação atual do Bearer no `cron.job.command` foi feita via bootstrap one-shot (ver §9.3), única abordagem viável neste projeto enquanto não houver Vault/GUC seguro. A constraint `mem://constraints/cron-service-role-key-guc-prohibition` proíbe `current_setting('app.settings.service_role_key')` aqui — a GUC nunca foi provisionada.
 
 ### 9.3 Onda 1.5 (2026-05-12) — corrigida e documentada
 
