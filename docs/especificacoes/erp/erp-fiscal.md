@@ -691,13 +691,22 @@ fiscal_invoice_items (itens)
 
 **Princípio:** o certificado digital é a fonte de verdade do CNPJ emissor. Cada CNPJ corresponde a uma empresa distinta dentro da Focus NFe (`focus_empresa_id`). Trocar o certificado por um de outro CNPJ é tratado como **troca de empresa emissora**.
 
-### Fluxo automático
+### Caminho B — validação delegada ao Focus NFe (rev 2026-05)
 
-1. **Upload de novo certificado** (`fiscal-upload-certificate`): valida senha, extrai o CNPJ do certificado e compara com `fiscal_settings.cnpj`.
-2. **CNPJ igual** → apenas atualiza os campos do certificado.
-3. **CNPJ diferente (troca de empresa)** → atualiza `fiscal_settings.cnpj` para o CNPJ do certificado e zera `focus_empresa_id`, `focus_empresa_criada_em` e `focus_ultima_sincronizacao`.
-4. **Sync Focus NFe** (`fiscal-sync-focus-nfe`) é disparado em seguida e, com `focus_empresa_id` nulo, busca a empresa pelo novo CNPJ ou cria uma nova na Focus.
-5. **Próxima emissão** já usa a empresa correta.
+Desde a adoção do Caminho B, o sistema **não lê mais o `.pfx` localmente** para extrair CNPJ. O upload empacota arquivo + senha em base64 e envia para o Focus NFe, que devolve a categorização do erro (senha incorreta, CNPJ divergente, formato não suportado, etc.). Veja `mem://constraints/pfx-validation-delegated-to-focus-nfe`.
+
+Como consequência, **não existe mais auto-swap silencioso de CNPJ**: o lojista precisa ajustar os dados do emitente antes de reenviar o certificado de outra empresa.
+
+### Fluxo de upload
+
+1. **Upload de certificado** (`fiscal-upload-certificate`): envia `.pfx` + senha ao Focus NFe.
+2. **Focus aceita** → grava `certificado_cn`, `certificado_cnpj`, `certificado_valido_ate`, `certificado_serial` retornados pelo Focus.
+3. **Focus rejeita por divergência de CNPJ** ("Certificado não pertence ao CNPJ informado") → resposta amigável devolvida pela edge (`focus-error-translator.ts`).
+4. **UI exibe banner vermelho dentro do card "Certificado Digital A1"** com:
+   - mensagem clara da divergência;
+   - botão **"Atualizar CNPJ do emitente para XX.XXX.XXX/XXXX-XX"** (preenche o campo CNPJ no formulário e pede para o lojista revisar Razão Social / IE / endereço e clicar em Salvar);
+   - botão alternativo **"Enviar outro certificado"**.
+5. **Após salvar os novos dados**, o lojista reenvia o certificado e o Focus aceita normalmente.
 
 ### Remoção de certificado
 
@@ -705,12 +714,12 @@ fiscal_invoice_items (itens)
 
 ### Bloqueio de emissão por divergência
 
-`fiscal-emit` e `fiscal-submit` bloqueiam a emissão (200 OK + `success:false`) sempre que `fiscal_settings.certificado_cnpj` ≠ `fiscal_settings.cnpj`. A UI da aba Configurações Fiscais exibe um alerta vermelho explicando a divergência e a ação esperada (reenviar certificado correto ou ajustar o CNPJ do emitente).
+`fiscal-emit` e `fiscal-submit` bloqueiam a emissão (200 OK + `success:false`) sempre que `fiscal_settings.certificado_cnpj` ≠ `fiscal_settings.cnpj`. A nova UI já exibe esse bloqueio antes da tentativa de emissão, no Cartão de Prontidão Fiscal (item "CNPJ do certificado coincide com o do emitente" em vermelho) e no banner do card de certificado.
 
 ### Resumo
 
-- Cadastro inicial na Focus NFe é automático no primeiro upload de certificado.
-- Troca para certificado de outro CNPJ é detectada e resolvida automaticamente, sem intervenção manual.
+- Cadastro inicial na Focus NFe é automático no primeiro upload aceito.
+- Troca de CNPJ exige ação consciente do lojista: atualizar dados do emitente → reenviar certificado.
 - O lojista nunca emite NF-e com vínculo Focus NFe inconsistente.
 
 ---
