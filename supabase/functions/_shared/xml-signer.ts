@@ -91,112 +91,45 @@ function parseAsn1(data: Uint8Array, offset = 0): { element: Asn1Element; bytesR
 }
 
 // ============================================
-// Parser PKCS12/PFX usando forge via esm.sh com polyfill
+// Carregamento do PFX via camada única (pfx-reader)
 // ============================================
 
+import { readPfx, PfxError } from "./pfx-reader.ts";
+
 /**
- * Carrega o certificado PFX
- * Usa uma abordagem híbrida: forge para parsing do PFX e Web Crypto para assinatura
+ * Carrega o certificado PFX e prepara para assinatura XML.
+ * Usa o leitor unificado (PKI.js moderno + fallback node-forge legado).
+ * A assinatura em si segue usando Web Crypto a partir do PEM da chave privada.
  */
 export async function loadCertificate(pfxBase64: string, password: string): Promise<Certificate> {
   console.log('[xml-signer] Loading certificate, base64 length:', pfxBase64.length);
-  
-  // Importar forge dinamicamente para evitar problemas de inicialização
-  const forgeModule = await import("https://esm.sh/node-forge@1.3.1?bundle");
-  
-  // O módulo pode vir como default export ou como named exports
-  const forge = forgeModule.default || forgeModule;
-  
-  console.log('[xml-signer] Forge module loaded, checking exports...');
-  console.log('[xml-signer] forge.util exists:', !!forge.util);
-  console.log('[xml-signer] forge.util.decode64 exists:', !!forge.util?.decode64);
-  console.log('[xml-signer] forge.pki exists:', !!forge.pki);
-  console.log('[xml-signer] forge.asn1 exists:', !!forge.asn1);
-  console.log('[xml-signer] forge.pkcs12 exists:', !!forge.pkcs12);
-  console.log('[xml-signer] forge.random exists:', !!forge.random);
-  
-  if (!forge.util || !forge.util.decode64) {
-    console.error('[xml-signer] forge.util structure:', Object.keys(forge.util || {}));
-    console.error('[xml-signer] forge structure:', Object.keys(forge));
-    throw new Error('node-forge não carregou corretamente - forge.util.decode64 não encontrado');
-  }
-  
-  // Polyfill do PRNG antes de usar forge
-  const prngPolyfill = (needed: number): string => {
-    const bytes = new Uint8Array(needed || 32);
-    crypto.getRandomValues(bytes);
-    return String.fromCharCode(...bytes);
-  };
-  
-  // Configurar o PRNG do forge
-  if (forge.random) {
-    console.log('[xml-signer] Configuring PRNG polyfill...');
-    forge.random.seedFileSync = prngPolyfill;
-    // Adicionar entropia inicial
-    if (typeof forge.random.collect === 'function') {
-      forge.random.collect(prngPolyfill(32));
-    }
-  }
-  
+
+  let bundle;
   try {
-    console.log('[xml-signer] Decoding PFX from base64...');
-    const pfxDer = forge.util.decode64(pfxBase64);
-    console.log('[xml-signer] Decoded DER length:', pfxDer.length);
-    
-    console.log('[xml-signer] Parsing ASN1...');
-    const pfxAsn1 = forge.asn1.fromDer(pfxDer);
-    
-    console.log('[xml-signer] Parsing PKCS12...');
-    const pfx = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, password);
-
-    // Busca a chave privada
-    const keyBags = pfx.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
-    const keyBag = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag];
-    
-    if (!keyBag || keyBag.length === 0 || !keyBag[0].key) {
-      throw new Error('Chave privada não encontrada no certificado');
-    }
-
-    // Busca o certificado
-    const certBags = pfx.getBags({ bagType: forge.pki.oids.certBag });
-    const certBag = certBags[forge.pki.oids.certBag];
-    
-    if (!certBag || certBag.length === 0 || !certBag[0].cert) {
-      throw new Error('Certificado não encontrado no PFX');
-    }
-
-    const privateKey = keyBag[0].key;
-    const certificate = certBag[0].cert;
-    
-    // Converter para PEM
-    const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
-    const certificatePem = forge.pki.certificateToPem(certificate);
-    
-    // Extrai apenas o conteúdo base64 do PEM do certificado (sem headers, para XML)
-    const certBase64 = certificatePem
-      .replace('-----BEGIN CERTIFICATE-----', '')
-      .replace('-----END CERTIFICATE-----', '')
-      .replace(/\r?\n|\r/g, '');
-
-    console.log('[xml-signer] Certificate loaded successfully');
-    
-    // Importar a chave privada para Web Crypto para assinatura
-    const privateKeyRaw = await importPrivateKeyForSigning(privateKeyPem);
-    
-    return {
-      privateKeyPem,
-      certificatePem: certBase64,
-      certificateFullPem: certificatePem, // PEM completo para mTLS
-      privateKeyRaw
-    };
+    bundle = await readPfx(pfxBase64, password);
   } catch (error) {
-    console.error('[xml-signer] Error loading certificate:', error);
-    if (error instanceof Error && error.message.includes('Invalid password')) {
+    console.error('[xml-signer] readPfx falhou:', {
+      code: error instanceof PfxError ? error.code : 'UNKNOWN',
+      message: String((error as any)?.message ?? error),
+    });
+    if (error instanceof PfxError && error.code === 'WRONG_PASSWORD') {
       throw new Error('Senha do certificado inválida');
     }
     throw error;
   }
+
+  console.log('[xml-signer] Certificate loaded successfully via', bundle.reader);
+
+  const privateKeyRaw = await importPrivateKeyForSigning(bundle.privateKeyPem);
+
+  return {
+    privateKeyPem: bundle.privateKeyPem,
+    certificatePem: bundle.certificateBase64, // base64 puro (sem headers) para o XML
+    certificateFullPem: bundle.certificatePem, // PEM completo (para mTLS)
+    privateKeyRaw,
+  };
 }
+
 
 /**
  * Importa uma chave privada PEM para uso com Web Crypto
