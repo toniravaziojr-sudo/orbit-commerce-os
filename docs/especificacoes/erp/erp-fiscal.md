@@ -762,10 +762,13 @@ Logs de diagnóstico (tamanho, primeiros bytes, resposta bruta do Focus) são ge
 
 A tela `/fiscal/configuracoes` (e a aba Fiscal embutida em `/system/settings?tab=fiscal`) foi reorganizada em 5 blocos verticais:
 
-1. **Cartão de Prontidão Fiscal** (topo) — pergunta "Pronto para emitir NF-e?" com selo geral (Pronto / Faltam X / Bloqueado) e checklist acionável de 6 itens (Dados, Endereço, Parâmetros, Certificado, CNPJ-match, Ambiente). Cada item tem link "Ir para" o cartão correspondente.
-2. **Identidade da Empresa** — Dados + Endereço lado a lado em um único cartão.
+1. **Cartão de Prontidão Fiscal** (topo) — pergunta "Pronto para emitir NF-e?" com selo geral (Pronto / Faltam X / Bloqueado) e checklist acionável de 7 itens (Dados, Endereço, Parâmetros, Certificado, CNPJ-match, E-mail do emitente, Ambiente). O item "E-mail do emitente preenchido" é uma recomendação amarela (não bloqueia emissão) — quando vazio, o cartão fica em "Faltam X" mas a emissão continua liberada.
+2. **Identidade da Empresa** — Dados + Endereço lado a lado em um único cartão, com seção adicional **"Contato do emitente"** abaixo contendo:
+   - **E-mail do emitente** (`fiscal_settings.email`, opcional, validado em formato): a Focus NFe usa este endereço como remetente do DANFE enviado automaticamente ao cliente. Sem ele, o e-mail automático não sai. Recomendado preencher.
+   - **Telefone do emitente** (`fiscal_settings.telefone`, opcional, máscara `(11) 99999-9999`): aparece impresso no DANFE.
+   Ambos os campos são enviados para a Focus NFe na próxima sincronização (`PUT /v2/empresas/{id}`), via `fiscal-sync-focus-nfe`, e o snapshot pós-sync confirma a persistência do lado do Focus.
 3. **Certificado Digital A1** (em destaque, borda colorida conforme estado) — resumo do certificado configurado, banners de divergência/expiração e botão "Substituir certificado" oculto até clique. Quando há divergência de CNPJ, oferece botão "Atualizar CNPJ do emitente para XX.XXX.XXX/XXXX-XX" que preenche o campo automaticamente.
 4. **Parâmetros Fiscais** — Regime, Origem, CFOPs, CSOSN/CST, Série/Número.
 5. **Ambiente de Emissão** — seletor com aviso destacado quando em Homologação.
 
-A barra de **Salvar** é fixa no rodapé, aparece apenas quando há alterações não salvas e tem botões "Descartar" e "Salvar alterações".
+A barra de **Salvar** é fixa no rodapé, aparece apenas quando há alterações não salvas e tem botões "Descartar" e "Salvar alterações". A validação local bloqueia salvamento com Razão Social vazia, CNPJ inválido, IE faltante (quando não é Isento) ou e-mail do emitente em formato inválido.
