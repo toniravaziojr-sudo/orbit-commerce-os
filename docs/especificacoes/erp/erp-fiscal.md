@@ -91,8 +91,8 @@ Módulo de gestão empresarial: fiscal (NF-e via **Focus NFe**), financeiro, e c
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Cron Job (pg_cron) |
-| **Frequência** | A cada 5 minutos (`*/5 * * * *`) |
+| **Tipo** | Orquestração interna via scheduler central |
+| **Frequência real atual** | Processamento interno a cada 1 minuto via `scheduler-tick` (`* * * * *`). O job direto de 5 minutos para esta rotina foi desativado por segurança. |
 | **Descrição** | Rede de segurança — cria rascunhos para pedidos pagos que a fila ou o agendador interno eventualmente não processaram |
 | **Modos** | **Cron interno** (via scheduler-tick com credencial interna) / **Trigger interno** (pedido específico) |
 | **Data da NF** | Usa `paid_at` do pedido como `created_at` da NF |
