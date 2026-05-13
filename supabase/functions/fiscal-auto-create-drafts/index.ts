@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 
-const VERSION = 'v9.0.0';
+const VERSION = 'v9.0.1';
 // v9.0.0 — Rascunho permissivo: criação NÃO depende mais de fiscal_settings.is_configured.
 //          A configuração de emissor é exigida apenas no momento da emissão (fiscal-emit).
 //          Quando settings ausente/não-configurado: numero=0, serie=0 (placeholder).
@@ -180,7 +180,7 @@ async function processTenanDrafts(
     .from('fiscal_invoices')
     .select('order_id')
     .in('order_id', orderIds)
-    .neq('status', 'canceled');
+    .not('status', 'in', '(cancelled,rejected)');
 
   const ordersWithInvoice = new Set((existingInvoices || []).map((inv: any) => inv.order_id));
   const ordersToCreate = paidOrders.filter((order: any) => !ordersWithInvoice.has(order.id));
@@ -195,7 +195,7 @@ async function processTenanDrafts(
         .select('id')
         .eq('tenant_id', tenantId)
         .eq('order_id', order.id)
-        .neq('status', 'canceled')
+        .not('status', 'in', '(cancelled,rejected)')
         .limit(1)
         .maybeSingle();
 
@@ -424,16 +424,8 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     const authHeader = req.headers.get('Authorization');
-    // Aceita: sem auth (cron interno), ANON_KEY (cron pg_net legado),
-    // PUBLISHABLE_KEY (cron pg_net pós-signing-keys) ou SERVICE_ROLE_KEY.
-    // Hardening contra regressão de auth pós-rotação de chaves.
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
-    const publishableKey = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
-    const isSystemCall = !authHeader 
-      || (anonKey && authHeader === `Bearer ${anonKey}`)
-      || (publishableKey && authHeader === `Bearer ${publishableKey}`)
-      || authHeader === `Bearer ${supabaseServiceKey}`;
-    const isCronMode = isSystemCall;
+    const isServiceRoleCall = authHeader === `Bearer ${supabaseServiceKey}`;
+    const isCronMode = isServiceRoleCall;
 
     // ========== TRIGGER MODE: single order from DB trigger ==========
     // Detected by presence of order_id + tenant_id in body with cron-like auth
@@ -442,7 +434,7 @@ Deno.serve(async (req) => {
       body = await req.json();
     } catch { /* empty body is ok for cron */ }
 
-    if (isCronMode && body?.order_id && body?.tenant_id) {
+    if (isServiceRoleCall && body?.order_id && body?.tenant_id) {
       console.log(`[fiscal-auto-create-drafts][${VERSION}] TRIGGER mode — order: ${body.order_id}, tenant: ${body.tenant_id}`);
       
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -548,15 +540,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const tenantId = profile.current_tenant_id;
-    const result = await processTenanDrafts(supabase, tenantId, user.id);
-
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        mode: 'user',
-        created: result.created,
-        errors: result.errors.length > 0 ? result.errors : undefined,
+      JSON.stringify({
+        success: false,
+        error: 'Processamento global de rascunhos fiscais é restrito à rotina interna.',
+        code: 'GLOBAL_PROCESSING_FORBIDDEN',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
