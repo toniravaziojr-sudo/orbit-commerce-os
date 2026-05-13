@@ -171,6 +171,24 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Idempotência (Lote 1.C.3): nunca sobrescrever status terminal
+    const TERMINAL = new Set(['authorized', 'cancelled', 'rejected']);
+    const wouldDemoteTerminal = TERMINAL.has(invoice.status) && invoice.status !== internalStatus;
+    if (wouldDemoteTerminal) {
+      console.warn(`[fiscal-check-status] Ignorando tentativa de sobrescrever status terminal ${invoice.status} -> ${internalStatus}`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: invoice.status,
+          focus_status: focusStatus,
+          chave_acesso: invoice.chave_acesso,
+          noop: true,
+          message: 'Status terminal preservado',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Atualizar NF-e se status mudou
     const statusChanged = invoice.status !== internalStatus;
     if (statusChanged) {
