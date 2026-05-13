@@ -1173,3 +1173,117 @@ Nenhuma chamada real a `api.focusnfe.com.br` nem `homologacao.focusnfe.com.br`. 
 - Polling/reconciliação proativo (cron) para notas presas em `processing`/`pending` ainda não está implementado — depende do webhook Focus na maioria dos casos. Avaliar no Lote 1.D.
 - `fiscal-cce` e `fiscal-inutilizar` chamam Focus diretamente via `fetch` em vez do `_shared/focus-nfe-client.ts`. Funcional, mas sem retentativa centralizada. Considerar refator no Lote 1.D.
 - `error` (falha técnica) ainda não é gravado de forma sistemática nas funções de polling — hoje retorna `success:false` para o cliente. Avaliar persistir `status=error` quando a Focus responder 5xx repetidamente.
+
+---
+
+## Lote 1.D — Reconciliação fiscal segura (pré-smoke test)
+
+**Status:** implementado em modo manual/dry-run. Sem cron ativo.
+
+### Objetivo
+
+Permitir destravar NF-e que ficarem em `pending`/`processing`/`error` caso o webhook Focus não chegue, **sem** rotina global varrendo produção e **sem** risco de retransmissão.
+
+### Mecanismo
+
+Edge function: `fiscal-reconcile` (acionável manualmente via `supabase.functions.invoke('fiscal-reconcile', { body: {...} })` ou via service_role para uso interno no smoke test).
+
+### Modos
+
+| Modo | Quando usa | Comportamento |
+|---|---|---|
+| `dry_run` (padrão) | Default em qualquer chamada sem `dry_run:false` | Lista as notas que seriam reconciliadas, **não chama Focus**, não altera nada |
+| `executed` | Apenas quando `dry_run:false` E (env `FISCAL_RECONCILE_ENABLED=true` OU tenant em `FISCAL_RECONCILE_TENANT_ALLOWLIST` OU `fiscal_settings.focus_ambiente='homologacao'`) | Consulta status real na Focus e atualiza |
+| `blocked_by_scope` | `dry_run:false` mas escopo não autorizado | Recusa, devolve relatório como dry-run |
+
+### Critérios de seleção das notas
+
+- `tenant_id` = tenant do chamador (ou explícito quando service_role)
+- `focus_ref IS NOT NULL`
+- `status IN ('pending','processing','error')`
+- `reconcile_attempts < 5` (limite de tentativas)
+- `last_reconcile_at` mais antigo primeiro (ordenação)
+- backoff mínimo de **60s** entre tentativas para a mesma nota
+- limite de **25 notas** por chamada (`HARD_LIMIT`), default 10
+
+### Idempotência e segurança
+
+- **Status terminal preservado:** `authorized`, `cancelled`, `rejected` nunca são sobrescritos.
+- **Sem reemissão:** a função apenas consulta status (`getNFeStatus`) — não chama submit, cancel, CC-e nem inutilização.
+- **Tenant guard:** `eq('tenant_id', tenantId)` em todo `select` e `update`.
+- **RBAC:** apenas `owner`/`admin` ou `service_role` com `tenant_id` explícito.
+- **Falha técnica não rebaixa status:** registra `last_reconcile_error` e incrementa `reconcile_attempts`, mantém status atual.
+- **Convivência com webhook:** se webhook chegar primeiro e marcar terminal, o polling vê e respeita; se polling marcar terminal antes, webhook duplicado também vira noop (já protegido pelo Lote 1.C.2).
+- **Logs:** registram apenas `from`, `to`, `focus_status`, `mensagem_sefaz`, `actor`, `attempt`. Nenhum XML, token, certificado ou senha.
+
+### Migration (Lote 1.D)
+
+Adicionados em `fiscal_invoices`:
+- `reconcile_attempts integer NOT NULL DEFAULT 0`
+- `last_reconcile_at timestamptz`
+- `last_reconcile_error text`
+- Índice parcial em `(tenant_id, status, last_reconcile_at)` para `status IN ('pending','processing','error') AND focus_ref IS NOT NULL`.
+
+### Cron / scheduler
+
+**Nenhum cron foi criado.** O escopo do Lote 1.D explicitamente proíbe varredura global em produção antes do smoke test. A função é manual.
+
+Após o smoke test em homologação validado, avaliar (em lote separado) cron com:
+- escopo restrito ao(s) tenant(s) em `FISCAL_RECONCILE_TENANT_ALLOWLIST`;
+- frequência inicial sugerida: a cada 5 min;
+- só entra em produção após validação.
+
+### Testes executados sem transmissão real
+
+| Teste | Resultado |
+|---|---|
+| Migration aplicada (colunas + índice) | ✅ |
+| Deploy `fiscal-reconcile` | ✅ |
+| Revisão: dry_run é default e não chama Focus | ✅ |
+| Revisão: usuário não-admin é rejeitado pelo `requireFiscalRole(['owner','admin'])` | ✅ |
+| Revisão: service_role sem `tenant_id` é rejeitado | ✅ |
+| Revisão: usuário não pode reconciliar tenant alheio | ✅ |
+| Revisão: status terminal não é sobrescrito | ✅ (guard `TERMINAL.has(inv.status)`) |
+| Revisão: notas sem `focus_ref` são ignoradas | ✅ (`.not('focus_ref','is',null)`) |
+| Revisão: limite de 5 tentativas é aplicado no SQL | ✅ |
+| Revisão: backoff de 60s é aplicado em memória | ✅ |
+| Revisão: produção fora de allowlist é bloqueada mesmo com `dry_run:false` | ✅ |
+| Revisão: sem chamada a `submit`/`cancel`/`cce`/`inutilizar` | ✅ apenas `getNFeStatus` |
+
+### Confirmação de não-transmissão (Lote 1.D)
+
+- ✅ Nenhuma NF nova foi emitida.
+- ✅ Nenhum cancelamento real foi feito.
+- ✅ Nenhuma CC-e foi enviada.
+- ✅ Nenhuma inutilização foi feita.
+- ✅ Nenhuma chamada real a `api.focusnfe.com.br` ou `homologacao.focusnfe.com.br` foi disparada nesta etapa.
+- ✅ Certificado A1 não foi tocado.
+- ✅ Nenhum cron novo em produção.
+
+### Webhook Focus — checklist operacional (recapitulação)
+
+- URL: `https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/fiscal-webhook`
+- Secret: enviar via header `X-Webhook-Secret`, Basic Auth ou query `?secret=` (mesmo valor de `FOCUS_NFE_WEBHOOK_SECRET`).
+- Eventos recomendados: `nfe_autorizada`, `nfe_cancelada`, `nfe_denegada`, `nfe_rejeitada`.
+- Empresa Focus: tenant Respeite o Homem em ambiente **homologação**.
+- Validação: ao salvar a configuração no painel, a Focus envia evento de teste — confirmar 200 OK no log de `fiscal-webhook` sem necessidade de emitir NF.
+- **Nunca** colar o valor real do secret em doc, ticket ou log.
+
+### Riscos restantes
+
+- Smoke test em homologação ainda não executado.
+- Função `fiscal-reconcile` ainda não foi exercitada contra Focus real (dry-run apenas).
+- Sem cron: se o webhook falhar e ninguém acionar a reconciliação manual, nota fica em `processing` indefinidamente. Aceitável pré-smoke; cron entra em lote separado.
+- `fiscal-cce` e `fiscal-inutilizar` ainda chamam Focus via `fetch` direto (não migrados para `_shared/focus-nfe-client.ts`) — pendência herdada do Lote 1.C.3.
+
+### Checklist final para autorizar smoke test em homologação
+
+1. ☐ `FOCUS_NFE_WEBHOOK_SECRET` cadastrado no painel Focus.
+2. ☐ Empresa Focus do tenant Respeite o Homem em ambiente homologação.
+3. ☐ Webhook recebendo ping da Focus sem `401`.
+4. ☐ `fiscal_settings.focus_ambiente='homologacao'` para o tenant em teste.
+5. ☐ Certificado A1 válido carregado, CNPJ do certificado == CNPJ emitente.
+6. ☐ Pedido de teste preparado (cliente, endereço, item, CFOP/NCM válidos).
+7. ☐ Conferir que `fiscal-reconcile` em `dry_run:true` lista 0 notas presas (estado limpo).
+8. ☐ Após emissão, se nota ficar em `processing`, acionar `fiscal-reconcile` com `dry_run:false` no tenant de teste e confirmar transição para `authorized`.
+9. ☐ Após smoke test OK, decidir habilitação de cron restrito (lote separado).

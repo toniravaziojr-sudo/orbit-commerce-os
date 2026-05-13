@@ -8639,6 +8639,8 @@ export type Database = {
           indicador_ie_dest: number
           indicador_presenca: number
           informacoes_fisco: string | null
+          last_reconcile_at: string | null
+          last_reconcile_error: string | null
           modalidade_frete: string | null
           natureza_operacao: string | null
           nfe_referenciada: string | null
@@ -8653,6 +8655,7 @@ export type Database = {
           printed_at: string | null
           protocolo: string | null
           quantidade_volumes: number | null
+          reconcile_attempts: number
           requires_action: boolean | null
           serie: number
           status: string
@@ -8711,6 +8714,8 @@ export type Database = {
           indicador_ie_dest?: number
           indicador_presenca?: number
           informacoes_fisco?: string | null
+          last_reconcile_at?: string | null
+          last_reconcile_error?: string | null
           modalidade_frete?: string | null
           natureza_operacao?: string | null
           nfe_referenciada?: string | null
@@ -8725,6 +8730,7 @@ export type Database = {
           printed_at?: string | null
           protocolo?: string | null
           quantidade_volumes?: number | null
+          reconcile_attempts?: number
           requires_action?: boolean | null
           serie: number
           status?: string
@@ -8783,6 +8789,8 @@ export type Database = {
           indicador_ie_dest?: number
           indicador_presenca?: number
           informacoes_fisco?: string | null
+          last_reconcile_at?: string | null
+          last_reconcile_error?: string | null
           modalidade_frete?: string | null
           natureza_operacao?: string | null
           nfe_referenciada?: string | null
@@ -8797,6 +8805,7 @@ export type Database = {
           printed_at?: string | null
           protocolo?: string | null
           quantidade_volumes?: number | null
+          reconcile_attempts?: number
           requires_action?: boolean | null
           serie?: number
           status?: string
