@@ -136,6 +136,21 @@ Deno.serve(async (req) => {
     console.log(`[fiscal-webhook] Mapped status: ${status} -> ${internalStatus}`);
     const now = new Date().toISOString();
 
+    // Idempotência: nota já em status terminal igual ao recebido → noop seguro.
+    if (TERMINAL_STATUSES.has(invoice.status) && invoice.status === internalStatus) {
+      console.log(`[fiscal-webhook] Noop: invoice ${invoice.id} already in terminal status ${invoice.status}`);
+      await supabase.from("fiscal_invoice_events").insert({
+        invoice_id: invoice.id,
+        tenant_id: invoice.tenant_id,
+        event_type: `webhook_${status}_noop`,
+        event_data: payload,
+      });
+      return new Response(
+        JSON.stringify({ success: true, noop: true, status: invoice.status }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Prepare update data
     const updateData: Record<string, any> = {
       status: internalStatus,
