@@ -74,6 +74,10 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!order) throw new Error("order_not_found");
+      // Tenant ownership guard for user-authenticated callers
+      if (!isServiceRole && callerTenantId && order.tenant_id !== callerTenantId) {
+        throw new Error("forbidden_tenant_mismatch");
+      }
       if (order.resolved_shipping_provider_kind !== "gateway") throw new Error("not_a_gateway_order");
       if (!order.resolved_shipping_provider_id) throw new Error("no_resolved_provider");
 
