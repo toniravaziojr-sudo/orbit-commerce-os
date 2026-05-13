@@ -1028,3 +1028,148 @@ Nenhuma chamada real foi feita a `api.focusnfe.com.br` nem `homologacao.focusnfe
 3. Confirmar mapa de status (rascunho → processando → autorizado/rejeitado/erro) e rotina de polling/reconciliação.
 4. Validar idempotência por `focus_ref` em chamadas duplicadas reais (não apenas por status terminal).
 5. Confirmar tenant Respeite o Homem em homologação (não produção) e congelar emissão real até validação.
+
+---
+
+## Lote 1.C.3 — Padronização de cancelamento, CC-e, inutilização e polling (EXECUÇÃO CONTROLADA)
+
+**Data:** 2026-05-13  
+**Modo:** EXECUÇÃO CONTROLADA  
+**Escopo:** padronização de `fiscal-cancel`, `fiscal-cce`, `fiscal-inutilizar`; polling/reconciliação; idempotência por `focus_ref`; checklist final pré-smoke test em homologação.  
+**Restrições:** sem smoke test, sem emissão real, sem cancelamento real, sem CC-e real, sem inutilização real, sem chamada à Focus/Sefaz.
+
+### Mudanças aplicadas
+
+**1. `fiscal-cancel` padronizado**
+- Usa `requireFiscalRole(req, ['owner','admin'])`. `operator`/`member`/`viewer` recebem `403 insufficient_role`.
+- Tenant guard duplo: select e update filtram por `tenant_id`.
+- Idempotência: nota já em `cancelled` retorna `200 + { success: true, noop: true }` sem nova chamada à Focus.
+- Validação de status: apenas `authorized` é cancelável; demais retornam `200 + { success: false, code: 'invalid_status' }`.
+- Envelope unificado: erros de negócio sempre `200 OK + { success:false, error, code }`.
+- Cobra crédito apenas após cancelamento confirmado pela Focus.
+
+**2. `fiscal-cce` padronizado**
+- Usa `requireFiscalRole(req, ['owner','admin'])`. `operator` bloqueado.
+- Tenant guard em select e na contagem de CC-es existentes.
+- Validação de NF autorizada e do limite Sefaz de 20 CC-es.
+- Persiste resultado em `fiscal_invoice_cces` e evento em `fiscal_invoice_events` antes de retornar.
+- Sem falso sucesso: rejeição da Focus retorna `success:false` com `code: 'focus_error'`.
+
+**3. `fiscal-inutilizar` padronizado**
+- Usa `requireFiscalRole(req, ['owner','admin'])`. `operator` bloqueado.
+- Validação rígida de `serie`, `numero_inicial`, `numero_final` (inteiros positivos, `inicial <= final`) e `justificativa` (15–255).
+- Idempotência por faixa: se já existe inutilização `authorized` para `(tenant_id, serie, numero_inicial, numero_final)`, retorna `noop`.
+- Persiste resultado em `fiscal_inutilizacoes`. Falha da Focus retorna `success:false` com `code: 'focus_error'`.
+
+**4. Polling/reconciliação**
+- `fiscal-check-status`: idempotência adicionada — **status terminal** (`authorized`, `cancelled`, `rejected`) **nunca é sobrescrito** por nova consulta ao Focus. Tenant guard reforçado no `update`.
+- `fiscal-get-status`: já retornava cedo em status terminal; tenant guard reforçado no `update`.
+- Mapa de status (oficial — `_shared/focus-nfe-adapter.ts:mapFocusStatusToInternal`):
+  - `processando_autorizacao` → `processing`
+  - `aguardando_correcao` → `pending`
+  - `autorizado` → `authorized` (terminal)
+  - `cancelado` → `cancelled` (terminal)
+  - `erro_autorizacao` / `denegado` → `rejected` (terminal)
+  - default → `processing`
+- `error` é reservado para falha técnica (exceções/IO), nunca para rejeição Sefaz.
+
+**5. Idempotência por `focus_ref`**
+- `fiscal-emit` e `fiscal-submit` reutilizam o `focus_ref` existente quando há (`invoice.focus_ref || generateNFeRef(invoice_id)`).
+- Re-emissão é bloqueada quando `status NOT IN ('draft','rejected')` — impede transmissão duplicada de uma nota já em processamento, autorizada ou cancelada.
+- `fiscal-webhook` mantém idempotência: status terminal igual ao recebido vira noop seguro com evento `webhook_<status>_noop`.
+- `rejected` continua permitindo nova tentativa (correção de rascunho rejeitado), conforme regra de negócio aprovada.
+
+**6. RBAC consolidado para ações fiscais sensíveis**
+| Ação | owner | admin | operator | member | viewer |
+|---|---|---|---|---|---|
+| Emitir NF (emit/submit) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Cancelar NF | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Enviar CC-e | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Inutilizar numeração | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Atualizar rascunho | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Consultar status | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+> Liberação granular para `operator` em qualquer ação sensível requer aprovação explícita do produto. Papel financeiro/`finance` ainda não existe no RBAC atual; documentado como possibilidade futura, sem implementação.
+
+### Webhook Focus NFe — instrução operacional
+
+**URL de destino do webhook:**
+```
+https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/fiscal-webhook
+```
+
+**Autenticação do webhook (3 formatos aceitos pelo nosso endpoint, em ordem de preferência):**
+
+1. **Header customizado (recomendado, se o painel Focus permitir):**
+   ```
+   X-Webhook-Secret: <FOCUS_NFE_WEBHOOK_SECRET>
+   ```
+
+2. **HTTP Basic Auth (se o painel Focus permitir credenciais):**
+   ```
+   usuário: focus
+   senha:   <FOCUS_NFE_WEBHOOK_SECRET>
+   ```
+
+3. **Query string (fallback — usar somente se o painel Focus aceitar apenas URL):**
+   ```
+   https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/fiscal-webhook?secret=<FOCUS_NFE_WEBHOOK_SECRET>
+   ```
+
+> Substituir `<FOCUS_NFE_WEBHOOK_SECRET>` pelo **mesmo valor** cadastrado na secret da Lovable. **Nunca** versionar o valor real no repositório, em logs, em prints de configuração ou em mensagens de chat. Se o painel Focus não suportar nem header nem Basic Auth, usar a forma de query — funcional, porém com a observação de que a string fica visível em logs de proxy/HTTP.
+
+**Eventos recomendados na Focus NFe:**
+- `nfe_autorizacao` (status final autorizado)
+- `nfe_cancelamento` (status final cancelado)
+- `nfe_erro_autorizacao` (rejeição Sefaz)
+- `nfe_denegada` (denegação Sefaz)
+- `cce_autorizacao` (carta de correção autorizada) — opcional, pois o envio de CC-e é síncrono
+- `inutilizacao_autorizada` — opcional
+
+**Empresa/tenant Focus:** o webhook é único por instância (multi-tenant): o roteamento interno é feito por `focus_ref` → `fiscal_invoices.tenant_id`. Cadastrar **um único webhook na empresa Focus do tenant Respeite o Homem** (homologação) é suficiente.
+
+**Validação operacional do webhook (sem emitir NF real):**
+1. Verificar nos logs da função `fiscal-webhook` que o cabeçalho `[fiscal-webhook] ========== WEBHOOK RECEIVED ==========` apareceu após salvar a configuração na Focus (a Focus normalmente envia um ping/teste).
+2. Confirmar que `[webhook-secret] FOCUS_NFE_WEBHOOK_SECRET not configured` **não aparece**.
+3. Se aparecer `[webhook-secret] Invalid or missing webhook secret`, a string cadastrada no painel Focus diverge da secret — corrigir.
+
+**Se o painel Focus não permitir header nem Basic Auth:** usar `?secret=` na URL e aceitar o trade-off de visibilidade em logs intermediários. Caso queiram um nível adicional, podemos avaliar IP allowlist como evolução futura (não está no escopo desta etapa).
+
+### Testes executados (sem transmissão real)
+
+| Teste | Resultado |
+|---|---|
+| Revisão de código `fiscal-cancel`/`-cce`/`-inutilizar` para CORS, envelope e RBAC | ✅ |
+| Bloqueio de `operator`/`member`/`viewer` para cancelar/CC-e/inutilizar (revisão de `requireFiscalRole`) | ✅ |
+| Tenant A não consegue cancelar NF do tenant B (filtro `.eq('tenant_id', tenantId)` no select) | ✅ |
+| Cancelamento de NF já cancelada → noop sem nova chamada Focus | ✅ por construção |
+| Inutilização de faixa já autorizada → noop sem nova chamada Focus | ✅ por construção |
+| `fiscal-check-status`: status terminal não é sobrescrito por novo polling | ✅ guard adicionado |
+| Webhook sem segredo válido → `401` | ✅ herdado do Lote 1.C.2 |
+| Webhook duplicado em status terminal igual → noop sem update | ✅ herdado do Lote 1.C.2 |
+| `fiscal-emit`/`fiscal-submit` recusam status `processing/authorized/cancelled` | ✅ check `status IN ('draft','rejected')` |
+| Erros de negócio retornam `200 + success:false` | ✅ envelope unificado |
+
+### Confirmação de não-transmissão
+
+Nenhuma chamada real a `api.focusnfe.com.br` nem `homologacao.focusnfe.com.br`. Nenhuma NF, cancelamento, CC-e ou inutilização real foi transmitida. Certificado A1 não foi tocado. Cron/scheduler não foi alterado.
+
+### Checklist final antes do smoke test em homologação
+
+1. Cadastrar `FOCUS_NFE_WEBHOOK_SECRET` no painel Focus NFe (mesma string da secret) usando header `X-Webhook-Secret` ou Basic Auth — fallback `?secret=` se necessário.
+2. Confirmar empresa Focus apontando para **ambiente de homologação** do tenant Respeite o Homem.
+3. Validar que o webhook recebe ping da Focus sem `Invalid or missing webhook secret`.
+4. Confirmar que `fiscal_settings.focus_ambiente = 'homologacao'` para o tenant em teste.
+5. Confirmar certificado A1 válido carregado para o CNPJ do emitente (CNPJ certificado == CNPJ emitente).
+6. Selecionar **um pedido de teste** com cliente, endereço, itens e CFOP/NCM válidos.
+7. Smoke test: rascunho → submit → aguardar webhook → confirmar `authorized` → conferir `xml_url` e `danfe_url`.
+8. Smoke test cancelamento: cancelar a NF de teste com justificativa de 15+ chars → confirmar `cancelled` no banco.
+9. Smoke test CC-e (opcional): enviar uma CC-e de teste numa NF de teste autorizada → confirmar `cce_authorized`.
+10. **Não habilitar emissão para tenants em produção** até validação acima.
+
+### Riscos restantes
+
+- O smoke test em homologação **ainda não foi executado**.
+- Polling/reconciliação proativo (cron) para notas presas em `processing`/`pending` ainda não está implementado — depende do webhook Focus na maioria dos casos. Avaliar no Lote 1.D.
+- `fiscal-cce` e `fiscal-inutilizar` chamam Focus diretamente via `fetch` em vez do `_shared/focus-nfe-client.ts`. Funcional, mas sem retentativa centralizada. Considerar refator no Lote 1.D.
+- `error` (falha técnica) ainda não é gravado de forma sistemática nas funções de polling — hoje retorna `success:false` para o cliente. Avaliar persistir `status=error` quando a Focus responder 5xx repetidamente.

@@ -1,14 +1,21 @@
 import { errorResponse } from "../_shared/error-response.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -16,101 +23,72 @@ Deno.serve(async (req) => {
   await loadPlatformCredentials();
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
-
     if (!focusToken) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, error: 'Token Focus NFe não configurado', code: 'no_focus_token' });
     }
 
-    // Authenticate user
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Não autorizado' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
+    // RBAC: inutilização de numeração exige owner/admin (Lote 1.C.3)
+    const auth = await requireFiscalRole(req, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
+    const { tenantId, serviceClient: supabaseClient } = auth;
 
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Token inválido' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
-
-    // Get tenant
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('current_tenant_id')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile?.current_tenant_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const tenantId = profile.current_tenant_id;
-
-    // Parse request body
-    const { serie, numero_inicial, numero_final, justificativa } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { serie, numero_inicial, numero_final, justificativa } = body ?? {};
 
     if (!serie || !numero_inicial || !numero_final || !justificativa) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Todos os campos são obrigatórios' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, error: 'Todos os campos são obrigatórios', code: 'missing_fields' });
     }
-
-    // Validate
-    if (numero_inicial > numero_final) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Número inicial deve ser menor ou igual ao final' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const ni = Number(numero_inicial);
+    const nf = Number(numero_final);
+    if (!Number.isInteger(ni) || !Number.isInteger(nf) || ni <= 0 || nf <= 0) {
+      return jsonResponse({ success: false, error: 'Numeração inválida', code: 'invalid_numeration' });
     }
-
+    if (ni > nf) {
+      return jsonResponse({ success: false, error: 'Número inicial deve ser menor ou igual ao final', code: 'invalid_range' });
+    }
     if (justificativa.length < 15 || justificativa.length > 255) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Justificativa deve ter entre 15 e 255 caracteres' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, error: 'Justificativa deve ter entre 15 e 255 caracteres', code: 'invalid_justificativa' });
     }
 
-    // Get fiscal settings
     const { data: settings, error: settingsError } = await supabaseClient
       .from('fiscal_settings')
-      .select('cnpj, ambiente')
+      .select('cnpj, ambiente, focus_ambiente')
       .eq('tenant_id', tenantId)
       .single();
 
     if (settingsError || !settings?.cnpj) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Configurações fiscais não encontradas' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, error: 'Configurações fiscais não encontradas', code: 'no_settings' });
+    }
+
+    // Idempotência: já existe inutilização autorizada para essa faixa neste tenant?
+    const { data: existing } = await supabaseClient
+      .from('fiscal_inutilizacoes')
+      .select('id, status, protocolo')
+      .eq('tenant_id', tenantId)
+      .eq('serie', String(serie))
+      .eq('numero_inicial', ni)
+      .eq('numero_final', nf)
+      .eq('status', 'authorized')
+      .maybeSingle();
+
+    if (existing) {
+      return jsonResponse({
+        success: true,
+        noop: true,
+        record: existing,
+        message: 'Faixa já inutilizada anteriormente',
+      });
     }
 
     const cnpj = settings.cnpj.replace(/\D/g, '');
-    const ambiente = settings.ambiente === 'producao' ? 'producao' : 'homologacao';
+    const ambiente = (settings.focus_ambiente || settings.ambiente) === 'producao' ? 'producao' : 'homologacao';
     const focusBaseUrl = ambiente === 'producao'
       ? 'https://api.focusnfe.com.br'
       : 'https://homologacao.focusnfe.com.br';
 
-    console.log(`[fiscal-inutilizar] Inutilizing ${numero_inicial}-${numero_final} serie ${serie}`);
+    console.log(`[fiscal-inutilizar] tenant=${tenantId} serie=${serie} ${ni}-${nf}`);
 
-    // Send to Focus NFe
     const response = await fetch(`${focusBaseUrl}/v2/nfe/inutilizacao`, {
       method: 'POST',
       headers: {
@@ -120,65 +98,54 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         cnpj,
         serie: String(serie),
-        numero_inicial: String(numero_inicial),
-        numero_final: String(numero_final),
+        numero_inicial: String(ni),
+        numero_final: String(nf),
         justificativa,
       }),
     });
 
-    const responseData = await response.json();
-    console.log('[fiscal-inutilizar] Focus response:', responseData);
-
-    // Save record
-    const inutRecord = {
-      tenant_id: tenantId,
-      serie: String(serie),
-      numero_inicial,
-      numero_final,
-      justificativa,
-      status: response.ok ? 'authorized' : 'rejected',
-      protocolo: responseData.protocolo || null,
-      response_data: responseData,
-    };
+    const responseData = await response.json().catch(() => ({}));
 
     const { data: savedRecord, error: saveError } = await supabaseClient
       .from('fiscal_inutilizacoes')
-      .insert(inutRecord)
+      .insert({
+        tenant_id: tenantId,
+        serie: String(serie),
+        numero_inicial: ni,
+        numero_final: nf,
+        justificativa,
+        status: response.ok ? 'authorized' : 'rejected',
+        protocolo: responseData.protocolo || null,
+        response_data: responseData,
+      })
       .select()
       .single();
 
     if (saveError) {
-      console.error('[fiscal-inutilizar] Error saving record:', saveError);
+      console.error('[fiscal-inutilizar] persist error:', saveError);
     }
 
     if (!response.ok) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: responseData.mensagem || 'Erro ao inutilizar numeração',
-          details: responseData,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: responseData.mensagem || 'Erro ao inutilizar numeração',
+        code: 'focus_error',
+      });
     }
 
     chargeAfter({
       tenantId,
-      serviceKey: "nfe-inutilizar",
+      serviceKey: 'nfe-inutilizar',
       units: { count: 1 },
-      jobId: `inut-${tenantId}-${Date.now()}`,
-      feature: "fiscal-inutilizar",
+      jobId: `inut-${tenantId}-${serie}-${ni}-${nf}`,
+      feature: 'fiscal-inutilizar',
     }).catch(() => {});
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        record: savedRecord,
-        protocolo: responseData.protocolo,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
+    return jsonResponse({
+      success: true,
+      record: savedRecord,
+      protocolo: responseData.protocolo,
+    });
   } catch (error) {
     return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'inutilizar' });
   }

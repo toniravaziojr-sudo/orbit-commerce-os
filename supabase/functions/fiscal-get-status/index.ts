@@ -201,7 +201,8 @@ Deno.serve(async (req) => {
       await supabaseClient
         .from('fiscal_invoices')
         .update(updateData)
-        .eq('id', invoice_id);
+        .eq('id', invoice_id)
+        .eq('tenant_id', tenantId);
 
       // Registrar log
       await supabaseClient
