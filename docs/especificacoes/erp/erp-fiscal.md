@@ -970,3 +970,61 @@ Nenhuma chamada real foi feita a `api.focusnfe.com.br` nem `homologacao.focusnfe
 3. Padronizar `fiscal-cce`, `fiscal-inutilizar`, `dce-emit`, `gateway-attach-fiscal-doc`, `fiscal-send-nfe-email`.
 4. Smoke test fim-a-fim em homologação Focus NFe (rascunho → submit → webhook → authorized).
 5. Avaliar guard adicional para `fiscal-emit/submit` exigir role `owner|admin|finance` (decisão de produto).
+
+---
+
+## Lote 1.C.2 — Hardening de webhook, draft e RBAC de emissão (EXECUÇÃO CONTROLADA)
+
+**Data:** 2026-05-13  
+**Modo:** EXECUÇÃO CONTROLADA  
+**Escopo:** segurança do webhook Focus, padronização do `fiscal-update-draft`, RBAC nas funções de emissão real, contrato dos auxiliares.  
+**Restrições aplicadas:** sem smoke test, sem emissão real, sem chamada à Focus/Sefaz, sem alterar certificado, sem alterar regra de negócio.
+
+### Mudanças aplicadas
+
+**1. Segredo de webhook Focus NFe**
+- Adicionada secret `FOCUS_NFE_WEBHOOK_SECRET` (runtime) — valor único, longo, gerado fora do agente.
+- `fiscal-webhook` valida o segredo no início do handler:
+  - aceita via header `X-Webhook-Secret` (ou `X-Focus-Webhook-Secret`),
+  - via query `?secret=...`,
+  - via HTTP Basic auth (password).
+- Comportamento: **fail-closed** quando o segredo está configurado. Se o segredo não estiver definido, segue passando com warning explícito no log (compatibilidade até registrar a mesma string no painel Focus).
+
+**2. Helper compartilhado de RBAC fiscal**
+- Novo `_shared/fiscal-role-check.ts` com:
+  - `requireFiscalRole(req, allowedRoles)` — autentica o usuário, resolve `current_tenant_id`, valida o papel em `user_roles` para o tenant atual e devolve um cliente service-role.
+  - `validateWebhookSecret(req)` — função única e reutilizável de validação do segredo do webhook.
+
+**3. `fiscal-update-draft` padronizado**
+- Removido o uso de `ANON_KEY` (RLS implícita).
+- Usa `requireFiscalRole(req, ['owner','admin','operator'])`. Roles `member` e `viewer` recebem `403 insufficient_role`.
+- Operações seguem com `service_role` após a guarda explícita de tenant + role.
+
+**4. RBAC de emissão real (`fiscal-emit` e `fiscal-submit`)**
+- Adicionada checagem inline de `user_roles` para o tenant atual.
+- Apenas `owner` e `admin` podem disparar emissão/submissão real à Focus/Sefaz. `operator` é bloqueado com `403 insufficient_role`.
+- `viewer`/`member` continuam bloqueados.
+
+**5. `dce-emit` e `gateway-attach-fiscal-doc`**
+- Auth gate adicionado: aceita bearer `service_role` (chamadas internas de cron/trigger) **ou** usuário autenticado com papel `owner|admin|operator`.
+- Guarda de tenant ownership por pedido: chamadas user-authenticated não podem operar em pedidos de outro tenant (`forbidden_tenant_mismatch`).
+- Registradas no `supabase/config.toml` com `verify_jwt = false` (validação em código, padrão atual do projeto para auxiliares com bypass de service-role).
+
+### Confirmação de não-transmissão
+
+Nenhuma chamada real foi feita a `api.focusnfe.com.br` nem `homologacao.focusnfe.com.br` nesta etapa. Nenhuma NF real foi transmitida. Nenhum cancelamento real foi executado. Certificado A1 não foi tocado.
+
+### Riscos restantes
+
+- Smoke test fim-a-fim em homologação ainda **não foi executado** (pendência explícita do Lote 1.C.3).
+- A política de fail-open quando `FOCUS_NFE_WEBHOOK_SECRET` está ausente é intencional (compatibilidade), mas deve virar fail-closed assim que a string for cadastrada no painel Focus. Recomendado endurecer no Lote 1.C.3 após confirmação.
+- `fiscal-cce`, `fiscal-inutilizar`, `fiscal-cancel` ainda não receberam o mesmo padrão de RBAC inline — devem ser padronizados antes de qualquer cancelamento real.
+- Polling/reconciliação Focus (status `processing`/`error`) ainda não tem rotina dedicada validada.
+
+### Checklist antes do smoke test em homologação (Lote 1.C.3)
+
+1. Cadastrar `FOCUS_NFE_WEBHOOK_SECRET` no painel Focus NFe (mesma string registrada na secret).
+2. Padronizar `fiscal-cce`, `fiscal-inutilizar`, `fiscal-cancel` com RBAC `owner|admin`.
+3. Confirmar mapa de status (rascunho → processando → autorizado/rejeitado/erro) e rotina de polling/reconciliação.
+4. Validar idempotência por `focus_ref` em chamadas duplicadas reais (não apenas por status terminal).
+5. Confirmar tenant Respeite o Homem em homologação (não produção) e congelar emissão real até validação.
