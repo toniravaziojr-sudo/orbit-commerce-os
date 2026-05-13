@@ -66,6 +66,10 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!order) throw new Error("order_not_found");
+      if (!isServiceRole && callerTenantId && order.tenant_id !== callerTenantId) {
+        throw new Error("forbidden_tenant_mismatch");
+      }
+
 
       // Create draft record first
       const { data: draft, error: draftErr } = await sb
