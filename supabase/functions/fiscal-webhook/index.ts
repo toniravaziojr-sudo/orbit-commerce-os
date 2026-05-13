@@ -1,24 +1,15 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
+import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Map Focus NFe status to internal status
-function mapFocusStatusToInternal(focusStatus: string): string {
-  const statusMap: Record<string, string> = {
-    'processando_autorizacao': 'processing',
-    'autorizado': 'authorized',
-    'cancelado': 'cancelled',
-    'erro_autorizacao': 'rejected',
-    'denegado': 'denied',
-    'aguardando_correcao': 'correction_needed',
-  };
-  return statusMap[focusStatus] || 'processing';
-}
+// Status terminais — não devem ser sobrescritos por novos webhooks (idempotência).
+const TERMINAL_STATUSES = new Set(["authorized", "cancelled", "rejected"]);
 
 // Build full URL for Focus NFe paths
 function buildFocusUrl(path: string | undefined, ambiente: string): string | undefined {
@@ -144,6 +135,21 @@ Deno.serve(async (req) => {
     const internalStatus = mapFocusStatusToInternal(status);
     console.log(`[fiscal-webhook] Mapped status: ${status} -> ${internalStatus}`);
     const now = new Date().toISOString();
+
+    // Idempotência: nota já em status terminal igual ao recebido → noop seguro.
+    if (TERMINAL_STATUSES.has(invoice.status) && invoice.status === internalStatus) {
+      console.log(`[fiscal-webhook] Noop: invoice ${invoice.id} already in terminal status ${invoice.status}`);
+      await supabase.from("fiscal_invoice_events").insert({
+        invoice_id: invoice.id,
+        tenant_id: invoice.tenant_id,
+        event_type: `webhook_${status}_noop`,
+        event_data: payload,
+      });
+      return new Response(
+        JSON.stringify({ success: true, noop: true, status: invoice.status }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Prepare update data
     const updateData: Record<string, any> = {

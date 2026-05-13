@@ -854,3 +854,119 @@ Nenhuma política fiscal abre acesso global a platform admin nesta etapa. Suport
 2. Padronizar autenticação e contrato de erro nas 20 edge functions fiscais.
 3. Validar webhook Focus NFe em ambiente real.
 4. Executar smoke test em homologação.
+
+---
+
+## Lote 1.C.1 — Base técnica das edge functions fiscais críticas (2026-05-13)
+
+### Máquina de status fiscal oficial
+
+`fiscal_invoices.status` (CHECK constraint atualizada):
+
+- **draft** — rascunho criado, não enviado.
+- **pending** — aguardando ação do operador (ex.: aguardando correção retornada pela Focus).
+- **processing** — enviado e em processamento assíncrono na Focus/Sefaz.
+- **authorized** — autorizada pela Sefaz (terminal positivo).
+- **rejected** — rejeição da Sefaz (Focus respondeu com erro de autorização ou denegação).
+- **cancelled** — cancelada após autorização (terminal).
+- **error** — falha técnica não-Sefaz (timeout, parse, rede). Permite reprocessamento.
+
+**`printed` e `devolvido` NÃO são status**. São derivados:
+- "Impressa" = `status='authorized'` AND `danfe_printed_at IS NOT NULL`.
+- "Devolvida" = existe vínculo via `nfe_referenciada` (NF-e de devolução referencia esta).
+
+Os filtros de UI em `FiscalStatusFilter`/`FiscalInvoiceList` traduzem isso visualmente — não persistem em `status`.
+
+### Mapeamento Focus NFe → status interno (fonte única)
+
+Implementado em `_shared/focus-nfe-adapter.ts::mapFocusStatusToInternal`. O webhook agora importa esta função (sem map duplicado):
+
+| Status Focus | Status interno |
+|---|---|
+| `processando_autorizacao` | `processing` |
+| `aguardando_correcao` | `pending` |
+| `autorizado` | `authorized` |
+| `cancelado` | `cancelled` |
+| `erro_autorizacao` | `rejected` |
+| `denegado` | `rejected` |
+| (default conservador) | `processing` |
+
+### RBAC em Configurações Fiscais
+
+| Role | GET `fiscal-settings` | POST `fiscal-settings` |
+|---|---|---|
+| owner | payload completo (token mascarado, PFX/senha removidos) | permitido |
+| admin | payload completo (token mascarado, PFX/senha removidos) | permitido |
+| operator/support/finance/viewer | payload mínimo: `is_configured`, `ambiente`, `provider`, `razao_social` | bloqueado (`success:false`, `code: FORBIDDEN_ROLE`) |
+
+Operator nunca recebe: PFX, senha, token Focus, série, próximo número, CNAE, CSOSN, CST, endereço completo, CFOPs, regime tributário, dados de empresa Focus, automações fiscais.
+
+### Idempotência do webhook Focus
+
+Se a nota já está em status terminal (`authorized`, `cancelled`, `rejected`) e o webhook recebido reflete o mesmo status, o webhook executa **noop**:
+- não atualiza a nota,
+- registra evento `webhook_<status>_noop`,
+- retorna `200 { success:true, noop:true }`.
+
+Isolamento por `focus_ref` (chave única da nota na Focus) e escopo via `invoice.tenant_id` recuperado da própria nota. Webhook nunca atualiza nota de outro tenant.
+
+### Contrato padrão das edge functions fiscais
+
+- CORS em OPTIONS, sucesso e erro.
+- Erro de negócio → HTTP 200 + `{ success:false, error, code? }`.
+- Erro técnico → HTTP 5xx via `errorResponse` com log.
+- Autenticação: `Authorization: Bearer <jwt>` validado via `auth.getUser`; sem auth → 401.
+- Tenant: lido de `profiles.current_tenant_id` e validado em todas as queries de dados via `.eq('tenant_id', tenantId)`.
+- Rotinas internas (cron/trigger) usam `service_role` via `scheduler-tick` (Lote 1.A).
+
+### Funções críticas auditadas (sem transmissão Focus/Sefaz)
+
+| Função | CORS | Auth | Tenant | Envelope | Idempotência | Persistência | Observações |
+|---|---|---|---|---|---|---|---|
+| `fiscal-settings` | ✅ | ✅ | ✅ | ✅ | n/a | ✅ contato confirmado | RBAC owner/admin vs operator aplicado |
+| `fiscal-create-draft` | ✅ | ✅ | ✅ | ✅ | numeração via `getNextFiscalNumber` + `insertFiscalInvoiceWithRetry` | ✅ | sem alteração nesta etapa |
+| `fiscal-create-manual` | ✅ | ✅ | ✅ | ✅ (Lote 1.A) | ✅ rollback se itens falham (`MANUAL_INVOICE_ITEMS_PERSISTENCE_FAILED`) | ✅ | preserva correção do Lote 1.A |
+| `fiscal-update-draft` | ✅ | ✅ | ✅ (verifica `tenant_id` + `status='draft'`) | ✅ | n/a | ✅ | usa `ANON_KEY`+JWT do usuário (RLS) — pendência menor |
+| `fiscal-auto-create-drafts` | ✅ | ✅ service_role | ✅ por iteração | ✅ | ✅ checa NF ativa antes (Lote 1.A) | ✅ | bloqueia anon/publishable (Lote 1.A) |
+| `fiscal-validate-order` | ✅ | ✅ | ✅ | ✅ | n/a (read-only) | n/a | exclui `cancelled,rejected` (Lote 1.A) |
+| `fiscal-emit` | ✅ | ✅ | ✅ | ✅ | check `status in (draft, rejected)` | ✅ | **não executado contra Focus nesta etapa** |
+| `fiscal-submit` | ✅ | ✅ | ✅ | ✅ | check `status in (draft, rejected)` | ✅ | **não executado contra Focus nesta etapa** |
+| `fiscal-check-status` | ✅ | ✅ | ✅ | ✅ | atualiza apenas se status mudou | ✅ | **não executado contra Focus nesta etapa** |
+| `fiscal-get-status` | ✅ | ✅ | ✅ | ✅ | read-only | n/a | **não executado contra Focus nesta etapa** |
+| `fiscal-cancel` | ✅ | ✅ | ✅ | ✅ | check `status='authorized'` | ✅ | **não executado** |
+| `fiscal-webhook` | ✅ | n/a (público p/ Focus) | ✅ via `invoice.tenant_id` | ✅ | ✅ noop em status terminal igual | ✅ | mapa unificado importado do shared |
+
+### Funções fiscais menos críticas (auditoria superficial)
+
+`fiscal-send-nfe-email`, `fiscal-cce`, `fiscal-inutilizar`, `dce-emit`, `gateway-attach-fiscal-doc`: auditadas, sem alteração nesta etapa. Nenhum bug crítico de segurança ou falso sucesso identificado para correção imediata. CC-e e inutilização ainda chamam Focus diretamente — listadas para padronização no próximo sublote.
+
+### Testes executados (sem transmissão real)
+
+| Teste | Resultado |
+|---|---|
+| Webhook sem auth, ref inexistente | ✅ 200 + `{success:true, warning:"Invoice not found"}` (não vaza, não cria) |
+| `fiscal-settings` GET como owner | ✅ payload completo, `role_view:"full"`, PFX/senha=null, token mascarado |
+| `fiscal-settings` GET como operator (revisão de código) | ✅ payload mínimo (4 campos), `role_view:"minimal"` — sem segredos nem campos sensíveis |
+| `fiscal-settings` POST como operator (revisão de código) | ✅ bloqueio com `code: FORBIDDEN_ROLE` |
+| CHECK constraint aceita `processing`/`error` | ✅ migration aplicada |
+| Webhook idempotente em status terminal | ✅ noop por construção; verificado no código |
+| Isolamento tenant A → tenant B | ✅ herdado do Lote 1.B (não regrediu) |
+
+### Confirmação de não-transmissão
+
+Nenhuma chamada real foi feita a `api.focusnfe.com.br` nem `homologacao.focusnfe.com.br`. Nenhuma NF real foi transmitida nesta etapa. `fiscal-emit`, `fiscal-submit`, `fiscal-cancel`, `fiscal-cce`, `fiscal-inutilizar` e `fiscal-check-status` foram revisados em código apenas.
+
+### Riscos restantes
+
+- Webhook Focus aceita qualquer chamador. **Falta validação de origem/segredo** (header secreto ou IP allowlist) — pendência crítica para Lote 1.C.2.
+- `fiscal-update-draft` usa `ANON_KEY` (RLS) em vez de `service_role + tenant guard` como o restante. Funciona, mas é inconsistente. Padronizar no Lote 1.C.2.
+- Smoke test em homologação ainda pendente.
+- Funções menos críticas (`fiscal-cce`, `fiscal-inutilizar`, `dce-emit`) ainda não foram padronizadas no envelope/RBAC.
+
+### Pendências para o Lote 1.C.2
+
+1. Validar e endurecer webhook Focus (segredo + idempotência por payload duplicado).
+2. Padronizar `fiscal-update-draft` para o padrão `service_role + tenant guard`.
+3. Padronizar `fiscal-cce`, `fiscal-inutilizar`, `dce-emit`, `gateway-attach-fiscal-doc`, `fiscal-send-nfe-email`.
+4. Smoke test fim-a-fim em homologação Focus NFe (rascunho → submit → webhook → authorized).
+5. Avaliar guard adicional para `fiscal-emit/submit` exigir role `owner|admin|finance` (decisão de produto).

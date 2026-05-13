@@ -70,10 +70,21 @@ Deno.serve(async (req) => {
 
     const tenantId = profile.current_tenant_id;
 
+    // Lote 1.C.1: RBAC — diferenciar owner/admin (acesso completo) de demais perfis
+    // (operator/support/finance/viewer recebem apenas payload mínimo operacional).
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: ownerCheck } = await adminClient.rpc('has_role', {
+      _user_id: user.id, _tenant_id: tenantId, _role: 'owner',
+    });
+    const { data: adminCheck } = await adminClient.rpc('has_role', {
+      _user_id: user.id, _tenant_id: tenantId, _role: 'admin',
+    });
+    const isOwnerOrAdmin = !!ownerCheck || !!adminCheck;
+
     // GET - Fetch settings
     if (req.method === 'GET') {
-      console.log('[fiscal-settings] GET for tenant:', tenantId);
-      
+      console.log('[fiscal-settings] GET for tenant:', tenantId, 'isOwnerOrAdmin:', isOwnerOrAdmin);
+
       const { data: settings, error } = await supabase
         .from('fiscal_settings')
         .select('*')
@@ -85,13 +96,29 @@ Deno.serve(async (req) => {
         throw error;
       }
 
-      // Mask token if exists and remove encrypted certificate data
+      // Operator/support/finance/viewer: payload mínimo, sem segredos nem campos sensíveis.
+      if (!isOwnerOrAdmin) {
+        const minimal = settings ? {
+          tenant_id: settings.tenant_id,
+          is_configured: !!settings.is_configured,
+          ambiente: settings.ambiente ?? null,
+          provider: settings.provider ?? null,
+          razao_social: settings.razao_social ?? null,
+          // Nada de PFX, senha, token, série, CNAE, CSOSN, endereço, próximo número, etc.
+        } : null;
+        return new Response(
+          JSON.stringify({ success: true, settings: minimal, role_view: 'minimal' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Owner/Admin: payload completo, com token mascarado e PFX/senha removidos.
       let maskedSettings = settings;
       if (settings) {
         maskedSettings = {
           ...settings,
-          provider_token: settings.provider_token 
-            ? settings.provider_token.substring(0, 8) + '****' 
+          provider_token: settings.provider_token
+            ? settings.provider_token.substring(0, 8) + '****'
             : null,
           // Remove encrypted data from response - only return metadata
           certificado_pfx: null,
@@ -100,11 +127,18 @@ Deno.serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true, settings: maskedSettings }),
+        JSON.stringify({ success: true, settings: maskedSettings, role_view: 'full' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // POST - Save/update settings (apenas owner/admin)
+    if (req.method === 'POST' && !isOwnerOrAdmin) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Apenas owner ou admin podem alterar configurações fiscais.', code: 'FORBIDDEN_ROLE' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     // POST - Save/update settings
     if (req.method === 'POST') {
       const body = await req.json();
