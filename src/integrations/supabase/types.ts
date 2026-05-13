@@ -9018,6 +9018,7 @@ export type Database = {
           cst_padrao: string | null
           default_shipping_provider: string | null
           desmembrar_estrutura: boolean | null
+          email: string | null
           email_nfe_body: string | null
           email_nfe_subject: string | null
           emissao_automatica: boolean | null
@@ -9046,6 +9047,7 @@ export type Database = {
           provider_token: string | null
           razao_social: string | null
           serie_nfe: number | null
+          telefone: string | null
           tenant_id: string
           updated_at: string | null
         }
@@ -9070,6 +9072,7 @@ export type Database = {
           cst_padrao?: string | null
           default_shipping_provider?: string | null
           desmembrar_estrutura?: boolean | null
+          email?: string | null
           email_nfe_body?: string | null
           email_nfe_subject?: string | null
           emissao_automatica?: boolean | null
@@ -9098,6 +9101,7 @@ export type Database = {
           provider_token?: string | null
           razao_social?: string | null
           serie_nfe?: number | null
+          telefone?: string | null
           tenant_id: string
           updated_at?: string | null
         }
@@ -9122,6 +9126,7 @@ export type Database = {
           cst_padrao?: string | null
           default_shipping_provider?: string | null
           desmembrar_estrutura?: boolean | null
+          email?: string | null
           email_nfe_body?: string | null
           email_nfe_subject?: string | null
           emissao_automatica?: boolean | null
@@ -9150,6 +9155,7 @@ export type Database = {
           provider_token?: string | null
           razao_social?: string | null
           serie_nfe?: number | null
+          telefone?: string | null
           tenant_id?: string
           updated_at?: string | null
         }
