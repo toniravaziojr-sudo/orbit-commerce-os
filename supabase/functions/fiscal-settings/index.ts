@@ -133,6 +133,8 @@ Deno.serve(async (req) => {
         endereco_complemento,
         cnae,
         origem_fiscal_padrao,
+        email,
+        telefone,
       } = body;
 
       // Check existing certificate data for is_configured validation
