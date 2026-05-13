@@ -206,6 +206,8 @@ Deno.serve(async (req) => {
         emissao_automatica: emissao_automatica || false,
         emitir_apos_status: emitir_apos_status || 'paid',
         origem_fiscal_padrao: origem_fiscal_padrao ?? 0,
+        email: email ?? null,
+        telefone: telefone ?? null,
         is_configured,
       };
 
