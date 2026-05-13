@@ -132,6 +132,13 @@ Deno.serve(async (req) => {
       );
     }
 
+    // POST - Save/update settings (apenas owner/admin)
+    if (req.method === 'POST' && !isOwnerOrAdmin) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Apenas owner ou admin podem alterar configurações fiscais.', code: 'FORBIDDEN_ROLE' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     // POST - Save/update settings
     if (req.method === 'POST') {
       const body = await req.json();
