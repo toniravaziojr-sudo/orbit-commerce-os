@@ -424,8 +424,14 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     const authHeader = req.headers.get('Authorization');
+    // Aceita: sem auth (cron interno), ANON_KEY (cron pg_net legado),
+    // PUBLISHABLE_KEY (cron pg_net pós-signing-keys) ou SERVICE_ROLE_KEY.
+    // Hardening contra regressão de auth pós-rotação de chaves.
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+    const publishableKey = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
     const isSystemCall = !authHeader 
-      || authHeader === `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`
+      || (anonKey && authHeader === `Bearer ${anonKey}`)
+      || (publishableKey && authHeader === `Bearer ${publishableKey}`)
       || authHeader === `Bearer ${supabaseServiceKey}`;
     const isCronMode = isSystemCall;
 

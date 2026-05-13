@@ -76,7 +76,7 @@ export function InvoiceActionsDropdown({
   const isDraft = invoice.status === 'draft';
   const isPending = invoice.status === 'pending';
   const isRejected = invoice.status === 'rejected';
-  const isCanceled = invoice.status === 'canceled' || invoice.status === 'cancelled';
+  const isCanceled = invoice.status === 'cancelled';
 
   // Download DANFE (PDF)
   const handleDownloadDanfe = () => {
@@ -254,9 +254,12 @@ export function InvoiceActionsDropdown({
               <FileEdit className="h-4 w-4 mr-2" />
               Carta de Correção
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={onDuplicate}>
-              <Copy className="h-4 w-4 mr-2" />
-              Duplicar NF-e
+            <DropdownMenuItem
+              disabled
+              onClick={() => toast.info('Clonar NF está em manutenção. Disponível na próxima onda.')}
+            >
+              <Copy className="h-4 w-4 mr-2 opacity-50" />
+              Clonar NF (em manutenção)
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onEmitirDevolucao}>
               <ArrowDownLeft className="h-4 w-4 mr-2" />
@@ -291,9 +294,12 @@ export function InvoiceActionsDropdown({
                 Copiar Chave
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={onDuplicate}>
-              <Copy className="h-4 w-4 mr-2" />
-              Criar Nova NF-e
+            <DropdownMenuItem
+              disabled
+              onClick={() => toast.info('Clonar NF está em manutenção. Disponível na próxima onda.')}
+            >
+              <Copy className="h-4 w-4 mr-2 opacity-50" />
+              Clonar NF (em manutenção)
             </DropdownMenuItem>
           </>
         )}

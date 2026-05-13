@@ -40,7 +40,6 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   pending: { label: 'Processando', variant: 'outline', icon: Clock },
   authorized: { label: 'Autorizada', variant: 'default', icon: CheckCircle },
   rejected: { label: 'Rejeitada', variant: 'destructive', icon: XCircle },
-  canceled: { label: 'Cancelada', variant: 'destructive', icon: XCircle },
   cancelled: { label: 'Cancelada', variant: 'destructive', icon: XCircle },
 };
 
@@ -126,7 +125,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       if (statusFilter.includes('authorized') && inv.status === 'authorized' && !(inv as any).danfe_printed_at) return true;
       if (statusFilter.includes('pending') && inv.status === 'pending') return true;
       if (statusFilter.includes('rejected') && inv.status === 'rejected') return true;
-      if (statusFilter.includes('canceled') && (inv.status === 'canceled' || inv.status === 'cancelled')) return true;
+      if (statusFilter.includes('canceled') && inv.status === 'cancelled') return true;
       if (statusFilter.includes('devolvido') && (inv as any).nfe_referenciada) return true;
       return false;
     }
@@ -170,7 +169,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     printed: invoices?.filter(i => i.status === 'authorized' && (i as any).danfe_printed_at).length || 0,
     pending: invoices?.filter(i => i.status === 'pending').length || 0,
     rejected: invoices?.filter(i => i.status === 'rejected').length || 0,
-    canceled: invoices?.filter(i => i.status === 'canceled' || i.status === 'cancelled').length || 0,
+    canceled: invoices?.filter(i => i.status === 'cancelled').length || 0,
     devolvido: invoices?.filter(i => i.status !== 'draft' && (i as any).nfe_referenciada).length || 0,
   };
 
