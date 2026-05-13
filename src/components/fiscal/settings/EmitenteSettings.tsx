@@ -217,6 +217,15 @@ export function EmitenteSettings() {
       anchor: 'card-ambiente',
     });
 
+    const emailOk = !!(formData.email && isValidEmailStr(formData.email));
+    items.push({
+      id: 'email-emitente',
+      label: 'E-mail do emitente preenchido',
+      status: emailOk ? 'ok' : 'pending',
+      hint: emailOk ? undefined : 'Recomendado: usado pela Focus NFe como remetente do DANFE para o cliente.',
+      anchor: 'card-identidade',
+    });
+
     return items;
   }, [formData, hasCertificate, isExpired, isExpiringSoon, daysUntilExpiry, cnpjMismatch, cnpjCertClean, cnpjEmitClean]);
 
