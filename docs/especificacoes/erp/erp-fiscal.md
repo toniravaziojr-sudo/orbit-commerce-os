@@ -771,4 +771,4 @@ A tela `/fiscal/configuracoes` (e a aba Fiscal embutida em `/system/settings?tab
 4. **Parâmetros Fiscais** — Regime, Origem, CFOPs, CSOSN/CST, Série/Número.
 5. **Ambiente de Emissão** — seletor com aviso destacado quando em Homologação.
 
-A barra de **Salvar** é fixa no rodapé, aparece apenas quando há alterações não salvas e tem botões "Descartar" e "Salvar alterações". A validação local bloqueia salvamento com Razão Social vazia, CNPJ inválido, IE faltante (quando não é Isento) ou e-mail do emitente em formato inválido.
+A barra de **Salvar** é fixa no rodapé, aparece apenas quando há alterações não salvas e tem botões "Descartar" e "Salvar alterações". A validação local bloqueia salvamento com Razão Social vazia, CNPJ inválido, IE faltante (quando não é Isento) ou e-mail do emitente em formato inválido. O backend só confirma sucesso depois de reler a configuração e validar que o contato do emitente ficou realmente persistido; se houver divergência, retorna erro explícito em vez de sucesso falso.
