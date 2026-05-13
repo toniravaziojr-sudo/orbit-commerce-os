@@ -773,3 +773,9 @@ schedule = "0 */6 * * *"
 [functions.log-login-attempt]
 verify_jwt = false
 
+
+[functions.dce-emit]
+verify_jwt = false
+
+[functions.gateway-attach-fiscal-doc]
+verify_jwt = false

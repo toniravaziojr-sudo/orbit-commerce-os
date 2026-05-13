@@ -16,6 +16,39 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+  // Auth gate: accept service-role bearer (internal callers) OR authenticated owner/admin user
+  const authHeader = req.headers.get("authorization") || "";
+  const isServiceRole = authHeader === `Bearer ${SERVICE_ROLE}`;
+  let callerTenantId: string | null = null;
+
+  if (!isServiceRole) {
+    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: u } = await userClient.auth.getUser();
+    if (!u?.user) {
+      return new Response(JSON.stringify({ success: false, error: "Não autorizado" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: prof } = await sb.from("profiles").select("current_tenant_id").eq("id", u.user.id).single();
+    callerTenantId = prof?.current_tenant_id ?? null;
+    if (!callerTenantId) {
+      return new Response(JSON.stringify({ success: false, error: "Tenant não encontrado" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: roleRow } = await sb.from("user_roles").select("role")
+      .eq("user_id", u.user.id).eq("tenant_id", callerTenantId).maybeSingle();
+    const role = roleRow?.role ?? "viewer";
+    if (role !== "owner" && role !== "admin" && role !== "operator") {
+      return new Response(JSON.stringify({ success: false, error: "Permissão insuficiente", code: "insufficient_role" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   const body = await req.json().catch(() => ({}));
   const orderIds: string[] = Array.isArray(body?.order_ids) ? body.order_ids : (body?.order_id ? [body.order_id] : []);
 
@@ -27,6 +60,7 @@ Deno.serve(async (req) => {
   }
 
   const results: any[] = [];
+
 
   for (const orderId of orderIds) {
     try {
@@ -40,6 +74,10 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!order) throw new Error("order_not_found");
+      // Tenant ownership guard for user-authenticated callers
+      if (!isServiceRole && callerTenantId && order.tenant_id !== callerTenantId) {
+        throw new Error("forbidden_tenant_mismatch");
+      }
       if (order.resolved_shipping_provider_kind !== "gateway") throw new Error("not_a_gateway_order");
       if (!order.resolved_shipping_provider_id) throw new Error("no_resolved_provider");
 

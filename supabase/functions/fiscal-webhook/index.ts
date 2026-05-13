@@ -2,6 +2,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
+import { validateWebhookSecret } from "../_shared/fiscal-role-check.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,6 +40,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     console.log("[fiscal-webhook] Responding to OPTIONS preflight");
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Validate Focus NFe webhook secret (fail-closed when configured)
+  const secretFailure = validateWebhookSecret(req);
+  if (secretFailure) {
+    return secretFailure;
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

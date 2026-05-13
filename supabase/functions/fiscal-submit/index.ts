@@ -67,6 +67,23 @@ Deno.serve(async (req) => {
 
     const tenantId = profile.current_tenant_id;
 
+    // RBAC: submissão real à Sefaz exige owner ou admin do tenant
+    const { data: roleRow } = await supabaseClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    const userRole = roleRow?.role ?? 'viewer';
+    if (userRole !== 'owner' && userRole !== 'admin') {
+      console.warn(`[fiscal-submit] Bloqueado: role=${userRole} não pode submeter NF-e`);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Permissão insuficiente para submeter NF-e (requer owner ou admin)', code: 'insufficient_role' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+
     // Obter invoice_id do body
     const body = await req.json();
     const { invoice_id } = body;
