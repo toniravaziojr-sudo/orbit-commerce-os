@@ -107,6 +107,9 @@ export function EmitenteSettings() {
     if (!formData.ie_isento && !formData.inscricao_estadual?.trim()) {
       toast.error('Inscrição Estadual é obrigatória (ou marque como Isento)'); return;
     }
+    if (formData.email && !isValidEmailStr(formData.email)) {
+      toast.error('E-mail do emitente inválido'); return;
+    }
     saveSettings.mutate(formData);
   };
 
