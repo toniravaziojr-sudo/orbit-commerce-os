@@ -66,6 +66,23 @@ Deno.serve(async (req) => {
 
     const tenantId = profile.current_tenant_id;
 
+    // RBAC: emissão real de NF-e exige owner ou admin do tenant
+    const { data: roleRow } = await supabaseClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    const userRole = roleRow?.role ?? 'viewer';
+    if (userRole !== 'owner' && userRole !== 'admin') {
+      console.warn(`[fiscal-emit] Bloqueado: role=${userRole} não pode emitir NF-e`);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Permissão insuficiente para emitir NF-e (requer owner ou admin)', code: 'insufficient_role' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+
     const body = await req.json();
     const { invoice_id } = body;
 
