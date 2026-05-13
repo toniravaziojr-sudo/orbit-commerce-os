@@ -46,6 +46,14 @@ function formatCEP(value: string) {
   const numbers = value.replace(/\D/g, '').slice(0, 8);
   return numbers.replace(/^(\d{5})(\d{3}).*/, '$1-$2');
 }
+function formatPhone(value: string) {
+  const n = (value || '').replace(/\D/g, '').slice(0, 11);
+  if (n.length <= 10) return n.replace(/^(\d{0,2})(\d{0,4})(\d{0,4}).*/, (_, a, b, c) => [a && `(${a}`, a && a.length === 2 ? ') ' : '', b, c && `-${c}`].filter(Boolean).join('').trim());
+  return n.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3');
+}
+function isValidEmailStr(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || '').trim());
+}
 
 type ChecklistItem = {
   id: string;
@@ -63,6 +71,7 @@ export function EmitenteSettings() {
     razao_social: '', nome_fantasia: '', cnpj: '', inscricao_estadual: '', ie_isento: false, cnae: '',
     endereco_logradouro: '', endereco_numero: '', endereco_complemento: '', endereco_bairro: '',
     endereco_municipio: '', endereco_municipio_codigo: '', endereco_uf: '', endereco_cep: '',
+    email: '', telefone: '',
     crt: 1, cfop_intrastadual: '5102', cfop_interestadual: '6102', csosn_padrao: '', cst_padrao: '',
     serie_nfe: 1, numero_nfe_atual: 1, ambiente: 'homologacao', origem_fiscal_padrao: 0,
   });
@@ -97,6 +106,9 @@ export function EmitenteSettings() {
     if (!formData.cnpj || formData.cnpj.replace(/\D/g, '').length !== 14) { toast.error('CNPJ inválido'); return; }
     if (!formData.ie_isento && !formData.inscricao_estadual?.trim()) {
       toast.error('Inscrição Estadual é obrigatória (ou marque como Isento)'); return;
+    }
+    if (formData.email && !isValidEmailStr(formData.email)) {
+      toast.error('E-mail do emitente inválido'); return;
     }
     saveSettings.mutate(formData);
   };
@@ -203,6 +215,15 @@ export function EmitenteSettings() {
       status: 'ok',
       hint: formData.ambiente === 'homologacao' ? 'Notas em Homologação não têm valor fiscal.' : undefined,
       anchor: 'card-ambiente',
+    });
+
+    const emailOk = !!(formData.email && isValidEmailStr(formData.email));
+    items.push({
+      id: 'email-emitente',
+      label: 'E-mail do emitente preenchido',
+      status: emailOk ? 'ok' : 'pending',
+      hint: emailOk ? undefined : 'Recomendado: usado pela Focus NFe como remetente do DANFE para o cliente.',
+      anchor: 'card-identidade',
     });
 
     return items;
@@ -377,6 +398,38 @@ export function EmitenteSettings() {
                   <Label htmlFor="endereco_municipio_codigo">Código IBGE</Label>
                   <Input id="endereco_municipio_codigo" value={formData.endereco_municipio_codigo || ''} onChange={(e) => handleChange('endereco_municipio_codigo', e.target.value)} placeholder="Código IBGE (opcional)" />
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Contato do emitente — usado pela Focus NFe (DANFE) */}
+          <Separator className="my-6" />
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Contato do emitente</h4>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail do emitente</Label>
+                <Input
+                  id="email" type="email" inputMode="email" autoComplete="email"
+                  value={formData.email || ''}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  placeholder="contato@suaempresa.com.br"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Usado pela Focus NFe como remetente do DANFE para o cliente. Recomendado.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="telefone">Telefone do emitente</Label>
+                <Input
+                  id="telefone" type="tel" inputMode="tel" autoComplete="tel"
+                  value={formData.telefone || ''}
+                  onChange={(e) => handleChange('telefone', formatPhone(e.target.value))}
+                  placeholder="(11) 99999-9999"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Aparece impresso no DANFE. Opcional.
+                </p>
               </div>
             </div>
           </div>

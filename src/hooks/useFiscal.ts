@@ -27,6 +27,8 @@ export interface FiscalSettings {
   endereco_municipio_codigo: string | null;
   endereco_uf: string | null;
   endereco_cep: string | null;
+  email: string | null;
+  telefone: string | null;
   crt: number;
   cfop_intrastadual: string;
   cfop_interestadual: string;
