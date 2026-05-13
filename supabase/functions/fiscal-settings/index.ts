@@ -11,6 +11,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function normalizeOptionalText(value: unknown) {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -137,6 +143,9 @@ Deno.serve(async (req) => {
         telefone,
       } = body;
 
+      const normalizedEmail = normalizeOptionalText(email)?.toLowerCase() ?? null;
+      const normalizedTelefone = normalizeOptionalText(telefone);
+
       // Check existing certificate data for is_configured validation
       const { data: existingCert } = await supabase
         .from('fiscal_settings')
@@ -206,8 +215,8 @@ Deno.serve(async (req) => {
         emissao_automatica: emissao_automatica || false,
         emitir_apos_status: emitir_apos_status || 'paid',
         origem_fiscal_padrao: origem_fiscal_padrao ?? 0,
-        email: email ?? null,
-        telefone: telefone ?? null,
+        email: normalizedEmail,
+        telefone: normalizedTelefone,
         is_configured,
       };
 
@@ -238,6 +247,43 @@ Deno.serve(async (req) => {
       // Mask token in response
       if (result?.provider_token) {
         result.provider_token = result.provider_token.substring(0, 8) + '****';
+      }
+
+      const savedEmail = normalizeOptionalText(result?.email)?.toLowerCase() ?? null;
+      const savedTelefone = normalizeOptionalText(result?.telefone);
+
+      if (savedEmail !== normalizedEmail || savedTelefone !== normalizedTelefone) {
+        const { data: confirmedSettings, error: confirmError } = await supabase
+          .from('fiscal_settings')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (confirmError) throw confirmError;
+
+        const confirmedEmail = normalizeOptionalText(confirmedSettings?.email)?.toLowerCase() ?? null;
+        const confirmedTelefone = normalizeOptionalText(confirmedSettings?.telefone);
+
+        if (confirmedEmail !== normalizedEmail || confirmedTelefone !== normalizedTelefone) {
+          console.error('[fiscal-settings] Contact persistence mismatch after save', {
+            tenantId,
+            hasEmailInRequest: !!normalizedEmail,
+            hasTelefoneInRequest: !!normalizedTelefone,
+            hasEmailPersisted: !!confirmedEmail,
+            hasTelefonePersisted: !!confirmedTelefone,
+          });
+
+          return new Response(
+            JSON.stringify({ success: false, error: 'Não foi possível confirmar o salvamento do contato do emitente. Tente novamente.' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        result = confirmedSettings;
+
+        if (result?.provider_token) {
+          result.provider_token = result.provider_token.substring(0, 8) + '****';
+        }
       }
 
       console.log('[fiscal-settings] Saved successfully, is_configured:', is_configured);
