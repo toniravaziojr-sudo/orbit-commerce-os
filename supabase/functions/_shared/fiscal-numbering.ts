@@ -74,7 +74,7 @@ export async function insertFiscalInvoiceWithRetry(params: {
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('order_id', draftData.order_id)
-        .neq('status', 'canceled')
+        .not('status', 'in', '(cancelled,rejected)')
         .limit(1)
         .maybeSingle();
       if (existing) {

@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
       .select('id, status, numero')
       .eq('order_id', order_id)
       .eq('tenant_id', tenantId)
-      .neq('status', 'canceled')
+      .not('status', 'in', '(cancelled,rejected)')
       .maybeSingle();
 
     if (existingInvoice) {

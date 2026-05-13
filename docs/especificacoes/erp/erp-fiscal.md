@@ -91,14 +91,14 @@ Módulo de gestão empresarial: fiscal (NF-e via **Focus NFe**), financeiro, e c
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Cron Job (pg_cron) |
-| **Frequência** | A cada 5 minutos (`*/5 * * * *`) |
-| **Descrição** | Rede de segurança — cria rascunhos para pedidos pagos que o trigger eventualmente não processou |
-| **Modos** | **Cron** (todos tenants) / **User** (tenant do usuário) |
+| **Tipo** | Orquestração interna via scheduler central |
+| **Frequência real atual** | Processamento interno a cada 1 minuto via `scheduler-tick` (`* * * * *`). O job direto de 5 minutos para esta rotina foi desativado por segurança. |
+| **Descrição** | Rede de segurança — cria rascunhos para pedidos pagos que a fila ou o agendador interno eventualmente não processaram |
+| **Modos** | **Cron interno** (via scheduler-tick com credencial interna) / **Trigger interno** (pedido específico) |
 | **Data da NF** | Usa `paid_at` do pedido como `created_at` da NF |
 | **Anti-duplicação** | Verifica `fiscal_invoices` existentes antes de criar; índice único parcial `idx_fiscal_invoices_order_unique` impede duplicatas; retry com incremento de número |
-| **verify_jwt** | `false` (necessário para cron/trigger) |
-| **Segurança** | Cron usa anon key → usa service_role internamente |
+| **verify_jwt** | `false` (necessário para chamadas internas sem sessão de usuário) |
+| **Segurança** | Chamada pública/anon/publishable negada. Execução global só pelo orquestrador interno usando credencial interna (`service_role`). |
 
 ### Regra: Zero Sync on Load (v8.23.0)
 
@@ -311,10 +311,10 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 #### Regras
 1. **Separação de colunas**: `status` = etapa operacional interna. `shipping_status` = status de entrega. `payment_status` = status de pagamento.
 2. **Automação**: Transição para `ready_to_invoice` é automática via webhook de pagamento.
-3. **Criação de rascunho fiscal — Single Flow (v2026-04-08)**: O fluxo de criação de rascunhos fiscais é **restrito obrigatoriamente** à pipeline `SQL Trigger → Fila → Cron → Edge Function`. Chamadas diretas de webhooks de pagamento para `fiscal-auto-create-drafts` são **proibidas** para eliminar condições de corrida. O trigger `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico na `fiscal_draft_queue`. O `scheduler-tick` processa a fila a cada minuto e também reconcilia pedidos órfãos. (Padrão Fila + Cron — ver `automacao-patterns.md`)
+3. **Criação de rascunho fiscal — Single Flow (v2026-04-08, rev. 2026-05-13)**: O fluxo de criação de rascunhos fiscais é **restrito obrigatoriamente** à pipeline `SQL Trigger → Fila → Scheduler interno → Edge Function`. Chamadas públicas, anon, publishable ou acionamento manual global por usuário para `fiscal-auto-create-drafts` são **proibidas** para eliminar risco de segurança e condições de corrida. O trigger `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico na `fiscal_draft_queue`. O `scheduler-tick` processa a fila a cada minuto e também reconcilia pedidos órfãos. (Padrão Fila + Cron — ver `automacao-patterns.md`)
 4. **Anti-duplicação via índice único (v2026-05-13 — Onda 1.A)**: O índice parcial `idx_fiscal_invoices_order_unique` em `(tenant_id, order_id) WHERE status NOT IN ('cancelled', 'rejected') AND order_id IS NOT NULL` impede a criação de múltiplos rascunhos/NFs ativas para o mesmo pedido. Notas `cancelled` e `rejected` (rejeitadas pela Sefaz) **não contam como ativas**, permitindo re-rascunho e reemissão após esses cenários. Conflitos no índice são tratados como "registro já existente" (fetch do invoice existente), não como erro.
 
-   **Status canônico (v2026-05-13 — Onda 1.A)**: Os únicos valores aceitos em `fiscal_invoices.status` são `draft`, `pending`, `authorized`, `rejected`, `cancelled` (com 2 L's). A grafia `canceled` (1 L) está **bloqueada por CHECK constraint no banco** e foi migrada retroativamente para `cancelled`. Toda lógica nova deve usar exclusivamente `cancelled`.
+   **Status canônico (v2026-05-13 — Onda 1.A)**: Os valores hoje permitidos em `fiscal_invoices.status` pela CHECK constraint são `draft`, `pending`, `authorized`, `rejected`, `cancelled` (com 2 L's). A grafia `canceled` (1 L) está **bloqueada por CHECK constraint no banco** e foi migrada retroativamente para `cancelled`. Observação: o código fiscal também usa `processing` e `error` em fluxos auxiliares/legados, então a constraint ainda precisa ser saneada no próximo lote para alinhar banco e backend sem risco.
 
    **Clonar NF (v2026-05-13 — Onda 1.A)**: A ação "Clonar NF" (anteriormente "Duplicar NF-e" / "Criar Nova NF-e") está **temporariamente desativada na UI** com rótulo "Clonar NF (em manutenção)". Causa: o payload enviado pela UI não casava com o esperado pela edge function `fiscal-create-manual` e o backend retornava sucesso sem persistir a NF (falso positivo). Será corrigida na Onda 2 com fluxo completo: clonar → abrir editor inline → salvar → enviar.
 5. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
@@ -517,6 +517,26 @@ Detalhe completo do pipeline: `docs/especificacoes/ecommerce/pedidos.md` §4.6.
 
 ---
 
+## Tabelas fiscais reais confirmadas (v2026-05-13)
+
+### Existentes e ativas
+- `fiscal_dce`
+- `fiscal_draft_queue`
+- `fiscal_inutilizacoes`
+- `fiscal_invoice_cces`
+- `fiscal_invoice_events`
+- `fiscal_invoice_items`
+- `fiscal_invoices`
+- `fiscal_operation_natures`
+- `fiscal_products`
+- `fiscal_settings`
+
+### Referências documentais corrigidas
+- `fiscal_certificates` → **inexistente** (erro documental; o certificado fica dentro de `fiscal_settings`)
+- `fiscal_event_log` → **inexistente** (erro documental; o registro real fica em `fiscal_invoice_events`)
+- `fiscal_numbering_cursors` → **inexistente** (erro documental; o cursor atual fica em `fiscal_settings.numero_nfe_atual`)
+- `fiscal_webhook_events` → **inexistente** (erro documental; não há tabela dedicada hoje)
+
 ## Pendências
 
 - [x] Migração para Focus NFe (provedor único, produção) — 2026-05-04
@@ -648,7 +668,7 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 | **Tipo** | Melhoria Estrutural |
 | **Localização** | Trigger `trg_enqueue_fiscal_draft`, `fiscal_draft_queue`, `scheduler-tick` |
 | **Contexto** | Rascunhos fiscais eram criados somente quando o usuário acessava o módulo Fiscal (chamada lazy na abertura da tela) |
-| **Correção** | (1) Caminho primário: trigger SQL `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico em `fiscal_draft_queue`. (2) Processamento: `scheduler-tick` consome a fila a cada minuto chamando `fiscal-auto-create-drafts`. (3) Reconciliação: o mesmo tick também verifica pedidos `ready_to_invoice` sem NF-e como fallback. Padrão Fila + Cron conforme `automacao-patterns.md`. |
+| **Correção** | (1) Caminho primário: trigger SQL `trg_enqueue_fiscal_draft` captura 100% dos pagamentos aprovados via INSERT atômico em `fiscal_draft_queue`. (2) Processamento: `scheduler-tick` consome a fila a cada minuto chamando `fiscal-auto-create-drafts` com credencial interna. (3) Reconciliação: o mesmo tick também verifica pedidos `ready_to_invoice` sem NF-e como fallback. (4) O job legado direto em pg_cron para essa rotina foi desativado por risco de autenticação pública. Padrão Fila + Cron conforme `automacao-patterns.md`. |
 | **Afeta** | Módulo Fiscal → "Prontas para Emitir" já reflete pedidos aprovados sem depender de acesso à tela |
 
 ---
