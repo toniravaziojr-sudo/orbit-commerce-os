@@ -46,6 +46,14 @@ function formatCEP(value: string) {
   const numbers = value.replace(/\D/g, '').slice(0, 8);
   return numbers.replace(/^(\d{5})(\d{3}).*/, '$1-$2');
 }
+function formatPhone(value: string) {
+  const n = (value || '').replace(/\D/g, '').slice(0, 11);
+  if (n.length <= 10) return n.replace(/^(\d{0,2})(\d{0,4})(\d{0,4}).*/, (_, a, b, c) => [a && `(${a}`, a && a.length === 2 ? ') ' : '', b, c && `-${c}`].filter(Boolean).join('').trim());
+  return n.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3');
+}
+function isValidEmailStr(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || '').trim());
+}
 
 type ChecklistItem = {
   id: string;
