@@ -42,6 +42,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Validate Focus NFe webhook secret (fail-closed when configured)
+  const secretFailure = validateWebhookSecret(req);
+  if (secretFailure) {
+    return secretFailure;
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
