@@ -401,6 +401,38 @@ export function EmitenteSettings() {
               </div>
             </div>
           </div>
+
+          {/* Contato do emitente — usado pela Focus NFe (DANFE) */}
+          <Separator className="my-6" />
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Contato do emitente</h4>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail do emitente</Label>
+                <Input
+                  id="email" type="email" inputMode="email" autoComplete="email"
+                  value={formData.email || ''}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  placeholder="contato@suaempresa.com.br"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Usado pela Focus NFe como remetente do DANFE para o cliente. Recomendado.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="telefone">Telefone do emitente</Label>
+                <Input
+                  id="telefone" type="tel" inputMode="tel" autoComplete="tel"
+                  value={formData.telefone || ''}
+                  onChange={(e) => handleChange('telefone', formatPhone(e.target.value))}
+                  placeholder="(11) 99999-9999"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Aparece impresso no DANFE. Opcional.
+                </p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
