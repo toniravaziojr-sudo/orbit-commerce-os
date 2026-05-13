@@ -1,5 +1,5 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,47 +15,12 @@ Deno.serve(async (req) => {
   try {
     console.log('[fiscal-update-draft] Request received');
 
-    // Initialize Supabase client with user's auth
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Role check: only owner/admin/operator can edit fiscal drafts
+    const auth = await requireFiscalRole(req, ['owner', 'admin', 'operator']);
+    if (!auth.ok) return auth.response;
 
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const { user, tenantId, serviceClient: supabase } = auth;
 
-    // Get user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('[fiscal-update-draft] Auth error:', userError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get user's tenant
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('current_tenant_id')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile?.current_tenant_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const tenantId = profile.current_tenant_id;
 
     // Parse request body
     const body = await req.json();
