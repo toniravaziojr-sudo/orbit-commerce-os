@@ -796,3 +796,61 @@ A tela `/fiscal/configuracoes` (e a aba Fiscal embutida em `/system/settings?tab
 5. **Ambiente de Emissão** — seletor com aviso destacado quando em Homologação.
 
 A barra de **Salvar** é fixa no rodapé, aparece apenas quando há alterações não salvas e tem botões "Descartar" e "Salvar alterações". A validação local bloqueia salvamento com Razão Social vazia, CNPJ inválido, IE faltante (quando não é Isento) ou e-mail do emitente em formato inválido. O backend só confirma sucesso depois de reler a configuração e validar que o contato do emitente ficou realmente persistido; se houver divergência, retorna erro explícito em vez de sucesso falso.
+
+---
+
+## Lote 1.B — Auditoria e hardening RLS (2026-05-13)
+
+Auditoria de isolamento multi-tenant das 10 tabelas fiscais confirmadas. **Nenhuma NF real foi transmitida ao Focus NFe/Sefaz nesta etapa.**
+
+### Problemas encontrados
+
+1. **Vazamento potencial entre tenants via `profiles.current_tenant_id`** — várias políticas confiavam no campo "tenant atual" do perfil, que o próprio usuário pode atualizar para qualquer UUID (sem validação de vínculo). Risco: um usuário malicioso definia `current_tenant_id` para o ID de outro tenant e lia dados fiscais alheios. Tabelas afetadas: `fiscal_invoices`, `fiscal_invoice_items`, `fiscal_invoice_events`, `fiscal_dce`, `fiscal_products`.
+2. **Exposição de segredos fiscais ao frontend** — `fiscal_settings` permitia que qualquer membro do tenant lesse, via select direto, o certificado A1 (PFX), a senha do certificado e o token Focus NFe.
+
+### Correções aplicadas
+
+| Tabela | RLS | Política aplicada | Isolamento |
+|---|---|---|---|
+| `fiscal_settings` | ✅ | SELECT só para owner/admin; SELECT direto das colunas `certificado_pfx`, `certificado_senha`, `provider_token` revogado de `anon`/`authenticated` | tenant_id direto + papel |
+| `fiscal_invoices` | ✅ | SELECT/INSERT/UPDATE para membros do tenant; DELETE só de rascunho por owner/admin | tenant_id direto via `user_belongs_to_tenant` |
+| `fiscal_invoice_items` | ✅ | SELECT/ALL via parent (`fiscal_invoices`) | parent + `user_belongs_to_tenant` |
+| `fiscal_invoice_events` | ✅ | SELECT/INSERT por membros do tenant | tenant_id direto via `user_belongs_to_tenant` |
+| `fiscal_invoice_cces` | ✅ | SELECT/INSERT por membros do tenant (mantido) | tenant_id direto via `user_roles` |
+| `fiscal_inutilizacoes` | ✅ | SELECT/INSERT por membros do tenant (mantido) | tenant_id direto via `user_roles` |
+| `fiscal_dce` | ✅ | SELECT/INSERT/UPDATE por membros; DELETE só rascunho | tenant_id direto via `user_belongs_to_tenant` |
+| `fiscal_operation_natures` | ✅ | SELECT/INSERT/UPDATE/DELETE por membros (DELETE bloqueia naturezas de sistema) | tenant_id direto via `user_roles` |
+| `fiscal_products` | ✅ | SELECT/ALL por membros do tenant | tenant_id direto via `user_belongs_to_tenant` |
+| `fiscal_draft_queue` | ✅ | ALL apenas para owner/admin do tenant; rotina interna usa `service_role` (bypass) | tenant_id direto via `user_roles` |
+
+### Exposição de dados sensíveis — após hardening
+
+- **Certificado A1 (PFX)**, **senha do certificado** e **token Focus NFe**: não acessíveis via API REST/PostgREST. Apenas funções internas (service_role) leem. Frontend recebe somente metadados seguros (CN, CNPJ, validade, serial) via edge function `fiscal-settings`, que já mascara/remove o conteúdo.
+- **XML, DANFE, chave de acesso**: protegidos por RLS de `fiscal_invoices` (membros do tenant). Não vazam entre tenants.
+- **Eventos, CC-e, inutilização, fila fiscal, DC-e**: protegidos por tenant_id + vínculo real em `user_roles`.
+
+### Platform admin
+
+Nenhuma política fiscal abre acesso global a platform admin nesta etapa. Suporte/admin de plataforma deve usar fluxo administrativo dedicado (service_role) — não há atalho via RLS. Qualquer exceção futura precisa ser declarada explicitamente.
+
+### Testes executados
+
+- Verificação de policies pós-migração: as 10 tabelas têm RLS ativo e políticas no role correto (`authenticated`).
+- Verificação de grants de coluna: `certificado_pfx`, `certificado_senha`, `provider_token` sem qualquer permissão para `anon`/`authenticated`/`PUBLIC`.
+- Frontend confirmado: nenhum componente faz `from('fiscal_settings')` direto — todo acesso passa pela edge function `fiscal-settings`, que continua funcional.
+- Rotina interna (`fiscal-auto-create-drafts`, demais edge functions) segue usando `service_role`, mantida.
+
+### Riscos restantes antes de emissão real
+
+- Status `processing/error` ainda não foi padronizado (Lote 1.C).
+- 20 edge functions fiscais ainda não passaram por padronização de auth/erros (Lote 1.C).
+- Webhook/polling Focus NFe não validado em homologação real.
+- Smoke test em homologação não realizado.
+- Lints globais (76 itens) fora do escopo fiscal — tratar em onda de segurança transversal.
+
+### Pendências para o Lote 1.C
+
+1. Revisar status `processing/error` e máquina de estados completa de NF-e.
+2. Padronizar autenticação e contrato de erro nas 20 edge functions fiscais.
+3. Validar webhook Focus NFe em ambiente real.
+4. Executar smoke test em homologação.
