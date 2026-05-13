@@ -5,7 +5,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 
-const VERSION = 'v8.6.2';
+const VERSION = 'v8.6.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -208,6 +208,34 @@ Deno.serve(async (req) => {
 
     if (itemsError) {
       console.error('[fiscal-create-manual] Error inserting items:', itemsError);
+
+      const { error: rollbackItemsError } = await supabase
+        .from('fiscal_invoice_items')
+        .delete()
+        .eq('invoice_id', invoice.id);
+
+      if (rollbackItemsError) {
+        console.error('[fiscal-create-manual] Error rolling back manual invoice items:', rollbackItemsError);
+      }
+
+      const { error: rollbackInvoiceError } = await supabase
+        .from('fiscal_invoices')
+        .delete()
+        .eq('id', invoice.id)
+        .eq('tenant_id', tenantId);
+
+      if (rollbackInvoiceError) {
+        console.error('[fiscal-create-manual] Error rolling back manual invoice:', rollbackInvoiceError);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Não foi possível salvar a nota manual por completo. A operação foi cancelada.',
+          code: 'MANUAL_INVOICE_ITEMS_PERSISTENCE_FAILED',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     await syncFiscalNumberCursor({
