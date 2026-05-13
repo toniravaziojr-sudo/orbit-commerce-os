@@ -94,7 +94,7 @@ export interface FiscalInvoice {
   serie: number;
   chave_acesso: string | null;
   protocolo: string | null;
-  status: 'draft' | 'pending' | 'authorized' | 'rejected' | 'canceled' | 'cancelled';
+  status: 'draft' | 'pending' | 'authorized' | 'rejected' | 'cancelled';
   status_motivo: string | null;
   natureza_operacao: string;
   cfop: string | null;
@@ -425,7 +425,7 @@ export function useFiscalStats() {
         draft: data.filter(i => i.status === 'draft').length,
         pending: data.filter(i => i.status === 'pending').length, // Only pending (submitted to SEFAZ)
         rejected: data.filter(i => i.status === 'rejected').length,
-        canceled: data.filter(i => i.status === 'canceled' || i.status === 'cancelled').length,
+        canceled: data.filter(i => i.status === 'cancelled').length,
       };
 
       return stats;
@@ -599,7 +599,7 @@ export function useOrderInvoice(orderId?: string) {
         .select('*')
         .eq('order_id', orderId)
         .eq('tenant_id', tenantId)
-        .not('status', 'in', '("canceled","cancelled")')
+        .neq('status', 'cancelled')
         .order('created_at', { ascending: false })
         .maybeSingle();
 
@@ -643,7 +643,7 @@ export function useOrdersPendingInvoice() {
         .from('fiscal_invoices')
         .select('order_id')
         .eq('tenant_id', tenantId)
-        .not('status', 'in', '("canceled","cancelled")')
+        .neq('status', 'cancelled')
         .not('order_id', 'is', null);
 
       if (invoiceError) throw invoiceError;
