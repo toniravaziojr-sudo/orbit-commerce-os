@@ -123,15 +123,19 @@ Deno.serve(async (req) => {
       let storeName = 'Loja';
       let icon192 = PLATFORM_FALLBACK['192'];
       let icon512 = PLATFORM_FALLBACK['512'];
+      let themeColor = '#ffffff';
+      let bgColor = '#ffffff';
 
       if (resolved.found) {
         const { data: ss } = await supabase
           .from('store_settings')
-          .select('store_name, favicon_url, favicon_files')
+          .select('store_name, favicon_url, favicon_files, primary_color, secondary_color')
           .eq('tenant_id', resolved.tenant_id)
           .maybeSingle();
 
         if (ss?.store_name) storeName = ss.store_name;
+        if (ss?.primary_color && /^#[0-9a-f]{6}$/i.test(ss.primary_color)) themeColor = ss.primary_color;
+        if (ss?.secondary_color && /^#[0-9a-f]{6}$/i.test(ss.secondary_color)) bgColor = ss.secondary_color;
 
         const src192 = pickStoredFavicon(ss?.favicon_files as any, ss?.favicon_url, 192);
         const src512 = pickStoredFavicon(ss?.favicon_files as any, ss?.favicon_url, 512);
@@ -146,8 +150,8 @@ Deno.serve(async (req) => {
           { src: icon192, sizes: '192x192', type: 'image/png' },
           { src: icon512, sizes: '512x512', type: 'image/png' },
         ],
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
+        theme_color: themeColor,
+        background_color: bgColor,
         display: 'standalone',
       };
 
