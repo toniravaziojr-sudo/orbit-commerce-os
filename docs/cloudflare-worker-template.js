@@ -1,6 +1,15 @@
 /**
  * Cloudflare Worker - Multi-tenant SaaS Router (PATH TRANSLATION + INTERNAL FOLLOW)
  *
+ * v2.1.0 (2026-05-13) — Adiciona interceptação universal de favicon multi-tenant.
+ *   /favicon.ico, /favicon-*x*.png, /apple-touch-icon*.png,
+ *   /android-chrome-*x*.png, /site.webmanifest, /manifest.json,
+ *   /browserconfig.xml e /safari-pinned-tab.svg em hosts de tenant
+ *   passam a ser servidos pela edge function `storefront-favicon`,
+ *   garantindo que o Google e demais buscadores exibam o favicon da loja
+ *   (não o do Comando Central). Hosts da plataforma
+ *   (app./integrations.comandocentral.com.br) NÃO são interceptados.
+ *
  * v2.0.1 (2026-04-18) — Fix: cache HIT real (Set-Cookie bloqueava cache.put)
  *
  * PRINCÍPIOS (alinhados com docs/REGRAS-DO-SISTEMA.md §34 + §33 Padrão 7):
@@ -45,15 +54,15 @@ const ASSETS_CACHE_TTL = 60 * 60 * 24 * 30;
 const BOOTSTRAP_CACHE_TTL = 60;
 
 // Paths que sempre vão para a raiz do origin (assets do Vite)
+// IMPORTANTE: /favicon e /manifest foram REMOVIDOS desta lista — agora são
+// interceptados por handleFaviconRequest() para servir o favicon do tenant.
 const STATIC_PATHS = [
   '/assets/',
   '/@vite/',
   '/node_modules/',
   '/src/',
-  '/favicon',
   '/robots.txt',
   '/sitemap',
-  '/manifest',
 ];
 
 // ========== EDGE FUNCTION PROXY ROUTES ==========
@@ -103,6 +112,149 @@ const INTEGRATION_HOSTS = [
   'app.comandocentral.com.br',
   'integrations.comandocentral.com.br',
 ];
+
+// ========== FAVICON MULTI-TENANT ==========
+// Hosts da PLATAFORMA — NÃO interceptar favicon (servem o ícone do Comando Central)
+const PLATFORM_HOSTS_NO_FAVICON_INTERCEPT = new Set([
+  'app.comandocentral.com.br',
+  'integrations.comandocentral.com.br',
+  'shops.comandocentral.com.br',
+]);
+
+// Paths que devem ser servidos pela edge function `storefront-favicon`
+const FAVICON_PATHS = new Set([
+  '/favicon.ico',
+  '/favicon-16x16.png',
+  '/favicon-32x32.png',
+  '/favicon-48x48.png',
+  '/apple-touch-icon.png',
+  '/apple-touch-icon-precomposed.png',
+  '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
+  '/site.webmanifest',
+  '/manifest.json',
+  '/browserconfig.xml',
+  '/safari-pinned-tab.svg',
+]);
+
+function faviconParamsFor(pathname) {
+  switch (pathname) {
+    case '/favicon.ico':                       return { size: 'ico' };
+    case '/favicon-16x16.png':                 return { size: '16' };
+    case '/favicon-32x32.png':                 return { size: '32' };
+    case '/favicon-48x48.png':                 return { size: '48' };
+    case '/apple-touch-icon.png':
+    case '/apple-touch-icon-precomposed.png':  return { size: '180' };
+    case '/android-chrome-192x192.png':        return { size: '192' };
+    case '/android-chrome-512x512.png':        return { size: '512' };
+    case '/site.webmanifest':
+    case '/manifest.json':                     return { kind: 'manifest' };
+    case '/safari-pinned-tab.svg':             return { size: 'svg' };
+    case '/browserconfig.xml':                 return { kind: 'browserconfig' };
+    default:                                    return null;
+  }
+}
+
+/**
+ * Intercepta requisições de favicon em hosts de tenant e devolve o ícone
+ * configurado pela loja. Hosts da plataforma NÃO são interceptados.
+ * Em qualquer falha → fallback para o favicon do Comando Central.
+ *
+ * Retorna Response se interceptou; null se não se aplica (caller segue fluxo normal).
+ */
+async function handleFaviconRequest(request, env, ctx) {
+  const url = new URL(request.url);
+  const host = url.hostname.toLowerCase();
+
+  // Plataforma → nunca intercepta
+  if (PLATFORM_HOSTS_NO_FAVICON_INTERCEPT.has(host)) return null;
+  if (host.endsWith('.workers.dev')) return null;
+
+  if (!FAVICON_PATHS.has(url.pathname)) return null;
+
+  // browserconfig.xml: resposta estática mínima (Microsoft Tiles)
+  if (url.pathname === '/browserconfig.xml') {
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<browserconfig><msapplication><tile>
+<square150x150logo src="/android-chrome-192x192.png"/>
+<TileColor>#ffffff</TileColor>
+</tile></msapplication></browserconfig>`;
+    return new Response(xml, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/xml; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
+  }
+
+  const params = faviconParamsFor(url.pathname);
+  if (!params) return null;
+
+  if (!env.SUPABASE_URL) {
+    return Response.redirect('https://app.comandocentral.com.br/favicon.ico', 302);
+  }
+
+  // Cache de borda do Worker (mesma URL alvo = mesmo cache key)
+  const cacheKey = new Request(`https://favicon.cache/${host}${url.pathname}`, { method: 'GET' });
+  try {
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set('X-CC-Cache', 'HIT');
+      headers.set('X-CC-Cache-Layer', 'favicon');
+      return new Response(cached.body, { status: cached.status, headers });
+    }
+  } catch (_) {}
+
+  const target = new URL(`${env.SUPABASE_URL}/functions/v1/storefront-favicon`);
+  target.searchParams.set('host', host);
+  if (params.kind) target.searchParams.set('kind', params.kind);
+  if (params.size) target.searchParams.set('size', params.size);
+
+  let upstream;
+  try {
+    upstream = await fetch(target.toString(), {
+      method: 'GET',
+      redirect: 'manual',
+      headers: { 'x-forwarded-host': host },
+    });
+  } catch (e) {
+    console.error('[Worker] Favicon upstream error:', e);
+    return Response.redirect('https://app.comandocentral.com.br/favicon.ico', 302);
+  }
+
+  const headers = new Headers(upstream.headers);
+  headers.set('Cache-Control', 'public, max-age=86400, s-maxage=86400');
+  headers.set('X-CC-Cache', 'MISS');
+  headers.set('X-CC-Cache-Layer', 'favicon');
+
+  // Para 302 (redirect para wsrv.nl) basta repassar — corpo é vazio
+  const isRedirect = upstream.status >= 300 && upstream.status < 400;
+  const body = isRedirect ? null : upstream.body;
+  const response = new Response(body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers,
+  });
+
+  if ((response.status === 200 || isRedirect) && ctx && typeof ctx.waitUntil === 'function') {
+    // Para cache, precisamos clonar antes de retornar
+    const cacheHeaders = new Headers(headers);
+    cacheHeaders.delete('set-cookie');
+    cacheHeaders.delete('vary');
+    cacheHeaders.delete('pragma');
+    const cacheResponse = isRedirect
+      ? new Response(null, { status: response.status, headers: cacheHeaders })
+      : response.clone();
+    ctx.waitUntil(
+      caches.default.put(cacheKey, cacheResponse)
+        .catch(e => console.error('[Worker] Favicon cache write error:', e))
+    );
+  }
+
+  return response;
+}
 
 function isStaticPath(pathname) {
   const p = pathname.toLowerCase();
@@ -486,6 +638,13 @@ export default {
     const cfHost = request.headers.get('cf-connecting-host');
     const publicHost = (cfHost || edgeHost).toLowerCase();
 
+    // ========== FAVICON MULTI-TENANT (PRIMEIRA COISA) ==========
+    // Intercepta /favicon.ico, /apple-touch-icon.png, /site.webmanifest etc.
+    // em hosts de tenant antes de qualquer outro roteamento. Hosts da
+    // plataforma (app./integrations./shops.) NÃO são interceptados.
+    const faviconResp = await handleFaviconRequest(request, env, ctx);
+    if (faviconResp) return faviconResp;
+
     // ========== EDGE FUNCTION PROXY ==========
     // Proxy de integrações: /integrations/meta/* ou /meta/* → Edge Functions
     // Suporta: app.comandocentral.com.br e integrations.comandocentral.com.br
@@ -574,7 +733,8 @@ export default {
           },
           isCanonical,
           edgeFunctionRoutes: Object.keys(EDGE_FUNCTION_ROUTES),
-          strategy: 'edge_rendered_html_first_v2',
+          faviconIntercepted: Array.from(FAVICON_PATHS),
+          strategy: 'edge_rendered_html_first_v2_favicon_v1',
           cache: {
             htmlCacheTTL: HTML_CACHE_TTL,
             staleTTL: HTML_STALE_TTL,
