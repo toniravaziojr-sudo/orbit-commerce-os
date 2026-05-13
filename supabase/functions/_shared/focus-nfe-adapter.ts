@@ -329,16 +329,24 @@ export function generateNFeRef(invoiceId: string): string {
 }
 
 /**
- * Mapeia status Focus NFe para status interno
+ * Mapeia status Focus NFe para status interno (Lote 1.C.1).
+ * Máquina oficial: draft, pending, processing, authorized, rejected, cancelled, error.
+ * - processando_autorizacao  → processing  (assíncrono Focus)
+ * - aguardando_correcao      → pending     (operador precisa corrigir)
+ * - autorizado               → authorized
+ * - cancelado                → cancelled
+ * - erro_autorizacao/denegado→ rejected    (rejeição Sefaz)
+ * Default conservador: 'processing' (não confundir com erro técnico).
  */
 export function mapFocusStatusToInternal(focusStatus: string): string {
   const statusMap: Record<string, string> = {
-    'processando_autorizacao': 'pending',
+    'processando_autorizacao': 'processing',
+    'aguardando_correcao': 'pending',
     'autorizado': 'authorized',
     'cancelado': 'cancelled',
     'erro_autorizacao': 'rejected',
     'denegado': 'rejected',
   };
-  
-  return statusMap[focusStatus] || 'pending';
+
+  return statusMap[focusStatus] || 'processing';
 }
