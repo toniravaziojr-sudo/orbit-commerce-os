@@ -1249,7 +1249,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             <InvoiceActionsDropdown
                               invoice={invoice as any}
                               onEdit={() => handleEditInvoice(invoice)}
-                              onSubmit={() => handleQuickSubmit(invoice)}
+                              onSubmit={() => requestEmitInvoice(invoice)}
                               onCheckStatus={() => handleCheckStatus(invoice.id)}
                               onViewOrder={() => navigate(`/orders/${invoice.order_id}`)}
                               onCancel={() => setCancelingInvoice(invoice)}
