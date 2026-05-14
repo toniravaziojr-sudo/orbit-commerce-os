@@ -1270,7 +1270,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         successMessage={
           duplicateDialog.kind === 'pedido'
             ? 'Pedido de venda duplicado com sucesso.'
-            : 'NF duplicada como rascunho.'
+            : 'NF duplicada como rascunho em Pedidos de Venda. O editor abriu para revisão.'
         }
         onCreated={(newId) => {
           // Abre o rascunho duplicado direto no editor para revisão fiscal completa.
