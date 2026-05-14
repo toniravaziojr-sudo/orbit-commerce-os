@@ -81,7 +81,7 @@ export default function SystemSettings() {
               </TabsTrigger>
               <TabsTrigger value="integracao" className="gap-2">
                 <PlugZap className="h-4 w-4" />
-                Integração Focus NFe
+                Validação Fiscal
               </TabsTrigger>
               <TabsTrigger value="outros" className="gap-2">
                 <Settings2 className="h-4 w-4" />

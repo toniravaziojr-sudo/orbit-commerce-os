@@ -113,7 +113,7 @@ export function FocusIntegrationSettings() {
         return;
       }
       if (data.auto_register_succeeded) {
-        toast.success('Webhook cadastrado na Focus NFe. Aguardando primeira chamada para validar.');
+        toast.success('Notificações fiscais cadastradas. Aguardando primeira confirmação automática.');
         setFallback(null);
         setShowToken(false);
       } else if (data.fallback) {
@@ -159,11 +159,11 @@ export function FocusIntegrationSettings() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <PlugZap className="h-5 w-5" />
-                Integração Focus NFe
+                Validação Fiscal
               </CardTitle>
               <CardDescription>
-                Status da empresa, certificado, webhook e ambiente fiscal por loja.
-                Cadastro automático do webhook na Focus NFe sem expor segredos globais.
+                Verifique se sua loja está pronta para emitir notas fiscais: dados do emitente,
+                certificado digital, ambiente e recebimento automático de retornos.
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -188,7 +188,7 @@ export function FocusIntegrationSettings() {
                 {registerMutation.isPending
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <Webhook className="h-4 w-4" />}
-                Cadastrar webhook automaticamente
+                Ativar recebimento automático de retornos
               </Button>
             </div>
           </div>
@@ -282,9 +282,9 @@ export function FocusIntegrationSettings() {
               Fallback manual — credencial sensível desta loja
             </CardTitle>
             <CardDescription>
-              O cadastro automático falhou. Cadastre o webhook diretamente no painel da Focus NFe usando a URL abaixo.
+              Não foi possível ativar automaticamente. Cadastre a URL abaixo no painel do provedor fiscal.
               <strong className="block mt-1">
-                A URL contém um token por loja. Trate como credencial: não compartilhe, não exiba em telas públicas, não envie por canais inseguros.
+                Esta URL contém uma chave única desta loja. Trate como credencial: não compartilhe, não exiba em telas públicas, não envie por canais inseguros.
               </strong>
             </CardDescription>
           </CardHeader>
