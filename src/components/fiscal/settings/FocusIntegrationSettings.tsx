@@ -113,7 +113,7 @@ export function FocusIntegrationSettings() {
         return;
       }
       if (data.auto_register_succeeded) {
-        toast.success('Webhook cadastrado na Focus NFe. Aguardando primeira chamada para validar.');
+        toast.success('Notificações fiscais cadastradas. Aguardando primeira confirmação automática.');
         setFallback(null);
         setShowToken(false);
       } else if (data.fallback) {
