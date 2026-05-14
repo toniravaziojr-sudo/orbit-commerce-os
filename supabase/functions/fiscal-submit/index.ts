@@ -193,7 +193,12 @@ Deno.serve(async (req) => {
     const gateWarnings = gate.warnings;
 
     // Configuração Focus NFe — token resolvido pelo ambiente do tenant
-    const creds = resolveFocusCredentials({ ambiente });
+    const tenantTok = await loadFocusTenantToken(supabaseClient, tenantId, ambiente);
+    const creds = resolveFocusCredentials({
+      ambiente,
+      operationKind: 'nfe_op',
+      tenantTokenForAmbiente: tenantTok.token,
+    });
     if (!creds.ok || !creds.token) {
       return new Response(
         JSON.stringify({ success: false, error: creds.error, code: creds.errorCode }),
