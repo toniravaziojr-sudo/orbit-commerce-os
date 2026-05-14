@@ -326,7 +326,7 @@ export function ManualInvoiceDialog({
 
       const { data, error } = await supabase.functions.invoke('fiscal-create-manual', {
         body: {
-          natureza_operacao: 'VENDA DE MERCADORIA',
+          natureza_operacao: naturezaOperacao || 'VENDA DE MERCADORIA',
           observacoes,
           destinatario: {
             nome: destNome,
@@ -347,26 +347,37 @@ export function ManualInvoiceDialog({
             numero_item: index + 1,
             codigo: item.codigo,
             descricao: item.descricao,
-            ncm: '',
-            cfop: '5102',
+            ncm: item.ncm || '',
+            cfop: item.cfop || '5102',
             unidade: item.unidade,
             quantidade: item.quantidade,
             valor_unitario: item.valor_unitario,
-            origem: '0',
-            csosn: '102',
+            origem: item.origem || '0',
+            csosn: item.csosn || '102',
           })),
         },
       });
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao criar pedido');
+      if (!data?.success) throw new Error(data?.error || 'Erro ao salvar');
 
-      toast.success('Pedido criado com sucesso!');
+      const newId: string | undefined = data?.invoice?.id;
+      const okMsg = successMessage || (mode === 'duplicate'
+        ? 'Pedido de venda duplicado com sucesso.'
+        : 'Pedido de venda criado com sucesso.');
+
+      toast.success(okMsg, newId && onCreated ? {
+        action: { label: 'Abrir registro duplicado', onClick: () => onCreated(newId) },
+      } : undefined);
+
       queryClient.invalidateQueries({ queryKey: ['fiscal-invoices'] });
       queryClient.invalidateQueries({ queryKey: ['fiscal-stats'] });
       onOpenChange(false);
     } catch (error) {
-      showErrorToast(error, { module: 'fiscal', action: 'criar pedido' });
+      showErrorToast(error, {
+        module: 'fiscal',
+        action: mode === 'duplicate' ? 'duplicar' : 'criar pedido de venda',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -376,14 +387,17 @@ export function ManualInvoiceDialog({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
+  const dialogTitle = title || (mode === 'duplicate' ? 'Duplicar Pedido de Venda' : 'Novo Pedido de Venda');
+  const dialogDescription = description || (mode === 'duplicate'
+    ? 'Revise os dados copiados e ajuste o que for necessário antes de salvar. Nenhuma NF é emitida nesta etapa.'
+    : 'Crie um rascunho de pedido de venda para posterior emissão de NF-e.');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Pedido</DialogTitle>
-          <DialogDescription>
-            Crie um rascunho de pedido para emissão de NF-e.
-          </DialogDescription>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
