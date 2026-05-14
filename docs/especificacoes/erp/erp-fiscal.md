@@ -221,6 +221,58 @@ Se o token exigido não estiver disponível, a operação falha de forma control
 
 - Avaliar criptografia em repouso mais forte para `focus_token_homologacao` / `focus_token_producao` — por exemplo Vault ou pgsodium — preservando o contrato atual de RPC. **Não é pré-requisito do piloto**: hoje as colunas já estão protegidas por `REVOKE SELECT` para `anon`/`authenticated` e só são lidas via service_role dentro das edge functions.
 
+### Card "Validação Fiscal" — comportamento e ativação automática (rev 2026-05-14)
+
+Card de saúde mostrado em **Configurações Fiscais**. Resume se a loja está apta a emitir NF-e e cuida do recebimento automático de retornos da Focus NFe.
+
+**Princípio:** o usuário **não precisa clicar em nenhum botão obrigatório** para "ativar recebimento automático de retornos". O backend tenta ativar automaticamente quando todos os pré-requisitos do ambiente atual estiverem completos. O botão manual existe apenas como **fallback de correção** ("Tentar novamente"), e só aparece quando a ativação automática falha ou quando o status atual exige reprocessamento.
+
+**Pré-requisitos para ativação automática (homologação):**
+- Empresa fiscal cadastrada localmente (`focus_empresa_id` presente).
+- Ambiente atual = `homologacao`.
+- Certificado A1 válido (não vencido, CNPJ batendo com o emitente).
+- `FOCUS_NFE_TOKEN` (token administrativo da conta) configurado.
+- `focus_token_homologacao` do tenant configurado.
+
+**Pré-requisitos para emissão real em produção:**
+- Tudo acima, com ambiente = `producao` e `focus_token_producao` configurado.
+- Recebimento automático com `webhook_status = 'validated'` (já recebeu pelo menos uma confirmação real da Focus).
+
+**Quando a ativação automática é tentada:**
+- Ao chamar **"Validar integração fiscal"** no card.
+- Ao salvar credenciais do tenant em "Credenciais do provedor fiscal" (próxima revalidação).
+- Sempre que o card detectar `webhook_status` ausente/`error` com todos os pré-requisitos presentes.
+
+A ativação automática reaproveita cadastro existente da Focus para o mesmo CNPJ/URL e nunca duplica hooks. Se houver hook antigo apontando para outra URL/token, ele é substituído com segurança.
+
+**Selo geral do card (`overall_status`):**
+
+| Status | Quando | Cor |
+|--------|--------|-----|
+| `ready` | Produção com tudo OK e webhook `validated` | verde — "Pronto" |
+| `ready_for_test` | Homologação com empresa, certificado, token de homologação e webhook `pending`/`validated` | verde — "Pronto para teste" |
+| `config_pending` | Falta uma ação objetiva do usuário (ex: token de homologação ausente) | âmbar — "Configuração pendente" |
+| `error` | Falha real (cert vencido, falha remota da Focus, erro 401, falha na ativação) | vermelho — "Erro" |
+| `blocked` | **Apenas** em produção quando recebimento automático ainda não está `validated` ou outro requisito obrigatório falta | vermelho — "Bloqueado" |
+
+Regras importantes:
+- Em homologação **não** é mostrado "Bloqueado" se o cenário está pronto para smoke test.
+- "Atenção" genérico não é usado: cada item exibe um rótulo específico (ex: "Configure o token de homologação", "Aguardando primeiro retorno", "Aguardando credencial").
+- O card não fica todo verde se faltar token de homologação ou outro pré-requisito real — o item correspondente fica em `warn`/`pending` com texto explícito.
+
+**Itens internos:**
+- **Empresa fiscal cadastrada** diferencia cadastro local de validação remota: quando falta credencial para validar remoto, exibe "Cadastrada / Aguardando credencial" em vez de "Atenção" genérico.
+- **Token de homologação/produção da empresa** é exibido como item próprio do card.
+- **Recebimento automático de retornos** mostra: "Validado", "Aguardando primeiro retorno", "Erro na ativação", "Configure o token", ou "Não configurado", conforme o caso.
+
+**Produção:**
+- `fiscal-emit` / `fiscal-submit` continuam bloqueados quando recebimento automático não está `validated`, certificado é inválido ou `focus_token_producao` está ausente. Esses gates já existem nas próprias funções; o card apenas reflete o estado.
+
+**Permissões:**
+- Operator não vê esta seção (página de Configurações é restrita a owner/admin via `useTenantAccess`).
+- Owner/admin podem acionar manualmente "Tentar novamente" quando o sistema sinalizar erro.
+- Tokens, PFX, senha e segredo do webhook nunca aparecem na UI, em logs ou em payloads. O fallback manual segue o padrão já aprovado (token por loja mascarado, com ação explícita de revelar/copiar).
+
 ### Configuração por Tenant (`fiscal_settings`)
 ```typescript
 {
