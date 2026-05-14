@@ -130,14 +130,34 @@ Deno.serve(async (req) => {
 
     console.log(`[fiscal-webhook] Found invoice: id=${invoice.id}, current_status=${invoice.status}, order_id=${invoice.order_id}`);
 
+    // Tenant guard: when authenticated by per-tenant token, the invoice MUST belong to that tenant.
+    if (tenantFromToken && tenantFromToken !== invoice.tenant_id) {
+      console.error(`[fiscal-webhook] Tenant mismatch: token=${tenantFromToken} invoice.tenant=${invoice.tenant_id}`);
+      return new Response(
+        JSON.stringify({ success: false, error: "Tenant mismatch" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get fiscal settings to determine ambiente
     const { data: settings } = await supabase
       .from("fiscal_settings")
-      .select("focus_ambiente, ambiente")
+      .select("focus_ambiente, ambiente, webhook_status, webhook_validated_at")
       .eq("tenant_id", invoice.tenant_id)
       .single();
-    
+
     const ambiente = settings?.focus_ambiente || settings?.ambiente || 'homologacao';
+
+    // Always update last_received_at — promotes pending → validated on first successful event.
+    const nowIso = new Date().toISOString();
+    const webhookPatch: Record<string, unknown> = { webhook_last_received_at: nowIso };
+    if (settings && settings.webhook_status !== 'validated') {
+      webhookPatch.webhook_status = 'validated';
+      webhookPatch.webhook_validated_at = settings.webhook_validated_at || nowIso;
+      webhookPatch.webhook_last_error = null;
+      webhookPatch.webhook_last_error_at = null;
+    }
+    await supabase.from("fiscal_settings").update(webhookPatch).eq("tenant_id", invoice.tenant_id);
 
     // Map status
     const internalStatus = mapFocusStatusToInternal(status);
