@@ -39,12 +39,18 @@ interface ValidationCard {
   level: CardLevel;
   title: string;
   message: string;
+  status_label?: string;
   details?: Record<string, any>;
 }
+
+type OverallStatus = 'ready' | 'ready_for_test' | 'config_pending' | 'error' | 'blocked';
 
 interface ValidateResponse {
   success: boolean;
   ambiente?: 'homologacao' | 'producao';
+  overall_status?: OverallStatus;
+  next_action_label?: string | null;
+  can_retry_activation?: boolean;
   ready_for_production?: boolean;
   ready_for_homologation_smoke?: boolean;
   cards?: ValidationCard[];
@@ -73,11 +79,11 @@ const ICONS: Record<string, any> = {
   environment: Globe,
 };
 
-function levelBadge(level: CardLevel) {
-  if (level === 'ok') return <Badge variant="outline" className="border-green-500/50 text-green-600">OK</Badge>;
-  if (level === 'pending') return <Badge variant="outline" className="border-amber-500/50 text-amber-600">Aguardando</Badge>;
-  if (level === 'warn') return <Badge variant="outline" className="border-amber-500/50 text-amber-600">Atenção</Badge>;
-  return <Badge variant="destructive">Bloqueio</Badge>;
+function levelBadge(level: CardLevel, label?: string) {
+  if (level === 'ok') return <Badge variant="outline" className="border-green-500/50 text-green-600">{label || 'OK'}</Badge>;
+  if (level === 'pending') return <Badge variant="outline" className="border-amber-500/50 text-amber-600">{label || 'Aguardando'}</Badge>;
+  if (level === 'warn') return <Badge variant="outline" className="border-amber-500/50 text-amber-600">{label || 'Configurar'}</Badge>;
+  return <Badge variant="destructive">{label || 'Erro'}</Badge>;
 }
 function levelIcon(level: CardLevel) {
   if (level === 'ok') return <CheckCircle2 className="h-5 w-5 text-green-600" />;
@@ -132,11 +138,23 @@ export function FocusIntegrationSettings() {
 
   const cards = validateQuery.data?.cards || [];
   const ambiente = validateQuery.data?.ambiente;
-  const readyProd = !!validateQuery.data?.ready_for_production;
-  const readySmoke = !!validateQuery.data?.ready_for_homologation_smoke;
+  const overall: OverallStatus | 'loading' = validateQuery.isLoading
+    ? 'loading'
+    : (validateQuery.data?.overall_status || 'config_pending');
+  const nextAction = validateQuery.data?.next_action_label || null;
+  const canRetry = !!validateQuery.data?.can_retry_activation;
 
   const webhookCard = cards.find(c => c.key === 'webhook');
   const webhookDetails = webhookCard?.details || {};
+
+  const overallBadge = () => {
+    if (overall === 'loading') return <Badge variant="outline">Verificando…</Badge>;
+    if (overall === 'ready') return <Badge variant="outline" className="border-green-500/50 text-green-600 gap-1"><ShieldCheck className="h-3 w-3" /> Pronto</Badge>;
+    if (overall === 'ready_for_test') return <Badge variant="outline" className="border-green-500/50 text-green-600 gap-1"><ShieldCheck className="h-3 w-3" /> Pronto para teste</Badge>;
+    if (overall === 'config_pending') return <Badge variant="outline" className="border-amber-500/50 text-amber-600 gap-1"><ShieldAlert className="h-3 w-3" /> Configuração pendente</Badge>;
+    if (overall === 'error') return <Badge variant="destructive" className="gap-1"><ShieldX className="h-3 w-3" /> Erro</Badge>;
+    return <Badge variant="destructive" className="gap-1"><ShieldX className="h-3 w-3" /> Bloqueado</Badge>;
+  };
 
   const maskedToken = (() => {
     if (!fallback?.manual_register_url) return null;
@@ -166,11 +184,13 @@ export function FocusIntegrationSettings() {
                 Validação Fiscal
               </CardTitle>
               <CardDescription>
-                Verifique se sua loja está pronta para emitir notas fiscais: dados do emitente,
-                certificado digital, ambiente e recebimento automático de retornos.
+                {ambiente === 'producao'
+                  ? 'Confira se sua loja está pronta para emitir NF-e em produção.'
+                  : 'Confira se sua loja está pronta para o teste de homologação. O recebimento automático de retornos é ativado pelo sistema quando todos os pré-requisitos estão completos.'}
               </CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              {overallBadge()}
               <Button
                 variant="outline"
                 size="sm"
@@ -183,31 +203,46 @@ export function FocusIntegrationSettings() {
                   : <RefreshCw className="h-4 w-4" />}
                 Validar integração fiscal
               </Button>
-              <Button
-                size="sm"
-                onClick={() => registerMutation.mutate({})}
-                disabled={registerMutation.isPending}
-                className="gap-2"
-              >
-                {registerMutation.isPending
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Webhook className="h-4 w-4" />}
-                Ativar recebimento automático de retornos
-              </Button>
+              {canRetry && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => registerMutation.mutate({})}
+                  disabled={registerMutation.isPending}
+                  className="gap-2"
+                >
+                  {registerMutation.isPending
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <RefreshCw className="h-4 w-4" />}
+                  Tentar novamente
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Status global */}
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="outline" className="gap-1">
               <Globe className="h-3 w-3" /> Ambiente: {ambiente === 'producao' ? 'Produção' : ambiente === 'homologacao' ? 'Homologação' : '—'}
             </Badge>
-            {readyProd
-              ? <Badge variant="outline" className="border-green-500/50 text-green-600 gap-1"><ShieldCheck className="h-3 w-3" /> Pronto para produção</Badge>
-              : <Badge variant="outline" className="gap-1"><ShieldAlert className="h-3 w-3" /> Não pronto para produção</Badge>}
-            {readySmoke && <Badge variant="outline" className="border-amber-500/50 text-amber-600">Pronto para smoke test em homologação</Badge>}
           </div>
+
+          {nextAction && (overall === 'config_pending' || overall === 'error' || overall === 'blocked') && (
+            <Alert className={
+              overall === 'config_pending'
+                ? 'border-amber-500/50 bg-amber-500/5'
+                : 'border-destructive/50 bg-destructive/5'
+            }>
+              <AlertCircle className={overall === 'config_pending' ? 'h-4 w-4 text-amber-600' : 'h-4 w-4 text-destructive'} />
+              <AlertDescription className="text-sm">{nextAction}</AlertDescription>
+            </Alert>
+          )}
+
+          {overall === 'ready_for_test' && (
+            <div className="text-xs text-muted-foreground">
+              O recebimento automático será confirmado no primeiro retorno da NF de teste.
+            </div>
+          )}
 
           {validateQuery.isLoading && (
             <div className="flex items-center justify-center py-8">
@@ -238,7 +273,7 @@ export function FocusIntegrationSettings() {
                       </div>
                       <div className="flex items-center gap-2">
                         {levelIcon(c.level)}
-                        {levelBadge(c.level)}
+                        {levelBadge(c.level, c.status_label)}
                       </div>
                     </div>
                   </CardHeader>
