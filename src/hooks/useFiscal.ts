@@ -244,9 +244,20 @@ export function useFiscalSettings() {
       
       return data.certificate;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
       toast.success('Certificado digital salvo com sucesso');
+      // Após o upload, dispara preparação fiscal automática (sync da empresa
+      // no provedor + captura automática de tokens + auto-ativação do
+      // recebimento de retornos via revalidação).
+      try {
+        const sync = await supabase.functions.invoke('fiscal-sync-focus-nfe', { body: {} });
+        if (sync?.data?.success) {
+          await supabase.functions.invoke('fiscal-integration-validate', { body: {} });
+          queryClient.invalidateQueries({ queryKey: ['fiscal-integration-validate'] });
+          queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
+        }
+      } catch { /* falha de preparação não invalida o upload */ }
     },
     onError: (err: any) => {
       // Preserva a mensagem específica devolvida pelo backend (senha errada,
