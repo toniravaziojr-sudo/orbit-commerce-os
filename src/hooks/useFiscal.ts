@@ -191,12 +191,44 @@ export function useFiscalSettings() {
 
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Erro ao salvar configurações');
-      
-      return data.settings;
+
+      return data.settings as FiscalSettings;
     },
-    onSuccess: () => {
+    onSuccess: async (saved) => {
       queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
       toast.success('Configurações fiscais salvas');
+
+      // ----------------------------------------------------------------
+      // PREPARAÇÃO FISCAL AUTOMÁTICA
+      // ----------------------------------------------------------------
+      // Após salvar, se já houver dados mínimos + certificado A1 válido,
+      // o sistema sincroniza a empresa no provedor fiscal (captura tokens
+      // automaticamente) e dispara a validação (que ativa sozinha o
+      // recebimento de retornos quando os pré-requisitos estiverem OK).
+      // O lojista NÃO precisa colar token nem clicar em "ativar webhook".
+      try {
+        const certOk = !!(saved?.certificado_valido_ate &&
+          new Date(saved.certificado_valido_ate) > new Date());
+        const dadosOk = !!(saved?.razao_social && saved?.cnpj &&
+          (saved.ie_isento || saved.inscricao_estadual) &&
+          saved.endereco_logradouro && saved.endereco_numero &&
+          saved.endereco_municipio && saved.endereco_uf && saved.endereco_cep);
+        if (certOk && dadosOk) {
+          const sync = await supabase.functions.invoke('fiscal-sync-focus-nfe', { body: {} });
+          if (sync?.data?.success) {
+            // Revalidação cuida da auto-ativação do recebimento de retornos
+            await supabase.functions.invoke('fiscal-integration-validate', { body: {} });
+            queryClient.invalidateQueries({ queryKey: ['fiscal-integration-validate'] });
+            queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
+          } else if (sync?.data?.error) {
+            // Mensagem de negócio, sem termos técnicos
+            toast.warning('Não foi possível preparar a emissão automática. Revise os dados fiscais ou acione o suporte.');
+          }
+        }
+      } catch {
+        // Falha silenciosa de preparação não invalida o save em si
+        toast.warning('Não foi possível preparar a emissão automática. Revise os dados fiscais ou acione o suporte.');
+      }
     },
     onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'salvar' }),
   });
