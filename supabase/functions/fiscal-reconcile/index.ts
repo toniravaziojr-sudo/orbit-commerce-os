@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const focusToken = Deno.env.get("FOCUS_NFE_TOKEN");
+  // Token resolvido por tenant + ambiente abaixo (operação fiscal de NF).
 
   let body: any = {};
   try {
