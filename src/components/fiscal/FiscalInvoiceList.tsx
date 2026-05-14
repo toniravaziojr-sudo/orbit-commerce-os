@@ -1357,12 +1357,31 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         submitLabel="Salvar duplicação"
         successMessage={
           duplicateDialog.kind === 'pedido'
-            ? 'Pedido de venda duplicado com sucesso.'
-            : 'NF duplicada como rascunho em Pedidos de Venda. O editor abriu para revisão.'
+            ? 'Pedido de venda duplicado. Disponível na aba Pedidos de Venda.'
+            : 'NF duplicada. Validando e movendo para a aba Notas Fiscais...'
         }
-        onCreated={(newId) => {
-          // Abre o rascunho duplicado direto no editor para revisão fiscal completa.
-          handleEditInvoice({ id: newId } as FiscalInvoice);
+        onCreated={async (newId) => {
+          if (duplicateDialog.kind === 'nf') {
+            // NF duplicada: valida e move para Notas Fiscais (pronta_emitir/pendencia).
+            try {
+              const { data } = await supabase.functions.invoke('fiscal-prepare-invoice', {
+                body: { invoice_id: newId },
+              });
+              if (data?.success) {
+                if (data.fiscal_stage === 'pronta_emitir') {
+                  toast.success('NF duplicada e Pronta para Emitir em Notas Fiscais.');
+                } else {
+                  toast.warning(`NF duplicada com ${data.errors?.length || 0} pendência(s) em Notas Fiscais.`);
+                }
+              }
+            } catch (e) {
+              console.warn('[duplicate NF prepare] falhou', e);
+            }
+            refetch();
+          } else {
+            // Pedido de venda duplicado: abre o editor para revisão.
+            handleEditInvoice({ id: newId } as FiscalInvoice);
+          }
         }}
       />
 
