@@ -606,32 +606,38 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     setSelectedInvoices(new Set());
   };
 
-  // Bulk actions
+  // Bulk action principal:
+  // - Em Pedidos de Venda → cria N Notas Fiscais (valida, não transmite)
+  // - Em Notas Fiscais → envia à Receita as que estão Pronta para Emitir
   const handleBulkSubmit = async () => {
-    const drafts = (filteredInvoices || []).filter(
-      inv => selectedInvoices.has(inv.id) && inv.status === 'draft'
-    );
-    
-    if (drafts.length === 0) {
-      toast.error('Nenhum rascunho selecionado para emissão');
-      return;
-    }
+    const selected = (filteredInvoices || []).filter(inv => selectedInvoices.has(inv.id));
+    if (selected.length === 0) return;
 
     setIsBulkProcessing(true);
     let successCount = 0;
     let errorCount = 0;
+    const isOrders = mode === 'orders';
 
-    for (const invoice of drafts) {
+    const targets = isOrders
+      ? selected.filter(i => stageOf(i) === 'pedido_venda')
+      : selected.filter(i => stageOf(i) === 'pronta_emitir' && i.status === 'draft');
+
+    if (targets.length === 0) {
+      setIsBulkProcessing(false);
+      toast.error(isOrders
+        ? 'Nenhum pedido elegível para criar Nota Fiscal.'
+        : 'Nenhuma NF Pronta para Emitir foi selecionada.');
+      return;
+    }
+
+    for (const invoice of targets) {
       try {
-        const { data, error } = await supabase.functions.invoke('fiscal-submit', {
+        const fnName = isOrders ? 'fiscal-prepare-invoice' : 'fiscal-submit';
+        const { data, error } = await supabase.functions.invoke(fnName, {
           body: { invoice_id: invoice.id },
         });
-
-        if (error || !data?.success) {
-          errorCount++;
-        } else {
-          successCount++;
-        }
+        if (error || !data?.success) errorCount++;
+        else successCount++;
       } catch {
         errorCount++;
       }
@@ -642,11 +648,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     refetch();
 
     if (successCount > 0) {
-      toast.success(`${successCount} NF-e(s) enviada(s) para autorização`);
+      toast.success(isOrders
+        ? `${successCount} Nota(s) Fiscal(is) criada(s). Verifique em Notas Fiscais.`
+        : `${successCount} NF-e(s) enviada(s) à Receita.`);
     }
-    if (errorCount > 0) {
-      toast.error(`${errorCount} NF-e(s) com erro na emissão`);
-    }
+    if (errorCount > 0) toast.error(`${errorCount} item(ns) com erro.`);
   };
 
   const handleBulkPrint = async () => {
