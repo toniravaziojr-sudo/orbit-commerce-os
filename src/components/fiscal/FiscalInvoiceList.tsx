@@ -342,7 +342,16 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
-  const handleDuplicateInvoice = async (invoice: FiscalInvoice) => {
+  // Clonagem segura — Pedido (rascunho na aba Pedidos) ou NF (autorizada/cancelada).
+  // Cria sempre um RASCUNHO novo e independente:
+  //   - sem vínculo com order_id original (não toca estoque/financeiro/remessa/e-mail/automação)
+  //   - sem chave/XML/DANFE/protocolo/focus_ref/status terminal
+  //   - número novo gerado pelo cursor fiscal (nunca reaproveita número autorizado)
+  //   - não chama Focus/Sefaz, não emite, não transmite
+  const handleCloneInvoice = async (
+    invoice: FiscalInvoice,
+    kind: 'pedido' | 'nf' = 'nf'
+  ) => {
     try {
       const { data, error } = await supabase
         .from('fiscal_invoices')
@@ -351,45 +360,83 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .single();
 
       if (error || !data) {
-        toast.error('Erro ao carregar dados da NF-e');
+        toast.error('Erro ao carregar dados para clonagem');
         return;
       }
 
-      const { data: newInvoice, error: createError } = await supabase.functions.invoke('fiscal-create-manual', {
-        body: {
-          natureza_operacao: data.natureza_operacao,
-          dest_nome: data.dest_nome,
-          dest_cpf_cnpj: data.dest_cpf_cnpj,
-          dest_inscricao_estadual: data.dest_inscricao_estadual,
-          dest_endereco_logradouro: data.dest_endereco_logradouro,
-          dest_endereco_numero: data.dest_endereco_numero,
-          dest_endereco_complemento: data.dest_endereco_complemento,
-          dest_endereco_bairro: data.dest_endereco_bairro,
-          dest_endereco_municipio: data.dest_endereco_municipio,
-          dest_endereco_uf: data.dest_endereco_uf,
-          dest_endereco_cep: data.dest_endereco_cep,
-          observacoes: data.observacoes,
-          items: (data.fiscal_invoice_items || []).map((item: any) => ({
-            codigo: item.codigo_produto,
-            descricao: item.descricao,
-            ncm: item.ncm,
-            cfop: item.cfop,
-            unidade: item.unidade,
-            quantidade: item.quantidade,
-            valor_unitario: item.valor_unitario,
-            origem: item.origem,
-            csosn: item.csosn,
-          })),
-        },
-      });
+      const items = (data.fiscal_invoice_items || []) as any[];
+      if (items.length === 0) {
+        toast.error('Não há itens para clonar');
+        return;
+      }
+
+      // Marca de auditoria — clone manual/teste, sem expor termos técnicos sensíveis.
+      const obsBase = data.observacoes ? `${data.observacoes}\n\n` : '';
+      const obsMarca = `Clonado de ${kind === 'pedido' ? 'pedido' : 'NF'} ${data.serie}-${data.numero} (manual/teste).`;
+      const observacoes = `${obsBase}${obsMarca}`;
+
+      const { data: result, error: createError } = await supabase.functions.invoke(
+        'fiscal-create-manual',
+        {
+          body: {
+            // NÃO enviamos order_id — clone é independente e não dispara efeitos do pedido original.
+            natureza_operacao: data.natureza_operacao,
+            observacoes,
+            indicador_presenca: (data as any).indicador_presenca ?? 2,
+            indicador_ie_dest: (data as any).indicador_ie_dest ?? 9,
+            pagamento_indicador: (data as any).pagamento_indicador ?? 0,
+            pagamento_meio: (data as any).pagamento_meio || '99',
+            destinatario: {
+              nome: data.dest_nome,
+              cpf_cnpj: data.dest_cpf_cnpj,
+              email: (data as any).dest_email || undefined,
+              telefone: (data as any).dest_telefone || undefined,
+              endereco: {
+                logradouro: data.dest_endereco_logradouro || '',
+                numero: data.dest_endereco_numero || 'S/N',
+                complemento: data.dest_endereco_complemento || undefined,
+                bairro: data.dest_endereco_bairro || '',
+                municipio: data.dest_endereco_municipio || '',
+                uf: data.dest_endereco_uf || '',
+                cep: data.dest_endereco_cep || '',
+              },
+            },
+            itens: items.map((item, idx) => ({
+              numero_item: idx + 1,
+              codigo: item.codigo_produto,
+              descricao: item.descricao,
+              ncm: item.ncm,
+              cfop: item.cfop,
+              unidade: item.unidade,
+              quantidade: Number(item.quantidade),
+              valor_unitario: Number(item.valor_unitario),
+              origem: String(item.origem ?? '0'),
+              csosn: item.csosn || '102',
+            })),
+          },
+        }
+      );
 
       if (createError) throw createError;
+      if (!result?.success) {
+        throw new Error(result?.error || 'Falha ao clonar');
+      }
 
-      toast.success('NF-e duplicada como rascunho');
+      const newId = result.invoice?.id as string | undefined;
+      const successMsg = kind === 'pedido'
+        ? 'Pedido clonado com sucesso.'
+        : 'NF clonada como rascunho.';
+
+      toast.success(successMsg, newId ? {
+        action: {
+          label: 'Abrir rascunho',
+          onClick: () => handleEditInvoice({ ...invoice, id: newId } as FiscalInvoice),
+        },
+      } : undefined);
       refetch();
     } catch (error: any) {
-      console.error('Error duplicating invoice:', error);
-      showErrorToast(error, { module: 'fiscal', action: 'duplicar' });
+      console.error('[handleCloneInvoice] error:', error);
+      showErrorToast(error, { module: 'fiscal', action: 'clonar' });
     }
   };
 
@@ -1198,7 +1245,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onViewOrder={() => navigate(`/orders/${invoice.order_id}`)}
                               onCancel={() => setCancelingInvoice(invoice)}
                               onPrint={() => handlePrintDanfe(invoice)}
-                              onDuplicate={() => handleDuplicateInvoice(invoice)}
+                              onDuplicate={() => handleCloneInvoice(invoice, mode === 'orders' ? 'pedido' : 'nf')}
                               onCorrect={() => setCorrectingInvoice(invoice)}
                               onViewTimeline={() => setTimelineInvoice(invoice)}
                               onDelete={() => handleDeleteDraft(invoice)}
@@ -1206,6 +1253,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onResendEmail={() => handleResendEmail(invoice)}
                               isSubmitting={submittingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
+                              cloneLabel={mode === 'orders' ? 'Clonar Pedido' : 'Clonar NF'}
                             />
                           </TableCell>
                         </TableRow>

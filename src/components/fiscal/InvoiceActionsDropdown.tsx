@@ -50,6 +50,8 @@ interface InvoiceActionsDropdownProps {
   onResendEmail?: () => void;
   isSubmitting?: boolean;
   isCheckingStatus?: boolean;
+  /** Rótulo do item de clonagem ("Clonar Pedido" na aba Pedidos, "Clonar NF" na aba Notas Fiscais). */
+  cloneLabel?: string;
 }
 
 export function InvoiceActionsDropdown({
@@ -68,6 +70,7 @@ export function InvoiceActionsDropdown({
   onResendEmail,
   isSubmitting,
   isCheckingStatus,
+  cloneLabel = 'Clonar NF',
 }: InvoiceActionsDropdownProps) {
   const [isDownloadingXml, setIsDownloadingXml] = useState(false);
 
@@ -181,6 +184,10 @@ export function InvoiceActionsDropdown({
               )}
               Emitir NF-e
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDuplicate}>
+              <Copy className="h-4 w-4 mr-2" />
+              {cloneLabel}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               onClick={onDelete}
@@ -254,12 +261,9 @@ export function InvoiceActionsDropdown({
               <FileEdit className="h-4 w-4 mr-2" />
               Carta de Correção
             </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled
-              onClick={() => toast.info('Clonar NF está em manutenção. Disponível na próxima onda.')}
-            >
-              <Copy className="h-4 w-4 mr-2 opacity-50" />
-              Clonar NF (em manutenção)
+            <DropdownMenuItem onClick={onDuplicate}>
+              <Copy className="h-4 w-4 mr-2" />
+              {cloneLabel}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onEmitirDevolucao}>
               <ArrowDownLeft className="h-4 w-4 mr-2" />
@@ -294,12 +298,9 @@ export function InvoiceActionsDropdown({
                 Copiar Chave
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem
-              disabled
-              onClick={() => toast.info('Clonar NF está em manutenção. Disponível na próxima onda.')}
-            >
-              <Copy className="h-4 w-4 mr-2 opacity-50" />
-              Clonar NF (em manutenção)
+            <DropdownMenuItem onClick={onDuplicate}>
+              <Copy className="h-4 w-4 mr-2" />
+              {cloneLabel}
             </DropdownMenuItem>
           </>
         )}
