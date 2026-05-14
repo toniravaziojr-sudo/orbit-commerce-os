@@ -80,15 +80,19 @@ Deno.serve(async (req) => {
       cards.push({
         key: "settings",
         level: "error",
-        title: "Configuração fiscal",
+        title: "Dados fiscais",
         message: "Configuração fiscal não encontrada para esta loja.",
         status_label: "Configurar",
+        goto: true,
+        reason_code: "missing_company_data",
       });
       return new Response(
         JSON.stringify({
           success: true,
           overall_status: "config_pending" as OverallStatus,
+          reason_code: "missing_company_data" as ReasonCode,
           next_action_label: "Preencha os dados fiscais da loja.",
+          next_action_kind: "goto" as const,
           ready_for_production: false,
           cards,
         }),
