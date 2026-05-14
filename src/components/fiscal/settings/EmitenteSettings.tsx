@@ -163,73 +163,9 @@ export function EmitenteSettings() {
   const cnpjCertClean = (settings?.certificado_cnpj || '').replace(/\D/g, '');
   const cnpjMismatch = !!(hasCertificate && cnpjEmitClean.length === 14 && cnpjCertClean.length === 14 && cnpjEmitClean !== cnpjCertClean);
 
-  // Checklist de prontidão
-  const checklist = useMemo<ChecklistItem[]>(() => {
-    const items: ChecklistItem[] = [];
-
-    const dadosOk = !!(formData.razao_social?.trim() && (formData.cnpj || '').replace(/\D/g, '').length === 14
-      && (formData.ie_isento || formData.inscricao_estadual?.trim()));
-    items.push({
-      id: 'dados', label: 'Dados da empresa (Razão Social, CNPJ, IE)',
-      status: dadosOk ? 'ok' : 'pending', anchor: 'card-identidade',
-      hint: dadosOk ? undefined : 'Preencha Razão Social, CNPJ e Inscrição Estadual (ou marque Isento).',
-    });
-
-    const endOk = !!(formData.endereco_logradouro?.trim() && formData.endereco_numero?.trim()
-      && formData.endereco_bairro?.trim() && formData.endereco_municipio?.trim()
-      && formData.endereco_uf && (formData.endereco_cep || '').replace(/\D/g, '').length === 8);
-    items.push({
-      id: 'endereco', label: 'Endereço fiscal completo',
-      status: endOk ? 'ok' : 'pending', anchor: 'card-identidade',
-      hint: endOk ? undefined : 'Logradouro, número, bairro, município, UF e CEP são obrigatórios.',
-    });
-
-    const paramsOk = !!(formData.crt && formData.cfop_intrastadual && formData.cfop_interestadual);
-    items.push({
-      id: 'params', label: 'Regime tributário e parâmetros padrão',
-      status: paramsOk ? 'ok' : 'pending', anchor: 'card-parametros',
-    });
-
-    items.push({
-      id: 'cert',
-      label: 'Certificado Digital A1 enviado e válido',
-      status: !hasCertificate ? 'pending' : isExpired ? 'blocked' : 'ok',
-      hint: !hasCertificate
-        ? 'Envie o arquivo .pfx e a senha — validamos com o Focus NFe.'
-        : isExpired ? 'Certificado expirado. Substitua para voltar a emitir.'
-        : isExpiringSoon ? `Expira em ${daysUntilExpiry} dias — providencie a renovação.` : undefined,
-      anchor: 'card-certificado',
-    });
-
-    items.push({
-      id: 'cnpj-match',
-      label: 'CNPJ do certificado coincide com o do emitente',
-      status: !hasCertificate ? 'pending' : cnpjMismatch ? 'blocked' : 'ok',
-      hint: cnpjMismatch
-        ? `O certificado é do CNPJ ${formatCNPJStrict(cnpjCertClean)} e o emitente está como ${formatCNPJStrict(cnpjEmitClean) || '—'}. Ajuste antes de emitir.`
-        : undefined,
-      anchor: 'card-certificado',
-    });
-
-    items.push({
-      id: 'ambiente',
-      label: `Ambiente: ${formData.ambiente === 'producao' ? 'Produção' : 'Homologação'}`,
-      status: 'ok',
-      hint: formData.ambiente === 'homologacao' ? 'Notas em Homologação não têm valor fiscal.' : undefined,
-      anchor: 'card-ambiente',
-    });
-
-    const emailOk = !!(formData.email && isValidEmailStr(formData.email));
-    items.push({
-      id: 'email-emitente',
-      label: 'E-mail do emitente preenchido',
-      status: emailOk ? 'ok' : 'pending',
-      hint: emailOk ? undefined : 'Recomendado: usado pela Focus NFe como remetente do DANFE para o cliente.',
-      anchor: 'card-identidade',
-    });
-
-    return items;
-  }, [formData, hasCertificate, isExpired, isExpiringSoon, daysUntilExpiry, cnpjMismatch, cnpjCertClean, cnpjEmitClean]);
+  // Checklist cadastral local removido — a prontidão agora vem da fonte única
+  // (useFiscalReadiness). Mantemos apenas as flags abaixo para a UI do
+  // certificado (banners de divergência, expiração).
 
   // FONTE ÚNICA DE READINESS — vinda do backend (fiscal-integration-validate).
   // É proibido criar verdict paralelo aqui. O checklist abaixo é apenas
