@@ -351,7 +351,7 @@ function TenantFiscalCredentialsSection() {
       if (error) throw new Error(error.message);
       return data as { homologacao: boolean; producao: boolean };
     },
-    enabled: !!tenantId && isOwnerAdmin,
+    enabled: !!tenantId,
     staleTime: 30_000,
   });
 
