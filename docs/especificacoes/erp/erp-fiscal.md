@@ -1496,3 +1496,19 @@ A partir desta revisão, a Validação Fiscal **não vive mais em sub-aba própr
 7. ☐ Pedido de teste preparado com endereço/itens válidos.
 8. ☐ Emitir NF-e de teste em homologação. Validar autorização ou usar `fiscal-reconcile` se ficar `processing`.
 9. ☐ Em sucesso, planejar troca para `producao` em lote separado, recadastrar o webhook em produção e refazer a validação antes de liberar emissão real.
+
+---
+
+## Regras anti-regressão (rev 2026-05-14b)
+
+Estas regras devem ser preservadas em qualquer refatoração futura do módulo fiscal:
+
+1. **Tokens por empresa nunca voltam a ser input manual do lojista no fluxo padrão.** Os tokens `token_homologacao` e `token_producao` retornados pela API Focus NFe (criar/atualizar/consultar empresa) são capturados automaticamente por `fiscal-sync-focus-nfe` e armazenados de forma segura por tenant em `fiscal_settings.focus_token_homologacao` / `fiscal_settings.focus_token_producao` (criptografados, sem `SELECT` para `anon`/`authenticated`). A UI comum **não** expõe campos de token. Qualquer reabertura desses campos em fluxo padrão é proibida.
+
+2. **A tela fiscal não pode ter dois indicadores independentes de prontidão.** O card superior "Pronto para emitir NF-e?" (em `EmitenteSettings.tsx`) e o card "Validação Fiscal" (`FiscalValidationCompactCard.tsx`) **devem usar a mesma fonte de readiness**: o hook `useFiscalReadiness` (`src/hooks/useFiscalReadiness.ts`), apoiado na edge function `fiscal-integration-validate`. É proibido criar lógica de prontidão paralela no frontend.
+
+3. **Recebimento automático de retornos é ativado pelo backend, não pelo lojista.** Quando os pré-requisitos estão completos, `fiscal-integration-validate` ativa automaticamente. Botões de retry só aparecem como fallback de erro real, em linguagem de negócio. Não pode existir botão obrigatório "Ativar recebimento automático" no fluxo comum.
+
+4. **Linguagem de negócio na UI fiscal.** Termos proibidos no fluxo comum: token, webhook, hook, API, Focus NFe, sincronizar empresa, cadastrar empresa no provedor. Estados permitidos: "Configuração fiscal pendente", "Preparando emissão automática", "Pronto para teste", "Pronto para emitir NF-e", "Configuração fiscal com erro", "Produção bloqueada".
+
+5. **Produção bloqueada por padrão.** Produção só é liberada quando `ready_for_production = true` no retorno de `fiscal-integration-validate` — ou seja, todos os requisitos reais validados (cadastro Focus, certificado válido e não divergente, recebimento automático ativo, token de produção presente).
