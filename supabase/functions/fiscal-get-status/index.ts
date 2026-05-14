@@ -127,11 +127,20 @@ Deno.serve(async (req) => {
       .eq('tenant_id', tenantId)
       .single();
 
-    // Configuração Focus NFe
-    const focusConfig: FocusNFeConfig = {
-      token: focusToken,
-      ambiente: (settings?.focus_ambiente || settings?.ambiente || 'homologacao') as 'homologacao' | 'producao',
-    };
+    const ambiente = (settings?.focus_ambiente || settings?.ambiente || 'homologacao') as 'homologacao' | 'producao';
+    const tenantTok = await loadFocusTenantToken(supabaseClient, tenantId, ambiente);
+    const creds = resolveFocusCredentials({
+      ambiente,
+      operationKind: 'nfe_op',
+      tenantTokenForAmbiente: tenantTok.token,
+    });
+    if (!creds.ok || !creds.token) {
+      return new Response(
+        JSON.stringify({ success: false, error: creds.error, code: creds.errorCode }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const focusConfig: FocusNFeConfig = { token: creds.token, ambiente };
 
     // Consultar status na Focus NFe
     const result = await getNFeStatus(focusConfig, invoice.focus_ref);
