@@ -878,7 +878,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       {mode === 'orders' ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            title="Pedidos em Aberto"
+            title="Pedidos de venda em aberto"
             value={statsLoading ? '...' : counts.orders.toString()}
             icon={FileText}
             variant="warning"
