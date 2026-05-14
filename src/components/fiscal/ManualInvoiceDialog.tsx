@@ -366,13 +366,17 @@ export function ManualInvoiceDialog({
         ? 'Pedido de venda duplicado com sucesso.'
         : 'Pedido de venda criado com sucesso.');
 
-      toast.success(okMsg, newId && onCreated ? {
-        action: { label: 'Abrir registro duplicado', onClick: () => onCreated(newId) },
-      } : undefined);
+      toast.success(okMsg);
 
       queryClient.invalidateQueries({ queryKey: ['fiscal-invoices'] });
       queryClient.invalidateQueries({ queryKey: ['fiscal-stats'] });
       onOpenChange(false);
+
+      // Sempre dispara o callback após sucesso (sem depender de clique do usuário no toast).
+      // Para duplicação de NF, isso garante validação automática e movimentação para a aba Notas Fiscais.
+      if (newId && onCreated) {
+        try { onCreated(newId); } catch (e) { console.warn('[ManualInvoiceDialog] onCreated handler error:', e); }
+      }
     } catch (error) {
       showErrorToast(error, {
         module: 'fiscal',
