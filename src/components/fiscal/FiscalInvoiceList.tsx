@@ -33,6 +33,8 @@ import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { generateDeclaracaoConteudoPdf } from '@/lib/declaracaoConteudo';
 
 import { formatDateTimeBR } from "@/lib/date-format";
 
