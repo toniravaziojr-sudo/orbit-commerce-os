@@ -449,12 +449,13 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 | **Localização** | `src/pages/Fiscal.tsx`, `src/components/fiscal/FiscalInvoiceList.tsx`, `src/components/fiscal/ManualInvoiceDialog.tsx` |
 | **Descrição** | A página Fiscal possui duas abas principais com ações distintas |
 
-#### Aba "Pedidos" (`mode=orders`) — _renomeada de "Pedidos em Aberto" em 2026-04-29_
-- Lista rascunhos de NF-e gerados automaticamente a partir de pedidos pagos (todas as origens: lojas, marketplaces, etc.)
-- Permite criar pedidos/rascunhos manualmente via botão **"Novo Pedido"** → abre `ManualInvoiceDialog`
-- O formulário de pedido é **simplificado**: apenas Cliente + Produtos (descrição, código, unidade, qtd, valor) + Observações
-- **Sem campos fiscais** no pedido: NCM, CFOP, CSOSN, Origem, Indicador de Presença, Indicador IE, Pagamento — tudo preenchido automaticamente com defaults no backend
-- Os pedidos em aberto são **NF-e de venda/saída** — ao emitir, transformam-se em NF-e
+#### Aba "Pedidos de Venda" (`mode=orders`) — _renomeada de "Pedidos" em 2026-05-14_
+- Lista rascunhos de NF-e gerados automaticamente a partir de pedidos pagos (todas as origens: lojas, marketplaces, etc.) e pedidos de venda criados manualmente para revisão fiscal.
+- **Pedidos de Venda ≠ Pedidos da loja**: este registro é puramente fiscal/rascunho. Não confundir com o módulo `/orders` (vendas reais).
+- Permite criar pedidos de venda manualmente via botão **"Novo Pedido de Venda"** → abre `ManualInvoiceDialog` em `mode="create"`.
+- Permite duplicar um Pedido de Venda existente via ação **"Duplicar Pedido de Venda"** → abre o mesmo diálogo em `mode="duplicate"` com dados pré-preenchidos.
+- O formulário é **simplificado**: Cliente + Produtos (descrição, código, unidade, qtd, valor) + Observações. Campos fiscais (NCM, CFOP, CSOSN, Origem, etc.) são preenchidos automaticamente com defaults no backend ou preservados invisivelmente quando duplicando.
+- Os pedidos de venda em aberto são **NF-e de venda/saída** — ao emitir, transformam-se em NF-e.
 
 #### Aba "Notas Fiscais" (`mode=invoices`)
 - Lista NF-e emitidas (autorizadas, pendentes, rejeitadas, canceladas, devolvidas)
