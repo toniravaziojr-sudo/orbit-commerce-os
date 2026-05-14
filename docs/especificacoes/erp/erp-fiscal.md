@@ -359,7 +359,7 @@ Regras importantes:
 2. scheduler-tick consome a fila e cria registro em fiscal_invoices (fiscal_stage='pedido_venda', status='draft')
 3. Usuário clica "Criar Nota Fiscal" → fiscal-prepare-invoice valida localmente
    → fiscal_stage='pronta_emitir' (sem erros) ou fiscal_stage='pendencia' (com pendências)
-4. Em "Enviar à Receita" → fiscal-submit envia à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
+4. Em "Emitir Nota Fiscal" → fiscal-submit envia à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
    → status='processing', fiscal_stage='emitida'
 5. fiscal-webhook OU fiscal-check-status (polling) atualizam status final:
    → 'authorized' | 'rejected' | 'denied'
@@ -432,17 +432,19 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
     **Fluxo de Preparação e Emissão — 3 etapas separadas (v2026-05-14 — Onda 2 rev1)**:
 
     **Etapa 1 — Pedidos de Venda → Criar Nota Fiscal (não transmite)**:
-    - Na aba **Pedidos de Venda**, o botão/ação principal é **"Criar Nota Fiscal"**.
+    - Na aba **Pedidos de Venda**, o botão/ação principal é **"Criar Nota Fiscal"** (singular quando 1 selecionado) ou **"Criar Notas Fiscais (N)"** (plural quando múltiplos).
     - Ao clicar, o backend executa `fiscal-prepare-invoice`: validação local completa (configurações fiscais, certificado, CNPJ do emitente, destinatário, endereço, itens, NCM, CFOP, valores) **sem chamar Focus/Sefaz**.
     - Se passar em todas as validações: `fiscal_stage` muda para `pronta_emitir`, `pendencia_motivos` fica `null`, e o registro aparece na aba **Notas Fiscais** com badge **"Pronta para Emitir"**.
     - Se houver pendências: `fiscal_stage` muda para `pendencia`, `pendencia_motivos` recebe a lista de erros, e o registro aparece na aba **Notas Fiscais** com badge **"Pendência Identificada"**.
     - **Esta ação nunca transmite para a Receita.**
+    - **Após criar a nota, o usuário é redirecionado automaticamente para a aba Notas Fiscais.**
 
-    **Etapa 2 — Notas Fiscais → Enviar à Receita (transmite)**:
-    - Na aba **Notas Fiscais**, registros em `fiscal_stage='pronta_emitir'` exibem a ação **"Enviar à Receita"** (ou **"Emitir NF-e de teste"** em homologação).
+    **Etapa 2 — Notas Fiscais → Emitir Nota Fiscal (transmite)**:
+    - Na aba **Notas Fiscais**, registros em `fiscal_stage='pronta_emitir'` exibem a ação **"Emitir Nota Fiscal"** (singular) ou **"Emitir Notas Fiscais (N)"** (plural em massa) — ou **"Emitir NF-e de teste"** em homologação.
     - Ao clicar, abre `AlertDialog` de confirmação obrigatória. Só então chama `fiscal-submit`/`fiscal-emit` que efetivamente transmite para a Focus/SEFAZ.
     - **Ação bloqueada para `fiscal_stage='pendencia'`**: o botão fica desabilitado com tooltip informando que há pendências a resolver.
     - Após transmissão bem-sucedida, `fiscal_stage` muda para `emitida` e `status` passa a refletir o retorno da SEFAZ (`processing`, `authorized`, `rejected`, etc.).
+    - A lista é recarregada automaticamente após emissão para refletir o novo `fiscal_stage`/`status`.
 
     **Etapa 3 — Revalidação automática no editor**:
     - Ao abrir um registro em `pendencia` no **InvoiceEditor** e salvar alterações, o backend executa `fiscal-prepare-invoice` automaticamente.
@@ -451,7 +453,21 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 
    **Status `processing` (v2026-05-14)**: Quando o Focus NFe retorna `processando_autorizacao`, a NF-e fica em `processing`. A lista exibe o badge **"Processando SEFAZ"** (Clock) e o menu da linha mostra **"Atualizar Status"** em vez de "Emitir" — assim o usuário não tenta reemitir uma nota que já está aguardando autorização. O webhook (`fiscal-webhook`) e o reconciliador manual (`fiscal-check-status`) já atualizam a coluna `status` para `authorized` ao receber `autorizado` do Focus, gravam chave de acesso, protocolo, XML e DANFE, e respeitam idempotência (não rebaixam status terminal). **Reconciliação manual de divergência local** (status `processing` no banco mas evento `authorized` já persistido em `fiscal_invoice_events` com chave/protocolo válidos): `UPDATE fiscal_invoices` direto na coluna, sem chamar Focus/Sefaz. Caso da NF 1-265 do tenant Respeite o Homem em 2026-05-14 — `authorized` foi gravado como evento mas o webhook não chegou a atualizar o cabeçalho; reconciliado localmente.
 
-   **Declaração de Conteúdo (DC-e) — fora do fluxo operacional (v2026-05-14 rev2)**: O botão **"Emitir DC-e"** foi **removido da barra de ações em massa** (Pedidos de Venda e Notas Fiscais) porque o backend ainda é placeholder e depende de integração logística com a transportadora (Frenet/Correios/etc.) que não está finalizada. Especificação completa do fluxo (gera PDF? assina via Focus ou transportadora? exige pedido vinculado a transportadora `gateway`? gera registro em qual tabela?) ainda não existe nos docs e foi registrada como pendência separada de Fiscal/Logística. A função `dce-emit` continua existindo no backend mas não é mais acionável pela UI operacional comum. Quando a especificação for finalizada, a ação retorna em local apropriado (provavelmente Logística → Remessas para pedidos sem NF-e).
+   **Declaração de Conteúdo (DC) — documento não fiscal independente (v2026-05-14 rev3)**:
+
+   A Declaração de Conteúdo é um **documento próprio, não fiscal, independente de NF-e e de remessa**. Ela existe exclusivamente na aba **Pedidos de Venda**:
+
+   - **Ação individual**: cada linha de Pedido de Venda exibe a opção **"Declaração de Conteúdo"** no menu de ações.
+   - **Ação em massa**: ao selecionar um ou mais Pedidos de Venda, a barra de ações exibe o botão **"Declaração de Conteúdo"**.
+   - **Geração**: chama `generateDeclaracaoConteudoPdf` (`src/lib/declaracaoConteudo.ts`) que monta um PDF próprio com remetente (dados do emitente), destinatário, itens declarados, valor total e aviso obrigatório.
+   - **Numeração interna**: usa numeração própria no formato `DC-TIMESTAMP-ID` (ex: `DC-12345678-ABCD`), sem conflito com numeração fiscal de NF-e.
+   - **Limitações operacionais**: não chama `fiscal-emit`, não chama `fiscal-submit`, não chama Focus/Sefaz, não gera chave de acesso, protocolo, XML ou DANFE de NF-e.
+   - **Imutabilidade de stage**: a geração da DC **não altera** o `fiscal_stage` do pedido (permanece em `pedido_venda`).
+   - **Escopo**: não aparece na aba Notas Fiscais.
+
+   > **Aviso obrigatório impresso no documento:** "Declaração de Conteúdo não substitui Nota Fiscal quando a emissão de NF-e for obrigatória."
+
+   A função `dce-emit` (Declaração de Conteúdo Eletrônica via Focus NFe) continua existindo no backend como integração futura, mas não é acionável pela UI operacional comum.
 
 5. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
 6. **Terminal**: `completed` é o estado final após confirmação de entrega.
@@ -506,14 +522,16 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 #### Aba "Notas Fiscais" (`mode=invoices`)
 - Lista registros com `fiscal_stage IN ('pronta_emitir', 'pendencia', 'emitida')`.
 - Badges por `fiscal_stage`/`status`:
-  - **Pronta para Emitir** (`pronta_emitir`) — verde
-  - **Pendência Identificada** (`pendencia`) — âmbar/vermelho
-  - **Processando** (`emitida` + `status='processing'`) — azul
-  - **Autorizada** (`emitida` + `status='authorized'`) — verde
+  - **Pronta para Emitir** (`pronta_emitir`) — laranja
+  - **Pendência Identificada** (`pendencia`) — amarelo
+  - **Processando** (`emitida` + `status='processing'`) — amarelo
+  - **Autorizada** (`emitida` + `status='authorized'`) — azul
+  - **Autorizada + DANFE impressa** (`status='authorized'` + `danfe_printed_at IS NOT NULL`) — status azul + badge auxiliar verde **"Impressa"**
   - **Rejeitada** (`emitida` + `status='rejected'`) — vermelho
-  - **Cancelada** (`emitida` + `status='cancelled'`) — cinza
+  - **Cancelada** (`emitida` + `status='cancelled'`) — vermelho
+  - **Erro** (`status='error'`) — vermelho
 - Botão principal: **"Nova NF-e"** → cria rascunho vazio com `fiscal_stage='pedido_venda'` e abre o **InvoiceEditor** (editor completo com 6 abas: Geral, Destinatário, Itens, Valores, Transporte, Pagamento).
-- Ação por linha (`pronta_emitir`): **"Enviar à Receita"** (homologação: **"Emitir NF-e de teste"**) → modal de confirmação obrigatória → `fiscal-submit`/`fiscal-emit`. **Esta é a única ação que transmite.**
+- Ação por linha (`pronta_emitir`): **"Emitir Nota Fiscal"** (homologação: **"Emitir NF-e de teste"**) → modal de confirmação obrigatória → `fiscal-submit`/`fiscal-emit`. **Esta é a única ação que transmite.**
 - Ação por linha (`pendencia`): **"Editar e revalidar"** → abre editor. Ao salvar, `fiscal-prepare-invoice` revalida automaticamente.
 - Ação por linha (`emitida` autorizada/cancelada/rejeitada): **"Duplicar NF"** → abre diálogo pré-preenchido. Ao salvar, `fiscal-prepare-invoice` valida e coloca em `pronta_emitir` ou `pendencia` na aba Notas Fiscais. **Nunca volta para Pedidos de Venda.**
 - ~~Botão "NF-e de Entrada"~~ removido (rev3) — o tipo de NF é selecionado dentro do InvoiceEditor na aba Geral
@@ -524,9 +542,12 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 
 Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em massa exibe:
 
-- **"Criar Notas Fiscais (N)"** — para itens selecionados em `pedido_venda` (na aba Pedidos de Venda). Executa `fiscal-prepare-invoice` em lote.
-- **"Enviar à Receita (N)"** — para itens selecionados em `pronta_emitir` (na aba Notas Fiscais). Só disponível quando todos os itens selecionados estão em `pronta_emitir`.
-- ~~"Emitir DC-e"~~ removido do fluxo operacional comum (rev 2026-05-14 rev2). A função `dce-emit` continua no backend mas não é acionável pela UI operacional comum até especificação completa de Fiscal/Logística.
+**Aba Pedidos de Venda (`fiscal_stage='pedido_villa'`):**
+- **"Criar Nota Fiscal"** (1 selecionado) / **"Criar Notas Fiscais (N)"** (2 ou mais) — executa `fiscal-prepare-invoice` em lote. Após conclusão, o usuário é redirecionado automaticamente para a aba **Notas Fiscais**.
+- **"Declaração de Conteúdo"** (individual e em massa) — gera PDF próprio, não fiscal, sem chamar Focus/Sefaz. Não altera `fiscal_stage`.
+
+**Aba Notas Fiscais:**
+- **"Emitir Nota Fiscal"** (1 selecionada) / **"Emitir Notas Fiscais (N)"** (2 ou mais) — para itens em `pronta_emitir`. Só disponível quando todos os selecionados estão em `pronta_emitir`. Exige confirmação explícita. Mostra resumo real: X emitidas, Y bloqueadas, Z com erro.
 - **"Enviar à transportadora"** — visível quando os itens selecionados são NF-e **autorizadas** com transportadora `kind = 'gateway'` (ex.: Frenet). Dispara `gateway-attach-fiscal-doc`.
 
 > Para pedidos com transportadora `kind = 'local'` (Correios), o despacho continua sendo feito pela tela de **Remessas** (`/shipping/shipments`), com emissão de etiqueta interna. Não há ação de "Enviar à transportadora" no Fiscal nesse cenário.
@@ -571,13 +592,61 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 | — | `state` | UF |
 | — | `postal_code` | CEP |
 
-#### Regras Anti-Regressão do Fluxo Fiscal (v2026-05-14 — Onda 2 rev1)
-1. **Nunca juntar "criar nota" com "transmitir"**: a ação "Criar Nota Fiscal" em Pedidos de Venda prepara e valida localmente; a transmissão só acontece via "Enviar à Receita" em Notas Fiscais.
+#### Regras Anti-Regressão do Fluxo Fiscal (v2026-05-14 — Onda 2 rev2)
+
+1. **Nunca juntar "criar nota" com "emitir"**: a ação "Criar Nota Fiscal" em Pedidos de Venda prepara e valida localmente; a transmissão só acontece via "Emitir Nota Fiscal" em Notas Fiscais.
 2. **Não renomear botão se o comportamento não corresponder**: um botão chamado "Emitir" ou "Criar Nota Fiscal" deve ter o comportamento documentado nesta seção.
-3. **Pedido de Venda nunca transmite direto para Receita**: um registro em `fiscal_stage='pedido_venda'` só pode sair dessa etapa via `fiscal-prepare-invoice`.
+3. **Pedido de Venda nunca transmite direto para Receita/SEFAZ**: um registro em `fiscal_stage='pedido_venda'` só pode sair dessa etapa via `fiscal-prepare-invoice`.
 4. **NF duplicada nunca volta para Pedidos de Venda**: ao duplicar uma NF autorizada/cancelada/rejeitada, o novo registro entra em `pronta_emitir` ou `pendencia` na aba Notas Fiscais.
-5. **Não permitir envio de nota com Pendência Identificada**: o botão "Enviar à Receita" fica desabilitado para `fiscal_stage='pendencia'`; o usuário deve editar, salvar e aguardar revalidação automática.
-6. **DC-e permanece fora do fluxo operacional até especificação completa**: não exibir botões de DC-e como funcional enquanto não houver doc de Fiscal/Logística aprovado.
+5. **Não permitir envio de nota com Pendência Identificada**: o botão "Emitir Nota Fiscal" fica desabilitado para `fiscal_stage='pendencia'`; o usuário deve editar, salvar e aguardar revalidação automática.
+6. **Declaração de Conteúdo não é NF-e**: a DC é documento próprio, não fiscal, independente. Ela não substitui NF-e quando a emissão for obrigatória.
+7. **Duplicar Pedido de Venda nunca cria NF automaticamente**: a duplicação mantém o registro em `pedido_venda`.
+8. **Cancelar NF nunca cria Pedido de Venda nem NF nova**: o cancelamento é ação terminal sobre a nota existente.
+9. **Produção real exige confirmação explícita posterior**: o ambiente do tenant Respeite o Homem permanece em homologação até nova autorização. Nenhuma NF real deve ser transmitida em produção sem validação completa.
+10. **Não exibir sucesso falso em emissão**: toast de sucesso só aparece após confirmação real da operação. Se a emissão falhar antes de transmitir, não mostrar sucesso.
+
+---
+
+## Correções de UI/UX e Fluxo — Pós fiscal_stage (v2026-05-14 — Onda 2 rev2)
+
+### Rótulos e singular/plural
+
+| Contexto | 1 selecionado | 2 ou mais |
+|----------|---------------|-----------|
+| Pedidos de Venda | **Criar Nota Fiscal** | **Criar Notas Fiscais (N)** |
+| Notas Fiscais | **Emitir Nota Fiscal** | **Emitir Notas Fiscais (N)** |
+
+O rótulo "Enviar à Receita" foi removido do fluxo comum de Notas Fiscais. A ação de transmissão agora se chama **"Emitir Nota Fiscal"** (ou "Emitir NF-e de teste" em homologação).
+
+### Redirecionamento automático
+
+Após criar nota fiscal a partir de Pedidos de Venda (ação individual ou em massa), o usuário é **redirecionado automaticamente** para a aba **Notas Fiscais** para acompanhar o resultado.
+
+### Cores dos status (badge visual)
+
+| Status / Stage | Cor do badge |
+|----------------|--------------|
+| Pronta para Emitir (`pronta_emitir`) | laranja |
+| Pendência Identificada (`pendencia`) | amarelo |
+| Processando SEFAZ / Aguardando protocolo (`processing`) | amarelo |
+| Autorizada (`authorized`) | azul |
+| Autorizada + DANFE impressa | azul + badge verde "Impressa" |
+| Cancelada (`cancelled`) | vermelho |
+| Rejeitada (`rejected`) | vermelho |
+| Erro (`error`) | vermelho |
+
+### Correção do falso positivo de CNPJ
+
+Na validação pré-emissão (`runEmitPrecheck`), o CNPJ do emitente e o CNPJ do certificado são **normalizados para apenas dígitos** antes da comparação. Quando os dígitos batem, nenhum aviso de divergência aparece. Quando divergem, a emissão é bloqueada com mensagem clara. O emitente é a empresa da loja, não o cliente/destinatário.
+
+### Emissão em massa e sucesso falso
+
+- Não há toast de sucesso antes da confirmação real da operação.
+- Envio em massa mostra resumo real: "X de N emitida(s), Y com erro".
+- Se a emissão falhar antes de transmitir (erro de validação, CNPJ divergente, certificado inválido), o sistema **não** mostra sucesso falso.
+- Após emissão, a lista é recarregada (`refetch`) para refletir o `fiscal_stage`/`status` atualizado.
+
+---
 
 ## 2. Financeiro
 
