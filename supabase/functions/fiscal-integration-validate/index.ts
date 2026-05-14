@@ -17,19 +17,39 @@ const corsHeaders = {
 };
 
 type CardLevel = "ok" | "warn" | "error" | "pending";
+type ReasonCode =
+  | "missing_company_data"
+  | "certificate_missing"
+  | "certificate_invalid"
+  | "certificate_expired"
+  | "certificate_cnpj_mismatch"
+  | "provider_setup_pending"
+  | "provider_setup_error"
+  | "credentials_capture_error"
+  | "returns_setup_pending"
+  | "returns_setup_error"
+  | "ready_for_test"
+  | "ready_for_production"
+  | "production_blocked";
+
 interface Card {
   key: string;
   level: CardLevel;
   title: string;
   message: string;
   status_label?: string;
+  // goto=true → existe campo cadastral real para o usuário corrigir.
+  // Sem goto, o problema é interno (preparação/provedor) e a UI deve
+  // oferecer "Reprocessar configuração fiscal" em vez de "Ir para".
+  goto?: boolean;
+  reason_code?: ReasonCode;
   details?: Record<string, unknown>;
 }
 
 type OverallStatus =
   | "ready"            // produção pronta para emitir
   | "ready_for_test"   // homologação pronta para smoke test
-  | "config_pending"   // falta uma ação objetiva do usuário (ex: token)
+  | "config_pending"   // falta uma ação objetiva do usuário (ex: dados/cert)
   | "error"            // erro real (cert vencido, falha remota, etc.)
   | "blocked";         // produção bloqueada por requisito faltante
 
@@ -60,15 +80,19 @@ Deno.serve(async (req) => {
       cards.push({
         key: "settings",
         level: "error",
-        title: "Configuração fiscal",
+        title: "Dados fiscais",
         message: "Configuração fiscal não encontrada para esta loja.",
         status_label: "Configurar",
+        goto: true,
+        reason_code: "missing_company_data",
       });
       return new Response(
         JSON.stringify({
           success: true,
           overall_status: "config_pending" as OverallStatus,
+          reason_code: "missing_company_data" as ReasonCode,
           next_action_label: "Preencha os dados fiscais da loja.",
+          next_action_kind: "goto" as const,
           ready_for_production: false,
           cards,
         }),
@@ -142,17 +166,69 @@ Deno.serve(async (req) => {
     }
 
 
+    // Pré-checagem dos dados cadastrais e do certificado para usar nas mensagens.
+    const _certValidUntilEarly = settings.certificado_valido_ate ? new Date(settings.certificado_valido_ate) : null;
+    const _cnpjMatchesEarly = !!(settings.certificado_cnpj && settings.cnpj
+      && settings.certificado_cnpj.replace(/\D/g, "") === settings.cnpj.replace(/\D/g, ""));
+    const _certPresent = !!_certValidUntilEarly;
+    const _certValid = !!(_certValidUntilEarly && _certValidUntilEarly.getTime() > Date.now() && _cnpjMatchesEarly);
+    const _missingCompanyData = !settings.cnpj || (settings.cnpj || "").replace(/\D/g, "").length !== 14;
+
     // -------- 1) Empresa fiscal --------
     let focusCompanyOk = false;
     let focusCompanyVerifiedRemote: boolean | null = null;
     if (!settings.focus_empresa_id) {
-      cards.push({
-        key: "focus_company",
-        level: "warn",
-        title: "Empresa fiscal",
-        message: "Estamos preparando o cadastro da empresa. Conclua os dados fiscais e envie o certificado A1 para liberar.",
-        status_label: "Preparando",
-      });
+      // Distinguir falta de dados/cert (problema do lojista) de falha real de preparação
+      // (problema interno) — antes era SEMPRE "Conclua os dados e envie o certificado A1".
+      if (_missingCompanyData) {
+        cards.push({
+          key: "focus_company",
+          level: "warn",
+          title: "Empresa fiscal",
+          message: "Conclua os dados fiscais para preparar o cadastro da empresa.",
+          status_label: "Aguardando dados",
+          goto: true,
+          reason_code: "missing_company_data",
+        });
+      } else if (!_certPresent) {
+        cards.push({
+          key: "focus_company",
+          level: "warn",
+          title: "Empresa fiscal",
+          message: "Envie o certificado A1 para preparar o cadastro da empresa.",
+          status_label: "Aguardando certificado",
+          goto: true,
+          reason_code: "certificate_missing",
+        });
+      } else if (!_certValid) {
+        cards.push({
+          key: "focus_company",
+          level: "warn",
+          title: "Empresa fiscal",
+          message: "Resolva o problema do certificado A1 para preparar o cadastro da empresa.",
+          status_label: "Aguardando certificado",
+          goto: true,
+          reason_code: "certificate_invalid",
+        });
+      } else if (autoSyncAttempted && !autoSyncSucceeded) {
+        cards.push({
+          key: "focus_company",
+          level: "error",
+          title: "Empresa fiscal",
+          message: "Não foi possível preparar automaticamente. Tente reprocessar a configuração fiscal.",
+          status_label: "Erro na preparação",
+          reason_code: "provider_setup_error",
+        });
+      } else {
+        cards.push({
+          key: "focus_company",
+          level: "pending",
+          title: "Empresa fiscal",
+          message: "Estamos preparando o cadastro da empresa.",
+          status_label: "Preparando",
+          reason_code: "provider_setup_pending",
+        });
+      }
     } else if (!accountTokenOk) {
       // Sem credencial administrativa central — não é problema do lojista.
       focusCompanyOk = true;
@@ -181,9 +257,10 @@ Deno.serve(async (req) => {
         message: focusCompanyVerifiedRemote
           ? "Empresa confirmada para emissão."
           : focusCompanyVerifiedRemote === false
-          ? "Não conseguimos confirmar o cadastro da empresa. Revise os dados fiscais."
+          ? "Não conseguimos confirmar o cadastro da empresa. Tente reprocessar a configuração fiscal."
           : "Aguarde alguns instantes — estamos confirmando o cadastro.",
         status_label: focusCompanyVerifiedRemote ? "Validada" : focusCompanyVerifiedRemote === false ? "Não localizada" : "Aguardando",
+        reason_code: focusCompanyVerifiedRemote === false ? "provider_setup_error" : undefined,
         details: { focus_empresa_id: settings.focus_empresa_id, remote_check: focusCompanyVerifiedRemote },
       });
     }
@@ -202,6 +279,8 @@ Deno.serve(async (req) => {
         title: "Certificado A1",
         message: "Envie o certificado digital A1 da empresa.",
         status_label: "Enviar certificado",
+        goto: true,
+        reason_code: "certificate_missing",
       });
     } else if (certValidUntil.getTime() < Date.now()) {
       cards.push({
@@ -209,6 +288,8 @@ Deno.serve(async (req) => {
         title: "Certificado A1",
         message: "Certificado vencido. Renove para voltar a emitir.",
         status_label: "Vencido",
+        goto: true,
+        reason_code: "certificate_expired",
         details: { valid_until: certValidUntil.toISOString() },
       });
     } else if (!cnpjMatches) {
@@ -217,6 +298,8 @@ Deno.serve(async (req) => {
         title: "Certificado A1",
         message: "O CNPJ do certificado não bate com o da empresa cadastrada.",
         status_label: "CNPJ divergente",
+        goto: true,
+        reason_code: "certificate_cnpj_mismatch",
       });
     } else {
       certOk = true;
@@ -230,14 +313,18 @@ Deno.serve(async (req) => {
     }
 
     // -------- 3) Credenciais fiscais (automáticas) --------
+    const credsAwaitingUserAction = !certOk || !settings.cnpj || (settings.cnpj || "").replace(/\D/g, "").length !== 14;
     const credsLevel: CardLevel = tenantTokenOk
       ? "ok"
-      : (autoSyncAttempted && !autoSyncSucceeded ? "error" : "warn");
+      : (autoSyncAttempted && !autoSyncSucceeded ? "error"
+        : credsAwaitingUserAction ? "warn" : "pending");
     const credsMessage = tenantTokenOk
       ? "Configuradas automaticamente."
       : (autoSyncAttempted && !autoSyncSucceeded
-          ? "Não conseguimos preparar agora. Use 'Reprocessar configuração fiscal'."
-          : "Serão configuradas automaticamente após você salvar os dados fiscais e enviar o certificado A1.");
+          ? "Não foi possível preparar automaticamente. Tente reprocessar a configuração fiscal."
+          : credsAwaitingUserAction
+            ? "Serão configuradas automaticamente após você concluir os dados fiscais e o certificado A1."
+            : "Estamos preparando automaticamente.");
     const credsLabel = tenantTokenOk
       ? "Configuradas"
       : (autoSyncAttempted && !autoSyncSucceeded ? "Erro na preparação" : "Preparando");
@@ -247,6 +334,9 @@ Deno.serve(async (req) => {
       title: "Credenciais fiscais",
       message: credsMessage,
       status_label: credsLabel,
+      reason_code: tenantTokenOk
+        ? undefined
+        : (autoSyncAttempted && !autoSyncSucceeded ? "credentials_capture_error" : "provider_setup_pending"),
     });
 
     // -------- 4) Auto-ativação do recebimento de retornos --------
@@ -282,7 +372,6 @@ Deno.serve(async (req) => {
         if (!autoActivationSucceeded) {
           autoActivationError = json?.error || "Falha ao ativar automaticamente.";
         }
-        // Recarrega settings atualizado
         const { data: refreshed } = await serviceClient
           .from("fiscal_settings")
           .select(selectCols)
@@ -302,31 +391,38 @@ Deno.serve(async (req) => {
     let webhookCardLevel: CardLevel = "warn";
     let webhookMsg = "Aguardando preparação automática.";
     let webhookStatusLabel = "Preparando";
+    let webhookReason: ReasonCode | undefined = "returns_setup_pending";
 
     if (!tenantTokenOk) {
       webhookCardLevel = "warn";
       webhookMsg = "Será ativado automaticamente após a preparação fiscal.";
       webhookStatusLabel = "Preparando";
+      webhookReason = "returns_setup_pending";
     } else if (autoActivationAttempted && !autoActivationSucceeded) {
       webhookCardLevel = "error";
-      webhookMsg = "Não foi possível preparar o recebimento automático. Tente novamente.";
+      webhookMsg = "Não foi possível preparar o recebimento automático. Tente reprocessar a configuração fiscal.";
       webhookStatusLabel = "Erro na preparação";
+      webhookReason = "returns_setup_error";
     } else if (webhookStatus === "validated" && webhookEnvMatchesAmbiente) {
       webhookCardLevel = "ok";
       webhookMsg = "Ativo.";
       webhookStatusLabel = "Ativo";
+      webhookReason = undefined;
     } else if (webhookStatus === "pending" && webhookEnvMatchesAmbiente) {
       webhookCardLevel = "pending";
       webhookMsg = "Será confirmado no primeiro retorno da NF de teste.";
       webhookStatusLabel = "Aguardando primeiro retorno";
+      webhookReason = "returns_setup_pending";
     } else if (webhookStatus === "error") {
       webhookCardLevel = "error";
-      webhookMsg = "Não foi possível preparar o recebimento automático. Use 'Reprocessar'.";
+      webhookMsg = "Não foi possível preparar o recebimento automático. Tente reprocessar a configuração fiscal.";
       webhookStatusLabel = "Erro";
+      webhookReason = "returns_setup_error";
     } else if (!webhookEnvMatchesAmbiente && webhookStatus) {
       webhookCardLevel = "warn";
       webhookMsg = "Ambiente atual diferente do configurado anteriormente — reprocessando.";
       webhookStatusLabel = "Reprocessando";
+      webhookReason = "returns_setup_pending";
     }
 
     cards.push({
@@ -335,6 +431,7 @@ Deno.serve(async (req) => {
       title: "Recebimento de retornos",
       message: webhookMsg,
       status_label: webhookStatusLabel,
+      reason_code: webhookReason,
       details: {
         registered_at: settings.webhook_registered_at,
         validated_at: settings.webhook_validated_at,
@@ -358,41 +455,79 @@ Deno.serve(async (req) => {
 
     let overall: OverallStatus;
     let nextAction: string | null = null;
+    // 'goto' = há campo cadastral a corrigir (botão deve ser "Ir para")
+    // 'retry' = problema interno/provedor (botão deve ser "Reprocessar configuração fiscal")
+    // null = sem ação principal
+    let nextActionKind: "goto" | "retry" | null = null;
     let canRetryActivation = false;
+    let topReason: ReasonCode | undefined;
 
-    if (!certOk || !settings.focus_empresa_id) {
-      overall = !settings.focus_empresa_id ? "config_pending" : "error";
-      nextAction = !settings.focus_empresa_id
-        ? "Conclua os dados fiscais e envie o certificado A1 para preparar a emissão automática."
-        : "Resolva o problema do certificado A1.";
-    } else if (!tenantTokenOk) {
+    if (_missingCompanyData) {
       overall = "config_pending";
-      nextAction = "Preparando emissão automática. Se persistir, clique em 'Reprocessar configuração fiscal'.";
+      nextAction = "Conclua os dados fiscais (CNPJ e endereço) para preparar a emissão automática.";
+      nextActionKind = "goto";
+      topReason = "missing_company_data";
+    } else if (!_certPresent) {
+      overall = "config_pending";
+      nextAction = "Envie o certificado digital A1 para preparar a emissão automática.";
+      nextActionKind = "goto";
+      topReason = "certificate_missing";
+    } else if (!certOk) {
+      overall = "error";
+      nextAction = "Resolva o problema do certificado A1.";
+      nextActionKind = "goto";
+      topReason = certValidUntil && certValidUntil.getTime() < Date.now()
+        ? "certificate_expired"
+        : (cnpjMatches ? "certificate_invalid" : "certificate_cnpj_mismatch");
+    } else if (!settings.focus_empresa_id) {
+      // Cert OK + dados OK, mas a empresa não foi cadastrada no provedor.
+      // É problema interno de preparação, NÃO falta de cert/dados.
+      overall = autoSyncAttempted && !autoSyncSucceeded ? "error" : "config_pending";
+      nextAction = "Não foi possível preparar automaticamente a emissão fiscal. Tente reprocessar a configuração fiscal.";
+      nextActionKind = "retry";
       canRetryActivation = true;
+      topReason = autoSyncAttempted && !autoSyncSucceeded ? "provider_setup_error" : "provider_setup_pending";
+    } else if (!tenantTokenOk) {
+      overall = autoSyncAttempted && !autoSyncSucceeded ? "error" : "config_pending";
+      nextAction = "Não foi possível capturar as credenciais fiscais. Tente reprocessar a configuração fiscal.";
+      nextActionKind = "retry";
+      canRetryActivation = true;
+      topReason = autoSyncAttempted && !autoSyncSucceeded ? "credentials_capture_error" : "provider_setup_pending";
     } else if (autoActivationAttempted && !autoActivationSucceeded) {
       overall = "error";
-      nextAction = "Não foi possível preparar a emissão automática. Tente novamente.";
+      nextAction = "Não foi possível preparar o recebimento de retornos. Tente reprocessar a configuração fiscal.";
+      nextActionKind = "retry";
       canRetryActivation = true;
+      topReason = "returns_setup_error";
     } else if (webhookStatus === "error") {
       overall = "error";
-      nextAction = "Não foi possível preparar a emissão automática. Tente novamente.";
+      nextAction = "Não foi possível preparar o recebimento de retornos. Tente reprocessar a configuração fiscal.";
+      nextActionKind = "retry";
       canRetryActivation = true;
+      topReason = "returns_setup_error";
     } else if (ambiente === "producao") {
       if (webhookStatus === "validated" && webhookEnvMatchesAmbiente) {
         overall = "ready";
+        topReason = "ready_for_production";
       } else {
         overall = "blocked";
         nextAction = webhookStatus === "pending"
           ? "Produção bloqueada até a primeira confirmação automática de retorno."
-          : "Produção bloqueada. Conclua a preparação automática antes de emitir.";
+          : "Produção bloqueada. Tente reprocessar a configuração fiscal.";
+        nextActionKind = "retry";
+        canRetryActivation = webhookStatus !== "pending";
+        topReason = "production_blocked";
       }
     } else {
       if (webhookValidatedOrPending) {
         overall = "ready_for_test";
+        topReason = "ready_for_test";
       } else {
         overall = "config_pending";
-        nextAction = "Preparando emissão automática.";
+        nextAction = "Preparando emissão automática. Se persistir, tente reprocessar a configuração fiscal.";
+        nextActionKind = "retry";
         canRetryActivation = true;
+        topReason = "returns_setup_pending";
       }
     }
 
@@ -404,7 +539,9 @@ Deno.serve(async (req) => {
         success: true,
         ambiente,
         overall_status: overall,
+        reason_code: topReason,
         next_action_label: nextAction,
+        next_action_kind: nextActionKind,
         can_retry_activation: canRetryActivation,
         auto_activation_attempted: autoActivationAttempted,
         auto_activation_succeeded: autoActivationSucceeded,
@@ -420,3 +557,4 @@ Deno.serve(async (req) => {
     return errorResponse(e, corsHeaders, { module: "fiscal", action: "integration-validate" });
   }
 });
+

@@ -8,7 +8,7 @@ import { formatDateBR } from '@/lib/date-format';
 import {
   Save, Building2, MapPin, FileText, Loader2, CheckCircle2, AlertCircle,
   Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Trash2, Eye, EyeOff,
-  CircleDashed, ArrowRight, Globe, Wand2,
+  CircleDashed, ArrowRight, Globe, Wand2, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,8 +22,9 @@ import { Badge } from '@/components/ui/badge';
 import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { FiscalValidationCompactCard } from './FiscalValidationCompactCard';
-import { useFiscalReadiness, readinessHeadline } from '@/hooks/useFiscalReadiness';
+import { useFiscalReadiness, readinessHeadline, FISCAL_READINESS_QUERY_KEY } from '@/hooks/useFiscalReadiness';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const CRT_OPTIONS = [
@@ -163,20 +164,40 @@ export function EmitenteSettings() {
   // certificado (banners de divergência, expiração).
 
   // FONTE ÚNICA DE READINESS — vinda do backend (fiscal-integration-validate).
-  // É proibido criar verdict paralelo aqui. O checklist abaixo é apenas
-  // navegação para os campos cadastrais (UX de edição), não decide prontidão.
+  // É proibido criar verdict paralelo aqui. Não pode haver dois cards de
+  // prontidão fiscal na tela.
   const readinessQuery = useFiscalReadiness();
   const readiness = readinessQuery.data;
   const overallStatus = readinessQuery.isLoading ? 'loading' : (readiness?.overall_status || 'config_pending');
   const headline = readinessHeadline(overallStatus as any, readiness?.ambiente);
+  const nextActionKind = readiness?.next_action_kind || null;
+  const showRetryButton = nextActionKind === 'retry' || !!readiness?.can_retry_activation;
 
-  // Mapa de cards do servidor → âncora local (para botão "Ir para")
+  // Reprocessar configuração fiscal (sem emitir NF). Apenas re-executa a
+  // validação que, internamente, dispara a preparação automática quando
+  // necessário (cadastro da empresa, captura de credenciais, ativação de
+  // recebimento de retornos).
+  const qc = useQueryClient();
+  const reprocessMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('fiscal-integration-validate', { body: {} });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Reprocessamento concluído.');
+      qc.invalidateQueries({ queryKey: FISCAL_READINESS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ['fiscal-settings'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'Não foi possível reprocessar agora.'),
+  });
+
+  // Mapa de cards do servidor → âncora local (apenas para itens que possuem
+  // campo cadastral real para o usuário corrigir, indicado por card.goto=true).
   const SERVER_KEY_TO_ANCHOR: Record<string, string> = {
     settings: 'card-identidade',
     focus_company: 'card-identidade',
     certificate: 'card-certificado',
-    credentials: 'card-validacao-fiscal',
-    webhook: 'card-validacao-fiscal',
     environment: 'card-ambiente',
   };
 
@@ -224,14 +245,35 @@ export function EmitenteSettings() {
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {readinessQuery.isLoading && (
             <div className="text-sm text-muted-foreground">Carregando situação fiscal…</div>
           )}
+
+          {/* Mensagem de ação principal — somente em estados não-OK. */}
+          {!readinessQuery.isLoading && readiness?.next_action_label && headline.tone !== 'ready' && (
+            <Alert className={cn(
+              headline.tone === 'pending' && 'border-amber-500/50 bg-amber-500/5',
+              headline.tone === 'blocked' && 'border-destructive/50 bg-destructive/5',
+            )}>
+              <AlertCircle className={cn(
+                'h-4 w-4',
+                headline.tone === 'pending' ? 'text-amber-600' : 'text-destructive',
+              )} />
+              <AlertDescription className="text-sm">{readiness.next_action_label}</AlertDescription>
+            </Alert>
+          )}
+
           {!readinessQuery.isLoading && (readiness?.cards || []).length > 0 && (
             <ul className="space-y-2">
               {(readiness?.cards || []).map(item => {
-                const anchor = SERVER_KEY_TO_ANCHOR[item.key] || 'card-validacao-fiscal';
+                const canGoto = !!item.goto && !!SERVER_KEY_TO_ANCHOR[item.key];
+                const anchor = SERVER_KEY_TO_ANCHOR[item.key];
+                const valueLabel = item.status_label
+                  || (item.level === 'ok' ? 'OK'
+                    : item.level === 'pending' ? 'Preparando'
+                    : item.level === 'warn' ? 'Pendente'
+                    : 'Erro');
                 return (
                   <li key={item.key} className="flex items-start gap-3">
                     <div className="mt-0.5">
@@ -245,14 +287,25 @@ export function EmitenteSettings() {
                         <span className={cn('text-sm font-medium', item.level === 'ok' && 'text-muted-foreground')}>
                           {item.title}
                         </span>
-                        {item.level !== 'ok' && (
-                          <button
-                            type="button" onClick={() => scrollTo(anchor)}
-                            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                          >
-                            Ir para <ArrowRight className="h-3 w-3" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            'text-xs whitespace-nowrap',
+                            item.level === 'ok' && 'text-green-700 dark:text-green-400',
+                            item.level === 'pending' && 'text-amber-700 dark:text-amber-400',
+                            item.level === 'warn' && 'text-amber-700 dark:text-amber-400',
+                            item.level === 'error' && 'text-destructive',
+                          )}>
+                            {valueLabel}
+                          </span>
+                          {canGoto && (
+                            <button
+                              type="button" onClick={() => scrollTo(anchor)}
+                              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                            >
+                              Ir para <ArrowRight className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {item.message && <p className="text-xs text-muted-foreground mt-0.5">{item.message}</p>}
                     </div>
@@ -263,6 +316,23 @@ export function EmitenteSettings() {
           )}
           {!readinessQuery.isLoading && (readiness?.cards || []).length === 0 && (
             <div className="text-sm text-muted-foreground">Sem itens para exibir.</div>
+          )}
+
+          {/* Botão de ação principal — só aparece quando há erro/pendência operacional
+              que o sistema pode reprocessar (não pede para o usuário "validar"). */}
+          {!readinessQuery.isLoading && showRetryButton && (
+            <div className="pt-2">
+              <Button
+                onClick={() => reprocessMutation.mutate()}
+                disabled={reprocessMutation.isPending || readinessQuery.isFetching}
+                className="gap-2"
+              >
+                {reprocessMutation.isPending || readinessQuery.isFetching
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <RefreshCw className="h-4 w-4" />}
+                Reprocessar configuração fiscal
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -605,31 +675,28 @@ export function EmitenteSettings() {
         </CardContent>
       </Card>
 
-      {/* ============ AMBIENTE + VALIDAÇÃO FISCAL ============ */}
-      <div className="grid gap-6 md:grid-cols-2 items-start">
-        <Card id="card-ambiente">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />Ambiente de Emissão</CardTitle>
-            <CardDescription>Defina onde as notas serão transmitidas.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Select value={formData.ambiente || 'homologacao'} onValueChange={(v) => handleChange('ambiente', v)}>
-              <SelectTrigger className="max-w-md"><SelectValue /></SelectTrigger>
-              <SelectContent>{AMBIENTE_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
-            </Select>
-            {formData.ambiente === 'homologacao' && (
-              <Alert className="border-amber-500 bg-amber-500/10">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-700 dark:text-amber-400">
-                  Você está em <strong>Homologação</strong> — notas emitidas aqui não têm valor fiscal. Mude para Produção quando estiver pronto.
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
-
-        <FiscalValidationCompactCard />
-      </div>
+      {/* ============ AMBIENTE DE EMISSÃO (sem card duplicado de validação) ============ */}
+      {/* Único bloco de prontidão fiscal está no topo da página. */}
+      <Card id="card-ambiente">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />Ambiente de Emissão</CardTitle>
+          <CardDescription>Defina onde as notas serão transmitidas.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Select value={formData.ambiente || 'homologacao'} onValueChange={(v) => handleChange('ambiente', v)}>
+            <SelectTrigger className="max-w-md"><SelectValue /></SelectTrigger>
+            <SelectContent>{AMBIENTE_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
+          </Select>
+          {formData.ambiente === 'homologacao' && (
+            <Alert className="border-amber-500 bg-amber-500/10">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-700 dark:text-amber-400">
+                Você está em <strong>Homologação</strong> — notas emitidas aqui não têm valor fiscal. Mude para Produção quando estiver pronto.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ============ BARRA FIXA DE SALVAR ============ */}
       {isDirty && (
