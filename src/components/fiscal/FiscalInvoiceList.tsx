@@ -36,21 +36,38 @@ import { showErrorToast } from '@/lib/error-toast';
 
 import { formatDateTimeBR } from "@/lib/date-format";
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
-  draft: { label: 'Rascunho', variant: 'secondary', icon: FileText },
-  pending: { label: 'Processando', variant: 'outline', icon: Clock },
-  processing: { label: 'Processando SEFAZ', variant: 'outline', icon: Clock },
-  authorized: { label: 'Autorizada', variant: 'default', icon: CheckCircle },
-  rejected: { label: 'Rejeitada', variant: 'destructive', icon: XCircle },
-  cancelled: { label: 'Cancelada', variant: 'destructive', icon: XCircle },
+// Cores explícitas por status fiscal/etapa operacional, conforme regra de negócio aprovada:
+// - Pronta para Emitir: laranja
+// - Pendência Identificada: amarelo
+// - Processando SEFAZ / Aguardando protocolo: amarelo
+// - Autorizada: azul
+// - Cancelada / Rejeitada / Erro: vermelho
+// - Badge auxiliar "Impressa" (verde) é renderizado SEPARADAMENTE quando a DANFE foi impressa.
+const COLOR = {
+  orange: 'bg-orange-500/15 text-orange-700 border border-orange-500/30 dark:text-orange-300',
+  yellow: 'bg-yellow-500/15 text-yellow-800 border border-yellow-500/30 dark:text-yellow-300',
+  blue: 'bg-blue-500/15 text-blue-700 border border-blue-500/30 dark:text-blue-300',
+  green: 'bg-green-500/15 text-green-700 border border-green-500/30 dark:text-green-300',
+  red: 'bg-red-500/15 text-red-700 border border-red-500/30 dark:text-red-300',
+  gray: 'bg-muted text-muted-foreground border border-border',
+} as const;
+
+const statusConfig: Record<string, { label: string; className: string; icon: React.ElementType }> = {
+  draft: { label: 'Rascunho', className: COLOR.gray, icon: FileText },
+  pending: { label: 'Aguardando protocolo', className: COLOR.yellow, icon: Clock },
+  processing: { label: 'Processando SEFAZ', className: COLOR.yellow, icon: Clock },
+  authorized: { label: 'Autorizada', className: COLOR.blue, icon: CheckCircle },
+  rejected: { label: 'Rejeitada', className: COLOR.red, icon: XCircle },
+  cancelled: { label: 'Cancelada', className: COLOR.red, icon: XCircle },
+  error: { label: 'Erro', className: COLOR.red, icon: XCircle },
 };
 
 // Badge da etapa operacional (fiscal_stage). Independente do status fiscal oficial.
-const stageConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
-  pedido_venda: { label: 'Pedido de Venda', variant: 'secondary', icon: FileText },
-  pronta_emitir: { label: 'Pronta para Emitir', variant: 'default', icon: CheckCircle },
-  pendencia: { label: 'Pendência Identificada', variant: 'destructive', icon: AlertTriangle },
-  emitida: { label: 'Emitida', variant: 'outline', icon: Send },
+const stageConfig: Record<string, { label: string; className: string; icon: React.ElementType }> = {
+  pedido_venda: { label: 'Pedido de Venda', className: COLOR.gray, icon: FileText },
+  pronta_emitir: { label: 'Pronta para Emitir', className: COLOR.orange, icon: CheckCircle },
+  pendencia: { label: 'Pendência Identificada', className: COLOR.yellow, icon: AlertTriangle },
+  emitida: { label: 'Emitida', className: COLOR.blue, icon: Send },
 };
 
 function formatCurrency(value: number) {
