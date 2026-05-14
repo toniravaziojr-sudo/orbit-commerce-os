@@ -296,8 +296,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     };
 
     setEditingInvoice(invoiceData);
-    setEditingInvoiceError(data.status_motivo || null);
+    setEditingInvoiceError(data.status_motivo || (Array.isArray((data as any).pendencia_motivos) ? (data as any).pendencia_motivos.join(' • ') : null));
     setEditingInvoiceStatus(data.status || null);
+    setEditingInvoiceStage((data as any).fiscal_stage || null);
   };
 
   const handleSaveInvoice = async (data: InvoiceData) => {
