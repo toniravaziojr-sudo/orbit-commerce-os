@@ -341,10 +341,7 @@ export function FocusIntegrationSettings() {
 // =============================================
 function TenantFiscalCredentialsSection() {
   const { currentTenant } = useAuth();
-  const { role } = useTenantAccess() as any;
   const tenantId = currentTenant?.id as string | undefined;
-
-  const isOwnerAdmin = role === 'owner' || role === 'admin';
 
   const statusQuery = useQuery({
     queryKey: ['fiscal-tenant-token-status', tenantId],
