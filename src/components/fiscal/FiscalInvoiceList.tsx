@@ -506,10 +506,27 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return errors;
   };
 
-  // Abre o modal de confirmação. NÃO transmite — só abre a confirmação.
+  // Roteia a ação principal do dropdown conforme aba/etapa:
+  // - Pedidos de Venda → Criar Nota Fiscal (valida, não transmite)
+  // - Notas Fiscais (pronta_emitir) → confirmar e enviar à Receita
+  // - Notas Fiscais (pendencia) → orientar a editar
   const requestEmitInvoice = (invoice: FiscalInvoice) => {
+    const stage = (invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida');
+    if (mode === 'orders' || stage === 'pedido_venda') {
+      handlePrepareInvoice(invoice);
+      return;
+    }
+    if (stage === 'pendencia') {
+      toast.warning('Esta NF tem pendências. Edite os dados para revalidar antes de enviar à Receita.');
+      handleEditInvoice(invoice);
+      return;
+    }
+    if (stage !== 'pronta_emitir') {
+      toast.error('Esta NF não está pronta para envio à Receita.');
+      return;
+    }
     if (invoice.status !== 'draft') {
-      toast.error('Apenas rascunhos prontos podem ser emitidos.');
+      toast.error('Apenas rascunhos prontos podem ser enviados.');
       return;
     }
     const errors = runEmitPrecheck(invoice);
