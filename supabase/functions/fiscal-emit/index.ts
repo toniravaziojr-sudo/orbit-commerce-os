@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
 
     console.log(`[fiscal-emit] Ambiente Focus NFe: ${ambiente}`);
 
-    const tenantTok = await loadFocusTenantToken(supabaseClient, tenant_id, ambiente);
+    const tenantTok = await loadFocusTenantToken(supabaseClient, tenantId, ambiente);
     const creds = resolveFocusCredentials({
       ambiente,
       operationKind: 'nfe_op',
