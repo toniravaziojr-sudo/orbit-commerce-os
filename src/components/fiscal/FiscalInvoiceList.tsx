@@ -68,6 +68,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; data: ManualInvoiceInitialData | null; kind: 'pedido' | 'nf' }>({ open: false, data: null, kind: 'pedido' });
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
   const [editingInvoiceError, setEditingInvoiceError] = useState<string | null>(null);
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
