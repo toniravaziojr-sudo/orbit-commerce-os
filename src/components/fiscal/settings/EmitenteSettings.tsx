@@ -649,27 +649,31 @@ export function EmitenteSettings() {
         </CardContent>
       </Card>
 
-      {/* ============ AMBIENTE ============ */}
-      <Card id="card-ambiente">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />Ambiente de Emissão</CardTitle>
-          <CardDescription>Defina onde as notas serão transmitidas.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Select value={formData.ambiente || 'homologacao'} onValueChange={(v) => handleChange('ambiente', v)}>
-            <SelectTrigger className="max-w-md"><SelectValue /></SelectTrigger>
-            <SelectContent>{AMBIENTE_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
-          </Select>
-          {formData.ambiente === 'homologacao' && (
-            <Alert className="border-amber-500 bg-amber-500/10">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-700 dark:text-amber-400">
-                Você está em <strong>Homologação</strong> — notas emitidas aqui não têm valor fiscal. Mude para Produção quando estiver pronto.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+      {/* ============ AMBIENTE + VALIDAÇÃO FISCAL ============ */}
+      <div className="grid gap-6 md:grid-cols-2 items-start">
+        <Card id="card-ambiente">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />Ambiente de Emissão</CardTitle>
+            <CardDescription>Defina onde as notas serão transmitidas.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Select value={formData.ambiente || 'homologacao'} onValueChange={(v) => handleChange('ambiente', v)}>
+              <SelectTrigger className="max-w-md"><SelectValue /></SelectTrigger>
+              <SelectContent>{AMBIENTE_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
+            </Select>
+            {formData.ambiente === 'homologacao' && (
+              <Alert className="border-amber-500 bg-amber-500/10">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-700 dark:text-amber-400">
+                  Você está em <strong>Homologação</strong> — notas emitidas aqui não têm valor fiscal. Mude para Produção quando estiver pronto.
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        <FiscalValidationCompactCard />
+      </div>
 
       {/* ============ BARRA FIXA DE SALVAR ============ */}
       {isDirty && (
