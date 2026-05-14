@@ -408,6 +408,8 @@ Deno.serve(async (req) => {
         can_retry_activation: canRetryActivation,
         auto_activation_attempted: autoActivationAttempted,
         auto_activation_succeeded: autoActivationSucceeded,
+        auto_sync_attempted: autoSyncAttempted,
+        auto_sync_succeeded: autoSyncSucceeded,
         ready_for_production: readyForProduction,
         ready_for_homologation_smoke: readyForHomologationSmoke,
         cards,
