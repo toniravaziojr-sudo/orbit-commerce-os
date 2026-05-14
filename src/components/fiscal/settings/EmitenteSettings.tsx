@@ -164,20 +164,40 @@ export function EmitenteSettings() {
   // certificado (banners de divergência, expiração).
 
   // FONTE ÚNICA DE READINESS — vinda do backend (fiscal-integration-validate).
-  // É proibido criar verdict paralelo aqui. O checklist abaixo é apenas
-  // navegação para os campos cadastrais (UX de edição), não decide prontidão.
+  // É proibido criar verdict paralelo aqui. Não pode haver dois cards de
+  // prontidão fiscal na tela.
   const readinessQuery = useFiscalReadiness();
   const readiness = readinessQuery.data;
   const overallStatus = readinessQuery.isLoading ? 'loading' : (readiness?.overall_status || 'config_pending');
   const headline = readinessHeadline(overallStatus as any, readiness?.ambiente);
+  const nextActionKind = readiness?.next_action_kind || null;
+  const showRetryButton = nextActionKind === 'retry' || !!readiness?.can_retry_activation;
 
-  // Mapa de cards do servidor → âncora local (para botão "Ir para")
+  // Reprocessar configuração fiscal (sem emitir NF). Apenas re-executa a
+  // validação que, internamente, dispara a preparação automática quando
+  // necessário (cadastro da empresa, captura de credenciais, ativação de
+  // recebimento de retornos).
+  const qc = useQueryClient();
+  const reprocessMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('fiscal-integration-validate', { body: {} });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Reprocessamento concluído.');
+      qc.invalidateQueries({ queryKey: FISCAL_READINESS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ['fiscal-settings'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'Não foi possível reprocessar agora.'),
+  });
+
+  // Mapa de cards do servidor → âncora local (apenas para itens que possuem
+  // campo cadastral real para o usuário corrigir, indicado por card.goto=true).
   const SERVER_KEY_TO_ANCHOR: Record<string, string> = {
     settings: 'card-identidade',
     focus_company: 'card-identidade',
     certificate: 'card-certificado',
-    credentials: 'card-validacao-fiscal',
-    webhook: 'card-validacao-fiscal',
     environment: 'card-ambiente',
   };
 
