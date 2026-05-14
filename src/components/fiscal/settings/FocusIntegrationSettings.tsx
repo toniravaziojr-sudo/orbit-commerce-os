@@ -380,7 +380,7 @@ function TenantFiscalCredentialsSection() {
     onError: (e: any) => toast.error(e?.message || 'Falha ao salvar token'),
   });
 
-  if (!isOwnerAdmin) return null;
+  if (!tenantId) return null;
 
   const status = statusQuery.data;
 
