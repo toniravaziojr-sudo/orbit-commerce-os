@@ -307,6 +307,25 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     });
 
     if (error) throw error;
+
+    // Se o registro está em pendência ou pronta_emitir (aba Notas Fiscais),
+    // revalidar automaticamente após salvar para atualizar o stage.
+    if (editingInvoiceStage === 'pendencia' || editingInvoiceStage === 'pronta_emitir') {
+      try {
+        const { data: prep } = await supabase.functions.invoke('fiscal-prepare-invoice', {
+          body: { invoice_id: data.id },
+        });
+        if (prep?.success) {
+          if (prep.fiscal_stage === 'pronta_emitir') {
+            toast.success('Pendências resolvidas. NF está Pronta para Emitir.');
+          } else if (prep.fiscal_stage === 'pendencia') {
+            toast.warning(`Ainda há ${prep.errors?.length || 0} pendência(s).`);
+          }
+        }
+      } catch (e) {
+        console.warn('[handleSaveInvoice] re-prepare falhou', e);
+      }
+    }
     refetch();
   };
 
@@ -320,6 +339,33 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     if (error) throw error;
     toast.success('NF-e enviada para autorização');
     refetch();
+  };
+
+  // Cria a Nota Fiscal a partir de um Pedido de Venda: valida localmente e move
+  // o registro para a aba Notas Fiscais (Pronta para Emitir ou Pendência).
+  // NÃO transmite à SEFAZ. NÃO chama Focus.
+  const handlePrepareInvoice = async (invoice: FiscalInvoice) => {
+    setPreparingInvoiceId(invoice.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('fiscal-prepare-invoice', {
+        body: { invoice_id: invoice.id },
+      });
+      if (error) throw error;
+      if (!data?.success) {
+        toast.error(data?.error || 'Não foi possível criar a Nota Fiscal');
+        return;
+      }
+      if (data.fiscal_stage === 'pronta_emitir') {
+        toast.success('Nota Fiscal criada. Disponível em Notas Fiscais como Pronta para Emitir.');
+      } else {
+        toast.warning(`Nota Fiscal criada com ${data.errors?.length || 0} pendência(s). Verifique em Notas Fiscais.`);
+      }
+      refetch();
+    } catch (e: any) {
+      showErrorToast(e, { module: 'fiscal', action: 'criar nota fiscal' });
+    } finally {
+      setPreparingInvoiceId(null);
+    }
   };
 
   const handleDeleteInvoice = async () => {
