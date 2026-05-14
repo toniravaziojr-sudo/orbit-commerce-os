@@ -1395,7 +1395,7 @@ A partir desta revisão, a Validação Fiscal **não vive mais em sub-aba própr
 
 1. ☐ Trocar `fiscal_settings.ambiente` (e `focus_ambiente`) do tenant Respeite o Homem para `homologacao`.
 2. ☐ Confirmar empresa Focus em homologação para o CNPJ piloto (`63.269.917/0001-06`).
-3. ☐ Acessar `/fiscal/configuracoes?aba=integracao` como owner/admin → clicar **Cadastrar webhook automaticamente**.
+3. ☐ Acessar **Sistema → Configurações → aba Fiscal → Configurações Fiscais** como owner/admin → no card **Validação Fiscal** (ao lado do Ambiente de Emissão), clicar **Ativar recebimento automático de retornos**.
 4. ☐ Confirmar `webhook_status=pending` e `webhook_url_sanitized` salvos.
 5. ☐ Aguardar primeiro evento da Focus → `webhook_status` deve transicionar para `validated`.
 6. ☐ Conferir `ready_for_homologation_smoke = true` em **Validar integração fiscal**.
