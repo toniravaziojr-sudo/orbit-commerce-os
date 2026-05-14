@@ -496,6 +496,14 @@ Deno.serve(async (req) => {
       nextActionKind = "retry";
       canRetryActivation = true;
       topReason = autoSyncAttempted && !autoSyncSucceeded ? "provider_setup_error" : "provider_setup_pending";
+    } else if (!focusCompanyOk) {
+      // Empresa fiscal cadastrada localmente, mas a confirmação remota falhou
+      // (não localizada no provedor). Bloqueia readiness mesmo com tokens salvos.
+      overall = "error";
+      nextAction = "Não foi possível confirmar a empresa fiscal. Reprocesse a configuração fiscal.";
+      nextActionKind = "retry";
+      canRetryActivation = true;
+      topReason = "provider_setup_error";
     } else if (!tenantTokenOk) {
       overall = autoSyncAttempted && !autoSyncSucceeded ? "error" : "config_pending";
       nextAction = "Não foi possível capturar as credenciais fiscais. Tente reprocessar a configuração fiscal.";
