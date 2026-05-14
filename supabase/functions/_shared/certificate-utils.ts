@@ -26,10 +26,10 @@ function safeBase64Decode(base64: string): Uint8Array {
     try {
       return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
     } catch (e) {
-      console.error('[certificate-utils] Base64 decode failed:', { 
-        originalLength: base64.length, 
+      // SECURITY: não logar amostra do dado — pode conter PFX bruto.
+      console.error('[certificate-utils] Base64 decode failed', {
+        originalLength: base64.length,
         cleanedLength: cleaned.length,
-        sample: cleaned.substring(0, 50) 
       });
       throw new Error(`Falha ao decodificar base64: ${e instanceof Error ? e.message : 'formato inválido'}`);
     }
@@ -161,10 +161,10 @@ export async function loadTenantCertificate(
   // Converter certificado_pfx de Buffer para string se necessário
   const pfxData = bufferToString(settings.certificado_pfx);
   
-  console.log('[certificate-utils] Decrypting certificate...', {
+  // SECURITY: não logar conteúdo nem amostra do PFX (mesmo cifrado).
+  console.log('[certificate-utils] Decrypting certificate', {
     pfxLength: pfxData.length,
     senhaLength: settings.certificado_senha.length,
-    pfxSample: pfxData.substring(0, 30)
   });
 
   // Descriptografar PFX (que é o PFX em base64 criptografado)
