@@ -299,40 +299,37 @@ Deno.serve(async (req) => {
     let canRetryActivation = false;
 
     if (!certOk || !settings.focus_empresa_id) {
-      overall = "error";
+      overall = !settings.focus_empresa_id ? "config_pending" : "error";
       nextAction = !settings.focus_empresa_id
-        ? "Sincronize a empresa fiscal."
+        ? "Conclua os dados fiscais e envie o certificado A1 para preparar a emissão automática."
         : "Resolva o problema do certificado A1.";
     } else if (!tenantTokenOk) {
       overall = "config_pending";
-      nextAction = ambiente === "homologacao"
-        ? "Cadastre o token de homologação da empresa em 'Credenciais do provedor fiscal'."
-        : "Cadastre o token de produção da empresa em 'Credenciais do provedor fiscal'.";
+      nextAction = "Preparando emissão automática. Se persistir, clique em 'Reprocessar configuração fiscal'.";
+      canRetryActivation = true;
     } else if (autoActivationAttempted && !autoActivationSucceeded) {
       overall = "error";
-      nextAction = "Tentar novamente a ativação do recebimento automático.";
+      nextAction = "Não foi possível preparar a emissão automática. Tente novamente.";
       canRetryActivation = true;
     } else if (webhookStatus === "error") {
       overall = "error";
-      nextAction = "Tentar novamente a ativação do recebimento automático.";
+      nextAction = "Não foi possível preparar a emissão automática. Tente novamente.";
       canRetryActivation = true;
     } else if (ambiente === "producao") {
-      // Produção: precisa webhook validated.
       if (webhookStatus === "validated" && webhookEnvMatchesAmbiente) {
         overall = "ready";
       } else {
         overall = "blocked";
         nextAction = webhookStatus === "pending"
-          ? "Aguardando primeiro retorno para validar o recebimento automático."
-          : "Ative e valide o recebimento automático antes de emitir em produção.";
+          ? "Produção bloqueada até a primeira confirmação automática de retorno."
+          : "Produção bloqueada. Conclua a preparação automática antes de emitir.";
       }
     } else {
-      // Homologação: pending OU validated => pronto para teste
       if (webhookValidatedOrPending) {
         overall = "ready_for_test";
       } else {
         overall = "config_pending";
-        nextAction = "Recebimento automático ainda não está ativo.";
+        nextAction = "Preparando emissão automática.";
         canRetryActivation = true;
       }
     }
