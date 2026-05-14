@@ -14,15 +14,16 @@
 //   - sem param       -> default = /system/settings?tab=fiscal (casa oficial)
 // =============================================
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Building2, Scale, Settings2 } from 'lucide-react';
+import { ArrowLeft, Building2, Scale, Settings2, PlugZap } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmitenteSettings } from '@/components/fiscal/settings/EmitenteSettings';
 import { OperationNaturesContent } from '@/components/fiscal/settings/OperationNaturesContent';
 import { OutrosSettings } from '@/components/fiscal/settings/OutrosSettings';
+import { FocusIntegrationSettings } from '@/components/fiscal/settings/FocusIntegrationSettings';
 
-type SettingsTab = 'emitente' | 'natureza' | 'outros';
+type SettingsTab = 'emitente' | 'natureza' | 'integracao' | 'outros';
 type Origin = 'fiscal' | 'settings';
 
 export default function FiscalSettings() {
@@ -33,7 +34,9 @@ export default function FiscalSettings() {
   const origin: Origin = fromParam === 'fiscal' ? 'fiscal' : 'settings';
 
   const activeTab: SettingsTab =
-    tabFromUrl === 'natureza' || tabFromUrl === 'outros' ? tabFromUrl : 'emitente';
+    tabFromUrl === 'natureza' || tabFromUrl === 'integracao' || tabFromUrl === 'outros'
+      ? tabFromUrl
+      : 'emitente';
 
   const handleTabChange = (tab: string) => {
     // Preservar o ?from= ao trocar de aba
@@ -66,7 +69,7 @@ export default function FiscalSettings() {
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+        <TabsList className="grid w-full max-w-3xl grid-cols-4">
           <TabsTrigger value="emitente" className="gap-2">
             <Building2 className="h-4 w-4" />
             Configurações Fiscais
@@ -74,6 +77,10 @@ export default function FiscalSettings() {
           <TabsTrigger value="natureza" className="gap-2">
             <Scale className="h-4 w-4" />
             Natureza Jurídica
+          </TabsTrigger>
+          <TabsTrigger value="integracao" className="gap-2">
+            <PlugZap className="h-4 w-4" />
+            Integração Focus NFe
           </TabsTrigger>
           <TabsTrigger value="outros" className="gap-2">
             <Settings2 className="h-4 w-4" />
@@ -87,6 +94,10 @@ export default function FiscalSettings() {
 
         <TabsContent value="natureza" className="space-y-6">
           <OperationNaturesContent />
+        </TabsContent>
+
+        <TabsContent value="integracao" className="space-y-6">
+          <FocusIntegrationSettings />
         </TabsContent>
 
         <TabsContent value="outros" className="space-y-6">

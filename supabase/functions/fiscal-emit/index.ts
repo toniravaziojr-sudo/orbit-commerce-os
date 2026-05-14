@@ -4,6 +4,7 @@ import { sendNFe, getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe
 import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
+import { evaluateEmissionGate } from "../_shared/fiscal-emission-gate.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -168,6 +169,27 @@ Deno.serve(async (req) => {
     }
 
     const ambiente = (settings.focus_ambiente || settings.ambiente || 'producao') as 'homologacao' | 'producao';
+
+    // Lote 1.E — Gate de produção / alerta de homologação
+    const gate = evaluateEmissionGate({
+      ambiente,
+      webhook_status: settings.webhook_status,
+      webhook_environment: settings.webhook_environment,
+      webhook_tenant_token: settings.webhook_tenant_token,
+      focus_empresa_id: settings.focus_empresa_id,
+      certificado_valido_ate: settings.certificado_valido_ate,
+      certificado_cnpj: settings.certificado_cnpj,
+      cnpj: settings.cnpj,
+    });
+    if (gate.blocked) {
+      console.warn(`[fiscal-emit] Bloqueado pelo gate ${ambiente}: ${gate.code} — ${gate.error}`);
+      return new Response(
+        JSON.stringify({ success: false, error: gate.error, code: gate.code }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const gateWarnings = gate.warnings;
+
     console.log(`[fiscal-emit] Ambiente Focus NFe: ${ambiente}`);
 
     const focusConfig: FocusNFeConfig = {
@@ -418,6 +440,7 @@ Deno.serve(async (req) => {
         serie: statusData?.serie,
         mensagem: statusData?.mensagem_sefaz,
         erros: statusData?.erros,
+        warnings: gateWarnings.length ? gateWarnings : undefined,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

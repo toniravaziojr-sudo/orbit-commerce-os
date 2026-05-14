@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendNFe, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
+import { evaluateEmissionGate } from "../_shared/fiscal-emission-gate.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -173,10 +174,32 @@ Deno.serve(async (req) => {
       );
     }
 
+    const ambiente = (settings.focus_ambiente || settings.ambiente || 'homologacao') as 'homologacao' | 'producao';
+
+    // Lote 1.E — Gate de produção / alerta de homologação
+    const gate = evaluateEmissionGate({
+      ambiente,
+      webhook_status: settings.webhook_status,
+      webhook_environment: settings.webhook_environment,
+      webhook_tenant_token: settings.webhook_tenant_token,
+      focus_empresa_id: settings.focus_empresa_id,
+      certificado_valido_ate: settings.certificado_valido_ate,
+      certificado_cnpj: settings.certificado_cnpj,
+      cnpj: settings.cnpj,
+    });
+    if (gate.blocked) {
+      console.warn(`[fiscal-submit] Bloqueado pelo gate ${ambiente}: ${gate.code} — ${gate.error}`);
+      return new Response(
+        JSON.stringify({ success: false, error: gate.error, code: gate.code }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const gateWarnings = gate.warnings;
+
     // Configuração Focus NFe
     const focusConfig: FocusNFeConfig = {
       token: focusToken,
-      ambiente: (settings.focus_ambiente || settings.ambiente || 'homologacao') as 'homologacao' | 'producao',
+      ambiente,
     };
 
     console.log(`[fiscal-submit] Ambiente: ${focusConfig.ambiente}`);
@@ -425,6 +448,7 @@ Deno.serve(async (req) => {
         numero: result.data?.numero,
         serie: result.data?.serie,
         mensagem_sefaz: result.data?.mensagem_sefaz,
+        warnings: gateWarnings.length ? gateWarnings : undefined,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
