@@ -416,15 +416,16 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 
    **Status canônico (v2026-05-13 — Onda 1.A)**: Os valores hoje permitidos em `fiscal_invoices.status` pela CHECK constraint são `draft`, `pending`, `authorized`, `rejected`, `cancelled` (com 2 L's). A grafia `canceled` (1 L) está **bloqueada por CHECK constraint no banco** e foi migrada retroativamente para `cancelled`. Observação: o código fiscal também usa `processing` e `error` em fluxos auxiliares/legados, então a constraint ainda precisa ser saneada no próximo lote para alinhar banco e backend sem risco.
 
-   **Clonar Pedido / Clonar NF (v2026-05-14 — Onda 1.A rev2)**: Reativadas e funcionais.
-   - **Aba Pedidos** (rascunhos): item **"Clonar Pedido"** no menu de ações de cada rascunho.
-   - **Aba Notas Fiscais** (autorizadas/canceladas/rejeitadas): item **"Clonar NF"** no menu de ações.
-   - Ambas chamam `fiscal-create-manual` com payload normalizado (formato `{ destinatario: { ..., endereco: {...} }, itens: [...] }`) — o bug anterior (campos planos + chave `items` em vez de `itens`) foi corrigido.
-   - **O clone sempre gera um RASCUNHO novo e independente**: número fiscal novo via `getNextFiscalNumber` (nunca reaproveita número já autorizado), sem `chave_acesso`, sem XML, sem DANFE, sem protocolo, sem `focus_ref`, sem status terminal, sem `order_id` (não dispara trigger fiscal nem efeitos colaterais em estoque/financeiro/remessa/e-mail/automação/marketplace).
-   - Campos copiados: natureza da operação, destinatário (nome, CPF/CNPJ, e-mail, telefone, endereço completo + IBGE), itens (código, descrição, NCM, CFOP, unidade, quantidade, valor unitário, origem, CSOSN), indicadores SEFAZ (presença, IE destinatário, pagamento). Campos fiscais terminais **nunca** são copiados.
-   - Auditoria: `observacoes` do clone recebe sufixo `Clonado de pedido|NF SERIE-NUMERO (manual/teste).` e o evento `created` é registrado em `fiscal_invoice_events`.
-   - Nenhuma chamada à Focus/Sefaz é feita na clonagem — não emite, não transmite, não cancela, não inutiliza, não envia CC-e, não envia e-mail.
-   - RBAC/multi-tenant: tenant é resolvido server-side via `current_tenant_id` do JWT do usuário logado; isolamento entre tenants garantido (não há parâmetro de tenant_id vindo do cliente).
+   **Duplicar Pedido de Venda / Duplicar NF (v2026-05-14 — Onda 1.A rev3)**: A duplicação agora abre um diálogo pré-preenchido (`ManualInvoiceDialog` em `mode="duplicate"`) para o usuário revisar/editar antes de salvar; só ao clicar em **"Salvar duplicação"** o novo registro é criado.
+   - **Aba Pedidos de Venda** (rascunhos): item **"Duplicar Pedido de Venda"** no menu de ações.
+   - **Aba Notas Fiscais** (autorizadas/canceladas/rejeitadas): item **"Duplicar NF"** no menu de ações.
+   - Ao salvar, o backend chama `fiscal-create-manual` (mesmo endpoint de criação manual) — **nunca** `fiscal-submit`, `fiscal-emit`, `fiscal-cancel`, CC-e, inutilização ou qualquer rota Focus/Sefaz.
+   - **A duplicação sempre gera um RASCUNHO novo e independente**: número fiscal novo via `getNextFiscalNumber` (nunca reaproveita número já autorizado), sem `chave_acesso`, sem XML, sem DANFE, sem protocolo, sem `focus_ref`, sem status terminal, sem `order_id` (não dispara trigger fiscal nem efeitos colaterais em estoque/financeiro/remessa/e-mail/automação/marketplace).
+   - Campos pré-preenchidos no diálogo: natureza da operação, destinatário (nome, CPF/CNPJ, e-mail, telefone, endereço completo), itens (código, descrição, NCM, CFOP, unidade, quantidade, valor unitário, origem, CSOSN), observações com sufixo de auditoria. Campos fiscais terminais (chave, XML, DANFE, protocolo, focus_ref, eventos, recibos, cancelamentos, CC-e, inutilização, autorização) **nunca** são copiados.
+   - Auditoria: `observacoes` recebe sufixo `Duplicado de pedido de venda|NF SERIE-NUMERO.` e o evento `created` é registrado em `fiscal_invoice_events`.
+   - Toast de sucesso: "Pedido de venda duplicado com sucesso." ou "NF duplicada como rascunho.", com ação "Abrir registro duplicado" que abre o novo rascunho no editor completo.
+   - **Não impacta o módulo normal de Pedidos da loja** (`/orders`): a duplicação é exclusivamente fiscal e não cria/altera registros em `orders` nem `order_items`.
+   - RBAC/multi-tenant: tenant resolvido server-side via `current_tenant_id` do JWT; isolamento entre tenants garantido.
 5. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
 6. **Terminal**: `completed` é o estado final após confirmação de entrega.
 7. **Fallback de CPF/CNPJ no rascunho fiscal (v2026-04-05)**: Na criação do rascunho, o sistema busca o CPF/CNPJ do cliente na seguinte ordem de prioridade: 1) `customers.cpf`; 2) `orders.customer_cpf`; 3) `orders.customer_cnpj`. Se nenhum estiver disponível, o campo é enviado vazio. Esse fallback garante que pedidos cujos clientes foram importados sem documento fiscal ainda tenham o dado preenchido quando informado diretamente no checkout.
