@@ -1245,7 +1245,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onViewOrder={() => navigate(`/orders/${invoice.order_id}`)}
                               onCancel={() => setCancelingInvoice(invoice)}
                               onPrint={() => handlePrintDanfe(invoice)}
-                              onDuplicate={() => handleDuplicateInvoice(invoice)}
+                              onDuplicate={() => handleCloneInvoice(invoice, mode === 'orders' ? 'pedido' : 'nf')}
                               onCorrect={() => setCorrectingInvoice(invoice)}
                               onViewTimeline={() => setTimelineInvoice(invoice)}
                               onDelete={() => handleDeleteDraft(invoice)}
@@ -1253,6 +1253,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onResendEmail={() => handleResendEmail(invoice)}
                               isSubmitting={submittingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
+                              cloneLabel={mode === 'orders' ? 'Clonar Pedido' : 'Clonar NF'}
                             />
                           </TableCell>
                         </TableRow>
