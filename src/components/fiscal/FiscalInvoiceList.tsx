@@ -943,7 +943,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           {mode === 'orders' ? (
             <Button onClick={() => setManualDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Novo Pedido
+              Novo Pedido de Venda
             </Button>
           ) : (
             <Button onClick={handleCreateNewInvoice} disabled={isCreatingInvoice}>
