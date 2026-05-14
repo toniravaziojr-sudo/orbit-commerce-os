@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
       webhookMsg = "Webhook validado e recebendo eventos.";
     } else if (webhookStatus === "pending") {
       webhookCardLevel = "pending";
-      webhookMsg = "Webhook cadastrado, aguardando primeira chamada da Focus.";
+      webhookMsg = "Recebimento automático cadastrado, aguardando primeira confirmação.";
     } else if (webhookStatus === "error") {
       webhookCardLevel = "error";
       webhookMsg = "Webhook com erro. Cadastre novamente.";
