@@ -57,13 +57,8 @@ function isValidEmailStr(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || '').trim());
 }
 
-type ChecklistItem = {
-  id: string;
-  label: string;
-  status: 'ok' | 'pending' | 'blocked';
-  hint?: string;
-  anchor: string;
-};
+// (ChecklistItem removido — verdict de prontidão vem do backend)
+
 
 export function EmitenteSettings() {
   const { settings, isLoading, saveSettings, uploadCertificate, removeCertificate } = useFiscalSettings();
