@@ -263,6 +263,8 @@ Regras importantes:
 - Em homologação **não** é mostrado "Bloqueado" se o cenário está pronto para smoke test.
 - "Atenção" genérico não é usado: cada item exibe um rótulo específico (ex: "Configure o token de homologação", "Aguardando primeiro retorno", "Aguardando credencial").
 - O card não fica todo verde se faltar token de homologação ou outro pré-requisito real — o item correspondente fica em `warn`/`pending` com texto explícito.
+- **Anti-regressão (rev 2026-05-14e):** o status geral **nunca** pode ser `ready` ou `ready_for_test` se qualquer item obrigatório (empresa fiscal, certificado, credenciais, recebimento de retornos) estiver em `error`. A presença de tokens salvos **não** substitui a confirmação remota da empresa fiscal: se a empresa estiver "Não localizada" no provedor, o card geral cai em `Configuração fiscal com erro` com botão "Reprocessar configuração fiscal", mesmo com credenciais já capturadas.
+- **Confirmação remota da empresa (rev 2026-05-14e):** a verificação `GET /v2/empresas/{id}` usa o ID interno salvo em `focus_empresa_id` (não o CNPJ formatado). Usar CNPJ no path retornava 404 falso-positivo do provedor e gerava "Não localizada" mesmo para empresas válidas.
 
 **Itens internos:**
 - **Empresa fiscal cadastrada** diferencia cadastro local de validação remota: quando falta credencial para validar remoto, exibe "Cadastrada / Aguardando credencial" em vez de "Atenção" genérico.
