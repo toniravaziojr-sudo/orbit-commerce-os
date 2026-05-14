@@ -1394,6 +1394,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
               setEditingInvoice(null);
               setEditingInvoiceError(null);
               setEditingInvoiceStatus(null);
+              setEditingInvoiceStage(null);
             }
           }}
           invoice={editingInvoice}
