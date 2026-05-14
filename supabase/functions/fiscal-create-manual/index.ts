@@ -146,6 +146,7 @@ Deno.serve(async (req) => {
       order_id: order_id || null,
       serie: serieNfe,
       status: 'draft',
+      fiscal_stage: 'pedido_venda',
       natureza_operacao: natureza_operacao || 'VENDA DE MERCADORIA',
       cfop: itens[0]?.cfop || settings.cfop_intrastadual || '5102',
       valor_total: valorProdutos,
