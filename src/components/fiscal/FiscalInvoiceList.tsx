@@ -1014,10 +1014,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
             ) : !filteredInvoices || filteredInvoices.length === 0 ? (
               <EmptyState
                 icon={FileText}
-                title={mode === 'orders' ? 'Nenhum pedido em aberto' : 'Nenhuma nota fiscal encontrada'}
+                title={mode === 'orders' ? 'Nenhum pedido de venda em aberto' : 'Nenhuma nota fiscal encontrada'}
                 description={isConfigured 
                   ? mode === 'orders'
-                    ? "Quando houver pedidos aprovados, os rascunhos de NF-e aparecerão aqui automaticamente."
+                    ? "Quando houver pedidos aprovados, os rascunhos de pedido de venda aparecerão aqui automaticamente."
                     : "As NF-e aparecerão aqui conforme forem emitidas e processadas."
                   : "Configure sua integração fiscal para emitir NF-e."}
                 action={!isConfigured ? {
