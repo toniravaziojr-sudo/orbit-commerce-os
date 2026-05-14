@@ -166,17 +166,69 @@ Deno.serve(async (req) => {
     }
 
 
+    // Pré-checagem dos dados cadastrais e do certificado para usar nas mensagens.
+    const _certValidUntilEarly = settings.certificado_valido_ate ? new Date(settings.certificado_valido_ate) : null;
+    const _cnpjMatchesEarly = !!(settings.certificado_cnpj && settings.cnpj
+      && settings.certificado_cnpj.replace(/\D/g, "") === settings.cnpj.replace(/\D/g, ""));
+    const _certPresent = !!_certValidUntilEarly;
+    const _certValid = !!(_certValidUntilEarly && _certValidUntilEarly.getTime() > Date.now() && _cnpjMatchesEarly);
+    const _missingCompanyData = !settings.cnpj || (settings.cnpj || "").replace(/\D/g, "").length !== 14;
+
     // -------- 1) Empresa fiscal --------
     let focusCompanyOk = false;
     let focusCompanyVerifiedRemote: boolean | null = null;
     if (!settings.focus_empresa_id) {
-      cards.push({
-        key: "focus_company",
-        level: "warn",
-        title: "Empresa fiscal",
-        message: "Estamos preparando o cadastro da empresa. Conclua os dados fiscais e envie o certificado A1 para liberar.",
-        status_label: "Preparando",
-      });
+      // Distinguir falta de dados/cert (problema do lojista) de falha real de preparação
+      // (problema interno) — antes era SEMPRE "Conclua os dados e envie o certificado A1".
+      if (_missingCompanyData) {
+        cards.push({
+          key: "focus_company",
+          level: "warn",
+          title: "Empresa fiscal",
+          message: "Conclua os dados fiscais para preparar o cadastro da empresa.",
+          status_label: "Aguardando dados",
+          goto: true,
+          reason_code: "missing_company_data",
+        });
+      } else if (!_certPresent) {
+        cards.push({
+          key: "focus_company",
+          level: "warn",
+          title: "Empresa fiscal",
+          message: "Envie o certificado A1 para preparar o cadastro da empresa.",
+          status_label: "Aguardando certificado",
+          goto: true,
+          reason_code: "certificate_missing",
+        });
+      } else if (!_certValid) {
+        cards.push({
+          key: "focus_company",
+          level: "warn",
+          title: "Empresa fiscal",
+          message: "Resolva o problema do certificado A1 para preparar o cadastro da empresa.",
+          status_label: "Aguardando certificado",
+          goto: true,
+          reason_code: "certificate_invalid",
+        });
+      } else if (autoSyncAttempted && !autoSyncSucceeded) {
+        cards.push({
+          key: "focus_company",
+          level: "error",
+          title: "Empresa fiscal",
+          message: "Não foi possível preparar automaticamente. Tente reprocessar a configuração fiscal.",
+          status_label: "Erro na preparação",
+          reason_code: "provider_setup_error",
+        });
+      } else {
+        cards.push({
+          key: "focus_company",
+          level: "pending",
+          title: "Empresa fiscal",
+          message: "Estamos preparando o cadastro da empresa.",
+          status_label: "Preparando",
+          reason_code: "provider_setup_pending",
+        });
+      }
     } else if (!accountTokenOk) {
       // Sem credencial administrativa central — não é problema do lojista.
       focusCompanyOk = true;
@@ -205,9 +257,10 @@ Deno.serve(async (req) => {
         message: focusCompanyVerifiedRemote
           ? "Empresa confirmada para emissão."
           : focusCompanyVerifiedRemote === false
-          ? "Não conseguimos confirmar o cadastro da empresa. Revise os dados fiscais."
+          ? "Não conseguimos confirmar o cadastro da empresa. Tente reprocessar a configuração fiscal."
           : "Aguarde alguns instantes — estamos confirmando o cadastro.",
         status_label: focusCompanyVerifiedRemote ? "Validada" : focusCompanyVerifiedRemote === false ? "Não localizada" : "Aguardando",
+        reason_code: focusCompanyVerifiedRemote === false ? "provider_setup_error" : undefined,
         details: { focus_empresa_id: settings.focus_empresa_id, remote_check: focusCompanyVerifiedRemote },
       });
     }
@@ -226,6 +279,8 @@ Deno.serve(async (req) => {
         title: "Certificado A1",
         message: "Envie o certificado digital A1 da empresa.",
         status_label: "Enviar certificado",
+        goto: true,
+        reason_code: "certificate_missing",
       });
     } else if (certValidUntil.getTime() < Date.now()) {
       cards.push({
@@ -233,6 +288,8 @@ Deno.serve(async (req) => {
         title: "Certificado A1",
         message: "Certificado vencido. Renove para voltar a emitir.",
         status_label: "Vencido",
+        goto: true,
+        reason_code: "certificate_expired",
         details: { valid_until: certValidUntil.toISOString() },
       });
     } else if (!cnpjMatches) {
@@ -241,6 +298,8 @@ Deno.serve(async (req) => {
         title: "Certificado A1",
         message: "O CNPJ do certificado não bate com o da empresa cadastrada.",
         status_label: "CNPJ divergente",
+        goto: true,
+        reason_code: "certificate_cnpj_mismatch",
       });
     } else {
       certOk = true;
