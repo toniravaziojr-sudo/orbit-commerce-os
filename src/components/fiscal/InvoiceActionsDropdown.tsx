@@ -311,7 +311,7 @@ export function InvoiceActionsDropdown({
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onViewOrder}>
               <Eye className="h-4 w-4 mr-2" />
-              Ver Pedido
+              Ver Pedido de Venda
             </DropdownMenuItem>
           </>
         )}
