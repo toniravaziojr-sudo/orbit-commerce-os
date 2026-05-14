@@ -12,14 +12,13 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/ui/page-header';
-import { CreditCard, FileText, Building2, Scale, Settings2, PlugZap } from 'lucide-react';
+import { CreditCard, FileText, Building2, Scale, Settings2 } from 'lucide-react';
 import { PaymentSettingsTab } from '@/components/system-settings/PaymentSettingsTab';
 import { EmitenteSettings } from '@/components/fiscal/settings/EmitenteSettings';
 import { OperationNaturesContent } from '@/components/fiscal/settings/OperationNaturesContent';
 import { OutrosSettings } from '@/components/fiscal/settings/OutrosSettings';
-import { FocusIntegrationSettings } from '@/components/fiscal/settings/FocusIntegrationSettings';
 
-type FiscalSubTab = 'emitente' | 'natureza' | 'integracao' | 'outros';
+type FiscalSubTab = 'emitente' | 'natureza' | 'outros';
 
 export default function SystemSettings() {
   const [searchParams, setSearchParams] = useSearchParams();
