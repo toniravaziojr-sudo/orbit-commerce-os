@@ -38,6 +38,7 @@ import { formatDateTimeBR } from "@/lib/date-format";
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
   draft: { label: 'Pronta para Emitir', variant: 'secondary', icon: FileText },
   pending: { label: 'Processando', variant: 'outline', icon: Clock },
+  processing: { label: 'Processando SEFAZ', variant: 'outline', icon: Clock },
   authorized: { label: 'Autorizada', variant: 'default', icon: CheckCircle },
   rejected: { label: 'Rejeitada', variant: 'destructive', icon: XCircle },
   cancelled: { label: 'Cancelada', variant: 'destructive', icon: XCircle },
