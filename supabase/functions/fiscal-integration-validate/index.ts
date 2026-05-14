@@ -248,9 +248,12 @@ Deno.serve(async (req) => {
       });
     } else {
       // Confirmar remoto com o token administrativo (best-effort).
+      // O endpoint admin /v2/empresas/{cnpj} exige CNPJ apenas com dígitos —
+      // enviar formatado retorna 404 e gera "Não localizada" falso-positivo.
       try {
+        const cnpjDigits = (settings.cnpj || "").replace(/\D/g, "");
         const r = await fetch(
-          `${accountCreds.baseUrl}/v2/empresas/${encodeURIComponent(settings.cnpj || "")}`,
+          `${accountCreds.baseUrl}/v2/empresas/${encodeURIComponent(cnpjDigits)}`,
           { method: "GET", headers: { Authorization: basicAuth(accountCreds.token!) } },
         );
         focusCompanyVerifiedRemote = r.ok;
