@@ -382,6 +382,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         toast.warning(`Nota Fiscal criada com ${data.errors?.length || 0} pendência(s). Verifique em Notas Fiscais.`);
       }
       refetch();
+      // Após criar NF a partir de Pedido de Venda, levar o usuário direto à aba Notas Fiscais.
+      if (mode === 'orders') {
+        setSearchParams({ tab: 'notas' });
+      }
     } catch (e: any) {
       showErrorToast(e, { module: 'fiscal', action: 'criar nota fiscal' });
     } finally {
@@ -510,7 +514,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const runEmitPrecheck = (invoice: FiscalInvoice): string[] => {
     const errors: string[] = [];
     if (!settings?.is_configured) errors.push('Configuração fiscal incompleta. Conclua em Fiscal → Configurações.');
-    if (settings && (settings as any).certificado_cnpj && (settings as any).cnpj && (settings as any).certificado_cnpj !== (settings as any).cnpj) {
+    // Comparar SEMPRE pelos dígitos, pois um lado pode estar formatado e o outro não.
+    // Antes da correção, comparávamos as strings cruas (formatada vs normalizada),
+    // gerando "CNPJ não confere" mesmo quando os documentos eram idênticos.
+    const certCnpjDigits = String((settings as any)?.certificado_cnpj || '').replace(/\D/g, '');
+    const emitCnpjDigits = String((settings as any)?.cnpj || '').replace(/\D/g, '');
+    if (certCnpjDigits && emitCnpjDigits && certCnpjDigits !== emitCnpjDigits) {
       errors.push('CNPJ do certificado não confere com o CNPJ do emitente.');
     }
     const doc = (invoice.dest_cpf_cnpj || '').replace(/\D/g, '');
@@ -668,12 +677,26 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     clearSelection();
     refetch();
 
-    if (successCount > 0) {
+    // Resumo único: evita o "sucesso falso" quando havia falhas no lote.
+    const total = targets.length;
+    if (successCount === total) {
       toast.success(isOrders
-        ? `${successCount} Nota(s) Fiscal(is) criada(s). Verifique em Notas Fiscais.`
-        : `${successCount} NF-e(s) enviada(s) à Receita.`);
+        ? `${successCount} Nota(s) Fiscal(is) criada(s) com sucesso.`
+        : `${successCount} NF-e(s) emitida(s) com sucesso.`);
+    } else if (successCount > 0) {
+      toast.warning(isOrders
+        ? `${successCount} de ${total} criada(s). ${errorCount} com erro — verifique em Notas Fiscais.`
+        : `${successCount} de ${total} emitida(s). ${errorCount} com erro — verifique cada NF.`);
+    } else {
+      toast.error(isOrders
+        ? `Nenhuma Nota Fiscal foi criada. ${errorCount} erro(s).`
+        : `Nenhuma NF-e foi emitida. ${errorCount} erro(s).`);
     }
-    if (errorCount > 0) toast.error(`${errorCount} item(ns) com erro.`);
+
+    // Após criar NFs em lote a partir de Pedidos de Venda, redireciona para Notas Fiscais.
+    if (isOrders && successCount > 0) {
+      setSearchParams({ tab: 'notas' });
+    }
   };
 
   const handleBulkPrint = async () => {
