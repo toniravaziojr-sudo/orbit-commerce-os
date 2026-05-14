@@ -11,7 +11,7 @@
 //   "Pronto" em produção, "Configuração pendente", "Erro" ou "Bloqueado".
 // =============================================
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useFiscalReadiness, FISCAL_READINESS_QUERY_KEY } from '@/hooks/useFiscalReadiness';
 
 type CardLevel = 'ok' | 'warn' | 'error' | 'pending';
 type OverallStatus = 'ready' | 'ready_for_test' | 'config_pending' | 'error' | 'blocked';
