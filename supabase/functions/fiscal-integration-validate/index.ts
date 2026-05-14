@@ -9,6 +9,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
 import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
+import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,6 +62,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // Garante que o token administrativo da Focus venha de
+    // Integrações da Plataforma → Fiscal → Focus (platform_credentials)
+    // antes de qualquer chamada admin.
+    await loadPlatformCredentials();
+
     const auth = await requireFiscalRole(req, ["owner", "admin"]);
     if (!auth.ok) return auth.response;
     const { tenantId, serviceClient } = auth;

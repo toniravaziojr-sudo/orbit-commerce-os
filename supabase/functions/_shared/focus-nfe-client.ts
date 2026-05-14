@@ -7,6 +7,15 @@
 export interface FocusNFeConfig {
   token: string;
   ambiente: 'homologacao' | 'producao';
+  /**
+   * Override opcional do baseUrl. Operações ADMINISTRATIVAS da conta Focus
+   * (POST/PUT/GET /v2/empresas, /v2/hooks) devem rodar contra o domínio de
+   * produção (https://api.focusnfe.com.br) mesmo quando o tenant está em
+   * homologação — o domínio de homolog não expõe os endpoints admin e
+   * retorna "endpoint não encontrado". Quando ausente, cai no domínio
+   * derivado de `ambiente` (compatível com chamadas nfe_op).
+   */
+  baseUrl?: string;
 }
 
 export interface FocusEmpresaPayload {
@@ -166,7 +175,7 @@ export async function syncEmpresa(
   empresa: FocusEmpresaPayload,
   empresaId?: string
 ): Promise<{ success: boolean; data?: FocusEmpresaResponse; error?: string }> {
-  const baseUrl = getBaseUrl(config.ambiente);
+  const baseUrl = config.baseUrl || getBaseUrl(config.ambiente);
   // Focus NFe identifica empresas por CNPJ, NÃO pelo id numérico interno.
   // Doc: PUT /v2/empresas/{cnpj} (update) | POST /v2/empresas (create).
   // empresaId existir só sinaliza "já cadastrada → atualizar".
@@ -216,7 +225,7 @@ export async function getEmpresa(
   config: FocusNFeConfig,
   cnpj: string
 ): Promise<{ success: boolean; data?: FocusEmpresaResponse; error?: string }> {
-  const baseUrl = getBaseUrl(config.ambiente);
+  const baseUrl = config.baseUrl || getBaseUrl(config.ambiente);
   const url = `${baseUrl}/v2/empresas/${cnpj}`;
   
   console.log(`[focus-nfe] GET ${url}`);
