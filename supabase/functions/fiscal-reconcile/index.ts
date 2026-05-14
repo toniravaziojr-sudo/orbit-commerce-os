@@ -18,6 +18,8 @@ import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
 import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
+import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +44,7 @@ Deno.serve(async (req) => {
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const focusToken = Deno.env.get("FOCUS_NFE_TOKEN");
+  // Token resolvido por tenant + ambiente abaixo (operação fiscal de NF).
 
   let body: any = {};
   try {
@@ -154,11 +156,17 @@ Deno.serve(async (req) => {
   }
 
   // ── EXECUÇÃO REAL ────────────────────────────────────────────────────
-  if (!focusToken) {
-    return ok({ success: false, error: "Token Focus NFe não configurado" }, 200);
+  const tenantTok = await loadFocusTenantToken(sb, tenantId, ambiente);
+  const creds = resolveFocusCredentials({
+    ambiente,
+    operationKind: 'nfe_op',
+    tenantTokenForAmbiente: tenantTok.token,
+  });
+  if (!creds.ok || !creds.token) {
+    return ok({ success: false, error: creds.error, code: creds.errorCode }, 200);
   }
 
-  const focusConfig: FocusNFeConfig = { token: focusToken, ambiente };
+  const focusConfig: FocusNFeConfig = { token: creds.token, ambiente };
 
   for (const inv of eligible) {
     const attempt = (inv.reconcile_attempts || 0) + 1;

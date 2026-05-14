@@ -70,7 +70,8 @@ Deno.serve(async (req) => {
       });
     } else {
       // Try a remote get (best-effort, doesn't fail validation if Focus is down)
-      const creds = resolveFocusCredentials({ ambiente });
+      // Validação de cadastro da empresa = operação administrativa da conta.
+      const creds = resolveFocusCredentials({ ambiente, operationKind: 'account_admin' });
       let remoteOk: boolean | null = null;
       if (creds.ok && creds.token && settings.cnpj) {
         try {

@@ -2,6 +2,8 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
+import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,10 +25,7 @@ Deno.serve(async (req) => {
   await loadPlatformCredentials();
 
   try {
-    const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
-    if (!focusToken) {
-      return jsonResponse({ success: false, error: 'Token Focus NFe não configurado', code: 'no_focus_token' });
-    }
+    // Token resolvido por tenant + ambiente abaixo (operação fiscal de NF).
 
     // RBAC: inutilização de numeração exige owner/admin (Lote 1.C.3)
     const auth = await requireFiscalRole(req, ['owner', 'admin']);
@@ -83,9 +82,17 @@ Deno.serve(async (req) => {
 
     const cnpj = settings.cnpj.replace(/\D/g, '');
     const ambiente = (settings.focus_ambiente || settings.ambiente) === 'producao' ? 'producao' : 'homologacao';
-    const focusBaseUrl = ambiente === 'producao'
-      ? 'https://api.focusnfe.com.br'
-      : 'https://homologacao.focusnfe.com.br';
+    const tenantTok = await loadFocusTenantToken(supabaseClient, tenantId, ambiente);
+    const creds = resolveFocusCredentials({
+      ambiente,
+      operationKind: 'nfe_op',
+      tenantTokenForAmbiente: tenantTok.token,
+    });
+    if (!creds.ok || !creds.token) {
+      return jsonResponse({ success: false, error: creds.error, code: creds.errorCode });
+    }
+    const focusToken = creds.token;
+    const focusBaseUrl = creds.baseUrl!;
 
     console.log(`[fiscal-inutilizar] tenant=${tenantId} serie=${serie} ${ni}-${nf}`);
 

@@ -1,6 +1,8 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
+import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
@@ -30,14 +32,7 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
-
-  if (!focusToken) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+  // Token resolvido por tenant + ambiente mais abaixo (operação fiscal de NF).
 
   try {
     // Autenticar usuário
@@ -128,10 +123,24 @@ Deno.serve(async (req) => {
       .eq('tenant_id', tenantId)
       .single();
 
+    const ambiente = (settings?.focus_ambiente || settings?.ambiente || 'homologacao') as 'homologacao' | 'producao';
+    const tenantTok = await loadFocusTenantToken(supabaseClient, tenantId, ambiente);
+    const creds = resolveFocusCredentials({
+      ambiente,
+      operationKind: 'nfe_op',
+      tenantTokenForAmbiente: tenantTok.token,
+    });
+    if (!creds.ok || !creds.token) {
+      return new Response(
+        JSON.stringify({ success: false, error: creds.error, code: creds.errorCode }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Configuração Focus NFe
     const focusConfig: FocusNFeConfig = {
-      token: focusToken,
-      ambiente: (settings?.focus_ambiente || settings?.ambiente || 'homologacao') as 'homologacao' | 'producao',
+      token: creds.token,
+      ambiente,
     };
 
     // Consultar status na Focus NFe
@@ -157,7 +166,7 @@ Deno.serve(async (req) => {
     };
 
     // Se autorizado, salvar dados adicionais
-    const ambiente = focusConfig.ambiente;
+    // ambiente já resolvido acima
     if (focusStatus === 'autorizado' && result.data?.chave_nfe) {
       updateData.chave_acesso = result.data.chave_nfe;
       updateData.numero = result.data.numero;

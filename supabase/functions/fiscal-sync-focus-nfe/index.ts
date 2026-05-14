@@ -1,6 +1,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { syncEmpresa, getEmpresa, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 import { buildEmpresaPayload } from "../_shared/focus-nfe-adapter.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
@@ -20,14 +21,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
-    
-    if (!focusToken) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Operação ADMINISTRATIVA da conta Focus → token resolvido como account_admin abaixo.
 
     // Autenticar usuário
     const authHeader = req.headers.get('Authorization');
@@ -89,11 +83,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Configuração Focus NFe
-    const focusConfig: FocusNFeConfig = {
-      token: focusToken,
-      ambiente: (settings.focus_ambiente || settings.ambiente || 'homologacao') as 'homologacao' | 'producao',
-    };
+    // Configuração Focus NFe — admin da conta usa o token PRINCIPAL DA CONTA.
+    const ambiente = (settings.focus_ambiente || settings.ambiente || 'homologacao') as 'homologacao' | 'producao';
+    const creds = resolveFocusCredentials({ ambiente, operationKind: 'account_admin' });
+    if (!creds.ok || !creds.token) {
+      return new Response(
+        JSON.stringify({ success: false, error: creds.error, code: creds.errorCode }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const focusConfig: FocusNFeConfig = { token: creds.token, ambiente };
 
     console.log(`[fiscal-sync-focus-nfe] Sincronizando empresa ${settings.cnpj} no ambiente ${focusConfig.ambiente}`);
 

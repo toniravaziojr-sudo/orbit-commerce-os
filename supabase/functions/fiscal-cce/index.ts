@@ -3,6 +3,7 @@ import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
 import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
+import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -78,7 +79,12 @@ Deno.serve(async (req) => {
       .single();
 
     const ambiente = (settings?.focus_ambiente || settings?.ambiente) === 'producao' ? 'producao' : 'homologacao';
-    const creds = resolveFocusCredentials({ ambiente });
+    const tenantTok = await loadFocusTenantToken(supabaseClient, tenantId, ambiente);
+    const creds = resolveFocusCredentials({
+      ambiente,
+      operationKind: 'nfe_op',
+      tenantTokenForAmbiente: tenantTok.token,
+    });
     if (!creds.ok || !creds.token) {
       return jsonResponse({ success: false, error: creds.error, code: creds.errorCode });
     }

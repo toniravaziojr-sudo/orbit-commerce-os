@@ -1,6 +1,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { cancelNFe, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
+import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
@@ -86,7 +87,12 @@ Deno.serve(async (req) => {
       .single();
 
     const ambiente = (settings?.focus_ambiente || settings?.ambiente || 'homologacao') as 'homologacao' | 'producao';
-    const creds = resolveFocusCredentials({ ambiente });
+    const tenantTok = await loadFocusTenantToken(supabaseClient, tenantId, ambiente);
+    const creds = resolveFocusCredentials({
+      ambiente,
+      operationKind: 'nfe_op',
+      tenantTokenForAmbiente: tenantTok.token,
+    });
     if (!creds.ok || !creds.token) {
       return jsonResponse({ success: false, error: creds.error, code: creds.errorCode });
     }

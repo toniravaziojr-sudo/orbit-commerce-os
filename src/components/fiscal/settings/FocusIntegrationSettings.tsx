@@ -16,15 +16,19 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Loader2, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, AlertCircle,
   Clock, Webhook, Building2, KeyRound, Globe, RefreshCw, PlugZap,
-  Copy, Eye, EyeOff,
+  Copy, Eye, EyeOff, Lock, Save,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateBR } from '@/lib/date-format';
@@ -326,6 +330,136 @@ export function FocusIntegrationSettings() {
           </CardContent>
         </Card>
       )}
+      <TenantFiscalCredentialsSection />
     </div>
+  );
+}
+
+// =============================================
+// Seção mínima: Credenciais do provedor fiscal por loja
+// Visível apenas para owner/admin. Tokens nunca são renderizados.
+// =============================================
+function TenantFiscalCredentialsSection() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id as string | undefined;
+
+  const statusQuery = useQuery({
+    queryKey: ['fiscal-tenant-token-status', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return { homologacao: false, producao: false };
+      const { data, error } = await supabase.rpc('fiscal_focus_tenant_token_status', { p_tenant_id: tenantId });
+      if (error) throw new Error(error.message);
+      return data as { homologacao: boolean; producao: boolean };
+    },
+    enabled: !!tenantId,
+    staleTime: 30_000,
+  });
+
+  const [homologToken, setHomologToken] = useState('');
+  const [prodToken, setProdToken] = useState('');
+  const qc = useQueryClient();
+
+  const saveMutation = useMutation({
+    mutationFn: async (vars: { ambiente: 'homologacao' | 'producao'; token: string }) => {
+      if (!tenantId) throw new Error('Loja não identificada');
+      const { data, error } = await supabase.rpc('fiscal_set_focus_tenant_token', {
+        p_tenant_id: tenantId,
+        p_ambiente: vars.ambiente,
+        p_token: vars.token,
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (_d, vars) => {
+      toast.success(`Token de ${vars.ambiente === 'producao' ? 'produção' : 'homologação'} salvo com segurança.`);
+      if (vars.ambiente === 'homologacao') setHomologToken('');
+      else setProdToken('');
+      qc.invalidateQueries({ queryKey: ['fiscal-tenant-token-status', tenantId] });
+      qc.invalidateQueries({ queryKey: ['fiscal-integration-validate'] });
+    },
+    onError: (e: any) => toast.error(e?.message || 'Falha ao salvar token'),
+  });
+
+  if (!tenantId) return null;
+
+  const status = statusQuery.data;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Lock className="h-5 w-5" />
+          Credenciais do provedor fiscal
+        </CardTitle>
+        <CardDescription>
+          Cadastre os tokens da empresa nesta loja. Os valores são gravados de forma segura e nunca são exibidos de volta.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Homologação */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <Label htmlFor="focus-token-homolog">Token de Homologação</Label>
+            {status?.homologacao
+              ? <Badge variant="outline" className="border-green-500/50 text-green-600">Configurado</Badge>
+              : <Badge variant="outline" className="border-amber-500/50 text-amber-600">Não configurado</Badge>}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              id="focus-token-homolog"
+              type="password"
+              autoComplete="off"
+              placeholder={status?.homologacao ? '•••••••• (substituir)' : 'Cole o token de homologação'}
+              value={homologToken}
+              onChange={(e) => setHomologToken(e.target.value)}
+            />
+            <Button
+              size="sm"
+              onClick={() => saveMutation.mutate({ ambiente: 'homologacao', token: homologToken })}
+              disabled={saveMutation.isPending || homologToken.trim().length === 0}
+              className="gap-2"
+            >
+              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salvar
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">Necessário para validações em ambiente de homologação.</p>
+        </div>
+
+        <Separator />
+
+        {/* Produção */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <Label htmlFor="focus-token-prod">Token de Produção</Label>
+            {status?.producao
+              ? <Badge variant="outline" className="border-green-500/50 text-green-600">Configurado</Badge>
+              : <Badge variant="outline" className="border-amber-500/50 text-amber-600">Não configurado</Badge>}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              id="focus-token-prod"
+              type="password"
+              autoComplete="off"
+              placeholder={status?.producao ? '•••••••• (substituir)' : 'Cole o token de produção'}
+              value={prodToken}
+              onChange={(e) => setProdToken(e.target.value)}
+            />
+            <Button
+              size="sm"
+              onClick={() => saveMutation.mutate({ ambiente: 'producao', token: prodToken })}
+              disabled={saveMutation.isPending || prodToken.trim().length === 0}
+              className="gap-2"
+            >
+              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salvar
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Sem o token de produção configurado, a emissão em produção permanece bloqueada.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
