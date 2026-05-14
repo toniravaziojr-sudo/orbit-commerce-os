@@ -52,6 +52,8 @@ interface InvoiceActionsDropdownProps {
   isCheckingStatus?: boolean;
   /** Rótulo do item de clonagem ("Clonar Pedido" na aba Pedidos, "Clonar NF" na aba Notas Fiscais). */
   cloneLabel?: string;
+  /** Rótulo do item de emissão (ex.: "Emitir NF-e de teste" em homologação). */
+  emitLabel?: string;
 }
 
 export function InvoiceActionsDropdown({
