@@ -2,6 +2,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendNFe, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
+import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { evaluateEmissionGate } from "../_shared/fiscal-emission-gate.ts";
