@@ -468,35 +468,66 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 | **Objetivo** | Permitir identificação visual de risco operacional antes da emissão da NF-e |
 | **Dados** | `order_status` é obtido via join `orders!fiscal_invoices_order_id_fkey(status)` na query fiscal |
 
-### Interface: Abas e Ações (v2026-04-14 rev2)
+### Interface: Abas e Ações (v2026-05-14 — Onda 2 rev1)
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Estrutura de UI |
 | **Localização** | `src/pages/Fiscal.tsx`, `src/components/fiscal/FiscalInvoiceList.tsx`, `src/components/fiscal/ManualInvoiceDialog.tsx` |
-| **Descrição** | A página Fiscal possui duas abas principais com ações distintas |
+| **Descrição** | A página Fiscal possui duas abas principais separadas por `fiscal_stage`. A coluna `fiscal_stage` é a etapa operacional; a coluna `status` é o status oficial da SEFAZ. |
 
-#### Aba "Pedidos de Venda" (`mode=orders`) — _renomeada de "Pedidos" em 2026-05-14_
-- Lista rascunhos de NF-e gerados automaticamente a partir de pedidos pagos (todas as origens: lojas, marketplaces, etc.) e pedidos de venda criados manualmente para revisão fiscal.
+#### Separação `fiscal_stage` vs `status`
+
+| Conceito | Coluna | O que representa |
+|----------|--------|----------------|
+| Etapa operacional | `fiscal_stage` | Onde o registro está no fluxo interno: `pedido_venda`, `pronta_emitir`, `pendencia`, `emitida` |
+| Status fiscal | `status` | Resposta oficial da SEFAZ: `draft`, `pending`, `processing`, `authorized`, `rejected`, `cancelled` |
+
+- `fiscal_stage` é independente de `status`. Um registro pode estar `fiscal_stage='emitida'` com `status='processing'` (aguardando SEFAZ) ou `status='authorized'` (já aprovada).
+- `fiscal_stage` é imutável para o usuário em `emitida` (só o backend altera via `fiscal-emit`/`fiscal-submit`/`fiscal-webhook`).
+
+#### Valores de `fiscal_stage`
+
+| Valor | Significado | Onde aparece |
+|-------|-------------|--------------|
+| `pedido_venda` | Pedido de venda fiscal — ainda não preparado para emissão | Aba Pedidos de Venda |
+| `pronta_emitir` | Nota fiscal preparada, validada localmente, pronta para transmissão | Aba Notas Fiscais (badge "Pronta para Emitir") |
+| `pendencia` | Nota fiscal com pendências de validação que impedem transmissão | Aba Notas Fiscais (badge "Pendência Identificada") |
+| `emitida` | Nota fiscal já transmitida à SEFAZ (processando, autorizada, rejeitada ou cancelada) | Aba Notas Fiscais |
+
+#### Aba "Pedidos de Venda" (`mode=orders`)
+- Lista registros com `fiscal_stage='pedido_venda'`.
 - **Pedidos de Venda ≠ Pedidos da loja**: este registro é puramente fiscal/rascunho. Não confundir com o módulo `/orders` (vendas reais).
-- Permite criar pedidos de venda manualmente via botão **"Novo Pedido de Venda"** → abre `ManualInvoiceDialog` em `mode="create"`.
-- Permite duplicar um Pedido de Venda existente via ação **"Duplicar Pedido de Venda"** → abre o mesmo diálogo em `mode="duplicate"` com dados pré-preenchidos.
-- O formulário é **simplificado**: Cliente + Produtos (descrição, código, unidade, qtd, valor) + Observações. Campos fiscais (NCM, CFOP, CSOSN, Origem, etc.) são preenchidos automaticamente com defaults no backend ou preservados invisivelmente quando duplicando.
-- Os pedidos de venda em aberto são **NF-e de venda/saída** — ao emitir, transformam-se em NF-e.
+- Botão principal: **"Novo Pedido de Venda"** → abre `ManualInvoiceDialog` em `mode="create"`.
+- Ação por linha: **"Criar Nota Fiscal"** → executa `fiscal-prepare-invoice` e move o registro para a aba Notas Fiscais (`pronta_emitir` ou `pendencia`). **Não transmite para a Receita.**
+- Ação por linha: **"Duplicar Pedido de Venda"** → abre `ManualInvoiceDialog` em `mode="duplicate"`. O novo registro permanece em `pedido_venda`.
+- O formulário é **simplificado**: Cliente + Produtos (descrição, código, unidade, qtd, valor) + Observações. Campos fiscais (NCM, CFOP, CSOSN, Origem, etc.) são preenchidos automaticamente com defaults no backend.
 
 #### Aba "Notas Fiscais" (`mode=invoices`)
-- Lista NF-e emitidas (autorizadas, pendentes, rejeitadas, canceladas, devolvidas)
-- Botão principal **"Nova NF-e"** → cria rascunho vazio e abre o **InvoiceEditor** (editor completo com 6 abas: Geral, Destinatário, Itens, Valores, Transporte, Pagamento)
+- Lista registros com `fiscal_stage IN ('pronta_emitir', 'pendencia', 'emitida')`.
+- Badges por `fiscal_stage`/`status`:
+  - **Pronta para Emitir** (`pronta_emitir`) — verde
+  - **Pendência Identificada** (`pendencia`) — âmbar/vermelho
+  - **Processando** (`emitida` + `status='processing'`) — azul
+  - **Autorizada** (`emitida` + `status='authorized'`) — verde
+  - **Rejeitada** (`emitida` + `status='rejected'`) — vermelho
+  - **Cancelada** (`emitida` + `status='cancelled'`) — cinza
+- Botão principal: **"Nova NF-e"** → cria rascunho vazio com `fiscal_stage='pedido_venda'` e abre o **InvoiceEditor** (editor completo com 6 abas: Geral, Destinatário, Itens, Valores, Transporte, Pagamento).
+- Ação por linha (`pronta_emitir`): **"Enviar à Receita"** (homologação: **"Emitir NF-e de teste"**) → modal de confirmação obrigatória → `fiscal-submit`/`fiscal-emit`. **Esta é a única ação que transmite.**
+- Ação por linha (`pendencia`): **"Editar e revalidar"** → abre editor. Ao salvar, `fiscal-prepare-invoice` revalida automaticamente.
+- Ação por linha (`emitida` autorizada/cancelada/rejeitada): **"Duplicar NF"** → abre diálogo pré-preenchido. Ao salvar, `fiscal-prepare-invoice` valida e coloca em `pronta_emitir` ou `pendencia` na aba Notas Fiscais. **Nunca volta para Pedidos de Venda.**
 - ~~Botão "NF-e de Entrada"~~ removido (rev3) — o tipo de NF é selecionado dentro do InvoiceEditor na aba Geral
 - ~~Dropdown "Ações"~~ removido (rev2) — era desnecessário
 - ~~"Consultar por Chave"~~ removido como ação separada — o campo de busca da lista já pesquisa por `chave_acesso`
 
-##### Ações em massa (rev 2026-04-29 — Roteamento Gateway)
+##### Ações em massa
 
 Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em massa exibe:
 
-- **"Emitir DC-e"** — visível quando os itens selecionados são **rascunhos** cujo pedido tem `resolved_shipping_provider_kind = 'gateway'`. Dispara a Edge Function `dce-emit` que emite o documento de conhecimento de transporte eletrônico (DC-e) para os pedidos selecionados.
-- **"Enviar à transportadora"** — visível quando os itens selecionados são NF-e **autorizadas** com transportadora `kind = 'gateway'` (ex.: Frenet). Dispara `gateway-attach-fiscal-doc`, que anexa o XML/chave da NF ao pedido já sincronizado no gateway, liberando a coleta/despacho pela própria transportadora.
+- **"Criar Notas Fiscais (N)"** — para itens selecionados em `pedido_venda` (na aba Pedidos de Venda). Executa `fiscal-prepare-invoice` em lote.
+- **"Enviar à Receita (N)"** — para itens selecionados em `pronta_emitir` (na aba Notas Fiscais). Só disponível quando todos os itens selecionados estão em `pronta_emitir`.
+- ~~"Emitir DC-e"~~ removido do fluxo operacional comum (rev 2026-05-14 rev2). A função `dce-emit` continua no backend mas não é acionável pela UI operacional comum até especificação completa de Fiscal/Logística.
+- **"Enviar à transportadora"** — visível quando os itens selecionados são NF-e **autorizadas** com transportadora `kind = 'gateway'` (ex.: Frenet). Dispara `gateway-attach-fiscal-doc`.
 
 > Para pedidos com transportadora `kind = 'local'` (Correios), o despacho continua sendo feito pela tela de **Remessas** (`/shipping/shipments`), com emissão de etiqueta interna. Não há ação de "Enviar à transportadora" no Fiscal nesse cenário.
 
@@ -517,7 +548,7 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 
 #### ManualInvoiceDialog (simplificado para pedidos)
 - **Título**: "Novo Pedido"
-- **Campos do formulário**: Cliente (busca ou manual) + Produtos (código, descrição, unidade, quantidade, valor unitário) + Observações
+- **Campos do formulário**: Cliente (busca ou manual) + Produtos (código, descrição, unidade, qtd, valor unitário) + Observações
 - **Sem campos fiscais** — NCM, CFOP, CSOSN, Origem, Natureza da Operação, Indicadores SEFAZ e Pagamento são gerenciados apenas no InvoiceEditor
 
 #### Busca de Cliente no ManualInvoiceDialog
@@ -540,8 +571,13 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 | — | `state` | UF |
 | — | `postal_code` | CEP |
 
----
-
+#### Regras Anti-Regressão do Fluxo Fiscal (v2026-05-14 — Onda 2 rev1)
+1. **Nunca juntar "criar nota" com "transmitir"**: a ação "Criar Nota Fiscal" em Pedidos de Venda prepara e valida localmente; a transmissão só acontece via "Enviar à Receita" em Notas Fiscais.
+2. **Não renomear botão se o comportamento não corresponder**: um botão chamado "Emitir" ou "Criar Nota Fiscal" deve ter o comportamento documentado nesta seção.
+3. **Pedido de Venda nunca transmite direto para Receita**: um registro em `fiscal_stage='pedido_venda'` só pode sair dessa etapa via `fiscal-prepare-invoice`.
+4. **NF duplicada nunca volta para Pedidos de Venda**: ao duplicar uma NF autorizada/cancelada/rejeitada, o novo registro entra em `pronta_emitir` ou `pendencia` na aba Notas Fiscais.
+5. **Não permitir envio de nota com Pendência Identificada**: o botão "Enviar à Receita" fica desabilitado para `fiscal_stage='pendencia'`; o usuário deve editar, salvar e aguardar revalidação automática.
+6. **DC-e permanece fora do fluxo operacional até especificação completa**: não exibir botões de DC-e como funcional enquanto não houver doc de Fiscal/Logística aprovado.
 
 ## 2. Financeiro
 
