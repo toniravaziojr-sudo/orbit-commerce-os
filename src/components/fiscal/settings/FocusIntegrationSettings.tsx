@@ -371,8 +371,11 @@ export function FocusIntegrationSettings() {
 }
 
 // =============================================
-// Seção mínima: Credenciais do provedor fiscal por loja
-// Visível apenas para owner/admin. Tokens nunca são renderizados.
+// Seção: Credenciais fiscais por loja
+// Bloco SOMENTE-LEITURA. As credenciais são geradas e configuradas
+// automaticamente pelo sistema quando o lojista salva os dados fiscais e
+// envia o certificado A1. O lojista NÃO cola token nem precisa entrar no
+// painel do provedor fiscal. Tokens NUNCA são exibidos (nem mascarados).
 // =============================================
 function TenantFiscalCredentialsSection() {
   const { currentTenant } = useAuth();
@@ -390,110 +393,38 @@ function TenantFiscalCredentialsSection() {
     staleTime: 30_000,
   });
 
-  const [homologToken, setHomologToken] = useState('');
-  const [prodToken, setProdToken] = useState('');
-  const qc = useQueryClient();
-
-  const saveMutation = useMutation({
-    mutationFn: async (vars: { ambiente: 'homologacao' | 'producao'; token: string }) => {
-      if (!tenantId) throw new Error('Loja não identificada');
-      const { data, error } = await supabase.rpc('fiscal_set_focus_tenant_token', {
-        p_tenant_id: tenantId,
-        p_ambiente: vars.ambiente,
-        p_token: vars.token,
-      });
-      if (error) throw new Error(error.message);
-      return data;
-    },
-    onSuccess: (_d, vars) => {
-      toast.success(`Token de ${vars.ambiente === 'producao' ? 'produção' : 'homologação'} salvo com segurança.`);
-      if (vars.ambiente === 'homologacao') setHomologToken('');
-      else setProdToken('');
-      qc.invalidateQueries({ queryKey: ['fiscal-tenant-token-status', tenantId] });
-      qc.invalidateQueries({ queryKey: ['fiscal-integration-validate'] });
-    },
-    onError: (e: any) => toast.error(e?.message || 'Falha ao salvar token'),
-  });
-
   if (!tenantId) return null;
-
   const status = statusQuery.data;
+  const anyConfigured = !!(status?.homologacao || status?.producao);
+
+  let summary: { label: string; tone: 'ok' | 'warn' };
+  if (status?.producao) summary = { label: 'Configuradas para emissão', tone: 'ok' };
+  else if (status?.homologacao) summary = { label: 'Configuradas para teste', tone: 'ok' };
+  else summary = { label: 'Pendentes — salve as configurações fiscais e envie o certificado', tone: 'warn' };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Lock className="h-5 w-5" />
-          Credenciais do provedor fiscal
+          Credenciais fiscais
         </CardTitle>
         <CardDescription>
-          Cadastre os tokens da empresa nesta loja. Os valores são gravados de forma segura e nunca são exibidos de volta.
+          As credenciais fiscais desta loja são preparadas automaticamente pelo sistema. Você não precisa colar nenhum dado técnico.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Homologação */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <Label htmlFor="focus-token-homolog">Token de Homologação</Label>
-            {status?.homologacao
-              ? <Badge variant="outline" className="border-green-500/50 text-green-600">Configurado</Badge>
-              : <Badge variant="outline" className="border-amber-500/50 text-amber-600">Não configurado</Badge>}
-          </div>
-          <div className="flex gap-2">
-            <Input
-              id="focus-token-homolog"
-              type="password"
-              autoComplete="off"
-              placeholder={status?.homologacao ? '•••••••• (substituir)' : 'Cole o token de homologação'}
-              value={homologToken}
-              onChange={(e) => setHomologToken(e.target.value)}
-            />
-            <Button
-              size="sm"
-              onClick={() => saveMutation.mutate({ ambiente: 'homologacao', token: homologToken })}
-              disabled={saveMutation.isPending || homologToken.trim().length === 0}
-              className="gap-2"
-            >
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Salvar
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">Necessário para validações em ambiente de homologação.</p>
+      <CardContent className="space-y-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <span className="text-sm font-medium">Status atual</span>
+          {summary.tone === 'ok'
+            ? <Badge variant="outline" className="border-green-500/50 text-green-600">{summary.label}</Badge>
+            : <Badge variant="outline" className="border-amber-500/50 text-amber-600">{summary.label}</Badge>}
         </div>
-
-        <Separator />
-
-        {/* Produção */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <Label htmlFor="focus-token-prod">Token de Produção</Label>
-            {status?.producao
-              ? <Badge variant="outline" className="border-green-500/50 text-green-600">Configurado</Badge>
-              : <Badge variant="outline" className="border-amber-500/50 text-amber-600">Não configurado</Badge>}
-          </div>
-          <div className="flex gap-2">
-            <Input
-              id="focus-token-prod"
-              type="password"
-              autoComplete="off"
-              placeholder={status?.producao ? '•••••••• (substituir)' : 'Cole o token de produção'}
-              value={prodToken}
-              onChange={(e) => setProdToken(e.target.value)}
-            />
-            <Button
-              size="sm"
-              onClick={() => saveMutation.mutate({ ambiente: 'producao', token: prodToken })}
-              disabled={saveMutation.isPending || prodToken.trim().length === 0}
-              className="gap-2"
-            >
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Salvar
-            </Button>
-          </div>
+        {!anyConfigured && (
           <p className="text-xs text-muted-foreground">
-            Sem o token de produção configurado, a emissão em produção permanece bloqueada.
+            Após você preencher os dados fiscais e enviar o certificado A1, o sistema prepara tudo sozinho. Se algo der errado, você verá uma mensagem orientativa em "Validação Fiscal".
           </p>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
