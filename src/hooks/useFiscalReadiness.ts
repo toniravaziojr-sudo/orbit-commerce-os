@@ -20,12 +20,30 @@ export type FiscalOverallStatus =
   | 'error'
   | 'blocked';
 
+export type FiscalReasonCode =
+  | 'missing_company_data'
+  | 'certificate_missing'
+  | 'certificate_invalid'
+  | 'certificate_expired'
+  | 'certificate_cnpj_mismatch'
+  | 'provider_setup_pending'
+  | 'provider_setup_error'
+  | 'credentials_capture_error'
+  | 'returns_setup_pending'
+  | 'returns_setup_error'
+  | 'ready_for_test'
+  | 'ready_for_production'
+  | 'production_blocked';
+
 export interface FiscalReadinessCard {
   key: string;
   level: FiscalReadinessLevel;
   title: string;
   message: string;
   status_label?: string;
+  /** true → existe campo cadastral real para o usuário corrigir (mostrar "Ir para"). */
+  goto?: boolean;
+  reason_code?: FiscalReasonCode;
   details?: Record<string, any>;
 }
 
@@ -33,7 +51,10 @@ export interface FiscalReadinessResult {
   success: boolean;
   ambiente?: 'homologacao' | 'producao';
   overall_status?: FiscalOverallStatus;
+  reason_code?: FiscalReasonCode;
   next_action_label?: string | null;
+  /** 'goto' = botão "Ir para" (campo cadastral). 'retry' = "Reprocessar configuração fiscal". */
+  next_action_kind?: 'goto' | 'retry' | null;
   can_retry_activation?: boolean;
   auto_activation_attempted?: boolean;
   auto_activation_succeeded?: boolean;
