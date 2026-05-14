@@ -102,7 +102,6 @@ Deno.serve(async (req) => {
         configured: true,
         environment: isProduction ? 'production' : 'homologation',
         message: 'Conexão com Focus NFe estabelecida com sucesso',
-        tokenPreview: `${focusToken.substring(0, 4)}...${focusToken.substring(focusToken.length - 4)}`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
