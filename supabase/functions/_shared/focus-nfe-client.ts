@@ -167,10 +167,14 @@ export async function syncEmpresa(
   empresaId?: string
 ): Promise<{ success: boolean; data?: FocusEmpresaResponse; error?: string }> {
   const baseUrl = getBaseUrl(config.ambiente);
-  const url = empresaId 
-    ? `${baseUrl}/v2/empresas/${empresaId}`
+  // Focus NFe identifica empresas por CNPJ, NÃO pelo id numérico interno.
+  // Doc: PUT /v2/empresas/{cnpj} (update) | POST /v2/empresas (create).
+  // empresaId existir só sinaliza "já cadastrada → atualizar".
+  const cnpjOnly = (empresa.cnpj || '').replace(/\D/g, '');
+  const url = empresaId
+    ? `${baseUrl}/v2/empresas/${cnpjOnly}`
     : `${baseUrl}/v2/empresas`;
-  
+
   const method = empresaId ? 'PUT' : 'POST';
   
   console.log(`[focus-nfe] ${method} ${url}`);

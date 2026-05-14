@@ -148,13 +148,14 @@ Deno.serve(async (req) => {
       email: settings.email,
     }, certificado);
     
-    console.log('[fiscal-sync-focus-nfe] Payload empresa:', JSON.stringify(empresaPayload, null, 2));
+    // SECURITY: nunca logar arquivo_certificado_base64 nem senha_certificado.
+    const _safePayload = { ...empresaPayload, arquivo_certificado_base64: '[REDACTED]', senha_certificado: '[REDACTED]' };
+    console.log('[fiscal-sync-focus-nfe] Payload empresa (sanitizado):', JSON.stringify(_safePayload).substring(0, 500));
 
     // Verificar se empresa já existe na Focus NFe
     let empresaId = settings.focus_empresa_id;
-    
+
     if (!empresaId) {
-      // Tentar buscar pelo CNPJ
       const checkResult = await getEmpresa(focusConfig, empresaPayload.cnpj);
       if (checkResult.success && checkResult.data?.id) {
         empresaId = checkResult.data.id;
@@ -162,8 +163,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Sincronizar (criar ou atualizar)
-    const result = await syncEmpresa(focusConfig, empresaPayload, empresaId || undefined);
+    // Sincronizar (PUT se já existe; se PUT falhar com "não encontrado", cai para POST)
+    let result = await syncEmpresa(focusConfig, empresaPayload, empresaId || undefined);
+    if (!result.success && empresaId && /n[aã]o.{0,15}(encontrad|localizad)/i.test(result.error || '')) {
+      console.warn('[fiscal-sync-focus-nfe] Empresa não encontrada via PUT, recriando via POST...');
+      result = await syncEmpresa(focusConfig, empresaPayload, undefined);
+    }
 
     if (!result.success) {
       console.error(`[fiscal-sync-focus-nfe] Erro ao sincronizar:`, result.error);
