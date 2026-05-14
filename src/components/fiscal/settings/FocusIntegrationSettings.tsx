@@ -42,9 +42,14 @@ interface ValidationCard {
   details?: Record<string, any>;
 }
 
+type OverallStatus = 'ready' | 'ready_for_test' | 'config_pending' | 'error' | 'blocked';
+
 interface ValidateResponse {
   success: boolean;
   ambiente?: 'homologacao' | 'producao';
+  overall_status?: OverallStatus;
+  next_action_label?: string | null;
+  can_retry_activation?: boolean;
   ready_for_production?: boolean;
   ready_for_homologation_smoke?: boolean;
   cards?: ValidationCard[];
