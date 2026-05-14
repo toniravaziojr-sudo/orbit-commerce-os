@@ -156,11 +156,17 @@ Deno.serve(async (req) => {
   }
 
   // ── EXECUÇÃO REAL ────────────────────────────────────────────────────
-  if (!focusToken) {
-    return ok({ success: false, error: "Token Focus NFe não configurado" }, 200);
+  const tenantTok = await loadFocusTenantToken(sb, tenantId, ambiente);
+  const creds = resolveFocusCredentials({
+    ambiente,
+    operationKind: 'nfe_op',
+    tenantTokenForAmbiente: tenantTok.token,
+  });
+  if (!creds.ok || !creds.token) {
+    return ok({ success: false, error: creds.error, code: creds.errorCode }, 200);
   }
 
-  const focusConfig: FocusNFeConfig = { token: focusToken, ambiente };
+  const focusConfig: FocusNFeConfig = { token: creds.token, ambiente };
 
   for (const inv of eligible) {
     const attempt = (inv.reconcile_attempts || 0) + 1;
