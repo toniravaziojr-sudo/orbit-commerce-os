@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { useFiscalReadiness } from '@/hooks/useFiscalReadiness';
 import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
