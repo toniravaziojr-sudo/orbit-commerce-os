@@ -238,55 +238,45 @@ Deno.serve(async (req) => {
       settings.webhook_environment === ambiente;
 
     let webhookCardLevel: CardLevel = "warn";
-    let webhookMsg = "Não configurado.";
-    let webhookStatusLabel = "Não configurado";
+    let webhookMsg = "Aguardando preparação automática.";
+    let webhookStatusLabel = "Preparando";
 
     if (!tenantTokenOk) {
       webhookCardLevel = "warn";
-      webhookMsg = ambiente === "homologacao"
-        ? "Configure o token de homologação para ativar."
-        : "Configure o token de produção para ativar.";
-      webhookStatusLabel = "Aguardando token";
+      webhookMsg = "Será ativado automaticamente após a preparação fiscal.";
+      webhookStatusLabel = "Preparando";
     } else if (autoActivationAttempted && !autoActivationSucceeded) {
       webhookCardLevel = "error";
-      webhookMsg = `Erro na ativação automática: ${autoActivationError ?? "tente novamente."}`;
-      webhookStatusLabel = "Erro na ativação";
+      webhookMsg = "Não foi possível preparar o recebimento automático. Tente novamente.";
+      webhookStatusLabel = "Erro na preparação";
     } else if (webhookStatus === "validated" && webhookEnvMatchesAmbiente) {
       webhookCardLevel = "ok";
-      webhookMsg = "Recebimento automático ativo.";
-      webhookStatusLabel = "Validado";
+      webhookMsg = "Ativo.";
+      webhookStatusLabel = "Ativo";
     } else if (webhookStatus === "pending" && webhookEnvMatchesAmbiente) {
       webhookCardLevel = "pending";
-      webhookMsg = "Cadastrado. Será confirmado no primeiro retorno da NF de teste.";
+      webhookMsg = "Será confirmado no primeiro retorno da NF de teste.";
       webhookStatusLabel = "Aguardando primeiro retorno";
     } else if (webhookStatus === "error") {
       webhookCardLevel = "error";
-      webhookMsg = "Erro na ativação. Use 'Tentar novamente'.";
+      webhookMsg = "Não foi possível preparar o recebimento automático. Use 'Reprocessar'.";
       webhookStatusLabel = "Erro";
     } else if (!webhookEnvMatchesAmbiente && webhookStatus) {
       webhookCardLevel = "warn";
-      webhookMsg = `Cadastrado em ${settings.webhook_environment} mas o ambiente atual é ${ambiente}.`;
-      webhookStatusLabel = "Ambiente divergente";
+      webhookMsg = "Ambiente atual diferente do configurado anteriormente — reprocessando.";
+      webhookStatusLabel = "Reprocessando";
     }
 
     cards.push({
       key: "webhook",
       level: webhookCardLevel,
-      title: "Recebimento automático de retornos",
+      title: "Recebimento de retornos",
       message: webhookMsg,
       status_label: webhookStatusLabel,
       details: {
-        status: webhookStatus,
-        environment: settings.webhook_environment,
-        url: settings.webhook_url_sanitized,
-        focus_hook_id: settings.webhook_focus_hook_id,
         registered_at: settings.webhook_registered_at,
         validated_at: settings.webhook_validated_at,
         last_received_at: settings.webhook_last_received_at,
-        last_error: settings.webhook_last_error,
-        last_error_at: settings.webhook_last_error_at,
-        auto_activation_attempted: autoActivationAttempted,
-        auto_activation_succeeded: autoActivationSucceeded,
       },
     });
 
