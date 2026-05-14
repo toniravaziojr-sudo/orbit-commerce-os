@@ -52,6 +52,8 @@ interface InvoiceActionsDropdownProps {
   isCheckingStatus?: boolean;
   /** Rótulo do item de clonagem ("Clonar Pedido" na aba Pedidos, "Clonar NF" na aba Notas Fiscais). */
   cloneLabel?: string;
+  /** Rótulo do item de emissão (ex.: "Emitir NF-e de teste" em homologação). */
+  emitLabel?: string;
 }
 
 export function InvoiceActionsDropdown({
@@ -71,13 +73,14 @@ export function InvoiceActionsDropdown({
   isSubmitting,
   isCheckingStatus,
   cloneLabel = 'Duplicar NF',
+  emitLabel = 'Emitir NF-e',
 }: InvoiceActionsDropdownProps) {
   const [isDownloadingXml, setIsDownloadingXml] = useState(false);
 
   const isPrinted = !!invoice.danfe_printed_at;
   const isAuthorized = invoice.status === 'authorized';
   const isDraft = invoice.status === 'draft';
-  const isPending = invoice.status === 'pending';
+  const isPending = invoice.status === 'pending' || (invoice.status as string) === 'processing';
   const isRejected = invoice.status === 'rejected';
   const isCanceled = invoice.status === 'cancelled';
 
@@ -182,7 +185,7 @@ export function InvoiceActionsDropdown({
               ) : (
                 <Send className="h-4 w-4 mr-2" />
               )}
-              Emitir NF-e
+              {emitLabel}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onDuplicate}>
               <Copy className="h-4 w-4 mr-2" />

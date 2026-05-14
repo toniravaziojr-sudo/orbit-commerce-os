@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, useFiscalRealtime, type FiscalInvoice } from '@/hooks/useFiscal';
 import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
 import { ManualInvoiceDialog, type ManualInvoiceInitialData } from '@/components/fiscal/ManualInvoiceDialog';
@@ -38,6 +39,7 @@ import { formatDateTimeBR } from "@/lib/date-format";
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
   draft: { label: 'Pronta para Emitir', variant: 'secondary', icon: FileText },
   pending: { label: 'Processando', variant: 'outline', icon: Clock },
+  processing: { label: 'Processando SEFAZ', variant: 'outline', icon: Clock },
   authorized: { label: 'Autorizada', variant: 'default', icon: CheckCircle },
   rejected: { label: 'Rejeitada', variant: 'destructive', icon: XCircle },
   cancelled: { label: 'Cancelada', variant: 'destructive', icon: XCircle },
@@ -89,6 +91,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [confirmEmitInvoice, setConfirmEmitInvoice] = useState<FiscalInvoice | null>(null);
+  const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -410,6 +414,39 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       console.error('[handleCloneInvoice] error:', error);
       showErrorToast(error, { module: 'fiscal', action: 'duplicar' });
     }
+  };
+
+  // Pré-check fiscal antes de permitir abrir o modal de confirmação de emissão.
+  // Não chama Focus/Sefaz. Apenas valida dados visíveis localmente.
+  const runEmitPrecheck = (invoice: FiscalInvoice): string[] => {
+    const errors: string[] = [];
+    if (!settings?.is_configured) errors.push('Configuração fiscal incompleta. Conclua em Fiscal → Configurações.');
+    if (settings && (settings as any).certificado_cnpj && (settings as any).cnpj && (settings as any).certificado_cnpj !== (settings as any).cnpj) {
+      errors.push('CNPJ do certificado não confere com o CNPJ do emitente.');
+    }
+    const doc = (invoice.dest_cpf_cnpj || '').replace(/\D/g, '');
+    if (doc.length !== 11 && doc.length !== 14) errors.push('CPF/CNPJ do destinatário inválido.');
+    if (!invoice.dest_nome) errors.push('Nome do destinatário ausente.');
+    if (!invoice.dest_endereco_logradouro || !invoice.dest_endereco_municipio || !invoice.dest_endereco_uf) {
+      errors.push('Endereço do destinatário incompleto.');
+    }
+    if (!invoice.dest_endereco_cep || invoice.dest_endereco_cep.replace(/\D/g, '').length !== 8) {
+      errors.push('CEP do destinatário inválido.');
+    }
+    if (!invoice.valor_total || Number(invoice.valor_total) <= 0) errors.push('Valor total inválido.');
+    if (invoice.chave_acesso) errors.push('Esta NF já possui chave de acesso emitida.');
+    return errors;
+  };
+
+  // Abre o modal de confirmação. NÃO transmite — só abre a confirmação.
+  const requestEmitInvoice = (invoice: FiscalInvoice) => {
+    if (invoice.status !== 'draft') {
+      toast.error('Apenas rascunhos prontos podem ser emitidos.');
+      return;
+    }
+    const errors = runEmitPrecheck(invoice);
+    setEmitPrecheckErrors(errors);
+    setConfirmEmitInvoice(invoice);
   };
 
   const handleQuickSubmit = async (invoice: FiscalInvoice) => {
@@ -772,39 +809,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       && inv.resolved_shipping_provider_kind === 'gateway'
   ).length;
 
-  // Bulk: Emitir DC-e para os rascunhos selecionados (via edge dce-emit)
+  // Bulk: Emitir DC-e (Declaração de Conteúdo) — temporariamente indisponível.
+  // A integração com o backend de DC-e ainda não foi finalizada para emissão real.
+  // O botão permanece visível para descoberta, mas exibe mensagem clara em vez de transmitir.
   const handleBulkEmitDce = async () => {
-    const drafts = (filteredInvoices || []).filter(
-      inv => selectedInvoices.has(inv.id) && inv.status === 'draft' && inv.order_id
+    toast.error(
+      'Declaração de Conteúdo ainda não está disponível para emissão automática nesta etapa. Em breve.',
+      { description: 'Use a NF-e tradicional para envios fiscais. A DC-e será habilitada após a finalização da integração com a transportadora.' }
     );
-
-    if (drafts.length === 0) {
-      toast.error('Nenhum rascunho com pedido vinculado selecionado');
-      return;
-    }
-
-    setIsBulkProcessing(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const inv of drafts) {
-      try {
-        const { data, error } = await supabase.functions.invoke('dce-emit', {
-          body: { order_id: inv.order_id, invoice_id: inv.id },
-        });
-        if (error || !data?.success) errorCount++;
-        else successCount++;
-      } catch {
-        errorCount++;
-      }
-    }
-
-    setIsBulkProcessing(false);
-    clearSelection();
-    refetch();
-
-    if (successCount > 0) toast.success(`${successCount} DC-e enfileirada(s) para emissão`);
-    if (errorCount > 0) toast.error(`${errorCount} DC-e com erro`);
   };
 
   // Bulk: Enviar pedidos selecionados ao gateway (Frenet etc.) via gateway_sync_queue
@@ -1212,7 +1224,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             <InvoiceActionsDropdown
                               invoice={invoice as any}
                               onEdit={() => handleEditInvoice(invoice)}
-                              onSubmit={() => handleQuickSubmit(invoice)}
+                              onSubmit={() => requestEmitInvoice(invoice)}
                               onCheckStatus={() => handleCheckStatus(invoice.id)}
                               onViewOrder={() => navigate(`/orders/${invoice.order_id}`)}
                               onCancel={() => setCancelingInvoice(invoice)}
@@ -1226,6 +1238,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               isSubmitting={submittingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
+                              emitLabel={settings?.ambiente === 'homologacao' ? 'Emitir NF-e de teste' : 'Emitir NF-e'}
                             />
                           </TableCell>
                         </TableRow>
@@ -1258,7 +1271,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         successMessage={
           duplicateDialog.kind === 'pedido'
             ? 'Pedido de venda duplicado com sucesso.'
-            : 'NF duplicada como rascunho.'
+            : 'NF duplicada como rascunho em Pedidos de Venda. O editor abriu para revisão.'
         }
         onCreated={(newId) => {
           // Abre o rascunho duplicado direto no editor para revisão fiscal completa.
@@ -1349,6 +1362,60 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           invoiceNumber={`${timelineInvoice.serie}-${timelineInvoice.numero}`}
         />
       )}
+      {/* Confirmar emissão de NF-e (modo teste em homologação) */}
+      <AlertDialog
+        open={!!confirmEmitInvoice}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmEmitInvoice(null);
+            setEmitPrecheckErrors([]);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {settings?.ambiente === 'homologacao' ? 'Emitir NF-e de teste?' : 'Emitir NF-e?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                {settings?.ambiente === 'homologacao' ? (
+                  <p>Esta loja está em modo de teste fiscal. A nota será enviada em homologação e <strong>não terá valor fiscal real</strong>.</p>
+                ) : (
+                  <p>A NF-e será enviada para autorização da SEFAZ. Esta ação não pode ser desfeita.</p>
+                )}
+                {confirmEmitInvoice && (
+                  <p className="text-muted-foreground">
+                    NF {confirmEmitInvoice.serie}-{confirmEmitInvoice.numero} · {confirmEmitInvoice.dest_nome} · {formatCurrency(confirmEmitInvoice.valor_total)}
+                  </p>
+                )}
+                {emitPrecheckErrors.length > 0 && (
+                  <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3">
+                    <p className="font-medium text-destructive mb-1">Pendências antes de emitir:</p>
+                    <ul className="list-disc pl-5 space-y-0.5 text-destructive">
+                      {emitPrecheckErrors.map((e, i) => <li key={i}>{e}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={emitPrecheckErrors.length > 0}
+              onClick={() => {
+                if (!confirmEmitInvoice || emitPrecheckErrors.length > 0) return;
+                const inv = confirmEmitInvoice;
+                setConfirmEmitInvoice(null);
+                handleQuickSubmit(inv);
+              }}
+            >
+              {settings?.ambiente === 'homologacao' ? 'Emitir NF-e de teste' : 'Emitir NF-e'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
