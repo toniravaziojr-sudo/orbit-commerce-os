@@ -1152,7 +1152,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             ) : (
                               <Send className="h-4 w-4 mr-2" />
                             )}
-                            Emitir {selectedDraftsCount}
+                            {mode === 'orders' ? `Criar Notas Fiscais (${selectedDraftsCount})` : `Enviar à Receita (${selectedDraftsCount})`}
                           </Button>
                           {/* DC-e (Declaração de Conteúdo) — fora do fluxo operacional comum até especificação completa
                               do backend (depende de integração com transportadora). Mantido apenas no roadmap. */}
