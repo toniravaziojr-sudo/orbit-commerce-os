@@ -2,7 +2,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
-import { validateWebhookSecret } from "../_shared/fiscal-role-check.ts";
+import { validateFiscalWebhookAuth } from "../_shared/fiscal-role-check.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,11 +42,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Validate Focus NFe webhook secret (fail-closed when configured)
-  const secretFailure = validateWebhookSecret(req);
-  if (secretFailure) {
-    return secretFailure;
+  // Validate Focus NFe webhook auth (per-tenant token preferred; global secret fallback)
+  const authResult = await validateFiscalWebhookAuth(req);
+  if (!authResult.ok) {
+    return authResult.response;
   }
+  const tenantFromToken = authResult.tenantId; // null if matched by global secret
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
