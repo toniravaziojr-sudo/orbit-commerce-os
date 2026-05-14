@@ -69,8 +69,8 @@ Deno.serve(async (req) => {
       cards.push({
         key: "focus_company",
         level: "error",
-        title: "Empresa Focus",
-        message: "Empresa ainda não foi sincronizada com a Focus NFe.",
+        title: "Cadastro da empresa no provedor fiscal",
+        message: "Empresa ainda não foi sincronizada com o provedor fiscal.",
       });
     } else {
       // Try a remote get (best-effort, doesn't fail validation if Focus is down)
@@ -89,10 +89,10 @@ Deno.serve(async (req) => {
       cards.push({
         key: "focus_company",
         level: focusCompanyOk ? "ok" : "warn",
-        title: "Empresa Focus",
+        title: "Cadastro da empresa no provedor fiscal",
         message: focusCompanyOk
-          ? "Empresa cadastrada na Focus NFe."
-          : "Não foi possível confirmar a empresa na Focus.",
+          ? "Empresa cadastrada no provedor fiscal."
+          : "Não foi possível confirmar a empresa no provedor fiscal.",
         details: { focus_empresa_id: settings.focus_empresa_id },
       });
     }
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
       webhookMsg = "Webhook validado e recebendo eventos.";
     } else if (webhookStatus === "pending") {
       webhookCardLevel = "pending";
-      webhookMsg = "Webhook cadastrado, aguardando primeira chamada da Focus.";
+      webhookMsg = "Recebimento automático cadastrado, aguardando primeira confirmação.";
     } else if (webhookStatus === "error") {
       webhookCardLevel = "error";
       webhookMsg = "Webhook com erro. Cadastre novamente.";
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
     cards.push({
       key: "webhook",
       level: webhookCardLevel,
-      title: "Webhook Focus NFe",
+      title: "Recebimento automático de retornos",
       message: webhookMsg,
       details: {
         status: webhookStatus,
