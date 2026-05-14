@@ -845,7 +845,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     if (errorCount > 0) toast.error(`${errorCount} envio(s) com erro`);
   };
 
-  const cardTitle = mode === 'orders' ? 'Pedidos' : 'Notas Fiscais';
+  const cardTitle = mode === 'orders' ? 'Pedidos de Venda' : 'Notas Fiscais';
 
   return (
     <div className="space-y-6">
