@@ -384,7 +384,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       refetch();
       // Após criar NF a partir de Pedido de Venda, levar o usuário direto à aba Notas Fiscais.
       if (mode === 'orders') {
-        setSearchParams({ tab: 'notas' });
+        navigate('/fiscal?tab=notas');
       }
     } catch (e: any) {
       showErrorToast(e, { module: 'fiscal', action: 'criar nota fiscal' });
@@ -695,7 +695,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
     // Após criar NFs em lote a partir de Pedidos de Venda, redireciona para Notas Fiscais.
     if (isOrders && successCount > 0) {
-      setSearchParams({ tab: 'notas' });
+      navigate('/fiscal?tab=notas');
     }
   };
 
