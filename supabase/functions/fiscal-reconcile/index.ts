@@ -18,6 +18,8 @@ import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
 import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
+import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
