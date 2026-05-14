@@ -12,14 +12,13 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/ui/page-header';
-import { CreditCard, FileText, Building2, Scale, Settings2, PlugZap } from 'lucide-react';
+import { CreditCard, FileText, Building2, Scale, Settings2 } from 'lucide-react';
 import { PaymentSettingsTab } from '@/components/system-settings/PaymentSettingsTab';
 import { EmitenteSettings } from '@/components/fiscal/settings/EmitenteSettings';
 import { OperationNaturesContent } from '@/components/fiscal/settings/OperationNaturesContent';
 import { OutrosSettings } from '@/components/fiscal/settings/OutrosSettings';
-import { FocusIntegrationSettings } from '@/components/fiscal/settings/FocusIntegrationSettings';
 
-type FiscalSubTab = 'emitente' | 'natureza' | 'integracao' | 'outros';
+type FiscalSubTab = 'emitente' | 'natureza' | 'outros';
 
 export default function SystemSettings() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -28,7 +27,7 @@ export default function SystemSettings() {
 
   const [activeTab, setActiveTab] = useState(tabFromUrl || 'payments');
   const activeFiscalSub: FiscalSubTab =
-    subFromUrl === 'natureza' || subFromUrl === 'integracao' || subFromUrl === 'outros' ? subFromUrl : 'emitente';
+    subFromUrl === 'natureza' || subFromUrl === 'outros' ? subFromUrl : 'emitente';
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -70,7 +69,7 @@ export default function SystemSettings() {
 
         <TabsContent value="fiscal" className="mt-6 space-y-6">
           <Tabs value={activeFiscalSub} onValueChange={handleFiscalSubChange} className="space-y-6">
-            <TabsList className="grid w-full max-w-3xl grid-cols-4">
+            <TabsList className="grid w-full max-w-2xl grid-cols-3">
               <TabsTrigger value="emitente" className="gap-2">
                 <Building2 className="h-4 w-4" />
                 Configurações Fiscais
@@ -78,10 +77,6 @@ export default function SystemSettings() {
               <TabsTrigger value="natureza" className="gap-2">
                 <Scale className="h-4 w-4" />
                 Natureza Jurídica
-              </TabsTrigger>
-              <TabsTrigger value="integracao" className="gap-2">
-                <PlugZap className="h-4 w-4" />
-                Validação Fiscal
               </TabsTrigger>
               <TabsTrigger value="outros" className="gap-2">
                 <Settings2 className="h-4 w-4" />
@@ -94,9 +89,6 @@ export default function SystemSettings() {
             </TabsContent>
             <TabsContent value="natureza" className="space-y-6">
               <OperationNaturesContent />
-            </TabsContent>
-            <TabsContent value="integracao" className="space-y-6">
-              <FocusIntegrationSettings />
             </TabsContent>
             <TabsContent value="outros" className="space-y-6">
               <OutrosSettings />
