@@ -11,7 +11,7 @@
 //   "Pronto" em produção, "Configuração pendente", "Erro" ou "Bloqueado".
 // =============================================
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useFiscalReadiness, FISCAL_READINESS_QUERY_KEY } from '@/hooks/useFiscalReadiness';
 
 type CardLevel = 'ok' | 'warn' | 'error' | 'pending';
 type OverallStatus = 'ready' | 'ready_for_test' | 'config_pending' | 'error' | 'blocked';
@@ -74,15 +75,8 @@ export function FiscalValidationCompactCard() {
   const [fallback, setFallback] = useState<RegisterResponse | null>(null);
   const [showToken, setShowToken] = useState(false);
 
-  const validateQuery = useQuery({
-    queryKey: ['fiscal-integration-validate'],
-    queryFn: async (): Promise<ValidateResponse> => {
-      const { data, error } = await supabase.functions.invoke('fiscal-integration-validate', { body: {} });
-      if (error) throw new Error(error.message);
-      return data as ValidateResponse;
-    },
-    staleTime: 30_000,
-  });
+  // FONTE ÚNICA — mesmo hook usado pelo card superior "Pronto para emitir NF-e?"
+  const validateQuery = useFiscalReadiness();
 
   const registerMutation = useMutation({
     mutationFn: async (opts: { rotate_token?: boolean } = {}) => {
@@ -103,7 +97,7 @@ export function FiscalValidationCompactCard() {
         toast.warning('Cadastro automático falhou — use o fallback manual abaixo.');
         setFallback(data);
       }
-      qc.invalidateQueries({ queryKey: ['fiscal-integration-validate'] });
+      qc.invalidateQueries({ queryKey: FISCAL_READINESS_QUERY_KEY });
       qc.invalidateQueries({ queryKey: ['fiscal-settings'] });
     },
     onError: (e: any) => toast.error(e?.message || 'Erro ao ativar recebimento automático'),
