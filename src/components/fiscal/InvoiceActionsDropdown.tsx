@@ -70,7 +70,7 @@ export function InvoiceActionsDropdown({
   onResendEmail,
   isSubmitting,
   isCheckingStatus,
-  cloneLabel = 'Clonar NF',
+  cloneLabel = 'Duplicar NF',
 }: InvoiceActionsDropdownProps) {
   const [isDownloadingXml, setIsDownloadingXml] = useState(false);
 
@@ -223,7 +223,7 @@ export function InvoiceActionsDropdown({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onDuplicate}>
               <Copy className="h-4 w-4 mr-2" />
-              Criar Nova NF-e
+              Duplicar como rascunho
             </DropdownMenuItem>
           </>
         )}
@@ -311,7 +311,7 @@ export function InvoiceActionsDropdown({
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onViewOrder}>
               <Eye className="h-4 w-4 mr-2" />
-              Ver Pedido
+              Ver Pedido de Venda
             </DropdownMenuItem>
           </>
         )}

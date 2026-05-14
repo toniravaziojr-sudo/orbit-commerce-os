@@ -12,7 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, useFiscalRealtime, type FiscalInvoice } from '@/hooks/useFiscal';
 import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
-import { ManualInvoiceDialog } from '@/components/fiscal/ManualInvoiceDialog';
+import { ManualInvoiceDialog, type ManualInvoiceInitialData } from '@/components/fiscal/ManualInvoiceDialog';
 import { InvoiceEditor, type InvoiceData } from '@/components/fiscal/InvoiceEditor';
 import { CancelInvoiceDialog } from '@/components/fiscal/CancelInvoiceDialog';
 import { InvoiceActionsDropdown } from '@/components/fiscal/InvoiceActionsDropdown';
@@ -68,6 +68,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; data: ManualInvoiceInitialData | null; kind: 'pedido' | 'nf' }>({ open: false, data: null, kind: 'pedido' });
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
   const [editingInvoiceError, setEditingInvoiceError] = useState<string | null>(null);
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
@@ -342,8 +343,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
-  // Clonagem segura — Pedido (rascunho na aba Pedidos) ou NF (autorizada/cancelada).
-  // Cria sempre um RASCUNHO novo e independente:
+  // Duplicação segura — abre diálogo pré-preenchido. O usuário revisa e salva.
+  // O salvar cria SEMPRE um rascunho novo e independente:
   //   - sem vínculo com order_id original (não toca estoque/financeiro/remessa/e-mail/automação)
   //   - sem chave/XML/DANFE/protocolo/focus_ref/status terminal
   //   - número novo gerado pelo cursor fiscal (nunca reaproveita número autorizado)
@@ -360,83 +361,54 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .single();
 
       if (error || !data) {
-        toast.error('Erro ao carregar dados para clonagem');
+        toast.error('Erro ao carregar dados para duplicação');
         return;
       }
 
       const items = (data.fiscal_invoice_items || []) as any[];
       if (items.length === 0) {
-        toast.error('Não há itens para clonar');
+        toast.error('Não há itens para duplicar');
         return;
       }
 
-      // Marca de auditoria — clone manual/teste, sem expor termos técnicos sensíveis.
       const obsBase = data.observacoes ? `${data.observacoes}\n\n` : '';
-      const obsMarca = `Clonado de ${kind === 'pedido' ? 'pedido' : 'NF'} ${data.serie}-${data.numero} (manual/teste).`;
-      const observacoes = `${obsBase}${obsMarca}`;
+      const obsMarca = `Duplicado de ${kind === 'pedido' ? 'pedido de venda' : 'NF'} ${data.serie}-${data.numero}.`;
 
-      const { data: result, error: createError } = await supabase.functions.invoke(
-        'fiscal-create-manual',
-        {
-          body: {
-            // NÃO enviamos order_id — clone é independente e não dispara efeitos do pedido original.
-            natureza_operacao: data.natureza_operacao,
-            observacoes,
-            indicador_presenca: (data as any).indicador_presenca ?? 2,
-            indicador_ie_dest: (data as any).indicador_ie_dest ?? 9,
-            pagamento_indicador: (data as any).pagamento_indicador ?? 0,
-            pagamento_meio: (data as any).pagamento_meio || '99',
-            destinatario: {
-              nome: data.dest_nome,
-              cpf_cnpj: data.dest_cpf_cnpj,
-              email: (data as any).dest_email || undefined,
-              telefone: (data as any).dest_telefone || undefined,
-              endereco: {
-                logradouro: data.dest_endereco_logradouro || '',
-                numero: data.dest_endereco_numero || 'S/N',
-                complemento: data.dest_endereco_complemento || undefined,
-                bairro: data.dest_endereco_bairro || '',
-                municipio: data.dest_endereco_municipio || '',
-                uf: data.dest_endereco_uf || '',
-                cep: data.dest_endereco_cep || '',
-              },
-            },
-            itens: items.map((item, idx) => ({
-              numero_item: idx + 1,
-              codigo: item.codigo_produto,
-              descricao: item.descricao,
-              ncm: item.ncm,
-              cfop: item.cfop,
-              unidade: item.unidade,
-              quantidade: Number(item.quantidade),
-              valor_unitario: Number(item.valor_unitario),
-              origem: String(item.origem ?? '0'),
-              csosn: item.csosn || '102',
-            })),
+      const initialData: ManualInvoiceInitialData = {
+        natureza_operacao: data.natureza_operacao,
+        observacoes: `${obsBase}${obsMarca}`,
+        destinatario: {
+          nome: data.dest_nome,
+          cpf_cnpj: data.dest_cpf_cnpj,
+          email: (data as any).dest_email || undefined,
+          telefone: (data as any).dest_telefone || undefined,
+          endereco: {
+            logradouro: data.dest_endereco_logradouro || '',
+            numero: data.dest_endereco_numero || 'S/N',
+            complemento: data.dest_endereco_complemento || undefined,
+            bairro: data.dest_endereco_bairro || '',
+            municipio: data.dest_endereco_municipio || '',
+            uf: data.dest_endereco_uf || '',
+            cep: data.dest_endereco_cep || '',
           },
-        }
-      );
-
-      if (createError) throw createError;
-      if (!result?.success) {
-        throw new Error(result?.error || 'Falha ao clonar');
-      }
-
-      const newId = result.invoice?.id as string | undefined;
-      const successMsg = kind === 'pedido'
-        ? 'Pedido clonado com sucesso.'
-        : 'NF clonada como rascunho.';
-
-      toast.success(successMsg, newId ? {
-        action: {
-          label: 'Abrir rascunho',
-          onClick: () => handleEditInvoice({ ...invoice, id: newId } as FiscalInvoice),
         },
-      } : undefined);
-      refetch();
+        itens: items.map((item) => ({
+          codigo: item.codigo_produto || '',
+          descricao: item.descricao,
+          unidade: item.unidade || 'UN',
+          quantidade: Number(item.quantidade) || 1,
+          valor_unitario: Number(item.valor_unitario) || 0,
+          ncm: item.ncm || '',
+          cfop: item.cfop || '5102',
+          origem: String(item.origem ?? '0'),
+          csosn: item.csosn || '102',
+        })),
+      };
+
+      setDuplicateDialog({ open: true, data: initialData, kind });
     } catch (error: any) {
       console.error('[handleCloneInvoice] error:', error);
-      showErrorToast(error, { module: 'fiscal', action: 'clonar' });
+      showErrorToast(error, { module: 'fiscal', action: 'duplicar' });
     }
   };
 
@@ -873,7 +845,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     if (errorCount > 0) toast.error(`${errorCount} envio(s) com erro`);
   };
 
-  const cardTitle = mode === 'orders' ? 'Pedidos' : 'Notas Fiscais';
+  const cardTitle = mode === 'orders' ? 'Pedidos de Venda' : 'Notas Fiscais';
 
   return (
     <div className="space-y-6">
@@ -906,7 +878,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       {mode === 'orders' ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            title="Pedidos em Aberto"
+            title="Pedidos de venda em aberto"
             value={statsLoading ? '...' : counts.orders.toString()}
             icon={FileText}
             variant="warning"
@@ -971,7 +943,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           {mode === 'orders' ? (
             <Button onClick={() => setManualDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Novo Pedido
+              Novo Pedido de Venda
             </Button>
           ) : (
             <Button onClick={handleCreateNewInvoice} disabled={isCreatingInvoice}>
@@ -1042,10 +1014,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
             ) : !filteredInvoices || filteredInvoices.length === 0 ? (
               <EmptyState
                 icon={FileText}
-                title={mode === 'orders' ? 'Nenhum pedido em aberto' : 'Nenhuma nota fiscal encontrada'}
+                title={mode === 'orders' ? 'Nenhum pedido de venda em aberto' : 'Nenhuma nota fiscal encontrada'}
                 description={isConfigured 
                   ? mode === 'orders'
-                    ? "Quando houver pedidos aprovados, os rascunhos de NF-e aparecerão aqui automaticamente."
+                    ? "Quando houver pedidos aprovados, os rascunhos de pedido de venda aparecerão aqui automaticamente."
                     : "As NF-e aparecerão aqui conforme forem emitidas e processadas."
                   : "Configure sua integração fiscal para emitir NF-e."}
                 action={!isConfigured ? {
@@ -1253,7 +1225,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onResendEmail={() => handleResendEmail(invoice)}
                               isSubmitting={submittingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
-                              cloneLabel={mode === 'orders' ? 'Clonar Pedido' : 'Clonar NF'}
+                              cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
                             />
                           </TableCell>
                         </TableRow>
@@ -1268,7 +1240,31 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       </Card>
 
       {/* Manual Invoice Dialog */}
-      <ManualInvoiceDialog open={manualDialogOpen} onOpenChange={setManualDialogOpen} />
+      <ManualInvoiceDialog open={manualDialogOpen} onOpenChange={setManualDialogOpen} mode="create" />
+
+      {/* Diálogo de duplicação (Pedido de Venda ou NF) — pré-preenchido, sem efeito fiscal/financeiro/logístico. */}
+      <ManualInvoiceDialog
+        open={duplicateDialog.open}
+        onOpenChange={(o) => setDuplicateDialog((s) => ({ ...s, open: o }))}
+        mode="duplicate"
+        initialData={duplicateDialog.data || undefined}
+        title={duplicateDialog.kind === 'pedido' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
+        description={
+          duplicateDialog.kind === 'pedido'
+            ? 'Revise os dados copiados do pedido de venda original e ajuste o que precisar antes de salvar. Nenhuma NF é emitida nesta etapa.'
+            : 'Revise os dados copiados da NF original e ajuste o que precisar antes de salvar. O novo registro será criado como rascunho. Nenhuma NF é transmitida nesta etapa.'
+        }
+        submitLabel="Salvar duplicação"
+        successMessage={
+          duplicateDialog.kind === 'pedido'
+            ? 'Pedido de venda duplicado com sucesso.'
+            : 'NF duplicada como rascunho.'
+        }
+        onCreated={(newId) => {
+          // Abre o rascunho duplicado direto no editor para revisão fiscal completa.
+          handleEditInvoice({ id: newId } as FiscalInvoice);
+        }}
+      />
 
       {/* Invoice Editor */}
       {editingInvoice && (

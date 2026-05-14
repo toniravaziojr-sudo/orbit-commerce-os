@@ -21,6 +21,32 @@ interface OrderItem {
   unidade: string;
   quantidade: number;
   valor_unitario: number;
+  // Campos fiscais carregados invisivelmente quando duplicando — preservam dados do original.
+  ncm?: string;
+  cfop?: string;
+  origem?: string;
+  csosn?: string;
+}
+
+export interface ManualInvoiceInitialData {
+  destinatario: {
+    nome: string;
+    cpf_cnpj: string;
+    email?: string;
+    telefone?: string;
+    endereco: {
+      logradouro: string;
+      numero: string;
+      complemento?: string;
+      bairro: string;
+      municipio: string;
+      uf: string;
+      cep: string;
+    };
+  };
+  itens: OrderItem[];
+  observacoes?: string;
+  natureza_operacao?: string;
 }
 
 function isValidCpfCnpj(value: string): boolean {
@@ -38,9 +64,33 @@ const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS',
 interface ManualInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Modo do diálogo. 'create' = novo pedido em branco. 'duplicate' = pré-preenchido. */
+  mode?: 'create' | 'duplicate';
+  /** Dados pré-preenchidos para duplicação. */
+  initialData?: ManualInvoiceInitialData;
+  /** Título customizado. Default depende de `mode`. */
+  title?: string;
+  /** Descrição customizada. */
+  description?: string;
+  /** Rótulo do botão de salvar. */
+  submitLabel?: string;
+  /** Mensagem de sucesso. */
+  successMessage?: string;
+  /** Callback opcional após criar com sucesso, recebe o id da nova invoice. */
+  onCreated?: (newInvoiceId: string) => void;
 }
 
-export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogProps) {
+export function ManualInvoiceDialog({
+  open,
+  onOpenChange,
+  mode = 'create',
+  initialData,
+  title,
+  description,
+  submitLabel,
+  successMessage,
+  onCreated,
+}: ManualInvoiceDialogProps) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
   const queryClient = useQueryClient();
@@ -67,9 +117,57 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
   const [destUf, setDestUf] = useState('');
   const [destCep, setDestCep] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [naturezaOperacao, setNaturezaOperacao] = useState('VENDA DE MERCADORIA');
   const [items, setItems] = useState<OrderItem[]>([
     { codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }
   ]);
+
+  // Pré-preenche quando abre em modo duplicação
+  useEffect(() => {
+    if (!open) return;
+    if (mode === 'duplicate' && initialData) {
+      const d = initialData.destinatario;
+      setCustomerMode('manual');
+      setSelectedCustomerId(null);
+      setDestNome(d.nome || '');
+      setDestCpfCnpj((d.cpf_cnpj || '').replace(/\D/g, ''));
+      setDestEmail(d.email || '');
+      setDestTelefone(d.telefone || '');
+      setDestLogradouro(d.endereco.logradouro || '');
+      setDestNumero(d.endereco.numero || '');
+      setDestComplemento(d.endereco.complemento || '');
+      setDestBairro(d.endereco.bairro || '');
+      setDestMunicipio(d.endereco.municipio || '');
+      setDestUf(d.endereco.uf || '');
+      setDestCep((d.endereco.cep || '').replace(/\D/g, ''));
+      setObservacoes(initialData.observacoes || '');
+      setNaturezaOperacao(initialData.natureza_operacao || 'VENDA DE MERCADORIA');
+      setItems(
+        initialData.itens.length
+          ? initialData.itens.map((it) => ({ ...it }))
+          : [{ codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]
+      );
+    } else if (mode === 'create') {
+      // Reset para criar novo limpo
+      setCustomerMode('manual');
+      setSelectedCustomerId(null);
+      setDestNome('');
+      setDestCpfCnpj('');
+      setDestEmail('');
+      setDestTelefone('');
+      setDestLogradouro('');
+      setDestNumero('');
+      setDestComplemento('');
+      setDestBairro('');
+      setDestMunicipio('');
+      setDestUf('');
+      setDestCep('');
+      setObservacoes('');
+      setNaturezaOperacao('VENDA DE MERCADORIA');
+      setItems([{ codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode]);
 
   // Customer search with debounce
   useEffect(() => {
@@ -228,7 +326,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
 
       const { data, error } = await supabase.functions.invoke('fiscal-create-manual', {
         body: {
-          natureza_operacao: 'VENDA DE MERCADORIA',
+          natureza_operacao: naturezaOperacao || 'VENDA DE MERCADORIA',
           observacoes,
           destinatario: {
             nome: destNome,
@@ -249,26 +347,37 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
             numero_item: index + 1,
             codigo: item.codigo,
             descricao: item.descricao,
-            ncm: '',
-            cfop: '5102',
+            ncm: item.ncm || '',
+            cfop: item.cfop || '5102',
             unidade: item.unidade,
             quantidade: item.quantidade,
             valor_unitario: item.valor_unitario,
-            origem: '0',
-            csosn: '102',
+            origem: item.origem || '0',
+            csosn: item.csosn || '102',
           })),
         },
       });
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao criar pedido');
+      if (!data?.success) throw new Error(data?.error || 'Erro ao salvar');
 
-      toast.success('Pedido criado com sucesso!');
+      const newId: string | undefined = data?.invoice?.id;
+      const okMsg = successMessage || (mode === 'duplicate'
+        ? 'Pedido de venda duplicado com sucesso.'
+        : 'Pedido de venda criado com sucesso.');
+
+      toast.success(okMsg, newId && onCreated ? {
+        action: { label: 'Abrir registro duplicado', onClick: () => onCreated(newId) },
+      } : undefined);
+
       queryClient.invalidateQueries({ queryKey: ['fiscal-invoices'] });
       queryClient.invalidateQueries({ queryKey: ['fiscal-stats'] });
       onOpenChange(false);
     } catch (error) {
-      showErrorToast(error, { module: 'fiscal', action: 'criar pedido' });
+      showErrorToast(error, {
+        module: 'fiscal',
+        action: mode === 'duplicate' ? 'duplicar' : 'criar pedido de venda',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -278,14 +387,17 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
+  const dialogTitle = title || (mode === 'duplicate' ? 'Duplicar Pedido de Venda' : 'Novo Pedido de Venda');
+  const dialogDescription = description || (mode === 'duplicate'
+    ? 'Revise os dados copiados e ajuste o que for necessário antes de salvar. Nenhuma NF é emitida nesta etapa.'
+    : 'Crie um rascunho de pedido de venda para posterior emissão de NF-e.');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Pedido</DialogTitle>
-          <DialogDescription>
-            Crie um rascunho de pedido para emissão de NF-e.
-          </DialogDescription>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -556,7 +668,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
               ) : (
                 <FileDown className="h-4 w-4 mr-2" />
               )}
-              Criar Pedido
+              {submitLabel || (mode === 'duplicate' ? 'Salvar duplicação' : 'Criar Pedido de Venda')}
             </Button>
           </div>
         </div>
