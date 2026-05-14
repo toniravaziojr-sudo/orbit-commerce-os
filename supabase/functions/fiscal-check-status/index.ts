@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
     };
 
     // Se autorizado, salvar dados adicionais
-    const ambiente = focusConfig.ambiente;
+    // ambiente já resolvido acima
     if (focusStatus === 'autorizado' && result.data?.chave_nfe) {
       updateData.chave_acesso = result.data.chave_nfe;
       updateData.numero = result.data.numero;
