@@ -185,7 +185,7 @@ export function InvoiceActionsDropdown({
               ) : (
                 <Send className="h-4 w-4 mr-2" />
               )}
-              Emitir NF-e
+              {emitLabel}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onDuplicate}>
               <Copy className="h-4 w-4 mr-2" />
