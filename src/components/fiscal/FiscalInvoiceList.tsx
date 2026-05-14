@@ -12,7 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, useFiscalRealtime, type FiscalInvoice } from '@/hooks/useFiscal';
 import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
-import { ManualInvoiceDialog } from '@/components/fiscal/ManualInvoiceDialog';
+import { ManualInvoiceDialog, type ManualInvoiceInitialData } from '@/components/fiscal/ManualInvoiceDialog';
 import { InvoiceEditor, type InvoiceData } from '@/components/fiscal/InvoiceEditor';
 import { CancelInvoiceDialog } from '@/components/fiscal/CancelInvoiceDialog';
 import { InvoiceActionsDropdown } from '@/components/fiscal/InvoiceActionsDropdown';
