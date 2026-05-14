@@ -1287,3 +1287,116 @@ Após o smoke test em homologação validado, avaliar (em lote separado) cron co
 7. ☐ Conferir que `fiscal-reconcile` em `dry_run:true` lista 0 notas presas (estado limpo).
 8. ☐ Após emissão, se nota ficar em `processing`, acionar `fiscal-reconcile` com `dry_run:false` no tenant de teste e confirmar transição para `authorized`.
 9. ☐ Após smoke test OK, decidir habilitação de cron restrito (lote separado).
+
+---
+
+## Lote 1.E — Webhook multi-tenant + gate de emissão (2026-05-14)
+
+Encerra a preparação técnica para o smoke test em homologação do tenant piloto. Implementa cadastro automático do webhook Focus NFe **por loja**, com token único por tenant, e adiciona um **gate de emissão** que bloqueia produção sem webhook validado e gera **alerta não-bloqueante** em homologação.
+
+### Campos por tenant em `fiscal_settings`
+
+| Campo | Função |
+|---|---|
+| `webhook_status` | `not_configured` \| `pending` \| `validated` \| `error` |
+| `webhook_environment` | Ambiente em que o hook foi cadastrado (`homologacao`/`producao`) |
+| `webhook_url_sanitized` | URL pública do callback (sem token) — segura para exibir na UI |
+| `webhook_tenant_token` | **Sensível.** Token único do tenant usado na query `?t=...`. Não retornado em selects da UI. |
+| `webhook_focus_hook_id` | ID do hook na Focus (para deletar/atualizar) |
+| `webhook_registered_at` / `webhook_validated_at` | Timestamps |
+| `webhook_last_received_at` / `webhook_last_error` / `webhook_last_error_at` | Telemetria do recebimento |
+| `webhook_token_rotated_at` | Última rotação do token |
+| `focus_company_status` | Saúde da empresa na Focus (campo declarado, populado em validação futura) |
+
+### Edge functions desta onda
+
+- `fiscal-webhook-register` *(novo)* — owner/admin. Cadastra/atualiza o hook na Focus NFe via `POST /v2/hooks`. Faz lookup prévio para evitar duplicidade (`GET /v2/hooks?cnpj=…`), deleta o hook antigo se a URL com token mudou, regrava `webhook_status=pending`, salva `webhook_url_sanitized`, `webhook_focus_hook_id`, `webhook_environment`. Suporta `dry_run` e `rotate_token`. Em falha, retorna fallback manual com `manual_register_url` (contém o token por loja, **nunca o secret global**).
+- `fiscal-integration-validate` *(novo)* — owner/admin. Retorna `cards[]` (Empresa Focus, Certificado, Webhook, Ambiente) + `ready_for_production` + `ready_for_homologation_smoke`. Faz best-effort `GET /v2/empresas/{cnpj}` para confirmar a empresa. **Não** retorna PFX, senha, token Focus ou token da loja.
+- `fiscal-webhook` *(ajustado na Parte 1)* — autenticação preferencial via `?t=<webhook_tenant_token>` (tenant guard contra o `focus_ref`). Mantém compatibilidade com `FOCUS_NFE_WEBHOOK_SECRET` global. Promove `webhook_status: pending → validated` ao primeiro callback bem-sucedido e atualiza `webhook_last_received_at`.
+- `fiscal-emit` / `fiscal-submit` *(ajustados nesta Parte 2)* — chamam `evaluateEmissionGate()` antes de qualquer transmissão.
+
+### Gate de emissão (`_shared/fiscal-emission-gate.ts`)
+
+**Em produção, bloqueia (HTTP 200 + `success:false`, com `code`):**
+- `focus_company_missing` — empresa Focus ausente
+- `certificate_missing` — certificado A1 ausente
+- `certificate_expired` — certificado vencido
+- `certificate_cnpj_mismatch` — CNPJ certificado ≠ CNPJ emitente
+- `webhook_not_validated` — `webhook_status != validated`
+- `webhook_environment_mismatch` — webhook cadastrado em ambiente diferente
+- `webhook_tenant_token_missing` — token por loja ausente
+
+**Em homologação, nunca bloqueia por webhook.** Devolve `warnings[]` no payload sempre que `webhook_status` for `not_configured`, `pending` ou `error`, ou quando o ambiente do hook não coincidir com o ambiente fiscal atual. Permite o smoke test desde que os pré-requisitos não-webhook (empresa Focus + certificado válido + CNPJ batendo) estejam OK.
+
+RBAC inalterado: `fiscal-emit` e `fiscal-submit` continuam exigindo `owner`/`admin`. `operator` permanece bloqueado para emissão real.
+
+### UI — aba **Integração Focus NFe** em `/fiscal/configuracoes`
+
+- Cards: Empresa Focus, Certificado A1, Webhook, Ambiente, com badge `OK / Aguardando / Atenção / Bloqueio`.
+- Telemetria do webhook visível: `webhook_status`, `webhook_environment`, `webhook_registered_at`, `webhook_validated_at`, `webhook_last_received_at`, `webhook_last_error`.
+- Indicadores globais: `ready_for_production`, `ready_for_homologation_smoke`, `ambiente`.
+- Botões: **Validar integração fiscal** e **Cadastrar webhook automaticamente**.
+- **Fallback manual seguro** (visível só quando o cadastro automático falha): mostra `webhook_url_sanitized`, CNPJ, evento, e o token por loja **mascarado por padrão** com ações explícitas de **Revelar**, **Copiar URL completa** e **Rotacionar token**. Texto de aviso reforça que é credencial sensível desta loja.
+- A UI **nunca** exibe `FOCUS_NFE_WEBHOOK_SECRET`, PFX, senha do certificado nem `provider_token` da Focus.
+- `operator` não tem acesso à página de configurações fiscais (gate em `useTenantAccess`); por consequência não vê esta aba.
+
+### Configuração de deploy
+
+`supabase/config.toml` agora registra:
+- `[functions.fiscal-webhook-register] verify_jwt = true`
+- `[functions.fiscal-integration-validate] verify_jwt = true`
+- `[functions.fiscal-webhook] verify_jwt = false` (mantido — autenticação por token na URL/secret global)
+
+### Segurança
+
+- Secret global `FOCUS_NFE_WEBHOOK_SECRET` **nunca** é retornado por nenhuma function nem exibido em UI/log/payload.
+- `webhook_tenant_token` é exposto **apenas** no payload do `fiscal-webhook-register` quando o cadastro automático falha (fluxo de fallback manual). Em logs ele é mascarado (`***`). Em selects gerais ele não vai para a UI.
+- O token é rotacionável (`rotate_token: true`) e cada rotação atualiza o hook na Focus para a nova URL.
+- Tenant guard duplo no webhook: o token por loja resolve `tenant_id`; em seguida, `focus_ref` precisa pertencer ao mesmo tenant.
+
+### Status do tenant Respeite o Homem (apuração desta etapa, sem alterar webhook real)
+
+| Item | Status |
+|---|---|
+| Empresa Focus (`focus_empresa_id`) | ✅ presente (`211379`) |
+| Certificado A1 | ✅ válido (até 2027-02-16), CNPJ confere |
+| Ambiente fiscal | ⚠ atualmente `producao` |
+| Webhook | ❌ `not_configured` — nenhum cadastro feito nesta etapa |
+| Pronto para smoke test em homologação | Pendente: trocar ambiente para `homologacao` antes do smoke. |
+| Pronto para emissão em produção | ❌ bloqueado pelo gate (`webhook_not_validated`). |
+
+> Nenhum cadastro real de webhook foi feito para o tenant Respeite o Homem nesta etapa. A Parte 2 entrega a infraestrutura; o cadastro real será disparado depois, via botão da UI ou comando autorizado pelo usuário.
+
+### Testes executados sem emissão real
+
+| Teste | Resultado |
+|---|---|
+| Deploy `fiscal-webhook-register` + `fiscal-integration-validate` registrados em `config.toml` | ✅ |
+| Gate em produção bloqueia quando `webhook_status != validated` | ✅ revisão estática + `evaluateEmissionGate` retorna `code:webhook_not_validated` |
+| Gate em homologação não bloqueia por webhook ausente; devolve `warnings[]` | ✅ |
+| Pré-requisitos de empresa/certificado continuam validados em ambos os ambientes | ✅ |
+| `operator` não emite, não submete, não acessa configurações | ✅ herdado dos lotes 1.B/1.C |
+| Fallback manual exibe token mascarado por padrão; “Revelar” é ação explícita | ✅ |
+| `webhook_tenant_token` não aparece em payload de validação | ✅ função `fiscal-integration-validate` filtra colunas |
+| Secret global jamais é retornado para UI | ✅ revisão de payloads |
+| Cadastro automático no tenant Respeite o Homem | ⏸ não executado (aguardando autorização explícita) |
+| Nenhuma chamada real a `api.focusnfe.com.br` ou `homologacao.focusnfe.com.br` para emissão | ✅ |
+| Certificado A1 não foi tocado | ✅ |
+
+### Riscos restantes
+
+- Tenant Respeite o Homem está em `ambiente=producao` no `fiscal_settings`. Para o smoke test ele precisa ir para `homologacao` antes — caso contrário o gate de produção bloqueia (e isso é o esperado).
+- Cadastro real do webhook ainda não foi disparado: até lá, `webhook_status=not_configured` permanece, e produção segue bloqueada por design.
+- `fiscal-cce` e `fiscal-inutilizar` ainda usam `fetch` direto (pendência herdada do Lote 1.C.3) — não impacta o smoke de NFe.
+
+### Checklist final para autorizar cadastro real do webhook + smoke test em homologação
+
+1. ☐ Trocar `fiscal_settings.ambiente` (e `focus_ambiente`) do tenant Respeite o Homem para `homologacao`.
+2. ☐ Confirmar empresa Focus em homologação para o CNPJ piloto (`63.269.917/0001-06`).
+3. ☐ Acessar `/fiscal/configuracoes?aba=integracao` como owner/admin → clicar **Cadastrar webhook automaticamente**.
+4. ☐ Confirmar `webhook_status=pending` e `webhook_url_sanitized` salvos.
+5. ☐ Aguardar primeiro evento da Focus → `webhook_status` deve transicionar para `validated`.
+6. ☐ Conferir `ready_for_homologation_smoke = true` em **Validar integração fiscal**.
+7. ☐ Pedido de teste preparado com endereço/itens válidos.
+8. ☐ Emitir NF-e de teste em homologação. Validar autorização ou usar `fiscal-reconcile` se ficar `processing`.
+9. ☐ Em sucesso, planejar troca para `producao` em lote separado, recadastrar o webhook em produção e refazer a validação antes de liberar emissão real.
