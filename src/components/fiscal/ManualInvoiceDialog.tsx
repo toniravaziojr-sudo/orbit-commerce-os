@@ -668,7 +668,7 @@ export function ManualInvoiceDialog({
               ) : (
                 <FileDown className="h-4 w-4 mr-2" />
               )}
-              Criar Pedido
+              {submitLabel || (mode === 'duplicate' ? 'Salvar duplicação' : 'Criar Pedido de Venda')}
             </Button>
           </div>
         </div>
