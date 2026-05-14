@@ -1424,17 +1424,23 @@ Encerra a preparação técnica para o smoke test em homologação do tenant pil
 
 RBAC inalterado: `fiscal-emit` e `fiscal-submit` continuam exigindo `owner`/`admin`. `operator` permanece bloqueado para emissão real.
 
-### UI — Validação Fiscal (rev 2026-05c — sub-aba dedicada removida)
+### UI — Validação Fiscal (rev 2026-05-14d — bloco único de prontidão)
 
-A partir desta revisão, a Validação Fiscal **não vive mais em sub-aba própria**. Ela passa a ser um **card compacto** chamado **"Validação Fiscal"** posicionado **ao lado do bloco "Ambiente de Emissão"** dentro da aba **Configurações Fiscais** (em `/system/settings?tab=fiscal` e em `/fiscal/configuracoes`). Em desktop fica lado a lado (`md:grid-cols-2`); em mobile empilha. Componente: `src/components/fiscal/settings/FiscalValidationCompactCard.tsx`.
+A partir desta revisão, a tela fiscal tem **um único bloco principal de status fiscal**: o card superior "Pronto para emitir NF-e?" em `EmitenteSettings.tsx`. O card compacto "Validação Fiscal" que ficava ao lado do "Ambiente de Emissão" foi **removido** (`FiscalValidationCompactCard.tsx` deletado). O bloco "Ambiente de Emissão" continua existindo como card próprio, mas serve apenas para selecionar/exibir o ambiente — não tem mais lista de validação.
 
-- Linha de status geral com selo único: **Pronto** / **Atenção** / **Bloqueado** (derivado dos níveis dos cards do backend; mantém a função `fiscal-integration-validate` inalterada).
-- Lista resumida de 4 itens com rótulos de negócio: **Empresa fiscal cadastrada**, **Certificado A1 válido**, **Recebimento automático de retornos**, **Ambiente atual** (Produção/Homologação).
-- Ações: **Validar integração fiscal** (sempre) e **Ativar recebimento automático de retornos** (visível só quando ainda não está ativo — aciona `fiscal-webhook-register`).
-- **Fallback manual seguro** (visível só quando o cadastro automático falha): mostra `webhook_url_sanitized`, CNPJ, ambiente, e o token por loja **mascarado por padrão** com ações **Revelar**, **Copiar URL completa** e **Rotacionar chave**. Texto reforça que é credencial sensível desta loja.
-- A UI **nunca** exibe `FOCUS_NFE_WEBHOOK_SECRET`, PFX, senha do certificado nem `provider_token` da Focus, e **não usa** os termos "Focus NFe", "webhook", "hook", "secret" ou "token" no corpo principal.
-- `operator` não tem acesso à página de configurações fiscais (gate em `useTenantAccess`); por consequência não vê este card.
-- A URL legada `?aba=integracao` deixou de existir e cai no comportamento padrão (`emitente`). O componente antigo `FocusIntegrationSettings.tsx` segue versionado mas não é mais montado em nenhuma rota.
+- O bloco principal mostra: status geral (selo único), mensagem de ação principal (apenas em estados não-OK) e a lista resumida de itens com rótulos de negócio: **Empresa fiscal**, **Certificado A1**, **Credenciais fiscais**, **Recebimento de retornos**, **Ambiente atual**.
+- O link "Ir para" só aparece em itens com `goto: true` no contrato (problemas de campo cadastral real do usuário). Erros internos de preparação/provedor **não** mostram "Ir para".
+- O botão **"Reprocessar configuração fiscal"** só aparece quando `next_action_kind === 'retry'` ou `can_retry_activation === true`. Ele re-executa a validação (que internamente dispara a preparação automática quando necessário). Não emite NF, não chama `fiscal-emit`, não chama `fiscal-submit`, não transmite para Sefaz.
+- Não existe mais botão "Validar integração fiscal" como etapa obrigatória do usuário. A validação é automática (rodada no carregamento da tela e no reprocessamento).
+- Mensagem genérica errada ("Conclua os dados fiscais e envie o certificado A1") **não pode aparecer** quando os dados estão completos e o certificado é válido. Nesse caso o backend devolve `reason_code` específico (`provider_setup_error`, `credentials_capture_error`, `returns_setup_error`) e a mensagem reflete a causa real.
+- A UI **nunca** exibe `FOCUS_NFE_WEBHOOK_SECRET`, PFX, senha do certificado nem `provider_token` da Focus, e **não usa** os termos "Focus NFe", "webhook", "hook", "secret", "token", "API", "provider", "sincronizar empresa" ou "cadastrar empresa no provedor" no corpo principal.
+- `operator` não tem acesso à página de configurações fiscais (gate em `useTenantAccess`).
+- A URL legada `?aba=integracao` deixou de existir e cai no comportamento padrão (`emitente`).
+
+#### Contrato `fiscal-integration-validate` — `reason_code`
+
+Resposta inclui `reason_code` no topo e (quando aplicável) por card. Valores: `missing_company_data`, `certificate_missing`, `certificate_invalid`, `certificate_expired`, `certificate_cnpj_mismatch`, `provider_setup_pending`, `provider_setup_error`, `credentials_capture_error`, `returns_setup_pending`, `returns_setup_error`, `ready_for_test`, `ready_for_production`, `production_blocked`. Também devolve `next_action_kind` (`'goto' | 'retry' | null`) para a UI escolher entre "Ir para" e "Reprocessar configuração fiscal" sem heurística no frontend. Nenhum dado sensível é exposto neste contrato.
+
 
 ### Configuração de deploy
 
