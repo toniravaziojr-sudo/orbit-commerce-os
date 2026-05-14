@@ -8,7 +8,7 @@ import { formatDateBR } from '@/lib/date-format';
 import {
   Save, Building2, MapPin, FileText, Loader2, CheckCircle2, AlertCircle,
   Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Trash2, Eye, EyeOff,
-  CircleDashed, ArrowRight, Globe, Wand2,
+  CircleDashed, ArrowRight, Globe, Wand2, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,8 +22,9 @@ import { Badge } from '@/components/ui/badge';
 import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { FiscalValidationCompactCard } from './FiscalValidationCompactCard';
-import { useFiscalReadiness, readinessHeadline } from '@/hooks/useFiscalReadiness';
+import { useFiscalReadiness, readinessHeadline, FISCAL_READINESS_QUERY_KEY } from '@/hooks/useFiscalReadiness';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const CRT_OPTIONS = [
