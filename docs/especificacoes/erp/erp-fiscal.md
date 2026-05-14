@@ -240,6 +240,8 @@ Se o token exigido não estiver disponível, a operação falha de forma control
   desmembrar_estrutura: boolean,  // Desmembrar kits na NF
   focus_empresa_id: text,         // ID da empresa na Focus NFe
   focus_ambiente: text,           // 'producao' | 'homologacao'
+  focus_token_homologacao: text,  // Token NF-e da empresa em homologação (criptografado, sem SELECT para anon/authenticated)
+  focus_token_producao: text,     // Token NF-e da empresa em produção (criptografado, sem SELECT para anon/authenticated)
   focus_empresa_criada_em: timestamptz,
   focus_ultima_sincronizacao: timestamptz,
   emissao_automatica: boolean,
