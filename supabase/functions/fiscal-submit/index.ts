@@ -118,6 +118,18 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Gate: só transmite se já estiver "pronta_emitir".
+    if (invoice.fiscal_stage && invoice.fiscal_stage !== 'pronta_emitir' && invoice.fiscal_stage !== 'emitida') {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Esta nota ainda não está pronta para envio. Use "Criar Nota Fiscal" antes de transmitir.',
+          fiscal_stage: invoice.fiscal_stage,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Buscar itens da NF-e
     const { data: items, error: itemsError } = await supabaseClient
       .from('fiscal_invoice_items')
@@ -374,6 +386,8 @@ Deno.serve(async (req) => {
     // Atualizar NF-e com dados da resposta
     const updateData: any = {
       status: internalStatus,
+      // Transmissão iniciada/concluída -> etapa operacional vira "emitida"
+      fiscal_stage: 'emitida',
       focus_ref: ref,
       mensagem_sefaz: result.data?.mensagem_sefaz,
       status_sefaz: result.data?.status_sefaz,

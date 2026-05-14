@@ -94,8 +94,11 @@ export interface FiscalInvoice {
   serie: number;
   chave_acesso: string | null;
   protocolo: string | null;
-  status: 'draft' | 'pending' | 'authorized' | 'rejected' | 'cancelled';
+  status: 'draft' | 'pending' | 'processing' | 'authorized' | 'rejected' | 'cancelled';
   status_motivo: string | null;
+  // Etapa operacional do produto (independente do status fiscal oficial)
+  fiscal_stage?: 'pedido_venda' | 'pronta_emitir' | 'pendencia' | 'emitida';
+  pendencia_motivos?: string[] | null;
   natureza_operacao: string;
   cfop: string | null;
   valor_total: number;

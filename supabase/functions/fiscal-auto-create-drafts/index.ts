@@ -300,6 +300,7 @@ async function processTenanDrafts(
         order_id: order.id,
         serie: serieNfe,
         status: 'draft',
+        fiscal_stage: 'pedido_venda',
         natureza_operacao: 'VENDA DE MERCADORIA',
         cfop: cfop,
         valor_total: order.total,

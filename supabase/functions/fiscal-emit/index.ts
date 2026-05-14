@@ -114,6 +114,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Gate: só transmite se já estiver "pronta_emitir" (preparada e validada).
+    // Rascunhos em "pedido_venda" ou "pendencia" não podem ser transmitidos.
+    if (invoice.fiscal_stage && invoice.fiscal_stage !== 'pronta_emitir' && invoice.fiscal_stage !== 'emitida') {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Esta nota ainda não está pronta para envio. Use "Criar Nota Fiscal" antes de transmitir.',
+          fiscal_stage: invoice.fiscal_stage,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { data: items, error: itemsError } = await supabaseClient
       .from('fiscal_invoice_items')
       .select('*')
@@ -362,6 +375,8 @@ Deno.serve(async (req) => {
 
     const updateData: any = {
       status: internalStatus,
+      // Transmissão iniciada/concluída -> etapa operacional vira "emitida"
+      fiscal_stage: 'emitida',
       focus_ref: ref,
       mensagem_sefaz: statusData?.mensagem_sefaz,
       submitted_at: new Date().toISOString(),
