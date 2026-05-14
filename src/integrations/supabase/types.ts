@@ -8632,6 +8632,7 @@ export type Database = {
           emitido_por: string | null
           especie_volumes: string | null
           finalidade_emissao: number | null
+          fiscal_stage: string
           focus_ref: string | null
           hora_emissao: string | null
           hora_saida: string | null
@@ -8650,6 +8651,7 @@ export type Database = {
           pagamento_indicador: number
           pagamento_meio: string
           pagamento_valor: number
+          pendencia_motivos: Json | null
           peso_bruto: number | null
           peso_liquido: number | null
           printed_at: string | null
@@ -8707,6 +8709,7 @@ export type Database = {
           emitido_por?: string | null
           especie_volumes?: string | null
           finalidade_emissao?: number | null
+          fiscal_stage?: string
           focus_ref?: string | null
           hora_emissao?: string | null
           hora_saida?: string | null
@@ -8725,6 +8728,7 @@ export type Database = {
           pagamento_indicador?: number
           pagamento_meio?: string
           pagamento_valor?: number
+          pendencia_motivos?: Json | null
           peso_bruto?: number | null
           peso_liquido?: number | null
           printed_at?: string | null
@@ -8782,6 +8786,7 @@ export type Database = {
           emitido_por?: string | null
           especie_volumes?: string | null
           finalidade_emissao?: number | null
+          fiscal_stage?: string
           focus_ref?: string | null
           hora_emissao?: string | null
           hora_saida?: string | null
@@ -8800,6 +8805,7 @@ export type Database = {
           pagamento_indicador?: number
           pagamento_meio?: string
           pagamento_valor?: number
+          pendencia_motivos?: Json | null
           peso_bruto?: number | null
           peso_liquido?: number | null
           printed_at?: string | null
