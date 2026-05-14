@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, useFiscalRealtime, type FiscalInvoice } from '@/hooks/useFiscal';
 import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
 import { ManualInvoiceDialog, type ManualInvoiceInitialData } from '@/components/fiscal/ManualInvoiceDialog';
