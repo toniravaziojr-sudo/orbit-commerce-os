@@ -97,7 +97,7 @@ export function FiscalValidationCompactCard() {
         toast.warning('Cadastro automático falhou — use o fallback manual abaixo.');
         setFallback(data);
       }
-      qc.invalidateQueries({ queryKey: ['fiscal-integration-validate'] });
+      qc.invalidateQueries({ queryKey: FISCAL_READINESS_QUERY_KEY });
       qc.invalidateQueries({ queryKey: ['fiscal-settings'] });
     },
     onError: (e: any) => toast.error(e?.message || 'Erro ao ativar recebimento automático'),
