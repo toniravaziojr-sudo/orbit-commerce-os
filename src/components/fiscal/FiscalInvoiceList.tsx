@@ -1280,11 +1280,21 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   <XCircle className="h-3 w-3" />
                                   Venda cancelada
                                 </Badge>
+                              ) : (mode === 'invoices' && (stageOf(invoice) === 'pronta_emitir' || stageOf(invoice) === 'pendencia')) ? (
+                                <Badge variant={stageConfig[stageOf(invoice)].variant} className="gap-1 w-fit">
+                                  {(() => { const I = stageConfig[stageOf(invoice)].icon; return <I className="h-3 w-3" />; })()}
+                                  {stageConfig[stageOf(invoice)].label}
+                                </Badge>
                               ) : (
                                 <Badge variant={status.variant} className="gap-1 w-fit">
                                   <StatusIcon className="h-3 w-3" />
                                   {status.label}
                                 </Badge>
+                              )}
+                              {mode === 'invoices' && stageOf(invoice) === 'pendencia' && Array.isArray((invoice as any).pendencia_motivos) && (invoice as any).pendencia_motivos.length > 0 && (
+                                <p className="text-xs text-destructive max-w-[220px] truncate" title={(invoice as any).pendencia_motivos.join(' • ')}>
+                                  {(invoice as any).pendencia_motivos[0]}
+                                </p>
                               )}
                               {invoice.status === 'authorized' && isPrinted && (
                                 <Badge variant="outline" className="gap-1 w-fit text-xs">
