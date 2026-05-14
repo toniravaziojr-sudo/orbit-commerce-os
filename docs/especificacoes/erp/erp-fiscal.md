@@ -353,15 +353,17 @@ Regras importantes:
       certificado válido). O badge "Pronto/Incompleto" da UI lê esse flag.
 ```
 
-### Fluxo de Emissão
+### Fluxo de Emissão (v2026-05-14 — Onda 2 rev1)
 ```
 1. Pedido pago → trigger trg_enqueue_fiscal_draft enfileira em fiscal_draft_queue
-2. scheduler-tick consome a fila e cria rascunho em fiscal_invoices (status 'draft')
-3. fiscal-submit envia o rascunho à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
-   → status 'processando_autorizacao'
-4. fiscal-webhook OU fiscal-check-status (polling) atualizam status final:
+2. scheduler-tick consome a fila e cria registro em fiscal_invoices (fiscal_stage='pedido_venda', status='draft')
+3. Usuário clica "Criar Nota Fiscal" → fiscal-prepare-invoice valida localmente
+   → fiscal_stage='pronta_emitir' (sem erros) ou fiscal_stage='pendencia' (com pendências)
+4. Em "Enviar à Receita" → fiscal-submit envia à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
+   → status='processing', fiscal_stage='emitida'
+5. fiscal-webhook OU fiscal-check-status (polling) atualizam status final:
    → 'authorized' | 'rejected' | 'denied'
-5. nfe-shipment-link (helper) propaga o vínculo para shipments quando autorizada
+6. nfe-shipment-link (helper) propaga o vínculo para shipments quando autorizada
 ```
 
 ### Mapeamento de Status NF-e (Sefaz → Interno)
