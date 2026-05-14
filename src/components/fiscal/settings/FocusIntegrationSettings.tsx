@@ -272,7 +272,7 @@ export function FocusIntegrationSettings() {
                       </div>
                       <div className="flex items-center gap-2">
                         {levelIcon(c.level)}
-                        {levelBadge(c.level)}
+                        {levelBadge(c.level, c.status_label)}
                       </div>
                     </div>
                   </CardHeader>
