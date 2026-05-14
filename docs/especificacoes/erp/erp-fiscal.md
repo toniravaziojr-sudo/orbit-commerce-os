@@ -174,12 +174,52 @@ Kit vendido por R$ 100,00
 
 > **Provedor único e em produção.** A migração da Nuvem Fiscal foi concluída em 2026-05-04. Não há mais qualquer dependência da Nuvem Fiscal no sistema (código, secrets, banco ou UI).
 
-### Credenciais (Platform-level)
-| Secret | Descrição |
-|--------|-----------|
-| `FOCUS_NFE_TOKEN` | Token único de produção da plataforma. Configurado em `/platform-integrations` → aba **Fiscal**. |
+### Arquitetura de credenciais (rev 2026-05-14)
 
-> O token é compartilhado por todos os tenants. A separação de responsabilidades por CNPJ é feita por meio do `focus_empresa_id` armazenado em `fiscal_settings` de cada tenant.
+A integração com a Focus NFe usa **dois níveis distintos** de credencial. Toda chamada a um endpoint Focus precisa declarar o **tipo de operação** (`account_admin` ou `nfe_op`), e o resolver de credenciais escolhe automaticamente o token correto, no ambiente correto, do tenant correto.
+
+#### Nível 1 — Conta Focus (plataforma)
+
+| Secret | Escopo | Uso |
+|--------|--------|-----|
+| `FOCUS_NFE_TOKEN` | Global da plataforma | **Token principal da conta Focus.** Usado **exclusivamente em operações administrativas da conta**: cadastrar/atualizar empresas (`/v2/empresas`), anexar certificado A1, registrar/consultar webhooks, consultas administrativas. Configurado em **Plataforma → Integrações → Fiscal**. Nunca é usado para emitir, cancelar, consultar ou corrigir NF-e. |
+
+> Este é o token que aparece **no topo** do painel da Focus NFe ("Token principal produção"). Ele não emite nota — ele administra empresas dentro da conta Focus.
+
+#### Nível 2 — Empresa do tenant (por CNPJ)
+
+Cada empresa cadastrada na conta Focus possui **dois tokens próprios**: um de **homologação** e um de **produção**. Esses tokens são **do tenant**, não da plataforma, e ficam armazenados criptografados em `fiscal_settings` do próprio tenant:
+
+| Coluna | Conteúdo |
+|--------|----------|
+| `focus_token_homologacao` | Token de homologação da empresa do tenant. Usado em toda operação de NF-e em ambiente de homologação. |
+| `focus_token_producao` | Token de produção da empresa do tenant. Usado em toda operação de NF-e em ambiente de produção. |
+
+Regras:
+- Tokens por empresa **nunca** são armazenados como secret global da plataforma.
+- **SELECT** dessas colunas é negado para `anon`/`authenticated`. Frontend nunca lê o valor — apenas o status (configurado / não configurado) via RPC dedicada.
+- Gravação só via RPC `SECURITY DEFINER` (`fiscal_set_focus_tenant_token`), que não devolve o valor depois de salvo.
+- **Cada tenant usa apenas os próprios tokens da sua empresa.** Não há fallback entre tenants nem entre ambientes.
+- **Produção fica bloqueada** se `focus_token_producao` do tenant não estiver configurado, mesmo que o tenant tenha homologação OK.
+
+#### Resolver de credenciais
+
+Toda edge function fiscal declara o tipo de operação ao resolver credenciais:
+
+| Tipo | Quando usar | Token escolhido |
+|------|-------------|-----------------|
+| `account_admin` | Cadastrar empresa, anexar certificado, registrar/validar webhook, consultar empresa, health check da conta | `FOCUS_NFE_TOKEN` (global) |
+| `nfe_op` | Emitir, submeter, consultar, cancelar, CC-e, inutilizar NF-e | Token do tenant no ambiente atual (`focus_token_homologacao` **ou** `focus_token_producao`) |
+
+Se o token exigido não estiver disponível, a operação falha de forma controlada (sem fallback silencioso para o token de outro ambiente ou para o token global).
+
+#### Status do piloto
+
+- **Respeite o Homem** permanece em **homologação** durante o piloto. O token de produção da empresa só será cadastrado após validação completa em homologação. Não há emissão real de NF-e no piloto.
+
+#### Pendência futura (não bloqueante)
+
+- Avaliar criptografia em repouso mais forte para `focus_token_homologacao` / `focus_token_producao` — por exemplo Vault ou pgsodium — preservando o contrato atual de RPC. **Não é pré-requisito do piloto**: hoje as colunas já estão protegidas por `REVOKE SELECT` para `anon`/`authenticated` e só são lidas via service_role dentro das edge functions.
 
 ### Configuração por Tenant (`fiscal_settings`)
 ```typescript
