@@ -21,6 +21,32 @@ interface OrderItem {
   unidade: string;
   quantidade: number;
   valor_unitario: number;
+  // Campos fiscais carregados invisivelmente quando duplicando — preservam dados do original.
+  ncm?: string;
+  cfop?: string;
+  origem?: string;
+  csosn?: string;
+}
+
+export interface ManualInvoiceInitialData {
+  destinatario: {
+    nome: string;
+    cpf_cnpj: string;
+    email?: string;
+    telefone?: string;
+    endereco: {
+      logradouro: string;
+      numero: string;
+      complemento?: string;
+      bairro: string;
+      municipio: string;
+      uf: string;
+      cep: string;
+    };
+  };
+  itens: OrderItem[];
+  observacoes?: string;
+  natureza_operacao?: string;
 }
 
 function isValidCpfCnpj(value: string): boolean {
