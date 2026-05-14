@@ -70,7 +70,7 @@ export function InvoiceActionsDropdown({
   onResendEmail,
   isSubmitting,
   isCheckingStatus,
-  cloneLabel = 'Clonar NF',
+  cloneLabel = 'Duplicar NF',
 }: InvoiceActionsDropdownProps) {
   const [isDownloadingXml, setIsDownloadingXml] = useState(false);
 
