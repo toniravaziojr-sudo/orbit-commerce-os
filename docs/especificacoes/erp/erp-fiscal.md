@@ -1537,3 +1537,13 @@ Quando o `focus_empresa_id` ficar órfão no provedor (empresa não existe mais 
 1. Setar `focus_empresa_id = NULL`, `focus_company_status = 'unknown'`, `focus_ultima_sincronizacao = NULL`, `webhook_status = 'pending'`, `webhook_environment = 'homologacao'`, `is_configured = false` no `fiscal_settings` do tenant.
 2. Próximo carregamento da tela fiscal pelo owner aciona `fiscal-integration-validate` → `fiscal-sync-focus-nfe`, que executa `getEmpresa(cnpj)`; se não existir, faz `POST` (cadastro novo) usando os dados atuais do emitente. **Não há reemissão de certificado fora do que já está salvo.**
 3. Tokens de homologação/produção são capturados automaticamente do retorno do provedor — o lojista nunca os digita.
+
+
+## Ambiente de emissão (UI lojista) — atualização
+
+- Lojista comum NÃO escolhe ambiente na UI. O bloco "Ambiente de Emissão" exibe apenas status informativo:
+  - Homologação → "Modo de teste fiscal ativo" (sem valor fiscal, uso técnico/piloto).
+  - Produção → "Ambiente de emissão: Produção" (valor fiscal real).
+- Homologação é modo técnico/piloto/suporte. Produção é o fluxo padrão do lojista.
+- Troca de ambiente é controle técnico/admin (backend/platform admin), fora da UI comum.
+- Tenant piloto Respeite o Homem permanece em homologação para validação técnica.

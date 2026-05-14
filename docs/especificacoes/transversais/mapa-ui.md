@@ -503,3 +503,9 @@ Rota `/system/users` verifica `module: 'system', submodule: 'users'` → apenas 
 5. **Toda mudança de visibilidade** (perfil, plano, role) deve atualizar a Seção 3
 6. **Toda rota redirect** nova deve ser adicionada à tabela de redirects (Seção 4.8)
 7. **Toda mudança de status de módulo** deve atualizar a Seção 5
+
+
+### Sistema → Configurações → Fiscal → Configurações Fiscais — Ambiente de Emissão
+
+- Bloco passa a ser somente leitura para o lojista (status informativo).
+- Sem dropdown Homologação/Produção na UI comum. Troca é controle técnico/admin.
