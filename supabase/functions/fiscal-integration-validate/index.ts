@@ -89,10 +89,10 @@ Deno.serve(async (req) => {
       cards.push({
         key: "focus_company",
         level: focusCompanyOk ? "ok" : "warn",
-        title: "Empresa Focus",
+        title: "Cadastro da empresa no provedor fiscal",
         message: focusCompanyOk
-          ? "Empresa cadastrada na Focus NFe."
-          : "Não foi possível confirmar a empresa na Focus.",
+          ? "Empresa cadastrada no provedor fiscal."
+          : "Não foi possível confirmar a empresa no provedor fiscal.",
         details: { focus_empresa_id: settings.focus_empresa_id },
       });
     }
