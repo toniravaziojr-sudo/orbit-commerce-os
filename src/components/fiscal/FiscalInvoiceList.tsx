@@ -1298,15 +1298,15 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   Venda cancelada
                                 </Badge>
                               ) : (mode === 'invoices' && (stageOf(invoice) === 'pronta_emitir' || stageOf(invoice) === 'pendencia')) ? (
-                                <Badge variant={stageConfig[stageOf(invoice)].variant} className="gap-1 w-fit">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${stageConfig[stageOf(invoice)].className}`}>
                                   {(() => { const I = stageConfig[stageOf(invoice)].icon; return <I className="h-3 w-3" />; })()}
                                   {stageConfig[stageOf(invoice)].label}
-                                </Badge>
+                                </span>
                               ) : (
-                                <Badge variant={status.variant} className="gap-1 w-fit">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${status.className}`}>
                                   <StatusIcon className="h-3 w-3" />
                                   {status.label}
-                                </Badge>
+                                </span>
                               )}
                               {mode === 'invoices' && stageOf(invoice) === 'pendencia' && Array.isArray((invoice as any).pendencia_motivos) && (invoice as any).pendencia_motivos.length > 0 && (
                                 <p className="text-xs text-destructive max-w-[220px] truncate" title={(invoice as any).pendencia_motivos.join(' • ')}>
@@ -1314,10 +1314,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                 </p>
                               )}
                               {invoice.status === 'authorized' && isPrinted && (
-                                <Badge variant="outline" className="gap-1 w-fit text-xs">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium w-fit ${COLOR.green}`}>
                                   <Printer className="h-3 w-3" />
                                   Impressa
-                                </Badge>
+                                </span>
                               )}
                               {invoice.status === 'rejected' && invoice.status_motivo && (
                                 <p className="text-xs text-destructive max-w-[200px] truncate" title={invoice.status_motivo}>
@@ -1341,6 +1341,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onDelete={() => handleDeleteDraft(invoice)}
                               onEmitirDevolucao={() => handleEmitirDevolucao(invoice)}
                               onResendEmail={() => handleResendEmail(invoice)}
+                              onGenerateDC={mode === 'orders' ? () => handleGenerateDC(invoice) : undefined}
+                              isGeneratingDC={generatingDcInvoiceId === invoice.id}
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
