@@ -82,9 +82,17 @@ Deno.serve(async (req) => {
 
     const cnpj = settings.cnpj.replace(/\D/g, '');
     const ambiente = (settings.focus_ambiente || settings.ambiente) === 'producao' ? 'producao' : 'homologacao';
-    const focusBaseUrl = ambiente === 'producao'
-      ? 'https://api.focusnfe.com.br'
-      : 'https://homologacao.focusnfe.com.br';
+    const tenantTok = await loadFocusTenantToken(supabaseClient, tenantId, ambiente);
+    const creds = resolveFocusCredentials({
+      ambiente,
+      operationKind: 'nfe_op',
+      tenantTokenForAmbiente: tenantTok.token,
+    });
+    if (!creds.ok || !creds.token) {
+      return jsonResponse({ success: false, error: creds.error, code: creds.errorCode });
+    }
+    const focusToken = creds.token;
+    const focusBaseUrl = creds.baseUrl!;
 
     console.log(`[fiscal-inutilizar] tenant=${tenantId} serie=${serie} ${ni}-${nf}`);
 
