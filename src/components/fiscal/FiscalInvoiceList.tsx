@@ -1361,6 +1361,60 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           invoiceNumber={`${timelineInvoice.serie}-${timelineInvoice.numero}`}
         />
       )}
+      {/* Confirmar emissão de NF-e (modo teste em homologação) */}
+      <AlertDialog
+        open={!!confirmEmitInvoice}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmEmitInvoice(null);
+            setEmitPrecheckErrors([]);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {settings?.ambiente === 'homologacao' ? 'Emitir NF-e de teste?' : 'Emitir NF-e?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                {settings?.ambiente === 'homologacao' ? (
+                  <p>Esta loja está em modo de teste fiscal. A nota será enviada em homologação e <strong>não terá valor fiscal real</strong>.</p>
+                ) : (
+                  <p>A NF-e será enviada para autorização da SEFAZ. Esta ação não pode ser desfeita.</p>
+                )}
+                {confirmEmitInvoice && (
+                  <p className="text-muted-foreground">
+                    NF {confirmEmitInvoice.serie}-{confirmEmitInvoice.numero} · {confirmEmitInvoice.dest_nome} · {formatCurrency(confirmEmitInvoice.valor_total)}
+                  </p>
+                )}
+                {emitPrecheckErrors.length > 0 && (
+                  <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3">
+                    <p className="font-medium text-destructive mb-1">Pendências antes de emitir:</p>
+                    <ul className="list-disc pl-5 space-y-0.5 text-destructive">
+                      {emitPrecheckErrors.map((e, i) => <li key={i}>{e}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={emitPrecheckErrors.length > 0}
+              onClick={() => {
+                if (!confirmEmitInvoice || emitPrecheckErrors.length > 0) return;
+                const inv = confirmEmitInvoice;
+                setConfirmEmitInvoice(null);
+                handleQuickSubmit(inv);
+              }}
+            >
+              {settings?.ambiente === 'homologacao' ? 'Emitir NF-e de teste' : 'Emitir NF-e'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
