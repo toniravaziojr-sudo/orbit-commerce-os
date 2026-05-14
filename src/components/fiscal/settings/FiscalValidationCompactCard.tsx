@@ -1,7 +1,14 @@
 // =============================================
 // FISCAL VALIDATION — Card compacto
 // Mora dentro da aba "Configurações Fiscais", ao lado do "Ambiente de Emissão".
-// Substitui a sub-aba dedicada de validação. Sem termos técnicos na UI.
+//
+// Regras (v2):
+// - O recebimento automático de retornos é ativado automaticamente pelo backend
+//   quando todos os pré-requisitos estiverem completos. O usuário não precisa
+//   clicar em nenhum botão obrigatório.
+// - O botão "Tentar novamente" só aparece quando há erro real ou fallback manual.
+// - O selo geral reflete o ambiente: "Pronto para teste" em homologação,
+//   "Pronto" em produção, "Configuração pendente", "Erro" ou "Bloqueado".
 // =============================================
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,22 +20,30 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
   Loader2, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, AlertCircle,
-  Clock, RefreshCw, PlugZap, Copy, Eye, EyeOff,
+  Clock, RefreshCw, PlugZap, Copy, Eye, EyeOff, FlaskConical,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 type CardLevel = 'ok' | 'warn' | 'error' | 'pending';
+type OverallStatus = 'ready' | 'ready_for_test' | 'config_pending' | 'error' | 'blocked';
+
 interface ValidationCard {
   key: string;
   level: CardLevel;
   title: string;
   message: string;
+  status_label?: string;
   details?: Record<string, any>;
 }
 interface ValidateResponse {
   success: boolean;
   ambiente?: 'homologacao' | 'producao';
+  overall_status?: OverallStatus;
+  next_action_label?: string | null;
+  can_retry_activation?: boolean;
+  auto_activation_attempted?: boolean;
+  auto_activation_succeeded?: boolean;
   ready_for_production?: boolean;
   ready_for_homologation_smoke?: boolean;
   cards?: ValidationCard[];
@@ -46,13 +61,6 @@ interface RegisterResponse {
   status?: string;
   error?: string;
 }
-
-const FRIENDLY_TITLES: Record<string, string> = {
-  focus_company: 'Empresa fiscal cadastrada',
-  certificate: 'Certificado A1 válido',
-  webhook: 'Recebimento automático de retornos',
-  environment: 'Ambiente atual',
-};
 
 function levelDot(level: CardLevel) {
   if (level === 'ok') return <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />;
@@ -88,7 +96,7 @@ export function FiscalValidationCompactCard() {
         return;
       }
       if (data.auto_register_succeeded) {
-        toast.success('Recebimento automático cadastrado. Aguardando primeira confirmação.');
+        toast.success('Recebimento automático cadastrado.');
         setFallback(null);
         setShowToken(false);
       } else if (data.fallback) {
@@ -101,33 +109,35 @@ export function FiscalValidationCompactCard() {
     onError: (e: any) => toast.error(e?.message || 'Erro ao ativar recebimento automático'),
   });
 
-  const cards = validateQuery.data?.cards || [];
-  const ambiente = validateQuery.data?.ambiente;
-  const readyProd = !!validateQuery.data?.ready_for_production;
-
-  const webhookCard = cards.find(c => c.key === 'webhook');
-  const webhookActivated = webhookCard?.level === 'ok' || webhookCard?.level === 'pending';
-  const hasBlocker = cards.some(c => c.level === 'error');
-  const hasAttention = cards.some(c => c.level === 'warn' || c.level === 'pending');
-
-  const overallStatus: 'ready' | 'attention' | 'blocked' | 'loading' =
-    validateQuery.isLoading ? 'loading'
-    : hasBlocker ? 'blocked'
-    : hasAttention ? 'attention'
-    : 'ready';
+  const data = validateQuery.data;
+  const cards = data?.cards || [];
+  const ambiente = data?.ambiente;
+  const overall: OverallStatus | 'loading' = validateQuery.isLoading ? 'loading' : (data?.overall_status || 'config_pending');
+  const nextAction = data?.next_action_label || null;
+  const canRetry = !!data?.can_retry_activation;
 
   const overallBadge = () => {
-    if (overallStatus === 'ready') {
+    if (overall === 'loading') return <Badge variant="outline">Verificando…</Badge>;
+    if (overall === 'ready') {
       return <Badge variant="outline" className="border-green-500/50 text-green-600 gap-1"><ShieldCheck className="h-3 w-3" />Pronto</Badge>;
     }
-    if (overallStatus === 'attention') {
-      return <Badge variant="outline" className="border-amber-500/50 text-amber-600 gap-1"><ShieldAlert className="h-3 w-3" />Atenção</Badge>;
+    if (overall === 'ready_for_test') {
+      return <Badge variant="outline" className="border-green-500/50 text-green-600 gap-1"><FlaskConical className="h-3 w-3" />Pronto para teste</Badge>;
     }
-    if (overallStatus === 'blocked') {
-      return <Badge variant="destructive" className="gap-1"><ShieldX className="h-3 w-3" />Bloqueado</Badge>;
+    if (overall === 'config_pending') {
+      return <Badge variant="outline" className="border-amber-500/50 text-amber-600 gap-1"><ShieldAlert className="h-3 w-3" />Configuração pendente</Badge>;
     }
-    return <Badge variant="outline">Verificando…</Badge>;
+    if (overall === 'error') {
+      return <Badge variant="destructive" className="gap-1"><ShieldX className="h-3 w-3" />Erro</Badge>;
+    }
+    return <Badge variant="destructive" className="gap-1"><ShieldX className="h-3 w-3" />Bloqueado</Badge>;
   };
+
+  const overallBorder =
+    overall === 'ready' || overall === 'ready_for_test' ? 'border-green-500/40'
+    : overall === 'config_pending' ? 'border-amber-500/40'
+    : overall === 'error' || overall === 'blocked' ? 'border-destructive/40'
+    : 'border-border';
 
   const maskedToken = (() => {
     if (!fallback?.manual_register_url) return null;
@@ -146,12 +156,7 @@ export function FiscalValidationCompactCard() {
   };
 
   return (
-    <Card id="card-validacao-fiscal" className={cn(
-      'border-2',
-      overallStatus === 'ready' && 'border-green-500/40',
-      overallStatus === 'attention' && 'border-amber-500/40',
-      overallStatus === 'blocked' && 'border-destructive/40',
-    )}>
+    <Card id="card-validacao-fiscal" className={cn('border-2', overallBorder)}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
@@ -160,7 +165,9 @@ export function FiscalValidationCompactCard() {
               Validação Fiscal
             </CardTitle>
             <CardDescription className="mt-1">
-              Confira se sua loja está pronta para emitir NF-e.
+              {ambiente === 'producao'
+                ? 'Confira se sua loja está pronta para emitir NF-e em produção.'
+                : 'Confira se sua loja está pronta para o teste de homologação.'}
             </CardDescription>
           </div>
           {overallBadge()}
@@ -182,24 +189,45 @@ export function FiscalValidationCompactCard() {
           </Alert>
         )}
 
+        {!validateQuery.isLoading && nextAction && (overall === 'config_pending' || overall === 'error' || overall === 'blocked') && (
+          <Alert className={cn(
+            overall === 'config_pending' && 'border-amber-500/50 bg-amber-500/5',
+            (overall === 'error' || overall === 'blocked') && 'border-destructive/50 bg-destructive/5',
+          )}>
+            <AlertCircle className={cn(
+              'h-4 w-4',
+              overall === 'config_pending' ? 'text-amber-600' : 'text-destructive',
+            )} />
+            <AlertDescription className="text-xs">{nextAction}</AlertDescription>
+          </Alert>
+        )}
+
+        {!validateQuery.isLoading && overall === 'ready_for_test' && (
+          <div className="text-xs text-muted-foreground">
+            O recebimento automático será confirmado no primeiro retorno da NF de teste.
+          </div>
+        )}
+
         {!validateQuery.isLoading && cards.length > 0 && (
           <ul className="space-y-2">
             {cards.map((c) => {
-              const friendly = FRIENDLY_TITLES[c.key] || c.title;
-              const valueLabel =
-                c.key === 'environment'
-                  ? (ambiente === 'producao' ? 'Produção' : 'Homologação')
-                  : c.level === 'ok' ? 'OK'
+              const valueLabel = c.status_label
+                || (c.level === 'ok' ? 'OK'
                   : c.level === 'pending' ? 'Aguardando'
-                  : c.level === 'warn' ? 'Atenção'
-                  : 'Pendente';
+                  : c.level === 'warn' ? 'Configurar'
+                  : 'Erro');
               return (
                 <li key={c.key} className="flex items-start gap-2 text-sm">
                   {levelDot(c.level)}
                   <div className="flex-1 min-w-0 flex items-center justify-between gap-2 flex-wrap">
-                    <span className="font-medium">{friendly}</span>
+                    <div className="min-w-0">
+                      <div className="font-medium">{c.title}</div>
+                      {c.message && (
+                        <div className="text-xs text-muted-foreground">{c.message}</div>
+                      )}
+                    </div>
                     <span className={cn(
-                      'text-xs',
+                      'text-xs whitespace-nowrap',
                       c.level === 'ok' && 'text-green-700 dark:text-green-400',
                       c.level === 'pending' && 'text-amber-700 dark:text-amber-400',
                       c.level === 'warn' && 'text-amber-700 dark:text-amber-400',
@@ -212,12 +240,6 @@ export function FiscalValidationCompactCard() {
               );
             })}
           </ul>
-        )}
-
-        {readyProd && (
-          <div className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1">
-            <ShieldCheck className="h-3 w-3" /> Pronto para emitir em produção.
-          </div>
         )}
 
         <Separator />
@@ -235,17 +257,18 @@ export function FiscalValidationCompactCard() {
               : <RefreshCw className="h-4 w-4" />}
             Validar integração fiscal
           </Button>
-          {!webhookActivated && (
+          {canRetry && (
             <Button
               size="sm"
+              variant="outline"
               onClick={() => registerMutation.mutate({})}
               disabled={registerMutation.isPending}
               className="gap-2"
             >
               {registerMutation.isPending
                 ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <PlugZap className="h-4 w-4" />}
-              Ativar recebimento automático de retornos
+                : <RefreshCw className="h-4 w-4" />}
+              Tentar novamente
             </Button>
           )}
         </div>
