@@ -1512,3 +1512,22 @@ Estas regras devem ser preservadas em qualquer refatoração futura do módulo f
 4. **Linguagem de negócio na UI fiscal.** Termos proibidos no fluxo comum: token, webhook, hook, API, Focus NFe, sincronizar empresa, cadastrar empresa no provedor. Estados permitidos: "Configuração fiscal pendente", "Preparando emissão automática", "Pronto para teste", "Pronto para emitir NF-e", "Configuração fiscal com erro", "Produção bloqueada".
 
 5. **Produção bloqueada por padrão.** Produção só é liberada quando `ready_for_production = true` no retorno de `fiscal-integration-validate` — ou seja, todos os requisitos reais validados (cadastro Focus, certificado válido e não divergente, recebimento automático ativo, token de produção presente).
+
+## Anti-regressão — Segurança de logs do certificado A1
+
+**Proibido em qualquer função fiscal:**
+- Logar conteúdo, amostra, prefixo ou sufixo do PFX (descriptografado **ou** criptografado).
+- Logar a senha do certificado, mesmo parcialmente.
+- Logar `arquivo_certificado_base64` ou `senha_certificado` no payload da Focus NFe — sempre redigir como `[REDACTED]` antes de serializar.
+- Serializar exceções com `JSON.stringify(error)` quando o objeto pode conter o payload do certificado.
+
+**Permitido:** logar apenas comprimento e operação (ex.: `pfxLength`, `senhaLength`, "decryption ok"), nunca conteúdo.
+
+**Resposta a incidente:** se um PFX ou senha aparecer em log de produção, o certificado A1 é tratado como **potencialmente comprometido**. Produção continua bloqueada até substituição do certificado e (se aplicável) revogação do anterior junto à AC. Trocar apenas a senha não sana exposição do PFX.
+
+## Caminho A — Recriação limpa da empresa em homologação
+
+Quando o `focus_empresa_id` ficar órfão no provedor (empresa não existe mais lá, mas o id está salvo), a operação de saneamento é:
+1. Setar `focus_empresa_id = NULL`, `focus_company_status = 'unknown'`, `focus_ultima_sincronizacao = NULL`, `webhook_status = 'pending'`, `webhook_environment = 'homologacao'`, `is_configured = false` no `fiscal_settings` do tenant.
+2. Próximo carregamento da tela fiscal pelo owner aciona `fiscal-integration-validate` → `fiscal-sync-focus-nfe`, que executa `getEmpresa(cnpj)`; se não existir, faz `POST` (cadastro novo) usando os dados atuais do emitente. **Não há reemissão de certificado fora do que já está salvo.**
+3. Tokens de homologação/produção são capturados automaticamente do retorno do provedor — o lojista nunca os digita.
