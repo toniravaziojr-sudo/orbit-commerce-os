@@ -1,6 +1,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendNFe, getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
@@ -21,14 +22,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
+  // Token resolvido depois, junto com o ambiente do tenant.
 
-  if (!focusToken) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+
 
   try {
     const authHeader = req.headers.get('Authorization');
@@ -192,8 +188,17 @@ Deno.serve(async (req) => {
 
     console.log(`[fiscal-emit] Ambiente Focus NFe: ${ambiente}`);
 
+    console.log(`[fiscal-emit] Ambiente Focus NFe: ${ambiente}`);
+
+    const creds = resolveFocusCredentials({ ambiente });
+    if (!creds.ok || !creds.token) {
+      return new Response(
+        JSON.stringify({ success: false, error: creds.error, code: creds.errorCode }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     const focusConfig: FocusNFeConfig = {
-      token: focusToken,
+      token: creds.token,
       ambiente,
     };
 

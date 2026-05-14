@@ -5,6 +5,7 @@
 
 import { errorResponse } from "../_shared/error-response.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,12 +24,6 @@ const fail = (error: string, code: string, extra: Record<string, unknown> = {}) 
     status: 200, // standard: 200 + success:false for business errors
     headers: corsHeaders,
   });
-
-function focusBaseUrl(ambiente: "homologacao" | "producao"): string {
-  return ambiente === "producao"
-    ? "https://api.focusnfe.com.br"
-    : "https://homologacao.focusnfe.com.br";
-}
 
 function basicAuth(token: string): string {
   return "Basic " + btoa(`${token}:`);
@@ -98,18 +93,15 @@ Deno.serve(async (req) => {
       | "homologacao"
       | "producao";
 
-    // Choose Focus token: per-tenant provider_token > global env
-    // Read provider_token in a separate query (it's masked from default selects)
-    const { data: tokenRow } = await serviceClient
-      .from("fiscal_settings")
-      .select("provider_token")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-
-    const focusToken = tokenRow?.provider_token || Deno.env.get("FOCUS_NFE_TOKEN");
-    if (!focusToken) {
-      return fail("Token da Focus NFe não configurado", "focus_token_missing");
+    // Resolve credenciais do provedor fiscal pelo ambiente correto.
+    // Não usamos mais provider_token legado silenciosamente — apenas slot
+    // global do ambiente (FOCUS_NFE_TOKEN_HOMOLOGACAO / FOCUS_NFE_TOKEN_PRODUCAO).
+    const creds = resolveFocusCredentials({ ambiente });
+    if (!creds.ok || !creds.token) {
+      return fail(creds.error || "Credencial fiscal indisponível", creds.errorCode || "focus_token_missing", { ambiente });
     }
+    const focusToken = creds.token;
+    const baseUrl = creds.baseUrl!;
 
     // Generate or reuse per-tenant token
     let tenantToken = settings.webhook_tenant_token as string | null;
@@ -132,7 +124,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const baseUrl = focusBaseUrl(ambiente);
 
     // 1) List existing hooks for this CNPJ to avoid duplicates
     let existingHookId: string | null = null;

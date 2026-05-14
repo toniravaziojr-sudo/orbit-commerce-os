@@ -4,6 +4,7 @@
 
 import { errorResponse } from "../_shared/error-response.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,11 +21,6 @@ interface Card {
   details?: Record<string, unknown>;
 }
 
-function focusBaseUrl(ambiente: "homologacao" | "producao"): string {
-  return ambiente === "producao"
-    ? "https://api.focusnfe.com.br"
-    : "https://homologacao.focusnfe.com.br";
-}
 function basicAuth(token: string): string {
   return "Basic " + btoa(`${token}:`);
 }
@@ -40,7 +36,7 @@ Deno.serve(async (req) => {
     const { data: settings } = await serviceClient
       .from("fiscal_settings")
       .select(
-        "tenant_id, cnpj, focus_empresa_id, focus_ambiente, ambiente, focus_company_status, certificado_valido_ate, certificado_cnpj, certificado_uploaded_at, webhook_status, webhook_environment, webhook_url_sanitized, webhook_focus_hook_id, webhook_registered_at, webhook_validated_at, webhook_last_received_at, webhook_last_error, webhook_last_error_at, provider_token",
+        "tenant_id, cnpj, focus_empresa_id, focus_ambiente, ambiente, focus_company_status, certificado_valido_ate, certificado_cnpj, certificado_uploaded_at, webhook_status, webhook_environment, webhook_url_sanitized, webhook_focus_hook_id, webhook_registered_at, webhook_validated_at, webhook_last_received_at, webhook_last_error, webhook_last_error_at",
       )
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -74,16 +70,20 @@ Deno.serve(async (req) => {
       });
     } else {
       // Try a remote get (best-effort, doesn't fail validation if Focus is down)
-      const focusToken = settings.provider_token || Deno.env.get("FOCUS_NFE_TOKEN");
+      const creds = resolveFocusCredentials({ ambiente });
       let remoteOk: boolean | null = null;
-      if (focusToken && settings.cnpj) {
+      if (creds.ok && creds.token && settings.cnpj) {
         try {
           const r = await fetch(
-            `${focusBaseUrl(ambiente)}/v2/empresas/${encodeURIComponent(settings.cnpj)}`,
-            { method: "GET", headers: { Authorization: basicAuth(focusToken) } },
+            `${creds.baseUrl}/v2/empresas/${encodeURIComponent(settings.cnpj)}`,
+            { method: "GET", headers: { Authorization: basicAuth(creds.token) } },
           );
           remoteOk = r.ok;
         } catch { remoteOk = null; }
+      } else if (!creds.ok) {
+        // Token do ambiente correto não configurado — sinaliza, mas não falha hard.
+        remoteOk = null;
+        console.warn(`[fiscal-integration-validate] ${creds.errorCode}: ${creds.error}`);
       }
       focusCompanyOk = remoteOk !== false;
       cards.push({
