@@ -79,7 +79,12 @@ Deno.serve(async (req) => {
       .single();
 
     const ambiente = (settings?.focus_ambiente || settings?.ambiente) === 'producao' ? 'producao' : 'homologacao';
-    const creds = resolveFocusCredentials({ ambiente });
+    const tenantTok = await loadFocusTenantToken(supabaseClient, tenantId, ambiente);
+    const creds = resolveFocusCredentials({
+      ambiente,
+      operationKind: 'nfe_op',
+      tenantTokenForAmbiente: tenantTok.token,
+    });
     if (!creds.ok || !creds.token) {
       return jsonResponse({ success: false, error: creds.error, code: creds.errorCode });
     }
