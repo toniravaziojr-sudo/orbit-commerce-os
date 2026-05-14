@@ -9042,6 +9042,7 @@ export type Database = {
           endereco_uf: string | null
           enviar_email_nfe: boolean | null
           focus_ambiente: string | null
+          focus_company_status: string
           focus_empresa_criada_em: string | null
           focus_empresa_id: string | null
           focus_ultima_sincronizacao: string | null
@@ -9059,6 +9060,17 @@ export type Database = {
           telefone: string | null
           tenant_id: string
           updated_at: string | null
+          webhook_environment: string | null
+          webhook_focus_hook_id: string | null
+          webhook_last_error: string | null
+          webhook_last_error_at: string | null
+          webhook_last_received_at: string | null
+          webhook_registered_at: string | null
+          webhook_status: string
+          webhook_tenant_token: string | null
+          webhook_token_rotated_at: string | null
+          webhook_url_sanitized: string | null
+          webhook_validated_at: string | null
         }
         Insert: {
           ambiente?: string | null
@@ -9096,6 +9108,7 @@ export type Database = {
           endereco_uf?: string | null
           enviar_email_nfe?: boolean | null
           focus_ambiente?: string | null
+          focus_company_status?: string
           focus_empresa_criada_em?: string | null
           focus_empresa_id?: string | null
           focus_ultima_sincronizacao?: string | null
@@ -9113,6 +9126,17 @@ export type Database = {
           telefone?: string | null
           tenant_id: string
           updated_at?: string | null
+          webhook_environment?: string | null
+          webhook_focus_hook_id?: string | null
+          webhook_last_error?: string | null
+          webhook_last_error_at?: string | null
+          webhook_last_received_at?: string | null
+          webhook_registered_at?: string | null
+          webhook_status?: string
+          webhook_tenant_token?: string | null
+          webhook_token_rotated_at?: string | null
+          webhook_url_sanitized?: string | null
+          webhook_validated_at?: string | null
         }
         Update: {
           ambiente?: string | null
@@ -9150,6 +9174,7 @@ export type Database = {
           endereco_uf?: string | null
           enviar_email_nfe?: boolean | null
           focus_ambiente?: string | null
+          focus_company_status?: string
           focus_empresa_criada_em?: string | null
           focus_empresa_id?: string | null
           focus_ultima_sincronizacao?: string | null
@@ -9167,6 +9192,17 @@ export type Database = {
           telefone?: string | null
           tenant_id?: string
           updated_at?: string | null
+          webhook_environment?: string | null
+          webhook_focus_hook_id?: string | null
+          webhook_last_error?: string | null
+          webhook_last_error_at?: string | null
+          webhook_last_received_at?: string | null
+          webhook_registered_at?: string | null
+          webhook_status?: string
+          webhook_tenant_token?: string | null
+          webhook_token_rotated_at?: string | null
+          webhook_url_sanitized?: string | null
+          webhook_validated_at?: string | null
         }
         Relationships: [
           {
