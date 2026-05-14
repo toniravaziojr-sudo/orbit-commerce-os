@@ -245,14 +245,35 @@ export function EmitenteSettings() {
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {readinessQuery.isLoading && (
             <div className="text-sm text-muted-foreground">Carregando situação fiscal…</div>
           )}
+
+          {/* Mensagem de ação principal — somente em estados não-OK. */}
+          {!readinessQuery.isLoading && readiness?.next_action_label && headline.tone !== 'ready' && (
+            <Alert className={cn(
+              headline.tone === 'pending' && 'border-amber-500/50 bg-amber-500/5',
+              headline.tone === 'blocked' && 'border-destructive/50 bg-destructive/5',
+            )}>
+              <AlertCircle className={cn(
+                'h-4 w-4',
+                headline.tone === 'pending' ? 'text-amber-600' : 'text-destructive',
+              )} />
+              <AlertDescription className="text-sm">{readiness.next_action_label}</AlertDescription>
+            </Alert>
+          )}
+
           {!readinessQuery.isLoading && (readiness?.cards || []).length > 0 && (
             <ul className="space-y-2">
               {(readiness?.cards || []).map(item => {
-                const anchor = SERVER_KEY_TO_ANCHOR[item.key] || 'card-validacao-fiscal';
+                const canGoto = !!item.goto && !!SERVER_KEY_TO_ANCHOR[item.key];
+                const anchor = SERVER_KEY_TO_ANCHOR[item.key];
+                const valueLabel = item.status_label
+                  || (item.level === 'ok' ? 'OK'
+                    : item.level === 'pending' ? 'Preparando'
+                    : item.level === 'warn' ? 'Pendente'
+                    : 'Erro');
                 return (
                   <li key={item.key} className="flex items-start gap-3">
                     <div className="mt-0.5">
@@ -266,14 +287,25 @@ export function EmitenteSettings() {
                         <span className={cn('text-sm font-medium', item.level === 'ok' && 'text-muted-foreground')}>
                           {item.title}
                         </span>
-                        {item.level !== 'ok' && (
-                          <button
-                            type="button" onClick={() => scrollTo(anchor)}
-                            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                          >
-                            Ir para <ArrowRight className="h-3 w-3" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            'text-xs whitespace-nowrap',
+                            item.level === 'ok' && 'text-green-700 dark:text-green-400',
+                            item.level === 'pending' && 'text-amber-700 dark:text-amber-400',
+                            item.level === 'warn' && 'text-amber-700 dark:text-amber-400',
+                            item.level === 'error' && 'text-destructive',
+                          )}>
+                            {valueLabel}
+                          </span>
+                          {canGoto && (
+                            <button
+                              type="button" onClick={() => scrollTo(anchor)}
+                              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                            >
+                              Ir para <ArrowRight className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {item.message && <p className="text-xs text-muted-foreground mt-0.5">{item.message}</p>}
                     </div>
@@ -284,6 +316,23 @@ export function EmitenteSettings() {
           )}
           {!readinessQuery.isLoading && (readiness?.cards || []).length === 0 && (
             <div className="text-sm text-muted-foreground">Sem itens para exibir.</div>
+          )}
+
+          {/* Botão de ação principal — só aparece quando há erro/pendência operacional
+              que o sistema pode reprocessar (não pede para o usuário "validar"). */}
+          {!readinessQuery.isLoading && showRetryButton && (
+            <div className="pt-2">
+              <Button
+                onClick={() => reprocessMutation.mutate()}
+                disabled={reprocessMutation.isPending || readinessQuery.isFetching}
+                className="gap-2"
+              >
+                {reprocessMutation.isPending || readinessQuery.isFetching
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <RefreshCw className="h-4 w-4" />}
+                Reprocessar configuração fiscal
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
