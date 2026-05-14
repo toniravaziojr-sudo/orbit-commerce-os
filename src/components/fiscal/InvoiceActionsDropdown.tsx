@@ -48,8 +48,11 @@ interface InvoiceActionsDropdownProps {
   onDelete?: () => void;
   onEmitirDevolucao?: () => void;
   onResendEmail?: () => void;
+  /** Gera PDF de Declaração de Conteúdo (documento NÃO fiscal). */
+  onGenerateDC?: () => void;
   isSubmitting?: boolean;
   isCheckingStatus?: boolean;
+  isGeneratingDC?: boolean;
   /** Rótulo do item de clonagem ("Clonar Pedido" na aba Pedidos, "Clonar NF" na aba Notas Fiscais). */
   cloneLabel?: string;
   /** Rótulo do item de emissão (ex.: "Emitir NF-e de teste" em homologação). */
@@ -70,8 +73,10 @@ export function InvoiceActionsDropdown({
   onDelete,
   onEmitirDevolucao,
   onResendEmail,
+  onGenerateDC,
   isSubmitting,
   isCheckingStatus,
+  isGeneratingDC,
   cloneLabel = 'Duplicar NF',
   emitLabel = 'Emitir NF-e',
 }: InvoiceActionsDropdownProps) {
@@ -191,6 +196,16 @@ export function InvoiceActionsDropdown({
               <Copy className="h-4 w-4 mr-2" />
               {cloneLabel}
             </DropdownMenuItem>
+            {onGenerateDC && (
+              <DropdownMenuItem onClick={onGenerateDC} disabled={isGeneratingDC}>
+                {isGeneratingDC ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                Gerar Declaração de Conteúdo
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               onClick={onDelete}

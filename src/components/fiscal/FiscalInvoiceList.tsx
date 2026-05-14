@@ -33,24 +33,43 @@ import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { generateDeclaracaoConteudoPdf } from '@/lib/declaracaoConteudo';
 
 import { formatDateTimeBR } from "@/lib/date-format";
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
-  draft: { label: 'Rascunho', variant: 'secondary', icon: FileText },
-  pending: { label: 'Processando', variant: 'outline', icon: Clock },
-  processing: { label: 'Processando SEFAZ', variant: 'outline', icon: Clock },
-  authorized: { label: 'Autorizada', variant: 'default', icon: CheckCircle },
-  rejected: { label: 'Rejeitada', variant: 'destructive', icon: XCircle },
-  cancelled: { label: 'Cancelada', variant: 'destructive', icon: XCircle },
+// Cores explícitas por status fiscal/etapa operacional, conforme regra de negócio aprovada:
+// - Pronta para Emitir: laranja
+// - Pendência Identificada: amarelo
+// - Processando SEFAZ / Aguardando protocolo: amarelo
+// - Autorizada: azul
+// - Cancelada / Rejeitada / Erro: vermelho
+// - Badge auxiliar "Impressa" (verde) é renderizado SEPARADAMENTE quando a DANFE foi impressa.
+const COLOR = {
+  orange: 'bg-orange-500/15 text-orange-700 border border-orange-500/30 dark:text-orange-300',
+  yellow: 'bg-yellow-500/15 text-yellow-800 border border-yellow-500/30 dark:text-yellow-300',
+  blue: 'bg-blue-500/15 text-blue-700 border border-blue-500/30 dark:text-blue-300',
+  green: 'bg-green-500/15 text-green-700 border border-green-500/30 dark:text-green-300',
+  red: 'bg-red-500/15 text-red-700 border border-red-500/30 dark:text-red-300',
+  gray: 'bg-muted text-muted-foreground border border-border',
+} as const;
+
+const statusConfig: Record<string, { label: string; className: string; icon: React.ElementType }> = {
+  draft: { label: 'Rascunho', className: COLOR.gray, icon: FileText },
+  pending: { label: 'Aguardando protocolo', className: COLOR.yellow, icon: Clock },
+  processing: { label: 'Processando SEFAZ', className: COLOR.yellow, icon: Clock },
+  authorized: { label: 'Autorizada', className: COLOR.blue, icon: CheckCircle },
+  rejected: { label: 'Rejeitada', className: COLOR.red, icon: XCircle },
+  cancelled: { label: 'Cancelada', className: COLOR.red, icon: XCircle },
+  error: { label: 'Erro', className: COLOR.red, icon: XCircle },
 };
 
 // Badge da etapa operacional (fiscal_stage). Independente do status fiscal oficial.
-const stageConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
-  pedido_venda: { label: 'Pedido de Venda', variant: 'secondary', icon: FileText },
-  pronta_emitir: { label: 'Pronta para Emitir', variant: 'default', icon: CheckCircle },
-  pendencia: { label: 'Pendência Identificada', variant: 'destructive', icon: AlertTriangle },
-  emitida: { label: 'Emitida', variant: 'outline', icon: Send },
+const stageConfig: Record<string, { label: string; className: string; icon: React.ElementType }> = {
+  pedido_venda: { label: 'Pedido de Venda', className: COLOR.gray, icon: FileText },
+  pronta_emitir: { label: 'Pronta para Emitir', className: COLOR.orange, icon: CheckCircle },
+  pendencia: { label: 'Pendência Identificada', className: COLOR.yellow, icon: AlertTriangle },
+  emitida: { label: 'Emitida', className: COLOR.blue, icon: Send },
 };
 
 function formatCurrency(value: number) {
@@ -103,6 +122,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [confirmEmitInvoice, setConfirmEmitInvoice] = useState<FiscalInvoice | null>(null);
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
+  const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
+  const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -1281,15 +1302,15 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   Venda cancelada
                                 </Badge>
                               ) : (mode === 'invoices' && (stageOf(invoice) === 'pronta_emitir' || stageOf(invoice) === 'pendencia')) ? (
-                                <Badge variant={stageConfig[stageOf(invoice)].variant} className="gap-1 w-fit">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${stageConfig[stageOf(invoice)].className}`}>
                                   {(() => { const I = stageConfig[stageOf(invoice)].icon; return <I className="h-3 w-3" />; })()}
                                   {stageConfig[stageOf(invoice)].label}
-                                </Badge>
+                                </span>
                               ) : (
-                                <Badge variant={status.variant} className="gap-1 w-fit">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${status.className}`}>
                                   <StatusIcon className="h-3 w-3" />
                                   {status.label}
-                                </Badge>
+                                </span>
                               )}
                               {mode === 'invoices' && stageOf(invoice) === 'pendencia' && Array.isArray((invoice as any).pendencia_motivos) && (invoice as any).pendencia_motivos.length > 0 && (
                                 <p className="text-xs text-destructive max-w-[220px] truncate" title={(invoice as any).pendencia_motivos.join(' • ')}>
@@ -1297,10 +1318,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                 </p>
                               )}
                               {invoice.status === 'authorized' && isPrinted && (
-                                <Badge variant="outline" className="gap-1 w-fit text-xs">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium w-fit ${COLOR.green}`}>
                                   <Printer className="h-3 w-3" />
                                   Impressa
-                                </Badge>
+                                </span>
                               )}
                               {invoice.status === 'rejected' && invoice.status_motivo && (
                                 <p className="text-xs text-destructive max-w-[200px] truncate" title={invoice.status_motivo}>
@@ -1324,6 +1345,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onDelete={() => handleDeleteDraft(invoice)}
                               onEmitirDevolucao={() => handleEmitirDevolucao(invoice)}
                               onResendEmail={() => handleResendEmail(invoice)}
+                              onGenerateDC={mode === 'orders' ? () => handleGenerateDC(invoice) : undefined}
+                              isGeneratingDC={generatingDcInvoiceId === invoice.id}
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
