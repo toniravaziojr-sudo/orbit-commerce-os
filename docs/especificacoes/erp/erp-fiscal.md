@@ -592,13 +592,61 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 | — | `state` | UF |
 | — | `postal_code` | CEP |
 
-#### Regras Anti-Regressão do Fluxo Fiscal (v2026-05-14 — Onda 2 rev1)
-1. **Nunca juntar "criar nota" com "transmitir"**: a ação "Criar Nota Fiscal" em Pedidos de Venda prepara e valida localmente; a transmissão só acontece via "Enviar à Receita" em Notas Fiscais.
+#### Regras Anti-Regressão do Fluxo Fiscal (v2026-05-14 — Onda 2 rev2)
+
+1. **Nunca juntar "criar nota" com "emitir"**: a ação "Criar Nota Fiscal" em Pedidos de Venda prepara e valida localmente; a transmissão só acontece via "Emitir Nota Fiscal" em Notas Fiscais.
 2. **Não renomear botão se o comportamento não corresponder**: um botão chamado "Emitir" ou "Criar Nota Fiscal" deve ter o comportamento documentado nesta seção.
-3. **Pedido de Venda nunca transmite direto para Receita**: um registro em `fiscal_stage='pedido_venda'` só pode sair dessa etapa via `fiscal-prepare-invoice`.
+3. **Pedido de Venda nunca transmite direto para Receita/SEFAZ**: um registro em `fiscal_stage='pedido_venda'` só pode sair dessa etapa via `fiscal-prepare-invoice`.
 4. **NF duplicada nunca volta para Pedidos de Venda**: ao duplicar uma NF autorizada/cancelada/rejeitada, o novo registro entra em `pronta_emitir` ou `pendencia` na aba Notas Fiscais.
-5. **Não permitir envio de nota com Pendência Identificada**: o botão "Enviar à Receita" fica desabilitado para `fiscal_stage='pendencia'`; o usuário deve editar, salvar e aguardar revalidação automática.
-6. **DC-e permanece fora do fluxo operacional até especificação completa**: não exibir botões de DC-e como funcional enquanto não houver doc de Fiscal/Logística aprovado.
+5. **Não permitir envio de nota com Pendência Identificada**: o botão "Emitir Nota Fiscal" fica desabilitado para `fiscal_stage='pendencia'`; o usuário deve editar, salvar e aguardar revalidação automática.
+6. **Declaração de Conteúdo não é NF-e**: a DC é documento próprio, não fiscal, independente. Ela não substitui NF-e quando a emissão for obrigatória.
+7. **Duplicar Pedido de Venda nunca cria NF automaticamente**: a duplicação mantém o registro em `pedido_venda`.
+8. **Cancelar NF nunca cria Pedido de Venda nem NF nova**: o cancelamento é ação terminal sobre a nota existente.
+9. **Produção real exige confirmação explícita posterior**: o ambiente do tenant Respeite o Homem permanece em homologação até nova autorização. Nenhuma NF real deve ser transmitida em produção sem validação completa.
+10. **Não exibir sucesso falso em emissão**: toast de sucesso só aparece após confirmação real da operação. Se a emissão falhar antes de transmitir, não mostrar sucesso.
+
+---
+
+## Correções de UI/UX e Fluxo — Pós fiscal_stage (v2026-05-14 — Onda 2 rev2)
+
+### Rótulos e singular/plural
+
+| Contexto | 1 selecionado | 2 ou mais |
+|----------|---------------|-----------|
+| Pedidos de Venda | **Criar Nota Fiscal** | **Criar Notas Fiscais (N)** |
+| Notas Fiscais | **Emitir Nota Fiscal** | **Emitir Notas Fiscais (N)** |
+
+O rótulo "Enviar à Receita" foi removido do fluxo comum de Notas Fiscais. A ação de transmissão agora se chama **"Emitir Nota Fiscal"** (ou "Emitir NF-e de teste" em homologação).
+
+### Redirecionamento automático
+
+Após criar nota fiscal a partir de Pedidos de Venda (ação individual ou em massa), o usuário é **redirecionado automaticamente** para a aba **Notas Fiscais** para acompanhar o resultado.
+
+### Cores dos status (badge visual)
+
+| Status / Stage | Cor do badge |
+|----------------|--------------|
+| Pronta para Emitir (`pronta_emitir`) | laranja |
+| Pendência Identificada (`pendencia`) | amarelo |
+| Processando SEFAZ / Aguardando protocolo (`processing`) | amarelo |
+| Autorizada (`authorized`) | azul |
+| Autorizada + DANFE impressa | azul + badge verde "Impressa" |
+| Cancelada (`cancelled`) | vermelho |
+| Rejeitada (`rejected`) | vermelho |
+| Erro (`error`) | vermelho |
+
+### Correção do falso positivo de CNPJ
+
+Na validação pré-emissão (`runEmitPrecheck`), o CNPJ do emitente e o CNPJ do certificado são **normalizados para apenas dígitos** antes da comparação. Quando os dígitos batem, nenhum aviso de divergência aparece. Quando divergem, a emissão é bloqueada com mensagem clara. O emitente é a empresa da loja, não o cliente/destinatário.
+
+### Emissão em massa e sucesso falso
+
+- Não há toast de sucesso antes da confirmação real da operação.
+- Envio em massa mostra resumo real: "X de N emitida(s), Y com erro".
+- Se a emissão falhar antes de transmitir (erro de validação, CNPJ divergente, certificado inválido), o sistema **não** mostra sucesso falso.
+- Após emissão, a lista é recarregada (`refetch`) para refletir o `fiscal_stage`/`status` atualizado.
+
+---
 
 ## 2. Financeiro
 
