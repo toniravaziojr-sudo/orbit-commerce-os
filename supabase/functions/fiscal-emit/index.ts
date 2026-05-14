@@ -440,6 +440,7 @@ Deno.serve(async (req) => {
         serie: statusData?.serie,
         mensagem: statusData?.mensagem_sefaz,
         erros: statusData?.erros,
+        warnings: gateWarnings.length ? gateWarnings : undefined,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
