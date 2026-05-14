@@ -69,8 +69,8 @@ Deno.serve(async (req) => {
       cards.push({
         key: "focus_company",
         level: "error",
-        title: "Empresa Focus",
-        message: "Empresa ainda não foi sincronizada com a Focus NFe.",
+        title: "Cadastro da empresa no provedor fiscal",
+        message: "Empresa ainda não foi sincronizada com o provedor fiscal.",
       });
     } else {
       // Try a remote get (best-effort, doesn't fail validation if Focus is down)
