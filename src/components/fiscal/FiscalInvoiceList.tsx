@@ -1063,20 +1063,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             )}
                             Emitir {selectedDraftsCount}
                           </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={handleBulkEmitDce}
-                            disabled={isBulkProcessing}
-                            title="Emite Declaração de Conteúdo (DC-e) para os rascunhos selecionados"
-                          >
-                            {isBulkProcessing ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Receipt className="h-4 w-4 mr-2" />
-                            )}
-                            Emitir DC-e {selectedDraftsCount}
-                          </Button>
+                          {/* DC-e (Declaração de Conteúdo) — fora do fluxo operacional comum até especificação completa
+                              do backend (depende de integração com transportadora). Mantido apenas no roadmap. */}
                           <Button 
                             size="sm" 
                             variant="destructive"
