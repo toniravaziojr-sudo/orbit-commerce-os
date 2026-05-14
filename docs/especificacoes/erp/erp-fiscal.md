@@ -359,7 +359,7 @@ Regras importantes:
 2. scheduler-tick consome a fila e cria registro em fiscal_invoices (fiscal_stage='pedido_venda', status='draft')
 3. Usuário clica "Criar Nota Fiscal" → fiscal-prepare-invoice valida localmente
    → fiscal_stage='pronta_emitir' (sem erros) ou fiscal_stage='pendencia' (com pendências)
-4. Em "Enviar à Receita" → fiscal-submit envia à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
+4. Em "Emitir Nota Fiscal" → fiscal-submit envia à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
    → status='processing', fiscal_stage='emitida'
 5. fiscal-webhook OU fiscal-check-status (polling) atualizam status final:
    → 'authorized' | 'rejected' | 'denied'
