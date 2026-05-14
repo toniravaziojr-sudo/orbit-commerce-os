@@ -92,7 +92,9 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    const focusConfig: FocusNFeConfig = { token: creds.token, ambiente };
+    // baseUrl vem do resolver: account_admin sempre roda contra api.focusnfe.com.br
+    // (o domínio de homologação não expõe /v2/empresas e retorna "endpoint não encontrado").
+    const focusConfig: FocusNFeConfig = { token: creds.token, ambiente, baseUrl: creds.baseUrl };
 
     console.log(`[fiscal-sync-focus-nfe] Sincronizando empresa ${settings.cnpj} no ambiente ${focusConfig.ambiente}`);
 
