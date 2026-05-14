@@ -543,17 +543,30 @@ export function InvoiceEditor({
 
   const handleSubmit = async () => {
     if (!data) return;
-    
+
     // Validate required fields
     const errors = validateForSubmission();
     setValidationErrors(errors);
-    
+
     if (errors.length > 0) {
       toast.error('Corrija os erros antes de emitir');
-      setActiveTab('geral'); // Go to first tab to show alert
+      setActiveTab('geral');
       return;
     }
-    
+
+    // Confirmação obrigatória — nunca transmite com 1 clique direto.
+    const isHomologacao = (readiness?.ambiente || 'homologacao') === 'homologacao';
+    const ok = await confirmAction({
+      title: isHomologacao ? 'Emitir NF-e de teste?' : 'Emitir NF-e com valor fiscal real?',
+      description: isHomologacao
+        ? 'Esta é uma emissão de teste em homologação. A nota não terá valor fiscal real e será transmitida à SEFAZ apenas para validação do fluxo.'
+        : 'Esta emissão terá valor fiscal real. A nota será transmitida à SEFAZ e passará a valer como documento fiscal oficial. Esta ação não pode ser desfeita.',
+      confirmLabel: isHomologacao ? 'Emitir NF-e de teste' : 'Emitir NF-e definitiva',
+      cancelLabel: 'Cancelar',
+      variant: isHomologacao ? 'info' : 'warning',
+    });
+    if (!ok) return;
+
     setIsSubmitting(true);
     try {
       await onSubmit(data);
