@@ -142,13 +142,6 @@ Deno.serve(async (req) => {
       token: creds.token,
       ambiente,
     };
-    const _legacy = {
-
-    // Configuração Focus NFe
-    const focusConfig: FocusNFeConfig = {
-      token: focusToken,
-      ambiente: (settings?.focus_ambiente || settings?.ambiente || 'homologacao') as 'homologacao' | 'producao',
-    };
 
     // Consultar status na Focus NFe
     const result = await getNFeStatus(focusConfig, invoice.focus_ref);
