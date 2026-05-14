@@ -89,43 +89,30 @@ Deno.serve(async (req) => {
     const accountCreds = resolveFocusCredentials({ ambiente, operationKind: "account_admin" });
     const accountTokenOk = accountCreds.ok && !!accountCreds.token;
 
-    // -------- 1) Empresa fiscal cadastrada --------
+    // -------- 1) Empresa fiscal --------
     let focusCompanyOk = false;
     let focusCompanyVerifiedRemote: boolean | null = null;
     if (!settings.focus_empresa_id) {
       cards.push({
         key: "focus_company",
-        level: "error",
-        title: "Empresa fiscal cadastrada",
-        message: "Empresa ainda não foi sincronizada com o provedor fiscal.",
-        status_label: "Sincronizar",
+        level: "warn",
+        title: "Empresa fiscal",
+        message: "Estamos preparando o cadastro da empresa. Conclua os dados fiscais e envie o certificado A1 para liberar.",
+        status_label: "Preparando",
       });
     } else if (!accountTokenOk) {
-      // Sem token admin não dá pra confirmar remoto; UI não deve gritar.
-      focusCompanyOk = true; // local OK
-      cards.push({
-        key: "focus_company",
-        level: "pending",
-        title: "Empresa fiscal cadastrada",
-        message: "Empresa cadastrada localmente. Configure a conta principal do provedor para validar remotamente.",
-        status_label: "Cadastrada",
-        details: { focus_empresa_id: settings.focus_empresa_id, remote_check: false },
-      });
-    } else if (!tenantTokenOk) {
-      // Cadastro local existe; falta token da empresa para checar remoto.
+      // Sem credencial administrativa central — não é problema do lojista.
       focusCompanyOk = true;
       cards.push({
         key: "focus_company",
-        level: "pending",
-        title: "Empresa fiscal cadastrada",
-        message: ambiente === "homologacao"
-          ? "Cadastre o token de homologação da empresa para validar no provedor."
-          : "Cadastre o token de produção da empresa para validar no provedor.",
-        status_label: "Aguardando credencial",
+        level: "ok",
+        title: "Empresa fiscal",
+        message: "Empresa cadastrada.",
+        status_label: "Cadastrada",
         details: { focus_empresa_id: settings.focus_empresa_id, remote_check: false },
       });
     } else {
-      // Tenta confirmar remoto (best-effort).
+      // Confirmar remoto com o token administrativo (best-effort).
       try {
         const r = await fetch(
           `${accountCreds.baseUrl}/v2/empresas/${encodeURIComponent(settings.cnpj || "")}`,
@@ -137,12 +124,12 @@ Deno.serve(async (req) => {
       cards.push({
         key: "focus_company",
         level: focusCompanyVerifiedRemote ? "ok" : focusCompanyVerifiedRemote === false ? "error" : "pending",
-        title: "Empresa fiscal cadastrada",
+        title: "Empresa fiscal",
         message: focusCompanyVerifiedRemote
-          ? "Empresa confirmada no provedor fiscal."
+          ? "Empresa confirmada para emissão."
           : focusCompanyVerifiedRemote === false
-          ? "Empresa não localizada no provedor. Verifique o cadastro."
-          : "Não foi possível confirmar agora — tente novamente em instantes.",
+          ? "Não conseguimos confirmar o cadastro da empresa. Revise os dados fiscais."
+          : "Aguarde alguns instantes — estamos confirmando o cadastro.",
         status_label: focusCompanyVerifiedRemote ? "Validada" : focusCompanyVerifiedRemote === false ? "Não localizada" : "Aguardando",
         details: { focus_empresa_id: settings.focus_empresa_id, remote_check: focusCompanyVerifiedRemote },
       });
@@ -158,48 +145,46 @@ Deno.serve(async (req) => {
     let certOk = false;
     if (!certValidUntil) {
       cards.push({
-        key: "certificate", level: "error",
-        title: "Certificado A1 válido",
-        message: "Certificado não enviado.",
+        key: "certificate", level: "warn",
+        title: "Certificado A1",
+        message: "Envie o certificado digital A1 da empresa.",
         status_label: "Enviar certificado",
       });
     } else if (certValidUntil.getTime() < Date.now()) {
       cards.push({
         key: "certificate", level: "error",
-        title: "Certificado A1 válido",
-        message: "Certificado vencido. Renove para emitir notas.",
+        title: "Certificado A1",
+        message: "Certificado vencido. Renove para voltar a emitir.",
         status_label: "Vencido",
         details: { valid_until: certValidUntil.toISOString() },
       });
     } else if (!cnpjMatches) {
       cards.push({
         key: "certificate", level: "error",
-        title: "Certificado A1 válido",
-        message: "CNPJ do certificado não bate com o emitente.",
+        title: "Certificado A1",
+        message: "O CNPJ do certificado não bate com o da empresa cadastrada.",
         status_label: "CNPJ divergente",
       });
     } else {
       certOk = true;
       cards.push({
         key: "certificate", level: "ok",
-        title: "Certificado A1 válido",
+        title: "Certificado A1",
         message: `Válido até ${certValidUntil.toLocaleDateString("pt-BR")}.`,
         status_label: "Válido",
         details: { valid_until: certValidUntil.toISOString() },
       });
     }
 
-    // -------- 3) Token do tenant (cards explícitos) --------
+    // -------- 3) Credenciais fiscais (automáticas) --------
     cards.push({
-      key: "tenant_token",
+      key: "credentials",
       level: tenantTokenOk ? "ok" : "warn",
-      title: ambiente === "producao" ? "Token de produção da empresa" : "Token de homologação da empresa",
+      title: "Credenciais fiscais",
       message: tenantTokenOk
-        ? "Configurado."
-        : ambiente === "producao"
-          ? "Cadastre o token de produção da empresa em Credenciais do provedor fiscal."
-          : "Cadastre o token de homologação da empresa em Credenciais do provedor fiscal.",
-      status_label: tenantTokenOk ? "Configurado" : "Configure o token",
+        ? "Configuradas automaticamente."
+        : "Serão configuradas automaticamente após você salvar os dados fiscais e enviar o certificado A1.",
+      status_label: tenantTokenOk ? "Configuradas" : "Preparando",
     });
 
     // -------- 4) Auto-ativação do recebimento de retornos --------
@@ -253,55 +238,45 @@ Deno.serve(async (req) => {
       settings.webhook_environment === ambiente;
 
     let webhookCardLevel: CardLevel = "warn";
-    let webhookMsg = "Não configurado.";
-    let webhookStatusLabel = "Não configurado";
+    let webhookMsg = "Aguardando preparação automática.";
+    let webhookStatusLabel = "Preparando";
 
     if (!tenantTokenOk) {
       webhookCardLevel = "warn";
-      webhookMsg = ambiente === "homologacao"
-        ? "Configure o token de homologação para ativar."
-        : "Configure o token de produção para ativar.";
-      webhookStatusLabel = "Aguardando token";
+      webhookMsg = "Será ativado automaticamente após a preparação fiscal.";
+      webhookStatusLabel = "Preparando";
     } else if (autoActivationAttempted && !autoActivationSucceeded) {
       webhookCardLevel = "error";
-      webhookMsg = `Erro na ativação automática: ${autoActivationError ?? "tente novamente."}`;
-      webhookStatusLabel = "Erro na ativação";
+      webhookMsg = "Não foi possível preparar o recebimento automático. Tente novamente.";
+      webhookStatusLabel = "Erro na preparação";
     } else if (webhookStatus === "validated" && webhookEnvMatchesAmbiente) {
       webhookCardLevel = "ok";
-      webhookMsg = "Recebimento automático ativo.";
-      webhookStatusLabel = "Validado";
+      webhookMsg = "Ativo.";
+      webhookStatusLabel = "Ativo";
     } else if (webhookStatus === "pending" && webhookEnvMatchesAmbiente) {
       webhookCardLevel = "pending";
-      webhookMsg = "Cadastrado. Será confirmado no primeiro retorno da NF de teste.";
+      webhookMsg = "Será confirmado no primeiro retorno da NF de teste.";
       webhookStatusLabel = "Aguardando primeiro retorno";
     } else if (webhookStatus === "error") {
       webhookCardLevel = "error";
-      webhookMsg = "Erro na ativação. Use 'Tentar novamente'.";
+      webhookMsg = "Não foi possível preparar o recebimento automático. Use 'Reprocessar'.";
       webhookStatusLabel = "Erro";
     } else if (!webhookEnvMatchesAmbiente && webhookStatus) {
       webhookCardLevel = "warn";
-      webhookMsg = `Cadastrado em ${settings.webhook_environment} mas o ambiente atual é ${ambiente}.`;
-      webhookStatusLabel = "Ambiente divergente";
+      webhookMsg = "Ambiente atual diferente do configurado anteriormente — reprocessando.";
+      webhookStatusLabel = "Reprocessando";
     }
 
     cards.push({
       key: "webhook",
       level: webhookCardLevel,
-      title: "Recebimento automático de retornos",
+      title: "Recebimento de retornos",
       message: webhookMsg,
       status_label: webhookStatusLabel,
       details: {
-        status: webhookStatus,
-        environment: settings.webhook_environment,
-        url: settings.webhook_url_sanitized,
-        focus_hook_id: settings.webhook_focus_hook_id,
         registered_at: settings.webhook_registered_at,
         validated_at: settings.webhook_validated_at,
         last_received_at: settings.webhook_last_received_at,
-        last_error: settings.webhook_last_error,
-        last_error_at: settings.webhook_last_error_at,
-        auto_activation_attempted: autoActivationAttempted,
-        auto_activation_succeeded: autoActivationSucceeded,
       },
     });
 
@@ -324,40 +299,37 @@ Deno.serve(async (req) => {
     let canRetryActivation = false;
 
     if (!certOk || !settings.focus_empresa_id) {
-      overall = "error";
+      overall = !settings.focus_empresa_id ? "config_pending" : "error";
       nextAction = !settings.focus_empresa_id
-        ? "Sincronize a empresa fiscal."
+        ? "Conclua os dados fiscais e envie o certificado A1 para preparar a emissão automática."
         : "Resolva o problema do certificado A1.";
     } else if (!tenantTokenOk) {
       overall = "config_pending";
-      nextAction = ambiente === "homologacao"
-        ? "Cadastre o token de homologação da empresa em 'Credenciais do provedor fiscal'."
-        : "Cadastre o token de produção da empresa em 'Credenciais do provedor fiscal'.";
+      nextAction = "Preparando emissão automática. Se persistir, clique em 'Reprocessar configuração fiscal'.";
+      canRetryActivation = true;
     } else if (autoActivationAttempted && !autoActivationSucceeded) {
       overall = "error";
-      nextAction = "Tentar novamente a ativação do recebimento automático.";
+      nextAction = "Não foi possível preparar a emissão automática. Tente novamente.";
       canRetryActivation = true;
     } else if (webhookStatus === "error") {
       overall = "error";
-      nextAction = "Tentar novamente a ativação do recebimento automático.";
+      nextAction = "Não foi possível preparar a emissão automática. Tente novamente.";
       canRetryActivation = true;
     } else if (ambiente === "producao") {
-      // Produção: precisa webhook validated.
       if (webhookStatus === "validated" && webhookEnvMatchesAmbiente) {
         overall = "ready";
       } else {
         overall = "blocked";
         nextAction = webhookStatus === "pending"
-          ? "Aguardando primeiro retorno para validar o recebimento automático."
-          : "Ative e valide o recebimento automático antes de emitir em produção.";
+          ? "Produção bloqueada até a primeira confirmação automática de retorno."
+          : "Produção bloqueada. Conclua a preparação automática antes de emitir.";
       }
     } else {
-      // Homologação: pending OU validated => pronto para teste
       if (webhookValidatedOrPending) {
         overall = "ready_for_test";
       } else {
         overall = "config_pending";
-        nextAction = "Recebimento automático ainda não está ativo.";
+        nextAction = "Preparando emissão automática.";
         canRetryActivation = true;
       }
     }

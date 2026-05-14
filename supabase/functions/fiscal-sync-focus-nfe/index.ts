@@ -214,6 +214,36 @@ Deno.serve(async (req) => {
       updatePayload.certificado_cn = certCnRaw;
     }
 
+    // ----------------------------------------------------------------
+    // CAPTURA AUTOMÁTICA DOS TOKENS DA EMPRESA
+    // ----------------------------------------------------------------
+    // A Focus NFe devolve `token_producao` e `token_homologacao` na resposta
+    // dos endpoints administrativos (POST/PUT/GET /v2/empresas/{cnpj}) quando
+    // autenticado com o token PRINCIPAL DA CONTA. O lojista NÃO precisa colar
+    // esses tokens. Eles são gravados em colunas com SELECT revogado para
+    // authenticated/anon — só rotinas com service_role conseguem ler.
+    // NUNCA logar o valor.
+    const tokenProd = typeof focusSnapshot.token_producao === 'string'
+      ? focusSnapshot.token_producao.trim() : '';
+    const tokenHom = typeof focusSnapshot.token_homologacao === 'string'
+      ? focusSnapshot.token_homologacao.trim() : '';
+    if (tokenProd) updatePayload.focus_token_producao = tokenProd;
+    if (tokenHom) updatePayload.focus_token_homologacao = tokenHom;
+    console.log('[fiscal-sync-focus-nfe] Tokens capturados automaticamente', {
+      producao_capturado: !!tokenProd,
+      homologacao_capturado: !!tokenHom,
+    });
+
+    // Para readiness, considerar tokens já existentes (se a Focus não devolver)
+    const { data: tokenStatus } = await supabaseClient
+      .from('fiscal_settings')
+      .select('focus_token_producao, focus_token_homologacao')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    const hasProdToken = !!(tokenProd || (tokenStatus as any)?.focus_token_producao);
+    const hasHomToken = !!(tokenHom || (tokenStatus as any)?.focus_token_homologacao);
+    const ambienteToken = ambiente === 'producao' ? hasProdToken : hasHomToken;
+
     // Recalcular is_configured com base nos requisitos canônicos
     const certValid = updatePayload.certificado_valido_ate
       ? new Date(updatePayload.certificado_valido_ate) > new Date()
@@ -229,7 +259,8 @@ Deno.serve(async (req) => {
       settings.endereco_uf &&
       settings.endereco_cep &&
       settings.serie_nfe &&
-      hasCert && certValid
+      hasCert && certValid &&
+      ambienteToken
     );
 
     const { error: updateError } = await supabaseClient

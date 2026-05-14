@@ -126,7 +126,25 @@ export interface FocusEmpresaResponse {
   certificado_valido_de?: string;
   certificado_cnpj?: string;
   nome?: string;
+  // Tokens da empresa retornados pela Focus quando autenticado com o
+  // token PRINCIPAL DA CONTA. NUNCA logar/expor estes valores.
+  token_producao?: string;
+  token_homologacao?: string;
   erros?: Array<{ codigo: string; mensagem: string; campo?: string }>;
+}
+
+// Mascarador de payload da Focus para logs — preserva diagnóstico
+// (status, ids, erros) sem expor tokens da empresa.
+function sanitizeEmpresaForLog(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  const clone: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+  if (typeof clone.token_producao === 'string' && clone.token_producao) {
+    clone.token_producao = '***REDACTED***';
+  }
+  if (typeof clone.token_homologacao === 'string' && clone.token_homologacao) {
+    clone.token_homologacao = '***REDACTED***';
+  }
+  return clone;
 }
 
 function getBaseUrl(ambiente: 'homologacao' | 'producao'): string {
@@ -169,17 +187,17 @@ export async function syncEmpresa(
     });
     
     const data = await response.json();
-    
+
     console.log(`[focus-nfe] Response status: ${response.status}`);
-    console.log(`[focus-nfe] Response:`, JSON.stringify(data).substring(0, 500));
-    
+    console.log(`[focus-nfe] Response:`, JSON.stringify(sanitizeEmpresaForLog(data)).substring(0, 500));
+
     if (!response.ok) {
-      const errorMsg = data.erros?.map((e: any) => e.mensagem).join(', ') || 
-                       data.mensagem || 
+      const errorMsg = data.erros?.map((e: any) => e.mensagem).join(', ') ||
+                       data.mensagem ||
                        `HTTP ${response.status}`;
       return { success: false, error: errorMsg };
     }
-    
+
     return { success: true, data };
   } catch (error: any) {
     console.error(`[focus-nfe] Error:`, error);
