@@ -282,9 +282,9 @@ export function FocusIntegrationSettings() {
               Fallback manual — credencial sensível desta loja
             </CardTitle>
             <CardDescription>
-              O cadastro automático falhou. Cadastre o webhook diretamente no painel da Focus NFe usando a URL abaixo.
+              Não foi possível ativar automaticamente. Cadastre a URL abaixo no painel do provedor fiscal.
               <strong className="block mt-1">
-                A URL contém um token por loja. Trate como credencial: não compartilhe, não exiba em telas públicas, não envie por canais inseguros.
+                Esta URL contém uma chave única desta loja. Trate como credencial: não compartilhe, não exiba em telas públicas, não envie por canais inseguros.
               </strong>
             </CardDescription>
           </CardHeader>
