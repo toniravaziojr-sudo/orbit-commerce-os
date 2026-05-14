@@ -25,10 +25,7 @@ Deno.serve(async (req) => {
   await loadPlatformCredentials();
 
   try {
-    const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
-    if (!focusToken) {
-      return jsonResponse({ success: false, error: 'Token Focus NFe não configurado', code: 'no_focus_token' });
-    }
+    // Token resolvido por tenant + ambiente abaixo (operação fiscal de NF).
 
     // RBAC: inutilização de numeração exige owner/admin (Lote 1.C.3)
     const auth = await requireFiscalRole(req, ['owner', 'admin']);
