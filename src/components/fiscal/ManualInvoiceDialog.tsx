@@ -64,9 +64,33 @@ const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS',
 interface ManualInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Modo do diálogo. 'create' = novo pedido em branco. 'duplicate' = pré-preenchido. */
+  mode?: 'create' | 'duplicate';
+  /** Dados pré-preenchidos para duplicação. */
+  initialData?: ManualInvoiceInitialData;
+  /** Título customizado. Default depende de `mode`. */
+  title?: string;
+  /** Descrição customizada. */
+  description?: string;
+  /** Rótulo do botão de salvar. */
+  submitLabel?: string;
+  /** Mensagem de sucesso. */
+  successMessage?: string;
+  /** Callback opcional após criar com sucesso, recebe o id da nova invoice. */
+  onCreated?: (newInvoiceId: string) => void;
 }
 
-export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogProps) {
+export function ManualInvoiceDialog({
+  open,
+  onOpenChange,
+  mode = 'create',
+  initialData,
+  title,
+  description,
+  submitLabel,
+  successMessage,
+  onCreated,
+}: ManualInvoiceDialogProps) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
   const queryClient = useQueryClient();
@@ -93,9 +117,57 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
   const [destUf, setDestUf] = useState('');
   const [destCep, setDestCep] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [naturezaOperacao, setNaturezaOperacao] = useState('VENDA DE MERCADORIA');
   const [items, setItems] = useState<OrderItem[]>([
     { codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }
   ]);
+
+  // Pré-preenche quando abre em modo duplicação
+  useEffect(() => {
+    if (!open) return;
+    if (mode === 'duplicate' && initialData) {
+      const d = initialData.destinatario;
+      setCustomerMode('manual');
+      setSelectedCustomerId(null);
+      setDestNome(d.nome || '');
+      setDestCpfCnpj((d.cpf_cnpj || '').replace(/\D/g, ''));
+      setDestEmail(d.email || '');
+      setDestTelefone(d.telefone || '');
+      setDestLogradouro(d.endereco.logradouro || '');
+      setDestNumero(d.endereco.numero || '');
+      setDestComplemento(d.endereco.complemento || '');
+      setDestBairro(d.endereco.bairro || '');
+      setDestMunicipio(d.endereco.municipio || '');
+      setDestUf(d.endereco.uf || '');
+      setDestCep((d.endereco.cep || '').replace(/\D/g, ''));
+      setObservacoes(initialData.observacoes || '');
+      setNaturezaOperacao(initialData.natureza_operacao || 'VENDA DE MERCADORIA');
+      setItems(
+        initialData.itens.length
+          ? initialData.itens.map((it) => ({ ...it }))
+          : [{ codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]
+      );
+    } else if (mode === 'create') {
+      // Reset para criar novo limpo
+      setCustomerMode('manual');
+      setSelectedCustomerId(null);
+      setDestNome('');
+      setDestCpfCnpj('');
+      setDestEmail('');
+      setDestTelefone('');
+      setDestLogradouro('');
+      setDestNumero('');
+      setDestComplemento('');
+      setDestBairro('');
+      setDestMunicipio('');
+      setDestUf('');
+      setDestCep('');
+      setObservacoes('');
+      setNaturezaOperacao('VENDA DE MERCADORIA');
+      setItems([{ codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode]);
 
   // Customer search with debounce
   useEffect(() => {
