@@ -37,12 +37,20 @@ import { showErrorToast } from '@/lib/error-toast';
 import { formatDateTimeBR } from "@/lib/date-format";
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
-  draft: { label: 'Pronta para Emitir', variant: 'secondary', icon: FileText },
+  draft: { label: 'Rascunho', variant: 'secondary', icon: FileText },
   pending: { label: 'Processando', variant: 'outline', icon: Clock },
   processing: { label: 'Processando SEFAZ', variant: 'outline', icon: Clock },
   authorized: { label: 'Autorizada', variant: 'default', icon: CheckCircle },
   rejected: { label: 'Rejeitada', variant: 'destructive', icon: XCircle },
   cancelled: { label: 'Cancelada', variant: 'destructive', icon: XCircle },
+};
+
+// Badge da etapa operacional (fiscal_stage). Independente do status fiscal oficial.
+const stageConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
+  pedido_venda: { label: 'Pedido de Venda', variant: 'secondary', icon: FileText },
+  pronta_emitir: { label: 'Pronta para Emitir', variant: 'default', icon: CheckCircle },
+  pendencia: { label: 'Pendência Identificada', variant: 'destructive', icon: AlertTriangle },
+  emitida: { label: 'Emitida', variant: 'outline', icon: Send },
 };
 
 function formatCurrency(value: number) {
@@ -105,10 +113,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const isLoading = settingsLoading || statsLoading || invoicesLoading;
   const isConfigured = settings?.is_configured;
 
-  // Separate invoices by mode
+  // Separate invoices by mode usando fiscal_stage (etapa operacional, não status fiscal).
+  // Pedidos de Venda = somente registros em 'pedido_venda'.
+  // Notas Fiscais = 'pronta_emitir' | 'pendencia' | 'emitida'.
+  // Fallback para registros antigos sem fiscal_stage: trata draft como pedido_venda.
   const modeFilteredInvoices = invoices?.filter(inv => {
-    if (mode === 'orders') return inv.status === 'draft';
-    return inv.status !== 'draft';
+    const stage = (inv as any).fiscal_stage || (inv.status === 'draft' ? 'pedido_venda' : 'emitida');
+    if (mode === 'orders') return stage === 'pedido_venda';
+    return stage === 'pronta_emitir' || stage === 'pendencia' || stage === 'emitida';
   });
 
   // Apply status filter
@@ -167,15 +179,22 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return true;
   });
 
-  // Count by mode
+  // Helper para resolver stage com fallback (backfill já cobre todos os registros existentes,
+  // mas mantemos compat para qualquer insert antigo que não tenha setado o campo).
+  const stageOf = (inv: any) => inv.fiscal_stage || (inv.status === 'draft' ? 'pedido_venda' : 'emitida');
+
+  // Contadores baseados em fiscal_stage (etapa operacional) + status fiscal oficial.
   const counts = {
-    orders: invoices?.filter(i => i.status === 'draft').length || 0,
+    orders: invoices?.filter(i => stageOf(i) === 'pedido_venda').length || 0,
+    pronta_emitir: invoices?.filter(i => stageOf(i) === 'pronta_emitir').length || 0,
+    pendencia: invoices?.filter(i => stageOf(i) === 'pendencia').length || 0,
+    processing: invoices?.filter(i => stageOf(i) === 'emitida' && (i.status === 'pending' || (i.status as any) === 'processing')).length || 0,
     authorized: invoices?.filter(i => i.status === 'authorized' && !(i as any).danfe_printed_at).length || 0,
     printed: invoices?.filter(i => i.status === 'authorized' && (i as any).danfe_printed_at).length || 0,
     pending: invoices?.filter(i => i.status === 'pending').length || 0,
     rejected: invoices?.filter(i => i.status === 'rejected').length || 0,
     canceled: invoices?.filter(i => i.status === 'cancelled').length || 0,
-    devolvido: invoices?.filter(i => i.status !== 'draft' && (i as any).nfe_referenciada).length || 0,
+    devolvido: invoices?.filter(i => stageOf(i) === 'emitida' && (i as any).nfe_referenciada).length || 0,
   };
 
   const handleCheckStatus = async (invoiceId: string) => {
