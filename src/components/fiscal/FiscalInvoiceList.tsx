@@ -809,39 +809,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       && inv.resolved_shipping_provider_kind === 'gateway'
   ).length;
 
-  // Bulk: Emitir DC-e para os rascunhos selecionados (via edge dce-emit)
+  // Bulk: Emitir DC-e (Declaração de Conteúdo) — temporariamente indisponível.
+  // A integração com o backend de DC-e ainda não foi finalizada para emissão real.
+  // O botão permanece visível para descoberta, mas exibe mensagem clara em vez de transmitir.
   const handleBulkEmitDce = async () => {
-    const drafts = (filteredInvoices || []).filter(
-      inv => selectedInvoices.has(inv.id) && inv.status === 'draft' && inv.order_id
+    toast.error(
+      'Declaração de Conteúdo ainda não está disponível para emissão automática nesta etapa. Em breve.',
+      { description: 'Use a NF-e tradicional para envios fiscais. A DC-e será habilitada após a finalização da integração com a transportadora.' }
     );
-
-    if (drafts.length === 0) {
-      toast.error('Nenhum rascunho com pedido vinculado selecionado');
-      return;
-    }
-
-    setIsBulkProcessing(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const inv of drafts) {
-      try {
-        const { data, error } = await supabase.functions.invoke('dce-emit', {
-          body: { order_id: inv.order_id, invoice_id: inv.id },
-        });
-        if (error || !data?.success) errorCount++;
-        else successCount++;
-      } catch {
-        errorCount++;
-      }
-    }
-
-    setIsBulkProcessing(false);
-    clearSelection();
-    refetch();
-
-    if (successCount > 0) toast.success(`${successCount} DC-e enfileirada(s) para emissão`);
-    if (errorCount > 0) toast.error(`${errorCount} DC-e com erro`);
   };
 
   // Bulk: Enviar pedidos selecionados ao gateway (Frenet etc.) via gateway_sync_queue
