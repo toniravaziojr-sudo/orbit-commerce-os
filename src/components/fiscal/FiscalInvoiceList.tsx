@@ -120,6 +120,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [confirmEmitInvoice, setConfirmEmitInvoice] = useState<FiscalInvoice | null>(null);
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
+  const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
+  const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
