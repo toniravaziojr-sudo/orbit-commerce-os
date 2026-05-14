@@ -1,133 +1,142 @@
 // ============================================================================
-// FOCUS CREDENTIALS — Resolver único por ambiente (homologação x produção)
+// FOCUS CREDENTIALS — Resolver por operação + ambiente + tenant
 // ============================================================================
-// Fonte de verdade para escolher token + endpoint do provedor fiscal Focus NFe.
-// REGRAS (Onda B — separação estrutural por ambiente):
-//   1. ambiente é obrigatório e deve ser 'homologacao' ou 'producao'.
-//   2. Token é lido do slot global do ambiente correto:
-//        - homologacao → FOCUS_NFE_TOKEN_HOMOLOGACAO
-//        - producao    → FOCUS_NFE_TOKEN_PRODUCAO
-//   3. Override por tenant (campo legado `provider_token`) só é aceito se vier
-//      acompanhado de marca de ambiente confirmada. Como hoje não há essa
-//      marca, o override NÃO é usado automaticamente — apenas via parâmetro
-//      explícito `providerTokenOverride` quando o caller já garantiu o match.
-//   4. Token global legado `FOCUS_NFE_TOKEN` (sem ambiente) NÃO é usado em
-//      nenhuma hipótese — apenas registra warning de depreciação se presente.
-//   5. Nunca há fallback silencioso entre ambientes.
-//   6. Se não houver token para o ambiente correto, retorna erro seguro,
-//      sem expor valores em log/payload.
+// Arquitetura (Onda B v2):
+//   - account_admin → operações administrativas da conta Focus
+//     (cadastrar/atualizar empresa, certificado, webhook, listar empresas).
+//     Usa o token PRINCIPAL DA CONTA: secret global FOCUS_NFE_TOKEN.
+//     Endpoint: produção (https://api.focusnfe.com.br) — é o domínio admin.
+//
+//   - nfe_op → operações fiscais sobre NF (emitir, consultar, cancelar,
+//     CC-e, inutilização, reconciliação). Usa o TOKEN DA EMPRESA do tenant
+//     no ambiente correto, lido de fiscal_settings:
+//       homologacao → focus_token_homologacao
+//       producao    → focus_token_producao
+//
+// REGRAS:
+//   1. Nunca misturar tokens entre ambientes.
+//   2. Nunca usar token de outro tenant.
+//   3. Nunca fazer fallback silencioso (homolog↔prod) ou
+//      (token de empresa ↔ token da conta).
+//   4. Nunca expor o valor do token em logs ou no objeto de erro.
+//   5. Se faltar o token correto, retorna erro seguro.
 // ============================================================================
 
 export type FocusAmbiente = 'homologacao' | 'producao';
+export type FocusOperationKind = 'account_admin' | 'nfe_op';
 
 export interface FocusCredentialsResult {
   ok: boolean;
   token?: string;
   baseUrl?: string;
   ambiente: FocusAmbiente;
+  operationKind: FocusOperationKind;
   errorCode?:
     | 'INVALID_AMBIENTE'
-    | 'TOKEN_MISSING_HOMOLOGACAO'
-    | 'TOKEN_MISSING_PRODUCAO';
+    | 'INVALID_OPERATION_KIND'
+    | 'ACCOUNT_TOKEN_MISSING'
+    | 'TENANT_TOKEN_MISSING_HOMOLOGACAO'
+    | 'TENANT_TOKEN_MISSING_PRODUCAO';
   error?: string;
 }
 
 export interface ResolveFocusCredentialsOptions {
   ambiente: string | null | undefined;
-  /**
-   * Override por tenant. Use APENAS se o caller já confirmou que o token
-   * pertence ao mesmo ambiente solicitado. Caso contrário, deixe undefined
-   * para que o resolver use o slot global do ambiente.
-   */
-  providerTokenOverride?: string | null;
+  /** Tipo de operação. 'nfe_op' (padrão) usa token do tenant.
+   *  'account_admin' usa o token global da conta Focus. */
+  operationKind?: FocusOperationKind;
+  /** Token do tenant para o ambiente solicitado.
+   *  Obrigatório quando operationKind = 'nfe_op'.
+   *  O caller é responsável por ter lido a coluna correta:
+   *    homologacao → focus_token_homologacao
+   *    producao    → focus_token_producao */
+  tenantTokenForAmbiente?: string | null;
 }
-
-const ENV_KEY_BY_AMBIENTE: Record<FocusAmbiente, string> = {
-  homologacao: 'FOCUS_NFE_TOKEN_HOMOLOGACAO',
-  producao: 'FOCUS_NFE_TOKEN_PRODUCAO',
-};
 
 const BASE_URL_BY_AMBIENTE: Record<FocusAmbiente, string> = {
   homologacao: 'https://homologacao.focusnfe.com.br',
   producao: 'https://api.focusnfe.com.br',
 };
 
-let legacyWarnedOnce = false;
-
 function normalizeAmbiente(value: string | null | undefined): FocusAmbiente | null {
   if (value === 'producao' || value === 'homologacao') return value;
   return null;
 }
 
-/**
- * Resolve token + baseUrl + ambiente do provedor fiscal Focus NFe.
- * Nunca expõe valores de token em logs ou no objeto de erro.
- */
 export function resolveFocusCredentials(
   opts: ResolveFocusCredentialsOptions,
 ): FocusCredentialsResult {
+  const operationKind: FocusOperationKind = opts.operationKind ?? 'nfe_op';
   const ambiente = normalizeAmbiente(opts.ambiente);
+
   if (!ambiente) {
     return {
       ok: false,
       ambiente: 'homologacao',
+      operationKind,
       errorCode: 'INVALID_AMBIENTE',
       error: "Ambiente fiscal inválido. Esperado 'homologacao' ou 'producao'.",
     };
   }
 
-  // Warning único sobre slot legado (sem ambiente)
-  const legacyToken = Deno.env.get('FOCUS_NFE_TOKEN');
-  if (legacyToken && !legacyWarnedOnce) {
-    legacyWarnedOnce = true;
-    console.warn(
-      '[focus-credentials] DEPRECATION: FOCUS_NFE_TOKEN (sem ambiente) está presente e será ignorado. ' +
-        'Use FOCUS_NFE_TOKEN_HOMOLOGACAO e FOCUS_NFE_TOKEN_PRODUCAO.',
-    );
-  }
-
-  // 1) Override por tenant (apenas quando explicitamente aceito pelo caller)
-  const overrideToken = (opts.providerTokenOverride || '').trim();
-  if (overrideToken.length > 0) {
+  if (operationKind !== 'account_admin' && operationKind !== 'nfe_op') {
     return {
-      ok: true,
-      token: overrideToken,
-      baseUrl: BASE_URL_BY_AMBIENTE[ambiente],
+      ok: false,
       ambiente,
+      operationKind,
+      errorCode: 'INVALID_OPERATION_KIND',
+      error: 'Tipo de operação inválido para o resolver fiscal.',
     };
   }
 
-  // 2) Slot global do ambiente correto
-  const envKey = ENV_KEY_BY_AMBIENTE[ambiente];
-  const token = (Deno.env.get(envKey) || '').trim();
-  if (token.length > 0) {
+  // ---------------- account_admin: token global da conta ----------------
+  if (operationKind === 'account_admin') {
+    const accountToken = (Deno.env.get('FOCUS_NFE_TOKEN') || '').trim();
+    if (accountToken.length === 0) {
+      return {
+        ok: false,
+        ambiente,
+        operationKind,
+        errorCode: 'ACCOUNT_TOKEN_MISSING',
+        error:
+          'Token principal da conta do provedor fiscal não está configurado na plataforma. ' +
+          'Cadastre-o em Integrações da Plataforma antes de operar com a conta Focus.',
+      };
+    }
     return {
       ok: true,
-      token,
-      baseUrl: BASE_URL_BY_AMBIENTE[ambiente],
+      token: accountToken,
+      // Operações administrativas rodam contra o domínio de produção da Focus.
+      baseUrl: BASE_URL_BY_AMBIENTE.producao,
       ambiente,
+      operationKind,
     };
   }
 
-  // 3) Erro seguro — não vazar valores
-  const errorCode: FocusCredentialsResult['errorCode'] =
-    ambiente === 'producao' ? 'TOKEN_MISSING_PRODUCAO' : 'TOKEN_MISSING_HOMOLOGACAO';
-  const friendly =
-    ambiente === 'producao'
-      ? 'Token do provedor fiscal para PRODUÇÃO não está configurado. Solicite o cadastro do token de produção antes de ativar este ambiente.'
-      : 'Token do provedor fiscal para HOMOLOGAÇÃO não está configurado. Solicite o cadastro do token de homologação para concluir o piloto.';
+  // ---------------- nfe_op: token da empresa do tenant -----------------
+  const tenantToken = (opts.tenantTokenForAmbiente || '').trim();
+  if (tenantToken.length === 0) {
+    const errorCode: FocusCredentialsResult['errorCode'] =
+      ambiente === 'producao'
+        ? 'TENANT_TOKEN_MISSING_PRODUCAO'
+        : 'TENANT_TOKEN_MISSING_HOMOLOGACAO';
+    const friendly =
+      ambiente === 'producao'
+        ? 'Token de PRODUÇÃO da empresa não está cadastrado para esta loja. Cadastre o token de produção em Configurações Fiscais antes de operar em produção.'
+        : 'Token de HOMOLOGAÇÃO da empresa não está cadastrado para esta loja. Cadastre o token de homologação em Configurações Fiscais para concluir o piloto.';
+    return { ok: false, ambiente, operationKind, errorCode, error: friendly };
+  }
 
   return {
-    ok: false,
+    ok: true,
+    token: tenantToken,
+    baseUrl: BASE_URL_BY_AMBIENTE[ambiente],
     ambiente,
-    errorCode,
-    error: friendly,
+    operationKind,
   };
 }
 
-/**
- * Helper de conveniência: resolve apenas a baseUrl do ambiente.
- */
+/** Conveniência: pega a baseUrl pública do ambiente. */
 export function getFocusBaseUrl(ambiente: FocusAmbiente): string {
   return BASE_URL_BY_AMBIENTE[ambiente];
 }
