@@ -77,7 +77,7 @@ export function InvoiceActionsDropdown({
   const isPrinted = !!invoice.danfe_printed_at;
   const isAuthorized = invoice.status === 'authorized';
   const isDraft = invoice.status === 'draft';
-  const isPending = invoice.status === 'pending';
+  const isPending = invoice.status === 'pending' || invoice.status === 'processing';
   const isRejected = invoice.status === 'rejected';
   const isCanceled = invoice.status === 'cancelled';
 
