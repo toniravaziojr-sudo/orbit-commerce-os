@@ -2,6 +2,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -77,13 +78,16 @@ Deno.serve(async (req) => {
       .single();
 
     const ambiente = (settings?.focus_ambiente || settings?.ambiente) === 'producao' ? 'producao' : 'homologacao';
-    const focusBaseUrl = ambiente === 'producao'
-      ? 'https://api.focusnfe.com.br'
-      : 'https://homologacao.focusnfe.com.br';
+    const creds = resolveFocusCredentials({ ambiente });
+    if (!creds.ok || !creds.token) {
+      return jsonResponse({ success: false, error: creds.error, code: creds.errorCode });
+    }
+    const focusToken = creds.token;
+    const focusBaseUrl = creds.baseUrl!;
 
     const ref = invoice.focus_ref || `nfe_${invoice.id.replace(/-/g, '').substring(0, 20)}`;
 
-    console.log(`[fiscal-cce] CC-e #${numeroSequencia} invoice=${invoice_id} ref=${ref}`);
+    console.log(`[fiscal-cce] CC-e #${numeroSequencia} invoice=${invoice_id} ref=${ref} ambiente=${ambiente}`);
 
     const response = await fetch(`${focusBaseUrl}/v2/nfe/${ref}/carta_correcao`, {
       method: 'POST',

@@ -1,5 +1,6 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { cancelNFe, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
@@ -23,10 +24,8 @@ Deno.serve(async (req) => {
 
   await loadPlatformCredentials();
 
-  const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
-  if (!focusToken) {
-    return jsonResponse({ success: false, error: 'Token Focus NFe não configurado', code: 'no_focus_token' });
-  }
+  // Token resolvido depois, junto com o ambiente do tenant.
+
 
   try {
     // RBAC: cancelamento real exige owner/admin (Lote 1.C.3)
@@ -86,9 +85,14 @@ Deno.serve(async (req) => {
       .eq('tenant_id', tenantId)
       .single();
 
+    const ambiente = (settings?.focus_ambiente || settings?.ambiente || 'homologacao') as 'homologacao' | 'producao';
+    const creds = resolveFocusCredentials({ ambiente });
+    if (!creds.ok || !creds.token) {
+      return jsonResponse({ success: false, error: creds.error, code: creds.errorCode });
+    }
     const focusConfig: FocusNFeConfig = {
-      token: focusToken,
-      ambiente: (settings?.focus_ambiente || settings?.ambiente || 'homologacao') as 'homologacao' | 'producao',
+      token: creds.token,
+      ambiente,
     };
 
     const result = await cancelNFe(focusConfig, invoice.focus_ref, justificativa);
