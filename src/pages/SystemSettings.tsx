@@ -70,7 +70,7 @@ export default function SystemSettings() {
 
         <TabsContent value="fiscal" className="mt-6 space-y-6">
           <Tabs value={activeFiscalSub} onValueChange={handleFiscalSubChange} className="space-y-6">
-            <TabsList className="grid w-full max-w-2xl grid-cols-3">
+            <TabsList className="grid w-full max-w-3xl grid-cols-4">
               <TabsTrigger value="emitente" className="gap-2">
                 <Building2 className="h-4 w-4" />
                 Configurações Fiscais
@@ -78,6 +78,10 @@ export default function SystemSettings() {
               <TabsTrigger value="natureza" className="gap-2">
                 <Scale className="h-4 w-4" />
                 Natureza Jurídica
+              </TabsTrigger>
+              <TabsTrigger value="integracao" className="gap-2">
+                <PlugZap className="h-4 w-4" />
+                Integração Focus NFe
               </TabsTrigger>
               <TabsTrigger value="outros" className="gap-2">
                 <Settings2 className="h-4 w-4" />
@@ -90,6 +94,9 @@ export default function SystemSettings() {
             </TabsContent>
             <TabsContent value="natureza" className="space-y-6">
               <OperationNaturesContent />
+            </TabsContent>
+            <TabsContent value="integracao" className="space-y-6">
+              <FocusIntegrationSettings />
             </TabsContent>
             <TabsContent value="outros" className="space-y-6">
               <OutrosSettings />
