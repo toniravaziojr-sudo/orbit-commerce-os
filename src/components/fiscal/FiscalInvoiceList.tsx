@@ -82,6 +82,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
   const [editingInvoiceError, setEditingInvoiceError] = useState<string | null>(null);
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
+  const [editingInvoiceStage, setEditingInvoiceStage] = useState<string | null>(null);
+  const [preparingInvoiceId, setPreparingInvoiceId] = useState<string | null>(null);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [cancelingInvoice, setCancelingInvoice] = useState<FiscalInvoice | null>(null);
   const [correctingInvoice, setCorrectingInvoice] = useState<FiscalInvoice | null>(null);
@@ -294,8 +296,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     };
 
     setEditingInvoice(invoiceData);
-    setEditingInvoiceError(data.status_motivo || null);
+    setEditingInvoiceError(data.status_motivo || (Array.isArray((data as any).pendencia_motivos) ? (data as any).pendencia_motivos.join(' • ') : null));
     setEditingInvoiceStatus(data.status || null);
+    setEditingInvoiceStage((data as any).fiscal_stage || null);
   };
 
   const handleSaveInvoice = async (data: InvoiceData) => {
@@ -304,6 +307,25 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     });
 
     if (error) throw error;
+
+    // Se o registro está em pendência ou pronta_emitir (aba Notas Fiscais),
+    // revalidar automaticamente após salvar para atualizar o stage.
+    if (editingInvoiceStage === 'pendencia' || editingInvoiceStage === 'pronta_emitir') {
+      try {
+        const { data: prep } = await supabase.functions.invoke('fiscal-prepare-invoice', {
+          body: { invoice_id: data.id },
+        });
+        if (prep?.success) {
+          if (prep.fiscal_stage === 'pronta_emitir') {
+            toast.success('Pendências resolvidas. NF está Pronta para Emitir.');
+          } else if (prep.fiscal_stage === 'pendencia') {
+            toast.warning(`Ainda há ${prep.errors?.length || 0} pendência(s).`);
+          }
+        }
+      } catch (e) {
+        console.warn('[handleSaveInvoice] re-prepare falhou', e);
+      }
+    }
     refetch();
   };
 
@@ -317,6 +339,33 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     if (error) throw error;
     toast.success('NF-e enviada para autorização');
     refetch();
+  };
+
+  // Cria a Nota Fiscal a partir de um Pedido de Venda: valida localmente e move
+  // o registro para a aba Notas Fiscais (Pronta para Emitir ou Pendência).
+  // NÃO transmite à SEFAZ. NÃO chama Focus.
+  const handlePrepareInvoice = async (invoice: FiscalInvoice) => {
+    setPreparingInvoiceId(invoice.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('fiscal-prepare-invoice', {
+        body: { invoice_id: invoice.id },
+      });
+      if (error) throw error;
+      if (!data?.success) {
+        toast.error(data?.error || 'Não foi possível criar a Nota Fiscal');
+        return;
+      }
+      if (data.fiscal_stage === 'pronta_emitir') {
+        toast.success('Nota Fiscal criada. Disponível em Notas Fiscais como Pronta para Emitir.');
+      } else {
+        toast.warning(`Nota Fiscal criada com ${data.errors?.length || 0} pendência(s). Verifique em Notas Fiscais.`);
+      }
+      refetch();
+    } catch (e: any) {
+      showErrorToast(e, { module: 'fiscal', action: 'criar nota fiscal' });
+    } finally {
+      setPreparingInvoiceId(null);
+    }
   };
 
   const handleDeleteInvoice = async () => {
@@ -457,10 +506,27 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return errors;
   };
 
-  // Abre o modal de confirmação. NÃO transmite — só abre a confirmação.
+  // Roteia a ação principal do dropdown conforme aba/etapa:
+  // - Pedidos de Venda → Criar Nota Fiscal (valida, não transmite)
+  // - Notas Fiscais (pronta_emitir) → confirmar e enviar à Receita
+  // - Notas Fiscais (pendencia) → orientar a editar
   const requestEmitInvoice = (invoice: FiscalInvoice) => {
+    const stage = (invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida');
+    if (mode === 'orders' || stage === 'pedido_venda') {
+      handlePrepareInvoice(invoice);
+      return;
+    }
+    if (stage === 'pendencia') {
+      toast.warning('Esta NF tem pendências. Edite os dados para revalidar antes de enviar à Receita.');
+      handleEditInvoice(invoice);
+      return;
+    }
+    if (stage !== 'pronta_emitir') {
+      toast.error('Esta NF não está pronta para envio à Receita.');
+      return;
+    }
     if (invoice.status !== 'draft') {
-      toast.error('Apenas rascunhos prontos podem ser emitidos.');
+      toast.error('Apenas rascunhos prontos podem ser enviados.');
       return;
     }
     const errors = runEmitPrecheck(invoice);
@@ -540,32 +606,38 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     setSelectedInvoices(new Set());
   };
 
-  // Bulk actions
+  // Bulk action principal:
+  // - Em Pedidos de Venda → cria N Notas Fiscais (valida, não transmite)
+  // - Em Notas Fiscais → envia à Receita as que estão Pronta para Emitir
   const handleBulkSubmit = async () => {
-    const drafts = (filteredInvoices || []).filter(
-      inv => selectedInvoices.has(inv.id) && inv.status === 'draft'
-    );
-    
-    if (drafts.length === 0) {
-      toast.error('Nenhum rascunho selecionado para emissão');
-      return;
-    }
+    const selected = (filteredInvoices || []).filter(inv => selectedInvoices.has(inv.id));
+    if (selected.length === 0) return;
 
     setIsBulkProcessing(true);
     let successCount = 0;
     let errorCount = 0;
+    const isOrders = mode === 'orders';
 
-    for (const invoice of drafts) {
+    const targets = isOrders
+      ? selected.filter(i => stageOf(i) === 'pedido_venda')
+      : selected.filter(i => stageOf(i) === 'pronta_emitir' && i.status === 'draft');
+
+    if (targets.length === 0) {
+      setIsBulkProcessing(false);
+      toast.error(isOrders
+        ? 'Nenhum pedido elegível para criar Nota Fiscal.'
+        : 'Nenhuma NF Pronta para Emitir foi selecionada.');
+      return;
+    }
+
+    for (const invoice of targets) {
       try {
-        const { data, error } = await supabase.functions.invoke('fiscal-submit', {
+        const fnName = isOrders ? 'fiscal-prepare-invoice' : 'fiscal-submit';
+        const { data, error } = await supabase.functions.invoke(fnName, {
           body: { invoice_id: invoice.id },
         });
-
-        if (error || !data?.success) {
-          errorCount++;
-        } else {
-          successCount++;
-        }
+        if (error || !data?.success) errorCount++;
+        else successCount++;
       } catch {
         errorCount++;
       }
@@ -576,11 +648,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     refetch();
 
     if (successCount > 0) {
-      toast.success(`${successCount} NF-e(s) enviada(s) para autorização`);
+      toast.success(isOrders
+        ? `${successCount} Nota(s) Fiscal(is) criada(s). Verifique em Notas Fiscais.`
+        : `${successCount} NF-e(s) enviada(s) à Receita.`);
     }
-    if (errorCount > 0) {
-      toast.error(`${errorCount} NF-e(s) com erro na emissão`);
-    }
+    if (errorCount > 0) toast.error(`${errorCount} item(ns) com erro.`);
   };
 
   const handleBulkPrint = async () => {
@@ -1080,7 +1152,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             ) : (
                               <Send className="h-4 w-4 mr-2" />
                             )}
-                            Emitir {selectedDraftsCount}
+                            {mode === 'orders' ? `Criar Notas Fiscais (${selectedDraftsCount})` : `Enviar à Receita (${selectedDraftsCount})`}
                           </Button>
                           {/* DC-e (Declaração de Conteúdo) — fora do fluxo operacional comum até especificação completa
                               do backend (depende de integração com transportadora). Mantido apenas no roadmap. */}
@@ -1208,11 +1280,21 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   <XCircle className="h-3 w-3" />
                                   Venda cancelada
                                 </Badge>
+                              ) : (mode === 'invoices' && (stageOf(invoice) === 'pronta_emitir' || stageOf(invoice) === 'pendencia')) ? (
+                                <Badge variant={stageConfig[stageOf(invoice)].variant} className="gap-1 w-fit">
+                                  {(() => { const I = stageConfig[stageOf(invoice)].icon; return <I className="h-3 w-3" />; })()}
+                                  {stageConfig[stageOf(invoice)].label}
+                                </Badge>
                               ) : (
                                 <Badge variant={status.variant} className="gap-1 w-fit">
                                   <StatusIcon className="h-3 w-3" />
                                   {status.label}
                                 </Badge>
+                              )}
+                              {mode === 'invoices' && stageOf(invoice) === 'pendencia' && Array.isArray((invoice as any).pendencia_motivos) && (invoice as any).pendencia_motivos.length > 0 && (
+                                <p className="text-xs text-destructive max-w-[220px] truncate" title={(invoice as any).pendencia_motivos.join(' • ')}>
+                                  {(invoice as any).pendencia_motivos[0]}
+                                </p>
                               )}
                               {invoice.status === 'authorized' && isPrinted && (
                                 <Badge variant="outline" className="gap-1 w-fit text-xs">
@@ -1242,10 +1324,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onDelete={() => handleDeleteDraft(invoice)}
                               onEmitirDevolucao={() => handleEmitirDevolucao(invoice)}
                               onResendEmail={() => handleResendEmail(invoice)}
-                              isSubmitting={submittingInvoiceId === invoice.id}
+                              isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
-                              emitLabel={settings?.ambiente === 'homologacao' ? 'Emitir NF-e de teste' : 'Emitir NF-e'}
+                              emitLabel={
+                                mode === 'orders'
+                                  ? 'Criar Nota Fiscal'
+                                  : (stageOf(invoice) === 'pendencia'
+                                      ? 'Editar e revalidar'
+                                      : settings?.ambiente === 'homologacao'
+                                          ? 'Enviar à Receita (homologação)'
+                                          : 'Enviar à Receita')
+                              }
                             />
                           </TableCell>
                         </TableRow>
@@ -1271,18 +1361,37 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         title={duplicateDialog.kind === 'pedido' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
         description={
           duplicateDialog.kind === 'pedido'
-            ? 'Revise os dados copiados do pedido de venda original e ajuste o que precisar antes de salvar. Nenhuma NF é emitida nesta etapa.'
-            : 'Revise os dados copiados da NF original e ajuste o que precisar antes de salvar. O novo registro será criado como rascunho. Nenhuma NF é transmitida nesta etapa.'
+            ? 'Revise os dados copiados do pedido de venda original e ajuste o que precisar antes de salvar. Nenhuma Nota Fiscal é criada nesta etapa.'
+            : 'Revise os dados copiados da NF original. Ao salvar, criamos uma nova NF e movemos para a aba Notas Fiscais (Pronta para Emitir ou Pendência), sem transmitir à Receita.'
         }
         submitLabel="Salvar duplicação"
         successMessage={
           duplicateDialog.kind === 'pedido'
-            ? 'Pedido de venda duplicado com sucesso.'
-            : 'NF duplicada como rascunho em Pedidos de Venda. O editor abriu para revisão.'
+            ? 'Pedido de venda duplicado. Disponível na aba Pedidos de Venda.'
+            : 'NF duplicada. Validando e movendo para a aba Notas Fiscais...'
         }
-        onCreated={(newId) => {
-          // Abre o rascunho duplicado direto no editor para revisão fiscal completa.
-          handleEditInvoice({ id: newId } as FiscalInvoice);
+        onCreated={async (newId) => {
+          if (duplicateDialog.kind === 'nf') {
+            // NF duplicada: valida e move para Notas Fiscais (pronta_emitir/pendencia).
+            try {
+              const { data } = await supabase.functions.invoke('fiscal-prepare-invoice', {
+                body: { invoice_id: newId },
+              });
+              if (data?.success) {
+                if (data.fiscal_stage === 'pronta_emitir') {
+                  toast.success('NF duplicada e Pronta para Emitir em Notas Fiscais.');
+                } else {
+                  toast.warning(`NF duplicada com ${data.errors?.length || 0} pendência(s) em Notas Fiscais.`);
+                }
+              }
+            } catch (e) {
+              console.warn('[duplicate NF prepare] falhou', e);
+            }
+            refetch();
+          } else {
+            // Pedido de venda duplicado: abre o editor para revisão.
+            handleEditInvoice({ id: newId } as FiscalInvoice);
+          }
         }}
       />
 
@@ -1295,6 +1404,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
               setEditingInvoice(null);
               setEditingInvoiceError(null);
               setEditingInvoiceStatus(null);
+              setEditingInvoiceStage(null);
             }
           }}
           invoice={editingInvoice}
