@@ -106,26 +106,62 @@ export async function requireFiscalRole(
 }
 
 /**
- * Validates the FOCUS_NFE_WEBHOOK_SECRET against incoming webhook request.
- * Accepts the secret via:
- *   - X-Webhook-Secret header
- *   - ?secret=... query param
- *   - HTTP Basic auth password
+ * Validates an incoming Focus NFe webhook request.
  *
- * Returns null when valid, or a Response (401) when invalid/missing.
- * If the secret env var is NOT configured, returns null (fail-open) — the
- * caller MUST log a warning so this state is visible.
+ * Accepts EITHER:
+ *   1) Per-tenant token via `?t=<token>` query param — preferred path. Looks up
+ *      `fiscal_settings.webhook_tenant_token` to resolve the tenant. The global
+ *      secret is NOT exposed in URLs registered with Focus.
+ *   2) Global FOCUS_NFE_WEBHOOK_SECRET via header / Basic auth / ?secret= —
+ *      fallback for legacy registrations and platform-level checks.
+ *
+ * Returns:
+ *   { ok: true, tenantId?: string } when valid (tenantId set when token path used)
+ *   { ok: false, response: Response } (401) when invalid/missing
+ *
+ * If neither validator is configured AND no token path matches, returns 401.
  */
-export function validateWebhookSecret(req: Request): Response | null {
+export async function validateFiscalWebhookAuth(
+  req: Request,
+): Promise<
+  | { ok: true; tenantId: string | null; matchedBy: "tenant_token" | "global_secret" | "unprotected" }
+  | { ok: false; response: Response }
+> {
+  const url = new URL(req.url);
+
+  // 1) Per-tenant token path (preferred)
+  const tenantToken = url.searchParams.get("t");
+  if (tenantToken && /^[a-f0-9]{32,128}$/i.test(tenantToken)) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const svc = createClient(supabaseUrl, serviceKey);
+    const { data: settings } = await svc
+      .from("fiscal_settings")
+      .select("tenant_id, webhook_tenant_token")
+      .eq("webhook_tenant_token", tenantToken)
+      .maybeSingle();
+    if (settings?.tenant_id) {
+      return { ok: true, tenantId: settings.tenant_id, matchedBy: "tenant_token" };
+    }
+    console.error("[webhook-auth] Tenant token did not resolve to any tenant.");
+    return {
+      ok: false,
+      response: new Response(
+        JSON.stringify({ success: false, error: "Invalid webhook token" }),
+        { status: 401, headers: corsHeaders },
+      ),
+    };
+  }
+
+  // 2) Global secret fallback
   const expected = Deno.env.get("FOCUS_NFE_WEBHOOK_SECRET");
   if (!expected) {
     console.warn(
-      "[webhook-secret] FOCUS_NFE_WEBHOOK_SECRET not configured — webhook is UNPROTECTED",
+      "[webhook-auth] No tenant token and FOCUS_NFE_WEBHOOK_SECRET unset — unprotected.",
     );
-    return null;
+    return { ok: true, tenantId: null, matchedBy: "unprotected" };
   }
 
-  const url = new URL(req.url);
   const fromQuery = url.searchParams.get("secret");
   const fromHeader = req.headers.get("x-webhook-secret") ||
     req.headers.get("x-focus-webhook-secret");
@@ -135,7 +171,6 @@ export function validateWebhookSecret(req: Request): Response | null {
   if (authHeader?.toLowerCase().startsWith("basic ")) {
     try {
       const decoded = atob(authHeader.slice(6).trim());
-      // Format: "user:password" — accept password (or whole string) as the secret
       const colon = decoded.indexOf(":");
       fromBasic = colon >= 0 ? decoded.slice(colon + 1) : decoded;
     } catch {
@@ -145,12 +180,41 @@ export function validateWebhookSecret(req: Request): Response | null {
 
   const provided = fromHeader || fromQuery || fromBasic;
   if (provided && provided === expected) {
-    return null;
+    return { ok: true, tenantId: null, matchedBy: "global_secret" };
   }
 
-  console.error(
-    "[webhook-secret] Invalid or missing webhook secret. Rejecting request.",
-  );
+  console.error("[webhook-auth] Invalid or missing webhook authentication.");
+  return {
+    ok: false,
+    response: new Response(
+      JSON.stringify({ success: false, error: "Invalid webhook authentication" }),
+      { status: 401, headers: corsHeaders },
+    ),
+  };
+}
+
+/**
+ * Backwards-compat wrapper. Prefer `validateFiscalWebhookAuth`.
+ * Kept so existing callers compile during the rollout.
+ */
+export function validateWebhookSecret(req: Request): Response | null {
+  const expected = Deno.env.get("FOCUS_NFE_WEBHOOK_SECRET");
+  if (!expected) return null;
+  const url = new URL(req.url);
+  const fromQuery = url.searchParams.get("secret");
+  const fromHeader = req.headers.get("x-webhook-secret") ||
+    req.headers.get("x-focus-webhook-secret");
+  let fromBasic: string | null = null;
+  const authHeader = req.headers.get("authorization");
+  if (authHeader?.toLowerCase().startsWith("basic ")) {
+    try {
+      const decoded = atob(authHeader.slice(6).trim());
+      const colon = decoded.indexOf(":");
+      fromBasic = colon >= 0 ? decoded.slice(colon + 1) : decoded;
+    } catch { /* noop */ }
+  }
+  const provided = fromHeader || fromQuery || fromBasic;
+  if (provided && provided === expected) return null;
   return new Response(
     JSON.stringify({ success: false, error: "Invalid webhook secret" }),
     { status: 401, headers: corsHeaders },

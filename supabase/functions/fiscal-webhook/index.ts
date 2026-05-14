@@ -2,7 +2,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
-import { validateWebhookSecret } from "../_shared/fiscal-role-check.ts";
+import { validateFiscalWebhookAuth } from "../_shared/fiscal-role-check.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,11 +42,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Validate Focus NFe webhook secret (fail-closed when configured)
-  const secretFailure = validateWebhookSecret(req);
-  if (secretFailure) {
-    return secretFailure;
+  // Validate Focus NFe webhook auth (per-tenant token preferred; global secret fallback)
+  const authResult = await validateFiscalWebhookAuth(req);
+  if (!authResult.ok) {
+    return authResult.response;
   }
+  const tenantFromToken = authResult.tenantId; // null if matched by global secret
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -129,14 +130,34 @@ Deno.serve(async (req) => {
 
     console.log(`[fiscal-webhook] Found invoice: id=${invoice.id}, current_status=${invoice.status}, order_id=${invoice.order_id}`);
 
+    // Tenant guard: when authenticated by per-tenant token, the invoice MUST belong to that tenant.
+    if (tenantFromToken && tenantFromToken !== invoice.tenant_id) {
+      console.error(`[fiscal-webhook] Tenant mismatch: token=${tenantFromToken} invoice.tenant=${invoice.tenant_id}`);
+      return new Response(
+        JSON.stringify({ success: false, error: "Tenant mismatch" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get fiscal settings to determine ambiente
     const { data: settings } = await supabase
       .from("fiscal_settings")
-      .select("focus_ambiente, ambiente")
+      .select("focus_ambiente, ambiente, webhook_status, webhook_validated_at")
       .eq("tenant_id", invoice.tenant_id)
       .single();
-    
+
     const ambiente = settings?.focus_ambiente || settings?.ambiente || 'homologacao';
+
+    // Always update last_received_at — promotes pending → validated on first successful event.
+    const nowIso = new Date().toISOString();
+    const webhookPatch: Record<string, unknown> = { webhook_last_received_at: nowIso };
+    if (settings && settings.webhook_status !== 'validated') {
+      webhookPatch.webhook_status = 'validated';
+      webhookPatch.webhook_validated_at = settings.webhook_validated_at || nowIso;
+      webhookPatch.webhook_last_error = null;
+      webhookPatch.webhook_last_error_at = null;
+    }
+    await supabase.from("fiscal_settings").update(webhookPatch).eq("tenant_id", invoice.tenant_id);
 
     // Map status
     const internalStatus = mapFocusStatusToInternal(status);
