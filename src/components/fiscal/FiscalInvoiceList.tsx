@@ -1228,10 +1228,28 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             ) : (
                               <Send className="h-4 w-4 mr-2" />
                             )}
-                            {mode === 'orders' ? `Criar Notas Fiscais (${selectedDraftsCount})` : `Enviar à Receita (${selectedDraftsCount})`}
+                            {mode === 'orders'
+                              ? (selectedDraftsCount === 1
+                                  ? 'Criar Nota Fiscal'
+                                  : `Criar Notas Fiscais (${selectedDraftsCount})`)
+                              : (selectedDraftsCount === 1
+                                  ? 'Emitir Nota Fiscal'
+                                  : `Emitir Notas Fiscais (${selectedDraftsCount})`)}
                           </Button>
-                          {/* DC-e (Declaração de Conteúdo) — fora do fluxo operacional comum até especificação completa
-                              do backend (depende de integração com transportadora). Mantido apenas no roadmap. */}
+                          {mode === 'orders' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleBulkGenerateDc}
+                              disabled={isBulkProcessing}
+                              title="Gera um PDF de Declaração de Conteúdo (não fiscal) por pedido selecionado"
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              {selectedDraftsCount === 1
+                                ? 'Declaração de Conteúdo'
+                                : `Declarações de Conteúdo (${selectedDraftsCount})`}
+                            </Button>
+                          )}
                           <Button 
                             size="sm" 
                             variant="destructive"
@@ -1411,8 +1429,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   : (stageOf(invoice) === 'pendencia'
                                       ? 'Editar e revalidar'
                                       : settings?.ambiente === 'homologacao'
-                                          ? 'Enviar à Receita (homologação)'
-                                          : 'Enviar à Receita')
+                                          ? 'Emitir Nota Fiscal (homologação)'
+                                          : 'Emitir Nota Fiscal')
                               }
                             />
                           </TableCell>
