@@ -416,6 +416,39 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
+  // Pré-check fiscal antes de permitir abrir o modal de confirmação de emissão.
+  // Não chama Focus/Sefaz. Apenas valida dados visíveis localmente.
+  const runEmitPrecheck = (invoice: FiscalInvoice): string[] => {
+    const errors: string[] = [];
+    if (!settings?.is_configured) errors.push('Configuração fiscal incompleta. Conclua em Fiscal → Configurações.');
+    if (settings && (settings as any).certificado_cnpj && (settings as any).cnpj && (settings as any).certificado_cnpj !== (settings as any).cnpj) {
+      errors.push('CNPJ do certificado não confere com o CNPJ do emitente.');
+    }
+    const doc = (invoice.dest_cpf_cnpj || '').replace(/\D/g, '');
+    if (doc.length !== 11 && doc.length !== 14) errors.push('CPF/CNPJ do destinatário inválido.');
+    if (!invoice.dest_nome) errors.push('Nome do destinatário ausente.');
+    if (!invoice.dest_endereco_logradouro || !invoice.dest_endereco_municipio || !invoice.dest_endereco_uf) {
+      errors.push('Endereço do destinatário incompleto.');
+    }
+    if (!invoice.dest_endereco_cep || invoice.dest_endereco_cep.replace(/\D/g, '').length !== 8) {
+      errors.push('CEP do destinatário inválido.');
+    }
+    if (!invoice.valor_total || Number(invoice.valor_total) <= 0) errors.push('Valor total inválido.');
+    if (invoice.chave_acesso) errors.push('Esta NF já possui chave de acesso emitida.');
+    return errors;
+  };
+
+  // Abre o modal de confirmação. NÃO transmite — só abre a confirmação.
+  const requestEmitInvoice = (invoice: FiscalInvoice) => {
+    if (invoice.status !== 'draft') {
+      toast.error('Apenas rascunhos prontos podem ser emitidos.');
+      return;
+    }
+    const errors = runEmitPrecheck(invoice);
+    setEmitPrecheckErrors(errors);
+    setConfirmEmitInvoice(invoice);
+  };
+
   const handleQuickSubmit = async (invoice: FiscalInvoice) => {
     setSubmittingInvoiceId(invoice.id);
     try {
