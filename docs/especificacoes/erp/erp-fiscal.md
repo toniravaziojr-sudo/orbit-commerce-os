@@ -353,15 +353,17 @@ Regras importantes:
       certificado válido). O badge "Pronto/Incompleto" da UI lê esse flag.
 ```
 
-### Fluxo de Emissão
+### Fluxo de Emissão (v2026-05-14 — Onda 2 rev1)
 ```
 1. Pedido pago → trigger trg_enqueue_fiscal_draft enfileira em fiscal_draft_queue
-2. scheduler-tick consome a fila e cria rascunho em fiscal_invoices (status 'draft')
-3. fiscal-submit envia o rascunho à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
-   → status 'processando_autorizacao'
-4. fiscal-webhook OU fiscal-check-status (polling) atualizam status final:
+2. scheduler-tick consome a fila e cria registro em fiscal_invoices (fiscal_stage='pedido_venda', status='draft')
+3. Usuário clica "Criar Nota Fiscal" → fiscal-prepare-invoice valida localmente
+   → fiscal_stage='pronta_emitir' (sem erros) ou fiscal_stage='pendencia' (com pendências)
+4. Em "Enviar à Receita" → fiscal-submit envia à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
+   → status='processing', fiscal_stage='emitida'
+5. fiscal-webhook OU fiscal-check-status (polling) atualizam status final:
    → 'authorized' | 'rejected' | 'denied'
-5. nfe-shipment-link (helper) propaga o vínculo para shipments quando autorizada
+6. nfe-shipment-link (helper) propaga o vínculo para shipments quando autorizada
 ```
 
 ### Mapeamento de Status NF-e (Sefaz → Interno)
@@ -416,18 +418,36 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 
    **Status canônico (v2026-05-13 — Onda 1.A)**: Os valores hoje permitidos em `fiscal_invoices.status` pela CHECK constraint são `draft`, `pending`, `authorized`, `rejected`, `cancelled` (com 2 L's). A grafia `canceled` (1 L) está **bloqueada por CHECK constraint no banco** e foi migrada retroativamente para `cancelled`. Observação: o código fiscal também usa `processing` e `error` em fluxos auxiliares/legados, então a constraint ainda precisa ser saneada no próximo lote para alinhar banco e backend sem risco.
 
-   **Duplicar Pedido de Venda / Duplicar NF (v2026-05-14 — Onda 1.A rev3)**: A duplicação agora abre um diálogo pré-preenchido (`ManualInvoiceDialog` em `mode="duplicate"`) para o usuário revisar/editar antes de salvar; só ao clicar em **"Salvar duplicação"** o novo registro é criado.
-   - **Aba Pedidos de Venda** (rascunhos): item **"Duplicar Pedido de Venda"** no menu de ações.
-   - **Aba Notas Fiscais** (autorizadas/canceladas/rejeitadas): item **"Duplicar NF"** no menu de ações.
-   - Ao salvar, o backend chama `fiscal-create-manual` (mesmo endpoint de criação manual) — **nunca** `fiscal-submit`, `fiscal-emit`, `fiscal-cancel`, CC-e, inutilização ou qualquer rota Focus/Sefaz.
-   - **A duplicação sempre gera um RASCUNHO novo e independente**: número fiscal novo via `getNextFiscalNumber` (nunca reaproveita número já autorizado), sem `chave_acesso`, sem XML, sem DANFE, sem protocolo, sem `focus_ref`, sem status terminal, sem `order_id` (não dispara trigger fiscal nem efeitos colaterais em estoque/financeiro/remessa/e-mail/automação/marketplace).
-   - Campos pré-preenchidos no diálogo: natureza da operação, destinatário (nome, CPF/CNPJ, e-mail, telefone, endereço completo), itens (código, descrição, NCM, CFOP, unidade, quantidade, valor unitário, origem, CSOSN), observações com sufixo de auditoria. Campos fiscais terminais (chave, XML, DANFE, protocolo, focus_ref, eventos, recibos, cancelamentos, CC-e, inutilização, autorização) **nunca** são copiados.
-   - Auditoria: `observacoes` recebe sufixo `Duplicado de pedido de venda|NF SERIE-NUMERO.` e o evento `created` é registrado em `fiscal_invoice_events`.
-   - Toast de sucesso: "Pedido de venda duplicado com sucesso." ou **"NF duplicada como rascunho em Pedidos de Venda. O editor abriu para revisão."**, com ação "Abrir registro duplicado" que abre o novo rascunho no editor completo. **Importante:** ao duplicar uma NF (autorizada/cancelada/rejeitada), o novo rascunho aparece na aba **Pedidos de Venda** (filtrada por `status='draft'`), não na aba Notas Fiscais — o editor abre automaticamente para evitar a sensação de "salvou e sumiu".
-   - **Não impacta o módulo normal de Pedidos da loja** (`/orders`): a duplicação é exclusivamente fiscal e não cria/altera registros em `orders` nem `order_items`.
-   - RBAC/multi-tenant: tenant resolvido server-side via `current_tenant_id` do JWT; isolamento entre tenants garantido.
+    **Duplicar Pedido de Venda / Duplicar NF (v2026-05-14 — Onda 2 rev1)**: A duplicação abre um diálogo pré-preenchido (`ManualInvoiceDialog` em `mode="duplicate"`) para o usuário revisar/editar antes de salvar; só ao clicar em **"Salvar duplicação"** o novo registro é criado.
+    - **Aba Pedidos de Venda** (`fiscal_stage='pedido_venda'`): item **"Duplicar Pedido de Venda"** no menu de ações. Ao salvar, o novo registro permanece como **Pedido de Venda** (`fiscal_stage='pedido_venda'`), não muda de aba.
+    - **Aba Notas Fiscais** (`fiscal_stage='emitida'`): item **"Duplicar NF"** no menu de ações. Ao salvar, o novo registro é validado automaticamente pelo backend (`fiscal-prepare-invoice`) e movido para a aba **Notas Fiscais** com `fiscal_stage='pronta_emitir'` ou `fiscal_stage='pendencia'` conforme o resultado da validação. **Nunca** volta para Pedidos de Venda.
+    - Ao salvar, o backend chama `fiscal-create-manual` seguido de `fiscal-prepare-invoice` — **nunca** `fiscal-submit`, `fiscal-emit`, `fiscal-cancel`, CC-e, inutilização ou qualquer rota Focus/Sefaz.
+    - **A duplicação sempre gera um registro novo e independente**: número fiscal novo via `getNextFiscalNumber` (nunca reaproveita número já autorizado), sem `chave_acesso`, sem XML, sem DANFE, sem protocolo, sem `focus_ref`, sem status terminal, sem `order_id` (não dispara trigger fiscal nem efeitos colaterais em estoque/financeiro/remessa/e-mail/automação/marketplace).
+    - Campos pré-preenchidos no diálogo: natureza da operação, destinatário (nome, CPF/CNPJ, e-mail, telefone, endereço completo), itens (código, descrição, NCM, CFOP, unidade, quantidade, valor unitário, origem, CSOSN), observações com sufixo de auditoria. Campos fiscais terminais (chave, XML, DANFE, protocolo, focus_ref, eventos, recibos, cancelamentos, CC-e, inutilização, autorização) **nunca** são copiados.
+    - Auditoria: `observacoes` recebe sufixo `Duplicado de pedido de venda|NF SERIE-NUMERO.` e o evento `created` é registrado em `fiscal_invoice_events`.
+    - Toast de sucesso: "Pedido de venda duplicado com sucesso." (quando duplica Pedido de Venda) ou **"NF duplicada e preparada na aba Notas Fiscais."** (quando duplica NF autorizada/cancelada/rejeitada).
+    - **Não impacta o módulo normal de Pedidos da loja** (`/orders`): a duplicação é exclusivamente fiscal e não cria/altera registros em `orders` nem `order_items`.
+    - RBAC/multi-tenant: tenant resolvido server-side via `current_tenant_id` do JWT; isolamento entre tenants garantido.
 
-   **Emissão de NF-e — confirmação obrigatória em TODOS os pontos (v2026-05-14 — Onda 1.A rev5)**: Nenhum botão de emissão pode transmitir com clique único. Tanto o item **"Emitir NF-e"** do menu da linha (lista) quanto o botão **"Emitir NF-e"** do rodapé do **InvoiceEditor** (editor completo) abrem um `AlertDialog` de confirmação antes de chamar `fiscal-submit`. Em ambiente `homologacao`, o rótulo do botão e o título do modal ficam **"Emitir NF-e de teste"** com o aviso *"Esta é uma emissão de teste em homologação. A nota não terá valor fiscal real."* Em `producao`, o título vira **"Emitir NF-e com valor fiscal real?"** com o aviso *"Esta emissão terá valor fiscal real… Esta ação não pode ser desfeita."* O ambiente é lido do `useFiscalReadiness` (fonte única). Antes de habilitar o botão de confirmação, é executado um pré-check local (sem chamar Focus/Sefaz): configuração fiscal completa, CNPJ do certificado coincidindo com o emitente, destinatário com CPF/CNPJ válido, endereço completo, CEP válido, valor total > 0 e ausência de chave de acesso pré-existente. Pendências aparecem em lista vermelha e bloqueiam a confirmação. **Nenhuma transmissão acontece automaticamente** em: abertura do editor, salvar rascunho, duplicar pedido/NF, seleção de linha. Só clique explícito + confirmação no modal final.
+    **Fluxo de Preparação e Emissão — 3 etapas separadas (v2026-05-14 — Onda 2 rev1)**:
+
+    **Etapa 1 — Pedidos de Venda → Criar Nota Fiscal (não transmite)**:
+    - Na aba **Pedidos de Venda**, o botão/ação principal é **"Criar Nota Fiscal"**.
+    - Ao clicar, o backend executa `fiscal-prepare-invoice`: validação local completa (configurações fiscais, certificado, CNPJ do emitente, destinatário, endereço, itens, NCM, CFOP, valores) **sem chamar Focus/Sefaz**.
+    - Se passar em todas as validações: `fiscal_stage` muda para `pronta_emitir`, `pendencia_motivos` fica `null`, e o registro aparece na aba **Notas Fiscais** com badge **"Pronta para Emitir"**.
+    - Se houver pendências: `fiscal_stage` muda para `pendencia`, `pendencia_motivos` recebe a lista de erros, e o registro aparece na aba **Notas Fiscais** com badge **"Pendência Identificada"**.
+    - **Esta ação nunca transmite para a Receita.**
+
+    **Etapa 2 — Notas Fiscais → Enviar à Receita (transmite)**:
+    - Na aba **Notas Fiscais**, registros em `fiscal_stage='pronta_emitir'` exibem a ação **"Enviar à Receita"** (ou **"Emitir NF-e de teste"** em homologação).
+    - Ao clicar, abre `AlertDialog` de confirmação obrigatória. Só então chama `fiscal-submit`/`fiscal-emit` que efetivamente transmite para a Focus/SEFAZ.
+    - **Ação bloqueada para `fiscal_stage='pendencia'`**: o botão fica desabilitado com tooltip informando que há pendências a resolver.
+    - Após transmissão bem-sucedida, `fiscal_stage` muda para `emitida` e `status` passa a refletir o retorno da SEFAZ (`processing`, `authorized`, `rejected`, etc.).
+
+    **Etapa 3 — Revalidação automática no editor**:
+    - Ao abrir um registro em `pendencia` no **InvoiceEditor** e salvar alterações, o backend executa `fiscal-prepare-invoice` automaticamente.
+    - Se as pendências foram sanadas, o registro atualiza para `pronta_emitir`.
+    - Se persistirem, permanece em `pendencia` com a lista atualizada de motivos.
 
    **Status `processing` (v2026-05-14)**: Quando o Focus NFe retorna `processando_autorizacao`, a NF-e fica em `processing`. A lista exibe o badge **"Processando SEFAZ"** (Clock) e o menu da linha mostra **"Atualizar Status"** em vez de "Emitir" — assim o usuário não tenta reemitir uma nota que já está aguardando autorização. O webhook (`fiscal-webhook`) e o reconciliador manual (`fiscal-check-status`) já atualizam a coluna `status` para `authorized` ao receber `autorizado` do Focus, gravam chave de acesso, protocolo, XML e DANFE, e respeitam idempotência (não rebaixam status terminal). **Reconciliação manual de divergência local** (status `processing` no banco mas evento `authorized` já persistido em `fiscal_invoice_events` com chave/protocolo válidos): `UPDATE fiscal_invoices` direto na coluna, sem chamar Focus/Sefaz. Caso da NF 1-265 do tenant Respeite o Homem em 2026-05-14 — `authorized` foi gravado como evento mas o webhook não chegou a atualizar o cabeçalho; reconciliado localmente.
 
@@ -448,35 +468,66 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 | **Objetivo** | Permitir identificação visual de risco operacional antes da emissão da NF-e |
 | **Dados** | `order_status` é obtido via join `orders!fiscal_invoices_order_id_fkey(status)` na query fiscal |
 
-### Interface: Abas e Ações (v2026-04-14 rev2)
+### Interface: Abas e Ações (v2026-05-14 — Onda 2 rev1)
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Estrutura de UI |
 | **Localização** | `src/pages/Fiscal.tsx`, `src/components/fiscal/FiscalInvoiceList.tsx`, `src/components/fiscal/ManualInvoiceDialog.tsx` |
-| **Descrição** | A página Fiscal possui duas abas principais com ações distintas |
+| **Descrição** | A página Fiscal possui duas abas principais separadas por `fiscal_stage`. A coluna `fiscal_stage` é a etapa operacional; a coluna `status` é o status oficial da SEFAZ. |
 
-#### Aba "Pedidos de Venda" (`mode=orders`) — _renomeada de "Pedidos" em 2026-05-14_
-- Lista rascunhos de NF-e gerados automaticamente a partir de pedidos pagos (todas as origens: lojas, marketplaces, etc.) e pedidos de venda criados manualmente para revisão fiscal.
+#### Separação `fiscal_stage` vs `status`
+
+| Conceito | Coluna | O que representa |
+|----------|--------|----------------|
+| Etapa operacional | `fiscal_stage` | Onde o registro está no fluxo interno: `pedido_venda`, `pronta_emitir`, `pendencia`, `emitida` |
+| Status fiscal | `status` | Resposta oficial da SEFAZ: `draft`, `pending`, `processing`, `authorized`, `rejected`, `cancelled` |
+
+- `fiscal_stage` é independente de `status`. Um registro pode estar `fiscal_stage='emitida'` com `status='processing'` (aguardando SEFAZ) ou `status='authorized'` (já aprovada).
+- `fiscal_stage` é imutável para o usuário em `emitida` (só o backend altera via `fiscal-emit`/`fiscal-submit`/`fiscal-webhook`).
+
+#### Valores de `fiscal_stage`
+
+| Valor | Significado | Onde aparece |
+|-------|-------------|--------------|
+| `pedido_venda` | Pedido de venda fiscal — ainda não preparado para emissão | Aba Pedidos de Venda |
+| `pronta_emitir` | Nota fiscal preparada, validada localmente, pronta para transmissão | Aba Notas Fiscais (badge "Pronta para Emitir") |
+| `pendencia` | Nota fiscal com pendências de validação que impedem transmissão | Aba Notas Fiscais (badge "Pendência Identificada") |
+| `emitida` | Nota fiscal já transmitida à SEFAZ (processando, autorizada, rejeitada ou cancelada) | Aba Notas Fiscais |
+
+#### Aba "Pedidos de Venda" (`mode=orders`)
+- Lista registros com `fiscal_stage='pedido_venda'`.
 - **Pedidos de Venda ≠ Pedidos da loja**: este registro é puramente fiscal/rascunho. Não confundir com o módulo `/orders` (vendas reais).
-- Permite criar pedidos de venda manualmente via botão **"Novo Pedido de Venda"** → abre `ManualInvoiceDialog` em `mode="create"`.
-- Permite duplicar um Pedido de Venda existente via ação **"Duplicar Pedido de Venda"** → abre o mesmo diálogo em `mode="duplicate"` com dados pré-preenchidos.
-- O formulário é **simplificado**: Cliente + Produtos (descrição, código, unidade, qtd, valor) + Observações. Campos fiscais (NCM, CFOP, CSOSN, Origem, etc.) são preenchidos automaticamente com defaults no backend ou preservados invisivelmente quando duplicando.
-- Os pedidos de venda em aberto são **NF-e de venda/saída** — ao emitir, transformam-se em NF-e.
+- Botão principal: **"Novo Pedido de Venda"** → abre `ManualInvoiceDialog` em `mode="create"`.
+- Ação por linha: **"Criar Nota Fiscal"** → executa `fiscal-prepare-invoice` e move o registro para a aba Notas Fiscais (`pronta_emitir` ou `pendencia`). **Não transmite para a Receita.**
+- Ação por linha: **"Duplicar Pedido de Venda"** → abre `ManualInvoiceDialog` em `mode="duplicate"`. O novo registro permanece em `pedido_venda`.
+- O formulário é **simplificado**: Cliente + Produtos (descrição, código, unidade, qtd, valor) + Observações. Campos fiscais (NCM, CFOP, CSOSN, Origem, etc.) são preenchidos automaticamente com defaults no backend.
 
 #### Aba "Notas Fiscais" (`mode=invoices`)
-- Lista NF-e emitidas (autorizadas, pendentes, rejeitadas, canceladas, devolvidas)
-- Botão principal **"Nova NF-e"** → cria rascunho vazio e abre o **InvoiceEditor** (editor completo com 6 abas: Geral, Destinatário, Itens, Valores, Transporte, Pagamento)
+- Lista registros com `fiscal_stage IN ('pronta_emitir', 'pendencia', 'emitida')`.
+- Badges por `fiscal_stage`/`status`:
+  - **Pronta para Emitir** (`pronta_emitir`) — verde
+  - **Pendência Identificada** (`pendencia`) — âmbar/vermelho
+  - **Processando** (`emitida` + `status='processing'`) — azul
+  - **Autorizada** (`emitida` + `status='authorized'`) — verde
+  - **Rejeitada** (`emitida` + `status='rejected'`) — vermelho
+  - **Cancelada** (`emitida` + `status='cancelled'`) — cinza
+- Botão principal: **"Nova NF-e"** → cria rascunho vazio com `fiscal_stage='pedido_venda'` e abre o **InvoiceEditor** (editor completo com 6 abas: Geral, Destinatário, Itens, Valores, Transporte, Pagamento).
+- Ação por linha (`pronta_emitir`): **"Enviar à Receita"** (homologação: **"Emitir NF-e de teste"**) → modal de confirmação obrigatória → `fiscal-submit`/`fiscal-emit`. **Esta é a única ação que transmite.**
+- Ação por linha (`pendencia`): **"Editar e revalidar"** → abre editor. Ao salvar, `fiscal-prepare-invoice` revalida automaticamente.
+- Ação por linha (`emitida` autorizada/cancelada/rejeitada): **"Duplicar NF"** → abre diálogo pré-preenchido. Ao salvar, `fiscal-prepare-invoice` valida e coloca em `pronta_emitir` ou `pendencia` na aba Notas Fiscais. **Nunca volta para Pedidos de Venda.**
 - ~~Botão "NF-e de Entrada"~~ removido (rev3) — o tipo de NF é selecionado dentro do InvoiceEditor na aba Geral
 - ~~Dropdown "Ações"~~ removido (rev2) — era desnecessário
 - ~~"Consultar por Chave"~~ removido como ação separada — o campo de busca da lista já pesquisa por `chave_acesso`
 
-##### Ações em massa (rev 2026-04-29 — Roteamento Gateway)
+##### Ações em massa
 
 Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em massa exibe:
 
-- **"Emitir DC-e"** — visível quando os itens selecionados são **rascunhos** cujo pedido tem `resolved_shipping_provider_kind = 'gateway'`. Dispara a Edge Function `dce-emit` que emite o documento de conhecimento de transporte eletrônico (DC-e) para os pedidos selecionados.
-- **"Enviar à transportadora"** — visível quando os itens selecionados são NF-e **autorizadas** com transportadora `kind = 'gateway'` (ex.: Frenet). Dispara `gateway-attach-fiscal-doc`, que anexa o XML/chave da NF ao pedido já sincronizado no gateway, liberando a coleta/despacho pela própria transportadora.
+- **"Criar Notas Fiscais (N)"** — para itens selecionados em `pedido_venda` (na aba Pedidos de Venda). Executa `fiscal-prepare-invoice` em lote.
+- **"Enviar à Receita (N)"** — para itens selecionados em `pronta_emitir` (na aba Notas Fiscais). Só disponível quando todos os itens selecionados estão em `pronta_emitir`.
+- ~~"Emitir DC-e"~~ removido do fluxo operacional comum (rev 2026-05-14 rev2). A função `dce-emit` continua no backend mas não é acionável pela UI operacional comum até especificação completa de Fiscal/Logística.
+- **"Enviar à transportadora"** — visível quando os itens selecionados são NF-e **autorizadas** com transportadora `kind = 'gateway'` (ex.: Frenet). Dispara `gateway-attach-fiscal-doc`.
 
 > Para pedidos com transportadora `kind = 'local'` (Correios), o despacho continua sendo feito pela tela de **Remessas** (`/shipping/shipments`), com emissão de etiqueta interna. Não há ação de "Enviar à transportadora" no Fiscal nesse cenário.
 
@@ -497,7 +548,7 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 
 #### ManualInvoiceDialog (simplificado para pedidos)
 - **Título**: "Novo Pedido"
-- **Campos do formulário**: Cliente (busca ou manual) + Produtos (código, descrição, unidade, quantidade, valor unitário) + Observações
+- **Campos do formulário**: Cliente (busca ou manual) + Produtos (código, descrição, unidade, qtd, valor unitário) + Observações
 - **Sem campos fiscais** — NCM, CFOP, CSOSN, Origem, Natureza da Operação, Indicadores SEFAZ e Pagamento são gerenciados apenas no InvoiceEditor
 
 #### Busca de Cliente no ManualInvoiceDialog
@@ -520,8 +571,13 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 | — | `state` | UF |
 | — | `postal_code` | CEP |
 
----
-
+#### Regras Anti-Regressão do Fluxo Fiscal (v2026-05-14 — Onda 2 rev1)
+1. **Nunca juntar "criar nota" com "transmitir"**: a ação "Criar Nota Fiscal" em Pedidos de Venda prepara e valida localmente; a transmissão só acontece via "Enviar à Receita" em Notas Fiscais.
+2. **Não renomear botão se o comportamento não corresponder**: um botão chamado "Emitir" ou "Criar Nota Fiscal" deve ter o comportamento documentado nesta seção.
+3. **Pedido de Venda nunca transmite direto para Receita**: um registro em `fiscal_stage='pedido_venda'` só pode sair dessa etapa via `fiscal-prepare-invoice`.
+4. **NF duplicada nunca volta para Pedidos de Venda**: ao duplicar uma NF autorizada/cancelada/rejeitada, o novo registro entra em `pronta_emitir` ou `pendencia` na aba Notas Fiscais.
+5. **Não permitir envio de nota com Pendência Identificada**: o botão "Enviar à Receita" fica desabilitado para `fiscal_stage='pendencia'`; o usuário deve editar, salvar e aguardar revalidação automática.
+6. **DC-e permanece fora do fluxo operacional até especificação completa**: não exibir botões de DC-e como funcional enquanto não houver doc de Fiscal/Logística aprovado.
 
 ## 2. Financeiro
 
