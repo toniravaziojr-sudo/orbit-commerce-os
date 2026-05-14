@@ -286,6 +286,8 @@ export function InvoiceEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('geral');
+  const { data: readiness } = useFiscalReadiness();
+  const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [operationNatures, setOperationNatures] = useState<Array<{
     id: string; nome: string; descricao: string | null;
