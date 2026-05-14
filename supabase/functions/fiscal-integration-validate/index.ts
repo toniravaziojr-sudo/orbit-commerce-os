@@ -230,14 +230,23 @@ Deno.serve(async (req) => {
     }
 
     // -------- 3) Credenciais fiscais (automáticas) --------
+    const credsLevel: CardLevel = tenantTokenOk
+      ? "ok"
+      : (autoSyncAttempted && !autoSyncSucceeded ? "error" : "warn");
+    const credsMessage = tenantTokenOk
+      ? "Configuradas automaticamente."
+      : (autoSyncAttempted && !autoSyncSucceeded
+          ? "Não conseguimos preparar agora. Use 'Reprocessar configuração fiscal'."
+          : "Serão configuradas automaticamente após você salvar os dados fiscais e enviar o certificado A1.");
+    const credsLabel = tenantTokenOk
+      ? "Configuradas"
+      : (autoSyncAttempted && !autoSyncSucceeded ? "Erro na preparação" : "Preparando");
     cards.push({
       key: "credentials",
-      level: tenantTokenOk ? "ok" : "warn",
+      level: credsLevel,
       title: "Credenciais fiscais",
-      message: tenantTokenOk
-        ? "Configuradas automaticamente."
-        : "Serão configuradas automaticamente após você salvar os dados fiscais e enviar o certificado A1.",
-      status_label: tenantTokenOk ? "Configuradas" : "Preparando",
+      message: credsMessage,
+      status_label: credsLabel,
     });
 
     // -------- 4) Auto-ativação do recebimento de retornos --------
