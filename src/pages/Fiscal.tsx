@@ -54,7 +54,7 @@ export default function Fiscal() {
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="pedidos" className="gap-2">
             <FileText className="h-4 w-4" />
-            Pedidos
+            Pedidos de Venda
           </TabsTrigger>
           <TabsTrigger value="notas" className="gap-2">
             <Receipt className="h-4 w-4" />
