@@ -78,11 +78,11 @@ const ICONS: Record<string, any> = {
   environment: Globe,
 };
 
-function levelBadge(level: CardLevel) {
-  if (level === 'ok') return <Badge variant="outline" className="border-green-500/50 text-green-600">OK</Badge>;
-  if (level === 'pending') return <Badge variant="outline" className="border-amber-500/50 text-amber-600">Aguardando</Badge>;
-  if (level === 'warn') return <Badge variant="outline" className="border-amber-500/50 text-amber-600">Atenção</Badge>;
-  return <Badge variant="destructive">Bloqueio</Badge>;
+function levelBadge(level: CardLevel, label?: string) {
+  if (level === 'ok') return <Badge variant="outline" className="border-green-500/50 text-green-600">{label || 'OK'}</Badge>;
+  if (level === 'pending') return <Badge variant="outline" className="border-amber-500/50 text-amber-600">{label || 'Aguardando'}</Badge>;
+  if (level === 'warn') return <Badge variant="outline" className="border-amber-500/50 text-amber-600">{label || 'Configurar'}</Badge>;
+  return <Badge variant="destructive">{label || 'Erro'}</Badge>;
 }
 function levelIcon(level: CardLevel) {
   if (level === 'ok') return <CheckCircle2 className="h-5 w-5 text-green-600" />;
