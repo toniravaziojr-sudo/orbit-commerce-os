@@ -453,7 +453,21 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 
    **Status `processing` (v2026-05-14)**: Quando o Focus NFe retorna `processando_autorizacao`, a NF-e fica em `processing`. A lista exibe o badge **"Processando SEFAZ"** (Clock) e o menu da linha mostra **"Atualizar Status"** em vez de "Emitir" — assim o usuário não tenta reemitir uma nota que já está aguardando autorização. O webhook (`fiscal-webhook`) e o reconciliador manual (`fiscal-check-status`) já atualizam a coluna `status` para `authorized` ao receber `autorizado` do Focus, gravam chave de acesso, protocolo, XML e DANFE, e respeitam idempotência (não rebaixam status terminal). **Reconciliação manual de divergência local** (status `processing` no banco mas evento `authorized` já persistido em `fiscal_invoice_events` com chave/protocolo válidos): `UPDATE fiscal_invoices` direto na coluna, sem chamar Focus/Sefaz. Caso da NF 1-265 do tenant Respeite o Homem em 2026-05-14 — `authorized` foi gravado como evento mas o webhook não chegou a atualizar o cabeçalho; reconciliado localmente.
 
-   **Declaração de Conteúdo (DC-e) — fora do fluxo operacional (v2026-05-14 rev2)**: O botão **"Emitir DC-e"** foi **removido da barra de ações em massa** (Pedidos de Venda e Notas Fiscais) porque o backend ainda é placeholder e depende de integração logística com a transportadora (Frenet/Correios/etc.) que não está finalizada. Especificação completa do fluxo (gera PDF? assina via Focus ou transportadora? exige pedido vinculado a transportadora `gateway`? gera registro em qual tabela?) ainda não existe nos docs e foi registrada como pendência separada de Fiscal/Logística. A função `dce-emit` continua existindo no backend mas não é mais acionável pela UI operacional comum. Quando a especificação for finalizada, a ação retorna em local apropriado (provavelmente Logística → Remessas para pedidos sem NF-e).
+   **Declaração de Conteúdo (DC) — documento não fiscal independente (v2026-05-14 rev3)**:
+
+   A Declaração de Conteúdo é um **documento próprio, não fiscal, independente de NF-e e de remessa**. Ela existe exclusivamente na aba **Pedidos de Venda**:
+
+   - **Ação individual**: cada linha de Pedido de Venda exibe a opção **"Declaração de Conteúdo"** no menu de ações.
+   - **Ação em massa**: ao selecionar um ou mais Pedidos de Venda, a barra de ações exibe o botão **"Declaração de Conteúdo"**.
+   - **Geração**: chama `generateDeclaracaoConteudoPdf` (`src/lib/declaracaoConteudo.ts`) que monta um PDF próprio com remetente (dados do emitente), destinatário, itens declarados, valor total e aviso obrigatório.
+   - **Numeração interna**: usa numeração própria no formato `DC-TIMESTAMP-ID` (ex: `DC-12345678-ABCD`), sem conflito com numeração fiscal de NF-e.
+   - **Limitações operacionais**: não chama `fiscal-emit`, não chama `fiscal-submit`, não chama Focus/Sefaz, não gera chave de acesso, protocolo, XML ou DANFE de NF-e.
+   - **Imutabilidade de stage**: a geração da DC **não altera** o `fiscal_stage` do pedido (permanece em `pedido_venda`).
+   - **Escopo**: não aparece na aba Notas Fiscais.
+
+   > **Aviso obrigatório impresso no documento:** "Declaração de Conteúdo não substitui Nota Fiscal quando a emissão de NF-e for obrigatória."
+
+   A função `dce-emit` (Declaração de Conteúdo Eletrônica via Focus NFe) continua existindo no backend como integração futura, mas não é acionável pela UI operacional comum.
 
 5. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
 6. **Terminal**: `completed` é o estado final após confirmação de entrega.
