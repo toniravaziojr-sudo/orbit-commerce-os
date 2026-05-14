@@ -506,14 +506,16 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 #### Aba "Notas Fiscais" (`mode=invoices`)
 - Lista registros com `fiscal_stage IN ('pronta_emitir', 'pendencia', 'emitida')`.
 - Badges por `fiscal_stage`/`status`:
-  - **Pronta para Emitir** (`pronta_emitir`) — verde
-  - **Pendência Identificada** (`pendencia`) — âmbar/vermelho
-  - **Processando** (`emitida` + `status='processing'`) — azul
-  - **Autorizada** (`emitida` + `status='authorized'`) — verde
+  - **Pronta para Emitir** (`pronta_emitir`) — laranja
+  - **Pendência Identificada** (`pendencia`) — amarelo
+  - **Processando** (`emitida` + `status='processing'`) — amarelo
+  - **Autorizada** (`emitida` + `status='authorized'`) — azul
+  - **Autorizada + DANFE impressa** (`status='authorized'` + `danfe_printed_at IS NOT NULL`) — status azul + badge auxiliar verde **"Impressa"**
   - **Rejeitada** (`emitida` + `status='rejected'`) — vermelho
-  - **Cancelada** (`emitida` + `status='cancelled'`) — cinza
+  - **Cancelada** (`emitida` + `status='cancelled'`) — vermelho
+  - **Erro** (`status='error'`) — vermelho
 - Botão principal: **"Nova NF-e"** → cria rascunho vazio com `fiscal_stage='pedido_venda'` e abre o **InvoiceEditor** (editor completo com 6 abas: Geral, Destinatário, Itens, Valores, Transporte, Pagamento).
-- Ação por linha (`pronta_emitir`): **"Enviar à Receita"** (homologação: **"Emitir NF-e de teste"**) → modal de confirmação obrigatória → `fiscal-submit`/`fiscal-emit`. **Esta é a única ação que transmite.**
+- Ação por linha (`pronta_emitir`): **"Emitir Nota Fiscal"** (homologação: **"Emitir NF-e de teste"**) → modal de confirmação obrigatória → `fiscal-submit`/`fiscal-emit`. **Esta é a única ação que transmite.**
 - Ação por linha (`pendencia`): **"Editar e revalidar"** → abre editor. Ao salvar, `fiscal-prepare-invoice` revalida automaticamente.
 - Ação por linha (`emitida` autorizada/cancelada/rejeitada): **"Duplicar NF"** → abre diálogo pré-preenchido. Ao salvar, `fiscal-prepare-invoice` valida e coloca em `pronta_emitir` ou `pendencia` na aba Notas Fiscais. **Nunca volta para Pedidos de Venda.**
 - ~~Botão "NF-e de Entrada"~~ removido (rev3) — o tipo de NF é selecionado dentro do InvoiceEditor na aba Geral
