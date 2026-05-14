@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
     cards.push({
       key: "webhook",
       level: webhookCardLevel,
-      title: "Webhook Focus NFe",
+      title: "Recebimento automático de retornos",
       message: webhookMsg,
       details: {
         status: webhookStatus,
