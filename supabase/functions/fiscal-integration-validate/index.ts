@@ -79,15 +79,68 @@ Deno.serve(async (req) => {
     const ambiente = (settings.focus_ambiente || settings.ambiente || "homologacao") as
       | "homologacao" | "producao";
 
-    // -------- Token do tenant (por ambiente) --------
-    const tenantTokenRes = await loadFocusTenantToken(serviceClient, tenantId, ambiente);
-    const tenantTokenOk = tenantTokenRes.ok;
-    const otherAmbiente = ambiente === "producao" ? "homologacao" : "producao";
-    const otherTokenRes = await loadFocusTenantToken(serviceClient, tenantId, otherAmbiente);
-
     // -------- Token administrativo da conta --------
     const accountCreds = resolveFocusCredentials({ ambiente, operationKind: "account_admin" });
     const accountTokenOk = accountCreds.ok && !!accountCreds.token;
+
+    // -------- Pré-requisitos cadastrais para preparar a empresa fiscal --------
+    const _certUntil = settings.certificado_valido_ate ? new Date(settings.certificado_valido_ate) : null;
+    const _cnpjMatch = !!(settings.certificado_cnpj && settings.cnpj
+      && settings.certificado_cnpj.replace(/\D/g, "") === settings.cnpj.replace(/\D/g, ""));
+    const certCadastralOk = !!(_certUntil && _certUntil.getTime() > Date.now() && _cnpjMatch);
+
+    // -------- Token do tenant (por ambiente) — leitura inicial --------
+    let tenantTokenRes = await loadFocusTenantToken(serviceClient, tenantId, ambiente);
+    let tenantTokenOk = tenantTokenRes.ok;
+    const otherAmbiente = ambiente === "producao" ? "homologacao" : "producao";
+    let otherTokenRes = await loadFocusTenantToken(serviceClient, tenantId, otherAmbiente);
+
+    // -------- Auto-preparação fiscal (sem depender de "salvar campo falso") --------
+    // Se a configuração está completa (cnpj + certificado válido + cnpj bate) e
+    // ainda não temos credenciais da empresa OU não temos focus_empresa_id,
+    // disparamos a rotina de preparação. Captura credenciais retornadas pela
+    // Focus, atualiza focus_empresa_id e snapshot. NÃO emite NF.
+    let autoSyncAttempted = false;
+    let autoSyncSucceeded = false;
+    let autoSyncError: string | null = null;
+    const needsPrep = certCadastralOk && accountTokenOk
+      && (!settings.focus_empresa_id || !tenantTokenOk);
+
+    if (needsPrep) {
+      autoSyncAttempted = true;
+      try {
+        const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/fiscal-sync-focus-nfe`;
+        const authHeader = req.headers.get("Authorization") || "";
+        const apikey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+        const r = await fetch(fnUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": authHeader,
+            "apikey": apikey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        });
+        const json = await r.json().catch(() => ({}));
+        autoSyncSucceeded = !!json?.success;
+        if (!autoSyncSucceeded) {
+          autoSyncError = json?.error || json?.message || "Falha ao preparar configuração fiscal.";
+        }
+        // Recarrega settings + tokens após o sync
+        const { data: refreshed } = await serviceClient
+          .from("fiscal_settings")
+          .select(selectCols)
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
+        if (refreshed) settings = refreshed;
+        tenantTokenRes = await loadFocusTenantToken(serviceClient, tenantId, ambiente);
+        tenantTokenOk = tenantTokenRes.ok;
+        otherTokenRes = await loadFocusTenantToken(serviceClient, tenantId, otherAmbiente);
+      } catch (e) {
+        autoSyncError = (e as any)?.message || "Erro inesperado ao preparar configuração fiscal.";
+      }
+    }
+
 
     // -------- 1) Empresa fiscal --------
     let focusCompanyOk = false;
