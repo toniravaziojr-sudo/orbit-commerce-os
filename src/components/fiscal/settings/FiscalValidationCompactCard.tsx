@@ -75,15 +75,8 @@ export function FiscalValidationCompactCard() {
   const [fallback, setFallback] = useState<RegisterResponse | null>(null);
   const [showToken, setShowToken] = useState(false);
 
-  const validateQuery = useQuery({
-    queryKey: ['fiscal-integration-validate'],
-    queryFn: async (): Promise<ValidateResponse> => {
-      const { data, error } = await supabase.functions.invoke('fiscal-integration-validate', { body: {} });
-      if (error) throw new Error(error.message);
-      return data as ValidateResponse;
-    },
-    staleTime: 30_000,
-  });
+  // FONTE ÚNICA — mesmo hook usado pelo card superior "Pronto para emitir NF-e?"
+  const validateQuery = useFiscalReadiness();
 
   const registerMutation = useMutation({
     mutationFn: async (opts: { rotate_token?: boolean } = {}) => {
