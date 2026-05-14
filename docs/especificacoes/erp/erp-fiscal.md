@@ -432,17 +432,19 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
     **Fluxo de Preparação e Emissão — 3 etapas separadas (v2026-05-14 — Onda 2 rev1)**:
 
     **Etapa 1 — Pedidos de Venda → Criar Nota Fiscal (não transmite)**:
-    - Na aba **Pedidos de Venda**, o botão/ação principal é **"Criar Nota Fiscal"**.
+    - Na aba **Pedidos de Venda**, o botão/ação principal é **"Criar Nota Fiscal"** (singular quando 1 selecionado) ou **"Criar Notas Fiscais (N)"** (plural quando múltiplos).
     - Ao clicar, o backend executa `fiscal-prepare-invoice`: validação local completa (configurações fiscais, certificado, CNPJ do emitente, destinatário, endereço, itens, NCM, CFOP, valores) **sem chamar Focus/Sefaz**.
     - Se passar em todas as validações: `fiscal_stage` muda para `pronta_emitir`, `pendencia_motivos` fica `null`, e o registro aparece na aba **Notas Fiscais** com badge **"Pronta para Emitir"**.
     - Se houver pendências: `fiscal_stage` muda para `pendencia`, `pendencia_motivos` recebe a lista de erros, e o registro aparece na aba **Notas Fiscais** com badge **"Pendência Identificada"**.
     - **Esta ação nunca transmite para a Receita.**
+    - **Após criar a nota, o usuário é redirecionado automaticamente para a aba Notas Fiscais.**
 
-    **Etapa 2 — Notas Fiscais → Enviar à Receita (transmite)**:
-    - Na aba **Notas Fiscais**, registros em `fiscal_stage='pronta_emitir'` exibem a ação **"Enviar à Receita"** (ou **"Emitir NF-e de teste"** em homologação).
+    **Etapa 2 — Notas Fiscais → Emitir Nota Fiscal (transmite)**:
+    - Na aba **Notas Fiscais**, registros em `fiscal_stage='pronta_emitir'` exibem a ação **"Emitir Nota Fiscal"** (singular) ou **"Emitir Notas Fiscais (N)"** (plural em massa) — ou **"Emitir NF-e de teste"** em homologação.
     - Ao clicar, abre `AlertDialog` de confirmação obrigatória. Só então chama `fiscal-submit`/`fiscal-emit` que efetivamente transmite para a Focus/SEFAZ.
     - **Ação bloqueada para `fiscal_stage='pendencia'`**: o botão fica desabilitado com tooltip informando que há pendências a resolver.
     - Após transmissão bem-sucedida, `fiscal_stage` muda para `emitida` e `status` passa a refletir o retorno da SEFAZ (`processing`, `authorized`, `rejected`, etc.).
+    - A lista é recarregada automaticamente após emissão para refletir o novo `fiscal_stage`/`status`.
 
     **Etapa 3 — Revalidação automática no editor**:
     - Ao abrir um registro em `pendencia` no **InvoiceEditor** e salvar alterações, o backend executa `fiscal-prepare-invoice` automaticamente.
