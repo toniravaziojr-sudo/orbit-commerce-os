@@ -39,6 +39,7 @@ interface ValidationCard {
   level: CardLevel;
   title: string;
   message: string;
+  status_label?: string;
   details?: Record<string, any>;
 }
 
