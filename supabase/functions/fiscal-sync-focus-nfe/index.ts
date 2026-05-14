@@ -115,10 +115,8 @@ Deno.serve(async (req) => {
             encryptionKey
           );
           
-          console.log('[fiscal-sync-focus-nfe] Certificado descriptografado com sucesso', {
-            pfxBase64Length: certificado.pfxBase64.length,
-            pfxSample: certificado.pfxBase64.substring(0, 50),
-          });
+          // SECURITY: nunca logar amostra do PFX descriptografado, mesmo curta.
+          console.log('[fiscal-sync-focus-nfe] Certificado descriptografado com sucesso (conteúdo não logado por segurança)');
         } else {
           console.warn('[fiscal-sync-focus-nfe] FISCAL_ENCRYPTION_KEY não configurada');
         }
