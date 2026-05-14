@@ -17,19 +17,39 @@ const corsHeaders = {
 };
 
 type CardLevel = "ok" | "warn" | "error" | "pending";
+type ReasonCode =
+  | "missing_company_data"
+  | "certificate_missing"
+  | "certificate_invalid"
+  | "certificate_expired"
+  | "certificate_cnpj_mismatch"
+  | "provider_setup_pending"
+  | "provider_setup_error"
+  | "credentials_capture_error"
+  | "returns_setup_pending"
+  | "returns_setup_error"
+  | "ready_for_test"
+  | "ready_for_production"
+  | "production_blocked";
+
 interface Card {
   key: string;
   level: CardLevel;
   title: string;
   message: string;
   status_label?: string;
+  // goto=true → existe campo cadastral real para o usuário corrigir.
+  // Sem goto, o problema é interno (preparação/provedor) e a UI deve
+  // oferecer "Reprocessar configuração fiscal" em vez de "Ir para".
+  goto?: boolean;
+  reason_code?: ReasonCode;
   details?: Record<string, unknown>;
 }
 
 type OverallStatus =
   | "ready"            // produção pronta para emitir
   | "ready_for_test"   // homologação pronta para smoke test
-  | "config_pending"   // falta uma ação objetiva do usuário (ex: token)
+  | "config_pending"   // falta uma ação objetiva do usuário (ex: dados/cert)
   | "error"            // erro real (cert vencido, falha remota, etc.)
   | "blocked";         // produção bloqueada por requisito faltante
 
