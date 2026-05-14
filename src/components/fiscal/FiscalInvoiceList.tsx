@@ -1351,8 +1351,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         title={duplicateDialog.kind === 'pedido' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
         description={
           duplicateDialog.kind === 'pedido'
-            ? 'Revise os dados copiados do pedido de venda original e ajuste o que precisar antes de salvar. Nenhuma NF é emitida nesta etapa.'
-            : 'Revise os dados copiados da NF original e ajuste o que precisar antes de salvar. O novo registro será criado como rascunho. Nenhuma NF é transmitida nesta etapa.'
+            ? 'Revise os dados copiados do pedido de venda original e ajuste o que precisar antes de salvar. Nenhuma Nota Fiscal é criada nesta etapa.'
+            : 'Revise os dados copiados da NF original. Ao salvar, criamos uma nova NF e movemos para a aba Notas Fiscais (Pronta para Emitir ou Pendência), sem transmitir à Receita.'
         }
         submitLabel="Salvar duplicação"
         successMessage={
