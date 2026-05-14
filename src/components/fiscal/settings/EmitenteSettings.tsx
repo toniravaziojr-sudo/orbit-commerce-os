@@ -23,6 +23,7 @@ import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { FiscalValidationCompactCard } from './FiscalValidationCompactCard';
+import { useFiscalReadiness, readinessHeadline } from '@/hooks/useFiscalReadiness';
 
 const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const CRT_OPTIONS = [
