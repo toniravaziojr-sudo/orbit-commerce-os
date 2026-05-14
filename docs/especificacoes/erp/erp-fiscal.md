@@ -1330,15 +1330,17 @@ Encerra a preparação técnica para o smoke test em homologação do tenant pil
 
 RBAC inalterado: `fiscal-emit` e `fiscal-submit` continuam exigindo `owner`/`admin`. `operator` permanece bloqueado para emissão real.
 
-### UI — aba **Integração Focus NFe** em `/fiscal/configuracoes`
+### UI — Validação Fiscal (rev 2026-05c — sub-aba dedicada removida)
 
-- Cards: Empresa Focus, Certificado A1, Webhook, Ambiente, com badge `OK / Aguardando / Atenção / Bloqueio`.
-- Telemetria do webhook visível: `webhook_status`, `webhook_environment`, `webhook_registered_at`, `webhook_validated_at`, `webhook_last_received_at`, `webhook_last_error`.
-- Indicadores globais: `ready_for_production`, `ready_for_homologation_smoke`, `ambiente`.
-- Botões: **Validar integração fiscal** e **Cadastrar webhook automaticamente**.
-- **Fallback manual seguro** (visível só quando o cadastro automático falha): mostra `webhook_url_sanitized`, CNPJ, evento, e o token por loja **mascarado por padrão** com ações explícitas de **Revelar**, **Copiar URL completa** e **Rotacionar token**. Texto de aviso reforça que é credencial sensível desta loja.
-- A UI **nunca** exibe `FOCUS_NFE_WEBHOOK_SECRET`, PFX, senha do certificado nem `provider_token` da Focus.
-- `operator` não tem acesso à página de configurações fiscais (gate em `useTenantAccess`); por consequência não vê esta aba.
+A partir desta revisão, a Validação Fiscal **não vive mais em sub-aba própria**. Ela passa a ser um **card compacto** chamado **"Validação Fiscal"** posicionado **ao lado do bloco "Ambiente de Emissão"** dentro da aba **Configurações Fiscais** (em `/system/settings?tab=fiscal` e em `/fiscal/configuracoes`). Em desktop fica lado a lado (`md:grid-cols-2`); em mobile empilha. Componente: `src/components/fiscal/settings/FiscalValidationCompactCard.tsx`.
+
+- Linha de status geral com selo único: **Pronto** / **Atenção** / **Bloqueado** (derivado dos níveis dos cards do backend; mantém a função `fiscal-integration-validate` inalterada).
+- Lista resumida de 4 itens com rótulos de negócio: **Empresa fiscal cadastrada**, **Certificado A1 válido**, **Recebimento automático de retornos**, **Ambiente atual** (Produção/Homologação).
+- Ações: **Validar integração fiscal** (sempre) e **Ativar recebimento automático de retornos** (visível só quando ainda não está ativo — aciona `fiscal-webhook-register`).
+- **Fallback manual seguro** (visível só quando o cadastro automático falha): mostra `webhook_url_sanitized`, CNPJ, ambiente, e o token por loja **mascarado por padrão** com ações **Revelar**, **Copiar URL completa** e **Rotacionar chave**. Texto reforça que é credencial sensível desta loja.
+- A UI **nunca** exibe `FOCUS_NFE_WEBHOOK_SECRET`, PFX, senha do certificado nem `provider_token` da Focus, e **não usa** os termos "Focus NFe", "webhook", "hook", "secret" ou "token" no corpo principal.
+- `operator` não tem acesso à página de configurações fiscais (gate em `useTenantAccess`); por consequência não vê este card.
+- A URL legada `?aba=integracao` deixou de existir e cai no comportamento padrão (`emitente`). O componente antigo `FocusIntegrationSettings.tsx` segue versionado mas não é mais montado em nenhuma rota.
 
 ### Configuração de deploy
 
