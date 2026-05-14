@@ -526,9 +526,12 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 
 Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em massa exibe:
 
-- **"Criar Notas Fiscais (N)"** — para itens selecionados em `pedido_venda` (na aba Pedidos de Venda). Executa `fiscal-prepare-invoice` em lote.
-- **"Enviar à Receita (N)"** — para itens selecionados em `pronta_emitir` (na aba Notas Fiscais). Só disponível quando todos os itens selecionados estão em `pronta_emitir`.
-- ~~"Emitir DC-e"~~ removido do fluxo operacional comum (rev 2026-05-14 rev2). A função `dce-emit` continua no backend mas não é acionável pela UI operacional comum até especificação completa de Fiscal/Logística.
+**Aba Pedidos de Venda (`fiscal_stage='pedido_villa'`):**
+- **"Criar Nota Fiscal"** (1 selecionado) / **"Criar Notas Fiscais (N)"** (2 ou mais) — executa `fiscal-prepare-invoice` em lote. Após conclusão, o usuário é redirecionado automaticamente para a aba **Notas Fiscais**.
+- **"Declaração de Conteúdo"** (individual e em massa) — gera PDF próprio, não fiscal, sem chamar Focus/Sefaz. Não altera `fiscal_stage`.
+
+**Aba Notas Fiscais:**
+- **"Emitir Nota Fiscal"** (1 selecionada) / **"Emitir Notas Fiscais (N)"** (2 ou mais) — para itens em `pronta_emitir`. Só disponível quando todos os selecionados estão em `pronta_emitir`. Exige confirmação explícita. Mostra resumo real: X emitidas, Y bloqueadas, Z com erro.
 - **"Enviar à transportadora"** — visível quando os itens selecionados são NF-e **autorizadas** com transportadora `kind = 'gateway'` (ex.: Frenet). Dispara `gateway-attach-fiscal-doc`.
 
 > Para pedidos com transportadora `kind = 'local'` (Correios), o despacho continua sendo feito pela tela de **Remessas** (`/shipping/shipments`), com emissão de etiqueta interna. Não há ação de "Enviar à transportadora" no Fiscal nesse cenário.
