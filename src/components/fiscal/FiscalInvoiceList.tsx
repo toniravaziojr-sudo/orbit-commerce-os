@@ -921,6 +921,38 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       && inv.resolved_shipping_provider_kind === 'gateway'
   ).length;
 
+  // Declaração de Conteúdo (NÃO fiscal) — individual a partir de um Pedido de Venda.
+  const handleGenerateDC = async (invoice: any) => {
+    const t = toast.loading('Gerando Declaração de Conteúdo...');
+    const res = await generateDeclaracaoConteudoPdf(invoice.tenant_id, invoice.id);
+    toast.dismiss(t);
+    if (res.ok) {
+      toast.success(`Declaração de Conteúdo gerada (${res.dcNumber}).`);
+    } else {
+      toast.error(res.error || 'Falha ao gerar Declaração de Conteúdo.');
+    }
+  };
+
+  // Declaração de Conteúdo em massa — gera um PDF por pedido selecionado.
+  const handleBulkGenerateDc = async () => {
+    const selected = (filteredInvoices || []).filter(
+      inv => selectedInvoices.has(inv.id) && inv.fiscal_stage === 'pedido_venda'
+    );
+    if (selected.length === 0) {
+      toast.error('Selecione ao menos um Pedido de Venda.');
+      return;
+    }
+    const t = toast.loading(`Gerando ${selected.length} Declaração(ões) de Conteúdo...`);
+    let ok = 0; let fail = 0;
+    for (const inv of selected) {
+      const res = await generateDeclaracaoConteudoPdf(inv.tenant_id, inv.id);
+      if (res.ok) ok++; else fail++;
+    }
+    toast.dismiss(t);
+    if (fail === 0) toast.success(`${ok} Declaração(ões) de Conteúdo gerada(s).`);
+    else toast.error(`${ok} gerada(s), ${fail} com falha.`);
+  };
+
   // Bulk: Emitir DC-e (Declaração de Conteúdo) — temporariamente indisponível.
   // A integração com o backend de DC-e ainda não foi finalizada para emissão real.
   // O botão permanece visível para descoberta, mas exibe mensagem clara em vez de transmitir.
