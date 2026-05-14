@@ -1,6 +1,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { cancelNFe, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
+import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 import { requireFiscalRole } from "../_shared/fiscal-role-check.ts";
