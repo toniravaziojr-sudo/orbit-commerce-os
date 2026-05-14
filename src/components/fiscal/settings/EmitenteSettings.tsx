@@ -675,23 +675,26 @@ export function EmitenteSettings() {
         </CardContent>
       </Card>
 
-      {/* ============ AMBIENTE DE EMISSÃO (sem card duplicado de validação) ============ */}
-      {/* Único bloco de prontidão fiscal está no topo da página. */}
+      {/* ============ AMBIENTE DE EMISSÃO — STATUS INFORMATIVO ============ */}
+      {/* Lojista comum NÃO escolhe ambiente. Troca é controle técnico/admin. */}
       <Card id="card-ambiente">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />Ambiente de Emissão</CardTitle>
-          <CardDescription>Defina onde as notas serão transmitidas.</CardDescription>
+          <CardDescription>Status atual do ambiente fiscal da sua loja.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Select value={formData.ambiente || 'homologacao'} onValueChange={(v) => handleChange('ambiente', v)}>
-            <SelectTrigger className="max-w-md"><SelectValue /></SelectTrigger>
-            <SelectContent>{AMBIENTE_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
-          </Select>
-          {formData.ambiente === 'homologacao' && (
+          {formData.ambiente === 'homologacao' ? (
             <Alert className="border-amber-500 bg-amber-500/10">
               <AlertCircle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-700 dark:text-amber-400">
-                Você está em <strong>Homologação</strong> — notas emitidas aqui não têm valor fiscal. Mude para Produção quando estiver pronto.
+                <strong>Modo de teste fiscal ativo.</strong> As notas emitidas neste modo não têm valor fiscal. Este modo está sendo usado para validação técnica.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="border-emerald-500 bg-emerald-500/10">
+              <Globe className="h-4 w-4 text-emerald-600" />
+              <AlertDescription className="text-emerald-700 dark:text-emerald-400">
+                <strong>Ambiente de emissão: Produção.</strong> As notas fiscais emitidas terão valor fiscal real.
               </AlertDescription>
             </Alert>
           )}
