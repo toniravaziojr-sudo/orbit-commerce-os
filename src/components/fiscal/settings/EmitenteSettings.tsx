@@ -231,10 +231,23 @@ export function EmitenteSettings() {
     return items;
   }, [formData, hasCertificate, isExpired, isExpiringSoon, daysUntilExpiry, cnpjMismatch, cnpjCertClean, cnpjEmitClean]);
 
-  const blockedCount = checklist.filter(i => i.status === 'blocked').length;
-  const pendingCount = checklist.filter(i => i.status === 'pending').length;
-  const overallStatus: 'ready' | 'pending' | 'blocked' =
-    blockedCount > 0 ? 'blocked' : pendingCount > 0 ? 'pending' : 'ready';
+  // FONTE ÚNICA DE READINESS — vinda do backend (fiscal-integration-validate).
+  // É proibido criar verdict paralelo aqui. O checklist abaixo é apenas
+  // navegação para os campos cadastrais (UX de edição), não decide prontidão.
+  const readinessQuery = useFiscalReadiness();
+  const readiness = readinessQuery.data;
+  const overallStatus = readinessQuery.isLoading ? 'loading' : (readiness?.overall_status || 'config_pending');
+  const headline = readinessHeadline(overallStatus as any, readiness?.ambiente);
+
+  // Mapa de cards do servidor → âncora local (para botão "Ir para")
+  const SERVER_KEY_TO_ANCHOR: Record<string, string> = {
+    settings: 'card-identidade',
+    focus_company: 'card-identidade',
+    certificate: 'card-certificado',
+    credentials: 'card-validacao-fiscal',
+    webhook: 'card-validacao-fiscal',
+    environment: 'card-ambiente',
+  };
 
   const scrollTo = (anchor: string) => {
     const el = document.getElementById(anchor);
@@ -247,69 +260,79 @@ export function EmitenteSettings() {
 
   return (
     <div className="space-y-6 pb-24">
-      {/* ============ CARTÃO DE PRONTIDÃO ============ */}
+      {/* ============ CARTÃO DE PRONTIDÃO (fonte única: readiness backend) ============ */}
       <Card className={cn(
         'border-2',
-        overallStatus === 'ready' && 'border-green-500/50 bg-green-500/5',
-        overallStatus === 'pending' && 'border-amber-500/50 bg-amber-500/5',
-        overallStatus === 'blocked' && 'border-destructive/50 bg-destructive/5',
+        headline.tone === 'ready' && 'border-green-500/50 bg-green-500/5',
+        headline.tone === 'pending' && 'border-amber-500/50 bg-amber-500/5',
+        headline.tone === 'blocked' && 'border-destructive/50 bg-destructive/5',
+        headline.tone === 'loading' && 'border-border',
       )}>
         <CardHeader>
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <CardTitle className="flex items-center gap-2 text-xl">
-                {overallStatus === 'ready' && <ShieldCheck className="h-6 w-6 text-green-600" />}
-                {overallStatus === 'pending' && <AlertCircle className="h-6 w-6 text-amber-600" />}
-                {overallStatus === 'blocked' && <ShieldX className="h-6 w-6 text-destructive" />}
-                Pronto para emitir NF-e?
+                {headline.tone === 'ready' && <ShieldCheck className="h-6 w-6 text-green-600" />}
+                {headline.tone === 'pending' && <AlertCircle className="h-6 w-6 text-amber-600" />}
+                {headline.tone === 'blocked' && <ShieldX className="h-6 w-6 text-destructive" />}
+                {headline.tone === 'loading' && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+                {headline.title}
               </CardTitle>
-              <CardDescription className="mt-1">
-                {overallStatus === 'ready' && 'Tudo certo. Você já pode emitir notas fiscais.'}
-                {overallStatus === 'pending' && `Faltam ${pendingCount} ${pendingCount === 1 ? 'item' : 'itens'} para concluir a configuração.`}
-                {overallStatus === 'blocked' && 'Há um bloqueio que impede a emissão. Resolva os itens em vermelho abaixo.'}
-              </CardDescription>
+              <CardDescription className="mt-1">{headline.description}</CardDescription>
             </div>
             <Badge
               variant="outline"
               className={cn(
                 'text-sm px-3 py-1',
-                overallStatus === 'ready' && 'border-green-500 text-green-700 bg-green-50 dark:bg-green-950/30',
-                overallStatus === 'pending' && 'border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/30',
-                overallStatus === 'blocked' && 'border-destructive text-destructive bg-destructive/10',
+                headline.tone === 'ready' && 'border-green-500 text-green-700 bg-green-50 dark:bg-green-950/30',
+                headline.tone === 'pending' && 'border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/30',
+                headline.tone === 'blocked' && 'border-destructive text-destructive bg-destructive/10',
               )}
             >
-              {overallStatus === 'ready' ? 'Pronto' : overallStatus === 'pending' ? `Faltam ${pendingCount}` : 'Bloqueado'}
+              {headline.badge}
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-2">
-            {checklist.map(item => (
-              <li key={item.id} className="flex items-start gap-3 group">
-                <div className="mt-0.5">
-                  {item.status === 'ok' && <CheckCircle2 className="h-5 w-5 text-green-600" />}
-                  {item.status === 'pending' && <CircleDashed className="h-5 w-5 text-amber-600" />}
-                  {item.status === 'blocked' && <AlertCircle className="h-5 w-5 text-destructive" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className={cn('text-sm font-medium', item.status === 'ok' && 'text-muted-foreground')}>
-                      {item.label}
-                    </span>
-                    {item.status !== 'ok' && (
-                      <button
-                        type="button" onClick={() => scrollTo(item.anchor)}
-                        className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                      >
-                        Ir para <ArrowRight className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                  {item.hint && <p className="text-xs text-muted-foreground mt-0.5">{item.hint}</p>}
-                </div>
-              </li>
-            ))}
-          </ul>
+          {readinessQuery.isLoading && (
+            <div className="text-sm text-muted-foreground">Carregando situação fiscal…</div>
+          )}
+          {!readinessQuery.isLoading && (readiness?.cards || []).length > 0 && (
+            <ul className="space-y-2">
+              {(readiness?.cards || []).map(item => {
+                const anchor = SERVER_KEY_TO_ANCHOR[item.key] || 'card-validacao-fiscal';
+                return (
+                  <li key={item.key} className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      {item.level === 'ok' && <CheckCircle2 className="h-5 w-5 text-green-600" />}
+                      {item.level === 'pending' && <CircleDashed className="h-5 w-5 text-amber-600" />}
+                      {item.level === 'warn' && <AlertCircle className="h-5 w-5 text-amber-600" />}
+                      {item.level === 'error' && <AlertCircle className="h-5 w-5 text-destructive" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className={cn('text-sm font-medium', item.level === 'ok' && 'text-muted-foreground')}>
+                          {item.title}
+                        </span>
+                        {item.level !== 'ok' && (
+                          <button
+                            type="button" onClick={() => scrollTo(anchor)}
+                            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            Ir para <ArrowRight className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                      {item.message && <p className="text-xs text-muted-foreground mt-0.5">{item.message}</p>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {!readinessQuery.isLoading && (readiness?.cards || []).length === 0 && (
+            <div className="text-sm text-muted-foreground">Sem itens para exibir.</div>
+          )}
         </CardContent>
       </Card>
 
