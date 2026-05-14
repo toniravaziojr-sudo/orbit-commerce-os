@@ -1225,7 +1225,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onResendEmail={() => handleResendEmail(invoice)}
                               isSubmitting={submittingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
-                              cloneLabel={mode === 'orders' ? 'Clonar Pedido' : 'Clonar NF'}
+                              cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
                             />
                           </TableCell>
                         </TableRow>
