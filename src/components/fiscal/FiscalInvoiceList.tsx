@@ -343,8 +343,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
-  // Clonagem segura — Pedido (rascunho na aba Pedidos) ou NF (autorizada/cancelada).
-  // Cria sempre um RASCUNHO novo e independente:
+  // Duplicação segura — abre diálogo pré-preenchido. O usuário revisa e salva.
+  // O salvar cria SEMPRE um rascunho novo e independente:
   //   - sem vínculo com order_id original (não toca estoque/financeiro/remessa/e-mail/automação)
   //   - sem chave/XML/DANFE/protocolo/focus_ref/status terminal
   //   - número novo gerado pelo cursor fiscal (nunca reaproveita número autorizado)
@@ -361,83 +361,54 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .single();
 
       if (error || !data) {
-        toast.error('Erro ao carregar dados para clonagem');
+        toast.error('Erro ao carregar dados para duplicação');
         return;
       }
 
       const items = (data.fiscal_invoice_items || []) as any[];
       if (items.length === 0) {
-        toast.error('Não há itens para clonar');
+        toast.error('Não há itens para duplicar');
         return;
       }
 
-      // Marca de auditoria — clone manual/teste, sem expor termos técnicos sensíveis.
       const obsBase = data.observacoes ? `${data.observacoes}\n\n` : '';
-      const obsMarca = `Clonado de ${kind === 'pedido' ? 'pedido' : 'NF'} ${data.serie}-${data.numero} (manual/teste).`;
-      const observacoes = `${obsBase}${obsMarca}`;
+      const obsMarca = `Duplicado de ${kind === 'pedido' ? 'pedido de venda' : 'NF'} ${data.serie}-${data.numero}.`;
 
-      const { data: result, error: createError } = await supabase.functions.invoke(
-        'fiscal-create-manual',
-        {
-          body: {
-            // NÃO enviamos order_id — clone é independente e não dispara efeitos do pedido original.
-            natureza_operacao: data.natureza_operacao,
-            observacoes,
-            indicador_presenca: (data as any).indicador_presenca ?? 2,
-            indicador_ie_dest: (data as any).indicador_ie_dest ?? 9,
-            pagamento_indicador: (data as any).pagamento_indicador ?? 0,
-            pagamento_meio: (data as any).pagamento_meio || '99',
-            destinatario: {
-              nome: data.dest_nome,
-              cpf_cnpj: data.dest_cpf_cnpj,
-              email: (data as any).dest_email || undefined,
-              telefone: (data as any).dest_telefone || undefined,
-              endereco: {
-                logradouro: data.dest_endereco_logradouro || '',
-                numero: data.dest_endereco_numero || 'S/N',
-                complemento: data.dest_endereco_complemento || undefined,
-                bairro: data.dest_endereco_bairro || '',
-                municipio: data.dest_endereco_municipio || '',
-                uf: data.dest_endereco_uf || '',
-                cep: data.dest_endereco_cep || '',
-              },
-            },
-            itens: items.map((item, idx) => ({
-              numero_item: idx + 1,
-              codigo: item.codigo_produto,
-              descricao: item.descricao,
-              ncm: item.ncm,
-              cfop: item.cfop,
-              unidade: item.unidade,
-              quantidade: Number(item.quantidade),
-              valor_unitario: Number(item.valor_unitario),
-              origem: String(item.origem ?? '0'),
-              csosn: item.csosn || '102',
-            })),
+      const initialData: ManualInvoiceInitialData = {
+        natureza_operacao: data.natureza_operacao,
+        observacoes: `${obsBase}${obsMarca}`,
+        destinatario: {
+          nome: data.dest_nome,
+          cpf_cnpj: data.dest_cpf_cnpj,
+          email: (data as any).dest_email || undefined,
+          telefone: (data as any).dest_telefone || undefined,
+          endereco: {
+            logradouro: data.dest_endereco_logradouro || '',
+            numero: data.dest_endereco_numero || 'S/N',
+            complemento: data.dest_endereco_complemento || undefined,
+            bairro: data.dest_endereco_bairro || '',
+            municipio: data.dest_endereco_municipio || '',
+            uf: data.dest_endereco_uf || '',
+            cep: data.dest_endereco_cep || '',
           },
-        }
-      );
-
-      if (createError) throw createError;
-      if (!result?.success) {
-        throw new Error(result?.error || 'Falha ao clonar');
-      }
-
-      const newId = result.invoice?.id as string | undefined;
-      const successMsg = kind === 'pedido'
-        ? 'Pedido clonado com sucesso.'
-        : 'NF clonada como rascunho.';
-
-      toast.success(successMsg, newId ? {
-        action: {
-          label: 'Abrir rascunho',
-          onClick: () => handleEditInvoice({ ...invoice, id: newId } as FiscalInvoice),
         },
-      } : undefined);
-      refetch();
+        itens: items.map((item) => ({
+          codigo: item.codigo_produto || '',
+          descricao: item.descricao,
+          unidade: item.unidade || 'UN',
+          quantidade: Number(item.quantidade) || 1,
+          valor_unitario: Number(item.valor_unitario) || 0,
+          ncm: item.ncm || '',
+          cfop: item.cfop || '5102',
+          origem: String(item.origem ?? '0'),
+          csosn: item.csosn || '102',
+        })),
+      };
+
+      setDuplicateDialog({ open: true, data: initialData, kind });
     } catch (error: any) {
       console.error('[handleCloneInvoice] error:', error);
-      showErrorToast(error, { module: 'fiscal', action: 'clonar' });
+      showErrorToast(error, { module: 'fiscal', action: 'duplicar' });
     }
   };
 
