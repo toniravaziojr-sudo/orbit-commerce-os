@@ -83,11 +83,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Configuração Focus NFe
-    const focusConfig: FocusNFeConfig = {
-      token: focusToken,
-      ambiente: (settings.focus_ambiente || settings.ambiente || 'homologacao') as 'homologacao' | 'producao',
-    };
+    // Configuração Focus NFe — admin da conta usa o token PRINCIPAL DA CONTA.
+    const ambiente = (settings.focus_ambiente || settings.ambiente || 'homologacao') as 'homologacao' | 'producao';
+    const creds = resolveFocusCredentials({ ambiente, operationKind: 'account_admin' });
+    if (!creds.ok || !creds.token) {
+      return new Response(
+        JSON.stringify({ success: false, error: creds.error, code: creds.errorCode }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const focusConfig: FocusNFeConfig = { token: creds.token, ambiente };
 
     console.log(`[fiscal-sync-focus-nfe] Sincronizando empresa ${settings.cnpj} no ambiente ${focusConfig.ambiente}`);
 
