@@ -1240,7 +1240,31 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       </Card>
 
       {/* Manual Invoice Dialog */}
-      <ManualInvoiceDialog open={manualDialogOpen} onOpenChange={setManualDialogOpen} />
+      <ManualInvoiceDialog open={manualDialogOpen} onOpenChange={setManualDialogOpen} mode="create" />
+
+      {/* Diálogo de duplicação (Pedido de Venda ou NF) — pré-preenchido, sem efeito fiscal/financeiro/logístico. */}
+      <ManualInvoiceDialog
+        open={duplicateDialog.open}
+        onOpenChange={(o) => setDuplicateDialog((s) => ({ ...s, open: o }))}
+        mode="duplicate"
+        initialData={duplicateDialog.data || undefined}
+        title={duplicateDialog.kind === 'pedido' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
+        description={
+          duplicateDialog.kind === 'pedido'
+            ? 'Revise os dados copiados do pedido de venda original e ajuste o que precisar antes de salvar. Nenhuma NF é emitida nesta etapa.'
+            : 'Revise os dados copiados da NF original e ajuste o que precisar antes de salvar. O novo registro será criado como rascunho. Nenhuma NF é transmitida nesta etapa.'
+        }
+        submitLabel="Salvar duplicação"
+        successMessage={
+          duplicateDialog.kind === 'pedido'
+            ? 'Pedido de venda duplicado com sucesso.'
+            : 'NF duplicada como rascunho.'
+        }
+        onCreated={(newId) => {
+          // Abre o rascunho duplicado direto no editor para revisão fiscal completa.
+          handleEditInvoice({ id: newId } as FiscalInvoice);
+        }}
+      />
 
       {/* Invoice Editor */}
       {editingInvoice && (
