@@ -9045,6 +9045,8 @@ export type Database = {
           focus_company_status: string
           focus_empresa_criada_em: string | null
           focus_empresa_id: string | null
+          focus_token_homologacao: string | null
+          focus_token_producao: string | null
           focus_ultima_sincronizacao: string | null
           id: string
           ie_isento: boolean | null
@@ -9111,6 +9113,8 @@ export type Database = {
           focus_company_status?: string
           focus_empresa_criada_em?: string | null
           focus_empresa_id?: string | null
+          focus_token_homologacao?: string | null
+          focus_token_producao?: string | null
           focus_ultima_sincronizacao?: string | null
           id?: string
           ie_isento?: boolean | null
@@ -9177,6 +9181,8 @@ export type Database = {
           focus_company_status?: string
           focus_empresa_criada_em?: string | null
           focus_empresa_id?: string | null
+          focus_token_homologacao?: string | null
+          focus_token_producao?: string | null
           focus_ultima_sincronizacao?: string | null
           id?: string
           ie_isento?: boolean | null
@@ -24163,6 +24169,14 @@ export type Database = {
           p_error: string
           p_logical_turn_id: string
         }
+        Returns: Json
+      }
+      fiscal_focus_tenant_token_status: {
+        Args: { p_tenant_id: string }
+        Returns: Json
+      }
+      fiscal_set_focus_tenant_token: {
+        Args: { p_ambiente: string; p_tenant_id: string; p_token: string }
         Returns: Json
       }
       generate_billing_checkout_token: {
