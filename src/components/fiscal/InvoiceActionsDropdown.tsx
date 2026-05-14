@@ -196,6 +196,16 @@ export function InvoiceActionsDropdown({
               <Copy className="h-4 w-4 mr-2" />
               {cloneLabel}
             </DropdownMenuItem>
+            {onGenerateDC && (
+              <DropdownMenuItem onClick={onGenerateDC} disabled={isGeneratingDC}>
+                {isGeneratingDC ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                Gerar Declaração de Conteúdo
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               onClick={onDelete}
