@@ -182,9 +182,13 @@ A integração com a Focus NFe usa **dois níveis distintos** de credencial. Tod
 
 | Secret | Escopo | Uso |
 |--------|--------|-----|
-| `FOCUS_NFE_TOKEN` | Global da plataforma | **Token principal da conta Focus.** Usado **exclusivamente em operações administrativas da conta**: cadastrar/atualizar empresas (`/v2/empresas`), anexar certificado A1, registrar/consultar webhooks, consultas administrativas. Configurado em **Plataforma → Integrações → Fiscal**. Nunca é usado para emitir, cancelar, consultar ou corrigir NF-e. |
+| `FOCUS_NFE_TOKEN` | Global da plataforma | **Token principal da conta Focus.** Usado **exclusivamente em operações administrativas da conta**: cadastrar/atualizar empresas (`/v2/empresas`), anexar certificado A1, registrar/consultar webhooks, consultas administrativas. Configurado em **Plataforma → Integrações → Fiscal → Focus**. Nunca é usado para emitir, cancelar, consultar ou corrigir NF-e. |
 
 > Este é o token que aparece **no topo** do painel da Focus NFe ("Token principal produção"). Ele não emite nota — ele administra empresas dentro da conta Focus.
+
+> **Fonte de verdade:** o valor vivo do token é lido de `platform_credentials` (registro `FOCUS_NFE_TOKEN`, `is_active = true`), gerenciado pela tela **Integrações da Plataforma → Fiscal → Focus**. As edge functions fiscais (`fiscal-sync-focus-nfe`, `fiscal-upload-certificate`, `fiscal-webhook-register`, `fiscal-integration-validate`) **devem** chamar `loadPlatformCredentials()` no início do handler antes de resolver `account_admin`. Variável de ambiente `FOCUS_NFE_TOKEN` permanece apenas como fallback inicial — trocar a credencial é feito pelo painel central, sem novo secret e sem redeploy. Proibido pedir secret novo para o usuário quando o registro central já existir.
+
+> **Domínio das chamadas administrativas:** operações `account_admin` (`/v2/empresas`, `/v2/hooks`, etc.) **sempre** rodam contra `https://api.focusnfe.com.br`, mesmo quando o tenant está em homologação. O domínio `https://homologacao.focusnfe.com.br` **não expõe** os endpoints administrativos e responde `404 — endpoint não encontrado` (incidente 2026-05-14). O resolver `resolveFocusCredentials({ operationKind: 'account_admin' })` devolve `baseUrl` já fixado em produção; o cliente `focus-nfe-client` respeita esse `baseUrl` quando presente. Operações `nfe_op` continuam roteadas pelo ambiente do tenant.
 
 #### Nível 2 — Empresa do tenant (por CNPJ)
 
