@@ -1,6 +1,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { syncEmpresa, getEmpresa, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
+import { resolveFocusCredentials } from "../_shared/focus-credentials.ts";
 import { buildEmpresaPayload } from "../_shared/focus-nfe-adapter.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 
