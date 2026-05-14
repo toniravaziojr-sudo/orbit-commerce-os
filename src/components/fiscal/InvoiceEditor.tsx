@@ -581,7 +581,7 @@ export function InvoiceEditor({
     }
   };
 
-  const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
+  // (confirmAction declarado no topo do componente para uso em handleSubmit)
 
   const handleDelete = async () => {
     if (!onDelete) return;
