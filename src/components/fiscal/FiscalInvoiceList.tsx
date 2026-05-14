@@ -1238,6 +1238,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               isSubmitting={submittingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
+                              emitLabel={settings?.ambiente === 'homologacao' ? 'Emitir NF-e de teste' : 'Emitir NF-e'}
                             />
                           </TableCell>
                         </TableRow>
