@@ -93,10 +93,9 @@ Deno.serve(async (req) => {
       | "homologacao"
       | "producao";
 
-    // Resolve credenciais do provedor fiscal pelo ambiente correto.
-    // Não usamos mais provider_token legado silenciosamente — apenas slot
-    // global do ambiente (FOCUS_NFE_TOKEN_HOMOLOGACAO / FOCUS_NFE_TOKEN_PRODUCAO).
-    const creds = resolveFocusCredentials({ ambiente });
+    // Webhook (recebimento automático de retornos) é OPERAÇÃO ADMINISTRATIVA
+    // da conta Focus → usa o token PRINCIPAL DA CONTA (FOCUS_NFE_TOKEN global).
+    const creds = resolveFocusCredentials({ ambiente, operationKind: 'account_admin' });
     if (!creds.ok || !creds.token) {
       return fail(creds.error || "Credencial fiscal indisponível", creds.errorCode || "focus_token_missing", { ambiente });
     }
