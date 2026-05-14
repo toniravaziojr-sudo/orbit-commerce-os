@@ -261,12 +261,9 @@ export function InvoiceActionsDropdown({
               <FileEdit className="h-4 w-4 mr-2" />
               Carta de Correção
             </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled
-              onClick={() => toast.info('Clonar NF está em manutenção. Disponível na próxima onda.')}
-            >
-              <Copy className="h-4 w-4 mr-2 opacity-50" />
-              Clonar NF (em manutenção)
+            <DropdownMenuItem onClick={onDuplicate}>
+              <Copy className="h-4 w-4 mr-2" />
+              {cloneLabel}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onEmitirDevolucao}>
               <ArrowDownLeft className="h-4 w-4 mr-2" />
