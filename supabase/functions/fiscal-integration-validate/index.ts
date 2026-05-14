@@ -248,12 +248,12 @@ Deno.serve(async (req) => {
       });
     } else {
       // Confirmar remoto com o token administrativo (best-effort).
-      // O endpoint admin /v2/empresas/{cnpj} exige CNPJ apenas com dígitos —
-      // enviar formatado retorna 404 e gera "Não localizada" falso-positivo.
+      // O endpoint admin /v2/empresas/{id} aceita o ID interno da Focus
+      // (mais confiável que CNPJ formatado, que retorna 404 falso-positivo).
       try {
-        const cnpjDigits = (settings.cnpj || "").replace(/\D/g, "");
+        const lookupKey = String(settings.focus_empresa_id);
         const r = await fetch(
-          `${accountCreds.baseUrl}/v2/empresas/${encodeURIComponent(cnpjDigits)}`,
+          `${accountCreds.baseUrl}/v2/empresas/${encodeURIComponent(lookupKey)}`,
           { method: "GET", headers: { Authorization: basicAuth(accountCreds.token!) } },
         );
         focusCompanyVerifiedRemote = r.ok;
