@@ -223,7 +223,7 @@ export function InvoiceActionsDropdown({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onDuplicate}>
               <Copy className="h-4 w-4 mr-2" />
-              Criar Nova NF-e
+              Duplicar como rascunho
             </DropdownMenuItem>
           </>
         )}
