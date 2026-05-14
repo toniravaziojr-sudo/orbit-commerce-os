@@ -27,7 +27,7 @@ export default function SystemSettings() {
 
   const [activeTab, setActiveTab] = useState(tabFromUrl || 'payments');
   const activeFiscalSub: FiscalSubTab =
-    subFromUrl === 'natureza' || subFromUrl === 'integracao' || subFromUrl === 'outros' ? subFromUrl : 'emitente';
+    subFromUrl === 'natureza' || subFromUrl === 'outros' ? subFromUrl : 'emitente';
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
