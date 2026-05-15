@@ -1,6 +1,6 @@
 # Declaração de Conteúdo dos Correios — motor único
 
-> Documento dos Correios para acompanhar a remessa quando **não há obrigação de NF-e**. **Não é documento fiscal** e **não substitui NF-e**.
+> Documento dos Correios para acompanhar a remessa quando **não há obrigação de NF-e**. **Não é documento fiscal**, **não é NF-e**, **não é DANFE** e **não é DC-e Sefaz**. Não substitui Nota Fiscal quando a emissão for obrigatória.
 > Não confundir com **DC-e Sefaz** (Declaração de Conteúdo Eletrônica fiscal — SINIEF 05/2021), que é tratado em outro fluxo fiscal próprio.
 
 ## Princípio
@@ -19,7 +19,7 @@ Todos os caminhos chamam a mesma estrutura. **Proibido** criar caminho paralelo,
 - **Modal de responsabilidade:** `src/components/fiscal/CorreiosContentDeclarationDialog.tsx`.
 
 ## Regras de produto
-1. A Declaração de Conteúdo é **alternativa**, não padrão. O sistema **não bloqueia** o uso por tipo de tenant (PF, MEI, ME, EPP, LTDA, marketplace ou loja própria).
+1. A Declaração de Conteúdo é **alternativa**, não padrão. O sistema **não bloqueia** o uso por tipo de tenant (PF, MEI, ME, EPP, LTDA, marketplace ou loja própria), por CNPJ ou por venda comercial. A decisão é do remetente/usuário, com responsabilidade registrada.
 2. Antes de qualquer emissão, o usuário **deve**:
    - Selecionar o **motivo da emissão** em lista pronta (campo obrigatório):
      - Venda/remessa sem emissão de NF-e por decisão do remetente
@@ -28,33 +28,40 @@ Todos os caminhos chamam a mesma estrutura. **Proibido** criar caminho paralelo,
      - Amostra sem valor comercial
      - Brinde
      - Bem pessoal
-     - Outro (exibe campo de texto obrigatório com mínimo 3 caracteres; gravado como `Outro: <detalhe>`)
-   - Marcar checkbox de **responsabilidade**, ciente de que a DC não substitui NF-e quando a emissão for obrigatória.
-   - **Em massa (múltiplos pedidos):** o motivo selecionado e o aceite de responsabilidade valem para **todos** os pedidos selecionados na mesma operação.
-3. O PDF inclui:
-   - Cabeçalho com nº interno e data de emissão (BRT).
-   - Remetente completo (Razão Social, CNPJ/CPF, endereço, CEP, telefone).
-   - Destinatário completo.
-   - Tabela de itens com descrição, quantidade, valor unitário e subtotal.
-   - **Valor total declarado**, **peso total** e **número de volumes**.
-   - **Cláusula legal** (LC 87/1996) + responsabilidade do remetente.
+     - Outro (campo de texto obrigatório com mínimo 3 caracteres; gravado como `Outro: <detalhe>`)
+   - Informar **Peso total (kg)** — obrigatório, **não pode ficar vazio**. Se houver peso registrado no pedido (peso bruto), vem pré-preenchido e é editável; se não houver, é digitado no modal.
+   - Informar **Quantidade de volumes** — padrão `1`, editável.
+   - Marcar checkbox de **responsabilidade**.
+   - **Em massa (múltiplos pedidos):** o motivo selecionado e o aceite de responsabilidade valem para **todos** os pedidos selecionados; **peso e volumes são por pedido**, com pré-preenchimento individual quando disponível e ações rápidas para “aplicar a todos”.
+3. **PDF gerado** contém:
+   - Título “Declaração de Conteúdo”.
+   - Nº interno próprio (ex.: `DC-...`).
+   - Data e hora de geração (BRT).
+   - Remetente: razão social, CNPJ/CPF, endereço completo (logradouro, número, complemento, bairro), município/UF, CEP, telefone e e-mail (quando disponíveis).
+   - Destinatário: nome, CPF/CNPJ/documento, endereço completo, município/UF, CEP, telefone e e-mail (quando disponíveis).
+   - Tabela de itens: descrição, quantidade, valor unitário e subtotal.
+   - **Valor total declarado**, **Peso total em kg** (sempre preenchido — nunca `-`) e **Quantidade de volumes**.
    - **Motivo informado** pelo usuário.
-   - Local, data e linha de assinatura.
-4. A emissão **nunca** chama Focus NFe ou Sefaz, **nunca** altera `fiscal_stage`, **nunca** marca o pedido como "fiscalizado". É um documento de transporte exclusivo dos Correios.
+   - **Texto de responsabilidade** neutro (não afirma automaticamente que o remetente “não é contribuinte”), seguido de avisos: não substitui NF-e quando obrigatória, responsabilidade do remetente, restrições de envio dos Correios e que o uso indevido pode gerar responsabilidade legal.
+   - Local, data e linha de assinatura do declarante/remetente.
+4. **Geração individual:** 1 pedido = 1 PDF (com 1+ páginas se a Declaração ocupar mais que uma folha).
+5. **Geração em massa:** 2 ou mais pedidos = **1 único arquivo PDF multipágina**, uma Declaração completa por pedido. Nome sugerido: `Declaracoes-Conteudo-YYYY-MM-DD.pdf`. Não há múltiplos downloads separados.
+6. **Histórico** continua **individual** por pedido em `shipping_content_declarations`, com número interno próprio para cada Declaração e vínculo ao respectivo pedido.
+7. A emissão **nunca** chama Focus NFe ou Sefaz, **nunca** altera `fiscal_stage`, **nunca** marca o pedido como “fiscalizado”, **nunca** cria NF-e e **não aparece na aba Notas Fiscais**.
 
 ## Histórico e auditoria
 Cada emissão grava em `shipping_content_declarations`:
 - `dc_number` (numeração interna independente da fiscal).
 - `reason`, `responsibility_acknowledged`, `acknowledged_by_user_id`.
 - `sender_snapshot`, `recipient_snapshot`, `items_snapshot`.
-- `total_value_cents`, `total_weight_grams`, `volumes_count`, `emission_city`.
+- `total_value_cents`, `total_weight_grams` (sempre preenchido), `volumes_count`, `emission_city`.
 - `source` = `manual` | `gateway` | `shipment`.
 
 ## Integração com Gateway logístico
 `gateway-attach-fiscal-doc` agora prioriza:
 1. NF-e autorizada (caminho fiscal padrão).
 2. **Declaração de Conteúdo dos Correios** existente para o pedido.
-3. Se não houver, emite uma automaticamente com `source='gateway'` e motivo padrão de despacho gateway antes de anexar à transportadora.
+3. Se não houver, emite uma automaticamente com `source='gateway'` antes de anexar à transportadora (usa o peso somado dos itens do pedido).
 
 ## Separação técnica obrigatória
 | | Declaração de Conteúdo (Correios) | DC-e (Sefaz) |
@@ -71,11 +78,9 @@ Cada emissão grava em `shipping_content_declarations`:
 - Edge function `dce-emit` — convertida em **stub 410 deprecated** que aponta para a nova função; nenhum fluxo novo deve invocá-la.
 
 ## Como testar pela UI
-1. Em **Fiscal → Pedidos de Venda**, selecione um pedido na etapa "Pedido de Venda".
-2. Clique em **Declaração de Conteúdo** (botão lateral) ou abra a ação no menu da linha.
-3. O modal exige motivo e checkbox de responsabilidade. Sem isso, o botão "Emitir" fica desabilitado.
+1. Em **Fiscal → Pedidos de Venda**, selecione um pedido na etapa “Pedido de Venda”.
+2. Clique em **Gerar Declaração de Conteúdo** (botão lateral) ou abra a ação no menu da linha.
+3. O modal exige: motivo, peso (kg), volumes e checkbox de responsabilidade. Sem isso, o botão fica desabilitado.
 4. Ao confirmar, o PDF é baixado e o registro aparece em `shipping_content_declarations` com `source='manual'`.
-5. Validar:
-   - O pedido **não muda de etapa fiscal**.
-   - O PDF traz a cláusula legal e o motivo informado.
-   - Em massa: selecionar vários pedidos → o modal usa o mesmo motivo para todos.
+5. **Em massa:** selecione vários pedidos → o modal usa o mesmo motivo para todos, com peso/volumes editáveis por pedido (e ações “aplicar a todos”). É gerado **um único PDF multipágina** com nome `Declaracoes-Conteudo-YYYY-MM-DD.pdf`. O histórico permanece individual.
+6. Validar: o pedido **não muda de etapa fiscal**; nenhuma chamada a Focus/Sefaz; PDF traz a cláusula de responsabilidade neutra, motivo informado, peso em kg e volumes.

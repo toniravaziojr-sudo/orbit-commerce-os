@@ -17,6 +17,7 @@ interface IssueInput {
   reason: string;
   responsibility_acknowledged: boolean;
   volumes_count?: number;
+  total_weight_grams?: number; // override obrigatório quando o pedido não tiver peso
   emission_city?: string | null;
 }
 
@@ -179,6 +180,18 @@ Deno.serve(async (req) => {
 
   if (items.length === 0) return jsonResp({ success: false, error: "no_items" });
 
+  // Peso: override do cliente tem prioridade. Caso contrário usa o calculado dos itens.
+  const finalWeightGrams =
+    typeof body.total_weight_grams === "number" && body.total_weight_grams > 0
+      ? Math.round(body.total_weight_grams)
+      : totalGrams > 0
+      ? totalGrams
+      : null;
+
+  if (!finalWeightGrams || finalWeightGrams <= 0) {
+    return jsonResp({ success: false, error: "weight_required" });
+  }
+
   const seedId = invoice?.id || order?.id || crypto.randomUUID();
   const dcNumber = genDcNumber(seedId);
 
@@ -198,7 +211,7 @@ Deno.serve(async (req) => {
       recipient_snapshot: recipient,
       items_snapshot: items,
       total_value_cents: totalCents,
-      total_weight_grams: totalGrams || null,
+      total_weight_grams: finalWeightGrams,
       volumes_count: body.volumes_count ?? 1,
       emission_city: body.emission_city ?? settings?.endereco_municipio ?? null,
     })

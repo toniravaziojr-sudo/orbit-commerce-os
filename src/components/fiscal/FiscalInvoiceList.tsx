@@ -34,8 +34,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { issueAndDownloadCorreiosContentDeclaration } from '@/lib/declaracaoConteudo';
-import { CorreiosContentDeclarationDialog } from '@/components/fiscal/CorreiosContentDeclarationDialog';
+import { issueAndDownloadCorreiosContentDeclarationsBatch } from '@/lib/declaracaoConteudo';
+import { CorreiosContentDeclarationDialog, type DcDialogTarget } from '@/components/fiscal/CorreiosContentDeclarationDialog';
 
 import { formatDateTimeBR } from "@/lib/date-format";
 
@@ -947,9 +947,23 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
   // Declaração de Conteúdo dos Correios — modal de responsabilidade obrigatório.
   // Não é documento fiscal. Não chama Focus/Sefaz. Não altera fiscal_stage.
+  // Em massa: gera 1 PDF único multipágina; histórico individual por pedido.
   const [dcDialogOpen, setDcDialogOpen] = useState(false);
   const [dcDialogTargets, setDcDialogTargets] = useState<any[]>([]);
   const [dcDialogLoading, setDcDialogLoading] = useState(false);
+
+  const buildDcTarget = (inv: any): DcDialogTarget => {
+    const pesoKg = Number(inv?.peso_bruto) > 0 ? Number(inv.peso_bruto) : null;
+    const vols = Number(inv?.quantidade_volumes) > 0 ? Number(inv.quantidade_volumes) : 1;
+    const numero = inv?.numero ? `#${inv.numero}` : `#${String(inv?.id || '').slice(0, 6)}`;
+    const cliente = inv?.dest_nome ? ` — ${inv.dest_nome}` : '';
+    return {
+      id: inv.id,
+      label: `Pedido ${numero}${cliente}`,
+      prefilledWeightKg: pesoKg,
+      prefilledVolumes: vols,
+    };
+  };
 
   const openDcDialogForInvoice = (invoice: any) => {
     setDcDialogTargets([invoice]);
@@ -968,38 +982,52 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     setDcDialogOpen(true);
   };
 
-  const handleDcDialogConfirm = async (payload: { reason: string; responsibility_acknowledged: true }) => {
+  const handleDcDialogConfirm = async (payload: {
+    reason: string;
+    responsibility_acknowledged: true;
+    perTarget: Array<{ id: string; weightGrams: number; volumes: number }>;
+  }) => {
     setDcDialogLoading(true);
     const targets = dcDialogTargets;
     const t = toast.loading(
       targets.length === 1
         ? 'Gerando Declaração de Conteúdo...'
-        : `Gerando ${targets.length} Declarações de Conteúdo...`,
+        : `Gerando ${targets.length} Declarações de Conteúdo em PDF único...`,
     );
-    let ok = 0; let fail = 0; let lastNumber: string | undefined;
-    for (const inv of targets) {
-      const res = await issueAndDownloadCorreiosContentDeclaration({
-        tenantId: inv.tenant_id,
-        fiscalInvoiceId: inv.id,
-        orderId: inv.order_id ?? null,
-        source: 'manual',
-        reason: payload.reason,
-        responsibilityAcknowledged: true,
-      });
-      if (res.ok) { ok++; lastNumber = res.dcNumber; } else { fail++; }
-    }
+
+    const overrideById = new Map(payload.perTarget.map(p => [p.id, p]));
+    const result = await issueAndDownloadCorreiosContentDeclarationsBatch({
+      reason: payload.reason,
+      responsibilityAcknowledged: true,
+      source: 'manual',
+      targets: targets.map((inv: any) => {
+        const ov = overrideById.get(inv.id);
+        return {
+          tenantId: inv.tenant_id,
+          fiscalInvoiceId: inv.id,
+          orderId: inv.order_id ?? null,
+          weightGrams: ov?.weightGrams ?? 0,
+          volumes: ov?.volumes ?? 1,
+          label: inv.dest_nome || `#${inv.numero || ''}`,
+        };
+      }),
+    });
+
     toast.dismiss(t);
     setDcDialogLoading(false);
     setDcDialogOpen(false);
     setDcDialogTargets([]);
-    if (fail === 0) {
+
+    if (result.fail === 0 && result.ok > 0) {
       toast.success(
-        targets.length === 1
-          ? `Declaração de Conteúdo gerada (${lastNumber}).`
-          : `${ok} Declaração(ões) de Conteúdo geradas.`,
+        result.ok === 1
+          ? `Declaração de Conteúdo gerada com sucesso (${result.dcNumbers[0]}).`
+          : `${result.ok} declarações de conteúdo geradas em um único PDF.`,
       );
+    } else if (result.ok > 0 && result.fail > 0) {
+      toast.warning(`${result.ok} gerada(s), ${result.fail} com falha.`);
     } else {
-      toast.error(`${ok} gerada(s), ${fail} com falha.`);
+      toast.error(`Falha ao gerar Declaração de Conteúdo: ${result.failures[0]?.error || 'erro desconhecido'}`);
     }
   };
 
@@ -1661,7 +1689,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       <CorreiosContentDeclarationDialog
         open={dcDialogOpen}
         onOpenChange={(v) => { setDcDialogOpen(v); if (!v) { setDcDialogTargets([]); } }}
-        count={dcDialogTargets.length || 1}
+        targets={dcDialogTargets.map(buildDcTarget)}
         loading={dcDialogLoading}
         onConfirm={handleDcDialogConfirm}
       />
