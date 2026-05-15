@@ -19683,6 +19683,75 @@ export type Database = {
           },
         ]
       }
+      system_resource_skip_log: {
+        Row: {
+          active_tenant_count: number
+          cron_job_name: string
+          id: string
+          module_key: string
+          reason: string
+          skipped_at: string
+        }
+        Insert: {
+          active_tenant_count?: number
+          cron_job_name: string
+          id?: string
+          module_key: string
+          reason: string
+          skipped_at?: string
+        }
+        Update: {
+          active_tenant_count?: number
+          cron_job_name?: string
+          id?: string
+          module_key?: string
+          reason?: string
+          skipped_at?: string
+        }
+        Relationships: []
+      }
+      system_resource_usage: {
+        Row: {
+          active_tenant_count: number
+          created_at: string
+          last_event_activation_at: string | null
+          last_event_tenant_id: string | null
+          last_refreshed_at: string
+          metadata: Json
+          module_group: string
+          module_key: string
+          module_name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          active_tenant_count?: number
+          created_at?: string
+          last_event_activation_at?: string | null
+          last_event_tenant_id?: string | null
+          last_refreshed_at?: string
+          metadata?: Json
+          module_group: string
+          module_key: string
+          module_name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          active_tenant_count?: number
+          created_at?: string
+          last_event_activation_at?: string | null
+          last_event_tenant_id?: string | null
+          last_refreshed_at?: string
+          metadata?: Json
+          module_group?: string
+          module_key?: string
+          module_name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tenant_addons: {
         Row: {
           addon_key: string
@@ -24074,6 +24143,10 @@ export type Database = {
           success: boolean
         }[]
       }
+      count_active_tenants_for_module: {
+        Args: { p_module_key: string }
+        Returns: number
+      }
       count_unique_visitors: {
         Args: { p_end: string; p_start: string; p_tenant_id: string }
         Returns: number
@@ -24519,6 +24592,7 @@ export type Database = {
         Args: { p_tenant_id: string }
         Returns: undefined
       }
+      is_module_active: { Args: { p_module_key: string }; Returns: boolean }
       is_owner_of_member_tenant: {
         Args: { p_member_id: string; p_owner_id: string }
         Returns: boolean
@@ -24555,12 +24629,24 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_skipped_cron_execution: {
+        Args: {
+          p_cron_job_name: string
+          p_module_key: string
+          p_reason?: string
+        }
+        Returns: undefined
+      }
       mark_dead_turn_buffers: {
         Args: { p_max_attempts?: number }
         Returns: number
       }
       mark_learning_used: {
         Args: { p_learning_ids: string[] }
+        Returns: undefined
+      }
+      mark_module_active_by_event: {
+        Args: { p_module_key: string; p_tenant_id: string }
         Returns: undefined
       }
       mark_signal_capture_failed: {
@@ -24610,6 +24696,14 @@ export type Database = {
           error_message: string
           ledger_id: string
           success: boolean
+        }[]
+      }
+      refresh_system_resource_usage: {
+        Args: never
+        Returns: {
+          active_count: number
+          module_key: string
+          status: string
         }[]
       }
       refund_credits: {
