@@ -1689,7 +1689,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       <CorreiosContentDeclarationDialog
         open={dcDialogOpen}
         onOpenChange={(v) => { setDcDialogOpen(v); if (!v) { setDcDialogTargets([]); } }}
-        count={dcDialogTargets.length || 1}
+        targets={dcDialogTargets.map(buildDcTarget)}
         loading={dcDialogLoading}
         onConfirm={handleDcDialogConfirm}
       />
