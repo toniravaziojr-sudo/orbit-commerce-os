@@ -236,6 +236,7 @@ const platformAdminNavigation: NavGroup[] = [
        { title: "Tenants", href: "/platform/tenants", icon: Store },
        { title: "Ferramentas", href: "/platform/tools", icon: Wrench },
        { title: "Custos Externos", href: "/platform/external-costs", icon: DollarSign },
+       { title: "Recursos em Uso", href: "/platform/recursos-em-uso", icon: Activity },
        { title: "Créditos por Tenant", href: "/platform/credits", icon: Coins },
        
     ],
