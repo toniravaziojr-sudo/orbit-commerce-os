@@ -34,8 +34,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { issueAndDownloadCorreiosContentDeclaration } from '@/lib/declaracaoConteudo';
-import { CorreiosContentDeclarationDialog } from '@/components/fiscal/CorreiosContentDeclarationDialog';
+import { issueAndDownloadCorreiosContentDeclarationsBatch } from '@/lib/declaracaoConteudo';
+import { CorreiosContentDeclarationDialog, type DcDialogTarget } from '@/components/fiscal/CorreiosContentDeclarationDialog';
 
 import { formatDateTimeBR } from "@/lib/date-format";
 
