@@ -973,8 +973,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const targets = dcDialogTargets;
     const t = toast.loading(
       targets.length === 1
-        ? 'Emitindo Declaração de Conteúdo...'
-        : `Emitindo ${targets.length} Declarações de Conteúdo...`,
+        ? 'Gerando Declaração de Conteúdo...'
+        : `Gerando ${targets.length} Declarações de Conteúdo...`,
     );
     let ok = 0; let fail = 0; let lastNumber: string | undefined;
     for (const inv of targets) {
@@ -995,16 +995,16 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     if (fail === 0) {
       toast.success(
         targets.length === 1
-          ? `Declaração de Conteúdo emitida (${lastNumber}).`
-          : `${ok} Declaração(ões) de Conteúdo emitidas.`,
+          ? `Declaração de Conteúdo gerada (${lastNumber}).`
+          : `${ok} Declaração(ões) de Conteúdo geradas.`,
       );
     } else {
-      toast.error(`${ok} emitida(s), ${fail} com falha.`);
+      toast.error(`${ok} gerada(s), ${fail} com falha.`);
     }
   };
 
 
-  // Bulk: Emitir DC-e (Declaração de Conteúdo) — temporariamente indisponível.
+  // Bulk: Gerar DC-e (Declaração de Conteúdo) — temporariamente indisponível.
   // A integração com o backend de DC-e ainda não foi finalizada para emissão real.
   // O botão permanece visível para descoberta, mas exibe mensagem clara em vez de transmitir.
   const handleBulkEmitDce = async () => {
