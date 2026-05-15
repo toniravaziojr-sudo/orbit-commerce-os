@@ -178,6 +178,8 @@ Deno.serve(async (req) => {
     };
   });
 
+  if (items.length === 0) return jsonResp({ success: false, error: "no_items" });
+
   // Peso: override do cliente tem prioridade. Caso contrário usa o calculado dos itens.
   const finalWeightGrams =
     typeof body.total_weight_grams === "number" && body.total_weight_grams > 0
@@ -209,7 +211,7 @@ Deno.serve(async (req) => {
       recipient_snapshot: recipient,
       items_snapshot: items,
       total_value_cents: totalCents,
-      total_weight_grams: totalGrams || null,
+      total_weight_grams: finalWeightGrams,
       volumes_count: body.volumes_count ?? 1,
       emission_city: body.emission_city ?? settings?.endereco_municipio ?? null,
     })
