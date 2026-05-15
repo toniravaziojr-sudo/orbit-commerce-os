@@ -178,7 +178,17 @@ Deno.serve(async (req) => {
     };
   });
 
-  if (items.length === 0) return jsonResp({ success: false, error: "no_items" });
+  // Peso: override do cliente tem prioridade. Caso contrário usa o calculado dos itens.
+  const finalWeightGrams =
+    typeof body.total_weight_grams === "number" && body.total_weight_grams > 0
+      ? Math.round(body.total_weight_grams)
+      : totalGrams > 0
+      ? totalGrams
+      : null;
+
+  if (!finalWeightGrams || finalWeightGrams <= 0) {
+    return jsonResp({ success: false, error: "weight_required" });
+  }
 
   const seedId = invoice?.id || order?.id || crypto.randomUUID();
   const dcNumber = genDcNumber(seedId);
