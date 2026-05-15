@@ -1268,7 +1268,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={handleBulkGenerateDc}
+                              onClick={openDcDialogForBulk}
                               disabled={isBulkProcessing}
                               title="Gera um PDF de Declaração de Conteúdo (não fiscal) por pedido selecionado"
                             >
@@ -1446,7 +1446,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onDelete={() => handleDeleteDraft(invoice)}
                               onEmitirDevolucao={() => handleEmitirDevolucao(invoice)}
                               onResendEmail={() => handleResendEmail(invoice)}
-                              onGenerateDC={mode === 'orders' ? () => handleGenerateDC(invoice) : undefined}
+                              onGenerateDC={mode === 'orders' ? () => openDcDialogForInvoice(invoice) : undefined}
                               isGeneratingDC={generatingDcInvoiceId === invoice.id}
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
