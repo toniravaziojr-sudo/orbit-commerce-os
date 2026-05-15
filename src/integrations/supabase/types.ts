@@ -24173,6 +24173,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cron_call_edge_if_active: {
+        Args: {
+          p_body?: Json
+          p_function_name: string
+          p_job_name: string
+          p_module_keys: string[]
+        }
+        Returns: number
+      }
       enqueue_ai_regeneration: {
         Args: {
           p_debounce_seconds?: number
@@ -24593,6 +24602,10 @@ export type Database = {
         Returns: undefined
       }
       is_module_active: { Args: { p_module_key: string }; Returns: boolean }
+      is_module_active_any: {
+        Args: { p_module_keys: string[] }
+        Returns: boolean
+      }
       is_owner_of_member_tenant: {
         Args: { p_member_id: string; p_owner_id: string }
         Returns: boolean
