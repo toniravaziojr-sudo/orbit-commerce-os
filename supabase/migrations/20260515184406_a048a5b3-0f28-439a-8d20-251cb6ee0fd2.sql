@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.cron_call_edge_if_active(text[], text, text, jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.is_module_active_any(text[]) FROM PUBLIC, anon;
