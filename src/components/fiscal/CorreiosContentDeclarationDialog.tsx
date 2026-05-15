@@ -1,6 +1,6 @@
 // =============================================
 // CORREIOS CONTENT DECLARATION DIALOG
-// Modal obrigatório de responsabilidade antes de emitir Declaração de Conteúdo dos Correios.
+// Modal obrigatório de responsabilidade antes de gerar Declaração de Conteúdo dos Correios.
 // NÃO é documento fiscal. Não substitui NF-e.
 // No fluxo de múltiplos pedidos, o motivo selecionado se aplica a TODOS os pedidos selecionados.
 // =============================================
@@ -89,12 +89,12 @@ export function CorreiosContentDeclarationDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-600" />
-            Emitir Declaração de Conteúdo dos Correios
+            Gerar Declaração de Conteúdo dos Correios
           </DialogTitle>
           <DialogDescription>
             {isBulk
               ? `Você está prestes a emitir ${count} Declarações de Conteúdo. O motivo selecionado será aplicado a todos os pedidos.`
-              : "Você está prestes a emitir uma Declaração de Conteúdo."}
+              : "Você está prestes a gerar uma Declaração de Conteúdo."}
           </DialogDescription>
         </DialogHeader>
 
@@ -164,7 +164,7 @@ export function CorreiosContentDeclarationDialog({
             Cancelar
           </Button>
           <Button onClick={handleConfirm} disabled={!canConfirm}>
-            {loading ? "Emitindo..." : isBulk ? `Emitir ${count} Declarações` : "Emitir Declaração"}
+            {loading ? "Gerando..." : isBulk ? `Gerar ${count} Declarações` : "Gerar Declaração"}
           </Button>
         </DialogFooter>
       </DialogContent>
