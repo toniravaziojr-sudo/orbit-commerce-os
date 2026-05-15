@@ -17,6 +17,7 @@ interface IssueInput {
   reason: string;
   responsibility_acknowledged: boolean;
   volumes_count?: number;
+  total_weight_grams?: number; // override obrigatório quando o pedido não tiver peso
   emission_city?: string | null;
 }
 
