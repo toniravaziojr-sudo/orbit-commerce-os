@@ -2,6 +2,7 @@
 // CORREIOS CONTENT DECLARATION DIALOG
 // Modal obrigatório de responsabilidade antes de emitir Declaração de Conteúdo dos Correios.
 // NÃO é documento fiscal. Não substitui NF-e.
+// No fluxo de múltiplos pedidos, o motivo selecionado se aplica a TODOS os pedidos selecionados.
 // =============================================
 import { useState } from "react";
 import {
@@ -16,6 +17,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AlertTriangle } from "lucide-react";
 
 interface Props {
@@ -26,6 +34,18 @@ interface Props {
   onConfirm: (payload: { reason: string; responsibility_acknowledged: true }) => void | Promise<void>;
 }
 
+const REASON_OPTIONS = [
+  "Venda/remessa sem emissão de NF-e por decisão do remetente",
+  "Devolução de consumidor final",
+  "Troca",
+  "Amostra sem valor comercial",
+  "Brinde",
+  "Bem pessoal",
+  "Outro",
+] as const;
+
+type ReasonOption = (typeof REASON_OPTIONS)[number];
+
 export function CorreiosContentDeclarationDialog({
   open,
   onOpenChange,
@@ -33,24 +53,35 @@ export function CorreiosContentDeclarationDialog({
   loading = false,
   onConfirm,
 }: Props) {
-  const [reason, setReason] = useState("");
+  const [reasonOption, setReasonOption] = useState<ReasonOption | "">("");
+  const [otherDetail, setOtherDetail] = useState("");
   const [ack, setAck] = useState(false);
 
-  const reasonValid = reason.trim().length >= 3;
+  const isOther = reasonOption === "Outro";
+  const otherValid = !isOther || otherDetail.trim().length >= 3;
+  const reasonValid = reasonOption !== "" && otherValid;
   const canConfirm = reasonValid && ack && !loading;
+
+  const buildReason = (): string => {
+    if (isOther) return `Outro: ${otherDetail.trim()}`;
+    return reasonOption;
+  };
 
   const handleConfirm = async () => {
     if (!canConfirm) return;
-    await onConfirm({ reason: reason.trim(), responsibility_acknowledged: true });
+    await onConfirm({ reason: buildReason(), responsibility_acknowledged: true });
   };
 
   const handleOpenChange = (v: boolean) => {
     if (!v) {
-      setReason("");
+      setReasonOption("");
+      setOtherDetail("");
       setAck(false);
     }
     onOpenChange(v);
   };
+
+  const isBulk = count > 1;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -61,8 +92,8 @@ export function CorreiosContentDeclarationDialog({
             Emitir Declaração de Conteúdo dos Correios
           </DialogTitle>
           <DialogDescription>
-            {count > 1
-              ? `Você está prestes a emitir ${count} Declarações de Conteúdo.`
+            {isBulk
+              ? `Você está prestes a emitir ${count} Declarações de Conteúdo. O motivo selecionado será aplicado a todos os pedidos.`
               : "Você está prestes a emitir uma Declaração de Conteúdo."}
           </DialogDescription>
         </DialogHeader>
@@ -87,15 +118,30 @@ export function CorreiosContentDeclarationDialog({
             <Label htmlFor="dc-reason">
               Motivo da emissão <span className="text-destructive">*</span>
             </Label>
-            <Textarea
-              id="dc-reason"
-              placeholder="Ex.: envio de amostra grátis, devolução de consumidor, brinde institucional sem valor comercial..."
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-            />
+            <Select value={reasonOption} onValueChange={(v) => setReasonOption(v as ReasonOption)}>
+              <SelectTrigger id="dc-reason">
+                <SelectValue placeholder="Selecione o motivo" />
+              </SelectTrigger>
+              <SelectContent>
+                {REASON_OPTIONS.map((opt) => (
+                  <SelectItem key={opt} value={opt}>
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isOther && (
+              <Textarea
+                placeholder="Descreva o motivo..."
+                value={otherDetail}
+                onChange={(e) => setOtherDetail(e.target.value)}
+                rows={3}
+              />
+            )}
             <p className="text-xs text-muted-foreground">
-              Esse motivo fica registrado no histórico da Declaração de Conteúdo emitida.
+              {isBulk
+                ? "Este motivo será registrado e impresso no PDF de todas as Declarações emitidas."
+                : "Esse motivo fica registrado no histórico e impresso no PDF da Declaração de Conteúdo."}
             </p>
           </div>
 
@@ -118,7 +164,7 @@ export function CorreiosContentDeclarationDialog({
             Cancelar
           </Button>
           <Button onClick={handleConfirm} disabled={!canConfirm}>
-            {loading ? "Emitindo..." : count > 1 ? `Emitir ${count} Declarações` : "Emitir Declaração"}
+            {loading ? "Emitindo..." : isBulk ? `Emitir ${count} Declarações` : "Emitir Declaração"}
           </Button>
         </DialogFooter>
       </DialogContent>

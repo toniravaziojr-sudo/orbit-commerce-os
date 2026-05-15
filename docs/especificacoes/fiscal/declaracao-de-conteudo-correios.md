@@ -21,8 +21,16 @@ Todos os caminhos chamam a mesma estrutura. **Proibido** criar caminho paralelo,
 ## Regras de produto
 1. A Declaração de Conteúdo é **alternativa**, não padrão. O sistema **não bloqueia** o uso por tipo de tenant (PF, MEI, ME, EPP, LTDA, marketplace ou loja própria).
 2. Antes de qualquer emissão, o usuário **deve**:
-   - Informar **motivo** (campo obrigatório, mínimo 3 caracteres).
+   - Selecionar o **motivo da emissão** em lista pronta (campo obrigatório):
+     - Venda/remessa sem emissão de NF-e por decisão do remetente
+     - Devolução de consumidor final
+     - Troca
+     - Amostra sem valor comercial
+     - Brinde
+     - Bem pessoal
+     - Outro (exibe campo de texto obrigatório com mínimo 3 caracteres; gravado como `Outro: <detalhe>`)
    - Marcar checkbox de **responsabilidade**, ciente de que a DC não substitui NF-e quando a emissão for obrigatória.
+   - **Em massa (múltiplos pedidos):** o motivo selecionado e o aceite de responsabilidade valem para **todos** os pedidos selecionados na mesma operação.
 3. O PDF inclui:
    - Cabeçalho com nº interno e data de emissão (BRT).
    - Remetente completo (Razão Social, CNPJ/CPF, endereço, CEP, telefone).
