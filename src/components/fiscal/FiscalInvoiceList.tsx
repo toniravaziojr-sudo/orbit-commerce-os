@@ -34,7 +34,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { showErrorToast } from '@/lib/error-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { generateDeclaracaoConteudoPdf } from '@/lib/declaracaoConteudo';
+import { issueAndDownloadCorreiosContentDeclaration } from '@/lib/declaracaoConteudo';
+import { CorreiosContentDeclarationDialog } from '@/components/fiscal/CorreiosContentDeclarationDialog';
 
 import { formatDateTimeBR } from "@/lib/date-format";
 
@@ -944,20 +945,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       && inv.resolved_shipping_provider_kind === 'gateway'
   ).length;
 
-  // Declaração de Conteúdo (NÃO fiscal) — individual a partir de um Pedido de Venda.
-  const handleGenerateDC = async (invoice: any) => {
-    const t = toast.loading('Gerando Declaração de Conteúdo...');
-    const res = await generateDeclaracaoConteudoPdf(invoice.tenant_id, invoice.id);
-    toast.dismiss(t);
-    if (res.ok) {
-      toast.success(`Declaração de Conteúdo gerada (${res.dcNumber}).`);
-    } else {
-      toast.error(res.error || 'Falha ao gerar Declaração de Conteúdo.');
-    }
+  // Declaração de Conteúdo dos Correios — modal de responsabilidade obrigatório.
+  // Não é documento fiscal. Não chama Focus/Sefaz. Não altera fiscal_stage.
+  const [dcDialogOpen, setDcDialogOpen] = useState(false);
+  const [dcDialogTargets, setDcDialogTargets] = useState<any[]>([]);
+  const [dcDialogLoading, setDcDialogLoading] = useState(false);
+
+  const openDcDialogForInvoice = (invoice: any) => {
+    setDcDialogTargets([invoice]);
+    setDcDialogOpen(true);
   };
 
-  // Declaração de Conteúdo em massa — gera um PDF por pedido selecionado.
-  const handleBulkGenerateDc = async () => {
+  const openDcDialogForBulk = () => {
     const selected = (filteredInvoices || []).filter(
       inv => selectedInvoices.has(inv.id) && inv.fiscal_stage === 'pedido_venda'
     );
@@ -965,16 +964,45 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       toast.error('Selecione ao menos um Pedido de Venda.');
       return;
     }
-    const t = toast.loading(`Gerando ${selected.length} Declaração(ões) de Conteúdo...`);
-    let ok = 0; let fail = 0;
-    for (const inv of selected) {
-      const res = await generateDeclaracaoConteudoPdf(inv.tenant_id, inv.id);
-      if (res.ok) ok++; else fail++;
+    setDcDialogTargets(selected);
+    setDcDialogOpen(true);
+  };
+
+  const handleDcDialogConfirm = async (payload: { reason: string; responsibility_acknowledged: true }) => {
+    setDcDialogLoading(true);
+    const targets = dcDialogTargets;
+    const t = toast.loading(
+      targets.length === 1
+        ? 'Emitindo Declaração de Conteúdo...'
+        : `Emitindo ${targets.length} Declarações de Conteúdo...`,
+    );
+    let ok = 0; let fail = 0; let lastNumber: string | undefined;
+    for (const inv of targets) {
+      const res = await issueAndDownloadCorreiosContentDeclaration({
+        tenantId: inv.tenant_id,
+        fiscalInvoiceId: inv.id,
+        orderId: inv.order_id ?? null,
+        source: 'manual',
+        reason: payload.reason,
+        responsibilityAcknowledged: true,
+      });
+      if (res.ok) { ok++; lastNumber = res.dcNumber; } else { fail++; }
     }
     toast.dismiss(t);
-    if (fail === 0) toast.success(`${ok} Declaração(ões) de Conteúdo gerada(s).`);
-    else toast.error(`${ok} gerada(s), ${fail} com falha.`);
+    setDcDialogLoading(false);
+    setDcDialogOpen(false);
+    setDcDialogTargets([]);
+    if (fail === 0) {
+      toast.success(
+        targets.length === 1
+          ? `Declaração de Conteúdo emitida (${lastNumber}).`
+          : `${ok} Declaração(ões) de Conteúdo emitidas.`,
+      );
+    } else {
+      toast.error(`${ok} emitida(s), ${fail} com falha.`);
+    }
   };
+
 
   // Bulk: Emitir DC-e (Declaração de Conteúdo) — temporariamente indisponível.
   // A integração com o backend de DC-e ainda não foi finalizada para emissão real.
@@ -1240,7 +1268,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={handleBulkGenerateDc}
+                              onClick={openDcDialogForBulk}
                               disabled={isBulkProcessing}
                               title="Gera um PDF de Declaração de Conteúdo (não fiscal) por pedido selecionado"
                             >
@@ -1418,7 +1446,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onDelete={() => handleDeleteDraft(invoice)}
                               onEmitirDevolucao={() => handleEmitirDevolucao(invoice)}
                               onResendEmail={() => handleResendEmail(invoice)}
-                              onGenerateDC={mode === 'orders' ? () => handleGenerateDC(invoice) : undefined}
+                              onGenerateDC={mode === 'orders' ? () => openDcDialogForInvoice(invoice) : undefined}
                               isGeneratingDC={generatingDcInvoiceId === invoice.id}
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
@@ -1629,6 +1657,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CorreiosContentDeclarationDialog
+        open={dcDialogOpen}
+        onOpenChange={(v) => { setDcDialogOpen(v); if (!v) { setDcDialogTargets([]); } }}
+        count={dcDialogTargets.length || 1}
+        loading={dcDialogLoading}
+        onConfirm={handleDcDialogConfirm}
+      />
     </div>
   );
 }

@@ -8204,75 +8204,6 @@ export type Database = {
           },
         ]
       }
-      fiscal_dce: {
-        Row: {
-          authorized_at: string | null
-          cancelled_at: string | null
-          chave: string | null
-          created_at: string
-          id: string
-          numero: string | null
-          order_id: string | null
-          payload: Json
-          pdf_url: string | null
-          rejection_reason: string | null
-          serie: string | null
-          status: string
-          tenant_id: string
-          updated_at: string
-          xml_url: string | null
-        }
-        Insert: {
-          authorized_at?: string | null
-          cancelled_at?: string | null
-          chave?: string | null
-          created_at?: string
-          id?: string
-          numero?: string | null
-          order_id?: string | null
-          payload?: Json
-          pdf_url?: string | null
-          rejection_reason?: string | null
-          serie?: string | null
-          status?: string
-          tenant_id: string
-          updated_at?: string
-          xml_url?: string | null
-        }
-        Update: {
-          authorized_at?: string | null
-          cancelled_at?: string | null
-          chave?: string | null
-          created_at?: string
-          id?: string
-          numero?: string | null
-          order_id?: string | null
-          payload?: Json
-          pdf_url?: string | null
-          rejection_reason?: string | null
-          serie?: string | null
-          status?: string
-          tenant_id?: string
-          updated_at?: string
-          xml_url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fiscal_dce_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fiscal_dce_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       fiscal_draft_queue: {
         Row: {
           attempts: number
@@ -17586,6 +17517,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shipping_content_declarations: {
+        Row: {
+          acknowledged_by_user_id: string | null
+          created_at: string
+          dc_number: string
+          emission_city: string | null
+          fiscal_invoice_id: string | null
+          id: string
+          issued_at: string
+          items_snapshot: Json
+          order_id: string | null
+          pdf_url: string | null
+          reason: string | null
+          recipient_snapshot: Json
+          responsibility_acknowledged: boolean
+          sender_snapshot: Json
+          source: string
+          status: string
+          tenant_id: string
+          total_value_cents: number
+          total_weight_grams: number | null
+          updated_at: string
+          volumes_count: number
+        }
+        Insert: {
+          acknowledged_by_user_id?: string | null
+          created_at?: string
+          dc_number: string
+          emission_city?: string | null
+          fiscal_invoice_id?: string | null
+          id?: string
+          issued_at?: string
+          items_snapshot?: Json
+          order_id?: string | null
+          pdf_url?: string | null
+          reason?: string | null
+          recipient_snapshot?: Json
+          responsibility_acknowledged?: boolean
+          sender_snapshot?: Json
+          source?: string
+          status?: string
+          tenant_id: string
+          total_value_cents?: number
+          total_weight_grams?: number | null
+          updated_at?: string
+          volumes_count?: number
+        }
+        Update: {
+          acknowledged_by_user_id?: string | null
+          created_at?: string
+          dc_number?: string
+          emission_city?: string | null
+          fiscal_invoice_id?: string | null
+          id?: string
+          issued_at?: string
+          items_snapshot?: Json
+          order_id?: string | null
+          pdf_url?: string | null
+          reason?: string | null
+          recipient_snapshot?: Json
+          responsibility_acknowledged?: boolean
+          sender_snapshot?: Json
+          source?: string
+          status?: string
+          tenant_id?: string
+          total_value_cents?: number
+          total_weight_grams?: number | null
+          updated_at?: string
+          volumes_count?: number
+        }
+        Relationships: []
       }
       shipping_custom_rules: {
         Row: {

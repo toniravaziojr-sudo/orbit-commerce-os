@@ -111,20 +111,58 @@ Deno.serve(async (req) => {
           xml_url: nfe.xml_url,
         };
       } else {
-        const { data: dce } = await sb
-          .from("fiscal_dce")
-          .select("numero, serie, chave, authorized_at, xml_url")
+        // Fallback: Declaração de Conteúdo dos Correios (NÃO fiscal).
+        // Motor único `shipping_content_declarations`. Se nenhuma DC existir, emite uma
+        // automaticamente com source='gateway' e motivo padrão de despacho gateway.
+        let { data: dc } = await sb
+          .from("shipping_content_declarations")
+          .select("id, dc_number, total_value_cents, issued_at, pdf_url")
           .eq("order_id", orderId)
-          .eq("status", "authorized")
+          .eq("status", "issued")
+          .order("issued_at", { ascending: false })
+          .limit(1)
           .maybeSingle();
-        if (dce?.chave) {
+
+        if (!dc) {
+          const issueRes = await fetch(
+            `${SUPABASE_URL}/functions/v1/correios-content-declaration-issue`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SERVICE_ROLE}`,
+              },
+              body: JSON.stringify({
+                tenant_id: order.tenant_id,
+                order_id: order.id,
+                source: "gateway",
+                reason: "Emissão automática para despacho via gateway logístico (sem NF-e).",
+                responsibility_acknowledged: true,
+              }),
+            },
+          );
+          const issueJson = await issueRes.json().catch(() => ({}));
+          if (issueJson?.success && issueJson?.declaration) {
+            const d = issueJson.declaration;
+            dc = {
+              id: d.id,
+              dc_number: d.dc_number,
+              total_value_cents: d.total_value_cents,
+              issued_at: d.issued_at,
+              pdf_url: d.pdf_url,
+            } as any;
+          }
+        }
+
+        if (dc) {
           invoice = {
-            chave: dce.chave,
-            numero: dce.numero,
-            serie: dce.serie,
-            data_emissao: dce.authorized_at,
-            valor: order.total,
-            xml_url: dce.xml_url,
+            chave: null,
+            numero: dc.dc_number,
+            serie: null,
+            data_emissao: dc.issued_at,
+            valor: (dc.total_value_cents || 0) / 100,
+            xml_url: dc.pdf_url,
+            tipo: "DC_CORREIOS",
           };
         }
       }
