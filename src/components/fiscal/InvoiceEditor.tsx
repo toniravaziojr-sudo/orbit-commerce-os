@@ -430,7 +430,11 @@ export function InvoiceEditor({
   const recalculateTotals = (items: InvoiceItemData[]) => {
     if (!data) return;
     const valor_produtos = items.reduce((sum, item) => sum + item.valor_total, 0);
-    const valor_total = valor_produtos + (data.valor_frete || 0) + (data.valor_seguro || 0) + (data.valor_outras_despesas || 0) - (data.valor_desconto || 0);
+    const descontoItens = items.reduce((sum, item) => sum + (Number(item.valor_desconto) || 0), 0);
+    // Regra: usa o maior entre desconto do cabeçalho e soma dos descontos por item,
+    // evitando contar desconto em dobro quando o usuário preenche os dois lados.
+    const descontoEfetivo = Math.max(Number(data.valor_desconto) || 0, descontoItens);
+    const valor_total = Math.max(0, valor_produtos + (data.valor_frete || 0) + (data.valor_seguro || 0) + (data.valor_outras_despesas || 0) - descontoEfetivo);
     setData(prev => prev ? { ...prev, valor_produtos, valor_total } : null);
   };
 
