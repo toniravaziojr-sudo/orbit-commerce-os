@@ -57,6 +57,13 @@ function formatCep(cep?: string | null): string {
   if (d.length === 8) return d.replace(/(\d{5})(\d{3})/, '$1-$2');
   return cep || '-';
 }
+function formatPhone(phone?: string | null): string {
+  if (!phone) return '-';
+  const d = phone.replace(/\D/g, '');
+  if (d.length === 11) return d.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  if (d.length === 10) return d.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+  return phone;
+}
 function formatCurrency(v: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 }
@@ -141,7 +148,7 @@ function renderOneDeclaration(doc: jsPDF, rec: DeclarationRecord, isFirstPage: b
   doc.text(`CEP: ${formatCep(s.cep)}`, pageW - margin, y, { align: 'right' });
   y += 4;
   if (s.telefone || s.email) {
-    doc.text(`Telefone: ${s.telefone || '-'}`, margin, y);
+    doc.text(`Telefone: ${formatPhone(s.telefone)}`, margin, y);
     if (s.email) doc.text(`E-mail: ${s.email}`, pageW - margin, y, { align: 'right' });
     y += 4;
   }
@@ -165,7 +172,7 @@ function renderOneDeclaration(doc: jsPDF, rec: DeclarationRecord, isFirstPage: b
   doc.text(`CEP: ${formatCep(dCep)}`, pageW - margin, y, { align: 'right' });
   y += 4;
   if (r.telefone || r.email) {
-    doc.text(`Telefone: ${r.telefone || '-'}`, margin, y);
+    doc.text(`Telefone: ${formatPhone(r.telefone)}`, margin, y);
     if (r.email) doc.text(`E-mail: ${r.email}`, pageW - margin, y, { align: 'right' });
     y += 4;
   }
