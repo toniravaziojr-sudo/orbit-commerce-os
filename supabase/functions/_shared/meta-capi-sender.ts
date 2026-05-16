@@ -238,6 +238,8 @@ export async function sendMetaCapiEvents(
     /** Supabase client for logging (optional) */
     supabase?: any;
     tenant_id?: string;
+    /** v8.34.0: order UUID for reconciliation in marketing_events_log */
+    order_id?: string;
   }
 ): Promise<{ success: boolean; events_received?: number; error?: string; fbtrace_id?: string }> {
   // Guard checks
@@ -308,6 +310,7 @@ export async function sendMetaCapiEvents(
             event_name: event.event_name,
             event_id: event.event_id || 'unknown',
             event_source: 'server',
+            order_id: options.order_id || null, // v8.34.0: reconciliação por pedido
             event_data: {
               custom_data: event.custom_data || null,
               action_source: event.action_source || 'website',
