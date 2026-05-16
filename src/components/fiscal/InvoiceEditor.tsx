@@ -1198,18 +1198,33 @@ export function InvoiceEditor({
                       const hasNcmError = !ncm || ncm.length !== 8;
                       const cfop = item.cfop?.replace(/\D/g, '') || '';
                       const hasCfopError = !cfop || cfop.length !== 4;
+                      const itemIssues = getItemIssues(item);
+                      const locked = itemLockedFromRegistry(item);
                       
                       return (
                         <Card key={item.id || index} className={`${hasNcmError ? 'border-amber-400' : ''}`}>
                           <CardHeader className="py-3 px-4">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
                               <div className="flex items-center gap-2">
                                 <Badge variant="outline" className="font-mono">#{item.numero_item}</Badge>
                                 <span className="font-medium text-sm truncate max-w-[300px]">
                                   {item.descricao || 'Sem descrição'}
                                 </span>
+                                {locked && (
+                                  <Badge variant="secondary" className="gap-1 text-[10px]">
+                                    <Lock className="h-3 w-3" /> do cadastro
+                                  </Badge>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
+                                {item.product_id && (
+                                  <Link
+                                    to="/products"
+                                    className="inline-flex items-center gap-1 text-xs text-primary underline"
+                                  >
+                                    Abrir cadastro <ExternalLink className="h-3 w-3" />
+                                  </Link>
+                                )}
                                 <span className="font-bold text-primary">{formatCurrency(item.valor_total)}</span>
                                 <Button
                                   variant="ghost"
@@ -1221,6 +1236,12 @@ export function InvoiceEditor({
                                 </Button>
                               </div>
                             </div>
+                            {itemIssues.length > 0 && (
+                              <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                <strong>Pendência fiscal:</strong> {itemIssues.join(' · ')}
+                                {locked && ' — corrija no cadastro do produto.'}
+                              </div>
+                            )}
                           </CardHeader>
                           <CardContent className="py-3 px-4 pt-0">
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1229,6 +1250,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">Descrição <span className="text-destructive">*</span></Label>
                                 <Input
                                   value={item.descricao}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'descricao', e.target.value)}
                                   className="h-8 text-sm"
                                   placeholder="Descrição do produto"
@@ -1243,6 +1265,7 @@ export function InvoiceEditor({
                                 </Label>
                                 <Input
                                   value={item.ncm}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'ncm', e.target.value.replace(/\D/g, ''))}
                                   className={`h-8 text-sm font-mono ${hasNcmError ? 'border-amber-500 bg-amber-50' : ''}`}
                                   maxLength={8}
@@ -1258,6 +1281,7 @@ export function InvoiceEditor({
                                 </Label>
                                 <Input
                                   value={item.cfop}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'cfop', e.target.value.replace(/\D/g, ''))}
                                   className={`h-8 text-sm font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : ''}`}
                                   maxLength={4}
@@ -1270,6 +1294,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">Origem</Label>
                                 <Select
                                   value={item.origem || '0'}
+                                  disabled={locked}
                                   onValueChange={(value) => updateItem(index, 'origem', value)}
                                 >
                                   <SelectTrigger className="h-8 text-xs">
@@ -1310,6 +1335,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">Unidade</Label>
                                 <Input
                                   value={item.unidade}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'unidade', e.target.value.toUpperCase())}
                                   className="h-8 text-sm"
                                   maxLength={6}
@@ -1363,21 +1389,24 @@ export function InvoiceEditor({
                                   <Label className="text-xs">
                                     GTIN / Código de barras
                                   </Label>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 text-[10px] px-2"
-                                    onClick={() => {
-                                      updateItem(index, 'gtin', 'SEM GTIN');
-                                      updateItem(index, 'gtin_tributavel', 'SEM GTIN');
-                                    }}
-                                  >
-                                    Sem GTIN
-                                  </Button>
+                                  {!locked && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 text-[10px] px-2"
+                                      onClick={() => {
+                                        updateItem(index, 'gtin', 'SEM GTIN');
+                                        updateItem(index, 'gtin_tributavel', 'SEM GTIN');
+                                      }}
+                                    >
+                                      Sem GTIN
+                                    </Button>
+                                  )}
                                 </div>
                                 <Input
                                   value={item.gtin || ''}
+                                  readOnly={locked}
                                   onChange={(e) => {
                                     const v = e.target.value.toUpperCase();
                                     updateItem(index, 'gtin', v);
@@ -1400,6 +1429,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">GTIN tributável</Label>
                                 <Input
                                   value={item.gtin_tributavel || ''}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'gtin_tributavel', e.target.value.toUpperCase())}
                                   className="h-8 text-sm font-mono"
                                   placeholder="Igual ao GTIN ou SEM GTIN"
@@ -1412,6 +1442,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">CEST</Label>
                                 <Input
                                   value={item.cest || ''}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'cest', e.target.value.replace(/\D/g, ''))}
                                   className="h-8 text-sm font-mono"
                                   placeholder="0000000"
