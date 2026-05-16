@@ -406,6 +406,19 @@ export function ManualInvoiceDialog({
         body: {
           natureza_operacao: naturezaOperacao || 'VENDA DE MERCADORIA',
           observacoes,
+          // Totais e ajustes (regra oficial aplicada no backend também)
+          valor_desconto: effectiveDiscount(),
+          valor_frete: Number(valorFrete) || 0,
+          valor_seguro: Number(valorSeguro) || 0,
+          valor_outras_despesas: Number(valorOutras) || 0,
+          modalidade_frete: modalidadeFrete || '9',
+          transportadora_nome: transportadoraNome || null,
+          transportadora_cnpj: transportadoraCnpj || null,
+          peso_bruto: pesoBruto,
+          peso_liquido: pesoLiquido,
+          quantidade_volumes: quantidadeVolumes,
+          informacoes_fisco: informacoesFisco || null,
+          pagamento_meio: pagamentoMeio || '99',
           destinatario: {
             nome: destNome,
             cpf_cnpj: destCpfCnpj.replace(/\D/g, ''),
@@ -430,6 +443,8 @@ export function ManualInvoiceDialog({
             unidade: item.unidade,
             quantidade: item.quantidade,
             valor_unitario: item.valor_unitario,
+            valor_desconto: Number(item.valor_desconto) || 0,
+            valor_frete: Number(item.valor_frete) || 0,
             origem: item.origem || '0',
             csosn: item.csosn || '102',
           })),
