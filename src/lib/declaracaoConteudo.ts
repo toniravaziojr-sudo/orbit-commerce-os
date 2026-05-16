@@ -78,6 +78,7 @@ const ADDITIONAL_NOTICES = [
   'O remetente é integralmente responsável pelas informações declaradas.',
   'É proibido o envio de objetos restritos ou proibidos pela legislação postal e aduaneira.',
   'O uso indevido desta declaração pode gerar responsabilidade legal do remetente.',
+  'O uso desta declaração para omitir documento fiscal obrigatório ou informação tributária pode gerar responsabilidade legal do remetente.',
 ];
 
 // ----------------- Render de uma declaração no jsPDF (mesmo doc) -----------------
