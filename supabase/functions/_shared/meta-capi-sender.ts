@@ -523,7 +523,7 @@ export async function sendCapiPurchase(
       fbc: params.fbc,
     },
     custom_data: (() => {
-      // v8.32.0: full parity with browser tracker
+      // v8.34.0: removed order_status (não é parâmetro oficial Meta para Purchase)
       const cd: Record<string, unknown> = {
         value: params.value,
         currency,
@@ -533,7 +533,6 @@ export async function sendCapiPurchase(
         num_items: numItems,
         order_id: params.order_number || params.order_id,
         delivery_category: 'home_delivery',
-        order_status: 'completed',
       };
       // predicted_ltv only when value is a valid positive number
       const v = params.value;
@@ -547,6 +546,7 @@ export async function sendCapiPurchase(
   return sendMetaCapiEvents(config, [event], {
     supabase,
     tenant_id: tenantId,
+    order_id: params.order_id, // v8.34.0: preencher coluna de reconciliação
   });
 }
 
