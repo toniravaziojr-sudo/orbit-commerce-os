@@ -85,6 +85,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
             origem: fiscal?.origem ?? 0,
             gtin: p.gtin || p.barcode || null,
             cest: fiscal?.cest || null,
+            weight: typeof p.weight === 'number' ? p.weight : (p.weight ? Number(p.weight) : null),
           };
         });
 
