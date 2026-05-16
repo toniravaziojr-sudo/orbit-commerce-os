@@ -100,7 +100,28 @@ Deno.serve(async (req) => {
       indicador_ie_dest,
       pagamento_indicador,
       pagamento_meio,
+      // Totais e ajustes financeiros (opcionais; default 0 / preservar contrato)
+      valor_desconto: bodyValorDesconto,
+      valor_frete: bodyValorFrete,
+      valor_seguro: bodyValorSeguro,
+      valor_outras_despesas: bodyValorOutras,
+      modalidade_frete: bodyModalidadeFrete,
+      transportadora_nome: bodyTranspNome,
+      transportadora_cnpj: bodyTranspCnpj,
+      peso_bruto: bodyPesoBruto,
+      peso_liquido: bodyPesoLiquido,
+      quantidade_volumes: bodyQtdVolumes,
+      informacoes_fisco: bodyInfoFisco,
     } = body;
+
+    const toNum = (v: any) => {
+      const n = typeof v === 'number' ? v : parseFloat(String(v ?? '0').replace(',', '.'));
+      return Number.isFinite(n) ? n : 0;
+    };
+    const valorDesconto = Math.max(0, toNum(bodyValorDesconto));
+    const valorFrete = Math.max(0, toNum(bodyValorFrete));
+    const valorSeguro = Math.max(0, toNum(bodyValorSeguro));
+    const valorOutras = Math.max(0, toNum(bodyValorOutras));
 
     console.log(`[fiscal-create-manual][${VERSION}] Creating manual invoice for tenant:`, tenantId);
 
