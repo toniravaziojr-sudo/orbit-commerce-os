@@ -945,7 +945,23 @@ export function InvoiceEditor({
           <TabsContent value="destinatario" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Dados do Destinatário</CardTitle>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <CardTitle className="text-base">Dados do Destinatário</CardTitle>
+                  {lockClientFields && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Lock className="h-3 w-3" />
+                      <span>Dados vindos do cadastro do cliente</span>
+                      {customerId && (
+                        <Link
+                          to={`/customers/${customerId}`}
+                          className="inline-flex items-center gap-1 text-primary underline"
+                        >
+                          Abrir cadastro <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2 sm:col-span-2">
