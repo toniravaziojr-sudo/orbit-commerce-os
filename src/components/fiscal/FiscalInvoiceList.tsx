@@ -1058,9 +1058,17 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           : `${result.ok} declarações de conteúdo geradas em um único PDF.`,
       );
     } else if (result.ok > 0 && result.fail > 0) {
-      toast.warning(`${result.ok} gerada(s), ${result.fail} com falha.`);
+      const raw = result.failures[0]?.error || '';
+      const msg = raw === 'weight_required'
+        ? 'Falta cadastrar o peso de um ou mais produtos. Cadastre o peso na ficha do produto e tente novamente.'
+        : raw;
+      toast.warning(`${result.ok} gerada(s), ${result.fail} com falha.`, { description: msg || undefined });
     } else {
-      toast.error(`Falha ao gerar Declaração de Conteúdo: ${result.failures[0]?.error || 'erro desconhecido'}`);
+      const raw = result.failures[0]?.error || 'erro desconhecido';
+      const msg = raw === 'weight_required'
+        ? 'Falta cadastrar o peso de um ou mais produtos. Cadastre o peso na ficha do produto e tente novamente.'
+        : raw;
+      toast.error('Não foi possível gerar a Declaração de Conteúdo.', { description: msg });
     }
   };
 
