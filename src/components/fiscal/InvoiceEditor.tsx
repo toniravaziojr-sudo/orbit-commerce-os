@@ -713,8 +713,26 @@ export function InvoiceEditor({
           </div>
         </DialogHeader>
 
+        {/* Pendências do Pedido de Venda (peso, NCM, CPF, endereço, etc.) */}
+        {isPedidoVenda && pendenciaMotivos && pendenciaMotivos.length > 0 && (
+          <Alert className="mt-2 border-yellow-500/60 bg-yellow-500/10">
+            <AlertCircle className="h-4 w-4 text-yellow-700" />
+            <AlertDescription>
+              <strong className="block mb-1 text-yellow-800">
+                Pendências do Pedido de Venda — corrija para liberar a emissão:
+              </strong>
+              <ul className="list-disc ml-5 mt-1 text-sm text-yellow-900 space-y-0.5">
+                {pendenciaMotivos.map((m, i) => (<li key={i}>{m}</li>))}
+              </ul>
+              <p className="mt-2 text-xs text-yellow-800">
+                Enquanto houver pendências, não é possível criar a Nota Fiscal nem gerar a Declaração de Conteúdo.
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* SEFAZ Rejection Error Alert */}
-        {rejectionError && (
+        {rejectionError && !isPedidoVenda && (
           <Alert variant="destructive" className="mt-2 border-red-600/50 bg-red-500/10">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
