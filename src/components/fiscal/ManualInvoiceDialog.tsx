@@ -342,8 +342,26 @@ export function ManualInvoiceDialog({
     setItems(newItems);
   };
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return items.reduce((sum, item) => sum + (item.quantidade * item.valor_unitario), 0);
+  };
+
+  // Desconto efetivo: se modo "percent", converte sobre o subtotal; caso contrário usa valor digitado
+  const effectiveDiscount = () => {
+    const sub = calculateSubtotal();
+    if (discountMode === 'percent') {
+      const pct = Math.max(0, Math.min(100, Number(discountPercent) || 0));
+      return +(sub * pct / 100).toFixed(2);
+    }
+    return Math.max(0, Number(valorDesconto) || 0);
+  };
+
+  // Regra oficial: total = subtotal - desconto + frete + seguro + outras (nunca negativo)
+  const calculateTotal = () => {
+    const sub = calculateSubtotal();
+    const desc = effectiveDiscount();
+    const total = sub - desc + (Number(valorFrete) || 0) + (Number(valorSeguro) || 0) + (Number(valorOutras) || 0);
+    return Math.max(0, +total.toFixed(2));
   };
 
   const handleSubmit = async () => {
