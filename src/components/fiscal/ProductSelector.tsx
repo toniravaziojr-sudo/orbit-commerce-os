@@ -17,6 +17,8 @@ export interface ProductWithFiscal {
   cfop?: string | null;
   unidade?: string | null;
   origem?: number | null;
+  gtin?: string | null;
+  cest?: string | null;
 }
 
 interface ProductSelectorProps {
