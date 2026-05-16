@@ -19,6 +19,7 @@ export interface ProductWithFiscal {
   origem?: number | null;
   gtin?: string | null;
   cest?: string | null;
+  weight?: number | null; // gramas (cadastro do produto)
 }
 
 interface ProductSelectorProps {
