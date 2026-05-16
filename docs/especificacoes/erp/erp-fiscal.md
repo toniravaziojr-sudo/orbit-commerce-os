@@ -599,6 +599,13 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 - **Campos do formulário**: Cliente (busca ou manual) + Produtos (código, descrição, unidade, qtd, valor unitário) + Observações
 - **Sem campos fiscais** — NCM, CFOP, CSOSN, Origem, Natureza da Operação, Indicadores SEFAZ e Pagamento são gerenciados apenas no InvoiceEditor
 
+#### Regra obrigatória: Produto sempre vem completo do cadastro (v2026-05-16 — Onda 2 rev3)
+- **Itens só podem ser adicionados via busca no catálogo.** O botão de "adicionar item manualmente / em branco" foi removido tanto do `ManualInvoiceDialog` (Pedido de Venda) quanto do `InvoiceEditor` (NF). O usuário não preenche campos de produto à mão — ele seleciona um produto cadastrado e, se precisar, edita os campos editáveis depois.
+- Ao selecionar um produto pelo `ProductSelector`, o sistema puxa do cadastro: **peso (gramas)**, **NCM**, **CFOP**, **unidade**, **origem**, **GTIN**, **CEST** e **preço**. Esses valores entram automaticamente no item; campos fiscais terminais permanecem somente leitura quando o item está vinculado ao produto.
+- **Validação de bloqueio na UI:** se o produto selecionado estiver sem **peso** ou sem **NCM** cadastrado, o sistema **não adiciona** o item e exibe aviso em português claro orientando o usuário a completar a ficha do produto antes de tentar novamente. A mensagem identifica o produto pelo nome e indica o campo faltante. Vale para Pedido de Venda e NF.
+- **Motivo:** peso é obrigatório para Declaração de Conteúdo dos Correios e Remessas; NCM é obrigatório para emissão fiscal. Forçar o preenchimento na origem (cadastro do produto) elimina pedidos/NFs nascidos quebrados e a necessidade de re-trabalho na hora de emitir DC ou NF-e.
+- **Mensagens de erro pós-ação (ex.: gerar Declaração de Conteúdo):** o backend pode devolver `weight_required` quando algum item antigo do pedido foi gravado sem peso. A UI traduz para "Falta cadastrar o peso de um ou mais produtos. Cadastre o peso na ficha do produto e tente novamente." Nunca exibir o código técnico ao usuário.
+
 #### Busca de Cliente no ManualInvoiceDialog
 - Seletor com duas opções: **"Cliente existente"** e **"Preencher manualmente"**
 - **Cliente existente**: campo de busca com debounce (400ms) que consulta `customers` por `full_name` (ilike), `email` (ilike) e `cpf` (ilike nos dígitos). Inclui join com `customer_addresses` para endereço. Filtro `deleted_at IS NULL`. Limite de 10 resultados. Dropdown de resultados aparece imediatamente ao digitar. Ao selecionar, preenche automaticamente todos os campos do destinatário (nome, CPF/CNPJ, email, telefone, endereço padrão ou primeiro disponível).
