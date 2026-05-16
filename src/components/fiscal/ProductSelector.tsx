@@ -46,7 +46,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
         // Fetch products - cast to bypass deep type inference
         const { data: rawProducts, error: productsError } = await (supabase
           .from('products')
-          .select('id, name, sku, price, status') as any)
+          .select('id, name, sku, price, status, gtin, barcode') as any)
           .eq('tenant_id', tenantId)
           .eq('status', 'active')
           .order('name')
@@ -54,16 +54,16 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
 
         if (productsError) throw productsError;
         
-        const productsData = (rawProducts || []) as Array<{ id: string; name: string; sku: string | null; price: number }>;
+        const productsData = (rawProducts || []) as Array<{ id: string; name: string; sku: string | null; price: number; gtin: string | null; barcode: string | null }>;
         const productIds = productsData.map(p => p.id);
         
         // Fetch fiscal data
-        let fiscalMap: Record<string, { ncm: string | null; cfop_override: string | null; unidade_comercial: string | null; origem: number | null; gtin: string | null; cest: string | null }> = {};
+        let fiscalMap: Record<string, { ncm: string | null; cfop_override: string | null; unidade_comercial: string | null; origem: number | null; cest: string | null }> = {};
         
         if (productIds.length > 0) {
           const { data: fiscalData } = await (supabase
             .from('fiscal_products')
-            .select('product_id, ncm, cfop_override, unidade_comercial, origem, gtin, cest') as any)
+            .select('product_id, ncm, cfop_override, unidade_comercial, origem, cest') as any)
             .in('product_id', productIds);
           
           for (const fp of (fiscalData || [])) {
@@ -82,7 +82,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
             cfop: fiscal?.cfop_override || null,
             unidade: fiscal?.unidade_comercial || 'UN',
             origem: fiscal?.origem ?? 0,
-            gtin: fiscal?.gtin || null,
+            gtin: p.gtin || p.barcode || null,
             cest: fiscal?.cest || null,
           };
         });
