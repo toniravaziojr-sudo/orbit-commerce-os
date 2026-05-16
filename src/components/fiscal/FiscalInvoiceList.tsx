@@ -1632,6 +1632,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
             if (!open) {
               setEditingInvoice(null);
               setEditingInvoiceError(null);
+              setEditingInvoicePendencias([]);
               setEditingInvoiceStatus(null);
               setEditingInvoiceStage(null);
             }
@@ -1641,6 +1642,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           onSubmit={handleSubmitInvoice}
           onDelete={handleDeleteInvoice}
           rejectionError={editingInvoiceError || undefined}
+          pendenciaMotivos={editingInvoicePendencias}
           invoiceStatus={editingInvoiceStatus || undefined}
           invoiceStage={editingInvoiceStage}
           onPrepare={async (data) => {
