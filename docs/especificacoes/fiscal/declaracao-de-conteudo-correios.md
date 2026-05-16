@@ -29,11 +29,10 @@ Todos os caminhos chamam a mesma estrutura. **Proibido** criar caminho paralelo,
      - Brinde
      - Bem pessoal
      - Outro (campo de texto obrigatório com mínimo 3 caracteres; gravado como `Outro: <detalhe>`)
-   - Informar **Peso total (kg)** — obrigatório, **não pode ficar vazio**. Se houver peso registrado no pedido (peso bruto), vem pré-preenchido e é editável; se não houver, é digitado no modal.
-   - Informar **Quantidade de volumes** — padrão `1`, editável.
    - Marcar checkbox de **responsabilidade**.
-   - **Em massa (múltiplos pedidos):** o motivo selecionado e o aceite de responsabilidade valem para **todos** os pedidos selecionados; **peso e volumes são por pedido**, com pré-preenchimento individual quando disponível e ações rápidas para “aplicar a todos”.
-3. **PDF gerado** contém:
+   - **Em massa (múltiplos pedidos):** o motivo e o aceite valem para **todos** os pedidos selecionados.
+3. **Peso e volumes são calculados automaticamente** a partir dos dados do pedido (somatório de `weight_grams × quantidade` dos itens; volumes padrão `1`). O modal **não pede** esses campos ao usuário. Se algum produto do pedido estiver sem peso cadastrado, a geração **falha** para aquele pedido com mensagem clara, sem afetar os demais.
+4. **PDF gerado** contém:
    - Título “Declaração de Conteúdo”.
    - Nº interno próprio (ex.: `DC-...`).
    - Data e hora de geração (BRT).
@@ -80,7 +79,8 @@ Cada emissão grava em `shipping_content_declarations`:
 ## Como testar pela UI
 1. Em **Fiscal → Pedidos de Venda**, selecione um pedido na etapa “Pedido de Venda”.
 2. Clique em **Gerar Declaração de Conteúdo** (botão lateral) ou abra a ação no menu da linha.
-3. O modal exige: motivo, peso (kg), volumes e checkbox de responsabilidade. Sem isso, o botão fica desabilitado.
+3. O modal exige apenas: motivo e checkbox de responsabilidade. Peso e volumes vêm dos dados do pedido.
 4. Ao confirmar, o PDF é baixado e o registro aparece em `shipping_content_declarations` com `source='manual'`.
-5. **Em massa:** selecione vários pedidos → o modal usa o mesmo motivo para todos, com peso/volumes editáveis por pedido (e ações “aplicar a todos”). É gerado **um único PDF multipágina** com nome `Declaracoes-Conteudo-YYYY-MM-DD.pdf`. O histórico permanece individual.
-6. Validar: o pedido **não muda de etapa fiscal**; nenhuma chamada a Focus/Sefaz; PDF traz a cláusula de responsabilidade neutra, motivo informado, peso em kg e volumes.
+5. **Em massa:** selecione vários pedidos → o modal usa o mesmo motivo para todos. É gerado **um único PDF multipágina** com nome `Declaracoes-Conteudo-YYYY-MM-DD.pdf`. O histórico permanece individual.
+6. Se algum pedido tiver produto sem peso cadastrado, ele é reportado como falha individual; os demais continuam.
+7. Validar: o pedido **não muda de etapa fiscal**; nenhuma chamada a Focus/Sefaz; PDF traz a cláusula de responsabilidade neutra, motivo informado, peso em kg e volumes.
