@@ -78,6 +78,7 @@ const ADDITIONAL_NOTICES = [
   'O remetente é integralmente responsável pelas informações declaradas.',
   'É proibido o envio de objetos restritos ou proibidos pela legislação postal e aduaneira.',
   'O uso indevido desta declaração pode gerar responsabilidade legal do remetente.',
+  'O uso desta declaração para omitir documento fiscal obrigatório ou informação tributária pode gerar responsabilidade legal do remetente.',
 ];
 
 // ----------------- Render de uma declaração no jsPDF (mesmo doc) -----------------
@@ -104,7 +105,7 @@ function renderOneDeclaration(doc: jsPDF, rec: DeclarationRecord, isFirstPage: b
   doc.text('DECLARAÇÃO DE CONTEÚDO', pageW / 2, y + 6, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text('Documento dos Correios para acompanhar a remessa — não é documento fiscal.', pageW / 2, y + 11, { align: 'center' });
+  doc.text('Documento de acompanhamento de remessa postal — não é documento fiscal.', pageW / 2, y + 11, { align: 'center' });
   y += 17;
 
   doc.setFontSize(8);
