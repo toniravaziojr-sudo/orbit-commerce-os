@@ -472,6 +472,29 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       const obsBase = data.observacoes ? `${data.observacoes}\n\n` : '';
       const obsMarca = `Duplicado de ${kind === 'pedido' ? 'pedido de venda' : 'NF'} ${data.serie}-${data.numero}.`;
 
+      // Snapshot financeiro original
+      const subtotalItens = items.reduce((s, it) => s + (Number(it.quantidade) || 0) * (Number(it.valor_unitario) || 0), 0);
+      const totalOriginal = Number((data as any).valor_total) || 0;
+      const descontoOriginal = Number((data as any).valor_desconto) || 0;
+      const freteOriginal = Number((data as any).valor_frete) || 0;
+      const seguroOriginal = Number((data as any).valor_seguro) || 0;
+      const outrasOriginal = Number((data as any).valor_outras_despesas) || 0;
+
+      // Regra de inferência: preservar total final original mesmo em pedidos antigos sem desconto/ajustes estruturados.
+      // total = subtotal - desconto + frete + seguro + outras  =>  diff = subtotal + frete + seguro + outras - desconto - total
+      const diff = +(subtotalItens + freteOriginal + seguroOriginal + outrasOriginal - descontoOriginal - totalOriginal).toFixed(2);
+      let descontoFinal = descontoOriginal;
+      let outrasFinal = outrasOriginal;
+      if (Math.abs(diff) > 0.01) {
+        if (diff > 0) {
+          // Falta desconto para chegar ao total original (subtotal+ajustes > total)
+          descontoFinal = +(descontoOriginal + diff).toFixed(2);
+        } else {
+          // Falta despesa para chegar ao total original (subtotal+ajustes < total)
+          outrasFinal = +(outrasOriginal + Math.abs(diff)).toFixed(2);
+        }
+      }
+
       const initialData: ManualInvoiceInitialData = {
         natureza_operacao: data.natureza_operacao,
         observacoes: `${obsBase}${obsMarca}`,
@@ -490,6 +513,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
             cep: data.dest_endereco_cep || '',
           },
         },
+        // Snapshot do pedido — preço unitário, qtd, descontos por linha NÃO são buscados do catálogo atual.
         itens: items.map((item) => ({
           codigo: item.codigo_produto || '',
           descricao: item.descricao,
@@ -500,7 +524,22 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           cfop: item.cfop || '5102',
           origem: String(item.origem ?? '0'),
           csosn: item.csosn || '102',
+          valor_desconto: Number(item.valor_desconto) || 0,
+          valor_frete: Number(item.valor_frete) || 0,
         })),
+        // Totais e ajustes preservados (com inferência quando faltar campo estruturado)
+        valor_desconto: descontoFinal,
+        valor_frete: freteOriginal,
+        valor_seguro: seguroOriginal,
+        valor_outras_despesas: outrasFinal,
+        modalidade_frete: (data as any).modalidade_frete || '9',
+        transportadora_nome: (data as any).transportadora_nome || undefined,
+        transportadora_cnpj: (data as any).transportadora_cnpj || undefined,
+        peso_bruto: (data as any).peso_bruto != null ? Number((data as any).peso_bruto) : undefined,
+        peso_liquido: (data as any).peso_liquido != null ? Number((data as any).peso_liquido) : undefined,
+        quantidade_volumes: (data as any).quantidade_volumes != null ? Number((data as any).quantidade_volumes) : undefined,
+        pagamento_meio: (data as any).pagamento_meio || undefined,
+        informacoes_fisco: (data as any).informacoes_fisco || undefined,
       };
 
       setDuplicateDialog({ open: true, data: initialData, kind });

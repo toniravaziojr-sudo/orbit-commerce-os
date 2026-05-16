@@ -423,11 +423,28 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
     - **Aba Notas Fiscais** (`fiscal_stage='emitida'`): item **"Duplicar NF"** no menu de ações. Ao salvar, o novo registro é validado automaticamente pelo backend (`fiscal-prepare-invoice`) e movido para a aba **Notas Fiscais** com `fiscal_stage='pronta_emitir'` ou `fiscal_stage='pendencia'` conforme o resultado da validação. **Nunca** volta para Pedidos de Venda.
     - Ao salvar, o backend chama `fiscal-create-manual` seguido de `fiscal-prepare-invoice` — **nunca** `fiscal-submit`, `fiscal-emit`, `fiscal-cancel`, CC-e, inutilização ou qualquer rota Focus/Sefaz.
     - **A duplicação sempre gera um registro novo e independente**: número fiscal novo via `getNextFiscalNumber` (nunca reaproveita número já autorizado), sem `chave_acesso`, sem XML, sem DANFE, sem protocolo, sem `focus_ref`, sem status terminal, sem `order_id` (não dispara trigger fiscal nem efeitos colaterais em estoque/financeiro/remessa/e-mail/automação/marketplace).
-    - Campos pré-preenchidos no diálogo: natureza da operação, destinatário (nome, CPF/CNPJ, e-mail, telefone, endereço completo), itens (código, descrição, NCM, CFOP, unidade, quantidade, valor unitário, origem, CSOSN), observações com sufixo de auditoria. Campos fiscais terminais (chave, XML, DANFE, protocolo, focus_ref, eventos, recibos, cancelamentos, CC-e, inutilização, autorização) **nunca** são copiados.
+    - Campos pré-preenchidos no diálogo: natureza da operação, destinatário (nome, CPF/CNPJ, e-mail, telefone, endereço completo), itens (código, descrição, NCM, CFOP, unidade, quantidade, valor unitário, origem, CSOSN, desconto e frete por item), **totais e ajustes financeiros** (desconto total, frete, seguro, outras despesas, modalidade de frete, transportadora, peso bruto/líquido, volumes, forma de pagamento, observações ao Fisco), observações com sufixo de auditoria. Campos fiscais terminais (chave, XML, DANFE, protocolo, focus_ref, eventos, recibos, cancelamentos, CC-e, inutilização, autorização) **nunca** são copiados.
     - Auditoria: `observacoes` recebe sufixo `Duplicado de pedido de venda|NF SERIE-NUMERO.` e o evento `created` é registrado em `fiscal_invoice_events`.
     - Toast de sucesso: "Pedido de venda duplicado com sucesso." (quando duplica Pedido de Venda) ou **"NF duplicada e preparada na aba Notas Fiscais."** (quando duplica NF autorizada/cancelada/rejeitada).
     - **Não impacta o módulo normal de Pedidos da loja** (`/orders`): a duplicação é exclusivamente fiscal e não cria/altera registros em `orders` nem `order_items`.
     - RBAC/multi-tenant: tenant resolvido server-side via `current_tenant_id` do JWT; isolamento entre tenants garantido.
+
+    **Regra oficial de cálculo de totais (v2026-05-16 — Onda 2 rev2)**: O total final do Pedido de Venda (e do invoice manual em geral) é sempre:
+
+    `total = soma(itens) − desconto + frete + seguro + outras despesas` (nunca negativo)
+
+    Regras complementares:
+    - Campos vazios contam como zero.
+    - Desconto nunca pode tornar o total negativo (o backend aplica `Math.max(0, …)`).
+    - O modo "%" no diálogo é apenas conveniência de UI; é convertido em valor monetário antes de salvar.
+    - O total **salvo** deve sempre bater com o total **exibido**.
+    - O total dos itens é **snapshot** do pedido — preço unitário, quantidade, subtotal, desconto e total de linha são preservados; **nenhum preço é re-buscado do catálogo** ao duplicar.
+    - A mesma fórmula é aplicada no frontend (`ManualInvoiceDialog.calculateTotal`) e no backend (`fiscal-create-manual`).
+
+    **Seção "Totais e ajustes" no Pedido de Venda (v2026-05-16 — Onda 2 rev2)**: O diálogo de Pedido de Venda exibe uma seção dedicada com os campos: Desconto (R$ ou %), Frete, Seguro, Outras despesas, Modalidade de frete (Sem frete / CIF / FOB / Terceiros / Próprio remetente / Próprio destinatário) e Observações fiscais (infAdFisco). Esses campos são persistidos em `fiscal_invoices` (`valor_desconto`, `valor_frete`, `valor_seguro`, `valor_outras_despesas`, `modalidade_frete`, `informacoes_fisco`) e usados para compor o `valor_total` segundo a regra oficial acima. O Pedido de Venda permanece um rascunho operacional simples — o formulário completo de NF-e em 6 abas (transportadora detalhada, pagamento múltiplo, ICMS por item, CEST, GTIN editável, peso/volumes) fica para etapa futura.
+
+    **Duplicação preserva o total final (v2026-05-16 — Onda 2 rev2)**: Ao duplicar um Pedido de Venda, o sistema copia do registro original todos os campos financeiros estruturados (desconto total, frete, seguro, outras despesas, modalidade de frete, transportadora, peso, volumes, forma de pagamento, observações ao cliente e ao Fisco, desconto/frete por item) e garante que **o duplicado nasça com o mesmo total final do original**, salvo se o usuário alterar algum campo no diálogo. Para pedidos antigos cujo total original não bate com a soma dos itens e não têm desconto estruturado, o sistema **infere o ajuste necessário** no duplicado (desconto adicional quando `subtotal + ajustes > total original`; "outras despesas" adicionais quando `subtotal + ajustes < total original`) — sem alterar o pedido antigo. Pedidos antigos não são modificados em massa: a correção vale para duplicações a partir desta versão.
+
 
     **Fluxo de Preparação e Emissão — 3 etapas separadas (v2026-05-14 — Onda 2 rev1)**:
 

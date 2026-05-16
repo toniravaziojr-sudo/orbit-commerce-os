@@ -100,7 +100,28 @@ Deno.serve(async (req) => {
       indicador_ie_dest,
       pagamento_indicador,
       pagamento_meio,
+      // Totais e ajustes financeiros (opcionais; default 0 / preservar contrato)
+      valor_desconto: bodyValorDesconto,
+      valor_frete: bodyValorFrete,
+      valor_seguro: bodyValorSeguro,
+      valor_outras_despesas: bodyValorOutras,
+      modalidade_frete: bodyModalidadeFrete,
+      transportadora_nome: bodyTranspNome,
+      transportadora_cnpj: bodyTranspCnpj,
+      peso_bruto: bodyPesoBruto,
+      peso_liquido: bodyPesoLiquido,
+      quantidade_volumes: bodyQtdVolumes,
+      informacoes_fisco: bodyInfoFisco,
     } = body;
+
+    const toNum = (v: any) => {
+      const n = typeof v === 'number' ? v : parseFloat(String(v ?? '0').replace(',', '.'));
+      return Number.isFinite(n) ? n : 0;
+    };
+    const valorDesconto = Math.max(0, toNum(bodyValorDesconto));
+    const valorFrete = Math.max(0, toNum(bodyValorFrete));
+    const valorSeguro = Math.max(0, toNum(bodyValorSeguro));
+    const valorOutras = Math.max(0, toNum(bodyValorOutras));
 
     console.log(`[fiscal-create-manual][${VERSION}] Creating manual invoice for tenant:`, tenantId);
 
@@ -140,8 +161,11 @@ Deno.serve(async (req) => {
       fallbackNumeroAtual: settings.numero_nfe_atual,
     });
 
+    // Regra oficial: total = soma(itens) - desconto + frete + seguro + outras despesas (nunca negativo)
+    const valorTotal = Math.max(0, valorProdutos - valorDesconto + valorFrete + valorSeguro + valorOutras);
+
     // Create invoice draft
-    const invoiceBaseData = {
+    const invoiceBaseData: any = {
       tenant_id: tenantId,
       order_id: order_id || null,
       serie: serieNfe,
@@ -149,10 +173,19 @@ Deno.serve(async (req) => {
       fiscal_stage: 'pedido_venda',
       natureza_operacao: natureza_operacao || 'VENDA DE MERCADORIA',
       cfop: itens[0]?.cfop || settings.cfop_intrastadual || '5102',
-      valor_total: valorProdutos,
+      valor_total: valorTotal,
       valor_produtos: valorProdutos,
-      valor_frete: 0,
-      valor_desconto: 0,
+      valor_frete: valorFrete,
+      valor_desconto: valorDesconto,
+      valor_seguro: valorSeguro,
+      valor_outras_despesas: valorOutras,
+      modalidade_frete: bodyModalidadeFrete ?? '9',
+      transportadora_nome: bodyTranspNome ?? null,
+      transportadora_cnpj: bodyTranspCnpj ?? null,
+      peso_bruto: bodyPesoBruto != null ? toNum(bodyPesoBruto) : null,
+      peso_liquido: bodyPesoLiquido != null ? toNum(bodyPesoLiquido) : null,
+      quantidade_volumes: bodyQtdVolumes != null ? parseInt(String(bodyQtdVolumes), 10) || null : null,
+      informacoes_fisco: bodyInfoFisco || null,
       dest_nome: destinatario.nome,
       dest_cpf_cnpj: destinatario.cpf_cnpj,
       dest_email: destinatario.email || null,
@@ -172,7 +205,7 @@ Deno.serve(async (req) => {
       indicador_ie_dest: indicador_ie_dest ?? 9,
       pagamento_indicador: pagamento_indicador ?? 0,
       pagamento_meio: pagamento_meio || '99',
-      pagamento_valor: valorProdutos,
+      pagamento_valor: valorTotal,
     };
 
     const { invoice, numero } = await insertFiscalInvoiceWithRetry({
@@ -187,7 +220,7 @@ Deno.serve(async (req) => {
       }),
     });
 
-    // Insert invoice items
+    // Insert invoice items (snapshot do pedido — não recalcula preço do catálogo)
     const invoiceItems = itens.map((item: any) => ({
       invoice_id: invoice.id,
       numero_item: item.numero_item,
@@ -199,6 +232,8 @@ Deno.serve(async (req) => {
       quantidade: item.quantidade,
       valor_unitario: item.valor_unitario,
       valor_total: item.quantidade * item.valor_unitario,
+      valor_desconto: Math.max(0, toNum(item.valor_desconto)),
+      valor_frete: Math.max(0, toNum(item.valor_frete)),
       origem: parseInt(item.origem || '0', 10),
       csosn: item.csosn || '102',
     }));

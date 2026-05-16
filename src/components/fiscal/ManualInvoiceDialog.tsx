@@ -26,6 +26,8 @@ interface OrderItem {
   cfop?: string;
   origem?: string;
   csosn?: string;
+  valor_desconto?: number;
+  valor_frete?: number;
 }
 
 export interface ManualInvoiceInitialData {
@@ -47,6 +49,19 @@ export interface ManualInvoiceInitialData {
   itens: OrderItem[];
   observacoes?: string;
   natureza_operacao?: string;
+  // Totais e ajustes — preservados na duplicação
+  valor_desconto?: number;
+  valor_frete?: number;
+  valor_seguro?: number;
+  valor_outras_despesas?: number;
+  modalidade_frete?: string;
+  transportadora_nome?: string;
+  transportadora_cnpj?: string;
+  peso_bruto?: number;
+  peso_liquido?: number;
+  quantidade_volumes?: number;
+  pagamento_meio?: string;
+  informacoes_fisco?: string;
 }
 
 function isValidCpfCnpj(value: string): boolean {
@@ -122,6 +137,23 @@ export function ManualInvoiceDialog({
     { codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }
   ]);
 
+  // Totais e ajustes
+  const [discountMode, setDiscountMode] = useState<'valor' | 'percent'>('valor');
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [valorDesconto, setValorDesconto] = useState<number>(0);
+  const [valorFrete, setValorFrete] = useState<number>(0);
+  const [valorSeguro, setValorSeguro] = useState<number>(0);
+  const [valorOutras, setValorOutras] = useState<number>(0);
+  const [modalidadeFrete, setModalidadeFrete] = useState<string>('9');
+  const [informacoesFisco, setInformacoesFisco] = useState<string>('');
+  // Campos preservados invisivelmente na duplicação (não exibidos nesta etapa)
+  const [transportadoraNome, setTransportadoraNome] = useState<string>('');
+  const [transportadoraCnpj, setTransportadoraCnpj] = useState<string>('');
+  const [pesoBruto, setPesoBruto] = useState<number | null>(null);
+  const [pesoLiquido, setPesoLiquido] = useState<number | null>(null);
+  const [quantidadeVolumes, setQuantidadeVolumes] = useState<number | null>(null);
+  const [pagamentoMeio, setPagamentoMeio] = useState<string>('99');
+
   // Pré-preenche quando abre em modo duplicação
   useEffect(() => {
     if (!open) return;
@@ -147,6 +179,20 @@ export function ManualInvoiceDialog({
           ? initialData.itens.map((it) => ({ ...it }))
           : [{ codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]
       );
+      setDiscountMode('valor');
+      setDiscountPercent(0);
+      setValorDesconto(Number(initialData.valor_desconto) || 0);
+      setValorFrete(Number(initialData.valor_frete) || 0);
+      setValorSeguro(Number(initialData.valor_seguro) || 0);
+      setValorOutras(Number(initialData.valor_outras_despesas) || 0);
+      setModalidadeFrete(initialData.modalidade_frete || '9');
+      setInformacoesFisco(initialData.informacoes_fisco || '');
+      setTransportadoraNome(initialData.transportadora_nome || '');
+      setTransportadoraCnpj(initialData.transportadora_cnpj || '');
+      setPesoBruto(initialData.peso_bruto ?? null);
+      setPesoLiquido(initialData.peso_liquido ?? null);
+      setQuantidadeVolumes(initialData.quantidade_volumes ?? null);
+      setPagamentoMeio(initialData.pagamento_meio || '99');
     } else if (mode === 'create') {
       // Reset para criar novo limpo
       setCustomerMode('manual');
@@ -165,6 +211,20 @@ export function ManualInvoiceDialog({
       setObservacoes('');
       setNaturezaOperacao('VENDA DE MERCADORIA');
       setItems([{ codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]);
+      setDiscountMode('valor');
+      setDiscountPercent(0);
+      setValorDesconto(0);
+      setValorFrete(0);
+      setValorSeguro(0);
+      setValorOutras(0);
+      setModalidadeFrete('9');
+      setInformacoesFisco('');
+      setTransportadoraNome('');
+      setTransportadoraCnpj('');
+      setPesoBruto(null);
+      setPesoLiquido(null);
+      setQuantidadeVolumes(null);
+      setPagamentoMeio('99');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode]);
@@ -282,8 +342,26 @@ export function ManualInvoiceDialog({
     setItems(newItems);
   };
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return items.reduce((sum, item) => sum + (item.quantidade * item.valor_unitario), 0);
+  };
+
+  // Desconto efetivo: se modo "percent", converte sobre o subtotal; caso contrário usa valor digitado
+  const effectiveDiscount = () => {
+    const sub = calculateSubtotal();
+    if (discountMode === 'percent') {
+      const pct = Math.max(0, Math.min(100, Number(discountPercent) || 0));
+      return +(sub * pct / 100).toFixed(2);
+    }
+    return Math.max(0, Number(valorDesconto) || 0);
+  };
+
+  // Regra oficial: total = subtotal - desconto + frete + seguro + outras (nunca negativo)
+  const calculateTotal = () => {
+    const sub = calculateSubtotal();
+    const desc = effectiveDiscount();
+    const total = sub - desc + (Number(valorFrete) || 0) + (Number(valorSeguro) || 0) + (Number(valorOutras) || 0);
+    return Math.max(0, +total.toFixed(2));
   };
 
   const handleSubmit = async () => {
@@ -328,6 +406,19 @@ export function ManualInvoiceDialog({
         body: {
           natureza_operacao: naturezaOperacao || 'VENDA DE MERCADORIA',
           observacoes,
+          // Totais e ajustes (regra oficial aplicada no backend também)
+          valor_desconto: effectiveDiscount(),
+          valor_frete: Number(valorFrete) || 0,
+          valor_seguro: Number(valorSeguro) || 0,
+          valor_outras_despesas: Number(valorOutras) || 0,
+          modalidade_frete: modalidadeFrete || '9',
+          transportadora_nome: transportadoraNome || null,
+          transportadora_cnpj: transportadoraCnpj || null,
+          peso_bruto: pesoBruto,
+          peso_liquido: pesoLiquido,
+          quantidade_volumes: quantidadeVolumes,
+          informacoes_fisco: informacoesFisco || null,
+          pagamento_meio: pagamentoMeio || '99',
           destinatario: {
             nome: destNome,
             cpf_cnpj: destCpfCnpj.replace(/\D/g, ''),
@@ -352,6 +443,8 @@ export function ManualInvoiceDialog({
             unidade: item.unidade,
             quantidade: item.quantidade,
             valor_unitario: item.valor_unitario,
+            valor_desconto: Number(item.valor_desconto) || 0,
+            valor_frete: Number(item.valor_frete) || 0,
             origem: item.origem || '0',
             csosn: item.csosn || '102',
           })),
@@ -639,8 +732,90 @@ export function ManualInvoiceDialog({
               ))}
               <div className="flex justify-end pt-2 border-t">
                 <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Total dos Produtos</p>
-                  <p className="text-xl font-bold">{formatCurrency(calculateTotal())}</p>
+                  <p className="text-sm text-muted-foreground">Subtotal dos Produtos</p>
+                  <p className="text-lg font-semibold">{formatCurrency(calculateSubtotal())}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Totais e ajustes */}
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-base">Totais e ajustes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Desconto</Label>
+                  <div className="flex gap-2">
+                    <Select value={discountMode} onValueChange={(v) => setDiscountMode(v as 'valor' | 'percent')}>
+                      <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="valor">R$</SelectItem>
+                        <SelectItem value="percent">%</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {discountMode === 'valor' ? (
+                      <Input type="number" min="0" step="0.01" value={valorDesconto}
+                        onChange={e => setValorDesconto(parseFloat(e.target.value) || 0)} />
+                    ) : (
+                      <Input type="number" min="0" max="100" step="0.01" value={discountPercent}
+                        onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} />
+                    )}
+                  </div>
+                  {discountMode === 'percent' && (
+                    <p className="text-xs text-muted-foreground">Equivale a {formatCurrency(effectiveDiscount())}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Frete (R$)</Label>
+                  <Input type="number" min="0" step="0.01" value={valorFrete}
+                    onChange={e => setValorFrete(parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Seguro (R$)</Label>
+                  <Input type="number" min="0" step="0.01" value={valorSeguro}
+                    onChange={e => setValorSeguro(parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Outras despesas (R$)</Label>
+                  <Input type="number" min="0" step="0.01" value={valorOutras}
+                    onChange={e => setValorOutras(parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Modalidade de frete</Label>
+                  <Select value={modalidadeFrete} onValueChange={setModalidadeFrete}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="9">Sem frete</SelectItem>
+                      <SelectItem value="0">CIF (por conta do emitente)</SelectItem>
+                      <SelectItem value="1">FOB (por conta do destinatário)</SelectItem>
+                      <SelectItem value="2">Terceiros</SelectItem>
+                      <SelectItem value="3">Próprio (remetente)</SelectItem>
+                      <SelectItem value="4">Próprio (destinatário)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Observações fiscais / Informações ao Fisco</Label>
+                <Textarea value={informacoesFisco}
+                  onChange={e => setInformacoesFisco(e.target.value)}
+                  placeholder="Informações de interesse do Fisco (campo infAdFisco)"
+                  rows={2} />
+              </div>
+              <div className="flex justify-between items-end pt-3 border-t gap-4 flex-wrap">
+                <div className="text-xs text-muted-foreground space-y-0.5">
+                  <p>Subtotal: {formatCurrency(calculateSubtotal())}</p>
+                  <p>− Desconto: {formatCurrency(effectiveDiscount())}</p>
+                  <p>+ Frete: {formatCurrency(Number(valorFrete) || 0)}</p>
+                  <p>+ Seguro: {formatCurrency(Number(valorSeguro) || 0)}</p>
+                  <p>+ Outras: {formatCurrency(Number(valorOutras) || 0)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Total final</p>
+                  <p className="text-2xl font-bold text-primary">{formatCurrency(calculateTotal())}</p>
                 </div>
               </div>
             </CardContent>
