@@ -46,7 +46,12 @@ Acesso restrito a super-admin (PlatformAdminGate). Mostra:
 
 ## Frequências definidas
 
+### Grade horária unificada para sincronizações de painéis externos
+
+Sincronizações periódicas de painéis de terceiros (anúncios, marketplaces) usam a **grade fixa `0 0,6,9,12,15,18,21 * * *`** (UTC) — 7 execuções por dia: 00h, 06h, 09h, 12h, 15h, 18h, 21h. De madrugada (00h–06h) só roda uma vez, às 6h. Mudanças nessa grade exigem aprovação explícita por afetarem o ritmo percebido pelo lojista.
+
 ### Sempre ativos (não dependem de gating)
+
 
 | Cron | Frequência | Justificativa |
 |---|---|---|
@@ -62,7 +67,7 @@ Acesso restrito a super-admin (PlatformAdminGate). Mostra:
 
 | Cron | Frequência | Módulo(s) |
 |---|---|---|
-| `meli-sync-listings-auto` | 2 h | Mercado Livre |
+| `meli-sync-listings-auto` | grade fixa 00/06/09/12/15/18/21 | Mercado Livre |
 | `check-whatsapp-templates-hourly` | 2 h | WhatsApp Meta |
 | `whatsapp-orphan-watcher-15min` | 1 h | WhatsApp Meta |
 | `meta-whatsapp-monitor-hourly` | 2 h | WhatsApp Meta |
@@ -72,7 +77,7 @@ Acesso restrito a super-admin (PlatformAdminGate). Mostra:
 | `meta-token-refresh-daily` | diário | Meta Ads + Catálogo + WhatsApp |
 | `meta-token-health-check-daily` | diário | Meta Ads + Catálogo + WhatsApp |
 | `meta-catalog-daily-sync` | diário | Catálogo Meta |
-| `sync-ads-dashboard-daily-15min` | 1 h | Meta Ads + Google Ads |
+| `sync-ads-dashboard-daily-15min` | grade fixa 00/06/09/12/15/18/21 | Meta Ads + Google Ads |
 | `sync-ads-dashboard-weekly-reconcile` | semanal | Meta Ads + Google Ads |
 | `tiktok-token-refresh-cron` | 6 h | TikTok Shop |
 | `ads-autopilot-analyze` | 6 h | IA Gestor de Tráfego |
