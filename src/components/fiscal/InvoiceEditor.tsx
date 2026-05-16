@@ -273,6 +273,8 @@ interface InvoiceEditorProps {
   invoiceStage?: string | null;
   /** Acionado quando, no modo Pedido de Venda, o usuário clica em "Criar Nota Fiscal". */
   onPrepare?: (data: InvoiceData) => Promise<void>;
+  /** Lista de pendências do Pedido de Venda (peso, NCM, CPF, etc.). Exibe banner amarelo e bloqueia "Criar Nota Fiscal". */
+  pendenciaMotivos?: string[];
 }
 
 export function InvoiceEditor({
