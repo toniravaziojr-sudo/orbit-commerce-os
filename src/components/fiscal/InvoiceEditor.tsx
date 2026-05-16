@@ -5,7 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useFiscalReadiness } from '@/hooks/useFiscalReadiness';
-import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search, CreditCard, ChevronDown, ChevronUp, ExternalLink, Lock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -296,6 +297,7 @@ export function InvoiceEditor({
   const { data: readiness } = useFiscalReadiness();
   const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [operationNatures, setOperationNatures] = useState<Array<{
     id: string; nome: string; descricao: string | null;
     cfop_intra: string; cfop_inter: string;
@@ -318,6 +320,22 @@ export function InvoiceEditor({
     };
     load();
   }, [tenantId]);
+
+  // Resolve customer_id from order_id to enable "Abrir cadastro do cliente"
+  useEffect(() => {
+    const orderId = invoice?.order_id;
+    if (!orderId) { setCustomerId(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: row } = await supabase
+        .from('orders')
+        .select('customer_id')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (!cancelled) setCustomerId((row as any)?.customer_id ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [invoice?.order_id]);
 
   // Filter natures based on selected tipo_nota
   const filteredNatures = operationNatures.filter(n => {
@@ -623,7 +641,29 @@ export function InvoiceEditor({
   // Check for missing NCM items
   const itemsWithoutNcm = data.items.filter(item => !item.ncm?.trim());
 
+  // Per-item fiscal data validation (used for the unified pendency banner and per-item alerts)
+  const getItemIssues = (item: InvoiceItemData): string[] => {
+    const issues: string[] = [];
+    if (!item.descricao?.trim()) issues.push('Descrição');
+    const ncm = item.ncm?.replace(/\D/g, '') || '';
+    if (ncm.length !== 8) issues.push('NCM (8 dígitos)');
+    const cfop = item.cfop?.replace(/\D/g, '') || '';
+    if (cfop.length !== 4) issues.push('CFOP (4 dígitos)');
+    if (item.origem === undefined || item.origem === null || item.origem === '') issues.push('Origem');
+    if (!item.gtin?.trim()) issues.push('GTIN (ou "SEM GTIN")');
+    return issues;
+  };
+
+  const itemsWithIssues = data.items
+    .map((item, idx) => ({ idx, item, issues: getItemIssues(item) }))
+    .filter(({ issues }) => issues.length > 0);
+
   const isPedidoVenda = invoiceStage === 'pedido_venda';
+  // No modo Pedido de Venda, cliente/produto são apenas referências ao cadastro.
+  // Edição deve ocorrer no cadastro de origem (cliente / produto), não na NF.
+  const lockClientFields = isPedidoVenda && !!invoice?.order_id;
+  const itemLockedFromRegistry = (item: InvoiceItemData) =>
+    isPedidoVenda && !!item.product_id;
   const editorTitle = isPedidoVenda
     ? `Pedido de Venda – Nº ${data.numero}`
     : `Nota Fiscal – Série ${data.serie} / Nº ${data.numero}`;
@@ -679,12 +719,38 @@ export function InvoiceEditor({
           </Alert>
         )}
 
-        {/* NCM Warning */}
-        {itemsWithoutNcm.length > 0 && validationErrors.length === 0 && (
+        {/* Item Fiscal Pendencies (NCM, GTIN, Origem, ...) */}
+        {itemsWithIssues.length > 0 && validationErrors.length === 0 && (
           <Alert className="mt-2 border-amber-500/50 bg-amber-500/5">
             <AlertCircle className="h-4 w-4 text-amber-500" />
-            <AlertDescription className="text-amber-700">
-              {itemsWithoutNcm.length} item(ns) sem NCM preenchido. Preencha na aba "Itens" antes de emitir.
+            <AlertDescription className="text-amber-800">
+              <strong className="block mb-1">
+                {itemsWithIssues.length} item(ns) com dados fiscais incompletos:
+              </strong>
+              <ul className="list-disc ml-5 text-xs space-y-0.5">
+                {itemsWithIssues.slice(0, 6).map(({ idx, item, issues }) => (
+                  <li key={idx}>
+                    <span className="font-medium">#{item.numero_item} {item.descricao || 'Item'}</span>
+                    {' — '}falta: {issues.join(', ')}
+                    {item.product_id && (
+                      <Link
+                        to="/products"
+                        className="ml-2 inline-flex items-center gap-1 text-primary underline"
+                      >
+                        Abrir cadastro <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </li>
+                ))}
+                {itemsWithIssues.length > 6 && (
+                  <li className="text-muted-foreground">…e mais {itemsWithIssues.length - 6} item(ns).</li>
+                )}
+              </ul>
+              {isPedidoVenda && (
+                <p className="mt-2 text-xs text-amber-700">
+                  Os dados fiscais vêm do cadastro do produto. Corrija no cadastro para que o pedido herde automaticamente.
+                </p>
+              )}
             </AlertDescription>
           </Alert>
         )}
@@ -879,13 +945,30 @@ export function InvoiceEditor({
           <TabsContent value="destinatario" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Dados do Destinatário</CardTitle>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <CardTitle className="text-base">Dados do Destinatário</CardTitle>
+                  {lockClientFields && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Lock className="h-3 w-3" />
+                      <span>Dados vindos do cadastro do cliente</span>
+                      {customerId && (
+                        <Link
+                          to={`/customers/${customerId}`}
+                          className="inline-flex items-center gap-1 text-primary underline"
+                        >
+                          Abrir cadastro <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Nome / Razão Social <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_nome}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_nome', e.target.value)}
                   />
                 </div>
@@ -893,6 +976,7 @@ export function InvoiceEditor({
                   <Label>CPF/CNPJ <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_cpf_cnpj}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_cpf_cnpj', e.target.value.replace(/\D/g, ''))}
                     placeholder="Apenas números (11 ou 14 dígitos)"
                     maxLength={14}
@@ -906,6 +990,7 @@ export function InvoiceEditor({
                   <Label>Inscrição Estadual</Label>
                   <Input
                     value={data.dest_ie || ''}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_ie', e.target.value)}
                     placeholder="Isento ou número"
                   />
@@ -914,6 +999,7 @@ export function InvoiceEditor({
                   <Label>Tipo de Pessoa</Label>
                   <Select
                     value={data.dest_tipo_pessoa}
+                    disabled={lockClientFields}
                     onValueChange={(value) => updateField('dest_tipo_pessoa', value as 'fisica' | 'juridica')}
                   >
                     <SelectTrigger>
@@ -928,6 +1014,7 @@ export function InvoiceEditor({
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={data.dest_consumidor_final}
+                    disabled={lockClientFields}
                     onCheckedChange={(checked) => updateField('dest_consumidor_final', checked)}
                   />
                   <Label>Consumidor Final</Label>
@@ -936,6 +1023,7 @@ export function InvoiceEditor({
                   <Label>Indicador IE Dest. <span className="text-destructive">*</span></Label>
                   <Select
                     value={String(data.indicador_ie_dest ?? 9)}
+                    disabled={lockClientFields}
                     onValueChange={(value) => updateField('indicador_ie_dest', parseInt(value))}
                   >
                     <SelectTrigger>
@@ -960,6 +1048,7 @@ export function InvoiceEditor({
                   <Label>Logradouro <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_logradouro}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_logradouro', e.target.value)}
                   />
                 </div>
@@ -967,6 +1056,7 @@ export function InvoiceEditor({
                   <Label>Número</Label>
                   <Input
                     value={data.dest_endereco_numero}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_numero', e.target.value)}
                   />
                 </div>
@@ -974,6 +1064,7 @@ export function InvoiceEditor({
                   <Label>Complemento</Label>
                   <Input
                     value={data.dest_endereco_complemento || ''}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_complemento', e.target.value)}
                   />
                 </div>
@@ -981,6 +1072,7 @@ export function InvoiceEditor({
                   <Label>Bairro</Label>
                   <Input
                     value={data.dest_endereco_bairro}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_bairro', e.target.value)}
                   />
                 </div>
@@ -988,6 +1080,7 @@ export function InvoiceEditor({
                   <Label>CEP <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_cep}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_cep', e.target.value.replace(/\D/g, ''))}
                     maxLength={8}
                     placeholder="00000000"
@@ -1001,6 +1094,7 @@ export function InvoiceEditor({
                   <Label>Município <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_municipio}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_municipio', e.target.value)}
                   />
                 </div>
@@ -1008,6 +1102,7 @@ export function InvoiceEditor({
                   <Label>Código IBGE <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_municipio_codigo}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_municipio_codigo', e.target.value.replace(/\D/g, ''))}
                     placeholder="7 dígitos"
                     maxLength={7}
@@ -1021,6 +1116,7 @@ export function InvoiceEditor({
                   <Label>UF <span className="text-destructive">*</span></Label>
                   <Select
                     value={data.dest_endereco_uf}
+                    disabled={lockClientFields}
                     onValueChange={(value) => updateField('dest_endereco_uf', value)}
                   >
                     <SelectTrigger>
@@ -1037,6 +1133,7 @@ export function InvoiceEditor({
                   <Label>Telefone</Label>
                   <Input
                     value={data.dest_telefone || ''}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_telefone', e.target.value)}
                   />
                 </div>
@@ -1044,6 +1141,7 @@ export function InvoiceEditor({
                   <Label>E-mail</Label>
                   <Input
                     value={data.dest_email || ''}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_email', e.target.value)}
                     type="email"
                   />
@@ -1100,18 +1198,33 @@ export function InvoiceEditor({
                       const hasNcmError = !ncm || ncm.length !== 8;
                       const cfop = item.cfop?.replace(/\D/g, '') || '';
                       const hasCfopError = !cfop || cfop.length !== 4;
+                      const itemIssues = getItemIssues(item);
+                      const locked = itemLockedFromRegistry(item);
                       
                       return (
                         <Card key={item.id || index} className={`${hasNcmError ? 'border-amber-400' : ''}`}>
                           <CardHeader className="py-3 px-4">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
                               <div className="flex items-center gap-2">
                                 <Badge variant="outline" className="font-mono">#{item.numero_item}</Badge>
                                 <span className="font-medium text-sm truncate max-w-[300px]">
                                   {item.descricao || 'Sem descrição'}
                                 </span>
+                                {locked && (
+                                  <Badge variant="secondary" className="gap-1 text-[10px]">
+                                    <Lock className="h-3 w-3" /> do cadastro
+                                  </Badge>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
+                                {item.product_id && (
+                                  <Link
+                                    to="/products"
+                                    className="inline-flex items-center gap-1 text-xs text-primary underline"
+                                  >
+                                    Abrir cadastro <ExternalLink className="h-3 w-3" />
+                                  </Link>
+                                )}
                                 <span className="font-bold text-primary">{formatCurrency(item.valor_total)}</span>
                                 <Button
                                   variant="ghost"
@@ -1123,6 +1236,12 @@ export function InvoiceEditor({
                                 </Button>
                               </div>
                             </div>
+                            {itemIssues.length > 0 && (
+                              <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                <strong>Pendência fiscal:</strong> {itemIssues.join(' · ')}
+                                {locked && ' — corrija no cadastro do produto.'}
+                              </div>
+                            )}
                           </CardHeader>
                           <CardContent className="py-3 px-4 pt-0">
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1131,6 +1250,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">Descrição <span className="text-destructive">*</span></Label>
                                 <Input
                                   value={item.descricao}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'descricao', e.target.value)}
                                   className="h-8 text-sm"
                                   placeholder="Descrição do produto"
@@ -1145,6 +1265,7 @@ export function InvoiceEditor({
                                 </Label>
                                 <Input
                                   value={item.ncm}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'ncm', e.target.value.replace(/\D/g, ''))}
                                   className={`h-8 text-sm font-mono ${hasNcmError ? 'border-amber-500 bg-amber-50' : ''}`}
                                   maxLength={8}
@@ -1160,6 +1281,7 @@ export function InvoiceEditor({
                                 </Label>
                                 <Input
                                   value={item.cfop}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'cfop', e.target.value.replace(/\D/g, ''))}
                                   className={`h-8 text-sm font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : ''}`}
                                   maxLength={4}
@@ -1172,6 +1294,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">Origem</Label>
                                 <Select
                                   value={item.origem || '0'}
+                                  disabled={locked}
                                   onValueChange={(value) => updateItem(index, 'origem', value)}
                                 >
                                   <SelectTrigger className="h-8 text-xs">
@@ -1212,6 +1335,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">Unidade</Label>
                                 <Input
                                   value={item.unidade}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'unidade', e.target.value.toUpperCase())}
                                   className="h-8 text-sm"
                                   maxLength={6}
@@ -1265,21 +1389,24 @@ export function InvoiceEditor({
                                   <Label className="text-xs">
                                     GTIN / Código de barras
                                   </Label>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 text-[10px] px-2"
-                                    onClick={() => {
-                                      updateItem(index, 'gtin', 'SEM GTIN');
-                                      updateItem(index, 'gtin_tributavel', 'SEM GTIN');
-                                    }}
-                                  >
-                                    Sem GTIN
-                                  </Button>
+                                  {!locked && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 text-[10px] px-2"
+                                      onClick={() => {
+                                        updateItem(index, 'gtin', 'SEM GTIN');
+                                        updateItem(index, 'gtin_tributavel', 'SEM GTIN');
+                                      }}
+                                    >
+                                      Sem GTIN
+                                    </Button>
+                                  )}
                                 </div>
                                 <Input
                                   value={item.gtin || ''}
+                                  readOnly={locked}
                                   onChange={(e) => {
                                     const v = e.target.value.toUpperCase();
                                     updateItem(index, 'gtin', v);
@@ -1302,6 +1429,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">GTIN tributável</Label>
                                 <Input
                                   value={item.gtin_tributavel || ''}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'gtin_tributavel', e.target.value.toUpperCase())}
                                   className="h-8 text-sm font-mono"
                                   placeholder="Igual ao GTIN ou SEM GTIN"
@@ -1314,6 +1442,7 @@ export function InvoiceEditor({
                                 <Label className="text-xs">CEST</Label>
                                 <Input
                                   value={item.cest || ''}
+                                  readOnly={locked}
                                   onChange={(e) => updateItem(index, 'cest', e.target.value.replace(/\D/g, ''))}
                                   className="h-8 text-sm font-mono"
                                   placeholder="0000000"
