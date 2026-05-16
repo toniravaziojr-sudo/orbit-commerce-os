@@ -968,6 +968,7 @@ export function InvoiceEditor({
                   <Label>Nome / Razão Social <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_nome}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_nome', e.target.value)}
                   />
                 </div>
@@ -975,6 +976,7 @@ export function InvoiceEditor({
                   <Label>CPF/CNPJ <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_cpf_cnpj}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_cpf_cnpj', e.target.value.replace(/\D/g, ''))}
                     placeholder="Apenas números (11 ou 14 dígitos)"
                     maxLength={14}
@@ -988,6 +990,7 @@ export function InvoiceEditor({
                   <Label>Inscrição Estadual</Label>
                   <Input
                     value={data.dest_ie || ''}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_ie', e.target.value)}
                     placeholder="Isento ou número"
                   />
@@ -996,6 +999,7 @@ export function InvoiceEditor({
                   <Label>Tipo de Pessoa</Label>
                   <Select
                     value={data.dest_tipo_pessoa}
+                    disabled={lockClientFields}
                     onValueChange={(value) => updateField('dest_tipo_pessoa', value as 'fisica' | 'juridica')}
                   >
                     <SelectTrigger>
@@ -1010,6 +1014,7 @@ export function InvoiceEditor({
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={data.dest_consumidor_final}
+                    disabled={lockClientFields}
                     onCheckedChange={(checked) => updateField('dest_consumidor_final', checked)}
                   />
                   <Label>Consumidor Final</Label>
@@ -1018,6 +1023,7 @@ export function InvoiceEditor({
                   <Label>Indicador IE Dest. <span className="text-destructive">*</span></Label>
                   <Select
                     value={String(data.indicador_ie_dest ?? 9)}
+                    disabled={lockClientFields}
                     onValueChange={(value) => updateField('indicador_ie_dest', parseInt(value))}
                   >
                     <SelectTrigger>
@@ -1042,6 +1048,7 @@ export function InvoiceEditor({
                   <Label>Logradouro <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_logradouro}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_logradouro', e.target.value)}
                   />
                 </div>
@@ -1049,6 +1056,7 @@ export function InvoiceEditor({
                   <Label>Número</Label>
                   <Input
                     value={data.dest_endereco_numero}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_numero', e.target.value)}
                   />
                 </div>
@@ -1056,6 +1064,7 @@ export function InvoiceEditor({
                   <Label>Complemento</Label>
                   <Input
                     value={data.dest_endereco_complemento || ''}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_complemento', e.target.value)}
                   />
                 </div>
@@ -1063,6 +1072,7 @@ export function InvoiceEditor({
                   <Label>Bairro</Label>
                   <Input
                     value={data.dest_endereco_bairro}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_bairro', e.target.value)}
                   />
                 </div>
@@ -1070,6 +1080,7 @@ export function InvoiceEditor({
                   <Label>CEP <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_cep}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_cep', e.target.value.replace(/\D/g, ''))}
                     maxLength={8}
                     placeholder="00000000"
@@ -1083,6 +1094,7 @@ export function InvoiceEditor({
                   <Label>Município <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_municipio}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_municipio', e.target.value)}
                   />
                 </div>
@@ -1090,6 +1102,7 @@ export function InvoiceEditor({
                   <Label>Código IBGE <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_municipio_codigo}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_endereco_municipio_codigo', e.target.value.replace(/\D/g, ''))}
                     placeholder="7 dígitos"
                     maxLength={7}
@@ -1103,6 +1116,7 @@ export function InvoiceEditor({
                   <Label>UF <span className="text-destructive">*</span></Label>
                   <Select
                     value={data.dest_endereco_uf}
+                    disabled={lockClientFields}
                     onValueChange={(value) => updateField('dest_endereco_uf', value)}
                   >
                     <SelectTrigger>
@@ -1119,6 +1133,7 @@ export function InvoiceEditor({
                   <Label>Telefone</Label>
                   <Input
                     value={data.dest_telefone || ''}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_telefone', e.target.value)}
                   />
                 </div>
@@ -1126,6 +1141,7 @@ export function InvoiceEditor({
                   <Label>E-mail</Label>
                   <Input
                     value={data.dest_email || ''}
+                    readOnly={lockClientFields}
                     onChange={(e) => updateField('dest_email', e.target.value)}
                     type="email"
                   />
