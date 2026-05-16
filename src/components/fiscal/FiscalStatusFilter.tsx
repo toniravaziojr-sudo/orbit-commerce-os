@@ -77,12 +77,10 @@ export function FiscalStatusFilter({ options, selected, onChange }: FiscalStatus
   );
 }
 
-// Status options for "Pedidos em Aberto" tab (draft invoices, filter by order context)
-export const orderStatusOptions: StatusOption[] = [
-  { value: 'ready', label: 'Pronta para emitir' },
-  { value: 'chargeback', label: 'Chargeback em andamento' },
-  { value: 'cancelled', label: 'Venda cancelada' },
-];
+// Status options for "Pedidos de Venda" tab
+// Fonte única: PEDIDO_STATUS_OPTIONS em src/lib/fiscal/pedidoStatus.ts
+import { PEDIDO_STATUS_OPTIONS } from '@/lib/fiscal/pedidoStatus';
+export const orderStatusOptions: StatusOption[] = PEDIDO_STATUS_OPTIONS;
 
 // Status options for "Notas Fiscais" tab (non-draft invoices)
 export const invoiceStatusOptions: StatusOption[] = [
