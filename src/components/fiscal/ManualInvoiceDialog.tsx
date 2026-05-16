@@ -137,6 +137,23 @@ export function ManualInvoiceDialog({
     { codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }
   ]);
 
+  // Totais e ajustes
+  const [discountMode, setDiscountMode] = useState<'valor' | 'percent'>('valor');
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [valorDesconto, setValorDesconto] = useState<number>(0);
+  const [valorFrete, setValorFrete] = useState<number>(0);
+  const [valorSeguro, setValorSeguro] = useState<number>(0);
+  const [valorOutras, setValorOutras] = useState<number>(0);
+  const [modalidadeFrete, setModalidadeFrete] = useState<string>('9');
+  const [informacoesFisco, setInformacoesFisco] = useState<string>('');
+  // Campos preservados invisivelmente na duplicação (não exibidos nesta etapa)
+  const [transportadoraNome, setTransportadoraNome] = useState<string>('');
+  const [transportadoraCnpj, setTransportadoraCnpj] = useState<string>('');
+  const [pesoBruto, setPesoBruto] = useState<number | null>(null);
+  const [pesoLiquido, setPesoLiquido] = useState<number | null>(null);
+  const [quantidadeVolumes, setQuantidadeVolumes] = useState<number | null>(null);
+  const [pagamentoMeio, setPagamentoMeio] = useState<string>('99');
+
   // Pré-preenche quando abre em modo duplicação
   useEffect(() => {
     if (!open) return;
@@ -162,6 +179,20 @@ export function ManualInvoiceDialog({
           ? initialData.itens.map((it) => ({ ...it }))
           : [{ codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]
       );
+      setDiscountMode('valor');
+      setDiscountPercent(0);
+      setValorDesconto(Number(initialData.valor_desconto) || 0);
+      setValorFrete(Number(initialData.valor_frete) || 0);
+      setValorSeguro(Number(initialData.valor_seguro) || 0);
+      setValorOutras(Number(initialData.valor_outras_despesas) || 0);
+      setModalidadeFrete(initialData.modalidade_frete || '9');
+      setInformacoesFisco(initialData.informacoes_fisco || '');
+      setTransportadoraNome(initialData.transportadora_nome || '');
+      setTransportadoraCnpj(initialData.transportadora_cnpj || '');
+      setPesoBruto(initialData.peso_bruto ?? null);
+      setPesoLiquido(initialData.peso_liquido ?? null);
+      setQuantidadeVolumes(initialData.quantidade_volumes ?? null);
+      setPagamentoMeio(initialData.pagamento_meio || '99');
     } else if (mode === 'create') {
       // Reset para criar novo limpo
       setCustomerMode('manual');
@@ -180,6 +211,20 @@ export function ManualInvoiceDialog({
       setObservacoes('');
       setNaturezaOperacao('VENDA DE MERCADORIA');
       setItems([{ codigo: '', descricao: '', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]);
+      setDiscountMode('valor');
+      setDiscountPercent(0);
+      setValorDesconto(0);
+      setValorFrete(0);
+      setValorSeguro(0);
+      setValorOutras(0);
+      setModalidadeFrete('9');
+      setInformacoesFisco('');
+      setTransportadoraNome('');
+      setTransportadoraCnpj('');
+      setPesoBruto(null);
+      setPesoLiquido(null);
+      setQuantidadeVolumes(null);
+      setPagamentoMeio('99');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode]);
