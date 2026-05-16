@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     body.fiscal_invoice_id
       ? sb
           .from("fiscal_invoices")
-          .select("*, fiscal_invoice_items(descricao, quantidade, valor_unitario, unidade, codigo_produto)")
+          .select("*, fiscal_invoice_items(descricao, quantidade, valor_unitario, unidade, codigo_produto, order_item_id)")
           .eq("id", body.fiscal_invoice_id)
           .eq("tenant_id", tenantId)
           .maybeSingle()
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     body.order_id
       ? sb
           .from("orders")
-          .select("id, customer_name, customer_cpf, customer_cnpj, customer_phone, shipping_address, total, items:order_items(name, quantity, unit_price, weight_grams, sku)")
+          .select("id, customer_name, customer_cpf, customer_cnpj, customer_phone, shipping_address, total, items:order_items(product_name, quantity, unit_price, weight, sku, product_id)")
           .eq("id", body.order_id)
           .eq("tenant_id", tenantId)
           .maybeSingle()
