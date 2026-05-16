@@ -62,7 +62,7 @@ Acesso restrito a super-admin (PlatformAdminGate). Mostra:
 
 | Cron | Frequência | Módulo(s) |
 |---|---|---|
-| `meli-sync-listings-auto` | 2 h | Mercado Livre |
+| `meli-sync-listings-auto` | grade fixa 00/06/09/12/15/18/21 | Mercado Livre |
 | `check-whatsapp-templates-hourly` | 2 h | WhatsApp Meta |
 | `whatsapp-orphan-watcher-15min` | 1 h | WhatsApp Meta |
 | `meta-whatsapp-monitor-hourly` | 2 h | WhatsApp Meta |
