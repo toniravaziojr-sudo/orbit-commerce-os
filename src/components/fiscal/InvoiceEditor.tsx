@@ -1601,18 +1601,44 @@ export function InvoiceEditor({
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
-              Salvar Rascunho
+              {isPedidoVenda ? 'Salvar Pedido' : 'Salvar Rascunho'}
             </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={isSaving || isSubmitting}
-            >
-              {isSubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Send className="h-4 w-4 mr-2" />
-              )}
-              Emitir NF-e
+            {isPedidoVenda ? (
+              <Button
+                onClick={async () => {
+                  if (!data || !onPrepare) return;
+                  setIsSubmitting(true);
+                  try {
+                    // Salva alterações antes de criar a NF, garantindo dados atuais
+                    await onSave(data);
+                    await onPrepare(data);
+                    onOpenChange(false);
+                  } catch (e) {
+                    console.error('[InvoiceEditor] onPrepare error:', e);
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                disabled={isSaving || isSubmitting || !onPrepare}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Criar Nota Fiscal
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSubmit}
+                disabled={isSaving || isSubmitting}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Emitir NF-e
             </Button>
           </div>
         </DialogFooter>
