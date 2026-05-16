@@ -322,6 +322,14 @@ export function ManualInvoiceDialog({
   };
 
   const handleAddProductFromCatalog = (product: ProductWithFiscal) => {
+    const pesoGramas = Number(product.weight ?? 0);
+    if (!pesoGramas || pesoGramas <= 0) {
+      toast.error(
+        `Produto "${product.name}" está sem peso cadastrado.`,
+        { description: 'Cadastre o peso (em gramas) na ficha do produto antes de adicionar ao pedido.' },
+      );
+      return;
+    }
     const newItem: OrderItem = {
       codigo: product.sku || product.id.substring(0, 8),
       descricao: product.name,
@@ -670,10 +678,6 @@ export function ManualInvoiceDialog({
                   placeholder="Buscar produto"
                   className="h-8"
                 />
-                <Button variant="outline" size="sm" onClick={handleAddItem}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Manual
-                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">

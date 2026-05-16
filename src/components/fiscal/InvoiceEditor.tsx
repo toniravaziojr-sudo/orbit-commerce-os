@@ -418,6 +418,23 @@ export function InvoiceEditor({
 
   const addProductFromCatalog = (product: ProductWithFiscal) => {
     if (!data) return;
+    // Regra: produto sempre vem completo do cadastro. Sem peso cadastrado, bloqueia a adição
+    // (peso é obrigatório para Declaração de Conteúdo e Remessa).
+    const pesoGramas = Number(product.weight ?? 0);
+    if (!pesoGramas || pesoGramas <= 0) {
+      toast.error(
+        `Produto "${product.name}" está sem peso cadastrado.`,
+        { description: 'Cadastre o peso (em gramas) na ficha do produto antes de adicionar à NF.' },
+      );
+      return;
+    }
+    if (!product.ncm) {
+      toast.error(
+        `Produto "${product.name}" está sem NCM cadastrado.`,
+        { description: 'Cadastre o NCM na ficha do produto antes de adicionar à NF.' },
+      );
+      return;
+    }
     const newItem: InvoiceItemData = {
       numero_item: data.items.length + 1,
       product_id: product.id,
@@ -1168,10 +1185,6 @@ export function InvoiceEditor({
                       placeholder="Buscar produto"
                       className="h-9"
                     />
-                    <Button variant="outline" size="sm" onClick={addItem}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      Manual
-                    </Button>
                   </div>
                 </div>
               </CardHeader>

@@ -19,6 +19,7 @@ export interface ProductWithFiscal {
   origem?: number | null;
   gtin?: string | null;
   cest?: string | null;
+  weight?: number | null; // gramas (cadastro do produto)
 }
 
 interface ProductSelectorProps {
@@ -46,7 +47,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
         // Fetch products - cast to bypass deep type inference
         const { data: rawProducts, error: productsError } = await (supabase
           .from('products')
-          .select('id, name, sku, price, status, gtin, barcode') as any)
+          .select('id, name, sku, price, status, gtin, barcode, weight') as any)
           .eq('tenant_id', tenantId)
           .eq('status', 'active')
           .order('name')
@@ -54,7 +55,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
 
         if (productsError) throw productsError;
         
-        const productsData = (rawProducts || []) as Array<{ id: string; name: string; sku: string | null; price: number; gtin: string | null; barcode: string | null }>;
+        const productsData = (rawProducts || []) as Array<{ id: string; name: string; sku: string | null; price: number; gtin: string | null; barcode: string | null; weight: number | null }>;
         const productIds = productsData.map(p => p.id);
         
         // Fetch fiscal data
@@ -84,6 +85,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
             origem: fiscal?.origem ?? 0,
             gtin: p.gtin || p.barcode || null,
             cest: fiscal?.cest || null,
+            weight: typeof p.weight === 'number' ? p.weight : (p.weight ? Number(p.weight) : null),
           };
         });
 
