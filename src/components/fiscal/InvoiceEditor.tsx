@@ -1304,6 +1304,7 @@ export function InvoiceEditor({
                                   Obrigatório quando houver Substituição Tributária.
                                 </p>
                               </div>
+                            </div>
                           </CardContent>
                         </Card>
                       );
