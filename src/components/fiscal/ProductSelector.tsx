@@ -47,7 +47,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
         // Fetch products - cast to bypass deep type inference
         const { data: rawProducts, error: productsError } = await (supabase
           .from('products')
-          .select('id, name, sku, price, status, gtin, barcode') as any)
+          .select('id, name, sku, price, status, gtin, barcode, weight') as any)
           .eq('tenant_id', tenantId)
           .eq('status', 'active')
           .order('name')
