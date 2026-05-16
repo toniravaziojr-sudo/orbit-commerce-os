@@ -732,8 +732,90 @@ export function ManualInvoiceDialog({
               ))}
               <div className="flex justify-end pt-2 border-t">
                 <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Total dos Produtos</p>
-                  <p className="text-xl font-bold">{formatCurrency(calculateTotal())}</p>
+                  <p className="text-sm text-muted-foreground">Subtotal dos Produtos</p>
+                  <p className="text-lg font-semibold">{formatCurrency(calculateSubtotal())}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Totais e ajustes */}
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-base">Totais e ajustes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Desconto</Label>
+                  <div className="flex gap-2">
+                    <Select value={discountMode} onValueChange={(v) => setDiscountMode(v as 'valor' | 'percent')}>
+                      <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="valor">R$</SelectItem>
+                        <SelectItem value="percent">%</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {discountMode === 'valor' ? (
+                      <Input type="number" min="0" step="0.01" value={valorDesconto}
+                        onChange={e => setValorDesconto(parseFloat(e.target.value) || 0)} />
+                    ) : (
+                      <Input type="number" min="0" max="100" step="0.01" value={discountPercent}
+                        onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} />
+                    )}
+                  </div>
+                  {discountMode === 'percent' && (
+                    <p className="text-xs text-muted-foreground">Equivale a {formatCurrency(effectiveDiscount())}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Frete (R$)</Label>
+                  <Input type="number" min="0" step="0.01" value={valorFrete}
+                    onChange={e => setValorFrete(parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Seguro (R$)</Label>
+                  <Input type="number" min="0" step="0.01" value={valorSeguro}
+                    onChange={e => setValorSeguro(parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Outras despesas (R$)</Label>
+                  <Input type="number" min="0" step="0.01" value={valorOutras}
+                    onChange={e => setValorOutras(parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Modalidade de frete</Label>
+                  <Select value={modalidadeFrete} onValueChange={setModalidadeFrete}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="9">Sem frete</SelectItem>
+                      <SelectItem value="0">CIF (por conta do emitente)</SelectItem>
+                      <SelectItem value="1">FOB (por conta do destinatário)</SelectItem>
+                      <SelectItem value="2">Terceiros</SelectItem>
+                      <SelectItem value="3">Próprio (remetente)</SelectItem>
+                      <SelectItem value="4">Próprio (destinatário)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Observações fiscais / Informações ao Fisco</Label>
+                <Textarea value={informacoesFisco}
+                  onChange={e => setInformacoesFisco(e.target.value)}
+                  placeholder="Informações de interesse do Fisco (campo infAdFisco)"
+                  rows={2} />
+              </div>
+              <div className="flex justify-between items-end pt-3 border-t gap-4 flex-wrap">
+                <div className="text-xs text-muted-foreground space-y-0.5">
+                  <p>Subtotal: {formatCurrency(calculateSubtotal())}</p>
+                  <p>− Desconto: {formatCurrency(effectiveDiscount())}</p>
+                  <p>+ Frete: {formatCurrency(Number(valorFrete) || 0)}</p>
+                  <p>+ Seguro: {formatCurrency(Number(valorSeguro) || 0)}</p>
+                  <p>+ Outras: {formatCurrency(Number(valorOutras) || 0)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Total final</p>
+                  <p className="text-2xl font-bold text-primary">{formatCurrency(calculateTotal())}</p>
                 </div>
               </div>
             </CardContent>
