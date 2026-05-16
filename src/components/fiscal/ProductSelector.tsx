@@ -55,7 +55,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
 
         if (productsError) throw productsError;
         
-        const productsData = (rawProducts || []) as Array<{ id: string; name: string; sku: string | null; price: number; gtin: string | null; barcode: string | null }>;
+        const productsData = (rawProducts || []) as Array<{ id: string; name: string; sku: string | null; price: number; gtin: string | null; barcode: string | null; weight: number | null }>;
         const productIds = productsData.map(p => p.id);
         
         // Fetch fiscal data
