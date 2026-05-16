@@ -26,6 +26,8 @@ interface OrderItem {
   cfop?: string;
   origem?: string;
   csosn?: string;
+  valor_desconto?: number;
+  valor_frete?: number;
 }
 
 export interface ManualInvoiceInitialData {
@@ -47,6 +49,19 @@ export interface ManualInvoiceInitialData {
   itens: OrderItem[];
   observacoes?: string;
   natureza_operacao?: string;
+  // Totais e ajustes — preservados na duplicação
+  valor_desconto?: number;
+  valor_frete?: number;
+  valor_seguro?: number;
+  valor_outras_despesas?: number;
+  modalidade_frete?: string;
+  transportadora_nome?: string;
+  transportadora_cnpj?: string;
+  peso_bruto?: number;
+  peso_liquido?: number;
+  quantidade_volumes?: number;
+  pagamento_meio?: string;
+  informacoes_fisco?: string;
 }
 
 function isValidCpfCnpj(value: string): boolean {
