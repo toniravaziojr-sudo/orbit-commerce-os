@@ -188,8 +188,9 @@ export function InvoiceActionsDropdown({
             </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={onSubmit}
-              disabled={isSubmitting}
-              className="text-green-600"
+              disabled={isSubmitting || pedidoBlocked}
+              className={pedidoBlocked ? undefined : "text-green-600"}
+              title={pedidoBlocked ? pedidoBlockedReason : undefined}
             >
               {isSubmitting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -203,7 +204,11 @@ export function InvoiceActionsDropdown({
               {cloneLabel}
             </DropdownMenuItem>
             {onGenerateDC && (
-              <DropdownMenuItem onClick={onGenerateDC} disabled={isGeneratingDC}>
+              <DropdownMenuItem
+                onClick={onGenerateDC}
+                disabled={isGeneratingDC || pedidoBlocked}
+                title={pedidoBlocked ? pedidoBlockedReason : undefined}
+              >
                 {isGeneratingDC ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
