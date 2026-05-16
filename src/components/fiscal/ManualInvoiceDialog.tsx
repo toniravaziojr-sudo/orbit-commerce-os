@@ -678,10 +678,6 @@ export function ManualInvoiceDialog({
                   placeholder="Buscar produto"
                   className="h-8"
                 />
-                <Button variant="outline" size="sm" onClick={handleAddItem}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Manual
-                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
