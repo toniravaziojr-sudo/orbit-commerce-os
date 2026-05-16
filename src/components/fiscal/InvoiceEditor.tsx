@@ -623,6 +623,14 @@ export function InvoiceEditor({
   // Check for missing NCM items
   const itemsWithoutNcm = data.items.filter(item => !item.ncm?.trim());
 
+  const isPedidoVenda = invoiceStage === 'pedido_venda';
+  const editorTitle = isPedidoVenda
+    ? `Pedido de Venda – Nº ${data.numero}`
+    : `Nota Fiscal – Série ${data.serie} / Nº ${data.numero}`;
+  const editorDescription = isPedidoVenda
+    ? 'Pedido de venda fiscal. Para emitir a Nota Fiscal, use a ação "Criar Nota Fiscal" — a nota é gerada e transmitida na aba Notas Fiscais.'
+    : 'As alterações feitas aqui afetam apenas esta NF-e, não o pedido original.';
+
   return (
     <>
     {InvoiceConfirmDialog}
@@ -633,14 +641,14 @@ export function InvoiceEditor({
             <div>
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Editar NF-e - Rascunho
+                {editorTitle}
               </DialogTitle>
               <DialogDescription className="mt-1">
-                As alterações feitas aqui afetam apenas esta NF-e, não o pedido original.
+                {editorDescription}
               </DialogDescription>
             </div>
             <Badge variant="secondary">
-              Série {data.serie} - Nº {data.numero}
+              {isPedidoVenda ? `Pedido Nº ${data.numero}` : `Série ${data.serie} - Nº ${data.numero}`}
             </Badge>
           </div>
         </DialogHeader>
