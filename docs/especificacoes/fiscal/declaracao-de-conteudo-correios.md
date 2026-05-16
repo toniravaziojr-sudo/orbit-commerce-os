@@ -32,7 +32,7 @@ Todos os caminhos chamam a mesma estrutura. **Proibido** criar caminho paralelo,
    - Marcar checkbox de **responsabilidade**.
    - **Em massa (múltiplos pedidos):** o motivo e o aceite valem para **todos** os pedidos selecionados.
 3. **Peso e volumes são calculados automaticamente** a partir dos dados do pedido (somatório de `weight_grams × quantidade` dos itens; volumes padrão `1`). O modal **não pede** esses campos ao usuário. Se algum produto do pedido estiver sem peso cadastrado, a geração **falha** para aquele pedido com mensagem clara, sem afetar os demais.
-3. **PDF gerado** contém:
+4. **PDF gerado** contém:
    - Título “Declaração de Conteúdo”.
    - Nº interno próprio (ex.: `DC-...`).
    - Data e hora de geração (BRT).
