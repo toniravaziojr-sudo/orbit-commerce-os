@@ -1027,6 +1027,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   };
 
   const openDcDialogForInvoice = (invoice: any) => {
+    const ps = pedidoStatusOf(invoice);
+    if (isPedidoBlockedForFiscalActions(ps)) {
+      if (ps === 'pendente') toast.warning('Resolva as pendências do pedido antes de gerar a Declaração de Conteúdo.');
+      else if (ps === 'cancelled') toast.error('Pedido cancelado — Declaração de Conteúdo indisponível.');
+      else toast.error('Pedido em chargeback — Declaração de Conteúdo indisponível.');
+      return;
+    }
     setDcDialogTargets([invoice]);
     setDcDialogOpen(true);
   };
@@ -1035,11 +1042,16 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const selected = (filteredInvoices || []).filter(
       inv => selectedInvoices.has(inv.id) && inv.fiscal_stage === 'pedido_venda'
     );
-    if (selected.length === 0) {
-      toast.error('Selecione ao menos um Pedido de Venda.');
+    const eligible = selected.filter(inv => !isPedidoBlockedForFiscalActions(pedidoStatusOf(inv as any)));
+    const blockedCount = selected.length - eligible.length;
+    if (eligible.length === 0) {
+      toast.error('Nenhum pedido elegível. Pedidos com pendência, cancelados ou em chargeback ficam bloqueados.');
       return;
     }
-    setDcDialogTargets(selected);
+    if (blockedCount > 0) {
+      toast.warning(`${blockedCount} pedido(s) ignorado(s) por pendência/cancelado/chargeback.`);
+    }
+    setDcDialogTargets(eligible);
     setDcDialogOpen(true);
   };
 
