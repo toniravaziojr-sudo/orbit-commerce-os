@@ -28,6 +28,9 @@ interface OrderItem {
   csosn?: string;
   valor_desconto?: number;
   valor_frete?: number;
+  gtin?: string;
+  gtin_tributavel?: string;
+  cest?: string;
 }
 
 export interface ManualInvoiceInitialData {
