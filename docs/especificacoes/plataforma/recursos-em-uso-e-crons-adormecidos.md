@@ -72,7 +72,7 @@ Acesso restrito a super-admin (PlatformAdminGate). Mostra:
 | `meta-token-refresh-daily` | diário | Meta Ads + Catálogo + WhatsApp |
 | `meta-token-health-check-daily` | diário | Meta Ads + Catálogo + WhatsApp |
 | `meta-catalog-daily-sync` | diário | Catálogo Meta |
-| `sync-ads-dashboard-daily-15min` | 1 h | Meta Ads + Google Ads |
+| `sync-ads-dashboard-daily-15min` | grade fixa 00/06/09/12/15/18/21 | Meta Ads + Google Ads |
 | `sync-ads-dashboard-weekly-reconcile` | semanal | Meta Ads + Google Ads |
 | `tiktok-token-refresh-cron` | 6 h | TikTok Shop |
 | `ads-autopilot-analyze` | 6 h | IA Gestor de Tráfego |
