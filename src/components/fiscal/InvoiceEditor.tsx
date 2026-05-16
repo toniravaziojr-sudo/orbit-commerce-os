@@ -297,6 +297,7 @@ export function InvoiceEditor({
   const { data: readiness } = useFiscalReadiness();
   const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [operationNatures, setOperationNatures] = useState<Array<{
     id: string; nome: string; descricao: string | null;
     cfop_intra: string; cfop_inter: string;
@@ -319,6 +320,22 @@ export function InvoiceEditor({
     };
     load();
   }, [tenantId]);
+
+  // Resolve customer_id from order_id to enable "Abrir cadastro do cliente"
+  useEffect(() => {
+    const orderId = invoice?.order_id;
+    if (!orderId) { setCustomerId(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: row } = await supabase
+        .from('orders')
+        .select('customer_id')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (!cancelled) setCustomerId((row as any)?.customer_id ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [invoice?.order_id]);
 
   // Filter natures based on selected tipo_nota
   const filteredNatures = operationNatures.filter(n => {
