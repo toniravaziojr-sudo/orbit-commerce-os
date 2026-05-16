@@ -38,6 +38,14 @@ import { issueAndDownloadCorreiosContentDeclarationsBatch } from '@/lib/declarac
 import { CorreiosContentDeclarationDialog, type DcDialogTarget } from '@/components/fiscal/CorreiosContentDeclarationDialog';
 
 import { formatDateTimeBR } from "@/lib/date-format";
+import {
+  buildConcluidoSet,
+  derivePedidoStatus,
+  getPendenciaMotivos,
+  isPedidoBlockedForFiscalActions,
+  PEDIDO_STATUS_CONFIG,
+  type PedidoStatus,
+} from '@/lib/fiscal/pedidoStatus';
 
 // Cores explícitas por status fiscal/etapa operacional, conforme regra de negócio aprovada:
 // - Pronta para Emitir: laranja
