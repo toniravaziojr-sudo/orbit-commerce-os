@@ -134,6 +134,9 @@ export function buildNFePayload(
     csosn?: string | null;
     cst_pis?: string | null;
     cst_cofins?: string | null;
+    gtin?: string | null;
+    gtin_tributavel?: string | null;
+    cest?: string | null;
   }>,
   emitente: {
     cnpj: string;
@@ -182,6 +185,18 @@ export function buildNFePayload(
       valorDescontoItem = roundDecimal(valorDescontoTotal * proporcao, 2);
     }
     
+    // Normaliza GTIN: aceita 8/12/13/14 dígitos OU "SEM GTIN" (padrão Sefaz quando produto não tem código de barras)
+    const normalizeGtin = (v?: string | null): string => {
+      const s = String(v ?? '').trim().toUpperCase();
+      if (!s || s === 'SEM GTIN') return 'SEM GTIN';
+      const digits = s.replace(/\D/g, '');
+      if ([8, 12, 13, 14].includes(digits.length)) return digits;
+      return 'SEM GTIN';
+    };
+    const gtinComercial = normalizeGtin(item.gtin);
+    const gtinTributavel = normalizeGtin(item.gtin_tributavel || item.gtin);
+    const cestDigits = String(item.cest || '').replace(/\D/g, '').substring(0, 7);
+
     const focusItem: FocusNFeItem = {
       numero_item: item.numero_item || index + 1,
       codigo_produto: codigoSeguro || `PROD${index + 1}`,
@@ -200,6 +215,9 @@ export function buildNFePayload(
       unidade_tributavel: unidadeSegura,
       quantidade_tributavel: item.quantidade,
       valor_unitario_tributavel: roundDecimal(item.valor_unitario, 4),
+      codigo_barras_comercial: gtinComercial,
+      codigo_barras_tributavel: gtinTributavel,
+      ...(cestDigits.length === 7 ? { codigo_cest: cestDigits } : {}),
     };
     
     // Adicionar frete rateado se houver

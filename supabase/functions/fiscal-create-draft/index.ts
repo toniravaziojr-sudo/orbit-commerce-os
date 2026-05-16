@@ -220,6 +220,24 @@ Deno.serve(async (req) => {
       (fiscalProducts || []).map(fp => [fp.product_id, fp])
     );
 
+    // Buscar GTIN/EAN do catálogo de produtos (campo canônico em products.gtin/barcode)
+    const { data: productsData } = await supabase
+      .from('products')
+      .select('id, gtin, barcode')
+      .in('id', productIds);
+    const productMap = new Map(
+      (productsData || []).map((p: any) => [p.id, p])
+    );
+
+    const sanitizeGtin = (v: any): string => {
+      const s = String(v ?? '').trim().toUpperCase();
+      if (!s) return 'SEM GTIN';
+      if (s === 'SEM GTIN') return 'SEM GTIN';
+      const digits = s.replace(/\D/g, '');
+      if ([8, 12, 13, 14].includes(digits.length)) return digits;
+      return 'SEM GTIN';
+    };
+
     // Determine CFOP
     const cfop = determineCfop(
       fiscalSettings.endereco_uf,
@@ -231,6 +249,8 @@ Deno.serve(async (req) => {
     // Build invoice items - usa os itens processados (desmembrados ou não)
     const invoiceItems = itemsToProcess.map((item, index) => {
       const fiscalProduct = fiscalProductMap.get(item.product_id);
+      const productCatalog: any = productMap.get(item.product_id) || {};
+      const gtin = sanitizeGtin(productCatalog.gtin || productCatalog.barcode);
       return {
         numero_item: index + 1,
         order_item_id: item.id || null,
@@ -245,6 +265,9 @@ Deno.serve(async (req) => {
         origem: fiscalProduct?.origem || 0,
         csosn: fiscalProduct?.csosn_override || fiscalSettings.csosn_padrao,
         cst: fiscalProduct?.cst_override || fiscalSettings.cst_padrao,
+        gtin,
+        gtin_tributavel: gtin,
+        cest: fiscalProduct?.cest ? String(fiscalProduct.cest).replace(/\D/g, '').substring(0, 7) || null : null,
       };
     });
 

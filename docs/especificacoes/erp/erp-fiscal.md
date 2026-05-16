@@ -665,6 +665,63 @@ Na validação pré-emissão (`runEmitPrecheck`), o CNPJ do emitente e o CNPJ do
 
 ---
 
+## Onda 1 — Conformidade mínima Sefaz por item (v2026-05-16)
+
+Escopo: garantir que toda NF-e transmitida atenda aos campos mínimos exigidos por item pela Sefaz, independentemente de regime tributário. Não inclui CST/IPI completos, cartão estruturado nem responsável técnico (reservados para Ondas 2-4).
+
+### Campos por item agora visíveis e persistentes
+
+Cada item do Pedido de Venda e da Nota Fiscal passa a ter:
+
+- **GTIN / Código de barras (cEAN)** — código de barras comercial do produto. Aceita 8, 12, 13 ou 14 dígitos. Quando o produto não tem código de barras, o sistema usa o valor padrão `SEM GTIN` (em letras maiúsculas, sem acento), aceito oficialmente pela Sefaz.
+- **GTIN tributável (cEANTrib)** — espelha o GTIN comercial por padrão; pode ser editado quando o produto tributável for diferente.
+- **CEST** — Código Especificador da Substituição Tributária, 7 dígitos. Obrigatório quando o produto está sujeito a ST; opcional caso contrário.
+- **Desconto por item (R$)** — desconto unitário aplicado àquela linha. A soma dos descontos de itens nunca conta em dobro com o desconto do cabeçalho: o sistema aplica o **maior** entre o desconto do cabeçalho e a soma dos descontos por item.
+
+### Regra do botão "Sem GTIN"
+
+No editor de itens, ao lado do campo GTIN, há o botão **Sem GTIN**. Ao clicar, o sistema preenche GTIN e GTIN tributável com o valor literal `SEM GTIN`. Esse é o único valor aceito pela Sefaz quando o produto não tem código de barras. Não é necessário acionar o botão manualmente: quando o campo fica em branco no momento da emissão, o sistema aplica `SEM GTIN` automaticamente.
+
+### Carga automática a partir do catálogo
+
+- Na criação da NF a partir de um pedido, o sistema lê o GTIN do cadastro do produto (campo canônico `gtin`, com fallback para `barcode`) e o CEST do cadastro fiscal do produto, gravando-os no item da NF.
+- Quando o cadastro não tem GTIN, o item nasce com `SEM GTIN` já preenchido.
+- Quando o produto não tem CEST configurado, o campo permanece vazio (CEST só é enviado à Sefaz se tiver exatamente 7 dígitos).
+
+### Payload Focus NFe
+
+O payload enviado à Focus NFe agora inclui, por item:
+
+- `codigo_barras_comercial` (cEAN) — sempre presente, com valor real ou `SEM GTIN`.
+- `codigo_barras_tributavel` (cEANTrib) — sempre presente, com valor real ou `SEM GTIN`.
+- `codigo_cest` — incluído apenas quando o CEST tiver exatamente 7 dígitos.
+- `valor_desconto` — desconto efetivo do item, com rateio automático quando o desconto vier do cabeçalho (rateio proporcional ao valor de cada item, ajuste de centavos no último item).
+
+### Totais e duplicação — validação contínua
+
+A correção de totais e duplicação entregue anteriormente continua valendo:
+
+- Total da NF = Soma dos produtos − Desconto efetivo + Frete + Seguro + Outras despesas (nunca negativo).
+- Duplicação de Pedido de Venda preserva o valor final original. Quando o pedido antigo não tem desconto/ajuste estruturado, o sistema aplica a regra de inferência (compensa via desconto ou via outras despesas) para que o total do novo rascunho seja exatamente igual ao do pedido original.
+- Nenhum preço é buscado do catálogo atual na duplicação: tudo é snapshot dos itens originais.
+
+### Garantias de segurança
+
+- Nenhuma NF é emitida ou transmitida automaticamente nessa etapa: a Onda 1 é só dados, persistência e payload.
+- A emissão real continua exigindo confirmação explícita no diálogo (igual ao comportamento anterior).
+- A regra de homologação versus produção real continua intacta.
+
+### Como testar pela UI
+
+1. Em **Fiscal → Pedidos de Venda**, abra um pedido existente e clique em **Duplicar Pedido de Venda**. Confirme que o valor final do novo rascunho é exatamente igual ao do original.
+2. No editor de itens, confirme que os novos campos GTIN, GTIN tributável, CEST e Desconto aparecem em cada item.
+3. Em um item sem código de barras, clique em **Sem GTIN** e salve. Reabra para confirmar que `SEM GTIN` foi preservado.
+4. Em um item com CEST de 7 dígitos, salve e reabra para confirmar a preservação.
+5. Preencha desconto no cabeçalho e desconto em algum item simultaneamente; confirme que o total da NF aplica o **maior** entre os dois, sem somar em dobro.
+6. Crie uma NF a partir de um pedido cujo produto tem GTIN cadastrado em **Produtos**: confirme que o item já nasce com o GTIN preenchido.
+
+---
+
 ## 2. Financeiro
 
 ### Arquivos

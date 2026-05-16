@@ -28,6 +28,9 @@ interface OrderItem {
   csosn?: string;
   valor_desconto?: number;
   valor_frete?: number;
+  gtin?: string;
+  gtin_tributavel?: string;
+  cest?: string;
 }
 
 export interface ManualInvoiceInitialData {
@@ -447,6 +450,9 @@ export function ManualInvoiceDialog({
             valor_frete: Number(item.valor_frete) || 0,
             origem: item.origem || '0',
             csosn: item.csosn || '102',
+            gtin: item.gtin || '',
+            gtin_tributavel: item.gtin_tributavel || item.gtin || '',
+            cest: item.cest || '',
           })),
         },
       });

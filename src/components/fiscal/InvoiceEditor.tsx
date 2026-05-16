@@ -430,7 +430,11 @@ export function InvoiceEditor({
   const recalculateTotals = (items: InvoiceItemData[]) => {
     if (!data) return;
     const valor_produtos = items.reduce((sum, item) => sum + item.valor_total, 0);
-    const valor_total = valor_produtos + (data.valor_frete || 0) + (data.valor_seguro || 0) + (data.valor_outras_despesas || 0) - (data.valor_desconto || 0);
+    const descontoItens = items.reduce((sum, item) => sum + (Number(item.valor_desconto) || 0), 0);
+    // Regra: usa o maior entre desconto do cabeçalho e soma dos descontos por item,
+    // evitando contar desconto em dobro quando o usuário preenche os dois lados.
+    const descontoEfetivo = Math.max(Number(data.valor_desconto) || 0, descontoItens);
+    const valor_total = Math.max(0, valor_produtos + (data.valor_frete || 0) + (data.valor_seguro || 0) + (data.valor_outras_despesas || 0) - descontoEfetivo);
     setData(prev => prev ? { ...prev, valor_produtos, valor_total } : null);
   };
 
@@ -1224,6 +1228,85 @@ export function InvoiceEditor({
                                   min={0}
                                   step="0.01"
                                 />
+                              </div>
+
+                              {/* Desconto do item */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">Desconto (R$)</Label>
+                                <Input
+                                  type="number"
+                                  value={item.valor_desconto || 0}
+                                  onChange={(e) => updateItem(index, 'valor_desconto', parseFloat(e.target.value) || 0)}
+                                  className="h-8 text-sm"
+                                  min={0}
+                                  step="0.01"
+                                  placeholder="0,00"
+                                />
+                              </div>
+
+                              {/* GTIN / EAN */}
+                              <div className="space-y-1 sm:col-span-2">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-xs">
+                                    GTIN / Código de barras
+                                  </Label>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-[10px] px-2"
+                                    onClick={() => {
+                                      updateItem(index, 'gtin', 'SEM GTIN');
+                                      updateItem(index, 'gtin_tributavel', 'SEM GTIN');
+                                    }}
+                                  >
+                                    Sem GTIN
+                                  </Button>
+                                </div>
+                                <Input
+                                  value={item.gtin || ''}
+                                  onChange={(e) => {
+                                    const v = e.target.value.toUpperCase();
+                                    updateItem(index, 'gtin', v);
+                                    // Espelha no tributável quando ainda não tiver valor próprio
+                                    if (!item.gtin_tributavel || item.gtin_tributavel === item.gtin) {
+                                      updateItem(index, 'gtin_tributavel', v);
+                                    }
+                                  }}
+                                  className="h-8 text-sm font-mono"
+                                  placeholder="Ex: 7891234567890 ou SEM GTIN"
+                                  maxLength={14}
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                  Obrigatório quando o produto tiver código de barras. Se não tiver, marque "Sem GTIN".
+                                </p>
+                              </div>
+
+                              {/* GTIN tributável */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">GTIN tributável</Label>
+                                <Input
+                                  value={item.gtin_tributavel || ''}
+                                  onChange={(e) => updateItem(index, 'gtin_tributavel', e.target.value.toUpperCase())}
+                                  className="h-8 text-sm font-mono"
+                                  placeholder="Igual ao GTIN ou SEM GTIN"
+                                  maxLength={14}
+                                />
+                              </div>
+
+                              {/* CEST */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">CEST</Label>
+                                <Input
+                                  value={item.cest || ''}
+                                  onChange={(e) => updateItem(index, 'cest', e.target.value.replace(/\D/g, ''))}
+                                  className="h-8 text-sm font-mono"
+                                  placeholder="0000000"
+                                  maxLength={7}
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                  Obrigatório quando houver Substituição Tributária.
+                                </p>
                               </div>
                             </div>
                           </CardContent>

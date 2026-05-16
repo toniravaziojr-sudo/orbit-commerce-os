@@ -309,6 +309,9 @@ Deno.serve(async (req) => {
       cst_icms: item.cst_icms,
       cst_pis: item.cst_pis || '07',
       cst_cofins: item.cst_cofins || '07',
+      gtin: item.gtin,
+      gtin_tributavel: item.gtin_tributavel,
+      cest: item.cest,
     }));
 
     const payment = invoice.order_id ? {
