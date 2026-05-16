@@ -111,6 +111,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [editingInvoiceError, setEditingInvoiceError] = useState<string | null>(null);
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
   const [editingInvoiceStage, setEditingInvoiceStage] = useState<string | null>(null);
+  const [editingInvoicePendencias, setEditingInvoicePendencias] = useState<string[]>([]);
   const [preparingInvoiceId, setPreparingInvoiceId] = useState<string | null>(null);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [cancelingInvoice, setCancelingInvoice] = useState<FiscalInvoice | null>(null);
@@ -155,19 +156,17 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return stage === 'pronta_emitir' || stage === 'pendencia' || stage === 'emitida';
   });
 
+  // Concluído set + helper derivado (fonte única em src/lib/fiscal/pedidoStatus.ts)
+  const concluidoSet = buildConcluidoSet((invoices as any[]) || []);
+  const pedidoStatusOf = (inv: any) => derivePedidoStatus(inv, concluidoSet);
+
   // Apply status filter
   const statusFilteredInvoices = modeFilteredInvoices?.filter(inv => {
     if (statusFilter.length === 0) return true;
 
     if (mode === 'orders') {
-      // Filter by order context status
-      const isChargeback = inv.order_status && ['chargeback_detected', 'chargeback_lost'].includes(inv.order_status);
-      const isCancelled = inv.order_status && ['cancelled', 'canceled'].includes(inv.order_status);
-      
-      if (statusFilter.includes('chargeback') && isChargeback) return true;
-      if (statusFilter.includes('cancelled') && isCancelled) return true;
-      if (statusFilter.includes('ready') && !isChargeback && !isCancelled) return true;
-      return false;
+      // 5 status oficiais: em_aberto | pendente | concluido | cancelled | chargeback
+      return statusFilter.includes(pedidoStatusOf(inv));
     } else {
       // Filter by invoice status
       if (statusFilter.includes('printed') && inv.status === 'authorized' && (inv as any).danfe_printed_at) return true;
@@ -325,8 +324,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       })),
     };
 
+    const pendencias = Array.isArray((data as any).pendencia_motivos)
+      ? ((data as any).pendencia_motivos as string[]).filter((s) => typeof s === 'string')
+      : [];
     setEditingInvoice(invoiceData);
-    setEditingInvoiceError(data.status_motivo || (Array.isArray((data as any).pendencia_motivos) ? (data as any).pendencia_motivos.join(' • ') : null));
+    setEditingInvoiceError(data.status_motivo || null);
+    setEditingInvoicePendencias(pendencias);
     setEditingInvoiceStatus(data.status || null);
     setEditingInvoiceStage((data as any).fiscal_stage || null);
   };
@@ -594,6 +597,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const requestEmitInvoice = (invoice: FiscalInvoice) => {
     const stage = (invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida');
     if (mode === 'orders' || stage === 'pedido_venda') {
+      const ps = pedidoStatusOf(invoice as any);
+      if (isPedidoBlockedForFiscalActions(ps)) {
+        if (ps === 'pendente') {
+          toast.warning('Este pedido tem pendências. Abra "Editar" e resolva antes de criar a Nota Fiscal.');
+          handleEditInvoice(invoice);
+        } else if (ps === 'cancelled') {
+          toast.error('Pedido cancelado — não é possível emitir Nota Fiscal.');
+        } else {
+          toast.error('Pedido em chargeback — não é possível emitir Nota Fiscal.');
+        }
+        return;
+      }
       handlePrepareInvoice(invoice);
       return;
     }
@@ -700,7 +715,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const isOrders = mode === 'orders';
 
     const targets = isOrders
-      ? selected.filter(i => stageOf(i) === 'pedido_venda')
+      ? selected.filter(i => stageOf(i) === 'pedido_venda' && !isPedidoBlockedForFiscalActions(pedidoStatusOf(i as any)))
       : selected.filter(i => stageOf(i) === 'pronta_emitir' && i.status === 'draft');
 
     if (targets.length === 0) {
@@ -1012,6 +1027,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   };
 
   const openDcDialogForInvoice = (invoice: any) => {
+    const ps = pedidoStatusOf(invoice);
+    if (isPedidoBlockedForFiscalActions(ps)) {
+      if (ps === 'pendente') toast.warning('Resolva as pendências do pedido antes de gerar a Declaração de Conteúdo.');
+      else if (ps === 'cancelled') toast.error('Pedido cancelado — Declaração de Conteúdo indisponível.');
+      else toast.error('Pedido em chargeback — Declaração de Conteúdo indisponível.');
+      return;
+    }
     setDcDialogTargets([invoice]);
     setDcDialogOpen(true);
   };
@@ -1020,11 +1042,16 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const selected = (filteredInvoices || []).filter(
       inv => selectedInvoices.has(inv.id) && inv.fiscal_stage === 'pedido_venda'
     );
-    if (selected.length === 0) {
-      toast.error('Selecione ao menos um Pedido de Venda.');
+    const eligible = selected.filter(inv => !isPedidoBlockedForFiscalActions(pedidoStatusOf(inv as any)));
+    const blockedCount = selected.length - eligible.length;
+    if (eligible.length === 0) {
+      toast.error('Nenhum pedido elegível. Pedidos com pendência, cancelados ou em chargeback ficam bloqueados.');
       return;
     }
-    setDcDialogTargets(selected);
+    if (blockedCount > 0) {
+      toast.warning(`${blockedCount} pedido(s) ignorado(s) por pendência/cancelado/chargeback.`);
+    }
+    setDcDialogTargets(eligible);
     setDcDialogOpen(true);
   };
 
@@ -1160,32 +1187,34 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
       {/* Stats */}
       {mode === 'orders' ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard
-            title="Pedidos de venda em aberto"
-            value={statsLoading ? '...' : counts.orders.toString()}
-            icon={FileText}
-            variant="warning"
-          />
-          <StatCard
-            title="Prontas para Emitir"
-            value={statsLoading ? '...' : (modeFilteredInvoices?.filter(i => {
-              const os = i.order_status;
-              return !os || !['chargeback_detected', 'chargeback_lost', 'cancelled', 'canceled'].includes(os);
-            }).length || 0).toString()}
-            icon={CheckCircle}
-            variant="success"
-          />
-          <StatCard
-            title="Com Pendência"
-            value={statsLoading ? '...' : (modeFilteredInvoices?.filter(i => {
-              const os = i.order_status;
-              return os && ['chargeback_detected', 'chargeback_lost', 'cancelled', 'canceled'].includes(os);
-            }).length || 0).toString()}
-            icon={AlertTriangle}
-            variant="destructive"
-          />
-        </div>
+        (() => {
+          const all = modeFilteredInvoices || [];
+          const cEmAberto = all.filter(i => pedidoStatusOf(i) === 'em_aberto').length;
+          const cPendente = all.filter(i => pedidoStatusOf(i) === 'pendente').length;
+          const cConcluido = all.filter(i => pedidoStatusOf(i) === 'concluido').length;
+          return (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <StatCard
+                title="Em aberto"
+                value={statsLoading ? '...' : cEmAberto.toString()}
+                icon={FileText}
+                variant="info"
+              />
+              <StatCard
+                title="Pendente"
+                value={statsLoading ? '...' : cPendente.toString()}
+                icon={AlertTriangle}
+                variant="warning"
+              />
+              <StatCard
+                title="Concluído"
+                value={statsLoading ? '...' : cConcluido.toString()}
+                icon={CheckCircle}
+                variant="success"
+              />
+            </div>
+          );
+        })()
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard
@@ -1469,17 +1498,25 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                           <TableCell>{formatCurrency(invoice.valor_total)}</TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
-                              {invoice.status === 'draft' && invoice.order_status && ['chargeback_detected', 'chargeback_lost'].includes(invoice.order_status) ? (
-                                <Badge variant="destructive" className="gap-1 w-fit bg-red-600">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  Chargeback em andamento
-                                </Badge>
-                              ) : invoice.status === 'draft' && invoice.order_status && ['cancelled', 'canceled'].includes(invoice.order_status) ? (
-                                <Badge variant="destructive" className="gap-1 w-fit">
-                                  <XCircle className="h-3 w-3" />
-                                  Venda cancelada
-                                </Badge>
-                              ) : (mode === 'invoices' && (stageOf(invoice) === 'pronta_emitir' || stageOf(invoice) === 'pendencia')) ? (
+                              {mode === 'orders' ? (() => {
+                                const ps = pedidoStatusOf(invoice);
+                                const info = PEDIDO_STATUS_CONFIG[ps];
+                                const Icon = info.icon;
+                                const motivos = getPendenciaMotivos(invoice as any);
+                                return (
+                                  <>
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${info.className}`}>
+                                      <Icon className="h-3 w-3" />
+                                      {info.label}
+                                    </span>
+                                    {ps === 'pendente' && motivos.length > 0 && (
+                                      <p className="text-xs text-yellow-700 max-w-[220px] truncate" title={motivos.join(' • ')}>
+                                        {motivos[0]}
+                                      </p>
+                                    )}
+                                  </>
+                                );
+                              })() : (mode === 'invoices' && (stageOf(invoice) === 'pronta_emitir' || stageOf(invoice) === 'pendencia')) ? (
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${stageConfig[stageOf(invoice)].className}`}>
                                   {(() => { const I = stageConfig[stageOf(invoice)].icon; return <I className="h-3 w-3" />; })()}
                                   {stageConfig[stageOf(invoice)].label}
@@ -1509,6 +1546,17 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
+                            {(() => {
+                              const ps = mode === 'orders' ? pedidoStatusOf(invoice) : null;
+                              const blocked = ps ? isPedidoBlockedForFiscalActions(ps) : false;
+                              const blockedReason = ps === 'pendente'
+                                ? 'Resolva as pendências do pedido antes de emitir.'
+                                : ps === 'cancelled'
+                                ? 'Pedido cancelado — emissão indisponível.'
+                                : ps === 'chargeback'
+                                ? 'Pedido em chargeback — emissão indisponível.'
+                                : undefined;
+                              return (
                             <InvoiceActionsDropdown
                               invoice={invoice as any}
                               onEdit={() => handleEditInvoice(invoice)}
@@ -1528,6 +1576,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
+                              pedidoBlocked={blocked}
+                              pedidoBlockedReason={blockedReason}
                               emitLabel={
                                 mode === 'orders'
                                   ? 'Criar Nota Fiscal'
@@ -1538,6 +1588,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                           : 'Emitir Nota Fiscal')
                               }
                             />
+                              );
+                            })()}
                           </TableCell>
                         </TableRow>
                       );
@@ -1604,6 +1656,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
             if (!open) {
               setEditingInvoice(null);
               setEditingInvoiceError(null);
+              setEditingInvoicePendencias([]);
               setEditingInvoiceStatus(null);
               setEditingInvoiceStage(null);
             }
@@ -1613,6 +1666,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           onSubmit={handleSubmitInvoice}
           onDelete={handleDeleteInvoice}
           rejectionError={editingInvoiceError || undefined}
+          pendenciaMotivos={editingInvoicePendencias}
           invoiceStatus={editingInvoiceStatus || undefined}
           invoiceStage={editingInvoiceStage}
           onPrepare={async (data) => {

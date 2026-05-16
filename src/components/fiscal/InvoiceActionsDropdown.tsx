@@ -57,6 +57,10 @@ interface InvoiceActionsDropdownProps {
   cloneLabel?: string;
   /** Rótulo do item de emissão (ex.: "Emitir NF-e de teste" em homologação). */
   emitLabel?: string;
+  /** True quando o Pedido de Venda está bloqueado por pendência/cancelado/chargeback — desabilita Criar NF e Declaração de Conteúdo. */
+  pedidoBlocked?: boolean;
+  /** Mensagem do bloqueio (tooltip). */
+  pedidoBlockedReason?: string;
 }
 
 export function InvoiceActionsDropdown({
@@ -79,6 +83,8 @@ export function InvoiceActionsDropdown({
   isGeneratingDC,
   cloneLabel = 'Duplicar NF',
   emitLabel = 'Emitir NF-e',
+  pedidoBlocked = false,
+  pedidoBlockedReason,
 }: InvoiceActionsDropdownProps) {
   const [isDownloadingXml, setIsDownloadingXml] = useState(false);
 
@@ -182,8 +188,9 @@ export function InvoiceActionsDropdown({
             </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={onSubmit}
-              disabled={isSubmitting}
-              className="text-green-600"
+              disabled={isSubmitting || pedidoBlocked}
+              className={pedidoBlocked ? undefined : "text-green-600"}
+              title={pedidoBlocked ? pedidoBlockedReason : undefined}
             >
               {isSubmitting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -197,7 +204,11 @@ export function InvoiceActionsDropdown({
               {cloneLabel}
             </DropdownMenuItem>
             {onGenerateDC && (
-              <DropdownMenuItem onClick={onGenerateDC} disabled={isGeneratingDC}>
+              <DropdownMenuItem
+                onClick={onGenerateDC}
+                disabled={isGeneratingDC || pedidoBlocked}
+                title={pedidoBlocked ? pedidoBlockedReason : undefined}
+              >
                 {isGeneratingDC ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
