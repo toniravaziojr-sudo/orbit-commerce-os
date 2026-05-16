@@ -221,6 +221,15 @@ Deno.serve(async (req) => {
     });
 
     // Insert invoice items (snapshot do pedido — não recalcula preço do catálogo)
+    const sanitizeGtin = (v: any): string | null => {
+      const s = String(v ?? '').trim().toUpperCase();
+      if (!s) return null;
+      if (s === 'SEM GTIN') return 'SEM GTIN';
+      // GTIN deve conter apenas dígitos (8, 12, 13 ou 14)
+      const digits = s.replace(/\D/g, '');
+      if ([8, 12, 13, 14].includes(digits.length)) return digits;
+      return s.substring(0, 14);
+    };
     const invoiceItems = itens.map((item: any) => ({
       invoice_id: invoice.id,
       numero_item: item.numero_item,
@@ -236,6 +245,9 @@ Deno.serve(async (req) => {
       valor_frete: Math.max(0, toNum(item.valor_frete)),
       origem: parseInt(item.origem || '0', 10),
       csosn: item.csosn || '102',
+      gtin: sanitizeGtin(item.gtin),
+      gtin_tributavel: sanitizeGtin(item.gtin_tributavel || item.gtin),
+      cest: item.cest ? String(item.cest).replace(/\D/g, '').substring(0, 7) || null : null,
     }));
 
     const { error: itemsError } = await supabase
