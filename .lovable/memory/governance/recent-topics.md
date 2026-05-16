@@ -82,6 +82,36 @@ type: reference
 
 ---
 
+## 📌 PINNED — Módulo Fiscal — Onda 1: Conformidade Mínima Sefaz + Correção de Totais/Duplicação (ENTREGUE, VALIDAÇÃO TÉCNICA OK — aguardando teste do usuário)
+
+**O que foi entregue (Onda 1):**
+- Cada item de Pedido de Venda (rascunho de NF) agora exibe e persiste: **GTIN / código de barras**, **GTIN tributável**, **CEST** e **desconto por item**.
+- Botão "Sem GTIN" preenche automaticamente o valor literal aceito pela Sefaz quando o produto não possui código de barras.
+- **Cálculo unificado** frontend/backend: total = soma dos itens − desconto (rateado proporcionalmente ao valor de cada item, sem duplicar se houver desconto no cabeçalho e por item) + frete + seguro + outras despesas.
+- **Duplicação de Pedido de Venda** preserva agora o valor final exato: copia preços snapshot, desconto, frete e ajustes financeiros. Regra de inferência ativa para pedidos antigos que não tinham desconto estruturado.
+- **Payload fiscal** (preparação para transmissão) envia GTIN, GTIN tributável, CEST e desconto por item corretamente formatados.
+- Nenhuma NF foi emitida nem transmitida durante o trabalho.
+
+**Onde paramos exatamente:**
+- Onda 1 está **concluída e validada tecnicamente** (deploys ok, lógica testada, docs atualizados).
+- **Pendente:** validação do usuário pela interface — testar criar/editar/duplicar um pedido de venda e conferir se os totais batem.
+- **Próximo passo combinado (retomar daqui):**
+  - Após validação do usuário, seguir para **Onda 2** (seção tributária completa por item: ICMS com CST para Regime Normal, IPI, PIS e COFINS com alíquotas e bases calculadas automaticamente, com override manual).
+  - Também aguardando retomada do plano aprovado de **reformular a UX da tela de Configurações Fiscais** (`.lovable/plan.md` — cartão de prontidão, certificado digital com estados claros, checklist acionável, salvar fixo no rodapé).
+
+**Restrições ativas (NÃO violar ao retomar):**
+- Não implementar Onda 2 (CST, IPI, PIS/COFINS) sem aprovação explícita do usuário.
+- Não emitir/transmitir NF de teste sem autorização.
+- Não alterar a lógica de cálculo de totais sem revalidar duplicação e rateio.
+- Manter `SEM GTIN` como fallback literal para produtos sem código de barras.
+- Docs formais do módulo fiscal (`docs/especificacoes/erp/erp-fiscal.md`) já refletem Onda 1 — qualquer nova onda exige atualização documental na mesma entrega.
+
+**Docs fonte de verdade:**
+- `docs/especificacoes/erp/erp-fiscal.md` (atualizado com regras de Onda 1)
+- Plano de UX de Configurações Fiscais: `.lovable/plan.md`
+
+---
+
 ## 🟢 AUTO — WhatsApp Inbound PII + HMAC SHA-256 (F2.13.2.C-CODE GO + F2.13.3-CODE Fase A em log) — 2026-05-11
 
 **Onde paramos exatamente:**
