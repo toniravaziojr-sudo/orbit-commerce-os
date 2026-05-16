@@ -1639,7 +1639,8 @@ export function InvoiceEditor({
                   <Send className="h-4 w-4 mr-2" />
                 )}
                 Emitir NF-e
-            </Button>
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
