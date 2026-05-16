@@ -1598,6 +1598,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           onDelete={handleDeleteInvoice}
           rejectionError={editingInvoiceError || undefined}
           invoiceStatus={editingInvoiceStatus || undefined}
+          invoiceStage={editingInvoiceStage}
+          onPrepare={async (data) => {
+            if (!data?.id) return;
+            await handlePrepareInvoice({ id: data.id } as any);
+          }}
         />
       )}
 

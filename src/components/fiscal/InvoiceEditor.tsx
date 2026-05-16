@@ -267,6 +267,11 @@ interface InvoiceEditorProps {
   rejectionError?: string;
   /** Invoice status to show appropriate UI */
   invoiceStatus?: string;
+  /** Etapa operacional. 'pedido_venda' troca o editor para o modo Pedido de Venda
+   *  (sem ação de Emitir; botão principal vira "Criar Nota Fiscal"). */
+  invoiceStage?: string | null;
+  /** Acionado quando, no modo Pedido de Venda, o usuário clica em "Criar Nota Fiscal". */
+  onPrepare?: (data: InvoiceData) => Promise<void>;
 }
 
 export function InvoiceEditor({
@@ -279,6 +284,8 @@ export function InvoiceEditor({
   isLoading = false,
   rejectionError,
   invoiceStatus,
+  invoiceStage,
+  onPrepare,
 }: InvoiceEditorProps) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
@@ -616,6 +623,14 @@ export function InvoiceEditor({
   // Check for missing NCM items
   const itemsWithoutNcm = data.items.filter(item => !item.ncm?.trim());
 
+  const isPedidoVenda = invoiceStage === 'pedido_venda';
+  const editorTitle = isPedidoVenda
+    ? `Pedido de Venda – Nº ${data.numero}`
+    : `Nota Fiscal – Série ${data.serie} / Nº ${data.numero}`;
+  const editorDescription = isPedidoVenda
+    ? 'Pedido de venda fiscal. Para emitir a Nota Fiscal, use a ação "Criar Nota Fiscal" — a nota é gerada e transmitida na aba Notas Fiscais.'
+    : 'As alterações feitas aqui afetam apenas esta NF-e, não o pedido original.';
+
   return (
     <>
     {InvoiceConfirmDialog}
@@ -626,14 +641,14 @@ export function InvoiceEditor({
             <div>
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Editar NF-e - Rascunho
+                {editorTitle}
               </DialogTitle>
               <DialogDescription className="mt-1">
-                As alterações feitas aqui afetam apenas esta NF-e, não o pedido original.
+                {editorDescription}
               </DialogDescription>
             </div>
             <Badge variant="secondary">
-              Série {data.serie} - Nº {data.numero}
+              {isPedidoVenda ? `Pedido Nº ${data.numero}` : `Série ${data.serie} - Nº ${data.numero}`}
             </Badge>
           </div>
         </DialogHeader>
@@ -1586,19 +1601,46 @@ export function InvoiceEditor({
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
-              Salvar Rascunho
+              {isPedidoVenda ? 'Salvar Pedido' : 'Salvar Rascunho'}
             </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={isSaving || isSubmitting}
-            >
-              {isSubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Send className="h-4 w-4 mr-2" />
-              )}
-              Emitir NF-e
-            </Button>
+            {isPedidoVenda ? (
+              <Button
+                onClick={async () => {
+                  if (!data || !onPrepare) return;
+                  setIsSubmitting(true);
+                  try {
+                    // Salva alterações antes de criar a NF, garantindo dados atuais
+                    await onSave(data);
+                    await onPrepare(data);
+                    onOpenChange(false);
+                  } catch (e) {
+                    console.error('[InvoiceEditor] onPrepare error:', e);
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                disabled={isSaving || isSubmitting || !onPrepare}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Criar Nota Fiscal
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSubmit}
+                disabled={isSaving || isSubmitting}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Emitir NF-e
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
