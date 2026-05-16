@@ -1185,10 +1185,6 @@ export function InvoiceEditor({
                       placeholder="Buscar produto"
                       className="h-9"
                     />
-                    <Button variant="outline" size="sm" onClick={addItem}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      Manual
-                    </Button>
                   </div>
                 </div>
               </CardHeader>
