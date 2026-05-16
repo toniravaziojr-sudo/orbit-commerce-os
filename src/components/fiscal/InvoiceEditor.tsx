@@ -641,7 +641,29 @@ export function InvoiceEditor({
   // Check for missing NCM items
   const itemsWithoutNcm = data.items.filter(item => !item.ncm?.trim());
 
+  // Per-item fiscal data validation (used for the unified pendency banner and per-item alerts)
+  const getItemIssues = (item: InvoiceItemData): string[] => {
+    const issues: string[] = [];
+    if (!item.descricao?.trim()) issues.push('Descrição');
+    const ncm = item.ncm?.replace(/\D/g, '') || '';
+    if (ncm.length !== 8) issues.push('NCM (8 dígitos)');
+    const cfop = item.cfop?.replace(/\D/g, '') || '';
+    if (cfop.length !== 4) issues.push('CFOP (4 dígitos)');
+    if (item.origem === undefined || item.origem === null || item.origem === '') issues.push('Origem');
+    if (!item.gtin?.trim()) issues.push('GTIN (ou "SEM GTIN")');
+    return issues;
+  };
+
+  const itemsWithIssues = data.items
+    .map((item, idx) => ({ idx, item, issues: getItemIssues(item) }))
+    .filter(({ issues }) => issues.length > 0);
+
   const isPedidoVenda = invoiceStage === 'pedido_venda';
+  // No modo Pedido de Venda, cliente/produto são apenas referências ao cadastro.
+  // Edição deve ocorrer no cadastro de origem (cliente / produto), não na NF.
+  const lockClientFields = isPedidoVenda && !!invoice?.order_id;
+  const itemLockedFromRegistry = (item: InvoiceItemData) =>
+    isPedidoVenda && !!item.product_id;
   const editorTitle = isPedidoVenda
     ? `Pedido de Venda – Nº ${data.numero}`
     : `Nota Fiscal – Série ${data.serie} / Nº ${data.numero}`;
