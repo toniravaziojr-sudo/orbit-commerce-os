@@ -324,8 +324,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       })),
     };
 
+    const pendencias = Array.isArray((data as any).pendencia_motivos)
+      ? ((data as any).pendencia_motivos as string[]).filter((s) => typeof s === 'string')
+      : [];
     setEditingInvoice(invoiceData);
-    setEditingInvoiceError(data.status_motivo || (Array.isArray((data as any).pendencia_motivos) ? (data as any).pendencia_motivos.join(' • ') : null));
+    setEditingInvoiceError(data.status_motivo || null);
+    setEditingInvoicePendencias(pendencias);
     setEditingInvoiceStatus(data.status || null);
     setEditingInvoiceStage((data as any).fiscal_stage || null);
   };
