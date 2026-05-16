@@ -159,17 +159,60 @@ Deno.serve(async (req) => {
 
   // Items
   const itemsRaw: any[] = invoice?.fiscal_invoice_items ?? order?.items ?? [];
+
+  // Enriquecer peso quando ausente:
+  // - itens fiscais: buscar order_items via order_item_id
+  // - itens com product_id: buscar products.weight
+  const orderItemIds = itemsRaw.map((it: any) => it.order_item_id).filter(Boolean);
+  const productIds = itemsRaw.map((it: any) => it.product_id).filter(Boolean);
+
+  const weightByOrderItem = new Map<string, { weight: number | null; product_id: string | null }>();
+  if (orderItemIds.length > 0) {
+    const { data: oiRows } = await sb
+      .from("order_items")
+      .select("id, weight, product_id")
+      .in("id", orderItemIds);
+    for (const r of oiRows ?? []) {
+      weightByOrderItem.set(r.id, { weight: Number(r.weight ?? 0) || null, product_id: r.product_id });
+      if (r.product_id) productIds.push(r.product_id);
+    }
+  }
+
+  const weightByProduct = new Map<string, number>();
+  if (productIds.length > 0) {
+    const { data: pRows } = await sb
+      .from("products")
+      .select("id, weight")
+      .in("id", productIds);
+    for (const r of pRows ?? []) {
+      const w = Number(r.weight ?? 0);
+      if (w > 0) weightByProduct.set(r.id, w);
+    }
+  }
+
   let totalCents = 0;
   let totalGrams = 0;
   const items = itemsRaw.map((it: any) => {
     const qtd = Number(it.quantidade ?? it.quantity ?? 0);
     const vu = Number(it.valor_unitario ?? it.unit_price ?? 0);
-    const grams = Number(it.weight_grams ?? 0);
+
+    // Resolver peso (em gramas) com cascata: item -> order_item -> product
+    let grams = Number(it.weight ?? it.weight_grams ?? 0);
+    let pid = it.product_id ?? null;
+    if (!grams && it.order_item_id) {
+      const oi = weightByOrderItem.get(it.order_item_id);
+      if (oi?.weight) grams = oi.weight;
+      if (!pid && oi?.product_id) pid = oi.product_id;
+    }
+    if (!grams && pid && weightByProduct.has(pid)) {
+      grams = weightByProduct.get(pid)!;
+    }
+
     const subtotal = qtd * vu;
     totalCents += Math.round(subtotal * 100);
     totalGrams += grams * qtd;
     return {
-      descricao: it.descricao ?? it.name ?? "",
+      descricao: it.descricao ?? it.product_name ?? it.name ?? "",
       codigo: it.codigo_produto ?? it.sku ?? null,
       quantidade: qtd,
       unidade: it.unidade ?? "UN",
