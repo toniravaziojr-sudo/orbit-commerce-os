@@ -1474,17 +1474,25 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                           <TableCell>{formatCurrency(invoice.valor_total)}</TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
-                              {invoice.status === 'draft' && invoice.order_status && ['chargeback_detected', 'chargeback_lost'].includes(invoice.order_status) ? (
-                                <Badge variant="destructive" className="gap-1 w-fit bg-red-600">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  Chargeback em andamento
-                                </Badge>
-                              ) : invoice.status === 'draft' && invoice.order_status && ['cancelled', 'canceled'].includes(invoice.order_status) ? (
-                                <Badge variant="destructive" className="gap-1 w-fit">
-                                  <XCircle className="h-3 w-3" />
-                                  Venda cancelada
-                                </Badge>
-                              ) : (mode === 'invoices' && (stageOf(invoice) === 'pronta_emitir' || stageOf(invoice) === 'pendencia')) ? (
+                              {mode === 'orders' ? (() => {
+                                const ps = pedidoStatusOf(invoice);
+                                const info = PEDIDO_STATUS_CONFIG[ps];
+                                const Icon = info.icon;
+                                const motivos = getPendenciaMotivos(invoice as any);
+                                return (
+                                  <>
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${info.className}`}>
+                                      <Icon className="h-3 w-3" />
+                                      {info.label}
+                                    </span>
+                                    {ps === 'pendente' && motivos.length > 0 && (
+                                      <p className="text-xs text-yellow-700 max-w-[220px] truncate" title={motivos.join(' • ')}>
+                                        {motivos[0]}
+                                      </p>
+                                    )}
+                                  </>
+                                );
+                              })() : (mode === 'invoices' && (stageOf(invoice) === 'pronta_emitir' || stageOf(invoice) === 'pendencia')) ? (
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${stageConfig[stageOf(invoice)].className}`}>
                                   {(() => { const I = stageConfig[stageOf(invoice)].icon; return <I className="h-3 w-3" />; })()}
                                   {stageConfig[stageOf(invoice)].label}
@@ -1514,6 +1522,17 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
+                            {(() => {
+                              const ps = mode === 'orders' ? pedidoStatusOf(invoice) : null;
+                              const blocked = ps ? isPedidoBlockedForFiscalActions(ps) : false;
+                              const blockedReason = ps === 'pendente'
+                                ? 'Resolva as pendências do pedido antes de emitir.'
+                                : ps === 'cancelled'
+                                ? 'Pedido cancelado — emissão indisponível.'
+                                : ps === 'chargeback'
+                                ? 'Pedido em chargeback — emissão indisponível.'
+                                : undefined;
+                              return (
                             <InvoiceActionsDropdown
                               invoice={invoice as any}
                               onEdit={() => handleEditInvoice(invoice)}
@@ -1533,6 +1552,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
+                              pedidoBlocked={blocked}
+                              pedidoBlockedReason={blockedReason}
                               emitLabel={
                                 mode === 'orders'
                                   ? 'Criar Nota Fiscal'
@@ -1543,6 +1564,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                           : 'Emitir Nota Fiscal')
                               }
                             />
+                              );
+                            })()}
                           </TableCell>
                         </TableRow>
                       );
