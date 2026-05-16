@@ -1225,7 +1225,85 @@ export function InvoiceEditor({
                                   step="0.01"
                                 />
                               </div>
-                            </div>
+
+                              {/* Desconto do item */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">Desconto (R$)</Label>
+                                <Input
+                                  type="number"
+                                  value={item.valor_desconto || 0}
+                                  onChange={(e) => updateItem(index, 'valor_desconto', parseFloat(e.target.value) || 0)}
+                                  className="h-8 text-sm"
+                                  min={0}
+                                  step="0.01"
+                                  placeholder="0,00"
+                                />
+                              </div>
+
+                              {/* GTIN / EAN */}
+                              <div className="space-y-1 sm:col-span-2">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-xs">
+                                    GTIN / Código de barras
+                                  </Label>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-[10px] px-2"
+                                    onClick={() => {
+                                      updateItem(index, 'gtin', 'SEM GTIN');
+                                      updateItem(index, 'gtin_tributavel', 'SEM GTIN');
+                                    }}
+                                  >
+                                    Sem GTIN
+                                  </Button>
+                                </div>
+                                <Input
+                                  value={item.gtin || ''}
+                                  onChange={(e) => {
+                                    const v = e.target.value.toUpperCase();
+                                    updateItem(index, 'gtin', v);
+                                    // Espelha no tributável quando ainda não tiver valor próprio
+                                    if (!item.gtin_tributavel || item.gtin_tributavel === item.gtin) {
+                                      updateItem(index, 'gtin_tributavel', v);
+                                    }
+                                  }}
+                                  className="h-8 text-sm font-mono"
+                                  placeholder="Ex: 7891234567890 ou SEM GTIN"
+                                  maxLength={14}
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                  Obrigatório quando o produto tiver código de barras. Se não tiver, marque "Sem GTIN".
+                                </p>
+                              </div>
+
+                              {/* GTIN tributável */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">GTIN tributável</Label>
+                                <Input
+                                  value={item.gtin_tributavel || ''}
+                                  onChange={(e) => updateItem(index, 'gtin_tributavel', e.target.value.toUpperCase())}
+                                  className="h-8 text-sm font-mono"
+                                  placeholder="Igual ao GTIN ou SEM GTIN"
+                                  maxLength={14}
+                                />
+                              </div>
+
+                              {/* CEST */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">CEST</Label>
+                                <Input
+                                  value={item.cest || ''}
+                                  onChange={(e) => updateItem(index, 'cest', e.target.value.replace(/\D/g, ''))}
+                                  className="h-8 text-sm font-mono"
+                                  placeholder="0000000"
+                                  maxLength={7}
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                  Obrigatório quando houver Substituição Tributária.
+                                </p>
+                              </div>
                           </CardContent>
                         </Card>
                       );
