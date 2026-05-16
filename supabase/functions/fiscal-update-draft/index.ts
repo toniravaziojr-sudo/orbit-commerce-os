@@ -129,6 +129,14 @@ Deno.serve(async (req) => {
         .delete()
         .eq('invoice_id', invoice_id);
 
+      const sanitizeGtin = (v: any): string | null => {
+        const s = String(v ?? '').trim().toUpperCase();
+        if (!s) return null;
+        if (s === 'SEM GTIN') return 'SEM GTIN';
+        const digits = s.replace(/\D/g, '');
+        if ([8, 12, 13, 14].includes(digits.length)) return digits;
+        return s.substring(0, 14);
+      };
       // Insert updated items
       const itemsToInsert = data.items.map((item: any, index: number) => ({
         invoice_id,
@@ -141,7 +149,12 @@ Deno.serve(async (req) => {
         quantidade: item.quantidade || 1,
         valor_unitario: item.valor_unitario || 0,
         valor_total: item.valor_total || (item.quantidade * item.valor_unitario) || 0,
+        valor_desconto: Math.max(0, Number(item.valor_desconto) || 0),
         origem: parseInt(item.origem, 10) || 0,
+        csosn: item.csosn || null,
+        gtin: sanitizeGtin(item.gtin),
+        gtin_tributavel: sanitizeGtin(item.gtin_tributavel || item.gtin),
+        cest: item.cest ? String(item.cest).replace(/\D/g, '').substring(0, 7) || null : null,
       }));
 
       if (itemsToInsert.length > 0) {
