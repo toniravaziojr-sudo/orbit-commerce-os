@@ -58,6 +58,10 @@ export interface FocusNFeItem {
   unidade_tributavel?: string;
   quantidade_tributavel?: number;
   valor_unitario_tributavel?: number;
+  // Conformidade Sefaz — Onda 1
+  codigo_barras_comercial?: string;   // cEAN — "SEM GTIN" quando ausente
+  codigo_barras_tributavel?: string;  // cEANTrib — "SEM GTIN" quando ausente
+  codigo_cest?: string;               // CEST (7 dígitos) — obrigatório para ST
 }
 
 export interface FocusNFePayload {
