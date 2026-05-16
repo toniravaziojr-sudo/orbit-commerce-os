@@ -46,7 +46,12 @@ Acesso restrito a super-admin (PlatformAdminGate). Mostra:
 
 ## Frequências definidas
 
+### Grade horária unificada para sincronizações de painéis externos
+
+Sincronizações periódicas de painéis de terceiros (anúncios, marketplaces) usam a **grade fixa `0 0,6,9,12,15,18,21 * * *`** (UTC) — 7 execuções por dia: 00h, 06h, 09h, 12h, 15h, 18h, 21h. De madrugada (00h–06h) só roda uma vez, às 6h. Mudanças nessa grade exigem aprovação explícita por afetarem o ritmo percebido pelo lojista.
+
 ### Sempre ativos (não dependem de gating)
+
 
 | Cron | Frequência | Justificativa |
 |---|---|---|
