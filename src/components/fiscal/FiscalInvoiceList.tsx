@@ -1163,32 +1163,34 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
       {/* Stats */}
       {mode === 'orders' ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard
-            title="Pedidos de venda em aberto"
-            value={statsLoading ? '...' : counts.orders.toString()}
-            icon={FileText}
-            variant="warning"
-          />
-          <StatCard
-            title="Prontas para Emitir"
-            value={statsLoading ? '...' : (modeFilteredInvoices?.filter(i => {
-              const os = i.order_status;
-              return !os || !['chargeback_detected', 'chargeback_lost', 'cancelled', 'canceled'].includes(os);
-            }).length || 0).toString()}
-            icon={CheckCircle}
-            variant="success"
-          />
-          <StatCard
-            title="Com Pendência"
-            value={statsLoading ? '...' : (modeFilteredInvoices?.filter(i => {
-              const os = i.order_status;
-              return os && ['chargeback_detected', 'chargeback_lost', 'cancelled', 'canceled'].includes(os);
-            }).length || 0).toString()}
-            icon={AlertTriangle}
-            variant="destructive"
-          />
-        </div>
+        (() => {
+          const all = modeFilteredInvoices || [];
+          const cEmAberto = all.filter(i => pedidoStatusOf(i) === 'em_aberto').length;
+          const cPendente = all.filter(i => pedidoStatusOf(i) === 'pendente').length;
+          const cConcluido = all.filter(i => pedidoStatusOf(i) === 'concluido').length;
+          return (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <StatCard
+                title="Em aberto"
+                value={statsLoading ? '...' : cEmAberto.toString()}
+                icon={FileText}
+                variant="info"
+              />
+              <StatCard
+                title="Pendente"
+                value={statsLoading ? '...' : cPendente.toString()}
+                icon={AlertTriangle}
+                variant="warning"
+              />
+              <StatCard
+                title="Concluído"
+                value={statsLoading ? '...' : cConcluido.toString()}
+                icon={CheckCircle}
+                variant="success"
+              />
+            </div>
+          );
+        })()
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard
