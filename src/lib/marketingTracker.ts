@@ -790,8 +790,13 @@ export class MarketingTracker {
       sessionStorage.setItem(`purchase_event_${order.order_id}`, eventId);
     } catch {}
 
+    // v8.34.0: predicted_ltv parity Pixel ↔ CAPI (same rule: value × 1.8 when value > 0)
+    const safeValueForPixel = typeof order.value === 'number' && Number.isFinite(order.value) && order.value > 0
+      ? order.value
+      : null;
+
     if (this.config.meta_enabled) {
-      trackMetaEvent('Purchase', {
+      const metaPixelPayload: Record<string, any> = {
         content_ids: order.items.map(i => resolveMetaContentId(i)),
         content_type: 'product',
         value: order.value,
@@ -804,7 +809,11 @@ export class MarketingTracker {
           quantity: i.quantity,
           item_price: i.price,
         })),
-      }, eventId);
+      };
+      if (safeValueForPixel !== null) {
+        metaPixelPayload.predicted_ltv = Math.round(safeValueForPixel * 1.8 * 100) / 100;
+      }
+      trackMetaEvent('Purchase', metaPixelPayload, eventId);
     }
 
     if (this.config.google_enabled) {
@@ -832,10 +841,7 @@ export class MarketingTracker {
       }, eventId);
     }
 
-    // v8.32.0: predicted_ltv only when value is valid > 0
-    const safeValue = typeof order.value === 'number' && Number.isFinite(order.value) && order.value > 0
-      ? order.value
-      : null;
+    // v8.34.0: removed order_status (não é parâmetro oficial Meta para Purchase)
     const purchaseCustomData: Record<string, any> = {
       content_ids: order.items.map(i => resolveMetaContentId(i)),
       content_type: 'product',
@@ -845,10 +851,9 @@ export class MarketingTracker {
       contents: order.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
       order_id: order.order_id,
       delivery_category: 'home_delivery',
-      order_status: 'completed',
     };
-    if (safeValue !== null) {
-      purchaseCustomData.predicted_ltv = Math.round(safeValue * 1.8 * 100) / 100;
+    if (safeValueForPixel !== null) {
+      purchaseCustomData.predicted_ltv = Math.round(safeValueForPixel * 1.8 * 100) / 100;
     }
     this.sendCapi('Purchase', eventId, purchaseCustomData, order.userData);
 

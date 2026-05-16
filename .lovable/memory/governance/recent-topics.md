@@ -196,3 +196,38 @@ type: reference
 - `docs/especificacoes/sistema/hub-integracoes.md` (modelo MP integrador + recebedor)
 
 **Memórias técnicas relacionadas:** `infrastructure/payments/gateway-separation-and-multi-provider-canonical`, `constraints/mercadopago-2-contextos-credentials`, `infrastructure/payments/multi-gateway-assignment-standard`, `features/saas/protocolo-billing-e-inadimplencia-v2-3`.
+
+---
+
+## 🟢 AUTO — Meta Tracking — v8.34.0: Paridade Pixel↔CAPI no Purchase + limpeza de `order_status` (ENTREGUE 2026-05-16, aguardando 24h de validação observacional)
+
+**O que foi entregue:**
+- **Pixel browser** agora envia `predicted_ltv = round(value*1.8, 2)` (quando `value > 0` e finito). Antes só o CAPI enviava — assimetria de EMQ corrigida.
+- **`order_status` removido** dos dois canais (Pixel e CAPI). Validado contra Meta Pixel Reference + Conversions API Standard Parameters: **não é parâmetro oficial** para Purchase. Estava sendo enviado fixo como `completed` mesmo em PIX pendente (dado incorreto, ignorado pela Meta).
+- **`marketing_events_log.order_id`** agora preenchido com UUID do pedido em todo Purchase server-side. Baseline pré-deploy: 0/62 nos últimos 7d.
+
+**O que NÃO mudou (preservado intacto):**
+- `purchaseEventTiming` (`all_orders` vs `paid_only`) — soberania do tenant, regra inalterada.
+- Momento de disparo do Purchase, dedup persistente 30d via `event_id`, fluxo de Fiscal/Vendas/Pagamentos/Logística.
+
+**Validação técnica pré-deploy:**
+- 100% dos Purchases server-side dos últimos 7 dias com `predicted_ltv` ✅
+- 0% com `order_id` no log (esperado — passa a preencher após deploy) ✅
+
+**Próximo passo combinado:**
+- Aguardar 24h de tráfego pós-deploy e re-rodar auditoria SQL: esperar 100% predicted_ltv (ambos canais), 100% order_id preenchido.
+- Monitorar painel da Meta diariamente até ~5/jun (janela móvel de 28d) — alerta "50% sem predicted_ltv" deve se curar sozinho.
+- Se EMQ Purchase ≥ 9.0 mantido após cura: encerrar tema. Caso contrário, reabrir investigação.
+
+**Docs fonte de verdade:**
+- `docs/especificacoes/marketing/meta-tracking.md` (atualizado para v8.34.0, com entrada de versionamento completa)
+
+**Restrições ativas (NÃO violar ao retomar):**
+- Não voltar a adicionar `order_status` em custom_data de Purchase.
+- Não alterar regra de `predicted_ltv` (sempre `value × 1.8`, somente quando `value > 0` e finito).
+- Não mexer em `purchaseEventTiming` sem autorização explícita do tenant.
+
+**Código:**
+- `src/lib/marketingTracker.ts` (Pixel + CAPI proxy)
+- `supabase/functions/_shared/meta-capi-sender.ts` (CAPI servidor + log de eventos)
+

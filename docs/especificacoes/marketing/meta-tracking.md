@@ -1,9 +1,9 @@
 # Meta Tracking — Pixel + Conversions API (CAPI)
 
 > **Status:** 🟢 Ativo
-> **Versão:** 8.33.0
+> **Versão:** 8.34.0
 > **Camada:** Layer 3 — Especificações / Marketing
-> **Última atualização:** 2026-05-12
+> **Última atualização:** 2026-05-16
 > **Doc relacionado:** `docs/meta-tracking-changelog.md` (histórico de notas e cobertura)
 
 ---
@@ -499,6 +499,7 @@ Registrado em 2026-05-12 após investigação completa. Futuras IAs **não devem
 
 | Versão | Data | Resumo |
 |---|---|---|
+| **v8.34.0** | **2026-05-16** | **Paridade total Pixel ↔ CAPI no Purchase + limpeza de campo não-padrão.** (1) **Pixel** passa a enviar `predicted_ltv = round(value*1.8, 2)` quando `value > 0` e finito — antes só o CAPI enviava, criando assimetria de EMQ entre canais. (2) **Removido `order_status: 'completed'`** dos dois canais (Pixel e CAPI): o campo **não consta da lista oficial de `custom_data` da Meta para Purchase** (validado contra Meta Pixel Reference e Conversions API — Standard Parameters em 16/mai/2026); estava sendo enviado fixo como `completed` mesmo em pedidos pendentes (dado incorreto, ignorado pela Meta). Controle de "contar ou não pedido não pago" continua **exclusivamente** via `purchaseEventTiming` (soberania do tenant — inalterado). (3) **`marketing_events_log.order_id`** passa a ser preenchido com o UUID do pedido em todo Purchase server-side, habilitando reconciliação por pedido (antes: 0/62 nos últimos 7 dias). Zero impacto em fiscal, vendas, pagamentos ou logística. Dedup persistente 30d por `event_id` mantido. Sem alteração no momento de disparo do Purchase. |
 | **v8.33.0** | **2026-05-12** | **Seed client-side de `_fbp` para rotas SPA-only:** `ensureFbp()` em `visitorIdentity.ts` espelha `_sfEnsureFbp` do edge — sintetiza `fb.1.<ms>.<rand>`, persiste cookie 90d e expõe `window.__sfFbp` quando ambos estão ausentes. Chamado uma vez em `MarketingTracker.initialize()`. Resolve gap de Purchase `_fbp` de 76% → ≥99% para usuários que entram direto em `/thank-you` após redirect de gateway. `getEffectiveFbp()` permanece read-only. |
 | **v8.31.0** | **2026-05-05** | **Cobertura CAPI máxima: `marketing-capi-track` aceita custom_data passthrough completo (allowlist removida); Pixel browser inclui `delivery_category=home_delivery` em ViewContent/AddToCart/InitiateCheckout/Purchase; Purchase server-side adiciona `order_status=completed`; ViewContent envia `contents[]` com `item_price` (paridade com AddToCart).** |
 | **v8.30.0** | **2026-05-05** | **Cofre estendido: `db_hash` (data nascimento), `ge_hash`, `lead_id`, `customer_id`. 4 quick wins: `external_id` array, `predicted_ltv` em Purchase, `delivery_category` em todos os eventos de conversão, `lead_id` em `custom_data`. Coleta opcional de data de nascimento em Checkout, Popup, Newsletter Footer e bloco Newsletter Form. `audience-sync-weekly` v1.2.0 com enriquecimento demográfico.** |
