@@ -79,7 +79,8 @@ Cada emissão grava em `shipping_content_declarations`:
 ## Como testar pela UI
 1. Em **Fiscal → Pedidos de Venda**, selecione um pedido na etapa “Pedido de Venda”.
 2. Clique em **Gerar Declaração de Conteúdo** (botão lateral) ou abra a ação no menu da linha.
-3. O modal exige: motivo, peso (kg), volumes e checkbox de responsabilidade. Sem isso, o botão fica desabilitado.
+3. O modal exige apenas: motivo e checkbox de responsabilidade. Peso e volumes vêm dos dados do pedido.
 4. Ao confirmar, o PDF é baixado e o registro aparece em `shipping_content_declarations` com `source='manual'`.
-5. **Em massa:** selecione vários pedidos → o modal usa o mesmo motivo para todos, com peso/volumes editáveis por pedido (e ações “aplicar a todos”). É gerado **um único PDF multipágina** com nome `Declaracoes-Conteudo-YYYY-MM-DD.pdf`. O histórico permanece individual.
-6. Validar: o pedido **não muda de etapa fiscal**; nenhuma chamada a Focus/Sefaz; PDF traz a cláusula de responsabilidade neutra, motivo informado, peso em kg e volumes.
+5. **Em massa:** selecione vários pedidos → o modal usa o mesmo motivo para todos. É gerado **um único PDF multipágina** com nome `Declaracoes-Conteudo-YYYY-MM-DD.pdf`. O histórico permanece individual.
+6. Se algum pedido tiver produto sem peso cadastrado, ele é reportado como falha individual; os demais continuam.
+7. Validar: o pedido **não muda de etapa fiscal**; nenhuma chamada a Focus/Sefaz; PDF traz a cláusula de responsabilidade neutra, motivo informado, peso em kg e volumes.
