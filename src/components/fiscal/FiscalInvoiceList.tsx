@@ -526,6 +526,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           csosn: item.csosn || '102',
           valor_desconto: Number(item.valor_desconto) || 0,
           valor_frete: Number(item.valor_frete) || 0,
+          gtin: item.gtin || '',
+          gtin_tributavel: item.gtin_tributavel || item.gtin || '',
+          cest: item.cest || '',
         })),
         // Totais e ajustes preservados (com inferência quando faltar campo estruturado)
         valor_desconto: descontoFinal,
