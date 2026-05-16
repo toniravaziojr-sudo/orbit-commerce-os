@@ -1782,7 +1782,8 @@ export function InvoiceEditor({
                     setIsSubmitting(false);
                   }
                 }}
-                disabled={isSaving || isSubmitting || !onPrepare}
+                disabled={isSaving || isSubmitting || !onPrepare || (pendenciaMotivos && pendenciaMotivos.length > 0)}
+                title={pendenciaMotivos && pendenciaMotivos.length > 0 ? 'Resolva as pendências listadas acima para criar a Nota Fiscal.' : undefined}
               >
                 {isSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
