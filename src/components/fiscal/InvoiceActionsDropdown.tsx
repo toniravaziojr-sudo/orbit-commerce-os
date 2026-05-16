@@ -57,6 +57,10 @@ interface InvoiceActionsDropdownProps {
   cloneLabel?: string;
   /** Rótulo do item de emissão (ex.: "Emitir NF-e de teste" em homologação). */
   emitLabel?: string;
+  /** True quando o Pedido de Venda está bloqueado por pendência/cancelado/chargeback — desabilita Criar NF e Declaração de Conteúdo. */
+  pedidoBlocked?: boolean;
+  /** Mensagem do bloqueio (tooltip). */
+  pedidoBlockedReason?: string;
 }
 
 export function InvoiceActionsDropdown({
