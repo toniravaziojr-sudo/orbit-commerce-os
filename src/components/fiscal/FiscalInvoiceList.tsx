@@ -156,19 +156,17 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return stage === 'pronta_emitir' || stage === 'pendencia' || stage === 'emitida';
   });
 
+  // Concluído set + helper derivado (fonte única em src/lib/fiscal/pedidoStatus.ts)
+  const concluidoSet = buildConcluidoSet((invoices as any[]) || []);
+  const pedidoStatusOf = (inv: any) => derivePedidoStatus(inv, concluidoSet);
+
   // Apply status filter
   const statusFilteredInvoices = modeFilteredInvoices?.filter(inv => {
     if (statusFilter.length === 0) return true;
 
     if (mode === 'orders') {
-      // Filter by order context status
-      const isChargeback = inv.order_status && ['chargeback_detected', 'chargeback_lost'].includes(inv.order_status);
-      const isCancelled = inv.order_status && ['cancelled', 'canceled'].includes(inv.order_status);
-      
-      if (statusFilter.includes('chargeback') && isChargeback) return true;
-      if (statusFilter.includes('cancelled') && isCancelled) return true;
-      if (statusFilter.includes('ready') && !isChargeback && !isCancelled) return true;
-      return false;
+      // 5 status oficiais: em_aberto | pendente | concluido | cancelled | chargeback
+      return statusFilter.includes(pedidoStatusOf(inv));
     } else {
       // Filter by invoice status
       if (statusFilter.includes('printed') && inv.status === 'authorized' && (inv as any).danfe_printed_at) return true;
