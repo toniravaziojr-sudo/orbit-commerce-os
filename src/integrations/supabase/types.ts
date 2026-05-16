@@ -8591,6 +8591,7 @@ export type Database = {
           reconcile_attempts: number
           requires_action: boolean | null
           serie: number
+          source_order_invoice_id: string | null
           status: string
           status_motivo: string | null
           submitted_at: string | null
@@ -8668,6 +8669,7 @@ export type Database = {
           reconcile_attempts?: number
           requires_action?: boolean | null
           serie: number
+          source_order_invoice_id?: string | null
           status?: string
           status_motivo?: string | null
           submitted_at?: string | null
@@ -8745,6 +8747,7 @@ export type Database = {
           reconcile_attempts?: number
           requires_action?: boolean | null
           serie?: number
+          source_order_invoice_id?: string | null
           status?: string
           status_motivo?: string | null
           submitted_at?: string | null
@@ -8779,6 +8782,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_invoices_source_order_invoice_id_fkey"
+            columns: ["source_order_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
             referencedColumns: ["id"]
           },
           {
