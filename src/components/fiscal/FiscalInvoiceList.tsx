@@ -1532,8 +1532,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
             }
             refetch();
           } else {
-            // Pedido de venda duplicado: abre o editor para revisão.
-            handleEditInvoice({ id: newId } as FiscalInvoice);
+            // Pedido de venda duplicado: apenas recarrega a lista — não abrir editor de NF.
+            refetch();
           }
         }}
       />
