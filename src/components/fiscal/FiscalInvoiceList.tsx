@@ -715,7 +715,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const isOrders = mode === 'orders';
 
     const targets = isOrders
-      ? selected.filter(i => stageOf(i) === 'pedido_venda')
+      ? selected.filter(i => stageOf(i) === 'pedido_venda' && !isPedidoBlockedForFiscalActions(pedidoStatusOf(i as any)))
       : selected.filter(i => stageOf(i) === 'pronta_emitir' && i.status === 'draft');
 
     if (targets.length === 0) {
