@@ -981,7 +981,6 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const handleDcDialogConfirm = async (payload: {
     reason: string;
     responsibility_acknowledged: true;
-    perTarget: Array<{ id: string; weightGrams: number; volumes: number }>;
   }) => {
     setDcDialogLoading(true);
     const targets = dcDialogTargets;
@@ -991,22 +990,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         : `Gerando ${targets.length} Declarações de Conteúdo em PDF único...`,
     );
 
-    const overrideById = new Map(payload.perTarget.map(p => [p.id, p]));
     const result = await issueAndDownloadCorreiosContentDeclarationsBatch({
       reason: payload.reason,
       responsibilityAcknowledged: true,
       source: 'manual',
-      targets: targets.map((inv: any) => {
-        const ov = overrideById.get(inv.id);
-        return {
-          tenantId: inv.tenant_id,
-          fiscalInvoiceId: inv.id,
-          orderId: inv.order_id ?? null,
-          weightGrams: ov?.weightGrams ?? 0,
-          volumes: ov?.volumes ?? 1,
-          label: inv.dest_nome || `#${inv.numero || ''}`,
-        };
-      }),
+      targets: targets.map((inv: any) => ({
+        tenantId: inv.tenant_id,
+        fiscalInvoiceId: inv.id,
+        orderId: inv.order_id ?? null,
+        weightGrams: 0, // 0 = backend calcula automaticamente a partir dos itens do pedido
+        volumes: Number(inv?.quantidade_volumes) > 0 ? Number(inv.quantidade_volumes) : 1,
+        label: inv.dest_nome || `#${inv.numero || ''}`,
+      })),
     });
 
     toast.dismiss(t);
