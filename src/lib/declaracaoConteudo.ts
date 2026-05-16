@@ -172,7 +172,7 @@ function renderOneDeclaration(doc: jsPDF, rec: DeclarationRecord, isFirstPage: b
   doc.text(`CEP: ${formatCep(dCep)}`, pageW - margin, y, { align: 'right' });
   y += 4;
   if (r.telefone || r.email) {
-    doc.text(`Telefone: ${r.telefone || '-'}`, margin, y);
+    doc.text(`Telefone: ${formatPhone(r.telefone)}`, margin, y);
     if (r.email) doc.text(`E-mail: ${r.email}`, pageW - margin, y, { align: 'right' });
     y += 4;
   }
