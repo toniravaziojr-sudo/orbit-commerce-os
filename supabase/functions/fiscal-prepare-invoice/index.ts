@@ -213,10 +213,15 @@ Deno.serve(async (req) => {
         pendencia_motivos: errors.length > 0 ? errors : null,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', invoice_id)
+      .eq('id', workingInvoiceId)
       .eq('tenant_id', tenantId);
 
     if (updateErr) {
+      // Se criamos snapshot e o update falhou, faz rollback do snapshot
+      if (snapshotCreated) {
+        await admin.from('fiscal_invoice_items').delete().eq('invoice_id', workingInvoiceId);
+        await admin.from('fiscal_invoices').delete().eq('id', workingInvoiceId);
+      }
       return new Response(JSON.stringify({ success: false, error: updateErr.message }), {
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -226,9 +231,16 @@ Deno.serve(async (req) => {
       success: true,
       fiscal_stage: newStage,
       errors,
-      message: newStage === 'pronta_emitir'
-        ? 'Nota Fiscal preparada e movida para a aba Notas Fiscais como Pronta para Emitir.'
-        : `Nota Fiscal movida para a aba Notas Fiscais com pendências (${errors.length}).`,
+      invoice_id: workingInvoiceId,
+      source_order_invoice_id: snapshotCreated ? invoice_id : null,
+      snapshot_created: snapshotCreated,
+      message: snapshotCreated
+        ? (newStage === 'pronta_emitir'
+            ? 'Nota Fiscal criada a partir do Pedido e marcada como Pronta para Emitir.'
+            : `Nota Fiscal criada a partir do Pedido com pendências (${errors.length}). Pedido de Venda permanece inalterado.`)
+        : (newStage === 'pronta_emitir'
+            ? 'Nota Fiscal preparada e movida como Pronta para Emitir.'
+            : `Nota Fiscal movida com pendências (${errors.length}).`),
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (e: any) {
