@@ -134,6 +134,9 @@ export function buildNFePayload(
     csosn?: string | null;
     cst_pis?: string | null;
     cst_cofins?: string | null;
+    gtin?: string | null;
+    gtin_tributavel?: string | null;
+    cest?: string | null;
   }>,
   emitente: {
     cnpj: string;
