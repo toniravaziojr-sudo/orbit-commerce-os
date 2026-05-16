@@ -75,6 +75,85 @@ Deno.serve(async (req) => {
       }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // === Modelo Bling (2 registros) ===
+    // Se origem é Pedido de Venda, cria uma NOVA NF (snapshot) preservando o pedido intacto.
+    // Caso contrário (pendencia/pronta_emitir), valida o próprio registro.
+    const isFromPedidoVenda = inv.fiscal_stage === 'pedido_venda';
+    let workingInvoiceId = invoice_id as string;
+    let workingItems = inv.fiscal_invoice_items || [];
+    let snapshotCreated = false;
+
+    if (isFromPedidoVenda) {
+      // Clona campos da NF excluindo identificadores/sefaz/timestamps
+      const {
+        id: _id,
+        created_at: _ca,
+        updated_at: _ua,
+        fiscal_invoice_items: _items,
+        focus_ref: _fr,
+        chave_acesso: _ck,
+        numero_nfe: _nn,
+        protocolo_autorizacao: _pa,
+        data_emissao: _de,
+        data_autorizacao: _da,
+        xml_url: _xu,
+        pdf_url: _pu,
+        status_motivo: _sm,
+        pendencia_motivos: _pm,
+        ...cloneFields
+      } = inv as any;
+
+      const newInvoicePayload = {
+        ...cloneFields,
+        source_order_invoice_id: invoice_id,
+        fiscal_stage: 'pendencia', // será ajustado abaixo conforme validação
+        status: 'draft',
+        focus_ref: null,
+        chave_acesso: null,
+        numero_nfe: null,
+        protocolo_autorizacao: null,
+        data_emissao: null,
+        data_autorizacao: null,
+        xml_url: null,
+        pdf_url: null,
+        status_motivo: null,
+        pendencia_motivos: null,
+      };
+
+      const { data: newInv, error: insErr } = await admin
+        .from('fiscal_invoices')
+        .insert(newInvoicePayload)
+        .select('id')
+        .single();
+
+      if (insErr || !newInv) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Falha ao criar Nota Fiscal a partir do Pedido: ' + (insErr?.message || 'desconhecido'),
+        }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      workingInvoiceId = newInv.id;
+      snapshotCreated = true;
+
+      // Clona itens do pedido para a nova NF
+      if (workingItems.length > 0) {
+        const itemsClone = workingItems.map(({ id: _iid, invoice_id: _ivid, created_at: _ica, updated_at: _iua, ...rest }: any) => ({
+          ...rest,
+          invoice_id: newInv.id,
+        }));
+        const { error: itemsErr } = await admin.from('fiscal_invoice_items').insert(itemsClone);
+        if (itemsErr) {
+          // rollback: remove a NF recém-criada para evitar lixo
+          await admin.from('fiscal_invoices').delete().eq('id', newInv.id);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Falha ao copiar itens para a Nota Fiscal: ' + itemsErr.message,
+          }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      }
+    }
+
     const { data: settings } = await admin
       .from('fiscal_settings').select('*').eq('tenant_id', tenantId).maybeSingle();
 
