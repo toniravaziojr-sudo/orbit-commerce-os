@@ -267,6 +267,11 @@ interface InvoiceEditorProps {
   rejectionError?: string;
   /** Invoice status to show appropriate UI */
   invoiceStatus?: string;
+  /** Etapa operacional. 'pedido_venda' troca o editor para o modo Pedido de Venda
+   *  (sem ação de Emitir; botão principal vira "Criar Nota Fiscal"). */
+  invoiceStage?: string | null;
+  /** Acionado quando, no modo Pedido de Venda, o usuário clica em "Criar Nota Fiscal". */
+  onPrepare?: (data: InvoiceData) => Promise<void>;
 }
 
 export function InvoiceEditor({
@@ -279,6 +284,8 @@ export function InvoiceEditor({
   isLoading = false,
   rejectionError,
   invoiceStatus,
+  invoiceStage,
+  onPrepare,
 }: InvoiceEditorProps) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
