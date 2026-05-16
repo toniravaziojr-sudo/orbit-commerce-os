@@ -24136,6 +24136,10 @@ export type Database = {
         Args: { p_calendar_item_id: string }
         Returns: string
       }
+      compute_pedido_venda_pendencias: {
+        Args: { p_invoice_id: string }
+        Returns: Json
+      }
       consume_credits: {
         Args: {
           p_cost_usd: number
