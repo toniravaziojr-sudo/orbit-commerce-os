@@ -1,6 +1,6 @@
 # Declaração de Conteúdo dos Correios — motor único
 
-> Documento dos Correios para acompanhar a remessa quando **não há obrigação de NF-e**. **Não é documento fiscal**, **não é NF-e**, **não é DANFE** e **não é DC-e Sefaz**. Não substitui Nota Fiscal quando a emissão for obrigatória.
+> Documento de acompanhamento de remessa postal, emitido pelo remetente, para envios em que **não há obrigação de NF-e**. **Não é documento fiscal**, **não é NF-e**, **não é DANFE** e **não é DC-e Sefaz**. Não substitui Nota Fiscal quando a emissão for obrigatória.
 > Não confundir com **DC-e Sefaz** (Declaração de Conteúdo Eletrônica fiscal — SINIEF 05/2021), que é tratado em outro fluxo fiscal próprio.
 
 ## Princípio
