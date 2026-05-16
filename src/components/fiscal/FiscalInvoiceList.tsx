@@ -953,15 +953,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [dcDialogLoading, setDcDialogLoading] = useState(false);
 
   const buildDcTarget = (inv: any): DcDialogTarget => {
-    const pesoKg = Number(inv?.peso_bruto) > 0 ? Number(inv.peso_bruto) : null;
-    const vols = Number(inv?.quantidade_volumes) > 0 ? Number(inv.quantidade_volumes) : 1;
     const numero = inv?.numero ? `#${inv.numero}` : `#${String(inv?.id || '').slice(0, 6)}`;
     const cliente = inv?.dest_nome ? ` — ${inv.dest_nome}` : '';
     return {
       id: inv.id,
       label: `Pedido ${numero}${cliente}`,
-      prefilledWeightKg: pesoKg,
-      prefilledVolumes: vols,
     };
   };
 
