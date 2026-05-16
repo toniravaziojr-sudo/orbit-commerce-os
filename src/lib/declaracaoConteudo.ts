@@ -105,7 +105,7 @@ function renderOneDeclaration(doc: jsPDF, rec: DeclarationRecord, isFirstPage: b
   doc.text('DECLARAÇÃO DE CONTEÚDO', pageW / 2, y + 6, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text('Documento dos Correios para acompanhar a remessa — não é documento fiscal.', pageW / 2, y + 11, { align: 'center' });
+  doc.text('Documento de acompanhamento de remessa postal — não é documento fiscal.', pageW / 2, y + 11, { align: 'center' });
   y += 17;
 
   doc.setFontSize(8);
