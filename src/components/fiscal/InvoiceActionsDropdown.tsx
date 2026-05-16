@@ -83,6 +83,8 @@ export function InvoiceActionsDropdown({
   isGeneratingDC,
   cloneLabel = 'Duplicar NF',
   emitLabel = 'Emitir NF-e',
+  pedidoBlocked = false,
+  pedidoBlockedReason,
 }: InvoiceActionsDropdownProps) {
   const [isDownloadingXml, setIsDownloadingXml] = useState(false);
 
