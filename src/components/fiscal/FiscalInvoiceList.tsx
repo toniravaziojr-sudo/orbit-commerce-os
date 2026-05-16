@@ -597,6 +597,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const requestEmitInvoice = (invoice: FiscalInvoice) => {
     const stage = (invoice as any).fiscal_stage || (invoice.status === 'draft' ? 'pedido_venda' : 'emitida');
     if (mode === 'orders' || stage === 'pedido_venda') {
+      const ps = pedidoStatusOf(invoice as any);
+      if (isPedidoBlockedForFiscalActions(ps)) {
+        if (ps === 'pendente') {
+          toast.warning('Este pedido tem pendências. Abra "Editar" e resolva antes de criar a Nota Fiscal.');
+          handleEditInvoice(invoice);
+        } else if (ps === 'cancelled') {
+          toast.error('Pedido cancelado — não é possível emitir Nota Fiscal.');
+        } else {
+          toast.error('Pedido em chargeback — não é possível emitir Nota Fiscal.');
+        }
+        return;
+      }
       handlePrepareInvoice(invoice);
       return;
     }
