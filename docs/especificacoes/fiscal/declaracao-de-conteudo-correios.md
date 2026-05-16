@@ -41,7 +41,7 @@ Todos os caminhos chamam a mesma estrutura. **Proibido** criar caminho paralelo,
    - Tabela de itens: descrição, quantidade, valor unitário e subtotal.
    - **Valor total declarado**, **Peso total em kg** (sempre preenchido — nunca `-`) e **Quantidade de volumes**.
    - **Motivo informado** pelo usuário.
-   - **Texto de responsabilidade** neutro (não afirma automaticamente que o remetente “não é contribuinte”), seguido de avisos: não substitui NF-e quando obrigatória, responsabilidade do remetente, restrições de envio dos Correios e que o uso indevido pode gerar responsabilidade legal.
+   - **Texto de responsabilidade** neutro (não afirma automaticamente que o remetente “não é contribuinte”), seguido de avisos: não substitui NF-e quando obrigatória, responsabilidade do remetente, restrições de envio dos Correios, uso indevido pode gerar responsabilidade legal e aviso adicional de que o uso da declaração para omitir documento fiscal obrigatório ou informação tributária pode gerar responsabilidade legal do remetente.
    - Local, data e linha de assinatura do declarante/remetente.
 4. **Geração individual:** 1 pedido = 1 PDF (com 1+ páginas se a Declaração ocupar mais que uma folha).
 5. **Geração em massa:** 2 ou mais pedidos = **1 único arquivo PDF multipágina**, uma Declaração completa por pedido. Nome sugerido: `Declaracoes-Conteudo-YYYY-MM-DD.pdf`. Não há múltiplos downloads separados.
