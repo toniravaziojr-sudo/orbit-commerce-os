@@ -58,12 +58,12 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
         const productIds = productsData.map(p => p.id);
         
         // Fetch fiscal data
-        let fiscalMap: Record<string, { ncm: string | null; cfop_override: string | null; unidade_comercial: string | null; origem: number | null }> = {};
+        let fiscalMap: Record<string, { ncm: string | null; cfop_override: string | null; unidade_comercial: string | null; origem: number | null; gtin: string | null; cest: string | null }> = {};
         
         if (productIds.length > 0) {
           const { data: fiscalData } = await (supabase
             .from('fiscal_products')
-            .select('product_id, ncm, cfop_override, unidade_comercial, origem') as any)
+            .select('product_id, ncm, cfop_override, unidade_comercial, origem, gtin, cest') as any)
             .in('product_id', productIds);
           
           for (const fp of (fiscalData || [])) {
@@ -82,6 +82,8 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
             cfop: fiscal?.cfop_override || null,
             unidade: fiscal?.unidade_comercial || 'UN',
             origem: fiscal?.origem ?? 0,
+            gtin: fiscal?.gtin || null,
+            cest: fiscal?.cest || null,
           };
         });
 
