@@ -719,12 +719,38 @@ export function InvoiceEditor({
           </Alert>
         )}
 
-        {/* NCM Warning */}
-        {itemsWithoutNcm.length > 0 && validationErrors.length === 0 && (
+        {/* Item Fiscal Pendencies (NCM, GTIN, Origem, ...) */}
+        {itemsWithIssues.length > 0 && validationErrors.length === 0 && (
           <Alert className="mt-2 border-amber-500/50 bg-amber-500/5">
             <AlertCircle className="h-4 w-4 text-amber-500" />
-            <AlertDescription className="text-amber-700">
-              {itemsWithoutNcm.length} item(ns) sem NCM preenchido. Preencha na aba "Itens" antes de emitir.
+            <AlertDescription className="text-amber-800">
+              <strong className="block mb-1">
+                {itemsWithIssues.length} item(ns) com dados fiscais incompletos:
+              </strong>
+              <ul className="list-disc ml-5 text-xs space-y-0.5">
+                {itemsWithIssues.slice(0, 6).map(({ idx, item, issues }) => (
+                  <li key={idx}>
+                    <span className="font-medium">#{item.numero_item} {item.descricao || 'Item'}</span>
+                    {' — '}falta: {issues.join(', ')}
+                    {item.product_id && (
+                      <Link
+                        to="/products"
+                        className="ml-2 inline-flex items-center gap-1 text-primary underline"
+                      >
+                        Abrir cadastro <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </li>
+                ))}
+                {itemsWithIssues.length > 6 && (
+                  <li className="text-muted-foreground">…e mais {itemsWithIssues.length - 6} item(ns).</li>
+                )}
+              </ul>
+              {isPedidoVenda && (
+                <p className="mt-2 text-xs text-amber-700">
+                  Os dados fiscais vêm do cadastro do produto. Corrija no cadastro para que o pedido herde automaticamente.
+                </p>
+              )}
             </AlertDescription>
           </Alert>
         )}
