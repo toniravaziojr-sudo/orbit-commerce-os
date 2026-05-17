@@ -311,7 +311,7 @@ async function processTenanDrafts(
           descricao: item.product_name || 'Produto',
           ncm: fiscalProduct?.ncm || product?.ncm || '',
           cfop: fiscalProduct?.cfop_override || cfop,
-          unidade: fiscalProduct?.unidade_comercial || product?.unit_of_measure || 'UN',
+          unidade: fiscalProduct?.unidade_comercial || 'UN',
           quantidade: item.quantity,
           valor_unitario: item.unit_price,
           valor_total: item.total_price,
