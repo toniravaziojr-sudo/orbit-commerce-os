@@ -231,22 +231,72 @@ Deno.serve(async (req) => {
           notes: `Pedido importado do Mercado Livre em ${new Date().toISOString()}`,
         };
 
-        // Upsert pedido (não duplicar)
-        const { error: upsertError } = await supabase
+        // Upsert pedido (não duplicar) e recuperar id
+        const { data: upserted, error: upsertError } = await supabase
           .from("orders")
           .upsert(orderData, {
             onConflict: "tenant_id,marketplace_order_id",
             ignoreDuplicates: false,
-          });
+          })
+          .select("id")
+          .single();
 
-        if (upsertError) {
+        if (upsertError || !upserted) {
           console.error(`[meli-sync-orders] Upsert error for ${meliOrderId}:`, upsertError);
           errors++;
-        } else {
-          synced++;
+          continue;
         }
 
-      } catch (orderError) {
+        // Persistir itens com matching de SKU contra produtos locais
+        const meliItems = Array.isArray(meliOrder.order_items) ? meliOrder.order_items : [];
+        if (meliItems.length > 0) {
+          // Limpar itens antigos para refletir snapshot atual do ML
+          await supabase.from("order_items").delete().eq("order_id", upserted.id);
+
+          // Resolver product_id por SKU
+          const skus = meliItems
+            .map((it: any) => it?.item?.seller_sku || it?.item?.seller_custom_field || null)
+            .filter((s: string | null): s is string => !!s);
+
+          let skuMap: Record<string, { id: string; weight: number | null; barcode: string | null; ncm: string | null }> = {};
+          if (skus.length > 0) {
+            const { data: prods } = await supabase
+              .from("products")
+              .select("id, sku, weight, barcode, ncm")
+              .eq("tenant_id", tenantId)
+              .in("sku", skus);
+            (prods || []).forEach((p: any) => {
+              if (p.sku) skuMap[p.sku] = { id: p.id, weight: p.weight, barcode: p.barcode, ncm: p.ncm };
+            });
+          }
+
+          const itemRows = meliItems.map((it: any) => {
+            const sku = it?.item?.seller_sku || it?.item?.seller_custom_field || `ML-${it?.item?.id || "SEMSKU"}`;
+            const match = skuMap[sku] || null;
+            const qty = Number(it.quantity || 1);
+            const unit = Number(it.unit_price || 0);
+            return {
+              order_id: upserted.id,
+              tenant_id: tenantId,
+              product_id: match?.id || null, // null = pendente de vínculo
+              sku,
+              product_name: it?.item?.title || sku,
+              quantity: qty,
+              unit_price: unit,
+              total_price: qty * unit,
+              weight: match?.weight ?? null,
+              barcode: match?.barcode ?? null,
+              ncm: match?.ncm ?? null,
+            };
+          });
+
+          const { error: itemsErr } = await supabase.from("order_items").insert(itemRows);
+          if (itemsErr) {
+            console.error(`[meli-sync-orders] Items insert error for ${meliOrderId}:`, itemsErr);
+          }
+        }
+
+        synced++;
         console.error(`[meli-sync-orders] Error processing order ${meliOrderId}:`, orderError);
         errors++;
       }
