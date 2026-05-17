@@ -371,7 +371,8 @@ Deno.serve(async (req) => {
         supabase,
         tenantId,
         serie: serieNfe,
-        fallbackNumeroAtual: fiscalSettings.numero_nfe_atual,
+        fallbackNumeroAtual: fiscalSettings.numero_pedido_atual,
+        docClass: 'pedido_venda',
       });
 
       // Create new draft with duplicate-safe retry
@@ -381,6 +382,7 @@ Deno.serve(async (req) => {
         serie: serieNfe,
         initialNumber: nextNumero,
         logPrefix: 'fiscal-create-draft',
+        docClass: 'pedido_venda',
         buildDraftData: (numeroFiscal) => ({
           ...draftDataBase,
           numero: numeroFiscal,
@@ -395,6 +397,7 @@ Deno.serve(async (req) => {
         serie: serieNfe,
         currentCursor: result.numero + 1,
         logPrefix: 'fiscal-create-draft',
+        docClass: 'pedido_venda',
       });
     }
 
