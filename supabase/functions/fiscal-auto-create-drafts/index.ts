@@ -265,7 +265,7 @@ async function processTenanDrafts(
           .in('product_id', productIds),
         supabase
           .from('products')
-          .select('id, ncm, cest, origin_code, unit_of_measure, gtin, barcode, weight')
+          .select('id, ncm, cest, origin_code, gtin, barcode, weight')
           .in('id', productIds),
       ]);
 
