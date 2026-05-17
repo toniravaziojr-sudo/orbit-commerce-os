@@ -267,9 +267,18 @@ Deno.serve(async (req) => {
         cst: fiscalProduct?.cst_override || fiscalSettings.cst_padrao,
         gtin,
         gtin_tributavel: gtin,
-        cest: fiscalProduct?.cest ? String(fiscalProduct.cest).replace(/\D/g, '').substring(0, 7) || null : null,
+        cest: fiscalProduct?.cest ? String(fiscalProduct.cest).replace(/\D/g, '').substring(0, 7) || null : (productCatalog.cest ? String(productCatalog.cest).replace(/\D/g, '').substring(0, 7) || null : null),
+        _weight_grams: Number(productCatalog.weight || 0),
       };
     });
+
+    // Peso bruto do pedido (kg) = soma item.peso * quantidade
+    const pesoBrutoKg = invoiceItems.reduce(
+      (acc, it: any) => acc + (Number(it._weight_grams || 0) * Number(it.quantidade || 0)) / 1000,
+      0,
+    );
+    // Limpa campo auxiliar
+    invoiceItems.forEach((it: any) => { delete it._weight_grams; });
 
     // Check for missing NCM
     const missingNcm = invoiceItems.filter(item => !item.ncm);
