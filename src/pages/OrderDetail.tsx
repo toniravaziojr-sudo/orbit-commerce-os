@@ -343,8 +343,20 @@ export default function OrderDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {items.some((it: any) => !it.product_id) && (
+                <div className="flex items-start gap-3 p-3 mb-4 rounded-lg border border-warning/30 bg-warning/5">
+                  <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium">Itens sem vínculo com produto da loja</p>
+                    <p className="text-muted-foreground">
+                      Este pedido veio de marketplace e tem itens cujo SKU não corresponde a nenhum produto cadastrado.
+                      A emissão da Nota Fiscal está bloqueada até que o vínculo seja feito manualmente.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="space-y-4">
-                {items.map((item) => (
+                {items.map((item: any) => (
                   <div key={item.id} className="flex items-center gap-4 p-3 rounded-lg border">
                     {item.product_image_url ? (
                       <img 
@@ -361,6 +373,11 @@ export default function OrderDetail() {
                       <p className="font-medium truncate">{item.product_name}</p>
                       <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
                       <p className="text-sm text-muted-foreground">Qtd: {item.quantity}</p>
+                      {!item.product_id && (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-xs font-medium rounded-full bg-warning/10 text-warning border border-warning/30">
+                          <AlertTriangle className="h-3 w-3" /> Pendente de vínculo
+                        </span>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="font-medium">{formatCurrency(item.total_price)}</p>
