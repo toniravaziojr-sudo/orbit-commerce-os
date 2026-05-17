@@ -313,6 +313,8 @@ Deno.serve(async (req) => {
       order_id: order_id,
       serie: serieNfe,
       status: 'draft',
+      tipo_documento: 1,
+      fiscal_stage: 'pedido_venda',
       natureza_operacao: natureza_operacao || 'VENDA DE MERCADORIA',
       cfop: cfop,
       valor_total: order.total,
@@ -327,9 +329,12 @@ Deno.serve(async (req) => {
       dest_endereco_complemento: order.shipping_complement,
       dest_endereco_bairro: order.shipping_neighborhood,
       dest_endereco_municipio: order.shipping_city,
-      dest_endereco_municipio_codigo: destMunicipioCodigo, // Código IBGE lookup
+      dest_endereco_municipio_codigo: destMunicipioCodigo,
       dest_endereco_uf: order.shipping_state,
       dest_endereco_cep: order.shipping_postal_code,
+      peso_bruto: pesoBrutoKg > 0 ? Number(pesoBrutoKg.toFixed(3)) : null,
+      peso_liquido: pesoBrutoKg > 0 ? Number(pesoBrutoKg.toFixed(3)) : null,
+      quantidade_volumes: invoiceItems.length > 0 ? 1 : null,
       observacoes: observacoes || null,
       emitido_por: user.id,
     };
