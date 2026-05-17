@@ -115,7 +115,30 @@ export default function OrderDetail() {
     shipping_postal_code: '',
   });
 
+  const [linkingItemId, setLinkingItemId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
   const { order, items, history, isLoading, addNote, updateTrackingCode, updatePaymentStatus, updateShippingAddress, updateShippingStatus } = useOrderDetails(id);
+
+  async function handleLinkProduct(orderItemId: string, product: ProductWithFiscal) {
+    const { error } = await supabase
+      .from('order_items')
+      .update({
+        product_id: product.id,
+        product_name: product.name,
+        weight: (product as any).weight ?? null,
+        ncm: product.ncm ?? null,
+        barcode: (product as any).barcode ?? null,
+      })
+      .eq('id', orderItemId);
+    if (error) {
+      toast.error('Não foi possível vincular o produto: ' + error.message);
+      return;
+    }
+    toast.success('Produto vinculado. Se o pedido estiver pago, a Nota Fiscal entra na fila automaticamente.');
+    setLinkingItemId(null);
+    queryClient.invalidateQueries({ queryKey: ['order-items', id] });
+  }
   const { updateOrderStatus } = useOrders();
   const { replacedBy, retryOf } = useRetryLinkedOrder(id, order?.retry_from_order_id);
   const { hasRole } = useAuth();
