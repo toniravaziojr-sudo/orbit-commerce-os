@@ -6,8 +6,9 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
+import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 
-const VERSION = 'v8.6.2';
+const VERSION = 'v8.7.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -337,6 +338,8 @@ Deno.serve(async (req) => {
       quantidade_volumes: invoiceItems.length > 0 ? 1 : null,
       observacoes: observacoes || null,
       emitido_por: user.id,
+      // Auto-herda transporte (modalidade SEFAZ + transportadora) e pagamento (tPag SEFAZ + indicador + valor)
+      ...buildFiscalOrderInheritance(order),
     };
 
     // Check if draft already exists
