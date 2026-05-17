@@ -661,6 +661,94 @@ export function EmitenteSettings() {
               <p className="text-xs text-muted-foreground">Para Regime Normal</p>
             </div>
           </div>
+
+          {/* ============ TRIBUTOS — Lucro Presumido / Lucro Real ============ */}
+          {formData.crt === 3 && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <div>
+                  <h4 className="font-medium">Tributos PIS, COFINS e ICMS</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Aplicados automaticamente nos itens das Notas Fiscais (Lucro Presumido/Real).
+                    Cada produto pode sobrescrever em "Configurações Fiscais &gt; Produtos". Para Simples Nacional, deixe zerado.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="regime_tributario">Regime</Label>
+                    <Select
+                      value={formData.regime_tributario || 'lucro_presumido'}
+                      onValueChange={(v) => handleChange('regime_tributario', v)}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
+                        <SelectItem value="lucro_real">Lucro Real</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pis_cst_padrao">CST PIS Padrão</Label>
+                    <Input
+                      id="pis_cst_padrao"
+                      value={formData.pis_cst_padrao || ''}
+                      onChange={(e) => handleChange('pis_cst_padrao', e.target.value)}
+                      placeholder="01"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cofins_cst_padrao">CST COFINS Padrão</Label>
+                    <Input
+                      id="cofins_cst_padrao"
+                      value={formData.cofins_cst_padrao || ''}
+                      onChange={(e) => handleChange('cofins_cst_padrao', e.target.value)}
+                      placeholder="01"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="pis_aliquota_padrao">Alíquota PIS (%)</Label>
+                    <Input
+                      id="pis_aliquota_padrao"
+                      type="number"
+                      step="0.0001"
+                      min={0}
+                      value={formData.pis_aliquota_padrao ?? 0}
+                      onChange={(e) => handleChange('pis_aliquota_padrao', parseFloat(e.target.value) || 0)}
+                      placeholder="1.65"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cofins_aliquota_padrao">Alíquota COFINS (%)</Label>
+                    <Input
+                      id="cofins_aliquota_padrao"
+                      type="number"
+                      step="0.0001"
+                      min={0}
+                      value={formData.cofins_aliquota_padrao ?? 0}
+                      onChange={(e) => handleChange('cofins_aliquota_padrao', parseFloat(e.target.value) || 0)}
+                      placeholder="7.60"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="icms_aliquota_padrao">Alíquota ICMS (%)</Label>
+                    <Input
+                      id="icms_aliquota_padrao"
+                      type="number"
+                      step="0.0001"
+                      min={0}
+                      value={formData.icms_aliquota_padrao ?? 0}
+                      onChange={(e) => handleChange('icms_aliquota_padrao', parseFloat(e.target.value) || 0)}
+                      placeholder="18.00"
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           <Separator />
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
