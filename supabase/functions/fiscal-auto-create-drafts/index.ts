@@ -322,6 +322,7 @@ async function processTenanDrafts(
         order_id: order.id,
         serie: serieNfe,
         status: 'draft',
+        tipo_documento: 1,
         fiscal_stage: 'pedido_venda',
         natureza_operacao: 'VENDA DE MERCADORIA',
         cfop: cfop,
@@ -342,6 +343,9 @@ async function processTenanDrafts(
         dest_endereco_cep: order.shipping_postal_code,
         dest_telefone: customerData?.phone || null,
         dest_email: customerData?.email || null,
+        peso_bruto: pesoBrutoKg > 0 ? Number(pesoBrutoKg.toFixed(3)) : null,
+        peso_liquido: pesoBrutoKg > 0 ? Number(pesoBrutoKg.toFixed(3)) : null,
+        quantidade_volumes: invoiceItems.length > 0 ? 1 : null,
         emitido_por: userId,
         created_at: nfDate,
       };
