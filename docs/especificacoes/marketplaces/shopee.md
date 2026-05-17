@@ -180,3 +180,23 @@ if (receivedSign !== expectedSign) throw new Error('Invalid signature');
 - [ ] Adicionar Shopee ao `platform-secrets-check` integration list
 - [ ] Testes de fumaça: sandbox → produção
 - [ ] Documentar limites de rate-limit por endpoint
+
+## Pedidos na Esteira Fiscal (v1.1 — Onda Fiscal)
+
+### Sincronização de Itens (OBRIGATÓRIO)
+A função `shopee-sync-orders` persiste **cabeçalho + itens** do pedido. Para cada item importado:
+
+1. Lê `model_sku` (variação) ou `item_sku` (produto principal).
+2. Busca um produto local com mesmo SKU (`products.sku`, escopado por `tenant_id`).
+3. Se encontrar: grava `order_items.product_id` e herda `weight`, `barcode`, `ncm`.
+4. Se NÃO encontrar: grava com `product_id = NULL` (pendente de vínculo).
+
+### Bloqueio Fiscal e Vínculo Manual
+Mesmo comportamento do Mercado Livre (vide `mercado-livre.md` — seção "Pedidos na Esteira Fiscal"). Itens sem vínculo bloqueiam a entrada na fila de Notas Fiscais; o vínculo manual pela UI dispara `enqueue_fiscal_on_item_link`.
+
+### Status Canônico
+- Status pago Shopee → `payment_status = 'approved'`
+- `UNPAID` → `pending`
+
+### Roteamento de Transporte
+Pedidos Shopee retornam `reason = 'marketplace'` em `resolve_order_shipping_provider` — envio é responsabilidade da Shopee (não entram em `shipping_draft_queue`).

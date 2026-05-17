@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
         }
 
         const orderStatus = statusMap[shopeeOrder.order_status] || "pending";
-        const paymentStatus = shopeeOrder.order_status === "UNPAID" ? "pending" : "paid";
+        const paymentStatus = shopeeOrder.order_status === "UNPAID" ? "pending" : "approved";
 
         const orderData = {
           tenant_id: tenantId,
@@ -245,20 +245,70 @@ Deno.serve(async (req) => {
           notes: `Pedido importado da Shopee em ${new Date().toISOString()}`,
         };
 
-        const { error: upsertError } = await supabase
+        const { data: upserted, error: upsertError } = await supabase
           .from("orders")
           .upsert(orderData, {
             onConflict: "tenant_id,marketplace_order_id",
             ignoreDuplicates: false,
-          });
+          })
+          .select("id")
+          .single();
 
-        if (upsertError) {
+        if (upsertError || !upserted) {
           console.error(`[shopee-sync-orders] Upsert error for ${shopeeOrder.order_sn}:`, upsertError);
           errors++;
-        } else {
-          synced++;
+          continue;
         }
 
+        // Persistir itens com matching de SKU contra produtos locais
+        const shopeeItems = Array.isArray(shopeeOrder.item_list) ? shopeeOrder.item_list : [];
+        if (shopeeItems.length > 0) {
+          await supabase.from("order_items").delete().eq("order_id", upserted.id);
+
+          const skus = shopeeItems
+            .map((it: any) => it?.model_sku || it?.item_sku || null)
+            .filter((s: string | null): s is string => !!s && s.length > 0);
+
+          let skuMap: Record<string, { id: string; weight: number | null; barcode: string | null; ncm: string | null }> = {};
+          if (skus.length > 0) {
+            const { data: prods } = await supabase
+              .from("products")
+              .select("id, sku, weight, barcode, ncm")
+              .eq("tenant_id", tenantId)
+              .in("sku", skus);
+            (prods || []).forEach((p: any) => {
+              if (p.sku) skuMap[p.sku] = { id: p.id, weight: p.weight, barcode: p.barcode, ncm: p.ncm };
+            });
+          }
+
+          const itemRows = shopeeItems.map((it: any) => {
+            const sku = it?.model_sku || it?.item_sku || `SHOPEE-${it?.item_id || "SEMSKU"}`;
+            const match = skuMap[sku] || null;
+            const qty = Number(it.model_quantity_purchased || it.quantity_purchased || 1);
+            const unit = Number(it.model_discounted_price ?? it.model_original_price ?? it.discounted_price ?? 0);
+            return {
+              order_id: upserted.id,
+              tenant_id: tenantId,
+              product_id: match?.id || null, // null = pendente de vínculo
+              sku,
+              product_name: it?.item_name || sku,
+              product_image_url: it?.image_info?.image_url || null,
+              quantity: qty,
+              unit_price: unit,
+              total_price: qty * unit,
+              weight: match?.weight ?? null,
+              barcode: match?.barcode ?? null,
+              ncm: match?.ncm ?? null,
+            };
+          });
+
+          const { error: itemsErr } = await supabase.from("order_items").insert(itemRows);
+          if (itemsErr) {
+            console.error(`[shopee-sync-orders] Items insert error for ${shopeeOrder.order_sn}:`, itemsErr);
+          }
+        }
+
+        synced++;
       } catch (orderError) {
         console.error(`[shopee-sync-orders] Error processing order:`, orderError);
         errors++;

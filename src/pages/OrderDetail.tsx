@@ -60,6 +60,9 @@ import { OrderRegressionBanner } from '@/components/orders/OrderRegressionBanner
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 import { PaymentAttemptsCard } from '@/components/orders/PaymentAttemptsCard';
 import { useRetryLinkedOrder } from '@/hooks/useRetryLinkedOrder';
+import { ProductSelector, type ProductWithFiscal } from '@/components/fiscal/ProductSelector';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { OrderStatusOverrideDialog } from '@/components/orders/OrderStatusOverrideDialog';
 import {
@@ -112,7 +115,30 @@ export default function OrderDetail() {
     shipping_postal_code: '',
   });
 
+  const [linkingItemId, setLinkingItemId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
   const { order, items, history, isLoading, addNote, updateTrackingCode, updatePaymentStatus, updateShippingAddress, updateShippingStatus } = useOrderDetails(id);
+
+  async function handleLinkProduct(orderItemId: string, product: ProductWithFiscal) {
+    const { error } = await supabase
+      .from('order_items')
+      .update({
+        product_id: product.id,
+        product_name: product.name,
+        weight: (product as any).weight ?? null,
+        ncm: product.ncm ?? null,
+        barcode: (product as any).barcode ?? null,
+      })
+      .eq('id', orderItemId);
+    if (error) {
+      toast.error('Não foi possível vincular o produto: ' + error.message);
+      return;
+    }
+    toast.success('Produto vinculado. Se o pedido estiver pago, a Nota Fiscal entra na fila automaticamente.');
+    setLinkingItemId(null);
+    queryClient.invalidateQueries({ queryKey: ['order-items', id] });
+  }
   const { updateOrderStatus } = useOrders();
   const { replacedBy, retryOf } = useRetryLinkedOrder(id, order?.retry_from_order_id);
   const { hasRole } = useAuth();
@@ -343,8 +369,20 @@ export default function OrderDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {items.some((it: any) => !it.product_id) && (
+                <div className="flex items-start gap-3 p-3 mb-4 rounded-lg border border-warning/30 bg-warning/5">
+                  <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium">Itens sem vínculo com produto da loja</p>
+                    <p className="text-muted-foreground">
+                      Este pedido veio de marketplace e tem itens cujo SKU não corresponde a nenhum produto cadastrado.
+                      A emissão da Nota Fiscal está bloqueada até que o vínculo seja feito manualmente.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="space-y-4">
-                {items.map((item) => (
+                {items.map((item: any) => (
                   <div key={item.id} className="flex items-center gap-4 p-3 rounded-lg border">
                     {item.product_image_url ? (
                       <img 
@@ -361,6 +399,21 @@ export default function OrderDetail() {
                       <p className="font-medium truncate">{item.product_name}</p>
                       <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
                       <p className="text-sm text-muted-foreground">Qtd: {item.quantity}</p>
+                      {!item.product_id && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-warning/10 text-warning border border-warning/30">
+                            <AlertTriangle className="h-3 w-3" /> Pendente de vínculo
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => setLinkingItemId(item.id)}
+                          >
+                            <Link2 className="h-3 w-3 mr-1" /> Vincular produto
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="font-medium">{formatCurrency(item.total_price)}</p>
@@ -851,6 +904,24 @@ export default function OrderDetail() {
           onConfirm={handleConfirmOverride}
         />
       )}
+
+      <Dialog open={!!linkingItemId} onOpenChange={(o) => !o && setLinkingItemId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vincular item a um produto da loja</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Selecione o produto cadastrado que corresponde a este item do marketplace.
+              Os dados fiscais (peso, NCM, GTIN) serão herdados automaticamente.
+            </p>
+            <ProductSelector
+              onSelect={(p) => linkingItemId && handleLinkProduct(linkingItemId, p)}
+              placeholder="Buscar produto por nome ou SKU..."
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

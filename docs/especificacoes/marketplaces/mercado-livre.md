@@ -713,3 +713,30 @@ Tabela: meli_listing_variations
 - [ ] UI de gestão de imagens por anúncio (drag-and-drop, adicionar, remover)
 - [ ] Validação de diferenciação em multi-anúncio (título OU preço diferente)
 - [ ] Variações / SKUs (multi-variação completa — planejado)
+
+## Pedidos na Esteira Fiscal (v3.2 — Onda Fiscal)
+
+### Sincronização de Itens (OBRIGATÓRIO)
+A função `meli-sync-orders` persiste **cabeçalho + itens** do pedido. Para cada item importado:
+
+1. Lê `seller_sku` (ou `seller_custom_field`) do anúncio ML.
+2. Busca um produto local da loja com mesmo SKU (`products.sku`, escopado por `tenant_id`).
+3. Se encontrar: grava `order_items.product_id` e herda `weight`, `barcode`, `ncm` do cadastro.
+4. Se NÃO encontrar: grava o item com `product_id = NULL` (estado "pendente de vínculo").
+
+### Bloqueio Fiscal (OBRIGATÓRIO)
+Pedidos com **qualquer item sem vínculo de produto local** NÃO entram na fila de Notas Fiscais. O trigger `enqueue_fiscal_draft` consulta `order_has_unlinked_items(order_id)` antes de inserir em `fiscal_draft_queue`.
+
+### Vínculo Manual via UI
+Na tela de detalhe do pedido (`/orders/:id`), itens pendentes mostram:
+- Banner amarelo no topo da seção "Itens do Pedido"
+- Badge "Pendente de vínculo" por item
+- Botão "Vincular produto" que abre seletor de produto da loja
+
+Ao vincular, o trigger `enqueue_fiscal_on_item_link` re-avalia o pedido: se está pago e todos os itens agora têm `product_id`, entra automaticamente na fila fiscal.
+
+### Status Canônico de Pagamento
+O mapeamento ML→sistema usa `approved/pending/declined/refunded/cancelled` (alinhado ao trigger fiscal que dispara em `payment_status = 'approved'`).
+
+### Roteamento de Transporte
+Pedidos com `marketplace_source = 'mercadolivre'` retornam `reason = 'marketplace'` em `resolve_order_shipping_provider` — não entram em `shipping_draft_queue` (envio é responsabilidade do ML/Mercado Envios).

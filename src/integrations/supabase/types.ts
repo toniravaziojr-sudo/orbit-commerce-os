@@ -24691,6 +24691,10 @@ export type Database = {
       }
       migrate_existing_templates_to_sets: { Args: never; Returns: undefined }
       normalize_email: { Args: { p_email: string }; Returns: string }
+      order_has_unlinked_items: {
+        Args: { p_order_id: string }
+        Returns: boolean
+      }
       promote_learning_candidate: {
         Args: { p_learning_id: string }
         Returns: Json
