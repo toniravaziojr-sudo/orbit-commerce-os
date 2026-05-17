@@ -161,6 +161,10 @@ Kit vendido por R$ 100,00
 | Campo | Descrição |
 |-------|-----------|
 | `ncm` | Código NCM (8 dígitos) |
+
+> **Preenchimento automático do NCM nos Pedidos de Venda (todos os canais)**
+> Em 2026-05-17 o pipeline de criação de Pedido de Venda foi unificado para garantir que os campos fiscais críticos do item (NCM, CEST, Origem, Unidade) sejam sempre copiados do cadastro do produto no momento em que o pedido entra no módulo Fiscal. Isso vale para pedidos da loja própria e de marketplaces (Mercado Livre, Shopee etc.). A regra de precedência é: `fiscal_products` (override por produto) → `products` (cadastro padrão) → vazio (gera pendência). O fluxo automático (`fiscal-auto-create-drafts`) e o manual (`fiscal-create-draft`) usam a mesma hierarquia. Pedidos antigos foram corrigidos via backfill. A única causa restante de "Pendente por NCM" é produto cadastrado sem NCM — nesse caso, basta preencher o NCM na ficha do produto e o motor de pendências reclassifica o pedido para "Em aberto" automaticamente.
+
 | `cfop` | Código CFOP |
 | `origem` | Origem (0-8) |
 | `cest` | Código CEST |
