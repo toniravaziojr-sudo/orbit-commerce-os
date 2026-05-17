@@ -928,19 +928,21 @@ export function InvoiceEditor({
                     ) : null;
                   })()}
                 </div>
-                <div className="space-y-2">
-                  <Label>CFOP Principal <span className="text-destructive">*</span></Label>
-                  <Input
-                    value={data.cfop || ''}
-                    onChange={(e) => updateField('cfop', e.target.value.replace(/\D/g, ''))}
-                    placeholder="Ex: 5102"
-                    maxLength={4}
-                    className={`font-mono ${data.cfop && !isValidCfop(data.cfop) ? 'border-destructive' : ''}`}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    5102 (dentro do estado) ou 6102 (fora do estado)
-                  </p>
-                </div>
+                {!isPedidoVenda && (
+                  <div className="space-y-2">
+                    <Label>CFOP Principal <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={data.cfop || ''}
+                      onChange={(e) => updateField('cfop', e.target.value.replace(/\D/g, ''))}
+                      placeholder="Ex: 5102"
+                      maxLength={4}
+                      className={`font-mono ${data.cfop && !isValidCfop(data.cfop) ? 'border-destructive' : ''}`}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      5102 (dentro do estado) ou 6102 (fora do estado)
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Indicador de Presença <span className="text-destructive">*</span></Label>
                   <Select
@@ -1307,62 +1309,68 @@ export function InvoiceEditor({
                                 />
                               </div>
                               
-                              {/* CFOP */}
-                              <div className="space-y-1">
-                                <Label className="text-xs">
-                                  CFOP <span className="text-destructive">*</span>
-                                  {hasCfopError && <span className="text-amber-600 ml-1">(4 dígitos)</span>}
-                                </Label>
-                                <Input
-                                  value={item.cfop}
-                                  readOnly={locked}
-                                  onChange={(e) => updateItem(index, 'cfop', e.target.value.replace(/\D/g, ''))}
-                                  className={`h-8 text-sm font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : ''}`}
-                                  maxLength={4}
-                                  placeholder="5102"
-                                />
-                              </div>
+                              {/* CFOP — somente NF (oculto no Pedido de Venda) */}
+                              {!isPedidoVenda && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">
+                                    CFOP <span className="text-destructive">*</span>
+                                    {hasCfopError && <span className="text-amber-600 ml-1">(4 dígitos)</span>}
+                                  </Label>
+                                  <Input
+                                    value={item.cfop}
+                                    readOnly={locked}
+                                    onChange={(e) => updateItem(index, 'cfop', e.target.value.replace(/\D/g, ''))}
+                                    className={`h-8 text-sm font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : ''}`}
+                                    maxLength={4}
+                                    placeholder="5102"
+                                  />
+                                </div>
+                              )}
                               
-                              {/* Origem */}
-                              <div className="space-y-1">
-                                <Label className="text-xs">Origem</Label>
-                                <Select
-                                  value={item.origem || '0'}
-                                  disabled={locked}
-                                  onValueChange={(value) => updateItem(index, 'origem', value)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {ORIGEM_OPTIONS.map(opt => (
-                                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                        {opt.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                              {/* Origem — somente NF */}
+                              {!isPedidoVenda && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Origem</Label>
+                                  <Select
+                                    value={item.origem || '0'}
+                                    disabled={locked}
+                                    onValueChange={(value) => updateItem(index, 'origem', value)}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {ORIGEM_OPTIONS.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
                               
-                              {/* CSOSN */}
-                              <div className="space-y-1">
-                                <Label className="text-xs">CSOSN (Simples Nacional)</Label>
-                                <Select
-                                  value={item.csosn || '102'}
-                                  onValueChange={(value) => updateItem(index, 'csosn', value)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {CSOSN_OPTIONS.map(opt => (
-                                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                        {opt.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                              {/* CSOSN — somente NF */}
+                              {!isPedidoVenda && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">CSOSN (Simples Nacional)</Label>
+                                  <Select
+                                    value={item.csosn || '102'}
+                                    onValueChange={(value) => updateItem(index, 'csosn', value)}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {CSOSN_OPTIONS.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
                               
                               {/* Unidade */}
                               <div className="space-y-1">
@@ -1458,34 +1466,38 @@ export function InvoiceEditor({
                                 </p>
                               </div>
 
-                              {/* GTIN tributável */}
-                              <div className="space-y-1">
-                                <Label className="text-xs">GTIN tributável</Label>
-                                <Input
-                                  value={item.gtin_tributavel || ''}
-                                  readOnly={locked}
-                                  onChange={(e) => updateItem(index, 'gtin_tributavel', e.target.value.toUpperCase())}
-                                  className="h-8 text-sm font-mono"
-                                  placeholder="Igual ao GTIN ou SEM GTIN"
-                                  maxLength={14}
-                                />
-                              </div>
+                              {/* GTIN tributável — somente NF */}
+                              {!isPedidoVenda && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">GTIN tributável</Label>
+                                  <Input
+                                    value={item.gtin_tributavel || ''}
+                                    readOnly={locked}
+                                    onChange={(e) => updateItem(index, 'gtin_tributavel', e.target.value.toUpperCase())}
+                                    className="h-8 text-sm font-mono"
+                                    placeholder="Igual ao GTIN ou SEM GTIN"
+                                    maxLength={14}
+                                  />
+                                </div>
+                              )}
 
-                              {/* CEST */}
-                              <div className="space-y-1">
-                                <Label className="text-xs">CEST</Label>
-                                <Input
-                                  value={item.cest || ''}
-                                  readOnly={locked}
-                                  onChange={(e) => updateItem(index, 'cest', e.target.value.replace(/\D/g, ''))}
-                                  className="h-8 text-sm font-mono"
-                                  placeholder="0000000"
-                                  maxLength={7}
-                                />
-                                <p className="text-[10px] text-muted-foreground">
-                                  Obrigatório quando houver Substituição Tributária.
-                                </p>
-                              </div>
+                              {/* CEST — somente NF */}
+                              {!isPedidoVenda && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">CEST</Label>
+                                  <Input
+                                    value={item.cest || ''}
+                                    readOnly={locked}
+                                    onChange={(e) => updateItem(index, 'cest', e.target.value.replace(/\D/g, ''))}
+                                    className="h-8 text-sm font-mono"
+                                    placeholder="0000000"
+                                    maxLength={7}
+                                  />
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Obrigatório quando houver Substituição Tributária.
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -1575,29 +1587,31 @@ export function InvoiceEditor({
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Totais de Impostos</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Base de Cálculo ICMS</Label>
-                  <Input value={formatCurrency(data.valor_bc_icms || 0)} disabled className="bg-muted font-mono" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Total ICMS</Label>
-                  <Input value={formatCurrency(data.valor_icms || 0)} disabled className="bg-muted font-mono" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Total PIS</Label>
-                  <Input value={formatCurrency(data.valor_pis || 0)} disabled className="bg-muted font-mono" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Total COFINS</Label>
-                  <Input value={formatCurrency(data.valor_cofins || 0)} disabled className="bg-muted font-mono" />
-                </div>
-              </CardContent>
-            </Card>
+            {!isPedidoVenda && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Totais de Impostos</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Base de Cálculo ICMS</Label>
+                    <Input value={formatCurrency(data.valor_bc_icms || 0)} disabled className="bg-muted font-mono" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Total ICMS</Label>
+                    <Input value={formatCurrency(data.valor_icms || 0)} disabled className="bg-muted font-mono" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Total PIS</Label>
+                    <Input value={formatCurrency(data.valor_pis || 0)} disabled className="bg-muted font-mono" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Total COFINS</Label>
+                    <Input value={formatCurrency(data.valor_cofins || 0)} disabled className="bg-muted font-mono" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Tab: Transporte */}
