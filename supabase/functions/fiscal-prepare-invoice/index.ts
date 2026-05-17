@@ -84,7 +84,6 @@ Deno.serve(async (req) => {
     let snapshotCreated = false;
 
     if (isFromPedidoVenda) {
-      // Clona campos da NF excluindo identificadores/sefaz/timestamps
       const {
         id: _id,
         created_at: _ca,
@@ -92,60 +91,90 @@ Deno.serve(async (req) => {
         fiscal_invoice_items: _items,
         focus_ref: _fr,
         chave_acesso: _ck,
-        numero_nfe: _nn,
-        protocolo_autorizacao: _pa,
-        data_emissao: _de,
-        data_autorizacao: _da,
+        numero: _numPedido,
+        protocolo: _proto,
+        xml_autorizado: _xml,
         xml_url: _xu,
-        pdf_url: _pu,
+        danfe_url: _du,
         status_motivo: _sm,
         pendencia_motivos: _pm,
+        submitted_at: _sa,
+        authorized_at: _aa,
+        cancelled_at: _cl,
+        printed_at: _pr,
+        danfe_printed_at: _dp,
         ...cloneFields
       } = inv as any;
+
+      // Aloca novo número de NF a partir do cursor próprio (numero_nfe_atual)
+      const { data: settingsNum } = await admin
+        .from('fiscal_settings')
+        .select('numero_nfe_atual, serie_nfe')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      const serieNf = settingsNum?.serie_nfe || inv.serie || 1;
+
+      const { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } =
+        await import('../_shared/fiscal-numbering.ts');
+
+      const nextNfNumero = await getNextFiscalNumber({
+        supabase: admin,
+        tenantId,
+        serie: serieNf,
+        fallbackNumeroAtual: settingsNum?.numero_nfe_atual,
+        docClass: 'nf',
+      });
 
       const newInvoicePayload = {
         ...cloneFields,
         source_order_invoice_id: invoice_id,
-        fiscal_stage: 'pendencia', // será ajustado abaixo conforme validação
+        fiscal_stage: 'pendencia',
         status: 'draft',
+        serie: serieNf,
         focus_ref: null,
         chave_acesso: null,
-        numero_nfe: null,
-        protocolo_autorizacao: null,
-        data_emissao: null,
-        data_autorizacao: null,
+        protocolo: null,
+        xml_autorizado: null,
         xml_url: null,
-        pdf_url: null,
+        danfe_url: null,
         status_motivo: null,
         pendencia_motivos: null,
       };
 
-      const { data: newInv, error: insErr } = await admin
-        .from('fiscal_invoices')
-        .insert(newInvoicePayload)
-        .select('id')
-        .single();
+      const insertResult = await insertFiscalInvoiceWithRetry({
+        supabase: admin,
+        tenantId,
+        serie: serieNf,
+        initialNumber: nextNfNumero,
+        logPrefix: 'fiscal-prepare-invoice',
+        docClass: 'nf',
+        buildDraftData: (numeroFiscal: number) => ({
+          ...newInvoicePayload,
+          numero: numeroFiscal,
+        }),
+      });
 
-      if (insErr || !newInv) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'Falha ao criar Nota Fiscal a partir do Pedido: ' + (insErr?.message || 'desconhecido'),
-        }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-
-      workingInvoiceId = newInv.id;
+      workingInvoiceId = insertResult.invoice.id;
       snapshotCreated = true;
 
-      // Clona itens do pedido para a nova NF
+      await syncFiscalNumberCursor({
+        supabase: admin,
+        tenantId,
+        serie: serieNf,
+        currentCursor: insertResult.numero + 1,
+        logPrefix: 'fiscal-prepare-invoice',
+        docClass: 'nf',
+      });
+
       if (workingItems.length > 0) {
-        const itemsClone = workingItems.map(({ id: _iid, invoice_id: _ivid, created_at: _ica, updated_at: _iua, ...rest }: any) => ({
+        const itemsClone = workingItems.map(({ id: _iid, invoice_id: _ivid, created_at: _ica, ...rest }: any) => ({
           ...rest,
-          invoice_id: newInv.id,
+          invoice_id: insertResult.invoice.id,
         }));
         const { error: itemsErr } = await admin.from('fiscal_invoice_items').insert(itemsClone);
         if (itemsErr) {
-          // rollback: remove a NF recém-criada para evitar lixo
-          await admin.from('fiscal_invoices').delete().eq('id', newInv.id);
+          await admin.from('fiscal_invoices').delete().eq('id', insertResult.invoice.id);
           return new Response(JSON.stringify({
             success: false,
             error: 'Falha ao copiar itens para a Nota Fiscal: ' + itemsErr.message,
