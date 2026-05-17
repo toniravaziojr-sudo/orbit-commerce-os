@@ -60,6 +60,9 @@ import { OrderRegressionBanner } from '@/components/orders/OrderRegressionBanner
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 import { PaymentAttemptsCard } from '@/components/orders/PaymentAttemptsCard';
 import { useRetryLinkedOrder } from '@/hooks/useRetryLinkedOrder';
+import { ProductSelector, type ProductWithFiscal } from '@/components/fiscal/ProductSelector';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { OrderStatusOverrideDialog } from '@/components/orders/OrderStatusOverrideDialog';
 import {
