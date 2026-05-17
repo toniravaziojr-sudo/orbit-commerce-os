@@ -400,9 +400,19 @@ export default function OrderDetail() {
                       <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
                       <p className="text-sm text-muted-foreground">Qtd: {item.quantity}</p>
                       {!item.product_id && (
-                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-xs font-medium rounded-full bg-warning/10 text-warning border border-warning/30">
-                          <AlertTriangle className="h-3 w-3" /> Pendente de vínculo
-                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-warning/10 text-warning border border-warning/30">
+                            <AlertTriangle className="h-3 w-3" /> Pendente de vínculo
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => setLinkingItemId(item.id)}
+                          >
+                            <Link2 className="h-3 w-3 mr-1" /> Vincular produto
+                          </Button>
+                        </div>
                       )}
                     </div>
                     <div className="text-right">
