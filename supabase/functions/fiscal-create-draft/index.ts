@@ -220,10 +220,10 @@ Deno.serve(async (req) => {
       (fiscalProducts || []).map(fp => [fp.product_id, fp])
     );
 
-    // Buscar GTIN/EAN do catálogo de produtos (campo canônico em products.gtin/barcode)
+    // Buscar dados fiscais do cadastro (fallback) + GTIN/EAN
     const { data: productsData } = await supabase
       .from('products')
-      .select('id, gtin, barcode')
+      .select('id, gtin, barcode, ncm, cest, origin_code, unit_of_measure')
       .in('id', productIds);
     const productMap = new Map(
       (productsData || []).map((p: any) => [p.id, p])
