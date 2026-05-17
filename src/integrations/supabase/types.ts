@@ -8896,12 +8896,17 @@ export type Database = {
         Row: {
           cest: string | null
           cfop_override: string | null
+          cofins_aliquota: number | null
+          cofins_cst: string | null
           created_at: string | null
           csosn_override: string | null
           cst_override: string | null
+          icms_aliquota: number | null
           id: string
           ncm: string | null
           origem: number | null
+          pis_aliquota: number | null
+          pis_cst: string | null
           product_id: string
           tenant_id: string
           unidade_comercial: string | null
@@ -8910,12 +8915,17 @@ export type Database = {
         Insert: {
           cest?: string | null
           cfop_override?: string | null
+          cofins_aliquota?: number | null
+          cofins_cst?: string | null
           created_at?: string | null
           csosn_override?: string | null
           cst_override?: string | null
+          icms_aliquota?: number | null
           id?: string
           ncm?: string | null
           origem?: number | null
+          pis_aliquota?: number | null
+          pis_cst?: string | null
           product_id: string
           tenant_id: string
           unidade_comercial?: string | null
@@ -8924,12 +8934,17 @@ export type Database = {
         Update: {
           cest?: string | null
           cfop_override?: string | null
+          cofins_aliquota?: number | null
+          cofins_cst?: string | null
           created_at?: string | null
           csosn_override?: string | null
           cst_override?: string | null
+          icms_aliquota?: number | null
           id?: string
           ncm?: string | null
           origem?: number | null
+          pis_aliquota?: number | null
+          pis_cst?: string | null
           product_id?: string
           tenant_id?: string
           unidade_comercial?: string | null
@@ -8968,6 +8983,8 @@ export type Database = {
           cfop_intrastadual: string | null
           cnae: string | null
           cnpj: string | null
+          cofins_aliquota_padrao: number
+          cofins_cst_padrao: string
           created_at: string | null
           crt: number | null
           csosn_padrao: string | null
@@ -8995,6 +9012,7 @@ export type Database = {
           focus_token_homologacao: string | null
           focus_token_producao: string | null
           focus_ultima_sincronizacao: string | null
+          icms_aliquota_padrao: number
           id: string
           ie_isento: boolean | null
           inscricao_estadual: string | null
@@ -9003,9 +9021,12 @@ export type Database = {
           numero_nfe_atual: number | null
           numero_pedido_atual: number
           origem_fiscal_padrao: number
+          pis_aliquota_padrao: number
+          pis_cst_padrao: string
           provider: string | null
           provider_token: string | null
           razao_social: string | null
+          regime_tributario: string
           serie_nfe: number | null
           telefone: string | null
           tenant_id: string
@@ -9037,6 +9058,8 @@ export type Database = {
           cfop_intrastadual?: string | null
           cnae?: string | null
           cnpj?: string | null
+          cofins_aliquota_padrao?: number
+          cofins_cst_padrao?: string
           created_at?: string | null
           crt?: number | null
           csosn_padrao?: string | null
@@ -9064,6 +9087,7 @@ export type Database = {
           focus_token_homologacao?: string | null
           focus_token_producao?: string | null
           focus_ultima_sincronizacao?: string | null
+          icms_aliquota_padrao?: number
           id?: string
           ie_isento?: boolean | null
           inscricao_estadual?: string | null
@@ -9072,9 +9096,12 @@ export type Database = {
           numero_nfe_atual?: number | null
           numero_pedido_atual?: number
           origem_fiscal_padrao?: number
+          pis_aliquota_padrao?: number
+          pis_cst_padrao?: string
           provider?: string | null
           provider_token?: string | null
           razao_social?: string | null
+          regime_tributario?: string
           serie_nfe?: number | null
           telefone?: string | null
           tenant_id: string
@@ -9106,6 +9133,8 @@ export type Database = {
           cfop_intrastadual?: string | null
           cnae?: string | null
           cnpj?: string | null
+          cofins_aliquota_padrao?: number
+          cofins_cst_padrao?: string
           created_at?: string | null
           crt?: number | null
           csosn_padrao?: string | null
@@ -9133,6 +9162,7 @@ export type Database = {
           focus_token_homologacao?: string | null
           focus_token_producao?: string | null
           focus_ultima_sincronizacao?: string | null
+          icms_aliquota_padrao?: number
           id?: string
           ie_isento?: boolean | null
           inscricao_estadual?: string | null
@@ -9141,9 +9171,12 @@ export type Database = {
           numero_nfe_atual?: number | null
           numero_pedido_atual?: number
           origem_fiscal_padrao?: number
+          pis_aliquota_padrao?: number
+          pis_cst_padrao?: string
           provider?: string | null
           provider_token?: string | null
           razao_social?: string | null
+          regime_tributario?: string
           serie_nfe?: number | null
           telefone?: string | null
           tenant_id?: string
