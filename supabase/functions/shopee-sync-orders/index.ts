@@ -309,6 +309,11 @@ Deno.serve(async (req) => {
         }
 
         synced++;
+      } catch (orderError) {
+        console.error(`[shopee-sync-orders] Error processing order:`, orderError);
+        errors++;
+      }
+    }
 
     // Atualizar last_sync_at
     await supabase
