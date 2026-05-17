@@ -138,14 +138,15 @@ Deno.serve(async (req) => {
           cancelled: "cancelled",
         };
 
-        // Mapear status de pagamento
+        // Mapear status de pagamento (canônico do sistema: approved/pending/declined/refunded/cancelled)
         const paymentStatusMap: Record<string, string> = {
-          approved: "paid",
+          approved: "approved",
           pending: "pending",
           authorized: "pending",
           in_process: "pending",
-          rejected: "failed",
+          rejected: "declined",
           refunded: "refunded",
+          cancelled: "cancelled",
         };
 
         const orderStatus = statusMap[meliOrder.status] || "pending";
