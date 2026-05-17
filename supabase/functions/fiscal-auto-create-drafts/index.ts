@@ -258,7 +258,7 @@ async function processTenanDrafts(
           .in('product_id', productIds),
         supabase
           .from('products')
-          .select('id, ncm, cest, origin_code, unit_of_measure')
+          .select('id, ncm, cest, origin_code, unit_of_measure, gtin, barcode, weight')
           .in('id', productIds),
       ]);
 
@@ -269,10 +269,21 @@ async function processTenanDrafts(
         (productsData || []).map((p: any) => [p.id, p])
       );
 
-      // Build invoice items (fiscal_products takes priority, products table as fallback)
-      const invoiceItems = itemsToProcess.map((item, index) => {
+      const sanitizeGtin = (v: any): string => {
+        const s = String(v ?? '').trim().toUpperCase();
+        if (!s) return 'SEM GTIN';
+        if (s === 'SEM GTIN') return 'SEM GTIN';
+        const digits = s.replace(/\D/g, '');
+        if ([8, 12, 13, 14].includes(digits.length)) return digits;
+        return 'SEM GTIN';
+      };
+
+      // Build invoice items (fiscal_products prioritário, products como fallback)
+      const invoiceItemsRaw = itemsToProcess.map((item, index) => {
         const fiscalProduct: any = fiscalProductMap.get(item.product_id);
         const product: any = productMap.get(item.product_id);
+        const gtin = sanitizeGtin(product?.gtin || product?.barcode);
+        const cestRaw = fiscalProduct?.cest || product?.cest;
         return {
           numero_item: index + 1,
           order_item_id: item.id || null,
@@ -287,8 +298,18 @@ async function processTenanDrafts(
           origem: fiscalProduct?.origem ?? product?.origin_code ?? fiscalSettings.origin_code ?? 0,
           csosn: fiscalProduct?.csosn_override || fiscalSettings.csosn_padrao,
           cst: fiscalProduct?.cst_override || fiscalSettings.cst_padrao,
+          gtin,
+          gtin_tributavel: gtin,
+          cest: cestRaw ? String(cestRaw).replace(/\D/g, '').substring(0, 7) || null : null,
+          _weight_grams: Number(product?.weight || 0),
         };
       });
+
+      const pesoBrutoKg = invoiceItemsRaw.reduce(
+        (acc: number, it: any) => acc + (Number(it._weight_grams || 0) * Number(it.quantidade || 0)) / 1000,
+        0,
+      );
+      const invoiceItems = invoiceItemsRaw.map(({ _weight_grams, ...rest }: any) => rest);
 
       // Lookup IBGE code
       const destMunicipioCodigo = await getIbgeCodigo(supabase, order.shipping_city, order.shipping_state);
