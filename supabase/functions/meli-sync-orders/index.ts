@@ -297,6 +297,7 @@ Deno.serve(async (req) => {
         }
 
         synced++;
+      } catch (orderError) {
         console.error(`[meli-sync-orders] Error processing order ${meliOrderId}:`, orderError);
         errors++;
       }
