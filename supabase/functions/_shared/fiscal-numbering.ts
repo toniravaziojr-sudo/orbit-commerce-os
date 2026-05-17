@@ -1,25 +1,54 @@
-export async function getNextFiscalNumber(params: {
-  supabase: any;
-  tenantId: string;
-  serie: number;
-  fallbackNumeroAtual?: number | null;
-}): Promise<number> {
-  const { supabase, tenantId, serie, fallbackNumeroAtual } = params;
+// ============================================================
+// FISCAL NUMBERING — sequências independentes por classe
+// Doc class:
+//   - 'pedido_venda' (Pedido de Venda) -> cursor fiscal_settings.numero_pedido_atual
+//   - 'nf'           (Nota Fiscal)     -> cursor fiscal_settings.numero_nfe_atual
+// Regra: monotônica — número excluído NÃO é reaproveitado (o cursor só avança).
+// ============================================================
 
-  const { data, error } = await supabase
+export type FiscalDocClass = 'pedido_venda' | 'nf';
+
+function cursorColumnFor(docClass: FiscalDocClass): 'numero_pedido_atual' | 'numero_nfe_atual' {
+  return docClass === 'pedido_venda' ? 'numero_pedido_atual' : 'numero_nfe_atual';
+}
+
+async function maxNumberFor(
+  supabase: any,
+  tenantId: string,
+  serie: number,
+  docClass: FiscalDocClass,
+): Promise<number> {
+  let q = supabase
     .from('fiscal_invoices')
     .select('numero')
     .eq('tenant_id', tenantId)
     .eq('serie', serie)
     .order('numero', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
 
+  if (docClass === 'pedido_venda') {
+    q = q.eq('fiscal_stage', 'pedido_venda');
+  } else {
+    q = q.neq('fiscal_stage', 'pedido_venda');
+  }
+
+  const { data, error } = await q.maybeSingle();
   if (error) throw error;
+  return Number(data?.numero || 0);
+}
 
-  const maxNumero = Number(data?.numero || 0);
+export async function getNextFiscalNumber(params: {
+  supabase: any;
+  tenantId: string;
+  serie: number;
+  fallbackNumeroAtual?: number | null;
+  docClass?: FiscalDocClass;
+}): Promise<number> {
+  const { supabase, tenantId, serie, fallbackNumeroAtual } = params;
+  const docClass: FiscalDocClass = params.docClass || 'nf';
+
+  const maxNumero = await maxNumberFor(supabase, tenantId, serie, docClass);
   const fallback = Math.max(1, Number(fallbackNumeroAtual || 1));
-
   return Math.max(maxNumero + 1, fallback);
 }
 
@@ -31,6 +60,7 @@ export async function insertFiscalInvoiceWithRetry(params: {
   buildDraftData: (numero: number) => Record<string, unknown>;
   logPrefix: string;
   maxAttempts?: number;
+  docClass?: FiscalDocClass;
 }): Promise<{ invoice: any; numero: number }> {
   const {
     supabase,
@@ -41,6 +71,7 @@ export async function insertFiscalInvoiceWithRetry(params: {
     logPrefix,
     maxAttempts = 20,
   } = params;
+  const docClass: FiscalDocClass = params.docClass || 'nf';
 
   let numero = Math.max(1, initialNumber);
 
@@ -55,19 +86,19 @@ export async function insertFiscalInvoiceWithRetry(params: {
       return { invoice: data, numero };
     }
 
+    const msg = String(error?.message || '');
     const isDuplicateNumber =
       error?.code === '23505' &&
-      (String(error?.message || '').includes('fiscal_invoices_numero_unique') ||
-        String(error?.message || '').includes('(tenant_id, serie, numero)'));
+      (msg.includes('fiscal_invoices_numero_unique') ||
+        msg.includes('fiscal_invoices_numero_pedido_unique') ||
+        msg.includes('fiscal_invoices_numero_nf_unique') ||
+        msg.includes('(tenant_id, serie, numero)'));
 
-    // If it's a duplicate order_id conflict (from the unique partial index), treat as "already exists"
     const isDuplicateOrder =
-      error?.code === '23505' &&
-      String(error?.message || '').includes('idx_fiscal_invoices_order_unique');
+      error?.code === '23505' && msg.includes('idx_fiscal_invoices_order_unique');
 
     if (isDuplicateOrder) {
-      console.log(`[${logPrefix}] Invoice already exists for this order (unique index). Skipping.`);
-      // Fetch the existing invoice
+      console.log(`[${logPrefix}] Invoice já existe para esse pedido (unique index). Pulando.`);
       const draftData = buildDraftData(numero);
       const { data: existing } = await supabase
         .from('fiscal_invoices')
@@ -80,7 +111,7 @@ export async function insertFiscalInvoiceWithRetry(params: {
       if (existing) {
         return { invoice: existing, numero: existing.numero };
       }
-      throw new Error(`[${logPrefix}] Duplicate order detected but could not fetch existing invoice.`);
+      throw new Error(`[${logPrefix}] Duplicate order detected mas não conseguiu buscar a NF existente.`);
     }
 
     if (!isDuplicateNumber) {
@@ -88,9 +119,8 @@ export async function insertFiscalInvoiceWithRetry(params: {
     }
 
     console.warn(
-      `[${logPrefix}] Número ${numero} já utilizado para tenant=${tenantId}, série=${serie} (tentativa ${attempt}/${maxAttempts}).`
+      `[${logPrefix}] Número ${numero} já utilizado (${docClass}) para tenant=${tenantId}, série=${serie} (tentativa ${attempt}/${maxAttempts}).`
     );
-
     numero += 1;
   }
 
@@ -105,23 +135,27 @@ export async function syncFiscalNumberCursor(params: {
   serie: number;
   currentCursor?: number | null;
   logPrefix: string;
+  docClass?: FiscalDocClass;
 }): Promise<number> {
   const { supabase, tenantId, serie, currentCursor, logPrefix } = params;
+  const docClass: FiscalDocClass = params.docClass || 'nf';
+  const column = cursorColumnFor(docClass);
 
   const nextCursor = await getNextFiscalNumber({
     supabase,
     tenantId,
     serie,
     fallbackNumeroAtual: currentCursor,
+    docClass,
   });
 
   const { error } = await supabase
     .from('fiscal_settings')
-    .update({ numero_nfe_atual: nextCursor })
+    .update({ [column]: nextCursor })
     .eq('tenant_id', tenantId);
 
   if (error) {
-    console.error(`[${logPrefix}] Falha ao sincronizar numero_nfe_atual:`, error);
+    console.error(`[${logPrefix}] Falha ao sincronizar ${column}:`, error);
   }
 
   return nextCursor;

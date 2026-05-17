@@ -220,10 +220,10 @@ Deno.serve(async (req) => {
       (fiscalProducts || []).map(fp => [fp.product_id, fp])
     );
 
-    // Buscar dados fiscais do cadastro (fallback) + GTIN/EAN
+    // Buscar dados fiscais do cadastro (fallback) + GTIN/EAN + peso
     const { data: productsData } = await supabase
       .from('products')
-      .select('id, gtin, barcode, ncm, cest, origin_code, unit_of_measure')
+      .select('id, gtin, barcode, ncm, cest, origin_code, unit_of_measure, weight')
       .in('id', productIds);
     const productMap = new Map(
       (productsData || []).map((p: any) => [p.id, p])
@@ -267,9 +267,18 @@ Deno.serve(async (req) => {
         cst: fiscalProduct?.cst_override || fiscalSettings.cst_padrao,
         gtin,
         gtin_tributavel: gtin,
-        cest: fiscalProduct?.cest ? String(fiscalProduct.cest).replace(/\D/g, '').substring(0, 7) || null : null,
+        cest: fiscalProduct?.cest ? String(fiscalProduct.cest).replace(/\D/g, '').substring(0, 7) || null : (productCatalog.cest ? String(productCatalog.cest).replace(/\D/g, '').substring(0, 7) || null : null),
+        _weight_grams: Number(productCatalog.weight || 0),
       };
     });
+
+    // Peso bruto do pedido (kg) = soma item.peso * quantidade
+    const pesoBrutoKg = invoiceItems.reduce(
+      (acc, it: any) => acc + (Number(it._weight_grams || 0) * Number(it.quantidade || 0)) / 1000,
+      0,
+    );
+    // Limpa campo auxiliar
+    invoiceItems.forEach((it: any) => { delete it._weight_grams; });
 
     // Check for missing NCM
     const missingNcm = invoiceItems.filter(item => !item.ncm);
@@ -304,6 +313,8 @@ Deno.serve(async (req) => {
       order_id: order_id,
       serie: serieNfe,
       status: 'draft',
+      tipo_documento: 1,
+      fiscal_stage: 'pedido_venda',
       natureza_operacao: natureza_operacao || 'VENDA DE MERCADORIA',
       cfop: cfop,
       valor_total: order.total,
@@ -318,9 +329,12 @@ Deno.serve(async (req) => {
       dest_endereco_complemento: order.shipping_complement,
       dest_endereco_bairro: order.shipping_neighborhood,
       dest_endereco_municipio: order.shipping_city,
-      dest_endereco_municipio_codigo: destMunicipioCodigo, // Código IBGE lookup
+      dest_endereco_municipio_codigo: destMunicipioCodigo,
       dest_endereco_uf: order.shipping_state,
       dest_endereco_cep: order.shipping_postal_code,
+      peso_bruto: pesoBrutoKg > 0 ? Number(pesoBrutoKg.toFixed(3)) : null,
+      peso_liquido: pesoBrutoKg > 0 ? Number(pesoBrutoKg.toFixed(3)) : null,
+      quantidade_volumes: invoiceItems.length > 0 ? 1 : null,
       observacoes: observacoes || null,
       emitido_por: user.id,
     };
@@ -357,7 +371,8 @@ Deno.serve(async (req) => {
         supabase,
         tenantId,
         serie: serieNfe,
-        fallbackNumeroAtual: fiscalSettings.numero_nfe_atual,
+        fallbackNumeroAtual: fiscalSettings.numero_pedido_atual,
+        docClass: 'pedido_venda',
       });
 
       // Create new draft with duplicate-safe retry
@@ -367,6 +382,7 @@ Deno.serve(async (req) => {
         serie: serieNfe,
         initialNumber: nextNumero,
         logPrefix: 'fiscal-create-draft',
+        docClass: 'pedido_venda',
         buildDraftData: (numeroFiscal) => ({
           ...draftDataBase,
           numero: numeroFiscal,
@@ -381,6 +397,7 @@ Deno.serve(async (req) => {
         serie: serieNfe,
         currentCursor: result.numero + 1,
         logPrefix: 'fiscal-create-draft',
+        docClass: 'pedido_venda',
       });
     }
 
