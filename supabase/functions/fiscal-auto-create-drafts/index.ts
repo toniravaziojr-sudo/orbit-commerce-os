@@ -354,13 +354,14 @@ async function processTenanDrafts(
       let numero: number;
 
       if (isFiscalConfigured) {
-        // Caminho normal: aloca numeração fiscal real com retry
+        // Caminho normal: aloca numeração de Pedido de Venda com retry
         const result = await insertFiscalInvoiceWithRetry({
           supabase,
           tenantId,
           serie: serieNfe,
           initialNumber: nextNumeroCursor,
           logPrefix: 'fiscal-auto-create-drafts',
+          docClass: 'pedido_venda',
           buildDraftData: (numeroFiscal: number) => ({
             ...draftDataBase,
             numero: numeroFiscal,
