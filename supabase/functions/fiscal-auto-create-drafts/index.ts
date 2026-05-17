@@ -285,12 +285,25 @@ async function processTenanDrafts(
         return 'SEM GTIN';
       };
 
+      // Settings de tributação (regime + alíquotas padrão)
+      const taxSettings: FiscalSettingsTax = {
+        regime_tributario: fiscalSettings.regime_tributario || 'simples_nacional',
+        pis_aliquota_padrao: Number(fiscalSettings.pis_aliquota_padrao || 0),
+        cofins_aliquota_padrao: Number(fiscalSettings.cofins_aliquota_padrao || 0),
+        icms_aliquota_padrao: Number(fiscalSettings.icms_aliquota_padrao || 0),
+        pis_cst_padrao: fiscalSettings.pis_cst_padrao || '49',
+        cofins_cst_padrao: fiscalSettings.cofins_cst_padrao || '49',
+        cst_padrao: fiscalSettings.cst_padrao,
+        csosn_padrao: fiscalSettings.csosn_padrao,
+      };
+
       // Build invoice items (fiscal_products prioritário, products como fallback)
       const invoiceItemsRaw = itemsToProcess.map((item, index) => {
         const fiscalProduct: any = fiscalProductMap.get(item.product_id);
         const product: any = productMap.get(item.product_id);
         const gtin = sanitizeGtin(product?.gtin || product?.barcode);
         const cestRaw = fiscalProduct?.cest || product?.cest;
+        const taxes = calculateItemTaxes(Number(item.total_price || 0), taxSettings, fiscalProduct);
         return {
           numero_item: index + 1,
           order_item_id: item.id || null,
@@ -303,8 +316,19 @@ async function processTenanDrafts(
           valor_unitario: item.unit_price,
           valor_total: item.total_price,
           origem: fiscalProduct?.origem ?? product?.origin_code ?? fiscalSettings.origin_code ?? 0,
-          csosn: fiscalProduct?.csosn_override || fiscalSettings.csosn_padrao,
-          cst: fiscalProduct?.cst_override || fiscalSettings.cst_padrao,
+          csosn: taxes.csosn,
+          cst: taxes.cst,
+          icms_base: taxes.icms_base,
+          icms_aliquota: taxes.icms_aliquota,
+          icms_valor: taxes.icms_valor,
+          pis_cst: taxes.pis_cst,
+          pis_base: taxes.pis_base,
+          pis_aliquota: taxes.pis_aliquota,
+          pis_valor: taxes.pis_valor,
+          cofins_cst: taxes.cofins_cst,
+          cofins_base: taxes.cofins_base,
+          cofins_aliquota: taxes.cofins_aliquota,
+          cofins_valor: taxes.cofins_valor,
           gtin,
           gtin_tributavel: gtin,
           cest: cestRaw ? String(cestRaw).replace(/\D/g, '').substring(0, 7) || null : null,
