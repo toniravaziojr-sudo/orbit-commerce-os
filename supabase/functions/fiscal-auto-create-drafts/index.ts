@@ -119,7 +119,8 @@ async function processTenanDrafts(
       supabase,
       tenantId,
       serie: serieNfe,
-      fallbackNumeroAtual: fiscalSettings.numero_nfe_atual,
+      fallbackNumeroAtual: fiscalSettings.numero_pedido_atual,
+      docClass: 'pedido_venda',
     });
   } else {
     console.log(`[fiscal-auto-create-drafts] Tenant ${tenantId} sem emissor configurado — criando rascunho placeholder (numero=0, serie=0)`);
