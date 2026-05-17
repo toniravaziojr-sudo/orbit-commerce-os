@@ -1816,3 +1816,19 @@ Quando o `focus_empresa_id` ficar órfão no provedor (empresa não existe mais 
 - Homologação é modo técnico/piloto/suporte. Produção é o fluxo padrão do lojista.
 - Troca de ambiente é controle técnico/admin (backend/platform admin), fora da UI comum.
 - Tenant piloto Respeite o Homem permanece em homologação para validação técnica.
+
+## Pedidos de Marketplace na Esteira Fiscal (2026-05-17 — Onda 4)
+
+Pedidos importados de Mercado Livre e Shopee seguem a mesma esteira fiscal de pedidos da loja própria, com duas regras adicionais:
+
+### 1. Bloqueio por Item Sem Vínculo
+Itens de marketplace cujo SKU não corresponde a um produto cadastrado entram em `order_items` com `product_id = NULL`. O trigger `enqueue_fiscal_draft` consulta a função `order_has_unlinked_items(order_id)` e **NÃO insere** em `fiscal_draft_queue` enquanto houver qualquer item pendente. Isso evita criar Pedido de Venda fiscal com dados incompletos (sem peso, NCM, GTIN, Origem).
+
+### 2. Vínculo Manual Reativa a Fila
+Quando o operador vincula um produto local a um item antes pendente (UPDATE em `order_items.product_id`), o trigger `enqueue_fiscal_on_item_link` re-avalia o pedido. Se ele está pago (`payment_status = 'approved'`) e todos os itens agora têm `product_id`, o pedido entra automaticamente em `fiscal_draft_queue`.
+
+### 3. UI de Vínculo (Tela do Pedido)
+Em `/orders/:id`, a seção "Itens do Pedido" mostra banner amarelo + badge "Pendente de vínculo" por item, com botão "Vincular produto" que abre `ProductSelector`. Ao confirmar, herda automaticamente `weight`, `barcode`, `ncm` do cadastro.
+
+### 4. Frete e Roteamento de Remessa
+Pedidos com `marketplace_source IN ('mercadolivre','shopee')` retornam `reason = 'marketplace'` em `resolve_order_shipping_provider` — não entram em `shipping_draft_queue` nem em `gateway_sync_queue`. O envio é responsabilidade do marketplace.
