@@ -8,8 +8,9 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
+import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 
-const VERSION = 'v9.0.1';
+const VERSION = 'v9.1.0';
 // v9.0.0 — Rascunho permissivo: criação NÃO depende mais de fiscal_settings.is_configured.
 //          A configuração de emissor é exigida apenas no momento da emissão (fiscal-emit).
 //          Quando settings ausente/não-configurado: numero=0, serie=0 (placeholder).
@@ -143,6 +144,11 @@ async function processTenanDrafts(
       shipping_city,
       shipping_state,
       shipping_postal_code,
+      shipping_carrier,
+      shipping_method_name,
+      shipping_service_name,
+      free_shipping,
+      payment_method,
       customer_name,
       customer_cpf,
       paid_at,
@@ -348,6 +354,8 @@ async function processTenanDrafts(
         quantidade_volumes: invoiceItems.length > 0 ? 1 : null,
         emitido_por: userId,
         created_at: nfDate,
+        // Auto-herda transporte (modalidade SEFAZ + transportadora) e pagamento (tPag SEFAZ + indicador + valor)
+        ...buildFiscalOrderInheritance(order),
       };
 
       let invoice: any;
