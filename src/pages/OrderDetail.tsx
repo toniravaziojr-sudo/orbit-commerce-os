@@ -904,6 +904,24 @@ export default function OrderDetail() {
           onConfirm={handleConfirmOverride}
         />
       )}
+
+      <Dialog open={!!linkingItemId} onOpenChange={(o) => !o && setLinkingItemId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vincular item a um produto da loja</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Selecione o produto cadastrado que corresponde a este item do marketplace.
+              Os dados fiscais (peso, NCM, GTIN) serão herdados automaticamente.
+            </p>
+            <ProductSelector
+              onSelect={(p) => linkingItemId && handleLinkProduct(linkingItemId, p)}
+              placeholder="Buscar produto por nome ou SKU..."
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
