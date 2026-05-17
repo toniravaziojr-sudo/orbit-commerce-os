@@ -220,10 +220,10 @@ Deno.serve(async (req) => {
       (fiscalProducts || []).map(fp => [fp.product_id, fp])
     );
 
-    // Buscar GTIN/EAN do catálogo de produtos (campo canônico em products.gtin/barcode)
+    // Buscar dados fiscais do cadastro (fallback) + GTIN/EAN
     const { data: productsData } = await supabase
       .from('products')
-      .select('id, gtin, barcode')
+      .select('id, gtin, barcode, ncm, cest, origin_code, unit_of_measure')
       .in('id', productIds);
     const productMap = new Map(
       (productsData || []).map((p: any) => [p.id, p])
@@ -256,13 +256,13 @@ Deno.serve(async (req) => {
         order_item_id: item.id || null,
         codigo_produto: item.sku || item.product_id?.substring(0, 8) || `PROD${index + 1}`,
         descricao: item.product_name || 'Produto',
-        ncm: fiscalProduct?.ncm || '',
+        ncm: fiscalProduct?.ncm || productCatalog.ncm || '',
         cfop: fiscalProduct?.cfop_override || cfop,
-        unidade: fiscalProduct?.unidade_comercial || 'UN',
+        unidade: fiscalProduct?.unidade_comercial || productCatalog.unit_of_measure || 'UN',
         quantidade: item.quantity,
         valor_unitario: item.unit_price,
         valor_total: item.total_price,
-        origem: fiscalProduct?.origem || 0,
+        origem: fiscalProduct?.origem ?? productCatalog.origin_code ?? 0,
         csosn: fiscalProduct?.csosn_override || fiscalSettings.csosn_padrao,
         cst: fiscalProduct?.cst_override || fiscalSettings.cst_padrao,
         gtin,
