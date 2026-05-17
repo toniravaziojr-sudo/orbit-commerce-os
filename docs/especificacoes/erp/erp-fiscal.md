@@ -1832,3 +1832,13 @@ Em `/orders/:id`, a seção "Itens do Pedido" mostra banner amarelo + badge "Pen
 
 ### 4. Frete e Roteamento de Remessa
 Pedidos com `marketplace_source IN ('mercadolivre','shopee')` retornam `reason = 'marketplace'` em `resolve_order_shipping_provider` — não entram em `shipping_draft_queue` nem em `gateway_sync_queue`. O envio é responsabilidade do marketplace.
+
+## Cálculo Automático de Impostos por Regime (2026-05-17 — Onda 5)
+
+Configuração em Fiscal → Emitente → "Tributos PIS, COFINS e ICMS" (visível só para Regime Normal). Campos: `regime_tributario`, `pis_aliquota_padrao`, `cofins_aliquota_padrao`, `icms_aliquota_padrao`, `pis_cst_padrao`, `cofins_cst_padrao`. Override por produto em `fiscal_products`: `pis_aliquota`, `cofins_aliquota`, `icms_aliquota`, `pis_cst`, `cofins_cst`.
+
+Motor compartilhado: `supabase/functions/_shared/fiscal-tax-calculator.ts` (`calculateItemTaxes`). Aplicado em `fiscal-create-draft` e `fiscal-auto-create-drafts` no momento de montar os itens do Pedido de Venda. A NF clona os itens do Pedido (`fiscal-prepare-invoice`), portanto herda os impostos sem recalcular.
+
+Regras:
+- **Simples Nacional**: PIS/COFINS/ICMS zerados, usa `csosn`. Apuração real via DAS.
+- **Lucro Presumido / Real**: aplica `aliquota%` sobre o `valor_total` do item, usa `cst`. Precedência: override do produto → padrão do tenant → zero.
