@@ -273,7 +273,7 @@ Deno.serve(async (req) => {
         descricao: item.product_name || 'Produto',
         ncm: fiscalProduct?.ncm || productCatalog.ncm || '',
         cfop: fiscalProduct?.cfop_override || cfop,
-        unidade: fiscalProduct?.unidade_comercial || productCatalog.unit_of_measure || 'UN',
+        unidade: fiscalProduct?.unidade_comercial || 'UN',
         quantidade: item.quantity,
         valor_unitario: item.unit_price,
         valor_total: item.total_price,
