@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
     // Buscar dados fiscais do cadastro (fallback) + GTIN/EAN + peso
     const { data: productsData } = await supabase
       .from('products')
-      .select('id, gtin, barcode, ncm, cest, origin_code, unit_of_measure, weight')
+      .select('id, gtin, barcode, ncm, cest, origin_code, weight')
       .in('id', productIds);
     const productMap = new Map(
       (productsData || []).map((p: any) => [p.id, p])
@@ -273,7 +273,7 @@ Deno.serve(async (req) => {
         descricao: item.product_name || 'Produto',
         ncm: fiscalProduct?.ncm || productCatalog.ncm || '',
         cfop: fiscalProduct?.cfop_override || cfop,
-        unidade: fiscalProduct?.unidade_comercial || productCatalog.unit_of_measure || 'UN',
+        unidade: fiscalProduct?.unidade_comercial || 'UN',
         quantidade: item.quantity,
         valor_unitario: item.unit_price,
         valor_total: item.total_price,
