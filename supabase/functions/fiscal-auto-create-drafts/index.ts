@@ -9,6 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
+import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
 
 const VERSION = 'v9.1.0';
 // v9.0.0 — Rascunho permissivo: criação NÃO depende mais de fiscal_settings.is_configured.
