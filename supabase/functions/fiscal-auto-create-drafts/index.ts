@@ -431,6 +431,7 @@ async function processTenanDrafts(
       serie: serieNfe,
       currentCursor: nextNumeroCursor,
       logPrefix: 'fiscal-auto-create-drafts',
+      docClass: 'pedido_venda',
     });
   }
 
