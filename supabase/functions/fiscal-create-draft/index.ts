@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
     // Buscar dados fiscais do cadastro (fallback) + GTIN/EAN + peso
     const { data: productsData } = await supabase
       .from('products')
-      .select('id, gtin, barcode, ncm, cest, origin_code, unit_of_measure, weight')
+      .select('id, gtin, barcode, ncm, cest, origin_code, weight')
       .in('id', productIds);
     const productMap = new Map(
       (productsData || []).map((p: any) => [p.id, p])
