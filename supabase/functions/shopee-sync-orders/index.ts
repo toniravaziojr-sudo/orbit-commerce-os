@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
         }
 
         const orderStatus = statusMap[shopeeOrder.order_status] || "pending";
-        const paymentStatus = shopeeOrder.order_status === "UNPAID" ? "pending" : "paid";
+        const paymentStatus = shopeeOrder.order_status === "UNPAID" ? "pending" : "approved";
 
         const orderData = {
           tenant_id: tenantId,
