@@ -939,23 +939,34 @@ async function sendWhatsAppViaMeta(
     const sendResult = await sendResponse.json();
 
     if (sendResult.error) {
-      console.error(`[RunNotifications] Meta WhatsApp error:`, sendResult.error);
+      const classified = classifyMetaError(sendResult.error);
+      console.error(`[RunNotifications] Meta WhatsApp error [${classified.class}/${classified.reason}]:`, sendResult.error);
 
       await supabase.from('whatsapp_messages').insert({
         tenant_id: tenantId,
         recipient_phone: cleanPhone,
         message_type: 'text',
         message_content: safeMessage.substring(0, 500),
-        status: 'failed',
-        error_message: sendResult.error.message,
+        status: classified.class === 'terminal' ? `failed_${classified.reason}` : 'failed',
+        error_message: classified.userMessage,
+        metadata: {
+          meta_error_code: sendResult.error.code,
+          meta_error_subcode: sendResult.error.error_subcode,
+          error_class: classified.class,
+          error_reason: classified.reason,
+        },
       });
 
+      const errorPayload = classified.class === 'terminal'
+        ? `__TERMINAL__:${classified.reason}:${classified.userMessage}`
+        : classified.userMessage;
       return {
         success: false,
-        error: sendResult.error?.message || 'Erro ao enviar via Meta WhatsApp',
+        error: errorPayload,
         response: sendResult
       };
     }
+
 
     const messageId = sendResult.messages?.[0]?.id;
     console.log(`[RunNotifications] Meta WhatsApp sent - ID: ${messageId}`);
