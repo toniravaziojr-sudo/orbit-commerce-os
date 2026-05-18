@@ -258,13 +258,13 @@ Deno.serve(async (req) => {
       errors.push('Não foi possível identificar o município do cliente a partir do CEP — confirme o CEP do endereço.');
     }
 
-    // Cross-validação UF: se o CEP foi resolvido e a UF do pedido difere da UF oficial do CEP,
-    // bloqueamos a emissão pois o pedido pode ser despachado para o endereço errado.
+    // Cross-validação UF: divergência entre UF do CEP e UF do pedido é AVISO informativo,
+    // não bloqueio. O lojista vê e pode confirmar com o cliente; SEFAZ valida na emissão.
     if (cepLookup?.uf && inv.dest_endereco_uf) {
       const ufPedido = String(inv.dest_endereco_uf).trim().toUpperCase();
       const ufCep = cepLookup.uf.trim().toUpperCase();
       if (ufPedido && ufCep && ufPedido !== ufCep) {
-        errors.push(`Endereço incompatível com o CEP: o CEP pertence a ${ufCep}, mas o pedido informa ${ufPedido}. Confirme cidade e estado com o cliente antes de despachar.`);
+        warnings.push(`Endereço incompatível com o CEP: o CEP pertence a ${ufCep}, mas o pedido informa ${ufPedido}. Confirme cidade e estado com o cliente antes de despachar.`);
       }
     }
 
