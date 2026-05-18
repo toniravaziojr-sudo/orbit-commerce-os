@@ -1928,3 +1928,26 @@ Sem alteração nos campos de destinatário, ou em pedidos sem cliente vinculado
 - Pedido #233 (Respeite o Homem) com pendência de cidade — campos da aba Dest. ficam habilitados para edição (Nome, CPF/CNPJ, IE, Endereço completo, Telefone, E-mail).
 - Diálogo de sincronização do cadastro continua disparando ao salvar com alterações + `customer_id` presente.
 - Campos de item (NCM/CFOP/Origem/GTIN) permanecem bloqueados quando há `product_id` — comportamento preservado.
+
+### Hotfix 2026-05-18h — Fechamento automático pós-salvar + paginação das listas
+
+**Problema 1 — fluxo de salvar lento.** Ao salvar o Pedido de Venda (ou rascunho de NF), o editor permanecia aberto e o usuário precisava clicar em "Fechar" manualmente para voltar à listagem e continuar revisando outros pedidos. Fluxo improdutivo, especialmente em lotes.
+
+**Problema 2 — listas sem paginação.** As abas **Pedidos de Venda** e **Notas Fiscais** carregavam e renderizavam todos os registros do tenant em uma única página. Com 221 pedidos em aberto hoje o usuário sente a lista pesada; e o limite técnico de 1.000 linhas por consulta (Supabase) gera risco real de pedidos "sumirem" silenciosamente conforme o volume cresce.
+
+**Correção.**
+1. **Fechamento automático.** O editor de NF/Pedido fecha sozinho após salvar com sucesso (caminho direto e caminho do diálogo de sincronização do cadastro). O caminho de "Salvar e criar NF" continua mantendo o editor aberto até a etapa encadeada concluir.
+2. **Destaque + scroll.** A linha do registro recém-salvo recebe um destaque visual (~2,5s) e a lista rola automaticamente até ela. Se a linha estiver em outra página, a lista pula para a página correta antes do scroll.
+3. **Paginação.** Listas paginadas no cliente (já que a consulta atual carrega todo o tenant) com seletor 25 / 50 / 100 / 200 por página (padrão 50), contador "X – Y de Z" e controles Primeira / Anterior / Próxima / Última. A página atual reseta para 1 sempre que qualquer filtro (aba, busca, status, datas, marketplace) ou o tamanho de página muda.
+
+**Aplicado em:**
+- `src/components/fiscal/InvoiceEditor.tsx` — `persistSave` chama `onOpenChange(false)` quando não há etapa encadeada.
+- `src/components/fiscal/FiscalInvoiceList.tsx` — estado `pageSize`/`currentPage`, slice `pagedInvoices`, ref de linhas, destaque pós-save (`highlightedInvoiceId`) e rodapé de paginação.
+
+**Lacuna conhecida (não bloqueante).** A consulta de listagem fiscal ainda traz todos os registros do tenant (até o teto de 1.000 do Supabase). A paginação real no servidor com `range()` fica como evolução futura quando algum tenant ultrapassar ~800 registros ativos — neste momento o ganho de UX já cobre o problema imediato e elimina o risco de scroll infinito.
+
+**Validação técnica:**
+- Build TypeScript limpo (`tsc --noEmit`) após as alterações.
+- Tenant **Respeite o Homem** com 221 pedidos em aberto: paginação carrega corretamente; troca de filtro reseta para a página 1.
+- Fluxo de edição: salvar pedido → editor fecha → lista rola até a linha salva com destaque azul por ~2,5s.
+- Diálogo de sincronização do cadastro continua disparando quando o destinatário muda em campos comerciais (nome, CPF/CNPJ, contato, endereço); IBGE-only **não** dispara (validado nos logs: edição 17:39, pedido `4b709af9`).
