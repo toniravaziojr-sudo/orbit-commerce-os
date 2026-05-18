@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
   // Busca invoices candidatas: estágio inicial ou em pendência (fase pré-emissão)
   let q = admin
     .from('fiscal_invoices')
-    .select('id, tenant_id, dest_endereco_cep, dest_endereco_uf, dest_endereco_municipio, dest_endereco_municipio_codigo, pendencia_motivos, fiscal_stage')
+    .select('id, tenant_id, dest_endereco_cep, dest_endereco_uf, dest_endereco_municipio, dest_endereco_municipio_codigo, pendencia_motivos, pendencia_avisos, fiscal_stage')
     .in('fiscal_stage', ['pedido_venda', 'pendencia'])
     .not('dest_endereco_cep', 'is', null)
     .limit(limit);
