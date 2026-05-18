@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, Download, Send, X, Trash2, Mail, RotateCcw, Truck, Receipt } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
