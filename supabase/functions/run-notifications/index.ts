@@ -10,7 +10,67 @@ import { enrichOrderContext } from "../_shared/enrich-order-context.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.7.0"; // template param sanitization + strict retry on #100/#132000
+const VERSION = "v1.8.0"; // self-send guard + semantic Meta error classification (terminal vs recoverable)
+
+// ============================================================
+// Classificação semântica de erros Meta WhatsApp Cloud API
+// terminal = não adianta retentar (consome attempt_count = max para fechar)
+// recoverable = vale retentar com backoff
+// ============================================================
+type MetaErrorClass = 'terminal' | 'recoverable';
+interface ClassifiedMetaError { class: MetaErrorClass; reason: string; userMessage: string; }
+
+function classifyMetaError(err: any): ClassifiedMetaError {
+  const code = Number(err?.code ?? 0);
+  const subcode = Number(err?.error_subcode ?? 0);
+  const msg = String(err?.message ?? '').toLowerCase();
+  const detail = String(err?.error_data?.details ?? '').toLowerCase();
+  const haystack = `${msg} ${detail}`;
+
+  // Self-send detectado pela Meta (mensagem do próprio número)
+  if (haystack.includes('same number') || haystack.includes('cannot send a message to itself') || haystack.includes('own number')) {
+    return { class: 'terminal', reason: 'self_send', userMessage: 'Envio cancelado: o número de destino é o próprio número da loja conectado ao WhatsApp.' };
+  }
+  // Número não está no WhatsApp / opt-out
+  if (code === 131026 || haystack.includes('recipient phone number not in allowed list') || haystack.includes('not a whatsapp user')) {
+    return { class: 'terminal', reason: 'invalid_recipient', userMessage: 'Número do destinatário não está disponível no WhatsApp.' };
+  }
+  // Janela de 24h expirada para mensagem livre (não-template)
+  if (code === 131047 || haystack.includes('re-engagement') || haystack.includes('outside the allowed window')) {
+    return { class: 'terminal', reason: 'window_24h_expired', userMessage: 'Janela de 24h de conversa expirou. Use template aprovado.' };
+  }
+  // Template pausado / rejeitado pela Meta
+  if (code === 132001 || code === 132005 || code === 132007 || code === 132012 || code === 132015 || haystack.includes('template is paused') || haystack.includes('template was paused')) {
+    return { class: 'terminal', reason: 'template_paused', userMessage: 'Template foi pausado ou bloqueado pela Meta. Revise o conteúdo do template.' };
+  }
+  // Acesso/credencial — terminal até reconectar (não adianta tentar 5x)
+  if (code === 190 || code === 200 || code === 10) {
+    return { class: 'terminal', reason: 'auth_revoked', userMessage: 'Conexão com a Meta expirou ou foi revogada. Reconecte o WhatsApp.' };
+  }
+  // Parâmetro inválido genérico (#100) e contagem (#132000): mantém recuperável
+  // porque já temos retry estrito + nova tentativa pode pegar payload corrigido.
+  // Limites de taxa / disponibilidade
+  if (code === 4 || code === 80007 || code === 130429 || code === 80004) {
+    return { class: 'recoverable', reason: 'rate_limit', userMessage: 'Limite temporário da Meta. Tentaremos novamente.' };
+  }
+  // Default: recuperável
+  return { class: 'recoverable', reason: 'unknown', userMessage: err?.message || 'Erro temporário no envio.' };
+}
+
+// Normaliza para comparar números (só dígitos, sem código de país duplicado)
+function normalizePhoneForCompare(raw: string | null | undefined): string {
+  if (!raw) return '';
+  let s = String(raw).replace(/\D/g, '');
+  if (s.startsWith('55') && s.length > 11) s = s.slice(2);
+  return s;
+}
+function isSelfSend(recipientCleanWithCC: string, configPhone: string | null | undefined): boolean {
+  if (!configPhone) return false;
+  const a = normalizePhoneForCompare(recipientCleanWithCC);
+  const b = normalizePhoneForCompare(configPhone);
+  if (!a || !b) return false;
+  return a === b;
+}
 // ===========================================================
 
 const corsHeaders = {
