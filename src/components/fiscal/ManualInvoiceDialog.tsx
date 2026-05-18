@@ -59,6 +59,7 @@ export interface ManualInvoiceInitialData {
   valor_outras_despesas?: number;
   modalidade_frete?: string;
   transportadora_nome?: string;
+  transportadora_servico?: string;
   transportadora_cnpj?: string;
   peso_bruto?: number;
   peso_liquido?: number;

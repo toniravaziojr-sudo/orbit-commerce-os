@@ -1,46 +1,71 @@
-## Diagnóstico
+## Contexto
 
-**Por que metade dos pedidos falha:** o sistema hoje resolve o código IBGE comparando o nome da cidade digitada com uma tabela interna `ibge_municipios`. Essa tabela tem apenas **123 municípios cadastrados** (o Brasil tem 5.570). Resultado: mesmo cidades grafadas corretamente (Esmeraldas/MG, Cananéia/SP, Aracruz/ES, Mucuri/BA, Pontes e Lacerda/MT, etc.) não são encontradas e o pedido fica pendente.
+No Pedido de Venda (modelo Bling) hoje:
 
-A maior parte dos casos **não é erro do cliente** — é base interna incompleta.
+- A aba **Transp.** mostra modalidade do frete, transportadora, peso e volumes — mas **não mostra o serviço que o cliente escolheu** no checkout (PAC, SEDEX, Mini Envios, Loggi Express, etc.). Essa informação já existe no pedido original.
+- A aba **Dest.** (destinatário) permite editar livremente nome, CPF/CNPJ, endereço, telefone e e-mail — mas as alterações ficam só no pedido. O cadastro do cliente continua desatualizado e ninguém é avisado.
 
 ## O que vou fazer
 
-### 1. Resolver IBGE a partir do CEP (fonte oficial)
-O CEP é a chave canônica do endereço. Vou usar a base oficial dos Correios (ViaCEP) que devolve, junto com o endereço, o **código IBGE da cidade** já pronto. Não dependeremos mais de digitação manual nem da tabela interna defasada.
+### 1. Serviço da transportadora visível e travado ao pedido
 
-Hierarquia de resolução:
-1. **Cache local de CEPs** (consultado primeiro, sem custo nem latência)
-2. **ViaCEP** (oficial dos Correios, gratuito) — grava no cache
-3. **BrasilAPI** (fallback se ViaCEP estiver fora do ar)
-4. **Tabela interna** (último recurso, mantida só para emergência)
+Na aba **Transp.**, abaixo de "Nome/Razão Social da Transportadora", incluir um novo campo **Serviço contratado**:
 
-### 2. Cross-validação leve (proteção contra envio para endereço errado)
-Quando o CEP é resolvido com sucesso, comparo a cidade/UF que veio do CEP com a cidade/UF que o cliente digitou (normalizando acentos, espaços e maiúsculas). Se a UF estiver diferente, gero pendência explícita ("CEP de SP, mas cliente informou RJ — confirme antes de despachar"). Diferença só de grafia da cidade **não** gera pendência (já corrigimos via CEP).
+- Preenchido automaticamente com o serviço escolhido pelo cliente no checkout (PAC, SEDEX, Mini Envios, Loggi Express, etc.), dentro da transportadora que o cliente selecionou.
+- Funciona para qualquer transportadora (Correios, Frenet, Loggi, futuras), porque a informação vem direto do pedido original.
+- Exibido também no card "Dados do Transporte" como uma linha clara: "Transportadora: Correios — SEDEX".
+- Editável apenas em casos manuais (pedido criado sem cotação) ou se o usuário precisar trocar antes do despacho. Em pedido que veio do checkout, valor já chega preenchido.
 
-### 3. Backfill dos pedidos já pendentes
-Vou rodar uma única vez a re-resolução em todos os pedidos pendentes por esse motivo (no respeite-o-homem e nos demais tenants). Os que voltarem com IBGE válido saem de pendência automaticamente.
+Pedidos antigos sem essa informação salva mostram o campo vazio com aviso "Serviço não informado no checkout".
 
-### 4. Aplicar no fluxo inteiro
-A nova resolução por CEP entra nos 4 pontos que hoje usam o lookup por nome: criação automática de rascunho fiscal, criação manual, criação via wizard e validação no `prepare-invoice`.
+### 2. Edição do destinatário com aviso de sincronização com o cadastro
 
-### 5. Tabela de cache de CEP
-Nova tabela leve `cep_cache` (cep, logradouro, bairro, cidade, uf, ibge, fetched_at). Compartilhada entre todos os tenants (CEP é público). Reduz chamadas externas e dá resiliência se ViaCEP cair.
+Quando o usuário alterar qualquer campo da aba **Dest.** (nome, CPF/CNPJ, endereço completo, telefone, e-mail) e clicar em **Salvar Pedido**, em vez de salvar direto, aparece um diálogo de confirmação:
 
-## Resultado esperado
+```text
+┌──────────────────────────────────────────────────┐
+│ Você alterou dados que também estão no cadastro  │
+│ do cliente.                                      │
+│                                                  │
+│ Campos alterados:                                │
+│  • Endereço                                      │
+│  • Telefone                                      │
+│                                                  │
+│ Como deseja salvar?                              │
+│                                                  │
+│  [ Salvar pedido e atualizar cadastro ] ← padrão │
+│  [ Salvar somente neste pedido ]                 │
+│  [ Cancelar ]                                    │
+└──────────────────────────────────────────────────┘
+```
 
-- Pedidos novos: IBGE resolvido automaticamente em ~99% dos casos, sem intervenção do lojista.
-- Pedidos antigos pendentes: a grande maioria deve sair de pendência após o backfill.
-- Casos remanescentes (CEP realmente inválido ou divergência UF): pendência clara apontando o problema real.
-- Sem mudança de UI ou de fluxo de negócio — o lojista continua não precisando ver/digitar IBGE.
+Regras:
 
-## Detalhes técnicos (referência interna)
+- **Salvar pedido e atualizar cadastro** (botão azul, opção padrão): salva o pedido e atualiza o cadastro do cliente com os mesmos dados. Use quando o cadastro estava errado de verdade.
+- **Salvar somente neste pedido** (botão secundário): salva só este pedido. O cadastro permanece como está. Use quando é uma correção pontual (ex.: entregar em outro endereço só desta vez).
+- **Cancelar**: volta para a edição.
+- O diálogo só aparece se houver mudança em pelo menos um campo da aba Dest. Sem alteração → salva direto, sem perguntar nada.
+- Se o pedido não tem cliente vinculado (avulso/manual), o diálogo não aparece — salva direto.
 
-- Nova migration: cria `public.cep_cache` (PK = cep 8 dígitos), index by fetched_at, RLS off (dados públicos), grant read/insert via service role.
-- Novo módulo `supabase/functions/_shared/cep-lookup.ts`: função `resolveAddressByCep(cep)` com cache+ViaCEP+BrasilAPI, timeout 3s por provider, retorna `{ibge, cidade, uf, logradouro, bairro}` ou null.
-- Refator em `fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual`, `fiscal-prepare-invoice`: chamar `resolveAddressByCep` primeiro; fallback para `getIbgeCodigo` por nome só se CEP não resolver.
-- Cross-validação UF: comparação após normalize; pendência específica "CEP pertence a {UF_cep}, mas pedido informou {UF_digitada}".
-- Backfill: edge function one-shot `fiscal-backfill-ibge` (ou bloco SQL via reprocesso do `fiscal-prepare-invoice` em loop) — executar manualmente uma vez.
-- Atualizar `docs/especificacoes/erp/erp-fiscal.md` com hotfix 2026-05-18c e ajustar memória `fiscal-ibge-destinatario-obrigatorio.md` (CEP é fonte primária de IBGE).
+### 3. Documentação
 
-Confirma que sigo?
+Atualizar a documentação do módulo fiscal (Pedido de Venda / modelo Bling) descrevendo:
+- Novo campo "Serviço contratado" na aba Transp. e de onde vem o dado.
+- Fluxo de edição da aba Dest. com 3 opções de salvamento e o critério para o diálogo aparecer.
+
+## Tela final (exemplo)
+
+```text
+Aba Transp. — Pedido de Venda nº 234
+────────────────────────────────────
+Modalidade do frete: Contratação por conta do Remetente (CIF)
+Transportadora:      Correios
+Serviço contratado:  SEDEX            ← NOVO
+CNPJ:                ...
+Peso bruto: 0,18 kg   Peso líquido: 0,18 kg
+Volumes: 1            Espécie: Caixa
+```
+
+## Status
+
+Pronto para implementar assim que você aprovar.

@@ -73,6 +73,7 @@ export interface InvoiceData {
   // Transporte
   modalidade_frete: string;
   transportadora_nome?: string;
+  transportadora_servico?: string;
   transportadora_cnpj?: string;
   peso_bruto?: number;
   peso_liquido?: number;
@@ -277,6 +278,45 @@ interface InvoiceEditorProps {
   pendenciaMotivos?: string[];
 }
 
+// Campos do destinatário monitorados para sincronizar com o cadastro do cliente.
+// Cada chave aponta para o rótulo amigável exibido no diálogo de confirmação.
+const DEST_FIELDS_LABELS: Array<{ key: keyof InvoiceData; label: string }> = [
+  { key: 'dest_nome', label: 'Nome / Razão social' },
+  { key: 'dest_cpf_cnpj', label: 'CPF / CNPJ' },
+  { key: 'dest_email', label: 'E-mail' },
+  { key: 'dest_telefone', label: 'Telefone' },
+  { key: 'dest_endereco_cep', label: 'CEP' },
+  { key: 'dest_endereco_logradouro', label: 'Endereço' },
+  { key: 'dest_endereco_numero', label: 'Número' },
+  { key: 'dest_endereco_complemento', label: 'Complemento' },
+  { key: 'dest_endereco_bairro', label: 'Bairro' },
+  { key: 'dest_endereco_municipio', label: 'Cidade' },
+  { key: 'dest_endereco_uf', label: 'Estado' },
+];
+
+function captureDestSnapshot(inv: InvoiceData): Record<string, string> {
+  const snap: Record<string, string> = {};
+  for (const { key } of DEST_FIELDS_LABELS) {
+    snap[key as string] = String((inv as any)[key] ?? '').trim();
+  }
+  return snap;
+}
+
+function diffDestSnapshot(
+  initial: Record<string, string> | null,
+  current: InvoiceData,
+): string[] {
+  if (!initial) return [];
+  const changed: string[] = [];
+  for (const { key, label } of DEST_FIELDS_LABELS) {
+    const before = initial[key as string] ?? '';
+    const after = String((current as any)[key] ?? '').trim();
+    if (before !== after) changed.push(label);
+  }
+  return changed;
+}
+
+
 export function InvoiceEditor({
   open,
   onOpenChange,
@@ -301,6 +341,16 @@ export function InvoiceEditor({
   const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [customerId, setCustomerId] = useState<string | null>(null);
+  // Snapshot dos dados do destinatário no momento que o pedido foi carregado.
+  // Usado para detectar edições e oferecer atualizar o cadastro do cliente.
+  const [initialDest, setInitialDest] = useState<Record<string, string> | null>(null);
+  // Diálogo "alterou cadastro do cliente". Aparece ao salvar quando algum
+  // campo do destinatário foi modificado e o pedido está vinculado a um cliente.
+  const [destSyncDialog, setDestSyncDialog] = useState<{
+    open: boolean;
+    changedLabels: string[];
+    pending: InvoiceData | null;
+  }>({ open: false, changedLabels: [], pending: null });
   const [operationNatures, setOperationNatures] = useState<Array<{
     id: string; nome: string; descricao: string | null;
     cfop_intra: string; cfop_inter: string;
@@ -374,6 +424,7 @@ export function InvoiceEditor({
     if (invoice) {
       setData({ ...invoice });
       setValidationErrors([]);
+      setInitialDest(captureDestSnapshot(invoice));
     }
   }, [invoice]);
 
@@ -578,18 +629,69 @@ export function InvoiceEditor({
     return errors;
   };
 
-  const handleSave = async () => {
-    if (!data) return;
+  // Salva o pedido. Se o usuário alterou dados do destinatário e o pedido
+  // está vinculado a um cliente, abre o diálogo de sincronização com cadastro.
+  const persistSave = async (
+    payload: InvoiceData,
+    alsoUpdateCustomer: boolean,
+    afterSave?: (payload: InvoiceData) => Promise<void>,
+  ) => {
     setIsSaving(true);
     try {
-      await onSave(data);
-      toast.success('Rascunho salvo com sucesso');
+      await onSave(payload);
+      if (alsoUpdateCustomer && customerId) {
+        const { error: custErr } = await supabase
+          .from('customers')
+          .update({
+            full_name: payload.dest_nome,
+            ...(payload.dest_tipo_pessoa === 'fisica'
+              ? { cpf: payload.dest_cpf_cnpj?.replace(/\D/g, '') || null }
+              : { cnpj: payload.dest_cpf_cnpj?.replace(/\D/g, '') || null }),
+            email: payload.dest_email || null,
+            phone: payload.dest_telefone || null,
+            address_postal_code: payload.dest_endereco_cep || null,
+            address_street: payload.dest_endereco_logradouro || null,
+            address_number: payload.dest_endereco_numero || null,
+            address_complement: payload.dest_endereco_complemento || null,
+            address_neighborhood: payload.dest_endereco_bairro || null,
+            address_city: payload.dest_endereco_municipio || null,
+            address_state: payload.dest_endereco_uf || null,
+          })
+          .eq('id', customerId);
+        if (custErr) {
+          console.error('[InvoiceEditor] customer update failed:', custErr);
+          toast.warning('Pedido salvo. Não foi possível atualizar o cadastro do cliente — tente novamente pelo módulo Clientes.');
+        } else {
+          toast.success('Pedido salvo e cadastro do cliente atualizado.');
+        }
+      } else if (!afterSave) {
+        toast.success(alsoUpdateCustomer ? 'Pedido salvo.' : 'Rascunho salvo com sucesso');
+      }
+      // Atualiza snapshot para próximas edições
+      setInitialDest(captureDestSnapshot(payload));
+      if (afterSave) await afterSave(payload);
     } catch (error) {
       console.error('Error saving draft:', error);
       toast.error('Erro ao salvar rascunho');
+      throw error;
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Pendente para ser executado depois do salvamento, quando o usuário escolher
+  // uma opção do diálogo de sincronização. Permite encadear "Criar Nota Fiscal".
+  const [destSyncAfterSave, setDestSyncAfterSave] = useState<((payload: InvoiceData) => Promise<void>) | null>(null);
+
+  const handleSave = async () => {
+    if (!data) return;
+    const changed = diffDestSnapshot(initialDest, data);
+    if (changed.length > 0 && customerId) {
+      setDestSyncAfterSave(null);
+      setDestSyncDialog({ open: true, changedLabels: changed, pending: data });
+      return;
+    }
+    await persistSave(data, false);
   };
 
   const handleSubmit = async () => {
@@ -1645,6 +1747,19 @@ export function InvoiceEditor({
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>Serviço contratado</Label>
+                  <Input
+                    value={data.transportadora_servico || ''}
+                    onChange={(e) => updateField('transportadora_servico', e.target.value)}
+                    placeholder="Ex: PAC, SEDEX, Mini Envios, Loggi Express"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {data.transportadora_servico
+                      ? 'Serviço escolhido pelo cliente no checkout. Edite apenas se for trocar antes do despacho.'
+                      : 'Serviço não informado no checkout. Preencha se houver.'}
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label>CNPJ/CPF da Transportadora</Label>
                   <Input
                     value={data.transportadora_cnpj || ''}
@@ -1784,16 +1899,27 @@ export function InvoiceEditor({
               <Button
                 onClick={async () => {
                   if (!data || !onPrepare) return;
-                  setIsSubmitting(true);
+                  const runPrepare = async (payload: InvoiceData) => {
+                    setIsSubmitting(true);
+                    try {
+                      await onPrepare(payload);
+                      onOpenChange(false);
+                    } catch (e) {
+                      console.error('[InvoiceEditor] onPrepare error:', e);
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  };
+                  const changed = diffDestSnapshot(initialDest, data);
+                  if (changed.length > 0 && customerId) {
+                    setDestSyncAfterSave(() => runPrepare);
+                    setDestSyncDialog({ open: true, changedLabels: changed, pending: data });
+                    return;
+                  }
                   try {
-                    // Salva alterações antes de criar a NF, garantindo dados atuais
-                    await onSave(data);
-                    await onPrepare(data);
-                    onOpenChange(false);
-                  } catch (e) {
-                    console.error('[InvoiceEditor] onPrepare error:', e);
-                  } finally {
-                    setIsSubmitting(false);
+                    await persistSave(data, false, runPrepare);
+                  } catch {
+                    /* persistSave já mostrou toast */
                   }
                 }}
                 disabled={isSaving || isSubmitting || !onPrepare || (pendenciaMotivos && pendenciaMotivos.length > 0)}
@@ -1820,6 +1946,82 @@ export function InvoiceEditor({
               </Button>
             )}
           </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Diálogo: alterou dados do destinatário e o pedido tem cliente vinculado */}
+    <Dialog
+      open={destSyncDialog.open}
+      onOpenChange={(o) => {
+        if (!o) {
+          setDestSyncDialog({ open: false, changedLabels: [], pending: null });
+          setDestSyncAfterSave(null);
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Você alterou dados do cadastro do cliente</DialogTitle>
+          <DialogDescription>
+            Os campos abaixo estão também no cadastro do cliente. Escolha como deseja salvar.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-md border bg-muted/40 p-3 text-sm">
+          <p className="mb-1 font-medium">Campos alterados:</p>
+          <ul className="list-disc pl-5 text-muted-foreground">
+            {destSyncDialog.changedLabels.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        </div>
+        <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0">
+          <Button
+            onClick={async () => {
+              const pending = destSyncDialog.pending;
+              const after = destSyncAfterSave;
+              setDestSyncDialog({ open: false, changedLabels: [], pending: null });
+              setDestSyncAfterSave(null);
+              if (pending) {
+                try {
+                  await persistSave(pending, true, after || undefined);
+                } catch { /* toast já mostrado */ }
+              }
+            }}
+            disabled={isSaving || isSubmitting}
+            className="w-full"
+          >
+            Salvar pedido e atualizar cadastro
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              const pending = destSyncDialog.pending;
+              const after = destSyncAfterSave;
+              setDestSyncDialog({ open: false, changedLabels: [], pending: null });
+              setDestSyncAfterSave(null);
+              if (pending) {
+                try {
+                  await persistSave(pending, false, after || undefined);
+                } catch { /* toast já mostrado */ }
+              }
+            }}
+            disabled={isSaving || isSubmitting}
+            className="w-full"
+          >
+            Salvar somente neste pedido
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setDestSyncDialog({ open: false, changedLabels: [], pending: null });
+              setDestSyncAfterSave(null);
+            }}
+            disabled={isSaving || isSubmitting}
+            className="w-full"
+          >
+            Cancelar
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

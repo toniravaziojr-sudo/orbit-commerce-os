@@ -91,6 +91,7 @@ Deno.serve(async (req) => {
       // Transporte
       modalidade_frete: data.modalidade_frete || '9',
       transportadora_nome: data.transportadora_nome || null,
+      transportadora_servico: data.transportadora_servico || null,
       transportadora_cnpj: data.transportadora_cnpj?.replace(/\D/g, '') || null,
       peso_bruto: data.peso_bruto || null,
       peso_liquido: data.peso_liquido || null,

@@ -8633,6 +8633,7 @@ export type Database = {
           tipo_documento: number | null
           transportadora_cnpj: string | null
           transportadora_nome: string | null
+          transportadora_servico: string | null
           updated_at: string | null
           valor_bc_icms: number
           valor_cofins: number
@@ -8712,6 +8713,7 @@ export type Database = {
           tipo_documento?: number | null
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
+          transportadora_servico?: string | null
           updated_at?: string | null
           valor_bc_icms?: number
           valor_cofins?: number
@@ -8791,6 +8793,7 @@ export type Database = {
           tipo_documento?: number | null
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
+          transportadora_servico?: string | null
           updated_at?: string | null
           valor_bc_icms?: number
           valor_cofins?: number
