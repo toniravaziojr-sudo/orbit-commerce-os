@@ -202,6 +202,8 @@ O conceito de "ghost order" (`payment_gateway_id IS NULL`) foi eliminado na v202
 
 **Validação E2E (2026-05-02):** Pedido manual #392 (PIX/Pago) e #393 (Boleto/Pago, transportadora Correios) criados via `/orders/new` apareceram corretamente em `/orders`, `/fiscal?tab=pedidos` (status "Pronto para emitir NF") e `/logistica` (aba Aguardando Envio). Confirma que a remoção do filtro não introduziu efeitos colaterais e que pedidos manuais transitam pelo pipeline atomic-order-draft-trigger igual a pedidos do storefront.
 
+**Validação E2E (2026-05-18) — Notificação ao cliente em pedido manual aprovado:** Pedido manual #474 criado já com pagamento aprovado disparou, na mesma execução: (a) rascunho fiscal (`fiscal_draft_queue` pending), (b) rascunho de remessa (`shipping_draft_queue` pending, provider Correios), (c) roteamento de transportadora preenchido (`resolved_shipping_provider_kind=contract`), (d) evento interno `payment_status_changed` processado, (e) notificações ao cliente **enviadas** nos dois canais (WhatsApp + e-mail). Regra: pedido nascido aprovado (`create_order` com `payment_status_initial='paid'`) é equivalente, do ponto de vista de notificação ao cliente, a pedido aprovado por webhook de gateway ou por botão "Marcar como pago". As três rotas alimentam o mesmo motor de regras de notificação — qualquer regressão que silencie uma das rotas é incidente bloqueante.
+
 ---
 
 ### 3.2 Tipos de Status
