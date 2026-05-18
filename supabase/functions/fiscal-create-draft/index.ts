@@ -365,9 +365,10 @@ Deno.serve(async (req) => {
       dest_endereco_numero: order.shipping_number || 'S/N',
       dest_endereco_complemento: order.shipping_complement,
       dest_endereco_bairro: order.shipping_neighborhood,
-      dest_endereco_municipio: order.shipping_city,
+      // Nome oficial do município vem do CEP (evita typo do cliente derrubar xMun na SEFAZ)
+      dest_endereco_municipio: cepResolved?.cidade || order.shipping_city,
       dest_endereco_municipio_codigo: destMunicipioCodigo,
-      dest_endereco_uf: order.shipping_state,
+      dest_endereco_uf: cepResolved?.uf || order.shipping_state,
       dest_endereco_cep: order.shipping_postal_code,
       peso_bruto: pesoBrutoKg > 0 ? Number(pesoBrutoKg.toFixed(3)) : null,
       peso_liquido: pesoBrutoKg > 0 ? Number(pesoBrutoKg.toFixed(3)) : null,
