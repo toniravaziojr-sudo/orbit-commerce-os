@@ -218,6 +218,44 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return true;
   });
 
+  // ===== Paginação =====
+  const totalFiltered = filteredInvoices?.length || 0;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  // Garante que página atual cabe no total atual de páginas
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
+  // Reseta para a página 1 quando qualquer filtro/aba muda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [mode, searchTerm, statusFilter, startDate, endDate, marketplaceSource, pageSize]);
+
+  const pagedInvoices = useMemo(() => {
+    if (!filteredInvoices) return [] as typeof filteredInvoices;
+    const start = (currentPage - 1) * pageSize;
+    return filteredInvoices.slice(start, start + pageSize);
+  }, [filteredInvoices, currentPage, pageSize]);
+
+  // Quando uma linha for marcada para destaque, leva o usuário até a página correta
+  // e rola até a linha. O destaque some após ~2.5s.
+  useEffect(() => {
+    if (!highlightedInvoiceId || !filteredInvoices) return;
+    const idx = filteredInvoices.findIndex((i) => i.id === highlightedInvoiceId);
+    if (idx === -1) return;
+    const targetPage = Math.floor(idx / pageSize) + 1;
+    if (targetPage !== currentPage) {
+      setCurrentPage(targetPage);
+      return; // efeito roda de novo depois do re-render
+    }
+    const el = rowRefs.current[highlightedInvoiceId];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const timer = setTimeout(() => setHighlightedInvoiceId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightedInvoiceId, filteredInvoices, currentPage, pageSize]);
+
+
   // Helper para resolver stage com fallback (backfill já cobre todos os registros existentes,
   // mas mantemos compat para qualquer insert antigo que não tenha setado o campo).
   const stageOf = (inv: any) => inv.fiscal_stage || (inv.status === 'draft' ? 'pedido_venda' : 'emitida');
