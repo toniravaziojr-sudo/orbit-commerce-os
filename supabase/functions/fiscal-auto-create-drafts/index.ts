@@ -5,6 +5,7 @@
 // Modos: CRON (all tenants) | USER (single tenant) | TRIGGER (single order)
 // =============================================
 import { errorResponse } from "../_shared/error-response.ts";
+import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
@@ -346,8 +347,14 @@ async function processTenanDrafts(
       );
       const invoiceItems = invoiceItemsRaw.map(({ _weight_grams, ...rest }: any) => rest);
 
-      // Lookup IBGE code
-      const destMunicipioCodigo = await getIbgeCodigo(supabase, order.shipping_city, order.shipping_state);
+      // Lookup IBGE: CEP é fonte primária (ViaCEP/BrasilAPI com cache); fallback por nome.
+      let destMunicipioCodigo: string | null = null;
+      const cepResolved = await resolveAddressByCep(supabase, order.shipping_postal_code);
+      if (cepResolved?.ibge) {
+        destMunicipioCodigo = cepResolved.ibge;
+      } else {
+        destMunicipioCodigo = await getIbgeCodigo(supabase, order.shipping_city, order.shipping_state);
+      }
 
       const customerData = Array.isArray(order.customer) ? order.customer[0] : order.customer;
       // Use paid_at as NF date (falls back to order created_at)
