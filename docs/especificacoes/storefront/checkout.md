@@ -432,14 +432,39 @@ Após a criação do pedido, triggers do banco propagam dados para outros módul
 
 ---
 
-## 16. Busca Automática de Endereço por CEP
+## 16. Componente Único de Endereço Guiado (2026-05-18i)
 
-| Campo | Valor |
+A coleta de endereço em **todo o sistema** (checkout da loja, novo pedido manual no admin, cadastro de cliente, editor fiscal) usa o **componente único `AddressFields`** (`src/components/shared/AddressFields.tsx`). Não é permitido construir novos formulários de endereço fora desse componente.
+
+### Regras invioláveis
+
+| Campo | Regra |
 |-------|-------|
-| **Localização** | `CheckoutStepWizard.tsx` (Step2Address), `CheckoutForm.tsx` |
-| **Comportamento** | CEP 8 dígitos → clique na lupa (🔍) ou Enter → ViaCEP → preenche logradouro, bairro, cidade, estado |
-| **Hook** | `useCepLookup` |
-| **Erros** | CEP inválido → "CEP deve ter 8 dígitos". Não encontrado → "CEP não encontrado". Rede → "Erro ao buscar CEP" |
+| **CEP** | 8 dígitos. Busca automática ao sair do campo (`onBlur`) e também via lupa/Enter. Cache por sessão evita re-disparar para o mesmo CEP. |
+| **Estado (UF)** | **Sempre dropdown fechado das 27 UFs oficiais** (`src/lib/brazilianStates.ts`). Texto livre é proibido em qualquer tela nova. |
+| **Cidade** | **Sempre Combobox** alimentado pela API oficial do IBGE (`https://servicodados.ibge.gov.br/api/v1/localidades/estados/{UF}/municipios`), filtrado pela UF selecionada, com cache em `sessionStorage`. Hook: `useIbgeMunicipios`. |
+| **Bloqueio de campos** | Rua/Bairro/Número/Complemento ficam **desabilitados** enquanto a UF não estiver válida. Trocar UF reseta Cidade e código IBGE. |
+| **Auto-preenchimento** | Após busca por CEP bem-sucedida, rua/bairro/cidade/UF são preenchidos e o foco vai para o campo Número. |
+| **Código IBGE** | A cidade selecionada (via CEP ou via dropdown manual) carrega seu código IBGE oficial de 7 dígitos no objeto do componente (`ibgeCode`). Pedidos novos passam a nascer com cidade alinhada à base oficial — o motor fiscal continua usando o IBGE retornado pelo ViaCEP em `fiscal-create-draft`/`fiscal-auto-create-drafts`, agora com risco quase nulo de divergência. |
+
+### Por que isso resolve o problema
+
+O incidente que motivou esta regra (Pedido 1-215, tenant Respeite o Homem) ocorreu porque o campo "Estado" do checkout era texto livre de 2 caracteres: o cliente digitou `SO` e o sistema aceitou. Com UF como dropdown fechado e Cidade como dropdown IBGE filtrado pela UF, **é fisicamente impossível** o cliente enviar UF inválida ou cidade desalinhada do estado. O aviso amarelo "UF do CEP diferente da UF do pedido" tende a desaparecer naturalmente para pedidos novos e permanece como rede de segurança apenas para pedidos legados.
+
+### Telas que adotam o componente
+
+- Checkout da loja — `src/components/storefront/checkout/wizard/Step2Address.tsx`
+- Novo pedido no admin — `src/pages/OrderNew.tsx`
+- Cadastro/edição de cliente — `src/components/customers/CustomerForm.tsx`
+- Editor de Pedido de Venda / NFe — `src/components/fiscal/InvoiceEditor.tsx` (já tinha UF dropdown + IBGE; mantido por ora, alinhado funcionalmente)
+
+### Erros de CEP
+
+| Caso | Mensagem |
+|------|----------|
+| Menos de 8 dígitos | "CEP deve ter 8 dígitos" |
+| ViaCEP retorna `erro` | "CEP não encontrado" — usuário escolhe UF/Cidade manualmente (CEPs gerais) |
+| Falha de rede | "Erro ao buscar CEP" |
 
 > **REGRA:** NÃO há persistência de CEP do carrinho → checkout. São contextos independentes.
 
