@@ -971,6 +971,18 @@ Deno.serve(async (req) => {
         const updateData: Record<string, any> = { payment_status: dbPaymentStatus };
         if (new_status === 'paid') updateData.paid_at = new Date().toISOString();
 
+        // Cascata: quando pagamento vira "paid", o pedido deve avançar para
+        // "ready_to_invoice" (espelha exatamente o que os webhooks de gateway fazem).
+        // Só cascateia se o status atual estiver em fase pré-fiscal.
+        const PRE_INVOICE_ORDER_STATUSES = new Set([
+          'awaiting_confirmation', 'awaiting_payment', 'pending', 'paid', 'processing',
+        ]);
+        let cascadedOrderStatus: string | null = null;
+        if (new_status === 'paid' && PRE_INVOICE_ORDER_STATUSES.has(order.status)) {
+          cascadedOrderStatus = 'ready_to_invoice';
+          updateData.status = cascadedOrderStatus;
+        }
+
         const { error: updateError } = await supabase
           .from('orders')
           .update(updateData)
@@ -983,8 +995,8 @@ Deno.serve(async (req) => {
         const overridePrefix = isOverride ? '[OVERRIDE ADMIN] ' : '';
         await supabase.from('order_history').insert({
           order_id,
-          status: order.status,
-          description: notes || `${overridePrefix}Pagamento: ${currentStatus} → ${new_status}`,
+          status: cascadedOrderStatus || order.status,
+          description: notes || `${overridePrefix}Pagamento: ${currentStatus} → ${new_status}${cascadedOrderStatus ? ` (status do pedido → ${cascadedOrderStatus})` : ''}`,
           created_by: userId,
         });
 
@@ -993,14 +1005,15 @@ Deno.serve(async (req) => {
           entity_type: 'order',
           entity_id: order_id,
           action: isOverride ? 'set_payment_status_override' : 'set_payment_status',
-          before_json: { payment_status: currentStatus },
-          after_json: { payment_status: new_status, manual_override: isOverride },
-          changed_fields: ['payment_status'],
+          before_json: { payment_status: currentStatus, status: order.status },
+          after_json: { payment_status: new_status, status: cascadedOrderStatus || order.status, manual_override: isOverride },
+          changed_fields: cascadedOrderStatus ? ['payment_status', 'status'] : ['payment_status'],
           actor_user_id: userId,
           source: 'core-orders',
           correlation_id: correlationId,
         });
 
+        // Evento canônico (auditoria interna)
         await emitEvent(supabase, tenantId, 'order.payment_status_changed', order_id, {
           order_id,
           order_number: order.order_number,
@@ -1008,6 +1021,35 @@ Deno.serve(async (req) => {
           to_status: new_status,
           is_manual_override: isOverride,
         }, `payment_status_${order_id}_${new_status}_${Date.now()}`);
+
+        // Evento para o motor de notificações (espelha exatamente o formato dos
+        // webhooks de gateway, para que regras de "pagamento aprovado" disparem
+        // e-mail/WhatsApp também em aprovação manual).
+        try {
+          await supabase.from('events_inbox').insert({
+            tenant_id: tenantId,
+            provider: 'internal',
+            event_type: 'payment_status_changed',
+            idempotency_key: `payment_status_${order_id}_${currentStatus}_${new_status}_${Date.now()}`,
+            occurred_at: new Date().toISOString(),
+            payload_normalized: {
+              order_id,
+              order_number: order.order_number || '',
+              customer_name: order.customer_name || '',
+              customer_email: order.customer_email || '',
+              customer_phone: order.customer_phone || '',
+              order_total: order.total || 0,
+              old_status: currentStatus,
+              new_status,
+              payment_method: order.payment_method || 'unknown',
+              payment_gateway: order.payment_gateway || 'manual',
+              is_manual_override: isOverride,
+            },
+            status: 'new',
+          });
+        } catch (notifErr) {
+          console.error('[core-orders] events_inbox insert (notifications) failed:', notifErr);
+        }
 
         return new Response(
           JSON.stringify({ success: true, data: { order_id, payment_status: new_status, manual_override: isOverride } }),
