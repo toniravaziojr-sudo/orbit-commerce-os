@@ -4128,6 +4128,39 @@ export type Database = {
           },
         ]
       }
+      cep_cache: {
+        Row: {
+          bairro: string | null
+          cep: string
+          cidade: string | null
+          fetched_at: string
+          fonte: string | null
+          ibge: string | null
+          logradouro: string | null
+          uf: string | null
+        }
+        Insert: {
+          bairro?: string | null
+          cep: string
+          cidade?: string | null
+          fetched_at?: string
+          fonte?: string | null
+          ibge?: string | null
+          logradouro?: string | null
+          uf?: string | null
+        }
+        Update: {
+          bairro?: string | null
+          cep?: string
+          cidade?: string | null
+          fetched_at?: string
+          fonte?: string | null
+          ibge?: string | null
+          logradouro?: string | null
+          uf?: string | null
+        }
+        Relationships: []
+      }
       channel_accounts: {
         Row: {
           account_name: string
