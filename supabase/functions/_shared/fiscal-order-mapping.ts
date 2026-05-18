@@ -77,23 +77,32 @@ export function mapShippingToSefaz(order: {
 }): {
   modalidade_frete: string;
   transportadora_nome: string | null;
+  transportadora_servico: string | null;
 } {
   const hasShippingAddress = !!order.shipping_street;
+  // Transportadora = empresa (ex: "Correios", "Frenet", "Loggi").
+  // Serviço contratado = o que o cliente escolheu dentro dela (ex: "PAC", "SEDEX").
+  // Fallbacks garantem que pedidos antigos sem `shipping_carrier` ainda mostrem algo.
   const carrier =
     order.shipping_carrier ||
+    order.shipping_service_name ||
+    order.shipping_method_name ||
+    null;
+  const service =
     order.shipping_service_name ||
     order.shipping_method_name ||
     null;
 
   // Sem endereço de entrega: provavelmente retirada / sem transporte
   if (!hasShippingAddress) {
-    return { modalidade_frete: '9', transportadora_nome: null };
+    return { modalidade_frete: '9', transportadora_nome: null, transportadora_servico: null };
   }
 
   // Tem endereço → loja envia (CIF), com ou sem cobrança de frete
   return {
     modalidade_frete: '0',
     transportadora_nome: carrier,
+    transportadora_servico: service,
   };
 }
 
@@ -122,5 +131,6 @@ export function buildFiscalOrderInheritance(order: {
     // Transporte
     modalidade_frete: shipping.modalidade_frete,
     transportadora_nome: shipping.transportadora_nome,
+    transportadora_servico: shipping.transportadora_servico,
   };
 }
