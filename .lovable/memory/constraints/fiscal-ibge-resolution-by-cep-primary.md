@@ -1,6 +1,6 @@
 ---
 name: Fiscal IBGE Resolution by CEP (Primary Source)
-description: Código IBGE E nome oficial do município do destinatário em fiscal_invoices são resolvidos a partir do CEP (ViaCEP/BrasilAPI com cache em cep_cache), nunca por nome digitado pelo cliente. Tabela interna ibge_municipios é fallback de última camada. UF do CEP é cross-validada e divergência gera pendência bloqueante.
+description: Código IBGE e nome oficial do município do destinatário em fiscal_invoices são resolvidos a partir do CEP (ViaCEP/BrasilAPI com cache em cep_cache). Divergência de UF entre CEP e endereço do pedido é AVISO (pendencia_avisos), não bloqueio — SEFAZ é juiz final. Tabela interna ibge_municipios é fallback de última camada.
 type: constraint
 ---
 
