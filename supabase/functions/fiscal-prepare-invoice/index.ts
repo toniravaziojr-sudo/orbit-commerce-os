@@ -5,7 +5,7 @@
 // NÃO chama Focus/SEFAZ. NÃO emite. NÃO transmite.
 // =============================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { resolveAddressByCep, normalizeCityName } from "../_shared/cep-lookup.ts";
+import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
