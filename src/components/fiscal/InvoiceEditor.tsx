@@ -1949,6 +1949,82 @@ export function InvoiceEditor({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Diálogo: alterou dados do destinatário e o pedido tem cliente vinculado */}
+    <Dialog
+      open={destSyncDialog.open}
+      onOpenChange={(o) => {
+        if (!o) {
+          setDestSyncDialog({ open: false, changedLabels: [], pending: null });
+          setDestSyncAfterSave(null);
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Você alterou dados do cadastro do cliente</DialogTitle>
+          <DialogDescription>
+            Os campos abaixo estão também no cadastro do cliente. Escolha como deseja salvar.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-md border bg-muted/40 p-3 text-sm">
+          <p className="mb-1 font-medium">Campos alterados:</p>
+          <ul className="list-disc pl-5 text-muted-foreground">
+            {destSyncDialog.changedLabels.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        </div>
+        <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0">
+          <Button
+            onClick={async () => {
+              const pending = destSyncDialog.pending;
+              const after = destSyncAfterSave;
+              setDestSyncDialog({ open: false, changedLabels: [], pending: null });
+              setDestSyncAfterSave(null);
+              if (pending) {
+                try {
+                  await persistSave(pending, true, after || undefined);
+                } catch { /* toast já mostrado */ }
+              }
+            }}
+            disabled={isSaving || isSubmitting}
+            className="w-full"
+          >
+            Salvar pedido e atualizar cadastro
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              const pending = destSyncDialog.pending;
+              const after = destSyncAfterSave;
+              setDestSyncDialog({ open: false, changedLabels: [], pending: null });
+              setDestSyncAfterSave(null);
+              if (pending) {
+                try {
+                  await persistSave(pending, false, after || undefined);
+                } catch { /* toast já mostrado */ }
+              }
+            }}
+            disabled={isSaving || isSubmitting}
+            className="w-full"
+          >
+            Salvar somente neste pedido
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setDestSyncDialog({ open: false, changedLabels: [], pending: null });
+              setDestSyncAfterSave(null);
+            }}
+            disabled={isSaving || isSubmitting}
+            className="w-full"
+          >
+            Cancelar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
