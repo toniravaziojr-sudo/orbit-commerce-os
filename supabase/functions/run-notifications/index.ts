@@ -635,13 +635,35 @@ async function sendWhatsAppViaMetaTemplate(
 ): Promise<{ success: boolean; error?: string; response?: Record<string, unknown>; messageId?: string }> {
   console.log(`[RunNotifications] Sending template "${templateName}" to ${cleanPhone}`);
 
-  if (!config.phone_number_id || !config.access_token) {
-    return {
-      success: false,
-      error: 'Configuração Meta incompleta.',
-      response: { channel: 'whatsapp', to: cleanPhone, provider: 'meta' }
-    };
-  }
+    if (!config.phone_number_id || !config.access_token) {
+      return {
+        success: false,
+        error: 'Configuração Meta incompleta.',
+        response: { channel: 'whatsapp', to: cleanPhone, provider: 'meta' }
+      };
+    }
+
+    // === GUARDA DE ENVIO-PARA-SI-MESMO ===
+    // Meta bloqueia template enviado do próprio número da loja para ele mesmo.
+    // Detectamos antes de chamar a API para não queimar tentativa nem poluir métricas.
+    if (isSelfSend(cleanPhone, config.phone_number)) {
+      console.log(`[RunNotifications] Self-send blocked: recipient ${cleanPhone} equals tenant phone ${config.phone_number}`);
+      await supabase.from('whatsapp_messages').insert({
+        tenant_id: tenantId,
+        recipient_phone: cleanPhone,
+        message_type: 'template',
+        message_content: renderedVisibleText.substring(0, 500),
+        status: 'skipped_self_send',
+        error_message: 'Envio cancelado: número de destino é o próprio número da loja.',
+        metadata: { template: templateName, stage: 'pre-flight', reason: 'self_send' },
+      });
+      return {
+        success: false,
+        error: '__TERMINAL__:self_send:Envio cancelado: o número de destino é o próprio número da loja conectado ao WhatsApp.',
+        response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone, skipped: 'self_send' }
+      };
+    }
+
 
   // ===== PHASE 3: Render the visible/timeline content STRICTLY first =====
   // The Meta template body uses positional parameters; we still render the same
