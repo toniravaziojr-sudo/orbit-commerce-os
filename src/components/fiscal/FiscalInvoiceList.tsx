@@ -1513,13 +1513,24 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredInvoices.map((invoice) => {
+                    {pagedInvoices.map((invoice) => {
                       const status = statusConfig[invoice.status] || statusConfig.draft;
                       const StatusIcon = status.icon;
                       const isPrinted = (invoice as any).danfe_printed_at;
-                      
+                      const isHighlighted = highlightedInvoiceId === invoice.id;
+
                       return (
-                        <TableRow key={invoice.id} className={selectedInvoices.has(invoice.id) ? 'bg-muted/50' : ''}>
+                        <TableRow
+                          key={invoice.id}
+                          ref={(el) => { rowRefs.current[invoice.id] = el; }}
+                          className={
+                            isHighlighted
+                              ? 'bg-primary/10 ring-2 ring-primary/40 transition-colors duration-500'
+                              : selectedInvoices.has(invoice.id)
+                                ? 'bg-muted/50'
+                                : ''
+                          }
+                        >
                           <TableCell>
                             <Checkbox
                               checked={selectedInvoices.has(invoice.id)}
