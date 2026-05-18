@@ -8615,6 +8615,7 @@ export type Database = {
           pagamento_indicador: number
           pagamento_meio: string
           pagamento_valor: number
+          pendencia_avisos: Json | null
           pendencia_motivos: Json | null
           peso_bruto: number | null
           peso_liquido: number | null
@@ -8693,6 +8694,7 @@ export type Database = {
           pagamento_indicador?: number
           pagamento_meio?: string
           pagamento_valor?: number
+          pendencia_avisos?: Json | null
           pendencia_motivos?: Json | null
           peso_bruto?: number | null
           peso_liquido?: number | null
@@ -8771,6 +8773,7 @@ export type Database = {
           pagamento_indicador?: number
           pagamento_meio?: string
           pagamento_valor?: number
+          pendencia_avisos?: Json | null
           pendencia_motivos?: Json | null
           peso_bruto?: number | null
           peso_liquido?: number | null
