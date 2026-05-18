@@ -1342,7 +1342,7 @@ Deno.serve(async (req) => {
             .update({
               status: 'failed',
               attempt_count: attemptNo,
-              last_error: sendResult.error
+              last_error: cleanError
             })
             .eq('id', notification.id);
 
@@ -1365,7 +1365,7 @@ Deno.serve(async (req) => {
               content_preview: contentPreview?.substring(0, 500),
               attachments: attachments,
               attempt_count: attemptNo,
-              error_message: sendResult.error
+              error_message: cleanError
             }, { onConflict: 'notification_id' });
 
           stats.failed_final++;
@@ -1381,7 +1381,7 @@ Deno.serve(async (req) => {
             .update({
               status: 'retrying',
               attempt_count: attemptNo,
-              last_error: sendResult.error,
+              last_error: cleanError,
               next_attempt_at: nextAttempt
             })
             .eq('id', notification.id);
@@ -1405,7 +1405,7 @@ Deno.serve(async (req) => {
               content_preview: contentPreview?.substring(0, 500),
               attachments: attachments,
               attempt_count: attemptNo,
-              error_message: sendResult.error
+              error_message: cleanError
             }, { onConflict: 'notification_id' });
 
           stats.scheduled_retries++;
