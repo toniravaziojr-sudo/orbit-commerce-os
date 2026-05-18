@@ -23,6 +23,7 @@ import { useCustomers, useCustomerAddresses } from '@/hooks/useCustomers';
 import { useCepLookup } from '@/hooks/useCepLookup';
 
 import { OrderShippingMethod } from '@/components/orders/OrderShippingMethod';
+import { AddressFields } from '@/components/shared/AddressFields';
 import { toast } from 'sonner';
 
 interface OrderItemForm {
