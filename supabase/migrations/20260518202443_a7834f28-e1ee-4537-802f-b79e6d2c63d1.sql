@@ -1,0 +1,1 @@
+UPDATE notifications SET status='retrying', attempt_count=0, next_attempt_at=now(), last_error=NULL WHERE id='9a68d71e-74f4-4819-ba3a-c2ed3eac30db';
