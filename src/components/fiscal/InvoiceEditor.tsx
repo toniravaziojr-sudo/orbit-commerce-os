@@ -631,7 +631,11 @@ export function InvoiceEditor({
 
   // Salva o pedido. Se o usuário alterou dados do destinatário e o pedido
   // está vinculado a um cliente, abre o diálogo de sincronização com cadastro.
-  const persistSave = async (payload: InvoiceData, alsoUpdateCustomer: boolean) => {
+  const persistSave = async (
+    payload: InvoiceData,
+    alsoUpdateCustomer: boolean,
+    afterSave?: (payload: InvoiceData) => Promise<void>,
+  ) => {
     setIsSaving(true);
     try {
       await onSave(payload);
@@ -660,23 +664,30 @@ export function InvoiceEditor({
         } else {
           toast.success('Pedido salvo e cadastro do cliente atualizado.');
         }
-      } else {
+      } else if (!afterSave) {
         toast.success(alsoUpdateCustomer ? 'Pedido salvo.' : 'Rascunho salvo com sucesso');
       }
       // Atualiza snapshot para próximas edições
       setInitialDest(captureDestSnapshot(payload));
+      if (afterSave) await afterSave(payload);
     } catch (error) {
       console.error('Error saving draft:', error);
       toast.error('Erro ao salvar rascunho');
+      throw error;
     } finally {
       setIsSaving(false);
     }
   };
 
+  // Pendente para ser executado depois do salvamento, quando o usuário escolher
+  // uma opção do diálogo de sincronização. Permite encadear "Criar Nota Fiscal".
+  const [destSyncAfterSave, setDestSyncAfterSave] = useState<((payload: InvoiceData) => Promise<void>) | null>(null);
+
   const handleSave = async () => {
     if (!data) return;
     const changed = diffDestSnapshot(initialDest, data);
     if (changed.length > 0 && customerId) {
+      setDestSyncAfterSave(null);
       setDestSyncDialog({ open: true, changedLabels: changed, pending: data });
       return;
     }
