@@ -276,6 +276,8 @@ interface InvoiceEditorProps {
   onPrepare?: (data: InvoiceData) => Promise<void>;
   /** Lista de pendências do Pedido de Venda (peso, NCM, CPF, etc.). Exibe banner amarelo e bloqueia "Criar Nota Fiscal". */
   pendenciaMotivos?: string[];
+  /** Lista de avisos informativos do Pedido de Venda (ex.: UF do CEP difere do pedido). NÃO bloqueia emissão. */
+  pendenciaAvisos?: string[];
 }
 
 // Campos do destinatário monitorados para sincronizar com o cadastro do cliente.
