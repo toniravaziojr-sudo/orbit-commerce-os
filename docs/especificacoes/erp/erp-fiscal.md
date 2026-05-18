@@ -1848,3 +1848,28 @@ Motor compartilhado: `supabase/functions/_shared/fiscal-tax-calculator.ts` (`cal
 Regras:
 - **Simples Nacional**: PIS/COFINS/ICMS zerados, usa `csosn`. Apuração real via DAS.
 - **Lucro Presumido / Real**: aplica `aliquota%` sobre o `valor_total` do item, usa `cst`. Precedência: override do produto → padrão do tenant → zero.
+
+## Resolução de IBGE do Município por CEP (2026-05-18c — Hotfix Universal)
+
+**Problema:** a tabela interna `ibge_municipios` continha apenas 123 dos 5.570 municípios brasileiros. O lookup de IBGE por nome de cidade falhava silenciosamente para a maioria dos pedidos (mesmo grafia correta), travando o Pedido de Venda em pendência e bloqueando emissão de NF.
+
+**Solução universal:** o código IBGE do município do destinatário passa a ser resolvido **a partir do CEP**, usando hierarquia oficial:
+
+1. **Cache local** (`cep_cache`) — consulta primeiro, sem custo/latência.
+2. **ViaCEP** (oficial Correios) — devolve IBGE de 7 dígitos já pronto.
+3. **BrasilAPI** — fallback se ViaCEP estiver fora.
+4. **Lookup interno por nome** — última camada (mantida para emergência).
+
+Módulo compartilhado: `supabase/functions/_shared/cep-lookup.ts` (`resolveAddressByCep`).
+
+**Aplicado em:**
+- `fiscal-auto-create-drafts` (criação automática do Pedido de Venda).
+- `fiscal-create-draft` (criação manual via UI).
+- `fiscal-create-manual` (NF avulsa).
+- `fiscal-prepare-invoice` — além de validar, **auto-recupera** o IBGE pelo CEP no momento da preparação. Pedidos antigos que estavam pendentes saem automaticamente assim que forem reprocessados.
+
+**Cross-validação UF:** quando o CEP é resolvido com sucesso, comparamos a UF oficial do CEP com a UF informada no pedido. Se forem diferentes, é gerada pendência explícita: *"Endereço incompatível com o CEP: o CEP pertence a {UF_cep}, mas o pedido informa {UF_pedido}. Confirme cidade e estado com o cliente antes de despachar."* — bloqueia emissão de NF e geração de etiqueta. Divergência apenas de grafia de cidade não gera pendência (CEP é a fonte de verdade).
+
+**Backfill:** edge function `fiscal-backfill-ibge` (one-shot, manual) percorre Pedidos de Venda com IBGE ausente e resolve via CEP. Execução de 2026-05-18: 219 pedidos varridos no tenant Respeite o Homem, 115 resolvidos automaticamente, 3 com UF divergente sinalizada, 1 CEP sem retorno (caso real para contato com cliente).
+
+**Mensagem de pendência (quando CEP também não resolve):** *"Não foi possível identificar o município do cliente a partir do CEP — confirme o CEP do endereço."* (substitui a antiga *"Cidade do cliente não localizada na base oficial de municípios..."*).
