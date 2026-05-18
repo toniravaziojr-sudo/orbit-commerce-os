@@ -277,7 +277,11 @@ Deno.serve(async (req) => {
         quantidade: item.quantity,
         valor_unitario: item.unit_price,
         valor_total: item.total_price,
-        origem: fiscalProduct?.origem ?? productCatalog.origin_code ?? 0,
+        origem: (() => {
+          const raw = fiscalProduct?.origem ?? productCatalog.origin_code ?? 0;
+          const n = Number(raw);
+          return Number.isFinite(n) ? Math.trunc(n) : 0;
+        })(),
         csosn: taxes.csosn,
         cst: taxes.cst,
         icms_base: taxes.icms_base,
