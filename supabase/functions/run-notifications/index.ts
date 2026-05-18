@@ -858,6 +858,26 @@ async function sendWhatsAppViaMeta(
     };
   }
 
+  // Guarda de envio-para-si-mesmo (free-form). Terminal para não queimar tentativas.
+  if (isSelfSend(cleanPhone, config.phone_number)) {
+    console.log(`[RunNotifications] Self-send blocked (free-form): recipient ${cleanPhone} equals tenant phone ${config.phone_number}`);
+    await supabase.from('whatsapp_messages').insert({
+      tenant_id: tenantId,
+      recipient_phone: cleanPhone,
+      message_type: 'text',
+      message_content: String(message).substring(0, 500),
+      status: 'skipped_self_send',
+      error_message: 'Envio cancelado: número de destino é o próprio número da loja.',
+      metadata: { stage: 'pre-flight', reason: 'self_send' },
+    });
+    return {
+      success: false,
+      error: '__TERMINAL__:self_send:Envio cancelado: o número de destino é o próprio número da loja conectado ao WhatsApp.',
+      response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone, skipped: 'self_send' }
+    };
+  }
+
+
   // ===== PHASE 3: Strict render of free-form text messages =====
   // The caller may pass a string with `{{vars}}` (free-form WhatsApp rules).
   // We render it once with the original payload-less context (caller already
