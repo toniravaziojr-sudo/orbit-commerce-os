@@ -188,6 +188,7 @@ Deno.serve(async (req) => {
       .from('fiscal_settings').select('*').eq('tenant_id', tenantId).maybeSingle();
 
     const errors: string[] = [];
+    const warnings: string[] = []; // avisos informativos (não bloqueiam emissão; SEFAZ é o juiz final)
 
     // Configuração fiscal
     if (!settings) {
