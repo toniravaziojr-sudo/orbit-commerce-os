@@ -1873,3 +1873,17 @@ Módulo compartilhado: `supabase/functions/_shared/cep-lookup.ts` (`resolveAddre
 **Backfill:** edge function `fiscal-backfill-ibge` (one-shot, manual) percorre Pedidos de Venda com IBGE ausente e resolve via CEP. Execução de 2026-05-18: 219 pedidos varridos no tenant Respeite o Homem, 115 resolvidos automaticamente, 3 com UF divergente sinalizada, 1 CEP sem retorno (caso real para contato com cliente).
 
 **Mensagem de pendência (quando CEP também não resolve):** *"Não foi possível identificar o município do cliente a partir do CEP — confirme o CEP do endereço."* (substitui a antiga *"Cidade do cliente não localizada na base oficial de municípios..."*).
+
+### Hotfix 2026-05-18d — Normalização do nome do município + limpeza de pendências fantasmas
+
+**Problema 1 — Nome da cidade com typo era enviado para a SEFAZ junto com o IBGE correto.** Após o hotfix 5-18c, o código IBGE passou a vir do CEP, mas o **nome textual** da cidade no pedido continuava sendo o digitado pelo cliente. Exemplos reais no tenant Respeite o Homem: *"São Franciaco do Sul"*, *"Pofto Alegre"*, *"Cachoeiro de itapemirim e"*, *"São Paulo capital"*, *"Marechal  Floriano"* (espaço duplo). A SEFAZ valida que `xMun` (nome) bate com `cMun` (código IBGE) e rejeita NFs com divergência — voltaríamos a ter rejeições na emissão.
+
+**Correção 1:** sempre que o CEP é resolvido com sucesso, o nome oficial do município (retornado pelo ViaCEP/BrasilAPI) sobrescreve o `dest_endereco_municipio` no pedido. Aplicado em todos os 4 motores fiscais (`fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual`, `fiscal-prepare-invoice`) e no backfill. A UF só é sobrescrita quando já bate com a do pedido — divergência continua virando pendência explícita.
+
+**Problema 2 — 116 pedidos do tenant Respeite o Homem exibiam a mensagem antiga "Cidade não localizada" mesmo já tendo IBGE resolvido.** A primeira versão do backfill só limpava a pendência quando precisava *resolver* o IBGE; pedidos com IBGE já preenchido por outra rota carregavam a mensagem velha indefinidamente.
+
+**Correção 2:** o backfill agora também varre pedidos com IBGE já preenchido e remove pendências obsoletas, retornando ao estágio `pedido_venda` quando não sobra nenhuma outra pendência. Execução de 2026-05-18: 219 varridos, 4 nomes de cidade corrigidos, 7 pendências fantasmas limpas, 3 divergências reais de UF mantidas como pendência legítima ("MATOGROSSO"/"SAO PAULO"/"SO" no lugar da sigla de 2 letras), 1 CEP genuinamente irresolvível (Terenos/MS 79190-000).
+
+**Resultado final:** dos 220 Pedidos de Venda em aberto, 216 estão prontos para emitir e 4 têm pendência real que exige contato com o cliente.
+
+**Anti-regressão:** memória `mem://constraints/fiscal-ibge-resolution-by-cep-primary` ampliada (CEP é fonte primária do **IBGE E do nome** do município).
