@@ -1303,23 +1303,37 @@ Deno.serve(async (req) => {
       } else {
         // Error path
         console.log(`[RunNotifications] Notification ${notification.id} failed: ${sendResult.error}`);
-        
+
+        // ===== CLASSIFICAÇÃO TERMINAL vs RECUPERÁVEL =====
+        // Provedores podem sinalizar terminal usando prefixo __TERMINAL__:<reason>:<msg>
+        // Terminal = não retenta, marca falha definitiva imediatamente.
+        let isTerminal = false;
+        let terminalReason: string | null = null;
+        let cleanError = sendResult.error || 'Erro desconhecido';
+        const termMatch = cleanError.match(/^__TERMINAL__:([^:]+):(.*)$/s);
+        if (termMatch) {
+          isTerminal = true;
+          terminalReason = termMatch[1];
+          cleanError = termMatch[2];
+        }
+
         // Update attempt
         await supabase
           .from('notification_attempts')
           .update({
             status: 'error',
             finished_at: finishedAt,
-            error_code: 'SEND_FAILED',
-            error_message: sendResult.error,
+            error_code: isTerminal ? `TERMINAL_${terminalReason?.toUpperCase()}` : 'SEND_FAILED',
+            error_message: cleanError,
             provider_response: sendResult.response || null
           })
           .eq('id', attemptId);
 
         stats.processed_error++;
 
-        // Check if max attempts reached
-        if (attemptNo >= notification.max_attempts) {
+        // Check if max attempts reached OR terminal
+        if (isTerminal || attemptNo >= notification.max_attempts) {
+
           // Final failure
           console.log(`[RunNotifications] Notification ${notification.id} reached max attempts, marking as failed`);
           
