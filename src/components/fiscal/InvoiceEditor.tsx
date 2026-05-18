@@ -276,6 +276,8 @@ interface InvoiceEditorProps {
   onPrepare?: (data: InvoiceData) => Promise<void>;
   /** Lista de pendências do Pedido de Venda (peso, NCM, CPF, etc.). Exibe banner amarelo e bloqueia "Criar Nota Fiscal". */
   pendenciaMotivos?: string[];
+  /** Lista de avisos informativos do Pedido de Venda (ex.: UF do CEP difere do pedido). NÃO bloqueia emissão. */
+  pendenciaAvisos?: string[];
 }
 
 // Campos do destinatário monitorados para sincronizar com o cadastro do cliente.
@@ -330,6 +332,7 @@ export function InvoiceEditor({
   invoiceStage,
   onPrepare,
   pendenciaMotivos,
+  pendenciaAvisos,
 }: InvoiceEditorProps) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
@@ -835,6 +838,21 @@ export function InvoiceEditor({
               <p className="mt-2 text-xs text-yellow-800">
                 Enquanto houver pendências, não é possível criar a Nota Fiscal nem gerar a Declaração de Conteúdo.
               </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Avisos informativos do Pedido de Venda (não bloqueiam emissão) */}
+        {isPedidoVenda && pendenciaAvisos && pendenciaAvisos.length > 0 && (
+          <Alert className="mt-2 border-amber-400/60 bg-amber-100/40">
+            <AlertCircle className="h-4 w-4 text-amber-700" />
+            <AlertDescription>
+              <strong className="block mb-1 text-amber-900">
+                Avisos sobre o destinatário — não bloqueiam a emissão, mas confira antes de despachar:
+              </strong>
+              <ul className="list-disc ml-5 mt-1 text-sm text-amber-900 space-y-0.5">
+                {pendenciaAvisos.map((m, i) => (<li key={i}>{m}</li>))}
+              </ul>
             </AlertDescription>
           </Alert>
         )}

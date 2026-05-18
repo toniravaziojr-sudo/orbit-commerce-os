@@ -112,6 +112,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
   const [editingInvoiceStage, setEditingInvoiceStage] = useState<string | null>(null);
   const [editingInvoicePendencias, setEditingInvoicePendencias] = useState<string[]>([]);
+  const [editingInvoiceAvisos, setEditingInvoiceAvisos] = useState<string[]>([]);
   const [preparingInvoiceId, setPreparingInvoiceId] = useState<string | null>(null);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [cancelingInvoice, setCancelingInvoice] = useState<FiscalInvoice | null>(null);
@@ -374,9 +375,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const pendencias = Array.isArray((data as any).pendencia_motivos)
       ? ((data as any).pendencia_motivos as string[]).filter((s) => typeof s === 'string')
       : [];
+    const avisos = Array.isArray((data as any).pendencia_avisos)
+      ? ((data as any).pendencia_avisos as string[]).filter((s) => typeof s === 'string')
+      : [];
     setEditingInvoice(invoiceData);
     setEditingInvoiceError(data.status_motivo || null);
     setEditingInvoicePendencias(pendencias);
+    setEditingInvoiceAvisos(avisos);
     setEditingInvoiceStatus(data.status || null);
     setEditingInvoiceStage((data as any).fiscal_stage || null);
   };
@@ -1807,6 +1812,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           onDelete={handleDeleteInvoice}
           rejectionError={editingInvoiceError || undefined}
           pendenciaMotivos={editingInvoicePendencias}
+          pendenciaAvisos={editingInvoiceAvisos}
           invoiceStatus={editingInvoiceStatus || undefined}
           invoiceStage={editingInvoiceStage}
           onPrepare={async (data) => {
