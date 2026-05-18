@@ -302,6 +302,16 @@ export function InvoiceEditor({
   const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [customerId, setCustomerId] = useState<string | null>(null);
+  // Snapshot dos dados do destinatário no momento que o pedido foi carregado.
+  // Usado para detectar edições e oferecer atualizar o cadastro do cliente.
+  const [initialDest, setInitialDest] = useState<Record<string, string> | null>(null);
+  // Diálogo "alterou cadastro do cliente". Aparece ao salvar quando algum
+  // campo do destinatário foi modificado e o pedido está vinculado a um cliente.
+  const [destSyncDialog, setDestSyncDialog] = useState<{
+    open: boolean;
+    changedLabels: string[];
+    pending: InvoiceData | null;
+  }>({ open: false, changedLabels: [], pending: null });
   const [operationNatures, setOperationNatures] = useState<Array<{
     id: string; nome: string; descricao: string | null;
     cfop_intra: string; cfop_inter: string;
