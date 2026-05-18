@@ -669,7 +669,13 @@ export function InvoiceEditor({
       }
       // Atualiza snapshot para próximas edições
       setInitialDest(captureDestSnapshot(payload));
-      if (afterSave) await afterSave(payload);
+      if (afterSave) {
+        await afterSave(payload);
+      } else {
+        // UX: ao salvar com sucesso (sem fluxo encadeado tipo "Criar NF"),
+        // fechar o editor para o usuário voltar à listagem.
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error('Error saving draft:', error);
       toast.error('Erro ao salvar rascunho');
