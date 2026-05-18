@@ -105,6 +105,7 @@ export interface FiscalInvoice {
   // Etapa operacional do produto (independente do status fiscal oficial)
   fiscal_stage?: 'pedido_venda' | 'pronta_emitir' | 'pendencia' | 'emitida';
   pendencia_motivos?: string[] | null;
+  pendencia_avisos?: string[] | null;
   natureza_operacao: string;
   cfop: string | null;
   valor_total: number;

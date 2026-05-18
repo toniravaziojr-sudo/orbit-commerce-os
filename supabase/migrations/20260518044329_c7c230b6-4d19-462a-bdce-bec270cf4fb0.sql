@@ -1,0 +1,2 @@
+ALTER TABLE public.fiscal_invoices ADD COLUMN IF NOT EXISTS pendencia_avisos jsonb;
+COMMENT ON COLUMN public.fiscal_invoices.pendencia_avisos IS 'Avisos informativos (não bloqueantes) sobre o Pedido de Venda/NF — ex.: divergência de UF entre CEP e endereço. Exibidos na UI, não impedem emissão. SEFAZ é juiz final.';

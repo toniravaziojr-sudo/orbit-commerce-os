@@ -1887,3 +1887,13 @@ Módulo compartilhado: `supabase/functions/_shared/cep-lookup.ts` (`resolveAddre
 **Resultado final:** dos 220 Pedidos de Venda em aberto, 216 estão prontos para emitir e 4 têm pendência real que exige contato com o cliente.
 
 **Anti-regressão:** memória `mem://constraints/fiscal-ibge-resolution-by-cep-primary` ampliada (CEP é fonte primária do **IBGE E do nome** do município).
+
+### Hotfix 2026-05-18e — Divergência de UF (CEP vs pedido) é aviso, não bloqueio
+
+**Problema:** o hotfix 5-18c tratava qualquer divergência entre a UF do CEP e a UF digitada no pedido como pendência bloqueante — o pedido virava "Pendente" e o botão "Criar NF" ficava desabilitado. Isso é cautela excessiva: existem cenários legítimos (endereço de cobrança ≠ entrega, CEPs recentes, digitação errada que o lojista quer revisar mas não impede emissão). A autoridade final sobre aceitar ou rejeitar uma NF é a **SEFAZ**, não o nosso pré-validador.
+
+**Correção:** introduzido o campo `fiscal_invoices.pendencia_avisos jsonb` para avisos informativos. Divergência de UF agora vai para esse campo, é exibida na UI como badge amarelo (com a mesma mensagem orientativa), mas **não bloqueia** a criação da NF. Se a SEFAZ rejeitar na emissão, o fluxo de rejeição atual entra em ação e força correção manual.
+
+**Reclassificação retroativa:** os 3 pedidos do Respeite o Homem que estavam travados apenas por divergência de UF ("MATOGROSSO", "SAO PAULO", "SO") foram movidos automaticamente para `pendencia_avisos` e voltaram ao estado `pedido_venda` (em aberto), prontos para emissão à critério do lojista.
+
+**Aplicado em:** `fiscal-prepare-invoice` (não bloqueia mais por UF mismatch), `fiscal-backfill-ibge` (migra mensagens antigas), `FiscalInvoiceList` (renderiza badge amarelo de avisos em pedidos e NFs).
