@@ -278,6 +278,45 @@ interface InvoiceEditorProps {
   pendenciaMotivos?: string[];
 }
 
+// Campos do destinatário monitorados para sincronizar com o cadastro do cliente.
+// Cada chave aponta para o rótulo amigável exibido no diálogo de confirmação.
+const DEST_FIELDS_LABELS: Array<{ key: keyof InvoiceData; label: string }> = [
+  { key: 'dest_nome', label: 'Nome / Razão social' },
+  { key: 'dest_cpf_cnpj', label: 'CPF / CNPJ' },
+  { key: 'dest_email', label: 'E-mail' },
+  { key: 'dest_telefone', label: 'Telefone' },
+  { key: 'dest_endereco_cep', label: 'CEP' },
+  { key: 'dest_endereco_logradouro', label: 'Endereço' },
+  { key: 'dest_endereco_numero', label: 'Número' },
+  { key: 'dest_endereco_complemento', label: 'Complemento' },
+  { key: 'dest_endereco_bairro', label: 'Bairro' },
+  { key: 'dest_endereco_municipio', label: 'Cidade' },
+  { key: 'dest_endereco_uf', label: 'Estado' },
+];
+
+function captureDestSnapshot(inv: InvoiceData): Record<string, string> {
+  const snap: Record<string, string> = {};
+  for (const { key } of DEST_FIELDS_LABELS) {
+    snap[key as string] = String((inv as any)[key] ?? '').trim();
+  }
+  return snap;
+}
+
+function diffDestSnapshot(
+  initial: Record<string, string> | null,
+  current: InvoiceData,
+): string[] {
+  if (!initial) return [];
+  const changed: string[] = [];
+  for (const { key, label } of DEST_FIELDS_LABELS) {
+    const before = initial[key as string] ?? '';
+    const after = String((current as any)[key] ?? '').trim();
+    if (before !== after) changed.push(label);
+  }
+  return changed;
+}
+
+
 export function InvoiceEditor({
   open,
   onOpenChange,
