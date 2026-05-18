@@ -12,7 +12,10 @@ type: constraint
 
 **Incidente raiz:** v2026-05-17 (Onda 3 auto-herança) incluiu `unit_of_measure` no select dos dois motores. Pedido #467 (loja, automático) ficou "Pendente" mesmo com NCM 33051000 cadastrado.
 
+**Coerção numérica obrigatória:** colunas como `origin_code` em `products` são `text` e podem vir como string vazia. Ao gravar em `fiscal_invoice_items.origem` (numérico), use SEMPRE: `const n = Number(raw); return Number.isFinite(n) ? Math.trunc(n) : 0;` — sem isso, o INSERT falha silenciosamente e o pedido nunca chega ao módulo Fiscal (incidente Pedido #468, 2026-05-18).
+
 **Aplicação:**
 1. Qualquer alteração nesses dois selects deve cruzar a lista contra `information_schema.columns WHERE table_name='products'` antes do deploy.
 2. Mudanças no schema de `products` (adicionar/remover coluna usada por esses motores) exigem revisão coordenada dos dois arquivos.
-3. Documentado em `docs/especificacoes/erp/erp-fiscal.md` seção "Auto-herança de dados comerciais".
+3. Qualquer campo numérico que venha de `products` precisa de coerção segura antes do insert em `fiscal_invoice_items`.
+4. Documentado em `docs/especificacoes/erp/erp-fiscal.md` seção "Auto-herança de dados comerciais" (Hotfixes 2026-05-17b, 2026-05-18, 2026-05-18b).
