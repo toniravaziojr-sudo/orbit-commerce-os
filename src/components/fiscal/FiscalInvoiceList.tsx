@@ -1665,6 +1665,77 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                     })}
                   </TableBody>
                 </Table>
+
+                {/* Rodapé de paginação */}
+                {totalFiltered > 0 && (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t pt-3 mt-2 text-sm">
+                    <div className="flex items-center gap-3 text-muted-foreground">
+                      <span>
+                        Mostrando{' '}
+                        <span className="font-medium text-foreground">
+                          {(currentPage - 1) * pageSize + 1}
+                        </span>
+                        {' – '}
+                        <span className="font-medium text-foreground">
+                          {Math.min(currentPage * pageSize, totalFiltered)}
+                        </span>
+                        {' de '}
+                        <span className="font-medium text-foreground">{totalFiltered}</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span>Por página:</span>
+                        <select
+                          className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                          value={pageSize}
+                          onChange={(e) => setPageSize(Number(e.target.value))}
+                        >
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                          <option value={200}>200</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage <= 1}
+                      >
+                        Primeira
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage <= 1}
+                      >
+                        Anterior
+                      </Button>
+                      <span className="px-2 text-muted-foreground">
+                        Página <span className="font-medium text-foreground">{currentPage}</span> de{' '}
+                        <span className="font-medium text-foreground">{totalPages}</span>
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage >= totalPages}
+                      >
+                        Próxima
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage >= totalPages}
+                      >
+                        Última
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
