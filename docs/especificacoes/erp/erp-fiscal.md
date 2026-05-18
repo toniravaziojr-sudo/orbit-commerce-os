@@ -510,8 +510,8 @@ A aba **Pedidos de Venda** exibe agora 5 status derivados (não persistidos como
     - Se as pendências foram sanadas, atualiza para `pronta_emitir`. Caso contrário, permanece em `pendencia` com a lista atualizada.
 
     **Etapa 4 — Cliente e Produto como fonte de verdade única**:
-    - No editor de Pedido de Venda e no editor de NF, os campos do destinatário (nome, CPF/CNPJ, endereço) e os campos fiscais do item (NCM, CFOP, Origem, GTIN) são **somente leitura** quando o registro está vinculado a um cliente/produto cadastrado.
-    - Links **"Abrir cadastro"** levam à página de origem para correção. O Pedido/NF não duplica dados sensíveis — apenas referencia.
+    - **Atualização 2026-05-18g**: os campos do destinatário (nome, CPF/CNPJ, endereço, telefone, e-mail) no editor de Pedido de Venda e de NF são **editáveis** mesmo quando o registro está vinculado a um cliente cadastrado. Ao salvar, se houver alterações em campos do destinatário, o sistema abre o diálogo de sincronização: (1) salvar pedido e atualizar cadastro do cliente, (2) salvar somente neste pedido, (3) cancelar. Sem essa edição direta, o usuário não consegue corrigir pendências (ex.: cidade com typo) sem sair do fluxo. Os campos fiscais do item (NCM, CFOP, Origem, GTIN) permanecem **somente leitura** quando vinculados a produto cadastrado — esses devem ser corrigidos no cadastro de Produtos.
+    - Links **"Abrir cadastro"** continuam disponíveis no cabeçalho da aba para correção mais ampla. O Pedido/NF não duplica dados sensíveis fora do snapshot fiscal — apenas referencia.
     - Alertas por linha de item indicam, em tempo real, NCM/CFOP/Origem/GTIN ausentes ou inválidos, antes mesmo de clicar em "Criar Nota Fiscal".
 
    **Status `processing` (v2026-05-14)**: Quando o Focus NFe retorna `processando_autorizacao`, a NF-e fica em `processing`. A lista exibe o badge **"Processando SEFAZ"** (Clock) e o menu da linha mostra **"Atualizar Status"** em vez de "Emitir" — assim o usuário não tenta reemitir uma nota que já está aguardando autorização. O webhook (`fiscal-webhook`) e o reconciliador manual (`fiscal-check-status`) já atualizam a coluna `status` para `authorized` ao receber `autorizado` do Focus, gravam chave de acesso, protocolo, XML e DANFE, e respeitam idempotência (não rebaixam status terminal). **Reconciliação manual de divergência local** (status `processing` no banco mas evento `authorized` já persistido em `fiscal_invoice_events` com chave/protocolo válidos): `UPDATE fiscal_invoices` direto na coluna, sem chamar Focus/Sefaz. Caso da NF 1-265 do tenant Respeite o Homem em 2026-05-14 — `authorized` foi gravado como evento mas o webhook não chegou a atualizar o cabeçalho; reconciliado localmente.
@@ -1915,3 +1915,16 @@ Módulo compartilhado: `supabase/functions/_shared/cep-lookup.ts` (`resolveAddre
 Sem alteração nos campos de destinatário, ou em pedidos sem cliente vinculado (avulsos/manuais), o salvamento segue direto sem perguntar. A regra de enriquecimento automático de perfil (`profile-enrichment-policy-standard`) continua valendo para campos antes nulos no cadastro — este diálogo trata o caso de **sobrescrever** valores existentes.
 
 **Aplicado em:** `_shared/fiscal-order-mapping.ts`, `fiscal-update-draft`, `InvoiceEditor.tsx`, `FiscalInvoiceList.tsx`, `ManualInvoiceDialog.tsx`. Migração `20260518165640_*` adiciona a coluna e faz o backfill a partir de `orders`.
+
+### Hotfix 2026-05-18g — Aba Destinatário travada bloqueava correção de pendências
+
+**Problema.** A aba **Dest.** do editor do Pedido de Venda estava com todos os campos em modo somente leitura quando o pedido vinha de um cliente cadastrado (regra antiga de "fonte de verdade única"). Resultado: quando o Pedido entrava em pendência por dado do destinatário (ex.: cidade com typo sem match no IBGE), o usuário **não conseguia corrigir dentro do pedido** — só via "Abrir cadastro", o que exige sair do fluxo, voltar e reprocessar. Pendência crônica sem caminho prático de resolução.
+
+**Correção.** O travamento (`lockClientFields`) foi removido da aba Dest. Os campos voltam a ser editáveis no editor do Pedido de Venda e da NF. A integridade com o cadastro do cliente continua garantida pelo **diálogo de sincronização** já existente (Hotfix 2026-05-18f): ao salvar com alterações no destinatário, o sistema pergunta se deve atualizar também o cadastro do cliente, salvar só no pedido ou cancelar. Campos fiscais do item (NCM, CFOP, Origem, GTIN) **continuam somente leitura** quando vinculados a produto cadastrado — esses correções continuam sendo feitas no módulo de Produtos.
+
+**Aplicado em:** `src/components/fiscal/InvoiceEditor.tsx` (constante `lockClientFields` agora sempre `false`).
+
+**Validação técnica:**
+- Pedido #233 (Respeite o Homem) com pendência de cidade — campos da aba Dest. ficam habilitados para edição (Nome, CPF/CNPJ, IE, Endereço completo, Telefone, E-mail).
+- Diálogo de sincronização do cadastro continua disparando ao salvar com alterações + `customer_id` presente.
+- Campos de item (NCM/CFOP/Origem/GTIN) permanecem bloqueados quando há `product_id` — comportamento preservado.
