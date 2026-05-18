@@ -1899,16 +1899,27 @@ export function InvoiceEditor({
               <Button
                 onClick={async () => {
                   if (!data || !onPrepare) return;
-                  setIsSubmitting(true);
+                  const runPrepare = async (payload: InvoiceData) => {
+                    setIsSubmitting(true);
+                    try {
+                      await onPrepare(payload);
+                      onOpenChange(false);
+                    } catch (e) {
+                      console.error('[InvoiceEditor] onPrepare error:', e);
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  };
+                  const changed = diffDestSnapshot(initialDest, data);
+                  if (changed.length > 0 && customerId) {
+                    setDestSyncAfterSave(() => runPrepare);
+                    setDestSyncDialog({ open: true, changedLabels: changed, pending: data });
+                    return;
+                  }
                   try {
-                    // Salva alterações antes de criar a NF, garantindo dados atuais
-                    await onSave(data);
-                    await onPrepare(data);
-                    onOpenChange(false);
-                  } catch (e) {
-                    console.error('[InvoiceEditor] onPrepare error:', e);
-                  } finally {
-                    setIsSubmitting(false);
+                    await persistSave(data, false, runPrepare);
+                  } catch {
+                    /* persistSave já mostrou toast */
                   }
                 }}
                 disabled={isSaving || isSubmitting || !onPrepare || (pendenciaMotivos && pendenciaMotivos.length > 0)}
