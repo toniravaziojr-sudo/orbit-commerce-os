@@ -122,7 +122,7 @@ export function CustomerForm({
   isLoading,
 }: CustomerFormProps) {
   const isEditing = !!customer;
-  const { lookupCep, isLoading: isLookingUpCep } = useCepLookup();
+  
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const [showTagInput, setShowTagInput] = useState(false);

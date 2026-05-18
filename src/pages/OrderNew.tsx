@@ -42,7 +42,7 @@ export default function OrderNew() {
   const { products: activeProducts, isLoading: productsLoading } = useProductsWithImages();
   const { products: allProducts, isLoading: allProductsLoading } = useProducts();
   const { customers, isLoading: customersLoading } = useCustomers({ pageSize: 500 });
-  const { lookupCep, isLoading: isLookingUpCep } = useCepLookup();
+  
 
   // Use all products if active products are empty (fallback)
   const products = activeProducts.length > 0 ? activeProducts : allProducts.map(p => ({
