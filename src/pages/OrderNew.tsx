@@ -20,7 +20,7 @@ import { useOrders, type CreateOrderData, type PaymentMethod } from '@/hooks/use
 import { useProductsWithImages } from '@/hooks/useProducts';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers, useCustomerAddresses } from '@/hooks/useCustomers';
-import { useCepLookup } from '@/hooks/useCepLookup';
+
 
 import { OrderShippingMethod } from '@/components/orders/OrderShippingMethod';
 import { AddressFields } from '@/components/shared/AddressFields';
@@ -159,23 +159,6 @@ export default function OrderNew() {
     }));
   };
 
-  const handleCepLookup = async () => {
-    const cep = formData.shipping_postal_code;
-    const result = await lookupCep(cep);
-    
-    if (result) {
-      setFormData(prev => ({
-        ...prev,
-        shipping_street: result.street,
-        shipping_neighborhood: result.neighborhood,
-        shipping_city: result.city,
-        shipping_state: result.state,
-      }));
-      toast.success('Endereço encontrado!');
-    } else {
-      toast.error('CEP não encontrado');
-    }
-  };
 
   const handleAddProduct = (product: typeof products[0]) => {
     const existingIndex = items.findIndex(i => i.product_id === product.id);

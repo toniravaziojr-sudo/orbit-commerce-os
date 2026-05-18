@@ -38,7 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { User, Building2, Mail, MessageSquare, Phone, MapPin, Search, Loader2, Tag, Plus } from 'lucide-react';
-import { useCepLookup } from '@/hooks/useCepLookup';
+
 import { AddressFields } from '@/components/shared/AddressFields';
 import { toast } from 'sonner';
 import type { Customer, CustomerFormData, CustomerTag } from '@/hooks/useCustomers';
@@ -197,24 +197,6 @@ export function CustomerForm({
     }
   }, [open, customer, customerTagIds, form]);
 
-  const handleCepLookup = async () => {
-    const cep = form.getValues('address_postal_code');
-    if (!cep) {
-      toast.error('Digite o CEP primeiro');
-      return;
-    }
-    const result = await lookupCep(cep);
-    
-    if (result) {
-      form.setValue('address_street', result.street);
-      form.setValue('address_neighborhood', result.neighborhood);
-      form.setValue('address_city', result.city);
-      form.setValue('address_state', result.state);
-      toast.success('Endereço encontrado!');
-    } else {
-      toast.error('CEP não encontrado');
-    }
-  };
 
   const handleSubmit = (data: FormValues) => {
     // Build address object if any address field is filled
