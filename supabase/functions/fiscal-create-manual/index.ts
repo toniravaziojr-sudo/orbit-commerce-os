@@ -2,6 +2,7 @@
 // FISCAL CREATE MANUAL - Criar NF-e manualmente
 // =============================================
 import { errorResponse } from "../_shared/error-response.ts";
+import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 
@@ -147,12 +148,18 @@ Deno.serve(async (req) => {
       sum + (item.quantidade * item.valor_unitario), 0
     );
 
-    // Get IBGE code for destination
-    const destMunicipioCodigo = await getIbgeCodigo(
-      supabase, 
-      destinatario.endereco.municipio, 
-      destinatario.endereco.uf
-    );
+    // Resolução de IBGE: CEP primeiro; fallback por nome.
+    let destMunicipioCodigo: string | null = null;
+    const cepResolvedManual = await resolveAddressByCep(supabase, destinatario.endereco.cep);
+    if (cepResolvedManual?.ibge) {
+      destMunicipioCodigo = cepResolvedManual.ibge;
+    } else {
+      destMunicipioCodigo = await getIbgeCodigo(
+        supabase,
+        destinatario.endereco.municipio,
+        destinatario.endereco.uf,
+      );
+    }
 
     const nextNumero = await getNextFiscalNumber({
       supabase,
