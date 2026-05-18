@@ -291,6 +291,7 @@ Deno.serve(async (req) => {
       .update({
         fiscal_stage: newStage,
         pendencia_motivos: errors.length > 0 ? errors : null,
+        pendencia_avisos: warnings.length > 0 ? warnings : null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', workingInvoiceId)
