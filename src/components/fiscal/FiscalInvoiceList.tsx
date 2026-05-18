@@ -375,9 +375,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const pendencias = Array.isArray((data as any).pendencia_motivos)
       ? ((data as any).pendencia_motivos as string[]).filter((s) => typeof s === 'string')
       : [];
+    const avisos = Array.isArray((data as any).pendencia_avisos)
+      ? ((data as any).pendencia_avisos as string[]).filter((s) => typeof s === 'string')
+      : [];
     setEditingInvoice(invoiceData);
     setEditingInvoiceError(data.status_motivo || null);
     setEditingInvoicePendencias(pendencias);
+    setEditingInvoiceAvisos(avisos);
     setEditingInvoiceStatus(data.status || null);
     setEditingInvoiceStage((data as any).fiscal_stage || null);
   };
