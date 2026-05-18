@@ -10,7 +10,67 @@ import { enrichOrderContext } from "../_shared/enrich-order-context.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.7.0"; // template param sanitization + strict retry on #100/#132000
+const VERSION = "v1.8.0"; // self-send guard + semantic Meta error classification (terminal vs recoverable)
+
+// ============================================================
+// Classificação semântica de erros Meta WhatsApp Cloud API
+// terminal = não adianta retentar (consome attempt_count = max para fechar)
+// recoverable = vale retentar com backoff
+// ============================================================
+type MetaErrorClass = 'terminal' | 'recoverable';
+interface ClassifiedMetaError { class: MetaErrorClass; reason: string; userMessage: string; }
+
+function classifyMetaError(err: any): ClassifiedMetaError {
+  const code = Number(err?.code ?? 0);
+  const subcode = Number(err?.error_subcode ?? 0);
+  const msg = String(err?.message ?? '').toLowerCase();
+  const detail = String(err?.error_data?.details ?? '').toLowerCase();
+  const haystack = `${msg} ${detail}`;
+
+  // Self-send detectado pela Meta (mensagem do próprio número)
+  if (haystack.includes('same number') || haystack.includes('cannot send a message to itself') || haystack.includes('own number')) {
+    return { class: 'terminal', reason: 'self_send', userMessage: 'Envio cancelado: o número de destino é o próprio número da loja conectado ao WhatsApp.' };
+  }
+  // Número não está no WhatsApp / opt-out
+  if (code === 131026 || haystack.includes('recipient phone number not in allowed list') || haystack.includes('not a whatsapp user')) {
+    return { class: 'terminal', reason: 'invalid_recipient', userMessage: 'Número do destinatário não está disponível no WhatsApp.' };
+  }
+  // Janela de 24h expirada para mensagem livre (não-template)
+  if (code === 131047 || haystack.includes('re-engagement') || haystack.includes('outside the allowed window')) {
+    return { class: 'terminal', reason: 'window_24h_expired', userMessage: 'Janela de 24h de conversa expirou. Use template aprovado.' };
+  }
+  // Template pausado / rejeitado pela Meta
+  if (code === 132001 || code === 132005 || code === 132007 || code === 132012 || code === 132015 || haystack.includes('template is paused') || haystack.includes('template was paused')) {
+    return { class: 'terminal', reason: 'template_paused', userMessage: 'Template foi pausado ou bloqueado pela Meta. Revise o conteúdo do template.' };
+  }
+  // Acesso/credencial — terminal até reconectar (não adianta tentar 5x)
+  if (code === 190 || code === 200 || code === 10) {
+    return { class: 'terminal', reason: 'auth_revoked', userMessage: 'Conexão com a Meta expirou ou foi revogada. Reconecte o WhatsApp.' };
+  }
+  // Parâmetro inválido genérico (#100) e contagem (#132000): mantém recuperável
+  // porque já temos retry estrito + nova tentativa pode pegar payload corrigido.
+  // Limites de taxa / disponibilidade
+  if (code === 4 || code === 80007 || code === 130429 || code === 80004) {
+    return { class: 'recoverable', reason: 'rate_limit', userMessage: 'Limite temporário da Meta. Tentaremos novamente.' };
+  }
+  // Default: recuperável
+  return { class: 'recoverable', reason: 'unknown', userMessage: err?.message || 'Erro temporário no envio.' };
+}
+
+// Normaliza para comparar números (só dígitos, sem código de país duplicado)
+function normalizePhoneForCompare(raw: string | null | undefined): string {
+  if (!raw) return '';
+  let s = String(raw).replace(/\D/g, '');
+  if (s.startsWith('55') && s.length > 11) s = s.slice(2);
+  return s;
+}
+function isSelfSend(recipientCleanWithCC: string, configPhone: string | null | undefined): boolean {
+  if (!configPhone) return false;
+  const a = normalizePhoneForCompare(recipientCleanWithCC);
+  const b = normalizePhoneForCompare(configPhone);
+  if (!a || !b) return false;
+  return a === b;
+}
 // ===========================================================
 
 const corsHeaders = {
@@ -575,13 +635,35 @@ async function sendWhatsAppViaMetaTemplate(
 ): Promise<{ success: boolean; error?: string; response?: Record<string, unknown>; messageId?: string }> {
   console.log(`[RunNotifications] Sending template "${templateName}" to ${cleanPhone}`);
 
-  if (!config.phone_number_id || !config.access_token) {
-    return {
-      success: false,
-      error: 'Configuração Meta incompleta.',
-      response: { channel: 'whatsapp', to: cleanPhone, provider: 'meta' }
-    };
-  }
+    if (!config.phone_number_id || !config.access_token) {
+      return {
+        success: false,
+        error: 'Configuração Meta incompleta.',
+        response: { channel: 'whatsapp', to: cleanPhone, provider: 'meta' }
+      };
+    }
+
+    // === GUARDA DE ENVIO-PARA-SI-MESMO ===
+    // Meta bloqueia template enviado do próprio número da loja para ele mesmo.
+    // Detectamos antes de chamar a API para não queimar tentativa nem poluir métricas.
+    if (isSelfSend(cleanPhone, config.phone_number)) {
+      console.log(`[RunNotifications] Self-send blocked: recipient ${cleanPhone} equals tenant phone ${config.phone_number}`);
+      await supabase.from('whatsapp_messages').insert({
+        tenant_id: tenantId,
+        recipient_phone: cleanPhone,
+        message_type: 'template',
+        message_content: renderedVisibleText.substring(0, 500),
+        status: 'skipped_self_send',
+        error_message: 'Envio cancelado: número de destino é o próprio número da loja.',
+        metadata: { template: templateName, stage: 'pre-flight', reason: 'self_send' },
+      });
+      return {
+        success: false,
+        error: '__TERMINAL__:self_send:Envio cancelado: o número de destino é o próprio número da loja conectado ao WhatsApp.',
+        response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone, skipped: 'self_send' }
+      };
+    }
+
 
   // ===== PHASE 3: Render the visible/timeline content STRICTLY first =====
   // The Meta template body uses positional parameters; we still render the same
@@ -695,17 +777,21 @@ async function sendWhatsAppViaMetaTemplate(
     if (!firstOk || sendResult?.error) {
       const errMsg = sendResult?.error?.message || "Erro ao enviar template";
       const errCode = sendResult?.error?.code;
-      console.error(`[RunNotifications] Template send error:`, sendResult?.error);
+      const classified = classifyMetaError(sendResult?.error);
+      console.error(`[RunNotifications] Template send error [${classified.class}/${classified.reason}]:`, sendResult?.error);
       await supabase.from('whatsapp_messages').insert({
         tenant_id: tenantId,
         recipient_phone: cleanPhone,
         message_type: 'template',
         message_content: renderedVisibleText.substring(0, 500),
-        status: 'failed',
-        error_message: errMsg,
+        status: classified.class === 'terminal' ? `failed_${classified.reason}` : 'failed',
+        error_message: classified.userMessage,
         metadata: {
           template: templateName,
           meta_error_code: errCode,
+          meta_error_subcode: sendResult?.error?.error_subcode,
+          error_class: classified.class,
+          error_reason: classified.reason,
           sanitized_params: variableValues,
           stage: "meta-api",
         },
@@ -713,12 +799,17 @@ async function sendWhatsAppViaMetaTemplate(
       // Internal traceable event in timeline so operator sees what failed
       await registerInAttendanceTimeline(
         supabase, tenantId, cleanPhone,
-        `[Falha no envio] ${errMsg}`,
+        `[Falha no envio] ${classified.userMessage}`,
         null, 'notification',
-        { isInternal: true, metadata: { template: templateName, stage: "meta-api", meta_error_code: errCode } },
+        { isInternal: true, metadata: { template: templateName, stage: "meta-api", meta_error_code: errCode, error_class: classified.class, error_reason: classified.reason } },
       );
-      return { success: false, error: errMsg, response: sendResult };
+      // Sinaliza ao loop principal se é terminal (prefixo __TERMINAL__) para não queimar tentativas.
+      const errorPayload = classified.class === 'terminal'
+        ? `__TERMINAL__:${classified.reason}:${classified.userMessage}`
+        : classified.userMessage;
+      return { success: false, error: errorPayload, response: sendResult };
     }
+
 
     const messageId = sendResult.messages?.[0]?.id;
     console.log(`[RunNotifications] Template sent - ID: ${messageId}`);
@@ -766,6 +857,26 @@ async function sendWhatsAppViaMeta(
       response: { channel: 'whatsapp', to: cleanPhone, provider: 'meta' }
     };
   }
+
+  // Guarda de envio-para-si-mesmo (free-form). Terminal para não queimar tentativas.
+  if (isSelfSend(cleanPhone, config.phone_number)) {
+    console.log(`[RunNotifications] Self-send blocked (free-form): recipient ${cleanPhone} equals tenant phone ${config.phone_number}`);
+    await supabase.from('whatsapp_messages').insert({
+      tenant_id: tenantId,
+      recipient_phone: cleanPhone,
+      message_type: 'text',
+      message_content: String(message).substring(0, 500),
+      status: 'skipped_self_send',
+      error_message: 'Envio cancelado: número de destino é o próprio número da loja.',
+      metadata: { stage: 'pre-flight', reason: 'self_send' },
+    });
+    return {
+      success: false,
+      error: '__TERMINAL__:self_send:Envio cancelado: o número de destino é o próprio número da loja conectado ao WhatsApp.',
+      response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone, skipped: 'self_send' }
+    };
+  }
+
 
   // ===== PHASE 3: Strict render of free-form text messages =====
   // The caller may pass a string with `{{vars}}` (free-form WhatsApp rules).
@@ -828,23 +939,34 @@ async function sendWhatsAppViaMeta(
     const sendResult = await sendResponse.json();
 
     if (sendResult.error) {
-      console.error(`[RunNotifications] Meta WhatsApp error:`, sendResult.error);
+      const classified = classifyMetaError(sendResult.error);
+      console.error(`[RunNotifications] Meta WhatsApp error [${classified.class}/${classified.reason}]:`, sendResult.error);
 
       await supabase.from('whatsapp_messages').insert({
         tenant_id: tenantId,
         recipient_phone: cleanPhone,
         message_type: 'text',
         message_content: safeMessage.substring(0, 500),
-        status: 'failed',
-        error_message: sendResult.error.message,
+        status: classified.class === 'terminal' ? `failed_${classified.reason}` : 'failed',
+        error_message: classified.userMessage,
+        metadata: {
+          meta_error_code: sendResult.error.code,
+          meta_error_subcode: sendResult.error.error_subcode,
+          error_class: classified.class,
+          error_reason: classified.reason,
+        },
       });
 
+      const errorPayload = classified.class === 'terminal'
+        ? `__TERMINAL__:${classified.reason}:${classified.userMessage}`
+        : classified.userMessage;
       return {
         success: false,
-        error: sendResult.error?.message || 'Erro ao enviar via Meta WhatsApp',
+        error: errorPayload,
         response: sendResult
       };
     }
+
 
     const messageId = sendResult.messages?.[0]?.id;
     console.log(`[RunNotifications] Meta WhatsApp sent - ID: ${messageId}`);
@@ -1212,23 +1334,37 @@ Deno.serve(async (req) => {
       } else {
         // Error path
         console.log(`[RunNotifications] Notification ${notification.id} failed: ${sendResult.error}`);
-        
+
+        // ===== CLASSIFICAÇÃO TERMINAL vs RECUPERÁVEL =====
+        // Provedores podem sinalizar terminal usando prefixo __TERMINAL__:<reason>:<msg>
+        // Terminal = não retenta, marca falha definitiva imediatamente.
+        let isTerminal = false;
+        let terminalReason: string | null = null;
+        let cleanError = sendResult.error || 'Erro desconhecido';
+        const termMatch = cleanError.match(/^__TERMINAL__:([^:]+):(.*)$/s);
+        if (termMatch) {
+          isTerminal = true;
+          terminalReason = termMatch[1];
+          cleanError = termMatch[2];
+        }
+
         // Update attempt
         await supabase
           .from('notification_attempts')
           .update({
             status: 'error',
             finished_at: finishedAt,
-            error_code: 'SEND_FAILED',
-            error_message: sendResult.error,
+            error_code: isTerminal ? `TERMINAL_${terminalReason?.toUpperCase()}` : 'SEND_FAILED',
+            error_message: cleanError,
             provider_response: sendResult.response || null
           })
           .eq('id', attemptId);
 
         stats.processed_error++;
 
-        // Check if max attempts reached
-        if (attemptNo >= notification.max_attempts) {
+        // Check if max attempts reached OR terminal
+        if (isTerminal || attemptNo >= notification.max_attempts) {
+
           // Final failure
           console.log(`[RunNotifications] Notification ${notification.id} reached max attempts, marking as failed`);
           
@@ -1237,7 +1373,7 @@ Deno.serve(async (req) => {
             .update({
               status: 'failed',
               attempt_count: attemptNo,
-              last_error: sendResult.error
+              last_error: cleanError
             })
             .eq('id', notification.id);
 
@@ -1260,7 +1396,7 @@ Deno.serve(async (req) => {
               content_preview: contentPreview?.substring(0, 500),
               attachments: attachments,
               attempt_count: attemptNo,
-              error_message: sendResult.error
+              error_message: cleanError
             }, { onConflict: 'notification_id' });
 
           stats.failed_final++;
@@ -1276,7 +1412,7 @@ Deno.serve(async (req) => {
             .update({
               status: 'retrying',
               attempt_count: attemptNo,
-              last_error: sendResult.error,
+              last_error: cleanError,
               next_attempt_at: nextAttempt
             })
             .eq('id', notification.id);
@@ -1300,7 +1436,7 @@ Deno.serve(async (req) => {
               content_preview: contentPreview?.substring(0, 500),
               attachments: attachments,
               attempt_count: attemptNo,
-              error_message: sendResult.error
+              error_message: cleanError
             }, { onConflict: 'notification_id' });
 
           stats.scheduled_retries++;
