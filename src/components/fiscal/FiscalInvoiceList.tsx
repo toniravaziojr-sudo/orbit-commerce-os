@@ -134,6 +134,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
+
+  // Paginação client-side (a consulta já traz tudo do tenant; aqui só fatiamos a tabela).
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Destaque visual da linha recém-salva, com auto-scroll até ela.
+  const [highlightedInvoiceId, setHighlightedInvoiceId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
