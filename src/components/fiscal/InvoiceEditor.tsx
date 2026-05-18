@@ -629,18 +629,58 @@ export function InvoiceEditor({
     return errors;
   };
 
-  const handleSave = async () => {
-    if (!data) return;
+  // Salva o pedido. Se o usuário alterou dados do destinatário e o pedido
+  // está vinculado a um cliente, abre o diálogo de sincronização com cadastro.
+  const persistSave = async (payload: InvoiceData, alsoUpdateCustomer: boolean) => {
     setIsSaving(true);
     try {
-      await onSave(data);
-      toast.success('Rascunho salvo com sucesso');
+      await onSave(payload);
+      if (alsoUpdateCustomer && customerId) {
+        const { error: custErr } = await supabase
+          .from('customers')
+          .update({
+            full_name: payload.dest_nome,
+            ...(payload.dest_tipo_pessoa === 'fisica'
+              ? { cpf: payload.dest_cpf_cnpj?.replace(/\D/g, '') || null }
+              : { cnpj: payload.dest_cpf_cnpj?.replace(/\D/g, '') || null }),
+            email: payload.dest_email || null,
+            phone: payload.dest_telefone || null,
+            address_postal_code: payload.dest_endereco_cep || null,
+            address_street: payload.dest_endereco_logradouro || null,
+            address_number: payload.dest_endereco_numero || null,
+            address_complement: payload.dest_endereco_complemento || null,
+            address_neighborhood: payload.dest_endereco_bairro || null,
+            address_city: payload.dest_endereco_municipio || null,
+            address_state: payload.dest_endereco_uf || null,
+          })
+          .eq('id', customerId);
+        if (custErr) {
+          console.error('[InvoiceEditor] customer update failed:', custErr);
+          toast.warning('Pedido salvo. Não foi possível atualizar o cadastro do cliente — tente novamente pelo módulo Clientes.');
+        } else {
+          toast.success('Pedido salvo e cadastro do cliente atualizado.');
+        }
+      } else {
+        toast.success(alsoUpdateCustomer ? 'Pedido salvo.' : 'Rascunho salvo com sucesso');
+      }
+      // Atualiza snapshot para próximas edições
+      setInitialDest(captureDestSnapshot(payload));
     } catch (error) {
       console.error('Error saving draft:', error);
       toast.error('Erro ao salvar rascunho');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    if (!data) return;
+    const changed = diffDestSnapshot(initialDest, data);
+    if (changed.length > 0 && customerId) {
+      setDestSyncDialog({ open: true, changedLabels: changed, pending: data });
+      return;
+    }
+    await persistSave(data, false);
   };
 
   const handleSubmit = async () => {
