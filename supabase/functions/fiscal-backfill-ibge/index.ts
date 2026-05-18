@@ -95,7 +95,11 @@ Deno.serve(async (req) => {
     }
 
     const motivos: string[] = Array.isArray(row.pendencia_motivos) ? [...row.pendencia_motivos] : [];
-    const filtered = motivos.filter(m => !isStalePendency(m));
+    const avisosAtuais: string[] = Array.isArray(row.pendencia_avisos) ? [...row.pendencia_avisos] : [];
+    // Limpa do pendencia_motivos tanto as mensagens fantasmas obsoletas
+    // quanto a antiga mensagem de divergência de UF (que virou aviso, não bloqueio)
+    const isUfMismatchMsg = (m: string) => /incompatível com o CEP/i.test(m);
+    const filtered = motivos.filter(m => !isStalePendency(m) && !isUfMismatchMsg(m));
     const clearedAny = filtered.length < motivos.length;
 
     const patch: any = { updated_at: new Date().toISOString() };
@@ -113,17 +117,24 @@ Deno.serve(async (req) => {
         cidadeFixed++;
         didSomething = true;
       }
-      // UF mismatch -> mantém/adiciona pendência (não sobrescreve UF do pedido)
-      if (lookup.uf && row.dest_endereco_uf && lookup.uf.toUpperCase() !== String(row.dest_endereco_uf).toUpperCase()) {
-        ufMismatch++;
-        const msg = `Endereço incompatível com o CEP: o CEP pertence a ${lookup.uf}, mas o pedido informa ${row.dest_endereco_uf}. Confirme cidade e estado com o cliente antes de despachar.`;
-        if (!filtered.includes(msg)) filtered.push(msg);
-      }
+    }
+
+    // UF mismatch -> AVISO informativo (não bloqueia emissão; SEFAZ decide)
+    const avisos = avisosAtuais.filter(a => !isUfMismatchMsg(a));
+    if (lookup?.uf && row.dest_endereco_uf && lookup.uf.toUpperCase() !== String(row.dest_endereco_uf).toUpperCase()) {
+      ufMismatch++;
+      const msg = `Endereço incompatível com o CEP: o CEP pertence a ${lookup.uf}, mas o pedido informa ${row.dest_endereco_uf}. Confirme cidade e estado com o cliente antes de despachar.`;
+      avisos.push(msg);
+    }
+    const avisosChanged = JSON.stringify(avisos) !== JSON.stringify(avisosAtuais);
+    if (avisosChanged) {
+      patch.pendencia_avisos = avisos.length > 0 ? avisos : null;
+      didSomething = true;
     }
 
     if (clearedAny || didSomething) {
       patch.pendencia_motivos = filtered.length > 0 ? filtered : null;
-      // Se ficou sem pendência, retorna o estágio para pedido_venda
+      // Se ficou sem pendência bloqueante, retorna o estágio para pedido_venda
       patch.fiscal_stage = filtered.length > 0 ? 'pendencia' : 'pedido_venda';
       if (clearedAny) pendencyCleared++;
       didSomething = true;
