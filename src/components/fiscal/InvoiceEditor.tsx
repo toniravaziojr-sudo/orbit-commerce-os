@@ -73,6 +73,7 @@ export interface InvoiceData {
   // Transporte
   modalidade_frete: string;
   transportadora_nome?: string;
+  transportadora_servico?: string;
   transportadora_cnpj?: string;
   peso_bruto?: number;
   peso_liquido?: number;
