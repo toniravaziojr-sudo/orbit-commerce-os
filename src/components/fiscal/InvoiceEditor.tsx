@@ -842,6 +842,21 @@ export function InvoiceEditor({
           </Alert>
         )}
 
+        {/* Avisos informativos do Pedido de Venda (não bloqueiam emissão) */}
+        {isPedidoVenda && pendenciaAvisos && pendenciaAvisos.length > 0 && (
+          <Alert className="mt-2 border-amber-400/60 bg-amber-100/40">
+            <AlertCircle className="h-4 w-4 text-amber-700" />
+            <AlertDescription>
+              <strong className="block mb-1 text-amber-900">
+                Avisos sobre o destinatário — não bloqueiam a emissão, mas confira antes de despachar:
+              </strong>
+              <ul className="list-disc ml-5 mt-1 text-sm text-amber-900 space-y-0.5">
+                {pendenciaAvisos.map((m, i) => (<li key={i}>{m}</li>))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* SEFAZ Rejection Error Alert */}
         {rejectionError && !isPedidoVenda && (
           <Alert variant="destructive" className="mt-2 border-red-600/50 bg-red-500/10">
