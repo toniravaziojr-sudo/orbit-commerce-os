@@ -332,6 +332,7 @@ export function InvoiceEditor({
   invoiceStage,
   onPrepare,
   pendenciaMotivos,
+  pendenciaAvisos,
 }: InvoiceEditorProps) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
