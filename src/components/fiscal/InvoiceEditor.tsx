@@ -781,9 +781,9 @@ export function InvoiceEditor({
     .filter(({ issues }) => issues.length > 0);
 
   const isPedidoVenda = invoiceStage === 'pedido_venda';
-  // No modo Pedido de Venda, cliente/produto são apenas referências ao cadastro.
-  // Edição deve ocorrer no cadastro de origem (cliente / produto), não na NF.
-  const lockClientFields = isPedidoVenda && !!invoice?.order_id;
+  // Edição do destinatário é permitida no Pedido de Venda. Ao salvar, o usuário
+  // decide via diálogo se a alteração também atualiza o cadastro do cliente.
+  const lockClientFields = false;
   const itemLockedFromRegistry = (item: InvoiceItemData) =>
     isPedidoVenda && !!item.product_id;
   const editorTitle = isPedidoVenda
