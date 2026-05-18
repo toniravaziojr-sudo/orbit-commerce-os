@@ -19,7 +19,7 @@ type: constraint
 - Mudanças no esquema de endereço de `orders` ou `fiscal_invoices` devem preservar `dest_endereco_cep` (8 dígitos sanitizados) como entrada principal.
 - Atualizações na tabela `ibge_municipios` não dispensam o CEP-first.
 
-**Incidentes raiz:** 2026-05-18c (IBGE por CEP, 115/219 resolvidos) e 2026-05-18d (nome oficial + limpeza de pendência fantasma, 7 limpas + 4 nomes corrigidos no Respeite o Homem; restaram 4 pendências legítimas).
+**Incidentes raiz:** 2026-05-18c (IBGE por CEP, 115/219 resolvidos), 2026-05-18d (nome oficial + limpeza de pendência fantasma), 2026-05-18e (UF mismatch reclassificado de bloqueio para aviso — 3 pedidos liberados no Respeite o Homem).
 
-**Documentado em:** `docs/especificacoes/erp/erp-fiscal.md` (seções "Resolução de IBGE do Município por CEP — Hotfix Universal" e "Hotfix 2026-05-18d").
+**Documentado em:** `docs/especificacoes/erp/erp-fiscal.md` (seções "Resolução de IBGE do Município por CEP — Hotfix Universal", "Hotfix 2026-05-18d" e "Hotfix 2026-05-18e").
 
