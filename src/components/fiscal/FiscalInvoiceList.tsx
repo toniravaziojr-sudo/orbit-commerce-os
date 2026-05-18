@@ -407,6 +407,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       }
     }
     refetch();
+    // Marca a linha salva para destaque + scroll automático na listagem.
+    if (data?.id) setHighlightedInvoiceId(data.id);
   };
 
   const handleSubmitInvoice = async (data: InvoiceData) => {
