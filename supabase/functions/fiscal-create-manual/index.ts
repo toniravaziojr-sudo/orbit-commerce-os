@@ -201,9 +201,10 @@ Deno.serve(async (req) => {
       dest_endereco_numero: destinatario.endereco.numero,
       dest_endereco_complemento: destinatario.endereco.complemento || null,
       dest_endereco_bairro: destinatario.endereco.bairro,
-      dest_endereco_municipio: destinatario.endereco.municipio,
+      // Nome oficial do município vem do CEP (evita typo derrubar xMun na SEFAZ)
+      dest_endereco_municipio: cepResolvedManual?.cidade || destinatario.endereco.municipio,
       dest_endereco_municipio_codigo: destMunicipioCodigo,
-      dest_endereco_uf: destinatario.endereco.uf,
+      dest_endereco_uf: cepResolvedManual?.uf || destinatario.endereco.uf,
       dest_endereco_cep: destinatario.endereco.cep,
       observacoes: observacoes || null,
       ambiente: settings.ambiente,
