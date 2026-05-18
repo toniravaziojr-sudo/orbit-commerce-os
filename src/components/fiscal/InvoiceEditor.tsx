@@ -1646,6 +1646,19 @@ export function InvoiceEditor({
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>Serviço contratado</Label>
+                  <Input
+                    value={data.transportadora_servico || ''}
+                    onChange={(e) => updateField('transportadora_servico', e.target.value)}
+                    placeholder="Ex: PAC, SEDEX, Mini Envios, Loggi Express"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {data.transportadora_servico
+                      ? 'Serviço escolhido pelo cliente no checkout. Edite apenas se for trocar antes do despacho.'
+                      : 'Serviço não informado no checkout. Preencha se houver.'}
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label>CNPJ/CPF da Transportadora</Label>
                   <Input
                     value={data.transportadora_cnpj || ''}
