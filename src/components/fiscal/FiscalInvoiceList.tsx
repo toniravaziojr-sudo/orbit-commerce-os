@@ -1812,6 +1812,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           onDelete={handleDeleteInvoice}
           rejectionError={editingInvoiceError || undefined}
           pendenciaMotivos={editingInvoicePendencias}
+          pendenciaAvisos={editingInvoiceAvisos}
           invoiceStatus={editingInvoiceStatus || undefined}
           invoiceStage={editingInvoiceStage}
           onPrepare={async (data) => {
