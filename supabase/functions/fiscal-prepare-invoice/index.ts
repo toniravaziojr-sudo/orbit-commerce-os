@@ -216,6 +216,10 @@ Deno.serve(async (req) => {
     }
     const cep = (inv.dest_endereco_cep || '').replace(/\D/g, '');
     if (cep.length !== 8) errors.push('CEP do destinatário inválido.');
+    const ibgeDest = String(inv.dest_endereco_municipio_codigo || '').replace(/\D/g, '');
+    if (ibgeDest.length !== 7) {
+      errors.push('Cidade do cliente não localizada na base oficial de municípios — confirme a grafia da cidade no endereço.');
+    }
 
     // Itens
     const items = inv.fiscal_invoice_items || [];
