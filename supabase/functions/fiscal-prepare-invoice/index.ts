@@ -226,14 +226,29 @@ Deno.serve(async (req) => {
     if (cep.length === 8) {
       cepLookup = await resolveAddressByCep(admin, cep);
       if (cepLookup?.ibge) {
-        if (ibgeDest.length !== 7 || ibgeDest !== cepLookup.ibge) {
-          // Atualiza o registro com o IBGE oficial vindo do CEP
+        const cidadeAtual = String(inv.dest_endereco_municipio || '').trim();
+        const cidadeOficial = String(cepLookup.cidade || '').trim();
+        const ufOficial = String(cepLookup.uf || '').toUpperCase();
+        const needIbge = ibgeDest.length !== 7 || ibgeDest !== cepLookup.ibge;
+        const needCidade = cidadeOficial && cidadeAtual !== cidadeOficial;
+        if (needIbge || needCidade) {
+          // Atualiza IBGE + nome oficial do município (evita rejeição SEFAZ por divergência xMun/cMun)
+          const patch: any = {
+            dest_endereco_municipio_codigo: cepLookup.ibge,
+            updated_at: new Date().toISOString(),
+          };
+          if (needCidade) patch.dest_endereco_municipio = cidadeOficial;
+          // UF só é sobrescrita se for igual à do CEP (mismatch vira pendência logo abaixo)
+          if (ufOficial && String(inv.dest_endereco_uf || '').toUpperCase() === ufOficial) {
+            patch.dest_endereco_uf = ufOficial;
+          }
           await admin
             .from('fiscal_invoices')
-            .update({ dest_endereco_municipio_codigo: cepLookup.ibge, updated_at: new Date().toISOString() })
+            .update(patch)
             .eq('id', workingInvoiceId)
             .eq('tenant_id', tenantId);
           ibgeDest = cepLookup.ibge;
+          if (needCidade) (inv as any).dest_endereco_municipio = cidadeOficial;
         }
       }
     }
