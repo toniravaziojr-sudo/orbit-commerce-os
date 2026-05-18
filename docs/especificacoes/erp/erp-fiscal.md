@@ -1915,3 +1915,16 @@ Módulo compartilhado: `supabase/functions/_shared/cep-lookup.ts` (`resolveAddre
 Sem alteração nos campos de destinatário, ou em pedidos sem cliente vinculado (avulsos/manuais), o salvamento segue direto sem perguntar. A regra de enriquecimento automático de perfil (`profile-enrichment-policy-standard`) continua valendo para campos antes nulos no cadastro — este diálogo trata o caso de **sobrescrever** valores existentes.
 
 **Aplicado em:** `_shared/fiscal-order-mapping.ts`, `fiscal-update-draft`, `InvoiceEditor.tsx`, `FiscalInvoiceList.tsx`, `ManualInvoiceDialog.tsx`. Migração `20260518165640_*` adiciona a coluna e faz o backfill a partir de `orders`.
+
+### Hotfix 2026-05-18g — Aba Destinatário travada bloqueava correção de pendências
+
+**Problema.** A aba **Dest.** do editor do Pedido de Venda estava com todos os campos em modo somente leitura quando o pedido vinha de um cliente cadastrado (regra antiga de "fonte de verdade única"). Resultado: quando o Pedido entrava em pendência por dado do destinatário (ex.: cidade com typo sem match no IBGE), o usuário **não conseguia corrigir dentro do pedido** — só via "Abrir cadastro", o que exige sair do fluxo, voltar e reprocessar. Pendência crônica sem caminho prático de resolução.
+
+**Correção.** O travamento (`lockClientFields`) foi removido da aba Dest. Os campos voltam a ser editáveis no editor do Pedido de Venda e da NF. A integridade com o cadastro do cliente continua garantida pelo **diálogo de sincronização** já existente (Hotfix 2026-05-18f): ao salvar com alterações no destinatário, o sistema pergunta se deve atualizar também o cadastro do cliente, salvar só no pedido ou cancelar. Campos fiscais do item (NCM, CFOP, Origem, GTIN) **continuam somente leitura** quando vinculados a produto cadastrado — esses correções continuam sendo feitas no módulo de Produtos.
+
+**Aplicado em:** `src/components/fiscal/InvoiceEditor.tsx` (constante `lockClientFields` agora sempre `false`).
+
+**Validação técnica:**
+- Pedido #233 (Respeite o Homem) com pendência de cidade — campos da aba Dest. ficam habilitados para edição (Nome, CPF/CNPJ, IE, Endereço completo, Telefone, E-mail).
+- Diálogo de sincronização do cadastro continua disparando ao salvar com alterações + `customer_id` presente.
+- Campos de item (NCM/CFOP/Origem/GTIN) permanecem bloqueados quando há `product_id` — comportamento preservado.
