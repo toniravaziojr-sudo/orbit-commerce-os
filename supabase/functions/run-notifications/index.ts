@@ -10,7 +10,7 @@ import { enrichOrderContext } from "../_shared/enrich-order-context.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.6.0"; // Phase 4 — safety-net re-enrichment + re-render at send time
+const VERSION = "v1.7.0"; // template param sanitization + strict retry on #100/#132000
 // ===========================================================
 
 const corsHeaders = {
@@ -418,6 +418,56 @@ interface WhatsAppConfig {
 }
 
 // Get WhatsApp config for tenant with caching
+/**
+ * Sanitização determinística de parâmetros de template WhatsApp.
+ *
+ * Meta Cloud API rejeita parâmetros com erro #100 (Invalid parameter) ou
+ * #132000 (Number of parameters) quando o conteúdo viola regras de qualidade:
+ *  - quebras de linha (\n, \r)
+ *  - tabulações (\t)
+ *  - 4+ espaços consecutivos
+ *  - caracteres de controle (\x00-\x1F, \x7F)
+ *  - parâmetro vazio
+ *  - alguns chars especiais isolados (#, *, _) — só no modo strict.
+ *
+ * Esta função é idempotente e safe-by-default.
+ */
+function sanitizeTemplateParam(
+  raw: unknown,
+  opts: { strict?: boolean } = {}
+): string {
+  let s = raw == null ? "" : String(raw);
+
+  // 1. Remove caracteres de controle (mantém espaço)
+  s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+
+  // 2. Quebras de linha e tabs viram espaço único
+  s = s.replace(/[\r\n\t]+/g, " ");
+
+  // 3. Colapsa whitespace múltiplo
+  s = s.replace(/\s{2,}/g, " ");
+
+  // 4. Trim das pontas
+  s = s.trim();
+
+  // 5. Modo strict: remove chars que a Meta marca como spam-like quando isolados.
+  //    Usado apenas como fallback após primeiro #100.
+  if (opts.strict) {
+    // Remove # no início (ex: "#471" → "471")
+    s = s.replace(/^#+\s*/, "");
+    // Remove marcadores markdown soltos no início/fim
+    s = s.replace(/^[*_~`]+/, "").replace(/[*_~`]+$/, "");
+    // Normaliza espaços novamente após remoções
+    s = s.replace(/\s{2,}/g, " ").trim();
+  }
+
+  // 6. Limite de 1024 chars (Meta hard limit por parâmetro)
+  if (s.length > 1024) s = s.substring(0, 1024).trim();
+
+  // 7. Fallback para "—" se vazio (evita #132000)
+  return s.length > 0 ? s : "—";
+}
+
 async function getWhatsAppConfig(supabase: any, tenantId: string): Promise<WhatsAppConfig | null> {
   const cached = whatsappConfigCache.get(tenantId);
   if (cached && Date.now() - cached.timestamp < WHATSAPP_CACHE_TTL) {
@@ -568,64 +618,106 @@ async function sendWhatsAppViaMetaTemplate(
       .single();
     const graphApiVersion = versionCred?.credential_value || "v21.0";
 
-    // Build positional parameters from referencedVars (already validated above)
+    // Build positional parameters from referencedVars (already validated above).
+    // Meta rejeita parâmetros com newline, tab, espaços múltiplos, certos chars
+    // especiais isolados (#, leading-/) e parâmetros vazios → erro #100 / #132000.
+    // sanitizeTemplateParam é determinística e idempotente.
     const variableValues: string[] = referencedVars.map((varName) => {
       const raw = (payload as Record<string, unknown>)?.[varName];
-      const stringValue = raw == null ? "" : String(raw).trim();
-      // strict already ensured non-empty; "—" guard remains for Meta #132000 safety
-      return stringValue.length > 0 ? stringValue : "—";
+      return sanitizeTemplateParam(raw);
     });
+    console.log(`[RunNotifications][v1.7] template="${templateName}" params=${JSON.stringify(variableValues)}`);
 
-    const components: any[] = [];
-    if (variableValues.length > 0) {
-      components.push({
-        type: "body",
-        parameters: variableValues.map(v => ({ type: "text", text: v })),
-      });
-    }
-
-    const messagePayload: any = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: cleanPhone,
-      type: "template",
-      template: {
-        name: templateName,
-        language: { code: "pt_BR" },
-        ...(components.length > 0 ? { components } : {}),
-      },
+    const buildPayload = (values: string[]) => {
+      const comps: any[] = [];
+      if (values.length > 0) {
+        comps.push({
+          type: "body",
+          parameters: values.map(v => ({ type: "text", text: v })),
+        });
+      }
+      return {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: cleanPhone,
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: "pt_BR" },
+          ...(comps.length > 0 ? { components: comps } : {}),
+        },
+      };
     };
 
+    const messagePayload: any = buildPayload(variableValues);
+
     const sendUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/messages`;
-    const sendResponse = await fetch(sendUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.access_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(messagePayload),
-    });
 
-    const sendResult = await sendResponse.json();
+    // Helper: chama Meta com um payload e devolve { ok, result }
+    const callMeta = async (payload: any) => {
+      const r = await fetch(sendUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json().catch(() => ({}));
+      return { ok: r.ok && !j.error, result: j };
+    };
 
-    if (sendResult.error) {
-      console.error(`[RunNotifications] Template send error:`, sendResult.error);
+    let { ok: firstOk, result: sendResult } = await callMeta(messagePayload);
+    let usedFallback: string | null = null;
+
+    // Retry inteligente — se Meta devolver erro de parâmetro (#100 ou #132000),
+    // tentamos UMA vez com sanitização mais agressiva (ASCII-only, sem
+    // pontuação especial). Isto endereça o padrão histórico em que valores
+    // como "#471", "R$ 339,59" ou nomes com chars especiais quebram o template.
+    if (!firstOk && sendResult?.error) {
+      const code = Number(sendResult.error.code);
+      if (code === 100 || code === 132000) {
+        const stricter = variableValues.map(v => sanitizeTemplateParam(v, { strict: true }));
+        const retryPayload = buildPayload(stricter);
+        const retry = await callMeta(retryPayload);
+        if (retry.ok) {
+          usedFallback = "strict-sanitization";
+          sendResult = retry.result;
+          firstOk = true;
+          console.log(`[RunNotifications] Template "${templateName}" recovered via strict sanitization`);
+        } else {
+          // mantém o erro original (mais informativo) e loga o retry
+          console.error(`[RunNotifications] Strict-sanitization retry also failed:`, retry.result?.error);
+        }
+      }
+    }
+
+    if (!firstOk || sendResult?.error) {
+      const errMsg = sendResult?.error?.message || "Erro ao enviar template";
+      const errCode = sendResult?.error?.code;
+      console.error(`[RunNotifications] Template send error:`, sendResult?.error);
       await supabase.from('whatsapp_messages').insert({
         tenant_id: tenantId,
         recipient_phone: cleanPhone,
         message_type: 'template',
         message_content: renderedVisibleText.substring(0, 500),
         status: 'failed',
-        error_message: sendResult.error.message,
+        error_message: errMsg,
+        metadata: {
+          template: templateName,
+          meta_error_code: errCode,
+          sanitized_params: variableValues,
+          stage: "meta-api",
+        },
       });
       // Internal traceable event in timeline so operator sees what failed
       await registerInAttendanceTimeline(
         supabase, tenantId, cleanPhone,
-        `[Falha no envio] ${sendResult.error.message || "Erro ao enviar template"}`,
+        `[Falha no envio] ${errMsg}`,
         null, 'notification',
-        { isInternal: true, metadata: { template: templateName, stage: "meta-api" } },
+        { isInternal: true, metadata: { template: templateName, stage: "meta-api", meta_error_code: errCode } },
       );
-      return { success: false, error: sendResult.error?.message || 'Erro ao enviar template via WhatsApp', response: sendResult };
+      return { success: false, error: errMsg, response: sendResult };
     }
 
     const messageId = sendResult.messages?.[0]?.id;
@@ -639,6 +731,7 @@ async function sendWhatsAppViaMetaTemplate(
       status: 'sent',
       sent_at: new Date().toISOString(),
       provider_message_id: messageId,
+      metadata: usedFallback ? { template: templateName, recovered_via: usedFallback } : { template: templateName },
     });
 
     // Timeline gets the FINAL rendered text — no [Template: ...] prefix, no {{vars}}
