@@ -1532,6 +1532,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   {(invoice as any).pendencia_motivos[0]}
                                 </p>
                               )}
+                              {Array.isArray((invoice as any).pendencia_avisos) && (invoice as any).pendencia_avisos.length > 0 && (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium w-fit bg-yellow-500/15 text-yellow-800 border border-yellow-500/30 dark:text-yellow-300 max-w-[260px] truncate"
+                                  title={(invoice as any).pendencia_avisos.join(' • ')}
+                                >
+                                  ⚠ {(invoice as any).pendencia_avisos[0]}
+                                </span>
+                              )}
                               {invoice.status === 'authorized' && isPrinted && (
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium w-fit ${COLOR.green}`}>
                                   <Printer className="h-3 w-3" />
