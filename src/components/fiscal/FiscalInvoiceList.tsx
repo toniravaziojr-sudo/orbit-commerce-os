@@ -112,6 +112,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
   const [editingInvoiceStage, setEditingInvoiceStage] = useState<string | null>(null);
   const [editingInvoicePendencias, setEditingInvoicePendencias] = useState<string[]>([]);
+  const [editingInvoiceAvisos, setEditingInvoiceAvisos] = useState<string[]>([]);
   const [preparingInvoiceId, setPreparingInvoiceId] = useState<string | null>(null);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [cancelingInvoice, setCancelingInvoice] = useState<FiscalInvoice | null>(null);
