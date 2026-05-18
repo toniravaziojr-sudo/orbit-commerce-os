@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, Download, Send, X, Trash2, Mail, RotateCcw, Truck, Receipt } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
@@ -134,6 +134,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
+
+  // Paginação client-side (a consulta já traz tudo do tenant; aqui só fatiamos a tabela).
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Destaque visual da linha recém-salva, com auto-scroll até ela.
+  const [highlightedInvoiceId, setHighlightedInvoiceId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -209,6 +217,44 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
     return true;
   });
+
+  // ===== Paginação =====
+  const totalFiltered = filteredInvoices?.length || 0;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  // Garante que página atual cabe no total atual de páginas
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
+  // Reseta para a página 1 quando qualquer filtro/aba muda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [mode, searchTerm, statusFilter, startDate, endDate, marketplaceSource, pageSize]);
+
+  const pagedInvoices = useMemo(() => {
+    if (!filteredInvoices) return [] as typeof filteredInvoices;
+    const start = (currentPage - 1) * pageSize;
+    return filteredInvoices.slice(start, start + pageSize);
+  }, [filteredInvoices, currentPage, pageSize]);
+
+  // Quando uma linha for marcada para destaque, leva o usuário até a página correta
+  // e rola até a linha. O destaque some após ~2.5s.
+  useEffect(() => {
+    if (!highlightedInvoiceId || !filteredInvoices) return;
+    const idx = filteredInvoices.findIndex((i) => i.id === highlightedInvoiceId);
+    if (idx === -1) return;
+    const targetPage = Math.floor(idx / pageSize) + 1;
+    if (targetPage !== currentPage) {
+      setCurrentPage(targetPage);
+      return; // efeito roda de novo depois do re-render
+    }
+    const el = rowRefs.current[highlightedInvoiceId];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const timer = setTimeout(() => setHighlightedInvoiceId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightedInvoiceId, filteredInvoices, currentPage, pageSize]);
+
 
   // Helper para resolver stage com fallback (backfill já cobre todos os registros existentes,
   // mas mantemos compat para qualquer insert antigo que não tenha setado o campo).
@@ -361,6 +407,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       }
     }
     refetch();
+    // Marca a linha salva para destaque + scroll automático na listagem.
+    if (data?.id) setHighlightedInvoiceId(data.id);
   };
 
   const handleSubmitInvoice = async (data: InvoiceData) => {
@@ -1465,13 +1513,24 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredInvoices.map((invoice) => {
+                    {pagedInvoices.map((invoice) => {
                       const status = statusConfig[invoice.status] || statusConfig.draft;
                       const StatusIcon = status.icon;
                       const isPrinted = (invoice as any).danfe_printed_at;
-                      
+                      const isHighlighted = highlightedInvoiceId === invoice.id;
+
                       return (
-                        <TableRow key={invoice.id} className={selectedInvoices.has(invoice.id) ? 'bg-muted/50' : ''}>
+                        <TableRow
+                          key={invoice.id}
+                          ref={(el) => { rowRefs.current[invoice.id] = el; }}
+                          className={
+                            isHighlighted
+                              ? 'bg-primary/10 ring-2 ring-primary/40 transition-colors duration-500'
+                              : selectedInvoices.has(invoice.id)
+                                ? 'bg-muted/50'
+                                : ''
+                          }
+                        >
                           <TableCell>
                             <Checkbox
                               checked={selectedInvoices.has(invoice.id)}
@@ -1606,6 +1665,77 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                     })}
                   </TableBody>
                 </Table>
+
+                {/* Rodapé de paginação */}
+                {totalFiltered > 0 && (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t pt-3 mt-2 text-sm">
+                    <div className="flex items-center gap-3 text-muted-foreground">
+                      <span>
+                        Mostrando{' '}
+                        <span className="font-medium text-foreground">
+                          {(currentPage - 1) * pageSize + 1}
+                        </span>
+                        {' – '}
+                        <span className="font-medium text-foreground">
+                          {Math.min(currentPage * pageSize, totalFiltered)}
+                        </span>
+                        {' de '}
+                        <span className="font-medium text-foreground">{totalFiltered}</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span>Por página:</span>
+                        <select
+                          className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                          value={pageSize}
+                          onChange={(e) => setPageSize(Number(e.target.value))}
+                        >
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                          <option value={200}>200</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage <= 1}
+                      >
+                        Primeira
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage <= 1}
+                      >
+                        Anterior
+                      </Button>
+                      <span className="px-2 text-muted-foreground">
+                        Página <span className="font-medium text-foreground">{currentPage}</span> de{' '}
+                        <span className="font-medium text-foreground">{totalPages}</span>
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage >= totalPages}
+                      >
+                        Próxima
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage >= totalPages}
+                      >
+                        Última
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
