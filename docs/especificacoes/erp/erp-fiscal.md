@@ -1897,3 +1897,21 @@ Módulo compartilhado: `supabase/functions/_shared/cep-lookup.ts` (`resolveAddre
 **Reclassificação retroativa:** os 3 pedidos do Respeite o Homem que estavam travados apenas por divergência de UF ("MATOGROSSO", "SAO PAULO", "SO") foram movidos automaticamente para `pendencia_avisos` e voltaram ao estado `pedido_venda` (em aberto), prontos para emissão à critério do lojista.
 
 **Aplicado em:** `fiscal-prepare-invoice` (não bloqueia mais por UF mismatch), `fiscal-backfill-ibge` (migra mensagens antigas), `FiscalInvoiceList` (renderiza badge amarelo de avisos em pedidos e NFs).
+
+### Hotfix 2026-05-18f — Serviço da transportadora visível e edição do destinatário com sincronização do cadastro
+
+**Problema 1 — Serviço contratado invisível.** A aba **Transp.** do Pedido de Venda (modelo Bling) exibia transportadora e modalidade, mas não mostrava qual serviço o cliente escolheu no checkout (PAC, SEDEX, Mini Envios, Loggi Express, etc.). A informação existia no pedido original mas não viajava até a NF.
+
+**Correção 1:** novo campo `fiscal_invoices.transportadora_servico` (text, opcional). Preenchido automaticamente pelo `_shared/fiscal-order-mapping.ts` a partir de `orders.shipping_method`/`shipping_service_name` em qualquer motor que crie pedido de venda (auto-create, create-draft manual, create-manual avulsa, update-draft). Exibido na aba **Transp.** como "Serviço contratado" (campo editável para correção pré-despacho) e no card "Dados do Transporte". Funciona para qualquer transportadora (Correios, Frenet, Loggi, futuras). Backfill executado: 221/221 pedidos atuais com serviço preenchido.
+
+**Problema 2 — Edição do destinatário sem sincronização do cadastro.** A aba **Dest.** permitia editar nome, CPF/CNPJ, endereço, telefone e e-mail, mas as alterações ficavam só no pedido. O cadastro do cliente permanecia desatualizado e ninguém era avisado, gerando divergência crônica entre Pedidos e Clientes.
+
+**Correção 2:** ao salvar o Pedido de Venda (ou clicar em "Criar Nota Fiscal"), o editor compara um snapshot dos campos da aba Dest. (nome, CPF/CNPJ, e-mail, telefone, CEP, logradouro, número, complemento, bairro, município, UF) com os valores atuais. Se houver mudança **e** o pedido tiver `customer_id` vinculado, um diálogo intercepta o salvamento com 3 opções:
+
+- **Salvar pedido e atualizar cadastro do cliente** (padrão, destacado): grava no pedido e propaga as mudanças para `customers` (campos correspondentes: `full_name`, `email`, `phone`, `document`, e endereço primário). Use quando o cadastro estava errado.
+- **Salvar somente neste pedido**: grava apenas no pedido. Cadastro do cliente permanece. Use para correção pontual (entrega em outro endereço só desta vez).
+- **Cancelar**: volta para o editor.
+
+Sem alteração nos campos de destinatário, ou em pedidos sem cliente vinculado (avulsos/manuais), o salvamento segue direto sem perguntar. A regra de enriquecimento automático de perfil (`profile-enrichment-policy-standard`) continua valendo para campos antes nulos no cadastro — este diálogo trata o caso de **sobrescrever** valores existentes.
+
+**Aplicado em:** `_shared/fiscal-order-mapping.ts`, `fiscal-update-draft`, `InvoiceEditor.tsx`, `FiscalInvoiceList.tsx`, `ManualInvoiceDialog.tsx`. Migração `20260518165640_*` adiciona a coluna e faz o backfill a partir de `orders`.
