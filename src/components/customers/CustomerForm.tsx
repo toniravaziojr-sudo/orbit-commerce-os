@@ -39,6 +39,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { User, Building2, Mail, MessageSquare, Phone, MapPin, Search, Loader2, Tag, Plus } from 'lucide-react';
 import { useCepLookup } from '@/hooks/useCepLookup';
+import { AddressFields } from '@/components/shared/AddressFields';
 import { toast } from 'sonner';
 import type { Customer, CustomerFormData, CustomerTag } from '@/hooks/useCustomers';
 
@@ -682,121 +683,27 @@ export function CustomerForm({
                     )}
                   />
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="address_postal_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>CEP</FormLabel>
-                          <div className="flex gap-2">
-                            <FormControl>
-                              <Input placeholder="00000-000" {...field} value={field.value ?? ''} />
-                            </FormControl>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              onClick={handleCepLookup}
-                              disabled={isLookingUpCep}
-                            >
-                              {isLookingUpCep ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Search className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="address_state"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Estado</FormLabel>
-                          <FormControl>
-                            <Input placeholder="SP" maxLength={2} {...field} value={field.value ?? ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="address_street"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Rua / Logradouro</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Rua das Flores" {...field} value={field.value ?? ''} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                  <AddressFields
+                    idPrefix="customer-form"
+                    value={{
+                      postalCode: form.watch('address_postal_code') ?? '',
+                      state: form.watch('address_state') ?? '',
+                      city: form.watch('address_city') ?? '',
+                      street: form.watch('address_street') ?? '',
+                      neighborhood: form.watch('address_neighborhood') ?? '',
+                      number: form.watch('address_number') ?? '',
+                      complement: form.watch('address_complement') ?? '',
+                    }}
+                    onChange={(next) => {
+                      form.setValue('address_postal_code', next.postalCode);
+                      form.setValue('address_state', next.state);
+                      form.setValue('address_city', next.city);
+                      form.setValue('address_street', next.street);
+                      form.setValue('address_neighborhood', next.neighborhood);
+                      form.setValue('address_number', next.number);
+                      form.setValue('address_complement', next.complement);
+                    }}
                   />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="address_number"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Número</FormLabel>
-                          <FormControl>
-                            <Input placeholder="123" {...field} value={field.value ?? ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="address_complement"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Complemento</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Apto 101" {...field} value={field.value ?? ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="address_neighborhood"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Bairro</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Centro" {...field} value={field.value ?? ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="address_city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cidade</FormLabel>
-                          <FormControl>
-                            <Input placeholder="São Paulo" {...field} value={field.value ?? ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
                 </TabsContent>
 
               </Tabs>

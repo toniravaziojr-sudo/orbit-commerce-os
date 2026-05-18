@@ -23,6 +23,7 @@ import { useCustomers, useCustomerAddresses } from '@/hooks/useCustomers';
 import { useCepLookup } from '@/hooks/useCepLookup';
 
 import { OrderShippingMethod } from '@/components/orders/OrderShippingMethod';
+import { AddressFields } from '@/components/shared/AddressFields';
 import { toast } from 'sonner';
 
 interface OrderItemForm {
@@ -517,92 +518,37 @@ export default function OrderNew() {
           </CardContent>
         </Card>
 
-        {/* Shipping Address */}
+        {/* Shipping Address — componente único guiado (UF/Cidade IBGE oficial) */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Endereço de Entrega *</CardTitle>
             <p className="text-sm text-muted-foreground">Obrigatório para emissão de NF-e</p>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="shipping_postal_code">CEP *</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="shipping_postal_code"
-                  value={formData.shipping_postal_code}
-                  onChange={(e) => setFormData({ ...formData, shipping_postal_code: e.target.value })}
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={handleCepLookup}
-                  disabled={isLookingUpCep}
-                >
-                  {isLookingUpCep ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="shipping_street">Rua *</Label>
-              <Input
-                id="shipping_street"
-                value={formData.shipping_street}
-                onChange={(e) => setFormData({ ...formData, shipping_street: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="shipping_number">Número *</Label>
-              <Input
-                id="shipping_number"
-                value={formData.shipping_number}
-                onChange={(e) => setFormData({ ...formData, shipping_number: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="shipping_complement">Complemento</Label>
-              <Input
-                id="shipping_complement"
-                value={formData.shipping_complement}
-                onChange={(e) => setFormData({ ...formData, shipping_complement: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="shipping_neighborhood">Bairro *</Label>
-              <Input
-                id="shipping_neighborhood"
-                value={formData.shipping_neighborhood}
-                onChange={(e) => setFormData({ ...formData, shipping_neighborhood: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="shipping_city">Cidade *</Label>
-              <Input
-                id="shipping_city"
-                value={formData.shipping_city}
-                onChange={(e) => setFormData({ ...formData, shipping_city: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="shipping_state">Estado *</Label>
-              <Input
-                id="shipping_state"
-                value={formData.shipping_state}
-                onChange={(e) => setFormData({ ...formData, shipping_state: e.target.value })}
-                maxLength={2}
-                placeholder="SP"
-                required
-              />
-            </div>
+          <CardContent>
+            <AddressFields
+              idPrefix="order-new"
+              value={{
+                postalCode: formData.shipping_postal_code,
+                state: formData.shipping_state,
+                city: formData.shipping_city,
+                street: formData.shipping_street,
+                neighborhood: formData.shipping_neighborhood,
+                number: formData.shipping_number,
+                complement: formData.shipping_complement,
+              }}
+              onChange={(next) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  shipping_postal_code: next.postalCode,
+                  shipping_state: next.state,
+                  shipping_city: next.city,
+                  shipping_street: next.street,
+                  shipping_neighborhood: next.neighborhood,
+                  shipping_number: next.number,
+                  shipping_complement: next.complement,
+                }))
+              }
+            />
           </CardContent>
         </Card>
 
