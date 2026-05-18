@@ -5,6 +5,7 @@
 // NÃO chama Focus/SEFAZ. NÃO emite. NÃO transmite.
 // =============================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -216,9 +217,39 @@ Deno.serve(async (req) => {
     }
     const cep = (inv.dest_endereco_cep || '').replace(/\D/g, '');
     if (cep.length !== 8) errors.push('CEP do destinatário inválido.');
-    const ibgeDest = String(inv.dest_endereco_municipio_codigo || '').replace(/\D/g, '');
+
+    // Resolução automática de IBGE via CEP (ViaCEP/BrasilAPI com cache).
+    // Se o registro estiver sem IBGE válido mas tiver CEP, tentamos resolver agora
+    // e persistir antes da validação final — evita pendência por base interna defasada.
+    let ibgeDest = String(inv.dest_endereco_municipio_codigo || '').replace(/\D/g, '');
+    let cepLookup: Awaited<ReturnType<typeof resolveAddressByCep>> = null;
+    if (cep.length === 8) {
+      cepLookup = await resolveAddressByCep(admin, cep);
+      if (cepLookup?.ibge) {
+        if (ibgeDest.length !== 7 || ibgeDest !== cepLookup.ibge) {
+          // Atualiza o registro com o IBGE oficial vindo do CEP
+          await admin
+            .from('fiscal_invoices')
+            .update({ dest_endereco_municipio_codigo: cepLookup.ibge, updated_at: new Date().toISOString() })
+            .eq('id', workingInvoiceId)
+            .eq('tenant_id', tenantId);
+          ibgeDest = cepLookup.ibge;
+        }
+      }
+    }
+
     if (ibgeDest.length !== 7) {
-      errors.push('Cidade do cliente não localizada na base oficial de municípios — confirme a grafia da cidade no endereço.');
+      errors.push('Não foi possível identificar o município do cliente a partir do CEP — confirme o CEP do endereço.');
+    }
+
+    // Cross-validação UF: se o CEP foi resolvido e a UF do pedido difere da UF oficial do CEP,
+    // bloqueamos a emissão pois o pedido pode ser despachado para o endereço errado.
+    if (cepLookup?.uf && inv.dest_endereco_uf) {
+      const ufPedido = String(inv.dest_endereco_uf).trim().toUpperCase();
+      const ufCep = cepLookup.uf.trim().toUpperCase();
+      if (ufPedido && ufCep && ufPedido !== ufCep) {
+        errors.push(`Endereço incompatível com o CEP: o CEP pertence a ${ufCep}, mas o pedido informa ${ufPedido}. Confirme cidade e estado com o cliente antes de despachar.`);
+      }
     }
 
     // Itens

@@ -3,6 +3,7 @@
 // Monta payload completo para preview antes de emitir
 // =============================================
 import { errorResponse } from "../_shared/error-response.ts";
+import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
@@ -326,14 +327,20 @@ Deno.serve(async (req) => {
 
     const serieNfe = fiscalSettings.serie_nfe || 1;
 
-    // Buscar código IBGE do município de destino
-    console.log('[fiscal-create-draft] Looking up IBGE code for:', order.shipping_city, order.shipping_state);
-    const destMunicipioCodigo = await getIbgeCodigo(supabase, order.shipping_city, order.shipping_state);
-    
-    if (!destMunicipioCodigo) {
-      console.warn('[fiscal-create-draft] IBGE code not found for:', order.shipping_city, order.shipping_state);
+    // Resolução de IBGE: CEP é fonte primária; fallback por nome.
+    console.log('[fiscal-create-draft] Resolving IBGE for CEP:', order.shipping_postal_code);
+    let destMunicipioCodigo: string | null = null;
+    const cepResolved = await resolveAddressByCep(supabase, order.shipping_postal_code);
+    if (cepResolved?.ibge) {
+      destMunicipioCodigo = cepResolved.ibge;
+      console.log('[fiscal-create-draft] IBGE resolved via CEP (' + cepResolved.fonte + '):', destMunicipioCodigo);
     } else {
-      console.log('[fiscal-create-draft] IBGE code found:', destMunicipioCodigo);
+      destMunicipioCodigo = await getIbgeCodigo(supabase, order.shipping_city, order.shipping_state);
+      if (destMunicipioCodigo) {
+        console.log('[fiscal-create-draft] IBGE resolved via name fallback:', destMunicipioCodigo);
+      } else {
+        console.warn('[fiscal-create-draft] IBGE not resolved for:', order.shipping_postal_code, order.shipping_city, order.shipping_state);
+      }
     }
 
     // Build draft base
