@@ -777,17 +777,21 @@ async function sendWhatsAppViaMetaTemplate(
     if (!firstOk || sendResult?.error) {
       const errMsg = sendResult?.error?.message || "Erro ao enviar template";
       const errCode = sendResult?.error?.code;
-      console.error(`[RunNotifications] Template send error:`, sendResult?.error);
+      const classified = classifyMetaError(sendResult?.error);
+      console.error(`[RunNotifications] Template send error [${classified.class}/${classified.reason}]:`, sendResult?.error);
       await supabase.from('whatsapp_messages').insert({
         tenant_id: tenantId,
         recipient_phone: cleanPhone,
         message_type: 'template',
         message_content: renderedVisibleText.substring(0, 500),
-        status: 'failed',
-        error_message: errMsg,
+        status: classified.class === 'terminal' ? `failed_${classified.reason}` : 'failed',
+        error_message: classified.userMessage,
         metadata: {
           template: templateName,
           meta_error_code: errCode,
+          meta_error_subcode: sendResult?.error?.error_subcode,
+          error_class: classified.class,
+          error_reason: classified.reason,
           sanitized_params: variableValues,
           stage: "meta-api",
         },
@@ -795,12 +799,17 @@ async function sendWhatsAppViaMetaTemplate(
       // Internal traceable event in timeline so operator sees what failed
       await registerInAttendanceTimeline(
         supabase, tenantId, cleanPhone,
-        `[Falha no envio] ${errMsg}`,
+        `[Falha no envio] ${classified.userMessage}`,
         null, 'notification',
-        { isInternal: true, metadata: { template: templateName, stage: "meta-api", meta_error_code: errCode } },
+        { isInternal: true, metadata: { template: templateName, stage: "meta-api", meta_error_code: errCode, error_class: classified.class, error_reason: classified.reason } },
       );
-      return { success: false, error: errMsg, response: sendResult };
+      // Sinaliza ao loop principal se é terminal (prefixo __TERMINAL__) para não queimar tentativas.
+      const errorPayload = classified.class === 'terminal'
+        ? `__TERMINAL__:${classified.reason}:${classified.userMessage}`
+        : classified.userMessage;
+      return { success: false, error: errorPayload, response: sendResult };
     }
+
 
     const messageId = sendResult.messages?.[0]?.id;
     console.log(`[RunNotifications] Template sent - ID: ${messageId}`);
