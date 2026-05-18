@@ -385,6 +385,7 @@ export function InvoiceEditor({
     if (invoice) {
       setData({ ...invoice });
       setValidationErrors([]);
+      setInitialDest(captureDestSnapshot(invoice));
     }
   }, [invoice]);
 
