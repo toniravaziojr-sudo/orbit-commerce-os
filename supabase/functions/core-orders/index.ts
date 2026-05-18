@@ -475,6 +475,47 @@ Deno.serve(async (req) => {
           items_count: items.length,
         }, `order_created_${order.id}`);
 
+        // Se o pedido nasce com pagamento aprovado (criação manual com
+        // payment_status_initial='paid'), espelhar o mesmo evento que o
+        // set_payment_status emite, para que o motor de notificações
+        // dispare e-mail/WhatsApp de "pagamento aprovado" igual ao
+        // fluxo de webhook de gateway.
+        if (finalPaymentStatus === 'approved') {
+          await emitEvent(supabase, tenantId, 'order.payment_status_changed', order.id, {
+            order_id: order.id,
+            order_number: orderNumber,
+            from_status: 'awaiting_payment',
+            to_status: 'approved',
+            is_manual_override: true,
+          }, `payment_status_${order.id}_approved_oncreate`);
+
+          try {
+            await supabase.from('events_inbox').insert({
+              tenant_id: tenantId,
+              provider: 'internal',
+              event_type: 'payment_status_changed',
+              idempotency_key: `payment_status_${order.id}_awaiting_payment_approved_oncreate`,
+              occurred_at: new Date().toISOString(),
+              payload_normalized: {
+                order_id: order.id,
+                order_number: orderNumber,
+                customer_name,
+                customer_email: customer_email.toLowerCase().trim(),
+                customer_phone: order.customer_phone || '',
+                order_total: total,
+                old_status: 'awaiting_payment',
+                new_status: 'approved',
+                payment_method: order.payment_method || 'unknown',
+                payment_gateway: order.payment_gateway || 'manual',
+                is_manual_override: true,
+              },
+              status: 'new',
+            });
+          } catch (notifErr) {
+            console.error('[core-orders] events_inbox insert on create (notifications) failed:', notifErr);
+          }
+        }
+
         return new Response(
           JSON.stringify({ success: true, data: { order_id: order.id, order_number: orderNumber, order } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
