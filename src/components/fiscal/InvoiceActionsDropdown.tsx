@@ -340,6 +340,15 @@ export function InvoiceActionsDropdown({
               <Copy className="h-4 w-4 mr-2" />
               {cloneLabel}
             </DropdownMenuItem>
+            {onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </DropdownMenuItem>
+              </>
+            )}
           </>
         )}
 
