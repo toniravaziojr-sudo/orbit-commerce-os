@@ -659,8 +659,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         if (ps === 'pendente') {
           toast.warning('Este pedido tem pendências. Abra "Editar" e resolva antes de criar a Nota Fiscal.');
           handleEditInvoice(invoice);
-        } else if (ps === 'cancelled') {
+        } else if (ps === 'cancelado') {
           toast.error('Pedido cancelado — não é possível emitir Nota Fiscal.');
+        } else if (ps === 'chargeback_perdido') {
+          toast.error('Chargeback perdido — não é possível emitir Nota Fiscal.');
         } else {
           toast.error('Pedido em chargeback — não é possível emitir Nota Fiscal.');
         }
