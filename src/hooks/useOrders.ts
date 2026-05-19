@@ -387,7 +387,7 @@ export function useOrders(options?: {
   return {
     orders: ordersQuery.data?.data ?? [],
     totalCount: ordersQuery.data?.count ?? 0,
-    stats: statsQuery.data ?? { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0, awaitingPaymentCount: 0, canceledCount: 0, awaitingInvoiceCount: 0, returningCount: 0, chargebackCount: 0 },
+    stats: statsQuery.data ?? { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0, awaitingPaymentCount: 0, canceledCount: 0, awaitingInvoiceCount: 0, returningCount: 0, chargebackCount: 0, chargebackInProgressCount: 0, chargebackLostCount: 0, chargebackRecoveredCount: 0 },
     isLoading: ordersQuery.isLoading,
     error: ordersQuery.error,
     createOrder,
