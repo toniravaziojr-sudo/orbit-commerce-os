@@ -593,7 +593,63 @@ Deno.serve(async (req) => {
           );
         }
 
-        // 4) Cascata de limpeza — apaga rastros operacionais
+        // 4) Limpeza fiscal prévia — se houver apenas rascunhos/pedidos de venda
+        // ainda vinculados ao pedido, removemos esses registros antes de apagar os
+        // itens do pedido. Isso evita violação de FK em fiscal_invoice_items.order_item_id.
+        // NF autorizada/emitida já foi bloqueada acima e nunca entra aqui.
+        const { data: removableFiscalInvoices, error: removableFiscalInvoicesError } = await supabase
+          .from('fiscal_invoices')
+          .select('id, status')
+          .eq('order_id', order_id)
+          .in('status', ['draft', 'pending', 'cancelled', 'rejected', 'invoice_rejected', 'voided']);
+
+        if (removableFiscalInvoicesError) {
+          return errorResponse(removableFiscalInvoicesError, corsHeaders, { module: 'orders', action: 'delete' });
+        }
+
+        const removableFiscalInvoiceIds = (removableFiscalInvoices ?? []).map((invoice: { id: string }) => invoice.id);
+        const cleanupCounts: Record<string, number> = {
+          fiscal_invoice_items: 0,
+          fiscal_invoices: 0,
+          shipping_content_declarations: 0,
+        };
+
+        if (removableFiscalInvoiceIds.length > 0) {
+          const { count: deletedFiscalItemsCount, error: fiscalItemsDeleteError } = await supabase
+            .from('fiscal_invoice_items')
+            .delete({ count: 'exact' })
+            .in('invoice_id', removableFiscalInvoiceIds);
+
+          if (fiscalItemsDeleteError) {
+            return errorResponse(fiscalItemsDeleteError, corsHeaders, { module: 'orders', action: 'delete' });
+          }
+
+          cleanupCounts.fiscal_invoice_items = deletedFiscalItemsCount ?? 0;
+
+          const { count: deletedFiscalDeclarationsCount, error: fiscalDeclarationsDeleteError } = await supabase
+            .from('shipping_content_declarations')
+            .delete({ count: 'exact' })
+            .in('fiscal_invoice_id', removableFiscalInvoiceIds);
+
+          if (fiscalDeclarationsDeleteError) {
+            return errorResponse(fiscalDeclarationsDeleteError, corsHeaders, { module: 'orders', action: 'delete' });
+          }
+
+          cleanupCounts.shipping_content_declarations += deletedFiscalDeclarationsCount ?? 0;
+
+          const { count: deletedFiscalInvoicesCount, error: fiscalInvoicesDeleteError } = await supabase
+            .from('fiscal_invoices')
+            .delete({ count: 'exact' })
+            .in('id', removableFiscalInvoiceIds);
+
+          if (fiscalInvoicesDeleteError) {
+            return errorResponse(fiscalInvoicesDeleteError, corsHeaders, { module: 'orders', action: 'delete' });
+          }
+
+          cleanupCounts.fiscal_invoices = deletedFiscalInvoicesCount ?? 0;
+        }
+
+        // 5) Cascata de limpeza — apaga rastros operacionais
         const cleanupTables: string[] = [
           'order_items',
           'order_history',
@@ -616,7 +672,6 @@ Deno.serve(async (req) => {
           'checkout_sessions',
         ];
 
-        const cleanupCounts: Record<string, number> = {};
         for (const table of cleanupTables) {
           const { count, error: cleanupError } = await supabase
             .from(table)
@@ -625,10 +680,10 @@ Deno.serve(async (req) => {
           if (cleanupError) {
             console.warn(`[delete_order] cleanup ${table} failed:`, cleanupError.message);
           }
-          cleanupCounts[table] = count ?? 0;
+          cleanupCounts[table] = (cleanupCounts[table] ?? 0) + (count ?? 0);
         }
 
-        // 5) Desvincula (sem apagar) conversas e registros de marketplace
+        // 6) Desvincula (sem apagar) conversas e registros de marketplace
         const unlinkTables: string[] = ['conversations', 'tiktok_shop_orders', 'tiktok_shop_returns'];
         const unlinkCounts: Record<string, number> = {};
         for (const table of unlinkTables) {
@@ -642,7 +697,7 @@ Deno.serve(async (req) => {
           unlinkCounts[table] = count ?? 0;
         }
 
-        // 6) Apaga o pedido
+        // 7) Apaga o pedido
         const { error: deleteError } = await supabase
           .from('orders')
           .delete()
@@ -653,7 +708,7 @@ Deno.serve(async (req) => {
           return errorResponse(deleteError, corsHeaders, { module: 'orders', action: 'delete' });
         }
 
-        // 7) Auditoria com snapshot + contagens
+        // 8) Auditoria com snapshot + contagens
         await createAuditLog(supabase, {
           tenant_id: tenantId,
           entity_type: 'order',
@@ -667,7 +722,7 @@ Deno.serve(async (req) => {
           correlation_id: correlationId,
         });
 
-        // 8) Evento no barramento para consumidores externos
+        // 9) Evento no barramento para consumidores externos
         await emitEvent(supabase, tenantId, 'order.deleted', order_id, {
           order_id,
           order_number: order.order_number,
