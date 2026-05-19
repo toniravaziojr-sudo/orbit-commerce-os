@@ -100,12 +100,22 @@ Automação **nunca** cancela NF-e já autorizada nem etiqueta despachada. A mud
 5. Emissão de NF autorizada a partir do PV → PV vira "Concluído" automaticamente (já existe vínculo `source_order_invoice_id`; só padronizar e proteger).
 6. Reabertura de pedido cancelado para um estado aprovado → PV volta para "Pedido em aberto".
 
-### Etapa 4 — UI: status, filtros e contadores fiéis
+### Etapa 4 — UI: status, filtros e contadores fiéis nos dois módulos
+
+**No módulo Fiscal — aba Pedidos de Venda:**
 1. Atualizar a fonte única de derivação do status do PV para usar o indicador sincronizado (em vez do campo fantasma de hoje).
-2. Adicionar o novo status **"Chargeback em andamento"** e o filtro correspondente na aba Pedidos de Venda.
-3. Separar visualmente "Chargeback em andamento" (laranja) de "Chargeback perdido" (vermelho) e de "Cancelado" (cinza).
-4. Cards de contagem da aba Pedidos de Venda passam a refletir os 6 status oficiais.
-5. Conciliação visual com o card "Aprovados / Aguardando NF" do módulo Pedidos: ambos passam a contar exatamente a mesma base (todo pedido aprovado sem NF autorizada).
+2. Adicionar o novo status **"Chargeback em andamento"** e o filtro correspondente.
+3. Separar visualmente: "Chargeback em andamento" (laranja), "Chargeback perdido" (vermelho), "Cancelado" (cinza).
+4. Resumo superior (cards centralizados) refletindo **os 6 status oficiais**: Em aberto, Pendente, Concluído, Chargeback em andamento, Chargeback perdido, Cancelado.
+
+**No módulo Pedidos (core):**
+5. Manter os 3 filtros de chargeback que já existem (detectado, perdido, recuperado) — já estão corretos.
+6. Desmembrar o card único "Chargeback" do resumo superior em **3 cards** para casar com a granularidade do Fiscal: "Chargeback em andamento", "Chargeback perdido", "Chargeback recuperado". Assim o executivo lê a mesma informação nos dois módulos sem precisar abrir filtro.
+7. Padronizar os rótulos visuais: "Chargeback detectado" no filtro do core vira **"Chargeback em andamento"** (mesmo termo de negócio dos dois lados — o nome técnico interno continua o mesmo, só o rótulo na tela muda).
+
+**Conciliação entre os dois módulos:**
+8. O card "Aprovados / Aguardando NF" do módulo Pedidos e o card "Em aberto" do Fiscal passam a contar exatamente a mesma base (todo pedido aprovado, sem NF autorizada, sem chargeback, sem cancelamento).
+9. Soma dos cards de chargeback do Pedidos = soma dos cards de chargeback do Fiscal. Soma do card "Cancelado" do Fiscal = soma dos pedidos em estados terminais regressivos do core.
 
 ---
 
