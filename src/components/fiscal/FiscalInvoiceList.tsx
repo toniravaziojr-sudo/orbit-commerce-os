@@ -1101,7 +1101,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const ps = pedidoStatusOf(invoice);
     if (isPedidoBlockedForFiscalActions(ps)) {
       if (ps === 'pendente') toast.warning('Resolva as pendências do pedido antes de gerar a Declaração de Conteúdo.');
-      else if (ps === 'cancelled') toast.error('Pedido cancelado — Declaração de Conteúdo indisponível.');
+      else if (ps === 'cancelado') toast.error('Pedido cancelado — Declaração de Conteúdo indisponível.');
+      else if (ps === 'chargeback_perdido') toast.error('Chargeback perdido — Declaração de Conteúdo indisponível.');
       else toast.error('Pedido em chargeback — Declaração de Conteúdo indisponível.');
       return;
     }
