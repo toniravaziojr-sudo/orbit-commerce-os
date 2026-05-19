@@ -18,6 +18,8 @@ const ORDER_STATUSES = [
   'awaiting_confirmation', 'ready_to_invoice', 'invoice_pending_sefaz', 
   'invoice_authorized', 'invoice_issued', 'dispatched', 'completed', 
   'returning', 'payment_expired', 'invoice_rejected', 'invoice_cancelled',
+  // Cancelamento manual pelo lojista (cascateado a partir de set_payment_status='cancelled')
+  'cancelled_by_user',
   // Chargeback states (canonical, present in DB enum + UI filters)
   'chargeback_detected', 'chargeback_lost',
   // Legacy values still valid in DB enum
