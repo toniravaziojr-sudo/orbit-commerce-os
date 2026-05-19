@@ -350,10 +350,12 @@ export function useOrders(options?: {
   const deleteOrder = useMutation({
     mutationFn: async (id: string) => {
       const result = await coreOrdersApi.deleteOrder(id);
-      
+
       if (!result.success) {
-        // Usa a mensagem vinda do servidor (já em português, conforme regra do core-orders)
-        throw new Error(result.error || 'Erro ao remover pedido');
+        // Preserva mensagem PT-BR e code do servidor (core-orders) para a UI exibir tal qual.
+        const err = new Error(result.error || 'Erro ao remover pedido') as Error & { code?: string };
+        if (result.code) err.code = result.code;
+        throw err;
       }
 
       return result.data;
@@ -362,8 +364,14 @@ export function useOrders(options?: {
       queryClient.invalidateQueries({ queryKey: ['orders', currentTenant?.id] });
       toast.success('Pedido removido!');
     },
-    onError: (error: Error) => {
+    onError: (error: Error & { code?: string }) => {
       console.error('Erro ao remover pedido:', error);
+      // Regras de negócio do core-orders trazem mensagem pronta — não passar pelo fallback genérico.
+      const businessCodes = ['CANNOT_DELETE', 'CANNOT_DELETE_FISCAL', 'CANNOT_DELETE_SHIPPING', 'NOT_FOUND'];
+      if (error?.code && businessCodes.includes(error.code) && error.message) {
+        toast.error(error.message, { duration: 6000 });
+        return;
+      }
       showDeleteErrorToast('pedido', error);
     },
   });
