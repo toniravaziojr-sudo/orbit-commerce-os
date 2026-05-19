@@ -814,7 +814,7 @@ type PaymentMethod = 'pix' | 'credit_card' | 'debit_card' | 'boleto' | 'mercado_
 | Checkouts Abandonados | Checkout sem resposta do gateway permanece como sessão (pode virar abandonado) |
 | Produtos | Items referenciam `product_id` |
 | Descontos | `discount_total` e cupom |
-| Fiscal | Geração de NF-e a partir do pedido |
+| Fiscal | Geração de NF-e a partir do pedido. **Espelhamento Pedido → Pedido de Venda (PV):** ver seção 14. |
 | Notificações | Emails transacionais |
 | Marketplaces | Sincronização (ML, Shopee) |
 | Afiliados | Comissão calculada |
