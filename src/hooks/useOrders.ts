@@ -352,9 +352,7 @@ export function useOrders(options?: {
       const result = await coreOrdersApi.deleteOrder(id);
       
       if (!result.success) {
-        if (result.code === 'CANNOT_DELETE') {
-          throw new Error('Apenas pedidos pendentes ou cancelados podem ser excluídos');
-        }
+        // Usa a mensagem vinda do servidor (já em português, conforme regra do core-orders)
         throw new Error(result.error || 'Erro ao remover pedido');
       }
 
