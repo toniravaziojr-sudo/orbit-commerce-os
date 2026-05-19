@@ -1265,8 +1265,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           const cEmAberto = all.filter(i => pedidoStatusOf(i) === 'em_aberto').length;
           const cPendente = all.filter(i => pedidoStatusOf(i) === 'pendente').length;
           const cConcluido = all.filter(i => pedidoStatusOf(i) === 'concluido').length;
+          const cCbAndamento = all.filter(i => pedidoStatusOf(i) === 'chargeback_em_andamento').length;
+          const cCbPerdido = all.filter(i => pedidoStatusOf(i) === 'chargeback_perdido').length;
+          const cCancelado = all.filter(i => pedidoStatusOf(i) === 'cancelado').length;
           return (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <StatCard
                 title="Em aberto"
                 value={statsLoading ? '...' : cEmAberto.toString()}
@@ -1284,6 +1287,24 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                 value={statsLoading ? '...' : cConcluido.toString()}
                 icon={CheckCircle}
                 variant="success"
+              />
+              <StatCard
+                title="Chargeback em andamento"
+                value={statsLoading ? '...' : cCbAndamento.toString()}
+                icon={AlertTriangle}
+                variant="warning"
+              />
+              <StatCard
+                title="Chargeback perdido"
+                value={statsLoading ? '...' : cCbPerdido.toString()}
+                icon={AlertTriangle}
+                variant="destructive"
+              />
+              <StatCard
+                title="Cancelado"
+                value={statsLoading ? '...' : cCancelado.toString()}
+                icon={XCircle}
+                variant="default"
               />
             </div>
           );
