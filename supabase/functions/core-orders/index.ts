@@ -523,8 +523,11 @@ Deno.serve(async (req) => {
       }
 
       // ===== DELETE ORDER =====
+      // Regra: Somente pedidos CANCELADOS podem ser excluídos.
+      // Trava extra: bloqueia se houver NF autorizada ativa ou remessa não-cancelada
+      // (ações destrutivas legais/logísticas exigem tratamento humano via banner de regressão).
+      // Cascata: limpa rastros operacionais. Preserva cliente, lead, tags, métricas.
       case 'delete_order': {
-        // Get order first
         const { data: order, error: orderError } = await supabase
           .from('orders')
           .select('*')
@@ -534,59 +537,144 @@ Deno.serve(async (req) => {
 
         if (orderError || !order) {
           return new Response(
-            JSON.stringify({ success: false, error: 'Order not found', code: 'NOT_FOUND' }),
+            JSON.stringify({ success: false, error: 'Pedido não encontrado.', code: 'NOT_FOUND' }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Check if order can be deleted (only pending/cancelled orders)
-        if (!['pending', 'cancelled'].includes(order.status)) {
+        // 1) Regra principal: somente pedidos cancelados
+        if (order.status !== 'cancelled') {
           return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: 'Only pending or cancelled orders can be deleted', 
-              code: 'CANNOT_DELETE' 
+            JSON.stringify({
+              success: false,
+              error: 'Somente pedidos cancelados podem ser excluídos. Cancele o pedido antes de excluí-lo.',
+              code: 'CANNOT_DELETE',
             }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Delete related data first
-        await supabase.from('order_items').delete().eq('order_id', order_id);
-        await supabase.from('order_history').delete().eq('order_id', order_id);
+        // 2) Trava fiscal: NF autorizada ativa impede exclusão
+        const { data: blockingInvoices } = await supabase
+          .from('fiscal_invoices')
+          .select('id, status')
+          .eq('order_id', order_id)
+          .in('status', ['authorized', 'invoice_authorized', 'invoice_issued', 'issued']);
 
-        // Delete the order
+        if (blockingInvoices && blockingInvoices.length > 0) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Este pedido possui nota fiscal autorizada vinculada e não pode ser removido. Cancele a NF primeiro.',
+              code: 'CANNOT_DELETE_FISCAL',
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // 3) Trava logística: remessa não-cancelada impede exclusão
+        const { data: blockingShipments } = await supabase
+          .from('shipments')
+          .select('id, status')
+          .eq('order_id', order_id)
+          .not('status', 'in', '("cancelled","voided","void","canceled")');
+
+        if (blockingShipments && blockingShipments.length > 0) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Este pedido possui remessa ativa vinculada e não pode ser removido. Cancele a remessa primeiro.',
+              code: 'CANNOT_DELETE_SHIPPING',
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // 4) Cascata de limpeza — apaga rastros operacionais
+        const cleanupTables: string[] = [
+          'order_items',
+          'order_history',
+          'order_price_audit',
+          'order_attribution',
+          'payment_transactions',
+          'gateway_sync_queue',
+          'fiscal_draft_queue',
+          'shipping_draft_queue',
+          'shipments',
+          'shipping_content_declarations',
+          'review_tokens',
+          'affiliate_conversions',
+          'email_conversions',
+          'discount_redemptions',
+          'marketing_events_log',
+          'notification_logs',
+          'mp_pending_checkouts',
+          'whatsapp_carts',
+          'checkout_sessions',
+        ];
+
+        const cleanupCounts: Record<string, number> = {};
+        for (const table of cleanupTables) {
+          const { count, error: cleanupError } = await supabase
+            .from(table)
+            .delete({ count: 'exact' })
+            .eq('order_id', order_id);
+          if (cleanupError) {
+            console.warn(`[delete_order] cleanup ${table} failed:`, cleanupError.message);
+          }
+          cleanupCounts[table] = count ?? 0;
+        }
+
+        // 5) Desvincula (sem apagar) conversas e registros de marketplace
+        const unlinkTables: string[] = ['conversations', 'tiktok_shop_orders', 'tiktok_shop_returns'];
+        const unlinkCounts: Record<string, number> = {};
+        for (const table of unlinkTables) {
+          const { count, error: unlinkError } = await supabase
+            .from(table)
+            .update({ order_id: null }, { count: 'exact' })
+            .eq('order_id', order_id);
+          if (unlinkError) {
+            console.warn(`[delete_order] unlink ${table} failed:`, unlinkError.message);
+          }
+          unlinkCounts[table] = count ?? 0;
+        }
+
+        // 6) Apaga o pedido
         const { error: deleteError } = await supabase
           .from('orders')
           .delete()
-          .eq('id', order_id);
+          .eq('id', order_id)
+          .eq('tenant_id', tenantId);
 
         if (deleteError) {
           return errorResponse(deleteError, corsHeaders, { module: 'orders', action: 'delete' });
         }
 
-        // Audit log
+        // 7) Auditoria com snapshot + contagens
         await createAuditLog(supabase, {
           tenant_id: tenantId,
           entity_type: 'order',
           entity_id: order_id,
           action: 'delete_order',
           before_json: order,
-          after_json: { deleted: true },
+          after_json: { deleted: true, cleanup_counts: cleanupCounts, unlink_counts: unlinkCounts },
           changed_fields: ['deleted'],
           actor_user_id: userId,
           source: 'core-orders',
           correlation_id: correlationId,
         });
 
-        // Emit event
+        // 8) Evento no barramento para consumidores externos
         await emitEvent(supabase, tenantId, 'order.deleted', order_id, {
           order_id,
           order_number: order.order_number,
+          customer_email: order.customer_email,
+          cleanup_counts: cleanupCounts,
+          unlink_counts: unlinkCounts,
         }, `order_deleted_${order_id}`);
 
         return new Response(
-          JSON.stringify({ success: true, data: { order_id, deleted: true } }),
+          JSON.stringify({ success: true, data: { order_id, deleted: true, cleanup_counts: cleanupCounts, unlink_counts: unlinkCounts } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
