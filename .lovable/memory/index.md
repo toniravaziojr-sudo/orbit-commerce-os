@@ -130,3 +130,4 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Payment Cancel Cascades to cancelled_by_user](mem://constraints/payment-cancel-cascades-to-cancelled-by-user) — Cancelar pagamento manual cascateia status do pedido para 'cancelled_by_user', dispara trigger de regressão (limpa rascunhos) e libera exclusão. Status terminal, label "Cancelado pelo usuário".
 
 
+- [PV Cancellation Must Mirror Order](mem://constraints/pv-cancellation-must-mirror-order) — Pedido de Venda Fiscal (raiz) só pode ser marcado como cancelado quando o pedido original (orders.status) também estiver em estado terminal/regressivo. Trava em DB via trigger trg_guard_pv_cancellation; NFs filhas não são afetadas. Anti-regressão para divergência detectada em 19/05/2026 (PVs nº 52 e 180 no Respeite o Homem).
