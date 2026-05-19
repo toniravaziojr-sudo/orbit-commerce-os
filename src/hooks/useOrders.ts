@@ -227,7 +227,7 @@ export function useOrders(options?: {
   const statsQuery = useQuery({
     queryKey: ['orders-stats', currentTenant?.id, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField],
     queryFn: async () => {
-      if (!currentTenant?.id) return { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0, awaitingPaymentCount: 0, canceledCount: 0, awaitingInvoiceCount: 0, returningCount: 0, chargebackCount: 0 };
+      if (!currentTenant?.id) return { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0, awaitingPaymentCount: 0, canceledCount: 0, awaitingInvoiceCount: 0, returningCount: 0, chargebackCount: 0, chargebackInProgressCount: 0, chargebackLostCount: 0, chargebackRecoveredCount: 0 };
 
       // Pre-load date helpers if needed
       let startIso: string | undefined;
@@ -268,7 +268,7 @@ export function useOrders(options?: {
         return q;
       };
 
-      const [approvedRes, nfIssuedRes, shippedRes, awaitingPaymentRes, canceledRes, awaitingInvoiceRes, returningRes, chargebackDetectedRes, chargebackLostRes] = await Promise.all([
+      const [approvedRes, nfIssuedRes, shippedRes, awaitingPaymentRes, canceledRes, awaitingInvoiceRes, returningRes, chargebackDetectedRes, chargebackLostRes, chargebackRecoveredRes] = await Promise.all([
         buildStatQuery().eq('payment_status', 'approved' as any),
         buildStatQuery().eq('status', 'invoice_issued' as any),
         buildStatQuery().eq('shipping_status', 'shipped' as any),
@@ -278,7 +278,12 @@ export function useOrders(options?: {
         buildStatQuery().eq('status', 'returning' as any),
         buildStatQuery().eq('status', 'chargeback_detected' as any),
         buildStatQuery().eq('status', 'chargeback_lost' as any),
+        buildStatQuery().eq('status', 'chargeback_recovered' as any),
       ]);
+
+      const cbInProgress = chargebackDetectedRes.count ?? 0;
+      const cbLost = chargebackLostRes.count ?? 0;
+      const cbRecovered = chargebackRecoveredRes.count ?? 0;
 
       return {
         approvedCount: approvedRes.count ?? 0,
@@ -288,7 +293,10 @@ export function useOrders(options?: {
         canceledCount: canceledRes.count ?? 0,
         awaitingInvoiceCount: awaitingInvoiceRes.count ?? 0,
         returningCount: returningRes.count ?? 0,
-        chargebackCount: (chargebackDetectedRes.count ?? 0) + (chargebackLostRes.count ?? 0),
+        chargebackCount: cbInProgress + cbLost + cbRecovered,
+        chargebackInProgressCount: cbInProgress,
+        chargebackLostCount: cbLost,
+        chargebackRecoveredCount: cbRecovered,
       };
     },
     enabled: !!currentTenant?.id,
