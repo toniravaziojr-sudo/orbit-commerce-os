@@ -43,6 +43,7 @@ import {
   derivePedidoStatus,
   getPendenciaMotivos,
   isPedidoBlockedForFiscalActions,
+  getPedidoBlockedReason,
   PEDIDO_STATUS_CONFIG,
   type PedidoStatus,
 } from '@/lib/fiscal/pedidoStatus';
