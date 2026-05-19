@@ -611,6 +611,7 @@ Deno.serve(async (req) => {
         const cleanupCounts: Record<string, number> = {
           fiscal_invoice_items: 0,
           fiscal_invoices: 0,
+          shipping_content_declarations: 0,
         };
 
         if (removableFiscalInvoiceIds.length > 0) {
@@ -679,7 +680,7 @@ Deno.serve(async (req) => {
           if (cleanupError) {
             console.warn(`[delete_order] cleanup ${table} failed:`, cleanupError.message);
           }
-          cleanupCounts[table] = count ?? 0;
+          cleanupCounts[table] = (cleanupCounts[table] ?? 0) + (count ?? 0);
         }
 
         // 6) Desvincula (sem apagar) conversas e registros de marketplace
