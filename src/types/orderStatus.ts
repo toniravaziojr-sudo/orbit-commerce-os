@@ -136,6 +136,7 @@ export const LEGACY_ORDER_STATUS_MAP: Record<string, OrderStatus> = {
   completed: 'completed',
   returning: 'returning',
   payment_expired: 'payment_expired',
+  cancelled_by_user: 'cancelled_by_user',
   invoice_rejected: 'invoice_rejected',
   invoice_cancelled: 'invoice_cancelled',
   chargeback_detected: 'chargeback_detected',
