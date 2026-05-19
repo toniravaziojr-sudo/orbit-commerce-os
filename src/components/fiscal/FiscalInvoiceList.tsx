@@ -43,6 +43,7 @@ import {
   derivePedidoStatus,
   getPendenciaMotivos,
   isPedidoBlockedForFiscalActions,
+  getPedidoBlockedReason,
   PEDIDO_STATUS_CONFIG,
   type PedidoStatus,
 } from '@/lib/fiscal/pedidoStatus';
@@ -659,8 +660,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         if (ps === 'pendente') {
           toast.warning('Este pedido tem pendências. Abra "Editar" e resolva antes de criar a Nota Fiscal.');
           handleEditInvoice(invoice);
-        } else if (ps === 'cancelled') {
+        } else if (ps === 'cancelado') {
           toast.error('Pedido cancelado — não é possível emitir Nota Fiscal.');
+        } else if (ps === 'chargeback_perdido') {
+          toast.error('Chargeback perdido — não é possível emitir Nota Fiscal.');
         } else {
           toast.error('Pedido em chargeback — não é possível emitir Nota Fiscal.');
         }
@@ -1099,7 +1102,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     const ps = pedidoStatusOf(invoice);
     if (isPedidoBlockedForFiscalActions(ps)) {
       if (ps === 'pendente') toast.warning('Resolva as pendências do pedido antes de gerar a Declaração de Conteúdo.');
-      else if (ps === 'cancelled') toast.error('Pedido cancelado — Declaração de Conteúdo indisponível.');
+      else if (ps === 'cancelado') toast.error('Pedido cancelado — Declaração de Conteúdo indisponível.');
+      else if (ps === 'chargeback_perdido') toast.error('Chargeback perdido — Declaração de Conteúdo indisponível.');
       else toast.error('Pedido em chargeback — Declaração de Conteúdo indisponível.');
       return;
     }
@@ -1261,8 +1265,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           const cEmAberto = all.filter(i => pedidoStatusOf(i) === 'em_aberto').length;
           const cPendente = all.filter(i => pedidoStatusOf(i) === 'pendente').length;
           const cConcluido = all.filter(i => pedidoStatusOf(i) === 'concluido').length;
+          const cCbAndamento = all.filter(i => pedidoStatusOf(i) === 'chargeback_em_andamento').length;
+          const cCbPerdido = all.filter(i => pedidoStatusOf(i) === 'chargeback_perdido').length;
+          const cCancelado = all.filter(i => pedidoStatusOf(i) === 'cancelado').length;
           return (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <StatCard
                 title="Em aberto"
                 value={statsLoading ? '...' : cEmAberto.toString()}
@@ -1280,6 +1287,24 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                 value={statsLoading ? '...' : cConcluido.toString()}
                 icon={CheckCircle}
                 variant="success"
+              />
+              <StatCard
+                title="Chargeback em andamento"
+                value={statsLoading ? '...' : cCbAndamento.toString()}
+                icon={AlertTriangle}
+                variant="warning"
+              />
+              <StatCard
+                title="Chargeback perdido"
+                value={statsLoading ? '...' : cCbPerdido.toString()}
+                icon={AlertTriangle}
+                variant="destructive"
+              />
+              <StatCard
+                title="Cancelado"
+                value={statsLoading ? '...' : cCancelado.toString()}
+                icon={XCircle}
+                variant="default"
               />
             </div>
           );
@@ -1637,13 +1662,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             {(() => {
                               const ps = mode === 'orders' ? pedidoStatusOf(invoice) : null;
                               const blocked = ps ? isPedidoBlockedForFiscalActions(ps) : false;
-                              const blockedReason = ps === 'pendente'
-                                ? 'Resolva as pendências do pedido antes de emitir.'
-                                : ps === 'cancelled'
-                                ? 'Pedido cancelado — emissão indisponível.'
-                                : ps === 'chargeback'
-                                ? 'Pedido em chargeback — emissão indisponível.'
-                                : undefined;
+                              const blockedReason = ps ? getPedidoBlockedReason(ps) : undefined;
                               return (
                             <InvoiceActionsDropdown
                               invoice={invoice as any}
