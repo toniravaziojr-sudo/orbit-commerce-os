@@ -133,6 +133,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [confirmEmitInvoice, setConfirmEmitInvoice] = useState<FiscalInvoice | null>(null);
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
+  const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<FiscalInvoice | null>(null);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
 
@@ -982,23 +984,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   // Status com efeito fiscal (autorizada, pendente de transmissão, etc.) NÃO podem ser excluídos.
   const DELETABLE_STATUSES = new Set(['draft', 'rejected', 'cancelled']);
 
-  const handleDeleteDraft = async (invoice: FiscalInvoice) => {
+  const handleDeleteDraft = (invoice: FiscalInvoice) => {
     if (!DELETABLE_STATUSES.has(invoice.status as string)) {
       toast.error('Esta nota tem efeito fiscal e não pode ser excluída. Use Cancelar NF-e.');
       return;
     }
+    setConfirmDeleteInvoice(invoice);
+  };
 
-    const label =
-      invoice.status === 'rejected'
-        ? 'esta nota rejeitada'
-        : invoice.status === 'cancelled'
-        ? 'esta nota cancelada'
-        : 'este rascunho';
-
-    if (!window.confirm(`Tem certeza que deseja excluir ${label}? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
-
+  const executeDeleteInvoice = async () => {
+    const invoice = confirmDeleteInvoice;
+    if (!invoice) return;
+    setIsDeletingInvoice(true);
     try {
       await supabase
         .from('fiscal_invoice_items')
@@ -1012,10 +1009,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
       if (error) throw error;
       toast.success('Nota excluída');
+      setConfirmDeleteInvoice(null);
       refetch();
     } catch (error: any) {
       console.error('Error deleting invoice:', error);
       toast.error('Erro ao excluir nota');
+    } finally {
+      setIsDeletingInvoice(false);
     }
   };
 
@@ -1941,6 +1941,43 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
               }}
             >
               Emitir NF-e
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmar exclusão de nota sem efeito fiscal */}
+      <AlertDialog
+        open={!!confirmDeleteInvoice}
+        onOpenChange={(open) => { if (!open && !isDeletingInvoice) setConfirmDeleteInvoice(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir esta nota?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Esta ação <strong>não pode ser desfeita</strong>. A nota será removida permanentemente do sistema.
+                </p>
+                {confirmDeleteInvoice && (
+                  <p className="text-muted-foreground">
+                    NF {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  Só é permitido excluir notas sem efeito fiscal (Pronta para Emitir, Rejeitada ou Cancelada).
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingInvoice}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeletingInvoice}
+              onClick={(e) => { e.preventDefault(); executeDeleteInvoice(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingInvoice ? 'Excluindo...' : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
