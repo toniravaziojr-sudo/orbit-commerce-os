@@ -240,6 +240,28 @@ Regras:
 
 **Procedimento aplicado a notas legadas de homologação:** notas que estavam em `status = 'processing'` no ambiente de homologação no momento da virada foram marcadas como `rejected` com `status_motivo = "Emissão de teste em homologação descartada na virada para produção. Reemita esta nota em ambiente de produção."` e `ambiente = 'producao'`. O pedido de origem fica liberado para nova emissão real. Precedente aplicado à NF 1-287 (Respeite o Homem, 2026-05-19).
 
+#### Exclusão de notas fiscais — regra por efeito fiscal (rev 2026-05-19)
+
+Notas fiscais podem ser **excluídas** somente quando **não geram efeito fiscal junto à Sefaz**. A ação é restrita a **Proprietário e Administrador** do tenant — Operadores não excluem em nenhuma hipótese.
+
+**Status que permitem exclusão (sem efeito fiscal):**
+- `draft` — Pronta para Emitir / Rascunho (nunca foi transmitida).
+- `rejected` — Rejeitada pela Sefaz (não autorizada, sem efeito).
+- `cancelled` — Cancelada pela Sefaz após autorização — mas o registro local pode ser removido sem impacto fiscal (a Sefaz já tem o cancelamento autorizado).
+
+**Status que NÃO permitem exclusão (com efeito fiscal):**
+- `authorized` — Autorizada (NF válida). Usar **Cancelar NF-e** dentro do prazo legal.
+- `processing` / `pending` — Em transmissão. Aguardar resposta da Sefaz.
+- Demais status terminais com efeito fiscal.
+
+**Implementação:**
+- RLS em `fiscal_invoices` (policy `Owners and admins delete non-fiscal invoices`): `USING (status IN ('draft','rejected','cancelled') AND (has_role owner OR has_role admin))`.
+- UI: `InvoiceActionsDropdown` mostra item **"Excluir"** (vermelho) apenas em Pronta para Emitir, Rejeitada e Cancelada. Em Autorizada, mostra **"Cancelar NF-e"** em vez de Excluir.
+- Confirmação obrigatória via `window.confirm` antes da remoção. Itens vinculados (`fiscal_invoice_items`) são removidos junto.
+- Bulk delete (seleção múltipla) continua restrito apenas a `draft`.
+
+**Por que existe:** evita acúmulo de rascunhos órfãos e notas rejeitadas/canceladas poluindo a aba Notas Fiscais, sem permitir que o lojista remova registros com valor fiscal real.
+
 #### Status atual
 - **Respeite o Homem** e demais tenants: ambiente **produção**, emissão real de NF-e habilitada.
 
