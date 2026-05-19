@@ -24219,6 +24219,20 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: Json
       }
+      compute_pedido_venda_pendencias_v2: {
+        Args: {
+          p_cep: string
+          p_dest_cpf_cnpj: string
+          p_dest_nome: string
+          p_invoice_id: string
+          p_logradouro: string
+          p_municipio: string
+          p_municipio_codigo: string
+          p_uf: string
+          p_valor_total: number
+        }
+        Returns: Json
+      }
       consume_credits: {
         Args: {
           p_cost_usd: number
