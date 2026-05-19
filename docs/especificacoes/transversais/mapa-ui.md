@@ -205,7 +205,7 @@ O storefront público do lojista (loja virtual vista pelo consumidor) **não é 
 ### 4.6 Rotas do Painel Admin (dentro do AppShell)
 
 **E-commerce:**
-- `/orders` — Lista de pedidos
+- `/orders` — Lista de pedidos. Ação **Excluir** no menu "..." abre diálogo de confirmação que explicita: remoção do pedido + rastros operacionais (histórico, rascunhos fiscais/remessa, transações de pagamento, transportes, atribuição, eventos), preservação de cliente/lead, impacto em relatórios e métricas, ação irreversível. Botão de ação rotulado *"Excluir permanentemente"*. Bloqueio servidor exibe mensagem PT-BR específica (cancelado obrigatório / NF autorizada / remessa ativa) — ver `pedidos.md` §8.2.
 - `/orders/new` — Novo pedido manual. A rolagem vertical da tela deve acontecer no contêiner principal do `AppShell`; é proibido manter um segundo scroll estrutural no shell ou inflar a altura do documento com viewport fixa legado
 - `/orders/:id` — Detalhe do pedido (inclui `OrderRegressionBanner` quando há NF-e/etiqueta com `requires_action = true` por regressão de status — ver `pedidos.md` §4.6). O card *Tentativas de Pagamento* exibe a ação **"Estornar pagamento"** (`RefundPaymentDialog`) apenas para `owner`/`admin` quando há transação aprovada em gateway suportado — ver `pedidos.md` §7.2.1. **Marketplace (v3.2)**: na seção "Itens do Pedido", banner amarelo + badge "Pendente de vínculo" + botão "Vincular produto" (abre `ProductSelector`) aparecem para itens com `product_id = NULL`; ver `erp/erp-fiscal.md` §"Pedidos de Marketplace na Esteira Fiscal".
 - `/abandoned-checkouts` — Checkouts abandonados
