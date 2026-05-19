@@ -1882,8 +1882,9 @@ Configuração em Fiscal → Emitente → "Tributos PIS, COFINS e ICMS" (visíve
 Motor compartilhado: `supabase/functions/_shared/fiscal-tax-calculator.ts` (`calculateItemTaxes`). Aplicado em `fiscal-create-draft` e `fiscal-auto-create-drafts` no momento de montar os itens do Pedido de Venda. A NF clona os itens do Pedido (`fiscal-prepare-invoice`), portanto herda os impostos sem recalcular.
 
 Regras:
-- **Simples Nacional**: PIS/COFINS/ICMS zerados, usa `csosn`. Apuração real via DAS.
-- **Lucro Presumido / Real**: aplica `aliquota%` sobre o `valor_total` do item, usa `cst`. Precedência: override do produto → padrão do tenant → zero.
+- **Simples Nacional** (`regime_tributario='simples_nacional'`, CRT=1 ou 2): PIS/COFINS/ICMS zerados, usa `csosn`. Apuração real via DAS.
+- **MEI — Microempreendedor Individual** (`regime_tributario='mei'`, CRT=4): mesmo tratamento prático do Simples Nacional (PIS/COFINS/ICMS zerados, CSOSN padrão 102). A diferença está no código enviado à SEFAZ: `regime_tributario=4` no payload Focus NFe, evitando rejeição por divergência cadastral em CNPJs MEI. Selecionar CRT=4 na UI auto-define `regime_tributario='mei'` automaticamente. Adicionado em 2026-05-19.
+- **Lucro Presumido / Real** (CRT=3): aplica `aliquota%` sobre o `valor_total` do item, usa `cst`. Precedência: override do produto → padrão do tenant → zero.
 
 ## Resolução de IBGE do Município por CEP (2026-05-18c — Hotfix Universal)
 
