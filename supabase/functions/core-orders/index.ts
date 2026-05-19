@@ -44,6 +44,7 @@ const ORDER_TRANSITIONS: Record<string, string[]> = {
   completed: ['returning'],
   returning: [],
   payment_expired: [],
+  cancelled_by_user: [],
   invoice_rejected: ['ready_to_invoice'],
   invoice_cancelled: [],
   // Chargeback states
