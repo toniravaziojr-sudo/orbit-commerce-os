@@ -24211,6 +24211,10 @@ export type Database = {
         Args: { p_calendar_item_id: string }
         Returns: string
       }
+      compute_pedido_venda_avisos: {
+        Args: { p_invoice_id: string }
+        Returns: Json
+      }
       compute_pedido_venda_pendencias: {
         Args: { p_invoice_id: string }
         Returns: Json
