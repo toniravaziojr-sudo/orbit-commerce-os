@@ -1640,13 +1640,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                             {(() => {
                               const ps = mode === 'orders' ? pedidoStatusOf(invoice) : null;
                               const blocked = ps ? isPedidoBlockedForFiscalActions(ps) : false;
-                              const blockedReason = ps === 'pendente'
-                                ? 'Resolva as pendências do pedido antes de emitir.'
-                                : ps === 'cancelled'
-                                ? 'Pedido cancelado — emissão indisponível.'
-                                : ps === 'chargeback'
-                                ? 'Pedido em chargeback — emissão indisponível.'
-                                : undefined;
+                              const blockedReason = ps ? getPedidoBlockedReason(ps) : undefined;
                               return (
                             <InvoiceActionsDropdown
                               invoice={invoice as any}
