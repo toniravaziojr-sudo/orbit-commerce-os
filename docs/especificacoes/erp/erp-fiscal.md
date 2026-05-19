@@ -227,9 +227,21 @@ Toda edge function fiscal declara o tipo de operação ao resolver credenciais:
 
 Se o token exigido não estiver disponível, a operação falha de forma controlada (sem fallback silencioso para o token de outro ambiente ou para o token global).
 
-#### Status do piloto
+#### Ambiente fiscal — Produção universal (rev 2026-05-19)
 
-- **Respeite o Homem** permanece em **homologação** durante o piloto. O token de produção da empresa só será cadastrado após validação completa em homologação. Não há emissão real de NF-e no piloto.
+**Decisão definitiva:** o sistema opera **exclusivamente em ambiente de produção**. Homologação não é mais uma opção do sistema.
+
+Regras:
+- Toda nova loja já nasce em **produção** (default da coluna `ambiente` e `focus_ambiente` em `fiscal_settings`).
+- Existe **trigger BEFORE INSERT OR UPDATE** (`fiscal_settings_force_producao`) que reescreve automaticamente qualquer tentativa de gravar `'homologacao'` para `'producao'`. Funciona como trava anti-regressão: nenhum fluxo, script ou painel consegue voltar uma loja para homologação por engano.
+- A UI não expõe mais seletor de ambiente nem mensagens "Pronto para teste / Modo de teste fiscal ativo / Emitir NF-e de teste / NF-e (homologação)". O badge dinâmico foi substituído por **"Produção ativa — valor fiscal real"**.
+- Status `ready_for_test` foi mantido no contrato do backend por compatibilidade, mas é renderizado na UI como `ready` ("Pronto para emitir NF-e").
+- Coluna `focus_token_homologacao` permanece no schema apenas como histórico — não é mais lida em nenhum fluxo de produção. Pode ser depreciada em onda futura.
+
+**Procedimento aplicado a notas legadas de homologação:** notas que estavam em `status = 'processing'` no ambiente de homologação no momento da virada foram marcadas como `rejected` com `status_motivo = "Emissão de teste em homologação descartada na virada para produção. Reemita esta nota em ambiente de produção."` e `ambiente = 'producao'`. O pedido de origem fica liberado para nova emissão real. Precedente aplicado à NF 1-287 (Respeite o Homem, 2026-05-19).
+
+#### Status atual
+- **Respeite o Homem** e demais tenants: ambiente **produção**, emissão real de NF-e habilitada.
 
 #### Pendência futura (não bloqueante)
 
