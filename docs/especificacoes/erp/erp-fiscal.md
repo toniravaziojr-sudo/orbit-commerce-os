@@ -284,7 +284,9 @@ Card de saúde mostrado em **Configurações Fiscais**. Resume se a loja está a
 
 **Pré-requisitos para emissão real em produção:**
 - Tudo acima, com ambiente = `producao` e `focus_token_producao` configurado.
-- Recebimento automático com `webhook_status = 'validated'` (já recebeu pelo menos uma confirmação real da Focus).
+- Recebimento automático **cadastrado** na Focus, com `webhook_status` em `validated` **ou** `pending`. O status `pending` significa que o cadastro remoto foi feito com sucesso e o sistema está aguardando o 1º retorno real (que só chega quando a 1ª nota é emitida). **Exigir `validated` antes da 1ª emissão cria deadlock permanente** — a Focus só envia o callback que valida o webhook quando há uma emissão real, e a emissão estaria bloqueada esperando o callback. Por isso `pending` é aceito como liberação de produção; após a 1ª emissão bem-sucedida o status migra automaticamente para `validated`.
+
+> **Anti-regressão (rev 2026-05-19):** o portão de emissão (`fiscal-emit`, `fiscal-submit`) e o validador (`fiscal-integration-validate`) aceitam `webhook_status IN ('validated','pending')` em produção. É proibido reintroduzir bloqueio que exija `validated` como pré-condição da 1ª emissão. Caso de origem: tenant "Respeite o Homem", NF #1-289 (mai/2026). Demais pré-requisitos (certificado, CNPJ, empresa na Focus, ambiente, token do tenant) continuam bloqueando normalmente.
 
 **Quando a ativação automática é tentada:**
 - Ao chamar **"Validar integração fiscal"** no card.
