@@ -1115,6 +1115,22 @@ Deno.serve(async (req) => {
           updateData.status = cascadedOrderStatus;
         }
 
+        // Cascata simétrica: quando o lojista cancela o pagamento manualmente
+        // (set_payment_status='cancelled'), o status geral do pedido vai para
+        // 'cancelled_by_user' — exceto se já estiver em estado terminal/regressivo.
+        // Isso libera a exclusão pela regra do delete_order e dispara a limpeza
+        // de rascunhos pendentes via trigger cancel_pending_drafts_on_regression.
+        const ALREADY_TERMINAL_OR_REGRESSIVE = new Set([
+          'cancelled','cancelled_by_user','payment_expired','invoice_cancelled',
+          'chargeback_detected','chargeback_lost','returned','returning','completed',
+        ]);
+        if (new_status === 'cancelled' && !ALREADY_TERMINAL_OR_REGRESSIVE.has(order.status)) {
+          cascadedOrderStatus = 'cancelled_by_user';
+          updateData.status = cascadedOrderStatus;
+          updateData.cancelled_at = new Date().toISOString();
+          updateData.cancellation_reason = 'Cancelado por cancelamento de pagamento pelo lojista';
+        }
+
         const { error: updateError } = await supabase
           .from('orders')
           .update(updateData)
