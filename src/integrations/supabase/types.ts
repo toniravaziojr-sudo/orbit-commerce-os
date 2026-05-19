@@ -8615,6 +8615,7 @@ export type Database = {
           pagamento_indicador: number
           pagamento_meio: string
           pagamento_valor: number
+          pedido_status: string | null
           pendencia_avisos: Json | null
           pendencia_motivos: Json | null
           peso_bruto: number | null
@@ -8695,6 +8696,7 @@ export type Database = {
           pagamento_indicador?: number
           pagamento_meio?: string
           pagamento_valor?: number
+          pedido_status?: string | null
           pendencia_avisos?: Json | null
           pendencia_motivos?: Json | null
           peso_bruto?: number | null
@@ -8775,6 +8777,7 @@ export type Database = {
           pagamento_indicador?: number
           pagamento_meio?: string
           pagamento_valor?: number
+          pedido_status?: string | null
           pendencia_avisos?: Json | null
           pendencia_motivos?: Json | null
           peso_bruto?: number | null
@@ -24292,6 +24295,16 @@ export type Database = {
         }
         Returns: number
       }
+      derive_pv_pedido_status: {
+        Args: {
+          p_cancelled_at: string
+          p_chargeback_detected_at: string
+          p_has_authorized_nf: boolean
+          p_order_status: string
+          p_payment_status: string
+        }
+        Returns: string
+      }
       enqueue_ai_regeneration: {
         Args: {
           p_debounce_seconds?: number
@@ -24984,6 +24997,10 @@ export type Database = {
       sync_list_subscribers_from_tag: {
         Args: { p_list_id: string }
         Returns: Json
+      }
+      sync_pedido_status_for_order: {
+        Args: { p_order_id: string }
+        Returns: undefined
       }
       update_customer_order_stats: {
         Args: { p_tenant_id: string }
