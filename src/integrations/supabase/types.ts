@@ -24733,6 +24733,10 @@ export type Database = {
         Args: { p_member_id: string; p_owner_id: string }
         Returns: boolean
       }
+      is_payment_approved: {
+        Args: { p_payment_status: string }
+        Returns: boolean
+      }
       is_platform_admin: { Args: never; Returns: boolean }
       is_platform_admin_by_auth: { Args: never; Returns: boolean }
       is_platform_super_admin: { Args: never; Returns: boolean }
@@ -24798,6 +24802,10 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: boolean
       }
+      order_status_implies_paid: {
+        Args: { p_status: string }
+        Returns: boolean
+      }
       promote_learning_candidate: {
         Args: { p_learning_id: string }
         Returns: Json
@@ -24811,6 +24819,14 @@ export type Database = {
         Returns: {
           reclaimed_id: string
           tenant_id: string
+        }[]
+      }
+      reconcile_missing_fiscal_drafts: {
+        Args: { p_limit?: number; p_tenant_id?: string }
+        Returns: {
+          action: string
+          order_id: string
+          order_number: string
         }[]
       }
       record_ai_usage: {
