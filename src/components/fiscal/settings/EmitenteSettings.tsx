@@ -32,10 +32,7 @@ const CRT_OPTIONS = [
   { value: '2', label: '2 - Simples Nacional (excesso)' },
   { value: '3', label: '3 - Regime Normal' },
 ];
-const AMBIENTE_OPTIONS = [
-  { value: 'homologacao', label: 'Homologação (testes)' },
-  { value: 'producao', label: 'Produção' },
-];
+// Ambiente fixo em produção — sistema operando em ambiente fiscal real.
 
 function formatCNPJ(value: string) {
   const numbers = value.replace(/\D/g, '').slice(0, 14);
@@ -71,7 +68,7 @@ export function EmitenteSettings() {
     endereco_municipio: '', endereco_municipio_codigo: '', endereco_uf: '', endereco_cep: '',
     email: '', telefone: '',
     crt: 1, cfop_intrastadual: '5102', cfop_interestadual: '6102', csosn_padrao: '', cst_padrao: '',
-    serie_nfe: 1, numero_nfe_atual: 1, ambiente: 'homologacao', origem_fiscal_padrao: 0,
+    serie_nfe: 1, numero_nfe_atual: 1, ambiente: 'producao', origem_fiscal_padrao: 0,
   });
   const [certPassword, setCertPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -763,29 +760,19 @@ export function EmitenteSettings() {
         </CardContent>
       </Card>
 
-      {/* ============ AMBIENTE DE EMISSÃO — STATUS INFORMATIVO ============ */}
-      {/* Lojista comum NÃO escolhe ambiente. Troca é controle técnico/admin. */}
+      {/* ============ AMBIENTE DE EMISSÃO — INFORMATIVO ============ */}
       <Card id="card-ambiente">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />Ambiente de Emissão</CardTitle>
-          <CardDescription>Status atual do ambiente fiscal da sua loja.</CardDescription>
+          <CardDescription>Sua loja está emitindo notas fiscais com valor real.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {formData.ambiente === 'homologacao' ? (
-            <Alert className="border-amber-500 bg-amber-500/10">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-700 dark:text-amber-400">
-                <strong>Modo de teste fiscal ativo.</strong> As notas emitidas neste modo não têm valor fiscal. Este modo está sendo usado para validação técnica.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Alert className="border-emerald-500 bg-emerald-500/10">
-              <Globe className="h-4 w-4 text-emerald-600" />
-              <AlertDescription className="text-emerald-700 dark:text-emerald-400">
-                <strong>Ambiente de emissão: Produção.</strong> As notas fiscais emitidas terão valor fiscal real.
-              </AlertDescription>
-            </Alert>
-          )}
+          <Alert className="border-emerald-500 bg-emerald-500/10">
+            <Globe className="h-4 w-4 text-emerald-600" />
+            <AlertDescription className="text-emerald-700 dark:text-emerald-400">
+              <strong>Produção ativa.</strong> Todas as notas fiscais emitidas têm valor fiscal real perante a SEFAZ.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
 

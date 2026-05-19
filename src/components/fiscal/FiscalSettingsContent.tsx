@@ -28,11 +28,7 @@ const CRT_OPTIONS = [
   { value: '3', label: '3 - Regime Normal' },
 ];
 
-// Ambiente options
-const AMBIENTE_OPTIONS = [
-  { value: 'homologacao', label: 'Homologação (testes)' },
-  { value: 'producao', label: 'Produção' },
-];
+// Ambiente fixo em produção — sistema operando em ambiente fiscal real.
 
 // Order status options for auto-emit
 const EMIT_STATUS_OPTIONS = [
@@ -84,7 +80,7 @@ export function FiscalSettingsContent() {
     cst_padrao: '',
     serie_nfe: 1,
     numero_nfe_atual: 1,
-    ambiente: 'homologacao',
+    ambiente: 'producao',
     emissao_automatica: false,
     emitir_apos_status: 'ready_to_invoice',
     auto_create_shipment: false,
@@ -711,31 +707,6 @@ export function FiscalSettingsContent() {
                 )}
                 {hasCertificate ? 'Substituir Certificado' : 'Enviar Certificado'}
               </Button>
-            </div>
-
-            <Separator />
-
-            {/* Ambiente */}
-            <div className="space-y-2">
-              <Label htmlFor="ambiente">Ambiente *</Label>
-              <Select
-                value={formData.ambiente || 'homologacao'}
-                onValueChange={(v) => handleChange('ambiente', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {AMBIENTE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {formData.ambiente === 'homologacao' && (
-                <p className="text-xs text-amber-600">
-                  Notas em homologação não têm valor fiscal.
-                </p>
-              )}
             </div>
 
             <Separator />

@@ -717,15 +717,12 @@ export function InvoiceEditor({
     }
 
     // Confirmação obrigatória — nunca transmite com 1 clique direto.
-    const isHomologacao = (readiness?.ambiente || 'homologacao') === 'homologacao';
     const ok = await confirmAction({
-      title: isHomologacao ? 'Emitir NF-e de teste?' : 'Emitir NF-e com valor fiscal real?',
-      description: isHomologacao
-        ? 'Esta é uma emissão de teste em homologação. A nota não terá valor fiscal real e será transmitida à SEFAZ apenas para validação do fluxo.'
-        : 'Esta emissão terá valor fiscal real. A nota será transmitida à SEFAZ e passará a valer como documento fiscal oficial. Esta ação não pode ser desfeita.',
-      confirmLabel: isHomologacao ? 'Emitir NF-e de teste' : 'Emitir NF-e definitiva',
+      title: 'Emitir NF-e com valor fiscal real?',
+      description: 'Esta emissão terá valor fiscal real. A nota será transmitida à SEFAZ e passará a valer como documento fiscal oficial. Esta ação não pode ser desfeita.',
+      confirmLabel: 'Emitir NF-e definitiva',
       cancelLabel: 'Cancelar',
-      variant: isHomologacao ? 'info' : 'warning',
+      variant: 'warning',
     });
     if (!ok) return;
 
