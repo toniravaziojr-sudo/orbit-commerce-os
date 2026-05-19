@@ -545,8 +545,8 @@ Deno.serve(async (req) => {
           );
         }
 
-        // 1) Regra principal: somente pedidos cancelados
-        if (order.status !== 'cancelled') {
+        // 1) Regra principal: somente pedidos cancelados (manual ou por gateway/cliente)
+        if (order.status !== 'cancelled' && order.status !== 'cancelled_by_user') {
           return new Response(
             JSON.stringify({
               success: false,
