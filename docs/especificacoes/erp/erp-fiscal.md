@@ -299,11 +299,11 @@ A ativação automática reaproveita cadastro existente da Focus para o mesmo CN
 
 | Status | Quando | Cor |
 |--------|--------|-----|
-| `ready` | Produção com tudo OK e webhook `validated` | verde — "Pronto" |
+| `ready` | Produção com tudo OK e webhook `validated` **ou** `pending` (cadastro remoto confirmado, aguardando 1º retorno) | verde — "Pronto" |
 | `ready_for_test` | Homologação com empresa, certificado, token de homologação e webhook `pending`/`validated` | verde — "Pronto para teste" |
 | `config_pending` | Falta uma ação objetiva do usuário (ex: token de homologação ausente) | âmbar — "Configuração pendente" |
-| `error` | Falha real (cert vencido, falha remota da Focus, erro 401, falha na ativação) | vermelho — "Erro" |
-| `blocked` | **Apenas** em produção quando recebimento automático ainda não está `validated` ou outro requisito obrigatório falta | vermelho — "Bloqueado" |
+| `error` | Falha real (cert vencido, falha remota da Focus, erro 401, falha na ativação do webhook) | vermelho — "Erro" |
+| `blocked` | **Apenas** em produção quando o webhook nem chegou a ser cadastrado na Focus (sem `hook_id`) ou outro requisito obrigatório falta | vermelho — "Bloqueado" |
 
 Regras importantes:
 - Em homologação **não** é mostrado "Bloqueado" se o cenário está pronto para smoke test.
