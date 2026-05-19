@@ -24824,9 +24824,9 @@ export type Database = {
       reconcile_missing_fiscal_drafts: {
         Args: { p_limit?: number; p_tenant_id?: string }
         Returns: {
-          action: string
-          order_id: string
-          order_number: string
+          reconciled_action: string
+          reconciled_order_id: string
+          reconciled_order_number: string
         }[]
       }
       record_ai_usage: {
