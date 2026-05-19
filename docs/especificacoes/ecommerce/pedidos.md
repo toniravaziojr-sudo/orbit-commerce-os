@@ -221,6 +221,7 @@ type OrderStatus =
   | 'completed'                // Concluído
   | 'returning'                // Em devolução
   | 'payment_expired'          // Pagamento expirado
+  | 'cancelled_by_user'        // Cancelado pelo usuário (NOVO v2026-05-19 — cascateado de set_payment_status='cancelled')
   | 'invoice_rejected'         // NF Rejeitada
   | 'invoice_cancelled'        // NF Cancelada
   | 'chargeback_detected'      // Chargeback detectado (NOVO v2026-04-07)
