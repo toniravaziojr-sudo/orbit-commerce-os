@@ -1944,6 +1944,21 @@ Sem alteração nos campos de destinatário, ou em pedidos sem cliente vinculado
 - `src/components/fiscal/InvoiceEditor.tsx` — `persistSave` chama `onOpenChange(false)` quando não há etapa encadeada.
 - `src/components/fiscal/FiscalInvoiceList.tsx` — estado `pageSize`/`currentPage`, slice `pagedInvoices`, ref de linhas, destaque pós-save (`highlightedInvoiceId`) e rodapé de paginação.
 
+### Hotfix 2026-05-19 — Aviso "Endereço incompatível com o CEP" não desaparecia após correção
+
+**Problema.** Mesmo depois de o usuário corrigir a UF no Pedido de Venda (via "Salvar e atualizar cadastro"), o aviso amarelo de divergência entre UF e CEP continuava aparecendo na lista e dentro do pedido. O cadastro do cliente era atualizado corretamente, mas o aviso ficava "preso".
+
+**Causa raiz.** O recálculo automático de pendências e avisos do Pedido de Venda rodava antes da gravação, mas consultava os próprios dados da tabela — que, naquele instante, ainda continham os valores antigos. Resultado: o aviso era recalculado com base no estado antigo e regravado idêntico, dando a impressão de que a correção não funcionou.
+
+**Correção.** O recálculo de avisos e pendências passou a usar os valores novos que estão sendo gravados, não os antigos da tabela. Assim:
+- Ao corrigir a UF (ou cidade) no pedido, o aviso some imediatamente.
+- Se em uma edição futura a UF voltar a divergir do CEP, o aviso reaparece automaticamente.
+- Não há mudança de UI, de regra de negócio nem de fluxo: continua sendo aviso (amarelo, não bloqueia emissão), conforme Hotfix 2026-05-18e.
+
+**Limpeza retroativa.** Pedidos em aberto com avisos pendentes foram reavaliados após o ajuste; casos antigos onde a UF já estava correta (como o Pedido 1-75 — João Marcos / MT) tiveram o aviso removido automaticamente. Permaneceram apenas os casos com divergência real (ex.: UF gravada como "SAO PAULO" em vez de "SP"), que continuam pendentes de correção pelo lojista.
+
+**Confirmação operacional.** O fluxo "Salvar e atualizar cadastro" continua propagando o endereço corrigido para o cadastro do cliente e para o Pedido de Venda fiscal. O pedido original (módulo Pedidos) permanece imutável após virar Pedido de Venda — comportamento intencional documentado neste mesmo documento.
+
 **Lacuna conhecida (não bloqueante).** A consulta de listagem fiscal ainda traz todos os registros do tenant (até o teto de 1.000 do Supabase). A paginação real no servidor com `range()` fica como evolução futura quando algum tenant ultrapassar ~800 registros ativos — neste momento o ganho de UX já cobre o problema imediato e elimina o risco de scroll infinito.
 
 **Validação técnica:**
