@@ -345,15 +345,28 @@ export function OrderList({
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir pedido?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O pedido será permanentemente removido.
+            <AlertDialogTitle>Excluir pedido permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Esta ação remove o pedido e todos os seus rastros do sistema:
+                  histórico, rascunhos fiscais e de remessa, transações de pagamento,
+                  transportes, atribuição de venda e eventos relacionados.
+                </p>
+                <p>
+                  <strong className="text-foreground">O cadastro do cliente e o lead são preservados</strong>,
+                  mas as métricas e relatórios deixarão de contabilizar este pedido.
+                </p>
+                <p className="text-destructive font-medium">
+                  Esta ação não pode ser desfeita.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground">
-              Excluir
+              Excluir permanentemente
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
