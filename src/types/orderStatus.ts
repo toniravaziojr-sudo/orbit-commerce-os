@@ -36,6 +36,7 @@ export type OrderStatus =
   | 'completed'                // Concluído - Chegou ao destino
   | 'returning'                // Em devolução - NF de devolução emitida
   | 'payment_expired'          // Pagamento expirado - Não pago, expirou
+  | 'cancelled_by_user'        // Cancelado pelo usuário - Lojista cancelou o pagamento manualmente
   | 'invoice_rejected'         // NF Rejeitada - SEFAZ rejeitou
   | 'invoice_cancelled'        // NF Cancelada - Cancelada pós-autorização
   | 'chargeback_detected'      // Chargeback detectado - Em análise
