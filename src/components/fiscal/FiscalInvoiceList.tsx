@@ -978,10 +978,24 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
-  // Delete single draft
+  // Excluir nota sem efeito fiscal (rascunho/pronta para emitir, rejeitada ou cancelada).
+  // Status com efeito fiscal (autorizada, pendente de transmissão, etc.) NÃO podem ser excluídos.
+  const DELETABLE_STATUSES = new Set(['draft', 'rejected', 'cancelled']);
+
   const handleDeleteDraft = async (invoice: FiscalInvoice) => {
-    if (invoice.status !== 'draft') {
-      toast.error('Apenas rascunhos podem ser excluídos');
+    if (!DELETABLE_STATUSES.has(invoice.status as string)) {
+      toast.error('Esta nota tem efeito fiscal e não pode ser excluída. Use Cancelar NF-e.');
+      return;
+    }
+
+    const label =
+      invoice.status === 'rejected'
+        ? 'esta nota rejeitada'
+        : invoice.status === 'cancelled'
+        ? 'esta nota cancelada'
+        : 'este rascunho';
+
+    if (!window.confirm(`Tem certeza que deseja excluir ${label}? Esta ação não pode ser desfeita.`)) {
       return;
     }
 
@@ -997,11 +1011,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         .eq('id', invoice.id);
 
       if (error) throw error;
-      toast.success('Rascunho excluído');
+      toast.success('Nota excluída');
       refetch();
     } catch (error: any) {
-      console.error('Error deleting draft:', error);
-      toast.error('Erro ao excluir rascunho');
+      console.error('Error deleting invoice:', error);
+      toast.error('Erro ao excluir nota');
     }
   };
 
