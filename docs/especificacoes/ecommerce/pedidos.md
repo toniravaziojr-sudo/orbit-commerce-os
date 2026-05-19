@@ -221,6 +221,7 @@ type OrderStatus =
   | 'completed'                // Concluído
   | 'returning'                // Em devolução
   | 'payment_expired'          // Pagamento expirado
+  | 'cancelled_by_user'        // Cancelado pelo usuário (NOVO v2026-05-19 — cascateado de set_payment_status='cancelled')
   | 'invoice_rejected'         // NF Rejeitada
   | 'invoice_cancelled'        // NF Cancelada
   | 'chargeback_detected'      // Chargeback detectado (NOVO v2026-04-07)
@@ -743,7 +744,9 @@ Mudanças por webhook, verificação ativa e cron registradas automaticamente:
 
 **Onde:** Lista `/orders` → menu "..." de cada linha → opção **Excluir** (única superfície de UI). Não há ação equivalente nas telas de Fiscal nem de Logística — esses módulos apenas refletem o pedido; a exclusão é sempre originada no módulo Pedidos.
 
-**Quem pode (regra canônica):** Apenas pedidos com **`status = 'cancelled'`** (estrito). Qualquer outro status é rejeitado pelo `core-orders` com `code: 'CANNOT_DELETE'` e mensagem PT-BR: *"Somente pedidos cancelados podem ser excluídos. Cancele o pedido antes de excluí-lo."* O status legado `'pending'` foi removido do allow-list.
+**Quem pode (regra canônica):** Apenas pedidos com **`status IN ('cancelled', 'cancelled_by_user')`** (estrito). Qualquer outro status é rejeitado pelo `core-orders` com `code: 'CANNOT_DELETE'` e mensagem PT-BR: *"Somente pedidos cancelados podem ser excluídos. Cancele o pedido antes de excluí-lo."* O status legado `'pending'` foi removido do allow-list.
+
+> **v2026-05-19 — Cascata de cancelamento manual:** quando o lojista altera o **Status de Pagamento → Cancelado** na tela do pedido, o `set_payment_status` cascateia automaticamente `orders.status` para **`cancelled_by_user`** (rótulo "Cancelado pelo usuário"), grava `cancelled_at` e `cancellation_reason='Cancelado por cancelamento de pagamento pelo lojista'`. Esse status é terminal, dispara o trigger `cancel_pending_drafts_on_regression` (cancela rascunhos fiscais/logísticos/gateway pendentes) e está no allow-list de exclusão. A cascata só ocorre se o pedido ainda estiver ativo — não sobrescreve estados terminais (`chargeback_lost`, `payment_expired`, `invoice_cancelled`, `completed`, etc.).
 
 **Travas adicionais (mesmo cancelado):**
 - **Fiscal** — se existir `fiscal_invoices` vinculada com status em `('authorized','invoice_authorized','invoice_issued','issued')`, exclusão é bloqueada com `code: 'CANNOT_DELETE_FISCAL'` e mensagem: *"Este pedido possui nota fiscal autorizada vinculada e não pode ser removido. Cancele a NF primeiro."*

@@ -18,6 +18,8 @@ const ORDER_STATUSES = [
   'awaiting_confirmation', 'ready_to_invoice', 'invoice_pending_sefaz', 
   'invoice_authorized', 'invoice_issued', 'dispatched', 'completed', 
   'returning', 'payment_expired', 'invoice_rejected', 'invoice_cancelled',
+  // Cancelamento manual pelo lojista (cascateado a partir de set_payment_status='cancelled')
+  'cancelled_by_user',
   // Chargeback states (canonical, present in DB enum + UI filters)
   'chargeback_detected', 'chargeback_lost',
   // Legacy values still valid in DB enum
@@ -42,6 +44,7 @@ const ORDER_TRANSITIONS: Record<string, string[]> = {
   completed: ['returning'],
   returning: [],
   payment_expired: [],
+  cancelled_by_user: [],
   invoice_rejected: ['ready_to_invoice'],
   invoice_cancelled: [],
   // Chargeback states
@@ -542,8 +545,8 @@ Deno.serve(async (req) => {
           );
         }
 
-        // 1) Regra principal: somente pedidos cancelados
-        if (order.status !== 'cancelled') {
+        // 1) Regra principal: somente pedidos cancelados (manual ou por gateway/cliente)
+        if (order.status !== 'cancelled' && order.status !== 'cancelled_by_user') {
           return new Response(
             JSON.stringify({
               success: false,
@@ -1017,7 +1020,7 @@ Deno.serve(async (req) => {
         // for regressivo. O handler é idempotente — triggers DB já fazem o
         // grosso, mas a edge cobre cenários extras (logs, futuras integrações).
         const REGRESSIVE = new Set([
-          'cancelled','returned','returning',
+          'cancelled','cancelled_by_user','returned','returning',
           'chargeback_detected','chargeback_lost',
           'payment_expired','invoice_cancelled',
         ]);
@@ -1110,6 +1113,22 @@ Deno.serve(async (req) => {
         if (new_status === 'paid' && PRE_INVOICE_ORDER_STATUSES.has(order.status)) {
           cascadedOrderStatus = 'ready_to_invoice';
           updateData.status = cascadedOrderStatus;
+        }
+
+        // Cascata simétrica: quando o lojista cancela o pagamento manualmente
+        // (set_payment_status='cancelled'), o status geral do pedido vai para
+        // 'cancelled_by_user' — exceto se já estiver em estado terminal/regressivo.
+        // Isso libera a exclusão pela regra do delete_order e dispara a limpeza
+        // de rascunhos pendentes via trigger cancel_pending_drafts_on_regression.
+        const ALREADY_TERMINAL_OR_REGRESSIVE = new Set([
+          'cancelled','cancelled_by_user','payment_expired','invoice_cancelled',
+          'chargeback_detected','chargeback_lost','returned','returning','completed',
+        ]);
+        if (new_status === 'cancelled' && !ALREADY_TERMINAL_OR_REGRESSIVE.has(order.status)) {
+          cascadedOrderStatus = 'cancelled_by_user';
+          updateData.status = cascadedOrderStatus;
+          updateData.cancelled_at = new Date().toISOString();
+          updateData.cancellation_reason = 'Cancelado por cancelamento de pagamento pelo lojista';
         }
 
         const { error: updateError } = await supabase

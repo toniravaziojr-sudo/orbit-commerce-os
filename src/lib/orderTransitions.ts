@@ -20,6 +20,7 @@ export const ORDER_TRANSITIONS: Record<string, string[]> = {
   completed: ['returning'],
   returning: [],
   payment_expired: [],
+  cancelled_by_user: [],
   invoice_rejected: ['ready_to_invoice'],
   invoice_cancelled: [],
   chargeback_detected: ['chargeback_lost', 'ready_to_invoice', 'invoice_issued', 'dispatched', 'completed'],

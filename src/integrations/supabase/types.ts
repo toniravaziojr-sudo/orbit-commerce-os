@@ -25277,6 +25277,7 @@ export type Database = {
         | "chargeback_detected"
         | "chargeback_lost"
         | "chargeback_recovered"
+        | "cancelled_by_user"
       payment_method:
         | "pix"
         | "credit_card"
@@ -25670,6 +25671,7 @@ export const Constants = {
         "chargeback_detected",
         "chargeback_lost",
         "chargeback_recovered",
+        "cancelled_by_user",
       ],
       payment_method: [
         "pix",
