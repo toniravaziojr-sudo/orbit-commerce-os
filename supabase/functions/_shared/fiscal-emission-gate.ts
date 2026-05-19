@@ -76,14 +76,23 @@ export function evaluateEmissionGate(input: GateInput): GateResult {
         code: "certificate_cnpj_mismatch",
       };
     }
-    if (webhookStatus !== "validated") {
+    // Aceita "validated" (já confirmado) ou "pending" (registrado na Focus, aguardando 1º retorno).
+    // O status "pending" só é gravado após sucesso no cadastro remoto na Focus, então é seguro
+    // permitir a 1ª emissão — é justamente ela que dispara o callback que valida o webhook
+    // (chicken-and-egg: sem 1ª emissão, nunca sai de pending).
+    if (webhookStatus !== "validated" && webhookStatus !== "pending") {
       return {
         blocked: true,
         warnings,
         error:
-          "Webhook Focus NFe não validado para este tenant. Cadastre e valide o webhook antes de emitir em produção.",
+          "Recebimento automático de retornos ainda não está preparado. Reprocesse a configuração fiscal antes de emitir em produção.",
         code: "webhook_not_validated",
       };
+    }
+    if (webhookStatus === "pending") {
+      warnings.push(
+        "Recebimento automático em preparação — será confirmado na primeira nota emitida.",
+      );
     }
     if (!webhookEnvMatches) {
       return {
