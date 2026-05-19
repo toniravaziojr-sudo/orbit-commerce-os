@@ -984,23 +984,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   // Status com efeito fiscal (autorizada, pendente de transmissão, etc.) NÃO podem ser excluídos.
   const DELETABLE_STATUSES = new Set(['draft', 'rejected', 'cancelled']);
 
-  const handleDeleteDraft = async (invoice: FiscalInvoice) => {
+  const handleDeleteDraft = (invoice: FiscalInvoice) => {
     if (!DELETABLE_STATUSES.has(invoice.status as string)) {
       toast.error('Esta nota tem efeito fiscal e não pode ser excluída. Use Cancelar NF-e.');
       return;
     }
+    setConfirmDeleteInvoice(invoice);
+  };
 
-    const label =
-      invoice.status === 'rejected'
-        ? 'esta nota rejeitada'
-        : invoice.status === 'cancelled'
-        ? 'esta nota cancelada'
-        : 'este rascunho';
-
-    if (!window.confirm(`Tem certeza que deseja excluir ${label}? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
-
+  const executeDeleteInvoice = async () => {
+    const invoice = confirmDeleteInvoice;
+    if (!invoice) return;
+    setIsDeletingInvoice(true);
     try {
       await supabase
         .from('fiscal_invoice_items')
@@ -1014,10 +1009,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
       if (error) throw error;
       toast.success('Nota excluída');
+      setConfirmDeleteInvoice(null);
       refetch();
     } catch (error: any) {
       console.error('Error deleting invoice:', error);
       toast.error('Erro ao excluir nota');
+    } finally {
+      setIsDeletingInvoice(false);
     }
   };
 
