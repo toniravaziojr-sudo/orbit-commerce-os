@@ -874,4 +874,62 @@ type PaymentMethod = 'pix' | 'credit_card' | 'debit_card' | 'boleto' | 'mercado_
 
 ---
 
+## 14. Espelhamento Pedido → Pedido de Venda (Fiscal)
+
+> **Vigência:** v2026-05-19. Estabelece o Pedido de Venda (PV) da aba Fiscal como espelho **vivo** do Pedido (core), não mais uma "foto" do momento da aprovação.
+
+### 14.1 Os 6 status oficiais do PV
+
+| Status PV | Quando aparece | Cor |
+|---|---|---|
+| Pedido em aberto | Pedido aprovado, sem NF autorizada, sem chargeback/cancelamento | Azul |
+| Pendente | Falta dado fiscal obrigatório (peso, NCM, endereço) | Amarelo |
+| Concluído | Existe NF autorizada derivada deste PV | Verde |
+| Chargeback em andamento | Pedido em `chargeback_detected` (disputa aberta) | Laranja |
+| Chargeback perdido | Pedido em `chargeback_lost` (terminal) | Vermelho |
+| Cancelado | Pedido em `cancelled`, `cancelled_by_user`, `payment_expired`, `invoice_cancelled`, `returning`, `returned` | Cinza |
+
+### 14.2 Mapeamento status do Pedido (core) → status do PV
+
+| Status Pedido (core) | Status PV |
+|---|---|
+| `pending`, `awaiting_payment`, `awaiting_confirmation` | (não gera PV) |
+| `paid`, `ready_to_invoice`, `processing`, `invoice_pending_sefaz`, `invoice_rejected` | Pedido em aberto |
+| `invoice_authorized`, `invoice_issued`, `dispatched`, `shipped`, `in_transit`, `delivered`, `completed`, `fulfilled` | Concluído (se NF autorizada existir; senão Em aberto) |
+| `chargeback_detected` | Chargeback em andamento |
+| `chargeback_recovered` | Pedido em aberto (ou Concluído se NF autorizada) |
+| `chargeback_lost` | Chargeback perdido |
+| `cancelled`, `cancelled_by_user`, `payment_expired`, `invoice_cancelled`, `returning`, `returned` | Cancelado |
+
+### 14.3 Regra de precedência
+
+Quando mais de uma regra se aplica ao mesmo PV, vale a primeira (de cima para baixo):
+1. Chargeback perdido (terminal)
+2. Cancelado / expirado / devolvido
+3. Chargeback em andamento
+4. Concluído (NF autorizada derivada existe)
+5. Pendente (falta dado fiscal)
+6. Pedido em aberto
+
+### 14.4 Arquitetura técnica
+
+- **Denormalização controlada:** coluna `fiscal_invoices.order_lifecycle_status` espelha `orders.status` atual do pedido vinculado.
+- **Gatilho de propagação:** `mirror_order_status_to_pv` no `orders` (AFTER UPDATE OF status) propaga para todos os PVs ligados via `source_order_invoice_id`/`order_id`.
+- **Derivação:** `derive_pv_pedido_status(pv)` aplica a precedência da seção 14.3 e popula `fiscal_invoices.pedido_status` (fonte única consumida pela UI).
+- **Gatilho de criação resiliente:** `enqueue_fiscal_draft` e `enqueue_fiscal_on_item_link` reconhecem vocabulário antigo (`approved`) e novo (`paid`, `processing`, `shipped`, etc.) via helpers `is_payment_approved` e `order_status_implies_paid`.
+- **Reconciliação:** `reconcile_missing_fiscal_drafts` (cron) detecta pedidos aprovados sem PV e enfileira.
+
+### 14.5 Princípio de segurança preservado
+
+Automação **nunca** cancela NF-e autorizada nem etiqueta despachada. Mudança no PV é apenas sinalização visual/filtro — NF emitida permanece válida no SEFAZ até ação humana, com bandeira `requires_action` (regra da seção 7.x — Anti-Regressão Pós-Aprovação).
+
+### 14.6 Paridade de contadores entre módulos
+
+- Card "Aprovados / Aguardando NF" (Pedidos) = card "Em aberto" (Fiscal).
+- Soma dos 3 cards de chargeback (Pedidos) = soma dos cards Chargeback em andamento + Chargeback perdido (Fiscal) + chargeback recuperado (que volta para Em aberto).
+- Rótulo unificado: "Chargeback em andamento" nos dois módulos (antes "Chargeback detectado" no core).
+
+---
+
 *Fim do documento.*
+
