@@ -1,71 +1,145 @@
-## Contexto
+# Plano — Pedidos de Venda do módulo Fiscal como espelho fiel do módulo de Pedidos (core)
 
-No Pedido de Venda (modelo Bling) hoje:
+## Diagnóstico — o que está quebrado hoje
 
-- A aba **Transp.** mostra modalidade do frete, transportadora, peso e volumes — mas **não mostra o serviço que o cliente escolheu** no checkout (PAC, SEDEX, Mini Envios, Loggi Express, etc.). Essa informação já existe no pedido original.
-- A aba **Dest.** (destinatário) permite editar livremente nome, CPF/CNPJ, endereço, telefone e e-mail — mas as alterações ficam só no pedido. O cadastro do cliente continua desatualizado e ninguém é avisado.
+Auditoria do fluxo Pedidos → aba **Pedidos de Venda** do Fiscal encontrou 4 falhas estruturais que se reforçam:
 
-## O que vou fazer
+**1. Gatilho de criação do Pedido de Venda usa vocabulário legado.**
+O sistema só cria o registro fiscal quando o pedido entra em pagamento "aprovado" no vocabulário antigo. O vocabulário oficial atual é outro. Resultado: parte dos pedidos aprovados nunca é enfileirada e nasce sem PV (caso do pedido #182 no respeiteohomem).
 
-### 1. Serviço da transportadora visível e travado ao pedido
+**2. O Pedido de Venda é uma "foto" — não acompanha o ciclo de vida do pedido.**
+Depois de criado, o PV não recebe nenhuma atualização quando o pedido muda (cancela, vira chargeback, é recuperado, é devolvido). A lista do Fiscal hoje tenta ler um indicador de estado do pedido que **nem existe** na base — por isso os status "Cancelado" e "Chargeback" no filtro **nunca disparam**, apesar de aparecerem no código.
 
-Na aba **Transp.**, abaixo de "Nome/Razão Social da Transportadora", incluir um novo campo **Serviço contratado**:
+**3. Regressões cancelam só a fila, não o PV já materializado.**
+Quando um pedido vira chargeback/cancelado/expirado, o sistema cancela apenas itens ainda em processamento. O PV que já existe continua marcado como "em aberto" para sempre. Foi exatamente o caso do Marcos (#476, expirado) e do Luiz (#173, chargeback).
 
-- Preenchido automaticamente com o serviço escolhido pelo cliente no checkout (PAC, SEDEX, Mini Envios, Loggi Express, etc.), dentro da transportadora que o cliente selecionou.
-- Funciona para qualquer transportadora (Correios, Frenet, Loggi, futuras), porque a informação vem direto do pedido original.
-- Exibido também no card "Dados do Transporte" como uma linha clara: "Transportadora: Correios — SEDEX".
-- Editável apenas em casos manuais (pedido criado sem cotação) ou se o usuário precisar trocar antes do despacho. Em pedido que veio do checkout, valor já chega preenchido.
+**4. Não existe caminho de volta nem distinção entre estados de chargeback.**
+- "Chargeback em andamento" (disputa aberta) hoje não existe — fica como "em aberto" normal.
+- "Chargeback perdido" não tem visual próprio.
+- "Chargeback recuperado" não devolve o PV para "em aberto".
 
-Pedidos antigos sem essa informação salva mostram o campo vazio com aviso "Serviço não informado no checkout".
+---
 
-### 2. Edição do destinatário com aviso de sincronização com o cadastro
+## Regra de negócio final (a ser implementada)
 
-Quando o usuário alterar qualquer campo da aba **Dest.** (nome, CPF/CNPJ, endereço completo, telefone, e-mail) e clicar em **Salvar Pedido**, em vez de salvar direto, aparece um diálogo de confirmação:
+### Os 6 status oficiais do Pedido de Venda
 
-```text
-┌──────────────────────────────────────────────────┐
-│ Você alterou dados que também estão no cadastro  │
-│ do cliente.                                      │
-│                                                  │
-│ Campos alterados:                                │
-│  • Endereço                                      │
-│  • Telefone                                      │
-│                                                  │
-│ Como deseja salvar?                              │
-│                                                  │
-│  [ Salvar pedido e atualizar cadastro ] ← padrão │
-│  [ Salvar somente neste pedido ]                 │
-│  [ Cancelar ]                                    │
-└──────────────────────────────────────────────────┘
-```
+| Status PV | Quando aparece | Cor |
+|---|---|---|
+| **Pedido em aberto** | Pedido aprovado, sem NF autorizada e sem pendência | Azul |
+| **Pendente** | Falta dado fiscal obrigatório (NCM, peso, endereço, etc.) | Amarelo |
+| **Concluído** | Já existe NF autorizada derivada deste PV | Verde |
+| **Chargeback em andamento** | Pedido com chargeback detectado, em disputa | Laranja |
+| **Chargeback perdido** | Disputa de chargeback perdida (terminal) | Vermelho |
+| **Cancelado** | Pedido cancelado, expirado pelo prazo, ou devolvido | Cinza/Vermelho |
 
-Regras:
+Cada status tem filtro próprio na aba Pedidos de Venda e card de contagem no topo.
 
-- **Salvar pedido e atualizar cadastro** (botão azul, opção padrão): salva o pedido e atualiza o cadastro do cliente com os mesmos dados. Use quando o cadastro estava errado de verdade.
-- **Salvar somente neste pedido** (botão secundário): salva só este pedido. O cadastro permanece como está. Use quando é uma correção pontual (ex.: entregar em outro endereço só desta vez).
-- **Cancelar**: volta para a edição.
-- O diálogo só aparece se houver mudança em pelo menos um campo da aba Dest. Sem alteração → salva direto, sem perguntar nada.
-- Se o pedido não tem cliente vinculado (avulso/manual), o diálogo não aparece — salva direto.
+### Mapeamento completo de cada status do módulo Pedidos (core) → status do Pedido de Venda
 
-### 3. Documentação
+Esta é a fonte única de verdade. Toda mudança no pedido refaz o cálculo automaticamente.
 
-Atualizar a documentação do módulo fiscal (Pedido de Venda / modelo Bling) descrevendo:
-- Novo campo "Serviço contratado" na aba Transp. e de onde vem o dado.
-- Fluxo de edição da aba Dest. com 3 opções de salvamento e o critério para o diálogo aparecer.
+| Status no módulo Pedidos | Status no Pedido de Venda (Fiscal) |
+|---|---|
+| `pending` / `awaiting_payment` / `awaiting_confirmation` | **Não gera PV** (ainda não aprovado) |
+| `paid` / `ready_to_invoice` | Pedido em aberto |
+| `processing` | Pedido em aberto |
+| `invoice_pending_sefaz` | Pedido em aberto |
+| `invoice_rejected` | Pedido em aberto (com pendência sinalizada) |
+| `invoice_authorized` / `invoice_issued` | Concluído |
+| `shipped` / `in_transit` / `dispatched` | Concluído |
+| `delivered` / `completed` / `fulfilled` | Concluído |
+| `chargeback_detected` | **Chargeback em andamento** |
+| `chargeback_recovered` | Pedido em aberto (volta) |
+| `chargeback_lost` | **Chargeback perdido** (terminal) |
+| `payment_expired` | Cancelado |
+| `cancelled` / `cancelled_by_user` | Cancelado |
+| `invoice_cancelled` | Cancelado |
+| `returning` / `returned` | Cancelado |
 
-## Tela final (exemplo)
+E como complemento (independente do status do pedido):
+- Existe NF autorizada derivada → força **Concluído**.
+- Falta dado fiscal obrigatório → força **Pendente** (quando ainda não foi para chargeback/cancelado).
 
-```text
-Aba Transp. — Pedido de Venda nº 234
-────────────────────────────────────
-Modalidade do frete: Contratação por conta do Remetente (CIF)
-Transportadora:      Correios
-Serviço contratado:  SEDEX            ← NOVO
-CNPJ:                ...
-Peso bruto: 0,18 kg   Peso líquido: 0,18 kg
-Volumes: 1            Espécie: Caixa
-```
+### Regra de precedência (resolve ambiguidade)
+
+Quando mais de uma regra se aplica ao mesmo PV, vale a primeira que casar (de cima para baixo):
+
+1. Chargeback perdido (terminal)
+2. Cancelado / expirado / devolvido
+3. Chargeback em andamento
+4. Concluído (NF autorizada derivada existe)
+5. Pendente (falta dado fiscal)
+6. Pedido em aberto (padrão)
+
+**Justificativa técnica:** chargeback_lost e cancelado são estados terminais do pedido — mesmo que tenha tido NF emitida antes, operacionalmente o pedido "morreu" e o PV precisa refletir isso. A NF emitida continua existindo na aba "Notas Fiscais" com a bandeira de "ação manual necessária" para cancelamento contábil, como já funciona hoje (regra de segurança fiscal preservada).
+
+### Princípio de segurança preservado
+
+Automação **nunca** cancela NF-e já autorizada nem etiqueta despachada. A mudança no PV é apenas sinalização visual e de filtro — a NF já emitida continua válida no SEFAZ até ação humana, com a bandeira de alerta que já existe hoje.
+
+---
+
+## Plano de execução (4 etapas, com confirmação entre cada uma)
+
+### Etapa 1 — Modelo de dados e fonte de verdade
+1. Acrescentar no Pedido de Venda um indicador sincronizado do status atual do pedido (denormalização controlada, atualizada por gatilho automático).
+2. Gatilho no pedido propaga o status atual para todos os PVs vinculados em **qualquer** mudança de status do pedido.
+3. Backfill único dos PVs existentes para preencher o indicador com o status atual do pedido vinculado.
+
+### Etapa 2 — Gatilho de criação à prova de vocabulário
+1. Corrigir o gatilho de enfileiramento para reconhecer **todos** os estados de pagamento aprovado (vocabulário antigo e novo).
+2. Garantir que pedidos que nascem ou pulam direto para estados pós-pagamento (`paid`, `processing`, `shipped`, etc.) também enfileirem, se ainda não tiverem PV.
+3. Rotina de reconciliação detecta pedidos aprovados sem PV e enfileira (rede de proteção).
+
+### Etapa 3 — Transições especiais (chargeback e retorno)
+1. `chargeback_detected` no pedido → PV recebe estado "Chargeback em andamento".
+2. `chargeback_lost` → PV vira "Chargeback perdido" (terminal).
+3. `chargeback_recovered` → PV volta para "Pedido em aberto".
+4. `cancelled`, `cancelled_by_user`, `payment_expired`, `returned`, `returning`, `invoice_cancelled` → PV vira "Cancelado".
+5. Emissão de NF autorizada a partir do PV → PV vira "Concluído" automaticamente (já existe vínculo `source_order_invoice_id`; só padronizar e proteger).
+6. Reabertura de pedido cancelado para um estado aprovado → PV volta para "Pedido em aberto".
+
+### Etapa 4 — UI: status, filtros e contadores fiéis
+1. Atualizar a fonte única de derivação do status do PV para usar o indicador sincronizado (em vez do campo fantasma de hoje).
+2. Adicionar o novo status **"Chargeback em andamento"** e o filtro correspondente na aba Pedidos de Venda.
+3. Separar visualmente "Chargeback em andamento" (laranja) de "Chargeback perdido" (vermelho) e de "Cancelado" (cinza).
+4. Cards de contagem da aba Pedidos de Venda passam a refletir os 6 status oficiais.
+5. Conciliação visual com o card "Aprovados / Aguardando NF" do módulo Pedidos: ambos passam a contar exatamente a mesma base (todo pedido aprovado sem NF autorizada).
+
+---
+
+## O que NÃO entra nesta entrega
+- Reconciliação do tenant respeiteohomem (registros órfãos, duplicados, pedido #182 sem PV, PV do chargeback do Luiz, PV do Marcos cancelado, duplicatas dos #209/#210). Fica para a entrega seguinte, **depois** que o fluxo estiver à prova de erros — exatamente como você pediu.
+- Mudança em NF-e já autorizada. Continua sendo ação manual com bandeira de alerta (regra de segurança fiscal/contábil).
+- Mudanças no módulo Pedidos em si. Esta entrega só ensina o Fiscal a refletir corretamente o que já existe no core.
+
+---
+
+## Documentação que será atualizada na mesma entrega
+- Doc do módulo Fiscal — nova máquina de estados do PV, tabela de mapeamento completa e regra de precedência.
+- Doc do módulo Pedidos — referência cruzada da propagação para Fiscal.
+- Mapa de UI — novo status "Chargeback em andamento", novo filtro e novos cards.
+- Memória de governança "regressão entre módulos" — incluir a expansão do PV (não só fila).
+- Nova memória de governança "espelhamento Pedidos → Pedido de Venda do Fiscal" para evitar regressão futura.
+
+---
+
+## Validação obrigatória ao final
+Antes de fechar como "Corrigido e validado", a IA executa em ambiente real um pedido de cada cenário e confirma o status visual do PV resultante:
+
+1. Pedido novo aprovado → PV "em aberto".
+2. Emitir NF do PV → PV vira "Concluído".
+3. Cancelar pedido aprovado → PV vira "Cancelado".
+4. Expirar pagamento → PV vira "Cancelado".
+5. Marcar como `chargeback_detected` → PV vira "Chargeback em andamento".
+6. Marcar como `chargeback_lost` → PV vira "Chargeback perdido".
+7. Marcar como `chargeback_recovered` → PV volta para "em aberto".
+8. Devolução / `returning` → PV vira "Cancelado".
+9. Conferir contagem dos cards do Fiscal vs cards do módulo Pedidos — devem bater.
+
+---
 
 ## Status
 
-Pronto para implementar assim que você aprovar.
+**Aguardando sua confirmação para iniciar a Etapa 1.** Cada etapa é aplicada e validada antes de seguir para a próxima, sem risco de quebrar o fluxo ativo.
