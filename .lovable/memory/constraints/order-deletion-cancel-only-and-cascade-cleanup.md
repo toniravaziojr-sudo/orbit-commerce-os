@@ -7,7 +7,7 @@ type: constraint
 # Exclusão de Pedido — Regra Canônica
 
 ## Regra
-1. **Allow-list estrito:** exclusão só permitida quando `orders.status = 'cancelled'`. Status legado `'pending'` foi removido. Qualquer outro status retorna `code: 'CANNOT_DELETE'` com mensagem PT-BR "Somente pedidos cancelados podem ser excluídos. Cancele o pedido antes de excluí-lo."
+1. **Allow-list estrito:** exclusão só permitida quando `orders.status IN ('cancelled', 'cancelled_by_user')`. Status legado `'pending'` foi removido. Qualquer outro status retorna `code: 'CANNOT_DELETE'` com mensagem PT-BR "Somente pedidos cancelados podem ser excluídos. Cancele o pedido antes de excluí-lo."
 2. **Trava fiscal:** mesmo cancelado, se houver `fiscal_invoices` vinculada com status em `('authorized','invoice_authorized','invoice_issued','issued')`, retorna `CANNOT_DELETE_FISCAL` com mensagem PT-BR.
 3. **Trava logística:** mesmo cancelado, se houver `shipments` vinculada com status NÃO em `('cancelled','voided','void','canceled')`, retorna `CANNOT_DELETE_SHIPPING` com mensagem PT-BR.
 4. **Cascata obrigatória (apaga rastros operacionais):** `order_items`, `order_history`, `order_price_audit`, `order_attribution`, `payment_transactions`, `gateway_sync_queue`, `fiscal_draft_queue`, `shipping_draft_queue`, `shipments`, `shipping_content_declarations`, `review_tokens`, `affiliate_conversions`, `email_conversions`, `discount_redemptions`, `marketing_events_log`, `notification_logs`, `mp_pending_checkouts`, `whatsapp_carts`, `checkout_sessions`.
