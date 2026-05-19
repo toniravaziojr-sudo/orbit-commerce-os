@@ -318,7 +318,7 @@ Regras importantes:
 - **Recebimento automático de retornos** mostra: "Validado", "Aguardando primeiro retorno", "Erro na ativação", "Configure o token", ou "Não configurado", conforme o caso.
 
 **Produção:**
-- `fiscal-emit` / `fiscal-submit` continuam bloqueados quando recebimento automático não está `validated`, certificado é inválido ou `focus_token_producao` está ausente. Esses gates já existem nas próprias funções; o card apenas reflete o estado.
+- `fiscal-emit` / `fiscal-submit` continuam bloqueados quando o webhook **não foi cadastrado** na Focus (sem `hook_id`), certificado é inválido ou `focus_token_producao` está ausente. Webhook em `pending` (cadastrado, aguardando 1º callback) **não bloqueia** — ver pré-requisitos acima.
 
 **Permissões:**
 - Operator não vê esta seção (página de Configurações é restrita a owner/admin via `useTenantAccess`).
