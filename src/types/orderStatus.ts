@@ -57,6 +57,7 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, {
   completed: { label: 'Concluído', variant: 'default' },
   returning: { label: 'Em devolução', variant: 'destructive' },
   payment_expired: { label: 'Pagamento expirado', variant: 'destructive' },
+  cancelled_by_user: { label: 'Cancelado pelo usuário', variant: 'destructive' },
   invoice_rejected: { label: 'NF Rejeitada', variant: 'destructive' },
   invoice_cancelled: { label: 'NF Cancelada', variant: 'destructive' },
   chargeback_detected: { label: 'Chargeback detectado', variant: 'outline', color: 'text-yellow-700' },
