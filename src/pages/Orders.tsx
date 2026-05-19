@@ -179,7 +179,7 @@ export default function Orders() {
       {/* Seção 2: PÓS-VENDA */}
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Pós-Venda</h3>
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
           <StatCard
             title="Aguardando NF"
             value={stats.awaitingInvoiceCount.toString()}
@@ -201,11 +201,25 @@ export default function Orders() {
             description="Em devolução"
           />
           <StatCard
-            title="Chargeback"
-            value={stats.chargebackCount.toString()}
+            title="Chargeback em andamento"
+            value={stats.chargebackInProgressCount.toString()}
+            icon={AlertTriangle}
+            variant="warning"
+            description="Disputas abertas"
+          />
+          <StatCard
+            title="Chargeback perdido"
+            value={stats.chargebackLostCount.toString()}
             icon={AlertTriangle}
             variant="destructive"
-            description="Disputas abertas ou perdidas"
+            description="Disputas perdidas"
+          />
+          <StatCard
+            title="Chargeback recuperado"
+            value={stats.chargebackRecoveredCount.toString()}
+            icon={CheckCircle}
+            variant="success"
+            description="Disputas vencidas"
           />
         </div>
       </div>
