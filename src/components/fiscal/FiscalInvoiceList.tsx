@@ -1657,9 +1657,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   ? 'Criar Nota Fiscal'
                                   : (stageOf(invoice) === 'pendencia'
                                       ? 'Editar e revalidar'
-                                      : settings?.ambiente === 'homologacao'
-                                          ? 'Emitir Nota Fiscal (homologação)'
-                                          : 'Emitir Nota Fiscal')
+                                      : 'Emitir Nota Fiscal')
                               }
                             />
                               );
@@ -1885,7 +1883,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           invoiceNumber={`${timelineInvoice.serie}-${timelineInvoice.numero}`}
         />
       )}
-      {/* Confirmar emissão de NF-e (modo teste em homologação) */}
+      {/* Confirmar emissão de NF-e */}
       <AlertDialog
         open={!!confirmEmitInvoice}
         onOpenChange={(open) => {
@@ -1897,16 +1895,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {settings?.ambiente === 'homologacao' ? 'Emitir NF-e de teste?' : 'Emitir NF-e?'}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Emitir NF-e?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
-                {settings?.ambiente === 'homologacao' ? (
-                  <p>Esta loja está em modo de teste fiscal. A nota será enviada em homologação e <strong>não terá valor fiscal real</strong>.</p>
-                ) : (
-                  <p>A NF-e será enviada para autorização da SEFAZ. Esta ação não pode ser desfeita.</p>
-                )}
+                <p>A NF-e será enviada para autorização da SEFAZ e terá <strong>valor fiscal real</strong>. Esta ação não pode ser desfeita.</p>
                 {confirmEmitInvoice && (
                   <p className="text-muted-foreground">
                     NF {confirmEmitInvoice.serie}-{confirmEmitInvoice.numero} · {confirmEmitInvoice.dest_nome} · {formatCurrency(confirmEmitInvoice.valor_total)}
@@ -1934,7 +1926,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                 handleQuickSubmit(inv);
               }}
             >
-              {settings?.ambiente === 'homologacao' ? 'Emitir NF-e de teste' : 'Emitir NF-e'}
+              Emitir NF-e
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

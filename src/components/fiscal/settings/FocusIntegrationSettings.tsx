@@ -149,8 +149,7 @@ export function FocusIntegrationSettings() {
 
   const overallBadge = () => {
     if (overall === 'loading') return <Badge variant="outline">Verificando…</Badge>;
-    if (overall === 'ready') return <Badge variant="outline" className="border-green-500/50 text-green-600 gap-1"><ShieldCheck className="h-3 w-3" /> Pronto</Badge>;
-    if (overall === 'ready_for_test') return <Badge variant="outline" className="border-green-500/50 text-green-600 gap-1"><ShieldCheck className="h-3 w-3" /> Pronto para teste</Badge>;
+    if (overall === 'ready' || overall === 'ready_for_test') return <Badge variant="outline" className="border-green-500/50 text-green-600 gap-1"><ShieldCheck className="h-3 w-3" /> Pronto para emitir</Badge>;
     if (overall === 'config_pending') return <Badge variant="outline" className="border-amber-500/50 text-amber-600 gap-1"><ShieldAlert className="h-3 w-3" /> Configuração pendente</Badge>;
     if (overall === 'error') return <Badge variant="destructive" className="gap-1"><ShieldX className="h-3 w-3" /> Erro</Badge>;
     return <Badge variant="destructive" className="gap-1"><ShieldX className="h-3 w-3" /> Bloqueado</Badge>;
@@ -184,9 +183,7 @@ export function FocusIntegrationSettings() {
                 Validação Fiscal
               </CardTitle>
               <CardDescription>
-                {ambiente === 'producao'
-                  ? 'Confira se sua loja está pronta para emitir NF-e em produção.'
-                  : 'Confira se sua loja está pronta para o teste de homologação. O recebimento automático de retornos é ativado pelo sistema quando todos os pré-requisitos estão completos.'}
+                Confira se sua loja está pronta para emitir NF-e em produção. O recebimento automático de retornos é ativado pelo sistema quando todos os pré-requisitos estão completos.
               </CardDescription>
             </div>
             <div className="flex gap-2 items-center">
@@ -222,8 +219,8 @@ export function FocusIntegrationSettings() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className="gap-1">
-              <Globe className="h-3 w-3" /> Ambiente: {ambiente === 'producao' ? 'Produção' : ambiente === 'homologacao' ? 'Homologação' : '—'}
+            <Badge variant="outline" className="gap-1 border-emerald-500/50 text-emerald-600">
+              <Globe className="h-3 w-3" /> Ambiente: Produção
             </Badge>
           </div>
 

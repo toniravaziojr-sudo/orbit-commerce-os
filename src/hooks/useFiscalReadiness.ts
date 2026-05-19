@@ -92,9 +92,9 @@ export function readinessHeadline(
   }
   if (status === 'ready_for_test') {
     return {
-      title: 'Pronto para teste',
-      description: 'Sua loja está em homologação e pode emitir notas de teste sem valor fiscal.',
-      badge: 'Pronto para teste',
+      title: 'Pronto para emitir NF-e',
+      description: 'Tudo certo. Você já pode emitir notas fiscais para seus clientes.',
+      badge: 'Pronto para emitir NF-e',
       tone: 'ready',
     };
   }
