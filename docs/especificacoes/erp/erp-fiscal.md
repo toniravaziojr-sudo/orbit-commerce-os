@@ -240,6 +240,28 @@ Regras:
 
 **Procedimento aplicado a notas legadas de homologação:** notas que estavam em `status = 'processing'` no ambiente de homologação no momento da virada foram marcadas como `rejected` com `status_motivo = "Emissão de teste em homologação descartada na virada para produção. Reemita esta nota em ambiente de produção."` e `ambiente = 'producao'`. O pedido de origem fica liberado para nova emissão real. Precedente aplicado à NF 1-287 (Respeite o Homem, 2026-05-19).
 
+#### Exclusão de notas fiscais — regra por efeito fiscal (rev 2026-05-19)
+
+Notas fiscais podem ser **excluídas** somente quando **não geram efeito fiscal junto à Sefaz**. A ação é restrita a **Proprietário e Administrador** do tenant — Operadores não excluem em nenhuma hipótese.
+
+**Status que permitem exclusão (sem efeito fiscal):**
+- `draft` — Pronta para Emitir / Rascunho (nunca foi transmitida).
+- `rejected` — Rejeitada pela Sefaz (não autorizada, sem efeito).
+- `cancelled` — Cancelada pela Sefaz após autorização — mas o registro local pode ser removido sem impacto fiscal (a Sefaz já tem o cancelamento autorizado).
+
+**Status que NÃO permitem exclusão (com efeito fiscal):**
+- `authorized` — Autorizada (NF válida). Usar **Cancelar NF-e** dentro do prazo legal.
+- `processing` / `pending` — Em transmissão. Aguardar resposta da Sefaz.
+- Demais status terminais com efeito fiscal.
+
+**Implementação:**
+- RLS em `fiscal_invoices` (policy `Owners and admins delete non-fiscal invoices`): `USING (status IN ('draft','rejected','cancelled') AND (has_role owner OR has_role admin))`.
+- UI: `InvoiceActionsDropdown` mostra item **"Excluir"** (vermelho) apenas em Pronta para Emitir, Rejeitada e Cancelada. Em Autorizada, mostra **"Cancelar NF-e"** em vez de Excluir.
+- Confirmação obrigatória via `window.confirm` antes da remoção. Itens vinculados (`fiscal_invoice_items`) são removidos junto.
+- Bulk delete (seleção múltipla) continua restrito apenas a `draft`.
+
+**Por que existe:** evita acúmulo de rascunhos órfãos e notas rejeitadas/canceladas poluindo a aba Notas Fiscais, sem permitir que o lojista remova registros com valor fiscal real.
+
 #### Status atual
 - **Respeite o Homem** e demais tenants: ambiente **produção**, emissão real de NF-e habilitada.
 
@@ -1194,7 +1216,7 @@ Auditoria de isolamento multi-tenant das 10 tabelas fiscais confirmadas. **Nenhu
 | Tabela | RLS | Política aplicada | Isolamento |
 |---|---|---|---|
 | `fiscal_settings` | ✅ | SELECT só para owner/admin; SELECT direto das colunas `certificado_pfx`, `certificado_senha`, `provider_token` revogado de `anon`/`authenticated` | tenant_id direto + papel |
-| `fiscal_invoices` | ✅ | SELECT/INSERT/UPDATE para membros do tenant; DELETE só de rascunho por owner/admin | tenant_id direto via `user_belongs_to_tenant` |
+| `fiscal_invoices` | ✅ | SELECT/INSERT/UPDATE para membros do tenant; **DELETE para owner/admin quando `status IN ('draft','rejected','cancelled')`** (notas sem efeito fiscal). DELETE bloqueado para `authorized`, `processing` e qualquer outro status com efeito fiscal — usar Cancelar NF-e. | tenant_id direto via `user_belongs_to_tenant` |
 | `fiscal_invoice_items` | ✅ | SELECT/ALL via parent (`fiscal_invoices`) | parent + `user_belongs_to_tenant` |
 | `fiscal_invoice_events` | ✅ | SELECT/INSERT por membros do tenant | tenant_id direto via `user_belongs_to_tenant` |
 | `fiscal_invoice_cces` | ✅ | SELECT/INSERT por membros do tenant (mantido) | tenant_id direto via `user_roles` |
