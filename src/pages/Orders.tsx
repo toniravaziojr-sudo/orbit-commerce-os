@@ -268,7 +268,7 @@ export default function Orders() {
                   <SelectItem value="payment_expired">Pgto expirado</SelectItem>
                   <SelectItem value="invoice_rejected">NF Rejeitada</SelectItem>
                   <SelectItem value="invoice_cancelled">NF Cancelada</SelectItem>
-                  <SelectItem value="chargeback_detected">Chargeback detectado</SelectItem>
+                  <SelectItem value="chargeback_detected">Chargeback em andamento</SelectItem>
                   <SelectItem value="chargeback_lost">Chargeback perdido</SelectItem>
                   <SelectItem value="chargeback_recovered">Chargeback recuperado</SelectItem>
                 </SelectContent>
