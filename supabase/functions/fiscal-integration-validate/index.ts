@@ -523,16 +523,17 @@ Deno.serve(async (req) => {
       canRetryActivation = true;
       topReason = "returns_setup_error";
     } else if (ambiente === "producao") {
-      if (webhookStatus === "validated" && webhookEnvMatchesAmbiente) {
+      // Aceita "validated" OU "pending" (registrado na Focus, aguardando 1º retorno).
+      // Sem isso, o tenant ficava em deadlock: produção bloqueada esperando um retorno
+      // que nunca chegaria porque a emissão estava bloqueada.
+      if (webhookValidatedOrPending) {
         overall = "ready";
         topReason = "ready_for_production";
       } else {
         overall = "blocked";
-        nextAction = webhookStatus === "pending"
-          ? "Produção bloqueada até a primeira confirmação automática de retorno."
-          : "Produção bloqueada. Tente reprocessar a configuração fiscal.";
+        nextAction = "Produção bloqueada. Tente reprocessar a configuração fiscal.";
         nextActionKind = "retry";
-        canRetryActivation = webhookStatus !== "pending";
+        canRetryActivation = true;
         topReason = "production_blocked";
       }
     } else {
