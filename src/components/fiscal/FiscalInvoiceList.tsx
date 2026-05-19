@@ -133,6 +133,8 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [confirmEmitInvoice, setConfirmEmitInvoice] = useState<FiscalInvoice | null>(null);
   const [emitPrecheckErrors, setEmitPrecheckErrors] = useState<string[]>([]);
+  const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<FiscalInvoice | null>(null);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
 
