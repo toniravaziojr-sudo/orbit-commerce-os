@@ -1369,7 +1369,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <CardTitle className="text-lg font-semibold">{cardTitle}</CardTitle>
+            <CardTitle className="text-lg font-semibold">
+              {cardTitle}
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                ({totalFiltered} {mode === 'orders' ? (totalFiltered === 1 ? 'pedido' : 'pedidos') : (totalFiltered === 1 ? 'nota' : 'notas')})
+              </span>
+            </CardTitle>
             <div className="flex items-center gap-2">
               <Input
                 placeholder="Buscar por número, cliente..."
