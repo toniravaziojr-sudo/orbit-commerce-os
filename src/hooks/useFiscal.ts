@@ -34,7 +34,7 @@ export interface FiscalSettings {
   cfop_interestadual: string;
   csosn_padrao: string | null;
   cst_padrao: string | null;
-  regime_tributario: 'simples_nacional' | 'lucro_presumido' | 'lucro_real';
+  regime_tributario: 'simples_nacional' | 'lucro_presumido' | 'lucro_real' | 'mei';
   pis_aliquota_padrao: number;
   cofins_aliquota_padrao: number;
   icms_aliquota_padrao: number;
