@@ -739,28 +739,42 @@ Mudanças por webhook, verificação ativa e cron registradas automaticamente:
 - Após importação: `next_order_number` = MAX + 1
 - **Numeração só é consumida para pedidos reais** (após resposta do gateway)
 
-### 8.2 Exclusão
+### 8.2 Exclusão (v2026-05-18)
 
 **Onde:** Lista `/orders` → menu "..." de cada linha → opção **Excluir** (única superfície de UI). Não há ação equivalente nas telas de Fiscal nem de Logística — esses módulos apenas refletem o pedido; a exclusão é sempre originada no módulo Pedidos.
 
-**Quem pode:** Apenas pedidos com `status = 'pending'` ou `status = 'cancelled'`. Qualquer outro status (incluindo `awaiting_confirmation`, `ready_to_invoice`, `paid`, `dispatched`, etc.) é rejeitado pelo `core-orders` com `code: 'CANNOT_DELETE'`. Pedidos pagos ou em fluxo fiscal/logístico devem ser **cancelados**, não excluídos.
+**Quem pode (regra canônica):** Apenas pedidos com **`status = 'cancelled'`** (estrito). Qualquer outro status é rejeitado pelo `core-orders` com `code: 'CANNOT_DELETE'` e mensagem PT-BR: *"Somente pedidos cancelados podem ser excluídos. Cancele o pedido antes de excluí-lo."* O status legado `'pending'` foi removido do allow-list.
 
-**O que é apagado (cascata):**
-- `orders` (registro principal)
-- `order_items` (itens do pedido)
-- `order_history` (histórico de status)
+**Travas adicionais (mesmo cancelado):**
+- **Fiscal** — se existir `fiscal_invoices` vinculada com status em `('authorized','invoice_authorized','invoice_issued','issued')`, exclusão é bloqueada com `code: 'CANNOT_DELETE_FISCAL'` e mensagem: *"Este pedido possui nota fiscal autorizada vinculada e não pode ser removido. Cancele a NF primeiro."*
+- **Logística** — se existir `shipments` vinculada com status diferente de `cancelled/voided/void/canceled`, exclusão é bloqueada com `code: 'CANNOT_DELETE_SHIPPING'` e mensagem: *"Este pedido possui remessa ativa vinculada e não pode ser removido. Cancele a remessa primeiro."*
 
-**O que NÃO é apagado automaticamente:**
-- `fiscal_invoices` vinculadas (NF-e) — não devem existir em `pending`/`cancelled`, mas se existirem ficam órfãs
-- `shipments` vinculadas — idem
-- `payment_transactions` (histórico de tentativas) — preservadas para auditoria
-- `audit_log` e evento `order.deleted` — preservados
+**Cascata de limpeza (apaga rastros operacionais):**
+- `order_items`, `order_history`, `order_price_audit`, `order_attribution`
+- `payment_transactions`, `gateway_sync_queue`
+- `fiscal_draft_queue`, `shipping_draft_queue`
+- `shipments`, `shipping_content_declarations`
+- `review_tokens`
+- `affiliate_conversions`, `email_conversions`, `discount_redemptions`
+- `marketing_events_log`, `notification_logs`
+- `mp_pending_checkouts`, `whatsapp_carts`, `checkout_sessions`
 
-**Auditoria:** Toda exclusão grava `audit_log` com `before_json` completo do pedido e emite o evento `order.deleted` no event bus.
+**Desvincula (sem apagar — preserva relação com cliente):**
+- `conversations.order_id = NULL`
+- `tiktok_shop_orders.order_id = NULL`, `tiktok_shop_returns.order_id = NULL`
 
-**Implicação prática para pedidos manuais:** Um pedido manual recém-criado nasce em `awaiting_confirmation` ou já avança para `ready_to_invoice` (caso do #392/#393, criados com pagamento marcado como Pago). Nesses status **a exclusão é bloqueada** — o operador precisa primeiro **cancelar** o pedido (mudar status para `cancelled`) e só então excluir. O cancelamento dispara as triggers de regressão (`cancel_pending_drafts_on_regression` + `requires_action` em NF-e/remessa) descritas em §8.13, garantindo que rascunhos fiscais e logísticos pendentes sejam cancelados ou sinalizados para ação humana.
+**Preservado integralmente:**
+- `customers`, leads, tags, métricas agregadas do cliente (recalculadas pelo gatilho v2)
+- `audit_log` e evento `order.deleted` no event bus (com `cleanup_counts` + `unlink_counts`)
 
-**Lacuna conhecida:** Não há ação "Excluir" em massa nem ação direta para `ready_to_invoice` (status canônico mais comum hoje). Roadmap: avaliar permitir exclusão direta de pedidos manuais que nunca emitiram NF-e nem geraram etiqueta, sem exigir o passo intermediário de cancelar.
+**Por que essa cascata é segura:** ao cancelar o pedido, o gatilho `cancel_pending_drafts_on_regression` (§4.6) já cancelou rascunhos pendentes em filas e marcou NF/etiqueta ativa como `requires_action=true`. As travas fiscal/logística garantem que a exclusão só procede quando não há documento legal ou operação física pendente — qualquer NF autorizada ou remessa não-cancelada exige intervenção humana via banner de regressão antes da exclusão.
+
+**Auditoria:** Toda exclusão grava `audit_log` com `before_json` (snapshot completo do pedido) e `after_json` com contagens por tabela apagada/desvinculada. Evento `order.deleted` carrega o mesmo resumo.
+
+**Diálogo de confirmação na UI (`OrderList.tsx`):** novo texto explícito sobre impacto em relatórios/métricas e preservação de cliente/lead. Botão de ação rotulado *"Excluir permanentemente"*.
+
+**Implicação prática para pedidos manuais:** Um pedido manual em `awaiting_confirmation`/`ready_to_invoice` precisa ser **cancelado** primeiro (override admin na máquina de estados — §8.1) e só então excluído. O cancelamento dispara o gatilho de regressão; a exclusão posterior varre os resíduos.
+
 
 ### 8.3 Estoque
 
