@@ -522,6 +522,8 @@ export function useOrderDetails(orderId: string | undefined) {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders-stats'] });
       toast.success(data?.manual_override ? 'Pagamento alterado (override admin)' : 'Status de pagamento atualizado!');
     },
     onError: (error: Error) => {
@@ -593,6 +595,9 @@ export function useOrderDetails(orderId: string | undefined) {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
       toast.success(data?.manual_override ? 'Envio alterado (override admin)' : 'Status de envio atualizado!');
     },
     onError: (error: Error) => {
