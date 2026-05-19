@@ -913,11 +913,12 @@ Quando mais de uma regra se aplica ao mesmo PV, vale a primeira (de cima para ba
 
 ### 14.4 Arquitetura técnica
 
-- **Denormalização controlada:** coluna `fiscal_invoices.order_lifecycle_status` espelha `orders.status` atual do pedido vinculado.
-- **Gatilho de propagação:** `mirror_order_status_to_pv` no `orders` (AFTER UPDATE OF status) propaga para todos os PVs ligados via `source_order_invoice_id`/`order_id`.
-- **Derivação:** `derive_pv_pedido_status(pv)` aplica a precedência da seção 14.3 e popula `fiscal_invoices.pedido_status` (fonte única consumida pela UI).
+- **Coluna fonte de verdade da UI:** `fiscal_invoices.pedido_status` (text). Único campo lido pela UI; nunca inferir status no client.
+- **Função de derivação:** `derive_pv_pedido_status(order_status, payment_status, chargeback_at, cancelled_at, has_authorized_nf)` — aplica a precedência da §14.3.
+- **Sincronizador:** `sync_pedido_status_for_order(uuid)` — recalcula `pedido_status` de todos os PVs vinculados a um pedido.
+- **Triggers de propagação:** `orders_sync_pv_status` em `orders` (AFTER UPDATE de status/payment_status) e `fiscal_invoices_sync_pv_status` em `fiscal_invoices` (recalcula quando PV/NF derivada muda).
 - **Gatilho de criação resiliente:** `enqueue_fiscal_draft` e `enqueue_fiscal_on_item_link` reconhecem vocabulário antigo (`approved`) e novo (`paid`, `processing`, `shipped`, etc.) via helpers `is_payment_approved` e `order_status_implies_paid`.
-- **Reconciliação:** `reconcile_missing_fiscal_drafts` (cron) detecta pedidos aprovados sem PV e enfileira.
+- **Reconciliação (rede de proteção):** `reconcile_missing_fiscal_drafts` detecta pedidos aprovados sem PV e enfileira.
 
 ### 14.5 Princípio de segurança preservado
 
