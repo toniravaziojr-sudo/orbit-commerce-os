@@ -1194,7 +1194,7 @@ Auditoria de isolamento multi-tenant das 10 tabelas fiscais confirmadas. **Nenhu
 | Tabela | RLS | Política aplicada | Isolamento |
 |---|---|---|---|
 | `fiscal_settings` | ✅ | SELECT só para owner/admin; SELECT direto das colunas `certificado_pfx`, `certificado_senha`, `provider_token` revogado de `anon`/`authenticated` | tenant_id direto + papel |
-| `fiscal_invoices` | ✅ | SELECT/INSERT/UPDATE para membros do tenant; DELETE só de rascunho por owner/admin | tenant_id direto via `user_belongs_to_tenant` |
+| `fiscal_invoices` | ✅ | SELECT/INSERT/UPDATE para membros do tenant; **DELETE para owner/admin quando `status IN ('draft','rejected','cancelled')`** (notas sem efeito fiscal). DELETE bloqueado para `authorized`, `processing` e qualquer outro status com efeito fiscal — usar Cancelar NF-e. | tenant_id direto via `user_belongs_to_tenant` |
 | `fiscal_invoice_items` | ✅ | SELECT/ALL via parent (`fiscal_invoices`) | parent + `user_belongs_to_tenant` |
 | `fiscal_invoice_events` | ✅ | SELECT/INSERT por membros do tenant | tenant_id direto via `user_belongs_to_tenant` |
 | `fiscal_invoice_cces` | ✅ | SELECT/INSERT por membros do tenant (mantido) | tenant_id direto via `user_roles` |
