@@ -1,0 +1,2 @@
+ALTER TABLE public.fiscal_settings DROP CONSTRAINT IF EXISTS fiscal_settings_regime_tributario_check;
+ALTER TABLE public.fiscal_settings ADD CONSTRAINT fiscal_settings_regime_tributario_check CHECK (regime_tributario = ANY (ARRAY['simples_nacional'::text, 'lucro_presumido'::text, 'lucro_real'::text, 'mei'::text]));

@@ -509,3 +509,13 @@ Rota `/system/users` verifica `module: 'system', submodule: 'users'` → apenas 
 
 - Bloco passa a ser somente leitura para o lojista (status informativo).
 - Sem dropdown Homologação/Produção na UI comum. Troca é controle técnico/admin.
+
+### Sistema → Configurações → Fiscal → Configurações Fiscais — Regime Tributário (rev 2026-05-19)
+
+- Seletor "Regime Tributário (CRT)" em Parâmetros Fiscais passa a oferecer **4 opções** (antes eram 3):
+  1. `1 - Simples Nacional`
+  2. `2 - Simples Nacional (excesso de sublimite)`
+  3. `3 - Regime Normal (Lucro Presumido/Real)`
+  4. **`4 - Simples Nacional - MEI (Microempreendedor Individual)`** ← nova
+- Selecionar CRT=4 auto-define internamente `regime_tributario='mei'` e envia para a SEFAZ o código fiscal correto (4), eliminando rejeição por divergência cadastral em CNPJs MEI. Tratamento na NF é idêntico ao Simples Nacional (sem destaque de PIS/COFINS/ICMS, CSOSN padrão 102). Ver `docs/especificacoes/erp/erp-fiscal.md` §"Cálculo Automático de Impostos por Regime".
+

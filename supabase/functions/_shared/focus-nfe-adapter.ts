@@ -9,10 +9,12 @@ import type {
 } from './focus-nfe-client.ts';
 
 // Mapeamento de CRT para regime_tributario Focus NFe
+// Códigos oficiais SEFAZ: 1=Simples, 2=Simples Excesso, 3=Regime Normal, 4=MEI
 const CRT_TO_REGIME: Record<string, number> = {
   '1': 1, // Simples Nacional
-  '2': 2, // Simples Nacional - Excesso
+  '2': 2, // Simples Nacional - Excesso de sublimite
   '3': 3, // Regime Normal (Lucro Presumido/Real)
+  '4': 4, // Simples Nacional - MEI
 };
 
 // Mapeamento de forma de pagamento para código Focus NFe

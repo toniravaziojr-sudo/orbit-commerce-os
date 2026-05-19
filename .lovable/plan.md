@@ -1,155 +1,52 @@
-# Plano — Pedidos de Venda do módulo Fiscal como espelho fiel do módulo de Pedidos (core)
+## Contexto
 
-## Diagnóstico — o que está quebrado hoje
+Hoje o sistema oferece 3 opções de regime tributário na configuração fiscal: Simples Nacional, Simples Nacional (excesso) e Regime Normal (Lucro Presumido/Real). Falta o **MEI**, que é um regime próprio com código fiscal específico (código 4 na SEFAZ). Lojistas MEI hoje marcam "Simples Nacional" por engano, o sistema envia o código 1 e a SEFAZ rejeita por divergência cadastral — foi exatamente o que aconteceu na NF 1-289 da loja "Respeite o Homem".
 
-Auditoria do fluxo Pedidos → aba **Pedidos de Venda** do Fiscal encontrou 4 falhas estruturais que se reforçam:
+O ajuste é exclusivamente fiscal e não muda a experiência de uso: adiciona uma 4ª opção no seletor de regime na tela de Configurações Fiscais.
 
-**1. Gatilho de criação do Pedido de Venda usa vocabulário legado.**
-O sistema só cria o registro fiscal quando o pedido entra em pagamento "aprovado" no vocabulário antigo. O vocabulário oficial atual é outro. Resultado: parte dos pedidos aprovados nunca é enfileirada e nasce sem PV (caso do pedido #182 no respeiteohomem).
+## O que será feito
 
-**2. O Pedido de Venda é uma "foto" — não acompanha o ciclo de vida do pedido.**
-Depois de criado, o PV não recebe nenhuma atualização quando o pedido muda (cancela, vira chargeback, é recuperado, é devolvido). A lista do Fiscal hoje tenta ler um indicador de estado do pedido que **nem existe** na base — por isso os status "Cancelado" e "Chargeback" no filtro **nunca disparam**, apesar de aparecerem no código.
+### 1. Nova opção "MEI" no seletor de Regime Tributário
+- A tela de Configurações Fiscais → Parâmetros Fiscais passa a oferecer 4 opções:
+  - **MEI (Microempreendedor Individual)** ← nova
+  - Simples Nacional
+  - Simples Nacional (excesso de sublimite)
+  - Regime Normal (Lucro Presumido/Real)
+- Quando o lojista escolher MEI, o sistema envia para a SEFAZ o código correto (4 — "Simples Nacional MEI"), eliminando a rejeição por divergência cadastral.
 
-**3. Regressões cancelam só a fila, não o PV já materializado.**
-Quando um pedido vira chargeback/cancelado/expirado, o sistema cancela apenas itens ainda em processamento. O PV que já existe continua marcado como "em aberto" para sempre. Foi exatamente o caso do Marcos (#476, expirado) e do Luiz (#173, chargeback).
+### 2. Tratamento fiscal correto para MEI nas notas
+- MEI segue as mesmas regras práticas do Simples Nacional na NF: **sem destaque de PIS, COFINS e ICMS**, usando código de situação tributária CSOSN (padrão 102 — "Sem permissão de crédito"), idêntico ao já aplicado para Simples comum.
+- Observação obrigatória do Simples Nacional permanece sendo aplicada automaticamente.
+- Nenhum campo novo precisa ser preenchido pelo lojista MEI além de escolher o regime.
 
-**4. Não existe caminho de volta nem distinção entre estados de chargeback.**
-- "Chargeback em andamento" (disputa aberta) hoje não existe — fica como "em aberto" normal.
-- "Chargeback perdido" não tem visual próprio.
-- "Chargeback recuperado" não devolve o PV para "em aberto".
+### 3. Migração de dados
+- Lojistas que hoje estão como "Simples Nacional" continuam como estão. **Não há reclassificação automática** — cada lojista decide se é MEI ou Simples comum (são coisas diferentes na Receita).
+- Comunicação proativa fica fora deste escopo (pode virar uma campanha de aviso depois, se você quiser).
 
----
+### 4. Atualização da documentação fiscal
+- Atualizar o doc oficial do módulo Fiscal registrando a nova opção, o código enviado para SEFAZ e a regra de tratamento.
+- Atualizar o mapa de UI registrando a nova opção no seletor.
 
-## Regra de negócio final (a ser implementada)
+## Como você valida
 
-### Os 6 status oficiais do Pedido de Venda
+1. Abrir Configurações Fiscais da loja "Respeite o Homem".
+2. Trocar o Regime Tributário para **MEI** e salvar.
+3. Reemitir a NF 1-289 (ou criar uma nova).
+4. Esperado: SEFAZ autoriza a nota sem a mensagem de divergência de regime.
 
-| Status PV | Quando aparece | Cor |
-|---|---|---|
-| **Pedido em aberto** | Pedido aprovado, sem NF autorizada e sem pendência | Azul |
-| **Pendente** | Falta dado fiscal obrigatório (NCM, peso, endereço, etc.) | Amarelo |
-| **Concluído** | Já existe NF autorizada derivada deste PV | Verde |
-| **Chargeback em andamento** | Pedido com chargeback detectado, em disputa | Laranja |
-| **Chargeback perdido** | Disputa de chargeback perdida (terminal) | Vermelho |
-| **Cancelado** | Pedido cancelado, expirado pelo prazo, ou devolvido | Cinza/Vermelho |
+## Risco e segurança
 
-Cada status tem filtro próprio na aba Pedidos de Venda e card de contagem no topo.
-
-### Mapeamento completo de cada status do módulo Pedidos (core) → status do Pedido de Venda
-
-Esta é a fonte única de verdade. Toda mudança no pedido refaz o cálculo automaticamente.
-
-| Status no módulo Pedidos | Status no Pedido de Venda (Fiscal) |
-|---|---|
-| `pending` / `awaiting_payment` / `awaiting_confirmation` | **Não gera PV** (ainda não aprovado) |
-| `paid` / `ready_to_invoice` | Pedido em aberto |
-| `processing` | Pedido em aberto |
-| `invoice_pending_sefaz` | Pedido em aberto |
-| `invoice_rejected` | Pedido em aberto (com pendência sinalizada) |
-| `invoice_authorized` / `invoice_issued` | Concluído |
-| `shipped` / `in_transit` / `dispatched` | Concluído |
-| `delivered` / `completed` / `fulfilled` | Concluído |
-| `chargeback_detected` | **Chargeback em andamento** |
-| `chargeback_recovered` | Pedido em aberto (volta) |
-| `chargeback_lost` | **Chargeback perdido** (terminal) |
-| `payment_expired` | Cancelado |
-| `cancelled` / `cancelled_by_user` | Cancelado |
-| `invoice_cancelled` | Cancelado |
-| `returning` / `returned` | Cancelado |
-
-E como complemento (independente do status do pedido):
-- Existe NF autorizada derivada → força **Concluído**.
-- Falta dado fiscal obrigatório → força **Pendente** (quando ainda não foi para chargeback/cancelado).
-
-### Regra de precedência (resolve ambiguidade)
-
-Quando mais de uma regra se aplica ao mesmo PV, vale a primeira que casar (de cima para baixo):
-
-1. Chargeback perdido (terminal)
-2. Cancelado / expirado / devolvido
-3. Chargeback em andamento
-4. Concluído (NF autorizada derivada existe)
-5. Pendente (falta dado fiscal)
-6. Pedido em aberto (padrão)
-
-**Justificativa técnica:** chargeback_lost e cancelado são estados terminais do pedido — mesmo que tenha tido NF emitida antes, operacionalmente o pedido "morreu" e o PV precisa refletir isso. A NF emitida continua existindo na aba "Notas Fiscais" com a bandeira de "ação manual necessária" para cancelamento contábil, como já funciona hoje (regra de segurança fiscal preservada).
-
-### Princípio de segurança preservado
-
-Automação **nunca** cancela NF-e já autorizada nem etiqueta despachada. A mudança no PV é apenas sinalização visual e de filtro — a NF já emitida continua válida no SEFAZ até ação humana, com a bandeira de alerta que já existe hoje.
+- **Risco de regressão:** Baixo. Lojistas existentes não têm o regime alterado; só ganham uma opção adicional.
+- **Segurança:** A mudança é restrita ao cadastro fiscal do próprio tenant (isolamento por loja preservado).
+- **Reversibilidade:** Se algum lojista marcar MEI por engano, basta voltar para Simples Nacional na mesma tela.
 
 ---
 
-## Plano de execução (4 etapas, com confirmação entre cada uma)
+### Bloco técnico (opcional, para registro)
 
-### Etapa 1 — Modelo de dados e fonte de verdade
-1. Acrescentar no Pedido de Venda um indicador sincronizado do status atual do pedido (denormalização controlada, atualizada por gatilho automático).
-2. Gatilho no pedido propaga o status atual para todos os PVs vinculados em **qualquer** mudança de status do pedido.
-3. Backfill único dos PVs existentes para preencher o indicador com o status atual do pedido vinculado.
-
-### Etapa 2 — Gatilho de criação à prova de vocabulário
-1. Corrigir o gatilho de enfileiramento para reconhecer **todos** os estados de pagamento aprovado (vocabulário antigo e novo).
-2. Garantir que pedidos que nascem ou pulam direto para estados pós-pagamento (`paid`, `processing`, `shipped`, etc.) também enfileirem, se ainda não tiverem PV.
-3. Rotina de reconciliação detecta pedidos aprovados sem PV e enfileira (rede de proteção).
-
-### Etapa 3 — Transições especiais (chargeback e retorno)
-1. `chargeback_detected` no pedido → PV recebe estado "Chargeback em andamento".
-2. `chargeback_lost` → PV vira "Chargeback perdido" (terminal).
-3. `chargeback_recovered` → PV volta para "Pedido em aberto".
-4. `cancelled`, `cancelled_by_user`, `payment_expired`, `returned`, `returning`, `invoice_cancelled` → PV vira "Cancelado".
-5. Emissão de NF autorizada a partir do PV → PV vira "Concluído" automaticamente (já existe vínculo `source_order_invoice_id`; só padronizar e proteger).
-6. Reabertura de pedido cancelado para um estado aprovado → PV volta para "Pedido em aberto".
-
-### Etapa 4 — UI: status, filtros e contadores fiéis nos dois módulos
-
-**No módulo Fiscal — aba Pedidos de Venda:**
-1. Atualizar a fonte única de derivação do status do PV para usar o indicador sincronizado (em vez do campo fantasma de hoje).
-2. Adicionar o novo status **"Chargeback em andamento"** e o filtro correspondente.
-3. Separar visualmente: "Chargeback em andamento" (laranja), "Chargeback perdido" (vermelho), "Cancelado" (cinza).
-4. Resumo superior (cards centralizados) refletindo **os 6 status oficiais**: Em aberto, Pendente, Concluído, Chargeback em andamento, Chargeback perdido, Cancelado.
-
-**No módulo Pedidos (core):**
-5. Manter os 3 filtros de chargeback que já existem (detectado, perdido, recuperado) — já estão corretos.
-6. Desmembrar o card único "Chargeback" do resumo superior em **3 cards** para casar com a granularidade do Fiscal: "Chargeback em andamento", "Chargeback perdido", "Chargeback recuperado". Assim o executivo lê a mesma informação nos dois módulos sem precisar abrir filtro.
-7. Padronizar os rótulos visuais: "Chargeback detectado" no filtro do core vira **"Chargeback em andamento"** (mesmo termo de negócio dos dois lados — o nome técnico interno continua o mesmo, só o rótulo na tela muda).
-
-**Conciliação entre os dois módulos:**
-8. O card "Aprovados / Aguardando NF" do módulo Pedidos e o card "Em aberto" do Fiscal passam a contar exatamente a mesma base (todo pedido aprovado, sem NF autorizada, sem chargeback, sem cancelamento).
-9. Soma dos cards de chargeback do Pedidos = soma dos cards de chargeback do Fiscal. Soma do card "Cancelado" do Fiscal = soma dos pedidos em estados terminais regressivos do core.
-
----
-
-## O que NÃO entra nesta entrega
-- Reconciliação do tenant respeiteohomem (registros órfãos, duplicados, pedido #182 sem PV, PV do chargeback do Luiz, PV do Marcos cancelado, duplicatas dos #209/#210). Fica para a entrega seguinte, **depois** que o fluxo estiver à prova de erros — exatamente como você pediu.
-- Mudança em NF-e já autorizada. Continua sendo ação manual com bandeira de alerta (regra de segurança fiscal/contábil).
-- Mudanças no módulo Pedidos em si. Esta entrega só ensina o Fiscal a refletir corretamente o que já existe no core.
-
----
-
-## Documentação que será atualizada na mesma entrega
-- Doc do módulo Fiscal — nova máquina de estados do PV, tabela de mapeamento completa e regra de precedência.
-- Doc do módulo Pedidos — referência cruzada da propagação para Fiscal.
-- Mapa de UI — novo status "Chargeback em andamento", novo filtro e novos cards.
-- Memória de governança "regressão entre módulos" — incluir a expansão do PV (não só fila).
-- Nova memória de governança "espelhamento Pedidos → Pedido de Venda do Fiscal" para evitar regressão futura.
-
----
-
-## Validação obrigatória ao final
-Antes de fechar como "Corrigido e validado", a IA executa em ambiente real um pedido de cada cenário e confirma o status visual do PV resultante:
-
-1. Pedido novo aprovado → PV "em aberto".
-2. Emitir NF do PV → PV vira "Concluído".
-3. Cancelar pedido aprovado → PV vira "Cancelado".
-4. Expirar pagamento → PV vira "Cancelado".
-5. Marcar como `chargeback_detected` → PV vira "Chargeback em andamento".
-6. Marcar como `chargeback_lost` → PV vira "Chargeback perdido".
-7. Marcar como `chargeback_recovered` → PV volta para "em aberto".
-8. Devolução / `returning` → PV vira "Cancelado".
-9. Conferir contagem dos cards do Fiscal vs cards do módulo Pedidos — devem bater.
-
----
-
-## Status
-
-**Aguardando sua confirmação para iniciar a Etapa 1.** Cada etapa é aplicada e validada antes de seguir para a próxima, sem risco de quebrar o fluxo ativo.
+- Banco: ampliar o CHECK de `fiscal_settings.regime_tributario` para aceitar `'mei'` além dos 3 atuais. Campo `crt` (int) passa a aceitar valor `4`.
+- Adapter Focus NFe (`focus-nfe-adapter.ts`): incluir mapeamento `'4' → 4` em `CRT_TO_REGIME`.
+- Calculadora de tributos (`fiscal-tax-calculator.ts`): tratar `regime_tributario IN ('simples_nacional','mei')` no mesmo caminho (sem destaque, CSOSN padrão 102).
+- UI: incluir opção `{ value: '4', label: '4 - Simples Nacional - MEI' }` em `CRT_OPTIONS` nos 4 arquivos que o declaram (`EmitenteSettings.tsx`, `FiscalSettingsContent.tsx`, `OperationNaturesContent.tsx`, `OperationNaturesSettings.tsx`) e auto-sincronizar `regime_tributario='mei'` quando `crt=4` for selecionado.
+- Tipos do hook `useFiscal.ts`: expandir union `regime_tributario` para incluir `'mei'`.
+- Sem alteração de fluxo de emissão, webhook, fila ou trigger — apenas extensão de enum/opção.

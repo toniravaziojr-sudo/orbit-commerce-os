@@ -29,8 +29,9 @@ import { supabase } from '@/integrations/supabase/client';
 const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const CRT_OPTIONS = [
   { value: '1', label: '1 - Simples Nacional' },
-  { value: '2', label: '2 - Simples Nacional (excesso)' },
-  { value: '3', label: '3 - Regime Normal' },
+  { value: '2', label: '2 - Simples Nacional (excesso de sublimite)' },
+  { value: '3', label: '3 - Regime Normal (Lucro Presumido/Real)' },
+  { value: '4', label: '4 - Simples Nacional - MEI (Microempreendedor Individual)' },
 ];
 // Ambiente fixo em produção — sistema operando em ambiente fiscal real.
 
@@ -88,7 +89,18 @@ export function EmitenteSettings() {
   }, [recentlyUploaded]);
 
   const handleChange = (field: keyof FiscalSettings, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const next: any = { ...prev, [field]: value };
+      // Auto-sincroniza regime_tributario quando o CRT muda
+      if (field === 'crt') {
+        if (value === 4) next.regime_tributario = 'mei';
+        else if (value === 1 || value === 2) next.regime_tributario = 'simples_nacional';
+        else if (value === 3 && (prev.regime_tributario === 'simples_nacional' || prev.regime_tributario === 'mei')) {
+          next.regime_tributario = 'lucro_presumido';
+        }
+      }
+      return next;
+    });
   };
 
   const isDirty = useMemo(() => {

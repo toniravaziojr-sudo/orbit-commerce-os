@@ -72,6 +72,7 @@ const CRT_OPTIONS = [
   { value: '1', label: '1 - Simples Nacional' },
   { value: '2', label: '2 - Simples Nacional (sublimite)' },
   { value: '3', label: '3 - Regime Normal' },
+  { value: '4', label: '4 - Simples Nacional - MEI' },
 ];
 
 const IND_PRES_OPTIONS = [

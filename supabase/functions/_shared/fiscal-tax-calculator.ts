@@ -15,7 +15,7 @@
 // Fonte de verdade: docs/especificacoes/erp/erp-fiscal.md
 // =====================================================================
 
-export type RegimeTributario = 'simples_nacional' | 'lucro_presumido' | 'lucro_real';
+export type RegimeTributario = 'simples_nacional' | 'lucro_presumido' | 'lucro_real' | 'mei';
 
 export interface FiscalSettingsTax {
   regime_tributario: RegimeTributario;
@@ -71,8 +71,8 @@ export function calculateItemTaxes(
 ): CalculatedTaxes {
   const base = Number(valorTotalItem) || 0;
 
-  // Simples Nacional → zerado, usa CSOSN
-  if (settings.regime_tributario === 'simples_nacional') {
+  // Simples Nacional e MEI → zerado, usa CSOSN
+  if (settings.regime_tributario === 'simples_nacional' || settings.regime_tributario === 'mei') {
     return {
       icms_base: 0,
       icms_aliquota: 0,
