@@ -1946,6 +1946,43 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Confirmar exclusão de nota sem efeito fiscal */}
+      <AlertDialog
+        open={!!confirmDeleteInvoice}
+        onOpenChange={(open) => { if (!open && !isDeletingInvoice) setConfirmDeleteInvoice(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir esta nota?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Esta ação <strong>não pode ser desfeita</strong>. A nota será removida permanentemente do sistema.
+                </p>
+                {confirmDeleteInvoice && (
+                  <p className="text-muted-foreground">
+                    NF {confirmDeleteInvoice.serie}-{confirmDeleteInvoice.numero} · {confirmDeleteInvoice.dest_nome} · {formatCurrency(confirmDeleteInvoice.valor_total)}
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  Só é permitido excluir notas sem efeito fiscal (Pronta para Emitir, Rejeitada ou Cancelada).
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingInvoice}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeletingInvoice}
+              onClick={(e) => { e.preventDefault(); executeDeleteInvoice(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingInvoice ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <CorreiosContentDeclarationDialog
         open={dcDialogOpen}
         onOpenChange={(v) => { setDcDialogOpen(v); if (!v) { setDcDialogTargets([]); } }}
