@@ -89,7 +89,18 @@ export function EmitenteSettings() {
   }, [recentlyUploaded]);
 
   const handleChange = (field: keyof FiscalSettings, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const next: any = { ...prev, [field]: value };
+      // Auto-sincroniza regime_tributario quando o CRT muda
+      if (field === 'crt') {
+        if (value === 4) next.regime_tributario = 'mei';
+        else if (value === 1 || value === 2) next.regime_tributario = 'simples_nacional';
+        else if (value === 3 && (prev.regime_tributario === 'simples_nacional' || prev.regime_tributario === 'mei')) {
+          next.regime_tributario = 'lucro_presumido';
+        }
+      }
+      return next;
+    });
   };
 
   const isDirty = useMemo(() => {
