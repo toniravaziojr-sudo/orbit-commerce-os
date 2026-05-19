@@ -1020,7 +1020,7 @@ Deno.serve(async (req) => {
         // for regressivo. O handler é idempotente — triggers DB já fazem o
         // grosso, mas a edge cobre cenários extras (logs, futuras integrações).
         const REGRESSIVE = new Set([
-          'cancelled','returned','returning',
+          'cancelled','cancelled_by_user','returned','returning',
           'chargeback_detected','chargeback_lost',
           'payment_expired','invoice_cancelled',
         ]);
