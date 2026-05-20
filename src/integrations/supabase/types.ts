@@ -8593,6 +8593,11 @@ export type Database = {
           dest_inscricao_estadual: string | null
           dest_nome: string
           dest_telefone: string | null
+          email_provider_message_id: string | null
+          email_send_error: string | null
+          email_send_status: string | null
+          email_sent_at: string | null
+          email_sent_to: string | null
           emitido_por: string | null
           especie_volumes: string | null
           finalidade_emissao: number | null
@@ -8674,6 +8679,11 @@ export type Database = {
           dest_inscricao_estadual?: string | null
           dest_nome: string
           dest_telefone?: string | null
+          email_provider_message_id?: string | null
+          email_send_error?: string | null
+          email_send_status?: string | null
+          email_sent_at?: string | null
+          email_sent_to?: string | null
           emitido_por?: string | null
           especie_volumes?: string | null
           finalidade_emissao?: number | null
@@ -8755,6 +8765,11 @@ export type Database = {
           dest_inscricao_estadual?: string | null
           dest_nome?: string
           dest_telefone?: string | null
+          email_provider_message_id?: string | null
+          email_send_error?: string | null
+          email_send_status?: string | null
+          email_sent_at?: string | null
+          email_sent_to?: string | null
           emitido_por?: string | null
           especie_volumes?: string | null
           finalidade_emissao?: number | null
