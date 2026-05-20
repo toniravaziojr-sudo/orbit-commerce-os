@@ -203,14 +203,16 @@ Deno.serve(async (req) => {
       total_price: item.total_price,
     }));
 
-    // Desmembrar kits se configuração ativa
-    // Isso lista os componentes separadamente na NF para conferência,
-    // mas mantém os valores proporcionais ao total do pedido
-    if (fiscalSettings.desmembrar_estrutura) {
-      console.log('[fiscal-create-draft] Unbundling kits for order:', order_id);
-      itemsToProcess = await unbundleKitItems(supabase, itemsToProcess);
-      console.log('[fiscal-create-draft] Unbundled to', itemsToProcess.length, 'items');
-    }
+    // IMPORTANTE: Pedido de Venda SEMPRE preserva os itens como vieram do pedido
+    // (kit continua kit). O desmembramento de kit em componentes acontece somente
+    // na transição PV → NF, dentro de fiscal-prepare-invoice, no momento em que
+    // o usuário clica em "Criar Nota Fiscal". Isso garante:
+    //   1) PV é espelho fiel do pedido original.
+    //   2) Mudança da configuração reflete em todas as NFs novas, inclusive
+    //      geradas a partir de PVs antigos.
+    //   3) Não consumimos processamento desmembrando pedidos que talvez nunca
+    //      virem nota fiscal.
+
 
     // Get fiscal product data (incluindo componentes desmembrados)
     const productIds = itemsToProcess.map(item => item.product_id).filter(Boolean);
