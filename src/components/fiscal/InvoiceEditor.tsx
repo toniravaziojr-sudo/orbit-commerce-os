@@ -262,7 +262,6 @@ interface InvoiceEditorProps {
   onOpenChange: (open: boolean) => void;
   invoice?: InvoiceData;
   onSave: (data: InvoiceData) => Promise<void>;
-  onSubmit: (data: InvoiceData) => Promise<void>;
   onDelete?: () => Promise<void>;
   isLoading?: boolean;
   /** Error message from SEFAZ rejection or other error */
@@ -324,7 +323,6 @@ export function InvoiceEditor({
   onOpenChange,
   invoice,
   onSave,
-  onSubmit,
   onDelete,
   isLoading = false,
   rejectionError,
@@ -702,43 +700,6 @@ export function InvoiceEditor({
     }
     await persistSave(data, false);
   };
-
-  const handleSubmit = async () => {
-    if (!data) return;
-
-    // Validate required fields
-    const errors = validateForSubmission();
-    setValidationErrors(errors);
-
-    if (errors.length > 0) {
-      toast.error('Corrija os erros antes de emitir');
-      setActiveTab('geral');
-      return;
-    }
-
-    // Confirmação obrigatória — nunca transmite com 1 clique direto.
-    const ok = await confirmAction({
-      title: 'Emitir NF-e com valor fiscal real?',
-      description: 'Esta emissão terá valor fiscal real. A nota será transmitida à SEFAZ e passará a valer como documento fiscal oficial. Esta ação não pode ser desfeita.',
-      confirmLabel: 'Emitir NF-e definitiva',
-      cancelLabel: 'Cancelar',
-      variant: 'warning',
-    });
-    if (!ok) return;
-
-    setIsSubmitting(true);
-    try {
-      await onSubmit(data);
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Error submitting invoice:', error);
-      toast.error('Erro ao emitir NF-e');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // (confirmAction declarado no topo do componente para uso em handleSubmit)
 
   const handleDelete = async () => {
     if (!onDelete) return;
@@ -1953,19 +1914,7 @@ export function InvoiceEditor({
                 )}
                 Criar Nota Fiscal
               </Button>
-            ) : (
-              <Button
-                onClick={handleSubmit}
-                disabled={isSaving || isSubmitting}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                Emitir NF-e
-              </Button>
-            )}
+            ) : null}
           </div>
         </DialogFooter>
       </DialogContent>
