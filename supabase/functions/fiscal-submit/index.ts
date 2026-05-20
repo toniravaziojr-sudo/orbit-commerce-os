@@ -6,6 +6,7 @@ import { loadFocusTenantToken } from "../_shared/focus-tenant-token.ts";
 import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { evaluateEmissionGate } from "../_shared/fiscal-emission-gate.ts";
+import { ensureEmitenteSynced } from "../_shared/fiscal-emitente-sync-gate.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
