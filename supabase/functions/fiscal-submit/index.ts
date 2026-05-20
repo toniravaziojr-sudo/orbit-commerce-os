@@ -326,7 +326,12 @@ Deno.serve(async (req) => {
     }));
 
     // Gerar referência única
-    const ref = generateNFeRef(invoice_id);
+    // Em retentativa de nota rejeitada, geramos novo ref para evitar resposta em cache do Focus NFe.
+    const isRetry = invoice.status === 'rejected' && !!invoice.focus_ref;
+    const ref = generateNFeRef(invoice_id, isRetry ? 'retry' : 'initial');
+    if (isRetry) {
+      console.log(`[fiscal-submit] Retry detectado. Ref anterior=${invoice.focus_ref} -> novo ref=${ref}`);
+    }
 
     // Montar payload
     const nfePayload = buildNFePayload(
