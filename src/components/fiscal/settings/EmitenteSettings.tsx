@@ -788,24 +788,35 @@ export function EmitenteSettings() {
         </CardContent>
       </Card>
 
-      {/* ============ BARRA FIXA DE SALVAR ============ */}
-      {isDirty && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-lg">
-          <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
-              <AlertCircle className="h-4 w-4" />
-              Alterações não salvas
-            </div>
-            <div className="flex items-center gap-2">
+      {/* ============ BARRA FIXA DE SALVAR ============
+          Sempre visível para permitir reenviar a configuração para a Receita
+          mesmo sem alterações (útil quando o provedor estava fora do ar ou
+          quando o usuário quer forçar nova sincronização). */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-lg">
+        <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm">
+            {isDirty ? (
+              <span className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                <AlertCircle className="h-4 w-4" />
+                Alterações não salvas
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                Sem alterações pendentes. Você pode reenviar a configuração atual para a Receita.
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {isDirty && (
               <Button variant="ghost" onClick={handleDiscard} disabled={saveSettings.isPending}>Descartar</Button>
-              <Button onClick={handleSave} disabled={saveSettings.isPending}>
-                {saveSettings.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                Salvar alterações
-              </Button>
-            </div>
+            )}
+            <Button onClick={handleSave} disabled={saveSettings.isPending}>
+              {saveSettings.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              {isDirty ? 'Salvar alterações' : 'Reenviar configuração'}
+            </Button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
