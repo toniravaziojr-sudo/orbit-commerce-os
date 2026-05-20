@@ -48,6 +48,8 @@ interface InvoiceActionsDropdownProps {
   onDelete?: () => void;
   onEmitirDevolucao?: () => void;
   onResendEmail?: () => void;
+  /** Reenvia a NF rejeitada à SEFAZ sem abrir edição (mesmos dados). */
+  onResend?: () => void;
   /** Gera PDF de Declaração de Conteúdo (documento NÃO fiscal). */
   onGenerateDC?: () => void;
   isSubmitting?: boolean;
@@ -77,6 +79,7 @@ export function InvoiceActionsDropdown({
   onDelete,
   onEmitirDevolucao,
   onResendEmail,
+  onResend,
   onGenerateDC,
   isSubmitting,
   isCheckingStatus,
@@ -246,6 +249,20 @@ export function InvoiceActionsDropdown({
         {/* Rejected actions */}
         {isRejected && (
           <>
+            {onResend && (
+              <DropdownMenuItem
+                onClick={onResend}
+                disabled={isSubmitting}
+                className="text-green-600"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Reenviar para SEFAZ
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={onEdit}>
               <Edit className="h-4 w-4 mr-2" />
               Editar e Reemitir
