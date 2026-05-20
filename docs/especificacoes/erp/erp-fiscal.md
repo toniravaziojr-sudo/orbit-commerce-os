@@ -2083,3 +2083,32 @@ Regra:
   `focus_ultima_sincronizacao = 05:07`, rejeitada às 05:48 com motivo
   "Código Regime Tributário do emitente diverge". Próximo reenvio acionará o
   gate, sincronizará o emitente no Focus e só então transmitirá para a SEFAZ.
+
+## Fase 2 — Visibilidade de e-mail, frase legal MEI/Simples e auto-emissão (v2026-05-20)
+
+### 1. Rastreamento do envio de e-mail ao cliente
+A NF-e agora registra, em colunas próprias na tabela `fiscal_invoices`, o resultado do último envio do e-mail com DANFE/XML:
+- `email_sent_at` — data/hora do envio
+- `email_sent_to` — endereço usado
+- `email_send_status` — `sent` | `failed`
+- `email_send_error` — motivo quando falha
+- `email_provider_message_id` — ID retornado pelo SendGrid
+
+O histórico cumulativo continua em `fiscal_invoice_events` (`email_sent` / `email_failed`) e em `system_email_logs`. O envio passa a ser auditável: a UI pode mostrar "Enviado em DD/MM HH:MM para cliente@x" ou "Falha: motivo".
+
+### 2. Frase legal MEI / Simples Nacional no DANFE/XML
+O builder Focus NFe (`_shared/focus-nfe-adapter.ts`) agora recebe o CRT do emitente e, quando `CRT = 1, 2 ou 4` (Simples / Simples Excesso / MEI), prefixa automaticamente no campo `informacoes_adicionais_contribuinte` (infCpl) a frase exigida pelo Art. 26 da LC 123/2006:
+
+> "Documento emitido por ME ou EPP optante pelo Simples Nacional. Não gera direito a crédito fiscal de ICMS, de ISS e de IPI."
+
+Conteúdo adicional do usuário em "Informações Complementares" é preservado após a frase. Aplicado tanto em `fiscal-emit` quanto em `fiscal-submit`.
+
+### 3. Auto-emissão end-to-end
+Quando `fiscal_settings.emissao_automatica = true` E o emissor está configurado, o `fiscal-auto-create-drafts` em modo TRIGGER (disparado pelo pagamento aprovado do pedido) passa a invocar `fiscal-emit` em fire-and-forget para o rascunho recém-criado.
+
+- A chamada interna usa service_role + `tenant_id` no body; `fiscal-emit` aceita esse caminho dispensando o RBAC humano (owner/admin), mantendo isolamento por tenant.
+- Notas com pendências (faltando peso/NCM/endereço) caem em `rejected` ou permanecem `draft` e aparecem na Central de Execuções via cards já existentes "Emitir NF-e" e "Pendências emissão".
+- Cancelamento manual e reenvio (com novo `ref`) continuam funcionando exatamente como antes.
+
+### Limite de massa
+Operações em lote de DANFE/XML mantêm limite de 100 notas por execução. A emissão automática não tem teto (uma por pedido aprovado).
