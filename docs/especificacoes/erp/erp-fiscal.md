@@ -132,30 +132,38 @@ Módulo de gestão empresarial: fiscal (NF-e via **Focus NFe**), financeiro, e c
 
 ### Desmembramento de Kits (Composições)
 
-Quando a configuração `desmembrar_estrutura` está ativa em `fiscal_settings`:
+**Momento de execução — Atualizado 2026-05-20:** o desmembramento de kit acontece **exclusivamente no momento da transição Pedido de Venda → Nota Fiscal** (`fiscal-prepare-invoice`), quando o usuário clica em "Criar Nota Fiscal". **Não acontece mais na criação do Pedido de Venda.**
 
-1. **Valores do Pedido**: Os valores são extraídos do pedido original (preço de venda real)
-2. **Listagem na NF**: Os componentes são listados separadamente para facilitar conferência
-3. **Rateio Proporcional**: O valor total do kit é distribuído proporcionalmente entre os componentes
-4. **NCM por Componente**: Cada componente usa seu próprio NCM cadastrado em `fiscal_products`
+Regras:
+
+1. **Pedido de Venda preserva o kit como kit** — espelho fiel do pedido do cliente, independentemente da configuração `desmembrar_estrutura`. Não há mais validação de NCM/peso dos componentes ao criar PV.
+2. **Decisão sempre atual**: a transição PV → NF lê `fiscal_settings.desmembrar_estrutura` no instante da criação da NF. Mudar a configuração reflete em todas as NFs novas, inclusive geradas a partir de PVs antigos.
+3. **Configuração ativa + kit com componentes cadastrados** → a NF nasce com os componentes individuais, cada um com seus dados fiscais (NCM, CFOP override, GTIN, CEST, origem, unidade, CSOSN/CST), com tributos recalculados por componente.
+4. **Configuração ativa + kit SEM componentes cadastrados** → a NF nasce com o kit inteiro como um único item; registra evento de auditoria `kit_unbundled` com `kits_without_components` para o lojista cadastrar componentes futuramente.
+5. **Configuração desativada** → a NF nasce com o kit inteiro como um único item (igual ao PV).
+6. **Rateio proporcional**: o valor total do kit é distribuído entre os componentes proporcionalmente ao preço de venda de cada componente (`product_components.sale_price` → `products.price` como fallback). Diferença de arredondamento de centavos é absorvida no último componente para preservar exatamente `valor_total` da NF.
+7. **Peso bruto recalculado**: quando há desmembramento efetivo, `peso_bruto`/`peso_liquido` da NF são recompostos a partir do peso dos componentes (mais preciso que o peso registrado no kit).
+8. **Pedido de Venda permanece intacto**: a NF é um novo registro filho ligado por `source_order_invoice_id`. O PV pode gerar nova NF/devolução respeitando sempre a configuração e o cadastro do kit no instante da emissão.
+9. **Duplicar NF já desmembrada**: a duplicação clona os itens como estão (não re-desmembra, não re-junta).
+10. **Validação fiscal pós-desmembramento**: NCM, CFOP, quantidade, valor unitário e descrição são validados sobre os componentes (não sobre o kit), exatamente no mesmo motor de `fiscal-prepare-invoice`. Componente sem NCM cadastrado → NF vai para `pendencia` com mensagem clara apontando o componente. PV original não é afetado.
 
 **Fluxo:**
 ```
-Kit vendido por R$ 100,00
-├── Componente A (valor base R$ 60) → R$ 60,00 na NF
-└── Componente B (valor base R$ 40) → R$ 40,00 na NF
-                                     ────────────
-                                      Total: R$ 100,00 (igual ao pedido)
+Aba Pedidos de Venda          Configuração     Aba Notas Fiscais
+─────────────────────         ───────────       ─────────────────────
+Kit "Combo Calvície"  ──►   desmembrar=ON  ──► 3 itens (Shampoo, Loção, Balm)
+Kit "Combo Calvície"  ──►   desmembrar=OFF ──► 1 item (Combo Calvície)
 ```
 
-**Importante:** A estrutura do produto (componentes e quantidades) é apenas para listagem na NF. Os preços/custos no cadastro do componente não afetam o valor final - o que vale é o preço vendido no pedido.
+### Shared Modules: Kit Unbundlers
+| Arquivo | Onde roda | Operação |
+|---------|-----------|----------|
+| `supabase/functions/_shared/kit-unbundler.ts` | **Não utilizado em fluxos de PV/NF** (legado — kept apenas para referência histórica) | Operava sobre `order_items` |
+| `supabase/functions/_shared/kit-unbundler-fiscal-items.ts` | `fiscal-prepare-invoice` (PV→NF) | Opera sobre itens já em formato `fiscal_invoice_items`, resolve `product_id` via `order_item_id` ou SKU, expande componentes com tributos recalculados e auditoria |
 
-### Shared Module: Kit Unbundler
-```typescript
-// supabase/functions/_shared/kit-unbundler.ts
-// Desmembra kits em componentes individuais
-// Mantém rastreabilidade: original_kit_id, original_kit_name, is_from_kit
-```
+**Anti-regressão:** ver memória `mem://constraints/fiscal-kit-unbundling-at-nf-time`.
+
+
 
 ### Campos Fiscais do Produto
 | Campo | Descrição |

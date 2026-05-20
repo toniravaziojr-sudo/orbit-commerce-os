@@ -5,7 +5,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
+// kit-unbundler removido daqui: desmembramento acontece em fiscal-prepare-invoice (PV → NF).
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
@@ -203,14 +203,16 @@ Deno.serve(async (req) => {
       total_price: item.total_price,
     }));
 
-    // Desmembrar kits se configuração ativa
-    // Isso lista os componentes separadamente na NF para conferência,
-    // mas mantém os valores proporcionais ao total do pedido
-    if (fiscalSettings.desmembrar_estrutura) {
-      console.log('[fiscal-create-draft] Unbundling kits for order:', order_id);
-      itemsToProcess = await unbundleKitItems(supabase, itemsToProcess);
-      console.log('[fiscal-create-draft] Unbundled to', itemsToProcess.length, 'items');
-    }
+    // IMPORTANTE: Pedido de Venda SEMPRE preserva os itens como vieram do pedido
+    // (kit continua kit). O desmembramento de kit em componentes acontece somente
+    // na transição PV → NF, dentro de fiscal-prepare-invoice, no momento em que
+    // o usuário clica em "Criar Nota Fiscal". Isso garante:
+    //   1) PV é espelho fiel do pedido original.
+    //   2) Mudança da configuração reflete em todas as NFs novas, inclusive
+    //      geradas a partir de PVs antigos.
+    //   3) Não consumimos processamento desmembrando pedidos que talvez nunca
+    //      virem nota fiscal.
+
 
     // Get fiscal product data (incluindo componentes desmembrados)
     const productIds = itemsToProcess.map(item => item.product_id).filter(Boolean);
@@ -467,7 +469,7 @@ Deno.serve(async (req) => {
           order_id, 
           items_count: invoiceItems.length, 
           ibge_code: destMunicipioCodigo,
-          kits_unbundled: fiscalSettings.desmembrar_estrutura || false,
+          kits_unbundled: false, // desmembramento acontece só em PV→NF (fiscal-prepare-invoice)
         },
         user_id: user.id,
       });

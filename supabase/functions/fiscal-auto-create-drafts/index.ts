@@ -7,7 +7,7 @@
 import { errorResponse } from "../_shared/error-response.ts";
 import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
+// kit-unbundler removido daqui: desmembramento acontece em fiscal-prepare-invoice (PV → NF).
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
@@ -250,11 +250,10 @@ async function processTenanDrafts(
         total_price: item.total_price,
       }));
 
-      // Unbundle kits if setting is enabled
-      if (fiscalSettings.desmembrar_estrutura) {
-        console.log(`[fiscal-auto-create-drafts] Unbundling kits for order ${order.order_number}`);
-        itemsToProcess = await unbundleKitItems(supabase, itemsToProcess);
-      }
+      // IMPORTANTE: Pedido de Venda sempre nasce com kits como kits. O
+      // desmembramento em componentes acontece apenas em fiscal-prepare-invoice
+      // no momento PV → NF (decisão sempre baseada na configuração atual).
+
 
       // Get fiscal product data + fallback from products table
       const productIds = itemsToProcess.map(item => item.product_id).filter(Boolean);
