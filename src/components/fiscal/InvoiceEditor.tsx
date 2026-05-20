@@ -802,16 +802,16 @@ export function InvoiceEditor({
 
         {/* Pendências do Pedido de Venda (peso, NCM, CPF, endereço, etc.) */}
         {isPedidoVenda && pendenciaMotivos && pendenciaMotivos.length > 0 && (
-          <Alert className="mt-2 border-yellow-500/60 bg-yellow-500/10">
-            <AlertCircle className="h-4 w-4 text-yellow-700" />
+          <Alert variant="destructive" className="mt-2">
+            <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <strong className="block mb-1 text-yellow-800">
-                Pendências do Pedido de Venda — corrija para liberar a emissão:
+              <strong className="block mb-1">
+                Pendências obrigatórias — corrija para liberar a emissão:
               </strong>
-              <ul className="list-disc ml-5 mt-1 text-sm text-yellow-900 space-y-0.5">
+              <ul className="list-disc ml-5 mt-1 text-sm space-y-0.5">
                 {pendenciaMotivos.map((m, i) => (<li key={i}>{m}</li>))}
               </ul>
-              <p className="mt-2 text-xs text-yellow-800">
+              <p className="mt-2 text-xs opacity-90">
                 Enquanto houver pendências, não é possível criar a Nota Fiscal nem gerar a Declaração de Conteúdo.
               </p>
             </AlertDescription>
@@ -906,11 +906,11 @@ export function InvoiceEditor({
 
         {/* Item Fiscal Pendencies (NCM, GTIN, Origem, ...) */}
         {itemsWithIssues.length > 0 && validationErrors.length === 0 && (
-          <Alert className="mt-2 border-amber-500/50 bg-amber-500/5">
-            <AlertCircle className="h-4 w-4 text-amber-500" />
-            <AlertDescription className="text-amber-800">
+          <Alert variant="destructive" className="mt-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
               <strong className="block mb-1">
-                {itemsWithIssues.length} item(ns) com dados fiscais incompletos:
+                {itemsWithIssues.length} item(ns) com dados fiscais obrigatórios faltando:
               </strong>
               <ul className="list-disc ml-5 text-xs space-y-0.5">
                 {itemsWithIssues.slice(0, 6).map(({ idx, item, issues }) => (
@@ -920,7 +920,7 @@ export function InvoiceEditor({
                     {item.product_id && (
                       <Link
                         to="/products"
-                        className="ml-2 inline-flex items-center gap-1 text-primary underline"
+                        className="ml-2 inline-flex items-center gap-1 underline"
                       >
                         Abrir cadastro <ExternalLink className="h-3 w-3" />
                       </Link>
@@ -928,11 +928,11 @@ export function InvoiceEditor({
                   </li>
                 ))}
                 {itemsWithIssues.length > 6 && (
-                  <li className="text-muted-foreground">…e mais {itemsWithIssues.length - 6} item(ns).</li>
+                  <li className="opacity-80">…e mais {itemsWithIssues.length - 6} item(ns).</li>
                 )}
               </ul>
               {isPedidoVenda && (
-                <p className="mt-2 text-xs text-amber-700">
+                <p className="mt-2 text-xs opacity-90">
                   Os dados fiscais vêm do cadastro do produto. Corrija no cadastro para que o pedido herde automaticamente.
                 </p>
               )}
