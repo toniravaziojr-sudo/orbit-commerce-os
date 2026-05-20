@@ -393,6 +393,22 @@ export function InvoiceEditor({
     return () => { cancelled = true; };
   }, [invoice?.order_id]);
 
+  // Carrega NFs filhas (apenas em modo Pedido de Venda). Mostra vínculo "NF nº X".
+  useEffect(() => {
+    const pvId = invoice?.id;
+    if (!open || !pvId || invoiceStage !== 'pedido_venda') { setChildInvoices([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: rows } = await supabase
+        .from('fiscal_invoices')
+        .select('id, numero, serie, status, cancelled_at')
+        .eq('source_order_invoice_id', pvId)
+        .order('created_at', { ascending: false });
+      if (!cancelled) setChildInvoices((rows as any) || []);
+    })();
+    return () => { cancelled = true; };
+  }, [open, invoice?.id, invoiceStage]);
+
   // Filter natures based on selected tipo_nota
   const filteredNatures = operationNatures.filter(n => {
     if (!data?.tipo_nota) return true;
