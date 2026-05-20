@@ -102,7 +102,7 @@ export function getPendenciaMotivos(inv: PedidoLike): string[] {
 }
 
 const VALID_STATUSES: PedidoStatus[] = [
-  'em_aberto','pendente','concluido','cancelado','chargeback_em_andamento','chargeback_perdido',
+  'em_aberto','pendente','nf_criada','concluido','cancelado','chargeback_em_andamento','chargeback_perdido',
 ];
 
 export function derivePedidoStatus(inv: PedidoLike, concluidoSet: Set<string>): PedidoStatus {
