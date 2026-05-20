@@ -802,16 +802,16 @@ export function InvoiceEditor({
 
         {/* Pendências do Pedido de Venda (peso, NCM, CPF, endereço, etc.) */}
         {isPedidoVenda && pendenciaMotivos && pendenciaMotivos.length > 0 && (
-          <Alert className="mt-2 border-yellow-500/60 bg-yellow-500/10">
-            <AlertCircle className="h-4 w-4 text-yellow-700" />
+          <Alert variant="destructive" className="mt-2">
+            <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <strong className="block mb-1 text-yellow-800">
-                Pendências do Pedido de Venda — corrija para liberar a emissão:
+              <strong className="block mb-1">
+                Pendências obrigatórias — corrija para liberar a emissão:
               </strong>
-              <ul className="list-disc ml-5 mt-1 text-sm text-yellow-900 space-y-0.5">
+              <ul className="list-disc ml-5 mt-1 text-sm space-y-0.5">
                 {pendenciaMotivos.map((m, i) => (<li key={i}>{m}</li>))}
               </ul>
-              <p className="mt-2 text-xs text-yellow-800">
+              <p className="mt-2 text-xs opacity-90">
                 Enquanto houver pendências, não é possível criar a Nota Fiscal nem gerar a Declaração de Conteúdo.
               </p>
             </AlertDescription>
