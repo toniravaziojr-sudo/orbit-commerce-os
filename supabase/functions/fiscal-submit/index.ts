@@ -199,9 +199,11 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    const effectiveSettings = syncGate.refreshedSettings ?? settings;
+    if (syncGate.refreshedSettings) {
+      Object.assign(settings, syncGate.refreshedSettings);
+    }
 
-    const ambiente = (effectiveSettings.focus_ambiente || effectiveSettings.ambiente || 'homologacao') as 'homologacao' | 'producao';
+    const ambiente = (settings.focus_ambiente || settings.ambiente || 'homologacao') as 'homologacao' | 'producao';
 
     // Lote 1.E — Gate de produção / alerta de homologação
     const gate = evaluateEmissionGate({
