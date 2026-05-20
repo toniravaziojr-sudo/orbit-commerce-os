@@ -396,7 +396,8 @@ export function useFiscalInvoices(filters?: {
         .from('fiscal_invoices')
         .select('*, orders!fiscal_invoices_order_id_fkey(marketplace_source, status, resolved_shipping_provider_kind)')
         .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
 
       // Filter by tipo_documento only if explicitly specified
       if (filters?.tipoDocumento !== undefined) {
