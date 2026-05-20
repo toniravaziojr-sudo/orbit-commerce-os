@@ -341,12 +341,25 @@ function roundDecimal(value: number, decimals: number): number {
 }
 
 /**
- * Gera referência única para NF-e
+ * Gera referência única para NF-e.
+ *
+ * Focus NFe deduplica por `ref`: uma vez recebida uma resposta para um ref,
+ * qualquer POST subsequente com o mesmo ref devolve o resultado em cache,
+ * SEM reenviar para a SEFAZ. Por isso, em retries de notas rejeitadas
+ * geramos um ref novo, mantendo rastreabilidade ao ID da invoice.
+ *
+ * - Primeira emissão: NFE_<idsemhifen>           (até 54 chars)
+ * - Retry de rejeitada: NFE_<idsemhifen>_R<ts>   (ts = base36 do epoch em segundos)
  */
-export function generateNFeRef(invoiceId: string): string {
-  // Usar ID da invoice como referência (Focus NFe aceita até 60 caracteres alfanuméricos)
-  return `NFE_${invoiceId.replace(/-/g, '').substring(0, 50)}`;
+export function generateNFeRef(invoiceId: string, attempt: 'initial' | 'retry' = 'initial'): string {
+  const base = `NFE_${invoiceId.replace(/-/g, '').substring(0, 50)}`;
+  if (attempt === 'retry') {
+    const ts = Math.floor(Date.now() / 1000).toString(36).toUpperCase();
+    return `${base}_R${ts}`.substring(0, 60);
+  }
+  return base;
 }
+
 
 /**
  * Mapeia status Focus NFe para status interno (Lote 1.C.1).
