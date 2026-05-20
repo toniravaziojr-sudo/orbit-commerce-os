@@ -322,8 +322,15 @@ export function buildNFePayload(
     // Itens
     items: focusItems,
     
-    // Informações adicionais
-    informacoes_adicionais_contribuinte: invoice.informacoes_complementares?.substring(0, 2000) || undefined,
+    // Informações adicionais — prefixa a frase legal de regime quando aplicável
+    informacoes_adicionais_contribuinte: (() => {
+      const userInfo = (invoice.informacoes_complementares || '').trim();
+      const parts: string[] = [];
+      if (fraseRegime) parts.push(fraseRegime);
+      if (userInfo) parts.push(userInfo);
+      const combined = parts.join(' ').trim();
+      return combined ? combined.substring(0, 2000) : undefined;
+    })(),
   };
   
   // Adicionar forma de pagamento
