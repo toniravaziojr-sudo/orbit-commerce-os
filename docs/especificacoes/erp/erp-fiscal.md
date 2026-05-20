@@ -2018,3 +2018,57 @@ Sem alteração nos campos de destinatário, ou em pedidos sem cliente vinculado
 - Tenant **Respeite o Homem** com 221 pedidos em aberto: paginação carrega corretamente; troca de filtro reseta para a página 1.
 - Fluxo de edição: salvar pedido → editor fecha → lista rola até a linha salva com destaque azul por ~2,5s.
 - Diálogo de sincronização do cadastro continua disparando quando o destinatário muda em campos comerciais (nome, CPF/CNPJ, contato, endereço); IBGE-only **não** dispara (validado nos logs: edição 17:39, pedido `4b709af9`).
+
+---
+
+## Hotfix 2026-05-20d — Gate de sincronização obrigatória do emitente antes de emitir/reenviar
+
+**Problema.** A NF 1-289 do tenant *Respeite o Homem* ficou presa em rejeição
+481 ("Código Regime Tributário do emitente diverge do cadastro na SEFAZ"),
+mesmo após o usuário trocar o regime para **MEI / CRT 4** em Configurações
+Fiscais e o sistema já gerar nova referência em cada reenvio (Hotfix 2026-05-20c).
+
+**Causa raiz.** O fluxo de transmissão lia `fiscal_settings` local
+(`updated_at = 05:50`, regime correto) mas não comparava com
+`focus_ultima_sincronizacao = 05:07` no provedor. A NF era transmitida com o
+cadastro do emitente defasado no Focus NFe → o provedor mandava o CRT antigo
+para a SEFAZ → rejeição 481 real. Não era falha da nota, era falha de
+sincronização do cadastro do emitente.
+
+**Correção.** Criado helper compartilhado
+`supabase/functions/_shared/fiscal-emitente-sync-gate.ts → ensureEmitenteSynced()`,
+plugado em `fiscal-submit` e `fiscal-emit` logo após carregar `fiscal_settings`
+e antes do `evaluateEmissionGate`.
+
+Regra:
+1. Se `focus_empresa_id` ainda não existir, `focus_ultima_sincronizacao` for nulo,
+   ou `fiscal_settings.updated_at > focus_ultima_sincronizacao`, dispara
+   `fiscal-sync-focus-nfe` automaticamente antes de transmitir.
+2. Recarrega `fiscal_settings` e confirma que o snapshot externo avançou
+   (`focus_ultima_sincronizacao >= updated_at`).
+3. Se a sincronização falhar ou o snapshot não avançar, a transmissão é
+   **bloqueada** com erro de negócio (`code: emitente_sync_failed` ou
+   `emitente_sync_stale`). A NF não é enviada para a SEFAZ com cadastro defasado.
+
+**Por que isso é estrutural, não remendo.**
+- Cobre qualquer mudança fiscal (regime, CNAE, endereço, IE, nome empresarial)
+  que ainda não tenha chegado ao provedor — não só MEI.
+- Vale para emissão nova (`fiscal-emit`) e para reenvio de rejeitadas
+  (`fiscal-submit`).
+- Mantém a regra de nova `focus_ref` em retry de rejeitada (Hotfix 2026-05-20c)
+  — as duas atuam juntas: o ref novo garante reavaliação na SEFAZ, o gate de
+  sync garante que a SEFAZ recebe o cadastro atualizado.
+
+**Anti-regressão.**
+- Constraint registrada em `mem://constraints/fiscal-emitente-must-be-synced-before-emit`.
+- Qualquer nova edge function que transmita NF-e deve chamar `ensureEmitenteSynced()`
+  antes de montar o payload.
+- Proibido criar botão de "forçar resync" na UI — o gate é automático e
+  obrigatório no backend.
+
+**Validação técnica.**
+- Build TypeScript limpo após as alterações.
+- Caso real: NF 1-289 (tenant `d1a4d0ed`), `fiscal_settings.updated_at = 05:50`,
+  `focus_ultima_sincronizacao = 05:07`, rejeitada às 05:48 com motivo
+  "Código Regime Tributário do emitente diverge". Próximo reenvio acionará o
+  gate, sincronizará o emitente no Focus e só então transmitirá para a SEFAZ.
