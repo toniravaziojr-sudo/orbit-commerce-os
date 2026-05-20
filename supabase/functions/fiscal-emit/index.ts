@@ -361,7 +361,7 @@ Deno.serve(async (req) => {
       },
       destinatario,
       nfeItems,
-      { cnpj: settings.cnpj?.replace(/\D/g, '') || '' },
+      { cnpj: settings.cnpj?.replace(/\D/g, '') || '', crt: settings.crt },
       payment
     );
 
