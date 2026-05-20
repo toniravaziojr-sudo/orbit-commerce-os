@@ -142,12 +142,23 @@ export function buildNFePayload(
   }>,
   emitente: {
     cnpj: string;
+    crt?: string | number | null;
   },
   pagamento?: {
     forma: string;
     valor: number;
   }
 ): FocusNFePayload {
+  // Frase legal obrigatória para MEI (CRT=4) e Simples Nacional (CRT=1/2),
+  // conforme Art. 26 da LC 123/2006 — exigida no campo infCpl (informações
+  // adicionais ao contribuinte) para que o destinatário não tome crédito de ICMS.
+  const crtNum = Number(emitente.crt);
+  let fraseRegime: string | null = null;
+  if (crtNum === 4) {
+    fraseRegime = 'Documento emitido por ME ou EPP optante pelo Simples Nacional. Não gera direito a crédito fiscal de ICMS, de ISS e de IPI.';
+  } else if (crtNum === 1 || crtNum === 2) {
+    fraseRegime = 'Documento emitido por ME ou EPP optante pelo Simples Nacional. Não gera direito a crédito fiscal de ICMS, de ISS e de IPI.';
+  }
   // Determinar indicador de IE do destinatário
   let indicadorIE = 9; // Não contribuinte (padrão para PF)
   if (destinatario.cnpj) {
