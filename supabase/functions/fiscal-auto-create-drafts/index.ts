@@ -250,11 +250,10 @@ async function processTenanDrafts(
         total_price: item.total_price,
       }));
 
-      // Unbundle kits if setting is enabled
-      if (fiscalSettings.desmembrar_estrutura) {
-        console.log(`[fiscal-auto-create-drafts] Unbundling kits for order ${order.order_number}`);
-        itemsToProcess = await unbundleKitItems(supabase, itemsToProcess);
-      }
+      // IMPORTANTE: Pedido de Venda sempre nasce com kits como kits. O
+      // desmembramento em componentes acontece apenas em fiscal-prepare-invoice
+      // no momento PV → NF (decisão sempre baseada na configuração atual).
+
 
       // Get fiscal product data + fallback from products table
       const productIds = itemsToProcess.map(item => item.product_id).filter(Boolean);
