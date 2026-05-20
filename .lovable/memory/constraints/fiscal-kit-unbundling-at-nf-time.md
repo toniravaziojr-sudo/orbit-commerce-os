@@ -14,7 +14,7 @@ type: constraint
 **Obrigatório em `fiscal-prepare-invoice`:**
 1. Quando `inv.fiscal_stage === 'pedido_venda'` e itens são clonados para a nova NF, ler `fiscal_settings.desmembrar_estrutura` no instante da operação.
 2. Se ativo, passar os itens clonados por `unbundleFiscalItems` ANTES do INSERT em `fiscal_invoice_items`.
-3. Resolver `product_id` dos itens via `order_item_id → order_items.product_id` (caminho primário) com fallback por SKU → `products.id` (cobre PV manual).
+3. **Resolução de produto é por `fiscal_invoice_items.product_id` direto na linha** (fonte única, preenchido na criação do PV em todos os caminhos: `fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual` via ProductSelector, duplicação de PV/NF e `fiscal-update-draft`). Fallbacks legados (`order_item_id → order_items.product_id`, SKU exato, prefixo de 8 hex de UUID) ficam como rede de segurança apenas para linhas antigas ainda sem `product_id` preenchido (backfill universal já aplicado).
 4. Tributos dos componentes recalculados via `calculateItemTaxes` com `fiscal_products` do componente; CFOP herda override do componente, fallback para CFOP do kit, fallback final para `5102`.
 5. Rateio proporcional ao preço de venda de cada componente; diferença de centavos absorvida no último componente para preservar exatamente `valor_total` da NF.
 6. Quando houver desmembramento efetivo, recompor `peso_bruto`/`peso_liquido` a partir do peso dos componentes (`products.weight` em gramas, convertido para kg).
