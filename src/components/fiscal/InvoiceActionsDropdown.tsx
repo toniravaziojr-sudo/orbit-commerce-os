@@ -98,67 +98,62 @@ export function InvoiceActionsDropdown({
   const isRejected = invoice.status === 'rejected';
   const isCanceled = invoice.status === 'cancelled';
 
-  // Download DANFE (PDF)
-  const handleDownloadDanfe = () => {
-    if (invoice.danfe_url) {
-      window.open(invoice.danfe_url, '_blank');
-    } else {
-      toast.error('DANFE não disponível');
-    }
-  };
-
-  // Download XML
-  const handleDownloadXml = async () => {
-    const xmlUrl = invoice.xml_url || (invoice as any).xml_autorizado;
-    
-    if (!xmlUrl) {
-      toast.error('XML não disponível');
-      return;
-    }
-
-    setIsDownloadingXml(true);
+  // Download via backend (XML ou DANFE individual) — força attachment + nome padrão
+  const downloadViaBackend = async (format: 'xml' | 'danfe') => {
     try {
-      // Fetch the XML file
-      const response = await fetch(xmlUrl);
-      if (!response.ok) throw new Error('Erro ao baixar XML');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      const url = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/fiscal-download-docs`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ invoice_ids: [invoice.id], format }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || 'Falha ao baixar arquivo');
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get('Content-Disposition') || '';
+      const m = disp.match(/filename="([^"]+)"/);
+      const filename = m?.[1] || (format === 'xml' ? 'nota.xml' : 'danfe.pdf');
+      const objUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `NFe_${invoice.chave_acesso || invoice.numero}.xml`;
+      a.href = objUrl;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('XML baixado com sucesso');
-    } catch (error) {
-      console.error('Error downloading XML:', error);
-      // Fallback: open in new tab
-      window.open(xmlUrl, '_blank');
-    } finally {
-      setIsDownloadingXml(false);
+      window.URL.revokeObjectURL(objUrl);
+      toast.success(format === 'xml' ? 'XML baixado' : 'DANFE baixado');
+    } catch (error: any) {
+      console.error('Error downloading:', error);
+      toast.error(error?.message || 'Erro ao baixar arquivo');
     }
   };
 
-  // Print DANFE (opens print dialog)
+  const handleDownloadDanfe = () => downloadViaBackend('danfe');
+
+  const handleDownloadXml = async () => {
+    setIsDownloadingXml(true);
+    try { await downloadViaBackend('xml'); } finally { setIsDownloadingXml(false); }
+  };
+
+  // Print DANFE (opens print dialog) — segue usando URL direta para preview
   const handlePrintDanfe = async () => {
     if (!invoice.danfe_url) {
       toast.error('DANFE não disponível para impressão');
       return;
     }
-
     try {
-      // Open PDF in new window and print
       const printWindow = window.open(invoice.danfe_url, '_blank');
       if (printWindow) {
-        printWindow.addEventListener('load', () => {
-          printWindow.print();
-        });
+        printWindow.addEventListener('load', () => { printWindow.print(); });
       }
-      
-      // Mark as printed
       onPrint?.();
     } catch (error) {
       console.error('Error printing DANFE:', error);
