@@ -1683,6 +1683,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onDelete={() => handleDeleteDraft(invoice)}
                               onEmitirDevolucao={() => handleEmitirDevolucao(invoice)}
                               onResendEmail={() => handleResendEmail(invoice)}
+                              onResend={() => handleQuickSubmit(invoice)}
                               onGenerateDC={mode === 'orders' ? () => openDcDialogForInvoice(invoice) : undefined}
                               isGeneratingDC={generatingDcInvoiceId === invoice.id}
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
