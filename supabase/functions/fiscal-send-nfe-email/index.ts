@@ -319,7 +319,20 @@ Deno.serve(async (req) => {
       },
     });
 
-    // Log event in fiscal_invoice_events
+    // Persistir status do último envio diretamente na NF (visível na UI)
+    await supabase
+      .from("fiscal_invoices")
+      .update({
+        email_sent_at: new Date().toISOString(),
+        email_sent_to: customerEmail,
+        email_send_status: result.success ? "sent" : "failed",
+        email_send_error: result.success ? null : (result.error || "Erro desconhecido"),
+        email_provider_message_id: result.messageId || null,
+      })
+      .eq("id", invoice_id)
+      .eq("tenant_id", tenant_id);
+
+    // Log event in fiscal_invoice_events (acumula histórico de envios)
     await supabase.from("fiscal_invoice_events").insert({
       invoice_id,
       tenant_id,
