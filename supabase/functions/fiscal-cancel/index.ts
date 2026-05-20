@@ -121,6 +121,7 @@ Deno.serve(async (req) => {
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
         cancel_justificativa: justificativa,
+        status_motivo: `Cancelada a pedido do emitente: ${justificativa}`,
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice_id)
