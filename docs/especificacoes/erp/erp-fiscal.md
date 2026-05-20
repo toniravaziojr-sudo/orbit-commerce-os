@@ -488,20 +488,31 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 
     **Duplicar Pedido de Venda / Duplicar NF (v2026-05-14 — Onda 2 rev1)**: A duplicação abre um diálogo pré-preenchido (`ManualInvoiceDialog` em `mode="duplicate"`) para o usuário revisar/editar antes de salvar; só ao clicar em **"Salvar duplicação"** o novo registro é criado.
 
-### Status visual do Pedido de Venda (v2026-05-16 — Onda 2 rev2)
+### Status visual do Pedido de Venda (v2026-05-20 — Onda 3 rev3)
 
-A aba **Pedidos de Venda** exibe agora 5 status derivados (não persistidos como coluna nova; calculados em `src/lib/fiscal/pedidoStatus.ts` a partir de `order_status`, `pendencia_motivos` e existência de NF filha autorizada via `source_order_invoice_id`):
+A aba **Pedidos de Venda** exibe 7 status. A fonte de verdade é `fiscal_invoices.pedido_status`, mantido pelos gatilhos `trg_orders_sync_pv_status` (espelha o pedido original) e `fiscal_invoices_sync_pv_status` (recalcula quando uma NF filha é criada, alterada ou excluída — vale também para PVs **manuais/duplicados sem `order_id`**). Cálculo central: `public.derive_pv_pedido_status(...)`.
 
 | Status | Cor | Quando | Bloqueia emissão? |
 |--------|-----|--------|-------------------|
-| **Pedido em aberto** | Azul | Aprovado, sem pendências, sem NF emitida ainda | Não |
-| **Pendente** | Amarelo | `pendencia_motivos` não vazio (trigger SQL `trg_recompute_pedido_venda_pendencias` mantém o array) | **Sim** — Criar NF e Declaração de Conteúdo ficam desabilitados; banner amarelo no editor lista os motivos |
-| **Concluído** | Verde | Já existe ao menos uma NF filha autorizada (`status='authorized'` + `source_order_invoice_id = pedido.id`) | Não — ainda permite gerar NF complementar/devolução |
-| **Cancelado** | Vermelho | `order_status IN ('cancelled', 'canceled')` | Sim |
-| **Chargeback** | Vermelho | `order_status IN ('chargeback_detected', 'chargeback_lost')` | Sim |
+| **Pedido em aberto** | Azul | Aprovado, sem pendências, sem NF gerada | Não |
+| **Pendente** | Amarelo | Há pendências fiscais (peso, NCM, CPF, endereço) **ou** todas as NFs filhas foram excluídas e o pedido voltou para revisão | **Sim** |
+| **NF criada** | Roxo | Existe ao menos uma NF filha **não cancelada e não autorizada** (rascunho, pronta, pendente Sefaz, rejeitada) | Não — permite ajustar/reenviar |
+| **Concluído** | Verde | Existe ao menos uma NF filha autorizada pela Receita | Não — permite NF complementar/devolução |
+| **Cancelado** | Cinza | Pedido original cancelado/expirado/devolvido | Sim |
+| **Chargeback em andamento** | Laranja | Pedido em disputa ativa | Sim |
+| **Chargeback perdido** | Vermelho | Pedido perdeu a disputa (terminal) | Sim |
 
-- Filtros, cards de resumo (Em aberto / Pendente / Concluído) e badge da linha consomem a mesma fonte (`PEDIDO_STATUS_CONFIG`).
-- Bloqueio é triplo: dropdown desabilita o item com tooltip explicativo; handler (`requestEmitInvoice`, `openDcDialogForInvoice`, `handleBulkSubmit`) rejeita com toast PT-BR; botão "Criar Nota Fiscal" dentro do editor fica desabilitado enquanto houver `pendenciaMotivos`.
+**Transições automáticas** (qualquer origem de PV — manual, duplicado, vindo de loja/marketplace):
+
+- NF filha **criada** (`draft`/`ready`/`pending`/`rejected`) → PV vira **NF criada**.
+- NF filha **autorizada** → PV vira **Concluído**.
+- Última NF filha **excluída** → PV volta para **Em aberto** (ou **Pendente** se houver pendência fiscal local).
+- **Duplicar um PV não copia o vínculo de NF** — o duplicado nasce sem `source_order_invoice_id` apontando para ele, portanto sempre "Em aberto"/"Pendente".
+- Precedências: `cancelado`/`chargeback_perdido` do pedido original **sempre prevalecem** sobre qualquer estado de NF.
+
+**Vínculo PV ↔ NF na UI**: o editor do Pedido de Venda mostra um bloco roxo "Vinculado à Nota Fiscal nº X" listando todas as NFs filhas ativas e seus status. Se a única NF filha foi excluída/cancelada, exibe aviso amarelo "Gere uma nova Nota Fiscal".
+
+- Filtros, cards de resumo e badge da linha consomem a mesma fonte (`PEDIDO_STATUS_CONFIG`).
 - Motor de pendências é puro SQL (sem `pg_net`, sem cron); recomputa em INSERT/UPDATE de `fiscal_invoices` e itens.
     - **Aba Pedidos de Venda** (`fiscal_stage='pedido_venda'`): item **"Duplicar Pedido de Venda"** no menu de ações. Ao salvar, o novo registro permanece como **Pedido de Venda** (`fiscal_stage='pedido_venda'`), não muda de aba.
     - **Aba Notas Fiscais** (`fiscal_stage='emitida'`): item **"Duplicar NF"** no menu de ações. Ao salvar, o novo registro é validado automaticamente pelo backend (`fiscal-prepare-invoice`) e movido para a aba **Notas Fiscais** com `fiscal_stage='pronta_emitir'` ou `fiscal_stage='pendencia'` conforme o resultado da validação. **Nunca** volta para Pedidos de Venda.

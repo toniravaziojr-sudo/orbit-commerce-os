@@ -1,55 +1,36 @@
-## Contexto
+## Entrega — Sincronização Pedido de Venda ↔ Nota Fiscal (2026-05-20)
 
-O ajuste de **MEI / CRT 4** já foi aplicado e o cadastro interno da loja está correto. Também já foi corrigido o problema de **reuso de referência** no reenvio de NF rejeitada.
+### O que mudou para o usuário
 
-Mesmo assim, a NF 1-289 continua sendo rejeitada com o código 481 porque o fluxo ainda permite transmitir a nota quando o **cadastro do emitente no provedor fiscal está desatualizado em relação ao cadastro salvo localmente**.
+1. **Novo status "NF criada"** (roxo) na aba Pedidos de Venda. Aparece automaticamente quando uma Nota Fiscal é gerada a partir do Pedido, mesmo que a Receita ainda não tenha autorizado. Disponível em filtros, badges e exportação.
 
-Evidência do caso real:
-- o cadastro local foi salvo novamente às **05:50** com CRT 4 / MEI;
-- a última sincronização confirmada com o provedor permaneceu em **05:07**;
-- a nota foi reenviada às **05:48** com nova referência e voltou a rejeição 481 real da SEFAZ.
+2. **Transições automáticas** (qualquer origem de pedido — manual, duplicado ou da loja/marketplace):
+   - Nota Fiscal criada (rascunho/pronta/pendente/rejeitada) → Pedido passa para "NF criada".
+   - Nota Fiscal autorizada pela Receita → Pedido passa para "Concluído".
+   - Todas as Notas Fiscais filhas excluídas → Pedido volta para "Em aberto" (ou "Pendente" se tiver pendência fiscal).
+   - Duplicar um Pedido **não copia** o vínculo de NF — a duplicação nasce limpa.
+   - Cancelado/Chargeback do pedido original continuam tendo prioridade absoluta.
 
-Conclusão: o problema atual **não está mais na nota em si**, e sim na ausência de um **gate de sincronização obrigatória** entre o salvamento fiscal e a emissão/reemissão.
+3. **Vínculo visível no diálogo do Pedido**: bloco roxo "Vinculado à Nota Fiscal nº X" mostrando todas as NFs filhas ativas e seus status. Se todas foram excluídas, mostra aviso amarelo orientando criar uma nova nota.
 
-## O que será feito
+4. **Bug de ordenação corrigido**: a lista de Pedidos de Venda agora tem ordem 100% estável (data + identificador como desempate). Recargas automáticas em segundo plano não mexem mais na posição de pedidos com data próxima — fim do "pedido pulando de posição sozinho".
 
-### 1. Gate obrigatório de sincronização antes de emitir / reenviar
-- Antes de qualquer emissão ou reenvio, o backend vai comparar a versão local do cadastro fiscal com a última sincronização confirmada no provedor.
-- Se o cadastro local estiver mais novo, o backend tentará sincronizar automaticamente o emitente **antes** de transmitir a nota.
-- Se a sincronização falhar, a transmissão será bloqueada com mensagem objetiva, em vez de mandar a nota para a SEFAZ com cadastro defasado.
+5. **Bug de exclusão corrigido**: o botão Excluir do editor não falha mais silenciosamente. Se a exclusão for bloqueada por regra do sistema (nota com efeito fiscal, por exemplo), mostra mensagem clara em português. Notas sem efeito fiscal (rascunho, rejeitada, cancelada) podem ser excluídas normalmente.
 
-### 2. Salvamento fiscal sem falha silenciosa
-- O fluxo de salvar configurações fiscais deixará de tratar falha de sincronização como detalhe secundário ou silencioso.
-- Quando o cadastro local salvar mas a atualização externa falhar, o sistema vai sinalizar isso claramente e manter o estado operacional coerente.
+### Como você valida
 
-### 3. Retry de NF rejeitada continua preservado
-- A regra já implementada de gerar nova referência em reenvios de nota rejeitada será mantida.
-- Ela segue necessária, mas passa a operar junto com a garantia de sincronização do emitente.
+1. Abra um Pedido de Venda e crie uma NF a partir dele. O Pedido deve aparecer como **"NF criada"** (roxo) na aba Pedidos de Venda.
+2. Autorize a NF (transmissão Sefaz). O Pedido deve virar **"Concluído"** automaticamente.
+3. Exclua a NF (enquanto ainda for rascunho/rejeitada). O Pedido deve voltar para **"Em aberto"** ou **"Pendente"** com aviso.
+4. Tente excluir uma NF autorizada pelo editor — deve aparecer mensagem clara explicando que não pode (e nada é apagado).
+5. Recarregue a lista de Pedidos de Venda várias vezes — a ordem dos pedidos com data próxima deve permanecer a mesma.
 
-### 4. Atualização da documentação fiscal
-- Atualizar o doc oficial do módulo Fiscal registrando o novo gate de sincronização obrigatória.
-- Como não há mudança de UI prevista neste ajuste, o mapa de UI só será atualizado se surgir impacto visual real durante a implementação.
+### Documentação atualizada
 
-## Como você valida
+- `docs/especificacoes/erp/erp-fiscal.md` — seção "Status visual do Pedido de Venda" agora descreve os 7 status, as transições e o vínculo PV↔NF.
+- Memória anti-regressão: `mem://constraints/pv-status-mirrors-child-nf` (indexada).
 
-1. Salvar as Configurações Fiscais com CRT 4 / MEI.
-2. Reenviar a NF 1-289.
-3. Esperado: se o cadastro externo estiver defasado, o sistema sincroniza primeiro e só depois transmite.
-4. Se a sincronização externa falhar, o sistema não transmite a NF e informa claramente que o cadastro fiscal do emitente ainda não foi atualizado no provedor.
-5. Após sincronização bem-sucedida, o reenvio deve seguir para avaliação real da SEFAZ.
+### Bloco técnico (opcional)
 
-## Risco e segurança
-
-- **Risco de regressão:** Médio-baixo. O ajuste mexe no pipeline de emissão fiscal, mas reduz envio inválido para a SEFAZ.
-- **Segurança:** A mudança permanece restrita ao cadastro fiscal do próprio tenant e reforça o uso do backend como fonte de controle do fluxo.
-- **Reversibilidade:** Se necessário, o gate pode ser relaxado sem desfazer os dados salvos; porém a direção correta é manter o bloqueio seguro.
-
----
-
-### Bloco técnico (opcional, para registro)
-
-- Manter a regra atual de `focus_ref` novo em retry de `rejected`.
-- Em `fiscal-submit` e `fiscal-emit`, comparar `fiscal_settings.updated_at` vs `focus_ultima_sincronizacao` e executar sincronização automática do emitente quando o cadastro local estiver mais novo.
-- Se a sincronização falhar, retornar erro de negócio claro e não transmitir a NF.
-- No fluxo de salvar configuração fiscal, tratar falha da sincronização subsequente como falha operacional relevante, sem silêncio.
-- Atualizar o doc fiscal com a regra de "sincronização obrigatória antes de emitir/reenviar quando o cadastro local estiver mais novo que o snapshot externo".
+- Migration adiciona overload `derive_pv_pedido_status(...,p_has_active_nf boolean)`, função `recompute_pv_pedido_status(uuid)` para PVs sem `order_id`, atualiza `sync_pedido_status_for_order` e `trg_nf_sync_pv_status` (agora cobre DELETE), recria o trigger com `INSERT OR UPDATE OR DELETE`, e roda reconciliação retroativa em todos os PVs com NF filha.
+- Frontend: `pedidoStatus.ts` ganha `nf_criada` em type/config/options; `useFiscal.ts` adiciona desempate por `id` na query; `FiscalInvoiceList.handleDeleteInvoice` checa `count` e dá toast claro; `InvoiceEditor` carrega NFs filhas e renderiza bloco roxo (ou amarelo se nenhuma estiver ativa).

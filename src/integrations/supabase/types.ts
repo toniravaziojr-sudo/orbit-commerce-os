@@ -24320,16 +24320,28 @@ export type Database = {
         }
         Returns: number
       }
-      derive_pv_pedido_status: {
-        Args: {
-          p_cancelled_at: string
-          p_chargeback_detected_at: string
-          p_has_authorized_nf: boolean
-          p_order_status: string
-          p_payment_status: string
-        }
-        Returns: string
-      }
+      derive_pv_pedido_status:
+        | {
+            Args: {
+              p_cancelled_at: string
+              p_chargeback_detected_at: string
+              p_has_authorized_nf: boolean
+              p_order_status: string
+              p_payment_status: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_cancelled_at: string
+              p_chargeback_detected_at: string
+              p_has_active_nf: boolean
+              p_has_authorized_nf: boolean
+              p_order_status: string
+              p_payment_status: string
+            }
+            Returns: string
+          }
       enqueue_ai_regeneration: {
         Args: {
           p_debounce_seconds?: number
@@ -24845,6 +24857,10 @@ export type Database = {
           reclaimed_id: string
           tenant_id: string
         }[]
+      }
+      recompute_pv_pedido_status: {
+        Args: { p_pv_id: string }
+        Returns: undefined
       }
       reconcile_missing_fiscal_drafts: {
         Args: { p_limit?: number; p_tenant_id?: string }
