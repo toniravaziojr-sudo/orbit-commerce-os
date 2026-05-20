@@ -265,7 +265,7 @@ export function InvoiceActionsDropdown({
             )}
             <DropdownMenuItem onClick={onEdit}>
               <Edit className="h-4 w-4 mr-2" />
-              Editar e Reemitir
+              Editar
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onDuplicate}>
               <Copy className="h-4 w-4 mr-2" />
