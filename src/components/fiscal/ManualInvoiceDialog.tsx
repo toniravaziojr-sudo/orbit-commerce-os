@@ -456,6 +456,7 @@ export function ManualInvoiceDialog({
             numero_item: index + 1,
             codigo: item.codigo,
             descricao: item.descricao,
+            product_id: item.product_id || null,
             ncm: item.ncm || '',
             cfop: item.cfop || '5102',
             unidade: item.unidade,
