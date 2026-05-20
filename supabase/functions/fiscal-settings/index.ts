@@ -206,10 +206,11 @@ Deno.serve(async (req) => {
         hasCertificate && certValid
       );
 
-      // Check if record exists
+      // Check if record exists — capturar snapshot dos campos do emitente
+      // para detectar mudança e disparar sync automático com a Receita.
       const { data: existing } = await supabase
         .from('fiscal_settings')
-        .select('id, provider_token')
+        .select('id, provider_token, crt, regime_tributario, cnpj, inscricao_estadual, ie_isento, razao_social, nome_fantasia, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_municipio, endereco_municipio_codigo, endereco_uf, endereco_cep, cnae, email, telefone')
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
