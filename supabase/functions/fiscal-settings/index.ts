@@ -331,58 +331,8 @@ Deno.serve(async (req) => {
 
       console.log('[fiscal-settings] Saved successfully, is_configured:', is_configured);
 
-      // ============================================================
-      // SYNC AUTOMÁTICO COM A RECEITA (Focus NFe)
-      // Quando campos do EMITENTE mudam, o cadastro na Receita PRECISA
-      // ser atualizado, senão a SEFAZ rejeita as próximas emissões com
-      // "Código Regime Tributário do emitente diverge do cadastro na SEFAZ"
-      // (ou qualquer outro campo divergente).
-      // ============================================================
-      const emitenteFields = [
-        'crt', 'regime_tributario', 'cnpj', 'inscricao_estadual', 'ie_isento',
-        'razao_social', 'nome_fantasia', 'cnae',
-        'endereco_logradouro', 'endereco_numero', 'endereco_complemento',
-        'endereco_bairro', 'endereco_municipio', 'endereco_municipio_codigo',
-        'endereco_uf', 'endereco_cep', 'email', 'telefone',
-      ] as const;
-
-      const newValuesForCompare: Record<string, unknown> = { ...settingsData };
-      const emitenteChanged = !existing || emitenteFields.some((f) => {
-        const before = (existing as any)?.[f] ?? null;
-        const after = (newValuesForCompare as any)?.[f] ?? null;
-        // Normaliza para string para evitar falsos positivos de número vs string
-        return String(before ?? '') !== String(after ?? '');
-      });
-
-      let syncReceita: { attempted: boolean; success: boolean; error?: string } = {
-        attempted: false, success: false,
-      };
-
-      if (emitenteChanged && is_configured) {
-        syncReceita.attempted = true;
-        try {
-          const { data: syncData, error: syncError } = await supabase.functions.invoke(
-            'fiscal-sync-focus-nfe',
-            { body: { tenant_id: tenantId } },
-          );
-          if (syncError) {
-            console.error('[fiscal-settings] Sync com Receita falhou:', syncError);
-            syncReceita.error = syncError.message ?? 'Falha ao sincronizar com a Receita.';
-          } else if (syncData?.success === false) {
-            console.error('[fiscal-settings] Sync retornou erro de negócio:', syncData);
-            syncReceita.error = syncData?.error ?? 'Falha ao sincronizar com a Receita.';
-          } else {
-            syncReceita.success = true;
-            console.log('[fiscal-settings] Sync com Receita concluído com sucesso.');
-          }
-        } catch (e: any) {
-          console.error('[fiscal-settings] Exceção no sync com Receita:', e);
-          syncReceita.error = e?.message ?? 'Falha ao sincronizar com a Receita.';
-        }
-      }
-
       return new Response(
-        JSON.stringify({ success: true, settings: result, sync_receita: syncReceita }),
+        JSON.stringify({ success: true, settings: result }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
