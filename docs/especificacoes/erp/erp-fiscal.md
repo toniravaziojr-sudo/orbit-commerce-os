@@ -262,6 +262,17 @@ Notas fiscais podem ser **excluídas** somente quando **não geram efeito fiscal
 
 **Por que existe:** evita acúmulo de rascunhos órfãos e notas rejeitadas/canceladas poluindo a aba Notas Fiscais, sem permitir que o lojista remova registros com valor fiscal real.
 
+#### Ações para NF rejeitada (rev 2026-05-20)
+
+Quando uma NF está em `rejected`, o `InvoiceActionsDropdown` apresenta três opções, nesta ordem:
+
+1. **Reenviar para SEFAZ** (verde, destacado) — chama `handleQuickSubmit` (invoca `fiscal-submit` com o mesmo `invoice_id`, sem abrir modal de edição). Usado quando a rejeição não foi causada pelo conteúdo da nota: indisponibilidade da SEFAZ, divergência de regime tributário corrigida nas Configurações Fiscais, certificado renovado, etc. A própria edge `fiscal-submit` já aceita `status IN ('draft','rejected')`.
+2. **Editar e Reemitir** — abre o editor completo; usar quando o motivo da rejeição exige alterar dados da NF (item, destinatário, fiscal).
+3. **Duplicar como rascunho** — clona a NF para um novo rascunho preservando o original.
+
+Excluir continua disponível ao final do menu (vermelho).
+
+
 #### Status atual
 - **Respeite o Homem** e demais tenants: ambiente **produção**, emissão real de NF-e habilitada.
 
