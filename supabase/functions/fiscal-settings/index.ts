@@ -175,6 +175,14 @@ Deno.serve(async (req) => {
         origem_fiscal_padrao,
         email,
         telefone,
+        // Aba "Outros" — campos que estavam sendo perdidos no save
+        desmembrar_estrutura,
+        enviar_email_nfe,
+        email_nfe_subject,
+        email_nfe_body,
+        auto_create_shipment,
+        auto_update_order_status,
+        default_shipping_provider,
       } = body;
 
       const normalizedEmail = normalizeOptionalText(email)?.toLowerCase() ?? null;
