@@ -7,6 +7,7 @@ import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_s
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { evaluateEmissionGate } from "../_shared/fiscal-emission-gate.ts";
+import { ensureEmitenteSynced } from "../_shared/fiscal-emitente-sync-gate.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
@@ -176,6 +177,23 @@ Deno.serve(async (req) => {
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+    // Gate de sincronização do emitente — bloqueia emissão se cadastro local
+    // estiver mais novo que o snapshot externo.
+    const syncGate = await ensureEmitenteSynced(supabaseClient, {
+      settings,
+      tenantId,
+      authHeader,
+      logPrefix: '[fiscal-emit]',
+    });
+    if (!syncGate.ok) {
+      return new Response(
+        JSON.stringify({ success: false, error: syncGate.error, code: syncGate.code }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (syncGate.refreshedSettings) {
+      Object.assign(settings, syncGate.refreshedSettings);
     }
 
     const ambiente = (settings.focus_ambiente || settings.ambiente || 'producao') as 'homologacao' | 'producao';
