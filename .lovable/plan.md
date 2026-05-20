@@ -1,52 +1,55 @@
 ## Contexto
 
-Hoje o sistema oferece 3 opções de regime tributário na configuração fiscal: Simples Nacional, Simples Nacional (excesso) e Regime Normal (Lucro Presumido/Real). Falta o **MEI**, que é um regime próprio com código fiscal específico (código 4 na SEFAZ). Lojistas MEI hoje marcam "Simples Nacional" por engano, o sistema envia o código 1 e a SEFAZ rejeita por divergência cadastral — foi exatamente o que aconteceu na NF 1-289 da loja "Respeite o Homem".
+O ajuste de **MEI / CRT 4** já foi aplicado e o cadastro interno da loja está correto. Também já foi corrigido o problema de **reuso de referência** no reenvio de NF rejeitada.
 
-O ajuste é exclusivamente fiscal e não muda a experiência de uso: adiciona uma 4ª opção no seletor de regime na tela de Configurações Fiscais.
+Mesmo assim, a NF 1-289 continua sendo rejeitada com o código 481 porque o fluxo ainda permite transmitir a nota quando o **cadastro do emitente no provedor fiscal está desatualizado em relação ao cadastro salvo localmente**.
+
+Evidência do caso real:
+- o cadastro local foi salvo novamente às **05:50** com CRT 4 / MEI;
+- a última sincronização confirmada com o provedor permaneceu em **05:07**;
+- a nota foi reenviada às **05:48** com nova referência e voltou a rejeição 481 real da SEFAZ.
+
+Conclusão: o problema atual **não está mais na nota em si**, e sim na ausência de um **gate de sincronização obrigatória** entre o salvamento fiscal e a emissão/reemissão.
 
 ## O que será feito
 
-### 1. Nova opção "MEI" no seletor de Regime Tributário
-- A tela de Configurações Fiscais → Parâmetros Fiscais passa a oferecer 4 opções:
-  - **MEI (Microempreendedor Individual)** ← nova
-  - Simples Nacional
-  - Simples Nacional (excesso de sublimite)
-  - Regime Normal (Lucro Presumido/Real)
-- Quando o lojista escolher MEI, o sistema envia para a SEFAZ o código correto (4 — "Simples Nacional MEI"), eliminando a rejeição por divergência cadastral.
+### 1. Gate obrigatório de sincronização antes de emitir / reenviar
+- Antes de qualquer emissão ou reenvio, o backend vai comparar a versão local do cadastro fiscal com a última sincronização confirmada no provedor.
+- Se o cadastro local estiver mais novo, o backend tentará sincronizar automaticamente o emitente **antes** de transmitir a nota.
+- Se a sincronização falhar, a transmissão será bloqueada com mensagem objetiva, em vez de mandar a nota para a SEFAZ com cadastro defasado.
 
-### 2. Tratamento fiscal correto para MEI nas notas
-- MEI segue as mesmas regras práticas do Simples Nacional na NF: **sem destaque de PIS, COFINS e ICMS**, usando código de situação tributária CSOSN (padrão 102 — "Sem permissão de crédito"), idêntico ao já aplicado para Simples comum.
-- Observação obrigatória do Simples Nacional permanece sendo aplicada automaticamente.
-- Nenhum campo novo precisa ser preenchido pelo lojista MEI além de escolher o regime.
+### 2. Salvamento fiscal sem falha silenciosa
+- O fluxo de salvar configurações fiscais deixará de tratar falha de sincronização como detalhe secundário ou silencioso.
+- Quando o cadastro local salvar mas a atualização externa falhar, o sistema vai sinalizar isso claramente e manter o estado operacional coerente.
 
-### 3. Migração de dados
-- Lojistas que hoje estão como "Simples Nacional" continuam como estão. **Não há reclassificação automática** — cada lojista decide se é MEI ou Simples comum (são coisas diferentes na Receita).
-- Comunicação proativa fica fora deste escopo (pode virar uma campanha de aviso depois, se você quiser).
+### 3. Retry de NF rejeitada continua preservado
+- A regra já implementada de gerar nova referência em reenvios de nota rejeitada será mantida.
+- Ela segue necessária, mas passa a operar junto com a garantia de sincronização do emitente.
 
 ### 4. Atualização da documentação fiscal
-- Atualizar o doc oficial do módulo Fiscal registrando a nova opção, o código enviado para SEFAZ e a regra de tratamento.
-- Atualizar o mapa de UI registrando a nova opção no seletor.
+- Atualizar o doc oficial do módulo Fiscal registrando o novo gate de sincronização obrigatória.
+- Como não há mudança de UI prevista neste ajuste, o mapa de UI só será atualizado se surgir impacto visual real durante a implementação.
 
 ## Como você valida
 
-1. Abrir Configurações Fiscais da loja "Respeite o Homem".
-2. Trocar o Regime Tributário para **MEI** e salvar.
-3. Reemitir a NF 1-289 (ou criar uma nova).
-4. Esperado: SEFAZ autoriza a nota sem a mensagem de divergência de regime.
+1. Salvar as Configurações Fiscais com CRT 4 / MEI.
+2. Reenviar a NF 1-289.
+3. Esperado: se o cadastro externo estiver defasado, o sistema sincroniza primeiro e só depois transmite.
+4. Se a sincronização externa falhar, o sistema não transmite a NF e informa claramente que o cadastro fiscal do emitente ainda não foi atualizado no provedor.
+5. Após sincronização bem-sucedida, o reenvio deve seguir para avaliação real da SEFAZ.
 
 ## Risco e segurança
 
-- **Risco de regressão:** Baixo. Lojistas existentes não têm o regime alterado; só ganham uma opção adicional.
-- **Segurança:** A mudança é restrita ao cadastro fiscal do próprio tenant (isolamento por loja preservado).
-- **Reversibilidade:** Se algum lojista marcar MEI por engano, basta voltar para Simples Nacional na mesma tela.
+- **Risco de regressão:** Médio-baixo. O ajuste mexe no pipeline de emissão fiscal, mas reduz envio inválido para a SEFAZ.
+- **Segurança:** A mudança permanece restrita ao cadastro fiscal do próprio tenant e reforça o uso do backend como fonte de controle do fluxo.
+- **Reversibilidade:** Se necessário, o gate pode ser relaxado sem desfazer os dados salvos; porém a direção correta é manter o bloqueio seguro.
 
 ---
 
 ### Bloco técnico (opcional, para registro)
 
-- Banco: ampliar o CHECK de `fiscal_settings.regime_tributario` para aceitar `'mei'` além dos 3 atuais. Campo `crt` (int) passa a aceitar valor `4`.
-- Adapter Focus NFe (`focus-nfe-adapter.ts`): incluir mapeamento `'4' → 4` em `CRT_TO_REGIME`.
-- Calculadora de tributos (`fiscal-tax-calculator.ts`): tratar `regime_tributario IN ('simples_nacional','mei')` no mesmo caminho (sem destaque, CSOSN padrão 102).
-- UI: incluir opção `{ value: '4', label: '4 - Simples Nacional - MEI' }` em `CRT_OPTIONS` nos 4 arquivos que o declaram (`EmitenteSettings.tsx`, `FiscalSettingsContent.tsx`, `OperationNaturesContent.tsx`, `OperationNaturesSettings.tsx`) e auto-sincronizar `regime_tributario='mei'` quando `crt=4` for selecionado.
-- Tipos do hook `useFiscal.ts`: expandir union `regime_tributario` para incluir `'mei'`.
-- Sem alteração de fluxo de emissão, webhook, fila ou trigger — apenas extensão de enum/opção.
+- Manter a regra atual de `focus_ref` novo em retry de `rejected`.
+- Em `fiscal-submit` e `fiscal-emit`, comparar `fiscal_settings.updated_at` vs `focus_ultima_sincronizacao` e executar sincronização automática do emitente quando o cadastro local estiver mais novo.
+- Se a sincronização falhar, retornar erro de negócio claro e não transmitir a NF.
+- No fluxo de salvar configuração fiscal, tratar falha da sincronização subsequente como falha operacional relevante, sem silêncio.
+- Atualizar o doc fiscal com a regra de "sincronização obrigatória antes de emitir/reenviar quando o cadastro local estiver mais novo que o snapshot externo".
