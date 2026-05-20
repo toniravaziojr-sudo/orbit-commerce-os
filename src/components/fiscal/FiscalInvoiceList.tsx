@@ -470,14 +470,31 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
   const handleDeleteInvoice = async () => {
     if (!editingInvoice?.id) return;
-    
-    const { error } = await supabase
-      .from('fiscal_invoices')
-      .delete()
-      .eq('id', editingInvoice.id)
-      .eq('status', 'draft');
 
-    if (error) throw error;
+    // Permitido excluir apenas notas sem efeito fiscal (rascunho, rejeitada, cancelada).
+    const DELETABLE = new Set(['draft', 'rejected', 'cancelled']);
+    if (!DELETABLE.has(editingInvoice.status as string)) {
+      toast.error('Esta nota tem efeito fiscal e não pode ser excluída. Use Cancelar NF-e.');
+      return;
+    }
+
+    // Apaga itens primeiro para evitar órfãos caso não haja cascade.
+    await supabase.from('fiscal_invoice_items').delete().eq('invoice_id', editingInvoice.id);
+
+    const { error, count } = await supabase
+      .from('fiscal_invoices')
+      .delete({ count: 'exact' })
+      .eq('id', editingInvoice.id);
+
+    if (error) {
+      toast.error(`Não foi possível excluir: ${error.message}`);
+      throw error;
+    }
+    if (!count) {
+      toast.error('Nada foi excluído. A nota pode ter sido bloqueada por uma regra do sistema.');
+      return;
+    }
+    toast.success('Nota excluída');
     setEditingInvoice(null);
     refetch();
   };
