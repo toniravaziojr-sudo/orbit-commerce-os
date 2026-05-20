@@ -159,7 +159,7 @@ Kit "Combo Calvície"  ──►   desmembrar=OFF ──► 1 item (Combo Calví
 | Arquivo | Onde roda | Operação |
 |---------|-----------|----------|
 | `supabase/functions/_shared/kit-unbundler.ts` | **Não utilizado em fluxos de PV/NF** (legado — kept apenas para referência histórica) | Operava sobre `order_items` |
-| `supabase/functions/_shared/kit-unbundler-fiscal-items.ts` | `fiscal-prepare-invoice` (PV→NF) | Opera sobre itens já em formato `fiscal_invoice_items`, resolve `product_id` via `order_item_id` ou SKU, expande componentes com tributos recalculados e auditoria |
+| `supabase/functions/_shared/kit-unbundler-fiscal-items.ts` | `fiscal-prepare-invoice` (PV→NF) | Opera sobre itens já em formato `fiscal_invoice_items`. **Resolução de produto: `fiscal_invoice_items.product_id` direto na linha (fonte única, preenchido na criação do PV em todos os caminhos — automático, manual, duplicado).** Fallbacks legados (`order_item_id`, SKU, prefixo de 8 hex) ficam como rede de segurança para linhas antigas. Expande componentes com tributos recalculados, peso recomposto e auditoria. |
 
 **Anti-regressão:** ver memória `mem://constraints/fiscal-kit-unbundling-at-nf-time`.
 
