@@ -27,6 +27,7 @@ import type { LucideIcon } from 'lucide-react';
 export type PedidoStatus =
   | 'em_aberto'
   | 'pendente'
+  | 'nf_criada'
   | 'concluido'
   | 'cancelado'
   | 'chargeback_em_andamento'
@@ -45,12 +46,14 @@ const COLOR = {
   green: 'bg-green-500/15 text-green-700 border border-green-500/30 dark:text-green-300',
   orange: 'bg-orange-500/15 text-orange-700 border border-orange-500/30 dark:text-orange-300',
   red: 'bg-red-500/15 text-red-700 border border-red-500/30 dark:text-red-300',
+  purple: 'bg-purple-500/15 text-purple-700 border border-purple-500/30 dark:text-purple-300',
   gray: 'bg-muted text-muted-foreground border border-border',
 } as const;
 
 export const PEDIDO_STATUS_CONFIG: Record<PedidoStatus, PedidoStatusInfo> = {
   em_aberto:               { value: 'em_aberto',               label: 'Pedido em aberto',         className: COLOR.blue,   icon: FileText },
   pendente:                { value: 'pendente',                label: 'Pendente',                 className: COLOR.yellow, icon: AlertTriangle },
+  nf_criada:               { value: 'nf_criada',               label: 'NF criada',                className: COLOR.purple, icon: FileText },
   concluido:               { value: 'concluido',               label: 'Concluído',                className: COLOR.green,  icon: CheckCircle },
   chargeback_em_andamento: { value: 'chargeback_em_andamento', label: 'Chargeback em andamento',  className: COLOR.orange, icon: AlertOctagon },
   chargeback_perdido:      { value: 'chargeback_perdido',      label: 'Chargeback perdido',       className: COLOR.red,    icon: AlertTriangle },
@@ -60,6 +63,7 @@ export const PEDIDO_STATUS_CONFIG: Record<PedidoStatus, PedidoStatusInfo> = {
 export const PEDIDO_STATUS_OPTIONS = [
   { value: 'em_aberto',               label: 'Pedido em aberto' },
   { value: 'pendente',                label: 'Pendente' },
+  { value: 'nf_criada',               label: 'NF criada' },
   { value: 'concluido',               label: 'Concluído' },
   { value: 'chargeback_em_andamento', label: 'Chargeback em andamento' },
   { value: 'chargeback_perdido',      label: 'Chargeback perdido' },
