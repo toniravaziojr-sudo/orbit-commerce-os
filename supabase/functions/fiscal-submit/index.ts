@@ -184,7 +184,24 @@ Deno.serve(async (req) => {
       );
     }
 
-    const ambiente = (settings.focus_ambiente || settings.ambiente || 'homologacao') as 'homologacao' | 'producao';
+    // Gate de sincronização do emitente — bloqueia transmissão se cadastro local
+    // estiver mais novo que o snapshot externo (raiz da rejeição 481 após mudança
+    // de regime tributário).
+    const syncGate = await ensureEmitenteSynced(supabaseClient, {
+      settings,
+      tenantId,
+      authHeader,
+      logPrefix: '[fiscal-submit]',
+    });
+    if (!syncGate.ok) {
+      return new Response(
+        JSON.stringify({ success: false, error: syncGate.error, code: syncGate.code }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const effectiveSettings = syncGate.refreshedSettings ?? settings;
+
+    const ambiente = (effectiveSettings.focus_ambiente || effectiveSettings.ambiente || 'homologacao') as 'homologacao' | 'producao';
 
     // Lote 1.E — Gate de produção / alerta de homologação
     const gate = evaluateEmissionGate({
