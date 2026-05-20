@@ -262,15 +262,17 @@ Notas fiscais podem ser **excluídas** somente quando **não geram efeito fiscal
 
 **Por que existe:** evita acúmulo de rascunhos órfãos e notas rejeitadas/canceladas poluindo a aba Notas Fiscais, sem permitir que o lojista remova registros com valor fiscal real.
 
-#### Ações para NF rejeitada (rev 2026-05-20)
+#### Ações para NF rejeitada (rev 2026-05-20b)
 
 Quando uma NF está em `rejected`, o `InvoiceActionsDropdown` apresenta três opções, nesta ordem:
 
 1. **Reenviar para SEFAZ** (verde, destacado) — chama `handleQuickSubmit` (invoca `fiscal-submit` com o mesmo `invoice_id`, sem abrir modal de edição). Usado quando a rejeição não foi causada pelo conteúdo da nota: indisponibilidade da SEFAZ, divergência de regime tributário corrigida nas Configurações Fiscais, certificado renovado, etc. A própria edge `fiscal-submit` já aceita `status IN ('draft','rejected')`.
-2. **Editar e Reemitir** — abre o editor completo; usar quando o motivo da rejeição exige alterar dados da NF (item, destinatário, fiscal).
+2. **Editar** — abre o editor completo; usar quando o motivo da rejeição exige alterar dados da NF (item, destinatário, fiscal).
 3. **Duplicar como rascunho** — clona a NF para um novo rascunho preservando o original.
 
 Excluir continua disponível ao final do menu (vermelho).
+
+**Comportamento visual adicional:** quando o usuário reenviա a nota ou atualiza o status manualmente, o indicador de carregamento aparece na própria coluna **Status** da linha, e não apenas dentro do menu de ações.
 
 
 #### Status atual
@@ -555,6 +557,7 @@ A aba **Pedidos de Venda** exibe agora 5 status derivados (não persistidos como
     **Etapa 3 — Revalidação automática no editor de NF**:
     - Ao abrir um registro de NF em `pendencia` no **InvoiceEditor** e salvar alterações, o backend executa `fiscal-prepare-invoice` no próprio registro (sem criar novo snapshot, pois `fiscal_stage` já não é `pedido_venda`).
     - Se as pendências foram sanadas, atualiza para `pronta_emitir`. Caso contrário, permanece em `pendencia` com a lista atualizada.
+    - O editor de NF **não transmite mais** diretamente para a SEFAZ. Dentro do editor, a ação final é apenas de salvamento. A transmissão continua concentrada na lista da aba **Notas Fiscais**, preservando um único ponto de envio operacional.
 
     **Etapa 4 — Cliente e Produto como fonte de verdade única**:
     - **Atualização 2026-05-18g**: os campos do destinatário (nome, CPF/CNPJ, endereço, telefone, e-mail) no editor de Pedido de Venda e de NF são **editáveis** mesmo quando o registro está vinculado a um cliente cadastrado. Ao salvar, se houver alterações em campos do destinatário, o sistema abre o diálogo de sincronização: (1) salvar pedido e atualizar cadastro do cliente, (2) salvar somente neste pedido, (3) cancelar. Sem essa edição direta, o usuário não consegue corrigir pendências (ex.: cidade com typo) sem sair do fluxo. Os campos fiscais do item (NCM, CFOP, Origem, GTIN) permanecem **somente leitura** quando vinculados a produto cadastrado — esses devem ser corrigidos no cadastro de Produtos.
