@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       nome_fantasia: settings.nome_fantasia,
       inscricao_estadual: settings.inscricao_estadual,
       inscricao_municipal: settings.inscricao_municipal,
-      crt: settings.crt?.toString(),
+      crt: settings.crt, // adapter aceita string | number
       // Mapeamento correto: banco usa endereco_* prefix
       logradouro: settings.endereco_logradouro || '',
       numero: settings.endereco_numero || 'S/N',
