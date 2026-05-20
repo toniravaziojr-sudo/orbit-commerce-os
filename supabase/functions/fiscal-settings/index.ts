@@ -220,6 +220,14 @@ Deno.serve(async (req) => {
         tokenToSave = existing.provider_token;
       }
 
+      const normalizedCrt = Number(crt) || 1;
+      const normalizedRegimeTributario =
+        normalizedCrt === 4
+          ? 'mei'
+          : normalizedCrt === 3
+            ? 'lucro_presumido'
+            : 'simples_nacional';
+
       const settingsData = {
         tenant_id: tenantId,
         razao_social,
@@ -236,7 +244,8 @@ Deno.serve(async (req) => {
         endereco_municipio_codigo,
         endereco_uf,
         endereco_cep,
-        crt: crt || 1,
+        crt: normalizedCrt,
+        regime_tributario: normalizedRegimeTributario,
         cfop_intrastadual: cfop_intrastadual || '5102',
         cfop_interestadual: cfop_interestadual || '6102',
         csosn_padrao,
