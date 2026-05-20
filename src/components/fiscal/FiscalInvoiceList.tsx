@@ -831,62 +831,77 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
+  // Helper: chama edge function fiscal-download-docs e força download do arquivo
+  const downloadBulkViaBackend = async (ids: string[], format: 'xml' | 'danfe', okMsg: string) => {
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      const url = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/fiscal-download-docs`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ invoice_ids: ids, format }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || 'Falha ao baixar arquivos');
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get('Content-Disposition') || '';
+      const m = disp.match(/filename="([^"]+)"/);
+      const filename = m?.[1] || (format === 'xml' ? 'notas.zip' : 'notas.pdf');
+      const objUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(objUrl);
+      toast.success(okMsg);
+    } catch (error: any) {
+      console.error('Bulk download error:', error);
+      toast.error(error?.message || 'Erro ao baixar arquivos');
+    }
+  };
+
   const handleBulkPrint = async () => {
     const authorized = (filteredInvoices || []).filter(
       inv => selectedInvoices.has(inv.id) && inv.status === 'authorized' && inv.danfe_url
     );
-    
-    if (authorized.length === 0) {
-      toast.error('Nenhuma NF-e autorizada com DANFE disponível');
-      return;
-    }
+    if (authorized.length === 0) { toast.error('Nenhuma NF-e autorizada com DANFE disponível'); return; }
+    if (authorized.length > 100) { toast.error('Selecione no máximo 100 notas por vez.'); return; }
 
-    authorized.forEach((invoice, index) => {
-      setTimeout(() => {
-        window.open(invoice.danfe_url, '_blank');
-      }, index * 300);
-    });
+    const t = toast.loading(`Gerando PDF único com ${authorized.length} DANFE(s)...`);
+    await downloadBulkViaBackend(
+      authorized.map(i => i.id), 'danfe',
+      `${authorized.length} DANFE(s) baixadas em PDF único.`,
+    );
+    toast.dismiss(t);
 
     const ids = authorized.map(inv => inv.id);
     await supabase
       .from('fiscal_invoices')
-      .update({ 
-        danfe_printed_at: new Date().toISOString(),
-        printed_at: new Date().toISOString()
-      })
+      .update({ danfe_printed_at: new Date().toISOString(), printed_at: new Date().toISOString() })
       .in('id', ids);
 
     clearSelection();
     refetch();
-    toast.success(`${authorized.length} DANFE(s) abertas para impressão`);
   };
 
   const handleBulkDownloadXml = async () => {
     const authorized = (filteredInvoices || []).filter(
       inv => selectedInvoices.has(inv.id) && inv.status === 'authorized' && (inv.xml_url || inv.xml_autorizado)
     );
-    
-    if (authorized.length === 0) {
-      toast.error('Nenhuma NF-e autorizada com XML disponível');
-      return;
-    }
+    if (authorized.length === 0) { toast.error('Nenhuma NF-e autorizada com XML disponível'); return; }
+    if (authorized.length > 100) { toast.error('Selecione no máximo 100 notas por vez.'); return; }
 
-    authorized.forEach((invoice, index) => {
-      setTimeout(() => {
-        const xmlUrl = invoice.xml_url || invoice.xml_autorizado;
-        if (!xmlUrl) return;
-        
-        const link = document.createElement('a');
-        link.href = xmlUrl;
-        link.download = `nfe_${invoice.serie}_${invoice.numero}.xml`;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }, index * 300);
-    });
-
-    toast.success(`Baixando ${authorized.length} XML(s)`);
+    const t = toast.loading(`Gerando ZIP com ${authorized.length} XML(s)...`);
+    await downloadBulkViaBackend(
+      authorized.map(i => i.id), 'xml',
+      `${authorized.length} XML(s) baixados em ZIP único.`,
+    );
+    toast.dismiss(t);
     clearSelection();
   };
 

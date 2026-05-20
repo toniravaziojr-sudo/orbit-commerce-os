@@ -175,6 +175,14 @@ Deno.serve(async (req) => {
         origem_fiscal_padrao,
         email,
         telefone,
+        // Aba "Outros" — campos que estavam sendo perdidos no save
+        desmembrar_estrutura,
+        enviar_email_nfe,
+        email_nfe_subject,
+        email_nfe_body,
+        auto_create_shipment,
+        auto_update_order_status,
+        default_shipping_provider,
       } = body;
 
       const normalizedEmail = normalizeOptionalText(email)?.toLowerCase() ?? null;
@@ -260,6 +268,14 @@ Deno.serve(async (req) => {
         origem_fiscal_padrao: origem_fiscal_padrao ?? 0,
         email: normalizedEmail,
         telefone: normalizedTelefone,
+        // Aba "Outros" — persistência de toggles e textos do e-mail/remessa/kits
+        desmembrar_estrutura: desmembrar_estrutura ?? false,
+        enviar_email_nfe: enviar_email_nfe !== false, // default true
+        email_nfe_subject: normalizeOptionalText(email_nfe_subject),
+        email_nfe_body: normalizeOptionalText(email_nfe_body),
+        auto_create_shipment: auto_create_shipment ?? false,
+        auto_update_order_status: auto_update_order_status !== false, // default true
+        default_shipping_provider: normalizeOptionalText(default_shipping_provider),
         is_configured,
       };
 
