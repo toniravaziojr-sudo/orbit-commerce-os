@@ -519,3 +519,15 @@ Rota `/system/users` verifica `module: 'system', submodule: 'users'` → apenas 
   4. **`4 - Simples Nacional - MEI (Microempreendedor Individual)`** ← nova
 - Selecionar CRT=4 auto-define internamente `regime_tributario='mei'` e envia para a SEFAZ o código fiscal correto (4), eliminando rejeição por divergência cadastral em CNPJs MEI. Tratamento na NF é idêntico ao Simples Nacional (sem destaque de PIS/COFINS/ICMS, CSOSN padrão 102). Ver `docs/especificacoes/erp/erp-fiscal.md` §"Cálculo Automático de Impostos por Regime".
 
+### Fiscal → Notas Fiscais → Menu da linha — NF rejeitada (rev 2026-05-20)
+
+Reordenado para separar reenvio puro de edição. Notas em status **Rejeitada** passam a oferecer, nesta ordem:
+
+1. **Reenviar para SEFAZ** (verde, ícone Send) — reenvia a mesma NF sem abrir editor. Cobre rejeições não causadas pelo conteúdo da nota (SEFAZ fora do ar, regime tributário corrigido nas Configurações Fiscais, certificado renovado, etc.).
+2. **Editar e Reemitir** — abre o editor completo para alterar dados antes de reenviar.
+3. **Duplicar como rascunho** — clona em novo rascunho preservando o original.
+4. **Excluir** (vermelho, no rodapé do menu).
+
+Antes, o menu obrigava o usuário a abrir o editor (`Editar e Reemitir`) mesmo quando a nota estava correta, gerando atrito e risco de alteração indevida. Detalhe em `docs/especificacoes/erp/erp-fiscal.md` §"Ações para NF rejeitada".
+
+
