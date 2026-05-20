@@ -67,7 +67,7 @@ export function buildEmpresaPayload(
     nome_fantasia: settings.nome_fantasia?.toUpperCase() || undefined,
     inscricao_estadual: settings.inscricao_estadual ? onlyNumbers(settings.inscricao_estadual) : undefined,
     inscricao_municipal: settings.inscricao_municipal ? onlyNumbers(settings.inscricao_municipal) : undefined,
-    regime_tributario: CRT_TO_REGIME[settings.crt || '1'] || 1,
+    regime_tributario: mapCrtToRegime(settings.crt),
     logradouro: settings.logradouro.toUpperCase(),
     numero: settings.numero,
     complemento: settings.complemento?.toUpperCase() || undefined,
