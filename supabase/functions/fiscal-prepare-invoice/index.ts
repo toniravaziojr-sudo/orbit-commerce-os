@@ -6,6 +6,9 @@
 // =============================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
+import { unbundleFiscalItems } from "../_shared/kit-unbundler-fiscal-items.ts";
+import type { FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
