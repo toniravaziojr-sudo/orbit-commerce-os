@@ -116,6 +116,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [editingInvoiceAvisos, setEditingInvoiceAvisos] = useState<string[]>([]);
   const [preparingInvoiceId, setPreparingInvoiceId] = useState<string | null>(null);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
+  const [checkingStatusInvoiceId, setCheckingStatusInvoiceId] = useState<string | null>(null);
   const [cancelingInvoice, setCancelingInvoice] = useState<FiscalInvoice | null>(null);
   const [correctingInvoice, setCorrectingInvoice] = useState<FiscalInvoice | null>(null);
   const [inutilizarDialogOpen, setInutilizarDialogOpen] = useState(false);
@@ -279,8 +280,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   };
 
   const handleCheckStatus = async (invoiceId: string) => {
-    await checkStatus.mutateAsync(invoiceId);
-    refetch();
+    setCheckingStatusInvoiceId(invoiceId);
+    try {
+      await checkStatus.mutateAsync(invoiceId);
+      refetch();
+    } finally {
+      setCheckingStatusInvoiceId(null);
+    }
   };
 
   const handleEditInvoice = async (invoice: FiscalInvoice) => {
@@ -1566,6 +1572,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                       const status = statusConfig[invoice.status] || statusConfig.draft;
                       const StatusIcon = status.icon;
                       const isPrinted = (invoice as any).danfe_printed_at;
+                      const isRowLoading =
+                        submittingInvoiceId === invoice.id ||
+                        preparingInvoiceId === invoice.id ||
+                        checkingStatusInvoiceId === invoice.id;
                       const isHighlighted = highlightedInvoiceId === invoice.id;
 
                       return (
@@ -1631,6 +1641,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   {(() => { const I = stageConfig[stageOf(invoice)].icon; return <I className="h-3 w-3" />; })()}
                                   {stageConfig[stageOf(invoice)].label}
                                 </span>
+                              ) : isRowLoading ? (
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${COLOR.yellow}`}>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Processando...
+                                </span>
                               ) : (
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${status.className}`}>
                                   <StatusIcon className="h-3 w-3" />
@@ -1687,7 +1702,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                               onGenerateDC={mode === 'orders' ? () => openDcDialogForInvoice(invoice) : undefined}
                               isGeneratingDC={generatingDcInvoiceId === invoice.id}
                               isSubmitting={submittingInvoiceId === invoice.id || preparingInvoiceId === invoice.id}
-                              isCheckingStatus={checkStatus.isPending}
+                              isCheckingStatus={checkingStatusInvoiceId === invoice.id}
                               cloneLabel={mode === 'orders' ? 'Duplicar Pedido de Venda' : 'Duplicar NF'}
                               pedidoBlocked={blocked}
                               pedidoBlockedReason={blockedReason}
