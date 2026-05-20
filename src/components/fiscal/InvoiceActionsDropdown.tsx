@@ -48,6 +48,8 @@ interface InvoiceActionsDropdownProps {
   onDelete?: () => void;
   onEmitirDevolucao?: () => void;
   onResendEmail?: () => void;
+  /** Reenvia a NF rejeitada à SEFAZ sem abrir edição (mesmos dados). */
+  onResend?: () => void;
   /** Gera PDF de Declaração de Conteúdo (documento NÃO fiscal). */
   onGenerateDC?: () => void;
   isSubmitting?: boolean;
