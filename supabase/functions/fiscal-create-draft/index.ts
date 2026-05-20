@@ -469,7 +469,7 @@ Deno.serve(async (req) => {
           order_id, 
           items_count: invoiceItems.length, 
           ibge_code: destMunicipioCodigo,
-          kits_unbundled: fiscalSettings.desmembrar_estrutura || false,
+          kits_unbundled: false, // desmembramento acontece só em PV→NF (fiscal-prepare-invoice)
         },
         user_id: user.id,
       });
