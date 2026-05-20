@@ -172,19 +172,111 @@ Deno.serve(async (req) => {
       });
 
       if (workingItems.length > 0) {
-        const itemsClone = workingItems.map(({ id: _iid, invoice_id: _ivid, created_at: _ica, ...rest }: any) => ({
-          ...rest,
-          invoice_id: insertResult.invoice.id,
-        }));
+        // ------------------------------------------------------------------
+        // DESMEMBRAMENTO DE KITS NO MOMENTO PV → NF
+        // Se a configuração "desmembrar_estrutura" estiver ativa, expandimos
+        // kits em componentes AQUI (não na criação do Pedido de Venda).
+        // O PV original permanece intacto; só o novo registro da NF recebe
+        // a lista expandida.
+        // ------------------------------------------------------------------
+        const { data: settingsForUnbundle } = await admin
+          .from('fiscal_settings')
+          .select('desmembrar_estrutura, regime_tributario, pis_aliquota_padrao, cofins_aliquota_padrao, icms_aliquota_padrao, pis_cst_padrao, cofins_cst_padrao, cst_padrao, csosn_padrao')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
+        let itemsForNf: any[] = workingItems.map(
+          ({ id: _iid, invoice_id: _ivid, created_at: _ica, ...rest }: any) => ({ ...rest })
+        );
+        let kitsExpanded = 0;
+        const kitsWithoutComponents: string[] = [];
+
+        if (settingsForUnbundle?.desmembrar_estrutura) {
+          const taxSettings: FiscalSettingsTax = {
+            regime_tributario: settingsForUnbundle.regime_tributario || 'simples_nacional',
+            pis_aliquota_padrao: Number(settingsForUnbundle.pis_aliquota_padrao || 0),
+            cofins_aliquota_padrao: Number(settingsForUnbundle.cofins_aliquota_padrao || 0),
+            icms_aliquota_padrao: Number(settingsForUnbundle.icms_aliquota_padrao || 0),
+            pis_cst_padrao: settingsForUnbundle.pis_cst_padrao || '49',
+            cofins_cst_padrao: settingsForUnbundle.cofins_cst_padrao || '49',
+            cst_padrao: settingsForUnbundle.cst_padrao,
+            csosn_padrao: settingsForUnbundle.csosn_padrao,
+          };
+
+          const unbundleResult = await unbundleFiscalItems({
+            supabase: admin,
+            items: itemsForNf,
+            taxSettings,
+            cfopFallback: inv.cfop || '5102',
+          });
+          itemsForNf = unbundleResult.items;
+          kitsExpanded = unbundleResult.kitsExpanded;
+          kitsWithoutComponents.push(...unbundleResult.kitsWithoutComponents);
+
+          if (unbundleResult.unbundled) {
+            console.log(
+              `[fiscal-prepare-invoice] Desmembrados ${kitsExpanded} kit(s) em ${itemsForNf.length} item(ns) para NF ${workingInvoiceId}`,
+            );
+          }
+        }
+
+        // Recalcula peso bruto a partir dos componentes (quando houver dado)
+        // — usado só se algum item carregar _component_weight_grams.
+        const componentWeightTotalKg = itemsForNf.reduce((acc: number, it: any) => {
+          const g = Number(it._component_weight_grams || 0);
+          return acc + (g * Number(it.quantidade || 0)) / 1000;
+        }, 0);
+
+        // Remove campos auxiliares antes do INSERT (não existem em fiscal_invoice_items)
+        const itemsClone = itemsForNf.map((it: any) => {
+          const {
+            _from_kit_product_id,
+            _from_kit_description,
+            _component_weight_grams,
+            ...rest
+          } = it;
+          return { ...rest, invoice_id: workingInvoiceId };
+        });
+
         const { error: itemsErr } = await admin.from('fiscal_invoice_items').insert(itemsClone);
         if (itemsErr) {
-          await admin.from('fiscal_invoices').delete().eq('id', insertResult.invoice.id);
+          await admin.from('fiscal_invoices').delete().eq('id', workingInvoiceId);
           return new Response(JSON.stringify({
             success: false,
             error: 'Falha ao copiar itens para a Nota Fiscal: ' + itemsErr.message,
           }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
+
+        // Se houve desmembramento, atualiza peso bruto/líquido da NF com base
+        // nos componentes (mais preciso que o peso original do kit).
+        if (kitsExpanded > 0 && componentWeightTotalKg > 0) {
+          await admin
+            .from('fiscal_invoices')
+            .update({
+              peso_bruto: Number(componentWeightTotalKg.toFixed(3)),
+              peso_liquido: Number(componentWeightTotalKg.toFixed(3)),
+            })
+            .eq('id', workingInvoiceId);
+        }
+
+        // Registra evento de auditoria do desmembramento (sucesso ou kit sem componentes)
+        if (kitsExpanded > 0 || kitsWithoutComponents.length > 0) {
+          await admin.from('fiscal_invoice_events').insert({
+            invoice_id: workingInvoiceId,
+            tenant_id: tenantId,
+            event_type: 'kit_unbundled',
+            description: kitsExpanded > 0
+              ? `Desmembrados ${kitsExpanded} kit(s) em ${itemsClone.length} item(ns) na criação da NF.`
+              : 'Kit(s) sem componentes cadastrados — NF criada com o kit inteiro.',
+            event_data: {
+              kits_expanded: kitsExpanded,
+              kits_without_components: kitsWithoutComponents,
+              source_pedido_venda_id: invoice_id,
+            },
+          });
+        }
       }
+
     }
 
     const { data: settings } = await admin
