@@ -319,7 +319,15 @@ Deno.serve(async (req) => {
       valor: invoice.valor_total || 0
     } : undefined;
 
-    const ref = invoice.focus_ref || generateNFeRef(invoice_id);
+    // Reaproveita ref existente, EXCETO quando a nota está rejeitada — nesse caso,
+    // Focus NFe devolveria resposta em cache. Geramos novo ref para forçar reenvio à SEFAZ.
+    const isRetryRejected = invoice.status === 'rejected' && !!invoice.focus_ref;
+    const ref = isRetryRejected
+      ? generateNFeRef(invoice_id, 'retry')
+      : (invoice.focus_ref || generateNFeRef(invoice_id, 'initial'));
+    if (isRetryRejected) {
+      console.log(`[fiscal-emit] Retry de rejeitada. Ref anterior=${invoice.focus_ref} -> novo ref=${ref}`);
+    }
 
     const nfePayload = buildNFePayload(
       {
