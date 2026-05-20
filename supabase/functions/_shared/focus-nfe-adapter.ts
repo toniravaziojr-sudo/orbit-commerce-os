@@ -45,7 +45,7 @@ export function buildEmpresaPayload(
     nome_fantasia?: string | null;
     inscricao_estadual?: string | null;
     inscricao_municipal?: string | null;
-    crt?: string | null;
+    crt?: string | number | null;
     logradouro: string;
     numero: string;
     complemento?: string | null;
