@@ -833,6 +833,51 @@ export function InvoiceEditor({
           </Alert>
         )}
 
+        {/* Vínculo com Nota(s) Fiscal(is) gerada(s) a partir deste Pedido de Venda */}
+        {isPedidoVenda && childInvoices.length > 0 && (() => {
+          const ativas = childInvoices.filter(c => !c.cancelled_at && c.status !== 'cancelled');
+          if (ativas.length === 0) {
+            return (
+              <Alert className="mt-2 border-yellow-500/60 bg-yellow-500/10">
+                <AlertCircle className="h-4 w-4 text-yellow-700" />
+                <AlertDescription className="text-sm text-yellow-900">
+                  Todas as Notas Fiscais geradas a partir deste Pedido foram excluídas ou canceladas.
+                  Gere uma nova Nota Fiscal para concluir o pedido.
+                </AlertDescription>
+              </Alert>
+            );
+          }
+          const STATUS_LABEL: Record<string, string> = {
+            draft: 'Rascunho',
+            ready: 'Pronta para emitir',
+            pending: 'Pendente Sefaz',
+            rejected: 'Rejeitada',
+            authorized: 'Autorizada',
+          };
+          return (
+            <Alert className="mt-2 border-purple-500/40 bg-purple-500/5">
+              <FileText className="h-4 w-4 text-purple-700" />
+              <AlertDescription>
+                <strong className="block mb-1 text-purple-900">
+                  {ativas.length === 1
+                    ? `Vinculado à Nota Fiscal nº ${ativas[0].numero} (série ${ativas[0].serie})`
+                    : `Vinculado a ${ativas.length} Notas Fiscais`}
+                </strong>
+                <ul className="text-sm text-purple-900 space-y-0.5">
+                  {ativas.map(nf => (
+                    <li key={nf.id} className="flex items-center gap-2">
+                      <span>NF nº {nf.numero} / série {nf.serie}</span>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {STATUS_LABEL[nf.status] || nf.status}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          );
+        })()}
+
         {/* SEFAZ Rejection Error Alert */}
         {rejectionError && !isPedidoVenda && (
           <Alert variant="destructive" className="mt-2 border-red-600/50 bg-red-500/10">
