@@ -463,6 +463,35 @@ async function processTenanDrafts(
       created.count++;
       console.log(`[fiscal-auto-create-drafts] Created draft for order ${order.order_number} with numero ${numero}`);
 
+      // ============= AUTO-EMISSÃO =============
+      // Se a configuração fiscal está completa E emissao_automatica=true,
+      // dispara fiscal-emit em fire-and-forget para o rascunho recém-criado.
+      // Notas com pendências (rejected) ou erro técnico permanecem como rascunho/rejeitadas
+      // e aparecem na Central de Execuções para ação manual.
+      if (isFiscalConfigured && fiscalSettings.emissao_automatica === true && numero > 0) {
+        try {
+          const emitUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fiscal-emit`;
+          // fire-and-forget: não bloqueia a criação de outros rascunhos
+          fetch(emitUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({
+              invoice_id: invoice.id,
+              tenant_id: tenantId,
+              auto: true,
+            }),
+          }).catch(err => {
+            console.error(`[fiscal-auto-create-drafts] Auto-emit invoke error for invoice ${invoice.id}:`, err);
+          });
+          console.log(`[fiscal-auto-create-drafts] Auto-emit disparado para invoice ${invoice.id} (pedido ${order.order_number})`);
+        } catch (autoEmitErr) {
+          console.error(`[fiscal-auto-create-drafts] Erro ao disparar auto-emit:`, autoEmitErr);
+        }
+      }
+
     } catch (error) {
       console.error(`[fiscal-auto-create-drafts] Error processing order ${order.order_number}:`, error);
       errors.push(`Pedido ${order.order_number}: erro ao criar rascunho`);
