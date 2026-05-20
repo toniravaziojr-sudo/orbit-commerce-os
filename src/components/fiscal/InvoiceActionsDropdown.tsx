@@ -79,6 +79,7 @@ export function InvoiceActionsDropdown({
   onDelete,
   onEmitirDevolucao,
   onResendEmail,
+  onResend,
   onGenerateDC,
   isSubmitting,
   isCheckingStatus,
