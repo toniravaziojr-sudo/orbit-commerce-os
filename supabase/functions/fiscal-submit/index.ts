@@ -368,7 +368,7 @@ Deno.serve(async (req) => {
       },
       destinatario,
       focusItems,
-      { cnpj: settings.cnpj },
+      { cnpj: settings.cnpj, crt: settings.crt },
       invoice.order_id ? { forma: 'other', valor: invoice.valor_total || 0 } : undefined
     );
 
