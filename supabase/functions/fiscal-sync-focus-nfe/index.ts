@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     // (o domínio de homologação não expõe /v2/empresas e retorna "endpoint não encontrado").
     const focusConfig: FocusNFeConfig = { token: creds.token, ambiente, baseUrl: creds.baseUrl };
 
-    console.log(`[fiscal-sync-focus-nfe] Sincronizando empresa ${settings.cnpj} no ambiente ${focusConfig.ambiente}`);
+    console.log(`[fiscal-sync-focus-nfe] Sincronizando empresa ${settings.cnpj} no ambiente ${focusConfig.ambiente} | crt=${JSON.stringify(settings.crt)} typeof=${typeof settings.crt}`);
 
     // Preparar certificado se disponível
     let certificado: { pfxBase64: string; password: string } | undefined;
