@@ -1845,7 +1845,6 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           }}
           invoice={editingInvoice}
           onSave={handleSaveInvoice}
-          onSubmit={handleSubmitInvoice}
           onDelete={handleDeleteInvoice}
           rejectionError={editingInvoiceError || undefined}
           pendenciaMotivos={editingInvoicePendencias}
