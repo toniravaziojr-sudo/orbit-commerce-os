@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     // (o domínio de homologação não expõe /v2/empresas e retorna "endpoint não encontrado").
     const focusConfig: FocusNFeConfig = { token: creds.token, ambiente, baseUrl: creds.baseUrl };
 
-    console.log(`[fiscal-sync-focus-nfe] Sincronizando empresa ${settings.cnpj} no ambiente ${focusConfig.ambiente}`);
+    console.log(`[fiscal-sync-focus-nfe] Sincronizando empresa ${settings.cnpj} no ambiente ${focusConfig.ambiente} | crt=${JSON.stringify(settings.crt)} typeof=${typeof settings.crt}`);
 
     // Preparar certificado se disponível
     let certificado: { pfxBase64: string; password: string } | undefined;
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       nome_fantasia: settings.nome_fantasia,
       inscricao_estadual: settings.inscricao_estadual,
       inscricao_municipal: settings.inscricao_municipal,
-      crt: settings.crt?.toString(),
+      crt: settings.crt, // adapter aceita string | number
       // Mapeamento correto: banco usa endereco_* prefix
       logradouro: settings.endereco_logradouro || '',
       numero: settings.endereco_numero || 'S/N',

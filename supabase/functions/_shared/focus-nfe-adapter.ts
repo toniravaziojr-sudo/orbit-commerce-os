@@ -10,12 +10,12 @@ import type {
 
 // Mapeamento de CRT para regime_tributario Focus NFe
 // Códigos oficiais SEFAZ: 1=Simples, 2=Simples Excesso, 3=Regime Normal, 4=MEI
-const CRT_TO_REGIME: Record<string, number> = {
-  '1': 1, // Simples Nacional
-  '2': 2, // Simples Nacional - Excesso de sublimite
-  '3': 3, // Regime Normal (Lucro Presumido/Real)
-  '4': 4, // Simples Nacional - MEI
-};
+// Aceita string OU número para evitar bugs de tipagem (DB envia integer).
+function mapCrtToRegime(crt: string | number | null | undefined): number {
+  const n = Number(crt);
+  if (n === 1 || n === 2 || n === 3 || n === 4) return n;
+  return 1;
+}
 
 // Mapeamento de forma de pagamento para código Focus NFe
 const PAYMENT_METHOD_MAP: Record<string, string> = {
@@ -45,7 +45,7 @@ export function buildEmpresaPayload(
     nome_fantasia?: string | null;
     inscricao_estadual?: string | null;
     inscricao_municipal?: string | null;
-    crt?: string | null;
+    crt?: string | number | null;
     logradouro: string;
     numero: string;
     complemento?: string | null;
@@ -67,7 +67,7 @@ export function buildEmpresaPayload(
     nome_fantasia: settings.nome_fantasia?.toUpperCase() || undefined,
     inscricao_estadual: settings.inscricao_estadual ? onlyNumbers(settings.inscricao_estadual) : undefined,
     inscricao_municipal: settings.inscricao_municipal ? onlyNumbers(settings.inscricao_municipal) : undefined,
-    regime_tributario: CRT_TO_REGIME[settings.crt || '1'] || 1,
+    regime_tributario: mapCrtToRegime(settings.crt),
     logradouro: settings.logradouro.toUpperCase(),
     numero: settings.numero,
     complemento: settings.complemento?.toUpperCase() || undefined,
