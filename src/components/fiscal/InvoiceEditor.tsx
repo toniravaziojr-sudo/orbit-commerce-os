@@ -341,6 +341,8 @@ export function InvoiceEditor({
   const { data: readiness } = useFiscalReadiness();
   const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  // NFs filhas deste Pedido de Venda (modo PV) — alimenta o bloco "Vinculado à NF".
+  const [childInvoices, setChildInvoices] = useState<Array<{ id: string; numero: number; serie: number; status: string; cancelled_at: string | null }>>([]);
   const [customerId, setCustomerId] = useState<string | null>(null);
   // Snapshot dos dados do destinatário no momento que o pedido foi carregado.
   // Usado para detectar edições e oferecer atualizar o cadastro do cliente.
