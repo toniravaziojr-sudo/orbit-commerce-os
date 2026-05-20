@@ -249,6 +249,20 @@ export function InvoiceActionsDropdown({
         {/* Rejected actions */}
         {isRejected && (
           <>
+            {onResend && (
+              <DropdownMenuItem
+                onClick={onResend}
+                disabled={isSubmitting}
+                className="text-green-600"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Reenviar para SEFAZ
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={onEdit}>
               <Edit className="h-4 w-4 mr-2" />
               Editar e Reemitir
