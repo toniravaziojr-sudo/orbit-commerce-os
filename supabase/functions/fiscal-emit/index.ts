@@ -7,6 +7,7 @@ import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_s
 import { linkNFeToShipment } from "../_shared/nfe-shipment-link.ts";
 import { chargeAfter } from "../_shared/credits/charge-after.ts";
 import { evaluateEmissionGate } from "../_shared/fiscal-emission-gate.ts";
+import { ensureEmitenteSynced } from "../_shared/fiscal-emitente-sync-gate.ts";
 
 import { loadPlatformCredentials } from "../_shared/load-platform-credentials.ts";
 const corsHeaders = {
