@@ -342,6 +342,7 @@ export function ManualInvoiceDialog({
       unidade: product.unidade || 'UN',
       quantidade: 1,
       valor_unitario: product.price,
+      product_id: product.id,
     };
     setItems([...items, newItem]);
     toast.success(`Produto "${product.name}" adicionado`);
