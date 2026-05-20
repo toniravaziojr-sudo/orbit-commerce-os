@@ -27,6 +27,13 @@ type: constraint
 - Config desativada → NF clona itens do PV sem alteração (kit como kit).
 - Mesmo PV gerando segunda NF → respeita configuração e cadastro atuais (não reutiliza decisão da primeira NF).
 - Duplicar NF já desmembrada → clona como está (não re-desmembra nem re-junta).
+- **PV manual** (criado via ProductSelector) → `product_id` é gravado na linha; kit é reconhecido na geração da NF.
+- **PV duplicado** (a partir de outro PV ou NF) → `product_id` é copiado no snapshot da duplicação; kit é reconhecido na geração da NF.
+- **PV sem vínculo com pedido real** (qualquer origem) → desmembramento funciona normalmente desde que o item carregue `product_id`.
+
+**Proibido (adicional):**
+- Criar item de PV/NF sem `product_id` quando a origem for o ProductSelector (já bloqueado pela UI por completude — peso/NCM).
+- Remover os fallbacks legados (`order_item_id`, SKU, prefixo) antes de auditar 100% das linhas com `product_id` populado em todos os tenants.
 
 **Por quê:**
 - Pedido de Venda = espelho fiel do pedido do cliente (consistente com `mem://constraints/fiscal-pedido-venda-vs-nf-two-records`).
