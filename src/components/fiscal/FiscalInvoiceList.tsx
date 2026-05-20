@@ -473,7 +473,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
     // Permitido excluir apenas notas sem efeito fiscal (rascunho, rejeitada, cancelada).
     const DELETABLE = new Set(['draft', 'rejected', 'cancelled']);
-    if (!DELETABLE.has(editingInvoice.status as string)) {
+    if (!DELETABLE.has((editingInvoice as any).status as string)) {
       toast.error('Esta nota tem efeito fiscal e não pode ser excluída. Use Cancelar NF-e.');
       return;
     }
