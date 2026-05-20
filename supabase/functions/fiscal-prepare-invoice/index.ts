@@ -363,8 +363,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Itens
-    const items = inv.fiscal_invoice_items || [];
+    // Itens — quando criamos snapshot (PV→NF), os itens validados são os do
+    // novo registro (que podem ter sido desmembrados em componentes). Caso
+    // contrário, valida os itens já carregados em memória.
+    let items: any[] = inv.fiscal_invoice_items || [];
+    if (snapshotCreated && workingInvoiceId !== invoice_id) {
+      const { data: nfItems } = await admin
+        .from('fiscal_invoice_items')
+        .select('*')
+        .eq('invoice_id', workingInvoiceId)
+        .order('numero_item');
+      items = nfItems || [];
+    }
     if (items.length === 0) errors.push('NF sem itens.');
     for (const it of items) {
       if (!it.descricao) errors.push(`Item sem descrição.`);
@@ -375,6 +385,7 @@ Deno.serve(async (req) => {
       if (!it.quantidade || Number(it.quantidade) <= 0) errors.push(`Item "${it.descricao || '?'}" com quantidade inválida.`);
       if (Number(it.valor_unitario) < 0) errors.push(`Item "${it.descricao || '?'}" com valor unitário inválido.`);
     }
+
 
     // Valor
     if (!inv.valor_total || Number(inv.valor_total) <= 0) errors.push('Valor total inválido.');
