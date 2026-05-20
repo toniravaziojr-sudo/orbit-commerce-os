@@ -241,6 +241,7 @@ Deno.serve(async (req) => {
     const invoiceItems = itens.map((item: any) => ({
       invoice_id: invoice.id,
       numero_item: item.numero_item,
+      product_id: item.product_id || null,
       codigo_produto: item.codigo || `ITEM${item.numero_item}`,
       descricao: item.descricao,
       ncm: (item.ncm || '').replace(/\D/g, '').padStart(8, '0'),

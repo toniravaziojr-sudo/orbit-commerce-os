@@ -62,9 +62,15 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Resolve o product_id (UUID) de cada item da NF:
- *   1) Via order_item_id → order_items.product_id (caminho oficial p/ PVs
- *      criados a partir de orders).
- *   2) Fallback por SKU (codigo_produto) → products.id (cobre PVs manuais).
+ *   0) Caminho oficial NOVO: item.product_id já vem persistido na linha
+ *      (preenchido na criação do PV — automática, manual ou duplicada).
+ *   1) Legacy: order_item_id → order_items.product_id (PVs antigos vindos
+ *      de orders sem product_id direto).
+ *   2) Legacy: SKU exato → products.sku.
+ *   3) Legacy: prefixo de 8 hex em codigo_produto → products.id.
+ *
+ *  Os caminhos legacy ficam como rede de segurança para linhas antigas
+ *  que ainda não foram preenchidas pelo backfill.
  */
 async function resolveProductIdsForItems(
   supabase: any,
@@ -73,9 +79,15 @@ async function resolveProductIdsForItems(
   // map: index do item → product_id
   const result = new Map<number, string>();
 
+  // 0) Caminho direto: product_id já gravado na linha (fonte de verdade)
+  items.forEach((it, idx) => {
+    const pid = it.product_id;
+    if (pid && typeof pid === "string") result.set(idx, pid);
+  });
+
   const orderItemIds = items
     .map((it, idx) => ({ idx, oid: it.order_item_id }))
-    .filter((x) => !!x.oid);
+    .filter((x) => !!x.oid && !result.has(x.idx));
 
   if (orderItemIds.length > 0) {
     const { data: orderItems } = await supabase

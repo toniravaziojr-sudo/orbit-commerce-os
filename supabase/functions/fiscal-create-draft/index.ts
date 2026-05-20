@@ -272,6 +272,7 @@ Deno.serve(async (req) => {
       return {
         numero_item: index + 1,
         order_item_id: item.id || null,
+        product_id: item.product_id || null,
         codigo_produto: item.sku || item.product_id?.substring(0, 8) || `PROD${index + 1}`,
         descricao: item.product_name || 'Produto',
         ncm: fiscalProduct?.ncm || productCatalog.ncm || '',

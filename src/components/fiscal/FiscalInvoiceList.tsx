@@ -594,6 +594,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           unidade: item.unidade || 'UN',
           quantidade: Number(item.quantidade) || 1,
           valor_unitario: Number(item.valor_unitario) || 0,
+          product_id: item.product_id || null,
           ncm: item.ncm || '',
           cfop: item.cfop || '5102',
           origem: String(item.origem ?? '0'),

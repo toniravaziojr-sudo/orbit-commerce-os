@@ -8475,6 +8475,7 @@ export type Database = {
           pis_base: number
           pis_cst: string
           pis_valor: number
+          product_id: string | null
           quantidade: number
           unidade: string | null
           valor_desconto: number
@@ -8509,6 +8510,7 @@ export type Database = {
           pis_base?: number
           pis_cst?: string
           pis_valor?: number
+          product_id?: string | null
           quantidade: number
           unidade?: string | null
           valor_desconto?: number
@@ -8543,6 +8545,7 @@ export type Database = {
           pis_base?: number
           pis_cst?: string
           pis_valor?: number
+          product_id?: string | null
           quantidade?: number
           unidade?: string | null
           valor_desconto?: number
@@ -8563,6 +8566,13 @@ export type Database = {
             columns: ["order_item_id"]
             isOneToOne: false
             referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]

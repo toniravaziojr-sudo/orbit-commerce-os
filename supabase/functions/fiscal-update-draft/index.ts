@@ -142,6 +142,7 @@ Deno.serve(async (req) => {
       const itemsToInsert = data.items.map((item: any, index: number) => ({
         invoice_id,
         numero_item: index + 1,
+        product_id: item.product_id || null,
         codigo_produto: item.codigo_produto || item.product_id || `PROD-${index + 1}`,
         descricao: item.descricao,
         ncm: item.ncm?.replace(/\D/g, '') || '',
