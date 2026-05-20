@@ -21,6 +21,11 @@ interface OrderItem {
   unidade: string;
   quantidade: number;
   valor_unitario: number;
+  // Vínculo direto com o cadastro do produto. Quando preenchido, é a
+  // fonte única de verdade para desmembramento de kits na transição PV→NF.
+  // Preenchido sempre que o item vier do ProductSelector ou de uma duplicação
+  // de PV/NF que já tinha o vínculo.
+  product_id?: string | null;
   // Campos fiscais carregados invisivelmente quando duplicando — preservam dados do original.
   ncm?: string;
   cfop?: string;
