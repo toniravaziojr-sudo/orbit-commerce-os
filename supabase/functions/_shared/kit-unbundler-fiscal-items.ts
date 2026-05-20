@@ -111,6 +111,31 @@ async function resolveProductIdsForItems(
     }
   }
 
+  // Fallback 3: codigo_produto pode ser prefixo de 8 chars do UUID do produto
+  // (caso de PVs criados por duplicação ou sem SKU definido — grava-se
+  // id.substring(0,8) em codigo_produto). Casamos por prefixo de id.
+  const stillMissing = items
+    .map((it, idx) => ({ idx, code: String(it.codigo_produto || "").trim().toLowerCase() }))
+    .filter((x) => x.code && /^[0-9a-f]{8}$/.test(x.code) && !result.has(x.idx));
+
+  if (stillMissing.length > 0) {
+    const prefixes = Array.from(new Set(stillMissing.map((m) => m.code)));
+    const orExpr = prefixes.map((p) => `id.ilike.${p}%`).join(",");
+    const { data: prodsByPrefix } = await supabase
+      .from("products")
+      .select("id")
+      .or(orExpr);
+    const byPrefix = new Map<string, string>();
+    for (const p of (prodsByPrefix || [])) {
+      const prefix = String(p.id).substring(0, 8).toLowerCase();
+      if (!byPrefix.has(prefix)) byPrefix.set(prefix, p.id);
+    }
+    for (const m of stillMissing) {
+      const pid = byPrefix.get(m.code);
+      if (pid) result.set(m.idx, pid);
+    }
+  }
+
   return result;
 }
 
