@@ -38,52 +38,71 @@ Deno.serve(async (req) => {
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
-    const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
 
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('current_tenant_id')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile?.current_tenant_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const tenantId = profile.current_tenant_id;
-
-    // RBAC: emissão real de NF-e exige owner ou admin do tenant
-    const { data: roleRow } = await supabaseClient
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('tenant_id', tenantId)
-      .maybeSingle();
-    const userRole = roleRow?.role ?? 'viewer';
-    if (userRole !== 'owner' && userRole !== 'admin') {
-      console.warn(`[fiscal-emit] Bloqueado: role=${userRole} não pode emitir NF-e`);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Permissão insuficiente para emitir NF-e (requer owner ou admin)', code: 'insufficient_role' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // Detecta chamada interna service_role (auto-emissão automática a partir
+    // de fiscal-auto-create-drafts). Nesse caso, body deve conter tenant_id
+    // e a checagem de role é dispensada (não há usuário humano envolvido).
+    const isServiceRoleCall = authHeader === `Bearer ${supabaseServiceKey}`;
 
     const body = await req.json();
     const { invoice_id } = body;
+
+    let tenantId: string;
+
+    if (isServiceRoleCall) {
+      if (!body.tenant_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'tenant_id é obrigatório em chamada interna' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      tenantId = body.tenant_id;
+      console.log(`[fiscal-emit] Chamada interna auto-emit. tenant=${tenantId} invoice=${invoice_id}`);
+    } else {
+      const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('current_tenant_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile?.current_tenant_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      tenantId = profile.current_tenant_id;
+
+      // RBAC: emissão real de NF-e exige owner ou admin do tenant
+      const { data: roleRow } = await supabaseClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      const userRole = roleRow?.role ?? 'viewer';
+      if (userRole !== 'owner' && userRole !== 'admin') {
+        console.warn(`[fiscal-emit] Bloqueado: role=${userRole} não pode emitir NF-e`);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Permissão insuficiente para emitir NF-e (requer owner ou admin)', code: 'insufficient_role' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
 
     if (!invoice_id) {
       return new Response(
