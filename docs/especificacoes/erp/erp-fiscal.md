@@ -935,6 +935,17 @@ Quando um pedido entra em estado regressivo (`cancelled`, `returned`, `chargebac
 
 Detalhe completo do pipeline: `docs/especificacoes/ecommerce/pedidos.md` §4.6.
 
+### Cancelamento de NF-e — registro da justificativa (v2026-05-20)
+
+Quando o lojista cancela uma NF-e autorizada, a justificativa informada (15–255 caracteres, exigida pela SEFAZ) é gravada em **dois campos** do registro fiscal:
+
+- `cancel_justificativa`: texto puro digitado pelo usuário (enviado ipsis litteris à SEFAZ).
+- `status_motivo`: prefixado com `"Cancelada a pedido do emitente: "` + justificativa. É o campo exibido na UI (detalhe da NF e listagem), garantindo que o histórico mostre o motivo real do cancelamento e não a última mensagem da SEFAZ anterior (ex.: rejeição).
+
+Backfill aplicado em 2026-05-20 para todas as notas `cancelled` que tinham `cancel_justificativa` preenchida mas `status_motivo` ainda apontando para mensagem anterior. Notas legadas canceladas antes do sistema registrar justificativa permanecem sem `status_motivo` (não há como recuperar retroativamente).
+
+Implementação: `supabase/functions/fiscal-cancel/index.ts` faz a atualização atômica dos dois campos junto com `status='cancelled'` e `cancelled_at`.
+
 ---
 
 ## Tabelas fiscais reais confirmadas (v2026-05-13)
