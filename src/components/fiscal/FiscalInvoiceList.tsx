@@ -1681,6 +1681,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                   Processando...
                                 </span>
+                              ) : invoice.status === 'authorized' && isPrinted ? (
+                                // Regra: 1 pílula por linha. NF autorizada + impressa
+                                // mostra APENAS "Impressa" (estado mais recente vence).
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${COLOR.green}`}>
+                                  <Printer className="h-3 w-3" />
+                                  Impressa
+                                </span>
                               ) : (
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${status.className}`}>
                                   <StatusIcon className="h-3 w-3" />
@@ -1700,12 +1707,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   ⚠ {(invoice as any).pendencia_avisos[0]}
                                 </span>
                               )}
-                              {invoice.status === 'authorized' && isPrinted && (
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium w-fit ${COLOR.green}`}>
-                                  <Printer className="h-3 w-3" />
-                                  Impressa
-                                </span>
-                              )}
+
                               {invoice.status === 'rejected' && invoice.status_motivo && (
                                 <p className="text-xs text-destructive max-w-[200px] truncate" title={invoice.status_motivo}>
                                   {invoice.status_motivo}
