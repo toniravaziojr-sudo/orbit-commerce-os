@@ -59,9 +59,11 @@ Endereço estruturado: CEP, UF, cidade, logradouro, número, complemento, bairro
 | Módulo | Como usa |
 |---|---|
 | **Compras** | Continua consumindo os fornecedores via `usePurchaseSuppliers` (compatibilidade total). A aba "Fornecedores" dentro de Compras será descontinuada em fase futura para evitar duplicidade de entrada — usuário será orientado a usar ERP > Fornecedores. |
-| **Fiscal** (a entregar — Fase B) | Seletor de fornecedor nos editores de NF de Entrada/Compra, Remessa, Transferência, Devolução e Complementar de Entrada. |
-| **"Salvar na base"** (a entregar — Fase C) | Botão dentro dos editores de NF de fornecedor para criar/atualizar cadastro a partir dos dados preenchidos, com verificação de duplicidade por documento. |
-| **NF de Compra → Compras** (a entregar — Fase D) | NF de entrada gera automaticamente o registro correspondente no módulo Compras. |
+| **Fiscal — Entrada** | Seletor de fornecedor nos editores de NF de Entrada/Compra, Remessa, Transferência, Devolução e Outros. |
+| **"Salvar na base" — Fornecedor** | Botão dentro do editor de NF de Entrada que cria/atualiza cadastro a partir dos dados preenchidos, com verificação de duplicidade por documento (3 opções: usar / atualizar / cancelar). |
+| **"Salvar na base" — Cliente** | Botão dentro do Pedido de Venda / NF manual que cria/atualiza cadastro de cliente a partir dos dados do destinatário, com a mesma regra de duplicidade. Aparece apenas no modo "Preencher manualmente". |
+| **NF de Compra → Compras (automático)** | Ao salvar uma NF-e de Entrada do tipo **Compra** com fornecedor vinculado à base, o sistema cria automaticamente um registro em Compras (`status = pending`, vínculo `entry_invoice_id`). Se a criação automática falhar, o usuário é avisado e a NF segue válida — basta registrar a compra manualmente. |
+
 
 ## Decisão sobre duplicidade no "Salvar na base"
 
