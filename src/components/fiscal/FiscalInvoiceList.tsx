@@ -499,23 +499,19 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     refetch();
   };
 
+  // A abertura da DANFE + diálogo de impressão acontece dentro do
+  // InvoiceActionsDropdown.handlePrintDanfe (callback do menu). Aqui apenas
+  // marcamos como impressa no banco e atualizamos a lista. Nada de window.open
+  // — abrir aqui novamente causa 2 abas/janelas da mesma DANFE.
   const handlePrintDanfe = async (invoice: FiscalInvoice) => {
     if (!invoice.danfe_url) {
       toast.error('DANFE não disponível para impressão');
       return;
     }
-
     try {
-      const printWindow = window.open(invoice.danfe_url, '_blank');
-      if (printWindow) {
-        printWindow.addEventListener('load', () => {
-          printWindow.print();
-        });
-      }
-      
       const { error } = await supabase
         .from('fiscal_invoices')
-        .update({ 
+        .update({
           danfe_printed_at: new Date().toISOString(),
           printed_at: new Date().toISOString()
         })
@@ -528,9 +524,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         refetch();
       }
     } catch (error) {
-      console.error('Error printing DANFE:', error);
+      console.error('Error marking DANFE as printed:', error);
     }
   };
+
 
   // Duplicação segura — abre diálogo pré-preenchido. O usuário revisa e salva.
   // O salvar cria SEMPRE um rascunho novo e independente:
