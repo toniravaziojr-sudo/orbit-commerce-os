@@ -63,6 +63,31 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #29 — Cobertura universal de canais: Messenger, IG (DM e comentários), comentários do FB, Mercado Livre, Shopee, TikTok Shop — 21/mai/2026
+
+**Contexto.** Até #28 a IA gerava resposta para todos os canais mas o envio de saída só estava implementado em WhatsApp e e-mail. Comentários do IG nem disparavam a IA.
+
+**Mudanças desta rodada.**
+
+1. **Dispatcher unificado de saída por canal** (`supabase/functions/_shared/channel-dispatcher.ts`): único ponto que entrega a resposta da IA para Messenger, Instagram DM, Instagram Comments, Facebook Comments, Mercado Livre (answers), Shopee (sellerchat) e TikTok Shop (customer_service messages).
+2. **`ai-support-chat` ligado ao dispatcher** entre o ramo do WhatsApp e o do e-mail. Mantém `delivery_status`, `external_message_id` e `failure_reason` com o resultado.
+3. **Webhook ML** (`meli-webhook`) passou a buscar o conteúdo da pergunta, criar conversa `mercadolivre`, persistir mensagem inbound e disparar `shouldAiRespond` + `invokeAiSupportChat`. Só para perguntas com status `UNANSWERED`.
+4. **Webhook Shopee** (`shopee-webhook`) passou a ingerir `webchat_message` (push code 11) com mesmo padrão.
+5. **Webhook TikTok Shop** (`tiktok-shop-webhook`) passou a ingerir `MESSAGE_NOTIFICATION` / `MESSAGE` com mesmo padrão. Quando faltar `TIKTOK_SHOP_APP_KEY`/`SHOPEE_PARTNER_*` o dispatcher devolve `*_env_missing` (falha visível, não silenciosa).
+6. **Comentário do Instagram** agora dispara IA com `channel_type: "instagram_comments"` (paridade com `facebook_comments`) e grava `page_id` no metadata para o dispatcher conseguir resolver o page token.
+
+**Regras anti-regressão (memória).**
+
+- O dispatcher é o único caminho de saída para esses canais; nenhum webhook deve enviar resposta direto.
+- Para canais Meta, conversação precisa ter `page_id` (ou `pageId`) e `sender_id`/`comment_id` em `metadata`.
+- Para ML, conversação precisa ter `meli_question_id` em `metadata`.
+- Para Shopee, `shopee_buyer_id` ou `from_id` em `metadata`.
+- Para TikTok Shop, `tiktok_conversation_id` em `metadata`.
+
+**Status.** Ajuste aplicado. Pendente de validação real em conversa por canal (Meta sandbox + perguntas reais em ML/Shopee/TikTok Shop).
+
+---
+
 ## Registro #28 — IA universal: scrub determinístico de marketplace + família-base universal — 21/mai/2026
 
 **Contexto.** Decisão de deixar a IA pronta para teste real em todos os canais. Único tenant ativo (Respeite o Homem) → sem rollout faseado.
