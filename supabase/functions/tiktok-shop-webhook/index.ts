@@ -161,6 +161,16 @@ Deno.serve(async (req) => {
           break;
         }
 
+        case 'MESSAGE_NOTIFICATION':
+        case 'MESSAGE': {
+          try {
+            await ingestTikTokShopMessage(supabase, tenantId, shopId, body);
+          } catch (chatErr) {
+            console.error('[tiktok-shop-webhook] ingest chat error:', chatErr);
+          }
+          break;
+        }
+
         default:
           console.log(`[tiktok-shop-webhook] Unhandled event type: ${eventType}`);
       }
