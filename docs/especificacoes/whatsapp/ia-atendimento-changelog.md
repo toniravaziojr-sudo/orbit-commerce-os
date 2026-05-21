@@ -63,6 +63,24 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #28 — IA universal: scrub determinístico de marketplace + família-base universal — 21/mai/2026
+
+**Contexto.** Decisão de deixar a IA pronta para teste real em todos os canais. Único tenant ativo (Respeite o Homem) → sem rollout faseado.
+
+**Mudanças aplicadas.**
+- **Catalog Base Forced é padrão universal** — a regra "mostrar produto-base antes de kit de quantidade" deixa de depender da flag exclusiva do Respeite o Homem. A flag `arch18_catalog_base_forced` em `ai_support_config.metadata` agora é apenas kill-switch (só desliga quando explicitamente `false`).
+- **Novo gate determinístico de marketplace (Reg #19)** — roda após todos os scrubbers de qualidade e antes da persistência. Cobre canais `mercadolivre`, `shopee`, `tiktok_shop`, `facebook_comments`, `instagram_comments`. Remove URLs externas (whitelist do domínio próprio do tenant via `storeUrl`), atalhos `wa.me`/`m.me`/`fb.me`/`t.me`, handles `instagram.com/*` e `facebook.com/*`, e-mails, telefones BR (10/11 dígitos) e menções textuais a WhatsApp/Instagram/Telegram. Se a resposta esvaziar após o scrub, devolve fallback do canal pedindo continuidade dentro da plataforma. Independe de configuração do lojista.
+- **Restrições de canal no prompt** — bloco unificado para todos os canais de marketplace + comentários públicos (camada 1 de defesa, complementa o gate determinístico).
+
+**O que NÃO está nesta rodada (declarado como próxima onda).**
+- **Ingestão de mensagens de cliente nos webhooks de Mercado Livre, Shopee e TikTok Shop.** Hoje esses webhooks só tratam pedidos/produtos/devoluções. Para a IA responder direto nesses marketplaces falta: detectar evento de pergunta/chat, buscar o texto via API do marketplace, criar conversa, invocar a IA e devolver a resposta pelo endpoint correspondente. Cada um exige integração específica com a API de chat do marketplace (no caso do ML já existe `meli-answer-question` para o envio da resposta; falta a ingestão pelo webhook). **Pendência bloqueante para fechar "100% universal".**
+
+**Validação técnica.** Build TypeScript passa. Scrub testado mentalmente nos cinco canais. Gate roda apenas em canais de marketplace (`isMarketplaceLikeChannel` curto-circuita os demais).
+
+**Anti-regressão.** Memória `mem://constraints/marketplace-scrub-deterministic-gate` indexada.
+
+---
+
 ## Registro #27 — AI Provider Routing Fase 1.1: persistência defensiva do log canônico em falha do composer — 04/mai/2026
 
 **Contexto.** A validação observacional pós-Registro #26 tentou confirmar `metadata.tpr` em produção. Um turno “Oi” real (13:33Z) provou que o TPR rodou em Gemini Native (`source=llm`, `model=gemini-2.5-flash-lite`, latency=2477ms) — mas `ai_support_turn_log` ficou vazio para esse turno.
