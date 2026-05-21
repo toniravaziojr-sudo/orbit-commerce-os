@@ -3522,13 +3522,14 @@ Deno.serve(async (req) => {
     // pré-policy. Essa variável é REASSIGNADA após compileEffectivePolicy.
     let salesModeEnabled = effectiveConfig.sales_mode_enabled === true;
 
-    // [Onda 18 — Fase A] Flag de Probe v2 família-base.
-    // Decisão Fase A: como tenant_feature_flags não existe ainda, a flag
-    // mora em ai_support_config.metadata.arch18_catalog_base_forced (boolean).
-    // Quando true, search_products roda enforceFamilyBaseFirst após enrichment
-    // e grava ai_turn_traces (sampling 100% no tenant ativo).
-    const arch18CatalogBaseForced =
-      ((effectiveConfig as any)?.metadata?.arch18_catalog_base_forced) === true;
+    // [Onda 18 — Fase A → Onda 19] Probe v2 família-base UNIVERSAL.
+    // A partir de Onda 19, o comportamento "mostrar família-base antes de
+    // kit de quantidade" é padrão para todos os tenants. A flag em
+    // ai_support_config.metadata.arch18_catalog_base_forced agora serve
+    // APENAS como kill-switch: setá-la explicitamente em `false` desliga.
+    // Qualquer outro valor (true, ausente, null) mantém ligado.
+    const arch18FlagRaw = (effectiveConfig as any)?.metadata?.arch18_catalog_base_forced;
+    const arch18CatalogBaseForced = arch18FlagRaw !== false;
 
     // [Onda 1C] Recommendation Context Builder — flag por tenant.
     // Modos: 'off' (default) | 'dry_run' | 'active'. NESTA ENTREGA, 'active'
