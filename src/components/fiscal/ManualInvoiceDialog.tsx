@@ -349,7 +349,7 @@ export function ManualInvoiceDialog({
       email: destEmail?.trim() || `sem-email-${cpfDigits || Date.now()}@local`,
       cpf: cpfDigits || null,
       phone: destTelefone?.trim() || null,
-      person_type: isPJ ? 'PJ' : 'PF',
+      person_type: isPJ ? 'pj' : 'pf',
       ...(isPJ ? { cnpj: cpfDigits, company_name: destNome.trim() } : {}),
       address_postal_code: destCep.replace(/\D/g, '') || null,
       address_street: destLogradouro?.trim() || null,
