@@ -138,6 +138,10 @@ export function ManualInvoiceDialog({
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  // Salvar na base — estado
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+  const [duplicateCustomer, setDuplicateCustomer] = useState<any | null>(null);
+  const [savedToBase, setSavedToBase] = useState(false);
 
   // Form state
   const [destNome, setDestNome] = useState('');
