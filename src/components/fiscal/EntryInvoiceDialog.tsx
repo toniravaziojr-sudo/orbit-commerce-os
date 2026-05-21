@@ -311,8 +311,7 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
     setChaveAcesso('');
     setFoundInvoice(null);
     setObservacoes('');
-    setDestNome('');
-    setDestCpfCnpj('');
+    setSupplier({ id: null, name: '', document: '' });
     if (!initialChaveAcesso) {
       setEntryType('compra');
     }
