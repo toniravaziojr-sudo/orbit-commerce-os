@@ -1948,7 +1948,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         />
       )}
 
+      {/* Modal de progresso de envio à Sefaz (individual e em lote) */}
+      <SendingInvoiceModal state={sendingState} />
+
       {/* Error Resolver Dialog */}
+
       <FiscalErrorResolver
         open={errorResolverOpen}
         onOpenChange={setErrorResolverOpen}
