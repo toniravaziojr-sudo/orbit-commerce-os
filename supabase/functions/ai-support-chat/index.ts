@@ -100,6 +100,9 @@ import {
   buildWorkingMemoryPromptBlock,
   extractAnchorQuestions,
   questionsToHashes,
+  // [Reg #19] Marketplace scrub — gate determinístico para canais de marketplace
+  scrubMarketplaceResponse,
+  isMarketplaceLikeChannel,
 } from "../_shared/sales-pipeline/index.ts";
 // [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
 // (substitui o cache em-memória que se perdia a cada cold start).
