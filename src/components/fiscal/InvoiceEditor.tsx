@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { ProductSelector, type ProductWithFiscal } from './ProductSelector';
+import { SupplierAutocomplete, type SupplierContact } from '@/components/suppliers/SupplierAutocomplete';
 
 // Types
 export interface InvoiceData {
