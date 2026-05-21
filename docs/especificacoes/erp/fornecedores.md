@@ -1,6 +1,17 @@
 # ERP > Fornecedores
 
-**Status:** Fase A entregue (cadastro). Fases B (uso no Fiscal), C ("Salvar na base" em NF/Pedido) e D (NF de Compra → módulo Compras automático) em andamento.
+**Status:** Fases A (cadastro) e B/C parcial (uso no Fiscal de Entrada + "Salvar na base") entregues. Fases C-completa (Salvar cliente em NF/Pedido de Venda) e D (NF de Compra → Compras automático) pendentes.
+
+## Integração com Fiscal (Fase B/C — Entrada)
+
+Na criação de NF-e de Entrada (Compra, Remessa, Transferência, Devolução, Outros), o campo Remetente/Fornecedor passa a oferecer:
+
+1. **Busca na base** — autocomplete por nome, CNPJ ou CPF; ao escolher, os campos de identificação e endereço são preenchidos automaticamente e o fornecedor fica marcado como "Vinculado à base".
+2. **Preenchimento manual** — quando o fornecedor não existe ainda, o usuário pode digitar nome e documento direto no formulário.
+3. **Salvar na base** — botão explícito que cria o fornecedor no cadastro central. Se já existir um cadastro com o mesmo CPF/CNPJ, abre um diálogo com 3 opções: **Usar cadastro existente**, **Atualizar dados** ou **Cancelar**.
+
+O vínculo com a base é **opcional para emitir a NF** — o fluxo nunca trava por causa do cadastro. Mas usar a base garante reuso de dados fiscais (IE, endereço completo) em emissões futuras.
+
 
 ## Propósito
 
