@@ -2,6 +2,8 @@
 
 **Status:** Fases A (cadastro), B/C-Fornecedor (uso no Fiscal de Entrada + "Salvar na base" de fornecedor), C-Cliente (Salvar na base de cliente em Pedido de Venda/NF manual com tratamento de duplicidade) e D (NF de Compra com fornecedor vinculado gera registro automático em Compras) entregues.
 
+**Validação end-to-end (2026-05-21, tenant Respeite o Homem):** "Salvar na base" testado nos dois lados — Cliente (a partir do Pedido de Venda) e Fornecedor (a partir da NF de Entrada). Cadastros gravados com sucesso, trava de duplicidade por CPF/CNPJ funcionando, limpeza confirmada. Durante o teste foi corrigido bug do "Salvar cliente na base" que falhava 100% por divergência de formato no tipo de pessoa — formato esperado pelo cadastro de Clientes é minúsculo (`pf`/`pj`), enquanto Fornecedores usa maiúsculo (`PF`/`PJ`). Ver memória anti-regressão `customers-person-type-lowercase`.
+
 ## Integração com Fiscal (Fase B/C — Entrada)
 
 Na criação de NF-e de Entrada (Compra, Remessa, Transferência, Devolução, Outros), o campo Remetente/Fornecedor passa a oferecer:
