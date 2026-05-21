@@ -1033,6 +1033,31 @@ export function ManualInvoiceDialog({
           </div>
         </div>
       </DialogContent>
+
+      {/* Duplicidade: cliente já existe na base */}
+      <AlertDialog open={!!duplicateCustomer} onOpenChange={(v) => { if (!v) setDuplicateCustomer(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cliente já existe na base</AlertDialogTitle>
+            <AlertDialogDescription>
+              Já existe um cadastro com este CPF/CNPJ
+              {duplicateCustomer?.full_name ? <> em <strong>{duplicateCustomer.full_name}</strong></> : null}.
+              O que deseja fazer?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={() => setDuplicateCustomer(null)}>Cancelar</AlertDialogCancel>
+            <Button variant="outline" onClick={handleUseExistingCustomer} disabled={isSavingCustomer}>
+              Usar cadastro existente
+            </Button>
+            <AlertDialogAction onClick={handleUpdateExistingCustomer} disabled={isSavingCustomer}>
+              {isSavingCustomer ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Atualizar dados
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
+
 }
