@@ -336,6 +336,120 @@ export function ManualInvoiceDialog({
     setDestMunicipio('');
     setDestUf('');
     setDestCep('');
+    setSavedToBase(false);
+  };
+
+  // Monta o payload de cliente a partir dos campos do formulário do destinatário.
+  const buildCustomerPayloadFromForm = () => {
+    const cpfDigits = destCpfCnpj.replace(/\D/g, '');
+    const isPJ = cpfDigits.length === 14;
+    return {
+      tenant_id: tenantId!,
+      full_name: destNome.trim(),
+      email: destEmail?.trim() || `sem-email-${cpfDigits || Date.now()}@local`,
+      cpf: cpfDigits || null,
+      phone: destTelefone?.trim() || null,
+      person_type: isPJ ? 'PJ' : 'PF',
+      ...(isPJ ? { cnpj: cpfDigits, company_name: destNome.trim() } : {}),
+      address_postal_code: destCep.replace(/\D/g, '') || null,
+      address_street: destLogradouro?.trim() || null,
+      address_number: destNumero?.trim() || null,
+      address_complement: destComplemento?.trim() || null,
+      address_neighborhood: destBairro?.trim() || null,
+      address_city: destMunicipio?.trim() || null,
+      address_state: destUf?.trim() || null,
+      status: 'active',
+    } as any;
+  };
+
+  const handleSaveCustomerToBase = async () => {
+    if (!tenantId) return;
+    if (!destNome.trim()) { toast.error('Informe o nome do cliente'); return; }
+    const cpfDigits = destCpfCnpj.replace(/\D/g, '');
+    if (!cpfDigits || !isValidCpfCnpj(cpfDigits)) {
+      toast.error('Informe um CPF ou CNPJ válido para salvar o cliente');
+      return;
+    }
+    setIsSavingCustomer(true);
+    try {
+      // Checa duplicidade por CPF/CNPJ
+      const docCol = cpfDigits.length === 14 ? 'cnpj' : 'cpf';
+      const { data: existing, error: searchErr } = await supabase
+        .from('customers')
+        .select('id, full_name, email, cpf, cnpj, phone, address_postal_code, address_street, address_number, address_complement, address_neighborhood, address_city, address_state')
+        .eq('tenant_id', tenantId)
+        .eq(docCol, cpfDigits)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (searchErr) throw searchErr;
+
+      if (existing) {
+        setDuplicateCustomer(existing);
+        return;
+      }
+
+      const payload = buildCustomerPayloadFromForm();
+      const { data: created, error: insErr } = await supabase
+        .from('customers')
+        .insert(payload)
+        .select('id, full_name')
+        .single();
+      if (insErr) throw insErr;
+      setSelectedCustomerId(created!.id);
+      setSavedToBase(true);
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success(`Cliente "${created!.full_name}" cadastrado na base.`);
+    } catch (err) {
+      showErrorToast(err, { module: 'clientes', action: 'salvar na base' });
+    } finally {
+      setIsSavingCustomer(false);
+    }
+  };
+
+  const handleUseExistingCustomer = () => {
+    if (!duplicateCustomer) return;
+    const c = duplicateCustomer;
+    setSelectedCustomerId(c.id);
+    setDestNome(c.full_name || destNome);
+    setDestCpfCnpj((c.cpf || c.cnpj || destCpfCnpj).toString().replace(/\D/g, ''));
+    if (c.email) setDestEmail(c.email);
+    if (c.phone) setDestTelefone(c.phone);
+    if (c.address_postal_code) setDestCep(String(c.address_postal_code).replace(/\D/g, ''));
+    if (c.address_street) setDestLogradouro(c.address_street);
+    if (c.address_number) setDestNumero(c.address_number);
+    if (c.address_complement) setDestComplemento(c.address_complement);
+    if (c.address_neighborhood) setDestBairro(c.address_neighborhood);
+    if (c.address_city) setDestMunicipio(c.address_city);
+    if (c.address_state) setDestUf(c.address_state);
+    setSavedToBase(true);
+    setDuplicateCustomer(null);
+    toast.success('Cadastro existente vinculado ao pedido.');
+  };
+
+  const handleUpdateExistingCustomer = async () => {
+    if (!duplicateCustomer || !tenantId) return;
+    setIsSavingCustomer(true);
+    try {
+      const payload = buildCustomerPayloadFromForm();
+      delete (payload as any).tenant_id;
+      delete (payload as any).status;
+      const { error: updErr } = await supabase
+        .from('customers')
+        .update(payload)
+        .eq('id', duplicateCustomer.id)
+        .eq('tenant_id', tenantId);
+      if (updErr) throw updErr;
+      setSelectedCustomerId(duplicateCustomer.id);
+      setSavedToBase(true);
+      setDuplicateCustomer(null);
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Cadastro do cliente atualizado.');
+    } catch (err) {
+      showErrorToast(err, { module: 'clientes', action: 'atualizar cadastro' });
+    } finally {
+      setIsSavingCustomer(false);
+    }
   };
 
   const handleAddItem = () => {
