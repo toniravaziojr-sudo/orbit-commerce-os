@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { format, differenceInHours, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { SupplierAutocomplete, type SupplierContact } from '@/components/suppliers/SupplierAutocomplete';
 
 interface OperationNature {
   id: string;
@@ -99,9 +100,8 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
   const [observacoes, setObservacoes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Manual entry fields (for non-reference types)
-  const [destNome, setDestNome] = useState('');
-  const [destCpfCnpj, setDestCpfCnpj] = useState('');
+  // Supplier contact (search base + manual fallback + save to base)
+  const [supplier, setSupplier] = useState<SupplierContact>({ id: null, name: '', document: '' });
 
   const selectedEntryType = ENTRY_TYPES.find(t => t.value === entryType)!;
 
@@ -211,9 +211,9 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
     
     // For types that require reference, must have found invoice
     if (selectedEntryType.requiresReferenceNfe && !foundInvoice) return;
-    // For types that don't require reference, must have dest name
-    if (!selectedEntryType.requiresReferenceNfe && !destNome.trim()) {
-      toast.error('Informe o nome do remetente/fornecedor');
+    // For types that don't require reference, must have supplier name
+    if (!selectedEntryType.requiresReferenceNfe && !supplier.name.trim()) {
+      toast.error('Informe o remetente/fornecedor');
       return;
     }
 
@@ -270,8 +270,18 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
         }
       } else {
         // Manual entry (compra, remessa, transferência, etc.)
-        entryData.dest_nome = destNome;
-        entryData.dest_cpf_cnpj = destCpfCnpj || null;
+        entryData.dest_nome = supplier.name;
+        entryData.dest_cpf_cnpj = supplier.document || null;
+        if (supplier.ie) entryData.dest_inscricao_estadual = supplier.ie;
+        if (supplier.logradouro) entryData.dest_endereco_logradouro = supplier.logradouro;
+        if (supplier.numero) entryData.dest_endereco_numero = supplier.numero;
+        if (supplier.complemento) entryData.dest_endereco_complemento = supplier.complemento;
+        if (supplier.bairro) entryData.dest_endereco_bairro = supplier.bairro;
+        if (supplier.cidade) entryData.dest_endereco_municipio = supplier.cidade;
+        if (supplier.uf) entryData.dest_endereco_uf = supplier.uf;
+        if (supplier.cep) entryData.dest_endereco_cep = supplier.cep;
+        // Note: supplier link (supplier_id) intentionally omitted — fiscal_invoices
+        // does not have this column yet. Selection above just pre-fills dest_* fields.
         entryData.observacoes = observacoes || `NF-e de Entrada - ${selectedEntryType.label}`;
         
         // If user provided a reference key optionally
@@ -302,8 +312,7 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
     setChaveAcesso('');
     setFoundInvoice(null);
     setObservacoes('');
-    setDestNome('');
-    setDestCpfCnpj('');
+    setSupplier({ id: null, name: '', document: '' });
     if (!initialChaveAcesso) {
       setEntryType('compra');
     }
@@ -316,7 +325,7 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
   const canSubmit = () => {
     if (!selectedNature) return false;
     if (selectedEntryType.requiresReferenceNfe) return !!foundInvoice;
-    return !!destNome.trim();
+    return !!supplier.name.trim();
   };
 
   return (
@@ -391,23 +400,13 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
             </div>
           ) : (
             <>
-              {/* Remetente/Fornecedor info */}
-              <div className="space-y-2">
-                <Label>Remetente / Fornecedor *</Label>
-                <Input
-                  value={destNome}
-                  onChange={(e) => setDestNome(e.target.value)}
-                  placeholder="Nome ou Razão Social"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>CPF/CNPJ</Label>
-                <Input
-                  value={destCpfCnpj}
-                  onChange={(e) => setDestCpfCnpj(e.target.value)}
-                  placeholder="CPF ou CNPJ do remetente"
-                />
-              </div>
+              {/* Remetente / Fornecedor (busca + manual + salvar na base) */}
+              <SupplierAutocomplete
+                value={supplier}
+                onChange={setSupplier}
+                label="Remetente / Fornecedor"
+                required
+              />
 
               {/* Optional reference key */}
               <div className="space-y-2">
