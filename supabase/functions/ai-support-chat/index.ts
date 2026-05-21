@@ -5261,17 +5261,21 @@ Cliente: "vocês entregam em SP?"
       systemPrompt += `\n\n### Instruções para ${channelType.toUpperCase()}:\n${channelConfig.custom_instructions}`;
     }
 
-    // Channel restrictions
+    // Channel restrictions — prompt-side (camada 1 de defesa).
+    // A camada 2, determinística (Reg #19), roda após a resposta no scrub
+    // de marketplace. Ambas convivem por segurança.
+    const MARKETPLACE_PROMPT_BLOCK = `
+RESTRIÇÕES DE CANAL EXTERNO (OBRIGATÓRIO):
+- NUNCA envie links de site, lojas próprias, blog, redes sociais ou outros marketplaces.
+- NUNCA mencione WhatsApp, Instagram, Telegram, Messenger, e-mail direto ou telefone.
+- NUNCA peça/ofereça contato fora desta plataforma.
+- Mantenha 100% da conversa dentro deste canal.`;
     const channelRestrictions: Record<string, string> = {
-      mercadolivre: `
-RESTRIÇÕES DO MERCADO LIVRE (OBRIGATÓRIO):
-- NUNCA mencione links externos, outros sites ou redes sociais
-- NUNCA sugira contato fora do Mercado Livre
-- NUNCA mencione WhatsApp, Instagram, email direto ou telefone`,
-      shopee: `
-RESTRIÇÕES DA SHOPEE:
-- Não direcione para canais externos
-- Mantenha toda comunicação dentro da plataforma`,
+      mercadolivre: MARKETPLACE_PROMPT_BLOCK,
+      shopee: MARKETPLACE_PROMPT_BLOCK,
+      tiktok_shop: MARKETPLACE_PROMPT_BLOCK,
+      facebook_comments: MARKETPLACE_PROMPT_BLOCK,
+      instagram_comments: MARKETPLACE_PROMPT_BLOCK,
     };
 
     if (channelRestrictions[channelType]) {
