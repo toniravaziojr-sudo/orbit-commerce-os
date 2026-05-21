@@ -298,9 +298,10 @@ Deno.serve(async (req) => {
       cest: item.cest ? String(item.cest).replace(/\D/g, '').substring(0, 7) || null : null,
     }));
 
-    const { error: itemsError } = await supabase
-      .from('fiscal_invoice_items')
-      .insert(invoiceItems);
+    // v8.7.0 — Em NF manual em branco não há itens; pula insert (rascunho sem itens).
+    const { error: itemsError } = invoiceItems.length
+      ? await supabase.from('fiscal_invoice_items').insert(invoiceItems)
+      : { error: null as any };
 
     if (itemsError) {
       console.error('[fiscal-create-manual] Error inserting items:', itemsError);
