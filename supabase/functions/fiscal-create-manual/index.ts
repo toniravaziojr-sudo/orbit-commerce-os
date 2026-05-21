@@ -95,8 +95,8 @@ Deno.serve(async (req) => {
       order_id,
       natureza_operacao,
       observacoes,
-      destinatario,
-      itens,
+      destinatario: bodyDestinatario,
+      itens: bodyItens,
       indicador_presenca,
       indicador_ie_dest,
       pagamento_indicador,
@@ -113,7 +113,36 @@ Deno.serve(async (req) => {
       peso_liquido: bodyPesoLiquido,
       quantidade_volumes: bodyQtdVolumes,
       informacoes_fisco: bodyInfoFisco,
+      // v8.7.0 — distinção explícita entre criação manual de NF (aba Notas Fiscais)
+      // e criação de Pedido de Venda (aba Pedidos de Venda).
+      // - 'nfe_manual': abre rascunho LIMPO de NF (sem item mockado, sem destinatário
+      //   pré-preenchido). Não passa pelo estágio 'pedido_venda'.
+      // - 'pedido_venda' (default): mantém comportamento legado para chamadas vindas
+      //   do fluxo de Pedido de Venda (com destinatário/itens completos).
+      mode: bodyMode,
     } = body;
+
+    const creationMode: 'nfe_manual' | 'pedido_venda' =
+      bodyMode === 'nfe_manual' ? 'nfe_manual' : 'pedido_venda';
+
+    // Em modo NF manual, destinatário e itens são opcionais (rascunho em branco).
+    // Em modo pedido de venda, contrato legado: ambos obrigatórios.
+    const destinatario = bodyDestinatario || {
+      nome: '',
+      cpf_cnpj: '',
+      endereco: { logradouro: '', numero: '', bairro: '', municipio: '', uf: '', cep: '' },
+    };
+    const itens: any[] = Array.isArray(bodyItens) ? bodyItens : [];
+
+    if (creationMode === 'pedido_venda') {
+      if (!bodyDestinatario || !itens.length) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Destinatário e itens são obrigatórios para Pedido de Venda' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
 
     const toNum = (v: any) => {
       const n = typeof v === 'number' ? v : parseFloat(String(v ?? '0').replace(',', '.'));
