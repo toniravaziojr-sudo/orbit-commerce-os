@@ -144,3 +144,4 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 
 - [Suppliers Single Source of Truth](mem://constraints/suppliers-single-source-of-truth) — Fornecedores é fonte única no ERP. Tabela suppliers compartilhada por Compras e Fiscal. Documento (CPF/CNPJ) único por tenant via índice parcial. Sem exclusão dura — apenas soft delete.
 - [Customers person_type minúsculo](mem://constraints/customers-person-type-lowercase) — customers.person_type só aceita 'pf'/'pj' minúsculo (constraint CHECK). suppliers usa 'PF'/'PJ' maiúsculo. Não confundir os formatos entre as duas bases.
+- [AI Channel Outbound Dispatcher](mem://constraints/ai-channel-outbound-dispatcher) — Único caminho de saída para a IA em Messenger, IG DM/Comments, FB Comments, ML, Shopee, TikTok Shop é `_shared/channel-dispatcher.ts` chamado dentro de ai-support-chat. Webhooks nunca enviam direto. Conversa precisa carregar IDs específicos em metadata por canal.

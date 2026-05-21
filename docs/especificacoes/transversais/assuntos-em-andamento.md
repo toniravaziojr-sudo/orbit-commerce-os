@@ -49,14 +49,15 @@
 - `docs/especificacoes/ia/visao-ia-produto.md`
 
 **Onde estamos:**
-- **Arch18 Fase A — Catalog Base Forced** ativa **somente** no piloto Respeite o Homem (flag `arch18_catalog_base_forced` em `ai_support_config.metadata`).
-- Pipeline base consolidada: TPR (Gemini Flash-Lite), State Machine, Working Memory (shadow), Focus Snapshot, Catalog Probe, Output Gates (Price Scrubber, Greeting Mirror, Checkout URL Enforcer, Action Invention Scrubber), Anti-repetição semântica, Handoff terminal idempotente, Variant Gate, Ambiguous Input Detector, Turn Orchestrator.
-- Modo Vendas (`sales_mode_enabled`) ativa 11 tools de comércio conversacional no WhatsApp.
+- **Arch18 Fase A — Catalog Base Forced** agora é **padrão universal** (Reg #28). Flag `arch18_catalog_base_forced` virou kill-switch.
+- **Cobertura universal de canais (Reg #29)** — IA agora responde de forma automática em: WhatsApp, E-mail, Chat, Messenger, Instagram DM, Comentários do Instagram, Comentários do Facebook, Mercado Livre (perguntas), Shopee (chat) e TikTok Shop (chat). Entrega de saída unificada no `channel-dispatcher`. Webhooks só ingerem e disparam o gate; nunca enviam direto.
+- **Scrub determinístico de marketplace (Reg #28)** ativo para ML/Shopee/TikTok/comentários: remove links externos, telefones e e-mails.
+- Pipeline base consolidada: TPR (Gemini Flash-Lite), State Machine, Working Memory (shadow), Focus Snapshot, Catalog Probe, Output Gates, Anti-repetição, Handoff terminal, Variant Gate, Ambiguous Input Detector, Turn Orchestrator.
+- Modo Vendas (`sales_mode_enabled`) ativa 11 tools de comércio conversacional.
 
 **Próximos candidatos (a combinar com operador):**
-- Promover Arch18 Fase A para outros tenants.
-- Avançar para Arch18 Fase B (Policy Compiler).
-- Avançar para Arch18 Fase B2 (Model Roles).
+- Validar saída em conversa real por canal (sandbox Meta + perguntas reais ML/Shopee/TikTok).
+- Avançar para Arch18 Fase B (Policy Compiler) e B2 (Model Roles).
 
 **Restrições firmes:**
 - Nada novo sem autorização do operador.

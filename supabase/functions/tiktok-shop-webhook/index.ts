@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
 
-const VERSION = "v1.0.0";
+const VERSION = "v2.0.0"; // Adds MESSAGE_NOTIFICATION ingestion into AI engine
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -160,6 +161,16 @@ Deno.serve(async (req) => {
           break;
         }
 
+        case 'MESSAGE_NOTIFICATION':
+        case 'MESSAGE': {
+          try {
+            await ingestTikTokShopMessage(supabase, tenantId, shopId, body);
+          } catch (chatErr) {
+            console.error('[tiktok-shop-webhook] ingest chat error:', chatErr);
+          }
+          break;
+        }
+
         default:
           console.log(`[tiktok-shop-webhook] Unhandled event type: ${eventType}`);
       }
@@ -191,3 +202,116 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+async function ingestTikTokShopMessage(
+  supabase: any,
+  tenantId: string,
+  shopId: string | null,
+  body: any,
+) {
+  const data = body?.data || {};
+  const conversationExternalId = data.conversation_id || data.thread_id;
+  const senderId = data.sender_id || data.from_id;
+  const senderName = data.sender_name || data.from_user_name || `Comprador TikTok ${senderId || ""}`;
+  const content = data.content?.text || data.message || data.content || "";
+  const messageId = data.message_id || `${shopId}_${Date.now()}`;
+  if (!conversationExternalId || !content) return;
+  if (data.is_seller === true) return;
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const externalConvId = `tiktok_shop_${conversationExternalId}`;
+
+  const { data: existingConv } = await supabase
+    .from('conversations')
+    .select('id, status, assigned_to')
+    .eq('tenant_id', tenantId)
+    .eq('external_conversation_id', externalConvId)
+    .not('status', 'in', '(resolved,spam)')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const decision = await shouldAiRespond({
+    supabase, tenant_id: tenantId, channel_type: 'tiktok_shop', conversation: existingConv ?? null,
+  });
+
+  let conversationId: string;
+  let snapshot: any;
+
+  if (existingConv) {
+    conversationId = existingConv.id;
+    snapshot = existingConv;
+  } else {
+    const { data: newConv, error } = await supabase
+      .from('conversations')
+      .insert({
+        tenant_id: tenantId,
+        channel_type: 'tiktok_shop',
+        customer_name: senderName,
+        external_conversation_id: externalConvId,
+        external_thread_id: String(conversationExternalId),
+        status: decision.initial_status_for_new_conversation,
+        priority: 2,
+        subject: `Chat TikTok Shop - ${senderName}`,
+        last_message_at: new Date().toISOString(),
+        metadata: {
+          tiktok_conversation_id: conversationExternalId,
+          tiktok_sender_id: senderId,
+          tiktok_shop_id: shopId,
+        },
+      })
+      .select('id, status, assigned_to')
+      .single();
+    if (error || !newConv) {
+      console.error('[tiktok-shop-webhook] Failed to create conversation:', error);
+      return;
+    }
+    conversationId = newConv.id;
+    snapshot = newConv;
+  }
+
+  const { data: existingMsg } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('external_message_id', String(messageId))
+    .maybeSingle();
+
+  if (!existingMsg) {
+    await supabase.from('messages').insert({
+      conversation_id: conversationId,
+      tenant_id: tenantId,
+      direction: 'inbound',
+      sender_type: 'customer',
+      sender_name: senderName,
+      content,
+      content_type: 'text',
+      delivery_status: 'delivered',
+      external_message_id: String(messageId),
+      is_ai_generated: false,
+      is_internal: false,
+      is_note: false,
+    });
+    await supabase
+      .from('conversations')
+      .update({
+        last_message_at: new Date().toISOString(),
+        last_customer_message_at: new Date().toISOString(),
+      })
+      .eq('id', conversationId);
+  }
+
+  const finalDecision = await shouldAiRespond({
+    supabase, tenant_id: tenantId, channel_type: 'tiktok_shop', conversation: snapshot,
+  });
+  if (finalDecision.should_respond) {
+    const res = await invokeAiSupportChat(supabaseUrl, serviceKey, {
+      conversation_id: conversationId,
+      tenant_id: tenantId,
+    });
+    console.log(`[tiktok-shop-webhook] AI invoke (${res.status}):`, res.bodyText);
+  } else {
+    console.log(`[tiktok-shop-webhook] AI gate blocked: ${finalDecision.reason}`);
+  }
+}
