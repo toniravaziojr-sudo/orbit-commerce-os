@@ -24,6 +24,8 @@ import { EntryInvoiceDialog } from '@/components/fiscal/EntryInvoiceDialog';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { ExportInvoicesButton } from '@/components/fiscal/ExportInvoicesButton';
 import { InvoiceTimeline } from '@/components/fiscal/InvoiceTimeline';
+import { SendingInvoiceModal, type SendingState } from '@/components/fiscal/SendingInvoiceModal';
+
 import { ConsultaChaveDialog } from '@/components/fiscal/ConsultaChaveDialog';
 import { MarketplaceSourceFilter } from '@/components/fiscal/MarketplaceSourceFilter';
 import { OrderSourceBadge } from '@/components/orders/OrderSourceBadge';
