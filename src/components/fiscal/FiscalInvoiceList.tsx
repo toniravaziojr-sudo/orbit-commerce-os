@@ -105,7 +105,12 @@ interface FiscalInvoiceListProps {
 export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  // Pedidos de Venda abre com filtro "Em aberto" por padrão (mostra só o que
+  // precisa de ação). Notas Fiscais abre sem filtro (lista completa).
+  const [statusFilter, setStatusFilter] = useState<string[]>(
+    mode === 'orders' ? ['em_aberto'] : []
+  );
+
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; data: ManualInvoiceInitialData | null; kind: 'pedido' | 'nf' }>({ open: false, data: null, kind: 'pedido' });
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
