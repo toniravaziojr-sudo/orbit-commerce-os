@@ -101,3 +101,31 @@
 **Restrições firmes:**
 - Nada de tocar nas configurações de imposto sem autorização (impacta diretamente cálculo de NF-e).
 - Validar sempre no tenant Respeite o Homem antes de qualquer expansão.
+
+---
+
+### 5. Fiscal — Integração WMS Pratika + Catálogo de Naturezas de Operação
+
+**Docs oficiais:**
+- `docs/especificacoes/erp/erp-fiscal.md` (catálogo de naturezas e filtros do editor de NF-e)
+- Memória: `mem://features/external-apps/wms-pratika-integration`
+
+**Onde estamos (tenant piloto: Respeite o Homem):**
+
+1. **Integração WMS Pratika (apps externos):** conexão SOAP ativa e validada. Envio automático de NF-e e etiqueta dos Correios para o WMS ao emitir nota fiscal **de saída**. Conexão testada com sucesso.
+
+2. **Catálogo de Naturezas de Operação — expansão concluída:**
+   - Filtro de "Remessa" no editor de NF-e estava restrito a 4 tipos (escondia Demonstração, Consignação, Bonificação, Amostra Grátis).
+   - Filtro foi corrigido para considerar a faixa oficial da Receita Federal (CFOPs 5900–5999), independente de "faturada".
+   - Catálogo do tenant ampliado de **18 → 33 naturezas**, cobrindo todos os 25 CFOPs oficiais da faixa de remessa (Armazém Geral, Industrialização por Encomenda, Comodato, Exposição/Feira, Vasilhame/Sacaria, Conta e Ordem de Terceiros, etc.).
+   - Todas as novas naturezas entram com CSOSN 400 (Simples Nacional, não tributado por remessa), CST PIS/COFINS 49, marcadas como não faturadas e não consumidor final.
+   - Doc oficial atualizado com a faixa oficial e a lista completa.
+
+**Pendente:**
+- Validação real ponta a ponta pelo operador: emitir uma NF de remessa (ex.: Armazém Geral) no tenant piloto e confirmar que (a) aparece no editor, (b) é autorizada pela Sefaz, (c) chega ao WMS Pratika automaticamente.
+- Avaliar, em outra rodada, se a expansão do catálogo deve virar default para novos tenants ou ficar opt-in via Fiscal → Configurações → Naturezas de Operação.
+
+**Restrições firmes:**
+- Não mexer em natureza de operação por iniciativa própria — usuário edita pela tela de Configurações.
+- Não criar UI nova para "forçar reenvio ao WMS" sem autorização — fluxo é automático no momento da emissão.
+- Mudanças no filtro do editor de NF-e ou na lista oficial de CFOPs precisam atualizar o doc fiscal na mesma entrega.
