@@ -52,6 +52,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/fiscal': 'ready',
   '/finance': 'pending',
   '/purchases': 'ready',
+  '/suppliers': 'ready',
   '/shipping': 'pending',
   
   // Sistema
