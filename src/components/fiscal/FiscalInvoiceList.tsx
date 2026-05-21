@@ -828,7 +828,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
 
     // Modal central de progresso. Atualiza a cada item processado.
-    setSendingState({ total: targets.length, done: 0 });
+    setSendingState({ total: targets.length, done: 0, kind: isOrders ? 'create' : 'send' });
 
     try {
       for (const invoice of targets) {
@@ -836,6 +836,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           total: targets.length,
           done: successCount + errorCount,
           currentLabel: `Nota ${invoice.serie}-${invoice.numero}`,
+          kind: isOrders ? 'create' : 'send',
         });
         try {
           const fnName = isOrders ? 'fiscal-prepare-invoice' : 'fiscal-submit';
