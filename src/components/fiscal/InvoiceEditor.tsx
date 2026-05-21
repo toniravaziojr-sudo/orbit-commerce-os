@@ -1161,6 +1161,7 @@ export function InvoiceEditor({
                       uf: data.dest_endereco_uf || null,
                     }}
                     onChange={(s: SupplierContact) => {
+                      setLinkedSupplierId(s.id ?? null);
                       setData(prev => prev ? ({
                         ...prev,
                         dest_nome: s.name || '',
