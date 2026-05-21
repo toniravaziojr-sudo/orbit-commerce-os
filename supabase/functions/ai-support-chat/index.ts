@@ -7393,6 +7393,31 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.warn("[ai-support-chat] [Reg #10] vocative scrubber failed:", (e as Error).message);
     }
 
+    // [Reg #19] MARKETPLACE SCRUB — gate determinístico para canais onde a
+    // IA não pode direcionar o cliente para fora da plataforma (ML, Shopee,
+    // TikTok Shop, comentários públicos do Facebook/Instagram). Remove URLs
+    // externas, telefones, e-mails e menções a WhatsApp/Instagram/Telegram.
+    // Roda DEPOIS de todos os scrubbers de qualidade e ANTES da persistência.
+    try {
+      if (isMarketplaceLikeChannel(channelType) && aiContent && typeof aiContent === "string") {
+        const mkScrub = scrubMarketplaceResponse({
+          channelType,
+          aiResponse: aiContent,
+          ownStoreDomain: storeUrl || null,
+        });
+        if (mkScrub.scrubbed) {
+          console.log(
+            `[ai-support-chat] [Reg #19] marketplace_scrub channel=${channelType} ` +
+              `reason=${mkScrub.reason} removed=${mkScrub.removed.length}`,
+          );
+          aiContent = mkScrub.after;
+        }
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #19] marketplace scrub failed:", (e as Error).message);
+    }
+
+
     // [Frente 3 — Reg #2.16] Enforce Close On Confirmed Intent.
     // Se o cliente confirmou fechamento (TPR) e a IA voltou com pergunta
     // confirmatória sem chamar generate_checkout_link, marcamos como
