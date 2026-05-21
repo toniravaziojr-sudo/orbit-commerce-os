@@ -100,9 +100,8 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
   const [observacoes, setObservacoes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Manual entry fields (for non-reference types)
-  const [destNome, setDestNome] = useState('');
-  const [destCpfCnpj, setDestCpfCnpj] = useState('');
+  // Supplier contact (search base + manual fallback + save to base)
+  const [supplier, setSupplier] = useState<SupplierContact>({ id: null, name: '', document: '' });
 
   const selectedEntryType = ENTRY_TYPES.find(t => t.value === entryType)!;
 
