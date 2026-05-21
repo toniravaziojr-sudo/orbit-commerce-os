@@ -22,6 +22,8 @@ export interface SendingState {
   done: number;
   /** Rótulo opcional para mostrar o item atual (ex.: "Nota 1-291"). */
   currentLabel?: string;
+  /** 'send' = enviando à Receita (padrão). 'create' = criando NF a partir de Pedido de Venda. */
+  kind?: 'send' | 'create';
 }
 
 interface SendingInvoiceModalProps {
@@ -34,6 +36,18 @@ export function SendingInvoiceModal({ state }: SendingInvoiceModalProps) {
   const done = state?.done ?? 0;
   const isBulk = total > 1;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const isCreate = state?.kind === 'create';
+
+  const title = isCreate
+    ? (isBulk ? 'Criando notas fiscais' : 'Criando nota fiscal')
+    : (isBulk ? 'Enviando notas fiscais para a Receita' : 'Enviando nota fiscal para a Receita');
+  const description = isCreate
+    ? (isBulk
+        ? 'Validando os pedidos e gerando as notas. Esta janela fecha sozinha.'
+        : 'Validando o pedido e gerando a nota. Esta janela fecha sozinha.')
+    : (isBulk
+        ? 'Aguarde — esta janela fecha sozinha quando o envio terminar.'
+        : 'Aguarde a resposta da Sefaz. Esta janela fecha sozinha.');
 
   return (
     <Dialog open={open}>
@@ -51,14 +65,8 @@ export function SendingInvoiceModal({ state }: SendingInvoiceModalProps) {
           </div>
 
           <div className="space-y-1">
-            <DialogTitle className="text-lg">
-              {isBulk ? 'Enviando notas fiscais para a Receita' : 'Enviando nota fiscal para a Receita'}
-            </DialogTitle>
-            <DialogDescription>
-              {isBulk
-                ? 'Aguarde — esta janela fecha sozinha quando o envio terminar.'
-                : 'Aguarde a resposta da Sefaz. Esta janela fecha sozinha.'}
-            </DialogDescription>
+            <DialogTitle className="text-lg">{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
           </div>
 
           {isBulk && (

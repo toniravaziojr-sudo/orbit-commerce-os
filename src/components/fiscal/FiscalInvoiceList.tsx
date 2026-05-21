@@ -452,6 +452,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   // NÃO transmite à SEFAZ. NÃO chama Focus.
   const handlePrepareInvoice = async (invoice: FiscalInvoice) => {
     setPreparingInvoiceId(invoice.id);
+    setSendingState({ total: 1, done: 0, kind: 'create' });
     try {
       const { data, error } = await supabase.functions.invoke('fiscal-prepare-invoice', {
         body: { invoice_id: invoice.id },
@@ -475,6 +476,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       showErrorToast(e, { module: 'fiscal', action: 'criar nota fiscal' });
     } finally {
       setPreparingInvoiceId(null);
+      setSendingState(null);
     }
   };
 
@@ -826,7 +828,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
 
     // Modal central de progresso. Atualiza a cada item processado.
-    setSendingState({ total: targets.length, done: 0 });
+    setSendingState({ total: targets.length, done: 0, kind: isOrders ? 'create' : 'send' });
 
     try {
       for (const invoice of targets) {
@@ -834,6 +836,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
           total: targets.length,
           done: successCount + errorCount,
           currentLabel: `Nota ${invoice.serie}-${invoice.numero}`,
+          kind: isOrders ? 'create' : 'send',
         });
         try {
           const fnName = isOrders ? 'fiscal-prepare-invoice' : 'fiscal-submit';
