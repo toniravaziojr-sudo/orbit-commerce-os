@@ -825,22 +825,34 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       return;
     }
 
-    for (const invoice of targets) {
-      try {
-        const fnName = isOrders ? 'fiscal-prepare-invoice' : 'fiscal-submit';
-        const { data, error } = await supabase.functions.invoke(fnName, {
-          body: { invoice_id: invoice.id },
+    // Modal central de progresso. Atualiza a cada item processado.
+    setSendingState({ total: targets.length, done: 0 });
+
+    try {
+      for (const invoice of targets) {
+        setSendingState({
+          total: targets.length,
+          done: successCount + errorCount,
+          currentLabel: `Nota ${invoice.serie}-${invoice.numero}`,
         });
-        if (error || !data?.success) errorCount++;
-        else successCount++;
-      } catch {
-        errorCount++;
+        try {
+          const fnName = isOrders ? 'fiscal-prepare-invoice' : 'fiscal-submit';
+          const { data, error } = await supabase.functions.invoke(fnName, {
+            body: { invoice_id: invoice.id },
+          });
+          if (error || !data?.success) errorCount++;
+          else successCount++;
+        } catch {
+          errorCount++;
+        }
       }
+    } finally {
+      setIsBulkProcessing(false);
+      setSendingState(null);
+      clearSelection();
+      refetch();
     }
 
-    setIsBulkProcessing(false);
-    clearSelection();
-    refetch();
 
     // Resumo único: evita o "sucesso falso" quando havia falhas no lote.
     const total = targets.length;
