@@ -996,35 +996,52 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
-  // Cria um rascunho LIMPO de NF Fiscal (aba Notas Fiscais) e abre o editor.
-  // IMPORTANTE: este fluxo é distinto da criação de Pedido de Venda. O rascunho
-  // nasce SEM destinatário pré-preenchido e SEM item mockado — o usuário escolhe
-  // o produto via "Buscar produto" no editor. Validações fiscais só disparam ao
-  // salvar/emitir, e o editor abre em modo NF Fiscal (não em modo Pedido de Venda).
-  const handleCreateNewInvoice = async () => {
-    setIsCreatingInvoice(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('fiscal-create-manual', {
-        body: {
-          mode: 'nfe_manual',
-          natureza_operacao: 'VENDA DE MERCADORIA',
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao criar NF-e');
-
-      // Open the full editor with the new draft
-      const invoice = data.invoice;
-      if (invoice) {
-        await handleEditInvoice(invoice);
-      }
-      refetch();
-    } catch (error: any) {
-      showErrorToast(error, { module: 'fiscal', action: 'criar NF-e' });
-    } finally {
-      setIsCreatingInvoice(false);
-    }
+  // Abre o editor de NF Fiscal em modo "em branco", SEM criar registro no banco.
+  // O rascunho só é persistido quando o usuário clicar em Salvar pela primeira vez
+  // (ver handleSaveInvoice — criação tardia via fiscal-create-manual modo nfe_manual).
+  const handleCreateNewInvoice = () => {
+    const emptyInvoice: InvoiceData = {
+      // id ausente: sinaliza que ainda não há registro persistido
+      numero: 0,
+      serie: 0,
+      data_emissao: new Date().toISOString(),
+      natureza_operacao: 'VENDA DE MERCADORIA',
+      cfop: '',
+      indicador_presenca: 2,
+      dest_nome: '',
+      dest_cpf_cnpj: '',
+      dest_tipo_pessoa: 'fisica',
+      dest_consumidor_final: true,
+      indicador_ie_dest: 9,
+      dest_endereco_logradouro: '',
+      dest_endereco_numero: '',
+      dest_endereco_bairro: '',
+      dest_endereco_municipio: '',
+      dest_endereco_municipio_codigo: '',
+      dest_endereco_uf: '',
+      dest_endereco_cep: '',
+      valor_produtos: 0,
+      valor_frete: 0,
+      valor_seguro: 0,
+      valor_outras_despesas: 0,
+      valor_desconto: 0,
+      valor_total: 0,
+      valor_bc_icms: 0,
+      valor_icms: 0,
+      valor_pis: 0,
+      valor_cofins: 0,
+      items: [],
+      modalidade_frete: '9',
+      pagamento_indicador: 0,
+      pagamento_meio: '99',
+      pagamento_valor: 0,
+    };
+    setEditingInvoice(emptyInvoice);
+    setEditingInvoiceError(null);
+    setEditingInvoicePendencias([]);
+    setEditingInvoiceAvisos([]);
+    setEditingInvoiceStatus('draft');
+    setEditingInvoiceStage('pendencia');
   };
 
 
