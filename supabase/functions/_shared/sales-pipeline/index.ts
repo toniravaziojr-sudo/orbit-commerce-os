@@ -25,3 +25,6 @@ export * from "./policy-compiler.ts";
 // [Reg #2.13] Fase C — Turn Orchestrator
 export * from "./turn-completeness.ts";
 export * from "./turn-orchestrator.ts";
+// [Reg #19] Marketplace scrub — strip de links/telefones/emails em canais
+// onde a IA não pode direcionar o cliente para fora da plataforma.
+export * from "./marketplace-scrub.ts";

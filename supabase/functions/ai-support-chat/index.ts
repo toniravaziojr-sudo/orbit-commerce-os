@@ -100,6 +100,9 @@ import {
   buildWorkingMemoryPromptBlock,
   extractAnchorQuestions,
   questionsToHashes,
+  // [Reg #19] Marketplace scrub — gate determinístico para canais de marketplace
+  scrubMarketplaceResponse,
+  isMarketplaceLikeChannel,
 } from "../_shared/sales-pipeline/index.ts";
 // [F2-V3] Cache PERSISTENTE de incompatibilidade de parâmetros por modelo
 // (substitui o cache em-memória que se perdia a cada cold start).
@@ -3519,13 +3522,14 @@ Deno.serve(async (req) => {
     // pré-policy. Essa variável é REASSIGNADA após compileEffectivePolicy.
     let salesModeEnabled = effectiveConfig.sales_mode_enabled === true;
 
-    // [Onda 18 — Fase A] Flag de Probe v2 família-base.
-    // Decisão Fase A: como tenant_feature_flags não existe ainda, a flag
-    // mora em ai_support_config.metadata.arch18_catalog_base_forced (boolean).
-    // Quando true, search_products roda enforceFamilyBaseFirst após enrichment
-    // e grava ai_turn_traces (sampling 100% no tenant ativo).
-    const arch18CatalogBaseForced =
-      ((effectiveConfig as any)?.metadata?.arch18_catalog_base_forced) === true;
+    // [Onda 18 — Fase A → Onda 19] Probe v2 família-base UNIVERSAL.
+    // A partir de Onda 19, o comportamento "mostrar família-base antes de
+    // kit de quantidade" é padrão para todos os tenants. A flag em
+    // ai_support_config.metadata.arch18_catalog_base_forced agora serve
+    // APENAS como kill-switch: setá-la explicitamente em `false` desliga.
+    // Qualquer outro valor (true, ausente, null) mantém ligado.
+    const arch18FlagRaw = (effectiveConfig as any)?.metadata?.arch18_catalog_base_forced;
+    const arch18CatalogBaseForced = arch18FlagRaw !== false;
 
     // [Onda 1C] Recommendation Context Builder — flag por tenant.
     // Modos: 'off' (default) | 'dry_run' | 'active'. NESTA ENTREGA, 'active'
@@ -5257,17 +5261,21 @@ Cliente: "vocês entregam em SP?"
       systemPrompt += `\n\n### Instruções para ${channelType.toUpperCase()}:\n${channelConfig.custom_instructions}`;
     }
 
-    // Channel restrictions
+    // Channel restrictions — prompt-side (camada 1 de defesa).
+    // A camada 2, determinística (Reg #19), roda após a resposta no scrub
+    // de marketplace. Ambas convivem por segurança.
+    const MARKETPLACE_PROMPT_BLOCK = `
+RESTRIÇÕES DE CANAL EXTERNO (OBRIGATÓRIO):
+- NUNCA envie links de site, lojas próprias, blog, redes sociais ou outros marketplaces.
+- NUNCA mencione WhatsApp, Instagram, Telegram, Messenger, e-mail direto ou telefone.
+- NUNCA peça/ofereça contato fora desta plataforma.
+- Mantenha 100% da conversa dentro deste canal.`;
     const channelRestrictions: Record<string, string> = {
-      mercadolivre: `
-RESTRIÇÕES DO MERCADO LIVRE (OBRIGATÓRIO):
-- NUNCA mencione links externos, outros sites ou redes sociais
-- NUNCA sugira contato fora do Mercado Livre
-- NUNCA mencione WhatsApp, Instagram, email direto ou telefone`,
-      shopee: `
-RESTRIÇÕES DA SHOPEE:
-- Não direcione para canais externos
-- Mantenha toda comunicação dentro da plataforma`,
+      mercadolivre: MARKETPLACE_PROMPT_BLOCK,
+      shopee: MARKETPLACE_PROMPT_BLOCK,
+      tiktok_shop: MARKETPLACE_PROMPT_BLOCK,
+      facebook_comments: MARKETPLACE_PROMPT_BLOCK,
+      instagram_comments: MARKETPLACE_PROMPT_BLOCK,
     };
 
     if (channelRestrictions[channelType]) {
@@ -7384,6 +7392,31 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     } catch (e) {
       console.warn("[ai-support-chat] [Reg #10] vocative scrubber failed:", (e as Error).message);
     }
+
+    // [Reg #19] MARKETPLACE SCRUB — gate determinístico para canais onde a
+    // IA não pode direcionar o cliente para fora da plataforma (ML, Shopee,
+    // TikTok Shop, comentários públicos do Facebook/Instagram). Remove URLs
+    // externas, telefones, e-mails e menções a WhatsApp/Instagram/Telegram.
+    // Roda DEPOIS de todos os scrubbers de qualidade e ANTES da persistência.
+    try {
+      if (isMarketplaceLikeChannel(channelType) && aiContent && typeof aiContent === "string") {
+        const mkScrub = scrubMarketplaceResponse({
+          channelType,
+          aiResponse: aiContent,
+          ownStoreDomain: storeUrl || null,
+        });
+        if (mkScrub.scrubbed) {
+          console.log(
+            `[ai-support-chat] [Reg #19] marketplace_scrub channel=${channelType} ` +
+              `reason=${mkScrub.reason} removed=${mkScrub.removed.length}`,
+          );
+          aiContent = mkScrub.after;
+        }
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #19] marketplace scrub failed:", (e as Error).message);
+    }
+
 
     // [Frente 3 — Reg #2.16] Enforce Close On Confirmed Intent.
     // Se o cliente confirmou fechamento (TPR) e a IA voltou com pergunta
