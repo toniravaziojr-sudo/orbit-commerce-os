@@ -270,8 +270,17 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
         }
       } else {
         // Manual entry (compra, remessa, transferência, etc.)
-        entryData.dest_nome = destNome;
-        entryData.dest_cpf_cnpj = destCpfCnpj || null;
+        entryData.dest_nome = supplier.name;
+        entryData.dest_cpf_cnpj = supplier.document || null;
+        if (supplier.ie) entryData.dest_inscricao_estadual = supplier.ie;
+        if (supplier.logradouro) entryData.dest_endereco_logradouro = supplier.logradouro;
+        if (supplier.numero) entryData.dest_endereco_numero = supplier.numero;
+        if (supplier.complemento) entryData.dest_endereco_complemento = supplier.complemento;
+        if (supplier.bairro) entryData.dest_endereco_bairro = supplier.bairro;
+        if (supplier.cidade) entryData.dest_endereco_municipio = supplier.cidade;
+        if (supplier.uf) entryData.dest_endereco_uf = supplier.uf;
+        if (supplier.cep) entryData.dest_endereco_cep = supplier.cep;
+        if (supplier.id) entryData.supplier_id = supplier.id;
         entryData.observacoes = observacoes || `NF-e de Entrada - ${selectedEntryType.label}`;
         
         // If user provided a reference key optionally
