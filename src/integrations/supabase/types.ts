@@ -19178,47 +19178,110 @@ export type Database = {
       suppliers: {
         Row: {
           address: string | null
+          bairro: string | null
+          cep: string | null
+          cidade: string | null
           cnpj: string | null
+          codigo_ibge: string | null
+          complemento: string | null
           contact_person: string | null
+          contributor_type: Database["public"]["Enums"]["supplier_contributor_type"]
+          cpf: string | null
           created_at: string
+          deleted_at: string | null
           email: string | null
+          fiscal_notes: string | null
           id: string
+          ie: string | null
+          ie_isento: boolean
+          im: string | null
           is_active: boolean
+          is_foreign: boolean
+          legal_name: string | null
+          logradouro: string | null
           name: string
           notes: string | null
+          numero: string | null
+          pais: string
+          person_type: Database["public"]["Enums"]["supplier_person_type"]
           phone: string | null
+          phone_secondary: string | null
           supplier_type_id: string | null
           tenant_id: string
+          trade_name: string | null
+          uf: string | null
           updated_at: string
         }
         Insert: {
           address?: string | null
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
           cnpj?: string | null
+          codigo_ibge?: string | null
+          complemento?: string | null
           contact_person?: string | null
+          contributor_type?: Database["public"]["Enums"]["supplier_contributor_type"]
+          cpf?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
+          fiscal_notes?: string | null
           id?: string
+          ie?: string | null
+          ie_isento?: boolean
+          im?: string | null
           is_active?: boolean
+          is_foreign?: boolean
+          legal_name?: string | null
+          logradouro?: string | null
           name: string
           notes?: string | null
+          numero?: string | null
+          pais?: string
+          person_type?: Database["public"]["Enums"]["supplier_person_type"]
           phone?: string | null
+          phone_secondary?: string | null
           supplier_type_id?: string | null
           tenant_id: string
+          trade_name?: string | null
+          uf?: string | null
           updated_at?: string
         }
         Update: {
           address?: string | null
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
           cnpj?: string | null
+          codigo_ibge?: string | null
+          complemento?: string | null
           contact_person?: string | null
+          contributor_type?: Database["public"]["Enums"]["supplier_contributor_type"]
+          cpf?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
+          fiscal_notes?: string | null
           id?: string
+          ie?: string | null
+          ie_isento?: boolean
+          im?: string | null
           is_active?: boolean
+          is_foreign?: boolean
+          legal_name?: string | null
+          logradouro?: string | null
           name?: string
           notes?: string | null
+          numero?: string | null
+          pais?: string
+          person_type?: Database["public"]["Enums"]["supplier_person_type"]
           phone?: string | null
+          phone_secondary?: string | null
           supplier_type_id?: string | null
           tenant_id?: string
+          trade_name?: string | null
+          uf?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -25051,6 +25114,14 @@ export type Database = {
         Args: { p_new_grant_id: string; p_tenant_id: string }
         Returns: number
       }
+      suppliers_doc_digits: {
+        Args: {
+          p_cnpj: string
+          p_cpf: string
+          p_person_type: Database["public"]["Enums"]["supplier_person_type"]
+        }
+        Returns: string
+      }
       sync_list_subscribers_from_tag: {
         Args: { p_list_id: string }
         Returns: Json
@@ -25432,6 +25503,11 @@ export type Database = {
         | "active"
         | "suspended"
         | "cancelled"
+      supplier_contributor_type:
+        | "contribuinte"
+        | "nao_contribuinte"
+        | "contribuinte_isento"
+      supplier_person_type: "PF" | "PJ"
       support_channel_type:
         | "whatsapp"
         | "email"
@@ -25834,6 +25910,12 @@ export const Constants = {
         "suspended",
         "cancelled",
       ],
+      supplier_contributor_type: [
+        "contribuinte",
+        "nao_contribuinte",
+        "contribuinte_isento",
+      ],
+      supplier_person_type: ["PF", "PJ"],
       support_channel_type: [
         "whatsapp",
         "email",

@@ -88,6 +88,7 @@ const FiscalSettings = lazy(() => import("@/pages/FiscalSettings"));
 const FiscalProductsConfig = lazy(() => import("@/pages/FiscalProductsConfig"));
 const OperationNaturesSettings = lazy(() => import("@/pages/OperationNaturesSettings"));
 const Purchases = lazy(() => import("@/pages/Purchases"));
+const Suppliers = lazy(() => import("@/pages/Suppliers"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Domains = lazy(() => import("@/pages/Domains"));
 const StorefrontSettings = lazy(() => import("@/pages/StorefrontSettings"));
@@ -481,6 +482,7 @@ const App = () => {
                   <Route path="/fiscal/operation-natures" element={<Navigate to="/fiscal/configuracoes?aba=natureza" replace />} />
                   <Route path="/import" element={<GatedRoute moduleKey="sistema_importacao" moduleName="Importação de Dados" moduleDescription="Importe produtos, clientes e pedidos de outras plataformas"><Import /></GatedRoute>} />
                   <Route path="/purchases" element={<GatedRoute moduleKey="erp_compras" moduleName="ERP Compras" moduleDescription="Gestão de compras e fornecedores"><Purchases /></GatedRoute>} />
+                  <Route path="/suppliers" element={<GatedRoute moduleKey="erp_compras" moduleName="Fornecedores" moduleDescription="Cadastro único de fornecedores usado por Compras e Fiscal"><Suppliers /></GatedRoute>} />
                   <Route path="/influencers" element={<GatedRoute moduleKey="parcerias" moduleName="Parcerias" moduleDescription="Gestão de influencers"><Influencers /></GatedRoute>} />
                   
                   <Route path="/affiliates" element={<GatedRoute moduleKey="parcerias" moduleName="Parcerias" moduleDescription="Programa de afiliados"><Affiliates /></GatedRoute>} />

@@ -55,6 +55,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 24 | ERP | Fiscal | `/fiscal` | erp_logistica | — | — | — |
 | 25 | ERP | Financeiro | `/finance` | erp_logistica | `erp_financeiro` | — | Badge "Upgrade" se bloqueado |
 | 26 | ERP | Compras | `/purchases` | erp_logistica | `erp_compras` | — | Badge "Upgrade" se bloqueado |
+| 26b | ERP | Fornecedores | `/suppliers` | erp_logistica | `erp_compras` | — | Cadastro único de fornecedores (rev 2026-05-21) |
 | 27 | ERP | Logística | `/shipping` | erp_logistica | `remessas` | — | Badge "Upgrade" se bloqueado |
 | 28 | Parcerias | Influencers | `/influencers` | parcerias | `influencers` | — | Badge "Upgrade" se bloqueado |
 | 29 | Parcerias | Afiliados | `/affiliates` | parcerias | — | — | — |
@@ -260,6 +261,7 @@ O storefront público do lojista (loja virtual vista pelo consumidor) **não é 
 - `/fiscal/operation-natures` — **Redirect legado** → `/fiscal/configuracoes?aba=natureza`
 - `/finance` — Financeiro (GatedRoute: `erp_financeiro`)
 - `/purchases` — Compras (GatedRoute: `erp_compras`)
+- `/suppliers` — **Fornecedores** (GatedRoute: `erp_compras`) — cadastro único de fornecedores, fonte de verdade usada por Compras, Fiscal e demais módulos do ERP. Lista com busca/filtros (status, tipo), cadastro em 4 abas (Dados básicos, Endereço, Fiscal, Comercial). Documento (CPF/CNPJ) único por tenant. Sem exclusão dura — apenas inativação (soft delete). Detalhe em `docs/especificacoes/erp/fornecedores.md`. Adicionado em rev 2026-05-21.
 - `/shipping` — Dashboard de logística
 - `/shipping/shipments` — Remessas (FeatureGated: `remessas`) — filtros: busca, data, status, **Transportadora** (Correios/Loggi/Frenet/Fallback/Sem) e **Serviço** (PAC, Sedex, Loggi Express — dinâmico). Coluna Transportadora exibe badge + serviço (ex: "Correios · PAC"). **Pedidos com transportadora gateway (`resolved_shipping_provider_kind = 'gateway'`) são excluídos automaticamente da fila local de remessas** — o despacho é feito pela própria transportadora via `gateway-sync-order`. Detalhe em `docs/especificacoes/erp/rascunhos-logisticos.md` v2.5.0.
 - `/shipping/settings` — Config de frete

@@ -142,3 +142,4 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Fiscal NF Manual sem rascunho até Salvar](mem://constraints/fiscal-nfe-manual-no-draft-until-save) — "Nova NF-e" abre o editor apenas em memória, SEM criar linha em fiscal_invoices. Persistência tardia: fiscal-create-manual só é chamado no primeiro Salvar, seguido de fiscal-update-draft. Fechar sem salvar não deixa rastro no banco.
 
 
+- [Suppliers Single Source of Truth](mem://constraints/suppliers-single-source-of-truth) — Fornecedores é fonte única no ERP. Tabela suppliers compartilhada por Compras e Fiscal. Documento (CPF/CNPJ) único por tenant via índice parcial. Sem exclusão dura — apenas soft delete.
