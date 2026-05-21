@@ -336,6 +336,7 @@ export function InvoiceEditor({
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
   const [data, setData] = useState<InvoiceData | null>(null);
+  const [linkedSupplierId, setLinkedSupplierId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('geral');
