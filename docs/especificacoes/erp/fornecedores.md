@@ -1,6 +1,6 @@
 # ERP > Fornecedores
 
-**Status:** Fases A (cadastro) e B/C parcial (uso no Fiscal de Entrada + "Salvar na base") entregues. Fases C-completa (Salvar cliente em NF/Pedido de Venda) e D (NF de Compra → Compras automático) pendentes.
+**Status:** Fases A (cadastro), B/C-Fornecedor (uso no Fiscal de Entrada + "Salvar na base" de fornecedor), C-Cliente (Salvar na base de cliente em Pedido de Venda/NF manual com tratamento de duplicidade) e D (NF de Compra com fornecedor vinculado gera registro automático em Compras) entregues.
 
 ## Integração com Fiscal (Fase B/C — Entrada)
 
