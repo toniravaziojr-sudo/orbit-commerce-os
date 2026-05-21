@@ -82,7 +82,6 @@ export default function Suppliers() {
       <PageHeader
         title="Fornecedores"
         description="Cadastro único de fornecedores usado por Compras, Fiscal e demais módulos do ERP."
-        icon={Truck}
         actions={
           <Button onClick={openNew}>
             <Plus className="h-4 w-4 mr-2" /> Novo fornecedor
