@@ -6,7 +6,7 @@ import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 
-const VERSION = 'v8.6.3';
+const VERSION = 'v8.7.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
