@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { ProductSelector, type ProductWithFiscal } from './ProductSelector';
+import { SupplierAutocomplete, type SupplierContact } from '@/components/suppliers/SupplierAutocomplete';
 
 // Types
 export interface InvoiceData {
@@ -335,6 +336,7 @@ export function InvoiceEditor({
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
   const [data, setData] = useState<InvoiceData | null>(null);
+  const [linkedSupplierId, setLinkedSupplierId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('geral');
@@ -1130,6 +1132,58 @@ export function InvoiceEditor({
 
           {/* Tab: Destinatário */}
           <TabsContent value="destinatario" className="space-y-4">
+            {(['entrada','devolucao','remessa','transferencia'] as const).includes((data.tipo_nota || 'saida') as any) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Fornecedor / Remetente</CardTitle>
+                  <CardDescription>
+                    Busque na base ou preencha manualmente. Se quiser, salve este fornecedor para reaproveitar em outras notas.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SupplierAutocomplete
+                    label="Fornecedor / Remetente"
+                    required
+                    value={{
+                      id: linkedSupplierId,
+                      name: data.dest_nome || '',
+                      document: data.dest_cpf_cnpj || '',
+                      personType: data.dest_tipo_pessoa === 'juridica' ? 'PJ' : 'PF',
+                      email: data.dest_email || null,
+                      phone: data.dest_telefone || null,
+                      ie: data.dest_ie || null,
+                      cep: data.dest_endereco_cep || null,
+                      logradouro: data.dest_endereco_logradouro || null,
+                      numero: data.dest_endereco_numero || null,
+                      complemento: data.dest_endereco_complemento || null,
+                      bairro: data.dest_endereco_bairro || null,
+                      cidade: data.dest_endereco_municipio || null,
+                      uf: data.dest_endereco_uf || null,
+                    }}
+                    onChange={(s: SupplierContact) => {
+                      setLinkedSupplierId(s.id ?? null);
+                      setData(prev => prev ? ({
+                        ...prev,
+                        dest_nome: s.name || '',
+                        dest_cpf_cnpj: (s.document || '').replace(/\D/g, ''),
+                        dest_tipo_pessoa: s.personType === 'PJ' ? 'juridica' : 'fisica',
+                        dest_ie: s.ie ?? prev.dest_ie,
+                        dest_email: s.email ?? prev.dest_email,
+                        dest_telefone: s.phone ?? prev.dest_telefone,
+                        dest_endereco_cep: s.cep ?? prev.dest_endereco_cep,
+                        dest_endereco_logradouro: s.logradouro ?? prev.dest_endereco_logradouro,
+                        dest_endereco_numero: s.numero ?? prev.dest_endereco_numero,
+                        dest_endereco_complemento: s.complemento ?? prev.dest_endereco_complemento,
+                        dest_endereco_bairro: s.bairro ?? prev.dest_endereco_bairro,
+                        dest_endereco_municipio: s.cidade ?? prev.dest_endereco_municipio,
+                        dest_endereco_uf: s.uf ?? prev.dest_endereco_uf,
+                      }) : prev);
+                    }}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
