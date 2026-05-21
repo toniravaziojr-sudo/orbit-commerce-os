@@ -324,7 +324,7 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
   const canSubmit = () => {
     if (!selectedNature) return false;
     if (selectedEntryType.requiresReferenceNfe) return !!foundInvoice;
-    return !!destNome.trim();
+    return !!supplier.name.trim();
   };
 
   return (
