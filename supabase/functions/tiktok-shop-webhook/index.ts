@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { shouldAiRespond, invokeAiSupportChat } from "../_shared/should-ai-respond.ts";
 
-const VERSION = "v1.0.0";
+const VERSION = "v2.0.0"; // Adds MESSAGE_NOTIFICATION ingestion into AI engine
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
