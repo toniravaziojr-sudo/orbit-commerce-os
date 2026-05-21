@@ -693,11 +693,21 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 
 #### InvoiceEditor — Natureza de Operação Dinâmica (rev4)
 - Campo **"Natureza da Operação"** carrega opções da tabela `fiscal_operation_natures` filtrada por tenant e status ativo
-- Naturezas são **filtradas automaticamente** conforme o tipo de nota selecionado (saída→vendas, entrada→compras, devolução→devoluções, remessa→remessas não faturadas, transferência→transferências)
+- Naturezas são **filtradas automaticamente** conforme o tipo de nota selecionado:
+  - **Saída** → `tipo_documento=1` + `finalidade=1` (vendas)
+  - **Entrada** → `tipo_documento=0` + `finalidade=1` (compras)
+  - **Devolução** → `finalidade=4`
+  - **Remessa** → critério oficial Receita Federal: **qualquer natureza com CFOP intra na faixa 5900–5999** (independentemente de `faturada`). Cobre armazém geral, demonstração, consignação, bonificação, amostra grátis, conserto, comodato, industrialização, exposição/feira, vasilhame, conta e ordem etc.
+  - **Transferência** → naturezas cujo nome contém "transferência"
 - Ao selecionar uma natureza, os seguintes campos são preenchidos automaticamente: **CFOP** (`cfop_intra`), **Indicador de Presença** (`ind_pres`), **Consumidor Final** (`consumidor_final`)
 - Ao trocar o tipo de nota, natureza e CFOP são **resetados** para forçar re-seleção coerente
 - CFOP preenchido usa `cfop_intra` como padrão (intraestadual); o usuário pode alterar manualmente para `cfop_inter` se necessário
-- 18 naturezas padrão pré-cadastradas cobrindo operações comuns de e-commerce (vendas, compras, devoluções, remessas, consignação, bonificação, transferência)
+- **Catálogo padrão por tenant: 33 naturezas** cobrindo todas as operações comuns de e-commerce + a faixa completa 5.900/6.900 da Receita Federal (Outras Saídas), incluindo:
+  - Vendas (5101/6101, 5102/6102)
+  - Compras (1102/2102, 1556/2556)
+  - Devoluções (1202/2202, 5202/6202)
+  - Transferência (5152/6152)
+  - **Remessas (faixa 5.900):** Industrialização por encomenda (5901/5902/5903), Venda fora do estabelecimento (5904), **Armazém Geral / Depósito Fechado (5905/5906/5907)**, Comodato (5908/5909), Bonificação (5910), Amostra Grátis (5911), Demonstração (5912/5913/1913), Exposição/Feira (5914), Conserto (5915/5916), Consignação (5917/5918), Vasilhame/Sacaria (5920/5921), Entrega Futura (5922), Conta e Ordem de Terceiros (5923), Industrialização por Conta e Ordem (5924), Outras saídas (5949)
 - Seed automático no primeiro acesso via `OperationNaturesSettings.tsx`
 
 #### ManualInvoiceDialog (simplificado para pedidos)
