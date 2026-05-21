@@ -317,7 +317,7 @@ async function handleInstagramComment(
 
   const { data: existingConv } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, status, assigned_to")
     .eq("tenant_id", tenantId)
     .eq("external_conversation_id", externalConvId)
     .in("status", ["new", "open", "waiting_customer", "waiting_agent", "bot"])
@@ -325,33 +325,49 @@ async function handleInstagramComment(
     .limit(1)
     .maybeSingle();
 
+  const decision = await shouldAiRespond({
+    supabase,
+    tenant_id: tenantId,
+    channel_type: "instagram_comments",
+    conversation: existingConv ?? null,
+  });
+
   let conversationId: string;
+  let conversationSnapshot: { id: string; status: string | null; assigned_to: string | null } | null = null;
 
   if (existingConv) {
     conversationId = existingConv.id;
+    conversationSnapshot = existingConv as any;
   } else {
     const { data: newConv, error: convError } = await supabase
       .from("conversations")
       .insert({
         tenant_id: tenantId,
-        channel_type: "instagram_dm",
+        channel_type: "instagram_comments",
         customer_name: senderName,
         external_conversation_id: externalConvId,
         external_thread_id: mediaId || commentId,
-        status: "new",
+        status: decision.initial_status_for_new_conversation,
         priority: 1,
         subject: `Comentário IG - ${senderName}`,
         last_message_at: new Date().toISOString(),
-        metadata: { ig_user_id: igUserId, media_id: mediaId, comment_id: commentId, is_comment: true },
+        metadata: {
+          ig_user_id: igUserId,
+          media_id: mediaId,
+          comment_id: commentId,
+          page_id: await resolvePageIdForIg(supabase, tenantId, igUserId),
+          is_comment: true,
+        },
       })
-      .select("id")
+      .select("id, status, assigned_to")
       .single();
 
-    if (convError) {
+    if (convError || !newConv) {
       console.error(`[meta-instagram-webhook][${traceId}] Failed to create comment conv:`, convError);
       return;
     }
     conversationId = newConv.id;
+    conversationSnapshot = newConv as any;
   }
 
   await supabase.from("messages").insert({
@@ -372,8 +388,28 @@ async function handleInstagramComment(
 
   await supabase
     .from("conversations")
-    .update({ last_message_at: new Date().toISOString(), status: "new" })
+    .update({ last_message_at: new Date().toISOString() })
     .eq("id", conversationId);
+
+  await triggerAiIfEnabled(
+    supabase, traceId, tenantId, conversationId, "instagram_comments",
+    conversationSnapshot?.status ?? null, conversationSnapshot?.assigned_to ?? null,
+  );
+}
+
+async function resolvePageIdForIg(supabase: any, tenantId: string, igUserId: string): Promise<string | null> {
+  const { data: integrations } = await supabase
+    .from("tenant_meta_integrations")
+    .select("selected_assets")
+    .eq("tenant_id", tenantId)
+    .in("integration_id", IG_BEARING_INTEGRATIONS as unknown as string[])
+    .eq("status", "active");
+  for (const integ of integrations || []) {
+    const igAccounts = (integ.selected_assets?.instagram_accounts || []) as any[];
+    const match = igAccounts.find((ig) => ig.id === igUserId);
+    if (match?.page_id) return match.page_id;
+  }
+  return null;
 }
 
 async function triggerAiIfEnabled(
