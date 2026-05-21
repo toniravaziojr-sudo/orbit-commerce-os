@@ -30,18 +30,23 @@ A abertura do PDF da DANFE acontece **exclusivamente** dentro de `InvoiceActions
 
 Dentro do `handlePrintDanfe` do dropdown, o listener `'load'` da janela aberta deve usar guard `printed` para evitar `print()` duplicado (alguns navegadores disparam `load` mais de uma vez para PDFs embeds).
 
-## 3. Feedback visual de envio à Sefaz: modal central obrigatório
+## 3. Feedback visual obrigatório: modal central em toda ação fiscal de longa duração
 
-Toda emissão de NF-e (individual via `fiscal-submit` ou em lote via `fiscal-prepare-invoice`/`fiscal-submit`) **deve** controlar o estado `sendingState` que alimenta `SendingInvoiceModal`:
-- abrir antes da chamada (com `total`, `done: 0`, `currentLabel`);
-- atualizar a cada item processado em lote (`done` incrementa);
+Toda ação fiscal que faz round-trip ao backend e pode bloquear o usuário **deve** controlar o estado `sendingState` que alimenta `SendingInvoiceModal`:
+- **Criar Nota Fiscal a partir de Pedido de Venda** (individual ou lote) via `fiscal-prepare-invoice` → `kind: 'create'`.
+- **Emitir NF-e à Receita** (individual ou lote) via `fiscal-submit` → `kind: 'send'` (default).
+
+Regras:
+- abrir antes da chamada (com `total`, `done: 0`, `kind`);
+- atualizar a cada item processado em lote (`done` incrementa, manter o mesmo `kind`);
 - fechar no `finally` (`setSendingState(null)`).
 
-O modal é **não-dismissível** enquanto o envio está em andamento (`onPointerDownOutside`, `onEscapeKeyDown`, `onInteractOutside` preventDefault). Isso bloqueia duplo-clique e cliques fora.
+O modal é **não-dismissível** enquanto a operação está em andamento (`onPointerDownOutside`, `onEscapeKeyDown`, `onInteractOutside` preventDefault). Isso bloqueia duplo-clique e cliques fora.
 
-A pílula "Processando…" na linha permanece como reforço, **não substitui** o modal.
+A pílula "Processando…"/"Pronta para Emitir" na linha permanece como reforço, **não substitui** o modal.
 
 **Componente fonte da verdade:** `src/components/fiscal/SendingInvoiceModal.tsx`.
+**Regressão proibida:** chamar `fiscal-prepare-invoice` ou `fiscal-submit` na lista sem disparar o modal — a tela parece travada e o usuário clica de novo.
 
 ## 4. Aba Pedidos de Venda inicia com filtro "Em aberto"
 
