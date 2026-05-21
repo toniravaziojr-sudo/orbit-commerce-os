@@ -761,7 +761,9 @@ export function ManualInvoiceDialog({
                 </div>
               )}
 
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+
                   <Label>Nome / Razão Social *</Label>
                   <Input value={destNome} onChange={e => setDestNome(e.target.value)} disabled={customerMode === 'existing' && !!selectedCustomerId} />
                 </div>
