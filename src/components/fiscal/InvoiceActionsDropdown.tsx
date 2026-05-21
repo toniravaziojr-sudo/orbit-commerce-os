@@ -143,7 +143,9 @@ export function InvoiceActionsDropdown({
     try { await downloadViaBackend('xml'); } finally { setIsDownloadingXml(false); }
   };
 
-  // Print DANFE (opens print dialog) — segue usando URL direta para preview
+  // Print DANFE (opens print dialog) — segue usando URL direta para preview.
+  // Guard `printed` evita que o evento 'load' (que em PDFs embeds pode disparar
+  // mais de uma vez em alguns navegadores) chame print() múltiplas vezes.
   const handlePrintDanfe = async () => {
     if (!invoice.danfe_url) {
       toast.error('DANFE não disponível para impressão');
@@ -152,7 +154,12 @@ export function InvoiceActionsDropdown({
     try {
       const printWindow = window.open(invoice.danfe_url, '_blank');
       if (printWindow) {
-        printWindow.addEventListener('load', () => { printWindow.print(); });
+        let printed = false;
+        printWindow.addEventListener('load', () => {
+          if (printed) return;
+          printed = true;
+          printWindow.print();
+        });
       }
       onPrint?.();
     } catch (error) {
@@ -160,6 +167,7 @@ export function InvoiceActionsDropdown({
       toast.error('Erro ao imprimir DANFE');
     }
   };
+
 
   // Copy access key
   const handleCopyChave = () => {

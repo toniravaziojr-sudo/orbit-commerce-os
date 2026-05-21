@@ -659,7 +659,7 @@ A aba **Pedidos de Venda** exibe 7 status. A fonte de verdade é `fiscal_invoice
   - **Pendência Identificada** (`pendencia`) — amarelo
   - **Processando** (`emitida` + `status='processing'`) — amarelo
   - **Autorizada** (`emitida` + `status='authorized'`) — azul
-  - **Autorizada + DANFE impressa** (`status='authorized'` + `danfe_printed_at IS NOT NULL`) — status azul + badge auxiliar verde **"Impressa"**
+  - **Impressa** (`status='authorized'` + `danfe_printed_at IS NOT NULL`) — verde (substitui o badge "Autorizada"; a coluna Status mostra **1 pílula por linha — estado mais recente vence**, ver Regra Anti-Regressão #11)
   - **Rejeitada** (`emitida` + `status='rejected'`) — vermelho
   - **Cancelada** (`emitida` + `status='cancelled'`) — vermelho
   - **Erro** (`status='error'`) — vermelho
@@ -744,6 +744,11 @@ Quando o usuário seleciona uma ou mais NF-e/rascunhos, a barra de ações em ma
 8. **Cancelar NF nunca cria Pedido de Venda nem NF nova**: o cancelamento é ação terminal sobre a nota existente.
 9. **Produção real exige confirmação explícita posterior**: o ambiente do tenant Respeite o Homem permanece em homologação até nova autorização. Nenhuma NF real deve ser transmitida em produção sem validação completa.
 10. **Não exibir sucesso falso em emissão**: toast de sucesso só aparece após confirmação real da operação. Se a emissão falhar antes de transmitir, não mostrar sucesso.
+11. **Status visual da NF: 1 pílula por linha — estado mais recente vence** (v2026-05-21). A coluna Status da lista de Notas Fiscais nunca mostra duas pílulas empilhadas. Quando a NF está autorizada **e** impressa (`danfe_printed_at IS NOT NULL`), exibe apenas **"Impressa"** (verde). Quando autorizada e ainda não impressa, exibe **"Autorizada"** (azul). Cancelada, rejeitada, pendente Sefaz e devolvida seguem como pílula única. O histórico de impressão continua disponível na timeline da nota — não duplicar pílulas para mostrá-lo na lista.
+12. **Impressão de DANFE: 1 aba só.** A abertura do PDF da DANFE acontece **exclusivamente** no `InvoiceActionsDropdown.handlePrintDanfe`. O callback `onPrint` recebido pelo dropdown deve apenas marcar `danfe_printed_at`/`printed_at` no banco e atualizar a lista — nunca chamar `window.open` novamente. Causou regressão "DANFE abre duas vezes" em 2026-05-21.
+13. **Feedback visual de envio à Sefaz: modal central obrigatório** (v2026-05-21). Toda emissão de NF-e (individual via `fiscal-submit` ou em lote via `fiscal-prepare-invoice`/`fiscal-submit`) abre o componente `SendingInvoiceModal` no início e fecha no `finally`. O modal é não-dismissível enquanto o envio está em andamento (bloqueia duplo-clique e cliques fora). Em lote, mostra contador "X de Y" e label da NF atual. A pílula "Processando…" na linha permanece como reforço.
+14. **Filtro padrão da aba Pedidos de Venda = "Em aberto"** (v2026-05-21). Ao montar `FiscalInvoiceList` com `mode='orders'`, o estado inicial de `statusFilter` é `['em_aberto']`. A aba Notas Fiscais (`mode='invoices'`) continua iniciando sem filtro. Justificativa de negócio: ao abrir o módulo Fiscal, o lojista vê primeiro o que precisa de ação, sem precisar filtrar manualmente.
+
 
 ---
 
@@ -770,7 +775,7 @@ Após criar nota fiscal a partir de Pedidos de Venda (ação individual ou em ma
 | Pendência Identificada (`pendencia`) | amarelo |
 | Processando SEFAZ / Aguardando protocolo (`processing`) | amarelo |
 | Autorizada (`authorized`) | azul |
-| Autorizada + DANFE impressa | azul + badge verde "Impressa" |
+| Impressa (autorizada + `danfe_printed_at`) | verde (substitui "Autorizada" — 1 pílula por linha) |
 | Cancelada (`cancelled`) | vermelho |
 | Rejeitada (`rejected`) | vermelho |
 | Erro (`error`) | vermelho |

@@ -24,6 +24,8 @@ import { EntryInvoiceDialog } from '@/components/fiscal/EntryInvoiceDialog';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { ExportInvoicesButton } from '@/components/fiscal/ExportInvoicesButton';
 import { InvoiceTimeline } from '@/components/fiscal/InvoiceTimeline';
+import { SendingInvoiceModal, type SendingState } from '@/components/fiscal/SendingInvoiceModal';
+
 import { ConsultaChaveDialog } from '@/components/fiscal/ConsultaChaveDialog';
 import { MarketplaceSourceFilter } from '@/components/fiscal/MarketplaceSourceFilter';
 import { OrderSourceBadge } from '@/components/orders/OrderSourceBadge';
@@ -105,7 +107,12 @@ interface FiscalInvoiceListProps {
 export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  // Pedidos de Venda abre com filtro "Em aberto" por padrão (mostra só o que
+  // precisa de ação). Notas Fiscais abre sem filtro (lista completa).
+  const [statusFilter, setStatusFilter] = useState<string[]>(
+    mode === 'orders' ? ['em_aberto'] : []
+  );
+
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; data: ManualInvoiceInitialData | null; kind: 'pedido' | 'nf' }>({ open: false, data: null, kind: 'pedido' });
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
@@ -139,6 +146,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
+  // Modal central de progresso de envio à Sefaz (individual e em lote).
+  const [sendingState, setSendingState] = useState<SendingState | null>(null);
+
 
   // Paginação client-side (a consulta já traz tudo do tenant; aqui só fatiamos a tabela).
   const [pageSize, setPageSize] = useState<number>(50);
@@ -499,23 +509,19 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     refetch();
   };
 
+  // A abertura da DANFE + diálogo de impressão acontece dentro do
+  // InvoiceActionsDropdown.handlePrintDanfe (callback do menu). Aqui apenas
+  // marcamos como impressa no banco e atualizamos a lista. Nada de window.open
+  // — abrir aqui novamente causa 2 abas/janelas da mesma DANFE.
   const handlePrintDanfe = async (invoice: FiscalInvoice) => {
     if (!invoice.danfe_url) {
       toast.error('DANFE não disponível para impressão');
       return;
     }
-
     try {
-      const printWindow = window.open(invoice.danfe_url, '_blank');
-      if (printWindow) {
-        printWindow.addEventListener('load', () => {
-          printWindow.print();
-        });
-      }
-      
       const { error } = await supabase
         .from('fiscal_invoices')
-        .update({ 
+        .update({
           danfe_printed_at: new Date().toISOString(),
           printed_at: new Date().toISOString()
         })
@@ -528,9 +534,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         refetch();
       }
     } catch (error) {
-      console.error('Error printing DANFE:', error);
+      console.error('Error marking DANFE as printed:', error);
     }
   };
+
 
   // Duplicação segura — abre diálogo pré-preenchido. O usuário revisa e salva.
   // O salvar cria SEMPRE um rascunho novo e independente:
@@ -716,6 +723,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
   const handleQuickSubmit = async (invoice: FiscalInvoice) => {
     setSubmittingInvoiceId(invoice.id);
+    // Modal central de "Enviando nota fiscal..." — fecha sozinho no finally.
+    setSendingState({
+      total: 1,
+      done: 0,
+      currentLabel: `Nota ${invoice.serie}-${invoice.numero}`,
+    });
     try {
       const { data, error } = await supabase.functions.invoke('fiscal-submit', {
         body: { invoice_id: invoice.id },
@@ -749,8 +762,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       setErrorResolverOpen(true);
     } finally {
       setSubmittingInvoiceId(null);
+      setSendingState(null);
     }
   };
+
 
   const handleRetrySubmit = () => {
     setErrorResolverOpen(false);
@@ -810,22 +825,34 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       return;
     }
 
-    for (const invoice of targets) {
-      try {
-        const fnName = isOrders ? 'fiscal-prepare-invoice' : 'fiscal-submit';
-        const { data, error } = await supabase.functions.invoke(fnName, {
-          body: { invoice_id: invoice.id },
+    // Modal central de progresso. Atualiza a cada item processado.
+    setSendingState({ total: targets.length, done: 0 });
+
+    try {
+      for (const invoice of targets) {
+        setSendingState({
+          total: targets.length,
+          done: successCount + errorCount,
+          currentLabel: `Nota ${invoice.serie}-${invoice.numero}`,
         });
-        if (error || !data?.success) errorCount++;
-        else successCount++;
-      } catch {
-        errorCount++;
+        try {
+          const fnName = isOrders ? 'fiscal-prepare-invoice' : 'fiscal-submit';
+          const { data, error } = await supabase.functions.invoke(fnName, {
+            body: { invoice_id: invoice.id },
+          });
+          if (error || !data?.success) errorCount++;
+          else successCount++;
+        } catch {
+          errorCount++;
+        }
       }
+    } finally {
+      setIsBulkProcessing(false);
+      setSendingState(null);
+      clearSelection();
+      refetch();
     }
 
-    setIsBulkProcessing(false);
-    clearSelection();
-    refetch();
 
     // Resumo único: evita o "sucesso falso" quando havia falhas no lote.
     const total = targets.length;
@@ -1679,6 +1706,13 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                   Processando...
                                 </span>
+                              ) : invoice.status === 'authorized' && isPrinted ? (
+                                // Regra: 1 pílula por linha. NF autorizada + impressa
+                                // mostra APENAS "Impressa" (estado mais recente vence).
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${COLOR.green}`}>
+                                  <Printer className="h-3 w-3" />
+                                  Impressa
+                                </span>
                               ) : (
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold w-fit ${status.className}`}>
                                   <StatusIcon className="h-3 w-3" />
@@ -1698,12 +1732,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                                   ⚠ {(invoice as any).pendencia_avisos[0]}
                                 </span>
                               )}
-                              {invoice.status === 'authorized' && isPrinted && (
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium w-fit ${COLOR.green}`}>
-                                  <Printer className="h-3 w-3" />
-                                  Impressa
-                                </span>
-                              )}
+
                               {invoice.status === 'rejected' && invoice.status_motivo && (
                                 <p className="text-xs text-destructive max-w-[200px] truncate" title={invoice.status_motivo}>
                                   {invoice.status_motivo}
@@ -1919,7 +1948,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         />
       )}
 
+      {/* Modal de progresso de envio à Sefaz (individual e em lote) */}
+      <SendingInvoiceModal state={sendingState} />
+
       {/* Error Resolver Dialog */}
+
       <FiscalErrorResolver
         open={errorResolverOpen}
         onOpenChange={setErrorResolverOpen}
