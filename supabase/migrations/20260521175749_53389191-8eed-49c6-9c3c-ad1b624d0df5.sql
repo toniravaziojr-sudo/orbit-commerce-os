@@ -1,0 +1,2 @@
+DELETE FROM public.customers WHERE tenant_id='d1a4d0ed-8842-495e-b741-540a9a345b25' AND email='teste-lovable-cli2@local.test';
+DELETE FROM public.suppliers WHERE tenant_id='d1a4d0ed-8842-495e-b741-540a9a345b25' AND cnpj='11222333000181';
