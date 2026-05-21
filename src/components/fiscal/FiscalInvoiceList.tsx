@@ -146,6 +146,9 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   const [generatingDcInvoiceId, setGeneratingDcInvoiceId] = useState<string | null>(null);
   const [isBulkGeneratingDc, setIsBulkGeneratingDc] = useState(false);
+  // Modal central de progresso de envio à Sefaz (individual e em lote).
+  const [sendingState, setSendingState] = useState<SendingState | null>(null);
+
 
   // Paginação client-side (a consulta já traz tudo do tenant; aqui só fatiamos a tabela).
   const [pageSize, setPageSize] = useState<number>(50);
