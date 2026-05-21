@@ -659,7 +659,7 @@ A aba **Pedidos de Venda** exibe 7 status. A fonte de verdade é `fiscal_invoice
   - **Pendência Identificada** (`pendencia`) — amarelo
   - **Processando** (`emitida` + `status='processing'`) — amarelo
   - **Autorizada** (`emitida` + `status='authorized'`) — azul
-  - **Autorizada + DANFE impressa** (`status='authorized'` + `danfe_printed_at IS NOT NULL`) — status azul + badge auxiliar verde **"Impressa"**
+  - **Impressa** (`status='authorized'` + `danfe_printed_at IS NOT NULL`) — verde (substitui o badge "Autorizada"; a coluna Status mostra **1 pílula por linha — estado mais recente vence**, ver Regra Anti-Regressão #11)
   - **Rejeitada** (`emitida` + `status='rejected'`) — vermelho
   - **Cancelada** (`emitida` + `status='cancelled'`) — vermelho
   - **Erro** (`status='error'`) — vermelho
