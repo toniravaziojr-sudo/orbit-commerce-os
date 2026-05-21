@@ -1,12 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, FileDown, Plus, Trash2, Search } from 'lucide-react';
+import { Loader2, FileDown, Plus, Trash2, Search, BookmarkPlus, Check } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -127,6 +138,10 @@ export function ManualInvoiceDialog({
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  // Salvar na base — estado
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+  const [duplicateCustomer, setDuplicateCustomer] = useState<any | null>(null);
+  const [savedToBase, setSavedToBase] = useState(false);
 
   // Form state
   const [destNome, setDestNome] = useState('');
@@ -321,6 +336,120 @@ export function ManualInvoiceDialog({
     setDestMunicipio('');
     setDestUf('');
     setDestCep('');
+    setSavedToBase(false);
+  };
+
+  // Monta o payload de cliente a partir dos campos do formulário do destinatário.
+  const buildCustomerPayloadFromForm = () => {
+    const cpfDigits = destCpfCnpj.replace(/\D/g, '');
+    const isPJ = cpfDigits.length === 14;
+    return {
+      tenant_id: tenantId!,
+      full_name: destNome.trim(),
+      email: destEmail?.trim() || `sem-email-${cpfDigits || Date.now()}@local`,
+      cpf: cpfDigits || null,
+      phone: destTelefone?.trim() || null,
+      person_type: isPJ ? 'PJ' : 'PF',
+      ...(isPJ ? { cnpj: cpfDigits, company_name: destNome.trim() } : {}),
+      address_postal_code: destCep.replace(/\D/g, '') || null,
+      address_street: destLogradouro?.trim() || null,
+      address_number: destNumero?.trim() || null,
+      address_complement: destComplemento?.trim() || null,
+      address_neighborhood: destBairro?.trim() || null,
+      address_city: destMunicipio?.trim() || null,
+      address_state: destUf?.trim() || null,
+      status: 'active',
+    } as any;
+  };
+
+  const handleSaveCustomerToBase = async () => {
+    if (!tenantId) return;
+    if (!destNome.trim()) { toast.error('Informe o nome do cliente'); return; }
+    const cpfDigits = destCpfCnpj.replace(/\D/g, '');
+    if (!cpfDigits || !isValidCpfCnpj(cpfDigits)) {
+      toast.error('Informe um CPF ou CNPJ válido para salvar o cliente');
+      return;
+    }
+    setIsSavingCustomer(true);
+    try {
+      // Checa duplicidade por CPF/CNPJ
+      const docCol = cpfDigits.length === 14 ? 'cnpj' : 'cpf';
+      const { data: existing, error: searchErr } = await supabase
+        .from('customers')
+        .select('id, full_name, email, cpf, cnpj, phone, address_postal_code, address_street, address_number, address_complement, address_neighborhood, address_city, address_state')
+        .eq('tenant_id', tenantId)
+        .eq(docCol, cpfDigits)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (searchErr) throw searchErr;
+
+      if (existing) {
+        setDuplicateCustomer(existing);
+        return;
+      }
+
+      const payload = buildCustomerPayloadFromForm();
+      const { data: created, error: insErr } = await supabase
+        .from('customers')
+        .insert(payload)
+        .select('id, full_name')
+        .single();
+      if (insErr) throw insErr;
+      setSelectedCustomerId(created!.id);
+      setSavedToBase(true);
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success(`Cliente "${created!.full_name}" cadastrado na base.`);
+    } catch (err) {
+      showErrorToast(err, { module: 'clientes', action: 'salvar na base' });
+    } finally {
+      setIsSavingCustomer(false);
+    }
+  };
+
+  const handleUseExistingCustomer = () => {
+    if (!duplicateCustomer) return;
+    const c = duplicateCustomer;
+    setSelectedCustomerId(c.id);
+    setDestNome(c.full_name || destNome);
+    setDestCpfCnpj((c.cpf || c.cnpj || destCpfCnpj).toString().replace(/\D/g, ''));
+    if (c.email) setDestEmail(c.email);
+    if (c.phone) setDestTelefone(c.phone);
+    if (c.address_postal_code) setDestCep(String(c.address_postal_code).replace(/\D/g, ''));
+    if (c.address_street) setDestLogradouro(c.address_street);
+    if (c.address_number) setDestNumero(c.address_number);
+    if (c.address_complement) setDestComplemento(c.address_complement);
+    if (c.address_neighborhood) setDestBairro(c.address_neighborhood);
+    if (c.address_city) setDestMunicipio(c.address_city);
+    if (c.address_state) setDestUf(c.address_state);
+    setSavedToBase(true);
+    setDuplicateCustomer(null);
+    toast.success('Cadastro existente vinculado ao pedido.');
+  };
+
+  const handleUpdateExistingCustomer = async () => {
+    if (!duplicateCustomer || !tenantId) return;
+    setIsSavingCustomer(true);
+    try {
+      const payload = buildCustomerPayloadFromForm();
+      delete (payload as any).tenant_id;
+      delete (payload as any).status;
+      const { error: updErr } = await supabase
+        .from('customers')
+        .update(payload)
+        .eq('id', duplicateCustomer.id)
+        .eq('tenant_id', tenantId);
+      if (updErr) throw updErr;
+      setSelectedCustomerId(duplicateCustomer.id);
+      setSavedToBase(true);
+      setDuplicateCustomer(null);
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Cadastro do cliente atualizado.');
+    } catch (err) {
+      showErrorToast(err, { module: 'clientes', action: 'atualizar cadastro' });
+    } finally {
+      setIsSavingCustomer(false);
+    }
   };
 
   const handleAddItem = () => {
@@ -599,8 +728,42 @@ export function ManualInvoiceDialog({
                 </div>
               )}
 
+              {/* Salvar cliente na base — só em modo manual */}
+              {customerMode === 'manual' && (
+                <div className="flex items-center justify-between rounded-md border border-dashed bg-muted/30 px-3 py-2">
+                  <div className="text-sm">
+                    {savedToBase || selectedCustomerId ? (
+                      <span className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                        <Check className="h-4 w-4" /> Cliente vinculado à base
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Este cliente <strong>não está</strong> no seu cadastro. Você pode salvá-lo na base para reaproveitar em pedidos futuros.
+                      </span>
+                    )}
+                  </div>
+                  {!savedToBase && !selectedCustomerId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSaveCustomerToBase}
+                      disabled={isSavingCustomer || !destNome.trim() || destCpfCnpj.replace(/\D/g, '').length < 11}
+                    >
+                      {isSavingCustomer ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                      ) : (
+                        <BookmarkPlus className="h-4 w-4 mr-1.5" />
+                      )}
+                      Salvar na base
+                    </Button>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+
                   <Label>Nome / Razão Social *</Label>
                   <Input value={destNome} onChange={e => setDestNome(e.target.value)} disabled={customerMode === 'existing' && !!selectedCustomerId} />
                 </div>
@@ -870,6 +1033,31 @@ export function ManualInvoiceDialog({
           </div>
         </div>
       </DialogContent>
+
+      {/* Duplicidade: cliente já existe na base */}
+      <AlertDialog open={!!duplicateCustomer} onOpenChange={(v) => { if (!v) setDuplicateCustomer(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cliente já existe na base</AlertDialogTitle>
+            <AlertDialogDescription>
+              Já existe um cadastro com este CPF/CNPJ
+              {duplicateCustomer?.full_name ? <> em <strong>{duplicateCustomer.full_name}</strong></> : null}.
+              O que deseja fazer?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={() => setDuplicateCustomer(null)}>Cancelar</AlertDialogCancel>
+            <Button variant="outline" onClick={handleUseExistingCustomer} disabled={isSavingCustomer}>
+              Usar cadastro existente
+            </Button>
+            <AlertDialogAction onClick={handleUpdateExistingCustomer} disabled={isSavingCustomer}>
+              {isSavingCustomer ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Atualizar dados
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
+
 }
