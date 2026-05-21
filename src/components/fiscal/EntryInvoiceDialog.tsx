@@ -211,9 +211,9 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
     
     // For types that require reference, must have found invoice
     if (selectedEntryType.requiresReferenceNfe && !foundInvoice) return;
-    // For types that don't require reference, must have dest name
-    if (!selectedEntryType.requiresReferenceNfe && !destNome.trim()) {
-      toast.error('Informe o nome do remetente/fornecedor');
+    // For types that don't require reference, must have supplier name
+    if (!selectedEntryType.requiresReferenceNfe && !supplier.name.trim()) {
+      toast.error('Informe o remetente/fornecedor');
       return;
     }
 
