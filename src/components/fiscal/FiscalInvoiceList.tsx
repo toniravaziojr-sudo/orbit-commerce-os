@@ -723,6 +723,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
   const handleQuickSubmit = async (invoice: FiscalInvoice) => {
     setSubmittingInvoiceId(invoice.id);
+    // Modal central de "Enviando nota fiscal..." — fecha sozinho no finally.
+    setSendingState({
+      total: 1,
+      done: 0,
+      currentLabel: `Nota ${invoice.serie}-${invoice.numero}`,
+    });
     try {
       const { data, error } = await supabase.functions.invoke('fiscal-submit', {
         body: { invoice_id: invoice.id },
@@ -756,8 +762,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       setErrorResolverOpen(true);
     } finally {
       setSubmittingInvoiceId(null);
+      setSendingState(null);
     }
   };
+
 
   const handleRetrySubmit = () => {
     setErrorResolverOpen(false);
