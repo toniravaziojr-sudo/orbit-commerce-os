@@ -280,7 +280,8 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
         if (supplier.cidade) entryData.dest_endereco_municipio = supplier.cidade;
         if (supplier.uf) entryData.dest_endereco_uf = supplier.uf;
         if (supplier.cep) entryData.dest_endereco_cep = supplier.cep;
-        if (supplier.id) entryData.supplier_id = supplier.id;
+        // Note: supplier link (supplier_id) intentionally omitted — fiscal_invoices
+        // does not have this column yet. Selection above just pre-fills dest_* fields.
         entryData.observacoes = observacoes || `NF-e de Entrada - ${selectedEntryType.label}`;
         
         // If user provided a reference key optionally
