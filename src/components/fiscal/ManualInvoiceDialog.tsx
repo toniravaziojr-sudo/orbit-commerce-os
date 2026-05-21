@@ -728,7 +728,39 @@ export function ManualInvoiceDialog({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Salvar cliente na base — só em modo manual */}
+              {customerMode === 'manual' && (
+                <div className="flex items-center justify-between rounded-md border border-dashed bg-muted/30 px-3 py-2">
+                  <div className="text-sm">
+                    {savedToBase || selectedCustomerId ? (
+                      <span className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                        <Check className="h-4 w-4" /> Cliente vinculado à base
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Este cliente <strong>não está</strong> no seu cadastro. Você pode salvá-lo na base para reaproveitar em pedidos futuros.
+                      </span>
+                    )}
+                  </div>
+                  {!savedToBase && !selectedCustomerId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSaveCustomerToBase}
+                      disabled={isSavingCustomer || !destNome.trim() || destCpfCnpj.replace(/\D/g, '').length < 11}
+                    >
+                      {isSavingCustomer ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                      ) : (
+                        <BookmarkPlus className="h-4 w-4 mr-1.5" />
+                      )}
+                      Salvar na base
+                    </Button>
+                  )}
+                </div>
+              )}
+
                 <div className="space-y-2">
                   <Label>Nome / Razão Social *</Label>
                   <Input value={destNome} onChange={e => setDestNome(e.target.value)} disabled={customerMode === 'existing' && !!selectedCustomerId} />
