@@ -1145,7 +1145,7 @@ export function InvoiceEditor({
                     label="Fornecedor / Remetente"
                     required
                     value={{
-                      id: null,
+                      id: linkedSupplierId,
                       name: data.dest_nome || '',
                       document: data.dest_cpf_cnpj || '',
                       personType: data.dest_tipo_pessoa === 'juridica' ? 'PJ' : 'PF',
