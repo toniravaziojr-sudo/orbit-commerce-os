@@ -22,6 +22,8 @@ export interface SendingState {
   done: number;
   /** Rótulo opcional para mostrar o item atual (ex.: "Nota 1-291"). */
   currentLabel?: string;
+  /** 'send' = enviando à Receita (padrão). 'create' = criando NF a partir de Pedido de Venda. */
+  kind?: 'send' | 'create';
 }
 
 interface SendingInvoiceModalProps {
