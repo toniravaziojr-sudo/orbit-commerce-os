@@ -297,7 +297,31 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Erro ao criar NF-e de entrada');
 
-      toast.success('NF-e de entrada criada como rascunho');
+      // Fase D: NF de Compra vinculada a fornecedor cadastrado gera registro em Compras.
+      if (entryType === 'compra' && supplier.id && data?.invoice?.id) {
+        try {
+          const orderNumber = `NF-${(data.invoice.numero ?? Date.now().toString().slice(-6))}`;
+          const { error: purchaseErr } = await supabase.from('purchases').insert({
+            tenant_id: data.invoice.tenant_id,
+            supplier_id: supplier.id,
+            order_number: orderNumber,
+            status: 'pending',
+            total_value: Number(data.invoice.valor_total ?? 0),
+            entry_invoice_id: data.invoice.id,
+            description: `Gerado automaticamente pela NF-e de Compra (${data.invoice.chave_acesso ?? data.invoice.id})`,
+          } as any);
+          if (purchaseErr) {
+            console.warn('[EntryInvoiceDialog] purchase auto-create failed:', purchaseErr);
+            toast.warning('NF criada. Compra não pôde ser gerada automaticamente — registre manualmente em Compras.');
+          } else {
+            toast.success('NF de Compra criada e registro adicionado ao módulo Compras.');
+          }
+        } catch (e) {
+          console.warn('[EntryInvoiceDialog] purchase auto-create exception:', e);
+        }
+      } else {
+        toast.success('NF-e de entrada criada como rascunho');
+      }
       onOpenChange(false);
       resetForm();
       onSuccess?.();
