@@ -770,7 +770,7 @@ Após criar nota fiscal a partir de Pedidos de Venda (ação individual ou em ma
 | Pendência Identificada (`pendencia`) | amarelo |
 | Processando SEFAZ / Aguardando protocolo (`processing`) | amarelo |
 | Autorizada (`authorized`) | azul |
-| Autorizada + DANFE impressa | azul + badge verde "Impressa" |
+| Impressa (autorizada + `danfe_printed_at`) | verde (substitui "Autorizada" — 1 pílula por linha) |
 | Cancelada (`cancelled`) | vermelho |
 | Rejeitada (`rejected`) | vermelho |
 | Erro (`error`) | vermelho |
