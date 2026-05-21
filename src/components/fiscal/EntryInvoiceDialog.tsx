@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { format, differenceInHours, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { SupplierAutocomplete, type SupplierContact } from '@/components/suppliers/SupplierAutocomplete';
 
 interface OperationNature {
   id: string;
