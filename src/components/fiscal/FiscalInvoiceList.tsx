@@ -996,30 +996,18 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
   };
 
-  // Create a new empty invoice draft and open the editor
+  // Cria um rascunho LIMPO de NF Fiscal (aba Notas Fiscais) e abre o editor.
+  // IMPORTANTE: este fluxo é distinto da criação de Pedido de Venda. O rascunho
+  // nasce SEM destinatário pré-preenchido e SEM item mockado — o usuário escolhe
+  // o produto via "Buscar produto" no editor. Validações fiscais só disparam ao
+  // salvar/emitir, e o editor abre em modo NF Fiscal (não em modo Pedido de Venda).
   const handleCreateNewInvoice = async () => {
     setIsCreatingInvoice(true);
     try {
       const { data, error } = await supabase.functions.invoke('fiscal-create-manual', {
         body: {
+          mode: 'nfe_manual',
           natureza_operacao: 'VENDA DE MERCADORIA',
-          destinatario: {
-            nome: 'CONSUMIDOR',
-            cpf_cnpj: '',
-            endereco: { logradouro: '', numero: 'S/N', bairro: '', municipio: '', uf: '', cep: '' },
-          },
-          itens: [{
-            numero_item: 1,
-            codigo: '',
-            descricao: 'PRODUTO',
-            ncm: '00000000',
-            cfop: '5102',
-            unidade: 'UN',
-            quantidade: 1,
-            valor_unitario: 0,
-            origem: '0',
-            csosn: '102',
-          }],
         },
       });
 
@@ -1038,6 +1026,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       setIsCreatingInvoice(false);
     }
   };
+
 
   // Individual: Reenviar por Email
   const handleResendEmail = async (invoice: FiscalInvoice) => {

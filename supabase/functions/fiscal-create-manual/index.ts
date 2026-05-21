@@ -6,7 +6,7 @@ import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 
-const VERSION = 'v8.6.3';
+const VERSION = 'v8.7.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -95,8 +95,8 @@ Deno.serve(async (req) => {
       order_id,
       natureza_operacao,
       observacoes,
-      destinatario,
-      itens,
+      destinatario: bodyDestinatario,
+      itens: bodyItens,
       indicador_presenca,
       indicador_ie_dest,
       pagamento_indicador,
@@ -113,7 +113,36 @@ Deno.serve(async (req) => {
       peso_liquido: bodyPesoLiquido,
       quantidade_volumes: bodyQtdVolumes,
       informacoes_fisco: bodyInfoFisco,
+      // v8.7.0 — distinção explícita entre criação manual de NF (aba Notas Fiscais)
+      // e criação de Pedido de Venda (aba Pedidos de Venda).
+      // - 'nfe_manual': abre rascunho LIMPO de NF (sem item mockado, sem destinatário
+      //   pré-preenchido). Não passa pelo estágio 'pedido_venda'.
+      // - 'pedido_venda' (default): mantém comportamento legado para chamadas vindas
+      //   do fluxo de Pedido de Venda (com destinatário/itens completos).
+      mode: bodyMode,
     } = body;
+
+    const creationMode: 'nfe_manual' | 'pedido_venda' =
+      bodyMode === 'nfe_manual' ? 'nfe_manual' : 'pedido_venda';
+
+    // Em modo NF manual, destinatário e itens são opcionais (rascunho em branco).
+    // Em modo pedido de venda, contrato legado: ambos obrigatórios.
+    const destinatario = bodyDestinatario || {
+      nome: '',
+      cpf_cnpj: '',
+      endereco: { logradouro: '', numero: '', bairro: '', municipio: '', uf: '', cep: '' },
+    };
+    const itens: any[] = Array.isArray(bodyItens) ? bodyItens : [];
+
+    if (creationMode === 'pedido_venda') {
+      if (!bodyDestinatario || !itens.length) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Destinatário e itens são obrigatórios para Pedido de Venda' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
 
     const toNum = (v: any) => {
       const n = typeof v === 'number' ? v : parseFloat(String(v ?? '0').replace(',', '.'));
@@ -149,11 +178,15 @@ Deno.serve(async (req) => {
     );
 
     // Resolução de IBGE: CEP primeiro; fallback por nome.
+    // Em modo NF manual em branco pode não haver CEP — evita lookup desnecessário.
     let destMunicipioCodigo: string | null = null;
-    const cepResolvedManual = await resolveAddressByCep(supabase, destinatario.endereco.cep);
+    let cepResolvedManual: any = null;
+    if (destinatario.endereco.cep) {
+      cepResolvedManual = await resolveAddressByCep(supabase, destinatario.endereco.cep);
+    }
     if (cepResolvedManual?.ibge) {
       destMunicipioCodigo = cepResolvedManual.ibge;
-    } else {
+    } else if (destinatario.endereco.municipio && destinatario.endereco.uf) {
       destMunicipioCodigo = await getIbgeCodigo(
         supabase,
         destinatario.endereco.municipio,
@@ -171,13 +204,19 @@ Deno.serve(async (req) => {
     // Regra oficial: total = soma(itens) - desconto + frete + seguro + outras despesas (nunca negativo)
     const valorTotal = Math.max(0, valorProdutos - valorDesconto + valorFrete + valorSeguro + valorOutras);
 
+    // v8.7.0 — Estágio inicial depende do modo de criação:
+    // - Pedido de Venda: estágio 'pedido_venda' (editor abre em modo PV com validações de venda).
+    // - NF Manual em branco: estágio 'pendencia' (editor abre em modo NF Fiscal, sem
+    //   validações de PV; pendências reais aparecem apenas ao salvar/emitir).
+    const initialStage = creationMode === 'nfe_manual' ? 'pendencia' : 'pedido_venda';
+
     // Create invoice draft
     const invoiceBaseData: any = {
       tenant_id: tenantId,
       order_id: order_id || null,
       serie: serieNfe,
       status: 'draft',
-      fiscal_stage: 'pedido_venda',
+      fiscal_stage: initialStage,
       natureza_operacao: natureza_operacao || 'VENDA DE MERCADORIA',
       cfop: itens[0]?.cfop || settings.cfop_intrastadual || '5102',
       valor_total: valorTotal,
@@ -259,9 +298,10 @@ Deno.serve(async (req) => {
       cest: item.cest ? String(item.cest).replace(/\D/g, '').substring(0, 7) || null : null,
     }));
 
-    const { error: itemsError } = await supabase
-      .from('fiscal_invoice_items')
-      .insert(invoiceItems);
+    // v8.7.0 — Em NF manual em branco não há itens; pula insert (rascunho sem itens).
+    const { error: itemsError } = invoiceItems.length
+      ? await supabase.from('fiscal_invoice_items').insert(invoiceItems)
+      : { error: null as any };
 
     if (itemsError) {
       console.error('[fiscal-create-manual] Error inserting items:', itemsError);
