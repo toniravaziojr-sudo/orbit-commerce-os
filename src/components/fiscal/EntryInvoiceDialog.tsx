@@ -399,23 +399,13 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
             </div>
           ) : (
             <>
-              {/* Remetente/Fornecedor info */}
-              <div className="space-y-2">
-                <Label>Remetente / Fornecedor *</Label>
-                <Input
-                  value={destNome}
-                  onChange={(e) => setDestNome(e.target.value)}
-                  placeholder="Nome ou Razão Social"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>CPF/CNPJ</Label>
-                <Input
-                  value={destCpfCnpj}
-                  onChange={(e) => setDestCpfCnpj(e.target.value)}
-                  placeholder="CPF ou CNPJ do remetente"
-                />
-              </div>
+              {/* Remetente / Fornecedor (busca + manual + salvar na base) */}
+              <SupplierAutocomplete
+                value={supplier}
+                onChange={setSupplier}
+                label="Remetente / Fornecedor"
+                required
+              />
 
               {/* Optional reference key */}
               <div className="space-y-2">
