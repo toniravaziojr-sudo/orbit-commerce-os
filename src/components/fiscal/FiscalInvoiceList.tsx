@@ -406,8 +406,29 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   };
 
   const handleSaveInvoice = async (data: InvoiceData) => {
+    // Criação tardia: se ainda não há registro persistido (rascunho em memória),
+    // primeiro alocamos a linha via fiscal-create-manual (modo nfe_manual) e
+    // só depois aplicamos os dados do formulário com fiscal-update-draft.
+    let invoiceId = data.id;
+    if (!invoiceId) {
+      const { data: created, error: createErr } = await supabase.functions.invoke('fiscal-create-manual', {
+        body: {
+          mode: 'nfe_manual',
+          natureza_operacao: data.natureza_operacao || 'VENDA DE MERCADORIA',
+        },
+      });
+      if (createErr) throw createErr;
+      if (!created?.success || !created?.invoice?.id) {
+        throw new Error(created?.error || 'Erro ao criar NF-e');
+      }
+      invoiceId = created.invoice.id;
+      // Reflete o id no estado do editor para próximas operações (salvar, emitir, excluir).
+      setEditingInvoice((prev) => (prev ? { ...prev, id: invoiceId, numero: created.invoice.numero, serie: created.invoice.serie } : prev));
+      data = { ...data, id: invoiceId };
+    }
+
     const { error } = await supabase.functions.invoke('fiscal-update-draft', {
-      body: { invoice_id: data.id, data },
+      body: { invoice_id: invoiceId, data },
     });
 
     if (error) throw error;
@@ -417,7 +438,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     if (editingInvoiceStage === 'pendencia' || editingInvoiceStage === 'pronta_emitir') {
       try {
         const { data: prep } = await supabase.functions.invoke('fiscal-prepare-invoice', {
-          body: { invoice_id: data.id },
+          body: { invoice_id: invoiceId },
         });
         if (prep?.success) {
           if (prep.fiscal_stage === 'pronta_emitir') {
@@ -432,7 +453,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     }
     refetch();
     // Marca a linha salva para destaque + scroll automático na listagem.
-    if (data?.id) setHighlightedInvoiceId(data.id);
+    if (invoiceId) setHighlightedInvoiceId(invoiceId);
   };
 
   const handleSubmitInvoice = async (data: InvoiceData) => {
