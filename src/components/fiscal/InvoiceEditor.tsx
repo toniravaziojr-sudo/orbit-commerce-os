@@ -418,7 +418,12 @@ export function InvoiceEditor({
       case 'saida': return n.tipo_documento === 1 && n.finalidade === 1;
       case 'entrada': return n.tipo_documento === 0 && n.finalidade === 1;
       case 'devolucao': return n.finalidade === 4;
-      case 'remessa': return n.tipo_documento === 1 && n.finalidade === 1 && !n.faturada;
+      case 'remessa': {
+        // Critério oficial Receita Federal: CFOPs de remessa estão na faixa 5900-5999 (intra) / 6900-6999 (inter).
+        // Inclui armazém geral, consignação, demonstração, bonificação, amostra, conserto, comodato etc.
+        const cfop = parseInt(n.cfop_intra || '0', 10);
+        return n.tipo_documento === 1 && cfop >= 5900 && cfop <= 5999;
+      }
       case 'transferencia': return n.nome.toLowerCase().includes('transferência') || n.nome.toLowerCase().includes('transferencia');
       default: return true;
     }
