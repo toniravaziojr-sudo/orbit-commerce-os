@@ -97,5 +97,50 @@ Validação da Fase 1 (TPR como fonte primária de classificação de turno) atr
 
 ---
 
-## Onda D — (a executar)
+## Onda D — Reclamação real, pós-venda e ambiguidade
+
+### D1 — Reclamação real de pedido atrasado ("faz 15 dias e nada") ✅
+- **Status:** ✅ OK
+- **Esperado:** Reconhecer reclamação legítima, acolher, pedir dados de identificação e disparar handoff humano.
+- **Observado:** Classificou como `complaint` (sentimento negativo, urgência alta), pediu nome/pedido/e-mail, disparou handoff. Texto acolhedor, sem copy comercial vazado.
+- **Conclusão:** Para reclamação real (pedido pós-compra), o fluxo de handoff funciona como esperado. Reforça que o problema da A2/C2 não é "handoff funciona demais" — é classificação errada do que é reclamação. A2 ("barba ressecada") foi tratada igual a D1 ("pedido atrasado"), quando deveriam ser caminhos opostos.
+
+### D2 — Pergunta pós-venda ("quando meu pedido chega?") 🔴
+- **Status:** ❌ REGRESSÃO
+- **Esperado:** Reconhecer intenção de rastreamento, pedir número do pedido / e-mail e oferecer status, OU encaminhar para handuff de pós-venda. Em nenhum cenário responder "me conta o que você precisa".
+- **Observado:** Classificou como `question` genérica (mesmo com tópicos `order` + `delivery` no summary). Resposta caiu em descoberta padrão de vendas, ignorou completamente o contexto pós-venda.
+- **Causa provável:** Não existe sinal específico de `is_post_sale_inquiry` / `order_tracking_intent` no TPR. Tópicos detectados não viram roteamento. Modo vendas trata tudo como funil de aquisição.
+- **Impacto:** Cliente pós-venda perguntando "cadê meu pedido" recebe pergunta de descoberta de venda — contraproducente e ofensivo ao contexto.
+
+### D3 — Ambiguidade de preço sem produto ("quanto custa?" → "o shampoo") 🔴
+- **Status:** ❌ REGRESSÃO
+- **Esperado:** Turno 1: pedir qual produto. Turno 2 ("o shampoo"): listar shampoos com preços OU pedir variante. Price Scrubber pode liberar `R$` porque `TPR.asked_about_price=true`.
+- **Observado:** Em ambos os turnos, mesma resposta enlatada de descoberta ("Me conta um pouco do que você precisa..."). Turno 2 classificou como `purchase_intent` (correto), mas a resposta seguiu o template de descoberta — desconexão total entre `intent` e geração.
+- **Causa provável:** Mesmo padrão das regressões anteriores (B3, B1) — quando o turno é curto/ambíguo, a pipeline cai num fallback genérico que ignora o resultado do classificador. `intent=purchase_intent` chega mas o roteador de prompt usa um caminho que não consome esse sinal.
+- **Impacto:** Ambiguidade não é tratada como oportunidade de qualificação — é tratada como turno vazio. Combinado com B1 e B3, evidencia que o roteador de prompt **não está consumindo o intent classificado** em vários caminhos.
+
+### Resumo Onda D
+- 1/3 OK (handoff de reclamação real funciona).
+- 2 regressões apontam para o **bug #2**: o resultado do classificador (TPR + intent) chega corretamente mas **o roteador de prompt cai em fallback genérico** quando o turno é curto, ambíguo ou pós-venda. A leitura está unificada (Fase 1 OK no plano), mas o consumo dessa leitura ainda é parcial.
+
+---
+
+## Síntese das 4 ondas (consolidação para plano de correção)
+
+### Bugs estruturais identificados
+1. **Classificação errada de "dor do cliente" como reclamação** (A2, C2) → handoff prematuro em situações de venda óbvia. Falta separar `product_pain_symptom` (oportunidade) de `complaint` (reclamação de pedido/atendimento).
+2. **Roteador de prompt ignora intent em vários caminhos** (B1, B3, D2, D3) → CEP isolado, pergunta de frete, pós-venda e ambiguidade caem todos em "Me conta um pouco do que você precisa". O classificador acerta, a geração não consome.
+3. **Camada de handoff independente do intent classifier** (C2) → `intent=purchase_intent` mas `handoff=true` no mesmo turno. Existe regra paralela disparando handoff sem ler o intent.
+
+### Funcionando bem
+- Greeting Mirror Gate (A1).
+- Catálogo + Price Scrubber em pergunta direta (A3).
+- Captura de CEP **quando** o turno anterior estabeleceu produto (C1).
+- Mudança de família sem travamento (C3).
+- Handoff em reclamação real pós-venda (D1).
+- Listagem de variantes em kit (B2).
+
+### Próximo passo
+Ler este doc e gerar o plano de correção priorizado (bug #1 e #3 são bloqueantes; bug #2 é estrutural mas não trava 100% dos fluxos).
+
 
