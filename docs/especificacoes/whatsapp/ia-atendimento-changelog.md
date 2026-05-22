@@ -63,6 +63,42 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #30 — Frete-upsell, vocabulário de família ampliado, silêncio comercial no handoff e off-topic/despedida — 22/mai/2026
+
+**Conversa de origem:** bateria de teste sandbox no tenant Respeite o Homem (10 cenários, 11 turnos) — ver `/mnt/documents/teste-ia-respeiteohomem.md`.
+
+**Sintomas identificados:**
+1. **Frete não calculado e oportunidade comercial perdida:** ao perguntar "paga frete?", a IA respondia em texto ("sim, paga") sem chamar a ferramenta de cotação e sem oferecer kit/quantidade maior com frete grátis da mesma família — perdia a chance dupla de informar e subir o ticket.
+2. **Troca de família ao vivo (loção pós-barba):** ao mudar de "shampoo" para "loção pós-barba" na mesma conversa, a IA caía em fallback genérico em vez de buscar a nova família.
+3. **Reclamação com texto comercial junto:** ao detectar reclamação e marcar handoff, a IA ainda entregava copy comercial no mesmo turno, soando insensível.
+4. **Off-topic ignorado e despedida não reconhecida:** mensagens fora de escopo (ex.: futebol) eram ignoradas; despedidas ("valeu", "tchau") não eram fechadas com cordialidade — em alguns casos a IA tentava nova venda.
+
+**Diagnóstico:**
+- A ferramenta de cálculo de frete já existia e o contexto comercial já trazia `family_free_shipping_offers` ao prompt — faltava regra dura de **uso obrigatório** e **padrão de upsell**.
+- O detector de família existia, mas o vocabulário não cobria "pós-barba", "after-shave", "pomada", "óleo", "barba", "hidratante", "desodorante".
+- O lock terminal do handoff só silencia turnos **seguintes** — o turno **atual** da ferramenta `request_human_handoff` continuava entregando copy comercial.
+- Off-topic/despedida nunca foram explicitamente regulamentados no prompt.
+
+**Correções aplicadas:**
+1. **Prompt — regras 7 e 8 (gatilhos imperativos):**
+   - Pergunta sobre frete/entrega/prazo → CEP obrigatório → `calculate_shipping` antes de responder.
+   - Frete pago + `has_free_shipping_offers: true` → ofertar o kit/quantidade maior da mesma família no mesmo turno, máximo 1× por conversa, sem inventar.
+2. **Vocabulário de família ampliado** em `_shared/sales-pipeline/transitions.ts`: pós-barba/after-shave caem em `locao`; adicionados `pomada`, `oleo`, `hidratante`, `barba`, `desodorante`.
+3. **Handoff Silence Gate (Reg #17.6)** em `ai-support-chat/index.ts`: post-output scrubber determinístico — quando `request_human_handoff` retorna `success=true` neste turno e o texto final contém marcadores comerciais (R$, link, frete, kit, cupom, "adicionei", "quer ver"), substitui por mensagem neutra de transferência (variante específica para reclamação).
+4. **Prompt — bloco de off-topic e despedida**: off-topic recebe declínio cordial em 1 linha; despedida é reconhecida e encerrada sem nova venda. Bloco de SILÊNCIO COMERCIAL NO HANDOFF reforçado no prompt como instrução dura ao modelo.
+
+**Validação:**
+- 9/9 testes de `catalog-probe-v2` passando após mudança no vocabulário de família.
+- Deploy de `ai-support-chat` e `ai-test-sandbox` realizado.
+- Validação E2E via sandbox no tenant Respeite o Homem fica como **passo do próximo turno do usuário** (pré-condição: créditos OpenAI já adicionados).
+
+**Anti-regressão:**
+- `mem://constraints/ai-shipping-must-trigger-tool-and-upsell-free-kit`
+- `mem://constraints/ai-handoff-turn-must-silence-commercial-text`
+- `mem://constraints/ai-family-vocabulary-must-cover-tenant-variations`
+
+---
+
 ## Registro #29 — Cobertura universal de canais: Messenger, IG (DM e comentários), comentários do FB, Mercado Livre, Shopee, TikTok Shop — 21/mai/2026
 
 **Contexto.** Até #28 a IA gerava resposta para todos os canais mas o envio de saída só estava implementado em WhatsApp e e-mail. Comentários do IG nem disparavam a IA.
