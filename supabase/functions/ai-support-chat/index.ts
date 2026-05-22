@@ -4567,6 +4567,7 @@ Deno.serve(async (req) => {
       console.warn(`[ai-support-chat][reg-2.17][fase-1] pain-symptom detector falhou: ${(e as Error)?.message}`);
     }
 
+    // ============================================
     // STEP 2: RAG - SEMANTIC SEARCH
     // ============================================
     let knowledgeContext = "";
