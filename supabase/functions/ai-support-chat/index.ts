@@ -319,13 +319,18 @@ VOCÊ DEVE chamar tools ANTES de responder, sempre que cair em UM destes gatilho
    → Quando tiver CEP, CHAME \`calculate_shipping\` IMEDIATAMENTE. Só responda depois do resultado.
    → Se o carrinho ainda estiver vazio, primeiro garanta que há um produto-base escolhido (search_products + add_to_cart) e então calcule.
 
-8. **APROVEITAR FRETE GRÁTIS COMO ALAVANCA DE VENDA (UPSELL DE KIT)**
-   → Quando \`calculate_shipping\` retornar frete PAGO E o contexto do produto/família indicar \`has_free_shipping_offers: true\` ou \`family_free_shipping_offers\` não-vazio:
-     → Apresente o frete cotado E ofereça, no MESMO turno, a opção com frete grátis da mesma linha (kit ou quantidade maior). Fórmula sugerida:
-       *"Para 1 unidade fica R$ X com entrega em Y dias. Temos também o [nome do kit/quantidade] dessa mesma linha com frete grátis — quer que eu te mostre?"*
-   → Oferta de kit por frete grátis: no MÁXIMO 1 vez por conversa. Se o cliente recusar, NÃO insista.
-   → NUNCA invente kit que não esteja em \`family_free_shipping_offers\`. Só ofereça o que a tool retornou.
-   → Se o frete já veio grátis (\`is_free: true\`), apenas confirme — não tente subir o ticket à força.
+8. **APROVEITAR FRETE GRÁTIS COMO ALAVANCA DE VENDA (UPSELL PROATIVO)**
+   → Se \`calculate_shipping\` retornar \`upsell_opportunity\` com \`priority\` definido, é OBRIGATÓRIO no MESMO turno:
+     1. Informar o valor real do frete e prazo cotados.
+     2. Apresentar a oferta conforme \`priority\`:
+        • \`pack\` → ofereça 1 item de \`pack_offers\` (mais unidades do mesmo produto, frete grátis). Use o nome EXATO.
+        • \`family_kit\` → ofereça 1 item de \`family_kit_offers\` (kit da família, frete grátis). Use o nome EXATO.
+        • \`free_shipping_gap\` → diga quanto falta (\`free_shipping_gap_brl\`) e sugira 1 item complementar do catálogo para fechar a faixa de frete grátis (\`free_shipping_threshold_brl\`).
+     3. NÃO envie link de checkout neste turno — espere o cliente decidir.
+   → Se \`upsell_opportunity\` for \`null\` mas o contexto antigo trouxer \`has_free_shipping_offers: true\` ou \`family_free_shipping_offers\` não-vazio, siga a fórmula legada: *"Para 1 unidade fica R$ X com entrega em Y dias. Temos também o [nome] com frete grátis — quer que eu te mostre?"*
+   → Máximo 1 oferta de upsell por conversa. Se o cliente recusar, NÃO insista.
+   → NUNCA invente kit, pack ou produto fora das listas que a tool retornou.
+   → Se o frete já vier grátis (\`is_free: true\`), apenas confirme — não force upsell.
 
 ═══════════════════════════════════════════════════════
 🚫 PROIBIDO (ANTI-LOOP DE QUALIFICAÇÃO)
@@ -2598,11 +2603,129 @@ async function executeSalesTool(
           const hasPaidOption = options.some((o: any) => !o.is_free);
 
           const hasFreeLineOffers = sameLineFreeOffers.length > 0;
-          const offerInstr = hasPaidOption && hasFreeLineOffers
-            ? "Frete pago E existem kits/packs da MESMA LINHA com frete grátis. OBRIGATÓRIO no mesmo turno: (1) informar o valor real do frete e prazo; (2) oferecer 1 dos kits listados em same_line_free_shipping_offers com frete grátis. Use o nome EXATO. Máximo 1 oferta por conversa. Nunca invente kit fora desta lista."
-            : hasPaidOption
-              ? "Frete pago, sem kits da mesma linha com frete grátis. Apenas informe valor e prazo, sem upsell."
-              : "Frete já está grátis — apenas confirme, sem upsell.";
+
+          // ============================================================
+          // [Reg #19] UPSELL PROATIVO — gatilho qty=1 + frete pago
+          // Cenário: 1 unidade no carrinho + frete cotado pago + ainda não
+          // ofertou nessa conversa. Gera upsell_opportunity com prioridade:
+          //   (a) pack do mesmo produto com frete grátis
+          //   (b) kit multi-produto da mesma família com frete grátis
+          //   (c) gap até a faixa de frete grátis do tenant
+          // Flag kill-switch: ai_support_config.metadata.arch19_proactive_upsell_qty1=false
+          // ============================================================
+          const arch19Flag = (effectiveConfig as any)?.metadata?.arch19_proactive_upsell_qty1;
+          const arch19On = arch19Flag !== false;
+
+          const totalCartQty = cartItems.reduce(
+            (s: number, it: any) => s + Number(it.quantity || 1),
+            0,
+          );
+          const isSingleUnitCart = totalCartQty === 1 && cartItems.length === 1;
+
+          let upsellOfferedCount = 0;
+          try {
+            const { data: salesStateRow } = await supabase
+              .from("conversation_sales_state")
+              .select("upsell_offered_count")
+              .eq("conversation_id", conversationId)
+              .maybeSingle();
+            upsellOfferedCount = Number((salesStateRow as any)?.upsell_offered_count || 0);
+          } catch (_e) { /* noop */ }
+
+          let freeShippingThresholdCents = 0;
+          try {
+            // Fonte real: shipping_free_rules.min_order_cents (menor valor habilitado)
+            const { data: freeRules } = await supabase
+              .from("shipping_free_rules")
+              .select("min_order_cents")
+              .eq("tenant_id", tenantId)
+              .eq("is_enabled", true)
+              .order("min_order_cents", { ascending: true })
+              .limit(1);
+            const minOrder = Number((freeRules as any[])?.[0]?.min_order_cents || 0);
+            if (minOrder > 0) freeShippingThresholdCents = minOrder;
+          } catch (_e) { /* noop */ }
+
+          // Split mesma-linha em packs (mesmo produto) vs kits (multi-produto)
+          const packOffers: any[] = [];
+          const familyKitOffers: any[] = [];
+          for (const grp of sameLineFreeOffers) {
+            for (const opt of (grp.free_shipping_options || [])) {
+              const nm = String(opt.name || "");
+              const isKitName = /\b(kit|combo)\b/i.test(nm);
+              const entry = {
+                base_product: grp.base_product,
+                base_paid_price: grp.base_paid_price,
+                name: opt.name,
+                price: opt.price,
+              };
+              if (isKitName) familyKitOffers.push(entry);
+              else packOffers.push(entry);
+            }
+          }
+
+          const gapToFreeShippingCents = freeShippingThresholdCents > 0
+            ? Math.max(0, freeShippingThresholdCents - cartSubtotalCents)
+            : 0;
+          // Considera "alcançável" se faltar até R$ 50,00 (configurável no futuro)
+          const gapReachable = gapToFreeShippingCents > 0 && gapToFreeShippingCents <= 5000;
+
+          let upsellOpportunity: any = null;
+          let upsellDecision = "skip";
+          if (!arch19On) {
+            upsellDecision = "flag_off";
+          } else if (!hasPaidOption) {
+            upsellDecision = "shipping_already_free";
+          } else if (!isSingleUnitCart) {
+            upsellDecision = `cart_qty=${totalCartQty}_items=${cartItems.length}`;
+          } else if (upsellOfferedCount > 0) {
+            upsellDecision = "already_offered_in_conversation";
+          } else {
+            let priority: "pack" | "family_kit" | "free_shipping_gap" | null = null;
+            if (packOffers.length > 0) priority = "pack";
+            else if (familyKitOffers.length > 0) priority = "family_kit";
+            else if (gapReachable) priority = "free_shipping_gap";
+
+            if (priority) {
+              const cheapestShipBrl = (minPriceCents === Number.MAX_SAFE_INTEGER ? 0 : minPriceCents) / 100;
+              const instructionByPriority = {
+                pack: `OBRIGATÓRIO neste turno: apresentar valor (R$ ${cheapestShipBrl.toFixed(2)}) e prazo do frete E oferecer 1 pack do mesmo produto da lista pack_offers (frete grátis). Use o nome EXATO da lista. Não invente. NÃO envie link de checkout neste turno — só após o cliente decidir.`,
+                family_kit: `OBRIGATÓRIO neste turno: apresentar valor (R$ ${cheapestShipBrl.toFixed(2)}) e prazo do frete E oferecer 1 kit da família da lista family_kit_offers (frete grátis). Use o nome EXATO da lista. Não invente. NÃO envie link de checkout neste turno — só após o cliente decidir.`,
+                free_shipping_gap: `OBRIGATÓRIO neste turno: apresentar valor (R$ ${cheapestShipBrl.toFixed(2)}) e prazo do frete E sugerir 1 item complementar do catálogo (use search_products se precisar) para cruzar a faixa de frete grátis (faltam R$ ${(gapToFreeShippingCents / 100).toFixed(2)} para R$ ${(freeShippingThresholdCents / 100).toFixed(2)}). NÃO envie link de checkout neste turno.`,
+              };
+              upsellOpportunity = {
+                trigger: "qty1_paid_shipping",
+                priority,
+                pack_offers: packOffers.slice(0, 3),
+                family_kit_offers: familyKitOffers.slice(0, 3),
+                free_shipping_gap_brl: gapReachable ? +(gapToFreeShippingCents / 100).toFixed(2) : null,
+                free_shipping_threshold_brl: freeShippingThresholdCents > 0
+                  ? +(freeShippingThresholdCents / 100).toFixed(2)
+                  : null,
+                instruction: instructionByPriority[priority],
+              };
+              upsellDecision = `triggered_priority=${priority}`;
+            } else {
+              upsellDecision = "no_offer_available";
+            }
+          }
+
+          console.log(
+            `[ai-support-chat] [Reg #19] upsell qty=${totalCartQty} paid=${hasPaidOption} ` +
+            `offered_before=${upsellOfferedCount} packs=${packOffers.length} kits=${familyKitOffers.length} ` +
+            `gap_cents=${gapToFreeShippingCents} threshold_cents=${freeShippingThresholdCents} ` +
+            `decision=${upsellDecision}`,
+          );
+
+          // upsell_hint legado (mantém compatibilidade com gate Reg #17.7).
+          // Se o novo motor disparou, sua instrução prevalece.
+          const offerInstr = upsellOpportunity
+            ? upsellOpportunity.instruction
+            : (hasPaidOption && hasFreeLineOffers)
+              ? "Frete pago E existem kits/packs da MESMA LINHA com frete grátis. OBRIGATÓRIO no mesmo turno: (1) informar o valor real do frete e prazo; (2) oferecer 1 dos kits listados em same_line_free_shipping_offers com frete grátis. Use o nome EXATO. Máximo 1 oferta por conversa. Nunca invente kit fora desta lista."
+              : hasPaidOption
+                ? "Frete pago, sem kits da mesma linha com frete grátis. Apenas informe valor e prazo, sem upsell."
+                : "Frete já está grátis — apenas confirme, sem upsell.";
 
           return JSON.stringify({
             success: true,
@@ -2613,6 +2736,7 @@ async function executeSalesTool(
             has_paid_shipping: hasPaidOption,
             same_line_free_shipping_offers: sameLineFreeOffers,
             upsell_hint: offerInstr,
+            upsell_opportunity: upsellOpportunity,
           });
 
         } catch (shippingErr) {
@@ -6468,11 +6592,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           if (
             lastShipResult?.success === true &&
             lastShipResult?.has_paid_shipping === true &&
-            Array.isArray(lastShipResult?.same_line_free_shipping_offers) &&
-            lastShipResult.same_line_free_shipping_offers.length > 0
+            (
+              (Array.isArray(lastShipResult?.same_line_free_shipping_offers) &&
+                lastShipResult.same_line_free_shipping_offers.length > 0) ||
+              (lastShipResult?.upsell_opportunity && lastShipResult.upsell_opportunity.priority)
+            )
           ) {
             followUpToolChoice = "none";
-            console.log(`[ai-support-chat] [Reg #17.7][follow-up] forcing tool_choice=none — pending free-shipping upsell`);
+            const upPrio = lastShipResult?.upsell_opportunity?.priority || "same_line_legacy";
+            console.log(`[ai-support-chat] [Reg #17.7/19][follow-up] forcing tool_choice=none — pending upsell priority=${upPrio}`);
           }
 
 
@@ -7459,6 +7587,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           console.warn("[ai-support-chat] [Reg #2.10] focus snapshot lock failed:", (e as Error).message);
         }
 
+        // [Reg #19] Marca anti-insistência quando o motor de upsell proativo
+        // emitiu uma oportunidade neste turno (qualquer prioridade).
+        let arch19UpsellEmitted = false;
+        try {
+          const shipResult = toolResultsThisTurn.find((r: any) => r?.tool === "calculate_shipping")?.parsed;
+          if (shipResult?.upsell_opportunity?.priority) {
+            arch19UpsellEmitted = true;
+          }
+        } catch (_e) { /* noop */ }
+
         await patchSalesState(supabase, salesMemory, {
           stage: suggestedStage,
           last_greeting_at: isGreetingTurn ? new Date().toISOString() : undefined,
@@ -7468,6 +7606,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           add_asked_question_hashes: askedHashes,
           add_presented_product_ids: presentedIdsArr.length > 0 ? presentedIdsArr : undefined,
           add_presented_families: familyMentioned ? [familyMentioned] : undefined,
+          inc_upsell_offered_count: arch19UpsellEmitted ? 1 : undefined,
           merge_commercial_signals: {
             last_tpr_source: turnClassification.source,
             last_pipeline_state_legacy: nextPipelineState,
