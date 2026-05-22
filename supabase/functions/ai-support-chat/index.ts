@@ -2634,14 +2634,16 @@ async function executeSalesTool(
 
           let freeShippingThresholdCents = 0;
           try {
-            const { data: storeSettings } = await supabase
-              .from("store_settings")
-              .select("free_shipping_min_cents")
+            // Fonte real: shipping_free_rules.min_order_cents (menor valor habilitado)
+            const { data: freeRules } = await supabase
+              .from("shipping_free_rules")
+              .select("min_order_cents")
               .eq("tenant_id", tenantId)
-              .maybeSingle();
-            freeShippingThresholdCents = Number(
-              (storeSettings as any)?.free_shipping_min_cents || 0,
-            );
+              .eq("is_enabled", true)
+              .order("min_order_cents", { ascending: true })
+              .limit(1);
+            const minOrder = Number((freeRules as any[])?.[0]?.min_order_cents || 0);
+            if (minOrder > 0) freeShippingThresholdCents = minOrder;
           } catch (_e) { /* noop */ }
 
           // Split mesma-linha em packs (mesmo produto) vs kits (multi-produto)
