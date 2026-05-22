@@ -1,36 +1,45 @@
-## Entrega — Sincronização Pedido de Venda ↔ Nota Fiscal (2026-05-20)
+# Plano — Consolidação da Pipeline de Vendas IA (Reg #2.17)
 
-### O que mudou para o usuário
+## Diagnóstico (resumo executivo)
 
-1. **Novo status "NF criada"** (roxo) na aba Pedidos de Venda. Aparece automaticamente quando uma Nota Fiscal é gerada a partir do Pedido, mesmo que a Receita ainda não tenha autorizado. Disponível em filtros, badges e exportação.
+A pipeline tem 6 camadas funcionais, mas existem sobreposições onde duas peças decidem a mesma coisa sem se conversar. Itens encontrados:
 
-2. **Transições automáticas** (qualquer origem de pedido — manual, duplicado ou da loja/marketplace):
-   - Nota Fiscal criada (rascunho/pronta/pendente/rejeitada) → Pedido passa para "NF criada".
-   - Nota Fiscal autorizada pela Receita → Pedido passa para "Concluído".
-   - Todas as Notas Fiscais filhas excluídas → Pedido volta para "Em aberto" (ou "Pendente" se tiver pendência fiscal).
-   - Duplicar um Pedido **não copia** o vínculo de NF — a duplicação nasce limpa.
-   - Cancelado/Chargeback do pedido original continuam tendo prioridade absoluta.
+1. **Leitura do turno em duplicidade.** O classificador inteligente (TPR) e ~7 detectores baseados em regex rodam em paralelo. O TPR já entrega tudo o que os detectores deduzem; os detectores deveriam ser apenas rede de segurança.
+2. **Duas máquinas de fase comercial.** Uma decide o estado (greeting/discovery/recommendation/...), outra decide o estágio (social_only/exploring/...). A segunda está em modo observação desde abr/26 — vocabulários diferentes para a mesma coisa.
+3. **Memória da conversa em dois lugares.** Tabela dedicada (correta) + coluna legada na tabela de conversas.
+4. **Saudação com 4 caminhos** (atalho rápido, gate via TPR, gate fallback, scrub legado) — origem das regressões de “Olá” no meio da thread.
+5. **3 gates anti-loop de fechamento** que convergem para o mesmo efeito (regenerar com tool forçada). Podem virar 1 motor com 3 sub-regras.
+6. **Núcleo de reposicionamento espalhado.** Reg #19 (proativo), Reg #17 (reciprocidade), mudança de família, recusa — cada um vive num lugar.
 
-3. **Vínculo visível no diálogo do Pedido**: bloco roxo "Vinculado à Nota Fiscal nº X" mostrando todas as NFs filhas ativas e seus status. Se todas foram excluídas, mostra aviso amarelo orientando criar uma nova nota.
+## O que muda para o cliente final
+**Nada.** Esta é uma reorganização interna para a IA respeitar um caminho lógico único e ter reflexos bem mapeados quando o cliente desvia.
 
-4. **Bug de ordenação corrigido**: a lista de Pedidos de Venda agora tem ordem 100% estável (data + identificador como desempate). Recargas automáticas em segundo plano não mexem mais na posição de pedidos com data próxima — fim do "pedido pulando de posição sozinho".
+## Fases (todas com flag por loja, reversíveis)
 
-5. **Bug de exclusão corrigido**: o botão Excluir do editor não falha mais silenciosamente. Se a exclusão for bloqueada por regra do sistema (nota com efeito fiscal, por exemplo), mostra mensagem clara em português. Notas sem efeito fiscal (rascunho, rejeitada, cancelada) podem ser excluídas normalmente.
+### Fase 1 — Unificar a leitura do turno *(esta entrega)*
+- TPR vira fonte primária; regex vira rede de fallback (só roda se TPR caiu).
+- Quem decide a transição passa a ler o resultado do TPR diretamente, em vez de re-classificar via regex.
+- Log de comparação para medir divergência TPR × regex no primeiro período.
+- Sem mudança em prompt, tool-filter, working memory ou gates de saída.
 
-### Como você valida
+### Fase 2 — Unificar a fase comercial
+- Estágio comercial vira fonte de verdade; o estado da pipeline passa a ser projeção derivada.
+- Componentes legados continuam consumindo o nome antigo via tradução automática.
 
-1. Abra um Pedido de Venda e crie uma NF a partir dele. O Pedido deve aparecer como **"NF criada"** (roxo) na aba Pedidos de Venda.
-2. Autorize a NF (transmissão Sefaz). O Pedido deve virar **"Concluído"** automaticamente.
-3. Exclua a NF (enquanto ainda for rascunho/rejeitada). O Pedido deve voltar para **"Em aberto"** ou **"Pendente"** com aviso.
-4. Tente excluir uma NF autorizada pelo editor — deve aparecer mensagem clara explicando que não pode (e nada é apagado).
-5. Recarregue a lista de Pedidos de Venda várias vezes — a ordem dos pedidos com data próxima deve permanecer a mesma.
+### Fase 3 — Núcleo único de reflexos comerciais
+- Quatro reflexos nomeados: desvio de família, reciprocidade, proatividade, recusa.
+- Cada um com gatilho, pré-condição, ação e trava anti-loop.
+- Alimentam blocos contextuais que o roteador de prompt já consome.
 
-### Documentação atualizada
+### Fase 4 — Consolidar gates de saída
+- Os três gates anti-loop de fechamento viram 1 motor com 3 sub-regras nomeadas.
+- Saudação: o atalho rápido passa a respeitar o resultado do TPR; detectores duplicados saem do caminho ativo.
 
-- `docs/especificacoes/erp/erp-fiscal.md` — seção "Status visual do Pedido de Venda" agora descreve os 7 status, as transições e o vínculo PV↔NF.
-- Memória anti-regressão: `mem://constraints/pv-status-mirrors-child-nf` (indexada).
+## Validação por fase
+- Logs com prefixo único permitem comparar antes/depois.
+- Bateria de 12 cenários (4 ondas A/B/C/D) roda antes e depois.
+- Reversão = desligar a flag.
 
-### Bloco técnico (opcional)
-
-- Migration adiciona overload `derive_pv_pedido_status(...,p_has_active_nf boolean)`, função `recompute_pv_pedido_status(uuid)` para PVs sem `order_id`, atualiza `sync_pedido_status_for_order` e `trg_nf_sync_pv_status` (agora cobre DELETE), recria o trigger com `INSERT OR UPDATE OR DELETE`, e roda reconciliação retroativa em todos os PVs com NF filha.
-- Frontend: `pedidoStatus.ts` ganha `nf_criada` em type/config/options; `useFiscal.ts` adiciona desempate por `id` na query; `FiscalInvoiceList.handleDeleteInvoice` checa `count` e dá toast claro; `InvoiceEditor` carrega NFs filhas e renderiza bloco roxo (ou amarelo se nenhuma estiver ativa).
+## Documentação
+- Cada fase adiciona um registro novo (Reg #2.17 A–D) no changelog da IA de atendimento.
+- Memórias de governança da pipeline atualizadas ao final de cada fase.
