@@ -521,14 +521,18 @@ export function classifyTurnIntent(
 // Decisão da próxima transição — ordem de prioridade importa.
 // ----------------------------------------------------------------
 export function decideNextState(input: TransitionInput): TransitionResult {
-  const { current, message, isPureGreeting, hasActiveCart, hasCheckoutLink, toolsCalled, discoveryTurnsSoFar, productNamesHint, familyFocus, lastFocusedProductName, recentPurchaseIntent } = input;
+  const { current, message, isPureGreeting, hasActiveCart, hasCheckoutLink, toolsCalled, discoveryTurnsSoFar, productNamesHint, familyFocus, lastFocusedProductName, recentPurchaseIntent, tprHints } = input;
 
-  // [F2-V3] Classificação canônica do turno (usada pelas regras de rebaixamento).
+  // [F2-V3 / Reg #2.17 Fase A] Classificação canônica do turno.
+  // Quando `tprHints.source === "llm"` (TPR rodou com sucesso), os sinais
+  // do TPR têm precedência sobre os detectores regex equivalentes.
+  // Caso contrário, regex serve de rede de fallback determinístico.
   const turnClass = classifyTurnIntent(message, {
     isPureGreeting,
     productNamesHint,
     familyFocus,
     lastFocusedProductName,
+    tprHints,
   });
   const turnIntent = turnClass.intent;
   const { hasNamedProduct, hasFamilyMention, hasFocusReference, hasCompareIntent, hasInformationalQuestion } = turnClass.signals;
