@@ -4754,8 +4754,13 @@ Deno.serve(async (req) => {
         console.log(`[ai-support-chat] Rule matched: ${rule.id} - ${rule.condition} -> ${rule.action}`);
         
         if (rule.action === 'transfer' || rule.action === 'escalate') {
-          shouldHandoff = true;
-          handoffReason = `Regra ativada: ${rule.condition}`;
+          // Regra custom configurada pelo lojista vence o veto comercial
+          // — é decisão explícita do tenant, não inferência da IA.
+          handoffMotor.propose({
+            source: "ai_rule_transfer",
+            reason: `Regra ativada: ${rule.condition}`,
+            isLegitimateComplaint: true,
+          });
         }
         if ((rule.action === 'respond' || rule.action === 'suggest') && rule.response) {
           forceResponse = rule.response;
@@ -4766,16 +4771,46 @@ Deno.serve(async (req) => {
 
     // Check handoff keywords
     // [B.1] handoff_keywords vêm da policy (source=tenant ou default=[])
+    // Palavras como "atendente", "humano", "falar com pessoa" representam
+    // pedido explícito do cliente — vencem o veto comercial.
     const handoffKeywords = effectivePolicy.handoff_keywords.value;
-    if (!shouldHandoff && handoffKeywords?.length && lastMessageLower) {
+    if (handoffKeywords?.length && lastMessageLower) {
       const matchedKeyword = handoffKeywords.find(
         (kw: string) => lastMessageLower.includes(kw.toLowerCase())
       );
       if (matchedKeyword) {
-        shouldHandoff = true;
-        handoffReason = `Palavra-chave de handoff: ${matchedKeyword}`;
+        handoffMotor.propose({
+          source: "handoff_keyword",
+          reason: `Palavra-chave de handoff: ${matchedKeyword}`,
+          isExplicitClientRequest: true,
+        });
       }
     }
+
+    // ============================================
+    // [Reg #2.17 — Fase 2] DECISÃO ÚNICA do motor de handoff
+    // --------------------------------------------------
+    // Todas as fontes votaram. Aplicamos o veto comercial centralizado
+    // (dor de produto / purchase_intent não escalam) e emitimos log
+    // estruturado para auditoria.
+    // ============================================
+    {
+      const decision = handoffMotor.decide({
+        intent: intentClassification?.intent ?? null,
+        painSignal,
+      });
+      shouldHandoff = decision.shouldHandoff;
+      handoffReason = decision.finalReason;
+      if (decision.vetoed) {
+        // Se vetado, o downstream não deve seguir fluxo "sem evidência".
+        noEvidenceHandoff = false;
+      }
+      console.log(formatHandoffDecisionLog(decision, {
+        intent: intentClassification?.intent ?? null,
+        painSignal,
+      }));
+    }
+
 
     // ============================================
     // STEP 5: BUILD SYSTEM PROMPT
