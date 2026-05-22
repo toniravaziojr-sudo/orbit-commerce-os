@@ -5162,6 +5162,18 @@ Cliente: "vocês entregam em SP?"
       `[ai-support-chat] [F2-FIX] pre-transition ${pipelineStateBefore} → ${pipelineState} (reason=${preTransition.reason})`
     );
 
+    // [Reg #2.17 Fase A] Log de auditoria — quanto o TPR contribuiu para a
+    // classificação do turno e quais sinais usaram TPR vs regex.
+    if (salesModeEnabled && tprHintsForTransition) {
+      const tprActive = tprHintsForTransition.source === "llm";
+      console.log(
+        `[ai-support-chat] [Reg #2.17 Fase A] tpr_primary=${tprActive} ` +
+        `intent=${turnIntentClassified ?? "n/a"} ` +
+        `tpr_signals=greeting:${tprHintsForTransition.isPureGreeting},product:${tprHintsForTransition.hasNamedProduct},family:${tprHintsForTransition.hasFamilyMention},buy:${tprHintsForTransition.hasBuySignal},checkout:${tprHintsForTransition.hasCheckoutRequest},support:${tprHintsForTransition.hasSupportTopic},pain:${tprHintsForTransition.hasPainOrObjective}`
+      );
+    }
+
+
     let pipelinePromptModule: string | null = null;
     let pipelineToolsExposed: string[] = [];
     let pipelineFilteredTools: typeof SALES_TOOLS = [];
