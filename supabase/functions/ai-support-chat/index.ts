@@ -2468,17 +2468,20 @@ async function executeSalesTool(
         
         // Get product details for weight/dimensions/price/free_shipping flags
         const productIds = cartItems.map((i: any) => i.product_id);
-        const { data: shippingProducts } = await supabase
+        const { data: shippingProducts, error: shipProdErr } = await supabase
           .from("products")
-          .select("id, name, weight, width, height, length, price, sale_price, free_shipping, free_shipping_method")
+          .select("id, name, weight, width, height, depth, price, free_shipping, free_shipping_method")
           .in("id", productIds)
           .eq("tenant_id", tenantId);
+        if (shipProdErr) {
+          console.error("[sales-tool] shipping products select error:", shipProdErr);
+        }
 
         // Build items for shipping-quote (contract: recipient_cep + items[].price obrigatório)
         let cartSubtotalCents = 0;
         const shippingItems = cartItems.map((item: any) => {
           const prod = shippingProducts?.find((p: any) => p.id === item.product_id);
-          const unitPrice = Number(item.unit_price ?? prod?.sale_price ?? prod?.price ?? 0);
+          const unitPrice = Number(item.unit_price ?? item.price ?? prod?.price ?? 0);
           cartSubtotalCents += Math.round(unitPrice * 100) * Number(item.quantity || 1);
           return {
             product_id: item.product_id,
@@ -2486,7 +2489,7 @@ async function executeSalesTool(
             weight: prod?.weight || 300,
             width: prod?.width || 11,
             height: prod?.height || 2,
-            length: prod?.length || 16,
+            length: prod?.depth || 16,
             price: unitPrice,
             free_shipping: prod?.free_shipping ?? false,
             free_shipping_method: prod?.free_shipping_method ?? null,
@@ -2494,33 +2497,39 @@ async function executeSalesTool(
         });
 
         // ✦ Descobre ofertas da MESMA LINHA com frete grátis para itens pagos do carrinho.
-        // "Mesma linha" = produtos cujo nome começa com o nome-base do item em foco
-        // (ex.: "Shampoo Preventive Power" → matches "Shampoo Preventive Power (3x)").
         const sameLineFreeOffers: any[] = [];
         const paidProducts = (shippingProducts || []).filter((p: any) => !p?.free_shipping);
         for (const paid of paidProducts) {
-          // Pega as primeiras 3 palavras como raiz (ex.: "Shampoo Preventive Power")
           const root = String(paid.name || "").split(/\s+/).slice(0, 3).join(" ").trim();
           if (root.length < 4) continue;
-          const { data: relatives } = await supabase
+          const { data: relatives, error: relErr } = await supabase
             .from("products")
-            .select("id, name, price, sale_price, free_shipping")
+            .select("id, name, price, free_shipping")
             .eq("tenant_id", tenantId)
             .eq("free_shipping", true)
+            .eq("status", "active")
+            .is("deleted_at", null)
             .ilike("name", `${root}%`)
             .neq("id", paid.id)
             .limit(6);
+          if (relErr) {
+            console.error("[sales-tool] same-line offers query error:", relErr);
+          }
+          console.log(
+            `[ai-support-chat] [Reg #17.7][same-line] base="${paid.name}" root="${root}" found=${relatives?.length ?? 0}`
+          );
           if (relatives && relatives.length > 0) {
             sameLineFreeOffers.push({
               base_product: paid.name,
-              base_paid_price: paid.sale_price ?? paid.price,
+              base_paid_price: paid.price,
               free_shipping_options: relatives.map((r: any) => ({
                 name: r.name,
-                price: r.sale_price ?? r.price,
+                price: r.price,
               })),
             });
           }
         }
+
 
         // Call shipping-quote edge function
         const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
