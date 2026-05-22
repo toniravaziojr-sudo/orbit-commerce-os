@@ -93,6 +93,25 @@ export interface TurnIntentClassification {
   };
 }
 
+// [Reg #2.17 Fase A] Sinais derivados do TPR (Turn Pre-Router) — fonte
+// primária de leitura do turno. Quando presentes E originados pelo
+// classificador LLM (não pelo fallback), substituem os detectores
+// regex correspondentes em `classifyTurnIntent`. Os demais sinais
+// (variety_challenge, family_or_objective_query, comparison,
+// data_provided, informational) seguem por regex pois ainda não têm
+// equivalente no TPR.
+export interface TprDerivedHints {
+  // "llm" = classificador rodou; "fallback" = caiu em regex (não usar como primário).
+  source: "llm" | "fallback";
+  isPureGreeting: boolean | null;
+  hasNamedProduct: boolean | null;
+  hasFamilyMention: boolean | null;
+  hasBuySignal: boolean | null;
+  hasCheckoutRequest: boolean | null;
+  hasSupportTopic: boolean | null;
+  hasPainOrObjective: boolean | null;
+}
+
 export interface TransitionInput {
   current: PipelineState;
   message: string;
@@ -112,6 +131,10 @@ export interface TransitionInput {
   // Usado para evitar que `data_provided` sozinho preserve checkout em
   // conversa contaminada por estado legado.
   recentPurchaseIntent?: boolean;
+  // [Reg #2.17 Fase A] Hints do TPR — quando source==="llm", têm precedência
+  // sobre os detectores regex internos. Quando ausente ou "fallback", o
+  // pipeline cai 100% em regex (rede de segurança).
+  tprHints?: TprDerivedHints | null;
 }
 
 export interface TransitionResult {
