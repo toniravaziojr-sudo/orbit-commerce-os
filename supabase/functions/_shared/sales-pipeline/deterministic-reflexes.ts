@@ -169,7 +169,7 @@ export function detectDeterministicReflex(input: ReflexInput): ReflexOutput | nu
     intent === "product_named" ||
     intent === "family_or_objective_query";
 
-  if (tokens <= 5 && stateLandedOnEarly && intentSignalsPurchase) {
+  if (tokens <= 4 && stateLandedOnEarly && intentSignalsPurchase) {
     const targetState: PipelineState =
       intent === "product_named" && input.lastFocusedProductName
         ? "product_detail"
