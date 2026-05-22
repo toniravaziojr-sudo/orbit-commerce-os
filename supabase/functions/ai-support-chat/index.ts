@@ -2466,30 +2466,67 @@ async function executeSalesTool(
 
         const cartItems = shippingCart.items as any[];
         
-        // Get product details for weight/dimensions
+        // Get product details for weight/dimensions/price/free_shipping flags
         const productIds = cartItems.map((i: any) => i.product_id);
         const { data: shippingProducts } = await supabase
           .from("products")
-          .select("id, name, weight, width, height, length")
+          .select("id, name, weight, width, height, length, price, sale_price, free_shipping, free_shipping_method")
           .in("id", productIds)
           .eq("tenant_id", tenantId);
 
-        // Build items for shipping quote
+        // Build items for shipping-quote (contract: recipient_cep + items[].price obrigatório)
+        let cartSubtotalCents = 0;
         const shippingItems = cartItems.map((item: any) => {
           const prod = shippingProducts?.find((p: any) => p.id === item.product_id);
+          const unitPrice = Number(item.unit_price ?? prod?.sale_price ?? prod?.price ?? 0);
+          cartSubtotalCents += Math.round(unitPrice * 100) * Number(item.quantity || 1);
           return {
             product_id: item.product_id,
-            quantity: item.quantity,
+            quantity: Number(item.quantity || 1),
             weight: prod?.weight || 300,
             width: prod?.width || 11,
             height: prod?.height || 2,
             length: prod?.length || 16,
+            price: unitPrice,
+            free_shipping: prod?.free_shipping ?? false,
+            free_shipping_method: prod?.free_shipping_method ?? null,
           };
         });
+
+        // ✦ Descobre ofertas da MESMA LINHA com frete grátis para itens pagos do carrinho.
+        // "Mesma linha" = produtos cujo nome começa com o nome-base do item em foco
+        // (ex.: "Shampoo Preventive Power" → matches "Shampoo Preventive Power (3x)").
+        const sameLineFreeOffers: any[] = [];
+        const paidProducts = (shippingProducts || []).filter((p: any) => !p?.free_shipping);
+        for (const paid of paidProducts) {
+          // Pega as primeiras 3 palavras como raiz (ex.: "Shampoo Preventive Power")
+          const root = String(paid.name || "").split(/\s+/).slice(0, 3).join(" ").trim();
+          if (root.length < 4) continue;
+          const { data: relatives } = await supabase
+            .from("products")
+            .select("id, name, price, sale_price, free_shipping")
+            .eq("tenant_id", tenantId)
+            .eq("free_shipping", true)
+            .ilike("name", `${root}%`)
+            .neq("id", paid.id)
+            .limit(6);
+          if (relatives && relatives.length > 0) {
+            sameLineFreeOffers.push({
+              base_product: paid.name,
+              base_paid_price: paid.sale_price ?? paid.price,
+              free_shipping_options: relatives.map((r: any) => ({
+                name: r.name,
+                price: r.sale_price ?? r.price,
+              })),
+            });
+          }
+        }
 
         // Call shipping-quote edge function
         const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
         const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+
 
         try {
           const shippingResp = await fetch(`${supabaseUrl}/functions/v1/shipping-quote`, {
@@ -2502,8 +2539,9 @@ async function executeSalesTool(
             },
             body: JSON.stringify({
               tenant_id: tenantId,
-              postal_code: postalCode,
+              recipient_cep: postalCode,
               items: shippingItems,
+              cart_subtotal_cents: cartSubtotalCents,
             }),
           });
 
@@ -2532,16 +2570,42 @@ async function executeSalesTool(
             });
           }
 
-          const options = rawOptions.map((opt: any) => ({
-            carrier: opt.carrier || opt.name || "Transportadora",
-            service: opt.service || opt.name || "",
-            price: opt.price != null ? `R$ ${Number(opt.price).toFixed(2)}` : "Grátis",
-            price_cents: opt.price != null ? Math.round(Number(opt.price) * 100) : 0,
-            delivery_days: opt.delivery_days || opt.days || opt.deadline || null,
-            is_free: opt.price === 0 || opt.price === "0" || opt.is_free,
-          }));
+          const options = rawOptions.map((opt: any) => {
+            const priceNum = Number(opt.price ?? 0);
+            return {
+              carrier: opt.carrier || opt.service_name || opt.name || "Transportadora",
+              service: opt.service_name || opt.service || opt.name || "",
+              price: priceNum > 0 ? `R$ ${priceNum.toFixed(2)}` : "Grátis",
+              price_cents: Math.round(priceNum * 100),
+              delivery_days: opt.estimated_days ?? opt.delivery_days ?? opt.days ?? opt.deadline ?? null,
+              is_free: priceNum === 0 || opt.is_free === true,
+            };
+          });
 
-          return JSON.stringify({ success: true, options, postal_code: postalCode });
+          const minPriceCents = options.reduce(
+            (m: number, o: any) => (o.price_cents < m ? o.price_cents : m),
+            Number.MAX_SAFE_INTEGER,
+          );
+          const hasPaidOption = options.some((o: any) => !o.is_free);
+
+          const hasFreeLineOffers = sameLineFreeOffers.length > 0;
+          const offerInstr = hasPaidOption && hasFreeLineOffers
+            ? "Frete pago E existem kits/packs da MESMA LINHA com frete grátis. OBRIGATÓRIO no mesmo turno: (1) informar o valor real do frete e prazo; (2) oferecer 1 dos kits listados em same_line_free_shipping_offers com frete grátis. Use o nome EXATO. Máximo 1 oferta por conversa. Nunca invente kit fora desta lista."
+            : hasPaidOption
+              ? "Frete pago, sem kits da mesma linha com frete grátis. Apenas informe valor e prazo, sem upsell."
+              : "Frete já está grátis — apenas confirme, sem upsell.";
+
+          return JSON.stringify({
+            success: true,
+            options,
+            postal_code: postalCode,
+            cart_subtotal_cents: cartSubtotalCents,
+            cheapest_price_cents: minPriceCents === Number.MAX_SAFE_INTEGER ? 0 : minPriceCents,
+            has_paid_shipping: hasPaidOption,
+            same_line_free_shipping_offers: sameLineFreeOffers,
+            upsell_hint: offerInstr,
+          });
+
         } catch (shippingErr) {
           console.error("[sales-tool] shipping calc error:", shippingErr);
           return JSON.stringify({ success: false, error: "Erro ao calcular frete. Tente novamente." });
@@ -6380,6 +6444,20 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             followUpToolChoice = { type: "function", function: { name: "calculate_shipping" } };
             console.log(`[ai-support-chat] [Reg #17.7][follow-up] forcing tool_choice=calculate_shipping after add_to_cart`);
           }
+          // [Reg #17.7] Se shipping JÁ foi calculado neste turno e veio PAGO com
+          // ofertas de frete grátis na mesma linha, força resposta em TEXTO para
+          // a IA apresentar valor+prazo+upsell ao invés de pular pro checkout.
+          const lastShipResult = toolResultsThisTurn.find((r: any) => r?.tool === "calculate_shipping")?.parsed;
+          if (
+            lastShipResult?.success === true &&
+            lastShipResult?.has_paid_shipping === true &&
+            Array.isArray(lastShipResult?.same_line_free_shipping_offers) &&
+            lastShipResult.same_line_free_shipping_offers.length > 0
+          ) {
+            followUpToolChoice = "none";
+            console.log(`[ai-support-chat] [Reg #17.7][follow-up] forcing tool_choice=none — pending free-shipping upsell`);
+          }
+
         }
         const followUpBody: any = {
           model: usedModel,
