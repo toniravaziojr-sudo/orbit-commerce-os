@@ -93,6 +93,25 @@ export interface TurnIntentClassification {
   };
 }
 
+// [Reg #2.17 Fase A] Sinais derivados do TPR (Turn Pre-Router) — fonte
+// primária de leitura do turno. Quando presentes E originados pelo
+// classificador LLM (não pelo fallback), substituem os detectores
+// regex correspondentes em `classifyTurnIntent`. Os demais sinais
+// (variety_challenge, family_or_objective_query, comparison,
+// data_provided, informational) seguem por regex pois ainda não têm
+// equivalente no TPR.
+export interface TprDerivedHints {
+  // "llm" = classificador rodou; "fallback" = caiu em regex (não usar como primário).
+  source: "llm" | "fallback";
+  isPureGreeting: boolean | null;
+  hasNamedProduct: boolean | null;
+  hasFamilyMention: boolean | null;
+  hasBuySignal: boolean | null;
+  hasCheckoutRequest: boolean | null;
+  hasSupportTopic: boolean | null;
+  hasPainOrObjective: boolean | null;
+}
+
 export interface TransitionInput {
   current: PipelineState;
   message: string;
@@ -112,6 +131,10 @@ export interface TransitionInput {
   // Usado para evitar que `data_provided` sozinho preserve checkout em
   // conversa contaminada por estado legado.
   recentPurchaseIntent?: boolean;
+  // [Reg #2.17 Fase A] Hints do TPR — quando source==="llm", têm precedência
+  // sobre os detectores regex internos. Quando ausente ou "fallback", o
+  // pipeline cai 100% em regex (rede de segurança).
+  tprHints?: TprDerivedHints | null;
 }
 
 export interface TransitionResult {
@@ -414,20 +437,44 @@ export function classifyTurnIntent(
     productNamesHint?: string[];
     familyFocus?: string | null;
     lastFocusedProductName?: string | null;
+    // [Reg #2.17 Fase A] hints do TPR — quando source==="llm" tomam
+    // precedência sobre os detectores regex equivalentes.
+    tprHints?: TprDerivedHints | null;
   },
 ): TurnIntentClassification {
   const msg = message || "";
-  const hasNamedProduct = mentionsProductByName(msg, ctx.productNamesHint || []);
-  const hasFamilyMention = !!detectFamilyMentioned(msg);
+  const tpr = ctx.tprHints && ctx.tprHints.source === "llm" ? ctx.tprHints : null;
+
+  // [Reg #2.17 Fase A] Sinais cobertos pelo TPR — TPR vence quando ativo,
+  // regex serve de fallback determinístico.
+  const regexNamedProduct = mentionsProductByName(msg, ctx.productNamesHint || []);
+  const regexFamilyMention = !!detectFamilyMentioned(msg);
+  const regexBuySignal = detectBuySignal(msg);
+  const regexCheckoutRequest = detectCheckoutRequest(msg);
+  const regexSupportTopic = detectSupportTopic(msg);
+  const regexPainOrObjective = detectPainOrObjective(msg);
+
+  const hasNamedProduct =
+    tpr && tpr.hasNamedProduct !== null ? !!tpr.hasNamedProduct : regexNamedProduct;
+  const hasFamilyMention =
+    tpr && tpr.hasFamilyMention !== null ? !!tpr.hasFamilyMention : regexFamilyMention;
+  const hasBuySignal =
+    tpr && tpr.hasBuySignal !== null ? !!tpr.hasBuySignal : regexBuySignal;
+  const hasCheckoutRequest =
+    tpr && tpr.hasCheckoutRequest !== null ? !!tpr.hasCheckoutRequest : regexCheckoutRequest;
+  const hasSupportTopic =
+    tpr && tpr.hasSupportTopic !== null ? !!tpr.hasSupportTopic : regexSupportTopic;
+  const hasPainOrObjective =
+    tpr && tpr.hasPainOrObjective !== null ? !!tpr.hasPainOrObjective : regexPainOrObjective;
+  const effectiveIsPureGreeting =
+    tpr && tpr.isPureGreeting !== null ? !!tpr.isPureGreeting : ctx.isPureGreeting;
+
+  // Sinais sem cobertura no TPR — seguem 100% por regex.
   const hasAnaphoricReference = detectAnaphoricReference(msg);
   const hasFocusReference = !!(ctx.lastFocusedProductName || ctx.familyFocus || hasNamedProduct || hasAnaphoricReference);
   const hasInformationalQuestion = detectInformationalProductQuestion(msg);
   const hasCompareIntent = detectCompareIntent(msg);
-  const hasBuySignal = detectBuySignal(msg);
-  const hasCheckoutRequest = detectCheckoutRequest(msg);
-  const hasSupportTopic = detectSupportTopic(msg);
   const hasDataProvided = detectDataProvided(msg);
-  const hasPainOrObjective = detectPainOrObjective(msg);
   const hasVarietyChallenge = detectVarietyChallenge(msg);
   const hasFamilyOrObjectiveQuery = detectFamilyOrObjectiveQuery(
     msg,
@@ -449,12 +496,12 @@ export function classifyTurnIntent(
   else if (hasFamilyOrObjectiveQuery) intent = "family_or_objective_query";
   else if (hasInformationalQuestion && (hasFocusReference || hasFamilyMention)) intent = "informative_question";
   else if (hasDataProvided) intent = "data_provided";
-  else if (ctx.isPureGreeting) intent = "pure_greeting";
+  else if (effectiveIsPureGreeting) intent = "pure_greeting";
 
   return {
     intent,
     signals: {
-      isPureGreeting: ctx.isPureGreeting,
+      isPureGreeting: effectiveIsPureGreeting,
       hasNamedProduct,
       hasFamilyMention,
       hasFocusReference,
@@ -474,14 +521,18 @@ export function classifyTurnIntent(
 // Decisão da próxima transição — ordem de prioridade importa.
 // ----------------------------------------------------------------
 export function decideNextState(input: TransitionInput): TransitionResult {
-  const { current, message, isPureGreeting, hasActiveCart, hasCheckoutLink, toolsCalled, discoveryTurnsSoFar, productNamesHint, familyFocus, lastFocusedProductName, recentPurchaseIntent } = input;
+  const { current, message, isPureGreeting, hasActiveCart, hasCheckoutLink, toolsCalled, discoveryTurnsSoFar, productNamesHint, familyFocus, lastFocusedProductName, recentPurchaseIntent, tprHints } = input;
 
-  // [F2-V3] Classificação canônica do turno (usada pelas regras de rebaixamento).
+  // [F2-V3 / Reg #2.17 Fase A] Classificação canônica do turno.
+  // Quando `tprHints.source === "llm"` (TPR rodou com sucesso), os sinais
+  // do TPR têm precedência sobre os detectores regex equivalentes.
+  // Caso contrário, regex serve de rede de fallback determinístico.
   const turnClass = classifyTurnIntent(message, {
     isPureGreeting,
     productNamesHint,
     familyFocus,
     lastFocusedProductName,
+    tprHints,
   });
   const turnIntent = turnClass.intent;
   const { hasNamedProduct, hasFamilyMention, hasFocusReference, hasCompareIntent, hasInformationalQuestion } = turnClass.signals;

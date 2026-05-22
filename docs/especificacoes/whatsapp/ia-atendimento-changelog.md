@@ -63,7 +63,27 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #2.17 Fase A — TPR como fonte primária da leitura do turno — 22/mai/2026
+
+**Contexto:** análise crítica da pipeline F2 mostrou duplicidade entre o classificador inteligente do turno (TPR) e ~7 detectores regex que rodavam em paralelo dentro de `transitions.ts`. O TPR já entregava sinais equivalentes (saudação pura, produto citado, família, intenção de compra, pedido de link, suporte, dor/objetivo), mas a decisão de transição os ignorava e re-classificava por regex — gerando divergência silenciosa.
+
+**Mudança (Fase A da consolidação Reg #2.17):**
+- `TransitionInput` ganhou campo opcional `tprHints` (sinais derivados do TPR + `source: "llm" | "fallback"`).
+- `classifyTurnIntent` passa a usar TPR como fonte primária quando `source === "llm"`. Quando o TPR caiu em fallback, ignora os hints e opera 100% pelos detectores regex (rede de segurança preservada).
+- `ai-support-chat` constrói `tprHintsForTransition` a partir de `turnClassification` e injeta nas duas chamadas de `decideNextState` (pré-transição e pós-tools).
+- Log de auditoria `[Reg #2.17 Fase A] tpr_primary=… intent=… tpr_signals=…` permite medir divergência ao longo do período de observação.
+
+**O que NÃO mudou:** prompt, tool-filter, working memory, output gates, máquina de estados. Comportamento visível para o cliente é o mesmo.
+
+**Reversão:** se TPR vier `source=fallback` (timeout/erro/parse), o pipeline cai automaticamente nos detectores regex como antes. Sem flag adicional necessária.
+
+**Próximas fases:** B — unificar fase comercial (estágio como fonte de verdade); C — núcleo único de reflexos comerciais (desvio de família, reciprocidade, proatividade, recusa); D — consolidar gates de saída anti-loop.
+
+---
+
 ## Registro #31 — Gatilho proativo de upsell (reciprocidade comercial) — 22/mai/2026
+
+
 
 **Conversa de origem:** bateria sandbox no tenant Respeite o Homem após Reg. #30 — IA respondia frete em texto e não oferecia o kit/quantidade melhor mesmo com `family_free_shipping_offers` disponível.
 

@@ -5074,6 +5074,43 @@ Cliente: "vocês entregam em SP?"
     // pura tem que poder vencer pending_action/family_focus legado para
     // permitir o rebaixamento de estado contaminado. O fast-path de greeting
     // continua usando isGreetingOnlyTurn (filtrado) em outros pontos.
+    // [Reg #2.17 Fase A] TPR vira fonte primária da leitura do turno.
+    // Quando `turnClassification.source === "llm"`, os sinais do TPR são
+    // passados como `tprHints` e têm precedência sobre os detectores regex
+    // dentro de `classifyTurnIntent`. Quando o TPR caiu em fallback (regex),
+    // `tprHints.source` vai como "fallback" e o pipeline ignora os hints,
+    // operando 100% pelos detectores regex (rede de segurança).
+    const tprHintsForTransition = turnClassification
+      ? {
+          source: turnClassification.source,
+          isPureGreeting: typeof turnClassification.is_pure_greeting === "boolean"
+            ? turnClassification.is_pure_greeting
+            : null,
+          hasNamedProduct: turnClassification.mentioned_product_name !== undefined
+            ? !!turnClassification.mentioned_product_name
+            : null,
+          hasFamilyMention: turnClassification.mentioned_product_family !== undefined
+            ? !!turnClassification.mentioned_product_family
+            : null,
+          hasBuySignal: typeof turnClassification.confirmed_purchase_intent === "boolean"
+            ? turnClassification.confirmed_purchase_intent
+            : null,
+          hasCheckoutRequest: typeof turnClassification.asked_about_payment_or_link === "boolean"
+            ? turnClassification.asked_about_payment_or_link
+            : null,
+          hasSupportTopic: typeof turnClassification.is_support_topic === "boolean"
+            ? turnClassification.is_support_topic
+            : null,
+          hasPainOrObjective:
+            (typeof turnClassification.described_symptom === "boolean" && turnClassification.described_symptom) ||
+            (turnClassification.declared_objective !== null && turnClassification.declared_objective !== undefined)
+              ? true
+              : (typeof turnClassification.described_symptom === "boolean"
+                ? false
+                : null),
+        }
+      : null;
+
     const preTransition = salesModeEnabled
       ? decideNextState({
           current: pipelineStateBefore,
@@ -5088,6 +5125,7 @@ Cliente: "vocês entregam em SP?"
           familyFocus: familyFocusBefore,
           lastFocusedProductName: lastFocusedProductNameBefore,
           recentPurchaseIntent: recentPurchaseIntentBefore,
+          tprHints: tprHintsForTransition,
         })
       : { next: pipelineStateBefore, reason: "no_change_keep_state" as const, forced: false, turnIntent: undefined as TurnIntent | undefined, downgradeReason: null };
 
@@ -5123,6 +5161,18 @@ Cliente: "vocês entregam em SP?"
     console.log(
       `[ai-support-chat] [F2-FIX] pre-transition ${pipelineStateBefore} → ${pipelineState} (reason=${preTransition.reason})`
     );
+
+    // [Reg #2.17 Fase A] Log de auditoria — quanto o TPR contribuiu para a
+    // classificação do turno e quais sinais usaram TPR vs regex.
+    if (salesModeEnabled && tprHintsForTransition) {
+      const tprActive = tprHintsForTransition.source === "llm";
+      console.log(
+        `[ai-support-chat] [Reg #2.17 Fase A] tpr_primary=${tprActive} ` +
+        `intent=${turnIntentClassified ?? "n/a"} ` +
+        `tpr_signals=greeting:${tprHintsForTransition.isPureGreeting},product:${tprHintsForTransition.hasNamedProduct},family:${tprHintsForTransition.hasFamilyMention},buy:${tprHintsForTransition.hasBuySignal},checkout:${tprHintsForTransition.hasCheckoutRequest},support:${tprHintsForTransition.hasSupportTopic},pain:${tprHintsForTransition.hasPainOrObjective}`
+      );
+    }
+
 
     let pipelinePromptModule: string | null = null;
     let pipelineToolsExposed: string[] = [];
@@ -7424,6 +7474,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       productNamesHint,
       familyFocus: familyFocusBefore,
       lastFocusedProductName: lastFocusedProductNameBefore,
+      // [Reg #2.17 Fase A] TPR é fonte primária; reaproveita os hints já
+      // construídos para a pré-transição.
+      tprHints: tprHintsForTransition,
     });
 
     let nextPipelineState: PipelineState = shouldHandoff ? "handoff" : transition.next;
