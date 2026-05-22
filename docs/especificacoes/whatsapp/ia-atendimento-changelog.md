@@ -63,6 +63,36 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #31 — Gatilho proativo de upsell (reciprocidade comercial) — 22/mai/2026
+
+**Conversa de origem:** bateria sandbox no tenant Respeite o Homem após Reg. #30 — IA respondia frete em texto e não oferecia o kit/quantidade melhor mesmo com `family_free_shipping_offers` disponível.
+
+**Sintomas:**
+- Cliente sinaliza intenção de comprar 1 unidade ou kit sem frete grátis → IA mandava direto pro link de checkout, sem cotar nem ofertar a alternativa melhor.
+- Quando o cliente perguntava "tem frete grátis?", IA negava em texto sem buscar packs/kits da família.
+
+**Diagnóstico:**
+A regra de upsell pós-`calculate_shipping` já existia (Reg. #19/30), mas faltava o **gatilho proativo** que força a cotação no momento da intenção de compra. O motor só dispara depois que `calculate_shipping` roda — e a IA não rodava sozinha.
+
+**Correção aplicada:**
+- Nova **Reg #19.2 (Reciprocidade Comercial)** no prompt do modo vendas (`ai-support-chat`):
+  - Sempre que o cliente sinalizar intenção de comprar (a) 1 unidade ou (b) kit sem frete grátis, e ainda houver oferta melhor disponível (mais quantidade, kit da família, ou faixa de frete grátis próxima), a IA é obrigada a cotar antes de mandar o link.
+  - Sequência: `add_to_cart` da base → pede CEP se faltar → `calculate_shipping` → se vier `upsell_opportunity`, apresenta a oferta no mesmo turno; se vier `is_free` ou sem oportunidade, segue direto pro checkout.
+  - Não é insistência: é cortesia comercial. Limite de 1 oferta proativa por conversa; recusa = link imediato.
+- Reforço na **Regra 4 (link de checkout)**: bloqueia `generate_checkout_link` antes de a cotação ter rodado quando a base é 1un/paid kit e ainda não houve oferta nesta conversa.
+- Distinção explícita entre **proatividade** (gatilho da IA, conta para o limite de 1) e **reciprocidade** (cliente pergunta sobre frete/kit/desconto, NÃO conta para o limite — só responder com oferta concreta do catálogo).
+
+**Validação técnica executada:**
+- ✅ Edição do prompt aplicada (regras 3.1 e 4 ajustadas).
+- ⏳ Bateria sandbox de 4 cenários (pack, family kit, gap-fill, controle) pendente de execução pelo usuário na aba "IA Teste".
+
+**Anti-regressão:**
+- Memória `mem://constraints/ai-shipping-must-trigger-tool-and-upsell-free-kit` ampliada para incluir o gatilho proativo (Reg #19.2) — não só pergunta do cliente.
+
+**Status:** Ajuste aplicado — pendente de validação E2E pelo usuário.
+
+---
+
 ## Registro #30 — Frete-upsell, vocabulário de família ampliado, silêncio comercial no handoff e off-topic/despedida — 22/mai/2026
 
 **Conversa de origem:** bateria de teste sandbox no tenant Respeite o Homem (10 cenários, 11 turnos) — ver `/mnt/documents/teste-ia-respeiteohomem.md`.
