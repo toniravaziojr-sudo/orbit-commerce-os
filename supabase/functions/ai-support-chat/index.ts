@@ -2514,7 +2514,25 @@ async function executeSalesTool(
           }
 
           const shippingData = await shippingResp.json();
-          const options = (shippingData.options || shippingData || []).map((opt: any) => ({
+          // shipping-quote pode devolver { options: [...] }, { quotes: [...] },
+          // array direto, ou objeto de erro. Normaliza com segurança.
+          const rawOptions = Array.isArray(shippingData)
+            ? shippingData
+            : Array.isArray(shippingData?.options)
+              ? shippingData.options
+              : Array.isArray(shippingData?.quotes)
+                ? shippingData.quotes
+                : [];
+
+          if (rawOptions.length === 0) {
+            console.warn("[sales-tool] shipping-quote returned no options:", JSON.stringify(shippingData).slice(0, 300));
+            return JSON.stringify({
+              success: false,
+              error: "Não há opções de frete disponíveis para este CEP no momento.",
+            });
+          }
+
+          const options = rawOptions.map((opt: any) => ({
             carrier: opt.carrier || opt.name || "Transportadora",
             service: opt.service || opt.name || "",
             price: opt.price != null ? `R$ ${Number(opt.price).toFixed(2)}` : "Grátis",
