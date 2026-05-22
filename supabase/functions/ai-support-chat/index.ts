@@ -6822,6 +6822,48 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
     }
 
+    // ============================================
+    // [Reg #17.6] HANDOFF SILENCE GATE — silêncio comercial no turno do handoff
+    // Quando `request_human_handoff` foi acionada com sucesso NESTE turno
+    // (não bloqueada pelo guardrail), a resposta de texto NÃO pode conter
+    // copy comercial (preço, link, produto, kit, frete, cupom). O modelo
+    // costuma misturar acolhimento + nova oferta, o que soa insensível em
+    // reclamação. Aqui substituímos por mensagem neutra de transferência
+    // se detectarmos qualquer marcador comercial.
+    // ============================================
+    try {
+      const handoffToolSucceeded = toolResultsThisTurn.some((tr: any) => {
+        if (tr?.tool !== "request_human_handoff") return false;
+        const p = tr?.parsed;
+        return p && typeof p === "object" && p.success === true && !p.blocked;
+      });
+      if (handoffToolSucceeded && aiContent && typeof aiContent === "string") {
+        const COMMERCIAL_MARKERS = [
+          /R\$\s?\d/i,                                    // preço
+          /https?:\/\//i,                                 // link de checkout/produto
+          /\b(frete|entrega|prazo|cep)\b/i,               // frete
+          /\b(cupom|desconto|promo[çc][ãa]o)\b/i,         // cupom/desconto
+          /\b(kit|combo|leve\s+\d|\d\s+unidades?)\b/i,    // upsell
+          /\b(adicionei|adiciono|no\s+carrinho|finalizar|gera(r)?\s+link)\b/i, // ação de venda
+          /\b(quer\s+ver|quer\s+que\s+eu|posso\s+(te\s+)?mostrar|te\s+mando)\b/i, // gancho comercial
+        ];
+        const hasCommercial = COMMERCIAL_MARKERS.some((re) => re.test(aiContent));
+        if (hasCommercial) {
+          const reasonHint = (handoffReason || "").toLowerCase();
+          const isComplaint = /complaint|angry|reclama|chargeb|atras|defeit|n[ãa]o\s+chegou/i.test(reasonHint);
+          const replacement = isComplaint
+            ? "Sinto muito pelo ocorrido. Já estou passando seu caso pra um humano da nossa equipe — em instantes te respondem por aqui."
+            : "Vou passar agora pra um humano da nossa equipe finalizar com você. Em instantes te respondem por aqui.";
+          console.warn(
+            `[ai-support-chat] [Reg #17.6] handoff-silence-gate scrubbed commercial copy on handoff turn. reason=${handoffReason ?? "unknown"} before="${aiContent.slice(0,160)}"`,
+          );
+          aiContent = replacement;
+        }
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #17.6] handoff-silence-gate failed:", (e as Error).message);
+    }
+
     const latencyMs = Date.now() - startTime;
 
     // ============================================
