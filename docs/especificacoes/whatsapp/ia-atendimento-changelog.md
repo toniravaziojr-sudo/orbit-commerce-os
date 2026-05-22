@@ -1302,3 +1302,72 @@ Turn Aggregator, TPR v2, Planner, Critic, Tool Executor, redução de gates.
 Memória `mem://features/ai/arch18-fase-b2-model-roles`.
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação: enviar as 4 frases-teste no WhatsApp real e confirmar nos logs `composer=gpt-5` + qualidade perceptível superior nas respostas consultivas.
+
+---
+
+## Registro #28 — Marketplace Scrub Determinístico — 22/mai/2026
+
+**Data:** 2026-05-22
+**Tipo:** Gate determinístico pós-resposta
+**Escopo:** Canais `mercadolivre`, `shopee`, `tiktok_shop`, `facebook_comments`, `instagram_comments`
+
+### Por quê
+Marketplaces e comentários públicos banem contas que direcionam o cliente para fora da plataforma (link de site, WhatsApp, e-mail, telefone). Confiar apenas em instrução de prompt é frágil — qualquer regressão de modelo ou prompt reabre o risco. Era necessário gate determinístico, independente do modelo.
+
+### O que mudou
+- Novo módulo de scrub aplicado **após** a resposta da IA e **antes** da persistência/envio.
+- Remove URLs externas (whitelist do domínio próprio da loja via `storeUrl`), links de WhatsApp/Messenger/Telegram (`wa.me`, `m.me`, `t.me`, `api.whatsapp.com`), e-mails e telefones BR.
+- Se a resposta esvaziar após o scrub, devolve fallback do canal pedindo continuidade dentro da própria plataforma.
+- Prompt do sistema (`channelRestrictions`) também reforçado como primeira linha de defesa, citando explicitamente Mercado Livre, Shopee, TikTok Shop, Facebook Comments e Instagram Comments.
+
+### Validação técnica
+- Função pura, sem dependência de DB ou modelo — comportamento determinístico.
+- Whitelist do `storeUrl` preserva links legítimos para a própria loja do tenant.
+- Canais fora da lista (WhatsApp, e-mail, web) **não** sofrem scrub — preservado comportamento atual.
+
+### Anti-regressão
+Memória `mem://constraints/marketplace-scrub-deterministic-gate`. Novos canais de marketplace entram no `MARKETPLACE_CHANNELS` do módulo e no `channelRestrictions` do prompt. Remoção do gate exige aprovação explícita.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação: enviar mensagem real em ML/Shopee/TikTok/comentários e confirmar que qualquer tentativa de URL/telefone/e-mail é removida antes de chegar ao cliente.
+
+---
+
+## Registro #29 — IA Universal em Todos os Canais — 22/mai/2026
+
+**Data:** 2026-05-22
+**Tipo:** Expansão de cobertura (mesmo motor de IA em todos os canais)
+**Escopo:** Global (Respeite o Homem como piloto único)
+
+### Por quê
+O motor da IA de atendimento/vendas só atendia WhatsApp e e-mail de forma plena. Messenger, Instagram DM, Instagram/Facebook Comments, Mercado Livre (Perguntas), Shopee (Chat) e TikTok Shop (Mensagens) ou não estavam integrados ou não acionavam o pipeline da IA. Para fechar o ciclo de "IA universal de atendimento", todos os canais ativos do tenant precisam passar pelo mesmo pipeline (TPR, Catalog Probe, Working Memory, Output Gates, Scrubbers).
+
+### O que mudou
+1. **Despachante único de saída.** Toda resposta da IA para Messenger, Instagram DM, Instagram Comments, Facebook Comments, Mercado Livre, Shopee e TikTok Shop passa por um único ponto de envio. Anti-spam, retries e auditoria centralizados.
+2. **Ingestão padronizada.**
+   - **Mercado Livre:** webhook de perguntas busca o conteúdo, persiste na conversa e aciona a IA para perguntas não respondidas.
+   - **Shopee:** webhook ingere mensagens de chat e aciona a IA.
+   - **TikTok Shop:** webhook ingere notificações de mensagem e aciona a IA.
+   - **Instagram Comments:** webhook agora roteia comentários para o pipeline, com `page_id` no metadata para resolver o token de envio.
+3. **Webhooks não enviam mais direto.** Função única: ingerir → persistir → criar/atualizar conversa com metadata correta → acionar pipeline. Saída exclusiva do despachante.
+4. **Catalog Base Forced universal.** Comportamento que prioriza produtos-base sobre kits deixou de depender de flag específica do tenant — passa a ser default para qualquer tenant com payload comercial cadastrado. Continua com kill switch técnico para rollback.
+
+### Validação técnica
+- ✅ Código do despachante e do scrubber existem no repositório e estão importados no pipeline principal da IA.
+- ✅ Memórias de governança criadas e indexadas.
+- ✅ Changelog oficial atualizado (este registro).
+- ⏳ **Depende do tenant:** envio em Shopee e TikTok Shop exige credenciais específicas das plataformas (Partner ID, App Key, secret de assinatura) cadastradas pelo lojista. Sem isso, o despachante registra erro e segue sem entregar a mensagem nesses dois canais — demais canais (WhatsApp, e-mail, Messenger, Instagram DM, Instagram/Facebook Comments, Mercado Livre) já funcionam ponta a ponta com as conexões existentes.
+- ⏳ **Validação real ponta a ponta:** depende de mensagem real chegando em cada canal (não é possível validar sem inbound real).
+
+### Anti-regressão
+- Memória `mem://constraints/ai-channel-outbound-dispatcher` — único caminho de saída para os 7 canais novos.
+- Memória `mem://constraints/marketplace-scrub-deterministic-gate` — gate determinístico contra URLs/telefones/e-mails em marketplaces.
+
+### Roteiro de validação real (para o operador)
+1. **Mercado Livre:** publicar uma pergunta em um anúncio do tenant piloto. Esperar resposta da IA dentro do próprio anúncio, sem link externo nem telefone.
+2. **Messenger (Facebook):** mandar mensagem para a página conectada. Esperar resposta da IA pelo Messenger.
+3. **Instagram DM:** mandar DM para a conta conectada. Esperar resposta da IA pelo DM.
+4. **Instagram Comments:** comentar em um post da conta conectada. Esperar resposta pública da IA no próprio comentário, sem link externo.
+5. **Facebook Comments:** comentar em um post da página conectada. Mesmo comportamento.
+6. **Shopee / TikTok Shop:** validar apenas após o lojista cadastrar as credenciais de envio das duas plataformas. Sem credenciais, ingestão funciona mas envio falha (esperado).
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado pelo lado do sistema. Pendente de validação real ponta a ponta por canal (depende de inbound real do cliente) e de credenciais Shopee/TikTok Shop pelo lojista para fechar 100% dos canais.
