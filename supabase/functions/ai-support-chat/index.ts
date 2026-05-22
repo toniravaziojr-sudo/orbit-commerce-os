@@ -5490,8 +5490,65 @@ Cliente: "vocês entregam em SP?"
         }
       }
 
+      // [Reg #2.17 Fase 3] Reflexos determinísticos do roteador.
+      // Rodam DEPOIS de decideNextState e ANTES do buildPromptForState.
+      // Consomem o turno consolidado (Turn Orchestrator) + intent classificado
+      // e corrigem desvios reconhecíveis (CEP, frete, pós-venda, turno curto
+      // com intenção clara). Aditivos: se nenhum dispara, nada muda.
+      let reflexFinalState: PipelineState = pipelineState;
+      try {
+        const cartCustomerData =
+          (preloadedActiveCart as any)?.customer_data || {};
+        const knownCep = !!(
+          cartCustomerData.postal_code ||
+          cartCustomerData.zip ||
+          cartCustomerData.cep
+        );
+        const reflex = detectDeterministicReflex({
+          consolidatedText: lastMessageContent || "",
+          state: pipelineState,
+          hasActiveCart: hasActiveCartPersisted,
+          familyFocus: familyFocusBefore,
+          lastFocusedProductName: lastFocusedProductNameBefore,
+          turnIntent: turnIntentClassified,
+          tprAskedShipping:
+            typeof turnClassification?.asked_about_shipping === "boolean"
+              ? turnClassification.asked_about_shipping
+              : null,
+          tprIsSupportTopic:
+            typeof turnClassification?.is_support_topic === "boolean"
+              ? turnClassification.is_support_topic
+              : null,
+          tprAskedPaymentLink:
+            typeof turnClassification?.asked_about_payment_or_link === "boolean"
+              ? turnClassification.asked_about_payment_or_link
+              : null,
+          hasKnownCustomerCep: knownCep,
+        });
+        if (reflex) {
+          contextualBlocks.push(reflex.promptBlock);
+          if (reflex.newState && reflex.newState !== pipelineState) {
+            reflexFinalState = reflex.newState;
+            console.log(
+              `[ai-support-chat] [Reg #2.17 Fase 3] reflex=${reflex.reflexId} ` +
+              `state_override ${pipelineState} → ${reflex.newState} reason=${reflex.reason}`
+            );
+          } else {
+            console.log(
+              `[ai-support-chat] [Reg #2.17 Fase 3] reflex=${reflex.reflexId} ` +
+              `state_kept=${pipelineState} reason=${reflex.reason}`
+            );
+          }
+        }
+      } catch (e) {
+        console.warn(
+          "[ai-support-chat] [Reg #2.17 Fase 3] reflex detector failed:",
+          (e as Error).message
+        );
+      }
+
       const routed = buildPromptForState({
-        state: pipelineState,
+        state: reflexFinalState,
         allTools: SALES_TOOLS,
         tenant: {
           // [B.1] systemPromptComplement e channelCustomInstructions via policy.
