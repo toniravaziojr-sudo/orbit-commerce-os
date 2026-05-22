@@ -2598,11 +2598,127 @@ async function executeSalesTool(
           const hasPaidOption = options.some((o: any) => !o.is_free);
 
           const hasFreeLineOffers = sameLineFreeOffers.length > 0;
-          const offerInstr = hasPaidOption && hasFreeLineOffers
-            ? "Frete pago E existem kits/packs da MESMA LINHA com frete grátis. OBRIGATÓRIO no mesmo turno: (1) informar o valor real do frete e prazo; (2) oferecer 1 dos kits listados em same_line_free_shipping_offers com frete grátis. Use o nome EXATO. Máximo 1 oferta por conversa. Nunca invente kit fora desta lista."
-            : hasPaidOption
-              ? "Frete pago, sem kits da mesma linha com frete grátis. Apenas informe valor e prazo, sem upsell."
-              : "Frete já está grátis — apenas confirme, sem upsell.";
+
+          // ============================================================
+          // [Reg #19] UPSELL PROATIVO — gatilho qty=1 + frete pago
+          // Cenário: 1 unidade no carrinho + frete cotado pago + ainda não
+          // ofertou nessa conversa. Gera upsell_opportunity com prioridade:
+          //   (a) pack do mesmo produto com frete grátis
+          //   (b) kit multi-produto da mesma família com frete grátis
+          //   (c) gap até a faixa de frete grátis do tenant
+          // Flag kill-switch: ai_support_config.metadata.arch19_proactive_upsell_qty1=false
+          // ============================================================
+          const arch19Flag = (effectiveConfig as any)?.metadata?.arch19_proactive_upsell_qty1;
+          const arch19On = arch19Flag !== false;
+
+          const totalCartQty = cartItems.reduce(
+            (s: number, it: any) => s + Number(it.quantity || 1),
+            0,
+          );
+          const isSingleUnitCart = totalCartQty === 1 && cartItems.length === 1;
+
+          let upsellOfferedCount = 0;
+          try {
+            const { data: salesStateRow } = await supabase
+              .from("conversation_sales_state")
+              .select("upsell_offered_count")
+              .eq("conversation_id", conversationId)
+              .maybeSingle();
+            upsellOfferedCount = Number((salesStateRow as any)?.upsell_offered_count || 0);
+          } catch (_e) { /* noop */ }
+
+          let freeShippingThresholdCents = 0;
+          try {
+            const { data: storeSettings } = await supabase
+              .from("store_settings")
+              .select("free_shipping_min_cents")
+              .eq("tenant_id", tenantId)
+              .maybeSingle();
+            freeShippingThresholdCents = Number(
+              (storeSettings as any)?.free_shipping_min_cents || 0,
+            );
+          } catch (_e) { /* noop */ }
+
+          // Split mesma-linha em packs (mesmo produto) vs kits (multi-produto)
+          const packOffers: any[] = [];
+          const familyKitOffers: any[] = [];
+          for (const grp of sameLineFreeOffers) {
+            for (const opt of (grp.free_shipping_options || [])) {
+              const nm = String(opt.name || "");
+              const isKitName = /\b(kit|combo)\b/i.test(nm);
+              const entry = {
+                base_product: grp.base_product,
+                base_paid_price: grp.base_paid_price,
+                name: opt.name,
+                price: opt.price,
+              };
+              if (isKitName) familyKitOffers.push(entry);
+              else packOffers.push(entry);
+            }
+          }
+
+          const gapToFreeShippingCents = freeShippingThresholdCents > 0
+            ? Math.max(0, freeShippingThresholdCents - cartSubtotalCents)
+            : 0;
+          // Considera "alcançável" se faltar até R$ 50,00 (configurável no futuro)
+          const gapReachable = gapToFreeShippingCents > 0 && gapToFreeShippingCents <= 5000;
+
+          let upsellOpportunity: any = null;
+          let upsellDecision = "skip";
+          if (!arch19On) {
+            upsellDecision = "flag_off";
+          } else if (!hasPaidOption) {
+            upsellDecision = "shipping_already_free";
+          } else if (!isSingleUnitCart) {
+            upsellDecision = `cart_qty=${totalCartQty}_items=${cartItems.length}`;
+          } else if (upsellOfferedCount > 0) {
+            upsellDecision = "already_offered_in_conversation";
+          } else {
+            let priority: "pack" | "family_kit" | "free_shipping_gap" | null = null;
+            if (packOffers.length > 0) priority = "pack";
+            else if (familyKitOffers.length > 0) priority = "family_kit";
+            else if (gapReachable) priority = "free_shipping_gap";
+
+            if (priority) {
+              const cheapestShipBrl = (minPriceCents === Number.MAX_SAFE_INTEGER ? 0 : minPriceCents) / 100;
+              const instructionByPriority = {
+                pack: `OBRIGATÓRIO neste turno: apresentar valor (R$ ${cheapestShipBrl.toFixed(2)}) e prazo do frete E oferecer 1 pack do mesmo produto da lista pack_offers (frete grátis). Use o nome EXATO da lista. Não invente. NÃO envie link de checkout neste turno — só após o cliente decidir.`,
+                family_kit: `OBRIGATÓRIO neste turno: apresentar valor (R$ ${cheapestShipBrl.toFixed(2)}) e prazo do frete E oferecer 1 kit da família da lista family_kit_offers (frete grátis). Use o nome EXATO da lista. Não invente. NÃO envie link de checkout neste turno — só após o cliente decidir.`,
+                free_shipping_gap: `OBRIGATÓRIO neste turno: apresentar valor (R$ ${cheapestShipBrl.toFixed(2)}) e prazo do frete E sugerir 1 item complementar do catálogo (use search_products se precisar) para cruzar a faixa de frete grátis (faltam R$ ${(gapToFreeShippingCents / 100).toFixed(2)} para R$ ${(freeShippingThresholdCents / 100).toFixed(2)}). NÃO envie link de checkout neste turno.`,
+              };
+              upsellOpportunity = {
+                trigger: "qty1_paid_shipping",
+                priority,
+                pack_offers: packOffers.slice(0, 3),
+                family_kit_offers: familyKitOffers.slice(0, 3),
+                free_shipping_gap_brl: gapReachable ? +(gapToFreeShippingCents / 100).toFixed(2) : null,
+                free_shipping_threshold_brl: freeShippingThresholdCents > 0
+                  ? +(freeShippingThresholdCents / 100).toFixed(2)
+                  : null,
+                instruction: instructionByPriority[priority],
+              };
+              upsellDecision = `triggered_priority=${priority}`;
+            } else {
+              upsellDecision = "no_offer_available";
+            }
+          }
+
+          console.log(
+            `[ai-support-chat] [Reg #19] upsell qty=${totalCartQty} paid=${hasPaidOption} ` +
+            `offered_before=${upsellOfferedCount} packs=${packOffers.length} kits=${familyKitOffers.length} ` +
+            `gap_cents=${gapToFreeShippingCents} threshold_cents=${freeShippingThresholdCents} ` +
+            `decision=${upsellDecision}`,
+          );
+
+          // upsell_hint legado (mantém compatibilidade com gate Reg #17.7).
+          // Se o novo motor disparou, sua instrução prevalece.
+          const offerInstr = upsellOpportunity
+            ? upsellOpportunity.instruction
+            : (hasPaidOption && hasFreeLineOffers)
+              ? "Frete pago E existem kits/packs da MESMA LINHA com frete grátis. OBRIGATÓRIO no mesmo turno: (1) informar o valor real do frete e prazo; (2) oferecer 1 dos kits listados em same_line_free_shipping_offers com frete grátis. Use o nome EXATO. Máximo 1 oferta por conversa. Nunca invente kit fora desta lista."
+              : hasPaidOption
+                ? "Frete pago, sem kits da mesma linha com frete grátis. Apenas informe valor e prazo, sem upsell."
+                : "Frete já está grátis — apenas confirme, sem upsell.";
 
           return JSON.stringify({
             success: true,
@@ -2613,6 +2729,7 @@ async function executeSalesTool(
             has_paid_shipping: hasPaidOption,
             same_line_free_shipping_offers: sameLineFreeOffers,
             upsell_hint: offerInstr,
+            upsell_opportunity: upsellOpportunity,
           });
 
         } catch (shippingErr) {
