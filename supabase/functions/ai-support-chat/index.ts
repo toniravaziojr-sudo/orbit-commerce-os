@@ -2466,24 +2466,30 @@ async function executeSalesTool(
 
         const cartItems = shippingCart.items as any[];
         
-        // Get product details for weight/dimensions
+        // Get product details for weight/dimensions/price/free_shipping flags
         const productIds = cartItems.map((i: any) => i.product_id);
         const { data: shippingProducts } = await supabase
           .from("products")
-          .select("id, name, weight, width, height, length")
+          .select("id, name, weight, width, height, length, price, sale_price, free_shipping, free_shipping_method")
           .in("id", productIds)
           .eq("tenant_id", tenantId);
 
-        // Build items for shipping quote
+        // Build items for shipping-quote (contract: recipient_cep + items[].price obrigatório)
+        let cartSubtotalCents = 0;
         const shippingItems = cartItems.map((item: any) => {
           const prod = shippingProducts?.find((p: any) => p.id === item.product_id);
+          const unitPrice = Number(item.unit_price ?? prod?.sale_price ?? prod?.price ?? 0);
+          cartSubtotalCents += Math.round(unitPrice * 100) * Number(item.quantity || 1);
           return {
             product_id: item.product_id,
-            quantity: item.quantity,
+            quantity: Number(item.quantity || 1),
             weight: prod?.weight || 300,
             width: prod?.width || 11,
             height: prod?.height || 2,
             length: prod?.length || 16,
+            price: unitPrice,
+            free_shipping: prod?.free_shipping ?? false,
+            free_shipping_method: prod?.free_shipping_method ?? null,
           };
         });
 
@@ -2502,8 +2508,9 @@ async function executeSalesTool(
             },
             body: JSON.stringify({
               tenant_id: tenantId,
-              postal_code: postalCode,
+              recipient_cep: postalCode,
               items: shippingItems,
+              cart_subtotal_cents: cartSubtotalCents,
             }),
           });
 
@@ -2532,16 +2539,35 @@ async function executeSalesTool(
             });
           }
 
-          const options = rawOptions.map((opt: any) => ({
-            carrier: opt.carrier || opt.name || "Transportadora",
-            service: opt.service || opt.name || "",
-            price: opt.price != null ? `R$ ${Number(opt.price).toFixed(2)}` : "Grátis",
-            price_cents: opt.price != null ? Math.round(Number(opt.price) * 100) : 0,
-            delivery_days: opt.delivery_days || opt.days || opt.deadline || null,
-            is_free: opt.price === 0 || opt.price === "0" || opt.is_free,
-          }));
+          const options = rawOptions.map((opt: any) => {
+            const priceNum = Number(opt.price ?? 0);
+            return {
+              carrier: opt.carrier || opt.service_name || opt.name || "Transportadora",
+              service: opt.service_name || opt.service || opt.name || "",
+              price: priceNum > 0 ? `R$ ${priceNum.toFixed(2)}` : "Grátis",
+              price_cents: Math.round(priceNum * 100),
+              delivery_days: opt.estimated_days ?? opt.delivery_days ?? opt.days ?? opt.deadline ?? null,
+              is_free: priceNum === 0 || opt.is_free === true,
+            };
+          });
 
-          return JSON.stringify({ success: true, options, postal_code: postalCode });
+          const minPriceCents = options.reduce(
+            (m: number, o: any) => (o.price_cents < m ? o.price_cents : m),
+            Number.MAX_SAFE_INTEGER,
+          );
+          const hasPaidOption = options.some((o: any) => !o.is_free);
+
+          return JSON.stringify({
+            success: true,
+            options,
+            postal_code: postalCode,
+            cart_subtotal_cents: cartSubtotalCents,
+            cheapest_price_cents: minPriceCents === Number.MAX_SAFE_INTEGER ? 0 : minPriceCents,
+            has_paid_shipping: hasPaidOption,
+            upsell_hint: hasPaidOption
+              ? "Frete pago. Se houver kit/quantidade maior da mesma família com frete grátis, ofereça AGORA no mesmo turno (máximo 1×)."
+              : "Frete já está grátis — apenas confirme, sem upsell.",
+          });
         } catch (shippingErr) {
           console.error("[sales-tool] shipping calc error:", shippingErr);
           return JSON.stringify({ success: false, error: "Erro ao calcular frete. Tente novamente." });
