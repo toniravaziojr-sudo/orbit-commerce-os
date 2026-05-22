@@ -65,8 +65,37 @@ Validação da Fase 1 (TPR como fonte primária de classificação de turno) atr
 - **Padrão emergente:** A IA está perdendo CEPs quando vêm isolados ou em contexto não esperado. Falta um detector dedicado de "CEP recebido → ativar contexto de frete".
 - Latência alta no B2 merece investigação separada (custo).
 
-## Onda C — (a executar)
+## Onda C — Compra com CEP, recusa de upsell e troca de família
 
-## Onda C — (a executar)
+### C1 — Compra de 2 shampoos + CEP ✅
+- **Status:** ✅ OK (com ressalva)
+- **Esperado:** Aceitar intenção, pedir variante (2 SKUs disponíveis), receber CEP, prosseguir para cotação após variante confirmada.
+- **Observado:**
+  - Turno 1: pediu escolha entre Preventive Power e Calvície Zero — correto.
+  - Turno 2 (CEP): reconheceu o CEP, agradeceu, e pediu variante novamente para fechar — **manteve contexto** e tratou CEP como sinal válido (diferente do B1).
+- **Ressalva:** O cálculo de frete só dispara após escolha da variante. Comportamento aceitável, mas vale observar se na sequência o `calculate_shipping` será chamado proativamente.
+- **Conclusão:** Captura de CEP funciona quando o turno anterior já estabeleceu intenção de compra clara. Reforça hipótese do B1 (CEP isolado em estado `discovery` é descartado).
+
+### C2 — Compra de kit + recusa de upsell + pedido de link 🔴
+- **Status:** ❌ REGRESSÃO CRÍTICA (mesma família da A2)
+- **Esperado:** Listar variantes do Kit Barba, aceitar recusa de upsell, gerar link de checkout.
+- **Observado:** Logo no primeiro turno ("Quero o kit barba") classificou como `purchase_intent` mas **disparou handoff humano**: "Vou chamar alguém da equipe pra resolver isso direto com você." Os dois turnos seguintes ficaram travados na mesma resposta automática (latência <1s = já em modo handoff, sem rodar pipeline).
+- **Causa provável:** Mesmo padrão da A2 — classificador rotulando intenção de compra como caso para handoff. Aqui o `intent.intent` veio como `purchase_intent` mas `handoff=true` foi setado mesmo assim. Sugere que existe uma segunda camada (regra de handoff) **independente do TPR/intent classifier** que está disparando errado.
+- **Impacto:** BLOQUEANTE. Cliente que diz "quero comprar X" cai em fila de atendimento humano em vez de receber atendimento de vendas. Provavelmente afeta produção também.
+- **Hipótese:** Existe regra de handoff sensível a "kit barba" ou a algum termo do produto. Investigar lógica de handoff que roda em paralelo/depois do classificador.
+
+### C3 — Mudança de família (balm → shampoo) ✅
+- **Status:** ✅ OK
+- **Esperado:** Não ficar preso no balm; reconhecer mudança de foco; listar shampoos.
+- **Observado:** Primeiro turno explicou que não há balm específico de barba (o que existe é balm para couro cabeludo) e ofereceu detalhamento. Segundo turno (mudança para shampoo) **trocou foco corretamente**, listou os 2 shampoos com diferenciação clara.
+- **Conclusão:** Máquina de estados não está travando family_focus indevidamente. Anti-cegueira de família funcionando bem.
+
+### Resumo Onda C
+- 2/3 OK, 1 regressão crítica (C2) que reforça o problema da A2.
+- **Padrão consolidado:** O sistema de **handoff** está disparando em casos claros de venda. Não é só TPR — há uma segunda camada de decisão de handoff que ignora o `intent=purchase_intent` e manda para humano. Esse é o **bug #1** a corrigir.
+- Bom: contexto entre turnos preservado quando há produto definido (C1 vs B1), e mudança de família funciona bem (C3).
+
+---
 
 ## Onda D — (a executar)
+
