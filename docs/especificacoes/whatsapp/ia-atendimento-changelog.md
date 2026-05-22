@@ -44,7 +44,9 @@
 | Não citar preço sem o cliente perguntar | ✅ Coberto | Regra global `PRICE-ON-DEMAND` em `base.ts` + reforço em discovery/recommendation | Reg. #2.3 |
 | Não trocar conjunto ofertado por kit consolidado | ✅ Coberto | `BUNDLE LOCK` global em `base.ts` + reforço em recommendation; trava de SKU já existente cobre execução | Reg. #2.3 |
 | Espelhar saudação ("boa tarde" → "boa tarde") sem resetar thread ativa | ✅ Coberto | `greeting-mirror.ts` + `gateGreetingMirror` com `isMidThread` (<30min vira "Oi de novo") | Reg. #14 |
-| Honrar pergunta consultiva antes de listar produto | ⚠️ Só prompt | Sem regra dura | Reg. #2 — pendente 3.6 |
+| Honrar pergunta consultiva antes de listar produto | ✅ Coberto | Reflexo "turno curto + intent" + Working Memory + scrubber de reciprocidade | Reg. #2.17 Fases B–C |
+| Dor física do cliente nunca dispara handoff comercial | ✅ Coberto | `pain-symptom-detector.ts` + veto no `handoff-motor.ts` | Reg. #2.17 Fases B–C |
+| CEP / frete / pós-venda / turno curto não caem em "Me conta o que você precisa" | ✅ Coberto | `deterministic-reflexes.ts` rodando antes do `buildPromptForState` | Reg. #2.17 Fases B–C |
 | Enviar imagem na 1ª apresentação real do produto | ✅ Coberto | `product-detail` exige `send_product_image` na 1ª menção (1x/produto) | Reg. #2.3 |
 | Link de checkout no domínio próprio da loja | ✅ Coberto | `ai-support-chat` consulta `tenant_domains` (preferindo `is_primary`) | Reg. #2.1 |
 | Carrinho hidratado ao abrir o link enviado | ✅ Coberto | `useCheckoutLinkLoader` inicializa `isLoading=true` quando há `?link=`/`?product=` na URL | Reg. #2.2 |
