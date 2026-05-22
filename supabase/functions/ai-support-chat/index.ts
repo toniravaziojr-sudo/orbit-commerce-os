@@ -5958,7 +5958,39 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
               generateCheckoutAvailable &&
               (salesIntentFlags.buy || explicitBuyNow || recentPurchaseIntentBefore);
 
-            if (forceCheckoutLink) {
+            // [Reg #17.7] FIX-SHIPPING — pergunta de frete/entrega força calculate_shipping
+            // antes de qualquer outra ação (e antes de gerar link). Sem este gate, o
+            // modelo pulava direto para generate_checkout_link e perdia (a) valor real
+            // do frete e (b) upsell de kit com frete grátis na mesma linha.
+            const lcMsgForShip = (lastMessageContent || "").toLowerCase();
+            const shippingIntent = /(paga\s+frete|tem\s+frete|cobra\s+frete|frete\s+gr[áa]tis|quanto\s+(é|fica|sai|custa|de)\s+(o\s+)?(frete|entrega)|valor\s+do\s+frete|pre[çc]o\s+do\s+frete|prazo\s+de\s+entrega|demora\s+quanto|chega\s+em\s+quantos|\bfrete\b|\bentrega\b)/i.test(lcMsgForShip);
+            const cepInTurn = /\b\d{5}-?\d{3}\b/.test(lastMessageContent || "");
+            const cepKnown = cepInTurn || !!((preloadedActiveCart as any)?.customer_data?.zip || (preloadedActiveCart as any)?.customer_data?.cep);
+            const cartHasItemsNow =
+              (preloadedActiveCart?.items?.length ?? 0) > 0 ||
+              toolsCalledThisTurn.includes("add_to_cart");
+            const shippingToolAvailable = pipelineFilteredTools.some(
+              (t: any) => t?.function?.name === "calculate_shipping"
+            );
+            const shippingAlreadyCalled = toolsCalledThisTurn.includes("calculate_shipping");
+            const forceShippingTool =
+              shippingIntent &&
+              cepKnown &&
+              cartHasItemsNow &&
+              shippingToolAvailable &&
+              !shippingAlreadyCalled;
+
+            if (forceShippingTool) {
+              requestBody.tool_choice = {
+                type: "function",
+                function: { name: "calculate_shipping" },
+              };
+              console.log(
+                `[ai-support-chat] [Reg #17.7] forcing tool_choice=calculate_shipping ` +
+                `cep_in_turn=${cepInTurn} cart_items=${preloadedActiveCart?.items?.length ?? 0} ` +
+                `add_to_cart_ran=${toolsCalledThisTurn.includes("add_to_cart")}`
+              );
+            } else if (forceCheckoutLink) {
               requestBody.tool_choice = {
                 type: "function",
                 function: { name: "generate_checkout_link" },
