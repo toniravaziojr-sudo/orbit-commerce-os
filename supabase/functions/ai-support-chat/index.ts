@@ -6348,13 +6348,28 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           ? { max_completion_tokens: stateMaxTokens }
           : { max_tokens: stateMaxTokens };
 
+        // [Reg #17.7] Reavalia forçamento de calculate_shipping no follow-up:
+        // após add_to_cart, o carrinho passa a ter item e a regra deve disparar.
+        let followUpToolChoice: any = pipelineFilteredTools.length > 0 ? "auto" : undefined;
+        if (pipelineFilteredTools.length > 0 && salesModeEnabled) {
+          const lcMsgFU = (lastMessageContent || "").toLowerCase();
+          const shipIntentFU = /(paga\s+frete|tem\s+frete|cobra\s+frete|frete\s+gr[áa]tis|quanto\s+(é|fica|sai|custa|de)\s+(o\s+)?(frete|entrega)|valor\s+do\s+frete|pre[çc]o\s+do\s+frete|prazo\s+de\s+entrega|\bfrete\b|\bentrega\b)/i.test(lcMsgFU);
+          const cepFU = /\b\d{5}-?\d{3}\b/.test(lastMessageContent || "") || !!((preloadedActiveCart as any)?.customer_data?.zip);
+          const cartFU = (preloadedActiveCart?.items?.length ?? 0) > 0 || toolsCalledThisTurn.includes("add_to_cart");
+          const shipToolFU = pipelineFilteredTools.some((t: any) => t?.function?.name === "calculate_shipping");
+          const shipDoneFU = toolsCalledThisTurn.includes("calculate_shipping");
+          if (shipIntentFU && cepFU && cartFU && shipToolFU && !shipDoneFU) {
+            followUpToolChoice = { type: "function", function: { name: "calculate_shipping" } };
+            console.log(`[ai-support-chat] [Reg #17.7][follow-up] forcing tool_choice=calculate_shipping after add_to_cart`);
+          }
+        }
         const followUpBody: any = {
           model: usedModel,
           messages: currentMessages,
           ...tokenParamsFollow,
           // [F2] Mantém o filtro por estado também no follow-up
           tools: pipelineFilteredTools.length > 0 ? pipelineFilteredTools : undefined,
-          tool_choice: pipelineFilteredTools.length > 0 ? "auto" : undefined,
+          tool_choice: followUpToolChoice,
           parallel_tool_calls: false,
         };
         // [F2-FIX] Mesmo controle de reasoning no follow-up + cache de incompat
