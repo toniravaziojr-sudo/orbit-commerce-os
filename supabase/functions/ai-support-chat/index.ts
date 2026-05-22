@@ -2493,9 +2493,40 @@ async function executeSalesTool(
           };
         });
 
+        // ✦ Descobre ofertas da MESMA LINHA com frete grátis para itens pagos do carrinho.
+        // "Mesma linha" = produtos cujo nome começa com o nome-base do item em foco
+        // (ex.: "Shampoo Preventive Power" → matches "Shampoo Preventive Power (3x)").
+        const sameLineFreeOffers: any[] = [];
+        const paidProducts = (shippingProducts || []).filter((p: any) => !p?.free_shipping);
+        for (const paid of paidProducts) {
+          // Pega as primeiras 3 palavras como raiz (ex.: "Shampoo Preventive Power")
+          const root = String(paid.name || "").split(/\s+/).slice(0, 3).join(" ").trim();
+          if (root.length < 4) continue;
+          const { data: relatives } = await supabase
+            .from("products")
+            .select("id, name, price, sale_price, free_shipping")
+            .eq("tenant_id", tenantId)
+            .eq("free_shipping", true)
+            .ilike("name", `${root}%`)
+            .neq("id", paid.id)
+            .limit(6);
+          if (relatives && relatives.length > 0) {
+            sameLineFreeOffers.push({
+              base_product: paid.name,
+              base_paid_price: paid.sale_price ?? paid.price,
+              free_shipping_options: relatives.map((r: any) => ({
+                name: r.name,
+                price: r.sale_price ?? r.price,
+              })),
+            });
+          }
+        }
+
         // Call shipping-quote edge function
         const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
         const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+
 
         try {
           const shippingResp = await fetch(`${supabaseUrl}/functions/v1/shipping-quote`, {
