@@ -1407,3 +1407,37 @@ O motor da IA de atendimento/vendas só atendia WhatsApp e e-mail de forma plena
 6. **Shopee / TikTok Shop:** validar apenas após o lojista cadastrar as credenciais de envio das duas plataformas. Sem credenciais, ingestão funciona mas envio falha (esperado).
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado pelo lado do sistema. Pendente de validação real ponta a ponta por canal (depende de inbound real do cliente) e de credenciais Shopee/TikTok Shop pelo lojista para fechar 100% dos canais.
+
+---
+
+## Registro #30 — Frete: cotação real + upsell de kit grátis (22/mai/2026)
+
+**Tipo:** Correção de fluxo (Modo Vendas WhatsApp)
+**Escopo:** `ai-support-chat` + `_shared/sales-pipeline/tool-filter`
+
+### Sintoma
+Bateria do tenant Respeite o Homem: ao perguntar "paga frete?" a IA respondia em texto ("sim, paga") sem cotar valor real e sem oferecer kit com frete grátis da mesma linha. Em casos com erro técnico, o handler quebrava ao receber objeto em vez de array do provedor.
+
+### Causa raiz
+1. `calculate_shipping` e `check_upsell_offers` só estavam liberados no estado `checkout_assist` do filtro de ferramentas — nos estados `recommendation`, `product_detail` e `decision` a ferramenta era bloqueada mesmo com o gate forçando uso.
+2. O handler enviava campos errados ao motor de frete (não usava `recipient_cep`, `price`, `cart_subtotal_cents`).
+3. Sem normalização da resposta do provedor (quebrava em `.map` quando vinha objeto `{options:[...]}`).
+4. Sem busca automática por kits da mesma linha com frete grátis.
+5. Loop de follow-up gerava link de checkout antes de a IA apresentar a oferta de upsell.
+
+### O que mudou
+- Liberada a ferramenta de frete e de upsell nos estados de recomendação, detalhe e decisão.
+- Handler de frete agora envia o contrato correto e normaliza retorno (array | objeto `.options` | objeto `.quotes`).
+- Busca automática de "same-line free shipping offers" (mesma família, `free_shipping=true`) injetada no resultado da ferramenta como contexto para a IA.
+- Gate de turno força `tool_choice="none"` no follow-up quando há oportunidade de upsell pendente — IA tem que entregar texto comercial antes de gerar link.
+- Query de produto alinhada ao schema real (`depth`, `price`, `active`).
+
+### Validação técnica executada
+- ✅ Frete retorna valor e prazo reais (ex.: Sedex R$ 11,15 / 1 dia).
+- ✅ Quando frete é pago, IA passa a citar nominalmente kits da linha com frete grátis (3×, 6×, 12×).
+- ✅ Link de checkout não é mais gerado antes do upsell.
+- ⏳ Pendente: fechamento real ponta a ponta (pagamento + ordem criada) em conversa nova.
+
+### Anti-regressão
+- Memória `mem://constraints/ai-shipping-must-trigger-tool-and-upsell-free-kit` (já indexada).
+- Qualquer mudança no `tool-filter.ts` deve preservar a liberação de `calculate_shipping`/`check_upsell_offers` nos 4 estados comerciais (`recommendation`, `product_detail`, `decision`, `checkout_assist`).
