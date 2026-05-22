@@ -63,6 +63,37 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #2.17 Fases B–C — Dor ≠ reclamação, motor único de handoff e reflexos do roteador — 22/mai/2026
+
+**Contexto:** após a Fase A (TPR primário), a auditoria das ondas A–D mostrou três falhas estruturais de raciocínio:
+1. Sintoma físico do cliente ("ressecada", "coçando", "calvície") era classificado como `complaint` e disparava handoff comercial — perdendo a venda.
+2. Existiam 4 caminhos paralelos setando `shouldHandoff=true` (intent classifier, palavras-chave, regras custom, conhecimento insuficiente) que sobrescreviam o intent classificado — caso C2 escalava mesmo com `purchase_intent`.
+3. Turnos curtos, CEP isolado, pergunta de frete e pergunta de pós-venda caíam em fallback genérico de descoberta ("Me conta o que você precisa…"), ignorando o intent já classificado.
+
+**Mudança (Fases 1–3 da Reg #2.17):**
+
+- **Fase 1 — Detector dor vs reclamação:** novo módulo `pain-symptom-detector.ts` com dois conjuntos de padrões (23+ sintomas físicos × 24+ reclamações reais de pedido). Em `ai-support-chat`, antes de aceitar `shouldHandoff=true` por reclamação, aplica veto se houver `purchase_intent` ou `is_product_pain_symptom=true` sem `is_order_complaint=true`. Sintoma puro nunca dispara handoff.
+- **Fase 2 — Motor único de handoff:** novo módulo `handoff-motor.ts` consolida as 4 fontes em um único ponto de decisão pós-classificação. Fontes viram sugestões; o motor decide aplicando o veto comercial. Pedido explícito de humano e reclamação real de pedido continuam fazendo override do veto. Log estruturado `[handoff-motor] decision=… vetoed=… winner=…` por turno.
+- **Fase 3 — 4 reflexos determinísticos do roteador:** novo módulo `deterministic-reflexes.ts` rodando depois de `decideNextState` e antes de `buildPromptForState`, sobre o turno consolidado pelo Turn Orchestrator:
+  1. **CEP recebido** — cota frete se há carrinho; senão confirma CEP e pede produto.
+  2. **Pergunta de frete** — chama `calculate_shipping` (com CEP) ou pede CEP, nunca cai em descoberta.
+  3. **Pergunta de pós-venda** — força estado `support` e pede identificação do pedido.
+  4. **Turno curto + intent classificado** — força `recommendation`/`product_detail`, proíbe "Me conta o que você precisa".
+
+**Validação técnica:**
+- `pain-symptom-detector.ts`: 8/8 cenários (dor pura → veto, intent purchase → veto, reclamação real → não veto, pedido explícito → não veto).
+- `handoff-motor.ts`: 8/8 (C2 não escala, A2 não escala, D1 escala, "quero falar com humano" escala).
+- `deterministic-reflexes.ts`: 8/8 (B1, B3, D2, D2b, D3, frete c/ e s/ CEP, mensagem normal sem reflex).
+- Edge function deployada e logs estruturados ativos.
+
+**Reversão:** desligando o detector de dor/reclamação ou o motor, o sistema volta ao comportamento anterior. Reflexos só atuam quando há sinal claro; sem sinal, não interferem.
+
+**O que NÃO mudou:** UI/UX, contrato de tools, working memory, máquina de estados (consumida, não estruturalmente alterada). Mesma resposta para o cliente quando não há os 3 desvios.
+
+**Memórias anti-regressão:** `mem://constraints/sales-pipeline-pain-vs-complaint-and-handoff-motor`, `mem://constraints/sales-pipeline-deterministic-reflexes`.
+
+---
+
 ## Registro #2.17 Fase A — TPR como fonte primária da leitura do turno — 22/mai/2026
 
 **Contexto:** análise crítica da pipeline F2 mostrou duplicidade entre o classificador inteligente do turno (TPR) e ~7 detectores regex que rodavam em paralelo dentro de `transitions.ts`. O TPR já entregava sinais equivalentes (saudação pura, produto citado, família, intenção de compra, pedido de link, suporte, dor/objetivo), mas a decisão de transição os ignorava e re-classificava por regex — gerando divergência silenciosa.
