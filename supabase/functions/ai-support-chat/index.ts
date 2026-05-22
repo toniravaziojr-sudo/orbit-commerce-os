@@ -7580,6 +7580,16 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           console.warn("[ai-support-chat] [Reg #2.10] focus snapshot lock failed:", (e as Error).message);
         }
 
+        // [Reg #19] Marca anti-insistência quando o motor de upsell proativo
+        // emitiu uma oportunidade neste turno (qualquer prioridade).
+        let arch19UpsellEmitted = false;
+        try {
+          const shipResult = toolResultsThisTurn.find((r: any) => r?.tool === "calculate_shipping")?.parsed;
+          if (shipResult?.upsell_opportunity?.priority) {
+            arch19UpsellEmitted = true;
+          }
+        } catch (_e) { /* noop */ }
+
         await patchSalesState(supabase, salesMemory, {
           stage: suggestedStage,
           last_greeting_at: isGreetingTurn ? new Date().toISOString() : undefined,
@@ -7589,6 +7599,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           add_asked_question_hashes: askedHashes,
           add_presented_product_ids: presentedIdsArr.length > 0 ? presentedIdsArr : undefined,
           add_presented_families: familyMentioned ? [familyMentioned] : undefined,
+          inc_upsell_offered_count: arch19UpsellEmitted ? 1 : undefined,
           merge_commercial_signals: {
             last_tpr_source: turnClassification.source,
             last_pipeline_state_legacy: nextPipelineState,
