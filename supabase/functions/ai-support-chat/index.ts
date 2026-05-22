@@ -6585,11 +6585,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           if (
             lastShipResult?.success === true &&
             lastShipResult?.has_paid_shipping === true &&
-            Array.isArray(lastShipResult?.same_line_free_shipping_offers) &&
-            lastShipResult.same_line_free_shipping_offers.length > 0
+            (
+              (Array.isArray(lastShipResult?.same_line_free_shipping_offers) &&
+                lastShipResult.same_line_free_shipping_offers.length > 0) ||
+              (lastShipResult?.upsell_opportunity && lastShipResult.upsell_opportunity.priority)
+            )
           ) {
             followUpToolChoice = "none";
-            console.log(`[ai-support-chat] [Reg #17.7][follow-up] forcing tool_choice=none — pending free-shipping upsell`);
+            const upPrio = lastShipResult?.upsell_opportunity?.priority || "same_line_legacy";
+            console.log(`[ai-support-chat] [Reg #17.7/19][follow-up] forcing tool_choice=none — pending upsell priority=${upPrio}`);
           }
 
 
