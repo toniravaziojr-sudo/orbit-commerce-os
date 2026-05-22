@@ -4612,10 +4612,10 @@ Deno.serve(async (req) => {
           const minChunks = effectiveConfig.rag_min_evidence_chunks || 1;
           if (effectiveConfig.handoff_on_no_evidence && chunks.length < minChunks && !salesModeEnabled) {
             noEvidenceHandoff = true;
-            if (!shouldHandoff) {
-              shouldHandoff = true;
-              handoffReason = "Base de conhecimento insuficiente para responder";
-            }
+            handoffMotor.propose({
+              source: "rag_no_evidence",
+              reason: "Base de conhecimento insuficiente para responder",
+            });
           }
         }
       }
