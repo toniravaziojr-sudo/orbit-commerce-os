@@ -2588,6 +2588,13 @@ async function executeSalesTool(
           );
           const hasPaidOption = options.some((o: any) => !o.is_free);
 
+          const hasFreeLineOffers = sameLineFreeOffers.length > 0;
+          const offerInstr = hasPaidOption && hasFreeLineOffers
+            ? "Frete pago E existem kits/packs da MESMA LINHA com frete grátis. OBRIGATÓRIO no mesmo turno: (1) informar o valor real do frete e prazo; (2) oferecer 1 dos kits listados em same_line_free_shipping_offers com frete grátis. Use o nome EXATO. Máximo 1 oferta por conversa. Nunca invente kit fora desta lista."
+            : hasPaidOption
+              ? "Frete pago, sem kits da mesma linha com frete grátis. Apenas informe valor e prazo, sem upsell."
+              : "Frete já está grátis — apenas confirme, sem upsell.";
+
           return JSON.stringify({
             success: true,
             options,
@@ -2595,10 +2602,10 @@ async function executeSalesTool(
             cart_subtotal_cents: cartSubtotalCents,
             cheapest_price_cents: minPriceCents === Number.MAX_SAFE_INTEGER ? 0 : minPriceCents,
             has_paid_shipping: hasPaidOption,
-            upsell_hint: hasPaidOption
-              ? "Frete pago. Se houver kit/quantidade maior da mesma família com frete grátis, ofereça AGORA no mesmo turno (máximo 1×)."
-              : "Frete já está grátis — apenas confirme, sem upsell.",
+            same_line_free_shipping_offers: sameLineFreeOffers,
+            upsell_hint: offerInstr,
           });
+
         } catch (shippingErr) {
           console.error("[sales-tool] shipping calc error:", shippingErr);
           return JSON.stringify({ success: false, error: "Erro ao calcular frete. Tente novamente." });
