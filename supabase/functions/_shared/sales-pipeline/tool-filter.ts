@@ -39,6 +39,12 @@ export const TOOLS_BY_STATE: Record<PipelineState, string[]> = {
     "search_products",
     "get_product_details",
     "recommend_related_products",
+    // [Reg #17.8] Frete fora do checkout_assist: o cliente pergunta
+    // "paga frete?" / "qual o prazo?" ainda na fase de recomendação.
+    // Sem isto, o filtro corta calculate_shipping antes do gate FIX-SHIPPING
+    // poder forçar a tool, e a IA responde em texto genérico.
+    "calculate_shipping",
+    "check_upsell_offers",
   ],
 
   product_detail: [
@@ -46,6 +52,9 @@ export const TOOLS_BY_STATE: Record<PipelineState, string[]> = {
     "get_product_variants",
     "send_product_image",
     // check_stock coberto por get_product_details
+    // [Reg #17.8] mesma justificativa de recommendation
+    "calculate_shipping",
+    "check_upsell_offers",
   ],
 
   decision: [
@@ -58,6 +67,9 @@ export const TOOLS_BY_STATE: Record<PipelineState, string[]> = {
     // de emergência — recuperar product_id ou desambiguar nome.
     // O prompt do estado decision proíbe reabrir vitrine ampla.
     "search_products",
+    // [Reg #17.8] frete pode ser questionado no momento da decisão
+    "calculate_shipping",
+    "check_upsell_offers",
   ],
 
   checkout_assist: [
