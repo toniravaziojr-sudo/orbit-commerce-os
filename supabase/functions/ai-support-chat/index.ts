@@ -6444,6 +6444,20 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             followUpToolChoice = { type: "function", function: { name: "calculate_shipping" } };
             console.log(`[ai-support-chat] [Reg #17.7][follow-up] forcing tool_choice=calculate_shipping after add_to_cart`);
           }
+          // [Reg #17.7] Se shipping JÁ foi calculado neste turno e veio PAGO com
+          // ofertas de frete grátis na mesma linha, força resposta em TEXTO para
+          // a IA apresentar valor+prazo+upsell ao invés de pular pro checkout.
+          const lastShipResult = toolResultsThisTurn.find((r: any) => r?.tool === "calculate_shipping")?.parsed;
+          if (
+            lastShipResult?.success === true &&
+            lastShipResult?.has_paid_shipping === true &&
+            Array.isArray(lastShipResult?.same_line_free_shipping_offers) &&
+            lastShipResult.same_line_free_shipping_offers.length > 0
+          ) {
+            followUpToolChoice = "none";
+            console.log(`[ai-support-chat] [Reg #17.7][follow-up] forcing tool_choice=none — pending free-shipping upsell`);
+          }
+
         }
         const followUpBody: any = {
           model: usedModel,
