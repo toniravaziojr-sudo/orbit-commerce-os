@@ -7462,6 +7462,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       productNamesHint,
       familyFocus: familyFocusBefore,
       lastFocusedProductName: lastFocusedProductNameBefore,
+      // [Reg #2.17 Fase A] TPR é fonte primária; reaproveita os hints já
+      // construídos para a pré-transição.
+      tprHints: tprHintsForTransition,
     });
 
     let nextPipelineState: PipelineState = shouldHandoff ? "handoff" : transition.next;
