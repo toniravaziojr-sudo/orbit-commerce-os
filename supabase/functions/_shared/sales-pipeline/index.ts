@@ -30,3 +30,5 @@ export * from "./turn-orchestrator.ts";
 export * from "./marketplace-scrub.ts";
 // [Reg #2.17 — Fase 1] Detector determinístico: dor física vs reclamação de pedido
 export * from "./pain-symptom-detector.ts";
+// [Reg #2.17 — Fase 2] Motor único de decisão de handoff
+export * from "./handoff-motor.ts";

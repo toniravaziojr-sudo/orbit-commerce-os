@@ -4475,97 +4475,82 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ============================================
+    // [Reg #2.17 — Fase 2] Motor único de handoff
+    // --------------------------------------------------
+    // TODA fonte (intent, regras, palavras-chave, RAG) propõe um voto
+    // ao motor. NENHUMA fonte decide isolada. A decisão final aplica o
+    // veto comercial (dor de produto / purchase_intent não escalam) de
+    // forma centralizada e emite log estruturado.
+    // Inicializamos o motor aqui; alimentamos votos ao longo dos passos
+    // e decidimos uma única vez em STEP 4 (logo antes do prompt).
+    // ============================================
+    const { HandoffMotor, formatHandoffDecisionLog } = await import(
+      "../_shared/sales-pipeline/handoff-motor.ts"
+    );
+    const { detectProductPainSymptom } = await import(
+      "../_shared/sales-pipeline/pain-symptom-detector.ts"
+    );
+    const handoffMotor = new HandoffMotor();
+    const painSignal = detectProductPainSymptom(lastMessageContent || "");
+
     let shouldHandoff = false;
     let handoffReason = "";
 
-    // Check intent-based handoff triggers
+    // Check intent-based handoff triggers — agora viram VOTOS, não decisões.
     if (intentClassification) {
       console.log("[ai-support-chat] Intent classification:", JSON.stringify(intentClassification));
-      
-      // In sales mode, purchase_intent and action_request for buying are OK
+
       if (salesModeEnabled) {
         if (intentClassification.sentiment === "aggressive") {
-          shouldHandoff = true;
-          handoffReason = "Cliente demonstra irritação/agressividade";
+          handoffMotor.propose({
+            source: "intent_aggressive_sentiment",
+            reason: "Cliente demonstra irritação/agressividade",
+          });
         }
         if (intentClassification.intent === "complaint" && intentClassification.urgency === "high") {
-          shouldHandoff = true;
-          handoffReason = "Reclamação urgente";
+          handoffMotor.propose({
+            source: "intent_complaint_high_urgency",
+            reason: "Reclamação urgente",
+          });
         }
-        // In sales mode, action_request for purchases is handled by tools, not handoff
+        // Em modo vendas, action_request de compra é tratado por tools.
         if (intentClassification.requires_action && intentClassification.intent !== "purchase_intent") {
-          // Check if it's a sales-related action (adding to cart, etc.) vs support action (cancel, refund)
           const supportActions = ["cancelar", "cancelamento", "reembolso", "estorno", "devolver", "troca"];
-          const isSupportAction = intentClassification.topics.some(t => supportActions.some(sa => t.includes(sa)));
+          const isSupportAction = intentClassification.topics.some((t) =>
+            supportActions.some((sa) => t.includes(sa))
+          );
           if (isSupportAction) {
-            shouldHandoff = true;
-            handoffReason = "Cliente solicitou ação de suporte (requer atendente)";
+            handoffMotor.propose({
+              source: "intent_support_action",
+              reason: "Cliente solicitou ação de suporte (requer atendente)",
+              isLegitimateComplaint: true,
+            });
           }
         }
       } else {
-        // Original informative mode handoff logic
+        // Modo informativo
         if (intentClassification.requires_action) {
-          shouldHandoff = true;
-          handoffReason = "Cliente solicitou ação (requer atendente)";
+          handoffMotor.propose({
+            source: "intent_requires_action",
+            reason: "Cliente solicitou ação (requer atendente)",
+          });
         }
         if (intentClassification.sentiment === "aggressive") {
-          shouldHandoff = true;
-          handoffReason = "Cliente demonstra irritação/agressividade";
+          handoffMotor.propose({
+            source: "intent_aggressive_sentiment",
+            reason: "Cliente demonstra irritação/agressividade",
+          });
         }
         if (intentClassification.intent === "complaint" && intentClassification.urgency === "high") {
-          shouldHandoff = true;
-          handoffReason = "Reclamação urgente";
+          handoffMotor.propose({
+            source: "intent_complaint_high_urgency",
+            reason: "Reclamação urgente",
+          });
         }
       }
     }
 
-    // ============================================
-    // [Reg #2.17 — Fase 1] Veto comercial: dor física ≠ reclamação
-    // --------------------------------------------------
-    // O classificador de intenção historicamente confunde sintoma físico
-    // do cliente ("ressecada", "queda", "calvície", "coçando") com
-    // reclamação. Quando isso acontece, o handoff é prematuro e bloqueia
-    // a venda. Aqui, um detector determinístico separa:
-    //   - dor de produto  → oportunidade comercial, NUNCA dispara handoff
-    //   - reclamação real de pedido → caminho legítimo (mantém handoff)
-    //
-    // Trava também: se intent=purchase_intent, handoff por "complaint"
-    // é proibido — o cliente quer comprar.
-    // ============================================
-    try {
-      const { detectProductPainSymptom, shouldVetoComplaintHandoff } =
-        await import("../_shared/sales-pipeline/pain-symptom-detector.ts");
-
-      const painSignal = detectProductPainSymptom(lastMessageContent || "");
-      const veto = shouldVetoComplaintHandoff({
-        intent: intentClassification?.intent ?? null,
-        signal: painSignal,
-      });
-
-      if (
-        shouldHandoff &&
-        veto.veto &&
-        (handoffReason === "Reclamação urgente" ||
-          handoffReason === "Cliente solicitou ação (requer atendente)")
-      ) {
-        console.log(
-          `[ai-support-chat][reg-2.17][fase-1] Veto handoff comercial: reason=${veto.reason} ` +
-          `intent=${intentClassification?.intent} pain_terms=[${painSignal.matchedPainTerms.join(",")}] ` +
-          `complaint_terms=[${painSignal.matchedComplaintTerms.join(",")}] previous_handoff_reason="${handoffReason}"`
-        );
-        shouldHandoff = false;
-        handoffReason = "";
-      } else if (painSignal.isProductPainSymptom || painSignal.isOrderComplaint) {
-        console.log(
-          `[ai-support-chat][reg-2.17][fase-1] Pain signal detectado (sem veto): ` +
-          `intent=${intentClassification?.intent} pain=${painSignal.isProductPainSymptom} ` +
-          `complaint=${painSignal.isOrderComplaint} pain_terms=[${painSignal.matchedPainTerms.join(",")}] ` +
-          `complaint_terms=[${painSignal.matchedComplaintTerms.join(",")}]`
-        );
-      }
-    } catch (e) {
-      console.warn(`[ai-support-chat][reg-2.17][fase-1] pain-symptom detector falhou: ${(e as Error)?.message}`);
-    }
 
     // ============================================
     // STEP 2: RAG - SEMANTIC SEARCH
@@ -4627,10 +4612,10 @@ Deno.serve(async (req) => {
           const minChunks = effectiveConfig.rag_min_evidence_chunks || 1;
           if (effectiveConfig.handoff_on_no_evidence && chunks.length < minChunks && !salesModeEnabled) {
             noEvidenceHandoff = true;
-            if (!shouldHandoff) {
-              shouldHandoff = true;
-              handoffReason = "Base de conhecimento insuficiente para responder";
-            }
+            handoffMotor.propose({
+              source: "rag_no_evidence",
+              reason: "Base de conhecimento insuficiente para responder",
+            });
           }
         }
       }
@@ -4769,8 +4754,13 @@ Deno.serve(async (req) => {
         console.log(`[ai-support-chat] Rule matched: ${rule.id} - ${rule.condition} -> ${rule.action}`);
         
         if (rule.action === 'transfer' || rule.action === 'escalate') {
-          shouldHandoff = true;
-          handoffReason = `Regra ativada: ${rule.condition}`;
+          // Regra custom configurada pelo lojista vence o veto comercial
+          // — é decisão explícita do tenant, não inferência da IA.
+          handoffMotor.propose({
+            source: "ai_rule_transfer",
+            reason: `Regra ativada: ${rule.condition}`,
+            isLegitimateComplaint: true,
+          });
         }
         if ((rule.action === 'respond' || rule.action === 'suggest') && rule.response) {
           forceResponse = rule.response;
@@ -4781,16 +4771,46 @@ Deno.serve(async (req) => {
 
     // Check handoff keywords
     // [B.1] handoff_keywords vêm da policy (source=tenant ou default=[])
+    // Palavras como "atendente", "humano", "falar com pessoa" representam
+    // pedido explícito do cliente — vencem o veto comercial.
     const handoffKeywords = effectivePolicy.handoff_keywords.value;
-    if (!shouldHandoff && handoffKeywords?.length && lastMessageLower) {
+    if (handoffKeywords?.length && lastMessageLower) {
       const matchedKeyword = handoffKeywords.find(
         (kw: string) => lastMessageLower.includes(kw.toLowerCase())
       );
       if (matchedKeyword) {
-        shouldHandoff = true;
-        handoffReason = `Palavra-chave de handoff: ${matchedKeyword}`;
+        handoffMotor.propose({
+          source: "handoff_keyword",
+          reason: `Palavra-chave de handoff: ${matchedKeyword}`,
+          isExplicitClientRequest: true,
+        });
       }
     }
+
+    // ============================================
+    // [Reg #2.17 — Fase 2] DECISÃO ÚNICA do motor de handoff
+    // --------------------------------------------------
+    // Todas as fontes votaram. Aplicamos o veto comercial centralizado
+    // (dor de produto / purchase_intent não escalam) e emitimos log
+    // estruturado para auditoria.
+    // ============================================
+    {
+      const decision = handoffMotor.decide({
+        intent: intentClassification?.intent ?? null,
+        painSignal,
+      });
+      shouldHandoff = decision.shouldHandoff;
+      handoffReason = decision.finalReason;
+      if (decision.vetoed) {
+        // Se vetado, o downstream não deve seguir fluxo "sem evidência".
+        noEvidenceHandoff = false;
+      }
+      console.log(formatHandoffDecisionLog(decision, {
+        intent: intentClassification?.intent ?? null,
+        painSignal,
+      }));
+    }
+
 
     // ============================================
     // STEP 5: BUILD SYSTEM PROMPT
