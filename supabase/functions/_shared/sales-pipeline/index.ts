@@ -28,3 +28,5 @@ export * from "./turn-orchestrator.ts";
 // [Reg #19] Marketplace scrub — strip de links/telefones/emails em canais
 // onde a IA não pode direcionar o cliente para fora da plataforma.
 export * from "./marketplace-scrub.ts";
+// [Reg #2.17 — Fase 1] Detector determinístico: dor física vs reclamação de pedido
+export * from "./pain-symptom-detector.ts";
