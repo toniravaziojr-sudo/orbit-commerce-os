@@ -273,17 +273,27 @@ export function detectAnaphoricReference(message: string): boolean {
 
 // [F2-V2] Detector de família mencionada. Usado para atualizar familyFocus
 // quando o cliente diz "shampoo", "loção", "creme" sozinho ou com modificador.
+// [Reg #17.x] Vocabulário ampliado: além das famílias base, cobrir variações
+// muito comuns que estavam caindo em fallback ("loção pós-barba", "after-shave",
+// "pomada", "óleo", "barba", "hidratante"). Famílias específicas redirecionam
+// para a família-mãe quando faz sentido (ex.: pós-barba/after-shave → loção).
 const FAMILY_TOKENS: Array<{ family: string; pattern: RegExp }> = [
   { family: "shampoo", pattern: /\bshampoo(s)?\b/i },
   { family: "condicionador", pattern: /\bcondicionador(es)?\b/i },
   { family: "creme", pattern: /\bcr[eê]me(s)?\b/i },
-  { family: "locao", pattern: /\blo[çc][ãa]o|loc(o|õ)es\b/i },
+  // pós-barba / after-shave entram como "locao" (família-mãe)
+  { family: "locao", pattern: /\b(p[óo]s[\s-]?barba|after[\s-]?shave|lo[çc][ãa]o|loc(o|õ)es)\b/i },
   { family: "balm", pattern: /\bbalm(s)?\b/i },
   { family: "serum", pattern: /\bs[eé]rum(s)?\b/i },
   { family: "tonico", pattern: /\bt[ôo]nico(s)?\b/i },
   { family: "mascara", pattern: /\bm[áa]scara(s)?\b/i },
   { family: "gel", pattern: /\bgel(s)?\b/i },
   { family: "sabonete", pattern: /\bsabonete(s)?\b/i },
+  { family: "pomada", pattern: /\bpomada(s)?\b/i },
+  { family: "oleo", pattern: /\b[óo]leo(s)?\b/i },
+  { family: "hidratante", pattern: /\bhidratante(s)?\b/i },
+  { family: "barba", pattern: /\bbarba\b/i },
+  { family: "desodorante", pattern: /\bdesodorante(s)?\b/i },
   { family: "kit", pattern: /\bkit(s)?\b/i },
   { family: "combo", pattern: /\bcombo(s)?\b/i },
   { family: "perfume", pattern: /\bperfume(s)?\b/i },

@@ -313,6 +313,20 @@ VOCÊ DEVE chamar tools ANTES de responder, sempre que cair em UM destes gatilho
 6. **CLIENTE MENCIONA CUPOM**
    → CHAME \`check_coupon\` (e \`apply_coupon\` se válido).
 
+7. **CLIENTE PERGUNTA SOBRE FRETE / ENTREGA / PRAZO / "PAGA FRETE?"**
+   → NUNCA responda só em texto ("paga frete, sim/não"). É obrigatório calcular.
+   → Se ainda NÃO tem o CEP do cliente, peça o CEP em UMA linha curta e PARE. Não fale de preço/frete antes de ter o CEP.
+   → Quando tiver CEP, CHAME \`calculate_shipping\` IMEDIATAMENTE. Só responda depois do resultado.
+   → Se o carrinho ainda estiver vazio, primeiro garanta que há um produto-base escolhido (search_products + add_to_cart) e então calcule.
+
+8. **APROVEITAR FRETE GRÁTIS COMO ALAVANCA DE VENDA (UPSELL DE KIT)**
+   → Quando \`calculate_shipping\` retornar frete PAGO E o contexto do produto/família indicar \`has_free_shipping_offers: true\` ou \`family_free_shipping_offers\` não-vazio:
+     → Apresente o frete cotado E ofereça, no MESMO turno, a opção com frete grátis da mesma linha (kit ou quantidade maior). Fórmula sugerida:
+       *"Para 1 unidade fica R$ X com entrega em Y dias. Temos também o [nome do kit/quantidade] dessa mesma linha com frete grátis — quer que eu te mostre?"*
+   → Oferta de kit por frete grátis: no MÁXIMO 1 vez por conversa. Se o cliente recusar, NÃO insista.
+   → NUNCA invente kit que não esteja em \`family_free_shipping_offers\`. Só ofereça o que a tool retornou.
+   → Se o frete já veio grátis (\`is_free: true\`), apenas confirme — não tente subir o ticket à força.
+
 ═══════════════════════════════════════════════════════
 🚫 PROIBIDO (ANTI-LOOP DE QUALIFICAÇÃO)
 ═══════════════════════════════════════════════════════
@@ -323,6 +337,7 @@ VOCÊ DEVE chamar tools ANTES de responder, sempre que cair em UM destes gatilho
 ❌ NÃO responda com texto genérico quando a regra acima manda chamar tool. Chame a tool.
 ❌ NÃO invente nome de produto. Se a busca não retornar, diga "não encontrei esse exato, encontrei: [lista da tool]".
 ❌ NÃO refaça a saudação ("Oi, X!") em todo turno. Saudação é APENAS no primeiro turno do dia.
+❌ NÃO responda sobre frete sem ter chamado \`calculate_shipping\`. Texto genérico de frete é proibido.
 
 ✅ A cada turno, AVANCE o estado da venda: descoberta → produto específico → carrinho → dados → checkout.
 
@@ -382,6 +397,15 @@ Use APENAS quando: atacado/B2B, negociação fora da política, reclamação gra
 ❌ Se o cliente só cumprimentou ("oi"), pergunte gentilmente o que ele procura — NÃO acione handoff.
 ❌ Se o cliente citou um produto do catálogo, chame search_products / get_product_details — NÃO acione handoff.
 ✅ O servidor BLOQUEIA handoff abusivo. Se você chamar errado, recebe HANDOFF_NAO_PERMITIDO e deve usar tools de venda em vez disso.
+
+🔇 **SILÊNCIO COMERCIAL NO HANDOFF**: quando você chamar \`request_human_handoff\` com sucesso, sua resposta de texto DEVE ser SÓ acolhimento + aviso de transferência (máx. 2 linhas). PROIBIDO falar de produto, preço, kit, frete, link, cupom ou qualquer copy comercial no mesmo turno. Exemplo: *"Sinto muito pelo ocorrido. Já estou passando seu caso pra um humano da equipe, que vai te responder por aqui."*
+
+═══════════════════════════════════════════════════════
+🎯 OFF-TOPIC E DESPEDIDA
+═══════════════════════════════════════════════════════
+
+- **Off-topic** (futebol, política, fofoca, pergunta pessoal): responda em 1 linha cordial declinando e devolva o foco — *"Esse assunto eu não acompanho por aqui 😊. Posso te ajudar com algum produto da loja?"*. NUNCA ignore como se não tivesse visto.
+- **Despedida** (cliente diz "valeu", "obrigado", "tchau", "até mais", "blz"): reconheça e encerre com cordialidade curta. NÃO tente nova venda. Ex.: *"Valeu! Qualquer coisa, é só chamar 👋"*.
 
 ═══════════════════════════════════════════════════════
 🛡️ SEGURANÇA
@@ -6796,6 +6820,48 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       } catch (e) {
         console.warn("[ai-support-chat] [Eixo 1.7] confirmation-loop scrubber failed:", (e as Error).message);
       }
+    }
+
+    // ============================================
+    // [Reg #17.6] HANDOFF SILENCE GATE — silêncio comercial no turno do handoff
+    // Quando `request_human_handoff` foi acionada com sucesso NESTE turno
+    // (não bloqueada pelo guardrail), a resposta de texto NÃO pode conter
+    // copy comercial (preço, link, produto, kit, frete, cupom). O modelo
+    // costuma misturar acolhimento + nova oferta, o que soa insensível em
+    // reclamação. Aqui substituímos por mensagem neutra de transferência
+    // se detectarmos qualquer marcador comercial.
+    // ============================================
+    try {
+      const handoffToolSucceeded = toolResultsThisTurn.some((tr: any) => {
+        if (tr?.tool !== "request_human_handoff") return false;
+        const p = tr?.parsed;
+        return p && typeof p === "object" && p.success === true && !p.blocked;
+      });
+      if (handoffToolSucceeded && aiContent && typeof aiContent === "string") {
+        const COMMERCIAL_MARKERS = [
+          /R\$\s?\d/i,                                    // preço
+          /https?:\/\//i,                                 // link de checkout/produto
+          /\b(frete|entrega|prazo|cep)\b/i,               // frete
+          /\b(cupom|desconto|promo[çc][ãa]o)\b/i,         // cupom/desconto
+          /\b(kit|combo|leve\s+\d|\d\s+unidades?)\b/i,    // upsell
+          /\b(adicionei|adiciono|no\s+carrinho|finalizar|gera(r)?\s+link)\b/i, // ação de venda
+          /\b(quer\s+ver|quer\s+que\s+eu|posso\s+(te\s+)?mostrar|te\s+mando)\b/i, // gancho comercial
+        ];
+        const hasCommercial = COMMERCIAL_MARKERS.some((re) => re.test(aiContent));
+        if (hasCommercial) {
+          const reasonHint = (handoffReason || "").toLowerCase();
+          const isComplaint = /complaint|angry|reclama|chargeb|atras|defeit|n[ãa]o\s+chegou/i.test(reasonHint);
+          const replacement = isComplaint
+            ? "Sinto muito pelo ocorrido. Já estou passando seu caso pra um humano da nossa equipe — em instantes te respondem por aqui."
+            : "Vou passar agora pra um humano da nossa equipe finalizar com você. Em instantes te respondem por aqui.";
+          console.warn(
+            `[ai-support-chat] [Reg #17.6] handoff-silence-gate scrubbed commercial copy on handoff turn. reason=${handoffReason ?? "unknown"} before="${aiContent.slice(0,160)}"`,
+          );
+          aiContent = replacement;
+        }
+      }
+    } catch (e) {
+      console.warn("[ai-support-chat] [Reg #17.6] handoff-silence-gate failed:", (e as Error).message);
     }
 
     const latencyMs = Date.now() - startTime;
