@@ -6448,6 +6448,14 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           // ofertas de frete grátis na mesma linha, força resposta em TEXTO para
           // a IA apresentar valor+prazo+upsell ao invés de pular pro checkout.
           const lastShipResult = toolResultsThisTurn.find((r: any) => r?.tool === "calculate_shipping")?.parsed;
+          const shipDiagPaid = lastShipResult?.has_paid_shipping;
+          const shipDiagOffers = Array.isArray(lastShipResult?.same_line_free_shipping_offers)
+            ? lastShipResult.same_line_free_shipping_offers.length
+            : -1;
+          console.log(
+            `[ai-support-chat] [Reg #17.7][diag] ship_success=${lastShipResult?.success} ` +
+            `has_paid=${shipDiagPaid} same_line_offers=${shipDiagOffers}`
+          );
           if (
             lastShipResult?.success === true &&
             lastShipResult?.has_paid_shipping === true &&
@@ -6457,6 +6465,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             followUpToolChoice = "none";
             console.log(`[ai-support-chat] [Reg #17.7][follow-up] forcing tool_choice=none — pending free-shipping upsell`);
           }
+
 
         }
         const followUpBody: any = {
