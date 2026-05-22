@@ -4520,6 +4520,54 @@ Deno.serve(async (req) => {
     }
 
     // ============================================
+    // [Reg #2.17 — Fase 1] Veto comercial: dor física ≠ reclamação
+    // --------------------------------------------------
+    // O classificador de intenção historicamente confunde sintoma físico
+    // do cliente ("ressecada", "queda", "calvície", "coçando") com
+    // reclamação. Quando isso acontece, o handoff é prematuro e bloqueia
+    // a venda. Aqui, um detector determinístico separa:
+    //   - dor de produto  → oportunidade comercial, NUNCA dispara handoff
+    //   - reclamação real de pedido → caminho legítimo (mantém handoff)
+    //
+    // Trava também: se intent=purchase_intent, handoff por "complaint"
+    // é proibido — o cliente quer comprar.
+    // ============================================
+    try {
+      const { detectProductPainSymptom, shouldVetoComplaintHandoff } =
+        await import("../_shared/sales-pipeline/pain-symptom-detector.ts");
+
+      const painSignal = detectProductPainSymptom(lastMessageContent || "");
+      const veto = shouldVetoComplaintHandoff({
+        intent: intentClassification?.intent ?? null,
+        signal: painSignal,
+      });
+
+      if (
+        shouldHandoff &&
+        veto.veto &&
+        (handoffReason === "Reclamação urgente" ||
+          handoffReason === "Cliente solicitou ação (requer atendente)")
+      ) {
+        console.log(
+          `[ai-support-chat][reg-2.17][fase-1] Veto handoff comercial: reason=${veto.reason} ` +
+          `intent=${intentClassification?.intent} pain_terms=[${painSignal.matchedPainTerms.join(",")}] ` +
+          `complaint_terms=[${painSignal.matchedComplaintTerms.join(",")}] previous_handoff_reason="${handoffReason}"`
+        );
+        shouldHandoff = false;
+        handoffReason = "";
+      } else if (painSignal.isProductPainSymptom || painSignal.isOrderComplaint) {
+        console.log(
+          `[ai-support-chat][reg-2.17][fase-1] Pain signal detectado (sem veto): ` +
+          `intent=${intentClassification?.intent} pain=${painSignal.isProductPainSymptom} ` +
+          `complaint=${painSignal.isOrderComplaint} pain_terms=[${painSignal.matchedPainTerms.join(",")}] ` +
+          `complaint_terms=[${painSignal.matchedComplaintTerms.join(",")}]`
+        );
+      }
+    } catch (e) {
+      console.warn(`[ai-support-chat][reg-2.17][fase-1] pain-symptom detector falhou: ${(e as Error)?.message}`);
+    }
+
+    // ============================================
     // STEP 2: RAG - SEMANTIC SEARCH
     // ============================================
     let knowledgeContext = "";
