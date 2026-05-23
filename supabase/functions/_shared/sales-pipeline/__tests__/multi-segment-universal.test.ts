@@ -6,7 +6,7 @@
 
 import { assertEquals, assert } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { classifyTurnCompleteness } from "../turn-completeness.ts";
-import { resolvePainCategoryPatterns } from "../pain-category-resolver.ts";
+import { derivePainCategoryPatternsUniversal } from "../pain-category-resolver.ts";
 import type { TenantVocabulary } from "../tenant-vocabulary-resolver.ts";
 
 function vocab(partial: Partial<TenantVocabulary>): TenantVocabulary {
