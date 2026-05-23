@@ -102,7 +102,12 @@ Cada onda roda separada (rate limit). Para cada conversa: cenário, mensagem do 
 
 ## Onda 1 — Saudação e abertura
 
-**Execução:** rodada via `ai-test-sandbox` em Agent Mode no tenant Respeite o Homem (sem configuração personalizada da IA).
+> **Histórico de rodadas:** mantemos todas as execuções aqui para comparar antes/depois de cada bloco de ajuste. Cada rodada documenta a build da pipeline em que foi executada.
+
+### Rodada 1 — Baseline (antes das Frentes 1–4)
+
+**Build:** Fase 1 da base universal aplicada (chaves universais ligadas, listas hardcoded principais removidas). Frentes 1–4 (limpeza cosmética, scope-router, bucket-state-router, continuity-gate) ainda **não** aplicadas.
+**Execução:** via `ai-test-sandbox` em Agent Mode no tenant Respeite o Homem (sem configuração personalizada da IA).
 
 ### Onda 1 — Conversa 1 — "oi" (cliente novo)
 - **Cliente:** "oi"
