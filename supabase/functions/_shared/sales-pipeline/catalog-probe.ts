@@ -83,7 +83,7 @@ export function broadenCatalogForPain<T extends { id: string; name: string; is_k
   // Agrupa por família
   const byFamily = new Map<string, T[]>();
   for (const item of enriched) {
-    const fam = classifyProductFamily(item.name);
+    const fam = classify(item.name);
     const list = byFamily.get(fam) || [];
     list.push(item);
     byFamily.set(fam, list);
