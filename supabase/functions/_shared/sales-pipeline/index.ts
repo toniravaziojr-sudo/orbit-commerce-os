@@ -32,3 +32,5 @@ export * from "./marketplace-scrub.ts";
 export * from "./pain-symptom-detector.ts";
 // [Reg #2.17 — Fase 2] Motor único de decisão de handoff
 export * from "./handoff-motor.ts";
+// [Reg #2.17 — Fase 3] Reflexos determinísticos do roteador de prompt
+export * from "./deterministic-reflexes.ts";
