@@ -355,8 +355,44 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 
 ---
 
+## Onda 7 — Objeções de preço e garantia
+
+Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
+
+### Q7.1 — "tá caro"
+**Resposta:** "Me conta um pouco mais do que você quer resolver, que eu já te indico o certo."
+**Avaliação:** ❌ Falha grave. "Tá caro" é a objeção de venda mais clássica que existe. Vendedor humano responderia ancorando valor: "Caro comparado a quê? Nosso shampoo rende 2 meses (250 ml), o que dá menos de R$ 1,30 por dia de tratamento. E tem frete grátis acima de R$ X / parcela em até Y vezes." Devolver muleta de "me conta o que precisa" é jogar fora uma intenção de compra evidente.
+
+### Q7.2 — "achei mais barato em outro lugar"
+**Resposta:** "Me conta um pouco mais do que você quer resolver, que eu já te indico o certo."
+**Avaliação:** ❌ Falha grave. Comparação com concorrente exige resposta de diferenciação: fórmula, resultado, garantia, suporte, autenticidade. A IA tratou como pergunta vaga e perdeu a chance de defender valor. Em vendas, esse turno é o momento de fechar — virou abandono.
+
+### Q7.3 — "vale a pena?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha. "Vale a pena?" é pedido de prova social/resultado. Vendedor responderia: "Vale. Os clientes que usam por 60 dias seguidos relatam X. E se não funcionar, [garantia]. Quer ver depoimentos ou começar por um kit de teste?"
+
+### Q7.4 — "não sei se compensa"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha. Mesma classe de Q7.3 — pedido de justificativa de valor. Recebeu muleta enlatada idêntica.
+
+### Q7.5 — "tem garantia? e se não funcionar?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha crítica. Pergunta sobre política de garantia/devolução é informação factual que a IA deveria conhecer (ou consultar). Devolver muleta nessa pergunta é o pior cenário possível: o cliente perde confiança e some.
+
+### Resumo da Onda 7
+
+**Funciona bem:** nada. 5 de 5 cenários caíram na muleta enlatada.
+
+**Quebras observadas:**
+- **Q7.A — Objeção de preço sem ancoragem de valor:** "Tá caro" e "mais barato em outro lugar" não disparam comportamento de defesa de valor (rendimento, parcelamento, frete, diferenciação). A IA precisa de um classificador "objeção comercial" que ative resposta com ancoragem.
+- **Q7.B — Pedido de prova social ignorado:** "Vale a pena?" e "não sei se compensa" são gatilhos de prova/resultado/garantia, não de qualificação. Hoje recebem a mesma muleta de "me conta o que precisa".
+- **Q7.C — Política de garantia/devolução não respondida:** "Tem garantia?" é pergunta factual sobre política comercial. A IA não tem (ou não acessa) essa informação na base universal e devolve muleta — o que é o pior comportamento possível em fundo de funil.
+- **Q7.D — Padrão sistêmico confirmado:** Onda 7 confirma o que Ondas 4, 5 e 6 já indicavam — qualquer pergunta que não seja "buscar produto pelo nome" cai na mesma frase. A IA tem 1 fluxo bom (catálogo) e 1 muleta única para todo o resto.
+
+---
+
 ## Próximo passo
 
-Aguardando "ok" para rodar **Onda 7 — Objeções de preço e comparação com concorrente** (5 cenários: "tá caro", "achei mais barato em outro lugar", "vale a pena?", "não sei se compensa", "tem garantia? e se não funcionar?").
+Aguardando "ok" para rodar **Onda 8 — Informação institucional e operacional** (5 cenários: "vocês entregam pra [cidade]?", "qual o prazo de entrega?", "como funciona o pagamento?", "vocês têm loja física?", "qual o horário de atendimento?").
 
 Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
