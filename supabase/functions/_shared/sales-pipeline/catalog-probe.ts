@@ -336,3 +336,70 @@ export function detectFamilyInText(text: string): string | null {
   }
   return null;
 }
+
+// ============================================================
+// Onda 3.3 (Reg #2.18) — Versões universais (segment-agnostic)
+//
+// Usam o vocabulário do tenant carregado pelo Resolver (Onda 1).
+// Caller deve chamar `loadTenantVocabulary(tenantId)` UMA vez no
+// início do turno para aquecer o cache. Aqui usamos `peek` síncrono
+// para manter a assinatura compatível com `classifyProductFamily` /
+// `detectFamilyInText` legados.
+//
+// Comportamento:
+//  - Se o vocabulário do tenant estiver disponível, classifica via
+//    longest-match contra os tokens do tenant (família + sinônimos +
+//    aliases). Retorna a `family.key` estável do tenant.
+//  - Se o vocabulário não estiver no cache (cold start) OU não houver
+//    match, cai no detector legado como rede de segurança.
+// ============================================================
+
+import { peekTenantVocabularyFromCache, buildFamilyTokenSet, normalizeVocabularyKey } from "./tenant-vocabulary-resolver.ts";
+
+function matchLongestFamilyToken(text: string, tokenMap: Map<string, string>): string | null {
+  if (!text || tokenMap.size === 0) return null;
+  const normalized = normalizeVocabularyKey(text);
+  if (!normalized) return null;
+  // Ordena tokens por tamanho desc para garantir longest-match
+  const tokens = [...tokenMap.keys()].sort((a, b) => b.length - a.length);
+  for (const tok of tokens) {
+    if (!tok) continue;
+    // boundary simples: começo, fim ou cercado por espaço
+    const idx = normalized.indexOf(tok);
+    if (idx < 0) continue;
+    const before = idx === 0 ? " " : normalized[idx - 1];
+    const after = idx + tok.length >= normalized.length ? " " : normalized[idx + tok.length];
+    if (/[\s\-]/.test(before) && /[\s\-]/.test(after)) {
+      return tokenMap.get(tok) ?? null;
+    }
+  }
+  return null;
+}
+
+export function classifyProductFamilyUniversal(name: string, tenantId: string | null): string {
+  const vocab = tenantId ? peekTenantVocabularyFromCache(tenantId) : null;
+  if (vocab) {
+    const tokenMap = buildFamilyTokenSet(vocab);
+    const fam = matchLongestFamilyToken(name, tokenMap);
+    if (fam) return fam;
+  }
+  // Fallback legado
+  return classifyProductFamily(name);
+}
+
+export function detectFamilyInTextUniversal(text: string, tenantId: string | null): string | null {
+  const vocab = tenantId ? peekTenantVocabularyFromCache(tenantId) : null;
+  if (vocab) {
+    const tokenMap = buildFamilyTokenSet(vocab);
+    // remove kit/combo aqui também: cliente que pede "kit" não está pedindo família-base
+    const filtered = new Map<string, string>();
+    for (const [tok, key] of tokenMap) {
+      if (key === "kit" || key === "combo") continue;
+      filtered.set(tok, key);
+    }
+    const fam = matchLongestFamilyToken(text, filtered);
+    if (fam) return fam;
+  }
+  // Fallback legado
+  return detectFamilyInText(text);
+}
