@@ -1183,11 +1183,16 @@ async function executeSalesTool(
         // ao invés de filtro estrito. Resolve "Catalog Blindness".
         const shouldBroaden = !!ctx.shouldBroadenForPain && enriched.length > 1;
         if (shouldBroaden) {
+          const universalProbe = ctx.arch218UniversalCatalogProbeEnabled === true;
+          const classifier = universalProbe
+            ? (n: string) => classifyProductFamilyUniversal(n, ctx.tenantId)
+            : undefined;
           const broadened = broadenCatalogForPain({
             enriched: enriched as any,
             familyMentionedNow,
             familyFocus: familyFocusActive,
             limit: requestedLimit,
+            classifier,
           });
           if (broadened.filtered.length > 0) {
             filtered = broadened.filtered as typeof enriched;
