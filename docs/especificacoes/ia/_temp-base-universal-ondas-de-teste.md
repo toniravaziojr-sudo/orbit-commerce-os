@@ -375,6 +375,39 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas (cada cenário se
 
 ---
 
+### Onda 3 — Rodada 2 (re-execução pós-Frentes 1–4, prompts oficiais do plano)
+
+Re-executada via `ai-test-sandbox` Agent Mode, conversas isoladas, com os 4 prompts oficiais (linhas 44–48). Cada conversa criada e descartada após coleta.
+
+#### Q3.1 — "vocês têm shampoo?"
+**Resposta:** "Temos sim. — Shampoo Preventive Power: pra prevenção no dia a dia, ajuda a controlar oleosidade e queda inicial. — Shampoo Calvície Zero: mais intenso pra queda e afinamento, estimula crescimento e fortalece a raiz. Qual faz mais sentido pro seu caso ou quer detalhes de algum deles?"
+**Avaliação:** ✅ Excelente. Confirma, lista as 2 opções com diferenciação clara, devolve a bola. Latência: 55s.
+
+#### Q3.2 — "tem balm?"
+**Resposta:** "Temos sim: o Balm Pós-Banho Calvície Zero (Dia). É pra usar depois do banho, de dia, direto no couro cabeludo — prático pra rotina de prevenção da queda e estímulo de crescimento. Quer que eu te mande os detalhes de uso e o que ele entrega?"
+**Avaliação:** ✅ Excelente. Reconhece a família balm, apresenta o item, contextualiza o uso, devolve a bola. Latência: 63s.
+
+#### Q3.3 — "vende perfume?"
+**Resposta:** "No momento não vendemos perfume. Somos focados em cuidados capilares masculinos, principalmente queda e calvície. Se quiser, te indico algo pra prevenção, crescimento, oleosidade ou caspa. Qual desses faz mais sentido pra você?"
+**Avaliação:** ✅ Resolvida. Categoria fora-de-escopo agora é tratada com honestidade ("não vendemos") e a IA reconduz pra dentro do catálogo. Antes caía em fallback genérico "deixa eu confirmar isso direito". Latência: 16s.
+
+#### Q3.4 — "tem kit?"
+**Resposta:** "Tem sim. Trabalhamos com estes kits da linha Calvície Zero (noite): — Kit Banho Calvície Zero (FLEX) Noite — Kit Banho Calvície Zero (2x) Noite — Kit Banho Calvície Zero (3x) Noite. Qual deles te ajuda mais agora ou quer detalhe de algum?"
+**Avaliação:** ⚠️ Parcial. Confirma e lista kits, mas só os de **noite** — o catálogo tem também os de **dia**. Provável efeito do Onda 18 Fase A (Catalog Base Forced) priorizando contexto, mas em pergunta genérica "tem kit?" deveria mostrar os dois turnos (dia e noite) ou pedir contexto antes. Latência: 108s.
+
+#### Comparativo Rodada 1 → Rodada 2
+| Quebra | Status |
+|---|---|
+| Q3.A — fora-de-escopo cai em fallback (perfume) | ✅ Resolvida |
+| Q3.B — categoria existente tratada como desconhecida (barba) | ⏭️ Não coberto pelos 4 prompts oficiais |
+| Q3.C — inconsistência entre execuções idênticas | ➖ Sem evidência nesta rodada |
+| Q3.D — muleta "deixa eu confirmar isso direito" | ✅ Não apareceu |
+| **Q3.E (NOVA)** — viés de turno em pergunta genérica de kit | ⚠️ A investigar |
+
+**Conclusão:** Onda 3 melhorou substancialmente. Persiste apenas a Q3.E (viés de turno noite vs dia) e atenção à latência alta em Q3.4 (108s).
+
+---
+
 ## Onda 4 — Pergunta de preço sem produto definido
 
 Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
