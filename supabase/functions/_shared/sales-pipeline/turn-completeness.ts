@@ -175,8 +175,21 @@ export function classifyTurnCompleteness(
     };
   }
 
+  // [Onda 5 — Reg #2.18] Construtor universal de regex de dor: mescla regex
+  // legado (mantido para paridade com Respeite o Homem) com tokens de dor
+  // declarados pelo tenant via Resolver. Sem flag — adicionar tokens é
+  // sempre seguro (ampliam, não substituem).
+  const LEGACY_PAIN_RE = /\b(entradas?|calv|queda|cresc|caspa|seborr|oleos|ressec|fios?|cabel)/i;
+  const tenantTokens = (ctx.tenantPainTokens || [])
+    .map((t) => (t || "").trim().toLowerCase())
+    .filter((t) => t.length >= 3);
+  const tenantPainRe = tenantTokens.length
+    ? new RegExp(`\\b(${tenantTokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "i")
+    : null;
+  const matchesPain = (txt: string) => LEGACY_PAIN_RE.test(txt) || (tenantPainRe ? tenantPainRe.test(txt) : false);
+
   // Recomendação contextualizada (com sintoma OU foco) é actionable
-  if (isRecommendQ && (hasContext || /\b(entradas?|calv|queda|cresc|caspa|seborr|oleos|ressec|fios?|cabel)/i.test(aggLower))) {
+  if (isRecommendQ && (hasContext || matchesPain(aggLower))) {
     return {
       completeness: "complete_actionable",
       debounceMs: 0,
@@ -198,7 +211,7 @@ export function classifyTurnCompleteness(
   }
 
   // Pergunta sobre família com sintoma já é actionable mesmo sem foco prévio
-  if (isProductFamilyQ && /\b(pra|para|de|contra)\s+(calv|queda|cresc|caspa|seborr|oleos|ressec|entradas?|fios?|cabel)/i.test(aggLower)) {
+  if (isProductFamilyQ && /\b(pra|para|de|contra)\b/i.test(aggLower) && matchesPain(aggLower)) {
     return {
       completeness: "complete_actionable",
       debounceMs: 0,
