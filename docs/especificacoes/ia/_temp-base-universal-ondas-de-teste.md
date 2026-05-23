@@ -445,6 +445,55 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 
 ---
 
+### Onda 4 — Rodada 2 (re-execução pós-Frentes 1–4, prompts oficiais do plano)
+
+Re-executada via `ai-test-sandbox` Agent Mode (canal `whatsapp`), conversas isoladas, 5 prompts. Modelo: `gpt-5` em todas, ~600 tokens output, ~4k tokens input.
+
+#### Q4.1 — "quanto custa?"
+- **conversation_id:** `c70e460e-de17-4025-85ab-575603c1fb70` · latência: 21s
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ⚠️ Igual à Rodada 1. Resposta enlatada. Intent classificado como `purchase_intent` mas pipeline não distingue pergunta vaga de pergunta respondível.
+
+#### Q4.2 — "qual o preço?"
+- **conversation_id:** `fa2416d5-816b-4f53-9127-d3e78df3f35c` · latência: 22s
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ⚠️ Idêntica à Q4.1. Consistente, mas igualmente pobre.
+
+#### Q4.3 — "tem desconto?"
+- **conversation_id:** `6e282060-fce4-4875-be0b-1ea83039706b` · latência: 26s
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ Persiste Q4.B. Pergunta sobre política comercial (cupom/desconto) tratada como pergunta de produto. Sem rota para política comercial na base universal.
+
+#### Q4.4 — "qual o mais barato?"
+- **conversation_id:** `0c96a9ab-3629-4770-9278-79e115d512fb` · latência: 19s
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ Persiste Q4.A. Superlativo de preço é respondível direto pelo catálogo; IA não faz.
+
+#### Q4.5 — "qual o kit mais completo?"
+- **conversation_id:** `20e8c70e-b1a2-4292-83c6-c9a1fbb3ed35` · latência: 21s
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ **REGRESSÃO GRAVE.** Na Rodada 1 era a única conversa excelente da onda — IA listava os 3 kits com diferenciação e devolvia a bola. Agora caiu na mesma muleta de Q4.1–Q4.4. Provável causa: as Frentes 1–4 removeram o caminho que ativava `catalog-probe` para superlativo qualitativo, ou o roteador de turno hoje classifica todo turno curto sem família detectada como "vago → pedir contexto", sem antes consultar o catálogo.
+
+#### Comparativo Rodada 1 → Rodada 2
+
+| Quebra | Rodada 1 | Rodada 2 | Status |
+|---|---|---|---|
+| Q4.A — preço sem contexto vira muleta única | ❌ | ❌ | **Persiste** |
+| Q4.B — "tem desconto?" sem rota comercial | ❌ | ❌ | **Persiste** |
+| Q4.C — resposta genérica pobre em orientação | ❌ | ❌ | **Persiste** |
+| Q4.D — inconsistência "mais completo" vs "mais barato" | ❌ parcial (completo ✅, barato ❌) | ❌ (ambos ❌) | **Piorou** |
+| **Q4.E (NOVA)** — superlativo qualitativo deixou de funcionar | — | ❌ | **Nova regressão** |
+
+**Leitura:**
+- A muleta "Me conta um pouco do que você precisa que eu já te indico" é hoje o fallback dominante de toda pergunta curta sem família detectada. Aparece em 5/5 cenários de Onda 4.
+- A Frente 4 (anti-repetição) precisa incluir essa frase exata como proibida — caiu nos 5 prompts da onda.
+- O motor de catálogo perdeu a capacidade de responder superlativo (mais completo/mais barato/mais caro) sem contexto prévio — ranqueamento por catálogo deveria ser independente de família detectada.
+- Política comercial (cupom/desconto/frete grátis/promoção) continua sem rota dedicada na base universal.
+
+**Latência média:** ~22s.
+
+---
+
 ## Onda 5 — Pedido por nome de produto
 
 Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
