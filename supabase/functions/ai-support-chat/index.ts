@@ -3890,6 +3890,17 @@ Deno.serve(async (req) => {
     const arch218UniversalCatalogProbeEnabled =
       ((effectiveConfig as any)?.metadata?.arch218_universal_catalog_probe) === true;
 
+    // [Onda 4.2 — Reg #2.18] Flag para TPR universal: injeta vocabulário do
+    // tenant (segmento, famílias, dores) no system prompt do classificador
+    // de turno. Quando false (default), prompt-base segment-agnostic atual.
+    const arch218UniversalTPREnabled =
+      ((effectiveConfig as any)?.metadata?.arch218_universal_tpr) === true;
+
+    // [Onda 5 — Reg #2.18] Flag para turn-completeness universal: passa pain
+    // tokens do tenant em vez do regex cosmético hardcoded. Default off.
+    const arch218UniversalTurnCompletenessEnabled =
+      ((effectiveConfig as any)?.metadata?.arch218_universal_turn_completeness) === true;
+
     if (effectiveConfig.is_enabled === false) {
       return new Response(
         JSON.stringify({ success: false, error: "AI support is disabled for this tenant", code: "AI_DISABLED" }),
