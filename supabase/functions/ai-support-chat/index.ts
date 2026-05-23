@@ -1223,23 +1223,36 @@ async function executeSalesTool(
             );
           }
         } else {
-          const familyAliases = getCatalogFamilyAliases(effectiveFamily);
-          if (familyAliases.length > 0) {
-            const aliasPatterns = familyAliases
-              .map(alias => FAMILY_NAME_PATTERNS[alias])
-              .filter((pat): pat is RegExp => pat instanceof RegExp);
-            const byFamily = enriched.filter(p => aliasPatterns.some(pat => pat.test(String(p.name || ""))));
-            if (byFamily.length > 0) {
-              filtered = byFamily;
-              console.log(
-                `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-                `aliases=${familyAliases.join("|")} filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
-              );
-            } else {
-              console.log(
-                `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-                `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
-              );
+          // [Frente C] Quando o cliente faz uma pergunta de catálogo agnóstica
+          // (ex.: "tem balm?", "vocês têm kit?", "o que vocês têm?") e o TPR
+          // classificou como catalog_question SEM mencionar família nova,
+          // não restringimos pelo family_focus anterior — o cliente quer ver
+          // o catálogo amplo, não o que estava em foco antes.
+          const isAgnosticCatalogProbe =
+            ctx.intentBucket === "catalog_question" && !familyMentionedNow;
+          if (isAgnosticCatalogProbe) {
+            console.log(
+              `[ai-support-chat][search_products] [Frente C] catalog_question agnóstico — ignorando family_focus=${familyFocusActive ?? "none"} para devolver vitrine ampla`
+            );
+          } else {
+            const familyAliases = getCatalogFamilyAliases(effectiveFamily);
+            if (familyAliases.length > 0) {
+              const aliasPatterns = familyAliases
+                .map(alias => FAMILY_NAME_PATTERNS[alias])
+                .filter((pat): pat is RegExp => pat instanceof RegExp);
+              const byFamily = enriched.filter(p => aliasPatterns.some(pat => pat.test(String(p.name || ""))));
+              if (byFamily.length > 0) {
+                filtered = byFamily;
+                console.log(
+                  `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+                  `aliases=${familyAliases.join("|")} filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
+                );
+              } else {
+                console.log(
+                  `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+                  `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
+                );
+              }
             }
           }
         }
