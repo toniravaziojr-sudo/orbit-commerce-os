@@ -221,7 +221,7 @@ export async function classifyTurn(input: TPRInput): Promise<TurnClassification>
 
   const requestBody = {
     messages: [
-      { role: "system", content: TPR_SYSTEM },
+      { role: "system", content: buildTPRSystemPrompt(input.tenantContext) },
       { role: "user", content: userBlock },
     ],
     tools: [TPR_TOOL],
