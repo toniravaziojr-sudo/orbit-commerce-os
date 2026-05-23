@@ -243,8 +243,45 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas (cada cenário se
 
 ---
 
+## Onda 4 — Pergunta de preço sem produto definido
+
+Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
+
+### Q4.1 — "quanto custa?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ⚠️ Aceitável mas pobre. Pergunta sem produto não tem como responder com preço, então pedir contexto é correto. Mas a resposta é genérica demais — não orienta o cliente sobre o que ele pode pedir (categorias do catálogo, faixa de preço, "quer ver os mais vendidos?").
+
+### Q4.2 — "qual o preço?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ⚠️ Idêntico ao Q4.1. Resposta padronizada (boa consistência) mas igualmente genérica.
+
+### Q4.3 — "tem desconto?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha. "Tem desconto?" é pergunta sobre política comercial, não sobre produto específico. A resposta deveria ser sobre cupons ativos, frete grátis, kits com economia, ou "sim, temos kits com até X% de desconto vs avulsos". Em vez disso, trata como se fosse pergunta de produto e devolve a mesma muleta.
+
+### Q4.4 — "qual o mais barato?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha. "Qual o mais barato" é pergunta de catálogo plenamente respondível: a IA tem acesso ao catálogo e pode listar o produto de menor preço. Em vez disso, devolve a muleta. Vendedor humano nunca responderia assim.
+
+### Q4.5 — "qual o kit mais completo?"
+**Resposta:** "O mais completo é o Kit Banho Calvície Zero (3x); se preferir rotina noturna, o mais completo da noite é o Kit Banho Calvície Zero (3x) Noite. Pra te situar rapidinho: [explica os 3 kits]. Quer ver os detalhes (com valores) de qual deles? Ou prefere que eu te ajude a escolher entre dia ou noite?"
+**Avaliação:** ✅ Excelente. Aqui a IA **vendeu**. Identificou os kits, ranqueou por completude, explicou as diferenças com 1 linha cada e devolveu a bola com 2 caminhos (escolher kit ou ajudar a decidir). É exatamente o comportamento esperado de um vendedor.
+
+### Resumo da Onda 4
+
+**Funciona bem:**
+- Pergunta de superlativo com qualificador semântico ("mais completo") → IA consulta catálogo, ranqueia, explica e oferece próximo passo (Q4.5).
+
+**Quebras observadas:**
+- **Q4.A — Pergunta de preço sem contexto vira muleta única:** "Quanto custa", "qual o preço", "qual o mais barato" — todas caem na mesma frase enlatada "me conta um pouco do que você precisa". Falta um detector que distinga: (i) pergunta vaga onde pedir contexto faz sentido, (ii) pergunta de superlativo (mais barato/caro/completo) que é respondível direto pelo catálogo, (iii) pergunta sobre política comercial (desconto/frete/promoção) que merece resposta própria.
+- **Q4.B — "Tem desconto?" não tem resposta comercial:** Mesmo a base universal precisa saber dizer se o tenant tem cupons ativos, kits com economia ou frete grátis. Hoje devolve a muleta.
+- **Q4.C — Resposta genérica pobre em orientação:** Mesmo quando pedir contexto for legítimo (Q4.1/Q4.2), a frase atual ("me conta um pouco do que você precisa") não dá pista nenhuma do que o cliente pode pedir. Vendedor bom direciona: "Você procura algo pra cabelo, barba ou pele? Ou prefere ver os mais vendidos?"
+- **Q4.D — Inconsistência de "completude" cognitiva:** A IA sabe ranquear "mais completo" (Q4.5) mas não sabe ranquear "mais barato" (Q4.4). O motor de catálogo entende um superlativo qualitativo mas não o de preço. Mesmo eixo cognitivo, comportamentos diferentes.
+
+---
+
 ## Próximo passo
 
-Aguardando "ok" para rodar **Onda 4 — Pergunta de preço sem produto definido** (5 cenários: "quanto custa?", "qual o preço?", "tem desconto?", "qual o mais barato?", "qual o kit mais completo?").
+Aguardando "ok" para rodar **Onda 5 — Pedido por nome de produto** (5 cenários: nome exato, nome aproximado, nome com erro de digitação, marca concorrente, produto inexistente).
 
 Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
