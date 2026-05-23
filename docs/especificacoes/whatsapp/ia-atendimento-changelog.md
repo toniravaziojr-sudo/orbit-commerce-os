@@ -1656,3 +1656,39 @@ A Rodada 2 da bateria das 10 ondas (50 cenários) confirmou que muitas respostas
 - Falha do módulo é capturada em `try/catch` — nunca derruba o turno.
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox no próximo ciclo.
+
+---
+
+## Registro #35 — Base Universal: Âncora do turno (Frente E) — 23/mai/2026
+
+**Tipo:** Nova camada de ancoragem determinística no prompt da IA de vendas.
+**Escopo:** novo módulo `turn-anchor` + reforço nos prompts de DISCOVERY e RECOMMENDATION.
+
+### Sintoma (Rodada 2)
+- Mesmo com dor declarada e família/produto em foco persistidos, a IA caía em perguntas universais de qualificação ("pra você ou pra presentear?", "qual seu objetivo?") como default.
+- Ficha institucional cadastrada nem sempre era usada nos estados de venda — só aparecia quando o turno era classificado como institucional/objeção.
+- A "muleta universal" (qualificação genérica) virava o caminho padrão em vez de ser fallback.
+
+### O que mudou
+1. **Bloco "ÂNCORA DESTE TURNO"** consolida em uma única referência:
+   - dor/objetivo declarado pelo cliente (literal),
+   - família em foco,
+   - produto em foco,
+   - quais áreas a ficha institucional cobre (entrega, horário, pagamento, cupom, garantia, prova social, loja física, atendimento humano, observações).
+2. **Injeção em todo turno de venda** (não fica restrito a buckets institucionais). O bloco só é omitido quando NÃO há nenhum sinal real — nesse caso a muleta universal é legítima.
+3. **Regra de fallback explícita** dentro do bloco: perguntas universais só valem se a âncora não trouxer dor, nem família, nem foco. Se houver qualquer sinal, o turno avança apoiado nele.
+4. **Reforço nos prompts** de DISCOVERY e RECOMMENDATION: regra "0" obriga a consultar a âncora antes de qualquer pergunta genérica e a manter o foco existente em vez de reabrir vitrine.
+5. **Observabilidade.** Log emite presença de dor, família, foco, áreas institucionais e o motivo (`pain_anchor` / `product_anchor` / `family_anchor` / `institutional_only` / `no_signal`).
+
+### Validação técnica executada
+- ✅ Type-check do novo módulo + prompts alterados limpos.
+- ✅ Deploy do `ai-support-chat` concluído.
+- ⏳ Pendente: bateria sandbox cobrindo: dor declarada + retomada após interrupção; foco em produto + pergunta institucional no meio; turno sem nenhum sinal (muleta universal liberada); ficha vazia + tema institucional (deve oferecer humano).
+
+### Anti-regressão
+- Mudança aditiva: caminhos anteriores (Catalog Probe, family_focus estrito, continuity gate, ficha institucional da Frente D) preservados.
+- O bloco não substitui a ficha institucional — ele referencia áreas cobertas e deixa a Frente D entregar o conteúdo detalhado nos buckets elegíveis.
+- Falha do módulo é capturada em `try/catch` — nunca derruba o turno.
+- Nenhuma tool, contrato de banco ou estado da pipeline alterado.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox no próximo ciclo.
