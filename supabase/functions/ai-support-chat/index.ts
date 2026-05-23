@@ -6270,6 +6270,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // [Onda 1C] Recommendation Context Builder em dry_run (não muta shape).
         arch1cRecommendationContextBuilderEnabled: arch1cEnabled,
         arch1cRecommendationContextBuilderMode: arch1cMode,
+        // [Onda 3 — Reg #2.18] Flag para resolver universal pain→categoria.
+        arch218UniversalPainResolverEnabled,
       };
 
       let response: Response | null = null;
