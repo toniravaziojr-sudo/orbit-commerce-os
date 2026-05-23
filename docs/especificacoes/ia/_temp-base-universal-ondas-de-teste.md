@@ -102,7 +102,12 @@ Cada onda roda separada (rate limit). Para cada conversa: cenário, mensagem do 
 
 ## Onda 1 — Saudação e abertura
 
-**Execução:** rodada via `ai-test-sandbox` em Agent Mode no tenant Respeite o Homem (sem configuração personalizada da IA).
+> **Histórico de rodadas:** mantemos todas as execuções aqui para comparar antes/depois de cada bloco de ajuste. Cada rodada documenta a build da pipeline em que foi executada.
+
+### Rodada 1 — Baseline (antes das Frentes 1–4)
+
+**Build:** Fase 1 da base universal aplicada (chaves universais ligadas, listas hardcoded principais removidas). Frentes 1–4 (limpeza cosmética, scope-router, bucket-state-router, continuity-gate) ainda **não** aplicadas.
+**Execução:** via `ai-test-sandbox` em Agent Mode no tenant Respeite o Homem (sem configuração personalizada da IA).
 
 ### Onda 1 — Conversa 1 — "oi" (cliente novo)
 - **Cliente:** "oi"
@@ -156,6 +161,82 @@ Cada onda roda separada (rate limit). Para cada conversa: cenário, mensagem do 
 - **Q1.2 — Saudação repetida em thread ativa:** "oi de novo" reabriu a saudação completa em vez de continuar discovery. Suspeita: o gate de "thread já cumprimentada" não está olhando o histórico recente da própria conversa.
 - **Q1.3 — Resposta dupla no mesmo turno:** No mesmo turno do "oi de novo" a IA disparou 2 mensagens (greeting + discovery). Suspeita: o orquestrador deixou passar uma mensagem do greeting-mirror e outra da pipeline principal.
 - **Q1.4 — Resposta praticamente idêntica entre saudações diferentes:** "oi", "boa noite" e "olá tudo bem?" geraram texto literalmente igual. Funcional, mas pode ser melhorado para naturalidade (não bloqueia base 100%).
+
+---
+
+### Rodada 2 — Pós-Frentes 1–4 (2026-05-23)
+
+**Build:** Fase 1 + Frente 1 (limpeza cosmética dos resíduos: `consultative-turn`, `turn-pre-router`, `turn-completeness`, `prompts/recommendation`) + Frente 2 (scope-router com 11 buckets de intenção) + Frente 3 (bucket-state-router para institucional/pós-venda/objeção/hesitação/handoff/fora-de-escopo) + Frente 4 (continuity-gate anti-loop de discovery + anti-repetição reforçada).
+**Execução:** via `ai-test-sandbox` em Agent Mode no tenant Respeite o Homem, conversas isoladas (cada uma cria conversa nova e é apagada ao final). Horário do servidor no momento do teste: tarde (BRT).
+**Modelo IA usado:** `gpt-5` (provider openai), `sales_mode=true`.
+
+#### R2 — Conversa 1 — "oi" (cliente novo)
+- **Cliente:** "oi"
+- **IA:** "Olá, boa tarde, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+- **Sinais:** intent=`greeting`, topics=`[saudacao]`, sentiment=neutro, latência=10,9s.
+- **Certo:** Espelhou período (boa tarde), reciprocou tudo bem, abriu discovery, sem vazar preço/produto. ✅
+- **Errado:** Nada.
+
+#### R2 — Conversa 2 — "boa noite" (cliente novo)
+- **Cliente:** "boa noite"
+- **IA:** "Olá, boa noite, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+- **Sinais:** intent=`greeting`, latência=8,7s.
+- **Certo:** Cliente disse "boa noite", IA espelhou "boa noite" mesmo com servidor em tarde — sobrescrita correta pela mensagem do cliente. ✅
+- **Errado:** Nada.
+
+#### R2 — Conversa 3 — "olá tudo bem?"
+- **Cliente:** "olá tudo bem?"
+- **IA:** "Olá, boa tarde, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+- **Sinais:** intent=`greeting`, latência=9,4s.
+- **Certo:** Saudou e reciprocou o "tudo bem?". ✅
+- **Errado:** Nada.
+
+#### R2 — Conversa 4 — "e aí, blz?" (saudação informal)
+- **Cliente:** "e aí, blz?"
+- **IA:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Sinais:** intent=`greeting`, topics=`[]`, latência=11,4s.
+- **Certo:** Não vazou preço/produto.
+- **Errado / hipótese:** **Q1.1 PERSISTE.** Saudação informal ("e aí", "blz") continua não sendo reconhecida pelo espelhador de saudação. A IA classificou intent=`greeting` mas pulou direto pra discovery sem reciprocar. As Frentes 1–4 não tocaram no detector lexical de saudação informal — esperado que persista.
+
+#### R2 — Conversa 5 — Saudação no meio de thread ("oi" → "oi de novo")
+- **Turno 1 — Cliente:** "oi"
+  **IA:** "Olá, boa tarde, tudo bem? Como posso ajudar? Me conta o que você está procurando." ✅
+- **Turno 2 — Cliente:** "oi de novo"
+  **IA:** "Me conta um pouco do que você precisa que eu já te indico." ✅
+- **Certo:** **Q1.2 e Q1.3 RESOLVIDAS.** A IA não refez a saudação completa e mandou **uma única mensagem** de discovery — comportamento exatamente esperado de continuidade. A Frente 4 (continuity-gate anti-loop de discovery + bloqueio de "muleta") atuou corretamente, e o orquestrador não deixou passar duas mensagens.
+- **Errado:** Nada.
+
+#### R2 — Conversa 6 — "bom dia"
+- **Cliente:** "bom dia"
+- **IA:** "Olá, bom dia, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+- **Certo:** Espelhou "bom dia" (sobrescreveu período do servidor que era tarde). ✅
+- **Errado:** Nada.
+
+---
+
+#### Resumo Rodada 2 — Onda 1
+
+**Comparativo direto com Rodada 1:**
+
+| Quebra | Rodada 1 | Rodada 2 | Status |
+|---|---|---|---|
+| Q1.1 — Saudação informal não reciprocada ("e aí, blz") | ❌ | ❌ | **Persiste** |
+| Q1.2 — Saudação completa repetida em thread ativa ("oi de novo") | ❌ | ✅ | **Resolvida** |
+| Q1.3 — Resposta dupla no mesmo turno (greeting + discovery) | ❌ | ✅ | **Resolvida** |
+| Q1.4 — Texto idêntico entre saudações diferentes | ⚠️ cosmético | ⚠️ cosmético | Inalterado (não bloqueante) |
+
+**Funciona (mantido):**
+- Espelho de período do dia (oi/boa noite/bom dia/olá) — mensagem do cliente sobrescreve hora do servidor.
+- Reciprocidade do "tudo bem?".
+- Discovery aberto e neutro, sem vazar preço/produto.
+
+**Quebras pendentes para próxima rodada de ajuste:**
+- **Q1.1** — Detector lexical de saudação informal não cobre "e aí", "blz", "fala", "salve", "opa". Próximo ajuste deve estender o detector (sem hardcode segmentado, é vocabulário universal de saudação informal em PT-BR).
+- **Q1.4** — Variação de naturalidade entre saudações canônicas (não bloqueia "100%" da base, mas entra na lista de melhorias de UX).
+
+**Ganhos da Rodada 2 atribuíveis às Frentes 1–4:**
+- Continuity-gate (Frente 4) eliminou Q1.2 (saudação repetida em thread) e indiretamente Q1.3 (resposta dupla).
+- Scope-router e bucket-state-router (Frentes 2–3) não foram exercitados nesta onda (saudações puras caem em `social`/`open_discovery`), mas registraram intent=`greeting` corretamente nos logs.
 
 ---
 
