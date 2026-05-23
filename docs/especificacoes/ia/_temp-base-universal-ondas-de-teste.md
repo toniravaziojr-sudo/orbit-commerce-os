@@ -1123,3 +1123,40 @@ Consolida dados institucionais (cobertura, horário, pagamento, cupom, garantia,
 
 ### Próximo passo — Validação consolidada
 Rodar bateria de regressão (19 cenários originais + cenários novos das Frentes B/C/D/E) em sandbox real para confirmar comportamento ponta a ponta antes de declarar Onda 10 fechada.
+
+---
+
+## Baseline pós-Frentes B–E (Passo 1 do plano de correção) — 2026-05-23
+
+**Como rodou:** sandbox em Agent Mode (`x-agent-mode: true`), tenant Respeite o Homem, modelo gpt-5, sales_mode ligado, canal whatsapp, conversas isoladas.
+
+**Resumo:** 10/14 ✅ • 4/14 ❌ regressão.
+
+| Cenário | Status | Observação |
+|---|---|---|
+| B1.1 / B1.3 / B1.4 | ✅ | Saudação e reabertura ok. |
+| B3.1 "vocês têm shampoo?" | ❌ | Caiu em muleta de qualificação, não listou os 2 shampoos. |
+| B3.2 "tem balm?" | ✅ | Reconheceu família e apresentou produto. |
+| B3.3 "vende perfume?" | ✅ | Negou e reconduziu. |
+| B5.1 "vocês têm minoxidil?" | ❌ | Pediu repetir o nome, não negou nem ofereceu Calvície Zero. |
+| B4.1 "qual o kit mais completo?" | ❌ | Caiu em muleta, não ranqueou kits (regressão herdada da Rodada 2). |
+| B6.2 "queda, qual você recomenda?" | ✅ | Recomendou Loção + qualificou. |
+| B6.3 "queda" → "depois eu vejo" | ❌ | T1 ignorou a dor, T2 não acolheu o "depois". Âncora da Frente E falhou. |
+| B8.1 pagamento / B9.1 cadê pedido / B9.2 trocar / B10.2 humano | ✅ | Institucional, pós-venda e handoff ok. |
+
+### Padrão das regressões
+
+A muleta `Me conta um pouco do que você precisa que eu já te indico.` venceu a Âncora do Turno (Frente E) sempre que havia:
+- família declarada sem dor (B3.1 shampoo, B4.1 kit),
+- produto fora do catálogo com tradução possível (B5.1 minoxidil),
+- dor declarada (B6.3 queda).
+
+Confirma as causas P1 (validação ausente), P3 (Frente C × Frente E em conflito), P4 (sem hierarquia entre `contextualBlocks`) e P5 (continuity-gate só como prompt, não como override de estado).
+
+### Saída concreta para os Passos 2–6
+
+1. Plug imediato: a Âncora precisa virar **override de estado**, não bloco de prompt — quando houver `customer_declared_pain` ou `family_focus`, o roteador tem que pular discovery e ir direto a recommendation/catalog.
+2. Frente C (catálogo) precisa de probe específico para "shampoo", "kit" e "balm" antes de cair em discovery genérico.
+3. B5.1 mostra que o reflexo "produto fora do catálogo com sinônimo conhecido" (minoxidil → Calvície Zero) precisa ser determinístico (lista de sinônimos no banco), não dependente do prompt.
+4. B6.3 mostra que o `continuity-gate` precisa detectar "depois eu vejo" como hesitação e responder com acolhimento curto, não muleta.
+
