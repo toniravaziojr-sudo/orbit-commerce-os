@@ -5126,6 +5126,32 @@ Cliente: "vocês entregam em SP?"
     // greeting mirror, price scrubber e catalog probe. Disparado em paralelo
     // ao restante do bootstrap; com timeout curto e fallback regex.
     let turnClassification: TurnClassification;
+
+    // [Onda 4.2 — Reg #2.18] Quando flag arch218_universal_tpr está ligada,
+    // monta tenantContext (segmento + famílias + dores) a partir do
+    // resolver para enriquecer o system prompt do TPR (ainda
+    // segment-agnostic no código). Lê do cache (peek) — tolerante a miss.
+    let tprTenantContext: { segment?: string | null; families?: string[]; painPoints?: string[] } | undefined;
+    if (arch218UniversalTPREnabled) {
+      try {
+        const { peekTenantVocabularyFromCache, loadTenantVocabulary } =
+          await import("../_shared/sales-pipeline/tenant-vocabulary-resolver.ts");
+        let vocab = peekTenantVocabularyFromCache(tenantId);
+        if (!vocab) {
+          vocab = await loadTenantVocabulary(tenantId).catch(() => null as any);
+        }
+        if (vocab) {
+          tprTenantContext = {
+            segment: vocab.segment,
+            families: (vocab.families || []).map((f: any) => f.label || f.key).filter(Boolean),
+            painPoints: (vocab.painPoints || []).map((p: any) => p.name).filter(Boolean),
+          };
+        }
+      } catch (e) {
+        console.warn("[ai-support-chat][onda4.2] tpr tenantContext warm failed:", (e as Error).message);
+      }
+    }
+
     if (salesModeEnabled && lastMessageContent && lastMessageContent.trim().length > 0) {
       try {
         turnClassification = await classifyTurn({
@@ -5137,20 +5163,22 @@ Cliente: "vocês entregam em SP?"
           hasMediaAttachment: !!(messages || []).slice(-1)[0]?.attachments?.length,
           productNamesHint: preTransitionProductHint,
           timeoutMs: 3500,
+          tenantContext: tprTenantContext,
         });
         console.log(
           `[ai-support-chat] [Reg #2.8] TPR source=${turnClassification.source} latency=${turnClassification.latency_ms}ms ` +
           `pure_greeting=${turnClassification.is_pure_greeting} consultative=${turnClassification.is_consultative_turn} ` +
           `broaden_pain=${turnClassification.should_broaden_catalog_for_pain} asked_price=${turnClassification.asked_about_price} ` +
           `family=${turnClassification.mentioned_product_family ?? "none"} purchase_intent=${turnClassification.confirmed_purchase_intent}` +
-          (turnClassification.raw_error ? ` err=${turnClassification.raw_error}` : "")
+          (turnClassification.raw_error ? ` err=${turnClassification.raw_error}` : "") +
+          (arch218UniversalTPREnabled ? ` [universal=on families=${tprTenantContext?.families?.length ?? 0} pains=${tprTenantContext?.painPoints?.length ?? 0}]` : "")
         );
       } catch (e) {
         console.warn("[ai-support-chat] [Reg #2.8] TPR threw, using regex fallback:", (e as Error).message);
-        turnClassification = fallbackClassification(lastMessageContent, false);
+        turnClassification = fallbackClassification(lastMessageContent, false, tprTenantContext);
       }
     } else {
-      turnClassification = fallbackClassification(lastMessageContent || "", false);
+      turnClassification = fallbackClassification(lastMessageContent || "", false, tprTenantContext);
     }
 
     // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (SHADOW MODE)
