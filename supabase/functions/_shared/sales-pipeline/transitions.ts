@@ -329,6 +329,32 @@ export function detectFamilyMentioned(message: string): string | null {
   return null;
 }
 
+// [Reg #2.18 Onda 2] Detector universal: tenta primeiro o vocabulário do
+// tenant (famílias declaradas no catálogo + sinônimos do dicionário). Cai
+// no detector legado quando nada bate ou vocabulário ausente. Nunca lança.
+// `tenantFamilyTokens` é um Map<token_normalizado, family_key> produzido
+// por `buildFamilyTokenSet` no resolver de vocabulário.
+export function detectFamilyMentionedUniversal(
+  message: string,
+  tenantFamilyTokens?: Map<string, string> | null,
+): string | null {
+  if (!message) return null;
+  if (tenantFamilyTokens && tenantFamilyTokens.size > 0) {
+    const norm = message
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    // match longest first — evita "kit" engolir "kit barba completo"
+    const tokens = [...tenantFamilyTokens.keys()].sort((a, b) => b.length - a.length);
+    for (const tok of tokens) {
+      if (tok.length < 3) continue;
+      const re = new RegExp(`\\b${tok.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      if (re.test(norm)) return tenantFamilyTokens.get(tok) ?? null;
+    }
+  }
+  return detectFamilyMentioned(message);
+}
+
 // [F2-CATALOG-FIX] Algumas linhas comerciais equivalem ao mesmo "tipo" pedido
 // pelo cliente, mesmo com nomenclatura diferente no catálogo.
 // Ex.: cliente pede "loção" e o tenant trabalha com loção + balm pós-banho
@@ -344,6 +370,22 @@ export function getCatalogFamilyAliases(family: string | null | undefined): stri
     default:
       return family ? [family] : [];
   }
+}
+
+// [Reg #2.18 Onda 2] Versão universal dos aliases: respeita os aliases
+// legados (Respeite o Homem) E aceita aliases customizados do tenant
+// vindos do dicionário de linguagem (product_aliases). Não inventa
+// fungibilidade nova; apenas honra o que o lojista declarou.
+export function getCatalogFamilyAliasesUniversal(
+  family: string | null | undefined,
+  tenantAliases?: Record<string, string[]> | null,
+): string[] {
+  const base = getCatalogFamilyAliases(family);
+  if (!family || !tenantAliases) return base;
+  const extra = tenantAliases[family];
+  if (!extra || !extra.length) return base;
+  const merged = new Set<string>([...base, ...extra]);
+  return [...merged];
 }
 
 const INFORMATIONAL_PRODUCT_QUESTION_PATTERNS: RegExp[] = [
