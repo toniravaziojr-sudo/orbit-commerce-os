@@ -320,15 +320,10 @@ export function enforceFamilyBaseFirst<T extends { id: string; name: string; is_
   };
 }
 
-// Detecta família mencionada no texto livre do cliente (input do turno).
-// Reusa FAMILY_NAME_PATTERNS — determinístico, zero LLM.
-export function detectFamilyInText(text: string): string | null {
-  const t = String(text || "");
-  for (const [family, re] of Object.entries(FAMILY_NAME_PATTERNS)) {
-    // pula kit/combo: cliente que pede "kit" não está pedindo família-base.
-    if (family === "kit" || family === "combo") continue;
-    if (re.test(t)) return family;
-  }
+// [Reg #2.18 — Base Universal] `detectFamilyInText` legado vira shim:
+// sem catálogo do tenant não há como decidir família. A função universal
+// (`detectFamilyInTextUniversal`) é a fonte de verdade.
+export function detectFamilyInText(_text: string): string | null {
   return null;
 }
 
