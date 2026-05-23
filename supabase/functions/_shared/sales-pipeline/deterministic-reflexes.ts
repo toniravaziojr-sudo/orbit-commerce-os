@@ -74,6 +74,29 @@ export function detectDeterministicReflex(input: ReflexInput): ReflexOutput | nu
   const text = (input.consolidatedText || "").trim();
   if (!text) return null;
 
+  // ── [Frente B] Reflexo prioritário: ping de presença ────
+  // "tem alguém aí?", "alô?", "ainda tá aí?" — confirmar presença ANTES
+  // de qualquer outra rota (mesmo antes de CEP/frete/pós-venda).
+  // Curto-circuito: nunca responder pergunta de descoberta neste turno.
+  const tokensForPresence = tokenCount(text);
+  if (tokensForPresence <= 8 && PRESENCE_REGEX.test(text)) {
+    return {
+      reflexId: "presence_ping",
+      newState: null, // mantém estado, só ajusta tom
+      reason: "presence_ping_detected",
+      promptBlock:
+        `\n[REFLEXO — PING DE PRESENÇA]\n` +
+        `O cliente está perguntando se TEM ALGUÉM ATENDENDO. ` +
+        `Resposta obrigatória: 1ª linha confirma presença ("Tô aqui sim!" ou ` +
+        `"Oi, tô aqui!"). 2ª linha curta oferece continuar de onde parou ` +
+        `(se já havia conversa) ou pergunta neutra de ajuda. ` +
+        `PROIBIDO usar a muleta "Me conta o que você precisa que eu já te indico" ` +
+        `e PROIBIDO assumir nicho ou produto que o cliente não citou.\n`,
+    };
+  }
+
+
+
   // ── Reflexo 1: CEP recebido ─────────────────────────────
   const cepMatch = text.match(CEP_REGEX);
   if (cepMatch) {
