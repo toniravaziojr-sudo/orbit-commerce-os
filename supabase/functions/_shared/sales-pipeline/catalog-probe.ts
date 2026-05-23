@@ -207,6 +207,7 @@ export function enforceFamilyBaseFirst<T extends { id: string; name: string; is_
   input: BaseFirstInput<T>
 ): BaseFirstResult<T> {
   const { enriched, familyDetected, kitComponentMap, limit } = input;
+  const classify = input.classifier ?? classifyProductFamily;
 
   if (!enriched?.length) {
     return {
@@ -222,7 +223,7 @@ export function enforceFamilyBaseFirst<T extends { id: string; name: string; is_
 
   // Família efetiva: a detectada no input. Se vazia, tentamos inferir
   // pela maioria do pool (fallback raro — só pra não perder oportunidade).
-  const familyOf = (name: string) => classifyProductFamily(name);
+  const familyOf = (name: string) => classify(name);
   const targetFamily =
     familyDetected ||
     (() => {
