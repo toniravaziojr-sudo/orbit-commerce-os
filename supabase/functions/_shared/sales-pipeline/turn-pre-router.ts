@@ -65,6 +65,13 @@ export interface TurnClassification {
   // Suporte / pós-venda
   is_support_topic: boolean;
 
+  // [Frente 2] Categoria de escopo declarada pelo LLM. Quando ausente, o
+  // scope-router determinístico deriva do conjunto de flags + regex.
+  // Valores válidos: social, product_question, catalog_question,
+  // commercial_policy, institutional, post_sale, objection, hesitation,
+  // human_request, out_of_scope, open_discovery.
+  intent_bucket?: string | null;
+
   // Meta
   source: "llm" | "fallback";
   latency_ms: number;
