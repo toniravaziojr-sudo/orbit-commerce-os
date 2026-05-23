@@ -107,11 +107,17 @@ Decisões de negócio/UI a confirmar (você pediu para passar por aprovação):
 1. **Confirmar que personalização do segmento permanece restrita às telas atuais** (Configurações da IA, Marca, Cadastro de Produto / Visão da IA, Categorias, Dicionário do tenant). Se sim, a Onda 1 já tem todas as fontes que precisa e não criamos campo novo.
 2. **Confirmar a bateria de validação multi-segmento como gate de promoção** (Onda 7). Posso montar com 3 tenants fictícios (pet, moda, suplemento) no ambiente de testes da IA, sem tocar em tenant real.
 
+## Status de execução
+- **Onda 1 — Resolver de Vocabulário do Tenant: ENTREGUE.** Arquivo `_shared/sales-pipeline/tenant-vocabulary-resolver.ts`. Lê catálogo + dicionário + snapshot do contexto comercial. Cache 5 min. Sem schema novo.
+- **Onda 2 — Detectores universais: PARCIAL (aditivo).** `detectFamilyMentionedUniversal` e `getCatalogFamilyAliasesUniversal` adicionados em `transitions.ts`. Comportamento legado preservado. Wiring em `ai-support-chat` e ativação por flag pendentes — entram na próxima janela quando o Resolver for usado em runtime.
+- **Ondas 3 a 7:** pendentes, na ordem do plano.
+
 ## Checklist de conformidade
 - Doc de Regras do Sistema lido ✓
 - Docs formais lidos: `mapa-fontes-ia.md`, `motor-contexto-comercial.md`, `visao-ia-produto.md`, `modo-vendas-whatsapp.md`, `pipeline-f2-vendas-ia.md`, `turn-orchestrator.md`, `ia-atendimento-changelog.md` ✓
 - Fluxo afetado: IA de Atendimento (modo vendas e informativo) + agentes auxiliares (criativos, landing, content)
 - Fonte de verdade: Configurações da IA + Catálogo do tenant (sem fontes novas)
 - Módulos impactados: pipeline de vendas inteira, agente de atendimento, agentes auxiliares de marketing
-- UI impactada: nenhuma (UIs existentes seguem como estão)
-- Situação: Aguardando confirmação dos 2 itens de aprovação acima para iniciar a Onda 1.
+- UI impactada: nenhuma
+- Situação: Ondas 1 e 2 (parte aditiva) aplicadas e validadas com testes próprios. Próximo passo: ligar o Resolver dentro de `ai-support-chat` atrás de flag e seguir para Onda 3.
+
