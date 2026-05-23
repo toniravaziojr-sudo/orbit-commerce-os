@@ -785,7 +785,56 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 - **Q8.B — Pergunta sobre loja física vira não-resposta confusa (Q8.4):** Em vez de afirmar "somos 100% online" ou consultar a base, a IA mudou de assunto pedindo nome de produto. Resposta desconexa que parece bug de roteamento.
 - **Q8.C — Inconsistência entre informações institucionais:** Pagamento (Q8.3) e atendimento (Q8.5) têm respostas excelentes; entrega (Q8.1, Q8.2) e loja física (Q8.4) falham. A IA tem **fragmentos** da base institucional, não uma base coesa.
 
+### Onda 8 — Rodada 2 (re-execução pós-Frentes 1–4, prompts oficiais do plano)
+
+Executada via `ai-test-sandbox` Agent Mode, 5 conversas isoladas, modelo `gpt-5`, modo vendas ativo.
+
+#### Q8.1 — "vocês entregam pra Manaus?"
+- **Conversa:** `c281f794-92a5-413f-b376-1d2bfe62e13f` — latência 9.9s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ Mantida a falha. Pergunta factual de cobertura segue tratada como qualificação de produto.
+
+#### Q8.2 — "qual o prazo de entrega?"
+- **Conversa:** `2a803cd4-ea5a-44d0-9dc5-5650a0631235` — latência 8.8s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ Mantida a falha. Resposta certa seria pedir o CEP — segue caindo na muleta.
+
+#### Q8.3 — "como funciona o pagamento?"
+- **Conversa:** `27d6ab81-cdd8-43cd-ae80-ac61dd013183` — latência 43.6s.
+- **Resposta:** "O pagamento é por um link de checkout seguro: você abre, escolhe a forma disponível e paga; a confirmação cai na hora. Me diz qual produto você quer fechar que eu já te mando o link."
+- **Avaliação:** ✅ Mantido. Mesmo padrão da Rodada 1: explica o fluxo + call-to-action. Continua sem listar formas aceitas (pix, cartão, parcelamento).
+
+#### Q8.4 — "vocês têm loja física?"
+- **Conversa:** `4ec146c0-202d-4f6d-9d81-14878d86e872` — latência 9.3s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ⚠️ **Mudou o sintoma, mas continua errado.** Na Rodada 1 era resposta confusa ("deixa eu confirmar" + pediu nome de produto). Agora caiu na muleta universal. Saiu da confusão, mas perdeu a mínima honestidade que tinha — pior em conteúdo factual.
+
+#### Q8.5 — "qual o horário de atendimento?"
+- **Conversa:** `0a6c3cbb-cb82-47c4-9a31-e54ccadc88d7` — latência 9.1s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ **REGRESSÃO grave.** Na Rodada 1 era resposta excelente (WhatsApp 24h, e-mail, telefone, fechamento com CTA). Agora caiu na muleta universal. **Perda total de uma das duas respostas institucionais bem-resolvidas da Onda 8.**
+
+#### Comparativo Rodada 1 → Rodada 2
+
+| Cenário | Rodada 1 | Rodada 2 | Status |
+|---|---|---|---|
+| Q8.1 — "entregam pra Manaus?" | ❌ Muleta | ❌ Muleta | Inalterado |
+| Q8.2 — "qual o prazo?" | ❌ Muleta | ❌ Muleta | Inalterado |
+| Q8.3 — "como funciona pagamento?" | ✅ Explica + CTA | ✅ Explica + CTA | Mantido |
+| Q8.4 — "loja física?" | ⚠️ Resposta confusa | ❌ Muleta | Regressão |
+| Q8.5 — "horário de atendimento?" | ✅ Resposta completa (3 canais) | ❌ Muleta | **Regressão grave** |
+
+#### Achados novos da Rodada 2 — Onda 8
+
+- **Q8.D — Resposta de horário/canais de atendimento foi perdida (regressão grave):** o único cenário institucional 100% bem-resolvido na Rodada 1 (Q8.5) agora caiu na muleta universal. Sinaliza que a fonte institucional (e-mail/telefone/horário) deixou de chegar ao prompt no fluxo atual — antes existia, agora sumiu.
+- **Q8.E — A base institucional ficou ainda mais fragmentada:** na Rodada 1 a IA tinha 2 respostas excelentes (Q8.3 e Q8.5) e 3 falhas. Agora tem só 1 resposta excelente (Q8.3) e 4 falhas. O que era "fragmento institucional parcial" virou "fragmento mínimo" — só pagamento sobreviveu.
+- **Q8.F — Latência do "muleta universal" ficou ~9s consistentes:** turnos que caem na muleta respondem em ~9s; o caminho útil (Q8.3) levou 43s. Isso indica que a muleta é resposta determinística rápida (sem chamada de tool/contexto), enquanto o caminho institucional real exige o LLM completo. Sem detector de intent institucional, a IA opta pelo caminho rápido errado.
+
+**Latência média:** ~16s (puxada por Q8.3).
+
 ---
+
+
 
 ## Onda 9 — Pós-venda e atendimento de cliente existente
 
