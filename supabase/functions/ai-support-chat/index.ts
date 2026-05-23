@@ -880,18 +880,10 @@ async function executeSalesTool(
         // O matching é por ILIKE em categories.name, então funciona com qualquer
         // tenant que tenha categorias nomeadas pela dor.
         // ---------------------------------------------------------------
-        const painLexicon: Array<{ test: RegExp; categoryPatterns: string[] }> = [
-          { test: /\bcalv[íi]cie|queda|caindo|falha(s)?\b|coroa|ralo|rala/i,
-            categoryPatterns: ["%calv%", "%queda%", "%tratamento%"] },
-          { test: /\bpreven(ir|[çc][ãa]o|tivo)|fortalec|crescimento|crescer/i,
-            categoryPatterns: ["%preven%", "%fortalec%", "%crescimento%"] },
-          { test: /\bcaspa|seborr[eé]ia/i,
-            categoryPatterns: ["%caspa%", "%seborr%", "%anticaspa%"] },
-          { test: /\boleosidade|cabelo\s+oleoso|couro\s+cabeludo/i,
-            categoryPatterns: ["%oleos%", "%couro%"] },
-          { test: /\bp[óo]s[\s-]banho/i,
-            categoryPatterns: ["%pos%banho%", "%p[óo]s%banho%"] },
-        ];
+        // [Onda 3 — Reg #2.18] painLexicon legado movido para dentro do
+        // bloco "else" abaixo. Caminho universal entra atrás da flag
+        // `arch218UniversalPainResolverEnabled`.
+
 
         const painSource = `${painHintRaw} ${query} ${lastUserMessageContentForTools}`;
         const matchedCategoryPatterns: string[] = [];
