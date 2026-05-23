@@ -76,21 +76,44 @@ export interface TurnClassification {
   model?: string | null;
 }
 
-const TPR_SYSTEM = `Você é um classificador de turnos de uma conversa de vendas no WhatsApp em português brasileiro.
+// [Onda 4 — Reg #2.18] System prompt do TPR é construído em runtime, com
+// vocabulário do tenant injetado. Mantemos um prompt-base neutro
+// (segment-agnostic) e composição dinâmica de família/dor por tenant.
+const TPR_SYSTEM_BASE = `Você é um classificador de turnos de uma conversa de vendas no WhatsApp em português brasileiro.
 Sua única tarefa é ler a ÚLTIMA mensagem do cliente e o histórico curto, e devolver, via tool call, um objeto JSON estruturado descrevendo a intenção do turno.
 
-Regras:
+Regras gerais:
 - Você NÃO escreve resposta para o cliente. Só classifica.
-- Se o cliente descreveu um caso pessoal/sintoma ("tenho calvície", "tô com queda", "minha coroa tá ralinha", "tenho bastante entrada", "será que resolve?", "faz 2 anos que..."), described_symptom=true.
-- Se o cliente pediu para você indicar/recomendar/sugerir algo ("o que vocês recomendam?", "qual indicado?", "será que resolve meu caso?", "o que melhor pra mim?"), requested_recommendation=true.
+- Se o cliente descreveu um caso pessoal/sintoma/dor relacionada ao que o negócio resolve ("tenho ...", "tô com ...", "minha/meu ... está ...", "faz X tempo que ..."), described_symptom=true.
+- Se o cliente pediu para você indicar/recomendar/sugerir algo ("o que vocês recomendam?", "qual indicado?", "o que melhor pra mim?"), requested_recommendation=true.
 - is_consultative_turn = true SEMPRE que described_symptom=true OU requested_recommendation=true OU enviou foto descrevendo um caso. Esses turnos exigem ACOLHIDA antes de listar produto.
-- should_broaden_catalog_for_pain = true quando o cliente descreveu uma DOR/OBJETIVO concreto (calvície, queda, caspa, etc), MESMO que tenha citado uma família (ex.: "shampoo pra calvície"). Sinaliza ao servidor para mostrar várias linhas (shampoo + loção + balm + kit) compatíveis com a dor — não só a família que ele citou.
-- mentioned_product_family: shampoo, condicionador, creme, locao, balm, serum, tonico, mascara, gel, sabonete, kit, combo, perfume — ou null.
+- should_broaden_catalog_for_pain = true quando o cliente descreveu uma DOR/OBJETIVO concreto, MESMO que tenha citado uma família. Sinaliza ao servidor para mostrar várias linhas compatíveis com a dor — não só a família que ele citou.
+- mentioned_product_family: chave canônica de família do catálogo (ver lista abaixo) — ou null. NÃO invente famílias fora do catálogo do tenant.
 - asked_about_price = true só se ele PERGUNTOU sobre preço/valor/quanto custa/desconto/cupom. Não confunda "quero comprar" com pergunta de preço.
 - confirmed_purchase_intent = true quando o cliente disse "quero", "vou levar", "fecha", "manda o link", "pode adicionar".
 - is_pure_greeting = true só se a mensagem é APENAS saudação ("oi", "boa noite", "tudo bem?") sem nenhuma outra informação.
 - greeting_period: extraia LITERAL ("bom dia"/"boa tarde"/"boa noite") só se ele usou. Caso contrário null.
 - Em caso de dúvida, prefira false (conservador).`;
+
+function buildTPRSystemPrompt(tenantContext?: TPRTenantContext): string {
+  if (!tenantContext) return TPR_SYSTEM_BASE;
+  const families = (tenantContext.families || []).filter(Boolean).slice(0, 40);
+  const pains = (tenantContext.painPoints || []).filter(Boolean).slice(0, 30);
+  const lines: string[] = [TPR_SYSTEM_BASE, ""];
+  if (tenantContext.segment) {
+    lines.push(`Segmento do negócio: ${tenantContext.segment}.`);
+  }
+  if (families.length) {
+    lines.push(`Famílias de produto válidas para este negócio (use uma destas em mentioned_product_family ou null): ${families.join(", ")}.`);
+  }
+  if (pains.length) {
+    lines.push(`Dores/objetivos típicos que este catálogo resolve (use como referência para described_symptom e should_broaden_catalog_for_pain): ${pains.join(", ")}.`);
+  }
+  return lines.join("\n");
+}
+
+// Compat: alguns testes/observabilidade ainda referenciam a constante antiga.
+const TPR_SYSTEM = TPR_SYSTEM_BASE;
 
 const TPR_TOOL = {
   type: "function",
