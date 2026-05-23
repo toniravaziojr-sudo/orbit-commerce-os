@@ -3838,6 +3838,11 @@ Deno.serve(async (req) => {
     const arch1cMode: "off" | "dry_run" | "active" =
       arch1cModeRaw === "dry_run" || arch1cModeRaw === "active" ? arch1cModeRaw : "off";
 
+    // [Onda 3 — Reg #2.18] Flag por tenant para o pain→category resolver
+    // universal. Quando false (default), comportamento legado preservado.
+    const arch218UniversalPainResolverEnabled =
+      ((effectiveConfig as any)?.metadata?.arch218_universal_pain_resolver) === true;
+
     if (effectiveConfig.is_enabled === false) {
       return new Response(
         JSON.stringify({ success: false, error: "AI support is disabled for this tenant", code: "AI_DISABLED" }),
