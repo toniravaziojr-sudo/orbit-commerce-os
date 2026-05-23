@@ -81,6 +81,10 @@ import {
   // [Onda 18 — Fase A] Probe v2 família-base + detector de família por regex
   enforceFamilyBaseFirst,
   detectFamilyInText,
+  // [Onda 3.3 — Reg #2.18] Versões universais (segment-agnostic) que
+  // consomem o vocabulário do tenant carregado pelo Resolver da Onda 1.
+  detectFamilyInTextUniversal,
+  classifyProductFamilyUniversal,
   // [Onda 18 — Fase B] Policy Compiler — fonte central da política efetiva
   compileEffectivePolicy,
   policySourceTrace,
@@ -845,6 +849,10 @@ async function executeSalesTool(
     // texto do cliente + dicionário do tenant (universal). Quando false,
     // mantém o léxico legado (cosmético/cabelo).
     arch218UniversalPainResolverEnabled?: boolean;
+    // [Onda 3.3 — Reg #2.18] Quando true, usa detectFamilyInTextUniversal
+    // e classifyProductFamilyUniversal (segment-agnostic, dirigidos pelo
+    // vocabulário do tenant). Quando false, mantém regex legado.
+    arch218UniversalCatalogProbeEnabled?: boolean;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
@@ -883,6 +891,23 @@ async function executeSalesTool(
         // [Onda 3 — Reg #2.18] painLexicon legado movido para dentro do
         // bloco "else" abaixo. Caminho universal entra atrás da flag
         // `arch218UniversalPainResolverEnabled`.
+
+        // [Onda 3.3 — Reg #2.18] Aquecimento do cache do vocabulário do tenant
+        // quando o catalog-probe universal está ligado. Garante que os
+        // detectores síncronos (detectFamilyInTextUniversal /
+        // classifyProductFamilyUniversal) consigam ler o cache via peek.
+        if (ctx.arch218UniversalCatalogProbeEnabled === true) {
+          try {
+            const { peekTenantVocabularyFromCache, loadTenantVocabulary } =
+              await import("../_shared/sales-pipeline/tenant-vocabulary-resolver.ts");
+            if (!peekTenantVocabularyFromCache(tenantId)) {
+              await loadTenantVocabulary(tenantId, supabase as any).catch(() => null);
+            }
+          } catch (e) {
+            console.warn(`[ai-support-chat][onda3.3] warm vocabulary failed:`, (e as Error).message);
+          }
+        }
+
 
 
         const painSource = `${painHintRaw} ${query} ${lastUserMessageContentForTools}`;
@@ -1175,11 +1200,16 @@ async function executeSalesTool(
         // ao invés de filtro estrito. Resolve "Catalog Blindness".
         const shouldBroaden = !!ctx.shouldBroadenForPain && enriched.length > 1;
         if (shouldBroaden) {
+          const universalProbe = ctx.arch218UniversalCatalogProbeEnabled === true;
+          const classifier = universalProbe
+            ? (n: string) => classifyProductFamilyUniversal(n, ctx.tenantId)
+            : undefined;
           const broadened = broadenCatalogForPain({
             enriched: enriched as any,
             familyMentionedNow,
             familyFocus: familyFocusActive,
             limit: requestedLimit,
+            classifier,
           });
           if (broadened.filtered.length > 0) {
             filtered = broadened.filtered as typeof enriched;
@@ -1235,11 +1265,19 @@ async function executeSalesTool(
         };
 
         if (arch18On) {
-          // Trace 1 — input do turno + família detectada por regex no input
-          const familyDetected = detectFamilyInText(lastUserMessageContentForTools);
+          const universalProbeOn = ctx.arch218UniversalCatalogProbeEnabled === true;
+          const detectFamily = (t: string) =>
+            universalProbeOn ? detectFamilyInTextUniversal(t, ctx.tenantId) : detectFamilyInText(t);
+          const familyClassifier = universalProbeOn
+            ? (n: string) => classifyProductFamilyUniversal(n, ctx.tenantId)
+            : undefined;
+
+          // Trace 1 — input do turno + família detectada
+          const familyDetected = detectFamily(lastUserMessageContentForTools);
           await writeTrace("turn_input", {
             user_text: String(lastUserMessageContentForTools || "").slice(0, 500),
             family_detected: familyDetected,
+            family_detector: universalProbeOn ? "universal" : "legacy",
           });
           // Trace 2 — args recebidos pela tool
           await writeTrace("search_products_input", {
@@ -1276,6 +1314,7 @@ async function executeSalesTool(
             familyDetected,
             kitComponentMap,
             limit: requestedLimit,
+            classifier: familyClassifier,
           });
 
           // Trace 4 — partição enriquecida
@@ -1384,7 +1423,9 @@ async function executeSalesTool(
               enriched: enrichedForBuilder,
               vision,
               userText: lastUserMessageContentForTools,
-              familyDetected: detectFamilyInText(lastUserMessageContentForTools),
+              familyDetected: ctx.arch218UniversalCatalogProbeEnabled === true
+                ? detectFamilyInTextUniversal(lastUserMessageContentForTools, ctx.tenantId)
+                : detectFamilyInText(lastUserMessageContentForTools),
               explicitRequestProductIds: explicitIds,
             });
 
@@ -3843,6 +3884,12 @@ Deno.serve(async (req) => {
     const arch218UniversalPainResolverEnabled =
       ((effectiveConfig as any)?.metadata?.arch218_universal_pain_resolver) === true;
 
+    // [Onda 3.3 — Reg #2.18] Flag para detector/classificador universal
+    // de família (catalog-probe). Quando true, consome o vocabulário do
+    // tenant via Resolver. Quando false (default), regex legado.
+    const arch218UniversalCatalogProbeEnabled =
+      ((effectiveConfig as any)?.metadata?.arch218_universal_catalog_probe) === true;
+
     if (effectiveConfig.is_enabled === false) {
       return new Response(
         JSON.stringify({ success: false, error: "AI support is disabled for this tenant", code: "AI_DISABLED" }),
@@ -6272,6 +6319,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         arch1cRecommendationContextBuilderMode: arch1cMode,
         // [Onda 3 — Reg #2.18] Flag para resolver universal pain→categoria.
         arch218UniversalPainResolverEnabled,
+        // [Onda 3.3 — Reg #2.18] Flag para catalog-probe universal.
+        arch218UniversalCatalogProbeEnabled,
       };
 
       let response: Response | null = null;

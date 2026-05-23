@@ -72,8 +72,9 @@ export interface BroadenResult<T> {
  * É O(n) e determinística.
  */
 export function broadenCatalogForPain<T extends { id: string; name: string; is_kit?: boolean; match_reason?: string }>(
-  input: { enriched: T[]; familyMentionedNow: string | null; familyFocus: string | null; limit: number }
+  input: { enriched: T[]; familyMentionedNow: string | null; familyFocus: string | null; limit: number; classifier?: (name: string) => string }
 ): BroadenResult<T> {
+  const classify = input.classifier ?? classifyProductFamily;
   const { enriched, familyMentionedNow, familyFocus, limit } = input;
   if (!enriched?.length) {
     return { filtered: [], reason: "empty_pool", families_returned: [] };
@@ -82,7 +83,7 @@ export function broadenCatalogForPain<T extends { id: string; name: string; is_k
   // Agrupa por família
   const byFamily = new Map<string, T[]>();
   for (const item of enriched) {
-    const fam = classifyProductFamily(item.name);
+    const fam = classify(item.name);
     const list = byFamily.get(fam) || [];
     list.push(item);
     byFamily.set(fam, list);
@@ -129,7 +130,7 @@ export function broadenCatalogForPain<T extends { id: string; name: string; is_k
   return {
     filtered,
     reason: "broadened_pain_one_per_family",
-    families_returned: filtered.map((f) => classifyProductFamily(f.name)),
+    families_returned: filtered.map((f) => classify(f.name)),
   };
 }
 
@@ -174,6 +175,8 @@ export interface BaseFirstInput<T extends { id: string; name: string; is_kit?: b
   kitComponentMap: Map<string, string[]>;
   /** Limite comercial. */
   limit: number;
+  /** Classificador opcional de família (universal vs legado). */
+  classifier?: (name: string) => string;
 }
 
 export interface BaseFirstResult<T> {
@@ -204,6 +207,7 @@ export function enforceFamilyBaseFirst<T extends { id: string; name: string; is_
   input: BaseFirstInput<T>
 ): BaseFirstResult<T> {
   const { enriched, familyDetected, kitComponentMap, limit } = input;
+  const classify = input.classifier ?? classifyProductFamily;
 
   if (!enriched?.length) {
     return {
@@ -219,7 +223,7 @@ export function enforceFamilyBaseFirst<T extends { id: string; name: string; is_
 
   // Família efetiva: a detectada no input. Se vazia, tentamos inferir
   // pela maioria do pool (fallback raro — só pra não perder oportunidade).
-  const familyOf = (name: string) => classifyProductFamily(name);
+  const familyOf = (name: string) => classify(name);
   const targetFamily =
     familyDetected ||
     (() => {
@@ -335,4 +339,71 @@ export function detectFamilyInText(text: string): string | null {
     if (re.test(t)) return family;
   }
   return null;
+}
+
+// ============================================================
+// Onda 3.3 (Reg #2.18) — Versões universais (segment-agnostic)
+//
+// Usam o vocabulário do tenant carregado pelo Resolver (Onda 1).
+// Caller deve chamar `loadTenantVocabulary(tenantId)` UMA vez no
+// início do turno para aquecer o cache. Aqui usamos `peek` síncrono
+// para manter a assinatura compatível com `classifyProductFamily` /
+// `detectFamilyInText` legados.
+//
+// Comportamento:
+//  - Se o vocabulário do tenant estiver disponível, classifica via
+//    longest-match contra os tokens do tenant (família + sinônimos +
+//    aliases). Retorna a `family.key` estável do tenant.
+//  - Se o vocabulário não estiver no cache (cold start) OU não houver
+//    match, cai no detector legado como rede de segurança.
+// ============================================================
+
+import { peekTenantVocabularyFromCache, buildFamilyTokenSet, normalizeVocabularyKey } from "./tenant-vocabulary-resolver.ts";
+
+function matchLongestFamilyToken(text: string, tokenMap: Map<string, string>): string | null {
+  if (!text || tokenMap.size === 0) return null;
+  const normalized = normalizeVocabularyKey(text);
+  if (!normalized) return null;
+  // Ordena tokens por tamanho desc para garantir longest-match
+  const tokens = [...tokenMap.keys()].sort((a, b) => b.length - a.length);
+  for (const tok of tokens) {
+    if (!tok) continue;
+    // boundary simples: começo, fim ou cercado por espaço
+    const idx = normalized.indexOf(tok);
+    if (idx < 0) continue;
+    const before = idx === 0 ? " " : normalized[idx - 1];
+    const after = idx + tok.length >= normalized.length ? " " : normalized[idx + tok.length];
+    if (/[\s\-]/.test(before) && /[\s\-]/.test(after)) {
+      return tokenMap.get(tok) ?? null;
+    }
+  }
+  return null;
+}
+
+export function classifyProductFamilyUniversal(name: string, tenantId: string | null): string {
+  const vocab = tenantId ? peekTenantVocabularyFromCache(tenantId) : null;
+  if (vocab) {
+    const tokenMap = buildFamilyTokenSet(vocab);
+    const fam = matchLongestFamilyToken(name, tokenMap);
+    if (fam) return fam;
+  }
+  // Fallback legado
+  return classifyProductFamily(name);
+}
+
+export function detectFamilyInTextUniversal(text: string, tenantId: string | null): string | null {
+  const vocab = tenantId ? peekTenantVocabularyFromCache(tenantId) : null;
+  if (vocab) {
+    const tokenMap = buildFamilyTokenSet(vocab);
+    // remove kit/combo aqui também: cliente que pede "kit" não está pedindo família-base
+    const filtered = new Map<string, string>();
+    for (const [tok, key] of tokenMap) {
+      if (key === "kit" || key === "combo") continue;
+      filtered.set(tok, key);
+    }
+    const fam = matchLongestFamilyToken(text, filtered);
+    if (fam) return fam;
+  }
+  // Fallback legado
+  return detectFamilyInText(text);
 }
