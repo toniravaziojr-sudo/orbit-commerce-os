@@ -75,6 +75,89 @@ export function detectConsultativeTurn(input: {
   };
 }
 
+// ============================================================
+// Onda 4 (Reg #2.18) — Detector universal (segment-agnostic)
+//
+// Quando o TPR (Reg #2.8) está disponível e classificou o turno via LLM,
+// usamos seus sinais como fonte de verdade. Caso contrário, caímos numa
+// versão dinâmica do detector que combina:
+//   - cues universais de "caso pessoal" ("tenho", "estou com", "faz X tempo")
+//   - tokens de dor declarados pelo tenant (painPoints do Resolver da Onda 1)
+//   - padrões universais de pedido de recomendação
+// Sem regex fixa de cabelo/calvície/queda/caspa.
+// ============================================================
+
+const UNIVERSAL_SYMPTOM_CUES = /\b(tenho|estou\s+com|t[ôo]\s+com|sofro\s+com|minha|meu|faz\s+\d+\s+(anos?|meses?|dias?)|h[áa]\s+\d+\s+(anos?|meses?))/i;
+
+const UNIVERSAL_RECOMMENDATION_REQUEST = [
+  /\b(qual|que)\s+([\w\sçãõéáíóúâêô]{0,30})?(mais\s+)?(indicado|recomendado|melhor)\s+(pra|para)\s+(mim|o\s+meu\s+caso|isso)/i,
+  /\bo\s+que\s+(voc[êe]s?\s+)?(recomenda(m)?|indica(m)?|sugere(m)?)\s+(pra|para)\s+(mim|o\s+meu\s+caso|isso)?/i,
+  /\b(pode|poderia)\s+(me\s+)?(indicar|recomendar|sugerir)/i,
+  /\bme\s+ajuda(m)?\s+a\s+(escolher|decidir)/i,
+];
+
+export interface ConsultativeTurnUniversalInput {
+  customerMessage: string;
+  hasMediaAttachment?: boolean;
+  /** Tokens de dor declarados pelo tenant (do Resolver de vocabulário). */
+  tenantPainTokens?: string[];
+  /** Quando true, prefere os sinais de TPR aos detectores regex. */
+  tpr?: {
+    source: "llm" | "fallback";
+    described_symptom: boolean;
+    requested_recommendation: boolean;
+    is_consultative_turn: boolean;
+  } | null;
+}
+
+export function detectConsultativeTurnUniversal(
+  input: ConsultativeTurnUniversalInput,
+): ConsultativeTurnSignals {
+  const text = input.customerMessage || "";
+  const hasMediaAttachment = !!input.hasMediaAttachment;
+
+  // 1) Caminho preferido: TPR via LLM (Reg #2.8). Source-of-truth única.
+  if (input.tpr && input.tpr.source === "llm") {
+    const matchCount =
+      (input.tpr.described_symptom ? 1 : 0) +
+      (input.tpr.requested_recommendation ? 1 : 0) +
+      (hasMediaAttachment ? 1 : 0);
+    return {
+      hasSymptomDescription: input.tpr.described_symptom,
+      hasRecommendationRequest: input.tpr.requested_recommendation,
+      hasMediaAttachment,
+      matchCount,
+      isConsultative: input.tpr.is_consultative_turn || matchCount >= 2,
+    };
+  }
+
+  // 2) Fallback dinâmico universal: cues "caso pessoal" + tokens de dor do tenant.
+  const tenantTokens = (input.tenantPainTokens || []).filter((t) => t && t.length >= 3);
+  const tenantPainRegex = tenantTokens.length
+    ? new RegExp(`\\b(${tenantTokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "i")
+    : null;
+
+  const personalCue = UNIVERSAL_SYMPTOM_CUES.test(text);
+  const tenantPainHit = tenantPainRegex ? tenantPainRegex.test(text) : false;
+  // Sintoma = cue pessoal junto com algum token de dor (do tenant) OU
+  // cue pessoal isolado já é forte o suficiente como sinal consultivo.
+  const hasSymptomDescription = personalCue || tenantPainHit;
+
+  const hasRecommendationRequest = UNIVERSAL_RECOMMENDATION_REQUEST.some((re) => re.test(text));
+
+  const matchCount =
+    (hasSymptomDescription ? 1 : 0) +
+    (hasRecommendationRequest ? 1 : 0) +
+    (hasMediaAttachment ? 1 : 0);
+
+  return {
+    hasSymptomDescription,
+    hasRecommendationRequest,
+    hasMediaAttachment,
+    matchCount,
+    isConsultative: matchCount >= 2,
+  };
+
 /**
  * Bloco de contexto a ser injetado no prompt quando detectamos
  * turno consultivo. Vai DEPOIS dos blocos de estado, então tem
