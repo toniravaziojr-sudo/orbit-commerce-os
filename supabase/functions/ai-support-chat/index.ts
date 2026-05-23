@@ -7073,10 +7073,24 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           lastInboundForFb?.message_type === "audio" ||
           lastInboundForFb?.message_type === "document");
 
-        if (isActionable && !toolsAlreadyRan) {
+        // [Reg #2.17] Veto comercial UNIVERSAL aplicado também aqui:
+        // se o classificador disse "complaint" mas NÃO há sinal universal
+        // de pós-venda (pedido/entrega/rastreio/reembolso/etc.), tratar
+        // como oportunidade comercial em qualquer segmento, não escalar.
+        const intentName = intentClassification?.intent;
+        const isOrderComplaintHere = !!painSignal?.isOrderComplaint;
+        const universalCommercialVeto =
+          intentName === "complaint" && !isOrderComplaintHere;
+
+        if (isActionable && !toolsAlreadyRan && !universalCommercialVeto) {
           aiContent = "Vou chamar alguém da equipe pra resolver isso direto com você. Já te respondem por aqui.";
           shouldHandoff = true;
           handoffReason = handoffReason || "empty_response_actionable_intent";
+        } else if (universalCommercialVeto) {
+          // Mantém modo comercial: usa fallback do estado em vez de escalar.
+          aiContent = FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] ||
+            FALLBACK_PROMISE_BY_STATE[pipelineState] ||
+            "Me conta um pouco mais do que você procura, que eu já te indico o melhor.";
         } else if (inboundIsMediaFb) {
           aiContent = "Não consegui abrir o arquivo aqui. Você consegue me descrever em texto o que precisa? Assim eu já te ajudo.";
         } else if (toolsAlreadyRan) {
