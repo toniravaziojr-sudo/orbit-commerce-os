@@ -133,8 +133,14 @@ Decisões de negócio/UI a confirmar (você pediu para passar por aprovação):
   4. Detector de turno consultivo passa a depender 100% do TPR (sem regex de cabelo/barba).
 - **Evidência:** testes universais passam; testes legados de pipeline mantidos sem regressão (falhas pré-existentes em `pipeline.test.ts` confirmadas como anteriores à entrega).
 
-### Onda 3 — Sonda de catálogo + tool de busca universais — 🔜 EM ANDAMENTO
-- Próximo passo imediato.
+### Onda 3 — Sonda de catálogo + tool de busca universais — ✅ ENTREGUE (parte do resolver de dor)
+- **Artefato:** `supabase/functions/_shared/sales-pipeline/pain-category-resolver.ts`
+- **O que faz:** dado o `painSource` (texto que o cliente declarou) + `TenantVocabulary`, deriva padrões `%token%` para `categories.name ILIKE` **sem nenhum termo travado de segmento**. Tokens ≥4 chars, stopwords PT-BR removidas; sinônimos do dicionário do tenant entram quando bate alguma dor declarada.
+- **Wiring atrás de flag:** `ai-support-chat/index.ts` lê `ai_support_config.metadata.arch218_universal_pain_resolver`; quando `true`, substitui o léxico legado de cosmético/cabelo (`%calv%`, `%caspa%`, `%queda%`...) pelo resolver universal. Quando `false` (default), comportamento legado preservado byte-a-byte.
+- **Evidência:** 5 testes em `__tests__/pain-category-resolver.test.ts` — pet shop ("cachorro coça"), moda ("calça apertando"), sinônimos do tenant, stopwords. ✅ Todos passam (5/5).
+- **Pendências da Onda 3** (próxima sub-janela):
+  1. Neutralizar descrições do `SALES_TOOLS` (exemplos abstratos em vez de "calvície/balm/Calvície Zero"). Cuidado de paridade: hoje o LLM lê "shampoo" como exemplo e isso ancora o estilo. Vai entrar via `SALES_TOOLS_UNIVERSAL` selecionado pela mesma flag.
+  2. Bateria multi-segmento dedicada (pet, moda, suplemento) batendo no resolver com tenants fictícios.
 
 ### Ondas 4 a 7 — pendentes, na ordem do plano.
 
