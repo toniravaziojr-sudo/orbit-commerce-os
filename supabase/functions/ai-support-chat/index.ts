@@ -6498,6 +6498,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // [Reg #2.8] Sinaliza ao search_products que aplique Catalog Probe
         // (1 representante por família) ao invés do filtro estrito.
         shouldBroadenForPain: turnClassification?.should_broaden_catalog_for_pain === true,
+        // [Frente C] Bucket do TPR — ativa modo agnóstico de vitrine quando catalog_question.
+        intentBucket: (turnClassification?.intent_bucket as string | null) ?? null,
         // [Onda 18 — Fase A] Probe v2 família-base + trace estruturado.
         arch18CatalogBaseForced,
         turnId: `${conversation_id}-${Date.now()}`,
