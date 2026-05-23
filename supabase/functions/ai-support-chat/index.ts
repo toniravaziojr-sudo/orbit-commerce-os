@@ -445,12 +445,12 @@ const SALES_TOOLS = [
     type: "function",
     function: {
       name: "search_products",
-      description: "Busca produtos do catálogo do tenant. Por padrão devolve APENAS produtos únicos (sem composição) — kits/combos só vêm se include_kits=true. Use pain_hint quando o cliente já declarou a dor/objetivo (ex.: 'calvície', 'queda', 'prevenção', 'caspa'); a tool faz join com as categorias do tenant pra filtrar pela dor antes do nome.",
+      description: "Busca produtos do catálogo do tenant. Por padrão devolve APENAS produtos únicos (sem composição) — kits/combos só vêm se include_kits=true. Use pain_hint quando o cliente já declarou a dor/objetivo/necessidade em linguagem natural; a tool cruza com as categorias e a Visão da IA dos produtos do tenant pra priorizar quem resolve essa dor antes de filtrar por nome.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Termo de busca (família ou nome do produto). Ex.: 'shampoo', 'balm', 'Calvície Zero'." },
-          pain_hint: { type: "string", description: "Dor/objetivo do cliente em linguagem natural (ex.: 'calvície', 'queda de cabelo', 'prevenção', 'caspa', 'pós-banho'). Quando informado, a tool prioriza produtos das categorias compatíveis." },
+          query: { type: "string", description: "Termo de busca: família, categoria ou nome do produto exatamente como o cliente citou ou como aparece no catálogo do tenant." },
+          pain_hint: { type: "string", description: "Dor, objetivo ou necessidade declarada pelo cliente em linguagem natural (qualquer segmento: cosmético, pet, moda, suplemento, eletrônico, serviços, etc.). Quando informado, a tool prioriza produtos das categorias e Visão da IA compatíveis com essa dor." },
           include_kits: { type: "boolean", description: "Default false. Só passe true quando o cliente JÁ tem produto base escolhido (upsell) ou pediu explicitamente kit/combo." },
           limit: { type: "number", description: "Máximo de resultados (default 5)." },
         },
