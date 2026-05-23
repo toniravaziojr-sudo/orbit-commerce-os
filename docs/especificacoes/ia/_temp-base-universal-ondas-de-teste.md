@@ -280,8 +280,47 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 
 ---
 
+## Onda 5 — Pedido por nome de produto
+
+Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
+
+### Q5.1 — "quero o Shampoo Preventive Power" (nome exato)
+**Resposta:** "Prontinho, adicionei 1x do Shampoo Preventive Power no seu carrinho. Sai por R$ 75,91. Quer adicionar mais alguma coisa ou já te mando o link de pagamento?"
+**Avaliação:** ✅ Excelente. Identificou o produto, adicionou ao carrinho, deu o preço, fechou com cross-sell + checkout.
+
+### Q5.2 — "me manda o calvicie zero" (nome aproximado/coloquial)
+**Resposta:** "Tem sim. Você quer o Shampoo Calvície Zero, que age direto na raiz no banho pra controlar a queda? Quer que eu te mande os detalhes dele pra gente seguir?"
+**Avaliação:** ✅ Bom. Reconheceu "calvicie zero" como família "Calvície Zero", confirmou o produto-base (shampoo) com mini-pitch e pediu confirmação. Deveria ter mencionado que existem variantes (loção noite, kits) — mas como caminho de venda está ok.
+
+### Q5.3 — "tem o shampu preventiv?" (erro de digitação)
+**Resposta:** "Tem sim. Você quer a unidade do Shampoo Preventive Power ou prefere um pack (2x, 3x, 6x ou 12x)?"
+**Avaliação:** ✅ Excelente. Tolerância a erro de digitação funcionou, reconheceu o produto e ofereceu upsell de pack imediatamente. Comportamento de vendedor experiente.
+
+### Q5.4 — "vocês têm minoxidil?" (marca/composto concorrente)
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha grave. Minoxidil é o ativo concorrente direto pra calvície — a IA deveria ter dito "Não trabalhamos com minoxidil, mas temos a linha Calvície Zero (shampoo + loção noite) que age na queda. Quer ver?". Em vez disso, devolveu a muleta da Onda 4. Perdeu a chance de venda óbvia.
+
+### Q5.5 — "quero o shampoo de cavalo" (produto popular fora do catálogo)
+**Resposta:** "Você quer o Shampoo Calvície Zero ou o Shampoo Preventive Power?"
+**Avaliação:** ⚠️ Parcial. Lidou com o "produto que não temos" sem dizer "não temos" — pulou direto para os shampoos do catálogo. Funciona como redirecionamento, mas faltou honestidade ("Shampoo de cavalo a gente não trabalha, mas tenho dois shampoos focados em queda/calvície..."). E não explicou a diferença entre os dois — exigiu que o cliente já saiba escolher.
+
+### Resumo da Onda 5
+
+**Funciona bem:**
+- Nome exato → adiciona ao carrinho e fecha venda (Q5.1).
+- Nome aproximado/coloquial → reconhece a família e confirma (Q5.2).
+- Erro de digitação → tolera e ainda faz upsell de pack (Q5.3).
+
+**Quebras observadas:**
+- **Q5.A — Marca/ativo concorrente cai na muleta:** "Minoxidil" é exatamente o tipo de busca onde a IA precisa traduzir "o cliente quer tratar calvície" e oferecer a alternativa do catálogo. Hoje devolve "me conta o que você precisa". É o mesmo padrão das Ondas 2/3/4: fora-de-escopo vira muleta em vez de redirecionamento honesto.
+- **Q5.B — Produto popular fora do catálogo sem honestidade:** Q5.5 redirecionou para os shampoos certos, mas pulou a etapa "isso a gente não tem". Em base universal, o vendedor deveria assumir a ausência e propor a alternativa, não fingir que entendeu.
+- **Q5.C — Inconsistência entre Q5.4 e Q5.5:** Os dois cenários são tecnicamente equivalentes (produto fora do catálogo com pista de família). Q5.5 redireciona, Q5.4 cai na muleta. Sinal de que o detector de "fora-de-escopo + alternativa" não é determinístico — depende de quanto a frase do cliente "soa" como um produto interno.
+- **Q5.D — Q5.2 não menciona variantes:** "Calvície Zero" tem shampoo, loção noite e kits. A IA confirmou só o shampoo. Numa base universal vendedora, o ideal seria "temos a linha Calvície Zero — shampoo, loção noite e kits. Qual você quer?". Hoje ela já decide pelo cliente.
+
+---
+
 ## Próximo passo
 
-Aguardando "ok" para rodar **Onda 5 — Pedido por nome de produto** (5 cenários: nome exato, nome aproximado, nome com erro de digitação, marca concorrente, produto inexistente).
+Aguardando "ok" para rodar **Onda 6 — Comparação e indecisão** (5 cenários: "qual a diferença entre os dois shampoos?", "qual você recomenda?", "tô na dúvida", "preciso pensar", "depois eu vejo").
 
 Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
