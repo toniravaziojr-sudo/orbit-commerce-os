@@ -338,9 +338,8 @@ export function fallbackClassification(
   const tenantPainHit = tenantPainTokens.length
     ? new RegExp(`\\b(${tenantPainTokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "i").test(message || "")
     : false;
-  const legacyPainHit = /\b(coroa|entrada|calv|queda|caspa|seborr|oleos|caind)/i.test(message || "");
-  const hasSymptom = universalSymptomCue || tenantPainHit || legacyPainHit;
-  const askedRec = /\b(recomenda|indica|sugere|melhor pra mim|resolve|melhor caso|qual.*tratamento|qual.*shampoo)/i.test(message || "");
+  const hasSymptom = universalSymptomCue || tenantPainHit;
+  const askedRec = /\b(recomenda|indica|sugere|melhor\s+pra\s+mim|resolve|melhor\s+caso|qual\s+(o\s+)?(produto|item|tratamento|melhor))/i.test(message || "");
   const askedPrice = /\b(quanto|pre[çc]o|valor|desconto|cupom|barat)/i.test(message || "");
   const askedImage = /\b(foto|imagem|figura|me mostra)/i.test(message || "");
   const askedShipping = /\b(frete|entrega|prazo|chega quando|chega em)/i.test(message || "");
