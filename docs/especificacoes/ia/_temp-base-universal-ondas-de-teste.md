@@ -98,10 +98,69 @@ Cada onda roda separada (rate limit). Para cada conversa: cenário, mensagem do 
 > - **Errado / hipótese:** ...
 > - **Sinais:** estado=`...`, intent=`...`, família detectada=`...`, reflexo=`...`, traço=`...`
 
-(seções a serem preenchidas conforme cada onda for executada)
+---
+
+## Onda 1 — Saudação e abertura
+
+**Execução:** rodada via `ai-test-sandbox` em Agent Mode no tenant Respeite o Homem (sem configuração personalizada da IA).
+
+### Onda 1 — Conversa 1 — "oi" (cliente novo)
+- **Cliente:** "oi"
+- **IA:** "Olá, boa noite, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+- **Certo:** Espelhou o período do dia (boa noite), reciprocou ("tudo bem?"), abriu discovery sem vazar produto/preço.
+- **Errado:** Nada relevante.
+
+### Onda 1 — Conversa 2 — "boa noite" (cliente novo)
+- **Cliente:** "boa noite"
+- **IA:** "Olá, boa noite, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+- **Certo:** Espelhou "boa noite", abriu discovery.
+- **Errado:** Resposta literalmente idêntica à Conversa 1 — risco de soar robótico se o cliente trocar mensagem; aceitável neste cenário.
+
+### Onda 1 — Conversa 3 — "olá tudo bem?"
+- **Cliente:** "olá tudo bem?"
+- **IA:** "Olá, boa noite, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+- **Certo:** Saudou e reciprocou o "tudo bem?".
+- **Errado:** Nada relevante.
+
+### Onda 1 — Conversa 4 — "e aí, blz?" (saudação informal)
+- **Cliente:** "e aí, blz?"
+- **IA:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Certo:** Não vazou preço/produto.
+- **Errado / hipótese:** **Não cumprimentou de volta.** Pulou direto para discovery sem nenhum "oi/e aí/blz". O espelho de saudação só está reagindo a saudações canônicas ("oi", "olá", "bom dia/tarde/noite"); saudação informal ("e aí", "blz") está caindo fora do detector.
+
+### Onda 1 — Conversa 5 — Saudação no meio de thread ("oi" → "oi de novo")
+- **Cliente turno 1:** "oi" → **IA:** "Olá, boa noite, tudo bem? Como posso ajudar? Me conta o que você está procurando." ✅
+- **Cliente turno 2:** "oi de novo" → **IA:** retornou DUAS mensagens:
+  1. "Olá, boa noite, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+  2. "Me conta um pouco do que você precisa que eu já te indico."
+- **Errado / hipótese 1 (grave):** **Saudação repetida dentro da mesma thread ativa.** A IA tratou "oi de novo" como abertura nova e refez a saudação completa, em vez de continuar o discovery que ela mesma tinha iniciado no turno anterior.
+- **Errado / hipótese 2:** **Resposta dupla no mesmo turno** — a IA mandou greeting + discovery em mensagens separadas. Isso indica falha do gate anti-duplicação ou do orquestrador de turno (deveria ser uma única resposta ou nenhuma saudação).
+
+### Onda 1 — Conversa 6 — "bom dia"
+- **Cliente:** "bom dia"
+- **IA:** "Olá, bom dia, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+- **Certo:** Espelhou corretamente "bom dia" (sobrescreveu o período do servidor que era noite).
+- **Errado:** Nada relevante.
+
+---
+
+### Resumo da Onda 1
+
+**Funciona:**
+- Saudações canônicas ("oi", "olá", "bom dia", "boa noite") são espelhadas e reciprocadas.
+- Não há vazamento de preço/produto na abertura.
+- Discovery aberto e neutro ("me conta o que você está procurando").
+
+**Quebras observadas (hipóteses, sem corrigir ainda):**
+- **Q1.1 — Saudação informal não detectada:** "e aí", "blz", "fala", "salve", "opa" provavelmente não estão no detector de saudação. A IA pula reciprocidade.
+- **Q1.2 — Saudação repetida em thread ativa:** "oi de novo" reabriu a saudação completa em vez de continuar discovery. Suspeita: o gate de "thread já cumprimentada" não está olhando o histórico recente da própria conversa.
+- **Q1.3 — Resposta dupla no mesmo turno:** No mesmo turno do "oi de novo" a IA disparou 2 mensagens (greeting + discovery). Suspeita: o orquestrador deixou passar uma mensagem do greeting-mirror e outra da pipeline principal.
+- **Q1.4 — Resposta praticamente idêntica entre saudações diferentes:** "oi", "boa noite" e "olá tudo bem?" geraram texto literalmente igual. Funcional, mas pode ser melhorado para naturalidade (não bloqueia base 100%).
 
 ---
 
 ## Próximo passo
+
+Aguardando "ok" para rodar **Onda 2 — Dor sem citar produto** (5 cenários).
 
 Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
