@@ -81,6 +81,10 @@ import {
   // [Onda 18 — Fase A] Probe v2 família-base + detector de família por regex
   enforceFamilyBaseFirst,
   detectFamilyInText,
+  // [Onda 3.3 — Reg #2.18] Versões universais (segment-agnostic) que
+  // consomem o vocabulário do tenant carregado pelo Resolver da Onda 1.
+  detectFamilyInTextUniversal,
+  classifyProductFamilyUniversal,
   // [Onda 18 — Fase B] Policy Compiler — fonte central da política efetiva
   compileEffectivePolicy,
   policySourceTrace,
