@@ -5791,7 +5791,11 @@ Cliente: "vocês entregam em SP?"
           familyFocus: familyFocusBefore,
           lastFocusedProductName: lastFocusedProductNameBefore,
           hasActiveCart: hasActiveCartPersisted,
+          // [Frente B] thanks terminal + ruído social + ping de presença
+          consolidatedText: lastMessageContent || "",
+          intentBucket: (intentScope?.bucket as any) || null,
         });
+
         if (continuity.promptBlock) {
           contextualBlocks.push(continuity.promptBlock);
           console.log(
