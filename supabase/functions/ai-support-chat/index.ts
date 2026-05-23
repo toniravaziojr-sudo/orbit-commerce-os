@@ -5173,6 +5173,32 @@ Cliente: "vocês entregam em SP?"
       turnClassification = fallbackClassification(lastMessageContent || "", false, tprTenantContext);
     }
 
+    // [Frente 2] Scope Router — consolida o turno em UM dos 11 buckets de
+    // intenção. Aditivo: só loga e expõe via metadata. Frentes 3-5 vão
+    // consumir para responder institucional, defesa comercial e gate de
+    // continuidade sem cair em muleta de descoberta universal.
+    let intentScope: { bucket: string; source: string; confidence: string; reason: string } = {
+      bucket: "open_discovery",
+      source: "deterministic",
+      confidence: "low",
+      reason: "not_routed_yet",
+    };
+    try {
+      const { routeScope } = await import("../_shared/sales-pipeline/scope-router.ts");
+      const scoped = routeScope({
+        classification: turnClassification,
+        message: lastMessageContent || "",
+      });
+      intentScope = scoped;
+      console.log(
+        `[ai-support-chat] [Frente 2] scope bucket=${scoped.bucket} src=${scoped.source} ` +
+        `conf=${scoped.confidence} reason=${scoped.reason}`
+      );
+    } catch (e) {
+      console.warn("[ai-support-chat] [Frente 2] scope router failed:", (e as Error).message);
+    }
+
+
     // [Reg #2.9] Onda 2 — Working Memory + Stage Machine (SHADOW MODE)
     // Carrega memória persistente da conversa, decide o estágio comercial
     // sugerido pela máquina nova e LOGA. Nesta onda NÃO altera o pipeline
