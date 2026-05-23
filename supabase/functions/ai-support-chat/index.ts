@@ -5834,6 +5834,7 @@ Cliente: "vocês entregam em SP?"
       // Injeta bloco apenas em buckets institutional / commercial_policy / objection.
       // Defaults conservadores: sem dado, IA NÃO inventa e oferece humano.
       // ============================================================
+      let institutionalSheetForAnchor: any = null;
       try {
         const { buildInstitutionalBlock, extractInstitutionalSheetFromConfigMetadata } = await import(
           "../_shared/sales-pipeline/institutional-sheet.ts"
@@ -5841,6 +5842,7 @@ Cliente: "vocês entregam em SP?"
         const sheet = extractInstitutionalSheetFromConfigMetadata(
           (effectiveConfig as any)?.metadata,
         );
+        institutionalSheetForAnchor = sheet;
         const inst = buildInstitutionalBlock({
           intentBucket: (intentScope?.bucket as string | null | undefined) ?? null,
           sheet,
@@ -5858,6 +5860,43 @@ Cliente: "vocês entregam em SP?"
       } catch (e) {
         console.warn(
           "[ai-support-chat] [Frente D] institutional sheet failed:",
+          (e as Error).message
+        );
+      }
+
+      // ============================================================
+      // [Frente E] Âncora do turno — dor + foco + ficha institucional
+      // Injeta bloco em TODO turno de venda quando há sinal real,
+      // tornando a "muleta universal" um fallback explícito.
+      // ============================================================
+      try {
+        const { buildTurnAnchorBlock } = await import(
+          "../_shared/sales-pipeline/turn-anchor.ts"
+        );
+        const anchor = buildTurnAnchorBlock({
+          declaredPain: salesMemory?.customer_declared_pain ?? null,
+          familyFocus: familyFocusBefore ?? null,
+          lastFocusedProductName: lastFocusedProductNameBefore ?? null,
+          productFocusId: currentProductFocus?.product_id ?? null,
+          sheet: institutionalSheetForAnchor,
+        });
+        if (anchor.promptBlock) {
+          contextualBlocks.push(anchor.promptBlock);
+          console.log(
+            `[ai-support-chat] [Frente E] turn_anchor injected ` +
+            `pain=${anchor.hasPain} family=${anchor.hasFamily} ` +
+            `product_focus=${anchor.hasProductFocus} ` +
+            `inst_areas=${anchor.institutionalAreas.join("|") || "none"} ` +
+            `reason=${anchor.reason}`
+          );
+        } else {
+          console.log(
+            `[ai-support-chat] [Frente E] turn_anchor skipped reason=${anchor.reason}`
+          );
+        }
+      } catch (e) {
+        console.warn(
+          "[ai-support-chat] [Frente E] turn anchor failed:",
           (e as Error).message
         );
       }
