@@ -62,10 +62,12 @@ const DIRECT_REQUEST = /\b(me\s+manda|pode\s+mandar|envia|manda\s+o\s+link|quero
 const STRONG_Q_PRICE = /\b(quanto\s+custa|qual\s+(o\s+)?pre[çc]o|valor)\b.*\?/i;
 const STRONG_Q_SHIPPING = /\b(frete|entrega|prazo|chega\s+em\s+quanto)\b.*\?/i;
 const STRONG_Q_RECOMMEND = /\b(qual\s+(você\s+)?(recomend|me\s+indica|serve|melhor)|o\s+que\s+(você\s+)?(indica|recomend))\b/i;
-const STRONG_Q_PRODUCT_REF = /\b(tem\s+(esse|esta|este|isso|aquele)|essa\s+(loção|pomada|shampoo|creme|fórmula)|isso\s+aí)\b.*\?/i;
+// Referência anafórica universal (sem vocabulário fixo de família).
+const STRONG_Q_PRODUCT_REF = /\b(tem\s+(esse|esta|este|isso|aquele|aquela)|essa?\s+(produto|item|kit|combo|op[çc][aã]o)|isso\s+a[íi])\b.*\?/i;
 
-// Pergunta clara explícita sobre produto específico (já completa por si só)
-const Q_ABOUT_PRODUCT_FAMILY = /\b(tem\s+(shampoo|loção|locao|pomada|creme|balm|óleo|oleo|gel|cápsula|capsula|kit)\s+(pra|para|de|contra))\b/i;
+// Pergunta clara explícita sobre família/produto: "tem <substantivo> (pra|para|de|contra) ...".
+// Universal — a classificação real da família vem do classifier do tenant a jusante.
+const Q_ABOUT_PRODUCT_FAMILY = /\btem\s+(algum\s+|alguma\s+|um\s+|uma\s+)?[a-zà-ú]{3,20}\s+(pra|para|de|contra)\b/i;
 
 // Caption ambíguo (3-15 chars sem verbo)
 function isAmbiguousCaption(caption: string | null | undefined): boolean {
@@ -175,18 +177,15 @@ export function classifyTurnCompleteness(
     };
   }
 
-  // [Onda 5 — Reg #2.18] Construtor universal de regex de dor: mescla regex
-  // legado (mantido para paridade com Respeite o Homem) com tokens de dor
-  // declarados pelo tenant via Resolver. Sem flag — adicionar tokens é
-  // sempre seguro (ampliam, não substituem).
-  const LEGACY_PAIN_RE = /\b(entradas?|calv|queda|cresc|caspa|seborr|oleos|ressec|fios?|cabel)/i;
+  // [Onda Universalização] Detecção de dor depende exclusivamente dos tokens
+  // declarados pelo tenant via Resolver. Sem vocabulário fixo de cosmético.
   const tenantTokens = (ctx.tenantPainTokens || [])
     .map((t) => (t || "").trim().toLowerCase())
     .filter((t) => t.length >= 3);
   const tenantPainRe = tenantTokens.length
     ? new RegExp(`\\b(${tenantTokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "i")
     : null;
-  const matchesPain = (txt: string) => LEGACY_PAIN_RE.test(txt) || (tenantPainRe ? tenantPainRe.test(txt) : false);
+  const matchesPain = (txt: string) => (tenantPainRe ? tenantPainRe.test(txt) : false);
 
   // Recomendação contextualizada (com sintoma OU foco) é actionable
   if (isRecommendQ && (hasContext || matchesPain(aggLower))) {

@@ -24,23 +24,6 @@
 // instruindo a IA a ACOLHER + perguntar 1 coisa antes de listar.
 // ============================================================
 
-const SYMPTOM_PATTERNS = [
-  /\btenho\s+(calv[íi]cie|queda|caspa|seborr[eé]ia|oleosidade|cabelo\s+(seco|fino|ralo|oleoso))/i,
-  /\bestou\s+com\s+(queda|calv[íi]cie|caspa|cabelo\s+(seco|oleoso|caindo))/i,
-  /\bsofro\s+com\s+(queda|calv[íi]cie|caspa|cabelo)/i,
-  /\b(minha|meu)\s+(cabelo|couro|coroa|barba|pele)\b[^.?!]{0,60}(cai|caindo|ralo|fino|oleoso|seco|com\s+caspa|fal(ha|hando))/i,
-  /\b(faz|h[áa])\s+\d+\s+(anos?|meses)\s+(que|com)\b/i,
-  /\b(coroa|entradas)\s+(rala|aberta|falha|ralinha|come[çc]ando\s+a)/i,
-];
-
-const RECOMMENDATION_REQUEST_PATTERNS = [
-  /\bqual\s+(o\s+)?(tratamento|produto|shampoo|loca[cç][aã]o|combo)\s+(mais\s+)?(indicado|recomendado|melhor)\s+(pra|para)\s+(mim|o\s+meu\s+caso)/i,
-  /\bo\s+que\s+(voc[êe]s?\s+)?(recomenda(m)?|indica(m)?|sugere(m)?)\s+(pra|para)\s+(mim|o\s+meu\s+caso)/i,
-  /\bqual\s+(o\s+)?(melhor|mais\s+(indicado|recomendado))\s+(pro|para\s+o)\s+meu\s+caso/i,
-  /\bme\s+ajuda(m)?\s+a\s+(escolher|decidir)/i,
-  /\b(pode|poderia)\s+(me\s+)?(indicar|recomendar|sugerir)/i,
-];
-
 export interface ConsultativeTurnSignals {
   hasSymptomDescription: boolean;
   hasRecommendationRequest: boolean;
@@ -49,30 +32,19 @@ export interface ConsultativeTurnSignals {
   isConsultative: boolean;
 }
 
+/**
+ * Wrapper de compatibilidade. Delega ao detector universal sem vocabulário
+ * fixo de cosmético. Caller pode preferir chamar detectConsultativeTurnUniversal
+ * diretamente quando tiver tokens de dor do tenant ou sinais do TPR.
+ */
 export function detectConsultativeTurn(input: {
   customerMessage: string;
   hasMediaAttachment?: boolean;
 }): ConsultativeTurnSignals {
-  const text = input.customerMessage || "";
-  const hasMediaAttachment = !!input.hasMediaAttachment;
-
-  const hasSymptomDescription = SYMPTOM_PATTERNS.some((re) => re.test(text));
-  const hasRecommendationRequest = RECOMMENDATION_REQUEST_PATTERNS.some((re) => re.test(text));
-  const matchCount =
-    (hasSymptomDescription ? 1 : 0) +
-    (hasRecommendationRequest ? 1 : 0) +
-    (hasMediaAttachment ? 1 : 0);
-
-  // 2 dos 3 sinais = consultivo
-  const isConsultative = matchCount >= 2;
-
-  return {
-    hasSymptomDescription,
-    hasRecommendationRequest,
-    hasMediaAttachment,
-    matchCount,
-    isConsultative,
-  };
+  return detectConsultativeTurnUniversal({
+    customerMessage: input.customerMessage,
+    hasMediaAttachment: input.hasMediaAttachment,
+  });
 }
 
 // ============================================================
@@ -177,7 +149,7 @@ export function buildConsultativeTurnBlock(signals: ConsultativeTurnSignals): st
     "",
     "FORMATO OBRIGATÓRIO desta resposta, em 1 mensagem curta, NESTA ORDEM:",
     "  1) ACOLHIDA em 1 linha — espelhe o que ele trouxe (ex.: \"Entendi seu caso\",",
-    "     \"Recebi sua foto, dá pra ter uma ideia\", \"Esse tipo de queda dá pra tratar bem\").",
+    "     \"Recebi sua foto, dá pra ter uma ideia\", \"Esse cenário dá pra resolver\").",
     "  2) UMA pergunta curta de qualificação (escolha A ou B):",
     "     A) qual o objetivo principal: tratar / prevenir / repor",
     "     B) há quanto tempo ele percebe / se já usou algo antes",
