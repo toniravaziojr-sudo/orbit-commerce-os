@@ -30,6 +30,14 @@ export interface TurnAnchorInput {
   lastFocusedProductName?: string | null;
   productFocusId?: string | null;
   sheet?: InstitutionalSheet | null;
+  /**
+   * Bucket de intenção do turno (Frente 2 — scope-router).
+   * Quando = "catalog_question", a âncora SUAVIZA a instrução de manter o foco
+   * em família: o cliente está pedindo visão ampla do catálogo e a vitrine
+   * pode mostrar outras famílias sem trocar o foco persistido.
+   * (Resolve conflito Frente C × Frente E × Onda 18 Fase A.)
+   */
+  intentBucket?: string | null;
 }
 
 export interface TurnAnchorOutput {
@@ -39,6 +47,8 @@ export interface TurnAnchorOutput {
   hasProductFocus: boolean;
   institutionalAreas: string[];
   reason: string;
+  /** true quando a âncora suavizou a regra de foco em família por catalog_question */
+  catalogBroadeningAllowed: boolean;
 }
 
 const SHEET_AREA_LABELS: Record<keyof InstitutionalSheet, string> = {
@@ -74,6 +84,8 @@ export function buildTurnAnchorBlock(input: TurnAnchorInput): TurnAnchorOutput {
   const hasFamily = familyFocus.length > 0;
   const hasProductFocus = productId.length > 0 || productName.length > 0;
   const hasInstitutional = areas.length > 0;
+  const isCatalogQuestion = (input.intentBucket ?? "").toString().trim() === "catalog_question";
+  const catalogBroadeningAllowed = isCatalogQuestion && hasFamily;
 
   if (!hasPain && !hasFamily && !hasProductFocus && !hasInstitutional) {
     return {
@@ -83,6 +95,7 @@ export function buildTurnAnchorBlock(input: TurnAnchorInput): TurnAnchorOutput {
       hasProductFocus,
       institutionalAreas: areas,
       reason: "no_signal",
+      catalogBroadeningAllowed: false,
     };
   }
 
@@ -102,7 +115,17 @@ export function buildTurnAnchorBlock(input: TurnAnchorInput): TurnAnchorOutput {
   }
 
   if (hasFamily) {
-    lines.push(`- Família em foco: ${familyFocus}`);
+    if (catalogBroadeningAllowed) {
+      lines.push(
+        `- Família vista anteriormente: ${familyFocus} ` +
+          "(o cliente está pedindo visão ampla do catálogo neste turno — " +
+          "PODE mostrar produtos de outras famílias sem trocar o foco " +
+          "persistido; dentro de cada família, mantenha a regra de mostrar " +
+          "produtos-base antes de kits).",
+      );
+    } else {
+      lines.push(`- Família em foco: ${familyFocus}`);
+    }
   }
 
   if (hasProductFocus) {
@@ -138,6 +161,8 @@ export function buildTurnAnchorBlock(input: TurnAnchorInput): TurnAnchorOutput {
     ? "pain_anchor"
     : hasProductFocus
     ? "product_anchor"
+    : catalogBroadeningAllowed
+    ? "catalog_broadening"
     : hasFamily
     ? "family_anchor"
     : "institutional_only";
@@ -149,5 +174,6 @@ export function buildTurnAnchorBlock(input: TurnAnchorInput): TurnAnchorOutput {
     hasProductFocus,
     institutionalAreas: areas,
     reason,
+    catalogBroadeningAllowed,
   };
 }
