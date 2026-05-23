@@ -3879,27 +3879,19 @@ Deno.serve(async (req) => {
     const arch1cMode: "off" | "dry_run" | "active" =
       arch1cModeRaw === "dry_run" || arch1cModeRaw === "active" ? arch1cModeRaw : "off";
 
-    // [Onda 3 — Reg #2.18] Flag por tenant para o pain→category resolver
-    // universal. Quando false (default), comportamento legado preservado.
+    // [Reg #2.18 — Base Universal] As 4 chaves universais são PADRÃO da
+    // pipeline base. A IA aprende vocabulário/famílias/dores do catálogo
+    // do tenant em runtime. Sem listas hardcoded por segmento.
+    // Cada flag funciona como kill-switch: só desliga se for explicitamente
+    // setada em `false`. Qualquer outro valor (true, ausente, null) = ligada.
     const arch218UniversalPainResolverEnabled =
-      ((effectiveConfig as any)?.metadata?.arch218_universal_pain_resolver) === true;
-
-    // [Onda 3.3 — Reg #2.18] Flag para detector/classificador universal
-    // de família (catalog-probe). Quando true, consome o vocabulário do
-    // tenant via Resolver. Quando false (default), regex legado.
+      ((effectiveConfig as any)?.metadata?.arch218_universal_pain_resolver) !== false;
     const arch218UniversalCatalogProbeEnabled =
-      ((effectiveConfig as any)?.metadata?.arch218_universal_catalog_probe) === true;
-
-    // [Onda 4.2 — Reg #2.18] Flag para TPR universal: injeta vocabulário do
-    // tenant (segmento, famílias, dores) no system prompt do classificador
-    // de turno. Quando false (default), prompt-base segment-agnostic atual.
+      ((effectiveConfig as any)?.metadata?.arch218_universal_catalog_probe) !== false;
     const arch218UniversalTPREnabled =
-      ((effectiveConfig as any)?.metadata?.arch218_universal_tpr) === true;
-
-    // [Onda 5 — Reg #2.18] Flag para turn-completeness universal: passa pain
-    // tokens do tenant em vez do regex cosmético hardcoded. Default off.
+      ((effectiveConfig as any)?.metadata?.arch218_universal_tpr) !== false;
     const arch218UniversalTurnCompletenessEnabled =
-      ((effectiveConfig as any)?.metadata?.arch218_universal_turn_completeness) === true;
+      ((effectiveConfig as any)?.metadata?.arch218_universal_turn_completeness) !== false;
 
     if (effectiveConfig.is_enabled === false) {
       return new Response(
