@@ -3847,6 +3847,12 @@ Deno.serve(async (req) => {
     const arch218UniversalPainResolverEnabled =
       ((effectiveConfig as any)?.metadata?.arch218_universal_pain_resolver) === true;
 
+    // [Onda 3.3 — Reg #2.18] Flag para detector/classificador universal
+    // de família (catalog-probe). Quando true, consome o vocabulário do
+    // tenant via Resolver. Quando false (default), regex legado.
+    const arch218UniversalCatalogProbeEnabled =
+      ((effectiveConfig as any)?.metadata?.arch218_universal_catalog_probe) === true;
+
     if (effectiveConfig.is_enabled === false) {
       return new Response(
         JSON.stringify({ success: false, error: "AI support is disabled for this tenant", code: "AI_DISABLED" }),
