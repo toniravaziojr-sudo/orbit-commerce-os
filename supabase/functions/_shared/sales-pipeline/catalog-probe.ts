@@ -72,8 +72,9 @@ export interface BroadenResult<T> {
  * É O(n) e determinística.
  */
 export function broadenCatalogForPain<T extends { id: string; name: string; is_kit?: boolean; match_reason?: string }>(
-  input: { enriched: T[]; familyMentionedNow: string | null; familyFocus: string | null; limit: number }
+  input: { enriched: T[]; familyMentionedNow: string | null; familyFocus: string | null; limit: number; classifier?: (name: string) => string }
 ): BroadenResult<T> {
+  const classify = input.classifier ?? classifyProductFamily;
   const { enriched, familyMentionedNow, familyFocus, limit } = input;
   if (!enriched?.length) {
     return { filtered: [], reason: "empty_pool", families_returned: [] };
