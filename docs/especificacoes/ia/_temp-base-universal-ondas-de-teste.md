@@ -319,8 +319,44 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 
 ---
 
+## Onda 6 — Comparação e indecisão
+
+Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
+
+### Q6.1 — "qual a diferença entre os dois shampoos?"
+**Resposta:** "O Calvície Zero é mais forte para tratar queda e falhas (bloqueia DHT e estimula crescimento); o Preventive Power é para prevenção/manutenção pós-tratamento, com foco em controle de oleosidade/caspa e fortalecimento. [bullets de cada um] Ambos têm 250 ml (rende cerca de 2 meses). Qual faz mais sentido pro seu momento agora: tratar as falhas/queda ou manter/prevenir?"
+**Avaliação:** ✅ Excelente. Comparação clara, diferença em 1 linha cada, dado concreto (250 ml / 2 meses) e devolveu a bola com pergunta de qualificação. Comportamento consultivo de vendedor.
+
+### Q6.2 — "qual você recomenda?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha. Sem contexto da conversa, devolveu a muleta. Mas sem turno anterior é até justificável — o problema é que a frase enlatada não orienta nada. Vendedor humano diria: "Pra te recomendar com precisão, me diz: você quer tratar queda agora ou só manter o cabelo saudável?" — mesma pergunta, mas com pista do que esperar.
+
+### Q6.3 — "tô na dúvida"
+**Resposta:** "Oi! Tudo bem? Quer focar em tratar queda/calvície agora ou em prevenção?"
+**Avaliação:** ⚠️ Bom em conteúdo, ruim em forma. A pergunta de qualificação é correta. Mas começou com "Oi! Tudo bem?" — em conversa nova faria sentido, em conversa em andamento (que é o cenário típico de "tô na dúvida") cumprimentar de novo soa robótico. Mesmo problema da Onda 1 (greeting repetido).
+
+### Q6.4 — "preciso pensar"
+**Resposta:** "Tranquilo, sem pressa. Quando quiser retomar, chama aqui que te ajudo a escolher o melhor pra sua rotina."
+**Avaliação:** ✅ Bom. Acolheu sem insistir, deixou porta aberta. Tom de vendedor experiente que sabe que pressão fecha menos venda.
+
+### Q6.5 — "depois eu vejo"
+**Resposta:** "Tranquilo! Sem pressa. Quando quiser retomar, é só chamar aqui. Tô por aqui."
+**Avaliação:** ✅ Bom. Mesmo padrão do Q6.4. Consistente.
+
+### Resumo da Onda 6
+
+**Funciona bem:**
+- Comparação direta entre 2 produtos do catálogo → resposta consultiva, com diferenças claras e qualificação ao final (Q6.1).
+- Sinais de "vou pensar" → acolhimento sem insistência, porta aberta (Q6.4, Q6.5). Comportamento maduro.
+
+**Quebras observadas:**
+- **Q6.A — Recomendação genérica vira muleta:** "Qual você recomenda?" sem contexto cai na frase enlatada da Onda 4. Mesmo padrão: a frase pede contexto sem orientar o cliente sobre o que pode ser dito.
+- **Q6.B — Re-greeting em conversa em andamento (Q6.3):** "Tô na dúvida" recebeu "Oi! Tudo bem?" antes da pergunta útil. É a mesma falha da Onda 1.2 — a IA não distingue conversa nova de conversa em andamento. Em base universal, "tô na dúvida" é sinal de continuidade, nunca de saudação inicial.
+
+---
+
 ## Próximo passo
 
-Aguardando "ok" para rodar **Onda 6 — Comparação e indecisão** (5 cenários: "qual a diferença entre os dois shampoos?", "qual você recomenda?", "tô na dúvida", "preciso pensar", "depois eu vejo").
+Aguardando "ok" para rodar **Onda 7 — Objeções de preço e comparação com concorrente** (5 cenários: "tá caro", "achei mais barato em outro lugar", "vale a pena?", "não sei se compensa", "tem garantia? e se não funcionar?").
 
 Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
