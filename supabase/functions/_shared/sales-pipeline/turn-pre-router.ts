@@ -181,6 +181,12 @@ function emptyClassification(source: "llm" | "fallback", latency_ms = 0, raw_err
   };
 }
 
+export interface TPRTenantContext {
+  segment?: string | null;
+  families?: string[];
+  painPoints?: string[];
+}
+
 export interface TPRInput {
   customerMessage: string;
   // Últimas N mensagens (cliente + bot) para contexto. Idealmente 4-6.
@@ -189,6 +195,8 @@ export interface TPRInput {
   // Catálogo conhecido — ajuda o classificador a marcar mentioned_product_name
   productNamesHint?: string[];
   timeoutMs?: number;
+  // [Onda 4 — Reg #2.18] Vocabulário do tenant (universal, segment-agnostic).
+  tenantContext?: TPRTenantContext;
 }
 
 /**
