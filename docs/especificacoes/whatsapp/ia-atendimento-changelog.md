@@ -1562,3 +1562,34 @@ A Rodada 2 da bateria das 10 ondas (50 cenários) confirmou que muitas respostas
 - A bateria é congelada e só pode ser **estendida** (nunca reduzida) ao longo das Frentes seguintes.
 
 📌 **STATUS DA ENTREGA:** Corrigido e validado (governança documental). A execução real do baseline acontece como primeira ação da Frente B.
+
+---
+
+## Registro #32 — Base Universal: Continuity-Gate completo (Frente B) — 23/mai/2026
+
+**Tipo:** Correção universal de roteamento (modo vendas WhatsApp + canais).
+**Escopo:** continuity-gate e reflexos determinísticos da pipeline de vendas.
+
+### Sintoma (Rodada 2)
+- "vlw" / "obrigado" reabriam descoberta forçada.
+- "kkk" / risadas faziam a IA assumir nicho (cabelo) sem o cliente ter mencionado nada.
+- "tem alguém aí?" caía na muleta universal "Me conta um pouco do que você precisa".
+
+### O que mudou
+1. **Agradecimento e despedida agora são turno terminal.** Detector universal cobre "vlw", "valeu", "obrigado/a", "brigado", "tmj", "tchau", "falou", "fechou", "abraço", "thx", "gratidão" — sozinhos ou com pontuação/emoji. Nesses casos, a IA é instruída a fechar com 1 linha cordial + gancho leve, proibida de fazer nova pergunta de venda ou reabrir descoberta.
+2. **Ruído social tem rota própria.** Detector universal cobre "kkk+", "haha+", "hehe+", "rs/rsrs+", "hue+", "eita", "opa", "nossa", "caraca" e mensagens só de emoji. A IA responde leve e curta no mesmo tom, sem assumir família/dor/produto. Se já havia conversa em curso, devolve a bola para o tema anterior em vez de inventar assunto novo.
+3. **Pergunta de presença ("tem alguém aí?", "alô?", "ainda tá aí?", "alguém atende?") tem reflexo prioritário.** Antes de qualquer outra rota, a IA confirma presença em 1 linha curta ("Tô aqui sim!") e só depois oferece ajuda. Substitui a muleta universal nesses turnos.
+4. **Reforço de bucket social.** Quando o turno é classificado como puro social mas não cai em thanks/ruído/presença, a IA é instruída a abrir discovery sem viés de família dominante (lembrando que o catálogo tem várias famílias).
+
+### Validação técnica executada
+- ✅ 30/30 casos de teste passaram (12 thanks, 11 ruído social, 7 presença).
+- ✅ Despacho do continuity-gate confirmado: "vlw" → terminal; "kkk" → ruído social; "tem alguém aí?" → presença; "oi tudo bem?" → social genérico; "qual a diferença?" → mantém família+produto sem capturar nenhum dos novos branches.
+- ✅ Regex unicode corrigidos (não dependem de `\b` em texto acentuado, usam boundaries por espaço/pontuação).
+- ⏳ Pendente: bateria de regressão da Frente A executada via sandbox em conversa real (5 cenários novos de Onda 10 + 19 cenários congelados) — a ser arquivada no doc temporário antes da Frente C.
+
+### Anti-regressão
+- O continuity-gate continua aditivo (`promptBlock: null` quando nada dispara). Reflexos seguem em `try/catch`.
+- Nenhuma máquina de estados alterada. Nenhuma tool tocada.
+- Os 4 branches anteriores (anti-loop de discovery, família ativa, produto em foco, carrinho ativo) preservados na ordem original.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox em conversa real (Q10.1 "kkk", Q10.2 "vlw", Q10.4 "tem alguém aí?" + os 19 cenários ✅ da bateria fixa).

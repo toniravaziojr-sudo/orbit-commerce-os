@@ -38,11 +38,13 @@ export interface ReflexOutput {
     | "cep_received"
     | "shipping_question"
     | "post_sale_question"
-    | "short_turn_with_intent";
+    | "short_turn_with_intent"
+    | "presence_ping";
   newState: PipelineState | null; // null = não muda estado
   reason: string;
   promptBlock: string; // bloco anexado ao contextualBlocks
 }
+
 
 // Detecta CEP brasileiro: 8 dígitos contíguos OU formato 00000-000.
 const CEP_REGEX = /(?<!\d)(\d{5})-?(\d{3})(?!\d)/;
@@ -55,6 +57,13 @@ const SHIPPING_REGEX =
 const POST_SALE_REGEX =
   /\b(meu pedido|pedido n[uú]mero|n[uú]mero do pedido|c[oó]digo de rastrei|rastreio|rastrear|j[aá] comprei|j[aá] paguei|n[ãa]o chegou|n[ãa]o recebi|cad[eê] meu|onde est[aá] meu|ainda n[ãa]o chegou)\b/i;
 
+// [Frente B] Sinal de presença — cliente pergunta se há alguém atendendo.
+// Sem \b (não funciona bem com acentos em Unicode) — usa boundaries de espaço.
+const PRESENCE_REGEX =
+  /(^|[\s\p{P}])(tem\s+algu[ée]m\s+a[íi]|algu[ée]m\s+a[íi]|al[ôo]+\s*\?+|al[ôo]+\s+algu[ée]m|cad[êe]\s+(voc[êe]|algu[ée]m)|t[áa]\s+a[íi]\s*\?|ainda\s+t[áa]\s+a[íi]|t[ôo]\s+esperando|algu[ée]m\s+atende|ningu[ée]m\s+responde|me\s+responde\s+a[íi])([\s\p{P}]|$)/iu;
+
+
+
 // Pré-check: quando tudo é só ruído ("?", "ok", "tá").
 function tokenCount(text: string): number {
   const cleaned = text.trim().replace(/\s+/g, " ");
@@ -65,6 +74,29 @@ function tokenCount(text: string): number {
 export function detectDeterministicReflex(input: ReflexInput): ReflexOutput | null {
   const text = (input.consolidatedText || "").trim();
   if (!text) return null;
+
+  // ── [Frente B] Reflexo prioritário: ping de presença ────
+  // "tem alguém aí?", "alô?", "ainda tá aí?" — confirmar presença ANTES
+  // de qualquer outra rota (mesmo antes de CEP/frete/pós-venda).
+  // Curto-circuito: nunca responder pergunta de descoberta neste turno.
+  const tokensForPresence = tokenCount(text);
+  if (tokensForPresence <= 8 && PRESENCE_REGEX.test(text)) {
+    return {
+      reflexId: "presence_ping",
+      newState: null, // mantém estado, só ajusta tom
+      reason: "presence_ping_detected",
+      promptBlock:
+        `\n[REFLEXO — PING DE PRESENÇA]\n` +
+        `O cliente está perguntando se TEM ALGUÉM ATENDENDO. ` +
+        `Resposta obrigatória: 1ª linha confirma presença ("Tô aqui sim!" ou ` +
+        `"Oi, tô aqui!"). 2ª linha curta oferece continuar de onde parou ` +
+        `(se já havia conversa) ou pergunta neutra de ajuda. ` +
+        `PROIBIDO usar a muleta "Me conta o que você precisa que eu já te indico" ` +
+        `e PROIBIDO assumir nicho ou produto que o cliente não citou.\n`,
+    };
+  }
+
+
 
   // ── Reflexo 1: CEP recebido ─────────────────────────────
   const cepMatch = text.match(CEP_REGEX);
