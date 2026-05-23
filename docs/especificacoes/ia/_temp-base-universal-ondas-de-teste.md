@@ -615,7 +615,55 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 - **Q6.A — Recomendação genérica vira muleta:** "Qual você recomenda?" sem contexto cai na frase enlatada da Onda 4. Mesmo padrão: a frase pede contexto sem orientar o cliente sobre o que pode ser dito.
 - **Q6.B — Re-greeting em conversa em andamento (Q6.3):** "Tô na dúvida" recebeu "Oi! Tudo bem?" antes da pergunta útil. É a mesma falha da Onda 1.2 — a IA não distingue conversa nova de conversa em andamento. Em base universal, "tô na dúvida" é sinal de continuidade, nunca de saudação inicial.
 
+### Onda 6 — Rodada 2 (re-execução pós-Frentes 1–4, prompts oficiais do plano)
+
+Executada via `ai-test-sandbox` Agent Mode, 5 conversas isoladas, modelo `gpt-5`, modo vendas ativo.
+
+#### Q6.1 — "qual a diferença entre os dois shampoos?"
+- **Conversa:** `72302027-780b-4e4b-88d4-623f455794fd` — latência 49.9s.
+- **Resposta:** "Diferença direta: Preventive Power é pra prevenção/manutenção pós-tratamento; Calvície Zero é pra quem já tem queda ativa e falhas, com ação mais potente para interromper a queda e estimular crescimento. [bullets de cada um, 250 ml, ≈2 meses, resposta 7–15 dias] Qual faz mais sentido pro seu momento? Se quiser, te passo os detalhes de uso e os valores do que escolher."
+- **Avaliação:** ✅ Excelente. Mantém o nível da Rodada 1 — abre com "diferença direta" em 1 linha, depois detalha cada um, devolve a bola com pergunta de qualificação. Comportamento consultivo de vendedor.
+
+#### Q6.2 — "qual você recomenda?"
+- **Conversa:** `24e187df-9cc9-49aa-aefa-9a3fb5a9fd00` — latência 67.3s.
+- **Resposta:** "Pra tratar queda e estimular o crescimento, eu recomendo a Loção pós-banho calvicie zero (Noite). É prática de usar antes de dormir e age direto no couro cabeludo durante a noite, focada em calvície e queda. Quer ver os detalhes dela ou me conta onde está pegando mais (entradas, topo, falhas) pra eu ajustar certinho?"
+- **Avaliação:** ✅ **GANHO grande.** Na Rodada 1 caía na muleta. Agora a IA assume a recomendação (Loção Calvície Zero Noite), justifica em 1 frase e ainda devolve com pergunta de qualificação opcional ("entradas, topo, falhas"). Comportamento de vendedor maduro.
+
+#### Q6.3 — "tô na dúvida"
+- **Conversa:** `bcfb1d5e-ced7-4c17-b89b-787d17242fb9` — latência 11.3s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ **REGRESSÃO.** Na Rodada 1 fazia pergunta de qualificação ("Quer focar em tratar queda/calvície agora ou em prevenção?") — só errava no greeting redundante. Agora caiu na muleta universal sem qualquer pista. Pior conteúdo, embora sem o re-greeting.
+
+#### Q6.4 — "preciso pensar"
+- **Conversa:** `a723e52f-178d-4d3d-91a7-8ec3bdc776d2` — latência 18.8s.
+- **Resposta:** "Tudo bem, sem pressa. Quando quiser continuar ou tirar alguma dúvida, é só me chamar por aqui."
+- **Avaliação:** ✅ Mantido. Acolhe sem insistir, deixa porta aberta. Equivalente à Rodada 1.
+
+#### Q6.5 — "depois eu vejo"
+- **Conversa:** `328f6cd8-07f4-4432-ad2c-c12fb62ccad8` — latência 7.6s.
+- **Resposta:** "Sem pressa, qualquer dúvida estou aqui."
+- **Avaliação:** ✅ Mantido, mais enxuto. Equivalente à Rodada 1.
+
+#### Comparativo Rodada 1 → Rodada 2
+
+| Cenário | Rodada 1 | Rodada 2 | Status |
+|---|---|---|---|
+| Q6.1 — diferença entre 2 produtos | ✅ Comparação consultiva | ✅ Comparação consultiva | Mantido |
+| Q6.2 — "qual você recomenda?" | ❌ Muleta | ✅ Recomenda + justifica + qualifica | **Ganho grande** |
+| Q6.3 — "tô na dúvida" | ⚠️ Pergunta certa + re-greeting | ❌ Muleta universal | **Regressão de conteúdo** |
+| Q6.4 — "preciso pensar" | ✅ Acolhimento maduro | ✅ Acolhimento maduro | Mantido |
+| Q6.5 — "depois eu vejo" | ✅ Acolhimento maduro | ✅ Acolhimento maduro | Mantido |
+
+#### Achados novos da Rodada 2 — Onda 6
+
+- **Q6.C — "Qual você recomenda?" virou caminho consultivo sólido (ganho da Rodada 2):** o cenário que era muleta na Rodada 1 agora produz recomendação ativa com justificativa breve e pergunta de qualificação opcional. É o melhor padrão de vendas observado nesta onda.
+- **Q6.D — "Tô na dúvida" perdeu a pergunta de qualificação:** na Rodada 1 a IA pelo menos perguntava "tratar queda/calvície ou prevenção?" — útil mesmo com o greeting errado. Agora caiu na muleta total. Sintoma do mesmo problema das Ondas 4 e 5: turnos curtos sem pista explícita estão indo para a frase enlatada em vez de gerar pergunta de qualificação contextual.
+- **Q6.E — "Preciso pensar" / "depois eu vejo" são o ponto mais estável da base:** mesmo conteúdo, mesmo tom, mesmo acolhimento entre rodadas. É um cenário que não precisa de ajuste.
+
+**Latência média:** ~31s.
+
 ---
+
 
 ## Onda 7 — Objeções de preço e garantia
 
