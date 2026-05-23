@@ -1103,3 +1103,15 @@ Estende continuity-gate para tratar `intent=thanks` como terminal, ruído social
 
 ### Próximo — Frente D (Ficha institucional do tenant)
 Consolida dados institucionais (cobertura, horário, pagamento, cupom, garantia, prova social) numa ficha por tenant injetada apenas em buckets `institutional` / `commercial_policy` / `objection`. Defaults conservadores: "não inventar, oferece humano".
+
+### Frente D — Ficha institucional do tenant ✅ APLICADA (2026-05-23)
+- Estrutura por tenant em `ai_support_config.metadata.institutional_sheet` (campos opcionais: cobertura, horário, pagamento, cupom, garantia, prova social, loja física, humano, observações).
+- Bloco de prompt injetado APENAS em buckets `institutional` / `commercial_policy` / `objection`.
+- Regras duras sempre presentes: "use só o listado; se não tem, não invente, oferece humano".
+- Em objeção, ancoragem combina produto + ficha (garantia/prazo/prova social) sem prometer condições não listadas.
+- Sem migração — aproveita coluna `metadata` existente.
+- Detalhes em Registro #34 do changelog.
+- ⏳ Pendente: tela administrativa para edição da ficha (próximo ciclo) e validação sandbox.
+
+### Próximo — Frente E (consumo real dos prompts por estado)
+Cada prompt de estado (greeting, discovery, recommendation, product_detail, decision, checkout_assist, support, handoff) ganha referências explícitas à ficha institucional + à dor/objetivo declarado, transformando a muleta universal em fallback (não default). Perguntas abertas leem catálogo do tenant em vez de hardcoded.
