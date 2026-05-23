@@ -319,14 +319,27 @@ export async function classifyTurn(input: TPRInput): Promise<TurnClassification>
  * Para uso em fallback: extrai sinais determinísticos básicos quando o
  * TPR falha. NÃO substitui o TPR — é uma rede mínima para não regredir.
  */
-export function fallbackClassification(message: string, hasMedia = false): TurnClassification {
+export function fallbackClassification(
+  message: string,
+  hasMedia = false,
+  tenantContext?: TPRTenantContext,
+): TurnClassification {
   const m = (message || "").toLowerCase();
   const period: TurnGreetingPeriod =
     /\bbom dia\b/.test(m) ? "bom dia" :
     /\bboa tarde\b/.test(m) ? "boa tarde" :
     /\bboa noite\b/.test(m) ? "boa noite" : null;
 
-  const hasSymptom = /\b(tenho|estou com|sofro|minha|meu|coroa|entrada|calv|queda|caspa|seborr|oleos|caind)/i.test(message || "");
+  // [Onda 4 — Reg #2.18] Símbolos de sintoma universais ("tenho/estou
+  // com/sofro/minha/meu/faz X tempo") + tokens de dor do tenant quando
+  // disponíveis. Sem vocabulário fixo de cosmético.
+  const universalSymptomCue = /\b(tenho|estou\s+com|t[ôo]\s+com|sofro|minha|meu|faz\s+\d+\s+(anos?|meses?|dias?)|h[áa]\s+\d+\s+(anos?|meses?))/i.test(message || "");
+  const tenantPainTokens = (tenantContext?.painPoints || []).filter((p) => p && p.length >= 3);
+  const tenantPainHit = tenantPainTokens.length
+    ? new RegExp(`\\b(${tenantPainTokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "i").test(message || "")
+    : false;
+  const legacyPainHit = /\b(coroa|entrada|calv|queda|caspa|seborr|oleos|caind)/i.test(message || "");
+  const hasSymptom = universalSymptomCue || tenantPainHit || legacyPainHit;
   const askedRec = /\b(recomenda|indica|sugere|melhor pra mim|resolve|melhor caso|qual.*tratamento|qual.*shampoo)/i.test(message || "");
   const askedPrice = /\b(quanto|pre[çc]o|valor|desconto|cupom|barat)/i.test(message || "");
   const askedImage = /\b(foto|imagem|figura|me mostra)/i.test(message || "");
