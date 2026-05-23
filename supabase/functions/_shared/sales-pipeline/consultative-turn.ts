@@ -129,6 +129,9 @@ export function detectConsultativeTurnUniversal(
     matchCount,
     isConsultative: matchCount >= 2,
   };
+}
+
+
 
 /**
  * Bloco de contexto a ser injetado no prompt quando detectamos

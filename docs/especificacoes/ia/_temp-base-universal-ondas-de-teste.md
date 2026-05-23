@@ -526,3 +526,24 @@ Aguardando "ok" para iniciar **Fase 4 — Análise consolidada**:
 2. Propor plano de ajuste único (o que vira regra estrutural, o que vira detector, o que vira base institucional).
 3. Incorporar ao changelog formal da base universal.
 4. Descartar este documento de trabalho.
+
+---
+
+## Fase 4 — Plano de Ajuste — Andamento
+
+### Frente 1 — Limpeza de resíduos cosméticos ✅ APLICADO
+Removidos hardcodes de shampoo/cabelo/queda dos arquivos de pipeline (consultative-turn, turn-pre-router, turn-completeness, prompts/recommendation). Pipeline agora usa só vocabulário do tenant + sinais universais.
+
+### Frente 2 — Roteador de escopo (11 buckets de intenção) ✅ APLICADO
+Cada turno do cliente passa a ser consolidado em um dos 11 buckets:
+`social`, `product_question`, `catalog_question`, `commercial_policy`, `institutional`, `post_sale`, `objection`, `hesitation`, `human_request`, `out_of_scope`, `open_discovery`.
+
+- Classificador (TPR) ganhou o campo `intent_bucket` (LLM declara direto).
+- Roteador determinístico (`scope-router.ts`) deriva o bucket quando o TPR cai em fallback ou não preenche.
+- Wired no `ai-support-chat` — só loga e expõe; ainda não muda comportamento (Frentes 3-5 vão consumir).
+- `open_discovery` é o ÚNICO bucket onde a "muleta de descoberta consultiva" continua válida — todos os outros 10 saem do fluxo de descoberta.
+
+**Status:** aditivo, sem regressão funcional. Pendente de validação em conversa real para confirmar que os buckets estão sendo classificados certo (vai ser feito junto com Frentes 3-5).
+
+### Próximo — Frente 3 (Institucional)
+Detectar bucket `institutional` e responder consultando, nesta ordem: knowledge base do tenant → regras configuradas → contexto de marca. Sem dado, IA assume com humildade e a lacuna vira pendência no checklist de Configurações Gerais.

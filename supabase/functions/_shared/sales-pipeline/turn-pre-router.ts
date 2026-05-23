@@ -65,6 +65,13 @@ export interface TurnClassification {
   // Suporte / pós-venda
   is_support_topic: boolean;
 
+  // [Frente 2] Categoria de escopo declarada pelo LLM. Quando ausente, o
+  // scope-router determinístico deriva do conjunto de flags + regex.
+  // Valores válidos: social, product_question, catalog_question,
+  // commercial_policy, institutional, post_sale, objection, hesitation,
+  // human_request, out_of_scope, open_discovery.
+  intent_bucket?: string | null;
+
   // Meta
   source: "llm" | "fallback";
   latency_ms: number;
@@ -93,6 +100,19 @@ Regras gerais:
 - confirmed_purchase_intent = true quando o cliente disse "quero", "vou levar", "fecha", "manda o link", "pode adicionar".
 - is_pure_greeting = true só se a mensagem é APENAS saudação ("oi", "boa noite", "tudo bem?") sem nenhuma outra informação.
 - greeting_period: extraia LITERAL ("bom dia"/"boa tarde"/"boa noite") só se ele usou. Caso contrário null.
+- intent_bucket: classifique o turno em UMA destas categorias:
+  • "social": saudação, "tudo bem?", small talk, sem outra informação.
+  • "product_question": pergunta sobre um produto ou família específica (uso, ingrediente, modo de aplicar, indicação).
+  • "catalog_question": pergunta aberta de catálogo ("o que vocês têm?", "tem algum X?", "me mostra o catálogo").
+  • "commercial_policy": preço, frete, prazo, cupom, parcelamento, forma de pagamento.
+  • "institutional": loja física, horário, garantia, troca, devolução, política, segurança, sobre a marca.
+  • "post_sale": pedido em andamento, rastreio, atraso, defeito, nota fiscal, cancelamento de pedido.
+  • "objection": resistência ("é caro", "não funciona pra mim", "tenho medo", "já tentei tudo").
+  • "hesitation": adiamento ("vou pensar", "depois eu vejo", "talvez", "outro dia").
+  • "human_request": pedido explícito por humano/atendente ("quero falar com pessoa").
+  • "out_of_scope": assunto fora do negócio (piada, política, futebol, previsão do tempo).
+  • "open_discovery": cliente declarou sintoma/objetivo SEM citar produto/família — único caso legítimo de descoberta consultiva.
+  Em caso de dúvida, prefira a categoria mais específica que aplicar; só use "open_discovery" quando houver sintoma/objetivo concreto sem produto/família citado.
 - Em caso de dúvida, prefira false (conservador).`;
 
 function buildTPRSystemPrompt(tenantContext?: TPRTenantContext): string {
@@ -141,6 +161,23 @@ const TPR_TOOL = {
         confirmed_purchase_intent: { type: "boolean" },
         asked_about_payment_or_link: { type: "boolean" },
         is_support_topic: { type: "boolean" },
+        intent_bucket: {
+          type: ["string", "null"],
+          enum: [
+            "social",
+            "product_question",
+            "catalog_question",
+            "commercial_policy",
+            "institutional",
+            "post_sale",
+            "objection",
+            "hesitation",
+            "human_request",
+            "out_of_scope",
+            "open_discovery",
+            null,
+          ],
+        },
       },
       required: [
         "greeting_period", "asked_how_are_you", "is_pure_greeting",
@@ -150,7 +187,7 @@ const TPR_TOOL = {
         "mentioned_product_family", "mentioned_product_name",
         "should_broaden_catalog_for_pain",
         "confirmed_purchase_intent", "asked_about_payment_or_link",
-        "is_support_topic",
+        "is_support_topic", "intent_bucket",
       ],
     },
   },
@@ -175,6 +212,7 @@ function emptyClassification(source: "llm" | "fallback", latency_ms = 0, raw_err
     confirmed_purchase_intent: false,
     asked_about_payment_or_link: false,
     is_support_topic: false,
+    intent_bucket: null,
     source,
     latency_ms,
     raw_error,
