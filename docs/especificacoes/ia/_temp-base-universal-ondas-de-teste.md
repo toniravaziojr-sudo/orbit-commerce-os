@@ -699,7 +699,56 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 - **Q7.C — Política de garantia/devolução não respondida:** "Tem garantia?" é pergunta factual sobre política comercial. A IA não tem (ou não acessa) essa informação na base universal e devolve muleta — o que é o pior comportamento possível em fundo de funil.
 - **Q7.D — Padrão sistêmico confirmado:** Onda 7 confirma o que Ondas 4, 5 e 6 já indicavam — qualquer pergunta que não seja "buscar produto pelo nome" cai na mesma frase. A IA tem 1 fluxo bom (catálogo) e 1 muleta única para todo o resto.
 
+### Onda 7 — Rodada 2 (re-execução pós-Frentes 1–4, prompts oficiais do plano)
+
+Executada via `ai-test-sandbox` Agent Mode, 5 conversas isoladas, modelo `gpt-5`, modo vendas ativo.
+
+#### Q7.1 — "tá caro"
+- **Conversa:** `ae350e2c-a507-4c18-9822-7d15e0df0275` — latência 9.9s.
+- **Resposta:** "Me conta um pouco mais do que você quer resolver, que eu já te indico o certo."
+- **Avaliação:** ❌ Mantida a falha. Objeção clássica de preço não dispara ancoragem de valor (rendimento, parcelamento, frete). Idêntico à Rodada 1.
+
+#### Q7.2 — "achei mais barato em outro lugar"
+- **Conversa:** `107f436a-a7cc-4fa7-8eec-c6833551eeac` — latência 9.2s.
+- **Resposta:** "Me conta um pouco mais do que você quer resolver, que eu já te indico o certo."
+- **Avaliação:** ❌ Mantida a falha. Comparação com concorrente segue tratada como pergunta vaga, sem defesa de diferenciação.
+
+#### Q7.3 — "vale a pena?"
+- **Conversa:** `79e98084-d054-471e-8601-d731a3547bac` — latência 10.3s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ Mantida a falha. Pedido de prova/resultado não dispara nenhuma resposta de social proof, garantia ou estimativa de tempo de resultado.
+
+#### Q7.4 — "não sei se compensa"
+- **Conversa:** `b0a71236-9af1-407b-88b5-ddc257f41e3e` — latência 10.4s.
+- **Resposta:** "Entendo a dúvida. Pra te indicar o certo: seu foco é tratar queda/calvície agora ou prevenção?"
+- **Avaliação:** ⚠️ **Pequeno ganho.** Saiu da muleta universal: acolhe ("entendo a dúvida") e faz pergunta de qualificação contextual. Ainda assim não é a resposta ideal — "compensa" é objeção de valor que pediria ancoragem de resultado/garantia, não só qualificação. Mas é o único cenário desta onda que evoluiu.
+
+#### Q7.5 — "tem garantia? e se não funcionar?"
+- **Conversa:** `a7036359-74d3-4055-a39f-96023352a6db` — latência 11.8s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ **Crítico — mantido.** Pergunta factual sobre política de garantia/devolução continua recebendo a muleta universal. É o pior comportamento possível em fundo de funil: o cliente perde confiança e some.
+
+#### Comparativo Rodada 1 → Rodada 2
+
+| Cenário | Rodada 1 | Rodada 2 | Status |
+|---|---|---|---|
+| Q7.1 — "tá caro" | ❌ Muleta | ❌ Muleta | Inalterado |
+| Q7.2 — "mais barato em outro lugar" | ❌ Muleta | ❌ Muleta | Inalterado |
+| Q7.3 — "vale a pena?" | ❌ Muleta | ❌ Muleta | Inalterado |
+| Q7.4 — "não sei se compensa" | ❌ Muleta | ⚠️ Acolhe + qualifica | **Pequeno ganho** |
+| Q7.5 — "tem garantia?" | ❌ Muleta | ❌ Muleta | Inalterado |
+
+#### Achados novos da Rodada 2 — Onda 7
+
+- **Q7.E — Onda 7 é o ponto cego mais persistente da base universal:** 4 de 5 cenários idênticos à Rodada 1, mesmo após as Frentes 1–4. Objeção comercial (preço, comparação com concorrente, prova social, garantia) não tem rota dedicada e cai sempre na muleta enlatada.
+- **Q7.F — "Não sei se compensa" abriu a única brecha:** é o único caso da onda que evoluiu para resposta com qualificação contextual. Sinaliza que existe potencial de detector de objeção, mas hoje só captura uma variante específica.
+- **Q7.G — Garantia/devolução continua sendo lacuna factual crítica:** a base universal não tem fonte de verdade sobre política comercial (garantia, devolução, prazo de troca) — sem esse dado, a IA não tem como responder corretamente nem mesmo se o detector funcionasse. É lacuna de conteúdo, não só de pipeline.
+
+**Latência média:** ~10s.
+
 ---
+
+
 
 ## Onda 8 — Informação institucional e operacional
 
