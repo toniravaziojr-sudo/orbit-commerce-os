@@ -20,26 +20,17 @@
 //   - Kit Banho Calvície Zero (kit oficial da linha)
 // ============================================================
 
-const FAMILY_NAME_PATTERNS: Record<string, RegExp> = {
-  shampoo: /\bshampoo/i,
-  condicionador: /\bcondicionador/i,
-  creme: /\bcr[eê]me/i,
-  locao: /\blo[çc][ãa]o|lotion\b/i,
-  balm: /\bbalm/i,
-  serum: /\bs[eé]rum/i,
-  tonico: /\bt[ôo]nico/i,
-  mascara: /\bm[áa]scara/i,
-  gel: /\bgel\b/i,
-  sabonete: /\bsabonete/i,
-  kit: /\bkit\b/i,
-  combo: /\bcombo\b/i,
-  perfume: /\bperfume/i,
-};
+// [Reg #2.18 — Base Universal] As listas hardcoded de famílias cosméticas
+// foram REMOVIDAS. A classificação de família passa a ser feita por:
+//   1. `classifier` recebido por parâmetro (caller injeta a função baseada
+//      no vocabulário do tenant — categorias + product_type + dicionário);
+//   2. fallback "other" quando nada foi resolvido.
+// Quem chama deve passar `classifier` construído a partir de
+// tenant-vocabulary-resolver.
 
-export function classifyProductFamily(name: string): string {
-  const n = String(name || "");
-  for (const [family, re] of Object.entries(FAMILY_NAME_PATTERNS)) {
-    if (re.test(n)) return family;
+export function classifyProductFamily(name: string, tenantClassifier?: (n: string) => string): string {
+  if (tenantClassifier) {
+    try { return tenantClassifier(String(name || "")) || "other"; } catch { /* swallow */ }
   }
   return "other";
 }
