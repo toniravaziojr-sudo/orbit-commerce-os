@@ -175,6 +175,8 @@ export interface BaseFirstInput<T extends { id: string; name: string; is_kit?: b
   kitComponentMap: Map<string, string[]>;
   /** Limite comercial. */
   limit: number;
+  /** Classificador opcional de família (universal vs legado). */
+  classifier?: (name: string) => string;
 }
 
 export interface BaseFirstResult<T> {
