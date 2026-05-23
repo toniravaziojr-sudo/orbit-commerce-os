@@ -1084,3 +1084,22 @@ Cada turno do cliente passa a ser consolidado em um dos 11 buckets:
 Estende continuity-gate para tratar `intent=thanks` como terminal, ruído social ("kkk"/"haha"/"rs"/emoji solto), e adiciona reflexo determinístico de presença ("tem alguém aí?", "alô"). Resolve Q10.1, Q10.2 e Q10.4.
 
 
+
+### Frente B — Continuity-gate completo ✅ APLICADA (2026-05-23)
+- `thanks/farewell` → terminal universal ("vlw", "obrigado", "tmj", "tchau", "abraço", emoji solto de gratidão).
+- Ruído social ("kkk", "haha", "hue", emoji puro) responde leve, sem assumir família/produto.
+- Reflexo de presença ("tem alguém aí?") confirma presença em 1 linha antes de qualquer outra rota.
+- 30/30 testes lógicos passaram. Detalhes em Registro #32 do changelog.
+- ⏳ Pendente: rodar bateria fixa (19 cenários) em sandbox real para arquivar evidência.
+
+### Frente C — Endurecimento Rodada 2 ✅ APLICADA (2026-05-23)
+- TPR fallback: regex de preço cobre superlativos ("mais em conta", "compensa", "vale a pena", "tem promo/desconto", "sai por quanto").
+- TPR fallback: emite `intent_bucket` determinístico (`social` | `commercial_policy` | `catalog_question` | `open_discovery` | `product_question`) mesmo sem LLM.
+- search_products: quando `intent_bucket === "catalog_question"` e cliente não mencionou família nova, ignora `family_focus` e devolve vitrine ampla.
+- Caminhos anteriores (Catalog Probe Reg #2.8, enforceFamilyBaseFirst Onda 18 Fase A, filtro estrito) preservados como fallback.
+- Type-check e deploy do `ai-support-chat` concluídos.
+- ⏳ Pendente: bateria fixa (19 cenários) + cenários novos da Frente C em sandbox real antes da Frente D.
+- Detalhes em Registro #33 do changelog.
+
+### Próximo — Frente D (Ficha institucional do tenant)
+Consolida dados institucionais (cobertura, horário, pagamento, cupom, garantia, prova social) numa ficha por tenant injetada apenas em buckets `institutional` / `commercial_policy` / `objection`. Defaults conservadores: "não inventar, oferece humano".
