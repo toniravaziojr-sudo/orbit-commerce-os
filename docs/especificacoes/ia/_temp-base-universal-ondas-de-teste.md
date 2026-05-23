@@ -463,8 +463,66 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 
 ---
 
-## Próximo passo
+## Onda 10 — Mensagens fora do escopo e ruído
 
-Aguardando "ok" para rodar **Onda 10 — Mensagens fora do escopo e ruído** (5 cenários: "kkk", "vlw", "boa noite!", "tem alguém aí?", "preciso falar com humano").
+Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 
-Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
+### Q10.1 — "kkk"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha de tom. "kkk" é ruído social — risada solta sem intenção comercial. Vendedor humano responderia leve ("haha", emoji) ou ignoraria. A IA tratou como pergunta vaga e devolveu muleta — quebra o ritmo da conversa e soa robótica.
+
+### Q10.2 — "vlw"
+**Resposta:** "Imagina! Qualquer coisa sobre tratamento pra calvície ou prevenção, me chama."
+**Avaliação:** ✅ Excelente. Fechamento natural, recíproco, deixa porta aberta com gancho específico (calvície/prevenção). Comportamento maduro.
+
+### Q10.3 — "boa noite!"
+**Resposta:** "Olá, boa noite, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+**Avaliação:** ✅ Bom. Saudação devolvida, abertura natural. Único ponto: "como posso ajudar" + "me conta o que está procurando" são redundantes; podia escolher um.
+
+### Q10.4 — "tem alguém aí?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha. "Tem alguém aí?" é pedido de presença/sinal de vida (cliente esperando resposta há tempo, ou primeira mensagem testando). Resposta correta: "Tô aqui sim! Me conta no que posso ajudar." A muleta atual ignora a ansiedade da pergunta.
+
+### Q10.5 — "preciso falar com humano"
+**Resposta:** "Claro. Posso te colocar com alguém da equipe, sim. Me passa por favor: nome completo, e-mail ou CPF do pedido, número do pedido (se tiver), e um resumo rapidinho do que aconteceu. Com isso já encaminho pro time certo."
+**Avaliação:** ✅ Excelente. Aceita o pedido sem resistência, coleta dados de forma estruturada, promete encaminhamento. Comportamento ideal — não tenta convencer o cliente a continuar com a IA.
+
+### Resumo da Onda 10
+
+**Funciona bem:**
+- "Vlw" / fechamento de conversa → ✅ resposta recíproca com gancho.
+- "Boa noite!" → ✅ saudação devolvida.
+- "Preciso falar com humano" → ✅ aceita escalar sem resistência, coleta dados estruturados.
+
+**Quebras observadas:**
+- **Q10.A — "kkk" e ruído social caem na muleta:** Mensagens curtas/sociais sem intenção comercial precisam de detector próprio (ignorar, responder leve, ou pedir continuação natural). Hoje viram pergunta vaga.
+- **Q10.B — "Tem alguém aí?" não detecta pedido de presença:** Padrão claro de cliente ansioso ou testando canal. A resposta deveria afirmar presença antes de qualificar. Mais um exemplo de classificador que não pega intenções emocionais.
+
+---
+
+## Fim da Fase 3 — Diagnóstico Funcional
+
+Todas as 10 ondas executadas. **50 cenários testados, 5 grandes padrões de falha confirmados:**
+
+1. **Muleta universal:** "Me conta um pouco do que você precisa que eu já te indico" é a resposta padrão para qualquer mensagem que não case com palavra-chave forte de produto/pedido. Apareceu em ~25 dos 50 cenários.
+2. **Classificador depende da redação literal:** "Cadê meu pedido?" ativa fluxo SAC; "como rastreio?" não. "Mais completo" funciona; "mais caro" não. A IA não generaliza intenção.
+3. **Re-greeting em conversa em andamento:** "Tô na dúvida", "boa noite" mid-conversa recebem "Oi! Tudo bem?". A IA não distingue conversa nova de continuação.
+4. **Falta de base institucional coesa:** Pagamento e atendimento estão respondidos; entrega, loja física, garantia, cupom e prova social não. Fragmentos, não base.
+5. **Sem comportamento comercial defensivo:** Objeções de preço, comparação com concorrente, "vale a pena?" e "tem garantia?" — todos os gatilhos clássicos de fechamento — caem na muleta. A IA não tem ancoragem de valor.
+
+**O que funciona consistentemente:**
+- Busca de produto pelo nome (exato, colloquial, com typo) e upsell.
+- Comparação direta entre 2 produtos do catálogo.
+- Fluxo de pós-venda quando a redação contém palavras fortes ("pedido", "trocar", "não chegou").
+- Pedido para falar com humano (aceita escalar).
+- Sinais de "vou pensar" (acolhe sem insistir).
+
+---
+
+## Próximo passo — Fase 4
+
+Aguardando "ok" para iniciar **Fase 4 — Análise consolidada**:
+1. Agrupar os 5 padrões em causas raiz.
+2. Propor plano de ajuste único (o que vira regra estrutural, o que vira detector, o que vira base institucional).
+3. Incorporar ao changelog formal da base universal.
+4. Descartar este documento de trabalho.
