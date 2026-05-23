@@ -42,15 +42,18 @@ Deno.test("[multi-segmento] pet — pain resolver gera padrões a partir do dici
       { name: "pulgas", synonyms: [], source: "business_context" },
     ],
   });
-  const patterns = resolvePainCategoryPatterns("meu cachorro está com coceira", v);
+  const { patterns } = derivePainCategoryPatternsUniversal({
+    painSource: "meu cachorro está com coceira",
+    vocabulary: v,
+  });
   assert(patterns.length > 0, "deve gerar pelo menos um padrão");
   assert(
-    patterns.some((p) => p.toLowerCase().includes("coceira") || p.toLowerCase().includes("coç")),
+    patterns.some((p: string) => p.toLowerCase().includes("coceira") || p.toLowerCase().includes("coç")),
     `padrões devem refletir a dor declarada — recebido: ${JSON.stringify(patterns)}`,
   );
   // Garante que nenhum padrão cosmético hardcoded vazou
   assert(
-    !patterns.some((p) => /calv|caspa|shampoo|balm|coroa/i.test(p)),
+    !patterns.some((p: string) => /calv|caspa|shampoo|balm|coroa/i.test(p)),
     `nenhum padrão cosmético hardcoded permitido — recebido: ${JSON.stringify(patterns)}`,
   );
 });
