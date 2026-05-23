@@ -1692,3 +1692,33 @@ A Rodada 2 da bateria das 10 ondas (50 cenários) confirmou que muitas respostas
 - Nenhuma tool, contrato de banco ou estado da pipeline alterado.
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox no próximo ciclo.
+
+---
+
+## Registro #36 — Base Universal: Plano de correção pós-Frentes B–E — Passo 3 (catalog × family-focus) — 23/mai/2026
+
+**Tipo:** Resolução do conflito entre ampliação de catálogo (Frente C), foco em família (Frente E) e regra "base antes de kit" (Onda 18 Fase A).
+**Escopo:** `_shared/sales-pipeline/turn-anchor.ts` + chamada em `ai-support-chat/index.ts`.
+
+### Sintoma (baseline Passo 1)
+- Cenário B3.1 ("vocês têm shampoo?") regrediu: a IA caía na muleta "Me conta um pouco do que você precisa que eu já te indico" em vez de listar os shampoos disponíveis.
+- Diagnóstico: quando o turno era `catalog_question` com família já persistida, a Frente C ampliava a vitrine, mas a Frente E injetava no mesmo prompt "Família em foco: X — mantenha o foco" — instrução contraditória que o modelo resolvia recorrendo à muleta.
+
+### O que mudou
+1. A âncora do turno agora recebe o `intentBucket`. Quando o bucket é `catalog_question` E há família persistida, a linha do prompt deixa de pedir manutenção do foco e passa a registrar:
+   - "Família vista anteriormente: X (o cliente está pedindo visão ampla — PODE mostrar produtos de outras famílias sem trocar o foco persistido; dentro de cada família, mantenha base antes de kits)."
+2. Regra de Onda 18 Fase A preservada: a instrução "base antes de kit" continua viva dentro de cada família, sem ser anulada pela ampliação.
+3. Novo motivo `catalog_broadening` no log da âncora; flag `catalogBroadeningAllowed` exposta no output para auditoria.
+4. Quando o bucket NÃO é catálogo, comportamento anterior é idêntico (`family_anchor`).
+
+### Validação técnica executada
+- ✅ Edição aplicada em sandbox; type-check do módulo limpo.
+- ✅ Deploy do `ai-support-chat` concluído.
+- ⏳ Pendente: rerodar B3.1 / B5.1 / B4.1 / B6.3 da bateria fixa no tenant Respeite o Homem para confirmar que B3.1 sai da muleta. Os outros 3 dependem dos Passos 4 e 5 (hierarquia de blocos + continuity-gate como override de estado).
+
+### Anti-regressão
+- Mudança aditiva: nenhum estado, tool ou contrato alterado.
+- Quando `intentBucket` não vem ou bucket ≠ `catalog_question`, comportamento original é mantido.
+- Regra de "base antes de kit" do Respeite o Homem continua aplicada pela Onda 18 Fase A — a flexibilização é só do prompt textual, não do `enforceFamilyBaseFirst`.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox no próximo turno.
