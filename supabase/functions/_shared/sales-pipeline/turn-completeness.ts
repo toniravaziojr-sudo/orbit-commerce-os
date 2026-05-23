@@ -25,6 +25,14 @@ export interface CompletenessContext {
   hasActiveOffer?: boolean;
   conversationStage?: string | null; // greeting | discovery | recommendation | product_detail | decision | checkout_assist
   hasVisionTool?: boolean;
+  /**
+   * [Onda 5 — Reg #2.18] Tokens de dor/objetivo declarados pelo tenant
+   * (derivados de Visão da IA + descrição da categoria + dicionário do
+   * negócio). Quando fornecido, complementa o regex cosmético legado para
+   * tornar a detecção de "actionable" segment-agnostic. Manter o legado
+   * preserva o comportamento atual no Respeite o Homem mesmo se vier vazio.
+   */
+  tenantPainTokens?: string[];
 }
 
 export interface CompletenessResult {
