@@ -531,7 +531,55 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 - **Q5.C — Inconsistência entre Q5.4 e Q5.5:** Os dois cenários são tecnicamente equivalentes (produto fora do catálogo com pista de família). Q5.5 redireciona, Q5.4 cai na muleta. Sinal de que o detector de "fora-de-escopo + alternativa" não é determinístico — depende de quanto a frase do cliente "soa" como um produto interno.
 - **Q5.D — Q5.2 não menciona variantes:** "Calvície Zero" tem shampoo, loção noite e kits. A IA confirmou só o shampoo. Numa base universal vendedora, o ideal seria "temos a linha Calvície Zero — shampoo, loção noite e kits. Qual você quer?". Hoje ela já decide pelo cliente.
 
+### Onda 5 — Rodada 2 (re-execução pós-Frentes 1–4, prompts oficiais do plano)
+
+Executada via `ai-test-sandbox` Agent Mode, 5 conversas isoladas, modelo `gpt-5`, modo vendas ativo.
+
+#### Q5.1 — "quero o Shampoo Preventive Power" (nome exato)
+- **Conversa:** `a5884dff-d96a-42ff-9f5b-b44e193c267f` — latência 105.8s.
+- **Resposta:** "Shampoo Preventive Power adicionado ao carrinho. Quer mais alguma coisa ou já te mando o link de pagamento?"
+- **Avaliação:** ⚠️ Parcial. Adicionou ao carrinho e ofereceu fechar — bom. Mas **sumiu o preço** que aparecia na Rodada 1 ("Sai por R$ 75,91"). Provável efeito do Price Scrubber (Reg #2.8) suprimindo valor mesmo quando o cliente já demonstra intenção de compra (deveria liberar `R$` neste estado).
+
+#### Q5.2 — "me manda o calvicie zero" (nome aproximado/coloquial)
+- **Conversa:** `ffb5af8e-77d2-437a-9db8-564b840d85cc` — latência 25.5s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ **REGRESSÃO grave.** Na Rodada 1 reconhecia "calvicie zero" → família Calvície Zero e confirmava o shampoo. Agora caiu na muleta universal. Tolerância a coloquialismo de família foi perdida.
+
+#### Q5.3 — "tem o shampu preventiv?" (erro de digitação)
+- **Conversa:** `6da20c85-fab6-4f89-b32b-183b4b87db04` — latência 50.6s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ **REGRESSÃO grave.** Na Rodada 1 reconhecia "shampu preventiv" → Shampoo Preventive Power e ainda fazia upsell de pack. Agora caiu na muleta. Fuzzy-match sobre nome de produto também foi perdido.
+
+#### Q5.4 — "vocês têm minoxidil?" (ativo concorrente)
+- **Conversa:** `679d7b35-2d90-4159-9bbd-b482018258bd` — latência 58.0s.
+- **Resposta:** "Hoje não trabalhamos com minoxidil. Pra queda e prevenção, temos opções sem minoxidil que entram fácil na rotina de banho: Shampoo Preventive Power… Shampoo Calvície Zero… Qual faz mais sentido pro seu caso?"
+- **Avaliação:** ✅ **GANHO grande.** Na Rodada 1 era falha grave (caía na muleta). Agora assume a ausência ("não trabalhamos com minoxidil"), traduz a intenção (queda/prevenção) e oferece duas alternativas com mini-pitch + pergunta de qualificação. Comportamento de vendedor honesto.
+
+#### Q5.5 — "quero o shampoo de cavalo" (produto popular fora do catálogo)
+- **Conversa:** `255edb3a-aa51-4557-a602-93d4cb2b671d` — latência 33.1s.
+- **Resposta:** "Você quer o Shampoo Preventive Power ou o Shampoo Calvície Zero? Me fala qual pra eu colocar no carrinho."
+- **Avaliação:** ⚠️ Mantém o padrão da Rodada 1 — redireciona para o catálogo, mas **não diz "não temos shampoo de cavalo"**. Pior que Q5.4: pulou a honestidade e ainda decidiu pelo cliente que ele quer um dos dois.
+
+#### Comparativo Rodada 1 → Rodada 2
+
+| Cenário | Rodada 1 | Rodada 2 | Status |
+|---|---|---|---|
+| Q5.1 — nome exato | ✅ Carrinho + preço + cross-sell | ⚠️ Carrinho + cross-sell, sem preço | Regressão parcial (preço sumiu) |
+| Q5.2 — nome aproximado | ✅ Reconhecia família | ❌ Caiu na muleta | **Regressão grave** |
+| Q5.3 — erro de digitação | ✅ Reconhecia + upsell de pack | ❌ Caiu na muleta | **Regressão grave** |
+| Q5.4 — ativo concorrente (minoxidil) | ❌ Muleta | ✅ Assume ausência + alternativa | **Ganho grande** |
+| Q5.5 — produto fora do catálogo (cavalo) | ⚠️ Redireciona sem honestidade | ⚠️ Idem | Inalterado |
+
+#### Achados novos da Rodada 2 — Onda 5
+
+- **Q5.E — Tolerância a coloquial/typo de produto regrediu (Q5.2 e Q5.3):** o caminho que reconhecia "calvicie zero" e "shampu preventiv" parou de funcionar. Hoje só nome exato (Q5.1) ou ativo concorrente bem identificado (Q5.4) sai da muleta. Erro de digitação e abreviação coloquial caíram no fallback genérico.
+- **Q5.F — Price Scrubber excessivo na Q5.1:** quando o cliente pede o produto pelo nome e o item entra no carrinho, faz sentido mostrar o preço junto. O scrub atual está suprimindo valor mesmo nesse estado de "intenção de compra confirmada", o que tira informação útil para o fechamento.
+- **Q5.G — Detecção de "ativo concorrente" (Q5.4) ficou ótima, mas não cobre análogos populares (Q5.5):** "minoxidil" passou a ser tratado com honestidade + alternativa; "shampoo de cavalo" continua sendo redirecionado sem dizer que não tem. O detector de "fora do catálogo com pista" precisa cobrir também produtos populares fora-do-escopo, não só ativos farmacológicos.
+
+**Latência média:** ~54s.
+
 ---
+
 
 ## Onda 6 — Comparação e indecisão
 
