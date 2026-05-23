@@ -138,18 +138,82 @@ Decisões de negócio/UI a confirmar (você pediu para passar por aprovação):
 - **O que faz:** dado o `painSource` (texto que o cliente declarou) + `TenantVocabulary`, deriva padrões `%token%` para `categories.name ILIKE` **sem nenhum termo travado de segmento**. Tokens ≥4 chars, stopwords PT-BR removidas; sinônimos do dicionário do tenant entram quando bate alguma dor declarada.
 - **Wiring atrás de flag:** `ai-support-chat/index.ts` lê `ai_support_config.metadata.arch218_universal_pain_resolver`; quando `true`, substitui o léxico legado de cosmético/cabelo (`%calv%`, `%caspa%`, `%queda%`...) pelo resolver universal. Quando `false` (default), comportamento legado preservado byte-a-byte.
 - **Evidência:** 5 testes em `__tests__/pain-category-resolver.test.ts` — pet shop ("cachorro coça"), moda ("calça apertando"), sinônimos do tenant, stopwords. ✅ Todos passam (5/5).
-- **Pendências da Onda 3** (próxima sub-janela):
-  1. Neutralizar descrições do `SALES_TOOLS` (exemplos abstratos em vez de "calvície/balm/Calvície Zero"). Cuidado de paridade: hoje o LLM lê "shampoo" como exemplo e isso ancora o estilo. Vai entrar via `SALES_TOOLS_UNIVERSAL` selecionado pela mesma flag.
-  2. Bateria multi-segmento dedicada (pet, moda, suplemento) batendo no resolver com tenants fictícios.
+- **Pendências da Onda 3:**
+  1. ✅ Descrição da tool `search_products` neutralizada (sem exemplos de calvície/caspa/balm/Calvície Zero). Texto agora cita "qualquer segmento: cosmético, pet, moda, suplemento, eletrônico, serviços". Aplicado direto (sem flag) — exemplos travados em descrição de tool não afetam comportamento determinístico, só ancoravam o LLM no segmento cosmético.
+  2. Bateria multi-segmento dedicada (pet, moda, suplemento) — pendente.
 
-### Ondas 4 a 7 — pendentes, na ordem do plano.
+### Onda 3.2 — Neutralização das descrições de tools — ✅ ENTREGUE
+- **Artefato:** `supabase/functions/ai-support-chat/index.ts` linhas 447–454.
+- **Auditoria das 16 tools comerciais:** apenas `search_products` tinha exemplos travados de cosmético. As outras 15 (`get_product_details`, `check_coupon`, `add_to_cart`, `view_cart`, `remove_from_cart`, `apply_coupon`, `check_upsell_offers`, `generate_checkout_link`, `lookup_customer`, `calculate_shipping`, `save_customer_data`, `update_customer_record`, `get_product_variants`, `recommend_related_products`, `check_customer_coupon_eligibility`) já estavam neutras.
+
+## 📋 Auditoria detalhada — pontos restantes com vocabulário travado de segmento
+
+Inventário completo do que ainda precisa ser universalizado nas próximas ondas. Cada item lista arquivo, linhas, natureza do acoplamento e estratégia.
+
+### Hotspot A — `_shared/sales-pipeline/prompts/discovery.ts` (Onda 5)
+- **Linhas 15–25, 29–39:** prompt do estado de descoberta lista pain_hints fixos ("calvície", "queda", "caspa", "oleosidade", "couro cabeludo") e exemplos de diálogo com "shampoo / Anticaspa Pro".
+- **Estratégia:** reescrever como template com placeholders `{{tenant.familias_principais}}`, `{{tenant.dores_declaradas_no_dicionario}}` e `{{tenant.exemplo_produto}}`, preenchidos em runtime pelo Resolver da Onda 1.
+- **Risco:** prompt é fonte do estilo "vendedora de farmácia". Trocar exige paridade A/B no Respeite o Homem.
+
+### Hotspot B — `_shared/sales-pipeline/prompts/recommendation.ts` (Onda 5)
+- **Linhas 15–95:** múltiplas frases-modelo travadas em cosmético ("Como vendedora de farmácia: cliente pede shampoo → você mostra o SHAMPOO", "Pra calvície a gente tem o Shampoo Calvície Zero…", "Nossa loção pra esse caso é a [nome]").
+- **Estratégia:** mesma da Onda 5. Trocar por placeholders neutros + 1 exemplo abstrato com `<FAMÍLIA>` / `<PRODUTO>`.
+
+### Hotspot C — `_shared/sales-pipeline/prompts/free-shipping-rule.ts`
+- **Linha 43:** comentário interno sobre "loção e balm não são a mesma linha".
+- **Estratégia:** trocar comentário por explicação genérica ("variações de tamanho/quantidade do MESMO produto-base contam como mesma linha; produtos de famílias diferentes não contam"). Sem efeito runtime.
+
+### Hotspot D — `_shared/sales-pipeline/catalog-probe.ts` (Onda 3 — sub-janela 3.3)
+- **Linhas 4–28:** comentário e `FAMILY_TOKENS` com regex hard-coded para `shampoo|condicionador|creme|locao|balm|...`.
+- **Estratégia:** o `pain-category-resolver.ts` já cobre detecção de dor → categorias. Falta substituir `FAMILY_TOKENS` pela leitura do Resolver. Já temos `getCatalogFamilyAliasesUniversal` em `transitions.ts`; precisa ser consumido aqui também.
+- **Risco:** este módulo é a "sonda" que evita cegueira de família. Mudança exige flag dedicada e paridade na bateria do Respeite o Homem.
+
+### Hotspot E — `_shared/sales-pipeline/turn-completeness.ts` (Onda 4)
+- **Linhas 57, 60, 171, 193:** regex `STRONG_Q_PRODUCT_REF` e `Q_ABOUT_PRODUCT_FAMILY` listam "loção|pomada|shampoo|creme|balm|óleo|gel|cápsula|kit"; contexto de recomendação verifica `entradas?|calv|queda|cresc|caspa|seborr|oleos|ressec|fios?|cabel`.
+- **Estratégia:** o detector de "turno completo" passa a aceitar QUALQUER família do Resolver + sintaxe genérica de pergunta-de-recomendação ("tem X pra Y?", "qual o melhor pra Y?"). A lista de dores some — basta haver "pra/para/contra + substantivo" depois da família.
+
+### Hotspot F — `_shared/sales-pipeline/consultative-turn.ts` (Onda 4)
+- **Linhas 28–37:** `CONSULTATIVE_PATTERNS` é um array de 4 regexes 100% cosméticas ("tenho calvície", "estou com queda", "minha coroa tá ralinha", "qual shampoo/loção indicado").
+- **Estratégia:** substituir por classificação semântica via TPR (Reg #2.8). O TPR já tem campo `described_symptom`; basta passar a confiar nele e remover os regex. Detector legado some quando flag `arch218_universal_consultative` ligar.
+
+### Hotspot G — `_shared/sales-pipeline/turn-pre-router.ts` (Onda 4)
+- **Linha 84:** prompt do TPR cita "tenho calvície, tô com queda, minha coroa tá ralinha, tenho bastante entrada" como exemplos.
+- **Linha 87:** descrição do `should_broaden_catalog_for_pain` ancora em "calvície, queda, caspa".
+- **Linha 88:** `mentioned_product_family` ainda é enum fechado de 13 famílias cosméticas ("shampoo, condicionador, creme, locao, balm, serum, tonico, mascara, gel, sabonete, kit, combo, perfume").
+- **Linhas 298–299:** fallback `hasSymptom` / `askedRec` com regex de cabelo.
+- **Estratégia:** (i) prompt do TPR recebe `{{tenant.familias_principais}}` e `{{tenant.dicionario_dores}}` injetados pelo Resolver; (ii) `mentioned_product_family` vira string livre validada contra as famílias do tenant; (iii) fallback regex sai (TPR é fonte única — ver Reg #2.8). 
+- **Risco:** mexer no TPR é o ponto mais sensível. Flag dedicada `arch218_universal_tpr` + bateria A–D obrigatória antes de promover.
+
+### Hotspot H — `_shared/sales-pipeline/transitions.ts`
+- **`FAMILY_TOKENS` legado** (linhas ~80–100, mantidas como fallback): `shampoo`, `condicionador`, `creme`, `locao` (cobre pós-barba/after-shave), `balm`, `serum`, `tonico`, `mascara`, `gel`, `sabonete`, `pomada`, `oleo`, `hidratante`, `barba`, `desodorante`, `kit`, `combo`, `perfume`.
+- **Status:** já existe versão universal (`detectFamilyMentionedUniversal`) em paralelo. O legado fica como fallback enquanto flag `arch218_universal_onda2` não estiver ligada por tenant. Remoção do legado entra em onda final de cleanup (Onda 8).
+
+### Hotspot I — Outros agentes (Onda 6)
+- **Strategic Analyzer / Detector de segmento de landing / Stock de imagens / Content Creator templates:** ainda não auditados em profundidade. Próxima sub-janela da Onda 6 vai fazer varredura equivalente nessas funções (`creative-strategist`, `landing-page-*`, `content-*`).
+
+### Hotspot J — Memória de governança que ainda cita exemplos de cosmético
+- **`mem://constraints/ai-family-vocabulary-must-cover-tenant-variations.md`** descreve a lista atual do `FAMILY_TOKENS` cosmético como exemplo. Após remoção do fallback (Onda 8), essa memória deve ser reescrita: a regra continua válida ("cobrir variações comuns que o tenant vende"), mas os exemplos fixos saem.
+- **`mem://constraints/sales-pipeline-pain-vs-complaint-and-handoff-motor.md`** já está universal — só preservar.
+
+## Resumo da auditoria (para o plano final de correção universal)
+| Onda | Hotspots cobertos | Flag |
+|---|---|---|
+| 1 (entregue) | Resolver de vocabulário | — |
+| 2 (parcial) | Detector de família universal + aliases (ainda como aditivo) | `arch218_universal_onda2` |
+| 3 (entregue) | Resolver de dor → categorias + descrição neutra de `search_products` | `arch218_universal_pain_resolver` |
+| 3.3 (próxima) | `catalog-probe.ts` (Hotspot D) | `arch218_universal_catalog_probe` |
+| 4 | TPR + `consultative-turn` + `turn-completeness` (Hotspots E, F, G) | `arch218_universal_tpr` |
+| 5 | Prompts dos estados (Hotspots A, B, C) | `arch218_universal_state_prompts` |
+| 6 | Outros agentes IA (Hotspot I) | `arch218_universal_other_agents` |
+| 7 | Bateria multi-segmento + linter anti-regressão | gate de promoção |
+| 8 (cleanup) | Remoção de fallbacks legados (Hotspots H, J) | sem flag — só após paridade total |
 
 ## Checklist de conformidade
 - Doc de Regras do Sistema lido ✓
 - Docs formais lidos: `mapa-fontes-ia.md`, `motor-contexto-comercial.md`, `visao-ia-produto.md`, `modo-vendas-whatsapp.md`, `pipeline-f2-vendas-ia.md`, `turn-orchestrator.md`, `ia-atendimento-changelog.md` ✓
-- Fluxo afetado: IA de Atendimento (modo vendas e informativo) + agentes auxiliares (criativos, landing, content)
-- Fonte de verdade: Configurações da IA + Catálogo do tenant (sem fontes novas)
-- Módulos impactados: pipeline de vendas inteira, agente de atendimento, agentes auxiliares de marketing
+- Fluxo afetado: IA de Atendimento (modo vendas e informativo) + agentes auxiliares
+- Fonte de verdade: Configurações da IA + Catálogo do tenant
 - UI impactada: nenhuma
-- Situação: Ondas 1 e 2 (parte aditiva) aplicadas e validadas com testes próprios. Seguindo para Onda 3 (sonda de catálogo + descrição neutra das tools).
+- Situação: Ondas 1, 2 (parte aditiva), 3 (resolver de dor) e 3.2 (descrição neutra da tool de busca) entregues. Auditoria completa dos hotspots restantes documentada acima. Próxima sub-janela: Onda 3.3 (`catalog-probe.ts`) ou pular direto para Onda 4 (TPR), conforme prioridade do usuário.
+
 
