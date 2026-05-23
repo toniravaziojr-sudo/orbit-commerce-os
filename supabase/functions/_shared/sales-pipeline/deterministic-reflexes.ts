@@ -38,11 +38,13 @@ export interface ReflexOutput {
     | "cep_received"
     | "shipping_question"
     | "post_sale_question"
-    | "short_turn_with_intent";
+    | "short_turn_with_intent"
+    | "presence_ping";
   newState: PipelineState | null; // null = não muda estado
   reason: string;
   promptBlock: string; // bloco anexado ao contextualBlocks
 }
+
 
 // Detecta CEP brasileiro: 8 dígitos contíguos OU formato 00000-000.
 const CEP_REGEX = /(?<!\d)(\d{5})-?(\d{3})(?!\d)/;
