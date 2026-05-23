@@ -146,6 +146,17 @@ Decisões de negócio/UI a confirmar (você pediu para passar por aprovação):
 - **Artefato:** `supabase/functions/ai-support-chat/index.ts` linhas 447–454.
 - **Auditoria das 16 tools comerciais:** apenas `search_products` tinha exemplos travados de cosmético. As outras 15 (`get_product_details`, `check_coupon`, `add_to_cart`, `view_cart`, `remove_from_cart`, `apply_coupon`, `check_upsell_offers`, `generate_checkout_link`, `lookup_customer`, `calculate_shipping`, `save_customer_data`, `update_customer_record`, `get_product_variants`, `recommend_related_products`, `check_customer_coupon_eligibility`) já estavam neutras.
 
+### Onda 3.3 — Catalog-probe universal — ✅ ENTREGUE
+- **Artefatos:**
+  - `supabase/functions/_shared/sales-pipeline/catalog-probe.ts` — novas funções `classifyProductFamilyUniversal(name, tenantId)` e `detectFamilyInTextUniversal(text, tenantId)` que consomem o `TenantVocabulary` da Onda 1 via `peekTenantVocabularyFromCache` (longest-match, com fallback automático para o regex legado quando o cache está frio ou não há match).
+  - `broadenCatalogForPain` e `enforceFamilyBaseFirst` agora aceitam um `classifier?` opcional. Quando o caller passa o universal, a vitrine de "uma representante por família" e a partição base/kit usam famílias derivadas do catálogo do tenant — sem regex de cosmético.
+  - `supabase/functions/ai-support-chat/index.ts` — flag `arch218_universal_catalog_probe` em `ai_support_config.metadata`. Quando ligada: (i) aquece o cache do vocabulário no início do handler `search_products`; (ii) substitui as 3 chamadas de `detectFamilyInText` pelo universal; (iii) injeta o `classifier` universal em `broadenCatalogForPain` e `enforceFamilyBaseFirst`. Quando desligada (default), comportamento legado byte-a-byte.
+- **Compatibilidade com Onda 18 Fase A:** o universal devolve `family.key` estável por tenant. Como a Fase A já consome a saída do detector como string opaca (não enum global), a integração é direta.
+- **Trace:** `ai_turn_traces` ganhou o campo `family_detector: 'universal' | 'legacy'` no stage `turn_input` para auditar paridade.
+- **Evidência:** 4 testes novos em `_shared/sales-pipeline/__tests__/catalog-probe-universal.test.ts` confirmando fallback determinístico (sem cache → legado, `tenantId=null` → legado). Os 9 testes de `catalog-probe-v2.test.ts` (Onda 18 Fase A) seguem passando — paridade preservada. ✅ 13/13.
+- **Rollout:** flag desligada por padrão; ligar primeiro no Respeite o Homem com bateria A–D do Reg #2.17.
+
+
 ## 📋 Auditoria detalhada — pontos restantes com vocabulário travado de segmento
 
 Inventário completo do que ainda precisa ser universalizado nas próximas ondas. Cada item lista arquivo, linhas, natureza do acoplamento e estratégia.
