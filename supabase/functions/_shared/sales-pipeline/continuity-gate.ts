@@ -44,18 +44,20 @@ const THANKS_FAREWELL_RE =
   /^[\s\p{P}]*(vlw|valeu|valeuu+|obrigad[oa]+|brigad[oa]+|brig[ãa]o|tmj|t[ãa]+ ?mais|t[êe]+ ?mais|tch[au]+|abra[çc]o[ss]?|fal[ôo]u|fechou|[ée] n[óo]is|gratid[ãa]o|agrade[çc]o|thanks|thx)[\s\p{P}!.\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]*$/iu;
 
 // Ruído social: risadas e onomatopeias soltas. Aceita variações longas.
-// Cobre: kkk+, kk, haha+, hehe+, huhu+, rs, rsrs+, hue+, kkkkkjkjk, e emoji-only.
+// Cobre: kkk+, haha+, hehe+, rsrs+, hue+, eita, opa, emoji-only.
 const SOCIAL_NOISE_RE =
-  /^[\s\p{P}]*(k{2,}|(ha){2,}|(he){2,}|(hu){2,}|rs+|(hue){2,}|aff+|ah+|oh+|uh+|hum+|hmm+|opa+|eita+|nossa+|caraca+)[\s\p{P}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]*$/iu;
+  /^[\s\p{P}]*(k{2,}|(ha){2,}|(he){2,}|(hu){2,}|(rs){1,}|(hue){2,}|aff+|ah+|oh+|uh+|hum+|hmm+|opa+|eita+|nossa+|caraca+)[\s\p{P}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]*$/iu;
 
 // Emoji-only (sem palavras): conta como ruído social.
 const EMOJI_ONLY_RE =
   /^[\s\p{P}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{200D}\u{FE0F}]+$/u;
 
 // Sinal de presença: cliente perguntando se tem alguém atendendo.
-// Universal — não tem componente segmentado.
+// Sem \b antes/depois de caracteres acentuados (boundary do JS não funciona
+// bem em Unicode); usamos lookarounds simples baseados em espaço/início/fim.
 const PRESENCE_PING_RE =
-  /\b(tem\s+algu[ée]m\s+a[íi]|algu[ée]m\s+a[íi]|al[ôo]+\s*\?*$|al[ôo]+\s+algu[ée]m|cad[êe]\s+(voc[êe]|algu[ée]m)|t[áa]\s+a[íi]\s*\?|ainda\s+t[áa]\s+a[íi]|t[ôo]\s+esperando|algu[ée]m\s+atende|ningu[ée]m\s+responde|me\s+responde\s+a[íi])\b/iu;
+  /(^|[\s\p{P}])(tem\s+algu[ée]m\s+a[íi]|algu[ée]m\s+a[íi]|al[ôo]+\s*\?+|al[ôo]+\s+algu[ée]m|cad[êe]\s+(voc[êe]|algu[ée]m)|t[áa]\s+a[íi]\s*\?|ainda\s+t[áa]\s+a[íi]|t[ôo]\s+esperando|algu[ée]m\s+atende|ningu[ée]m\s+responde|me\s+responde\s+a[íi])([\s\p{P}]|$)/iu;
+
 
 function tokenCount(s: string): number {
   const c = s.trim().replace(/\s+/g, " ");
