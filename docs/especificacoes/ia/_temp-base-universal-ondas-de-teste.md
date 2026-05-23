@@ -927,6 +927,62 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 
 ---
 
+### Onda 10 — Rodada 2 (pós Frentes 1–4)
+
+**Build:** mesma da Rodada 2 das Ondas anteriores (Frentes 1–4 ativas).
+**Execução:** via `ai-test-sandbox` Agent Mode no tenant Respeite o Homem, conversas isoladas. Modelo `gpt-5`, `sales_mode=true`.
+
+#### Q10.1 — "kkk"
+- **Conversa:** `9b5e4b91-e530-4d96-98f9-9f26c85d7dce` — latência 17.9s.
+- **Resposta:** "Oi! Tudo bem? Tá buscando algo pro cabelo: queda ou prevenção?"
+- **Intent:** `general`, sentiment=neutral, summary="Cliente rindo ou expressando descontração com 'kkk'."
+- **Avaliação:** ❌ **Mudou o sintoma, piorou em conteúdo.** Na Rodada 1 caiu na muleta universal. Agora a IA espelhou a saudação ("Oi! Tudo bem?") mas pulou direto para assunto — sem entender que "kkk" é ruído social. Pior: assumiu nicho (cabelo/queda/prevenção) sem o cliente ter mencionado produto, categoria ou dor. Classificador acertou a intenção (`general`/descontração), mas o prompt de vendas sobrescreveu.
+
+#### Q10.2 — "vlw"
+- **Conversa:** `5bffe779-2ebc-4826-943a-8650a9dffa57` — latência 27.4s.
+- **Resposta:** "Imagina! Tá buscando algo pra tratar queda/calvície ou pra prevenção?"
+- **Intent:** `thanks`, sentiment=neutral
+- **Avaliação:** ⚠️ **Regressão.** Na Rodada 1 era excelente: "Imagina! Qualquer coisa sobre tratamento pra calvície ou prevenção, me chama." — fechamento natural com gancho leve. Agora o gancho virou pergunta direta ("Tá buscando...?") que força continuidade de venda onde o cliente só agradeceu. O continuity-gate deveria reconhecer `intent=thanks` e proibir reabertura de discovery.
+
+#### Q10.3 — "boa noite!"
+- **Conversa:** `3589debf-ea1a-4042-81ca-2ee23c638f8f` — latência 22.7s.
+- **Resposta:** "Olá, boa noite, tudo bem? Como posso ajudar? Me conta o que você está procurando."
+- **Intent:** `greeting`, topics=[saudacao]
+- **Avaliação:** ✅ **Mantido.** Mesmo padrão da Rodada 1: saudação devolvida, abertura natural. A observação de redundância ("como posso ajudar" + "me conta o que está procurando") persiste, mas é cosmética.
+
+#### Q10.4 — "tem alguém aí?"
+- **Conversa:** `36cf04f1-f9aa-43a0-a4a6-36ae5c8ebce6` — latência 22.1s.
+- **Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Intent:** `greeting`, summary="O cliente está perguntando se há alguém disponível para atendimento."
+- **Avaliação:** ❌ **Mantida.** Na Rodada 1 caiu na muleta; agora também cai na muleta. A classificação melhorou (reconheceu "perguntando se há alguém disponível"), mas a resposta continua sendo a muleta universal. Esperado: "Tô aqui sim! Me conta no que posso ajudar."
+
+#### Q10.5 — "preciso falar com humano"
+- **Conversa:** `3758f024-20e2-4321-a09f-11ac36ae19c8` — latência 17.0s.
+- **Resposta:** "Vou chamar alguém da equipe pra resolver isso direto com você. Já te respondem por aqui."
+- **Intent:** `action_request`, handoff=true, urgency=high, topics=[support_request]
+- **Avaliação:** ✅ **Mantido.** Comportamento ideal — aceita escalar sem resistência, promete encaminhamento. Na Rodada 1 coletava dados estruturados (nome, pedido, resumo); agora é mais direto e leve. Ambos são válidos, mas a Rodada 2 perdeu a coleta de dados que enriquecia o handoff.
+
+#### Comparativo Rodada 1 → Rodada 2
+
+| Cenário | Rodada 1 | Rodada 2 | Status |
+|---|---|---|---|
+| Q10.1 — "kkk" | ❌ Muleta | ❌ Saudação + viés de nicho | Mudou sintoma, piorou |
+| Q10.2 — "vlw" | ✅ Excelente (gancho leve) | ⚠️ Forçou venda no agradecimento | **Regressão** |
+| Q10.3 — "boa noite!" | ✅ Saudação | ✅ Saudação | Mantido |
+| Q10.4 — "tem alguém aí?" | ❌ Muleta | ❌ Muleta | Inalterado |
+| Q10.5 — "preciso falar com humano" | ✅ Excelente (dados estruturados) | ✅ Direto, sem resistência | Mantido (conteúdo diferente, igualmente válido) |
+
+**Latência média:** ~21.4s.
+
+#### Achados novos da Rodada 2 — Onda 10
+
+- **Q10.C — Ruído social agora dispara saudação + viés de nicho (Q10.1):** em vez da muleta, "kkk" recebeu "Oi! Tudo bem?" + assunto. A Frente 2 (scope-router) classificou corretamente como `general`, mas o estado greeting sobrescreveu. O detector de ruído social ainda não existe — a IA tenta vender em qualquer contexto.
+- **Q10.D — Agradecimento virou reabertura de discovery (Q10.2):** `intent=thanks` deveria ser terminal (ou gancho leve). Em vez disso, a IA perguntou "Tá buscando algo...?" — como se o cliente não tivesse acabado de agradecer. O continuity-gate não está reconhecendo `thanks` como estado terminal.
+- **Q10.E — "Tem alguém aí?" classifica melhor, responde igual (Q10.4):** o TPR agora entende a intenção ("perguntando se há alguém disponível"), mas o bucket-state-router (Frente 3) não mapeia `greeting` + contexto de presença para resposta diferente da muleta. Gap no bucket `social`/`greeting`.
+- **Q10.F — Handoff perdeu enriquecimento de dados (Q10.5):** a Rodada 1 coletava nome+pedido+resumo; a Rodada 2 só promete encaminhar. O bucket `human_request` do Frente 3 pode estar sobrescrevendo o comportamento natural da IA em vez de complementá-lo.
+
+---
+
 ## Fim da Fase 3 — Diagnóstico Funcional
 
 Todas as 10 ondas executadas. **50 cenários testados, 5 grandes padrões de falha confirmados:**
