@@ -241,3 +241,86 @@ Inventário completo do que ainda precisa ser universalizado nas próximas ondas
 
 
 
+
+### Onda 4.1 — TPR universal (parte estrutural) — ✅ ENTREGUE
+- **Artefato:** `supabase/functions/_shared/sales-pipeline/turn-pre-router.ts`
+- `buildTPRSystemPrompt(tenantContext)`: monta system prompt do TPR em runtime, injetando segmento, famílias e dores do tenant. Sem `tenantContext`, prompt-base segment-agnostic preservado.
+- `fallbackClassification(message, hasMedia, tenantContext?)` agora também aceita o contexto do tenant para enriquecer o fallback regex (sintomas universais "tenho/estou com/faz X tempo" + tokens de dor do tenant). Legado preservado como rede.
+- **Sem flag aqui — só código.** O efeito real só acontece quando o orquestrador passar `tenantContext` (Onda 4.2).
+
+### Onda 4.2 — TPR universal — wiring no orquestrador — ✅ ENTREGUE
+- **Artefato:** `supabase/functions/ai-support-chat/index.ts`
+- Flag `arch218_universal_tpr` em `ai_support_config.metadata` (default `false`).
+- Quando `true`: aquece o cache do vocabulário do tenant (peek + load fallback), monta `tprTenantContext = { segment, families, painPoints }` e passa para `classifyTurn()` e para `fallbackClassification()`.
+- Log enriquecido: `[universal=on families=N pains=N]` quando flag ligada — para auditoria nas baterias.
+- **Comportamento default:** sem flag, contexto fica `undefined` e o caminho atual (Reg #2.8) segue idêntico — paridade preservada byte-a-byte.
+
+### Onda 5 — Turn-completeness universal (parte estrutural) — ✅ ENTREGUE
+- **Artefato:** `supabase/functions/_shared/sales-pipeline/turn-completeness.ts`
+- `CompletenessContext.tenantPainTokens?: string[]` — tokens de dor do tenant (vindos do Resolver) entram como ampliação do regex cosmético legado, **não substituição**. `matchesPain(text)` faz `LEGACY_PAIN_RE OR tenantPainRe`.
+- Casos cobertos: `recommend_with_symptom_or_focus` e `product_family_with_symptom` agora aceitam dor declarada em qualquer segmento quando o tenant trouxer tokens.
+- **Compatibilidade:** sem `tenantPainTokens`, comportamento idêntico ao atual (regex cosmético segue cobrindo Respeite o Homem).
+- **Pendência (Onda 5.2):** o webhook de WhatsApp (`meta-whatsapp-webhook`) chama `classifyTurnCompleteness` ANTES do orquestrador, então não tem o vocabulário em mãos. Há duas opções: (a) carregar resolver no webhook quando flag estiver ligada; (b) deixar a expansão valer só do orquestrador em diante (impacto: debounce do primeiro turno em segmento novo pode ficar conservador). Decisão fica no plano final.
+
+### Onda 6 — Outros agentes de IA — 📋 AUDITORIA (não modificada nesta passada)
+Levantamento das ocorrências de vocabulário cosmético fora do `_shared/sales-pipeline/` que precisam universalizar em momento posterior, com flag própria:
+
+| Agente / Edge function | Tipo de termo travado | Risco | Onda sugerida |
+|---|---|---|---|
+| `ai-creatives-generate-*` (Strategic Analyzer) | exemplos de copy ("calvície", "queda") em prompts | médio (cria exemplos errados em outros segmentos) | Onda 6.1 — neutralizar exemplos |
+| `ai-landing-page-*` (detector de segmento) | regex de "cabelo/barba" | médio (segmento errado em pet/moda) | Onda 6.2 — usar segmento declarado pelo tenant |
+| `ai-content-creator-*` (templates de copy) | placeholders fixos | baixo | Onda 6.3 — tokens neutros |
+| `consultative-turn.ts` (regex de cabelo/barba) | regex de sintomas | baixo (já preterido pelo TPR quando arch218_universal_tpr=on) | Onda 6.4 — depreciar quando TPR universal estabilizar |
+| `transitions.ts` (FAMILY_TOKENS, FAMILY_REFERENCE_PRONOUN) | regex de família com vocabulário cosmético | baixo (já tem detector universal paralelo) | Onda 6.5 — manter como fallback até estabilização |
+
+Decisão: **não tocar em Ondas 6.x agora.** Risco de mexer em criativos/landing sem bateria multi-segmento dedicada é alto. Entram em sprint próprio depois que a vendas estabilizar.
+
+### Onda 7 — Bateria de validação multi-segmento — ✅ ENTREGUE (parcial)
+- **Artefato:** `supabase/functions/_shared/sales-pipeline/__tests__/multi-segment-universal.test.ts`
+- 5/5 testes passando: pet (coceira), moda (apertando), suplemento (baixa imunidade), pet (resolver de dor sem padrão cosmético), paridade Respeite o Homem.
+- **Total da pipeline:** 38/38 passam — zero regressão nas baterias existentes.
+- **Pendência (Onda 7.2):** rodar bateria E2E contra `ai-test-sandbox` em 3 tenants fictícios (pet, moda, suplemento), com a flag `arch218_universal_tpr` ligada, e comparar com baseline atual. Esta parte exige criação de tenants de teste no banco — fica para o plano de correção (passo de promoção).
+
+### Onda 8 — Limpeza de legado — 📋 PLANEJADO (não removido nesta passada)
+- **Princípio:** legado **não é removido**. Vira fallback explícito quando todas as flags universais estiverem ligadas em produção há ≥30 dias com paridade.
+- **Itens marcados para remoção futura:**
+  - `LEGACY_PAIN_RE` (regex cosmético em turn-completeness): remover quando 100% dos tenants tiverem `tenantPainTokens` populados pelo Resolver.
+  - `FAMILY_TOKENS` legado em `transitions.ts`: idem.
+  - `consultative-turn.ts` regex: idem (já tem TPR como fonte primária).
+  - Lexer `%calv%/%caspa%/%queda%` em `ai-support-chat/index.ts`: idem.
+
+## Plano de correção universal consolidado (a aprovar)
+
+Este é o plano final pedido — agrupa o que já foi entregue atrás de flag e o que falta para promoção em produção.
+
+### Estado atual (após esta passada)
+| Camada | Universalização | Flag | Default | Wiring |
+|---|---|---|---|---|
+| Resolver de vocabulário do tenant | ✅ | — (sempre disponível) | — | sempre on (cache lazy) |
+| Detectores universais (família, anáfora, aliases) | ✅ (aditivos) | `arch218_universal_catalog_probe` | off | já wirado |
+| Pain → category resolver universal | ✅ | `arch218_universal_pain_resolver` | off | já wirado |
+| Catalog probe universal (sonda + classificador) | ✅ | `arch218_universal_catalog_probe` | off | já wirado |
+| TPR universal (estrutural + wiring) | ✅ | `arch218_universal_tpr` | off | já wirado |
+| Turn-completeness universal (estrutural) | ✅ | `arch218_universal_turn_completeness` | off | **wiring no webhook pendente (5.2)** |
+| Bateria multi-segmento determinística | ✅ | — | — | testes verdes (38/38) |
+| Bateria E2E multi-tenant fictício | ⏳ | — | — | depende de tenants de teste |
+| Strategic Analyzer / landing detector / content creator universais | ⏳ | (futura) | — | sprint próprio |
+
+### Sequência de promoção (a executar após sua aprovação)
+1. **Promoção controlada no Respeite o Homem** — ligar as 4 flags `arch218_universal_*` (`pain_resolver`, `catalog_probe`, `tpr`, `turn_completeness`) **uma de cada vez**, validando em 24h cada com bateria A–D do Reg #2.17. Ordem sugerida: pain_resolver → catalog_probe → tpr → turn_completeness.
+2. **Wiring da Onda 5.2** — passar `tenantPainTokens` no callsite do webhook, lendo do Resolver. Atrás da mesma flag `arch218_universal_turn_completeness`.
+3. **Tenants fictícios para Onda 7.2** — criar 3 tenants de teste (pet, moda, suplemento) no banco com catálogo mínimo + dicionário do negócio, e rodar a bateria do `ai-test-sandbox` contra eles com as flags ligadas.
+4. **Promoção a um tenant real fora de cosmético** — quando os tenants fictícios passarem, ligar as flags em **um** tenant real de outro segmento (ex.: pet) com paridade obrigatória.
+5. **Promoção universal** — ligar default em produção. Aqui a flag passa de "opt-in por tenant" para "opt-out por tenant".
+6. **Sprint Onda 6 (criativos/landing/content creator)** — só depois que vendas estiver estável.
+7. **Sprint Onda 8 (limpeza)** — 30 dias depois da promoção universal, com paridade comprovada.
+
+### Reversão
+Cada flag é independente. Desligar em `ai_support_config.metadata` reverte para legado byte-a-byte.
+
+### Decisões pendentes para sua aprovação
+1. **Onda 5.2:** aceitar que o webhook carregue o resolver síncrono (peek) antes de chamar `classifyTurnCompleteness`? Custo: 1 query ILIKE adicional no caminho crítico do WhatsApp se cache estiver frio. Mitigação: warm-up no primeiro turno do orquestrador (já existe), webhook só lê do peek.
+2. **Onda 7.2:** posso criar tenants fictícios em banco de testes para a bateria E2E, ou prefere aguardar tenants reais de outro segmento entrarem na plataforma?
+3. **Ordem de promoção:** confirma a sequência sugerida (pain_resolver → catalog_probe → tpr → turn_completeness)?
+4. **Onda 6 e 8:** entendo que ficam fora deste plano, em sprints próprios depois da estabilização. OK?
+
