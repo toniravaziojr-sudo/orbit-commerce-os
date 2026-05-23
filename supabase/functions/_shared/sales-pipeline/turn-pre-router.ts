@@ -100,6 +100,19 @@ Regras gerais:
 - confirmed_purchase_intent = true quando o cliente disse "quero", "vou levar", "fecha", "manda o link", "pode adicionar".
 - is_pure_greeting = true só se a mensagem é APENAS saudação ("oi", "boa noite", "tudo bem?") sem nenhuma outra informação.
 - greeting_period: extraia LITERAL ("bom dia"/"boa tarde"/"boa noite") só se ele usou. Caso contrário null.
+- intent_bucket: classifique o turno em UMA destas categorias:
+  • "social": saudação, "tudo bem?", small talk, sem outra informação.
+  • "product_question": pergunta sobre um produto ou família específica (uso, ingrediente, modo de aplicar, indicação).
+  • "catalog_question": pergunta aberta de catálogo ("o que vocês têm?", "tem algum X?", "me mostra o catálogo").
+  • "commercial_policy": preço, frete, prazo, cupom, parcelamento, forma de pagamento.
+  • "institutional": loja física, horário, garantia, troca, devolução, política, segurança, sobre a marca.
+  • "post_sale": pedido em andamento, rastreio, atraso, defeito, nota fiscal, cancelamento de pedido.
+  • "objection": resistência ("é caro", "não funciona pra mim", "tenho medo", "já tentei tudo").
+  • "hesitation": adiamento ("vou pensar", "depois eu vejo", "talvez", "outro dia").
+  • "human_request": pedido explícito por humano/atendente ("quero falar com pessoa").
+  • "out_of_scope": assunto fora do negócio (piada, política, futebol, previsão do tempo).
+  • "open_discovery": cliente declarou sintoma/objetivo SEM citar produto/família — único caso legítimo de descoberta consultiva.
+  Em caso de dúvida, prefira a categoria mais específica que aplicar; só use "open_discovery" quando houver sintoma/objetivo concreto sem produto/família citado.
 - Em caso de dúvida, prefira false (conservador).`;
 
 function buildTPRSystemPrompt(tenantContext?: TPRTenantContext): string {
