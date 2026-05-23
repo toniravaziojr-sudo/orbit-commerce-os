@@ -1113,5 +1113,13 @@ Consolida dados institucionais (cobertura, horário, pagamento, cupom, garantia,
 - Detalhes em Registro #34 do changelog.
 - ⏳ Pendente: tela administrativa para edição da ficha (próximo ciclo) e validação sandbox.
 
-### Próximo — Frente E (consumo real dos prompts por estado)
-Cada prompt de estado (greeting, discovery, recommendation, product_detail, decision, checkout_assist, support, handoff) ganha referências explícitas à ficha institucional + à dor/objetivo declarado, transformando a muleta universal em fallback (não default). Perguntas abertas leem catálogo do tenant em vez de hardcoded.
+### Frente E — Âncora do turno (dor + foco + ficha institucional) — ✅ APLICADA
+- Novo módulo `turn-anchor` consolida dor declarada, família em foco, produto em foco e áreas cobertas pela ficha institucional em UM bloco contextual.
+- Bloco é injetado em TODO turno de venda quando há sinal real; só é omitido quando não há dor, nem família, nem foco e a ficha está vazia (única hipótese em que a muleta universal vira default legítimo).
+- Reforço nos prompts de DISCOVERY e RECOMMENDATION: regra "0" obriga consultar a âncora antes de qualquer pergunta genérica e manter foco existente.
+- Logs identificam motivo da âncora (`pain_anchor` / `product_anchor` / `family_anchor` / `institutional_only` / `no_signal`).
+- Detalhes em Registro #35 do changelog.
+- ⏳ Pendente: bateria sandbox cobrindo dor declarada + retomada, foco + tema institucional intercalado, turno sem sinal e ficha vazia + tema institucional.
+
+### Próximo passo — Validação consolidada
+Rodar bateria de regressão (19 cenários originais + cenários novos das Frentes B/C/D/E) em sandbox real para confirmar comportamento ponta a ponta antes de declarar Onda 10 fechada.
