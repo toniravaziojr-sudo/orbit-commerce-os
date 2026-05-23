@@ -841,6 +841,10 @@ async function executeSalesTool(
     // dry_run apenas grava trace, NÃO altera shape devolvido ao modelo.
     arch1cRecommendationContextBuilderEnabled?: boolean;
     arch1cRecommendationContextBuilderMode?: "off" | "dry_run" | "active";
+    // [Onda 3 — Reg #2.18] Quando true, deriva padrões pain→categoria do
+    // texto do cliente + dicionário do tenant (universal). Quando false,
+    // mantém o léxico legado (cosmético/cabelo).
+    arch218UniversalPainResolverEnabled?: boolean;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
@@ -876,25 +880,62 @@ async function executeSalesTool(
         // O matching é por ILIKE em categories.name, então funciona com qualquer
         // tenant que tenha categorias nomeadas pela dor.
         // ---------------------------------------------------------------
-        const painLexicon: Array<{ test: RegExp; categoryPatterns: string[] }> = [
-          { test: /\bcalv[íi]cie|queda|caindo|falha(s)?\b|coroa|ralo|rala/i,
-            categoryPatterns: ["%calv%", "%queda%", "%tratamento%"] },
-          { test: /\bpreven(ir|[çc][ãa]o|tivo)|fortalec|crescimento|crescer/i,
-            categoryPatterns: ["%preven%", "%fortalec%", "%crescimento%"] },
-          { test: /\bcaspa|seborr[eé]ia/i,
-            categoryPatterns: ["%caspa%", "%seborr%", "%anticaspa%"] },
-          { test: /\boleosidade|cabelo\s+oleoso|couro\s+cabeludo/i,
-            categoryPatterns: ["%oleos%", "%couro%"] },
-          { test: /\bp[óo]s[\s-]banho/i,
-            categoryPatterns: ["%pos%banho%", "%p[óo]s%banho%"] },
-        ];
+        // [Onda 3 — Reg #2.18] painLexicon legado movido para dentro do
+        // bloco "else" abaixo. Caminho universal entra atrás da flag
+        // `arch218UniversalPainResolverEnabled`.
+
 
         const painSource = `${painHintRaw} ${query} ${lastUserMessageContentForTools}`;
         const matchedCategoryPatterns: string[] = [];
-        for (const entry of painLexicon) {
-          if (entry.test.test(painSource)) {
-            for (const pat of entry.categoryPatterns) {
-              if (!matchedCategoryPatterns.includes(pat)) matchedCategoryPatterns.push(pat);
+
+        if (ctx.arch218UniversalPainResolverEnabled === true) {
+          // [Onda 3 — Reg #2.18] Caminho universal: padrões derivados do texto
+          // do cliente + dicionário do tenant. Sem vocabulário fixo de segmento.
+          try {
+            const { peekTenantVocabularyFromCache, loadTenantVocabulary } =
+              await import("../_shared/sales-pipeline/tenant-vocabulary-resolver.ts");
+            const { derivePainCategoryPatternsUniversal } =
+              await import("../_shared/sales-pipeline/pain-category-resolver.ts");
+            let vocab = peekTenantVocabularyFromCache(tenantId);
+            if (!vocab) {
+              vocab = await loadTenantVocabulary(tenantId, supabase as any).catch(() => null);
+            }
+            const derived = derivePainCategoryPatternsUniversal({
+              painSource,
+              vocabulary: vocab,
+            });
+            for (const p of derived.patterns) {
+              if (!matchedCategoryPatterns.includes(p)) matchedCategoryPatterns.push(p);
+            }
+            console.log(
+              `[ai-support-chat][search_products][onda3] universal_pain_resolver tokens=${derived.tokens.length} patterns=${derived.patterns.length} matched_pains=${derived.matchedPainPoints.length}`
+            );
+          } catch (e) {
+            console.warn(
+              `[ai-support-chat][search_products][onda3] universal resolver falhou, segue sem boost:`,
+              (e as Error).message
+            );
+          }
+        } else {
+          // Caminho legado — preservado para paridade no Respeite o Homem
+          // enquanto a flag não estiver ligada.
+          const painLexicon: Array<{ test: RegExp; categoryPatterns: string[] }> = [
+            { test: /\bcalv[íi]cie|queda|caindo|falha(s)?\b|coroa|ralo|rala/i,
+              categoryPatterns: ["%calv%", "%queda%", "%tratamento%"] },
+            { test: /\bpreven(ir|[çc][ãa]o|tivo)|fortalec|crescimento|crescer/i,
+              categoryPatterns: ["%preven%", "%fortalec%", "%crescimento%"] },
+            { test: /\bcaspa|seborr[eé]ia/i,
+              categoryPatterns: ["%caspa%", "%seborr%", "%anticaspa%"] },
+            { test: /\boleosidade|cabelo\s+oleoso|couro\s+cabeludo/i,
+              categoryPatterns: ["%oleos%", "%couro%"] },
+            { test: /\bp[óo]s[\s-]banho/i,
+              categoryPatterns: ["%pos%banho%", "%p[óo]s%banho%"] },
+          ];
+          for (const entry of painLexicon) {
+            if (entry.test.test(painSource)) {
+              for (const pat of entry.categoryPatterns) {
+                if (!matchedCategoryPatterns.includes(pat)) matchedCategoryPatterns.push(pat);
+              }
             }
           }
         }
@@ -3797,6 +3838,11 @@ Deno.serve(async (req) => {
     const arch1cMode: "off" | "dry_run" | "active" =
       arch1cModeRaw === "dry_run" || arch1cModeRaw === "active" ? arch1cModeRaw : "off";
 
+    // [Onda 3 — Reg #2.18] Flag por tenant para o pain→category resolver
+    // universal. Quando false (default), comportamento legado preservado.
+    const arch218UniversalPainResolverEnabled =
+      ((effectiveConfig as any)?.metadata?.arch218_universal_pain_resolver) === true;
+
     if (effectiveConfig.is_enabled === false) {
       return new Response(
         JSON.stringify({ success: false, error: "AI support is disabled for this tenant", code: "AI_DISABLED" }),
@@ -6224,6 +6270,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // [Onda 1C] Recommendation Context Builder em dry_run (não muta shape).
         arch1cRecommendationContextBuilderEnabled: arch1cEnabled,
         arch1cRecommendationContextBuilderMode: arch1cMode,
+        // [Onda 3 — Reg #2.18] Flag para resolver universal pain→categoria.
+        arch218UniversalPainResolverEnabled,
       };
 
       let response: Response | null = null;

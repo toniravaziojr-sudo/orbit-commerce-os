@@ -108,9 +108,41 @@ Decisões de negócio/UI a confirmar (você pediu para passar por aprovação):
 2. **Confirmar a bateria de validação multi-segmento como gate de promoção** (Onda 7). Posso montar com 3 tenants fictícios (pet, moda, suplemento) no ambiente de testes da IA, sem tocar em tenant real.
 
 ## Status de execução
-- **Onda 1 — Resolver de Vocabulário do Tenant: ENTREGUE.** Arquivo `_shared/sales-pipeline/tenant-vocabulary-resolver.ts`. Lê catálogo + dicionário + snapshot do contexto comercial. Cache 5 min. Sem schema novo.
-- **Onda 2 — Detectores universais: PARCIAL (aditivo).** `detectFamilyMentionedUniversal` e `getCatalogFamilyAliasesUniversal` adicionados em `transitions.ts`. Comportamento legado preservado. Wiring em `ai-support-chat` e ativação por flag pendentes — entram na próxima janela quando o Resolver for usado em runtime.
-- **Ondas 3 a 7:** pendentes, na ordem do plano.
+
+### Onda 1 — Resolver de Vocabulário do Tenant — ✅ ENTREGUE
+- **Artefato:** `supabase/functions/_shared/sales-pipeline/tenant-vocabulary-resolver.ts`
+- **O que faz:** dado um `tenant_id`, devolve em runtime um objeto `TenantVocabulary` com:
+  - `families[]` — chaves estáveis derivadas de `categories` (raízes) + `products.product_type`, com contagem de produtos por família.
+  - `synonyms` / `aliases` / `preferredPhrases` / `forbiddenTerms` — vindos de `ai_language_dictionary` do tenant.
+  - `painPoints[]` — agregados a partir de Visão da IA do produto + descrição comercial da categoria.
+  - `segment`, `audience`, `catalogIncomplete` — vindos do `business-context-loader` e `ai_business_snapshot`.
+  - Cada item carrega `source` (categories | product_type | dictionary | snapshot) para auditoria.
+- **Cache:** TTL de 5 minutos por tenant; helper `invalidateTenantVocabularyCache(tenantId)` para invalidação manual; `peekTenantVocabularyFromCache(tenantId)` síncrono para detectores que não podem `await`.
+- **Reuso:** consome loaders existentes (`business-context-loader`, `commercial-payload-loader`). **Zero duplicação. Zero schema novo.**
+- **Evidência:** 6 testes em `_shared/sales-pipeline/__tests__/tenant-vocabulary.test.ts` — pet shop (ração/petisco), moda (calça/camiseta), longest-match (kit barba > kit), merge de aliases legado + tenant. ✅ Todos passam.
+
+### Onda 2 — Detectores universais (parte aditiva) — ✅ ENTREGUE
+- **Artefato:** `supabase/functions/_shared/sales-pipeline/transitions.ts` — adicionadas:
+  - `detectFamilyMentionedUniversal(text, tenantId)` — constrói `Map<token, family_key>` a partir do Resolver e aplica regex com **longest-match** (garante que "kit barba completo" não seja engolido por "kit").
+  - `getCatalogFamilyAliasesUniversal(tenantId)` — funde aliases legados (loção/balm/pós-barba) com aliases declarados pelo tenant no dicionário.
+- **Compatibilidade:** funções legadas preservadas como fallback. Nada do comportamento atual mudou para o cliente final.
+- **Pendências da Onda 2** (entram em sequência, atrás da flag `arch218_universal_onda2`):
+  1. Wiring em `ai-support-chat/index.ts` — substituir chamada do detector legado pelo universal quando flag ligada.
+  2. Detector de referência anafórica universal ("essa linha", "esse produto").
+  3. Lexer de intenção comercial (gate de mídia/turno completo).
+  4. Detector de turno consultivo passa a depender 100% do TPR (sem regex de cabelo/barba).
+- **Evidência:** testes universais passam; testes legados de pipeline mantidos sem regressão (falhas pré-existentes em `pipeline.test.ts` confirmadas como anteriores à entrega).
+
+### Onda 3 — Sonda de catálogo + tool de busca universais — ✅ ENTREGUE (parte do resolver de dor)
+- **Artefato:** `supabase/functions/_shared/sales-pipeline/pain-category-resolver.ts`
+- **O que faz:** dado o `painSource` (texto que o cliente declarou) + `TenantVocabulary`, deriva padrões `%token%` para `categories.name ILIKE` **sem nenhum termo travado de segmento**. Tokens ≥4 chars, stopwords PT-BR removidas; sinônimos do dicionário do tenant entram quando bate alguma dor declarada.
+- **Wiring atrás de flag:** `ai-support-chat/index.ts` lê `ai_support_config.metadata.arch218_universal_pain_resolver`; quando `true`, substitui o léxico legado de cosmético/cabelo (`%calv%`, `%caspa%`, `%queda%`...) pelo resolver universal. Quando `false` (default), comportamento legado preservado byte-a-byte.
+- **Evidência:** 5 testes em `__tests__/pain-category-resolver.test.ts` — pet shop ("cachorro coça"), moda ("calça apertando"), sinônimos do tenant, stopwords. ✅ Todos passam (5/5).
+- **Pendências da Onda 3** (próxima sub-janela):
+  1. Neutralizar descrições do `SALES_TOOLS` (exemplos abstratos em vez de "calvície/balm/Calvície Zero"). Cuidado de paridade: hoje o LLM lê "shampoo" como exemplo e isso ancora o estilo. Vai entrar via `SALES_TOOLS_UNIVERSAL` selecionado pela mesma flag.
+  2. Bateria multi-segmento dedicada (pet, moda, suplemento) batendo no resolver com tenants fictícios.
+
+### Ondas 4 a 7 — pendentes, na ordem do plano.
 
 ## Checklist de conformidade
 - Doc de Regras do Sistema lido ✓
@@ -119,5 +151,5 @@ Decisões de negócio/UI a confirmar (você pediu para passar por aprovação):
 - Fonte de verdade: Configurações da IA + Catálogo do tenant (sem fontes novas)
 - Módulos impactados: pipeline de vendas inteira, agente de atendimento, agentes auxiliares de marketing
 - UI impactada: nenhuma
-- Situação: Ondas 1 e 2 (parte aditiva) aplicadas e validadas com testes próprios. Próximo passo: ligar o Resolver dentro de `ai-support-chat` atrás de flag e seguir para Onda 3.
+- Situação: Ondas 1 e 2 (parte aditiva) aplicadas e validadas com testes próprios. Seguindo para Onda 3 (sonda de catálogo + descrição neutra das tools).
 
