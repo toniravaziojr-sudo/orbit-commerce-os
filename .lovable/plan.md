@@ -156,6 +156,18 @@ Decisões de negócio/UI a confirmar (você pediu para passar por aprovação):
 - **Evidência:** 4 testes novos em `_shared/sales-pipeline/__tests__/catalog-probe-universal.test.ts` confirmando fallback determinístico (sem cache → legado, `tenantId=null` → legado). Os 9 testes de `catalog-probe-v2.test.ts` (Onda 18 Fase A) seguem passando — paridade preservada. ✅ 13/13.
 - **Rollout:** flag desligada por padrão; ligar primeiro no Respeite o Homem com bateria A–D do Reg #2.17.
 
+### Onda 4 (parcial) — TPR + consultative-turn universais — ✅ ENTREGUE (parte 1)
+- **Artefatos:**
+  - `supabase/functions/_shared/sales-pipeline/turn-pre-router.ts` — system prompt do TPR agora é construído em runtime via `buildTPRSystemPrompt(tenantContext)`. O bloco-base é segment-agnostic ("dor relacionada ao que o negócio resolve") e a lista de famílias e dores típicas é injetada por tenant. `mentioned_product_family` continua `string | null` (sem enum fechado). `TPRInput` ganhou `tenantContext?: { segment, families[], painPoints[] }`.
+  - `fallbackClassification` agora aceita `tenantContext` opcional e combina cue universal de "caso pessoal" (`tenho/estou com/faz X tempo`) + tokens de dor do tenant. O regex legado de cosmético segue como rede de segurança final.
+  - `supabase/functions/_shared/sales-pipeline/consultative-turn.ts` — nova função `detectConsultativeTurnUniversal({ tpr, tenantPainTokens, ... })`. Quando o TPR está em `source='llm'`, usa diretamente seus sinais como fonte única (Reg #2.8). Quando o TPR caiu em fallback, aplica detector dinâmico universal (cue pessoal + tokens do tenant + pedido de recomendação genérico). Detector regex legado (`detectConsultativeTurn`) preservado intacto como fallback final.
+- **Compatibilidade:** assinaturas legadas preservadas. Caller em `ai-support-chat` ainda não foi virado — fica para a sub-janela 4.2 atrás de flag `arch218_universal_tpr` (passar `tenantContext` no `classifyTurn` e usar `detectConsultativeTurnUniversal`).
+- **Pendente da Onda 4:**
+  - 4.2: ligar a flag `arch218_universal_tpr` em `ai-support-chat` (passar `tenantContext` para `classifyTurn` e trocar `detectConsultativeTurn` pelo universal).
+  - 4.3: Hotspot E — `turn-completeness.ts` (regexes `STRONG_Q_PRODUCT_REF`, `Q_ABOUT_PRODUCT_FAMILY` e blocos de sintoma nas linhas 171/193) parametrizados por `tenantFamilyTokens` e `tenantPainTokens`.
+- **Evidência:** suíte de testes existente (`catalog-probe-v2`, `catalog-probe-universal`, `tenant-vocabulary`) — 19/19 passando. Mudanças no TPR e no consultative-turn são aditivas (novas funções/parâmetros opcionais), portanto contratos antigos seguem verdes.
+
+
 
 ## 📋 Auditoria detalhada — pontos restantes com vocabulário travado de segmento
 
