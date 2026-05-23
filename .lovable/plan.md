@@ -1,102 +1,117 @@
-# Plano de Correção — IA de Atendimento (Reg #2.17, pós-ondas A–D)
+# Plano — Universalização Total da IA (Reg #2.18)
 
-> Base: `docs/tecnico/temp/reg-2-17-ondas-diagnostico.md` + docs oficiais (`modo-vendas-whatsapp.md`, `pipeline-f2-vendas-ia.md`, `turn-orchestrator.md`, `ia-atendimento-changelog.md`).
-> Escopo: corrigir 3 falhas estruturais de raciocínio sem mudar UI/UX nem contrato de negócio. Tudo reversível por flag.
+> **Decisão de negócio:** a pipeline da IA é multi-segmento por contrato. A "cara do segmento" (cosmético, pet, moda, eletrônico, suplemento, serviços, etc.) só pode vir de **dois lugares já existentes**: (1) Configurações da IA do tenant (persona, tom, prompt-base, conhecimento adicional, regras, dicionário do negócio, claims proibidas) e (2) catálogo real do tenant (categorias, tags, descrição, Visão da IA do produto, mapa de dor, relações). Nenhum vocabulário de segmento pode estar travado no código.
+
+## Diagnóstico curto
+Auditoria global encontrou ~12 pontos com vocabulário fixo de cosmético/cabelo/barba (shampoo, balm, loção, calvície, queda, caspa, coroa, couro cabeludo, pós-barba). Isso entrega bem para o Respeite o Homem hoje, mas falha silenciosamente em qualquer outro segmento.
+
+Camadas já universais (**não mexer**, só preservar paridade): veto comercial, motor de handoff, reflexos determinísticos (CEP/frete/pós-venda/turno curto), output gates, Turn Orchestrator, máquina de estados, working memory, anti-repetição, loader de contexto do negócio, loader de payload comercial.
 
 ## O que muda para o cliente final
-Nada visualmente. A IA passa a:
-- tratar dor física do cliente como oportunidade de venda, não como reclamação;
-- reconhecer CEP isolado, pergunta de frete, pergunta de pós-venda e turno curto/ambíguo;
-- nunca escalar para humano quando o cliente diz claramente "quero comprar".
+**Nada visualmente.** A IA passa a:
+- Reconhecer família/categoria de qualquer segmento lendo do catálogo do próprio tenant.
+- Reconhecer dor/objetivo do cliente de forma semântica (LLM), sem listas de palavras específicas.
+- Tratar o que o lojista já escreve em Configurações da IA + Catálogo como única fonte do "sotaque" do negócio.
 
-## Bugs identificados
-1. **Dor confundida com reclamação** (A2, C2) → handoff prematuro.
-2. **Roteador de prompt ignora o intent classificado** (B1, B3, D2, D3) → cai em "Me conta o que você precisa".
-3. **Camada paralela de handoff sobrescreve o intent** (C2) → escala mesmo com `purchase_intent`.
+## Fontes de verdade (todas já existem — só consumir)
+| Tipo de informação | Fonte oficial | Quem mantém |
+|---|---|---|
+| Famílias/linhas que o tenant vende | Categorias + tags + `product_type` | Lojista, no cadastro |
+| Dores que o catálogo resolve | Mapa de dor por produto + descrição comercial da categoria + Visão da IA do produto | Lojista + IA com aprovação |
+| Papel comercial do produto (base/pack/kit/complemento) | Payload comercial do produto (já lido pelo loader em runtime) | Lojista (Visão da IA) |
+| Produto-base de um pack | Campo `base_product_id` no payload comercial | Lojista (Visão da IA) |
+| Composição real de kit/combo | Tabela de componentes do produto | Lojista |
+| Sinônimos, apelidos, frases preferidas, termos proibidos do negócio | Dicionário de linguagem do tenant | Lojista (sub-aba de Configurações) |
+| Persona, tom, prompt-base, regras, claims proibidas, palavras de handoff, conhecimento adicional | Configurações Gerais da IA + Marca | Lojista |
+| Contexto do negócio (visão do dono) | Contexto do negócio + snapshot regenerável | Lojista + IA |
 
----
+Fallback obrigatório: se o tenant ainda não cadastrou alguma das fontes acima, a IA **pergunta ao cliente** em vez de chutar com vocabulário fixo de qualquer segmento.
 
-## Fase 1 — Separar dor do cliente de reclamação (bug #1)
+## Princípios invioláveis da pipeline
+1. Zero lista fechada de famílias, dores ou sintomas no código da pipeline.
+2. Detecção de família vem do catálogo do tenant em runtime (com cache).
+3. Detecção de dor consultiva é **semântica** (já há classificador de turno via LLM) — sem regex de keywords de segmento.
+4. Exemplos dentro de prompts são **abstratos** (placeholders tipo "família citada pelo cliente", "dor declarada"). Nomes reais entram por composição em runtime.
+5. Descrição de tools (busca, recomendação, etc.) usa linguagem neutra. Nada de "ex.: calvície, caspa, balm".
 
-**Diagnóstico:** o classificador de turno só tem `complaint`. Sintoma físico ("ressecada", "coçando") e até intenção de compra com termo do produto entram como reclamação. A regra de handoff escala automaticamente quando `intent=complaint` com urgência alta, **antes** da máquina de estados (que já sabe tratar dor — regra `pain_or_objective_declared_advance_to_recommendation`).
+## Ondas de execução (com flag por onda; liga primeiro só no Respeite o Homem para validar paridade)
 
-**Correção:**
-1. No classificador de turno, separar dois sinais:
-   - `is_product_pain_symptom` — dor/sintoma que o catálogo resolve (ressecamento, queda, caspa, coçando, oleosidade, calvície, etc.). Sempre oportunidade comercial.
-   - `is_order_complaint` — reclamação de pedido/entrega/atendimento/produto já comprado. Caminho atual de handoff.
-2. A regra de handoff por reclamação passa a exigir `is_order_complaint=true`. Sintoma puro nunca dispara handoff.
-3. Quando `is_product_pain_symptom=true` em modo vendas, o estado avança para `recommendation` (já existe) com probe de catálogo.
+### Onda 1 — Camada universal de vocabulário do tenant (fundação)
+Criar uma camada interna que, dado um tenant, devolva em runtime:
+- Famílias do catálogo (a partir de categorias/tags/`product_type`, normalizadas).
+- Sinônimos e variações (do dicionário do tenant).
+- Dores que o catálogo resolve (do mapa de dor + Visão da IA).
+- Cache em memória por tenant, invalidado por mudança de catálogo/configuração.
 
-**Trava anti-regressão:** se `intent=purchase_intent` ou `is_product_pain_symptom=true`, é proibido `shouldHandoff=true` salvo agressividade explícita ou pedido direto do cliente para falar com humano. Cenários A2 e D1 viram testes fixos.
+Reaproveita os loaders já existentes (contexto do negócio e payload comercial) — sem duplicar.
 
-## Fase 2 — Motor único de handoff (bug #3)
+### Onda 2 — Detectores universais
+Substituir, em sequência e protegidos por flag:
+- Detector de família mencionada pelo cliente.
+- Detector de referência anafórica ("esse produto", "essa linha").
+- Aliases de família para a sonda de catálogo.
+- Lexer de "intenção comercial" (gate de mídia e de turno completo).
+- Detector de turno consultivo (passa a ser semântico via classificador, sem regex de cabelo/barba).
 
-**Diagnóstico:** existem hoje pelo menos 4 caminhos que setam `shouldHandoff` (intent classifier, palavras-chave, regras custom, knowledge insuficiente). Alguns rodam em paralelo ao classificador e ignoram seu resultado — origem do C2 (purchase_intent + handoff no mesmo turno).
+Cada detector consulta o resolver da Onda 1.
 
-**Correção:**
-1. Consolidar a decisão num motor único, executado **depois** do classificador, com regra dura: `purchase_intent` ou `product_pain_symptom` vetam handoff comercial.
-2. As fontes secundárias passam a ser sugestões; o motor decide.
-3. Log estruturado por turno: qual fonte sugeriu handoff, qual era o intent, e a decisão final. Sem isso o problema vira invisível de novo.
+### Onda 3 — Sonda de catálogo e tool de busca universais
+- Sonda de catálogo deixa de mapear `%calv%/%caspa%`. Passa a usar categorias e Visão da IA do tenant para encontrar "tratamento inteiro" da dor citada, em qualquer segmento.
+- Descrição da tool de busca de produto e seus parâmetros vira texto neutro com placeholders.
 
-**Trava anti-regressão:** C2 vira teste fixo (não escala). D1 continua escalando.
+### Onda 4 — Classificador de turno (TPR) universal
+- Prompt do classificador perde a lista cosmética. Recebe as famílias do tenant via resolver dinamicamente.
+- O campo "família mencionada" deixa de ser enum fechado.
 
-## Fase 3 — Quatro reflexos determinísticos do roteador (bug #2)
+### Onda 5 — Prompts dos estados universais
+Reescrever os prompts dos estados (descoberta, recomendação, detalhe, frete grátis, decisão, checkout) com exemplos abstratos. A "voz do segmento" passa a entrar 100% por composição: persona + dicionário do tenant + nomes reais do catálogo carregados em runtime.
 
-**Diagnóstico:** turnos curtos, ambíguos, com CEP isolado ou pós-venda caem em fallback genérico de descoberta. O classificador acerta, o roteador não consome.
+### Onda 6 — Outros agentes de IA (criativos, landing, content creator)
+- Strategic Analyzer: exemplos abstratos.
+- Detector de segmento de landing: usar segmento declarado pelo tenant + classificação semântica, não regex de "cabelo".
+- Stock de imagens: mapear via categoria do tenant.
+- Templates de copy do content creator: neutros, com tokens preenchidos pelo contexto do tenant.
 
-**Correção — 4 detectores determinísticos rodando ANTES do template livre, sobre o texto já consolidado pelo Turn Orchestrator:**
+### Onda 7 — Governança e validação
+- Bateria de validação multi-segmento (cosmético, pet, moda, eletrônico, suplemento) rodando contra o ambiente de testes da IA em todas as ondas.
+- Verificação automatizada que falha se aparecer no código da pipeline qualquer um destes termos: shampoo, calvície, caspa, coroa, couro cabeludo, balm, loção, pomada, óleo, hidratante, perfume, sabonete, condicionador, sérum, tônico, máscara, pós-barba, after-shave (e variantes acentuadas).
+- Memória de governança: "Pipeline de IA é segment-agnostic. Personalização só por Configurações da IA + Catálogo do tenant."
+- Doc novo: `docs/especificacoes/ia/pipeline-universal-multi-segmento.md`. Atualizar `motor-contexto-comercial.md`, `modo-vendas-whatsapp.md`, `pipeline-f2-vendas-ia.md` e abrir Reg #2.18 no changelog da IA.
 
-1. **CEP recebido** — turno contém CEP válido:
-   - Se há item no carrinho/foco de produto → cota frete.
-   - Senão → confirma CEP, pede o produto, mantém o CEP no contexto.
-2. **Pergunta de frete** — menciona frete/entrega/prazo:
-   - CEP presente → cota.
-   - CEP ausente → pede CEP.
-   - Nunca cai em descoberta genérica.
-3. **Pergunta de pós-venda** — menciona pedido/rastreio/entrega com sinais de pós-compra:
-   - Roteia para o estado `support` (já existe na máquina) e pede identificação.
-   - Jamais responde com pergunta de descoberta de venda.
-4. **Turno curto + intent classificado** — 1 a 3 palavras com `intent=purchase_intent` ou família mencionada:
-   - Consome o intent: lista variantes / pede qualificação curta / avança no funil.
-   - Fallback de descoberta só roda quando `intent=general` de fato.
+## Anti-conflito (lógicas vivas que NÃO podem regredir)
+- **Reg #2.13 — Turn Orchestrator**: nenhuma onda pode trocar a fonte do texto consolidado do turno; todos os detectores continuam consumindo o turno orchestrado.
+- **Reg #2.17 v2 — Veto comercial e motor de handoff**: continuam universais como já estão. A universalização do detector de dor consultiva só amplia, não substitui.
+- **Reg #2.8 — Classificador de turno (TPR) + output gates**: o TPR continua sendo a fonte única de classificação. A onda 4 só remove o viés cosmético do prompt e abre o campo "família" para o vocabulário do tenant.
+- **Onda 18 Fase A — priorização de base vs kit**: depende de "família detectada". A nova detecção universal precisa devolver um identificador de família compatível com o que essa fase já consome (chave estável por tenant, não enum global).
+- **Onda 1C dry_run — builder de contexto de recomendação**: nenhuma onda pode alterar o shape de saída do `search_products` enquanto o builder estiver em dry_run. Universalização entra antes ou depois, não em paralelo a uma promoção do builder.
+- **Loader de contexto do negócio e loader de payload comercial**: reusar, não duplicar. Resolver da Onda 1 lê desses loaders quando aplicável.
+- **Modo Vendas (Reg #2.X — sales-mode)**: as 12 tools comerciais continuam idênticas; só a descrição textual delas (parâmetros e exemplos) fica neutra.
 
-**Compatibilidade:** os 4 reflexos respeitam o Turn Orchestrator (consomem o texto consolidado, não o último fragmento) e a máquina de estados existente (alimentam o estado certo, não bypassam).
+## Validação e rollout
+- Cada onda atrás de flag em `ai_support_config.metadata` (`arch218_universal_<onda>`).
+- Liga primeiro só no Respeite o Homem com paridade obrigatória nas baterias atuais (A–D do Reg #2.17).
+- Depois liga em **um** tenant de outro segmento (ex.: pet ou moda) com bateria multi-segmento dedicada.
+- Promove para todos os tenants só após paridade estável nos dois primeiros.
+- Reversão = desligar a flag. Cada onda é independente.
 
-**Trava anti-regressão:** B1, B3, D2, D3 viram testes fixos. Métrica nova: % de turnos onde `intent != general` e a resposta foi "Me conta...". Meta: < 5%.
+## Fora de escopo
+- Latência de turnos longos.
+- Aprofundamento do Approval Center da Visão da IA (já tem ondas próprias).
+- Playbooks "presets" por segmento no onboarding (pode vir depois; pipeline não pode depender disso).
+- Qualquer mudança de UI/UX ou de regra de negócio.
 
-## Fase 4 — Governança e fechamento
+## Decisões que precisam da sua aprovação antes de seguir
+Nenhuma decisão técnica pendente — escopo é universalização do que já existe.
 
-Cada fase técnica produz, antes de fechar:
-- 1 registro no changelog da IA (Reg #2.17 A/B/C).
-- 1 memória de constraint indexada em `mem://`.
-- Atualização do mapa de qualidade no topo do changelog.
-
-Ao final das 3 fases técnicas, descartar o doc temporário `docs/tecnico/temp/reg-2-17-ondas-diagnostico.md`.
-
----
-
-## Validação por fase
-- Cada fase liberada por flag (infra já existe).
-- Após cada fase, rodar a bateria de 12 cenários (A–D) via `ai-test-sandbox` Agent Mode.
-- Comparar com o doc temporário. Promover só se a fase corrigir o sintoma sem quebrar os ✅ atuais.
-- Reversão = desligar a flag.
-
-## Ordem de execução
-1. **Fase 1** (dor vs reclamação) — destrava A2 e C2.
-2. **Fase 2** (motor único de handoff) — fecha C2 e qualquer regressão lateral.
-3. **Fase 3** (4 reflexos do roteador) — fecha B1/B3/D2/D3.
-4. **Fase 4** (changelog + memórias).
-
-## Fora de escopo (não mexer agora)
-- Latência alta do B2 (40s) — entrega separada de performance.
-- Unificação de "fase comercial" do plano antigo — segue depois destes 3 bugs.
-- Qualquer mudança de UI/UX ou regra de negócio.
+Decisões de negócio/UI a confirmar (você pediu para passar por aprovação):
+1. **Confirmar que personalização do segmento permanece restrita às telas atuais** (Configurações da IA, Marca, Cadastro de Produto / Visão da IA, Categorias, Dicionário do tenant). Se sim, a Onda 1 já tem todas as fontes que precisa e não criamos campo novo.
+2. **Confirmar a bateria de validação multi-segmento como gate de promoção** (Onda 7). Posso montar com 3 tenants fictícios (pet, moda, suplemento) no ambiente de testes da IA, sem tocar em tenant real.
 
 ## Checklist de conformidade
 - Doc de Regras do Sistema lido ✓
-- Doc formal do tema lido (modo-vendas, pipeline-f2, turn-orchestrator, changelog) ✓
-- Fluxo afetado: WhatsApp / IA de Atendimento (modo vendas e informativo)
-- Fonte de verdade: classificador de turno + motor de handoff + roteador de prompt (no agente de atendimento e no shared sales-pipeline)
-- Módulos impactados: classificador, handoff, roteador, máquina de estados (consumo, não estrutura)
-- UI impactada: nenhuma
-- Situação: Aguardando confirmação do usuário para iniciar a Fase 1
+- Docs formais lidos: `mapa-fontes-ia.md`, `motor-contexto-comercial.md`, `visao-ia-produto.md`, `modo-vendas-whatsapp.md`, `pipeline-f2-vendas-ia.md`, `turn-orchestrator.md`, `ia-atendimento-changelog.md` ✓
+- Fluxo afetado: IA de Atendimento (modo vendas e informativo) + agentes auxiliares (criativos, landing, content)
+- Fonte de verdade: Configurações da IA + Catálogo do tenant (sem fontes novas)
+- Módulos impactados: pipeline de vendas inteira, agente de atendimento, agentes auxiliares de marketing
+- UI impactada: nenhuma (UIs existentes seguem como estão)
+- Situação: Aguardando confirmação dos 2 itens de aprovação acima para iniciar a Onda 1.
