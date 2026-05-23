@@ -130,7 +130,7 @@ export function broadenCatalogForPain<T extends { id: string; name: string; is_k
   return {
     filtered,
     reason: "broadened_pain_one_per_family",
-    families_returned: filtered.map((f) => classifyProductFamily(f.name)),
+    families_returned: filtered.map((f) => classify(f.name)),
   };
 }
 
