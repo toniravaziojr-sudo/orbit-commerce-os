@@ -545,5 +545,21 @@ Cada turno do cliente passa a ser consolidado em um dos 11 buckets:
 
 **Status:** aditivo, sem regressão funcional. Pendente de validação em conversa real para confirmar que os buckets estão sendo classificados certo (vai ser feito junto com Frentes 3-5).
 
-### Próximo — Frente 3 (Institucional)
-Detectar bucket `institutional` e responder consultando, nesta ordem: knowledge base do tenant → regras configuradas → contexto de marca. Sem dado, IA assume com humildade e a lacuna vira pendência no checklist de Configurações Gerais.
+### Frente 3 — Roteador de bucket por estado (entregue)
+
+- Novo módulo `bucket-state-router.ts` consome o `IntentBucket` do Frente 2 e, para os buckets NÃO-vendas, devolve override de estado e/ou bloco curto de prompt.
+- Mapas:
+  - `human_request` → `handoff` + bloco de transição educada.
+  - `post_sale` → `support` + bloco proibindo discovery de venda.
+  - `institutional` → `support` + bloco montado a partir da KB do tenant (`business_context`, `attendance_rules`) e contexto de marca (`banned_claims`, `do_not_do`). Sem KB → instrução explícita de NÃO inventar e oferecer humano.
+  - `objection` → mantém estado, bloco que proíbe inventar desconto/cupom e força usar prova cadastrada.
+  - `hesitation` → mantém estado, bloco "não pressionar".
+  - `out_of_scope` → mantém estado, bloco de redirecionamento educado.
+- Wired no `ai-support-chat` DEPOIS do reflexo determinístico (Reg #2.17 Fase 3): se o reflexo já fixou estado, o Frente 3 NÃO sobrescreve — só anexa bloco de prompt quando complementar.
+- Lê `tenant_brand_context` em fetch leve, tolerante a miss.
+
+**Status:** aditivo, sem regressão. Pendente de validação na próxima bateria.
+
+### Próximo — Frentes 4 e 5
+- Frente 4: gate de continuidade (anti-loop de discovery, anti-repetição de oferta, foco de família persistente).
+- Frente 5: prompts dos estados consumindo os blocos do Frente 3 com naturalidade.
