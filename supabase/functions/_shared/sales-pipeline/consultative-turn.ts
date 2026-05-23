@@ -149,7 +149,7 @@ export function buildConsultativeTurnBlock(signals: ConsultativeTurnSignals): st
     "",
     "FORMATO OBRIGATÓRIO desta resposta, em 1 mensagem curta, NESTA ORDEM:",
     "  1) ACOLHIDA em 1 linha — espelhe o que ele trouxe (ex.: \"Entendi seu caso\",",
-    "     \"Recebi sua foto, dá pra ter uma ideia\", \"Esse tipo de queda dá pra tratar bem\").",
+    "     \"Recebi sua foto, dá pra ter uma ideia\", \"Esse cenário dá pra resolver\").",
     "  2) UMA pergunta curta de qualificação (escolha A ou B):",
     "     A) qual o objetivo principal: tratar / prevenir / repor",
     "     B) há quanto tempo ele percebe / se já usou algo antes",
