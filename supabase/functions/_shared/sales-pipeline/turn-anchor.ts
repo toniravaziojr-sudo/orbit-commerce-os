@@ -30,6 +30,14 @@ export interface TurnAnchorInput {
   lastFocusedProductName?: string | null;
   productFocusId?: string | null;
   sheet?: InstitutionalSheet | null;
+  /**
+   * Bucket de intenção do turno (Frente 2 — scope-router).
+   * Quando = "catalog_question", a âncora SUAVIZA a instrução de manter o foco
+   * em família: o cliente está pedindo visão ampla do catálogo e a vitrine
+   * pode mostrar outras famílias sem trocar o foco persistido.
+   * (Resolve conflito Frente C × Frente E × Onda 18 Fase A.)
+   */
+  intentBucket?: string | null;
 }
 
 export interface TurnAnchorOutput {
@@ -39,6 +47,8 @@ export interface TurnAnchorOutput {
   hasProductFocus: boolean;
   institutionalAreas: string[];
   reason: string;
+  /** true quando a âncora suavizou a regra de foco em família por catalog_question */
+  catalogBroadeningAllowed: boolean;
 }
 
 const SHEET_AREA_LABELS: Record<keyof InstitutionalSheet, string> = {
