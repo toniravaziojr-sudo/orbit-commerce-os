@@ -1248,11 +1248,19 @@ async function executeSalesTool(
         };
 
         if (arch18On) {
-          // Trace 1 — input do turno + família detectada por regex no input
-          const familyDetected = detectFamilyInText(lastUserMessageContentForTools);
+          const universalProbeOn = ctx.arch218UniversalCatalogProbeEnabled === true;
+          const detectFamily = (t: string) =>
+            universalProbeOn ? detectFamilyInTextUniversal(t, ctx.tenantId) : detectFamilyInText(t);
+          const familyClassifier = universalProbeOn
+            ? (n: string) => classifyProductFamilyUniversal(n, ctx.tenantId)
+            : undefined;
+
+          // Trace 1 — input do turno + família detectada
+          const familyDetected = detectFamily(lastUserMessageContentForTools);
           await writeTrace("turn_input", {
             user_text: String(lastUserMessageContentForTools || "").slice(0, 500),
             family_detected: familyDetected,
+            family_detector: universalProbeOn ? "universal" : "legacy",
           });
           // Trace 2 — args recebidos pela tool
           await writeTrace("search_products_input", {
@@ -1289,6 +1297,7 @@ async function executeSalesTool(
             familyDetected,
             kitComponentMap,
             limit: requestedLimit,
+            classifier: familyClassifier,
           });
 
           // Trace 4 — partição enriquecida
