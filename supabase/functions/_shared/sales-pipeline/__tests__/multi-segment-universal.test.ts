@@ -25,10 +25,10 @@ function vocab(partial: Partial<TenantVocabulary>): TenantVocabulary {
 }
 
 // ---------- Pet shop ----------
-Deno.test("[multi-segmento] pet — recomendação com 'cachorro coçando' é actionable via tenant tokens", () => {
+Deno.test("[multi-segmento] pet — recomendação com 'coceira' é actionable via tenant tokens", () => {
   const result = classifyTurnCompleteness(
-    [{ id: "1", text: "qual você recomenda? meu cachorro está coçando muito", created_at: new Date().toISOString() }],
-    { tenantPainTokens: ["coceira", "cachorro coçando", "pulgas", "carrapato"] },
+    [{ id: "1", text: "qual você me indica? meu cachorro está com coceira", created_at: new Date().toISOString() }],
+    { tenantPainTokens: ["coceira", "pulgas", "carrapato"] },
   );
   assertEquals(result.completeness, "complete_actionable");
   assertEquals(result.reason, "recommend_with_symptom_or_focus");
@@ -59,10 +59,10 @@ Deno.test("[multi-segmento] pet — pain resolver gera padrões a partir do dici
 });
 
 // ---------- Moda ----------
-Deno.test("[multi-segmento] moda — 'calça apertando' como recomendação é actionable via tenant tokens", () => {
+Deno.test("[multi-segmento] moda — 'apertando' como recomendação é actionable via tenant tokens", () => {
   const result = classifyTurnCompleteness(
-    [{ id: "1", text: "qual você recomenda? a calça está apertando", created_at: new Date().toISOString() }],
-    { tenantPainTokens: ["calça apertando", "tamanho errado", "manga curta"] },
+    [{ id: "1", text: "qual você me indica? a calça está apertando", created_at: new Date().toISOString() }],
+    { tenantPainTokens: ["apertando", "tamanho errado", "manga curta"] },
   );
   assertEquals(result.completeness, "complete_actionable");
 });
@@ -70,7 +70,7 @@ Deno.test("[multi-segmento] moda — 'calça apertando' como recomendação é a
 // ---------- Suplemento ----------
 Deno.test("[multi-segmento] suplemento — 'baixa imunidade' actionable via tenant tokens", () => {
   const result = classifyTurnCompleteness(
-    [{ id: "1", text: "qual você indica pra baixa imunidade?", created_at: new Date().toISOString() }],
+    [{ id: "1", text: "qual você me indica pra baixa imunidade?", created_at: new Date().toISOString() }],
     { tenantPainTokens: ["baixa imunidade", "cansaço", "falta de energia"] },
   );
   assertEquals(result.completeness, "complete_actionable");
@@ -79,7 +79,7 @@ Deno.test("[multi-segmento] suplemento — 'baixa imunidade' actionable via tena
 // ---------- Paridade cosmético (não regrediu) ----------
 Deno.test("[multi-segmento] cosmético legado (Respeite o Homem) continua actionable mesmo sem tenant tokens", () => {
   const result = classifyTurnCompleteness(
-    [{ id: "1", text: "qual você recomenda pra calvície?", created_at: new Date().toISOString() }],
+    [{ id: "1", text: "qual você me indica pra calvície?", created_at: new Date().toISOString() }],
     {}, // sem tenantPainTokens — regex legado deve cobrir
   );
   assertEquals(result.completeness, "complete_actionable");
