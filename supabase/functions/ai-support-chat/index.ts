@@ -841,6 +841,10 @@ async function executeSalesTool(
     // dry_run apenas grava trace, NÃO altera shape devolvido ao modelo.
     arch1cRecommendationContextBuilderEnabled?: boolean;
     arch1cRecommendationContextBuilderMode?: "off" | "dry_run" | "active";
+    // [Onda 3 — Reg #2.18] Quando true, deriva padrões pain→categoria do
+    // texto do cliente + dicionário do tenant (universal). Quando false,
+    // mantém o léxico legado (cosmético/cabelo).
+    arch218UniversalPainResolverEnabled?: boolean;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
