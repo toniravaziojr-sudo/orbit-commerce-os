@@ -836,6 +836,10 @@ async function executeSalesTool(
     // [Reg #2.8] Quando o TPR detecta DOR/OBJETIVO concreto, search_products
     // aplica Catalog Probe (1 representante por família, não filtra estrito).
     shouldBroadenForPain?: boolean;
+    // [Frente C] Bucket de intenção do TPR. Quando "catalog_question" sem
+    // família mencionada, search_products NÃO aplica family_focus estrito
+    // (cliente quer ver o catálogo agnóstico ao foco anterior).
+    intentBucket?: string | null;
     // [Onda 18 — Fase A] Quando true, aplica enforceFamilyBaseFirst após enrichment
     // e grava traces estruturados em ai_turn_traces.
     arch18CatalogBaseForced?: boolean;
