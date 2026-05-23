@@ -378,7 +378,8 @@ export function fallbackClassification(
     : false;
   const hasSymptom = universalSymptomCue || tenantPainHit;
   const askedRec = /\b(recomenda|indica|sugere|melhor\s+pra\s+mim|resolve|melhor\s+caso|qual\s+(o\s+)?(produto|item|tratamento|melhor))/i.test(message || "");
-  const askedPrice = /\b(quanto|pre[çc]o|valor|desconto|cupom|barat)/i.test(message || "");
+  // [Frente C] Inclui superlativos comerciais e formas alternativas que sinalizam pergunta de preço/promoção.
+  const askedPrice = /\b(quanto|pre[çc]o|valor|desconto|cupom|barat|promo[çc]?[ãa]?o?|em\s+conta|vale\s+a\s+pena|compensa|mais\s+(barato|em\s+conta)|tem\s+(promo|desconto|cupom)|sai\s+por\s+quanto)/i.test(message || "");
   const askedImage = /\b(foto|imagem|figura|me mostra)/i.test(message || "");
   const askedShipping = /\b(frete|entrega|prazo|chega quando|chega em)/i.test(message || "");
   const buy = /\b(quero|vou levar|fecha|manda o link|pode adicionar|finaliza)/i.test(message || "");
