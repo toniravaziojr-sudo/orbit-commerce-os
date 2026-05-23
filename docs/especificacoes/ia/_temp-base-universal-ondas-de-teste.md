@@ -560,6 +560,18 @@ Cada turno do cliente passa a ser consolidado em um dos 11 buckets:
 
 **Status:** aditivo, sem regressão. Pendente de validação na próxima bateria.
 
-### Próximo — Frentes 4 e 5
-- Frente 4: gate de continuidade (anti-loop de discovery, anti-repetição de oferta, foco de família persistente).
-- Frente 5: prompts dos estados consumindo os blocos do Frente 3 com naturalidade.
+### Frente 4 — Gate de continuidade ✅ APLICADO
+
+- Novo módulo `continuity-gate.ts` (`buildContinuityBlock`) gera bloco curto de instrução quando há contexto acumulado:
+  1. **Anti-loop de descoberta:** se houve ≥1 turno anterior em `discovery`/`greeting`, proíbe repetir variações de "o que você está procurando?", "prefere ver opções?", "qual seu objetivo?", etc., e exige progressão (mostrar opção concreta OU pedir 1 info específica).
+  2. **Foco de família persistente:** se `family_focus` está setado, instrui a IA a manter a família e não reabrir "qual categoria?".
+  3. **Foco de produto recente:** se `last_focused_product_name` está setado e o estado é `recommendation`/`product_detail`/`decision`, instrui a continuar a partir desse produto.
+  4. **Carrinho ativo em estado pré-fechamento:** reforça que se há carrinho, não voltar a perguntas de descoberta.
+- `gateSemanticRepetition` em `output-gates.ts` recebeu novos padrões: "qual seu objetivo/interesse/foco", "como posso ajudar (hoje)", "tem alguma preferência/ideia/dúvida em mente". Passa a detectar mais famílias clássicas de pergunta-muleta repetida.
+- Wired no `ai-support-chat` depois do bucket router (Frente 3) e antes de `buildPromptForState`. Lê `ai_support_turn_log` (últimos 5 turnos) para contar discovery consecutivos. Tolerante a falha (try/catch).
+
+**Status:** aditivo, sem regressão. Pendente de validação na próxima bateria.
+
+### Próximo — Frente 5
+- Frente 5: prompts dos estados consumindo os blocos das Frentes 3/4 com naturalidade (refinar o `prompt-router.ts`/`prompts/*.ts` para integrar os blocos sem soar robótico).
+

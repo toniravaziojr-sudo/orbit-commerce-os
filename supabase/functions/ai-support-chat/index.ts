@@ -5760,6 +5760,54 @@ Cliente: "vocês entregam em SP?"
         );
       }
 
+      // [Frente 4] Continuity Gate — bloco de instrução para evitar loop de
+      // descoberta, reabertura de família já decidida e perda de produto em
+      // foco. Aditivo: só injeta bloco se houver contexto acumulado real.
+      try {
+        let previousDiscoveryTurns = 0;
+        try {
+          const { data: recentTurns } = await supabase
+            .from("ai_support_turn_log")
+            .select("sales_state_after")
+            .eq("conversation_id", conversation_id)
+            .order("created_at", { ascending: false })
+            .limit(5);
+          for (const t of recentTurns || []) {
+            const s = normalizeLegacyState(t.sales_state_after as string);
+            if (s === "discovery" || s === "greeting") {
+              previousDiscoveryTurns++;
+            } else {
+              break;
+            }
+          }
+        } catch (_) { /* tolerante */ }
+
+        const { buildContinuityBlock } = await import(
+          "../_shared/sales-pipeline/continuity-gate.ts"
+        );
+        const continuity = buildContinuityBlock({
+          pipelineState: bucketFinalState,
+          previousDiscoveryTurns,
+          familyFocus: familyFocusBefore,
+          lastFocusedProductName: lastFocusedProductNameBefore,
+          hasActiveCart: hasActiveCartPersisted,
+        });
+        if (continuity.promptBlock) {
+          contextualBlocks.push(continuity.promptBlock);
+          console.log(
+            `[ai-support-chat] [Frente 4] continuity_block injected ` +
+            `prev_discovery=${previousDiscoveryTurns} family=${familyFocusBefore ?? "none"} ` +
+            `product=${lastFocusedProductNameBefore ?? "none"} cart=${hasActiveCartPersisted} ` +
+            `reason=${continuity.reason}`
+          );
+        }
+      } catch (e) {
+        console.warn(
+          "[ai-support-chat] [Frente 4] continuity gate failed:",
+          (e as Error).message
+        );
+      }
+
       const routed = buildPromptForState({
         state: bucketFinalState,
         allTools: SALES_TOOLS,

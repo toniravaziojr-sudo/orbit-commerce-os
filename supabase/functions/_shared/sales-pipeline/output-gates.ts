@@ -588,8 +588,13 @@ const SEMANTIC_OPEN_QUESTION_RE = new RegExp(
     "(procura|busca|quer|prefere)\\s+(algo\\s+)?espec[íi]fico",
     "(ver|conhecer|mostrar)\\s+(as\\s+)?(op[çc][õo]es|alternativas|sugest[õo]es)",
     "deixa\\s+eu\\s+entender\\s+melhor",
-    "me\\s+conta\\s+(um\\s+pouco\\s+)?(o\\s+que|sobre\\s+o\\s+que)\\s+(voc[êe]\\s+)?(est[áa]\\s+)?(procura|buscando|querendo)",
-    "(o\\s+que|qual)\\s+(voc[êe]\\s+)?(t[áa]|est[áa])\\s+(procurando|buscando)",
+    "me\\s+conta\\s+(um\\s+pouco\\s+)?(o\\s+que|sobre\\s+o\\s+que)\\s+(voc[êe]\\s+)?(est[áa]\\s+)?(procura|buscando|querendo|precisa|precisando)",
+    "(o\\s+que|qual)\\s+(voc[êe]\\s+)?(t[áa]|est[áa])\\s+(procurando|buscando|precisando)",
+    // [Frente 4] famílias adicionais de pergunta aberta repetida
+    "qual\\s+(o\\s+)?seu\\s+(objetivo|interesse|foco)",
+    "(em\\s+que|no\\s+que)\\s+(eu\\s+)?posso\\s+(te\\s+)?ajudar(\\s+hoje)?",
+    "como\\s+posso\\s+(te\\s+)?ajudar(\\s+hoje)?",
+    "(voc[êe]\\s+)?tem\\s+alguma\\s+(prefer[êe]ncia|ideia|d[úu]vida)\\s+(em\\s+)?(mente|espec[íi]fica)?",
   ].join("|"),
   "i",
 );
