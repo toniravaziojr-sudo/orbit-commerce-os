@@ -1406,7 +1406,9 @@ async function executeSalesTool(
               enriched: enrichedForBuilder,
               vision,
               userText: lastUserMessageContentForTools,
-              familyDetected: detectFamilyInText(lastUserMessageContentForTools),
+              familyDetected: ctx.arch218UniversalCatalogProbeEnabled === true
+                ? detectFamilyInTextUniversal(lastUserMessageContentForTools, ctx.tenantId)
+                : detectFamilyInText(lastUserMessageContentForTools),
               explicitRequestProductIds: explicitIds,
             });
 
