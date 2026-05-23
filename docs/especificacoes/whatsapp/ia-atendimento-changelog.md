@@ -1524,3 +1524,41 @@ Bateria do tenant Respeite o Homem: ao perguntar "paga frete?" a IA respondia em
 ### Anti-regressão
 - Memória `mem://constraints/ai-shipping-must-trigger-tool-and-upsell-free-kit` (já indexada).
 - Qualquer mudança no `tool-filter.ts` deve preservar a liberação de `calculate_shipping`/`check_upsell_offers` nos 4 estados comerciais (`recommendation`, `product_detail`, `decision`, `checkout_assist`).
+
+---
+
+## Registro #31 — Base Universal: Bateria de Regressão Fixa (Frente A) — 23/mai/2026
+
+**Tipo:** Governança / pré-requisito de execução das Frentes B–F do plano endurecido pós-Rodada 2.
+**Escopo:** documentação. Sem alteração de código de pipeline.
+
+### Contexto
+A Rodada 2 da bateria das 10 ondas (50 cenários) confirmou que muitas respostas boas da Rodada 1 dependiam de atalhos hardcoded removidos pelas Frentes 1–4. Sem um critério formal de "não regrediu", cada Frente nova corre risco de derrubar o que já estava 100%. A Frente A endurece isso antes de qualquer nova mudança de pipeline.
+
+### O que foi entregue
+- Doc oficial `docs/especificacoes/ia/bateria-regressao-base-universal.md` com 19 cenários ✅/↑ congelados da Rodada 2 + 1 cenário condicional (B4.1, retorna após Frente C restaurar a regressão).
+- Procedimento de execução (sandbox Agent Mode, modelo `gpt-5`, tenant Respeite o Homem, conversas isoladas).
+- Critério de fechamento formal: ✅ mantido/superior, ⚠️ variação aceitável, ❌ regressão (aborta a Frente).
+- Histórico de execuções por Frente, com baseline a ser capturado antes da Frente B.
+
+### Cenários congelados (resumo)
+- Onda 1: B1.1–B1.5 (saudação + "oi de novo").
+- Onda 3: B3.1–B3.3 (catálogo + perfume fora-escopo honesto).
+- Onda 5: B5.1 (minoxidil → alternativa) e B5.2 (Shampoo Preventive Power exato com preço).
+- Onda 6: B6.1 (diferença), B6.2 (recomenda), B6.3 (hesitação).
+- Onda 8: B8.1 (pagamento).
+- Onda 9: B9.1–B9.4 (cadê meu pedido / trocar / não chegou / como rastreio).
+- Onda 10: B10.1 (boa noite!), B10.2 (humano).
+- Condicional: B4.1 (kit mais completo) — ativo após Frente C.
+
+### Validação técnica executada
+- ✅ Doc criado e versionado em `docs/especificacoes/ia/`.
+- ✅ Lista cruzada com a Rodada 2 do doc temporário cenário a cenário — todos os 19 estão classificados ✅ ou ↑.
+- ✅ Procedimento operacional descrito de forma reproduzível.
+- ⏳ Pendente: capturar o baseline real (transcrição turno a turno) executando a bateria uma vez antes de aplicar a Frente B. Será arquivado no doc temporário das ondas como "Baseline Frente B".
+
+### Anti-regressão
+- Toda Frente B–F só pode fechar com a bateria executada e nenhum ❌. Em caso de ❌, a Frente volta para Diagnóstico.
+- A bateria é congelada e só pode ser **estendida** (nunca reduzida) ao longo das Frentes seguintes.
+
+📌 **STATUS DA ENTREGA:** Corrigido e validado (governança documental). A execução real do baseline acontece como primeira ação da Frente B.

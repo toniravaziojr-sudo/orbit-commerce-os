@@ -1058,3 +1058,29 @@ Cada turno do cliente passa a ser consolidado em um dos 11 buckets:
 ### Próximo — Frente 5
 - Frente 5: prompts dos estados consumindo os blocos das Frentes 3/4 com naturalidade (refinar o `prompt-router.ts`/`prompts/*.ts` para integrar os blocos sem soar robótico).
 
+---
+
+## Plano Endurecido (pós-Rodada 2) — Frentes A → F
+
+### Frente A — Bateria de regressão fixa ✅ APLICADA (2026-05-23)
+
+**Entrega:** doc oficial `docs/especificacoes/ia/bateria-regressao-base-universal.md` congelando 19 cenários ✅/↑ da Rodada 2 como critério obrigatório de "não regrediu" para todas as Frentes seguintes.
+
+**Cenários incluídos (19):** B1.1–B1.5 (saudação), B3.1–B3.3 (catálogo direto + fora-escopo honesto), B5.1 (minoxidil → alternativa), B5.2 (Shampoo Preventive Power exato com preço), B6.1 (diferença), B6.2 (recomenda), B6.3 (hesitação), B8.1 (pagamento), B9.1–B9.4 (pós-venda completo), B10.1 (boa noite), B10.2 (humano).
+
+**Cenário condicional (1):** B4.1 ("kit mais completo") — entra na bateria obrigatória após a Frente C restaurar a regressão.
+
+**Validação técnica executada:**
+- Doc criado e versionado.
+- Lista cruzada com a Rodada 2 do doc temporário cenário a cenário — todos os 19 estão classificados como ✅ ou ↑ na Rodada 2.
+- Procedimento de execução documentado (sandbox Agent Mode, modelo, tenant, conversas isoladas).
+- Critério de fechamento documentado (✅/⚠️/❌ + abortar a Frente em caso de ❌).
+
+**Status:** aditivo, sem mexer em código de pipeline. Sem risco de regressão.
+
+**Pendente para frente seguinte:** capturar o **baseline real** (transcrição turno a turno) executando a bateria uma vez antes de aplicar a Frente B, e arquivar nesta seção como "Baseline Frente B".
+
+### Próximo — Frente B (continuity-gate completo)
+Estende continuity-gate para tratar `intent=thanks` como terminal, ruído social ("kkk"/"haha"/"rs"/emoji solto), e adiciona reflexo determinístico de presença ("tem alguém aí?", "alô"). Resolve Q10.1, Q10.2 e Q10.4.
+
+
