@@ -212,6 +212,7 @@ function emptyClassification(source: "llm" | "fallback", latency_ms = 0, raw_err
     confirmed_purchase_intent: false,
     asked_about_payment_or_link: false,
     is_support_topic: false,
+    intent_bucket: null,
     source,
     latency_ms,
     raw_error,
