@@ -187,33 +187,25 @@ const CHECKOUT_REQUEST_PATTERNS = [
   /\bgera\s+(o\s+)?link\b/i,
 ];
 
-// Sinais de DOR/OBJETIVO declarados pelo cliente — quando aparecem, a IA
-// já tem informação suficiente para recomendar (não cabe nova rodada de
-// discovery genérica). Lista é ampla de propósito: cobre família "shampoo",
-// "creme", "loção" + termos de queda/calvície/prevenção/caspa/oleosidade.
-// Em F3 isso pode virar classifier; aqui é heurística determinística.
+// [Reg #2.18 — Base Universal] Sinais de DOR/OBJETIVO declarados pelo cliente.
+// Lista UNIVERSAL e estrutural — não enumera vocabulário de segmento. A
+// detecção semântica de dor/necessidade real é feita pelo TPR (Turn
+// Pre-Router) via campo `should_broaden_catalog_for_pain`. Os padrões
+// abaixo cobrem APENAS construções estruturais ("preciso de", "queria
+// algo", "tem alguma coisa pra", "minha [parte do corpo] tá [problema]")
+// que funcionam em qualquer e-commerce. Vocabulário específico (família,
+// dor por segmento) vem do catálogo do tenant via tenant-vocabulary-resolver.
 const PAIN_OR_OBJECTIVE_PATTERNS: RegExp[] = [
-  // Categoria geral + qualquer continuação ("shampoo para X", "creme pra Y")
-  /\b(shampoo|condicionador|cream|cr[eê]me|lo[çc][ãa]o|balm|s[eé]rum|t[ôo]nico|m[áa]scara|gel|sabonete|kit|combo)\b[^.?!]{2,}/i,
-  // Dores explícitas — cabelo / couro cabeludo
-  /\bcalv[íi]cie\b/i,
-  /\bqueda\b/i,
-  /\bcaindo\b/i,
-  /\bfalha(s)?\s+(na\s+)?(coroa|cabe[çc]a|cabelo)\b/i,
-  /\bcoroa\s+(falha|aberta|rala)\b/i,
-  /\brala(r|ndo)?\b/i,
-  /\bcaspa\b/i,
-  /\bseborr[eé]ia\b/i,
-  /\boleosidade\b/i,
-  /\bcabelo\s+(oleoso|seco|fino|ralo)\b/i,
-  /\bcouro\s+cabeludo\b/i,
-  // Objetivos
-  /\bpreven(ir|[çc][ãa]o|tivo)\b/i,
-  /\btratar\b/i,
-  /\btratamento\b/i,
-  /\bcrescer|crescimento|fortalecer|fortalecimento\b/i,
-  // Pele / pós-banho
-  /\bp[óo]s[\s-]banho\b/i,
+  // Pedido genérico de ajuda/recomendação
+  /\b(preciso|queria|quero|gostaria|t[oô]\s+precisando)\s+(de\s+|do\s+|da\s+)?(algo|alguma\s+coisa|um|uma)\b/i,
+  /\btem\s+(alguma\s+coisa|algum\s+produto|algo)\s+(pra|para|que)\b/i,
+  /\b(me\s+)?(ajuda|recomenda|indica|sugere)\b/i,
+  /\bo\s+que\s+(voc[êe]s?\s+)?(t[eê]m|recomenda|indica)\b/i,
+  // Estrutura "minha/meu X está/tá Y" (genérica, não cita anatomia/segmento)
+  /\b(minha|meu|estou|t[oô])\s+\w+\s+(t[áa]|est[áa]|anda)\b/i,
+  // Objetivos universais
+  /\bpara\s+(que|qual)\s+serve\b/i,
+  /\b(pra|para)\s+(resolver|tratar|melhorar|prevenir|cuidar|combater)\b/i,
 ];
 
 function detectPainOrObjective(message: string): boolean {
