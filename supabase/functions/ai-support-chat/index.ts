@@ -5879,6 +5879,7 @@ Cliente: "vocês entregam em SP?"
           lastFocusedProductName: lastFocusedProductNameBefore ?? null,
           productFocusId: currentProductFocus?.product_id ?? null,
           sheet: institutionalSheetForAnchor,
+          intentBucket: (intentScope?.bucket as string | null | undefined) ?? null,
         });
         if (anchor.promptBlock) {
           contextualBlocks.push(anchor.promptBlock);
@@ -5887,6 +5888,8 @@ Cliente: "vocês entregam em SP?"
             `pain=${anchor.hasPain} family=${anchor.hasFamily} ` +
             `product_focus=${anchor.hasProductFocus} ` +
             `inst_areas=${anchor.institutionalAreas.join("|") || "none"} ` +
+            `bucket=${intentScope?.bucket ?? "none"} ` +
+            `catalog_broadening=${anchor.catalogBroadeningAllowed} ` +
             `reason=${anchor.reason}`
           );
         } else {
