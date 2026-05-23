@@ -869,6 +869,25 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 - **Q9.A — Pergunta sobre cupom de desconto cai na muleta:** Confirmação da Onda 4.B. Não há resposta para política de cupom/desconto na base universal.
 - **Q9.B — "Como rastreio?" não conecta com fluxo de pedido (Q9.5):** A IA tem ferramenta de pedido — provou em Q9.1 e Q9.3. Mas a redação "como rastreio?" não dispara o mesmo fluxo. Classificador de intenção depende muito da redação literal: "cadê meu pedido" ✅ vs "como rastreio?" ❌. Inconsistência grave de roteamento.
 
+### Onda 9 — Rodada 2 (pós Frentes 1–4)
+
+Executada via `ai-test-sandbox` Agent Mode, conversas isoladas, modelo `gpt-5`.
+
+| Q | Pergunta | Rodada 1 | Rodada 2 | Δ |
+|---|---|---|---|---|
+| Q9.1 | "cadê meu pedido?" | ✅ Empatia + dados + qualificação | ✅ Mantido. "Te ajudo a localizar seu pedido agora. Me passa nome + número do pedido (ou e-mail/CPF) e o que aconteceu." | = |
+| Q9.2 | "quero trocar o produto" | ✅ Empatia + escala equipe | ✅ Mantido + ganho. Agora pergunta também se produto está lacrado/usado (qualificação de troca). Handoff acionado corretamente. | ↑ |
+| Q9.3 | "minha compra não chegou" | ✅ Padrão SAC | ✅ Mantido. "Poxa, que chato isso. Vou olhar pra você…" Handoff acionado (complaint + urgency high). | = |
+| Q9.4 | "vocês têm cupom de desconto?" | ❌ Muleta | ❌ **Mantida.** Mesma muleta universal. Confirmação da Onda 4.B — sem fonte de política comercial. | = |
+| Q9.5 | "como rastreio?" | ❌ Muleta (inconsistência grave) | ✅ **Ganho importante.** Agora responde a parte operacional ("código vai por e-mail quando postado, posso enviar aqui") + pede dados pra verificar. Inconsistência Q9.1 vs Q9.5 resolvida. | ↑↑ |
+
+**Latência média:** ~16s. 5 conversas: `828f03d6-58a8-4a42-8274-348cfdcd5cb2`, `584c6080-2f28-4aaa-8579-d02996aa731f`, `c3bd848c-dd5b-4ef2-bbbc-21144b744b15`, `734eba7d-39d5-4003-aefc-5e794b3f5e8f`, `a7b75839-81e8-48c1-93e5-80ef82955e16`.
+
+**Leitura geral:**
+- **3 ganhos / 0 regressões.** Q9.2 ficou mais maduro (qualificação extra), Q9.5 resolveu a inconsistência crítica de roteamento (mesma intenção, redação diferente agora dispara o mesmo fluxo).
+- **Q9.4 (cupom) é ponto cego documental, não de pipeline** — mesmo motivo da Onda 4.B e Onda 7. Não há fonte de verdade na base universal sobre política de cupom/desconto pra IA consultar.
+- **Pós-venda em geral é o ponto mais maduro da base universal:** 4 de 5 cenários da Onda 9 funcionam bem em Rodada 2, contrastando com Onda 7 (objeções comerciais) e Onda 8 (institucional), que continuam frágeis.
+
 ---
 
 ## Onda 10 — Mensagens fora do escopo e ruído
