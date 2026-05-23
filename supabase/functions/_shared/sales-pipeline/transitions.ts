@@ -187,33 +187,25 @@ const CHECKOUT_REQUEST_PATTERNS = [
   /\bgera\s+(o\s+)?link\b/i,
 ];
 
-// Sinais de DOR/OBJETIVO declarados pelo cliente — quando aparecem, a IA
-// já tem informação suficiente para recomendar (não cabe nova rodada de
-// discovery genérica). Lista é ampla de propósito: cobre família "shampoo",
-// "creme", "loção" + termos de queda/calvície/prevenção/caspa/oleosidade.
-// Em F3 isso pode virar classifier; aqui é heurística determinística.
+// [Reg #2.18 — Base Universal] Sinais de DOR/OBJETIVO declarados pelo cliente.
+// Lista UNIVERSAL e estrutural — não enumera vocabulário de segmento. A
+// detecção semântica de dor/necessidade real é feita pelo TPR (Turn
+// Pre-Router) via campo `should_broaden_catalog_for_pain`. Os padrões
+// abaixo cobrem APENAS construções estruturais ("preciso de", "queria
+// algo", "tem alguma coisa pra", "minha [parte do corpo] tá [problema]")
+// que funcionam em qualquer e-commerce. Vocabulário específico (família,
+// dor por segmento) vem do catálogo do tenant via tenant-vocabulary-resolver.
 const PAIN_OR_OBJECTIVE_PATTERNS: RegExp[] = [
-  // Categoria geral + qualquer continuação ("shampoo para X", "creme pra Y")
-  /\b(shampoo|condicionador|cream|cr[eê]me|lo[çc][ãa]o|balm|s[eé]rum|t[ôo]nico|m[áa]scara|gel|sabonete|kit|combo)\b[^.?!]{2,}/i,
-  // Dores explícitas — cabelo / couro cabeludo
-  /\bcalv[íi]cie\b/i,
-  /\bqueda\b/i,
-  /\bcaindo\b/i,
-  /\bfalha(s)?\s+(na\s+)?(coroa|cabe[çc]a|cabelo)\b/i,
-  /\bcoroa\s+(falha|aberta|rala)\b/i,
-  /\brala(r|ndo)?\b/i,
-  /\bcaspa\b/i,
-  /\bseborr[eé]ia\b/i,
-  /\boleosidade\b/i,
-  /\bcabelo\s+(oleoso|seco|fino|ralo)\b/i,
-  /\bcouro\s+cabeludo\b/i,
-  // Objetivos
-  /\bpreven(ir|[çc][ãa]o|tivo)\b/i,
-  /\btratar\b/i,
-  /\btratamento\b/i,
-  /\bcrescer|crescimento|fortalecer|fortalecimento\b/i,
-  // Pele / pós-banho
-  /\bp[óo]s[\s-]banho\b/i,
+  // Pedido genérico de ajuda/recomendação
+  /\b(preciso|queria|quero|gostaria|t[oô]\s+precisando)\s+(de\s+|do\s+|da\s+)?(algo|alguma\s+coisa|um|uma)\b/i,
+  /\btem\s+(alguma\s+coisa|algum\s+produto|algo)\s+(pra|para|que)\b/i,
+  /\b(me\s+)?(ajuda|recomenda|indica|sugere)\b/i,
+  /\bo\s+que\s+(voc[êe]s?\s+)?(t[eê]m|recomenda|indica)\b/i,
+  // Estrutura "minha/meu X está/tá Y" (genérica, não cita anatomia/segmento)
+  /\b(minha|meu|estou|t[oô])\s+\w+\s+(t[áa]|est[áa]|anda)\b/i,
+  // Objetivos universais
+  /\bpara\s+(que|qual)\s+serve\b/i,
+  /\b(pra|para)\s+(resolver|tratar|melhorar|prevenir|cuidar|combater)\b/i,
 ];
 
 function detectPainOrObjective(message: string): boolean {
@@ -277,10 +269,13 @@ export function detectCompareIntent(message: string): boolean {
   return COMPARE_INTENT_PATTERNS.some(re => re.test(message));
 }
 
-// [F2-V2] Detector de referência anafórica ("esse/ele/eles/esse shampoo").
-// Não basta a palavra solta; exigimos contexto curto OU acompanhada de família.
+// [Reg #2.18 — Base Universal] Detector de referência anafórica
+// ("esse/ele/eles + produto/item/kit"). Universal: usa apenas tokens
+// genéricos de e-commerce (produto/item/kit/combo). Vocabulário de
+// família vem do catálogo do tenant via `detectAnaphoricReferenceUniversal`
+// quando precisar incorporar nomes de família próprios do tenant.
 const ANAPHORIC_REFERENCE_PATTERNS: RegExp[] = [
-  /\b(esse|essa|esses|essas|este|esta|estes|estas)\s+(shampoo|condicionador|cr[eê]me|lo[çc][ãa]o|balm|s[eé]rum|t[ôo]nico|m[áa]scara|gel|sabonete|kit|combo|produto|item)\b/i,
+  /\b(esse|essa|esses|essas|este|esta|estes|estas)\s+(produto|item|kit|combo)\b/i,
   /^\s*(ele|ela|eles|elas|esse|essa|esses|essas)\b\s*[?.!,]?\s*$/i,
   /\b(me\s+(conta|fala|diz|explica)\s+(mais\s+)?(sobre\s+)?(ele|ela|esse|essa))\b/i,
   /\b(quanto\s+custa\s+(ele|ela|esse|essa))\b/i,
@@ -294,93 +289,58 @@ export function detectAnaphoricReference(message: string): boolean {
   return ANAPHORIC_REFERENCE_PATTERNS.some(re => re.test(trimmed));
 }
 
-// [F2-V2] Detector de família mencionada. Usado para atualizar familyFocus
-// quando o cliente diz "shampoo", "loção", "creme" sozinho ou com modificador.
-// [Reg #17.x] Vocabulário ampliado: além das famílias base, cobrir variações
-// muito comuns que estavam caindo em fallback ("loção pós-barba", "after-shave",
-// "pomada", "óleo", "barba", "hidratante"). Famílias específicas redirecionam
-// para a família-mãe quando faz sentido (ex.: pós-barba/after-shave → loção).
-const FAMILY_TOKENS: Array<{ family: string; pattern: RegExp }> = [
-  { family: "shampoo", pattern: /\bshampoo(s)?\b/i },
-  { family: "condicionador", pattern: /\bcondicionador(es)?\b/i },
-  { family: "creme", pattern: /\bcr[eê]me(s)?\b/i },
-  // pós-barba / after-shave entram como "locao" (família-mãe)
-  { family: "locao", pattern: /\b(p[óo]s[\s-]?barba|after[\s-]?shave|lo[çc][ãa]o|loc(o|õ)es)\b/i },
-  { family: "balm", pattern: /\bbalm(s)?\b/i },
-  { family: "serum", pattern: /\bs[eé]rum(s)?\b/i },
-  { family: "tonico", pattern: /\bt[ôo]nico(s)?\b/i },
-  { family: "mascara", pattern: /\bm[áa]scara(s)?\b/i },
-  { family: "gel", pattern: /\bgel(s)?\b/i },
-  { family: "sabonete", pattern: /\bsabonete(s)?\b/i },
-  { family: "pomada", pattern: /\bpomada(s)?\b/i },
-  { family: "oleo", pattern: /\b[óo]leo(s)?\b/i },
-  { family: "hidratante", pattern: /\bhidratante(s)?\b/i },
-  { family: "barba", pattern: /\bbarba\b/i },
-  { family: "desodorante", pattern: /\bdesodorante(s)?\b/i },
-  { family: "kit", pattern: /\bkit(s)?\b/i },
-  { family: "combo", pattern: /\bcombo(s)?\b/i },
-  { family: "perfume", pattern: /\bperfume(s)?\b/i },
-];
-export function detectFamilyMentioned(message: string): string | null {
-  if (!message) return null;
-  for (const entry of FAMILY_TOKENS) {
-    if (entry.pattern.test(message)) return entry.family;
-  }
+// [Reg #2.18 — Base Universal] Detector de família. A lista cosmética
+// hardcoded foi REMOVIDA. A detecção de família passa a depender 100%
+// do vocabulário do tenant (categorias + product_type + dicionário de
+// linguagem) via `detectFamilyMentionedUniversal`. Esta função fica como
+// shim de compatibilidade e devolve `null` quando não há vocabulário do
+// tenant — forçando o caller a usar a versão universal.
+export function detectFamilyMentioned(_message: string): string | null {
   return null;
 }
 
-// [Reg #2.18 Onda 2] Detector universal: tenta primeiro o vocabulário do
-// tenant (famílias declaradas no catálogo + sinônimos do dicionário). Cai
-// no detector legado quando nada bate ou vocabulário ausente. Nunca lança.
-// `tenantFamilyTokens` é um Map<token_normalizado, family_key> produzido
-// por `buildFamilyTokenSet` no resolver de vocabulário.
+// [Reg #2.18 Onda 2] Detector universal: usa o vocabulário do tenant
+// (famílias declaradas no catálogo + sinônimos do dicionário). Sem
+// fallback de lista cosmética. `tenantFamilyTokens` é um
+// Map<token_normalizado, family_key> produzido por `buildFamilyTokenSet`
+// no resolver de vocabulário.
 export function detectFamilyMentionedUniversal(
   message: string,
   tenantFamilyTokens?: Map<string, string> | null,
 ): string | null {
   if (!message) return null;
-  if (tenantFamilyTokens && tenantFamilyTokens.size > 0) {
-    const norm = message
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-    // match longest first — evita "kit" engolir "kit barba completo"
-    const tokens = [...tenantFamilyTokens.keys()].sort((a, b) => b.length - a.length);
-    for (const tok of tokens) {
-      if (tok.length < 3) continue;
-      const re = new RegExp(`\\b${tok.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
-      if (re.test(norm)) return tenantFamilyTokens.get(tok) ?? null;
-    }
+  if (!tenantFamilyTokens || tenantFamilyTokens.size === 0) return null;
+  const norm = message
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  // match longest first — evita "kit" engolir "kit barba completo"
+  const tokens = [...tenantFamilyTokens.keys()].sort((a, b) => b.length - a.length);
+  for (const tok of tokens) {
+    if (tok.length < 3) continue;
+    const re = new RegExp(`\\b${tok.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+    if (re.test(norm)) return tenantFamilyTokens.get(tok) ?? null;
   }
-  return detectFamilyMentioned(message);
+  return null;
 }
 
-// [F2-CATALOG-FIX] Algumas linhas comerciais equivalem ao mesmo "tipo" pedido
-// pelo cliente, mesmo com nomenclatura diferente no catálogo.
-// Ex.: cliente pede "loção" e o tenant trabalha com loção + balm pós-banho
-// como duas opções tópicas do mesmo caso de uso. Isso NÃO muda a regra de
-// cobertura cruzada de frete (que continua por mesma linha/produto-base), apenas
-// evita esconder uma opção relevante na vitrine inicial por rótulo de família.
+// [Reg #2.18 — Base Universal] Aliases comerciais entre famílias.
+// O mapeamento legado (loção↔balm) — específico de cosmético — foi
+// REMOVIDO. Aliases de fungibilidade comercial vêm exclusivamente do
+// dicionário de linguagem do tenant (product_aliases). Esta função
+// agora devolve apenas a própria família.
 export function getCatalogFamilyAliases(family: string | null | undefined): string[] {
-  switch (family) {
-    case "locao":
-      return ["locao", "balm"];
-    case "balm":
-      return ["balm", "locao"];
-    default:
-      return family ? [family] : [];
-  }
+  return family ? [family] : [];
 }
 
-// [Reg #2.18 Onda 2] Versão universal dos aliases: respeita os aliases
-// legados (Respeite o Homem) E aceita aliases customizados do tenant
-// vindos do dicionário de linguagem (product_aliases). Não inventa
-// fungibilidade nova; apenas honra o que o lojista declarou.
+// [Reg #2.18 Onda 2] Aliases universais: respeita SOMENTE aliases
+// declarados pelo tenant no dicionário de linguagem (product_aliases).
+// Sem fungibilidade hardcoded por segmento.
 export function getCatalogFamilyAliasesUniversal(
   family: string | null | undefined,
   tenantAliases?: Record<string, string[]> | null,
 ): string[] {
-  const base = getCatalogFamilyAliases(family);
+  const base = family ? [family] : [];
   if (!family || !tenantAliases) return base;
   const extra = tenantAliases[family];
   if (!extra || !extra.length) return base;
