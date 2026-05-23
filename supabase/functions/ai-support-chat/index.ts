@@ -836,6 +836,10 @@ async function executeSalesTool(
     // [Reg #2.8] Quando o TPR detecta DOR/OBJETIVO concreto, search_products
     // aplica Catalog Probe (1 representante por família, não filtra estrito).
     shouldBroadenForPain?: boolean;
+    // [Frente C] Bucket de intenção do TPR. Quando "catalog_question" sem
+    // família mencionada, search_products NÃO aplica family_focus estrito
+    // (cliente quer ver o catálogo agnóstico ao foco anterior).
+    intentBucket?: string | null;
     // [Onda 18 — Fase A] Quando true, aplica enforceFamilyBaseFirst após enrichment
     // e grava traces estruturados em ai_turn_traces.
     arch18CatalogBaseForced?: boolean;
@@ -1219,23 +1223,36 @@ async function executeSalesTool(
             );
           }
         } else {
-          const familyAliases = getCatalogFamilyAliases(effectiveFamily);
-          if (familyAliases.length > 0) {
-            const aliasPatterns = familyAliases
-              .map(alias => FAMILY_NAME_PATTERNS[alias])
-              .filter((pat): pat is RegExp => pat instanceof RegExp);
-            const byFamily = enriched.filter(p => aliasPatterns.some(pat => pat.test(String(p.name || ""))));
-            if (byFamily.length > 0) {
-              filtered = byFamily;
-              console.log(
-                `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-                `aliases=${familyAliases.join("|")} filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
-              );
-            } else {
-              console.log(
-                `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
-                `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
-              );
+          // [Frente C] Quando o cliente faz uma pergunta de catálogo agnóstica
+          // (ex.: "tem balm?", "vocês têm kit?", "o que vocês têm?") e o TPR
+          // classificou como catalog_question SEM mencionar família nova,
+          // não restringimos pelo family_focus anterior — o cliente quer ver
+          // o catálogo amplo, não o que estava em foco antes.
+          const isAgnosticCatalogProbe =
+            ctx.intentBucket === "catalog_question" && !familyMentionedNow;
+          if (isAgnosticCatalogProbe) {
+            console.log(
+              `[ai-support-chat][search_products] [Frente C] catalog_question agnóstico — ignorando family_focus=${familyFocusActive ?? "none"} para devolver vitrine ampla`
+            );
+          } else {
+            const familyAliases = getCatalogFamilyAliases(effectiveFamily);
+            if (familyAliases.length > 0) {
+              const aliasPatterns = familyAliases
+                .map(alias => FAMILY_NAME_PATTERNS[alias])
+                .filter((pat): pat is RegExp => pat instanceof RegExp);
+              const byFamily = enriched.filter(p => aliasPatterns.some(pat => pat.test(String(p.name || ""))));
+              if (byFamily.length > 0) {
+                filtered = byFamily;
+                console.log(
+                  `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+                  `aliases=${familyAliases.join("|")} filtered ${enriched.length}→${filtered.length} (changed=${familyChanged})`
+                );
+              } else {
+                console.log(
+                  `[ai-support-chat][search_products] [F2-V2] family_focus=${effectiveFamily} ` +
+                  `aliases=${familyAliases.join("|")} mas pool não tem item da família — mantém vitrine original (${enriched.length})`
+                );
+              }
             }
           }
         }
@@ -6481,6 +6498,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         // [Reg #2.8] Sinaliza ao search_products que aplique Catalog Probe
         // (1 representante por família) ao invés do filtro estrito.
         shouldBroadenForPain: turnClassification?.should_broaden_catalog_for_pain === true,
+        // [Frente C] Bucket do TPR — ativa modo agnóstico de vitrine quando catalog_question.
+        intentBucket: (turnClassification?.intent_bucket as string | null) ?? null,
         // [Onda 18 — Fase A] Probe v2 família-base + trace estruturado.
         arch18CatalogBaseForced,
         turnId: `${conversation_id}-${Date.now()}`,

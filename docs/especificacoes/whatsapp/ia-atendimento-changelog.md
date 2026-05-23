@@ -1593,3 +1593,33 @@ A Rodada 2 da bateria das 10 ondas (50 cenários) confirmou que muitas respostas
 - Os 4 branches anteriores (anti-loop de discovery, família ativa, produto em foco, carrinho ativo) preservados na ordem original.
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox em conversa real (Q10.1 "kkk", Q10.2 "vlw", Q10.4 "tem alguém aí?" + os 19 cenários ✅ da bateria fixa).
+
+---
+
+## Registro #33 — Base Universal: Endurecimento de regressões da Rodada 2 (Frente C) — 23/mai/2026
+
+**Tipo:** Endurecimento universal do classificador de turno + filtro de catálogo.
+**Escopo:** TPR (turn-pre-router fallback) e search_products no handler de IA.
+
+### Sintoma (Rodada 2 — recorrências)
+- Superlativos de preço ("mais em conta", "mais barato", "compensa", "vale a pena", "tem promoção?") não acionavam `asked_about_price`, e o Price Scrubber acabava removendo a resposta correta antes de ela chegar ao cliente.
+- Pergunta de catálogo agnóstica ("tem balm?", "vocês têm kit?", "o que vocês têm?") era contaminada pelo `family_focus` anterior — o cliente queria ver vitrine ampla e recebia só a família que estava em foco.
+- Em queda do TPR-LLM, o fallback determinístico não emitia `intent_bucket`, e o roteamento perdia a categoria do turno.
+
+### O que mudou
+1. **Detector de preço estendido.** A regex do TPR fallback agora cobre superlativos comerciais e formas alternativas: `promo/promoção`, `em conta`, `mais em conta`, `mais barato`, `vale a pena`, `compensa`, `tem desconto/cupom/promo`, `sai por quanto`. Isso evita que o Price Scrubber dispare em respostas legítimas a perguntas de preço.
+2. **Bucket determinístico no fallback.** O TPR fallback passou a emitir `intent_bucket` mesmo sem LLM: prioriza `social` (saudação curta isolada), depois `commercial_policy` (preço/frete), depois `catalog_question` (sondas "tem X?", "vocês têm", "quais X", "me mostra catálogo"), depois `open_discovery` (sintoma ou pedido de recomendação), depois `product_question` (intenção de compra direta). Mantém retro-compatibilidade — quando o LLM responde, o valor dele prevalece.
+3. **Vitrine agnóstica em catalog_question.** Quando o turno é `catalog_question` e o cliente NÃO mencionou família nova, o handler ignora o `family_focus` persistido da conversa e devolve a vitrine ampla (mantendo o ranqueamento por relevância). O filtro estrito por família continua valendo nos demais turnos. O `Catalog Probe` (Reg #2.8) e o `enforceFamilyBaseFirst` (Onda 18 Fase A) seguem ativos como antes.
+
+### Validação técnica executada
+- ✅ Type-check do TPR e do output-gates limpos (`deno check`).
+- ✅ Type-check do handler `ai-support-chat` não introduziu novos erros (erros pré-existentes no arquivo não tocam o caminho alterado).
+- ✅ Deploy do edge function `ai-support-chat` aplicado.
+- ⏳ Pendente: rodar a bateria fixa (19 cenários) + cenários novos de Frente C ("mais em conta", "tem balm?", "tem kit?", "vocês têm shampoo?") em sandbox real antes de avançar para Frente D.
+
+### Anti-regressão
+- Mudança aditiva: caminhos anteriores (Catalog Probe, enforceFamilyBaseFirst, family_focus estrito) preservados.
+- A vitrine agnóstica só é acionada com `intent_bucket === "catalog_question"` E sem `familyMentionedNow`. Qualquer família detectada no turno continua dirigindo o filtro.
+- Nenhuma tool, contrato ou estado da pipeline alterado.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox em conversa real.

@@ -378,10 +378,24 @@ export function fallbackClassification(
     : false;
   const hasSymptom = universalSymptomCue || tenantPainHit;
   const askedRec = /\b(recomenda|indica|sugere|melhor\s+pra\s+mim|resolve|melhor\s+caso|qual\s+(o\s+)?(produto|item|tratamento|melhor))/i.test(message || "");
-  const askedPrice = /\b(quanto|pre[çc]o|valor|desconto|cupom|barat)/i.test(message || "");
+  // [Frente C] Inclui superlativos comerciais e formas alternativas que sinalizam pergunta de preço/promoção.
+  const askedPrice = /\b(quanto|pre[çc]o|valor|desconto|cupom|barat|promo[çc]?[ãa]?o?|em\s+conta|vale\s+a\s+pena|compensa|mais\s+(barato|em\s+conta)|tem\s+(promo|desconto|cupom)|sai\s+por\s+quanto)/i.test(message || "");
   const askedImage = /\b(foto|imagem|figura|me mostra)/i.test(message || "");
   const askedShipping = /\b(frete|entrega|prazo|chega quando|chega em)/i.test(message || "");
   const buy = /\b(quero|vou levar|fecha|manda o link|pode adicionar|finaliza)/i.test(message || "");
+
+  // [Frente C] Detector determinístico de pergunta-de-catálogo agnóstica.
+  // Captura "tem X?", "vocês têm X", "quais X (vocês têm)", "que X tem", "me mostra".
+  const isCatalogProbe = /\b(tem\s+(algum|alguma|uns|umas)?\s*\w+\??|voc[êe]s?\s+t[êe]m|quais\s+\w+|que\s+\w+\s+(voc[êe]s?\s+)?t[êe]m|me\s+mostra(\s+o)?\s+(cat[áa]logo|produtos|op[çc][õo]es)|o\s+que\s+voc[êe]s?\s+t[êe]m)/i.test(message || "");
+  const isSocialNoise = (message || "").trim().length < 25 && /^(oi|ol[áa]|opa|eai|salve|hey|hi|al[ôo]|bom dia|boa tarde|boa noite)\b/i.test((message || "").trim());
+  const intentBucket: string | null =
+    isSocialNoise && !hasSymptom && !askedRec && !askedPrice && !buy ? "social" :
+    askedPrice || askedShipping ? "commercial_policy" :
+    isCatalogProbe ? "catalog_question" :
+    askedRec ? "open_discovery" :
+    hasSymptom ? "open_discovery" :
+    buy ? "product_question" :
+    null;
 
   return {
     ...emptyClassification("fallback"),
@@ -398,5 +412,6 @@ export function fallbackClassification(
     should_broaden_catalog_for_pain: hasSymptom,
     confirmed_purchase_intent: buy,
     asked_about_payment_or_link: /\b(link|pagar|pagamento|pix|boleto|cart[ãa]o)\b/i.test(message || ""),
+    intent_bucket: intentBucket,
   };
 }
