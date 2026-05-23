@@ -287,6 +287,57 @@ Cada onda roda separada (rate limit). Para cada conversa: cenário, mensagem do 
 
 ---
 
+### Onda 2 — Rodada 2 — Pós-Frentes 1–4 (2026-05-23)
+
+**Build:** mesma da Rodada 2 da Onda 1 (Frentes 1–4 ativas).
+**Execução:** via `ai-test-sandbox` Agent Mode no tenant Respeite o Homem, conversas isoladas (cada uma com `conversation_id` própria, apagada ao final). Modelo `gpt-5`, `sales_mode=true`.
+
+#### R2 — C1 — "tô careca"
+- **IA:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Avaliação:** ❌ **Q2.1 PERSISTE.** Dor explícita de calvície continua caindo no fallback genérico de discovery. As Frentes 1–4 não tocaram no detector de "dor → pergunta de qualificação", apenas removeram o vocabulário hardcoded. Agora a IA não tem nem o atalho antigo nem o motor universal.
+
+#### R2 — C2 — "minha pele coça muito"
+- **IA:** "Me conta um pouco mais do que você quer resolver, que eu já te indico o certo."
+- **Avaliação:** ❌ **REGRESSÃO.** Na Rodada 1 esta era a única conversa que funcionava — IA perguntava "couro cabeludo ou corpo?". Agora caiu no mesmo fallback genérico das outras. Causa provável: a Frente 1 removeu o regex de `pele/couro/cabelo` em `consultative-turn.ts` que sustentava a pergunta de qualificação, e nada universal foi colocado no lugar ainda.
+
+#### R2 — C3 — "preciso de algo pra dormir melhor"
+- **IA:** "Deixa eu confirmar isso direito pra te responder com certeza. Pode me dizer de novo o nome ou a categoria do produto que você procura?"
+- **Avaliação:** ❌ **Q2.2 PERSISTE + piorou cosmeticamente.** Continua sem reconhecer fora-de-escopo. Na Rodada 1 caía em "Me conta..."; agora caiu na muleta "Deixa eu confirmar...". Mesma raiz da Q3.D — falta detector "pertence ao catálogo? sim/não".
+
+#### R2 — C4 — "tô precisando de uma ajuda"
+- **IA:** "Claro! Me conta rapidinho: é pra tratar queda/calvície, acelerar o crescimento, caspa/oleosidade ou cuidados com a barba? Se já tiver um produto em mente, me diz qual que eu te indico certinho."
+- **Avaliação:** ⚠️ **Q2.3 atenuada parcialmente.** Continua o viés de nicho (cabelo/barba), mas agora abre 4 opções em vez de assumir uma só. Ainda falta incluir as outras famílias do tenant (pele/perfumaria) ou perguntar de forma neutra.
+
+#### R2 — C5 — "tem algo pra dor de cabeça?"
+- **IA:** "Deixa eu confirmar isso direito pra te responder com certeza. Pode me dizer de novo o nome ou a categoria do produto que você procura?"
+- **Avaliação:** ❌ **Q2.2 PERSISTE.** Mesma falha da C3.
+
+---
+
+#### Resumo Rodada 2 — Onda 2
+
+**Comparativo direto com Rodada 1:**
+
+| Quebra | Rodada 1 | Rodada 2 | Status |
+|---|---|---|---|
+| Q2.1 — Dor explícita virou fallback genérico ("tô careca") | ❌ | ❌ | **Persiste** |
+| Q2.2 — Fora-de-escopo não reconhecido ("dormir", "dor de cabeça") | ❌ | ❌ | **Persiste** (e agora cai na muleta "Deixa eu confirmar") |
+| Q2.3 — Viés de nicho em pedido vago | ❌ assumiu queda direto | ⚠️ abre 4 opções (ainda enviesado) | **Atenuada parcialmente** |
+| C2 — "pele coça" qualificava corretamente | ✅ | ❌ | **REGRESSÃO** (perdeu o atalho cosmético sem ganhar motor universal) |
+
+**Leitura:**
+- A Frente 1 removeu vocabulário hardcoded mas o motor universal de "dor → família" e o detector de "fora-de-escopo" ainda não existem. O resultado é que a IA perdeu até os atalhos antigos sem ganhar substituto.
+- A muleta "Deixa eu confirmar isso direito" (Q3.D) virou o fallback dominante quando a IA não sabe o que fazer — Frente 4 (anti-repetição) ainda não cobre essa frase específica.
+- Bucket-state-router (Frente 3) não tem rota para "dor sem produto" nem para "fora-de-escopo"; cai no bucket genérico de discovery.
+
+**Próximas rodadas de ajuste sugeridas (Fase 2):**
+1. **Catálogo-pertence-gate:** antes de qualquer fallback, checar se o tema do turno bate com famílias/categorias do tenant. Se não bate → resposta honesta "não trabalhamos com X, posso te ajudar com Y/Z".
+2. **Motor universal "dor → qualificação":** quando TPR detecta dor (sintoma/objetivo) sem produto, pipeline deve emitir 1 pergunta de afunilamento baseada nas famílias do catálogo do tenant (sem regex hardcoded).
+3. **Estender anti-muleta da Frente 4:** incluir "Deixa eu confirmar isso direito" como frase proibida em segundo turno consecutivo de discovery.
+4. **Discovery aberto sem viés:** quando pedido é vago ("preciso de ajuda"), apresentar todas as famílias do tenant na mesma ordem do catálogo, não a família dominante.
+
+---
+
 ## Onda 3 — Pergunta direta por categoria
 
 Executada via `ai-test-sandbox` Agent Mode, conversas isoladas (cada cenário sem histórico).
