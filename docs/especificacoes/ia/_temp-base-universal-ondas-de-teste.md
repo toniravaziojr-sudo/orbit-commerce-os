@@ -428,8 +428,43 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 
 ---
 
+## Onda 9 — Pós-venda e atendimento de cliente existente
+
+Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
+
+### Q9.1 — "cadê meu pedido?"
+**Resposta:** "Poxa, chato ficar sem atualização. Confiro já pra você. Me passa seu nome completo e o número do pedido (se tiver). Se não tiver, pode ser o CPF ou o e-mail usado na compra. E me diz rapidinho o que rolou: atraso na entrega ou rastreio parado?"
+**Avaliação:** ✅ Excelente. Empatia (poxa, chato), ação imediata (confiro já), pediu os dados certos com fallback (nome+pedido OU CPF/e-mail), qualificou o problema (atraso vs rastreio parado). Comportamento de SAC maduro.
+
+### Q9.2 — "quero trocar o produto"
+**Resposta:** "Poxa, chato isso. Vamos resolver sua troca. Me passa por favor seu nome completo, o número do pedido (se tiver) e me conta rapidinho o que aconteceu com o produto. Com isso eu já chamo alguém da equipe pra acompanhar com você."
+**Avaliação:** ✅ Bom. Empatia, ação, dados pedidos. Único ponto: já avisa que vai escalar pra equipe — comportamento honesto, não promete o que não pode entregar.
+
+### Q9.3 — "minha compra não chegou"
+**Resposta:** "Poxa, chato isso. Vou olhar pra você. Me passa seu nome completo e o número do pedido (se tiver). Se não tiver o número, pode me mandar o e-mail ou CPF usados na compra."
+**Avaliação:** ✅ Bom. Mesmo padrão do Q9.1, consistente.
+
+### Q9.4 — "vocês têm cupom de desconto?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha. Pergunta sobre política comercial (cupom ativo, primeira compra, frete grátis). Mesma muleta da Onda 4.B. Já registrado.
+
+### Q9.5 — "como rastreio?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha grave. Pergunta operacional clara — cliente quer saber **como** rastrear (link, código, site dos correios). A IA tem ferramenta de pedido (provou em Q9.1/Q9.3) mas não conectou. Devolveu muleta. Pior: em Q9.1 ("cadê meu pedido?") ela pediu dados; aqui (mesma intenção, redação diferente) caiu na muleta. Inconsistência.
+
+### Resumo da Onda 9
+
+**Funciona bem:**
+- "Cadê meu pedido?", "quero trocar", "não chegou" → ✅ comportamento de SAC maduro: empatia, ação, dados com fallback, qualificação. 3 de 3 nessa classe.
+
+**Quebras observadas:**
+- **Q9.A — Pergunta sobre cupom de desconto cai na muleta:** Confirmação da Onda 4.B. Não há resposta para política de cupom/desconto na base universal.
+- **Q9.B — "Como rastreio?" não conecta com fluxo de pedido (Q9.5):** A IA tem ferramenta de pedido — provou em Q9.1 e Q9.3. Mas a redação "como rastreio?" não dispara o mesmo fluxo. Classificador de intenção depende muito da redação literal: "cadê meu pedido" ✅ vs "como rastreio?" ❌. Inconsistência grave de roteamento.
+
+---
+
 ## Próximo passo
 
-Aguardando "ok" para rodar **Onda 9 — Pós-venda e atendimento de cliente existente** (5 cenários: "cadê meu pedido?", "quero trocar o produto", "minha compra não chegou", "vocês têm cupom de desconto?", "como rastreio?").
+Aguardando "ok" para rodar **Onda 10 — Mensagens fora do escopo e ruído** (5 cenários: "kkk", "vlw", "boa noite!", "tem alguém aí?", "preciso falar com humano").
 
 Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
