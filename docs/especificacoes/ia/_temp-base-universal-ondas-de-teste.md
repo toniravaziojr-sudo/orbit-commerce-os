@@ -159,8 +159,55 @@ Cada onda roda separada (rate limit). Para cada conversa: cenário, mensagem do 
 
 ---
 
+## Onda 2 — Dor sem citar produto
+
+**Execução:** rodada via `ai-test-sandbox` Agent Mode, conversas isoladas (sem histórico cruzado).
+
+### Onda 2 — Conversa 1 — "tô careca"
+- **Cliente:** "tô careca"
+- **IA:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Esperado:** Reconhecer a dor (calvície/queda) e fazer 1 pergunta direcionada (ex.: "é queda recente ou já consolidada? quer tratar ou disfarçar?").
+- **Errado / hipótese:** **Q2.1 — Dor explícita ignorada.** IA caiu no fallback genérico de discovery em vez de engajar com a pista clara. Suspeita: classificador rotulou intent=`general` e topic=`appearance` sem mapear "careca" para família/dor de queda capilar; pipeline não tem reflexo de "dor → pergunta de qualificação".
+
+### Onda 2 — Conversa 2 — "minha pele coça muito"
+- **Cliente:** "minha pele coça muito"
+- **IA:** "Entendi. Essa coceira é no couro cabeludo ou no corpo?"
+- **Certo:** Reconheceu a dor, validou ("entendi"), fez pergunta de qualificação útil para afunilar família (couro cabeludo → shampoo/loção; corpo → sabonete/hidratante). Comportamento correto da base universal.
+
+### Onda 2 — Conversa 3 — "preciso de algo pra dormir melhor"
+- **Cliente:** "preciso de algo pra dormir melhor"
+- **IA:** "Me conta um pouco do que você precisa que eu já te indico."
+- **Esperado:** Já que a loja é de cosméticos masculinos, a base universal deveria reconhecer "fora do escopo" e responder com clareza honesta (ex.: "não trabalhamos com produtos pra sono; posso te ajudar com cuidados pra cabelo, barba, pele ou perfumaria") em vez de pedir que repita.
+- **Errado / hipótese:** **Q2.2 — Fora-de-escopo não reconhecido.** Pipeline não checa se o tema bate com o catálogo do tenant antes de responder; cai em fallback genérico que confunde o cliente. Classificador inclusive marcou `purchase_intent` para um produto que a loja não vende.
+
+### Onda 2 — Conversa 4 — "tô precisando de uma ajuda"
+- **Cliente:** "tô precisando de uma ajuda"
+- **IA:** "Oi! Claro. Me conta rapidinho: seu foco é tratar queda/calvície agora ou quer algo pra prevenção?"
+- **Esperado:** Pergunta aberta e neutra ("o que você procura? cabelo, barba, pele, perfume?") — sem assumir nicho.
+- **Errado / hipótese:** **Q2.3 — Viés de nicho.** Frente a pedido vago, IA assumiu queda/calvície sem o cliente ter mencionado cabelo. Suspeita: o tenant tem forte concentração de produtos de cabelo no catálogo e isso vazou como prior do modelo. Em base universal, pedido vago deve abrir leque das famílias, não escolher uma.
+
+### Onda 2 — Conversa 5 — "tem algo pra dor de cabeça?"
+- **Cliente:** "tem algo pra dor de cabeça?"
+- **IA:** "Deixa eu confirmar isso direito pra te responder com certeza. Pode me dizer de novo o nome ou a categoria do produto que você procura?"
+- **Esperado:** Mesma lógica do C3 — declarar fora-de-escopo de forma honesta.
+- **Errado / hipótese:** Mesma raiz de **Q2.2**. IA tentou "confirmar nome do produto" em vez de reconhecer que a loja não vende remédio. Pelo menos não inventou produto, mas a UX é ruim.
+
+---
+
+### Resumo da Onda 2
+
+**Funciona:**
+- Dor com pista de família clara (coceira na pele) → IA engaja, valida e qualifica corretamente (C2).
+
+**Quebras observadas:**
+- **Q2.1 — Dor explícita virou fallback genérico:** "tô careca" deveria disparar pergunta de qualificação de queda/calvície; caiu em "me conta o que precisa".
+- **Q2.2 — Fora-de-escopo não reconhecido:** "dormir melhor" e "dor de cabeça" não são tratados como fora do catálogo. IA não declara honestamente "não trabalhamos com isso" e oferece o que vende.
+- **Q2.3 — Viés de nicho em pedido vago:** "tô precisando de ajuda" abriu direto em queda/calvície. Em base universal, deveria perguntar família (cabelo/barba/pele/perfume) sem chutar.
+
+---
+
 ## Próximo passo
 
-Aguardando "ok" para rodar **Onda 2 — Dor sem citar produto** (5 cenários).
+Aguardando "ok" para rodar **Onda 3 — Pergunta direta por categoria** (5 cenários: "tem shampoo?", "vocês vendem perfume?", "tem produto pra barba?", "tem hidratante?", "vocês têm desodorante?").
 
 Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
