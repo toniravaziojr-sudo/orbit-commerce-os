@@ -206,8 +206,45 @@ Cada onda roda separada (rate limit). Para cada conversa: cenário, mensagem do 
 
 ---
 
+## Onda 3 — Pergunta direta por categoria
+
+Executada via `ai-test-sandbox` Agent Mode, conversas isoladas (cada cenário sem histórico).
+
+### Q3.1 — "tem shampoo?"
+**Resposta:** "Temos sim. Shampoo Preventive Power — uso diário pra prevenção e controle de oleosidade. Shampoo Calvície Zero — focado em queda/calvície, estimula o couro cabeludo e fortalece a raiz. Qual faz mais sentido pra você ou quer detalhe de algum?"
+**Avaliação:** ✅ Excelente. Confirma disponibilidade, lista as 2 opções com diferenciação clara, devolve a bola.
+
+### Q3.2 — "vocês vendem perfume?"
+**Resposta:** "Deixa eu confirmar isso direito pra te responder com certeza. Pode me dizer de novo o nome ou a categoria do produto que você procura?"
+**Avaliação:** ❌ Falha grave. Perfume é fora do catálogo — deveria responder honestamente "não trabalhamos com perfume" e ofertar o que vende. Em vez disso, cai em fallback genérico. Pior: numa execução anterior o mesmo prompt foi tratado corretamente ("No momento não. A gente não trabalha com perfume...") — comportamento inconsistente.
+
+### Q3.3 — "tem produto pra barba?"
+**Resposta:** "Posso te dar mais detalhes desse produto se você me confirmar o nome exato ou a categoria? Nossa linha é focada em calvície e crescimento do cabelo. Se te ajudar, posso te mostrar as opções pra prevenção e queda no couro cabeludo. Quer dar uma olhada?"
+**Avaliação:** ❌ Falha. "Barba" está no `FAMILY_TOKENS` mas a IA não reconhece como categoria do catálogo. Trata como "produto desconhecido" e empurra cabelo/calvície. Catálogo do tenant tem produtos de barba — IA deixa de vender por viés de família dominante.
+
+### Q3.4 — "tem hidratante?"
+**Resposta:** "Temos sim. Nossa loção pra hidratar é a Loção pós-banho Calvície Zero (Noite) — leve, absorção rápida, hidrata o couro cabeludo enquanto ajuda no controle da queda. Quer que eu te mande os detalhes dela (modo de uso e composição)?"
+**Avaliação:** ⚠️ Parcial. Numa execução anterior perguntou primeiro "pele/rosto ou couro cabeludo?" (correto, hidratante é ambíguo). Nesta, assumiu couro cabeludo direto. Inconsistente.
+
+### Q3.5 — "vocês têm desodorante?"
+**Resposta:** "Deixa eu confirmar isso direito pra te responder com certeza. Pode me dizer de novo o nome ou a categoria do produto que você procura?"
+**Avaliação:** ❌ Falha grave. Mesmo padrão do perfume: fora-de-escopo cai em fallback genérico em vez de declarar "não trabalhamos com desodorante" e oferecer o que vende.
+
+### Resumo da Onda 3
+
+**Funciona bem:**
+- Categoria forte e presente no catálogo (shampoo) → resposta ideal: confirma, diferencia opções, devolve a bola.
+
+**Quebras observadas:**
+- **Q3.A — Fora-de-escopo cai em fallback genérico (perfume, desodorante):** A IA não reconhece que a categoria não existe no catálogo. Em vez de responder honestamente, pede o cliente repetir. É a mesma falha da Onda 2 (dor fora-de-escopo) — base universal precisa de detector "pertence ao catálogo? sim/não" antes do pipeline de venda.
+- **Q3.B — Categoria existente tratada como desconhecida (barba):** Com produtos de barba no catálogo, IA empurra calvície. Indica viés de família dominante no `catalog-probe` ou no ranking, desconsiderando famílias secundárias do mesmo tenant.
+- **Q3.C — Inconsistência entre execuções idênticas (perfume, hidratante):** Mesmo prompt em conversa isolada produz respostas qualitativamente diferentes. Sugere estado vazando entre conversas (working memory / family_focus) ou variação alta demais do modelo para decisões críticas de catálogo.
+- **Q3.D — "Deixa eu confirmar isso direito" virou muleta:** É o fallback padrão quando a IA não decide família/produto. Aparece em Q3.2, Q3.3, Q3.5 e na Onda 2. Em base universal precisa ser substituído por resposta honesta de catálogo ("não tenho isso, mas tenho X, Y, Z; o que te interessa?").
+
+---
+
 ## Próximo passo
 
-Aguardando "ok" para rodar **Onda 3 — Pergunta direta por categoria** (5 cenários: "tem shampoo?", "vocês vendem perfume?", "tem produto pra barba?", "tem hidratante?", "vocês têm desodorante?").
+Aguardando "ok" para rodar **Onda 4 — Pergunta de preço sem produto definido** (5 cenários: "quanto custa?", "qual o preço?", "tem desconto?", "qual o mais barato?", "qual o kit mais completo?").
 
 Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
