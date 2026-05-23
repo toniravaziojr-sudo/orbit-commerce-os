@@ -1623,3 +1623,36 @@ A Rodada 2 da bateria das 10 ondas (50 cenários) confirmou que muitas respostas
 - Nenhuma tool, contrato ou estado da pipeline alterado.
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox em conversa real.
+
+---
+
+## Registro #34 — Base Universal: Ficha institucional do tenant (Frente D) — 23/mai/2026
+
+**Tipo:** Nova camada de contexto determinístico no prompt da IA de vendas.
+**Escopo:** novo módulo `institutional-sheet` + injeção condicional no handler `ai-support-chat`.
+
+### Sintoma (Rodada 2)
+- Quando o cliente perguntava cobertura de entrega, prazo, horário de atendimento, política de cupom, garantia, troca/devolução ou prova social, a IA respondia genericamente ou improvisava — sem fonte de verdade.
+- Em objeção comercial, a IA tentava ancorar valor sem dados firmes (prazo, garantia, casos), o que enfraquecia a resposta.
+
+### O que mudou
+1. **Ficha institucional por tenant** (jsonb em `ai_support_config.metadata.institutional_sheet`). Campos opcionais e livres: cobertura/prazos, horário, formas de pagamento, cupons, garantia/troca/devolução, prova social, loja física, atendimento humano e observações. Ausência de campo = nenhum dado.
+2. **Injeção condicional no prompt.** Quando o turno é classificado como `institutional`, `commercial_policy` ou `objection`, o handler injeta um bloco contextual com a ficha. Em qualquer outro bucket, o bloco NÃO aparece (não polui prompt de vendas/descoberta).
+3. **Regras duras embutidas no bloco** (sempre presentes, mesmo com ficha vazia):
+   - Use APENAS o que está listado. Se não está, NÃO invente — diga que vai checar com humano e ofereça encaminhar.
+   - Em objeção, ancore valor combinando o produto discutido com a ficha (garantia, prazo, prova social) — sem prometer condições não listadas.
+   - Não cite preço/desconto/frete específicos que não estejam na ficha.
+4. **Observabilidade.** Log emite bucket alvo, campos presentes e campos faltantes para auditoria.
+
+### Validação técnica executada
+- ✅ Type-check do novo módulo limpo.
+- ✅ Deploy do `ai-support-chat` concluído.
+- ⏳ Pendente: rodar bateria fixa + cenários novos da Frente D ("vocês entregam em [cidade]?", "qual horário?", "tem cupom?", "como funciona a garantia?", e cenário de objeção "tô achando caro") em sandbox real.
+- ⏳ Pendente (próximo ciclo): tela administrativa para preencher a ficha. Por ora, preenchimento via dado direto na configuração.
+
+### Anti-regressão
+- Mudança aditiva. Bucket fora do conjunto elegível → bloco não emitido.
+- Sem migração: aproveita coluna `metadata` existente.
+- Falha do módulo é capturada em `try/catch` — nunca derruba o turno.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox no próximo ciclo.

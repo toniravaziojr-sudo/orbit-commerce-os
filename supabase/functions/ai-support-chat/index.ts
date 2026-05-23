@@ -5829,6 +5829,39 @@ Cliente: "vocês entregam em SP?"
         );
       }
 
+      // ============================================================
+      // [Frente D] Ficha institucional do tenant
+      // Injeta bloco apenas em buckets institutional / commercial_policy / objection.
+      // Defaults conservadores: sem dado, IA NÃO inventa e oferece humano.
+      // ============================================================
+      try {
+        const { buildInstitutionalBlock, extractInstitutionalSheetFromConfigMetadata } = await import(
+          "../_shared/sales-pipeline/institutional-sheet.ts"
+        );
+        const sheet = extractInstitutionalSheetFromConfigMetadata(
+          (effectiveConfig as any)?.metadata,
+        );
+        const inst = buildInstitutionalBlock({
+          intentBucket: (intentScope?.bucket as string | null | undefined) ?? null,
+          sheet,
+        });
+        if (inst.promptBlock) {
+          contextualBlocks.push(inst.promptBlock);
+          console.log(
+            `[ai-support-chat] [Frente D] institutional_block injected ` +
+            `bucket=${intentScope?.bucket ?? "none"} ` +
+            `present=${inst.fieldsPresent.join("|") || "none"} ` +
+            `missing=${inst.fieldsMissing.join("|") || "none"} ` +
+            `reason=${inst.reason}`
+          );
+        }
+      } catch (e) {
+        console.warn(
+          "[ai-support-chat] [Frente D] institutional sheet failed:",
+          (e as Error).message
+        );
+      }
+
       const routed = buildPromptForState({
         state: bucketFinalState,
         allTools: SALES_TOOLS,
