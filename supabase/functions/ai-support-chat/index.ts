@@ -6302,6 +6302,8 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         arch1cRecommendationContextBuilderMode: arch1cMode,
         // [Onda 3 — Reg #2.18] Flag para resolver universal pain→categoria.
         arch218UniversalPainResolverEnabled,
+        // [Onda 3.3 — Reg #2.18] Flag para catalog-probe universal.
+        arch218UniversalCatalogProbeEnabled,
       };
 
       let response: Response | null = null;
