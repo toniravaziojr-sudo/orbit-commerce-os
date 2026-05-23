@@ -892,6 +892,23 @@ async function executeSalesTool(
         // bloco "else" abaixo. Caminho universal entra atrás da flag
         // `arch218UniversalPainResolverEnabled`.
 
+        // [Onda 3.3 — Reg #2.18] Aquecimento do cache do vocabulário do tenant
+        // quando o catalog-probe universal está ligado. Garante que os
+        // detectores síncronos (detectFamilyInTextUniversal /
+        // classifyProductFamilyUniversal) consigam ler o cache via peek.
+        if (ctx.arch218UniversalCatalogProbeEnabled === true) {
+          try {
+            const { peekTenantVocabularyFromCache, loadTenantVocabulary } =
+              await import("../_shared/sales-pipeline/tenant-vocabulary-resolver.ts");
+            if (!peekTenantVocabularyFromCache(tenantId)) {
+              await loadTenantVocabulary(tenantId, supabase as any).catch(() => null);
+            }
+          } catch (e) {
+            console.warn(`[ai-support-chat][onda3.3] warm vocabulary failed:`, (e as Error).message);
+          }
+        }
+
+
 
         const painSource = `${painHintRaw} ${query} ${lastUserMessageContentForTools}`;
         const matchedCategoryPatterns: string[] = [];
