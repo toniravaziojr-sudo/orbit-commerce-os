@@ -212,8 +212,8 @@ Inventário completo do que ainda precisa ser universalizado nas próximas ondas
 | 1 (entregue) | Resolver de vocabulário | — |
 | 2 (parcial) | Detector de família universal + aliases (ainda como aditivo) | `arch218_universal_onda2` |
 | 3 (entregue) | Resolver de dor → categorias + descrição neutra de `search_products` | `arch218_universal_pain_resolver` |
-| 3.3 (próxima) | `catalog-probe.ts` (Hotspot D) | `arch218_universal_catalog_probe` |
-| 4 | TPR + `consultative-turn` + `turn-completeness` (Hotspots E, F, G) | `arch218_universal_tpr` |
+| 3.3 (entregue) | `catalog-probe.ts` (Hotspot D) | `arch218_universal_catalog_probe` |
+| 4 (próxima) | TPR + `consultative-turn` + `turn-completeness` (Hotspots E, F, G) | `arch218_universal_tpr` |
 | 5 | Prompts dos estados (Hotspots A, B, C) | `arch218_universal_state_prompts` |
 | 6 | Outros agentes IA (Hotspot I) | `arch218_universal_other_agents` |
 | 7 | Bateria multi-segmento + linter anti-regressão | gate de promoção |
@@ -225,6 +225,7 @@ Inventário completo do que ainda precisa ser universalizado nas próximas ondas
 - Fluxo afetado: IA de Atendimento (modo vendas e informativo) + agentes auxiliares
 - Fonte de verdade: Configurações da IA + Catálogo do tenant
 - UI impactada: nenhuma
-- Situação: Ondas 1, 2 (parte aditiva), 3 (resolver de dor) e 3.2 (descrição neutra da tool de busca) entregues. Auditoria completa dos hotspots restantes documentada acima. Próxima sub-janela: Onda 3.3 (`catalog-probe.ts`) ou pular direto para Onda 4 (TPR), conforme prioridade do usuário.
+- Situação: Ondas 1, 2 (parte aditiva), 3 (resolver de dor), 3.2 (descrição neutra) e 3.3 (catalog-probe universal) entregues. Próxima sub-janela: Onda 4 — TPR + `consultative-turn` + `turn-completeness`.
+
 
 
