@@ -849,6 +849,10 @@ async function executeSalesTool(
     // texto do cliente + dicionário do tenant (universal). Quando false,
     // mantém o léxico legado (cosmético/cabelo).
     arch218UniversalPainResolverEnabled?: boolean;
+    // [Onda 3.3 — Reg #2.18] Quando true, usa detectFamilyInTextUniversal
+    // e classifyProductFamilyUniversal (segment-agnostic, dirigidos pelo
+    // vocabulário do tenant). Quando false, mantém regex legado.
+    arch218UniversalCatalogProbeEnabled?: boolean;
   }
 ): Promise<string> {
   const { supabase, tenantId, conversationId, customerId, storeUrl, customerPhone, customerEmail, customerName } = ctx;
