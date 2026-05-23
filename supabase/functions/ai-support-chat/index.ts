@@ -5699,8 +5699,69 @@ Cliente: "vocês entregam em SP?"
         );
       }
 
+      // [Frente 3] Bucket → State Router (institucional / pós-venda /
+      // objeção / hesitação / humano / fora de escopo). Aditivo: se o
+      // reflexo já forçou state, NÃO sobrescrevemos — só anexamos bloco
+      // de prompt complementar quando aplicável.
+      let bucketFinalState: PipelineState = reflexFinalState;
+      try {
+        const reflexOverrode = reflexFinalState !== pipelineState;
+        const { routeBucketToState } = await import(
+          "../_shared/sales-pipeline/bucket-state-router.ts"
+        );
+
+        // Carrega brand context do tenant (leve, tolerante a miss).
+        let brandRow: { banned_claims: string[] | null; do_not_do: string[] | null } | null = null;
+        try {
+          const { data } = await supabase
+            .from("tenant_brand_context")
+            .select("banned_claims, do_not_do")
+            .eq("tenant_id", tenant_id)
+            .maybeSingle();
+          brandRow = (data as any) || null;
+        } catch (_e) {
+          brandRow = null;
+        }
+
+        const bucketResult = routeBucketToState({
+          bucket: (intentScope.bucket as any),
+          currentState: reflexFinalState,
+          reflexAlreadyOverrodeState: reflexOverrode,
+          kb: {
+            businessContext: (effectiveConfig as any)?.business_context ?? null,
+            attendanceRules: (effectiveConfig as any)?.attendance_rules ?? null,
+            bannedClaims: brandRow?.banned_claims ?? null,
+            doNotDo: brandRow?.do_not_do ?? null,
+            handoffKeywords: (effectiveConfig as any)?.handoff_keywords ?? null,
+          },
+        });
+
+        if (bucketResult.promptBlock) {
+          contextualBlocks.push(bucketResult.promptBlock);
+        }
+        if (bucketResult.stateOverride && bucketResult.stateOverride !== reflexFinalState) {
+          console.log(
+            `[ai-support-chat] [Frente 3] bucket=${bucketResult.appliedTo} ` +
+            `state_override ${reflexFinalState} → ${bucketResult.stateOverride} ` +
+            `reason=${bucketResult.reason}`
+          );
+          bucketFinalState = bucketResult.stateOverride;
+        } else {
+          console.log(
+            `[ai-support-chat] [Frente 3] bucket=${bucketResult.appliedTo} ` +
+            `state_kept=${reflexFinalState} reason=${bucketResult.reason}` +
+            (bucketResult.promptBlock ? " block=yes" : " block=no")
+          );
+        }
+      } catch (e) {
+        console.warn(
+          "[ai-support-chat] [Frente 3] bucket router failed:",
+          (e as Error).message
+        );
+      }
+
       const routed = buildPromptForState({
-        state: reflexFinalState,
+        state: bucketFinalState,
         allTools: SALES_TOOLS,
         tenant: {
           // [B.1] systemPromptComplement e channelCustomInstructions via policy.
