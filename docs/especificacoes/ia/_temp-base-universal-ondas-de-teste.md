@@ -391,8 +391,45 @@ Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
 
 ---
 
+## Onda 8 — Informação institucional e operacional
+
+Executada via `ai-test-sandbox` Agent Mode, conversas isoladas.
+
+### Q8.1 — "vocês entregam pra Manaus?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha. Pergunta factual de cobertura/frete. A IA tem acesso a CEP, frete, prazo — deveria ter respondido "Entregamos pra Manaus sim. Pra te passar prazo e frete exatos, me manda o CEP." Devolveu muleta.
+
+### Q8.2 — "qual o prazo de entrega?"
+**Resposta:** "Me conta um pouco do que você precisa que eu já te indico."
+**Avaliação:** ❌ Falha. Mesma classe de Q8.1 — informação de prazo depende de CEP, mas a resposta certa é pedir o CEP, não devolver muleta de qualificação de produto.
+
+### Q8.3 — "como funciona o pagamento?"
+**Resposta:** "Funciona por link de pagamento: eu te envio, você escolhe a forma no checkout e a confirmação sai na hora. Me confirma qual produto você quer fechar que eu já gero o link aqui."
+**Avaliação:** ✅ Bom. Explicou o fluxo, fechou com call-to-action. Comportamento de vendedor. Único problema menor: não listou as formas aceitas (pix, cartão, parcelamento), o que é informação útil em pré-venda.
+
+### Q8.4 — "vocês têm loja física?"
+**Resposta:** "Deixa eu confirmar isso direito pra te responder com certeza. Pode me dizer de novo o nome ou a categoria do produto que você procura?"
+**Avaliação:** ❌ Falha confusa. Reconheceu que não sabe (ponto positivo: humildade), mas em vez de informar "somos 100% online" ou consultar a base, mudou de assunto pedindo nome de produto. Resposta desconexa — pergunta sobre loja física não tem nada a ver com produto.
+
+### Q8.5 — "qual o horário de atendimento?"
+**Resposta:** "Aqui no WhatsApp você pode mandar mensagem a qualquer hora; a equipe responde no expediente. Se preferir, também atendemos no e-mail atendimento@respeiteohomem.com.br e no telefone 1151945215. Quer seguir por aqui mesmo?"
+**Avaliação:** ✅ Excelente. Resposta completa: WhatsApp 24h, expediente, e-mail e telefone. Fecha perguntando se quer seguir ali. Único ponto: "expediente" é vago (deveria dizer "seg-sex 9h-18h" se a base tiver).
+
+### Resumo da Onda 8
+
+**Funciona bem:**
+- Pergunta sobre forma de pagamento (Q8.3) → resposta clara com call-to-action.
+- Pergunta sobre canais de atendimento (Q8.5) → resposta completa com WhatsApp/e-mail/telefone.
+
+**Quebras observadas:**
+- **Q8.A — Cobertura e prazo de entrega caem na muleta:** "Entregam pra X?" e "qual o prazo?" são perguntas factuais sobre frete que a IA tem ferramenta para responder (precisa de CEP). Em vez de pedir o CEP, devolveu a muleta universal. Mesma classe de falha das Ondas 4-7.
+- **Q8.B — Pergunta sobre loja física vira não-resposta confusa (Q8.4):** Em vez de afirmar "somos 100% online" ou consultar a base, a IA mudou de assunto pedindo nome de produto. Resposta desconexa que parece bug de roteamento.
+- **Q8.C — Inconsistência entre informações institucionais:** Pagamento (Q8.3) e atendimento (Q8.5) têm respostas excelentes; entrega (Q8.1, Q8.2) e loja física (Q8.4) falham. A IA tem **fragmentos** da base institucional, não uma base coesa.
+
+---
+
 ## Próximo passo
 
-Aguardando "ok" para rodar **Onda 8 — Informação institucional e operacional** (5 cenários: "vocês entregam pra [cidade]?", "qual o prazo de entrega?", "como funciona o pagamento?", "vocês têm loja física?", "qual o horário de atendimento?").
+Aguardando "ok" para rodar **Onda 9 — Pós-venda e atendimento de cliente existente** (5 cenários: "cadê meu pedido?", "quero trocar o produto", "minha compra não chegou", "vocês têm cupom de desconto?", "como rastreio?").
 
 Quando todas as ondas estiverem documentadas: **Fase 4 — análise consolidada** (agrupar por causa raiz, propor plano de ajuste único, incorporar ao changelog formal e descartar este documento).
