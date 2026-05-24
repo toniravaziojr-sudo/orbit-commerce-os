@@ -159,24 +159,24 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
                   key={product.id}
                   value={product.id}
                   onSelect={() => handleSelect(product)}
-                  className="flex flex-col items-start py-3"
+                  className="flex flex-col items-start py-3 data-[selected=true]:bg-muted data-[selected=true]:text-foreground"
                 >
                   <div className="flex w-full items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{product.name}</span>
+                      <span className="font-medium text-foreground">{product.name}</span>
                       {product.sku && (
                         <Badge variant="secondary" className="text-xs">
                           {product.sku}
                         </Badge>
                       )}
                     </div>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm font-medium text-foreground">
                       {formatCurrency(product.price)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {product.ncm ? (
-                      <Badge variant="outline" className="text-xs font-mono">
+                      <Badge variant="outline" className="text-xs font-mono bg-background">
                         NCM: {product.ncm}
                       </Badge>
                     ) : (
@@ -185,7 +185,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
                       </Badge>
                     )}
                     {product.cfop && (
-                      <Badge variant="outline" className="text-xs font-mono">
+                      <Badge variant="outline" className="text-xs font-mono bg-background">
                         CFOP: {product.cfop}
                       </Badge>
                     )}
