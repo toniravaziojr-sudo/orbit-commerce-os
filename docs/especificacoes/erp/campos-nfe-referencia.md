@@ -54,7 +54,7 @@
 |-----------|-----------------|-----------|:---:|--------|--------|
 | `CPF/CNPJ` | CPF ou CNPJ | `fiscal_invoices.dest_cpf_cnpj` | S | Checkout (cliente) | ✅ |
 | `xNome` | Nome | `fiscal_invoices.dest_nome` | S | Checkout (cliente) | ✅ |
-| `indIEDest` | Indicador IE Dest. | `fiscal_invoices.indicador_ie_dest` | S | Manual / Derivado | 🔄 Migração pendente |
+| `indIEDest` | Indicador IE Dest. | `fiscal_invoices.indicador_ie_dest` | S | Manual / Derivado | ✅ Implementado |
 | `email` | Email | `fiscal_invoices.dest_email` | N | Checkout | ✅ |
 | `fone` | Telefone | `fiscal_invoices.dest_telefone` | N | Checkout | ✅ |
 | `enderDest` | Endereço completo | `fiscal_invoices.dest_endereco_*` | S | Checkout (endereço) | ✅ |
