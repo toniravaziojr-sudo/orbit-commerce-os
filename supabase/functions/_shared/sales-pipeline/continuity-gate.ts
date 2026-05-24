@@ -55,6 +55,15 @@ const SOCIAL_NOISE_RE =
 const EMOJI_ONLY_RE =
   /^[\s\p{P}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{200D}\u{FE0F}]+$/u;
 
+// [Frente 4 — plano de correção pós-Frentes B–E]
+// Hesitação curta: cliente sinaliza adiamento da decisão, não pede mais
+// produto nem aceita pressão. "depois eu vejo", "preciso pensar", "vou ver",
+// "amanhã eu volto", "deixa eu ver". Tratado como turno terminal soft —
+// acolhimento curto + porta aberta, sem nova pergunta de venda.
+const HESITATION_RE =
+  /(^|[\s\p{P}])(depois\s+eu\s+(vejo|olho|penso)|preciso\s+pensar|vou\s+pensar|vou\s+ver|deixa\s+eu\s+ver|deixa\s+eu\s+pensar|amanh[ãa]\s+eu\s+(volto|vejo)|outro\s+dia|mais\s+pra\s+frente|por\s+enquanto\s+n[ãa]o|n[ãa]o\s+(é|eh)\s+agora|talvez\s+depois|quem\s+sabe\s+depois)([\s\p{P}]|$)/iu;
+
+
 // Sinal de presença: cliente perguntando se tem alguém atendendo.
 // Sem \b antes/depois de caracteres acentuados (boundary do JS não funciona
 // bem em Unicode); usamos lookarounds simples baseados em espaço/início/fim.
