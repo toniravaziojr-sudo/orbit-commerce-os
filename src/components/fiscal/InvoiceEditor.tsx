@@ -1919,25 +1919,73 @@ export function InvoiceEditor({
 
             {!isPedidoVenda && (
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Totais de Impostos</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <div>
+                    <CardTitle className="text-base">Totais de Impostos</CardTitle>
+                    <CardDescription>
+                      Calculados automaticamente pela soma dos itens. Você pode editar os valores se precisar.
+                    </CardDescription>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={recomputeTaxesFromItems}>
+                    Recalcular dos itens
+                  </Button>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Base de Cálculo ICMS</Label>
-                    <Input value={formatCurrency(data.valor_bc_icms || 0)} disabled className="bg-muted font-mono" />
+                    <Label>Base de Cálculo ICMS{!taxesTouched.bc_icms && <span className="ml-2 text-xs text-muted-foreground">(automático)</span>}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={data.valor_bc_icms || 0}
+                      onChange={(e) => {
+                        setTaxesTouched(t => ({ ...t, bc_icms: true }));
+                        updateField('valor_bc_icms', parseFloat(e.target.value) || 0);
+                      }}
+                      className="font-mono"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Total ICMS</Label>
-                    <Input value={formatCurrency(data.valor_icms || 0)} disabled className="bg-muted font-mono" />
+                    <Label>Total ICMS{!taxesTouched.icms && <span className="ml-2 text-xs text-muted-foreground">(automático)</span>}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={data.valor_icms || 0}
+                      onChange={(e) => {
+                        setTaxesTouched(t => ({ ...t, icms: true }));
+                        updateField('valor_icms', parseFloat(e.target.value) || 0);
+                      }}
+                      className="font-mono"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Total PIS</Label>
-                    <Input value={formatCurrency(data.valor_pis || 0)} disabled className="bg-muted font-mono" />
+                    <Label>Total PIS{!taxesTouched.pis && <span className="ml-2 text-xs text-muted-foreground">(automático)</span>}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={data.valor_pis || 0}
+                      onChange={(e) => {
+                        setTaxesTouched(t => ({ ...t, pis: true }));
+                        updateField('valor_pis', parseFloat(e.target.value) || 0);
+                      }}
+                      className="font-mono"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Total COFINS</Label>
-                    <Input value={formatCurrency(data.valor_cofins || 0)} disabled className="bg-muted font-mono" />
+                    <Label>Total COFINS{!taxesTouched.cofins && <span className="ml-2 text-xs text-muted-foreground">(automático)</span>}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={data.valor_cofins || 0}
+                      onChange={(e) => {
+                        setTaxesTouched(t => ({ ...t, cofins: true }));
+                        updateField('valor_cofins', parseFloat(e.target.value) || 0);
+                      }}
+                      className="font-mono"
+                    />
                   </div>
                 </CardContent>
               </Card>
