@@ -5779,6 +5779,57 @@ Cliente: "vocês entregam em SP?"
         );
       }
 
+      // ============================================================
+      // [Frente 1 — plano de correção pós-Frentes B–E]
+      // Âncora vira override de estado.
+      // Promove sinais reais (dor, pergunta direta de catálogo,
+      // família em foco, menção a kit) a decisão de roteamento.
+      // ============================================================
+      let anchorOverrideReason: string | null = null;
+      try {
+        const { anchorStateOverride } = await import(
+          "../_shared/sales-pipeline/anchor-state-override.ts"
+        );
+        const reflexOverrode = reflexFinalState !== pipelineState;
+        const bucketOverrode = bucketFinalState !== reflexFinalState;
+        const anyEarlierOverride = reflexOverrode || bucketOverrode;
+        const anchor = anchorStateOverride({
+          currentState: bucketFinalState,
+          bucket: (intentScope?.bucket as any) ?? null,
+          declaredPain: salesMemory?.customer_declared_pain ?? null,
+          familyFocus: familyFocusBefore ?? null,
+          mentionedFamily:
+            !!(turnClassification && (turnClassification as any).mentioned_product_family),
+          mentionedProduct:
+            !!(turnClassification && (turnClassification as any).mentioned_product_name),
+          consolidatedText: lastMessageContent || "",
+          reflexAlreadyOverrodeState: anyEarlierOverride,
+        });
+        if (anchor.forcedState && anchor.forcedState !== bucketFinalState) {
+          console.log(
+            `[ai-support-chat] [ANCHOR-OVERRIDE] forcedState=${anchor.forcedState} ` +
+            `from=${bucketFinalState} reason=${anchor.reason} ` +
+            `bucket=${intentScope?.bucket ?? "none"} ` +
+            `pain=${!!(salesMemory?.customer_declared_pain)} ` +
+            `family=${familyFocusBefore ?? "none"}`
+          );
+          bucketFinalState = anchor.forcedState;
+          anchorOverrideReason = anchor.reason;
+        } else {
+          console.log(
+            `[ai-support-chat] [ANCHOR-OVERRIDE] skipped reason=${anchor.reason} ` +
+            `state_kept=${bucketFinalState}`
+          );
+        }
+      } catch (e) {
+        console.warn(
+          "[ai-support-chat] [ANCHOR-OVERRIDE] failed:",
+          (e as Error).message
+        );
+      }
+
+
+
       // [Frente 4] Continuity Gate — bloco de instrução para evitar loop de
       // descoberta, reabertura de família já decidida e perda de produto em
       // foco. Aditivo: só injeta bloco se houver contexto acumulado real.
