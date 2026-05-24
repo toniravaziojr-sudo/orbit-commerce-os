@@ -143,9 +143,9 @@
 
 | Tag SEFAZ | Nome no Sistema | Coluna BD | Obrig. | Origem | Status |
 |-----------|-----------------|-----------|:---:|--------|--------|
-| `indPag` | Indicador de Pagamento | `fiscal_invoices.pagamento_indicador` | S | Manual / Derivado | 🔄 |
-| `tPag` | Meio de Pagamento | `fiscal_invoices.pagamento_meio` | S | Pedido / Manual | 🔄 |
-| `vPag` | Valor do Pagamento | `fiscal_invoices.pagamento_valor` | S | Calculado | 🔄 |
+| `indPag` | Indicador de Pagamento | `fiscal_invoices.pagamento_indicador` | S | Manual / Derivado | ✅ Implementado |
+| `tPag` | Meio de Pagamento | `fiscal_invoices.pagamento_meio` | S | Pedido / Manual | ✅ Implementado |
+| `vPag` | Valor do Pagamento | `fiscal_invoices.pagamento_valor` | S | Calculado | ✅ Implementado |
 
 ### Códigos de Meio de Pagamento (tPag)
 
