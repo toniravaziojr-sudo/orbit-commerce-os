@@ -1405,6 +1405,72 @@ async function executeSalesTool(
 
         const finalList = partitionAndLimit(filtered);
 
+        // ============================================================
+        // [Frente 3 — Wiring] Resolver determinístico de sinônimos.
+        // Se o texto do turno bate em sinônimo cadastrado pelo tenant
+        // com target_product_id, garantimos que esse produto apareça
+        // PRIMEIRO no finalList. Se não estiver no pool, hidrata via DB.
+        // Devolve `synonym_match` para o LLM usar response_template.
+        // ============================================================
+        let synonymMatch: {
+          term: string;
+          kind: string;
+          target_product_id: string | null;
+          response_template: string | null;
+        } | null = null;
+        try {
+          const { resolveTenantSynonym } = await import(
+            "../_shared/sales-pipeline/synonyms-resolver.ts"
+          );
+          const hit = await resolveTenantSynonym({
+            tenantId: ctx.tenantId,
+            text: String(lastUserMessageContentForTools || query || ""),
+            supabase,
+          });
+          if (hit) {
+            synonymMatch = {
+              term: hit.term,
+              kind: hit.kind,
+              target_product_id: hit.target_product_id,
+              response_template: hit.response_template,
+            };
+            if (hit.target_product_id) {
+              const already = (finalList as any[]).some(p => p.id === hit.target_product_id);
+              if (!already) {
+                const { data: synProd } = await supabase
+                  .from("products")
+                  .select(PRODUCT_COLS)
+                  .eq("tenant_id", ctx.tenantId)
+                  .eq("id", hit.target_product_id)
+                  .eq("status", "active")
+                  .maybeSingle();
+                if (synProd) {
+                  (finalList as any[]).unshift({
+                    ...synProd,
+                    match_reason: `synonym:${hit.term}`,
+                  });
+                }
+              } else {
+                const idx = (finalList as any[]).findIndex(p => p.id === hit.target_product_id);
+                if (idx > 0) {
+                  const [item] = (finalList as any[]).splice(idx, 1);
+                  (item as any).match_reason = `synonym:${hit.term}`;
+                  (finalList as any[]).unshift(item);
+                }
+              }
+              console.log(
+                `[ai-support-chat][search_products] [Frente3-Synonym] term="${hit.term}" ` +
+                `kind=${hit.kind} target=${hit.target_product_id}`
+              );
+            }
+          }
+        } catch (e) {
+          console.warn(
+            `[ai-support-chat][search_products] [Frente3-Synonym] resolver falhou (segue sem boost):`,
+            (e as Error).message
+          );
+        }
+
         // Trace 6 — ranking final (após partitionAndLimit)
         if (arch18On) {
           await writeTrace("final_ranking", {
@@ -1412,6 +1478,7 @@ async function executeSalesTool(
             items: (finalList as any[]).map(p => ({
               id: p.id, name: p.name, is_kit: !!p.is_kit, match_reason: p.match_reason,
             })),
+            synonym_match: synonymMatch,
           });
         }
 
