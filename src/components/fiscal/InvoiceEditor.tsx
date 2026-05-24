@@ -460,6 +460,14 @@ export function InvoiceEditor({
       setData({ ...invoice });
       setValidationErrors([]);
       setInitialDest(captureDestSnapshot(invoice));
+      // Considera os totais "tocados" se chegaram com valor != 0 do banco,
+      // preservando valores manuais já salvos. Se vierem zerados, somamos dos itens.
+      setTaxesTouched({
+        bc_icms: (invoice.valor_bc_icms || 0) > 0,
+        icms: (invoice.valor_icms || 0) > 0,
+        pis: (invoice.valor_pis || 0) > 0,
+        cofins: (invoice.valor_cofins || 0) > 0,
+      });
     }
   }, [invoice]);
 
