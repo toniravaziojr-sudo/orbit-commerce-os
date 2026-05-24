@@ -406,9 +406,11 @@ async function handleChatMode(
   processedAttachments?: ProcessedAttachment[],
   memoryContext?: string
 ) {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    throw new Error("LOVABLE_API_KEY is not configured");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const OPENAI_API_KEY = await getCredential(supabaseUrl, supabaseServiceKey, "OPENAI_API_KEY");
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured");
   }
 
   const hasImageContent = messages?.some((m: any) => {
@@ -418,9 +420,8 @@ async function handleChatMode(
     return false;
   });
 
-  const model = hasImageContent ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
-  
-  // Build enhanced system prompt based on what was processed
+  const model = hasImageContent ? "gpt-4o" : "gpt-5-mini";
+
   let systemAdditions = "";
   if (urlContext) {
     systemAdditions += "\n- Você tem acesso ao conteúdo de URLs que o usuário compartilhou. Analise esse conteúdo para responder.";
@@ -431,13 +432,13 @@ async function handleChatMode(
   if (processedAttachments?.some(a => a.transcription)) {
     systemAdditions += "\n- Você recebeu transcrições de áudios anexados. Considere essas transcrições na sua resposta.";
   }
-  
-  console.log(`Chat mode - Model: ${model}, hasImages: ${hasImageContent}, hasUrlContext: ${!!urlContext}, processedDocs: ${processedAttachments?.filter(a => a.extractedText).length || 0}, processedAudios: ${processedAttachments?.filter(a => a.transcription).length || 0}`);
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  console.log(`Chat mode (OpenAI) - Model: ${model}, hasImages: ${hasImageContent}, hasUrlContext: ${!!urlContext}`);
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -572,13 +573,15 @@ Diretrizes:
 
 async function handleSearchMode(messages: any[], memoryContext?: string) {
   const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const OPENAI_API_KEY = await getCredential(supabaseUrl, supabaseServiceKey, "OPENAI_API_KEY");
+
   if (!FIRECRAWL_API_KEY) {
     throw new Error("FIRECRAWL_API_KEY is not configured. Please enable the Firecrawl connector.");
   }
-  if (!LOVABLE_API_KEY) {
-    throw new Error("LOVABLE_API_KEY is not configured");
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured");
   }
 
   const lastUserMessage = messages.filter((m: any) => m.role === "user").pop();
@@ -620,14 +623,14 @@ ${result.markdown || result.description || "Sem conteúdo disponível"}
 ---`;
   }).join("\n\n") || "Nenhum resultado encontrado.";
 
-  const synthesisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const synthesisResponse = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "gpt-5-mini",
       messages: [
         {
           role: "system",
