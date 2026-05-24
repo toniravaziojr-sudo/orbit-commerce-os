@@ -5769,7 +5769,7 @@ Cliente: "vocês entregam em SP?"
       // e corrigem desvios reconhecíveis (CEP, frete, pós-venda, turno curto
       // com intenção clara). Aditivos: se nenhum dispara, nada muda.
       let reflexFinalState: PipelineState = pipelineState;
-      let firedReflexId: string | null = null;
+      // firedReflexId já declarado no escopo externo (acima do if salesModeEnabled).
       try {
         const cartCustomerData =
           (preloadedActiveCart as any)?.customer_data || {};
