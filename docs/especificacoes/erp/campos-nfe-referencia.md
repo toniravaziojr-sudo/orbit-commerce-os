@@ -1,7 +1,7 @@
 # Referência de Campos da NF-e — Mapeamento SEFAZ × Sistema
 
 > **Camada:** Layer 3 — Especificações / ERP / Fiscal  
-> **Última atualização:** 2026-04-05  
+> **Última atualização:** 2026-05-24  
 > **Referência:** Layout NF-e 4.0 (NT 2016.002) + Modelo Bling
 
 ---
