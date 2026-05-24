@@ -574,7 +574,41 @@ export function InvoiceEditor({
     // evitando contar desconto em dobro quando o usuário preenche os dois lados.
     const descontoEfetivo = Math.max(Number(data.valor_desconto) || 0, descontoItens);
     const valor_total = Math.max(0, valor_produtos + (data.valor_frete || 0) + (data.valor_seguro || 0) + (data.valor_outras_despesas || 0) - descontoEfetivo);
-    setData(prev => prev ? { ...prev, valor_produtos, valor_total } : null);
+    // Option B: totais de impostos = soma dos itens, salvo se o usuário tocou.
+    const sum_bc_icms = items.reduce((s, it) => s + (Number(it.icms_base) || 0), 0);
+    const sum_icms = items.reduce((s, it) => s + (Number(it.icms_valor) || 0), 0);
+    const sum_pis = items.reduce((s, it) => s + (Number(it.pis_valor) || 0), 0);
+    const sum_cofins = items.reduce((s, it) => s + (Number(it.cofins_valor) || 0), 0);
+    setData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        valor_produtos,
+        valor_total,
+        valor_bc_icms: taxesTouched.bc_icms ? prev.valor_bc_icms : sum_bc_icms,
+        valor_icms: taxesTouched.icms ? prev.valor_icms : sum_icms,
+        valor_pis: taxesTouched.pis ? prev.valor_pis : sum_pis,
+        valor_cofins: taxesTouched.cofins ? prev.valor_cofins : sum_cofins,
+      };
+    });
+  };
+
+  // Permite ao usuário voltar ao cálculo automático (zera "tocados" e ressoma).
+  const recomputeTaxesFromItems = () => {
+    if (!data) return;
+    setTaxesTouched({ bc_icms: false, icms: false, pis: false, cofins: false });
+    const items = data.items;
+    const sum_bc_icms = items.reduce((s, it) => s + (Number(it.icms_base) || 0), 0);
+    const sum_icms = items.reduce((s, it) => s + (Number(it.icms_valor) || 0), 0);
+    const sum_pis = items.reduce((s, it) => s + (Number(it.pis_valor) || 0), 0);
+    const sum_cofins = items.reduce((s, it) => s + (Number(it.cofins_valor) || 0), 0);
+    setData(prev => prev ? {
+      ...prev,
+      valor_bc_icms: sum_bc_icms,
+      valor_icms: sum_icms,
+      valor_pis: sum_pis,
+      valor_cofins: sum_cofins,
+    } : null);
   };
 
   const validateForSubmission = (): string[] => {
