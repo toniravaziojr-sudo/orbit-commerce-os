@@ -20091,6 +20091,45 @@ export type Database = {
           },
         ]
       }
+      tenant_ai_synonyms: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          kind: string
+          response_template: string | null
+          target_product_id: string | null
+          tenant_id: string
+          term: string
+          term_normalized: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          response_template?: string | null
+          target_product_id?: string | null
+          tenant_id: string
+          term: string
+          term_normalized: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          response_template?: string | null
+          target_product_id?: string | null
+          tenant_id?: string
+          term?: string
+          term_normalized?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tenant_ai_usage: {
         Row: {
           created_at: string
