@@ -44,10 +44,11 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        // Fetch products - cast to bypass deep type inference
+        // Fetch products — inclui ncm/origin_code/cest do cadastro principal como fallback
+        // quando não existir registro em fiscal_products (precedência fiscal_products → products).
         const { data: rawProducts, error: productsError } = await (supabase
           .from('products')
-          .select('id, name, sku, price, status, gtin, barcode, weight') as any)
+          .select('id, name, sku, price, status, gtin, barcode, weight, ncm, origin_code, cest') as any)
           .eq('tenant_id', tenantId)
           .eq('status', 'active')
           .order('name')
@@ -55,7 +56,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
 
         if (productsError) throw productsError;
         
-        const productsData = (rawProducts || []) as Array<{ id: string; name: string; sku: string | null; price: number; gtin: string | null; barcode: string | null; weight: number | null }>;
+        const productsData = (rawProducts || []) as Array<{ id: string; name: string; sku: string | null; price: number; gtin: string | null; barcode: string | null; weight: number | null; ncm: string | null; origin_code: string | null; cest: string | null }>;
         const productIds = productsData.map(p => p.id);
         
         // Fetch fiscal data
@@ -74,17 +75,22 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
 
         const productsWithFiscal: ProductWithFiscal[] = productsData.map((p) => {
           const fiscal = fiscalMap[p.id];
+          // Coerção segura de origin_code (text em products) para número
+          const originRaw = (fiscal?.origem ?? p.origin_code ?? 0) as any;
+          const originNum = typeof originRaw === 'number'
+            ? originRaw
+            : (Number.isFinite(Number(originRaw)) ? Math.trunc(Number(originRaw)) : 0);
           return {
             id: p.id,
             name: p.name,
             sku: p.sku,
             price: p.price,
-            ncm: fiscal?.ncm || null,
+            ncm: fiscal?.ncm || p.ncm || null,
             cfop: fiscal?.cfop_override || null,
             unidade: fiscal?.unidade_comercial || 'UN',
-            origem: fiscal?.origem ?? 0,
+            origem: originNum,
             gtin: p.gtin || p.barcode || null,
-            cest: fiscal?.cest || null,
+            cest: fiscal?.cest || p.cest || null,
             weight: typeof p.weight === 'number' ? p.weight : (p.weight ? Number(p.weight) : null),
           };
         });
