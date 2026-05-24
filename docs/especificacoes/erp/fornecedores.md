@@ -14,6 +14,23 @@ Na criação de NF-e de Entrada (Compra, Remessa, Transferência, Devolução, O
 
 O vínculo com a base é **opcional para emitir a NF** — o fluxo nunca trava por causa do cadastro. Mas usar a base garante reuso de dados fiscais (IE, endereço completo) em emissões futuras.
 
+### Retificação 2026-05-24 — Salvamento completo do fornecedor
+
+Antes desta data, o "Salvar na base" dentro da NF gravava apenas nome e CNPJ/CPF. Endereço, IE, código IBGE do município, e-mail e telefone ficavam em branco e o tipo de contribuinte caía sempre em "Não contribuinte" — obrigando o lojista a abrir o cadastro central depois para completar.
+
+A partir de 2026-05-24 o salvamento passa a persistir, em uma única ação, tudo o que está disponível no destinatário da NF:
+
+- Nome / Razão Social, CNPJ ou CPF
+- Inscrição Estadual e flag de isento
+- **Tipo de contribuinte inferido automaticamente** a partir do indicador de IE da NF: 1 → Contribuinte ICMS, 2 → Contribuinte isento, 9 → Não contribuinte. Sem indicador, usa a presença da IE como pista
+- Endereço completo: CEP, logradouro, número, complemento, bairro, cidade, UF e **código IBGE do município**
+- E-mail e telefone
+
+Quando algum dado essencial não estiver preenchido na NF (endereço ou IE), o cadastro nasce parcial e o sistema avisa em destaque, sem bloquear: "Fornecedor salvo, mas faltou [campo]. Você pode completar em Fornecedores quando quiser."
+
+**Atualização de duplicado:** quando o CNPJ/CPF já existe e o usuário escolhe "Atualizar dados existentes", o mesmo enriquecimento é aplicado, incluindo IBGE e tipo de contribuinte. Política preservada — campo vazio na NF **não** sobrescreve campo preenchido no cadastro existente.
+
+
 
 ## Propósito
 
