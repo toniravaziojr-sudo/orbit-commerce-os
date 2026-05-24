@@ -7566,27 +7566,40 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         const universalCommercialVeto =
           intentName === "complaint" && !isOrderComplaintHere;
 
-        if (isActionable && !toolsAlreadyRan && !universalCommercialVeto) {
+        // [Frente 5] Se algum reflexo determinístico disparou, ele é a fonte
+        // de verdade da resposta — sobrepõe handoff/media/state-fallback.
+        const reflexFallback = firedReflexId ? FALLBACK_BY_REFLEX[firedReflexId] : null;
+        if (reflexFallback) {
+          aiContent = reflexFallback;
+          console.log(
+            `[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=reflex reflexId=${firedReflexId} state=${pipelineState}`
+          );
+        } else if (isActionable && !toolsAlreadyRan && !universalCommercialVeto) {
           aiContent = "Vou chamar alguém da equipe pra resolver isso direto com você. Já te respondem por aqui.";
           shouldHandoff = true;
           handoffReason = handoffReason || "empty_response_actionable_intent";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=actionable_handoff state=${pipelineState}`);
         } else if (universalCommercialVeto) {
-          // Mantém modo comercial: usa fallback do estado em vez de escalar.
           aiContent = FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] ||
             FALLBACK_PROMISE_BY_STATE[pipelineState] ||
             "Me conta um pouco mais do que você procura, que eu já te indico o melhor.";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=commercial_veto state=${pipelineState}`);
         } else if (inboundIsMediaFb) {
           aiContent = "Não consegui abrir o arquivo aqui. Você consegue me descrever em texto o que precisa? Assim eu já te ajudo.";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=inbound_media state=${pipelineState}`);
         } else if (toolsAlreadyRan) {
           const humanized = buildHumanFallbackFromTools();
           aiContent = humanized || FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] || "Me conta um pouco mais do que você procura.";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=tools_humanized state=${pipelineState}`);
         } else {
           aiContent = FALLBACK_PROMISE_BY_STATE[pipelineState] || "Já te respondo.";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=state_promise state=${pipelineState}`);
         }
         emptyResponseFallbackApplied = true;
         console.warn(
-          `[ai-support-chat] [Reg #17.1] empty-response fallback state=${pipelineState} intent=${intentClassification?.intent ?? "n/a"} actionable=${isActionable} media=${inboundIsMediaFb} tools=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
+          `[ai-support-chat] [Reg #17.1] empty-response fallback state=${pipelineState} reflex=${firedReflexId ?? "none"} intent=${intentClassification?.intent ?? "n/a"} actionable=${isActionable} media=${inboundIsMediaFb} tools=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
         );
+
       }
     }
 
