@@ -7445,6 +7445,23 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           support:         "Entendi. Deixa eu olhar isso pra você, um instante.",
           handoff:         "Vou te passar pra alguém da equipe que resolve isso, tá?",
         };
+
+        // [Frente 5 — plano de correção pós-Frentes B–E]
+        // Fallback ciente do reflexo: quando o modelo retorna vazio mas algum
+        // reflexo determinístico disparou neste turno, a resposta vem da tabela
+        // de reflexo, NÃO do estado da pipeline. Mata a regressão "vlw / kkkk /
+        // alô?" que caía em muleta de discovery quando o LLM voltava vazio.
+        const FALLBACK_BY_REFLEX: Record<string, string> = {
+          thanks_terminal: "Tmj, qualquer coisa me chama!",
+          social_noise:    "kkk 👍",
+          presence_ping:   "Tô aqui sim! Em que posso ajudar?",
+          hesitation:      "Tranquilo, sem pressa. Qualquer coisa me chama.",
+          cep_received:    "Anotei o CEP, um instante.",
+          shipping_question: "Pra te passar o frete certinho preciso do CEP, pode me mandar?",
+          post_sale_question: "Me passa o número do pedido (ou e-mail) que eu já vejo aqui.",
+          short_turn_with_intent: "Beleza, deixa eu te mostrar as opções.",
+        };
+
         // [PACOTE B v2] Fallback CONCLUSIVO HUMANIZADO.
         // Regras:
         //  1. Nunca dizer "consultei o catálogo", "encontrei esses produtos reais",
