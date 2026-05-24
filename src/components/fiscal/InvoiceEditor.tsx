@@ -1137,9 +1137,7 @@ export function InvoiceEditor({
 
           {/* Tab: Destinatário */}
           <TabsContent value="destinatario" className="space-y-4">
-            {(['entrada','devolucao','remessa','transferencia'] as const).includes((data.tipo_nota || 'saida') as any) ? null : (
-              <></>
-            )}
+            {/* Conteúdo da aba Destinatário */}
 
             {/* Cartão unificado para notas de Entrada/Devolução/Remessa/Transferência */}
             {(['entrada','devolucao','remessa','transferencia'] as const).includes((data.tipo_nota || 'saida') as any) && (
