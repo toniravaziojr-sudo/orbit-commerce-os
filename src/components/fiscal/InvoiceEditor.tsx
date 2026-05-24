@@ -1192,7 +1192,8 @@ export function InvoiceEditor({
                         dest_endereco_municipio_codigo: s.codigoIbge ?? prev.dest_endereco_municipio_codigo,
                       }) : prev);
                     }}
-                  />
+                  >
+
 
                   {/* Identificação */}
                   <div className="space-y-3">
