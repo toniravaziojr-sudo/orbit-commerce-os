@@ -101,6 +101,14 @@ export function isPresencePing(text: string): boolean {
   return PRESENCE_PING_RE.test(text.trim());
 }
 
+export function isHesitation(text: string): boolean {
+  if (!text) return false;
+  const tokens = tokenCount(text);
+  if (tokens > 6) return false;
+  return HESITATION_RE.test(text.trim());
+}
+
+
 // ---------- Função principal ----------
 
 export function buildContinuityBlock(input: ContinuityGateInput): ContinuityGateResult {
