@@ -54,9 +54,16 @@
 - **Scrub determinístico de marketplace (Reg #28)** ativo para ML/Shopee/TikTok/comentários: remove links externos, telefones e e-mails.
 - Pipeline base consolidada: TPR (Gemini Flash-Lite), State Machine, Working Memory (shadow), Focus Snapshot, Catalog Probe, Output Gates, Anti-repetição, Handoff terminal, Variant Gate, Ambiguous Input Detector, Turn Orchestrator.
 - Modo Vendas (`sales_mode_enabled`) ativa 11 tools de comércio conversacional.
+- **Provedor de IA travado em OpenAI (Reg #40, 24/mai/2026):** o agente de produção (WhatsApp/Web) e o chat de teste do Comando Central agora usam **exclusivamente OpenAI direta** (modelos GPT-5-mini para chat/busca, GPT-4o para imagem, GPT-4o-mini para "pensar mais"). O chat de teste estava em Lovable AI Gateway/Gemini e batia rate limit, dando impressão de "IA muda". Unificado para que o teste reflita exatamente o que o cliente recebe. Regra anti-regressão registrada em `mem://constraints/ai-provider-openai-locked` — proibido trocar de provedor sem pedido explícito do operador.
+
+**Incidente aberto (24/mai/2026) — Quota OpenAI esgotada:**
+- Após a unificação, tanto o agente de produção quanto o chat de teste passaram a retornar **429 `insufficient_quota`** da OpenAI em todos os modelos.
+- Causa raiz: a chave `OPENAI_API_KEY` configurada na plataforma está **sem créditos / fora do limite de billing da conta OpenAI**. Não é problema de código.
+- Ação pendente do operador: acessar `https://platform.openai.com/account/billing`, validar cartão, recarregar créditos ou aumentar o limite mensal. Após isso, aguardar 1–2 minutos e testar.
+- Pergunta em aberto ao operador: incluir um **aviso visível no chat de teste** quando a falha for de quota (em vez de balão vazio), para diagnóstico imediato em incidentes futuros.
 
 **Próximos candidatos (a combinar com operador):**
-- Validar saída em conversa real por canal (sandbox Meta + perguntas reais ML/Shopee/TikTok).
+- Validar saída em conversa real por canal (sandbox Meta + perguntas reais ML/Shopee/TikTok) **após** restauração da quota OpenAI.
 - Avançar para Arch18 Fase B (Policy Compiler) e B2 (Model Roles).
 
 **Restrições firmes:**
@@ -64,6 +71,8 @@
 - Toda mudança em pipeline/gates exige Reg # no changelog.
 - Mudanças com risco de regressão cross-módulo viram constraint em `mem://constraints/` antes de fechar.
 - Piloto continua sendo só Respeite o Homem para flags Arch18.
+- **Provedor de IA é OpenAI direta — não migrar para gateway, Gemini, Anthropic ou similar sem pedido explícito do operador (Reg #40).**
+
 
 ---
 
