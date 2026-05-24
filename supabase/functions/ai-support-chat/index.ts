@@ -5865,11 +5865,13 @@ Cliente: "vocês entregam em SP?"
           // [Frente B] thanks terminal + ruído social + ping de presença
           consolidatedText: lastMessageContent || "",
           intentBucket: (intentScope?.bucket as any) || null,
-          // [Passo 5] Se o reflexo determinístico já cobriu, não duplica.
+          // [Passo 5 + Frente 4] Se o reflexo determinístico já cobriu, não duplica.
           socialReflexFired:
             firedReflexId === "thanks_terminal" ||
             firedReflexId === "social_noise" ||
-            firedReflexId === "presence_ping",
+            firedReflexId === "presence_ping" ||
+            firedReflexId === "hesitation",
+
         });
 
         if (continuity.promptBlock) {
