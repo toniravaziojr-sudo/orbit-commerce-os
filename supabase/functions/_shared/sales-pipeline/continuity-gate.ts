@@ -103,6 +103,7 @@ export function buildContinuityBlock(input: ContinuityGateInput): ContinuityGate
     hasActiveCart,
     consolidatedText,
     intentBucket,
+    socialReflexFired,
   } = input;
 
   const lines: string[] = [];
@@ -110,9 +111,8 @@ export function buildContinuityBlock(input: ContinuityGateInput): ContinuityGate
   const text = (consolidatedText || "").trim();
 
   // ── [Frente B] Prioridade 1: Thanks/despedida = terminal ──
-  // Se o cliente acabou de agradecer/despedir, PROIBIDO reabrir discovery
-  // ou fazer pergunta de venda nova. O turno é fechamento cordial leve.
-  if (text && isThanksOrFarewell(text)) {
+  // [Passo 5] Suprimido quando o reflexo determinístico já cuidou do tom.
+  if (!socialReflexFired && text && isThanksOrFarewell(text)) {
     lines.push(
       "O cliente acabou de AGRADECER ou se DESPEDIR. Este turno é TERMINAL: " +
       "responda com fechamento cordial CURTO (1 linha) e, no MÁXIMO, um gancho LEVE " +
