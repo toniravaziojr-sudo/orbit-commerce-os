@@ -8647,6 +8647,7 @@ export type Database = {
           submitted_at: string | null
           tenant_id: string
           tipo_documento: number | null
+          tipo_nota: string | null
           transportadora_cnpj: string | null
           transportadora_nome: string | null
           transportadora_servico: string | null
@@ -8733,6 +8734,7 @@ export type Database = {
           submitted_at?: string | null
           tenant_id: string
           tipo_documento?: number | null
+          tipo_nota?: string | null
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
           transportadora_servico?: string | null
@@ -8819,6 +8821,7 @@ export type Database = {
           submitted_at?: string | null
           tenant_id?: string
           tipo_documento?: number | null
+          tipo_nota?: string | null
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
           transportadora_servico?: string | null

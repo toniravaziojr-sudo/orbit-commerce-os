@@ -1,0 +1,2 @@
+ALTER TABLE public.fiscal_invoices ADD COLUMN IF NOT EXISTS tipo_nota TEXT;
+COMMENT ON COLUMN public.fiscal_invoices.tipo_nota IS 'Classificação UI da nota: saida | entrada | remessa | devolucao | transferencia. Quando nulo, derivado de tipo_documento/finalidade/CFOP/natureza.';
