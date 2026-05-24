@@ -36,12 +36,12 @@ No editor de NF de Entrada (tipos: Compra, Remessa, Transferência, Devolução,
 
 Estrutura do cartão, de cima para baixo:
 
-1. **Busca e vínculo** — campo de autocomplete por nome, CNPJ ou CPF; ao escolher um cadastro da base, todos os campos abaixo são preenchidos automaticamente e o cartão exibe o status "Vinculado à base" com opção de desvincular.
+1. **Busca e vínculo (topo)** — campo de autocomplete por nome, CNPJ ou CPF; ao escolher um cadastro da base, todos os campos abaixo são preenchidos automaticamente e o cartão exibe o status "Vinculado à base" com opção de desvincular.
 2. **Identificação** — Razão Social / Nome, CNPJ/CPF, Inscrição Estadual, flag de isento e tipo de contribuinte.
 3. **Endereço completo** — CEP, logradouro, número, complemento, bairro, cidade, UF e código IBGE.
 4. **Contato** — e-mail e telefone.
+5. **Ação no rodapé** — o botão **"Salvar na base"** fica no final do cartão, após todos os campos, e persiste em uma única ação tudo o que está visível no formulário. Se o fornecedor já estiver vinculado, o botão muda para **"Atualizar cadastro com estes dados"** e aplica a mesma política de enriquecimento com preservação de campos preenchidos. Essa unificação elimina a confusão anterior em que o botão de salvar aparecia em um cartão separado (só com nome e CNPJ) enquanto os dados completos ficavam em outro.
 
-O botão **"Salvar na base"** fica no rodapé do próprio cartão e persiste, em uma única ação, tudo o que está visível no formulário. Se o fornecedor já estiver vinculado, o botão muda para **"Atualizar cadastro com estes dados"** e aplica a mesma política de enriquecimento com preservação de campos preenchidos. Essa unificação elimina a confusão anterior em que o botão de salvar aparecia em um cartão separado (só com nome e CNPJ) enquanto os dados completos ficavam em outro.
 
 
 
