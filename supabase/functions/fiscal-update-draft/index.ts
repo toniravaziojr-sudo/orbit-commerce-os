@@ -62,15 +62,36 @@ Deno.serve(async (req) => {
     // If rejected, reset to draft status for re-submission
     const shouldResetToDraft = existingInvoice.status === 'rejected';
 
+    // Helper: deriva tipo_documento (0=entrada, 1=saída) a partir de tipo_nota
+    const deriveTipoDocumento = (tipoNota?: string): number => {
+      if (tipoNota === 'entrada' || tipoNota === 'devolucao') return 0;
+      return 1;
+    };
+
     // Prepare invoice data for update
     const invoiceUpdate: Record<string, any> = {
       natureza_operacao: data.natureza_operacao,
       cfop: data.cfop,
       observacoes: data.observacoes || null,
+      // Classificação UI + SEFAZ IDE
+      tipo_nota: data.tipo_nota || null,
+      tipo_documento: data.tipo_nota
+        ? deriveTipoDocumento(data.tipo_nota)
+        : (typeof data.tipo_documento === 'number' ? data.tipo_documento : 1),
+      finalidade_emissao: typeof data.finalidade_emissao === 'number'
+        ? data.finalidade_emissao
+        : (data.tipo_nota === 'devolucao' ? 4 : 1),
+      nfe_referenciada: data.chave_acesso_referenciada?.replace(/\D/g, '') || data.nfe_referenciada || null,
+      indicador_presenca: typeof data.indicador_presenca === 'number' ? data.indicador_presenca : 2,
+      informacoes_fisco: data.informacoes_fisco || null,
+      hora_saida: data.data_saida
+        ? new Date(`${String(data.data_saida).split('T')[0]}T00:00:00-03:00`).toISOString()
+        : null,
       // Destinatário
       dest_nome: data.dest_nome,
       dest_cpf_cnpj: data.dest_cpf_cnpj?.replace(/\D/g, ''),
       dest_inscricao_estadual: data.dest_ie || null,
+      indicador_ie_dest: typeof data.indicador_ie_dest === 'number' ? data.indicador_ie_dest : 9,
       dest_endereco_logradouro: data.dest_endereco_logradouro,
       dest_endereco_numero: data.dest_endereco_numero || 'S/N',
       dest_endereco_complemento: data.dest_endereco_complemento || null,
@@ -88,6 +109,15 @@ Deno.serve(async (req) => {
       valor_outras_despesas: data.valor_outras_despesas || 0,
       valor_desconto: data.valor_desconto || 0,
       valor_total: data.valor_total || 0,
+      // Totais de impostos
+      valor_bc_icms: data.valor_bc_icms || 0,
+      valor_icms: data.valor_icms || 0,
+      valor_pis: data.valor_pis || 0,
+      valor_cofins: data.valor_cofins || 0,
+      // Pagamento
+      pagamento_indicador: typeof data.pagamento_indicador === 'number' ? data.pagamento_indicador : 0,
+      pagamento_meio: data.pagamento_meio || '99',
+      pagamento_valor: data.pagamento_valor || 0,
       // Transporte
       modalidade_frete: data.modalidade_frete || '9',
       transportadora_nome: data.transportadora_nome || null,
