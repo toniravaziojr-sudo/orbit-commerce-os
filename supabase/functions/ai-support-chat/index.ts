@@ -5701,16 +5701,17 @@ Cliente: "vocês entregam em SP?"
           if (reflex.newState && reflex.newState !== pipelineState) {
             reflexFinalState = reflex.newState;
             console.log(
-              `[ai-support-chat] [Reg #2.17 Fase 3] reflex=${reflex.reflexId} ` +
-              `state_override ${pipelineState} → ${reflex.newState} reason=${reflex.reason}`
+              `[ai-support-chat] [REFLEX-FIRED] reflexId=${reflex.reflexId} ` +
+              `newState=${reflex.newState} prevState=${pipelineState} reason=${reflex.reason}`
             );
           } else {
             console.log(
-              `[ai-support-chat] [Reg #2.17 Fase 3] reflex=${reflex.reflexId} ` +
-              `state_kept=${pipelineState} reason=${reflex.reason}`
+              `[ai-support-chat] [REFLEX-FIRED] reflexId=${reflex.reflexId} ` +
+              `newState=${pipelineState} prevState=${pipelineState} reason=${reflex.reason} state_kept=true`
             );
           }
         }
+
       } catch (e) {
         console.warn(
           "[ai-support-chat] [Reg #2.17 Fase 3] reflex detector failed:",
