@@ -1563,7 +1563,10 @@ export function InvoiceEditor({
                 </div>
               </CardContent>
             </Card>
+            </>
+            )}
           </TabsContent>
+
 
           {/* Tab: Itens */}
           <TabsContent value="itens" className="space-y-4">
