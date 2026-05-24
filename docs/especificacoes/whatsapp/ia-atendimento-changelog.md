@@ -65,6 +65,39 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #39 — Fechamento do plano pós-Frentes B–E (Passos 2–6) — 24/mai/2026
+
+**Contexto:** após Frentes B–E aplicadas sem baseline empírico, foi executado o plano de correção em 6 passos. Este registro consolida o que foi entregue, o que ficou pendente e a posição final.
+
+**Entregue:**
+
+- **Passo 2a — Ficha institucional populada** no tenant `respeite-o-homem` via UPDATE direto em `ai_support_config.metadata.institutional_sheet` (9 campos: cobertura, horário, pagamento, cupom, garantia, prova social, loja física, atendimento humano, observações).
+- **Passo 3 — Suavização do anchor para `catalog_question`** (`turn-anchor.ts`): quando o turno é catálogo amplo e nenhuma família nova foi citada, o bloco deixa de exigir manutenção do foco em família e passa a permitir mostrar outras famílias preservando o foco persistido. A regra "base antes de kit" (Onda 18 Fase A) segue ativa por família.
+- **Passo 4 — Hierarquia fixa de blocos de instrução** (`ai-support-chat`): ordenação determinística antes de `buildPromptForState` com pesos 10 (handoff/produto) → 20 (reflexos) → 40 (continuidade) → 50 (âncora) → 80 (comercial). Bloco comercial é suprimido em `human_request` e `post_sale`. Sort estável por índice original em pesos iguais.
+- **Passo 5 — Reflexos terminais** (`deterministic-reflexes.ts` + `continuity-gate.ts`): novos `thanks_terminal` e `social_noise` no mesmo nível dos reflexos de CEP/frete. Continuity-gate deduplica via `socialReflexFired`.
+- **Passo 6 — Documentação:** este registro, fechamento do doc temporário das ondas e memória anti-regressão da hierarquia de blocos.
+
+**Validação técnica executada:**
+
+- ✅ B3.1 ("vocês têm shampoo?") — IA lista produtos sem cair em muleta.
+- ✅ B5.1 ("tem minoxidil?") — nega corretamente e oferece alternativa do catálogo.
+- ❌ B4.1 ("qual o kit mais completo?") — segue em muleta. Conflito remanescente entre Catalog Probe e regra "base antes de kit" quando nenhuma família foi declarada.
+- ❌ B6.3-T1 ("queda") — dor genérica sem família continua não virando recomendação direta.
+- ❌ "vlw obrigado" / "kkkk" / "alô?" — reflexos disparam mas o LLM retorna `content` vazio e o `FALLBACK_PROMISE_BY_STATE` injeta a muleta de discovery cega ao reflexo ativo.
+
+**Pendências consolidadas (P-EXEC-1 a P-EXEC-7):** documentadas em `docs/especificacoes/ia/_temp-base-universal-ondas-de-teste.md` na seção "Problemas identificados durante execução". Viram plano de correção próprio antes de abrir Frente F.
+
+**Status da Frente F:** **adiada** até as pendências críticas (P-EXEC-1, 3, 4, 5, 7) entrarem em verde.
+
+**Anti-regressão:**
+- Nova memória: `mem://features/ai/instruction-block-hierarchy-standard` — ordem fixa dos blocos de instrução do prompt.
+- Memória dos reflexos determinísticos estendida com `thanks_terminal` e `social_noise`.
+
+**Lacuna documental declarada:**
+- Tela administrativa de edição da Ficha Institucional (Passo 2b) **não foi entregue**. Mapa de UI segue sem rota dedicada. Registrado em P-EXEC-2 e nas pendências do plano seguinte.
+
+---
+
 ## Registro #2.17 Fases B–C — Dor ≠ reclamação, motor único de handoff e reflexos do roteador — 22/mai/2026
 
 **Contexto:** após a Fase A (TPR primário), a auditoria das ondas A–D mostrou três falhas estruturais de raciocínio:
