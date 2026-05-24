@@ -46,6 +46,10 @@ interface SupplierAutocompleteProps {
   /** Modo compacto: esconde os campos internos de Nome / CPF-CNPJ.
    *  Use quando o formulário pai já mostra esses campos (ex.: aba Destinatário do Editor de NF-e). */
   compact?: boolean;
+  /** Conteúdo opcional renderizado entre a busca e o rodapé de ações (modo compacto).
+   *  Permite intercalar os campos do destinatário do formulário pai e ainda manter
+   *  o botão "Salvar na base" no final. */
+  children?: React.ReactNode;
 }
 
 function onlyDigits(v: string | null | undefined): string {
@@ -63,6 +67,7 @@ export function SupplierAutocomplete({
   required,
   allowSave = true,
   compact = false,
+  children,
 }: SupplierAutocompleteProps) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
