@@ -5815,9 +5815,9 @@ Cliente: "vocês entregam em SP?"
           intentBucket: (intentScope?.bucket as any) || null,
           // [Passo 5] Se o reflexo determinístico já cobriu, não duplica.
           socialReflexFired:
-            reflex?.reflexId === "thanks_terminal" ||
-            reflex?.reflexId === "social_noise" ||
-            reflex?.reflexId === "presence_ping",
+            firedReflexId === "thanks_terminal" ||
+            firedReflexId === "social_noise" ||
+            firedReflexId === "presence_ping",
         });
 
         if (continuity.promptBlock) {
