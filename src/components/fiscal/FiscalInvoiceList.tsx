@@ -311,22 +311,45 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
       return;
     }
 
+    // Deriva tipo_nota quando não persistido (compat com NFs antigas)
+    const deriveTipoNota = (d: any): 'saida' | 'entrada' | 'remessa' | 'devolucao' | 'transferencia' => {
+      if (d.tipo_nota) return d.tipo_nota;
+      const nat = String(d.natureza_operacao || '').toLowerCase();
+      const cfopNum = parseInt(String(d.cfop || '').replace(/\D/g, ''), 10) || 0;
+      if (d.tipo_documento === 0) return 'entrada';
+      if (d.finalidade_emissao === 4 || nat.includes('devolu')) return 'devolucao';
+      if (nat.includes('transfer')) return 'transferencia';
+      if ((cfopNum >= 5900 && cfopNum <= 5999) || (cfopNum >= 6900 && cfopNum <= 6999)) return 'remessa';
+      return 'saida';
+    };
+
+    // Deriva data_saida (yyyy-MM-dd) a partir do timestamp hora_saida
+    const horaSaidaIso = (data as any).hora_saida as string | null | undefined;
+    const dataSaidaStr = horaSaidaIso ? String(horaSaidaIso).split('T')[0] : undefined;
+
+    // Consumidor final é derivado de PF/PJ (regra SEFAZ): PF = sim, PJ = não
+    const cpfCnpjDigits = (data.dest_cpf_cnpj || '').replace(/\D/g, '');
+    const isFisica = cpfCnpjDigits.length === 11;
+
     const invoiceData: InvoiceData = {
       id: data.id,
       order_id: data.order_id || undefined,
       numero: data.numero,
       serie: data.serie,
       data_emissao: data.created_at,
+      data_saida: dataSaidaStr,
       natureza_operacao: data.natureza_operacao,
       cfop: data.cfop || '',
       observacoes: data.observacoes || undefined,
+      tipo_nota: deriveTipoNota(data),
+      chave_acesso_referenciada: (data as any).nfe_referenciada || undefined,
       indicador_presenca: (data as any).indicador_presenca ?? 2,
       informacoes_fisco: (data as any).informacoes_fisco || undefined,
       dest_nome: data.dest_nome,
       dest_cpf_cnpj: data.dest_cpf_cnpj,
       dest_ie: data.dest_inscricao_estadual || undefined,
-      dest_tipo_pessoa: data.dest_cpf_cnpj?.replace(/\D/g, '').length === 11 ? 'fisica' : 'juridica',
-      dest_consumidor_final: true,
+      dest_tipo_pessoa: isFisica ? 'fisica' : 'juridica',
+      dest_consumidor_final: isFisica,
       indicador_ie_dest: (data as any).indicador_ie_dest ?? 9,
       dest_endereco_logradouro: data.dest_endereco_logradouro || '',
       dest_endereco_numero: data.dest_endereco_numero || 'S/N',
@@ -373,6 +396,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         valor_total: item.valor_total,
         origem: String(item.origem || 0),
         csosn: item.csosn,
+        cst: item.cst,
         gtin: item.gtin || '',
         gtin_tributavel: item.gtin_tributavel || '',
         cest: item.cest || '',
