@@ -1690,6 +1690,7 @@ async function executeSalesTool(
         return JSON.stringify({
           items: finalList,
           family_shipping_summary: familyShippingSummary,
+          synonym_match: synonymMatch,
         });
       }
 
