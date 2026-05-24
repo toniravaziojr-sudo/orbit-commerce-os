@@ -367,33 +367,41 @@ export function SupplierAutocomplete({
           ) : null}
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Label className="text-xs">Nome / Razão Social</Label>
-            <Input
-              value={value.name}
-              onChange={(e) => onChange({ ...value, id: null, name: e.target.value })}
-              placeholder="Nome do fornecedor"
-            />
+        {!compact && (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Label className="text-xs">Nome / Razão Social</Label>
+              <Input
+                value={value.name}
+                onChange={(e) => onChange({ ...value, id: null, name: e.target.value })}
+                placeholder="Nome do fornecedor"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs">CPF / CNPJ</Label>
+              <Input
+                value={value.document}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "");
+                  onChange({
+                    ...value,
+                    id: null,
+                    document: digits,
+                    personType: inferPersonType(digits),
+                  });
+                }}
+                placeholder="Apenas números"
+                maxLength={14}
+              />
+            </div>
           </div>
-          <div className="sm:col-span-2">
-            <Label className="text-xs">CPF / CNPJ</Label>
-            <Input
-              value={value.document}
-              onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, "");
-                onChange({
-                  ...value,
-                  id: null,
-                  document: digits,
-                  personType: inferPersonType(digits),
-                });
-              }}
-              placeholder="Apenas números"
-              maxLength={14}
-            />
-          </div>
-        </div>
+        )}
+
+        {compact && (
+          <p className="text-xs text-muted-foreground">
+            Salvar na base grava nome, documento, IE, endereço completo e contato preenchidos abaixo no cadastro central de Fornecedores.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
           {(value.id || value.name || value.document) && (
@@ -417,8 +425,31 @@ export function SupplierAutocomplete({
               Salvar na base
             </Button>
           )}
+          {allowSave && value.id && compact && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                // Reaproveita o fluxo de duplicidade: força procurar e abrir o diálogo "Atualizar dados".
+                const docDigits = onlyDigits(value.document);
+                if (!docDigits) return;
+                const personType = inferPersonType(docDigits);
+                const existing = await findByDocument(docDigits, personType);
+                if (existing) {
+                  setExistingMatch(existing);
+                  setDuplicateOpen(true);
+                }
+              }}
+              disabled={saving}
+            >
+              <BookmarkPlus className="mr-1 h-3.5 w-3.5" />
+              Atualizar cadastro
+            </Button>
+          )}
         </div>
       </div>
+
 
       {/* Duplicate dialog */}
       <Dialog open={duplicateOpen} onOpenChange={setDuplicateOpen}>
