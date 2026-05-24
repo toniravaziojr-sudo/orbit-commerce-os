@@ -153,4 +153,8 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Instruction Block Hierarchy Standard](mem://features/ai/instruction-block-hierarchy-standard) — Reg #39: ordem fixa dos blocos de instrução do prompt (10/20/40/50/80) com sort estável; bloco comercial podado em human_request/post_sale.
 - [Anchor as State Override (Frente 1 / Reg #40)](mem://constraints/anchor-as-state-override) — Âncora vira decisão de roteamento: dor declarada, pergunta direta de catálogo, menção a kit ou family_focus persistida forçam estado para recommendation. Mata a muleta de discovery na causa.
 - [Empty Response Fallback Reflex Aware (Frente 5 / Reg #40)](mem://constraints/empty-response-fallback-reflex-aware) — Quando o modelo retorna vazio e algum reflexo disparou, fallback vem da tabela do reflexo, não do estado. Resolve "vlw / kkkk / alô?" mesmo com content="".
+- [Direct Catalog Question Bypass (Frente 2 / Reg #41)](mem://constraints/direct-catalog-question-bypass) — Pergunta direta sobre kit/família sem dor declarada bypassa enforceFamilyBaseFirst, mantendo kits visíveis. Resolve B4.1.
+- [Tenant AI Synonyms (Frente 3 / Reg #41)](mem://features/ai/tenant-ai-synonyms) — Tabela tenant_ai_synonyms + helper resolveTenantSynonym mapeiam termo (marca/ingrediente/apelido) → produto do tenant. Determinístico antes do roteador estatístico.
+- [Institutional Sheet Admin UI (Frente 6 / Reg #41)](mem://features/ai/institutional-sheet-admin-ui) — 9 campos editáveis em Configurações > IA > Conhecimento Essencial, persistidos em ai_support_config.metadata.institutional_sheet.
+
 
