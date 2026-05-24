@@ -238,3 +238,31 @@ Config Fiscal (fiscal_settings) ──→ defaults
 | `valor_icms` | Soma de `icms_valor` dos itens |
 | `valor_pis` | Soma de `pis_valor` dos itens |
 | `valor_cofins` | Soma de `cofins_valor` dos itens |
+
+---
+
+## 11. Regra de Paridade Tela ↔ Banco (Anti-Regressão)
+
+**Princípio universal:** todo campo visível em qualquer aba do editor de NF-e (Geral, Destinatário, Itens, Valores, Pagamento, Transporte, Observações) DEVE ser persistido na mesma chamada de salvamento e reidratado integralmente ao reabrir o registro. Não é permitido que um campo "volte ao default" após salvar e reabrir.
+
+### Pontos de paridade obrigatórios
+
+| Aba | Campos críticos | Onde persiste |
+|-----|------------------|----------------|
+| Geral | `tipo_nota`, `tipo_documento`, `finalidade_emissao`, `natureza_operacao`, `serie`, `data_emissao`, `hora_saida`, `nfe_referenciada`, `indicador_presenca`, `informacoes_fisco`, `observacoes` | `fiscal_invoices` |
+| Destinatário | `dest_*` + `indicador_ie_dest` + `dest_consumidor_final` (derivado de PF/PJ) | `fiscal_invoices` |
+| Itens | `quantidade`, `valor_unitario`, `valor_desconto`, `cfop`, `ncm`, `cest`, `gtin`, `origem`, `csosn`, `cst`, `icms_*`, `pis_*`, `cofins_*` | `fiscal_invoice_items` |
+| Valores | `valor_produtos`, `valor_frete`, `valor_desconto`, `valor_total`, `valor_bc_icms`, `valor_icms`, `valor_pis`, `valor_cofins` | `fiscal_invoices` |
+| Pagamento | `pagamento_indicador`, `pagamento_meio`, `pagamento_valor` | `fiscal_invoices` |
+| Transporte | `frete_modalidade` | `fiscal_invoices` |
+
+### Regras derivadas (UI)
+
+- **Consumidor final** (`dest_consumidor_final`) é DERIVADO automaticamente do CPF/CNPJ ao digitar o documento (PF=sim, PJ=não), nunca persistido como decisão manual independente.
+- **`tipo_documento`** (0=entrada, 1=saída) é derivado automaticamente de `tipo_nota` (entrada/devolução = 0; demais = 1).
+- **Totais de impostos da aba Valores** (`valor_bc_icms`, `valor_icms`, `valor_pis`, `valor_cofins`) seguem **Opção B**: preenchidos automaticamente pela soma dos itens; usuário pode editar manualmente, e a edição é respeitada. Botão "Recalcular dos itens" força nova soma.
+- Ao abrir uma NF-e existente, `tipo_nota` é reidratado do banco; quando ausente em registros antigos, é derivado de `natureza_operacao` + `cfop` para manter compatibilidade.
+
+### Anti-regressão
+
+Toda nova aba, novo campo ou nova seção do editor de NF-e deve ser checada contra esta tabela antes de fechar a entrega. Critério mínimo: salvar, recarregar a página, reabrir o registro e confirmar que cada campo voltou exatamente como foi digitado.
