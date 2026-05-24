@@ -37,6 +37,8 @@ export interface InvoiceData {
   cfop: string;
   observacoes?: string;
   tipo_nota?: 'saida' | 'entrada' | 'remessa' | 'devolucao' | 'transferencia';
+  tipo_documento?: number; // 0 = entrada, 1 = saída (SEFAZ)
+  finalidade_emissao?: number; // 1=Normal, 2=Complementar, 3=Ajuste, 4=Devolução
   chave_acesso_referenciada?: string;
   // SEFAZ IDE
   indicador_presenca: number;
@@ -344,6 +346,12 @@ export function InvoiceEditor({
   const { data: readiness } = useFiscalReadiness();
   const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  // Option B: totais de impostos somam dos itens automaticamente, mas o usuário
+  // pode editar manualmente. Quando o usuário edita, marcamos o respectivo
+  // total como "tocado" e paramos de sobrescrever a partir da soma dos itens.
+  const [taxesTouched, setTaxesTouched] = useState<{ bc_icms: boolean; icms: boolean; pis: boolean; cofins: boolean }>({
+    bc_icms: false, icms: false, pis: false, cofins: false,
+  });
   // NFs filhas deste Pedido de Venda (modo PV) — alimenta o bloco "Vinculado à NF".
   const [childInvoices, setChildInvoices] = useState<Array<{ id: string; numero: number; serie: number; status: string; cancelled_at: string | null }>>([]);
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -452,8 +460,33 @@ export function InvoiceEditor({
       setData({ ...invoice });
       setValidationErrors([]);
       setInitialDest(captureDestSnapshot(invoice));
+      // Considera os totais "tocados" se chegaram com valor != 0 do banco,
+      // preservando valores manuais já salvos. Se vierem zerados, somamos dos itens.
+      setTaxesTouched({
+        bc_icms: (invoice.valor_bc_icms || 0) > 0,
+        icms: (invoice.valor_icms || 0) > 0,
+        pis: (invoice.valor_pis || 0) > 0,
+        cofins: (invoice.valor_cofins || 0) > 0,
+      });
     }
   }, [invoice]);
+
+  // Sincroniza tipo_pessoa e consumidor_final automaticamente conforme o
+  // CPF/CNPJ digitado (regra SEFAZ: PF = consumidor final, PJ = não).
+  useEffect(() => {
+    if (!data) return;
+    const digits = (data.dest_cpf_cnpj || '').replace(/\D/g, '');
+    if (digits.length !== 11 && digits.length !== 14) return;
+    const isFisica = digits.length === 11;
+    if (data.dest_tipo_pessoa !== (isFisica ? 'fisica' : 'juridica') ||
+        data.dest_consumidor_final !== isFisica) {
+      setData(prev => prev ? {
+        ...prev,
+        dest_tipo_pessoa: isFisica ? 'fisica' : 'juridica',
+        dest_consumidor_final: isFisica,
+      } : null);
+    }
+  }, [data?.dest_cpf_cnpj]);
 
   const updateField = <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => {
     setData(prev => prev ? { ...prev, [field]: value } : null);
@@ -558,7 +591,41 @@ export function InvoiceEditor({
     // evitando contar desconto em dobro quando o usuário preenche os dois lados.
     const descontoEfetivo = Math.max(Number(data.valor_desconto) || 0, descontoItens);
     const valor_total = Math.max(0, valor_produtos + (data.valor_frete || 0) + (data.valor_seguro || 0) + (data.valor_outras_despesas || 0) - descontoEfetivo);
-    setData(prev => prev ? { ...prev, valor_produtos, valor_total } : null);
+    // Option B: totais de impostos = soma dos itens, salvo se o usuário tocou.
+    const sum_bc_icms = items.reduce((s, it) => s + (Number(it.icms_base) || 0), 0);
+    const sum_icms = items.reduce((s, it) => s + (Number(it.icms_valor) || 0), 0);
+    const sum_pis = items.reduce((s, it) => s + (Number(it.pis_valor) || 0), 0);
+    const sum_cofins = items.reduce((s, it) => s + (Number(it.cofins_valor) || 0), 0);
+    setData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        valor_produtos,
+        valor_total,
+        valor_bc_icms: taxesTouched.bc_icms ? prev.valor_bc_icms : sum_bc_icms,
+        valor_icms: taxesTouched.icms ? prev.valor_icms : sum_icms,
+        valor_pis: taxesTouched.pis ? prev.valor_pis : sum_pis,
+        valor_cofins: taxesTouched.cofins ? prev.valor_cofins : sum_cofins,
+      };
+    });
+  };
+
+  // Permite ao usuário voltar ao cálculo automático (zera "tocados" e ressoma).
+  const recomputeTaxesFromItems = () => {
+    if (!data) return;
+    setTaxesTouched({ bc_icms: false, icms: false, pis: false, cofins: false });
+    const items = data.items;
+    const sum_bc_icms = items.reduce((s, it) => s + (Number(it.icms_base) || 0), 0);
+    const sum_icms = items.reduce((s, it) => s + (Number(it.icms_valor) || 0), 0);
+    const sum_pis = items.reduce((s, it) => s + (Number(it.pis_valor) || 0), 0);
+    const sum_cofins = items.reduce((s, it) => s + (Number(it.cofins_valor) || 0), 0);
+    setData(prev => prev ? {
+      ...prev,
+      valor_bc_icms: sum_bc_icms,
+      valor_icms: sum_icms,
+      valor_pis: sum_pis,
+      valor_cofins: sum_cofins,
+    } : null);
   };
 
   const validateForSubmission = (): string[] => {
@@ -1869,25 +1936,73 @@ export function InvoiceEditor({
 
             {!isPedidoVenda && (
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Totais de Impostos</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <div>
+                    <CardTitle className="text-base">Totais de Impostos</CardTitle>
+                    <CardDescription>
+                      Calculados automaticamente pela soma dos itens. Você pode editar os valores se precisar.
+                    </CardDescription>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={recomputeTaxesFromItems}>
+                    Recalcular dos itens
+                  </Button>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Base de Cálculo ICMS</Label>
-                    <Input value={formatCurrency(data.valor_bc_icms || 0)} disabled className="bg-muted font-mono" />
+                    <Label>Base de Cálculo ICMS{!taxesTouched.bc_icms && <span className="ml-2 text-xs text-muted-foreground">(automático)</span>}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={data.valor_bc_icms || 0}
+                      onChange={(e) => {
+                        setTaxesTouched(t => ({ ...t, bc_icms: true }));
+                        updateField('valor_bc_icms', parseFloat(e.target.value) || 0);
+                      }}
+                      className="font-mono"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Total ICMS</Label>
-                    <Input value={formatCurrency(data.valor_icms || 0)} disabled className="bg-muted font-mono" />
+                    <Label>Total ICMS{!taxesTouched.icms && <span className="ml-2 text-xs text-muted-foreground">(automático)</span>}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={data.valor_icms || 0}
+                      onChange={(e) => {
+                        setTaxesTouched(t => ({ ...t, icms: true }));
+                        updateField('valor_icms', parseFloat(e.target.value) || 0);
+                      }}
+                      className="font-mono"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Total PIS</Label>
-                    <Input value={formatCurrency(data.valor_pis || 0)} disabled className="bg-muted font-mono" />
+                    <Label>Total PIS{!taxesTouched.pis && <span className="ml-2 text-xs text-muted-foreground">(automático)</span>}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={data.valor_pis || 0}
+                      onChange={(e) => {
+                        setTaxesTouched(t => ({ ...t, pis: true }));
+                        updateField('valor_pis', parseFloat(e.target.value) || 0);
+                      }}
+                      className="font-mono"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Total COFINS</Label>
-                    <Input value={formatCurrency(data.valor_cofins || 0)} disabled className="bg-muted font-mono" />
+                    <Label>Total COFINS{!taxesTouched.cofins && <span className="ml-2 text-xs text-muted-foreground">(automático)</span>}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={data.valor_cofins || 0}
+                      onChange={(e) => {
+                        setTaxesTouched(t => ({ ...t, cofins: true }));
+                        updateField('valor_cofins', parseFloat(e.target.value) || 0);
+                      }}
+                      className="font-mono"
+                    />
                   </div>
                 </CardContent>
               </Card>
