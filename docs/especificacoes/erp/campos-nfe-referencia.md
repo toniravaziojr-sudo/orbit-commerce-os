@@ -90,9 +90,9 @@
 |-----------|-----------------|-----------|:---:|--------|--------|
 | `orig` | Origem | `fiscal_invoice_items.origem` | S | Config Fiscal | ✅ |
 | `CSOSN` | CSOSN | `fiscal_invoice_items.csosn` | S | Config Fiscal | ✅ |
-| `vBC` | Base de Cálculo ICMS | `fiscal_invoice_items.icms_base` | N* | Calculado | 🔄 |
-| `pICMS` | Alíquota ICMS | `fiscal_invoice_items.icms_aliquota` | N* | Config / Manual | 🔄 |
-| `vICMS` | Valor ICMS | `fiscal_invoice_items.icms_valor` | N* | Calculado | 🔄 |
+| `vBC` | Base de Cálculo ICMS | `fiscal_invoice_items.icms_base` | N* | Calculado | ✅ Implementado |
+| `pICMS` | Alíquota ICMS | `fiscal_invoice_items.icms_aliquota` | N* | Config / Manual | ✅ Implementado |
+| `vICMS` | Valor ICMS | `fiscal_invoice_items.icms_valor` | N* | Calculado | ✅ Implementado |
 
 *Obrigatório quando CSOSN exige (ex: 500, 900).
 
