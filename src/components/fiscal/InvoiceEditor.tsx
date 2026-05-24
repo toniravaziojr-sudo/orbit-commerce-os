@@ -1255,80 +1255,35 @@ export function InvoiceEditor({
                     </div>
                   </div>
 
-                  {/* Endereço */}
+                  {/* Endereço — componente único com busca automática por CEP */}
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-muted-foreground">Endereço</h4>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2 sm:col-span-2">
-                        <Label>Logradouro <span className="text-destructive">*</span></Label>
-                        <Input
-                          value={data.dest_endereco_logradouro}
-                          onChange={(e) => updateField('dest_endereco_logradouro', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Número</Label>
-                        <Input
-                          value={data.dest_endereco_numero}
-                          onChange={(e) => updateField('dest_endereco_numero', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Complemento</Label>
-                        <Input
-                          value={data.dest_endereco_complemento || ''}
-                          onChange={(e) => updateField('dest_endereco_complemento', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Bairro</Label>
-                        <Input
-                          value={data.dest_endereco_bairro}
-                          onChange={(e) => updateField('dest_endereco_bairro', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>CEP <span className="text-destructive">*</span></Label>
-                        <Input
-                          value={data.dest_endereco_cep}
-                          onChange={(e) => updateField('dest_endereco_cep', e.target.value.replace(/\D/g, ''))}
-                          maxLength={8}
-                          placeholder="00000000"
-                          className={`font-mono ${data.dest_endereco_cep && !isValidCep(data.dest_endereco_cep) ? 'border-destructive' : ''}`}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Município <span className="text-destructive">*</span></Label>
-                        <Input
-                          value={data.dest_endereco_municipio}
-                          onChange={(e) => updateField('dest_endereco_municipio', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Código IBGE <span className="text-destructive">*</span></Label>
-                        <Input
-                          value={data.dest_endereco_municipio_codigo}
-                          onChange={(e) => updateField('dest_endereco_municipio_codigo', e.target.value.replace(/\D/g, ''))}
-                          placeholder="7 dígitos"
-                          maxLength={7}
-                          className={`font-mono ${data.dest_endereco_municipio_codigo && !isValidIbge(data.dest_endereco_municipio_codigo) ? 'border-destructive' : ''}`}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>UF <span className="text-destructive">*</span></Label>
-                        <Select
-                          value={data.dest_endereco_uf}
-                          onValueChange={(value) => updateField('dest_endereco_uf', value)}
-                        >
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {UF_OPTIONS.map(uf => (
-                              <SelectItem key={uf} value={uf}>{uf}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                    <AddressFields
+                      idPrefix="fiscal-supplier"
+                      value={{
+                        postalCode: data.dest_endereco_cep || '',
+                        state: data.dest_endereco_uf || '',
+                        city: data.dest_endereco_municipio || '',
+                        street: data.dest_endereco_logradouro || '',
+                        neighborhood: data.dest_endereco_bairro || '',
+                        number: data.dest_endereco_numero || '',
+                        complement: data.dest_endereco_complemento || '',
+                        ibgeCode: data.dest_endereco_municipio_codigo || '',
+                      }}
+                      onChange={(next) => {
+                        setData((prev) => ({
+                          ...prev,
+                          dest_endereco_cep: next.postalCode,
+                          dest_endereco_uf: next.state,
+                          dest_endereco_municipio: next.city,
+                          dest_endereco_logradouro: next.street,
+                          dest_endereco_bairro: next.neighborhood,
+                          dest_endereco_numero: next.number,
+                          dest_endereco_complemento: next.complement,
+                          dest_endereco_municipio_codigo: next.ibgeCode || '',
+                        }));
+                      }}
+                    />
                   </div>
 
                   {/* Contato */}
