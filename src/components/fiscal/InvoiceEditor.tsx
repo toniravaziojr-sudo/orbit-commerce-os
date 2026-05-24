@@ -1356,6 +1356,7 @@ export function InvoiceEditor({
 
             {/* Cartões originais — só para Saída (cliente / consumidor final) */}
             {!(['entrada','devolucao','remessa','transferencia'] as const).includes((data.tipo_nota || 'saida') as any) && (
+            <>
             <Card>
 
               <CardHeader>
