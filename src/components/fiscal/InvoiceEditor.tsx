@@ -471,6 +471,23 @@ export function InvoiceEditor({
     }
   }, [invoice]);
 
+  // Sincroniza tipo_pessoa e consumidor_final automaticamente conforme o
+  // CPF/CNPJ digitado (regra SEFAZ: PF = consumidor final, PJ = não).
+  useEffect(() => {
+    if (!data) return;
+    const digits = (data.dest_cpf_cnpj || '').replace(/\D/g, '');
+    if (digits.length !== 11 && digits.length !== 14) return;
+    const isFisica = digits.length === 11;
+    if (data.dest_tipo_pessoa !== (isFisica ? 'fisica' : 'juridica') ||
+        data.dest_consumidor_final !== isFisica) {
+      setData(prev => prev ? {
+        ...prev,
+        dest_tipo_pessoa: isFisica ? 'fisica' : 'juridica',
+        dest_consumidor_final: isFisica,
+      } : null);
+    }
+  }, [data?.dest_cpf_cnpj]);
+
   const updateField = <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => {
     setData(prev => prev ? { ...prev, [field]: value } : null);
   };
