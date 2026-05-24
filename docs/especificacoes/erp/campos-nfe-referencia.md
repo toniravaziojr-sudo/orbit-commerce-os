@@ -120,10 +120,10 @@
 
 | Tag SEFAZ | Nome no Sistema | Coluna BD | Obrig. | Origem | Status |
 |-----------|-----------------|-----------|:---:|--------|--------|
-| `vBC` | Base Cálculo ICMS | `fiscal_invoices.valor_bc_icms` | S | Soma dos itens | 🔄 |
-| `vICMS` | Total ICMS | `fiscal_invoices.valor_icms` | S | Soma dos itens | 🔄 |
-| `vPIS` | Total PIS | `fiscal_invoices.valor_pis` | S | Soma dos itens | 🔄 |
-| `vCOFINS` | Total COFINS | `fiscal_invoices.valor_cofins` | S | Soma dos itens | 🔄 |
+| `vBC` | Base Cálculo ICMS | `fiscal_invoices.valor_bc_icms` | S | Soma dos itens (editável manualmente) | ✅ Implementado |
+| `vICMS` | Total ICMS | `fiscal_invoices.valor_icms` | S | Soma dos itens (editável manualmente) | ✅ Implementado |
+| `vPIS` | Total PIS | `fiscal_invoices.valor_pis` | S | Soma dos itens (editável manualmente) | ✅ Implementado |
+| `vCOFINS` | Total COFINS | `fiscal_invoices.valor_cofins` | S | Soma dos itens (editável manualmente) | ✅ Implementado |
 | `vProd` | Total Produtos | `fiscal_invoices.valor_produtos` | S | Soma dos itens | ✅ |
 | `vFrete` | Total Frete | `fiscal_invoices.valor_frete` | S | Pedido | ✅ |
 | `vDesc` | Total Desconto | `fiscal_invoices.valor_desconto` | S | Pedido | ✅ |
