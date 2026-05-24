@@ -18,7 +18,7 @@
 
 import type { PipelineState } from "./states.ts";
 import type { TurnIntent } from "./transitions.ts";
-import { isThanksOrFarewell, isSocialNoise } from "./continuity-gate.ts";
+import { isThanksOrFarewell, isSocialNoise, isHesitation } from "./continuity-gate.ts";
 
 export interface ReflexInput {
   consolidatedText: string;
@@ -42,7 +42,9 @@ export interface ReflexOutput {
     | "short_turn_with_intent"
     | "presence_ping"
     | "thanks_terminal"
-    | "social_noise";
+    | "social_noise"
+    | "hesitation";
+
   newState: PipelineState | null; // null = não muda estado
   reason: string;
   promptBlock: string; // bloco anexado ao contextualBlocks
@@ -139,6 +141,31 @@ export function detectDeterministicReflex(input: ReflexInput): ReflexOutput | nu
         `categoria, usar a muleta "Me conta o que você precisa".\n`,
     };
   }
+
+  // ── [Frente 4 — plano de correção pós-Frentes B–E] Reflexo: hesitação ──
+  // "depois eu vejo", "preciso pensar", "vou ver" — cliente está adiando
+  // a decisão. Resposta de acolhimento curto + porta aberta. Não regredimos
+  // o estado: se já estava em decision/checkout, mantemos (cliente decide
+  // voltar quando quiser); em discovery/recommendation, também mantemos
+  // o estado e o bloco proíbe nova pergunta de venda.
+  if (isHesitation(text)) {
+    return {
+      reflexId: "hesitation",
+      newState: null,
+      reason: "hesitation_detected",
+      promptBlock:
+        `\n[REFLEXO — HESITAÇÃO / ADIAMENTO]\n` +
+        `O cliente sinalizou que vai PENSAR ou VER DEPOIS. Este turno é ` +
+        `acolhimento, não venda. Resposta obrigatória: 1 linha curta validando ` +
+        `o tempo dele + porta aberta no tom ("tranquilo, qualquer coisa me chama"). ` +
+        `PROIBIDO: nova pergunta de qualificação, oferta de produto novo, ` +
+        `pressão por decisão, "posso te mostrar mais opções?", reabrir descoberta, ` +
+        `usar a muleta "Me conta o que você precisa que eu já te indico". ` +
+        `Se houver carrinho ativo, pode mencionar UMA vez que o link segue ativo, sem insistir.\n`,
+    };
+  }
+
+
 
   // ── Reflexo 1: CEP recebido ─────────────────────────────
   const cepMatch = text.match(CEP_REGEX);

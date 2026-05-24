@@ -5701,16 +5701,17 @@ Cliente: "vocês entregam em SP?"
           if (reflex.newState && reflex.newState !== pipelineState) {
             reflexFinalState = reflex.newState;
             console.log(
-              `[ai-support-chat] [Reg #2.17 Fase 3] reflex=${reflex.reflexId} ` +
-              `state_override ${pipelineState} → ${reflex.newState} reason=${reflex.reason}`
+              `[ai-support-chat] [REFLEX-FIRED] reflexId=${reflex.reflexId} ` +
+              `newState=${reflex.newState} prevState=${pipelineState} reason=${reflex.reason}`
             );
           } else {
             console.log(
-              `[ai-support-chat] [Reg #2.17 Fase 3] reflex=${reflex.reflexId} ` +
-              `state_kept=${pipelineState} reason=${reflex.reason}`
+              `[ai-support-chat] [REFLEX-FIRED] reflexId=${reflex.reflexId} ` +
+              `newState=${pipelineState} prevState=${pipelineState} reason=${reflex.reason} state_kept=true`
             );
           }
         }
+
       } catch (e) {
         console.warn(
           "[ai-support-chat] [Reg #2.17 Fase 3] reflex detector failed:",
@@ -5864,11 +5865,13 @@ Cliente: "vocês entregam em SP?"
           // [Frente B] thanks terminal + ruído social + ping de presença
           consolidatedText: lastMessageContent || "",
           intentBucket: (intentScope?.bucket as any) || null,
-          // [Passo 5] Se o reflexo determinístico já cobriu, não duplica.
+          // [Passo 5 + Frente 4] Se o reflexo determinístico já cobriu, não duplica.
           socialReflexFired:
             firedReflexId === "thanks_terminal" ||
             firedReflexId === "social_noise" ||
-            firedReflexId === "presence_ping",
+            firedReflexId === "presence_ping" ||
+            firedReflexId === "hesitation",
+
         });
 
         if (continuity.promptBlock) {
@@ -7445,6 +7448,23 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           support:         "Entendi. Deixa eu olhar isso pra você, um instante.",
           handoff:         "Vou te passar pra alguém da equipe que resolve isso, tá?",
         };
+
+        // [Frente 5 — plano de correção pós-Frentes B–E]
+        // Fallback ciente do reflexo: quando o modelo retorna vazio mas algum
+        // reflexo determinístico disparou neste turno, a resposta vem da tabela
+        // de reflexo, NÃO do estado da pipeline. Mata a regressão "vlw / kkkk /
+        // alô?" que caía em muleta de discovery quando o LLM voltava vazio.
+        const FALLBACK_BY_REFLEX: Record<string, string> = {
+          thanks_terminal: "Tmj, qualquer coisa me chama!",
+          social_noise:    "kkk 👍",
+          presence_ping:   "Tô aqui sim! Em que posso ajudar?",
+          hesitation:      "Tranquilo, sem pressa. Qualquer coisa me chama.",
+          cep_received:    "Anotei o CEP, um instante.",
+          shipping_question: "Pra te passar o frete certinho preciso do CEP, pode me mandar?",
+          post_sale_question: "Me passa o número do pedido (ou e-mail) que eu já vejo aqui.",
+          short_turn_with_intent: "Beleza, deixa eu te mostrar as opções.",
+        };
+
         // [PACOTE B v2] Fallback CONCLUSIVO HUMANIZADO.
         // Regras:
         //  1. Nunca dizer "consultei o catálogo", "encontrei esses produtos reais",
@@ -7549,27 +7569,40 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
         const universalCommercialVeto =
           intentName === "complaint" && !isOrderComplaintHere;
 
-        if (isActionable && !toolsAlreadyRan && !universalCommercialVeto) {
+        // [Frente 5] Se algum reflexo determinístico disparou, ele é a fonte
+        // de verdade da resposta — sobrepõe handoff/media/state-fallback.
+        const reflexFallback = firedReflexId ? FALLBACK_BY_REFLEX[firedReflexId] : null;
+        if (reflexFallback) {
+          aiContent = reflexFallback;
+          console.log(
+            `[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=reflex reflexId=${firedReflexId} state=${pipelineState}`
+          );
+        } else if (isActionable && !toolsAlreadyRan && !universalCommercialVeto) {
           aiContent = "Vou chamar alguém da equipe pra resolver isso direto com você. Já te respondem por aqui.";
           shouldHandoff = true;
           handoffReason = handoffReason || "empty_response_actionable_intent";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=actionable_handoff state=${pipelineState}`);
         } else if (universalCommercialVeto) {
-          // Mantém modo comercial: usa fallback do estado em vez de escalar.
           aiContent = FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] ||
             FALLBACK_PROMISE_BY_STATE[pipelineState] ||
             "Me conta um pouco mais do que você procura, que eu já te indico o melhor.";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=commercial_veto state=${pipelineState}`);
         } else if (inboundIsMediaFb) {
           aiContent = "Não consegui abrir o arquivo aqui. Você consegue me descrever em texto o que precisa? Assim eu já te ajudo.";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=inbound_media state=${pipelineState}`);
         } else if (toolsAlreadyRan) {
           const humanized = buildHumanFallbackFromTools();
           aiContent = humanized || FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] || "Me conta um pouco mais do que você procura.";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=tools_humanized state=${pipelineState}`);
         } else {
           aiContent = FALLBACK_PROMISE_BY_STATE[pipelineState] || "Já te respondo.";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=state_promise state=${pipelineState}`);
         }
         emptyResponseFallbackApplied = true;
         console.warn(
-          `[ai-support-chat] [Reg #17.1] empty-response fallback state=${pipelineState} intent=${intentClassification?.intent ?? "n/a"} actionable=${isActionable} media=${inboundIsMediaFb} tools=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
+          `[ai-support-chat] [Reg #17.1] empty-response fallback state=${pipelineState} reflex=${firedReflexId ?? "none"} intent=${intentClassification?.intent ?? "n/a"} actionable=${isActionable} media=${inboundIsMediaFb} tools=${toolsAlreadyRan} text="${aiContent.slice(0,120)}"`
         );
+
       }
     }
 
