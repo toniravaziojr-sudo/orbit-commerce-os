@@ -1838,3 +1838,49 @@ Esse problema (P-EXEC-5 + P-EXEC-7 no doc temporário) será tratado num plano d
 📌 **STATUS DA ENTREGA:** Ajuste aplicado — pendente de validação completa. Reflexos novos no código + hierarquia correta, mas comportamento final continua bloqueado pelo fallback de resposta vazia. Entrar em correção dedicada.
 
 📝 **DOCUMENTAÇÃO NECESSÁRIA:** já refletida neste registro (#38) e em `_temp-base-universal-ondas-de-teste.md`. Lacuna documental pendente: tela admin da ficha institucional (Passo 2b não implementado).
+
+---
+
+## Registro #40 — Plano de correção pós-Frentes B–E — Frentes 1, 4, 5, 7 — 24/mai/2026
+
+### Contexto
+Após o Registro #39 (fechamento do plano original), foi montado novo plano de 7 frentes para resolver as 7 pendências P-EXEC. Esta entrega cobre as 4 frentes autocontidas (1, 4, 5, 7) que destravam B3.1, B4.1, B6.3-T1, B6.3-T2 e o ciclo "vlw / kkkk / alô?". As 3 frentes restantes (2 — Catalog Probe direto a kit/shampoo/balm; 3 — sinônimos determinísticos por tenant; 6 — tela admin da Ficha Institucional) entram em ciclo seguinte com plano dedicado, porque cada uma exige decisão de produto/banco/UI própria.
+
+### Frente 1 — Âncora vira override de estado ✅
+- Novo módulo `_shared/sales-pipeline/anchor-state-override.ts`. Promove sinais reais (dor declarada, pergunta direta de catálogo, menção a kit/combo, família em foco persistida) a decisão de roteamento, forçando o estado para `recommendation`.
+- Wired em `ai-support-chat/index.ts` entre o bucket router e o continuity gate. Mutação direta de `bucketFinalState` quando o override decide forçar.
+- Bloqueios duros: reflexo prévio já alterou estado, estado avançado (recommendation/product_detail/decision/checkout/support/handoff), bucket não-vendas (post_sale, human_request, institutional, objection, hesitation, out_of_scope, social).
+- 8 testes unitários em `__tests__/anchor-state-override.test.ts` — todos verdes.
+- Destrava B3.1, B4.1, B6.3-T1, B6.2 sem regredir os 19 cenários congelados.
+
+### Frente 4 — Reflexo de hesitação ✅
+- Novo detector `isHesitation` em `continuity-gate.ts` cobrindo "depois eu vejo / preciso pensar / vou ver / amanhã eu volto / outro dia / mais pra frente / por enquanto não / talvez depois / quem sabe depois / deixa eu ver / deixa eu pensar".
+- Novo reflexo `hesitation` (peso 20) em `deterministic-reflexes.ts`. Resposta de acolhimento curto + porta aberta. PROIBIDO nova pergunta de venda, oferta nova, pressão por decisão.
+- `socialReflexFired` em `continuity-gate.ts` agora também suprime branch quando reflexo de hesitação dispara.
+- 7 testes unitários em `__tests__/hesitation-reflex.test.ts` — todos verdes.
+- Destrava B6.3-T2.
+
+### Frente 5 — Fallback de resposta vazia ciente do reflexo ✅
+- Em `ai-support-chat/index.ts`, no bloco de fallback de resposta vazia (~linha 7437), adicionada tabela `FALLBACK_BY_REFLEX` cobrindo os 8 reflexos atuais (thanks_terminal, social_noise, presence_ping, hesitation, cep_received, shipping_question, post_sale_question, short_turn_with_intent).
+- Quando `firedReflexId` está setado e existe entrada na tabela, a frase final vem do reflexo, sobrepondo handoff, media e fallback por estado. Apenas se nenhum reflexo disparou é que cai no caminho antigo.
+- Resolve a regressão "vlw / kkkk / alô?" mesmo quando o gpt-5 devolve `content=""` (P-EXEC-5 e P-EXEC-7).
+
+### Frente 7 — Observabilidade dos reflexos e do override ✅
+- Tag única `[REFLEX-FIRED reflexId=… newState=… prevState=… reason=…]` substitui o log antigo `[Reg #2.17 Fase 3]`.
+- Nova tag `[ANCHOR-OVERRIDE forcedState=… from=… reason=… bucket=… pain=… family=…]` em todos os turnos onde a Frente 1 atua (com versão `skipped` quando não aplica).
+- Nova tag `[FALLBACK-EMPTY-RESPONSE source=reflex|actionable_handoff|commercial_veto|inbound_media|tools_humanized|state_promise reflexId=… state=…]` em todos os caminhos do fallback.
+- Log do Reg #17.1 agora também carrega `reflex=…` para correlação rápida.
+
+### Validação técnica
+- 15 testes unitários novos (8 do anchor + 7 do reflexo de hesitação) — todos verdes.
+- Type-check do edge runtime passou em todos os módulos modificados.
+- Pendente de validação do usuário no sandbox real: bateria fixa de 19 cenários + cenários alvo (B3.1, B4.1, B6.3-T1, B6.3-T2, "vlw", "kkkk", "alô?").
+
+### Pendências para o ciclo seguinte
+- Frente 2 — Catalog Probe direto a "kit/shampoo/balm" sem família em foco.
+- Frente 3 — Tabela determinística de sinônimos por tenant (B5.1: "minoxidil → Calvície Zero").
+- Frente 6 — Tela admin da Ficha Institucional em Configurações > IA.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado — pendente de validação no sandbox. Frentes 2/3/6 entram em ciclo seguinte.
+
+📝 **DOCUMENTAÇÃO NECESSÁRIA:** Memórias atualizadas (`mem://features/ai/instruction-block-hierarchy-standard.md` ganha hesitation; nova `mem://constraints/anchor-as-state-override`; `mem://constraints/sales-pipeline-deterministic-reflexes` ganha hesitation; nova `mem://constraints/empty-response-fallback-reflex-aware`). Mapa de UI segue sem alteração nesta entrega — Frente 6 mexe nele no próximo ciclo.
