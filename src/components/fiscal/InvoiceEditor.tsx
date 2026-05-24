@@ -37,6 +37,8 @@ export interface InvoiceData {
   cfop: string;
   observacoes?: string;
   tipo_nota?: 'saida' | 'entrada' | 'remessa' | 'devolucao' | 'transferencia';
+  tipo_documento?: number; // 0 = entrada, 1 = saída (SEFAZ)
+  finalidade_emissao?: number; // 1=Normal, 2=Complementar, 3=Ajuste, 4=Devolução
   chave_acesso_referenciada?: string;
   // SEFAZ IDE
   indicador_presenca: number;
