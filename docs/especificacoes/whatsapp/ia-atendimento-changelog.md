@@ -1923,3 +1923,39 @@ Continuação do Reg #40. Esta entrega cobre as 3 frentes restantes do plano de 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado — pendente de validação no sandbox e wiring completo da Frente 3.
 
 📝 **DOCUMENTAÇÃO NECESSÁRIA:** Mapa de UI atualizar com a nova seção. Memórias atualizadas no índice. Lacunas documentais declaradas: spec da tabela de sinônimos pode evoluir para `docs/especificacoes/ia/tenant-ai-synonyms.md` em ciclo seguinte.
+
+---
+
+## Registro #42 — Wiring final do resolvedor de sinônimos no search_products
+
+**Data:** 2026-05-24
+**Autor:** IA Atendimento — Frente 3 (encerramento)
+**Escopo:** `supabase/functions/ai-support-chat/index.ts` (handler `search_products`)
+
+### O que mudou
+Após a tool `search_products` calcular o `finalList` (partição base/kit + ranking), o handler agora consulta `resolveTenantSynonym` com o texto do turno. Se houver hit:
+1. **Se o produto-alvo já está no pool:** ele é movido para o topo, com `match_reason="synonym:<termo>"`.
+2. **Se NÃO está no pool:** é hidratado direto da tabela `products` (filtrando `status=active`) e prepended.
+3. **Resposta da tool:** ganha o campo `synonym_match` com `{ term, kind, target_product_id, response_template }`. O LLM pode usar `response_template` para responder com o tom/copy aprovado pelo tenant.
+4. **Trace `final_ranking`:** agora carrega `synonym_match` para auditoria.
+
+### Por que essa abordagem
+- **Determinístico:** elimina dependência do ranking estatístico para termos ambíguos (ingredientes, marcas paralelas, apelidos).
+- **Não destrutivo:** não exclui itens do pool — apenas garante prioridade do produto canônico.
+- **Tolerante a falha:** qualquer erro no resolver é logado e o fluxo segue normal (sem crash).
+
+### Observabilidade
+- Log: `[ai-support-chat][search_products] [Frente3-Synonym] term="..." kind=... target=...`
+- Trace stage `final_ranking.synonym_match` (lido só por service_role via `ai_turn_traces`).
+
+### Validação técnica
+- Edge `ai-support-chat` redeployada com sucesso.
+- Pendente de validação do usuário: cadastrar 1+ sinônimo em `tenant_ai_synonyms` (UI ainda não criada — uso direto via SQL ou módulo futuro) e simular B5.1.
+
+### Pendências documentais
+- Spec dedicada em `docs/especificacoes/ia/tenant-ai-synonyms.md` (lacuna mantida — depende de UI de gestão).
+- UI de gestão de sinônimos no painel de IA — não escopada nesta entrega.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado — pendente de validação do usuário (cadastrar sinônimo e testar B5.1).
+
+📝 **DOCUMENTAÇÃO NECESSÁRIA:** Memória `mem://features/ai/tenant-ai-synonyms` já reflete o wiring. Mapa de UI sem mudança nesta entrega (sem nova tela). Spec dedicada permanece como pendência para quando houver UI.
