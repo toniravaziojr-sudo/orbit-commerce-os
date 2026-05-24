@@ -62,6 +62,7 @@ export function SupplierAutocomplete({
   label = "Fornecedor",
   required,
   allowSave = true,
+  compact = false,
 }: SupplierAutocompleteProps) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
