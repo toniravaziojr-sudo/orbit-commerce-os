@@ -1218,3 +1218,26 @@ Lista cumulativa de tudo que apareceu no caminho. Vai virar plano de correção 
 4. **Dor genérica sem família** ("queda", "frizz", "calvície") deve virar recomendação direta na primeira ocorrência, sem passar por discovery.
 5. **Logs estruturados de reflexo** com tag única (`[REFLEX-FIRED]`) para facilitar auditoria.
 6. **Auditar todas as muletas hardcoded** (`FALLBACK_PROMISE_BY_STATE`) e criar versões contextualizadas por reflexo/bucket.
+
+---
+
+## Fechamento do plano pós-Frentes B–E (Passo 6) — 24/mai/2026
+
+**Status:** plano de 6 passos concluído parcialmente. Registro consolidado em `docs/especificacoes/whatsapp/ia-atendimento-changelog.md` — Registro #39.
+
+**Entregue:** Passos 2a, 3, 4, 5 e 6.
+**Não entregue:** Passo 1 (baseline empírico arquivado turno a turno) e Passo 2b (tela admin da ficha institucional).
+
+**Bateria de regressão pós-correção:**
+- ✅ B3.1, B5.1 — destravados.
+- ❌ B4.1, B6.3-T1, "vlw obrigado", "kkkk", "alô?" — seguem em muleta. Causa raiz comum: `FALLBACK_PROMISE_BY_STATE` cego ao reflexo ativo + conflito Catalog Probe × base-antes-de-kit em pergunta sem família.
+
+**Frente F:** **adiada**. Não abrir até as 7 pendências P-EXEC virarem plano de correção próprio e voltarem verdes.
+
+**Próximo passo recomendado:** transformar a seção "Pontos para o futuro plano de correção (consolidado)" deste documento em um plano formal antes de qualquer Frente nova.
+
+**Memórias atualizadas:**
+- `mem://features/ai/instruction-block-hierarchy-standard` (nova).
+- `mem://constraints/sales-pipeline-deterministic-reflexes` (estendida com `thanks_terminal` e `social_noise` no Registro #39).
+
+**Lacuna documental declarada:** mapa de UI segue sem rota da Ficha Institucional admin (P-EXEC-2).
