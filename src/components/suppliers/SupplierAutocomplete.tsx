@@ -43,6 +43,9 @@ interface SupplierAutocompleteProps {
   label?: string;
   required?: boolean;
   allowSave?: boolean;
+  /** Modo compacto: esconde os campos internos de Nome / CPF-CNPJ.
+   *  Use quando o formulário pai já mostra esses campos (ex.: aba Destinatário do Editor de NF-e). */
+  compact?: boolean;
 }
 
 function onlyDigits(v: string | null | undefined): string {
