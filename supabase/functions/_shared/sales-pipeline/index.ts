@@ -34,3 +34,10 @@ export * from "./pain-symptom-detector.ts";
 export * from "./handoff-motor.ts";
 // [Reg #2.17 — Fase 3] Reflexos determinísticos do roteador de prompt
 export * from "./deterministic-reflexes.ts";
+// Plano de correção pós-Frentes B–E:
+// Frente 1 — Anchor vira override de estado
+export * from "./anchor-state-override.ts";
+// Frente 2 — Detector de pergunta direta de catálogo (kit/família)
+export * from "./direct-catalog-question.ts";
+// Frente 3 — Resolver determinístico de sinônimos por tenant
+export * from "./synonyms-resolver.ts";
