@@ -1157,6 +1157,7 @@ export function InvoiceEditor({
                       email: data.dest_email || null,
                       phone: data.dest_telefone || null,
                       ie: data.dest_ie || null,
+                      indicadorIe: data.indicador_ie_dest ?? null,
                       cep: data.dest_endereco_cep || null,
                       logradouro: data.dest_endereco_logradouro || null,
                       numero: data.dest_endereco_numero || null,
@@ -1164,6 +1165,7 @@ export function InvoiceEditor({
                       bairro: data.dest_endereco_bairro || null,
                       cidade: data.dest_endereco_municipio || null,
                       uf: data.dest_endereco_uf || null,
+                      codigoIbge: data.dest_endereco_municipio_codigo || null,
                     }}
                     onChange={(s: SupplierContact) => {
                       setLinkedSupplierId(s.id ?? null);
@@ -1173,6 +1175,7 @@ export function InvoiceEditor({
                         dest_cpf_cnpj: (s.document || '').replace(/\D/g, ''),
                         dest_tipo_pessoa: s.personType === 'PJ' ? 'juridica' : 'fisica',
                         dest_ie: s.ie ?? prev.dest_ie,
+                        indicador_ie_dest: s.indicadorIe ?? prev.indicador_ie_dest,
                         dest_email: s.email ?? prev.dest_email,
                         dest_telefone: s.phone ?? prev.dest_telefone,
                         dest_endereco_cep: s.cep ?? prev.dest_endereco_cep,
@@ -1182,6 +1185,7 @@ export function InvoiceEditor({
                         dest_endereco_bairro: s.bairro ?? prev.dest_endereco_bairro,
                         dest_endereco_municipio: s.cidade ?? prev.dest_endereco_municipio,
                         dest_endereco_uf: s.uf ?? prev.dest_endereco_uf,
+                        dest_endereco_municipio_codigo: s.codigoIbge ?? prev.dest_endereco_municipio_codigo,
                       }) : prev);
                     }}
                   />

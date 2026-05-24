@@ -25,6 +25,8 @@ export interface SupplierContact {
   email?: string | null;
   phone?: string | null;
   ie?: string | null;
+  /** Indicador IE da NF: 1 = Contribuinte ICMS, 2 = Contribuinte isento, 9 = Não contribuinte. */
+  indicadorIe?: number | null;
   cep?: string | null;
   logradouro?: string | null;
   numero?: string | null;
@@ -32,6 +34,7 @@ export interface SupplierContact {
   bairro?: string | null;
   cidade?: string | null;
   uf?: string | null;
+  codigoIbge?: string | null;
 }
 
 interface SupplierAutocompleteProps {
@@ -118,6 +121,11 @@ export function SupplierAutocomplete({
   }, [searchTerm, tenantId]);
 
   function applySupplier(s: Supplier) {
+    // Mapeia contributor_type do cadastro -> indicador IE da NF.
+    const indicadorFromContributor =
+      s.contributor_type === "contribuinte" ? 1
+      : s.contributor_type === "contribuinte_isento" ? 2
+      : 9;
     onChange({
       id: s.id,
       name: s.name,
@@ -126,6 +134,7 @@ export function SupplierAutocomplete({
       email: s.email,
       phone: s.phone,
       ie: s.ie,
+      indicadorIe: indicadorFromContributor,
       cep: s.cep,
       logradouro: s.logradouro,
       numero: s.numero,
@@ -133,6 +142,7 @@ export function SupplierAutocomplete({
       bairro: s.bairro,
       cidade: s.cidade,
       uf: s.uf,
+      codigoIbge: s.codigo_ibge,
     });
     setSearchTerm("");
     setResults([]);
@@ -163,6 +173,27 @@ export function SupplierAutocomplete({
         setDuplicateOpen(true);
         return;
       }
+      // Inferência de tipo de contribuinte / isento de IE.
+      // Prioridade: indicador IE da NF (1/2/9). Fallback: presença de IE.
+      const ieDigits = onlyDigits(value.ie ?? null);
+      let contributorType: "contribuinte" | "contribuinte_isento" | "nao_contribuinte";
+      let ieIsento: boolean;
+      if (value.indicadorIe === 1) {
+        contributorType = "contribuinte";
+        ieIsento = false;
+      } else if (value.indicadorIe === 2) {
+        contributorType = "contribuinte_isento";
+        ieIsento = true;
+      } else if (value.indicadorIe === 9) {
+        contributorType = "nao_contribuinte";
+        ieIsento = false;
+      } else if (ieDigits) {
+        contributorType = "contribuinte";
+        ieIsento = false;
+      } else {
+        contributorType = "nao_contribuinte";
+        ieIsento = false;
+      }
       const created = await createSupplier.mutateAsync({
         name: value.name.trim(),
         person_type: personType,
@@ -170,10 +201,10 @@ export function SupplierAutocomplete({
         cpf: personType === "PF" ? docDigits : null,
         legal_name: personType === "PJ" ? value.name.trim() : null,
         trade_name: null,
-        ie: value.ie ?? null,
-        ie_isento: false,
+        ie: ieIsento ? null : (value.ie ?? null),
+        ie_isento: ieIsento,
         im: null,
-        contributor_type: "nao_contribuinte",
+        contributor_type: contributorType,
         is_foreign: false,
         email: value.email ?? null,
         phone: value.phone ?? null,
@@ -185,7 +216,7 @@ export function SupplierAutocomplete({
         bairro: value.bairro ?? null,
         cidade: value.cidade ?? null,
         uf: value.uf ?? null,
-        codigo_ibge: null,
+        codigo_ibge: value.codigoIbge ?? null,
         pais: "Brasil",
         address: null,
         contact_person: null,
@@ -195,6 +226,15 @@ export function SupplierAutocomplete({
         supplier_type_id: null,
       } as any);
       onChange({ ...value, id: (created as any).id, personType });
+      // Aviso amigável quando o cadastro nasce parcial.
+      const missing: string[] = [];
+      if (!value.cep && !value.logradouro && !value.cidade) missing.push("endereço");
+      if (!value.ie && !ieIsento) missing.push("inscrição estadual");
+      if (missing.length > 0) {
+        toast.warning(
+          `Fornecedor salvo, mas faltou ${missing.join(" e ")}. Você pode completar em Fornecedores quando quiser.`
+        );
+      }
     } catch (err) {
       // toast already shown by hook
     } finally {
@@ -213,12 +253,13 @@ export function SupplierAutocomplete({
     if (!existingMatch) return;
     try {
       setSaving(true);
-      await updateSupplier.mutateAsync({
+      // Mesma inferência do salvamento — só sobrescreve se a NF trouxer dado novo.
+      const ieDigits = onlyDigits(value.ie ?? null);
+      const updates: any = {
         id: existingMatch.id,
         name: value.name.trim() || existingMatch.name,
         email: value.email ?? existingMatch.email,
         phone: value.phone ?? existingMatch.phone,
-        ie: value.ie ?? existingMatch.ie,
         cep: value.cep ?? existingMatch.cep,
         logradouro: value.logradouro ?? existingMatch.logradouro,
         numero: value.numero ?? existingMatch.numero,
@@ -226,7 +267,28 @@ export function SupplierAutocomplete({
         bairro: value.bairro ?? existingMatch.bairro,
         cidade: value.cidade ?? existingMatch.cidade,
         uf: value.uf ?? existingMatch.uf,
-      } as any);
+        codigo_ibge: value.codigoIbge ?? existingMatch.codigo_ibge,
+      };
+      // Atualiza IE / contribuinte só se a NF trouxer informação clara.
+      if (value.indicadorIe === 1 && ieDigits) {
+        updates.ie = value.ie;
+        updates.ie_isento = false;
+        updates.contributor_type = "contribuinte";
+      } else if (value.indicadorIe === 2) {
+        updates.ie = null;
+        updates.ie_isento = true;
+        updates.contributor_type = "contribuinte_isento";
+      } else if (value.indicadorIe === 9) {
+        updates.ie = null;
+        updates.ie_isento = false;
+        updates.contributor_type = "nao_contribuinte";
+      } else if (ieDigits && !existingMatch.ie) {
+        // Sem indicador, mas a NF trouxe IE e o cadastro estava sem.
+        updates.ie = value.ie;
+        updates.ie_isento = false;
+        updates.contributor_type = "contribuinte";
+      }
+      await updateSupplier.mutateAsync(updates);
       onChange({
         ...value,
         id: existingMatch.id,
