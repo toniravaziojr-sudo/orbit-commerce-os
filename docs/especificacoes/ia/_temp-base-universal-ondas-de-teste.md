@@ -1160,3 +1160,61 @@ Confirma as causas P1 (validação ausente), P3 (Frente C × Frente E em conflit
 3. B5.1 mostra que o reflexo "produto fora do catálogo com sinônimo conhecido" (minoxidil → Calvície Zero) precisa ser determinístico (lista de sinônimos no banco), não dependente do prompt.
 4. B6.3 mostra que o `continuity-gate` precisa detectar "depois eu vejo" como hesitação e responder com acolhimento curto, não muleta.
 
+
+---
+
+## Problemas identificados durante execução do plano de correção (Passos 2–5) — 2026-05-23
+
+Lista cumulativa de tudo que apareceu no caminho. Vai virar plano de correção próprio depois.
+
+### P-EXEC-1 — Ficha institucional não rendeu efeito sozinha (Passo 2a)
+- Sintoma: 9 campos populados no tenant `respeite-o-homem` via UPDATE direto, mas as 5 perguntas institucionais B8.1–B8.5 continuaram caindo na muleta universal.
+- Causa: ficha entra como bloco contextual sem hierarquia. Sem Passos 3/4/5, é só ruído no prompt.
+- Status: aguarda efeito conjunto do Passo 4 (hierarquia) — não se confirma de forma isolada.
+
+### P-EXEC-2 — Tela de edição da ficha (Passo 2b) não foi entregue
+- O plano previa tela admin para editar a ficha; a entrega foi 100% via UPDATE manual.
+- Implicação: dono do tenant não consegue manter a ficha viva pela UI. Lacuna funcional.
+- Pendência: criar rota `/settings/ia/ficha-institucional` com formulário básico (campos = chaves do JSON `metadata.institutional_sheet`).
+
+### P-EXEC-3 — Suavização do anchor para `catalog_question` (Passo 3) só destravou 2 de 4 cenários
+- ✅ B3.1 ("vocês têm shampoo?") e B5.1 ("tem minoxidil?") passaram a listar/negar corretamente.
+- ❌ B4.1 ("qual o kit mais completo?") segue caindo na muleta — conflito persistente com regra "base antes de kit" (Onda 18 Fase A) quando nenhuma família foi declarada.
+- ❌ B6.3-T1 ("queda") segue caindo na muleta — dor genérica sem família declarada não vira recomendação direta.
+
+### P-EXEC-4 — Hierarquia de blocos (Passo 4) ordenou, mas não impediu muleta em casos extremos
+- Ordem aplicada: handoff(10) → reflexos(20) → continuidade(40) → âncora(50) → comercial(80).
+- ✅ Funcionou para B3.1 e B5.1.
+- ❌ Não destravou B4.1 e B6.3-T1.
+- Sintoma novo: o LLM gpt-5 às vezes responde com `content` vazio mesmo recebendo blocos de prioridade alta — e o fallback de resposta vazia injeta diretamente a muleta por estado (`discovery → "Me conta um pouco do que você precisa que eu já te indico."`).
+- Conclusão: a muleta não é só prompt; é também **fallback hardcoded de resposta vazia**.
+
+### P-EXEC-5 — Reflexos determinísticos novos (Passo 5) não evitaram a muleta nos 3 cenários alvo
+- Adicionados `thanks_terminal` e `social_noise` ao detector determinístico (presence_ping já existia).
+- Continuity-gate ajustado para não duplicar quando reflexo dispara.
+- Bateria de validação imediata:
+  - "vlw obrigado" → muleta ❌
+  - "kkkk" → muleta ❌
+  - "alo, tem alguem ai?" → muleta ❌
+- Diagnóstico: o reflexo provavelmente disparou (logs limitados não confirmaram), mas o LLM retornou content vazio e o **fallback hardcoded de discovery sobrepôs a instrução do reflexo**.
+- Causa raiz comum a P-EXEC-4 e P-EXEC-5: `FALLBACK_PROMISE_BY_STATE` em `ai-support-chat/index.ts` linha 7387–7396 é **cego ao reflexId** e ao bucket institucional.
+
+### P-EXEC-6 — Logs de reflexo não estão sendo emitidos no canal de busca
+- Buscas por `reflex=`, `Fase 3`, `thanks_terminal` retornaram zero. Apenas `Reg #2.17 Fase A` apareceu.
+- Ou os logs estão sendo filtrados antes da gravação, ou o branch dos reflexos não está sendo alcançado em mensagens isoladas em estado `greeting` puro (primeira mensagem do `respeite-o-homem`).
+- Impacto: dificulta diagnóstico — não dá pra confirmar se o reflexo determinístico está realmente sendo executado.
+
+### P-EXEC-7 — gpt-5 retorna conteúdo vazio em turnos de baixa carga
+- Observação cruzada: nos 3 testes acima, `output_tokens=600`, `reasoning_tokens` provavelmente alto, `content=""` no LLM, e o sistema entrou no fallback.
+- Já documentado como `[F2-FIX] RESPOSTA VAZIA` no código, mas falta correlação com reflexo ativo.
+
+---
+
+## Pontos para o futuro plano de correção (consolidado)
+
+1. **Fallback de resposta vazia precisa respeitar reflexo determinístico.** Quando `firedReflexId in {thanks_terminal, social_noise, presence_ping}`, o fallback NÃO pode injetar a muleta de discovery — deve compor uma resposta curta coerente com o reflexo.
+2. **Tela de edição da ficha institucional** (rota nova em Settings).
+3. **Catalog Probe deve ter exceção para "kit completo"** quando o cliente não declarou família — listar top-3 kits do tenant em vez de cair em base-antes-de-kit.
+4. **Dor genérica sem família** ("queda", "frizz", "calvície") deve virar recomendação direta na primeira ocorrência, sem passar por discovery.
+5. **Logs estruturados de reflexo** com tag única (`[REFLEX-FIRED]`) para facilitar auditoria.
+6. **Auditar todas as muletas hardcoded** (`FALLBACK_PROMISE_BY_STATE`) e criar versões contextualizadas por reflexo/bucket.
