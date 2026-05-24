@@ -5522,6 +5522,11 @@ Cliente: "vocês entregam em SP?"
       items: 0,
     };
 
+    // [Frente 5 — Fix de escopo] firedReflexId precisa ser visível no
+    // bloco de fallback empty-response (linha ~7673), que roda fora deste
+    // if. Declaramos aqui no escopo externo.
+    let firedReflexId: string | null = null;
+
     if (salesModeEnabled) {
       // [Fase 1] Consome promises paralelizadas (iniciadas ~linha 3226).
       // Reduz latência: businessCtx + staleCheck rodam em paralelo em vez de serial.
