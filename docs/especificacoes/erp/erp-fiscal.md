@@ -2146,3 +2146,30 @@ Quando `fiscal_settings.emissao_automatica = true` E o emissor está configurado
 
 ### Limite de massa
 Operações em lote de DANFE/XML mantêm limite de 100 notas por execução. A emissão automática não tem teto (uma por pedido aprovado).
+
+---
+
+## Paridade Tela ↔ Banco no Editor de NF-e (universal)
+
+Atualizado: 2026-05-24.
+
+Toda aba do editor de NF-e (Geral, Destinatário, Itens, Valores, Pagamento, Transporte, Observações) é contrato bidirecional: o que aparece na tela é o que está salvo, e o que o usuário digita é o que vai para o banco. Nenhum campo pode "voltar ao default" após salvar e reabrir.
+
+**Campos persistidos pelo salvamento de rascunho** (lista canônica):
+
+- **Geral:** `tipo_nota` (classificação UI: saida, entrada, devolucao, complementar, transferencia, ajuste), `tipo_documento` (derivado de `tipo_nota`), `finalidade_emissao`, `natureza_operacao`, `serie`, `data_emissao`, `hora_saida`, `nfe_referenciada`, `indicador_presenca`, `informacoes_fisco`, `observacoes`.
+- **Destinatário:** `dest_*` completos + `indicador_ie_dest`. `dest_consumidor_final` e `dest_tipo_pessoa` são derivados automaticamente do CPF/CNPJ digitado.
+- **Itens:** todos os campos de `fiscal_invoice_items`, incluindo impostos por item (`icms_*`, `pis_*`, `cofins_*`, `cst`).
+- **Valores:** totais de produtos, frete, desconto, total da nota e totais de impostos (`valor_bc_icms`, `valor_icms`, `valor_pis`, `valor_cofins`).
+- **Pagamento:** `pagamento_indicador`, `pagamento_meio`, `pagamento_valor`.
+
+**Regras derivadas:**
+
+1. `tipo_documento` é sempre derivado de `tipo_nota` (entrada/devolução = 0; demais = 1). O usuário não escolhe `tpNF` diretamente.
+2. `dest_consumidor_final` é derivado de `dest_cpf_cnpj` (PF=1, PJ=0), conforme regra SEFAZ.
+3. **Totais de impostos (Opção B):** ao abrir/alterar itens, os totais são preenchidos pela soma dos itens. Se o usuário editar manualmente, a edição é respeitada e mantida no salvamento. Botão "Recalcular dos itens" reaplica a soma.
+4. Para registros antigos sem `tipo_nota`, ele é derivado de `natureza_operacao` + `cfop` na abertura, preservando o comportamento histórico.
+
+**Compatibilidade:** o editor é o único ponto de classificação UI (`tipo_nota`). A transmissão para a SEFAZ continua usando os campos canônicos (`tpNF`, `finNFe`, etc.).
+
+**Critério de fechamento (universal):** qualquer ajuste em qualquer aba do editor exige o teste salvar → recarregar → reabrir → conferir que todos os campos voltaram como digitados. Sem esse teste, a entrega fica em "Pendente de validação".
