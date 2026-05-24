@@ -30,6 +30,21 @@ Quando algum dado essencial não estiver preenchido na NF (endereço ou IE), o c
 
 **Atualização de duplicado:** quando o CNPJ/CPF já existe e o usuário escolhe "Atualizar dados existentes", o mesmo enriquecimento é aplicado, incluindo IBGE e tipo de contribuinte. Política preservada — campo vazio na NF **não** sobrescreve campo preenchido no cadastro existente.
 
+### UI unificada do cartão Fornecedor / Remetente (rev 2026-05-24)
+
+No editor de NF de Entrada (tipos: Compra, Remessa, Transferência, Devolução, Outros), a aba **Dest.** exibe um **único cartão "Fornecedor / Remetente"** que funde o que antes eram três seções separadas (autocomplete, dados básicos e endereço).
+
+Estrutura do cartão, de cima para baixo:
+
+1. **Busca e vínculo** — campo de autocomplete por nome, CNPJ ou CPF; ao escolher um cadastro da base, todos os campos abaixo são preenchidos automaticamente e o cartão exibe o status "Vinculado à base" com opção de desvincular.
+2. **Identificação** — Razão Social / Nome, CNPJ/CPF, Inscrição Estadual, flag de isento e tipo de contribuinte.
+3. **Endereço completo** — CEP, logradouro, número, complemento, bairro, cidade, UF e código IBGE.
+4. **Contato** — e-mail e telefone.
+
+O botão **"Salvar na base"** fica no rodapé do próprio cartão e persiste, em uma única ação, tudo o que está visível no formulário. Se o fornecedor já estiver vinculado, o botão muda para **"Atualizar cadastro com estes dados"** e aplica a mesma política de enriquecimento com preservação de campos preenchidos. Essa unificação elimina a confusão anterior em que o botão de salvar aparecia em um cartão separado (só com nome e CNPJ) enquanto os dados completos ficavam em outro.
+
+
+
 
 
 ## Propósito
