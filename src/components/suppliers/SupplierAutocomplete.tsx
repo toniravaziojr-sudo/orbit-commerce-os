@@ -121,6 +121,11 @@ export function SupplierAutocomplete({
   }, [searchTerm, tenantId]);
 
   function applySupplier(s: Supplier) {
+    // Mapeia contributor_type do cadastro -> indicador IE da NF.
+    const indicadorFromContributor =
+      s.contributor_type === "contribuinte" ? 1
+      : s.contributor_type === "contribuinte_isento" ? 2
+      : 9;
     onChange({
       id: s.id,
       name: s.name,
@@ -129,6 +134,7 @@ export function SupplierAutocomplete({
       email: s.email,
       phone: s.phone,
       ie: s.ie,
+      indicadorIe: indicadorFromContributor,
       cep: s.cep,
       logradouro: s.logradouro,
       numero: s.numero,
@@ -136,6 +142,7 @@ export function SupplierAutocomplete({
       bairro: s.bairro,
       cidade: s.cidade,
       uf: s.uf,
+      codigoIbge: s.codigo_ibge,
     });
     setSearchTerm("");
     setResults([]);
