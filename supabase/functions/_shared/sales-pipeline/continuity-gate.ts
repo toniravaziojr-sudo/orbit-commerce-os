@@ -28,6 +28,9 @@ export interface ContinuityGateInput {
   // [Frente B] Bucket do scope-router (Frente 2). Quando "social", reforçamos
   // o detector universal contra venda forçada.
   intentBucket?: string | null;
+  // [Passo 5] Quando o reflexo determinístico já cobriu thanks/social/presence,
+  // o continuity-gate pula esses 3 ramos para não duplicar o bloco no prompt.
+  socialReflexFired?: boolean;
 }
 
 export interface ContinuityGateResult {
@@ -100,6 +103,7 @@ export function buildContinuityBlock(input: ContinuityGateInput): ContinuityGate
     hasActiveCart,
     consolidatedText,
     intentBucket,
+    socialReflexFired,
   } = input;
 
   const lines: string[] = [];
@@ -107,9 +111,8 @@ export function buildContinuityBlock(input: ContinuityGateInput): ContinuityGate
   const text = (consolidatedText || "").trim();
 
   // ── [Frente B] Prioridade 1: Thanks/despedida = terminal ──
-  // Se o cliente acabou de agradecer/despedir, PROIBIDO reabrir discovery
-  // ou fazer pergunta de venda nova. O turno é fechamento cordial leve.
-  if (text && isThanksOrFarewell(text)) {
+  // [Passo 5] Suprimido quando o reflexo determinístico já cuidou do tom.
+  if (!socialReflexFired && text && isThanksOrFarewell(text)) {
     lines.push(
       "O cliente acabou de AGRADECER ou se DESPEDIR. Este turno é TERMINAL: " +
       "responda com fechamento cordial CURTO (1 linha) e, no MÁXIMO, um gancho LEVE " +
@@ -124,7 +127,7 @@ export function buildContinuityBlock(input: ContinuityGateInput): ContinuityGate
   // ── [Frente B] Prioridade 2: Ruído social puro ──
   // "kkk", "haha", "rs", emoji solto: NUNCA assumir nicho/dor, NUNCA empurrar
   // venda. Resposta leve, no tom, em UMA linha, devolvendo a bola sem pressão.
-  if (text && isSocialNoise(text)) {
+  if (!socialReflexFired && text && isSocialNoise(text)) {
     lines.push(
       "O cliente mandou apenas RUÍDO SOCIAL (risada, onomatopeia ou emoji solto). " +
       "Responda LEVE e CURTO (1 linha), no mesmo tom, sem assumir nenhuma dor, nicho, " +
@@ -139,7 +142,7 @@ export function buildContinuityBlock(input: ContinuityGateInput): ContinuityGate
   // "tem alguém aí?", "alô?", "ainda tá aí?": afirmar presença ANTES de qualquer
   // outra coisa. Tom acolhedor, em 1 linha. Reflexo determinístico cobre o
   // override de estado; este bloco garante o tom da resposta.
-  if (text && isPresencePing(text)) {
+  if (!socialReflexFired && text && isPresencePing(text)) {
     lines.push(
       "O cliente está perguntando se tem ALGUÉM ATENDENDO (ping de presença). " +
       'A primeira coisa da resposta DEVE confirmar presença em UMA linha curta tipo ' +

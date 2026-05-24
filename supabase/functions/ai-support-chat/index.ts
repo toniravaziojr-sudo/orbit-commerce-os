@@ -5665,6 +5665,7 @@ Cliente: "vocês entregam em SP?"
       // e corrigem desvios reconhecíveis (CEP, frete, pós-venda, turno curto
       // com intenção clara). Aditivos: se nenhum dispara, nada muda.
       let reflexFinalState: PipelineState = pipelineState;
+      let firedReflexId: string | null = null;
       try {
         const cartCustomerData =
           (preloadedActiveCart as any)?.customer_data || {};
@@ -5695,6 +5696,7 @@ Cliente: "vocês entregam em SP?"
           hasKnownCustomerCep: knownCep,
         });
         if (reflex) {
+          firedReflexId = reflex.reflexId;
           contextualBlocks.push(reflex.promptBlock);
           if (reflex.newState && reflex.newState !== pipelineState) {
             reflexFinalState = reflex.newState;
@@ -5811,6 +5813,11 @@ Cliente: "vocês entregam em SP?"
           // [Frente B] thanks terminal + ruído social + ping de presença
           consolidatedText: lastMessageContent || "",
           intentBucket: (intentScope?.bucket as any) || null,
+          // [Passo 5] Se o reflexo determinístico já cobriu, não duplica.
+          socialReflexFired:
+            firedReflexId === "thanks_terminal" ||
+            firedReflexId === "social_noise" ||
+            firedReflexId === "presence_ping",
         });
 
         if (continuity.promptBlock) {

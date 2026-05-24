@@ -1769,3 +1769,39 @@ A Rodada 2 da bateria das 10 ondas (50 cenários) confirmou que muitas respostas
 - **B6.3-T1 — Dor sem família:** requer que `pain_symptom_detector` resolva a família imediatamente (queda → linha Calvície Zero) ou faça busca direta por dor antes de cair na muleta. Não é resolvível pelo Passo 5 do plano.
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado e validado parcialmente. Hierarquia funcionando; 2 cenários remanescentes (B4.1 e B6.3-T1) precisam de frentes específicas fora do escopo dos Passos 4–5.
+
+---
+
+## Registro #38 — Base Universal: Plano de correção pós-Frentes B–E — Passo 5 (continuidade como override de estado) — 23/mai/2026
+
+### Contexto
+Passo 5 do plano: promover thanks/farewell, ruído social e ping de presença a **reflexos determinísticos com prioridade 20** (mesmo nível de CEP/frete/pós-venda), não apenas blocos de continuity-gate (prioridade 40).
+
+### Mudança aplicada
+- `_shared/sales-pipeline/deterministic-reflexes.ts`:
+  - Tipo `ReflexOutput.reflexId` ampliado para incluir `"thanks_terminal"` e `"social_noise"`.
+  - Importa `isThanksOrFarewell` e `isSocialNoise` do continuity-gate (fonte única dos detectores).
+  - Dois novos branches no início de `detectDeterministicReflex` (logo após `presence_ping`) que retornam `newState: null` + `promptBlock` próprio com regras duras anti-muleta.
+- `_shared/sales-pipeline/continuity-gate.ts`:
+  - Nova flag `socialReflexFired?: boolean` em `ContinuityGateInput`.
+  - Branches de thanks/social/presence dentro do gate ficam suprimidos quando o reflexo determinístico já cobriu, evitando duplicação no prompt.
+- `ai-support-chat/index.ts`:
+  - Nova variável `firedReflexId` no escopo do turno, populada quando o reflexo dispara.
+  - Chamada de `buildContinuityBlock` passa `socialReflexFired` baseada em `firedReflexId`.
+
+Resultado: blocos sociais agora chegam ao prompt com tag `[REFLEXO — ...]`, o que os classifica como prioridade 20 na hierarquia (Registro #37).
+
+### Pendências bloqueantes (registradas em `_temp-base-universal-ondas-de-teste.md`)
+
+Validação imediata em sandbox falhou nos 3 cenários alvo:
+- "vlw obrigado" → muleta ❌
+- "kkkk" → muleta ❌
+- "alo, tem alguem ai?" → muleta ❌
+
+**Causa raiz identificada:** `FALLBACK_PROMISE_BY_STATE` em `ai-support-chat/index.ts` (linha ~7387) injeta a muleta de discovery (`"Me conta um pouco do que você precisa que eu já te indico."`) **sempre que o LLM retorna conteúdo vazio**, independente de reflexo ativo. O reflexo determinístico está no prompt, mas o gpt-5 está retornando `content=""` (`finish_reason` provavelmente `length` por reasoning_tokens alto), e o fallback ignora completamente o `firedReflexId`.
+
+Esse problema (P-EXEC-5 + P-EXEC-7 no doc temporário) será tratado num plano de correção próprio depois de fechado o ciclo Passos 1–6.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado — pendente de validação completa. Reflexos novos no código + hierarquia correta, mas comportamento final continua bloqueado pelo fallback de resposta vazia. Entrar em correção dedicada.
+
+📝 **DOCUMENTAÇÃO NECESSÁRIA:** já refletida neste registro (#38) e em `_temp-base-universal-ondas-de-teste.md`. Lacuna documental pendente: tela admin da ficha institucional (Passo 2b não implementado).

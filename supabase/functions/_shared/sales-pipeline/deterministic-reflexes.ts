@@ -18,6 +18,7 @@
 
 import type { PipelineState } from "./states.ts";
 import type { TurnIntent } from "./transitions.ts";
+import { isThanksOrFarewell, isSocialNoise } from "./continuity-gate.ts";
 
 export interface ReflexInput {
   consolidatedText: string;
@@ -39,7 +40,9 @@ export interface ReflexOutput {
     | "shipping_question"
     | "post_sale_question"
     | "short_turn_with_intent"
-    | "presence_ping";
+    | "presence_ping"
+    | "thanks_terminal"
+    | "social_noise";
   newState: PipelineState | null; // null = não muda estado
   reason: string;
   promptBlock: string; // bloco anexado ao contextualBlocks
@@ -97,6 +100,45 @@ export function detectDeterministicReflex(input: ReflexInput): ReflexOutput | nu
   }
 
 
+
+  // ── [Passo 5] Reflexo: agradecimento / despedida = turno TERMINAL ──
+  // Antes vivia só no continuity-gate como bloco de prompt. Agora é
+  // override determinístico: nada de discovery, nada de muleta de venda.
+  if (isThanksOrFarewell(text)) {
+    return {
+      reflexId: "thanks_terminal",
+      // Não regredimos estado: se já estava em decision/checkout, mantém.
+      // Em greeting/discovery, mantém também — o bloco abaixo proíbe reabrir.
+      newState: null,
+      reason: "thanks_or_farewell_terminal",
+      promptBlock:
+        `\n[REFLEXO — TURNO TERMINAL (AGRADECIMENTO/DESPEDIDA)]\n` +
+        `O cliente AGRADECEU ou se DESPEDIU. Este turno é fechamento cordial. ` +
+        `Resposta obrigatória: 1 linha curta, no tom, com no MÁXIMO um gancho ` +
+        `leve do tipo "qualquer coisa, me chama". ` +
+        `PROIBIDO: pergunta de venda, pergunta de descoberta, reabrir família, ` +
+        `usar a muleta "Me conta o que você precisa que eu já te indico", ` +
+        `propor produto novo. Se houver carrinho ativo, pode lembrar UMA vez ` +
+        `que o link de pagamento segue ativo, sem insistir.\n`,
+    };
+  }
+
+  // ── [Passo 5] Reflexo: ruído social puro (kkk, haha, emoji solto) ──
+  if (isSocialNoise(text)) {
+    return {
+      reflexId: "social_noise",
+      newState: null,
+      reason: "social_noise_detected",
+      promptBlock:
+        `\n[REFLEXO — RUÍDO SOCIAL]\n` +
+        `O cliente mandou apenas RISADA, ONOMATOPEIA ou EMOJI solto. ` +
+        `Resposta obrigatória: 1 linha LEVE, no mesmo tom, sem assumir nicho, ` +
+        `família, dor ou produto. Se havia conversa ativa, devolva a bola para ` +
+        `o ÚLTIMO assunto tratado — não invente assunto novo. ` +
+        `PROIBIDO: empurrar venda, pergunta de descoberta forçada, assumir ` +
+        `categoria, usar a muleta "Me conta o que você precisa".\n`,
+    };
+  }
 
   // ── Reflexo 1: CEP recebido ─────────────────────────────
   const cepMatch = text.match(CEP_REGEX);
