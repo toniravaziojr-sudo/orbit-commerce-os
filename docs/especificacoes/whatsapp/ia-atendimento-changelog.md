@@ -65,6 +65,25 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #40 — Unificação do provedor de IA: chat de teste passa a usar OpenAI — 24/mai/2026
+
+**Contexto:** o operador percebeu que o chat de teste do Comando Central não respondia (balão vazio) por causa de rate limit, enquanto o agente de Atendimento (WhatsApp/Web) seguia funcionando. Investigação mostrou que os dois usavam provedores diferentes: o Atendimento ia direto na OpenAI; o chat de teste ia pelo Lovable AI Gateway com Gemini, que estava devolvendo `RATE_LIMIT`.
+
+**Decisão do operador:** unificar tudo na OpenAI. A plataforma usa **um único provedor de IA** para o agente de atendimento e para o chat de teste do Comando Central: **OpenAI**.
+
+**Aplicado:**
+- `chatgpt-chat` (chat de teste do Comando Central) migrado de Lovable AI Gateway/Gemini para OpenAI direta nos três modos (chat, busca, raciocínio), reaproveitando a mesma `OPENAI_API_KEY` já usada pelo agente.
+- Modelos passam a ser GPT-5-mini (texto), GPT-4o (imagem) e GPT-4o-mini (raciocínio).
+
+**Regra anti-regressão (vinculante):** está **proibido** trocar o provedor de IA do agente de Atendimento ou do chat de teste do Comando Central, ou rotear esses fluxos por gateway de terceiros, **sem solicitação explícita do operador**. Eficiência, custo, fallback automático ou "modernização" não justificam a troca. Qualquer mudança de provedor exige autorização expressa em chat antes da implementação.
+
+**Anti-regressão:**
+- Nova memória: `mem://constraints/ai-provider-openai-locked` — provedor da IA travado em OpenAI até autorização explícita.
+
+**Status:** Corrigido e validado (chat de teste responde com OpenAI; provedor unificado entre teste e produção).
+
+---
+
 ## Registro #39 — Fechamento do plano pós-Frentes B–E (Passos 2–6) — 24/mai/2026
 
 **Contexto:** após Frentes B–E aplicadas sem baseline empírico, foi executado o plano de correção em 6 passos. Este registro consolida o que foi entregue, o que ficou pendente e a posição final.
