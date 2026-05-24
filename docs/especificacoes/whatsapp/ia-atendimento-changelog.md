@@ -1959,3 +1959,25 @@ Após a tool `search_products` calcular o `finalList` (partição base/kit + ran
 📌 **STATUS DA ENTREGA:** Ajuste aplicado — pendente de validação do usuário (cadastrar sinônimo e testar B5.1).
 
 📝 **DOCUMENTAÇÃO NECESSÁRIA:** Memória `mem://features/ai/tenant-ai-synonyms` já reflete o wiring. Mapa de UI sem mudança nesta entrega (sem nova tela). Spec dedicada permanece como pendência para quando houver UI.
+
+---
+
+## Registro #43 — Regressão crítica: firedReflexId fora de escopo
+
+**Data:** 2026-05-24
+**Autor:** IA Atendimento — Hotfix pós-Frente 5
+**Escopo:** `supabase/functions/ai-support-chat/index.ts`
+
+### O que aconteceu
+A variável `firedReflexId` (introduzida na Frente 5 — Reflex-Aware Fallback) estava declarada dentro do bloco `if (salesModeEnabled)` mas era referenciada fora desse bloco no caminho de fallback de resposta vazia. Resultado: `ReferenceError` no primeiro turno de teste, retornando `INTERNAL_ERROR` para qualquer mensagem.
+
+### Correção
+- `firedReflexId` foi içada para o escopo externo (declarada antes do bloco `salesModeEnabled`), mantendo a atribuição condicional dentro do bloco.
+- Smoke test ("oi") passou: resposta cordial, latência ~11s, sem `ReferenceError` nos logs.
+
+### Anti-regressão
+- Memória registrada em `mem://constraints/reflex-state-must-live-outside-sales-mode-block` para impedir que novas variáveis usadas no fallback global sejam declaradas dentro de blocos condicionais.
+
+📌 **STATUS DA ENTREGA:** Corrigido e validado (smoke test).
+
+📝 **DOCUMENTAÇÃO NECESSÁRIA:** Memória anti-regressão criada e indexada. Sem outros docs impactados.
