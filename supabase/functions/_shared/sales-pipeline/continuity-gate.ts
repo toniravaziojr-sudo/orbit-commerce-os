@@ -142,7 +142,7 @@ export function buildContinuityBlock(input: ContinuityGateInput): ContinuityGate
   // "tem alguém aí?", "alô?", "ainda tá aí?": afirmar presença ANTES de qualquer
   // outra coisa. Tom acolhedor, em 1 linha. Reflexo determinístico cobre o
   // override de estado; este bloco garante o tom da resposta.
-  if (text && isPresencePing(text)) {
+  if (!socialReflexFired && text && isPresencePing(text)) {
     lines.push(
       "O cliente está perguntando se tem ALGUÉM ATENDENDO (ping de presença). " +
       'A primeira coisa da resposta DEVE confirmar presença em UMA linha curta tipo ' +
