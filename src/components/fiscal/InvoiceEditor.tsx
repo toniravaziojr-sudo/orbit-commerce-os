@@ -346,6 +346,12 @@ export function InvoiceEditor({
   const { data: readiness } = useFiscalReadiness();
   const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  // Option B: totais de impostos somam dos itens automaticamente, mas o usuário
+  // pode editar manualmente. Quando o usuário edita, marcamos o respectivo
+  // total como "tocado" e paramos de sobrescrever a partir da soma dos itens.
+  const [taxesTouched, setTaxesTouched] = useState<{ bc_icms: boolean; icms: boolean; pis: boolean; cofins: boolean }>({
+    bc_icms: false, icms: false, pis: false, cofins: false,
+  });
   // NFs filhas deste Pedido de Venda (modo PV) — alimenta o bloco "Vinculado à NF".
   const [childInvoices, setChildInvoices] = useState<Array<{ id: string; numero: number; serie: number; status: string; cancelled_at: string | null }>>([]);
   const [customerId, setCustomerId] = useState<string | null>(null);
