@@ -100,19 +100,19 @@
 
 | Tag SEFAZ | Nome no Sistema | Coluna BD | Obrig. | Origem | Status |
 |-----------|-----------------|-----------|:---:|--------|--------|
-| `CST` | CST PIS | `fiscal_invoice_items.pis_cst` | S | Config Fiscal | 🔄 |
-| `vBC` | Base PIS | `fiscal_invoice_items.pis_base` | N* | Calculado | 🔄 |
-| `pPIS` | Alíquota PIS | `fiscal_invoice_items.pis_aliquota` | N* | Config | 🔄 |
-| `vPIS` | Valor PIS | `fiscal_invoice_items.pis_valor` | N* | Calculado | 🔄 |
+| `CST` | CST PIS | `fiscal_invoice_items.pis_cst` | S | Config Fiscal | ✅ Implementado |
+| `vBC` | Base PIS | `fiscal_invoice_items.pis_base` | N* | Calculado | ✅ Implementado |
+| `pPIS` | Alíquota PIS | `fiscal_invoice_items.pis_aliquota` | N* | Config | ✅ Implementado |
+| `vPIS` | Valor PIS | `fiscal_invoice_items.pis_valor` | N* | Calculado | ✅ Implementado |
 
 ### 5.3 COFINS
 
 | Tag SEFAZ | Nome no Sistema | Coluna BD | Obrig. | Origem | Status |
 |-----------|-----------------|-----------|:---:|--------|--------|
-| `CST` | CST COFINS | `fiscal_invoice_items.cofins_cst` | S | Config Fiscal | 🔄 |
-| `vBC` | Base COFINS | `fiscal_invoice_items.cofins_base` | N* | Calculado | 🔄 |
-| `pCOFINS` | Alíquota COFINS | `fiscal_invoice_items.cofins_aliquota` | N* | Config | 🔄 |
-| `vCOFINS` | Valor COFINS | `fiscal_invoice_items.cofins_valor` | N* | Calculado | 🔄 |
+| `CST` | CST COFINS | `fiscal_invoice_items.cofins_cst` | S | Config Fiscal | ✅ Implementado |
+| `vBC` | Base COFINS | `fiscal_invoice_items.cofins_base` | N* | Calculado | ✅ Implementado |
+| `pCOFINS` | Alíquota COFINS | `fiscal_invoice_items.cofins_aliquota` | N* | Config | ✅ Implementado |
+| `vCOFINS` | Valor COFINS | `fiscal_invoice_items.cofins_valor` | N* | Calculado | ✅ Implementado |
 
 ---
 
