@@ -1241,3 +1241,67 @@ Lista cumulativa de tudo que apareceu no caminho. Vai virar plano de correção 
 - `mem://constraints/sales-pipeline-deterministic-reflexes` (estendida com `thanks_terminal` e `social_noise` no Registro #39).
 
 **Lacuna documental declarada:** mapa de UI segue sem rota da Ficha Institucional admin (P-EXEC-2).
+
+---
+
+## Rodada de validação completa pós-Frente 5 — 24/mai/2026 (noite)
+
+**Contexto:** após corrigir o `ReferenceError` do `firedReflexId` (Registro #43 do changelog), rodada das 3 ondas via `ai-test-sandbox` em Agent Mode, modelo `gpt-5`, sales_mode=true, conversas isoladas. Tenant Respeite o Homem.
+
+### Onda 1 — Roteamento de estado (3 cenários)
+
+| Código | Mensagem | Resposta da IA | Resultado |
+|---|---|---|---|
+| B3.1 | "tô com queda de cabelo" | "Me conta um pouco do que você precisa que eu já te indico." | ❌ muleta |
+| B4 | "vocês têm shampoo?" | (timeout de gateway) | ⚠️ não testado |
+| B4.1 | "qual o kit mais completo?" | "Me conta um pouco do que você precisa que eu já te indique." | ❌ muleta |
+
+### Onda 2 — Reflexos e ruído (4 cenários)
+
+| Código | Mensagem | Resposta da IA | Resultado |
+|---|---|---|---|
+| B6.3-T1 | "preciso pensar" | "Sem pressa, qualquer coisa me chama por aqui" | ✅ acolhe sem pressionar |
+| Reflex-vlw | "vlw obrigado" | "Imagina! Se precisar, é só chamar." | ✅ fechamento natural |
+| Reflex-risada | "kkkk" | "kkk 👍" | ✅ ruído social espelhado |
+| Reflex-alô | "alô? tem alguem ai?" | "Tô aqui sim! Em que posso ajudar?" | ✅ presence_ping correto |
+
+### Onda 3 — Sinônimos e institucional (4 cenários)
+
+| Código | Mensagem | Resposta da IA | Resultado |
+|---|---|---|---|
+| B5.1 | "vocês têm minoxidil?" | (timeout de gateway, 120s) | ⚠️ não validado |
+| B8.1 | "como funciona o pagamento?" | (timeout de gateway, 120s) | ⚠️ não validado |
+| Inst-prazo | "qual o prazo de entrega?" | "Pra te passar o frete certinho preciso do CEP, pode me mandar?" | ✅ pede CEP |
+| Inst-garantia | "tem garantia?" | "Me conta um pouco do que você precisa que eu já te indico." | ❌ muleta — ficha institucional não foi consultada |
+
+### Mapa de qualidade após esta rodada
+
+| Comportamento | Antes (Rodada 2) | Agora |
+|---|---|---|
+| Reflexos determinísticos (vlw, kkkk, alô?) | ❌ muleta | ✅ corrigido |
+| Hesitação (B6.3) | ❌ muleta | ✅ corrigido |
+| Roteamento por dor declarada (B3.1) | ✅ | ❌ regrediu para muleta |
+| Pergunta direta de catálogo / kits (B4.1) | ❌ | ❌ permanece |
+| Ficha institucional (garantia) | ❌ | ❌ permanece — bypass institucional ainda não consulta a ficha |
+| 2 cenários (minoxidil, pagamento) | — | ⚠️ timeout — provável Catalog Probe ou tool lenta segurando o turno acima de 120s |
+
+### Diagnóstico consolidado (sem mexer no código ainda)
+
+1. **Frente 5 destravou os 4 reflexos sociais** (vlw, kkkk, alô, hesitação) — todos voltaram ✅. Era a maior dor do plano anterior.
+2. **Regressão clara em B3.1**: dor declarada não está mais forçando estado `recommendation`. A Frente 1 (Anchor as State Override) ou não está disparando, ou está sendo sobreposta por algo posterior. Precisa olhar trace.
+3. **B4.1 (kit mais completo) continua quebrado**, igual à Rodada 2. A Frente 2 (direct-catalog-question bypass) não cobriu o caso "kit mais completo" sem família declarada.
+4. **Garantia (institucional) cai na muleta** — o gancho institucional novo (Frente 3 / ficha institucional) não está sendo acionado para `bucket=institutional`. A ficha existe, mas o roteamento não está consultando.
+5. **2 timeouts em cenários com produto direto** (minoxidil, pagamento) — sintoma novo, possivelmente Catalog Probe + LLM passando dos 120s. Não é regressão da Frente 5, mas precisa investigação.
+
+### Próximos passos recomendados (não executados ainda)
+
+Antes de qualquer ajuste novo na pipeline:
+1. Coletar trace de B3.1, B4.1 e "tem garantia?" pelo `ai_turn_traces` para confirmar onde a Frente 1/2/3 está sendo perdida.
+2. Investigar latência dos cenários com timeout (logs da edge para os turnos travados).
+3. Só então abrir nova Frente de correção, com escopo restrito aos 3 furos confirmados.
+
+**Ganhos a preservar daqui pra frente (não podem regredir):**
+- Reflexos sociais (vlw, kkkk, alô?, hesitação) → ✅ todos corrigidos.
+- Saudação espelhando período → manter.
+- Pedido de CEP em pergunta de prazo de entrega → ✅ comportamento esperado.
+
