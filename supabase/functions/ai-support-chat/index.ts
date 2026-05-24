@@ -5904,6 +5904,54 @@ Cliente: "vocês entregam em SP?"
         );
       }
 
+      // ============================================================
+      // [Passo 4 do plano de correção pós-Frentes B–E]
+      // Hierarquia fixa dos blocos de instrução do prompt.
+      // Ordem (do mais determinístico → mais contextual):
+      //   10  silêncio em handoff / modo conversa limpa / modo informativo
+      //   20  reflexos determinísticos (CEP, frete, pós-venda, turno curto)
+      //   30  bucket-state-router (institucional, objeção, humano, pós-venda…)
+      //   40  continuidade (thanks/ruído/presença/anti-loop)
+      //   50  âncora do turno (dor + foco + áreas institucionais)
+      //   60  ficha institucional (Frente D)
+      //   70  memória da conversa (working memory)
+      //   80  contexto comercial do negócio + payload do produto
+      //   85  carrinho ativo
+      //   87  pergunta direta deste turno
+      //   90  turno consultivo
+      //   100 espelho de saudação (abertura obrigatória)
+      // Suprime contexto comercial + carrinho ativo quando o bucket do turno
+      // é pedido de humano ou pós-venda — evita poluir conversa de suporte.
+      // ============================================================
+      const _bucketForFilter = (intentScope?.bucket as string | null | undefined) ?? null;
+      const _suppressCommercial = _bucketForFilter === "human_request" || _bucketForFilter === "post_sale";
+      function _classifyContextBlock(text: string): number {
+        const head = text.trimStart().slice(0, 240);
+        if (head.startsWith("### MODO INFORMATIVO DE PRODUTO") || head.startsWith("### MODO CONVERSA LIMPA")) return 10;
+        if (/^\[REFLEXO\b/.test(head) || head.includes("\n[REFLEXO")) return 20;
+        if (/^(INSTITUCIONAL|OBJEÇÃO|HESITAÇÃO|FORA DE ESCOPO|PEDIDO DE HUMANO|PÓS-VENDA)\s—/.test(head)) return 30;
+        if (head.startsWith("🔁 CONTINUIDADE DA CONVERSA")) return 40;
+        if (head.startsWith("### ÂNCORA DESTE TURNO")) return 50;
+        if (head.includes("[FICHA INSTITUCIONAL")) return 60;
+        if (head.startsWith("### MEMÓRIA DA CONVERSA")) return 70;
+        if (head.startsWith("### CARRINHO ATIVO")) return 85;
+        if (head.startsWith("### PRIORIDADE DESTE TURNO")) return 87;
+        if (head.startsWith("### TURNO CONSULTIVO")) return 90;
+        if (head.startsWith("### ABERTURA OBRIGATÓRIA")) return 100;
+        if (/CONTEXTO DO NEGÓCIO|PRODUTO EM FOCO/.test(head)) return 80;
+        return 95;
+      }
+      const _orderedBlocks = contextualBlocks
+        .map((t, i) => ({ t, p: _classifyContextBlock(t), i }))
+        .filter(({ p }) => !(_suppressCommercial && (p === 80 || p === 85)))
+        .sort((a, b) => (a.p - b.p) || (a.i - b.i))
+        .map(({ t }) => t);
+      console.log(
+        `[ai-support-chat] [Passo4] context_blocks_ordered count=${_orderedBlocks.length} ` +
+        `dropped_commercial=${_suppressCommercial} ` +
+        `priorities=[${contextualBlocks.map(_classifyContextBlock).join(",")}]`
+      );
+
       const routed = buildPromptForState({
         state: bucketFinalState,
         allTools: SALES_TOOLS,
@@ -5914,7 +5962,7 @@ Cliente: "vocês entregam em SP?"
           personalityName,
           storeName,
         },
-        contextualBlocks,
+        contextualBlocks: _orderedBlocks,
       });
       systemPrompt = routed.systemPrompt;
       pipelineFilteredTools = routed.tools;
