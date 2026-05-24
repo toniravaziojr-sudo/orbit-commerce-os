@@ -1424,3 +1424,23 @@ Mudanças:
 - **Latches genéricos anti-remontagem** (Google Tradutor, etc.) **não podem atropelar** estados de operação assíncrona em curso — o gate deve combinar `(latch desligado) OR (operação em curso)`.
 - **Novos providers OAuth** (Apple, etc.) reaproveitam o mesmo método de `useAuth` e os mesmos helpers de bandeira — nunca duplicar.
 
+
+## 2026-05-24 — Editor de NF-e: paridade tela ↔ banco em todas as abas
+
+**Problema:** ao reabrir uma NF-e salva como "Transferência", o editor reverteva o seletor para "Saída" e exibia "Transferência" apenas em campos descritivos (natureza/CFOP). Investigação ampliada mostrou que vários campos de outras abas (impostos por item, totais de impostos, pagamento, indicador de presença, IE destinatário, informações ao fisco, NF-e referenciada, data/hora de saída) também não eram persistidos ou não eram reidratados — caindo para defaults a cada reabertura.
+
+**Causa:** o salvamento de rascunho ignorava várias colunas existentes (`tipo_documento`, `finalidade_emissao`, `indicador_presenca`, `informacoes_fisco`, `nfe_referenciada`, `indicador_ie_dest`, totais de impostos, campos de pagamento, impostos por item) e a UI não tinha uma classificação persistente da nota. Resultado: os dados batiam no banco quando vinham do pedido original, mas qualquer edição manual no editor era perdida.
+
+**Solução:**
+1. Coluna `fiscal_invoices.tipo_nota` adicionada para guardar a classificação UI (saida, entrada, devolucao, complementar, transferencia, ajuste). `tipo_documento` (0=entrada, 1=saída) passa a ser derivado de `tipo_nota` no salvamento.
+2. Função de update de rascunho passa a persistir todas as colunas listadas acima, incluindo impostos por item e campos de pagamento.
+3. Editor reidrata todos os campos no `open` em vez de cair para defaults; para registros antigos sem `tipo_nota`, deriva de `natureza_operacao` + `cfop`.
+4. `dest_consumidor_final` e `dest_tipo_pessoa` são derivados automaticamente do CPF/CNPJ ao digitar (regra SEFAZ).
+5. Totais de impostos da aba Valores seguem **Opção B**: somam dos itens automaticamente, mas o usuário pode editar e a edição é preservada. Botão "Recalcular dos itens" força nova soma.
+
+**Anti-regressão (universal):** toda nova aba/campo do editor de NF-e deve passar pelo teste salvar → recarregar → reabrir → comparar. Lista canônica de campos persistidos por aba está em `docs/especificacoes/erp/campos-nfe-referencia.md` seção 11 (Paridade Tela ↔ Banco) e em `docs/especificacoes/erp/erp-fiscal.md` (seção final).
+
+**Validação técnica executada:**
+- Confirmadas no banco as 15 colunas críticas (`tipo_nota`, `tipo_documento`, `finalidade_emissao`, `indicador_presenca`, `indicador_ie_dest`, `informacoes_fisco`, `nfe_referenciada`, `hora_saida`, `valor_bc_icms`, `valor_icms`, `valor_pis`, `valor_cofins`, `pagamento_indicador`, `pagamento_meio`, `pagamento_valor`).
+- Conferida a edge function de salvamento mapeia todos esses campos.
+- Pendente de validação pelo usuário no tenant `respeiteohomem`: salvar uma nota como "Transferência", recarregar e confirmar que volta como "Transferência" em todas as abas.

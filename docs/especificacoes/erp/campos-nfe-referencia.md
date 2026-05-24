@@ -1,7 +1,7 @@
 # Referência de Campos da NF-e — Mapeamento SEFAZ × Sistema
 
 > **Camada:** Layer 3 — Especificações / ERP / Fiscal  
-> **Última atualização:** 2026-04-05  
+> **Última atualização:** 2026-05-24  
 > **Referência:** Layout NF-e 4.0 (NT 2016.002) + Modelo Bling
 
 ---
@@ -15,21 +15,23 @@
 | `mod` | Modelo | Fixo `55` | S | Sistema | ✅ Hardcoded |
 | `serie` | Série | `fiscal_invoices.serie` | S | Config Fiscal | ✅ Implementado |
 | `nNF` | Número | `fiscal_invoices.numero` | S | Auto-incremento | ✅ Implementado |
-| `dhEmi` | Data/Hora Emissão | `fiscal_invoices.hora_emissao` | S | Sistema (momento da emissão) | 🔄 Migração pendente |
-| `dhSaiEnt` | Data/Hora Saída | `fiscal_invoices.hora_saida` | N | Manual | 🔄 Migração pendente |
-| `tpNF` | Tipo (0=Entrada, 1=Saída) | Fixo `1` | S | Sistema | ✅ Hardcoded |
+| `dhEmi` | Data/Hora Emissão | `fiscal_invoices.hora_emissao` | S | Sistema (momento da emissão) | ✅ Implementado |
+| `dhSaiEnt` | Data/Hora Saída | `fiscal_invoices.hora_saida` | N | Manual | ✅ Implementado |
+| `tpNF` | Tipo (0=Entrada, 1=Saída) | `fiscal_invoices.tipo_documento` | S | Derivado de `tipo_nota` | ✅ Implementado |
 | `idDest` | Destino da Operação | Derivado da UF dest. vs emit. | S | Sistema | ✅ Calculado |
 | `cMunFG` | Município do Fato Gerador | `fiscal_settings.emit_municipio_codigo` | S | Config Fiscal | ✅ Implementado |
 | `tpImp` | Formato DANFE | Fixo `1` | S | Sistema | ✅ Hardcoded |
 | `tpEmis` | Tipo de Emissão | Fixo `1` (Normal) | S | Sistema | ✅ Hardcoded |
-| `finNFe` | Finalidade | Fixo `1` (Normal) | S | Sistema | ✅ Hardcoded |
+| `finNFe` | Finalidade | `fiscal_invoices.finalidade_emissao` | S | Manual / Default `1` | ✅ Implementado |
 | `indFinal` | Consumidor Final | Derivado (PF=1, PJ=0) | S | Derivado CPF/CNPJ | ✅ Calculado |
-| `indPres` | Indicador de Presença | `fiscal_invoices.indicador_presenca` | S | Manual / Default | 🔄 Migração pendente |
+| `indPres` | Indicador de Presença | `fiscal_invoices.indicador_presenca` | S | Manual / Default | ✅ Implementado |
 | `procEmi` | Processo de Emissão | Fixo `0` | S | Sistema | ✅ Hardcoded |
 | `verProc` | Versão do Processo | Versão do sistema | S | Sistema | ✅ Implementado |
 | `tpAmb` | Ambiente | `fiscal_settings.ambiente` | S | Config Fiscal | ✅ Implementado |
 | `infCpl` | Informações Complementares | `fiscal_invoices.observacoes` | N | Manual | ✅ Implementado |
-| `infAdFisco` | Informações ao Fisco | `fiscal_invoices.informacoes_fisco` | N | Manual | 🔄 Migração pendente |
+| `infAdFisco` | Informações ao Fisco | `fiscal_invoices.informacoes_fisco` | N | Manual | ✅ Implementado |
+| `refNFe` | NF-e Referenciada | `fiscal_invoices.nfe_referenciada` | N* | Manual (devolução/complementar) | ✅ Implementado |
+| — | Tipo da Nota (classificação UI) | `fiscal_invoices.tipo_nota` | — | Manual (UI) | ✅ Implementado |
 
 ---
 
@@ -52,7 +54,7 @@
 |-----------|-----------------|-----------|:---:|--------|--------|
 | `CPF/CNPJ` | CPF ou CNPJ | `fiscal_invoices.dest_cpf_cnpj` | S | Checkout (cliente) | ✅ |
 | `xNome` | Nome | `fiscal_invoices.dest_nome` | S | Checkout (cliente) | ✅ |
-| `indIEDest` | Indicador IE Dest. | `fiscal_invoices.indicador_ie_dest` | S | Manual / Derivado | 🔄 Migração pendente |
+| `indIEDest` | Indicador IE Dest. | `fiscal_invoices.indicador_ie_dest` | S | Manual / Derivado | ✅ Implementado |
 | `email` | Email | `fiscal_invoices.dest_email` | N | Checkout | ✅ |
 | `fone` | Telefone | `fiscal_invoices.dest_telefone` | N | Checkout | ✅ |
 | `enderDest` | Endereço completo | `fiscal_invoices.dest_endereco_*` | S | Checkout (endereço) | ✅ |
@@ -88,9 +90,9 @@
 |-----------|-----------------|-----------|:---:|--------|--------|
 | `orig` | Origem | `fiscal_invoice_items.origem` | S | Config Fiscal | ✅ |
 | `CSOSN` | CSOSN | `fiscal_invoice_items.csosn` | S | Config Fiscal | ✅ |
-| `vBC` | Base de Cálculo ICMS | `fiscal_invoice_items.icms_base` | N* | Calculado | 🔄 |
-| `pICMS` | Alíquota ICMS | `fiscal_invoice_items.icms_aliquota` | N* | Config / Manual | 🔄 |
-| `vICMS` | Valor ICMS | `fiscal_invoice_items.icms_valor` | N* | Calculado | 🔄 |
+| `vBC` | Base de Cálculo ICMS | `fiscal_invoice_items.icms_base` | N* | Calculado | ✅ Implementado |
+| `pICMS` | Alíquota ICMS | `fiscal_invoice_items.icms_aliquota` | N* | Config / Manual | ✅ Implementado |
+| `vICMS` | Valor ICMS | `fiscal_invoice_items.icms_valor` | N* | Calculado | ✅ Implementado |
 
 *Obrigatório quando CSOSN exige (ex: 500, 900).
 
@@ -98,19 +100,19 @@
 
 | Tag SEFAZ | Nome no Sistema | Coluna BD | Obrig. | Origem | Status |
 |-----------|-----------------|-----------|:---:|--------|--------|
-| `CST` | CST PIS | `fiscal_invoice_items.pis_cst` | S | Config Fiscal | 🔄 |
-| `vBC` | Base PIS | `fiscal_invoice_items.pis_base` | N* | Calculado | 🔄 |
-| `pPIS` | Alíquota PIS | `fiscal_invoice_items.pis_aliquota` | N* | Config | 🔄 |
-| `vPIS` | Valor PIS | `fiscal_invoice_items.pis_valor` | N* | Calculado | 🔄 |
+| `CST` | CST PIS | `fiscal_invoice_items.pis_cst` | S | Config Fiscal | ✅ Implementado |
+| `vBC` | Base PIS | `fiscal_invoice_items.pis_base` | N* | Calculado | ✅ Implementado |
+| `pPIS` | Alíquota PIS | `fiscal_invoice_items.pis_aliquota` | N* | Config | ✅ Implementado |
+| `vPIS` | Valor PIS | `fiscal_invoice_items.pis_valor` | N* | Calculado | ✅ Implementado |
 
 ### 5.3 COFINS
 
 | Tag SEFAZ | Nome no Sistema | Coluna BD | Obrig. | Origem | Status |
 |-----------|-----------------|-----------|:---:|--------|--------|
-| `CST` | CST COFINS | `fiscal_invoice_items.cofins_cst` | S | Config Fiscal | 🔄 |
-| `vBC` | Base COFINS | `fiscal_invoice_items.cofins_base` | N* | Calculado | 🔄 |
-| `pCOFINS` | Alíquota COFINS | `fiscal_invoice_items.cofins_aliquota` | N* | Config | 🔄 |
-| `vCOFINS` | Valor COFINS | `fiscal_invoice_items.cofins_valor` | N* | Calculado | 🔄 |
+| `CST` | CST COFINS | `fiscal_invoice_items.cofins_cst` | S | Config Fiscal | ✅ Implementado |
+| `vBC` | Base COFINS | `fiscal_invoice_items.cofins_base` | N* | Calculado | ✅ Implementado |
+| `pCOFINS` | Alíquota COFINS | `fiscal_invoice_items.cofins_aliquota` | N* | Config | ✅ Implementado |
+| `vCOFINS` | Valor COFINS | `fiscal_invoice_items.cofins_valor` | N* | Calculado | ✅ Implementado |
 
 ---
 
@@ -118,10 +120,10 @@
 
 | Tag SEFAZ | Nome no Sistema | Coluna BD | Obrig. | Origem | Status |
 |-----------|-----------------|-----------|:---:|--------|--------|
-| `vBC` | Base Cálculo ICMS | `fiscal_invoices.valor_bc_icms` | S | Soma dos itens | 🔄 |
-| `vICMS` | Total ICMS | `fiscal_invoices.valor_icms` | S | Soma dos itens | 🔄 |
-| `vPIS` | Total PIS | `fiscal_invoices.valor_pis` | S | Soma dos itens | 🔄 |
-| `vCOFINS` | Total COFINS | `fiscal_invoices.valor_cofins` | S | Soma dos itens | 🔄 |
+| `vBC` | Base Cálculo ICMS | `fiscal_invoices.valor_bc_icms` | S | Soma dos itens (editável manualmente) | ✅ Implementado |
+| `vICMS` | Total ICMS | `fiscal_invoices.valor_icms` | S | Soma dos itens (editável manualmente) | ✅ Implementado |
+| `vPIS` | Total PIS | `fiscal_invoices.valor_pis` | S | Soma dos itens (editável manualmente) | ✅ Implementado |
+| `vCOFINS` | Total COFINS | `fiscal_invoices.valor_cofins` | S | Soma dos itens (editável manualmente) | ✅ Implementado |
 | `vProd` | Total Produtos | `fiscal_invoices.valor_produtos` | S | Soma dos itens | ✅ |
 | `vFrete` | Total Frete | `fiscal_invoices.valor_frete` | S | Pedido | ✅ |
 | `vDesc` | Total Desconto | `fiscal_invoices.valor_desconto` | S | Pedido | ✅ |
@@ -141,9 +143,9 @@
 
 | Tag SEFAZ | Nome no Sistema | Coluna BD | Obrig. | Origem | Status |
 |-----------|-----------------|-----------|:---:|--------|--------|
-| `indPag` | Indicador de Pagamento | `fiscal_invoices.pagamento_indicador` | S | Manual / Derivado | 🔄 |
-| `tPag` | Meio de Pagamento | `fiscal_invoices.pagamento_meio` | S | Pedido / Manual | 🔄 |
-| `vPag` | Valor do Pagamento | `fiscal_invoices.pagamento_valor` | S | Calculado | 🔄 |
+| `indPag` | Indicador de Pagamento | `fiscal_invoices.pagamento_indicador` | S | Manual / Derivado | ✅ Implementado |
+| `tPag` | Meio de Pagamento | `fiscal_invoices.pagamento_meio` | S | Pedido / Manual | ✅ Implementado |
+| `vPag` | Valor do Pagamento | `fiscal_invoices.pagamento_valor` | S | Calculado | ✅ Implementado |
 
 ### Códigos de Meio de Pagamento (tPag)
 
@@ -236,3 +238,31 @@ Config Fiscal (fiscal_settings) ──→ defaults
 | `valor_icms` | Soma de `icms_valor` dos itens |
 | `valor_pis` | Soma de `pis_valor` dos itens |
 | `valor_cofins` | Soma de `cofins_valor` dos itens |
+
+---
+
+## 11. Regra de Paridade Tela ↔ Banco (Anti-Regressão)
+
+**Princípio universal:** todo campo visível em qualquer aba do editor de NF-e (Geral, Destinatário, Itens, Valores, Pagamento, Transporte, Observações) DEVE ser persistido na mesma chamada de salvamento e reidratado integralmente ao reabrir o registro. Não é permitido que um campo "volte ao default" após salvar e reabrir.
+
+### Pontos de paridade obrigatórios
+
+| Aba | Campos críticos | Onde persiste |
+|-----|------------------|----------------|
+| Geral | `tipo_nota`, `tipo_documento`, `finalidade_emissao`, `natureza_operacao`, `serie`, `data_emissao`, `hora_saida`, `nfe_referenciada`, `indicador_presenca`, `informacoes_fisco`, `observacoes` | `fiscal_invoices` |
+| Destinatário | `dest_*` + `indicador_ie_dest` + `dest_consumidor_final` (derivado de PF/PJ) | `fiscal_invoices` |
+| Itens | `quantidade`, `valor_unitario`, `valor_desconto`, `cfop`, `ncm`, `cest`, `gtin`, `origem`, `csosn`, `cst`, `icms_*`, `pis_*`, `cofins_*` | `fiscal_invoice_items` |
+| Valores | `valor_produtos`, `valor_frete`, `valor_desconto`, `valor_total`, `valor_bc_icms`, `valor_icms`, `valor_pis`, `valor_cofins` | `fiscal_invoices` |
+| Pagamento | `pagamento_indicador`, `pagamento_meio`, `pagamento_valor` | `fiscal_invoices` |
+| Transporte | `frete_modalidade` | `fiscal_invoices` |
+
+### Regras derivadas (UI)
+
+- **Consumidor final** (`dest_consumidor_final`) é DERIVADO automaticamente do CPF/CNPJ ao digitar o documento (PF=sim, PJ=não), nunca persistido como decisão manual independente.
+- **`tipo_documento`** (0=entrada, 1=saída) é derivado automaticamente de `tipo_nota` (entrada/devolução = 0; demais = 1).
+- **Totais de impostos da aba Valores** (`valor_bc_icms`, `valor_icms`, `valor_pis`, `valor_cofins`) seguem **Opção B**: preenchidos automaticamente pela soma dos itens; usuário pode editar manualmente, e a edição é respeitada. Botão "Recalcular dos itens" força nova soma.
+- Ao abrir uma NF-e existente, `tipo_nota` é reidratado do banco; quando ausente em registros antigos, é derivado de `natureza_operacao` + `cfop` para manter compatibilidade.
+
+### Anti-regressão
+
+Toda nova aba, novo campo ou nova seção do editor de NF-e deve ser checada contra esta tabela antes de fechar a entrega. Critério mínimo: salvar, recarregar a página, reabrir o registro e confirmar que cada campo voltou exatamente como foi digitado.
