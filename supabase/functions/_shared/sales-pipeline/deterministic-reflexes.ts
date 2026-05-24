@@ -18,7 +18,7 @@
 
 import type { PipelineState } from "./states.ts";
 import type { TurnIntent } from "./transitions.ts";
-import { isThanksOrFarewell, isSocialNoise } from "./continuity-gate.ts";
+import { isThanksOrFarewell, isSocialNoise, isHesitation } from "./continuity-gate.ts";
 
 export interface ReflexInput {
   consolidatedText: string;
