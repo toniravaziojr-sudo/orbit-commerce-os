@@ -28,6 +28,9 @@ export interface ContinuityGateInput {
   // [Frente B] Bucket do scope-router (Frente 2). Quando "social", reforçamos
   // o detector universal contra venda forçada.
   intentBucket?: string | null;
+  // [Passo 5] Quando o reflexo determinístico já cobriu thanks/social/presence,
+  // o continuity-gate pula esses 3 ramos para não duplicar o bloco no prompt.
+  socialReflexFired?: boolean;
 }
 
 export interface ContinuityGateResult {
