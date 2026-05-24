@@ -1722,3 +1722,50 @@ A Rodada 2 da bateria das 10 ondas (50 cenários) confirmou que muitas respostas
 - Regra de "base antes de kit" do Respeite o Homem continua aplicada pela Onda 18 Fase A — a flexibilização é só do prompt textual, não do `enforceFamilyBaseFirst`.
 
 📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação via bateria sandbox no próximo turno.
+
+---
+
+## Registro #37 — Base Universal: Plano de correção pós-Frentes B–E — Passo 4 (hierarquia de blocos) — 23/mai/2026
+
+**Tipo:** Ordenação determinística dos blocos contextuais do prompt da IA de vendas.
+**Escopo:** `ai-support-chat/index.ts` — passo único de `sort+filter` aplicado logo antes de `buildPromptForState`.
+
+### Sintoma (baseline Passo 1)
+- O prompt empilhava 9–14 blocos contextuais em ordem de execução, não em ordem de prioridade. Regras críticas (silêncio em handoff, reflexo determinístico) competiam com regras genéricas (espelho de saudação, contexto comercial), e o modelo recorria à muleta universal "Me conta um pouco do que você precisa".
+- B4.1 e B6.3-T1 da bateria fixa caíam consistentemente na muleta.
+
+### O que mudou
+1. Definida ordem fixa por prioridade (10 → 100):
+   - 10: silêncio em handoff (modo conversa limpa, modo informativo de produto)
+   - 20: reflexos determinísticos (CEP, frete, pós-venda, turno curto com intenção)
+   - 30: bucket-state-router (institucional, objeção, hesitação, humano, pós-venda, fora de escopo)
+   - 40: continuidade (thanks/ruído/presença/anti-loop/família/produto/carrinho)
+   - 50: âncora do turno (dor + foco + áreas institucionais)
+   - 60: ficha institucional (Frente D)
+   - 70: memória da conversa (working memory)
+   - 80: contexto comercial do negócio + payload do produto em foco
+   - 85: carrinho ativo
+   - 87: pergunta direta deste turno
+   - 90: turno consultivo (sintoma + pedido de recomendação)
+   - 100: espelho de saudação (abertura obrigatória)
+2. Supressão automática de **contexto comercial** e **carrinho ativo** quando o bucket do turno é `human_request` ou `post_sale` — evita poluir conversa de suporte com gancho de venda.
+3. Sort estável: dentro de uma mesma prioridade, a ordem original de inserção é preservada (importante para reflexos múltiplos ou continuity com várias razões).
+4. Log de observabilidade: `[Passo4] context_blocks_ordered count=N dropped_commercial=… priorities=[…]`.
+
+### Validação técnica executada
+- ✅ Deploy do `ai-support-chat` concluído.
+- ✅ B3.1 ("vocês têm shampoo?") — listou 2 shampoos com diferenciação.
+- ✅ B5.1 ("vocês têm minoxidil?") — negou e reconduziu para Calvície Zero.
+- ❌ B4.1 ("qual o kit mais completo?") — **continua na muleta**. Diagnóstico: o cliente pediu explicitamente kit, mas a regra Onda 18 Fase A (`enforceFamilyBaseFirst`) prioriza bases sobre kits de quantidade. Sem família declarada e sem reflexo de turno curto (5 palavras > 4), o pipeline não chama `search_products` para kits e cai na muleta.
+- ❌ B6.3-T1 ("tô com queda de cabelo") — **continua na muleta** no T1. T2 ("depois eu vejo") já estava OK desde o Passo 3. Diagnóstico: dor declarada genérica sem família detectada — `pain_symptom_detector` não disparou recomendação imediata.
+
+### Anti-regressão
+- Mudança aditiva: nenhum estado, tool ou contrato alterado. Só a ORDEM dos blocos no prompt mudou.
+- Quando o classificador não reconhece um bloco, recebe prioridade 95 (intermediária) — nunca quebra.
+- Sort estável garante que reflexos múltiplos do mesmo módulo mantêm ordem.
+
+### Pendências (para registro futuro)
+- **B4.1 — Pergunta explícita por kit:** requer ajuste no Catalog Probe v2 para detectar intenção "kit_query" e suspender `enforceFamilyBaseFirst` quando o cliente nomear "kit" / "completo" / "conjunto".
+- **B6.3-T1 — Dor sem família:** requer que `pain_symptom_detector` resolva a família imediatamente (queda → linha Calvície Zero) ou faça busca direta por dor antes de cair na muleta. Não é resolvível pelo Passo 5 do plano.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado e validado parcialmente. Hierarquia funcionando; 2 cenários remanescentes (B4.1 e B6.3-T1) precisam de frentes específicas fora do escopo dos Passos 4–5.
