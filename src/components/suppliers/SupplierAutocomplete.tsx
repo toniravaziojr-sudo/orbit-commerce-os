@@ -25,6 +25,8 @@ export interface SupplierContact {
   email?: string | null;
   phone?: string | null;
   ie?: string | null;
+  /** Indicador IE da NF: 1 = Contribuinte ICMS, 2 = Contribuinte isento, 9 = Não contribuinte. */
+  indicadorIe?: number | null;
   cep?: string | null;
   logradouro?: string | null;
   numero?: string | null;
@@ -32,6 +34,7 @@ export interface SupplierContact {
   bairro?: string | null;
   cidade?: string | null;
   uf?: string | null;
+  codigoIbge?: string | null;
 }
 
 interface SupplierAutocompleteProps {
