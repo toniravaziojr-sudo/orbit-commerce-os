@@ -1271,7 +1271,7 @@ export function InvoiceEditor({
                         ibgeCode: data.dest_endereco_municipio_codigo || '',
                       }}
                       onChange={(next) => {
-                        setData((prev) => ({
+                        setData((prev) => prev ? ({
                           ...prev,
                           dest_endereco_cep: next.postalCode,
                           dest_endereco_uf: next.state,
@@ -1281,7 +1281,7 @@ export function InvoiceEditor({
                           dest_endereco_numero: next.number,
                           dest_endereco_complemento: next.complement,
                           dest_endereco_municipio_codigo: next.ibgeCode || '',
-                        }));
+                        }) : null);
                       }}
                     />
                   </div>
