@@ -15,21 +15,23 @@
 | `mod` | Modelo | Fixo `55` | S | Sistema | ✅ Hardcoded |
 | `serie` | Série | `fiscal_invoices.serie` | S | Config Fiscal | ✅ Implementado |
 | `nNF` | Número | `fiscal_invoices.numero` | S | Auto-incremento | ✅ Implementado |
-| `dhEmi` | Data/Hora Emissão | `fiscal_invoices.hora_emissao` | S | Sistema (momento da emissão) | 🔄 Migração pendente |
-| `dhSaiEnt` | Data/Hora Saída | `fiscal_invoices.hora_saida` | N | Manual | 🔄 Migração pendente |
-| `tpNF` | Tipo (0=Entrada, 1=Saída) | Fixo `1` | S | Sistema | ✅ Hardcoded |
+| `dhEmi` | Data/Hora Emissão | `fiscal_invoices.hora_emissao` | S | Sistema (momento da emissão) | ✅ Implementado |
+| `dhSaiEnt` | Data/Hora Saída | `fiscal_invoices.hora_saida` | N | Manual | ✅ Implementado |
+| `tpNF` | Tipo (0=Entrada, 1=Saída) | `fiscal_invoices.tipo_documento` | S | Derivado de `tipo_nota` | ✅ Implementado |
 | `idDest` | Destino da Operação | Derivado da UF dest. vs emit. | S | Sistema | ✅ Calculado |
 | `cMunFG` | Município do Fato Gerador | `fiscal_settings.emit_municipio_codigo` | S | Config Fiscal | ✅ Implementado |
 | `tpImp` | Formato DANFE | Fixo `1` | S | Sistema | ✅ Hardcoded |
 | `tpEmis` | Tipo de Emissão | Fixo `1` (Normal) | S | Sistema | ✅ Hardcoded |
-| `finNFe` | Finalidade | Fixo `1` (Normal) | S | Sistema | ✅ Hardcoded |
+| `finNFe` | Finalidade | `fiscal_invoices.finalidade_emissao` | S | Manual / Default `1` | ✅ Implementado |
 | `indFinal` | Consumidor Final | Derivado (PF=1, PJ=0) | S | Derivado CPF/CNPJ | ✅ Calculado |
-| `indPres` | Indicador de Presença | `fiscal_invoices.indicador_presenca` | S | Manual / Default | 🔄 Migração pendente |
+| `indPres` | Indicador de Presença | `fiscal_invoices.indicador_presenca` | S | Manual / Default | ✅ Implementado |
 | `procEmi` | Processo de Emissão | Fixo `0` | S | Sistema | ✅ Hardcoded |
 | `verProc` | Versão do Processo | Versão do sistema | S | Sistema | ✅ Implementado |
 | `tpAmb` | Ambiente | `fiscal_settings.ambiente` | S | Config Fiscal | ✅ Implementado |
 | `infCpl` | Informações Complementares | `fiscal_invoices.observacoes` | N | Manual | ✅ Implementado |
-| `infAdFisco` | Informações ao Fisco | `fiscal_invoices.informacoes_fisco` | N | Manual | 🔄 Migração pendente |
+| `infAdFisco` | Informações ao Fisco | `fiscal_invoices.informacoes_fisco` | N | Manual | ✅ Implementado |
+| `refNFe` | NF-e Referenciada | `fiscal_invoices.nfe_referenciada` | N* | Manual (devolução/complementar) | ✅ Implementado |
+| — | Tipo da Nota (classificação UI) | `fiscal_invoices.tipo_nota` | — | Manual (UI) | ✅ Implementado |
 
 ---
 
