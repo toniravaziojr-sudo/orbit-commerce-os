@@ -1884,3 +1884,42 @@ Após o Registro #39 (fechamento do plano original), foi montado novo plano de 7
 📌 **STATUS DA ENTREGA:** Ajuste aplicado — pendente de validação no sandbox. Frentes 2/3/6 entram em ciclo seguinte.
 
 📝 **DOCUMENTAÇÃO NECESSÁRIA:** Memórias atualizadas (`mem://features/ai/instruction-block-hierarchy-standard.md` ganha hesitation; nova `mem://constraints/anchor-as-state-override`; `mem://constraints/sales-pipeline-deterministic-reflexes` ganha hesitation; nova `mem://constraints/empty-response-fallback-reflex-aware`). Mapa de UI segue sem alteração nesta entrega — Frente 6 mexe nele no próximo ciclo.
+
+---
+
+## Registro #41 — Plano de correção pós-Frentes B–E — Frentes 2, 3 e 6 — 24/mai/2026
+
+### Contexto
+Continuação do Reg #40. Esta entrega cobre as 3 frentes restantes do plano de 7 frentes.
+
+### Frente 2 — Catalog Probe direto a kit/shampoo/balm ✅
+- Novo módulo `_shared/sales-pipeline/direct-catalog-question.ts` com `detectDirectCatalogQuestion`. Detecta perguntas diretas sobre kit ("qual o kit mais completo?", "kit?") e família ("tem shampoo?") em turno curto sem dor declarada.
+- Wired em `ai-support-chat/index.ts` no bloco arch18: quando `directKitQuestion` ou `directFamilyQuestion` são verdadeiros, o `enforceFamilyBaseFirst` é bypassed (mantendo o pool natural com kits visíveis). Trace `probe_v2_decision` registra a decisão com `reason=direct_catalog_question_*`.
+- Princípio: "base antes de kit" segue ativa dentro de cada família individualmente, mas não força agregação família-base quando o cliente pergunta direto sobre kit.
+- 5 testes unitários em `__tests__/direct-catalog-question.test.ts` — todos verdes.
+
+### Frente 3 — Tabela determinística de sinônimos por tenant ✅
+- Nova tabela `tenant_ai_synonyms` (campos: term, term_normalized, kind ∈ {synonym, brand, ingredient, alias}, target_product_id, response_template, is_active). RLS por `user_has_tenant_access`. Trigger normaliza termo via `unaccent` + lowercase.
+- Novo módulo `_shared/sales-pipeline/synonyms-resolver.ts` com `resolveTenantSynonym`: longest-match dentro do texto do turno, retorna o produto-alvo ou null. Função consultada no edge ai-support-chat (importada e exposta para uso).
+- Resolve B5.1 ("minoxidil → Calvície Zero") em base determinística — cadastro de sinônimo por tenant é o caminho oficial.
+- **Nota:** integração no fluxo de `search_products` para forçar produto-alvo no topo do pool é a próxima onda; a tabela e o helper estão prontos e expostos.
+
+### Frente 6 — Tela admin da Ficha Institucional ✅
+- Novo componente `src/components/support/AIInstitutionalSheetSection.tsx`: 9 campos editáveis (cobertura/prazos, horário, pagamento, cupom, garantia, prova social, loja física, atendimento humano, observações).
+- Persiste em `ai_support_config.metadata.institutional_sheet` (jsonb) — mesma chave já consumida pelo `buildInstitutionalBlock` em `_shared/sales-pipeline/institutional-sheet.ts`.
+- Plugada em `AIConfigPanel.tsx` na aba "Conhecimento Essencial", após "Fontes automáticas".
+- Resolve P-EXEC-2 (lacuna documental e de UI declarada no Reg #39).
+
+### Validação técnica
+- 5 testes unitários novos (Frente 2) — todos verdes.
+- Migration aplicada com sucesso. Os 104 avisos do linter são pré-existentes do projeto.
+- Edge `ai-support-chat` deployada após as mudanças.
+- Pendente de validação do usuário: B4.1 ("qual o kit mais completo?") em conversa real e cadastro de sinônimo no banco para validar B5.1.
+
+### Pendências
+- Wiring completo da Frente 3 dentro do `search_products` para prepender o produto-alvo do sinônimo no topo do pool (decisão de produto: enriquecer com `match_reason=synonym_hit` ou injetar diretamente?).
+- Mapa de UI: nova seção "Ficha Institucional" dentro de Configurações > IA > Conhecimento Essencial precisa ser refletida em `docs/especificacoes/transversais/mapa-ui.md`.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado — pendente de validação no sandbox e wiring completo da Frente 3.
+
+📝 **DOCUMENTAÇÃO NECESSÁRIA:** Mapa de UI atualizar com a nova seção. Memórias atualizadas no índice. Lacunas documentais declaradas: spec da tabela de sinônimos pode evoluir para `docs/especificacoes/ia/tenant-ai-synonyms.md` em ciclo seguinte.

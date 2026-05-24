@@ -28,6 +28,7 @@ import { AIBusinessContextSection } from "./AIBusinessContextSection";
 import { AIContextChecklistCard } from "./AIContextChecklistCard";
 import { AIPageRoleSummary } from "./AIPageRoleSummary";
 import { AICatalogSourcesSummary } from "./AICatalogSourcesSummary";
+import { AIInstitutionalSheetSection } from "./AIInstitutionalSheetSection";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -238,6 +239,9 @@ export function AIConfigPanel() {
 
           {/* Fontes automáticas (Produtos / Categorias) — informativo */}
           <AICatalogSourcesSummary />
+
+          {/* Frente 6 — Ficha Institucional do tenant (9 campos) */}
+          <AIInstitutionalSheetSection />
         </TabsContent>
 
         {/* ========== ATENDIMENTO ========== */}
