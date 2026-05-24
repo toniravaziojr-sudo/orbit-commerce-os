@@ -81,6 +81,10 @@ import {
   // [Onda 18 — Fase A] Probe v2 família-base + detector de família por regex
   enforceFamilyBaseFirst,
   detectFamilyInText,
+  // [Frente 2 — Plano correção] Detector de pergunta direta de kit/família
+  detectDirectCatalogQuestion,
+  // [Frente 3 — Plano correção] Resolver determinístico de sinônimos
+  resolveTenantSynonym,
   // [Onda 3.3 — Reg #2.18] Versões universais (segment-agnostic) que
   // consomem o vocabulário do tenant carregado pelo Resolver da Onda 1.
   detectFamilyInTextUniversal,
@@ -1326,49 +1330,76 @@ async function executeSalesTool(
             }
           }
 
-          const v2 = enforceFamilyBaseFirst({
-            enriched: filtered as any,
-            familyDetected,
-            kitComponentMap,
-            limit: requestedLimit,
-            classifier: familyClassifier,
+          // [Frente 2 — Plano correção pós-Frentes B–E]
+          // Quando o cliente pergunta DIRETAMENTE por "kit / shampoo / balm"
+          // sem família em foco persistida e sem dor declarada, o
+          // enforceFamilyBaseFirst pode esconder o kit ou re-ranquear de
+          // forma agressiva. Nesse caso, mantemos o pool natural (que já
+          // respeita "base antes de kit" dentro de cada família) e apenas
+          // logamos a decisão.
+          const directQ = detectDirectCatalogQuestion({
+            consolidatedText: String(lastUserMessageContentForTools || ""),
+            intentBucket: ctx.intentBucket ?? null,
+            declaredPain: (ctx as { declaredPain?: string | null }).declaredPain ?? null,
           });
 
-          // Trace 4 — partição enriquecida
-          await writeTrace("enriched_partition", {
-            family_detected: familyDetected,
-            bases_pain_count: v2.bases_pain_count,
-            bases_outras_count: v2.bases_outras_count,
-            kits_complementary_count: v2.kits_complementary_count,
-            kits_quantity_excluded_count: v2.kits_quantity_excluded_count,
-          });
-
-          // base_has_free_shipping (decisão #4 do usuário): só vai pro trace,
-          // NÃO altera response da tool nem family_shipping_summary.
-          const baseHasFreeShipping = (v2.filtered as any[])
-            .filter(p => !p.is_kit)
-            .some(p => p.free_shipping === true);
-
-          // Trace 5 — decisão do Probe v2
-          await writeTrace("probe_v2_decision", {
-            forced_base: v2.forced_base,
-            reason: v2.reason,
-            base_has_free_shipping: baseHasFreeShipping,
-            output_count: v2.filtered.length,
-          });
-
-          if (v2.forced_base) {
-            filtered = v2.filtered as typeof enriched;
+          if (directQ.directKitQuestion || directQ.directFamilyQuestion) {
             console.log(
-              `[ai-support-chat][search_products] [Onda18-A] base_first ` +
-              `family=${familyDetected} bases=${v2.bases_pain_count}+${v2.bases_outras_count} ` +
-              `kits_compl=${v2.kits_complementary_count} kits_qty_excl=${v2.kits_quantity_excluded_count} ` +
-              `reason=${v2.reason}`
+              `[ai-support-chat][search_products] [Frente2-DirectQ] bypass enforceFamilyBaseFirst ` +
+              `kit=${directQ.directKitQuestion} family=${directQ.directFamilyQuestion} reason=${directQ.reason}`
             );
+            await writeTrace("probe_v2_decision", {
+              forced_base: false,
+              reason: `direct_catalog_question_${directQ.reason}`,
+              direct_kit_question: directQ.directKitQuestion,
+              direct_family_question: directQ.directFamilyQuestion,
+              output_count: filtered.length,
+            });
           } else {
-            console.log(
-              `[ai-support-chat][search_products] [Onda18-A] keep_original reason=${v2.reason}`
-            );
+            const v2 = enforceFamilyBaseFirst({
+              enriched: filtered as any,
+              familyDetected,
+              kitComponentMap,
+              limit: requestedLimit,
+              classifier: familyClassifier,
+            });
+
+            // Trace 4 — partição enriquecida
+            await writeTrace("enriched_partition", {
+              family_detected: familyDetected,
+              bases_pain_count: v2.bases_pain_count,
+              bases_outras_count: v2.bases_outras_count,
+              kits_complementary_count: v2.kits_complementary_count,
+              kits_quantity_excluded_count: v2.kits_quantity_excluded_count,
+            });
+
+            // base_has_free_shipping (decisão #4 do usuário): só vai pro trace,
+            // NÃO altera response da tool nem family_shipping_summary.
+            const baseHasFreeShipping = (v2.filtered as any[])
+              .filter(p => !p.is_kit)
+              .some(p => p.free_shipping === true);
+
+            // Trace 5 — decisão do Probe v2
+            await writeTrace("probe_v2_decision", {
+              forced_base: v2.forced_base,
+              reason: v2.reason,
+              base_has_free_shipping: baseHasFreeShipping,
+              output_count: v2.filtered.length,
+            });
+
+            if (v2.forced_base) {
+              filtered = v2.filtered as typeof enriched;
+              console.log(
+                `[ai-support-chat][search_products] [Onda18-A] base_first ` +
+                `family=${familyDetected} bases=${v2.bases_pain_count}+${v2.bases_outras_count} ` +
+                `kits_compl=${v2.kits_complementary_count} kits_qty_excl=${v2.kits_quantity_excluded_count} ` +
+                `reason=${v2.reason}`
+              );
+            } else {
+              console.log(
+                `[ai-support-chat][search_products] [Onda18-A] keep_original reason=${v2.reason}`
+              );
+            }
           }
         }
 
