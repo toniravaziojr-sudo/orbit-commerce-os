@@ -1351,6 +1351,7 @@ export function InvoiceEditor({
                       </div>
                     </div>
                   </div>
+                  </SupplierAutocomplete>
                 </CardContent>
               </Card>
             )}
