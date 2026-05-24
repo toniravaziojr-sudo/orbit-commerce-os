@@ -1137,18 +1137,22 @@ export function InvoiceEditor({
 
           {/* Tab: Destinatário */}
           <TabsContent value="destinatario" className="space-y-4">
+            {/* Conteúdo da aba Destinatário */}
+
+            {/* Cartão unificado para notas de Entrada/Devolução/Remessa/Transferência */}
             {(['entrada','devolucao','remessa','transferencia'] as const).includes((data.tipo_nota || 'saida') as any) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Fornecedor / Remetente</CardTitle>
                   <CardDescription>
-                    Busque na base ou preencha manualmente. Se quiser, salve este fornecedor para reaproveitar em outras notas.
+                    Busque na base ou preencha os dados abaixo. "Salvar na base" grava tudo (identificação, IE, endereço e contato) no cadastro central.
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <SupplierAutocomplete
                     label="Fornecedor / Remetente"
                     required
+                    compact
                     value={{
                       id: linkedSupplierId,
                       name: data.dest_nome || '',
@@ -1189,11 +1193,172 @@ export function InvoiceEditor({
                       }) : prev);
                     }}
                   />
+
+                  {/* Identificação */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-muted-foreground">Identificação</h4>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>Nome / Razão Social <span className="text-destructive">*</span></Label>
+                        <Input
+                          value={data.dest_nome}
+                          onChange={(e) => updateField('dest_nome', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>CPF/CNPJ <span className="text-destructive">*</span></Label>
+                        <Input
+                          value={data.dest_cpf_cnpj}
+                          onChange={(e) => updateField('dest_cpf_cnpj', e.target.value.replace(/\D/g, ''))}
+                          placeholder="Apenas números (11 ou 14 dígitos)"
+                          maxLength={14}
+                          className={`font-mono ${data.dest_cpf_cnpj && !isValidCpfCnpj(data.dest_cpf_cnpj) ? 'border-destructive' : ''}`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Inscrição Estadual</Label>
+                        <Input
+                          value={data.dest_ie || ''}
+                          onChange={(e) => updateField('dest_ie', e.target.value)}
+                          placeholder="Isento ou número"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tipo de Pessoa</Label>
+                        <Select
+                          value={data.dest_tipo_pessoa}
+                          onValueChange={(value) => updateField('dest_tipo_pessoa', value as 'fisica' | 'juridica')}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="fisica">Pessoa Física</SelectItem>
+                            <SelectItem value="juridica">Pessoa Jurídica</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Indicador IE <span className="text-destructive">*</span></Label>
+                        <Select
+                          value={String(data.indicador_ie_dest ?? 9)}
+                          onValueChange={(value) => updateField('indicador_ie_dest', parseInt(value))}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {INDICADOR_IE_DEST_OPTIONS.map(opt => (
+                              <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Endereço */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-muted-foreground">Endereço</h4>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>Logradouro <span className="text-destructive">*</span></Label>
+                        <Input
+                          value={data.dest_endereco_logradouro}
+                          onChange={(e) => updateField('dest_endereco_logradouro', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Número</Label>
+                        <Input
+                          value={data.dest_endereco_numero}
+                          onChange={(e) => updateField('dest_endereco_numero', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Complemento</Label>
+                        <Input
+                          value={data.dest_endereco_complemento || ''}
+                          onChange={(e) => updateField('dest_endereco_complemento', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Bairro</Label>
+                        <Input
+                          value={data.dest_endereco_bairro}
+                          onChange={(e) => updateField('dest_endereco_bairro', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>CEP <span className="text-destructive">*</span></Label>
+                        <Input
+                          value={data.dest_endereco_cep}
+                          onChange={(e) => updateField('dest_endereco_cep', e.target.value.replace(/\D/g, ''))}
+                          maxLength={8}
+                          placeholder="00000000"
+                          className={`font-mono ${data.dest_endereco_cep && !isValidCep(data.dest_endereco_cep) ? 'border-destructive' : ''}`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Município <span className="text-destructive">*</span></Label>
+                        <Input
+                          value={data.dest_endereco_municipio}
+                          onChange={(e) => updateField('dest_endereco_municipio', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Código IBGE <span className="text-destructive">*</span></Label>
+                        <Input
+                          value={data.dest_endereco_municipio_codigo}
+                          onChange={(e) => updateField('dest_endereco_municipio_codigo', e.target.value.replace(/\D/g, ''))}
+                          placeholder="7 dígitos"
+                          maxLength={7}
+                          className={`font-mono ${data.dest_endereco_municipio_codigo && !isValidIbge(data.dest_endereco_municipio_codigo) ? 'border-destructive' : ''}`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>UF <span className="text-destructive">*</span></Label>
+                        <Select
+                          value={data.dest_endereco_uf}
+                          onValueChange={(value) => updateField('dest_endereco_uf', value)}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {UF_OPTIONS.map(uf => (
+                              <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contato */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-muted-foreground">Contato</h4>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Telefone</Label>
+                        <Input
+                          value={data.dest_telefone || ''}
+                          onChange={(e) => updateField('dest_telefone', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>E-mail</Label>
+                        <Input
+                          value={data.dest_email || ''}
+                          onChange={(e) => updateField('dest_email', e.target.value)}
+                          type="email"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}
 
+            {/* Cartões originais — só para Saída (cliente / consumidor final) */}
+            {!(['entrada','devolucao','remessa','transferencia'] as const).includes((data.tipo_nota || 'saida') as any) && (
+            <>
             <Card>
+
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <CardTitle className="text-base">Dados do Destinatário</CardTitle>
@@ -1398,7 +1563,10 @@ export function InvoiceEditor({
                 </div>
               </CardContent>
             </Card>
+            </>
+            )}
           </TabsContent>
+
 
           {/* Tab: Itens */}
           <TabsContent value="itens" className="space-y-4">
