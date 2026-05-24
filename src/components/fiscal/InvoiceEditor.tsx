@@ -1145,7 +1145,7 @@ export function InvoiceEditor({
                 <CardHeader>
                   <CardTitle className="text-base">Fornecedor / Remetente</CardTitle>
                   <CardDescription>
-                    Busque na base ou preencha os dados abaixo. "Salvar na base" grava tudo (identificação, IE, endereço e contato) no cadastro central.
+                    Busque na base ou preencha os dados abaixo. O botão "Salvar na base" no final do cartão grava tudo (identificação, IE, endereço e contato) no cadastro central.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
