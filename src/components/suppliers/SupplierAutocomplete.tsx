@@ -463,30 +463,32 @@ export function SupplierAutocomplete({
 
       {/* Duplicate dialog */}
       <Dialog open={duplicateOpen} onOpenChange={setDuplicateOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-lg sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Fornecedor já existe na base</DialogTitle>
-            <DialogDescription>
-              Já existe um cadastro com este {existingMatch?.person_type === "PJ" ? "CNPJ" : "CPF"}:
-              <br />
-              <strong>{existingMatch?.name}</strong>
-              <br />
-              {existingMatch?.person_type === "PJ"
-                ? `CNPJ ${existingMatch?.cnpj}`
-                : `CPF ${existingMatch?.cpf}`}
+            <DialogDescription asChild>
+              <div className="space-y-1">
+                <p>
+                  Já existe um cadastro com este {existingMatch?.person_type === "PJ" ? "CNPJ" : "CPF"}:
+                </p>
+                <p className="font-semibold text-foreground break-words">{existingMatch?.name}</p>
+                <p className="break-all">
+                  {existingMatch?.person_type === "PJ"
+                    ? `CNPJ ${existingMatch?.cnpj}`
+                    : `CPF ${existingMatch?.cpf}`}
+                </p>
+              </div>
             </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            O que deseja fazer?
-          </p>
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="ghost" onClick={() => setDuplicateOpen(false)} disabled={saving}>
+          <p className="text-sm text-muted-foreground">O que deseja fazer?</p>
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:flex-wrap">
+            <Button variant="ghost" onClick={() => setDuplicateOpen(false)} disabled={saving} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button variant="outline" onClick={handleUseExisting} disabled={saving}>
+            <Button variant="outline" onClick={handleUseExisting} disabled={saving} className="w-full sm:w-auto">
               Usar cadastro existente
             </Button>
-            <Button onClick={handleUpdateExisting} disabled={saving}>
+            <Button onClick={handleUpdateExisting} disabled={saving} className="w-full sm:w-auto">
               {saving && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
               Atualizar dados
             </Button>
