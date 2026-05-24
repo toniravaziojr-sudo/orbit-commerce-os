@@ -127,7 +127,7 @@ export function buildContinuityBlock(input: ContinuityGateInput): ContinuityGate
   // ── [Frente B] Prioridade 2: Ruído social puro ──
   // "kkk", "haha", "rs", emoji solto: NUNCA assumir nicho/dor, NUNCA empurrar
   // venda. Resposta leve, no tom, em UMA linha, devolvendo a bola sem pressão.
-  if (text && isSocialNoise(text)) {
+  if (!socialReflexFired && text && isSocialNoise(text)) {
     lines.push(
       "O cliente mandou apenas RUÍDO SOCIAL (risada, onomatopeia ou emoji solto). " +
       "Responda LEVE e CURTO (1 linha), no mesmo tom, sem assumir nenhuma dor, nicho, " +
