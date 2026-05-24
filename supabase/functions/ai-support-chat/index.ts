@@ -5522,6 +5522,11 @@ Cliente: "vocês entregam em SP?"
       items: 0,
     };
 
+    // [Frente 5 — Fix de escopo] firedReflexId precisa ser visível no
+    // bloco de fallback empty-response (linha ~7673), que roda fora deste
+    // if. Declaramos aqui no escopo externo.
+    let firedReflexId: string | null = null;
+
     if (salesModeEnabled) {
       // [Fase 1] Consome promises paralelizadas (iniciadas ~linha 3226).
       // Reduz latência: businessCtx + staleCheck rodam em paralelo em vez de serial.
@@ -5764,7 +5769,7 @@ Cliente: "vocês entregam em SP?"
       // e corrigem desvios reconhecíveis (CEP, frete, pós-venda, turno curto
       // com intenção clara). Aditivos: se nenhum dispara, nada muda.
       let reflexFinalState: PipelineState = pipelineState;
-      let firedReflexId: string | null = null;
+      // firedReflexId já declarado no escopo externo (acima do if salesModeEnabled).
       try {
         const cartCustomerData =
           (preloadedActiveCart as any)?.customer_data || {};
