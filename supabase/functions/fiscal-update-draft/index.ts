@@ -184,9 +184,22 @@ Deno.serve(async (req) => {
         valor_desconto: Math.max(0, Number(item.valor_desconto) || 0),
         origem: parseInt(item.origem, 10) || 0,
         csosn: item.csosn || null,
+        cst: item.cst || null,
         gtin: sanitizeGtin(item.gtin),
         gtin_tributavel: sanitizeGtin(item.gtin_tributavel || item.gtin),
         cest: item.cest ? String(item.cest).replace(/\D/g, '').substring(0, 7) || null : null,
+        // Impostos por item
+        icms_base: Number(item.icms_base) || 0,
+        icms_aliquota: Number(item.icms_aliquota) || 0,
+        icms_valor: Number(item.icms_valor) || 0,
+        pis_cst: item.pis_cst || '49',
+        pis_base: Number(item.pis_base) || 0,
+        pis_aliquota: Number(item.pis_aliquota) || 0,
+        pis_valor: Number(item.pis_valor) || 0,
+        cofins_cst: item.cofins_cst || '49',
+        cofins_base: Number(item.cofins_base) || 0,
+        cofins_aliquota: Number(item.cofins_aliquota) || 0,
+        cofins_valor: Number(item.cofins_valor) || 0,
       }));
 
       if (itemsToInsert.length > 0) {
