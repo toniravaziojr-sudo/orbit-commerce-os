@@ -356,7 +356,10 @@ export function SupplierAutocomplete({
         </div>
       </div>
 
-      {/* Manual fields */}
+      {/* Compact: render parent fields between search and footer */}
+      {compact && children}
+
+      {/* Manual fields (non-compact) OR action footer (compact) */}
       <div className="space-y-2 rounded-md border bg-muted/30 p-3">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-medium">
@@ -404,7 +407,9 @@ export function SupplierAutocomplete({
 
         {compact && (
           <p className="text-xs text-muted-foreground">
-            Salvar na base grava nome, documento, IE, endereço completo e contato preenchidos abaixo no cadastro central de Fornecedores.
+            {value.id
+              ? "Use \"Atualizar cadastro\" para sincronizar este fornecedor com os dados acima (campos já preenchidos não são sobrescritos)."
+              : "\"Salvar na base\" grava nome, documento, IE, endereço completo e contato preenchidos acima no cadastro central de Fornecedores."}
           </p>
         )}
 
@@ -436,7 +441,6 @@ export function SupplierAutocomplete({
               variant="outline"
               size="sm"
               onClick={async () => {
-                // Reaproveita o fluxo de duplicidade: força procurar e abrir o diálogo "Atualizar dados".
                 const docDigits = onlyDigits(value.document);
                 if (!docDigits) return;
                 const personType = inferPersonType(docDigits);
@@ -454,6 +458,7 @@ export function SupplierAutocomplete({
           )}
         </div>
       </div>
+
 
 
       {/* Duplicate dialog */}
