@@ -5696,6 +5696,7 @@ Cliente: "vocês entregam em SP?"
           hasKnownCustomerCep: knownCep,
         });
         if (reflex) {
+          firedReflexId = reflex.reflexId;
           contextualBlocks.push(reflex.promptBlock);
           if (reflex.newState && reflex.newState !== pipelineState) {
             reflexFinalState = reflex.newState;
