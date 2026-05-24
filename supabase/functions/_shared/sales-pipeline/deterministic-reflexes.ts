@@ -39,7 +39,9 @@ export interface ReflexOutput {
     | "shipping_question"
     | "post_sale_question"
     | "short_turn_with_intent"
-    | "presence_ping";
+    | "presence_ping"
+    | "thanks_terminal"
+    | "social_noise";
   newState: PipelineState | null; // null = não muda estado
   reason: string;
   promptBlock: string; // bloco anexado ao contextualBlocks
