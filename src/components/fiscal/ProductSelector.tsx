@@ -59,13 +59,13 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
         const productsData = (rawProducts || []) as Array<{ id: string; name: string; sku: string | null; price: number; gtin: string | null; barcode: string | null; weight: number | null; ncm: string | null; origin_code: string | null; cest: string | null }>;
         const productIds = productsData.map(p => p.id);
         
-        // Fetch fiscal data
-        let fiscalMap: Record<string, { ncm: string | null; cfop_override: string | null; unidade_comercial: string | null; origem: number | null; cest: string | null }> = {};
+        // Fetch fiscal data (CFOP vem da Natureza no editor de NF, não do produto)
+        let fiscalMap: Record<string, { ncm: string | null; unidade_comercial: string | null; origem: number | null; cest: string | null }> = {};
         
         if (productIds.length > 0) {
           const { data: fiscalData } = await (supabase
             .from('fiscal_products')
-            .select('product_id, ncm, cfop_override, unidade_comercial, origem, cest') as any)
+            .select('product_id, ncm, unidade_comercial, origem, cest') as any)
             .in('product_id', productIds);
           
           for (const fp of (fiscalData || [])) {
@@ -75,7 +75,6 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
 
         const productsWithFiscal: ProductWithFiscal[] = productsData.map((p) => {
           const fiscal = fiscalMap[p.id];
-          // Coerção segura de origin_code (text em products) para número
           const originRaw = (fiscal?.origem ?? p.origin_code ?? 0) as any;
           const originNum = typeof originRaw === 'number'
             ? originRaw
@@ -86,7 +85,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
             sku: p.sku,
             price: p.price,
             ncm: fiscal?.ncm || p.ncm || null,
-            cfop: fiscal?.cfop_override || null,
+            cfop: null,
             unidade: fiscal?.unidade_comercial || 'UN',
             origem: originNum,
             gtin: p.gtin || p.barcode || null,

@@ -67,21 +67,19 @@ Regra única: ao escolher a Natureza, o sistema preenche o CFOP de **todos os it
 
 **Fase 3 — UI:** ✅ Concluída — CFOP removido do cadastro fiscal de produto e do ProductSelector; campos de CFOP global removidos das Configurações Fiscais e substituídos pelo seletor "Natureza padrão para vendas automáticas"; no editor de NF o CFOP de todos os itens é derivado automaticamente da Natureza + UF, com badge "manual" e botão "Restaurar" quando há override por item.
 
-**Fase 4 — Correção:** reprocessamento da 1-321 e validação SEFAZ.
+**Fase 4 — Correção da NF 1-321:** dispensada por decisão do usuário (refazendo a nota manualmente).
 
-**Fase 5 — Limpeza:** remoção formal dos campos legados do banco depois de 1 ciclo estável.
+**Fase 5 — Limpeza:** ✅ Concluída em 2026-05-25 — campos legados removidos do banco (`fiscal_products.cfop_override`, `fiscal_settings.cfop_intrastadual`, `fiscal_settings.cfop_interestadual`) e do código (interface FiscalProduct, ProductSelector, FiscalProductsConfig).
 
-## Validações obrigatórias
+**Documentação:** ✅ Concluída — `docs/especificacoes/erp/erp-fiscal.md` recebeu nova seção "Modelo de CFOP — Fonte única: Natureza de Operação" e `docs/especificacoes/transversais/mapa-ui.md` foi atualizado na entrada `/fiscal/products`. Memória anti-regressão criada em `mem://constraints/cfop-source-of-truth-natureza-operacao` e indexada.
 
-- Cada tenant com natureza padrão definida antes da Fase 2.
-- Após Fase 2: nota de teste em cada tipo (Venda intra, Venda inter, Transferência, Devolução, Remessa) e verificação do CFOP correto.
-- Após Fase 4: confirmação de autorização da 1-321 na SEFAZ.
+## Validações realizadas
 
-## Documentação a atualizar
+- Banco confirmado: restam apenas `fiscal_invoices.cfop`, `fiscal_invoice_items.cfop` (resultado, suporta override) e `fiscal_operation_natures.cfop_intra/inter` (fonte). Os 3 campos legados foram dropados.
+- Código: zero referências a `cfop_override`, `cfop_intrastadual` e `cfop_interestadual` em `src/` e `supabase/functions/` (ignorando migrações antigas e docs).
+- Build passou após remoção dos campos da interface `FiscalProduct` e ajustes em `FiscalProductsConfig.tsx` e `ProductSelector.tsx`.
 
-- `docs/especificacoes/erp/erp-fiscal.md` — nova arquitetura "Natureza como fonte única de CFOP/tributação".
-- `docs/especificacoes/transversais/mapa-ui.md` — remoção de campos, novo seletor, edição manual de CFOP.
-- Memória anti-regressão: "CFOP por item vem da Natureza vinculada + UF; override manual permitido; produto e configurações não carregam CFOP."
+
 
 ## Anti-regressão
 
