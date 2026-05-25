@@ -185,9 +185,22 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return stage === 'pronta_emitir' || stage === 'pendencia' || stage === 'emitida';
   });
 
+  // Deriva tipo_nota a partir do registro (compat com NFs antigas sem o campo).
+  const deriveTipoNotaFromInvoice = (d: any): 'saida' | 'entrada' | 'remessa' | 'devolucao' | 'transferencia' => {
+    if (d?.tipo_nota) return d.tipo_nota;
+    const nat = String(d?.natureza_operacao || '').toLowerCase();
+    const cfopNum = parseInt(String(d?.cfop || '').replace(/\D/g, ''), 10) || 0;
+    if (d?.tipo_documento === 0) return 'entrada';
+    if (d?.finalidade_emissao === 4 || nat.includes('devolu')) return 'devolucao';
+    if (nat.includes('transfer')) return 'transferencia';
+    if ((cfopNum >= 5900 && cfopNum <= 5999) || (cfopNum >= 6900 && cfopNum <= 6999)) return 'remessa';
+    return 'saida';
+  };
+
   // Concluído set + helper derivado (fonte única em src/lib/fiscal/pedidoStatus.ts)
   const concluidoSet = buildConcluidoSet((invoices as any[]) || []);
   const pedidoStatusOf = (inv: any) => derivePedidoStatus(inv, concluidoSet);
+
 
   // Apply status filter
   const statusFilteredInvoices = modeFilteredInvoices?.filter(inv => {
