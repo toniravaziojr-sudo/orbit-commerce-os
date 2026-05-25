@@ -95,6 +95,7 @@ Deno.serve(async (req) => {
     const {
       order_id,
       natureza_operacao,
+      natureza_operacao_id,
       observacoes,
       destinatario: bodyDestinatario,
       itens: bodyItens,
