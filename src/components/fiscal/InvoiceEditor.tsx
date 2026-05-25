@@ -1566,9 +1566,10 @@ export function InvoiceEditor({
                     <Badge variant="outline">{data.items.length} item(ns)</Badge>
                     <ProductSelector 
                       onSelect={addProductFromCatalog}
-                      placeholder="Buscar produto"
+                      placeholder="Adicionar produto"
                       className="h-9"
                     />
+
                   </div>
                 </div>
               </CardHeader>
