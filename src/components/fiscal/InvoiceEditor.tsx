@@ -1716,23 +1716,53 @@ export function InvoiceEditor({
                                 />
                               </div>
                               
-                              {/* CFOP — somente NF (oculto no Pedido de Venda) */}
-                              {!isPedidoVenda && (
-                                <div className="space-y-1">
-                                  <Label className="text-xs">
-                                    CFOP <span className="text-destructive">*</span>
-                                    {hasCfopError && <span className="text-amber-600 ml-1">(4 dígitos)</span>}
-                                  </Label>
-                                  <Input
-                                    value={item.cfop}
-                                    readOnly={locked}
-                                    onChange={(e) => updateItem(index, 'cfop', e.target.value.replace(/\D/g, ''))}
-                                    className={`h-8 text-sm font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : ''}`}
-                                    maxLength={4}
-                                    placeholder="5102"
-                                  />
-                                </div>
-                              )}
+                              {/* CFOP — somente NF (oculto no Pedido de Venda).
+                                  Vem automático da Natureza + UF; edição manual mostra badge. */}
+                              {!isPedidoVenda && (() => {
+                                const selectedNature = operationNatures.find(n => n.nome === data.natureza_operacao);
+                                const expectedCfop = pickCfopForUf(selectedNature, data.dest_endereco_uf);
+                                const isManualOverride = !!expectedCfop && !!item.cfop && item.cfop !== expectedCfop;
+                                return (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs flex items-center gap-1">
+                                      CFOP <span className="text-destructive">*</span>
+                                      {hasCfopError && <span className="text-amber-600 ml-1">(4 dígitos)</span>}
+                                      {isManualOverride && (
+                                        <Badge variant="outline" className="ml-1 px-1 py-0 text-[9px] border-amber-400 text-amber-700">
+                                          manual
+                                        </Badge>
+                                      )}
+                                    </Label>
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        value={item.cfop}
+                                        readOnly={locked}
+                                        onChange={(e) => updateItem(index, 'cfop', e.target.value.replace(/\D/g, ''))}
+                                        className={`h-8 text-sm font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : isManualOverride ? 'border-amber-400' : ''}`}
+                                        maxLength={4}
+                                        placeholder={expectedCfop || '5102'}
+                                      />
+                                      {isManualOverride && !locked && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 px-2 text-[10px]"
+                                          onClick={() => updateItem(index, 'cfop', expectedCfop)}
+                                          title={`Restaurar para o CFOP da natureza (${expectedCfop})`}
+                                        >
+                                          Restaurar
+                                        </Button>
+                                      )}
+                                    </div>
+                                    {expectedCfop && !isManualOverride && (
+                                      <p className="text-[10px] text-muted-foreground">
+                                        Automático pela natureza {data.dest_endereco_uf && emitterUf ? (data.dest_endereco_uf.toUpperCase() === emitterUf ? '(intra)' : '(inter)') : ''}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                               
                               {/* Origem — somente NF */}
                               {!isPedidoVenda && (
