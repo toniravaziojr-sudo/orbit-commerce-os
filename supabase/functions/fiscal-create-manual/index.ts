@@ -212,6 +212,18 @@ Deno.serve(async (req) => {
     //   validações de PV; pendências reais aparecem apenas ao salvar/emitir).
     const initialStage = creationMode === 'nfe_manual' ? 'pendencia' : 'pedido_venda';
 
+    // CFOP/finalidade/tipo vêm da Natureza de Operação resolvida (Fase 2)
+    const nature = await resolveOperationNature(supabase, tenantId, {
+      natureId: natureza_operacao_id || null,
+      natureNome: natureza_operacao || null,
+      defaultNatureId: settings.default_sales_nature_id || null,
+    });
+    const cfopHeader = pickCfopForUf(
+      nature,
+      settings.endereco_uf,
+      cepResolvedManual?.uf || destinatario.endereco.uf,
+    );
+
     // Create invoice draft
     const invoiceBaseData: any = {
       tenant_id: tenantId,
@@ -219,8 +231,11 @@ Deno.serve(async (req) => {
       serie: serieNfe,
       status: 'draft',
       fiscal_stage: initialStage,
-      natureza_operacao: natureza_operacao || 'VENDA DE MERCADORIA',
-      cfop: itens[0]?.cfop || settings.cfop_intrastadual || '5102',
+      tipo_documento: nature?.tipo_documento ?? 1,
+      finalidade_emissao: nature?.finalidade ?? 1,
+      natureza_operacao_id: nature?.id ?? null,
+      natureza_operacao: (nature?.nome || natureza_operacao || 'VENDA DE MERCADORIA').toUpperCase(),
+      cfop: itens[0]?.cfop || cfopHeader,
       valor_total: valorTotal,
       valor_produtos: valorProdutos,
       valor_frete: valorFrete,
