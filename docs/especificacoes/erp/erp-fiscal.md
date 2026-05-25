@@ -26,6 +26,21 @@ Módulo de gestão empresarial: fiscal (NF-e via **Focus NFe**), financeiro, e c
 
 ## 1. Fiscal
 
+### Modelo de CFOP — Fonte única: Natureza de Operação (v2026-05-25)
+
+A partir desta versão, **o CFOP de qualquer nota fiscal vem exclusivamente da Natureza de Operação vinculada à nota**, decidindo automaticamente entre o CFOP intra (5xxx) ou inter (6xxx) pela comparação entre a UF do emitente e a UF do destinatário.
+
+Regras permanentes:
+
+- O cadastro de produto **não carrega mais CFOP**. Permanecem nele: NCM, CEST, Origem, GTIN, Unidade Comercial e Peso.
+- As Configurações Fiscais **não carregam mais CFOP global**. Em seu lugar existe o seletor **"Natureza padrão para vendas automáticas"**, usado pelo motor quando uma nota é gerada automaticamente (pedido pago → NF).
+- Cada tenant recebe automaticamente o catálogo padrão de 16 Naturezas-sistema (Venda, Transferência, Devolução, Remessa, Bonificação etc.). As naturezas-sistema não podem ser excluídas; podem ser desativadas. O tenant pode criar as suas próprias.
+- No editor de NF, ao escolher/trocar a Natureza ou alterar a UF do destinatário, o CFOP de todos os itens é recalculado automaticamente.
+- **Override manual permitido por item**, com badge "manual" e botão "Restaurar" para voltar ao CFOP padrão da natureza.
+- Hierarquia de resolução da natureza no motor de emissão: ID/nome explícito → padrão do tenant → "Venda de Mercadoria" do sistema → fallback 5102/6102.
+
+
+
 ### Arquivos
 | Arquivo | Descrição |
 |---------|-----------|
