@@ -159,5 +159,6 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Tenant AI Synonyms (Frente 3 / Reg #41)](mem://features/ai/tenant-ai-synonyms) — Tabela tenant_ai_synonyms + helper resolveTenantSynonym mapeiam termo (marca/ingrediente/apelido) → produto do tenant. Determinístico antes do roteador estatístico.
 - [Institutional Sheet Admin UI (Frente 6 / Reg #41)](mem://features/ai/institutional-sheet-admin-ui) — 9 campos editáveis em Configurações > IA > Conhecimento Essencial, persistidos em ai_support_config.metadata.institutional_sheet.
 - [Reflex State Outside Sales-Mode Block](mem://constraints/reflex-state-must-live-outside-sales-mode-block) — Variáveis usadas no fallback global (firedReflexId etc.) precisam ser declaradas fora do bloco if(salesModeEnabled). Anti-regressão da quebra `INTERNAL_ERROR` em todos os turnos detectada em 24/05/2026.
+- [CFOP Source of Truth — Natureza de Operação](mem://constraints/cfop-source-of-truth-natureza-operacao) — CFOP vem exclusivamente da Natureza vinculada à nota + UF emitente vs destinatário. Proibido CFOP no produto ou CFOP global no emitente. Override manual por item permitido com badge "manual".
 
 
