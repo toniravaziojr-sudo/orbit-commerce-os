@@ -1864,8 +1864,15 @@ export function InvoiceEditor({
                         </Card>
                       );
                     })}
+                    <div className="flex justify-center pt-2">
+                      <ProductSelector
+                        onSelect={addProductFromCatalog}
+                        placeholder="Adicionar outro produto"
+                      />
+                    </div>
                   </div>
                 )}
+
               </CardContent>
             </Card>
           </TabsContent>
