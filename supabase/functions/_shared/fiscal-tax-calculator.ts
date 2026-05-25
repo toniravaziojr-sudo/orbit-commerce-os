@@ -63,11 +63,14 @@ function round2(n: number): number {
  * @param valorTotalItem Valor total do item (qty × unit_price, sem desconto)
  * @param settings Configuração fiscal do tenant
  * @param override Override fiscal por produto (opcional)
+ * @param natureTax Códigos tributários vindos da Natureza de Operação resolvida
+ *                  pelo CRT do emitente. Precedência: produto → natureza → settings.
  */
 export function calculateItemTaxes(
   valorTotalItem: number,
   settings: FiscalSettingsTax,
   override?: ProductFiscalOverride | null,
+  natureTax?: { csosn?: string | null; cst_icms?: string | null } | null,
 ): CalculatedTaxes {
   const base = Number(valorTotalItem) || 0;
 
@@ -86,7 +89,7 @@ export function calculateItemTaxes(
       cofins_aliquota: 0,
       cofins_valor: 0,
       cst: null,
-      csosn: override?.csosn_override || settings.csosn_padrao || '102',
+      csosn: override?.csosn_override || natureTax?.csosn || settings.csosn_padrao || '102',
     };
   }
 
@@ -107,7 +110,7 @@ export function calculateItemTaxes(
     cofins_base: base,
     cofins_aliquota: cofinsAliq,
     cofins_valor: round2(base * cofinsAliq / 100),
-    cst: override?.cst_override || settings.cst_padrao || '00',
+    cst: override?.cst_override || natureTax?.cst_icms || settings.cst_padrao || '00',
     csosn: null,
   };
 }
