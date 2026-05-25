@@ -1373,7 +1373,16 @@ export function InvoiceEditor({
                         <Label>Inscrição Estadual</Label>
                         <Input
                           value={data.dest_ie || ''}
-                          onChange={(e) => updateField('dest_ie', e.target.value)}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            updateField('dest_ie', v);
+                            // Auto-flip: digitou IE válida e indicador estava em 9 (não contribuinte)?
+                            // Promove para 1 (Contribuinte ICMS). Usuário pode mudar manualmente depois.
+                            const ieDigits = (v || '').replace(/\D/g, '');
+                            if (ieDigits.length >= 2 && (data.indicador_ie_dest ?? 9) === 9) {
+                              updateField('indicador_ie_dest', 1);
+                            }
+                          }}
                           placeholder="Isento ou número"
                         />
                       </div>
