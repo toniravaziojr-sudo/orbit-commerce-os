@@ -304,7 +304,7 @@ async function processTenanDrafts(
         const product: any = productMap.get(item.product_id);
         const gtin = sanitizeGtin(product?.gtin || product?.barcode);
         const cestRaw = fiscalProduct?.cest || product?.cest;
-        const taxes = calculateItemTaxes(Number(item.total_price || 0), taxSettings, fiscalProduct);
+        const taxes = calculateItemTaxes(Number(item.total_price || 0), taxSettings, fiscalProduct, natureTax);
         return {
           numero_item: index + 1,
           order_item_id: item.id || null,
