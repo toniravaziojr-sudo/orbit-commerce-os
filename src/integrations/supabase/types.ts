@@ -8889,6 +8889,7 @@ export type Database = {
           consumidor_final: boolean | null
           created_at: string | null
           crt: number | null
+          crt_overrides: Json
           csosn_padrao: string | null
           cst_cofins: string | null
           cst_icms: string | null
@@ -8903,6 +8904,7 @@ export type Database = {
           is_system: boolean | null
           nome: string
           operacao_devolucao: boolean | null
+          regimes_compativeis: number[]
           serie: number | null
           tenant_id: string
           tipo_documento: number | null
@@ -8916,6 +8918,7 @@ export type Database = {
           consumidor_final?: boolean | null
           created_at?: string | null
           crt?: number | null
+          crt_overrides?: Json
           csosn_padrao?: string | null
           cst_cofins?: string | null
           cst_icms?: string | null
@@ -8930,6 +8933,7 @@ export type Database = {
           is_system?: boolean | null
           nome: string
           operacao_devolucao?: boolean | null
+          regimes_compativeis?: number[]
           serie?: number | null
           tenant_id: string
           tipo_documento?: number | null
@@ -8943,6 +8947,7 @@ export type Database = {
           consumidor_final?: boolean | null
           created_at?: string | null
           crt?: number | null
+          crt_overrides?: Json
           csosn_padrao?: string | null
           cst_cofins?: string | null
           cst_icms?: string | null
@@ -8957,6 +8962,7 @@ export type Database = {
           is_system?: boolean | null
           nome?: string
           operacao_devolucao?: boolean | null
+          regimes_compativeis?: number[]
           serie?: number | null
           tenant_id?: string
           tipo_documento?: number | null
@@ -24538,6 +24544,20 @@ export type Database = {
       fiscal_focus_tenant_token_status: {
         Args: { p_tenant_id: string }
         Returns: Json
+      }
+      fiscal_nature_for_crt: {
+        Args: { p_crt: number; p_nature_id: string }
+        Returns: {
+          cfop_inter: string
+          cfop_intra: string
+          compativel: boolean
+          csosn: string
+          cst_icms: string
+          finalidade: number
+          id: string
+          nome: string
+          tipo_documento: number
+        }[]
       }
       fiscal_set_focus_tenant_token: {
         Args: { p_ambiente: string; p_tenant_id: string; p_token: string }
