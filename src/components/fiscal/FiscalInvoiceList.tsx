@@ -22,6 +22,8 @@ import { CorrectInvoiceDialog } from '@/components/fiscal/CorrectInvoiceDialog';
 import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
 import { EntryInvoiceDialog } from '@/components/fiscal/EntryInvoiceDialog';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { ExportInvoicesButton } from '@/components/fiscal/ExportInvoicesButton';
 import { InvoiceTimeline } from '@/components/fiscal/InvoiceTimeline';
 import { SendingInvoiceModal, type SendingState } from '@/components/fiscal/SendingInvoiceModal';
