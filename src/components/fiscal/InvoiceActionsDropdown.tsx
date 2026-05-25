@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { 
   MoreHorizontal, 
-  Download, 
   Printer, 
   Mail, 
   XCircle, 
@@ -136,7 +135,7 @@ export function InvoiceActionsDropdown({
     }
   };
 
-  const handleDownloadDanfe = () => downloadViaBackend('danfe');
+  
 
   const handleDownloadXml = async () => {
     setIsDownloadingXml(true);
@@ -292,10 +291,6 @@ export function InvoiceActionsDropdown({
             <DropdownMenuItem onClick={handlePrintDanfe}>
               <Printer className="h-4 w-4 mr-2" />
               {isPrinted ? 'Reimprimir DANFE' : 'Imprimir DANFE'}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleDownloadDanfe}>
-              <Download className="h-4 w-4 mr-2" />
-              Baixar DANFE (PDF)
             </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={handleDownloadXml}
