@@ -2115,14 +2115,6 @@ export function InvoiceEditor({
             </Card>
           </TabsContent>
 
-          {/* Tab: Pagamento */}
-          <TabsContent value="pagamento" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Dados de Pagamento</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
           {/* Tab: Pagamento (apenas para tipos que comportam pagamento) */}
           {!['transferencia', 'remessa'].includes((data.tipo_nota || 'saida')) && (
           <TabsContent value="pagamento" className="space-y-4">
