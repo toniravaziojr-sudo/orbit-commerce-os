@@ -228,13 +228,8 @@ async function processTenanDrafts(
         continue;
       }
 
-      // Determine CFOP
-      const cfop = determineCfop(
-        fiscalSettings.endereco_uf,
-        order.shipping_state,
-        fiscalSettings.cfop_intrastadual,
-        fiscalSettings.cfop_interestadual
-      );
+      // CFOP vem da Natureza de Operação resolvida + UF (Fase 2)
+      const cfop = pickCfopForUf(defaultNature, fiscalSettings.endereco_uf, order.shipping_state);
 
       let itemsToProcess: Array<{
         id?: string;
