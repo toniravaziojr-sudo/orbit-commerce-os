@@ -17,14 +17,9 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-// CFOP options for merchandise sales
-const CFOP_OPTIONS = [
-  { value: '', label: 'Usar padrão do emissor' },
-  { value: '5102', label: '5102 - Venda de mercadoria (dentro do estado)' },
-  { value: '6102', label: '6102 - Venda de mercadoria (fora do estado)' },
-  { value: '5405', label: '5405 - Venda de mercadoria ST (dentro do estado)' },
-  { value: '6404', label: '6404 - Venda de mercadoria ST (fora do estado)' },
-];
+// CFOP foi removido do cadastro de produto.
+// CFOP por item agora vem exclusivamente da Natureza de Operação vinculada à nota,
+// decidindo intra/inter pela UF emitente vs destinatário.
 
 // Origem options
 const ORIGEM_OPTIONS = [
@@ -71,7 +66,6 @@ type FiscalProductEdit = {
   cest: string;
   origem: string;
   unidade_comercial: string;
-  cfop_override: string;
 };
 
 export default function FiscalProductsConfig() {
@@ -154,7 +148,6 @@ export default function FiscalProductsConfig() {
       cest: product.fiscal?.cest || '',
       origem: String(product.fiscal?.origem ?? '0'),
       unidade_comercial: product.fiscal?.unidade_comercial || 'UN',
-      cfop_override: product.fiscal?.cfop_override || '',
     });
   };
 
