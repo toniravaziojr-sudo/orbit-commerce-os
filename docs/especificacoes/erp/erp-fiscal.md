@@ -2202,7 +2202,7 @@ Atualizado: 2026-05-25.
 
 A aba "Notas Fiscais" do módulo Fiscal possui filtro dedicado por **Tipo de Nota** (Saída, Entrada, Transferência, Remessa, Devolução, Todos os tipos).
 
-**Padrão ao entrar na aba:** filtro = **Saída**. Esta é a operação mais frequente em e-commerce; demais tipos ficam acessíveis em 1 clique.
+**Padrão ao entrar na aba:** filtro = **Todos os tipos**. Todas as notas são listadas por padrão; o lojista pode filtrar por tipo específico quando necessário.
 
 **Compatibilidade com registros antigos:** quando `tipo_nota` não está persistido (NFs anteriores ao backfill), o tipo é derivado em tempo real a partir de `natureza_operacao` + `cfop` + `tipo_documento` + `finalidade_emissao`, preservando a classificação histórica.
 
