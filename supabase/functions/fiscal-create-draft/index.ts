@@ -9,22 +9,18 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
+import { resolveOperationNature, pickCfopForUf } from "../_shared/fiscal-nature-resolver.ts";
 
-const VERSION = 'v8.7.0';
+const VERSION = 'v8.8.0';
+// v8.8.0 — CFOP via Natureza de Operação vinculada (Fase 2). Aceita natureza_operacao_id
+//          no payload; fallback: nome → natureza padrão do tenant → "Venda de Mercadoria".
+// v8.7.0 — versão anterior.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
-
-// Determine CFOP based on origin and destination UF
-function determineCfop(originUf: string, destUf: string, defaultIntra: string, defaultInter: string): string {
-  if (originUf === destUf) {
-    return defaultIntra || '5102'; // Intraestadual
-  }
-  return defaultInter || '6102'; // Interestadual
-}
 
 /**
  * Busca código IBGE do município
@@ -128,7 +124,7 @@ Deno.serve(async (req) => {
     }
 
     const tenantId = profile.current_tenant_id;
-    const { order_id, natureza_operacao, observacoes } = await req.json();
+    const { order_id, natureza_operacao, natureza_operacao_id, observacoes } = await req.json();
 
     if (!order_id) {
       return new Response(
@@ -243,13 +239,13 @@ Deno.serve(async (req) => {
       return 'SEM GTIN';
     };
 
-    // Determine CFOP
-    const cfop = determineCfop(
-      fiscalSettings.endereco_uf,
-      order.shipping_state,
-      fiscalSettings.cfop_intrastadual,
-      fiscalSettings.cfop_interestadual
-    );
+    // CFOP/finalidade/tipo vêm da Natureza de Operação resolvida (Fase 2)
+    const nature = await resolveOperationNature(supabase, tenantId, {
+      natureId: natureza_operacao_id || null,
+      natureNome: natureza_operacao || null,
+      defaultNatureId: fiscalSettings.default_sales_nature_id || null,
+    });
+    const cfop = pickCfopForUf(nature, fiscalSettings.endereco_uf, order.shipping_state);
 
     // Settings de tributação (regime + alíquotas padrão)
     const taxSettings: FiscalSettingsTax = {
@@ -353,9 +349,11 @@ Deno.serve(async (req) => {
       order_id: order_id,
       serie: serieNfe,
       status: 'draft',
-      tipo_documento: 1,
+      tipo_documento: nature?.tipo_documento ?? 1,
+      finalidade_emissao: nature?.finalidade ?? 1,
+      natureza_operacao_id: nature?.id ?? null,
       fiscal_stage: 'pedido_venda',
-      natureza_operacao: natureza_operacao || 'VENDA DE MERCADORIA',
+      natureza_operacao: (nature?.nome || natureza_operacao || 'VENDA DE MERCADORIA').toUpperCase(),
       cfop: cfop,
       valor_total: order.total,
       valor_produtos: order.subtotal,
