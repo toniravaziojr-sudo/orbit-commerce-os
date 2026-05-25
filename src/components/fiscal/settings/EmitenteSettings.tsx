@@ -618,7 +618,7 @@ export function EmitenteSettings() {
       <Card id="card-parametros">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Parâmetros Fiscais</CardTitle>
-          <CardDescription>Regime tributário, origem padrão, CFOPs e numeração da NF-e.</CardDescription>
+          <CardDescription>Regime tributário, origem padrão, natureza padrão de venda e numeração da NF-e. O CFOP por item agora vem da Natureza de Operação vinculada à nota (intra/inter por UF).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -648,16 +648,10 @@ export function EmitenteSettings() {
             </div>
           </div>
           <Separator />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="cfop_intrastadual">CFOP Intrastadual</Label>
-              <Input id="cfop_intrastadual" value={formData.cfop_intrastadual || ''} onChange={(e) => handleChange('cfop_intrastadual', e.target.value)} placeholder="5102" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cfop_interestadual">CFOP Interestadual</Label>
-              <Input id="cfop_interestadual" value={formData.cfop_interestadual || ''} onChange={(e) => handleChange('cfop_interestadual', e.target.value)} placeholder="6102" />
-            </div>
-          </div>
+          <DefaultSalesNatureField
+            value={(formData as any).default_sales_nature_id || ''}
+            onChange={(v) => handleChange('default_sales_nature_id' as any, v || null)}
+          />
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="csosn_padrao">CSOSN Padrão</Label>
@@ -853,6 +847,60 @@ function CertificateUploadForm(props: {
         {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
         {isPending ? 'Validando com Focus NFe…' : submitLabel}
       </Button>
+    </div>
+  );
+}
+
+// ============= Default Sales Nature Field =============
+// Lista as Naturezas de Operação ativas do tenant e permite eleger a "padrão para vendas
+// automáticas" (usada quando o pedido vira NF sem natureza explícita).
+function DefaultSalesNatureField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [natures, setNatures] = useState<Array<{ id: string; nome: string; cfop_intra: string; cfop_inter: string }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      const { data: prof } = await supabase.from('profiles').select('current_tenant_id').eq('id', user.id).maybeSingle();
+      const tenantId = (prof as any)?.current_tenant_id;
+      if (!tenantId) { setLoading(false); return; }
+      const { data } = await supabase
+        .from('fiscal_operation_natures')
+        .select('id, nome, cfop_intra, cfop_inter')
+        .eq('tenant_id', tenantId)
+        .eq('ativo', true)
+        .eq('tipo_documento', 1)
+        .order('nome');
+      if (!cancelled) {
+        setNatures((data as any) || []);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <Label>Natureza padrão para vendas automáticas</Label>
+      <Select value={value || '__none__'} onValueChange={(v) => onChange(v === '__none__' ? '' : v)} disabled={loading}>
+        <SelectTrigger>
+          <SelectValue placeholder={loading ? 'Carregando…' : 'Selecione a natureza padrão'} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">— Não definida —</SelectItem>
+          {natures.map(n => (
+            <SelectItem key={n.id} value={n.id}>
+              {n.nome} <span className="text-muted-foreground text-xs ml-1">({n.cfop_intra}/{n.cfop_inter})</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        Usada quando um pedido vira NF automaticamente. O CFOP de cada item é decidido pela natureza + UF do destinatário (intra 5xxx / inter 6xxx). Edição manual por item continua possível na nota.
+      </p>
     </div>
   );
 }

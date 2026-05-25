@@ -372,21 +372,43 @@ export function InvoiceEditor({
     csosn_padrao: string | null; ind_pres: number;
     consumidor_final: boolean; faturada: boolean;
   }>>([]);
+  // UF do emitente (origem do CFOP intra/inter). Carregada das Configurações Fiscais.
+  const [emitterUf, setEmitterUf] = useState<string>('');
 
-  // Load operation natures from database
+  // Load operation natures + emitter UF from database
   useEffect(() => {
     if (!tenantId) return;
     const load = async () => {
-      const { data: natures } = await supabase
-        .from('fiscal_operation_natures')
-        .select('id, nome, descricao, cfop_intra, cfop_inter, tipo_documento, finalidade, csosn_padrao, ind_pres, consumidor_final, faturada')
-        .eq('tenant_id', tenantId)
-        .eq('ativo', true)
-        .order('nome');
-      if (natures) setOperationNatures(natures as any);
+      const [naturesRes, settingsRes] = await Promise.all([
+        supabase
+          .from('fiscal_operation_natures')
+          .select('id, nome, descricao, cfop_intra, cfop_inter, tipo_documento, finalidade, csosn_padrao, ind_pres, consumidor_final, faturada')
+          .eq('tenant_id', tenantId)
+          .eq('ativo', true)
+          .order('nome'),
+        supabase
+          .from('fiscal_settings')
+          .select('endereco_uf')
+          .eq('tenant_id', tenantId)
+          .maybeSingle(),
+      ]);
+      if (naturesRes.data) setOperationNatures(naturesRes.data as any);
+      const uf = ((settingsRes.data as any)?.endereco_uf || '').toUpperCase();
+      if (uf) setEmitterUf(uf);
     };
     load();
   }, [tenantId]);
+
+  // Decide CFOP intra (5xxx) ou inter (6xxx) comparando UF emitente x UF destinatário.
+  const pickCfopForUf = useCallback(
+    (nature: { cfop_intra: string; cfop_inter: string } | null | undefined, destUf: string | undefined) => {
+      if (!nature) return '';
+      const dest = (destUf || '').toUpperCase();
+      if (emitterUf && dest && emitterUf !== dest) return nature.cfop_inter || nature.cfop_intra || '';
+      return nature.cfop_intra || nature.cfop_inter || '';
+    },
+    [emitterUf],
+  );
 
   // Resolve customer_id from order_id to enable "Abrir cadastro do cliente"
   useEffect(() => {
@@ -438,22 +460,45 @@ export function InvoiceEditor({
     }
   });
 
-  // Auto-fill fields when nature is selected
+  // Auto-fill fields when nature is selected.
+  // Recalcula o CFOP de TODOS os itens com base na Natureza + UF do destinatário
+  // (intra 5xxx se UF emitente = UF destinatário, inter 6xxx caso contrário).
+  // Plano: "Trocar a natureza recalcula tudo." Edição manual posterior por item
+  // é permitida e fica visível como badge "manual" no item.
   const handleNatureChange = useCallback((natureName: string) => {
     const nature = operationNatures.find(n => n.nome === natureName);
     if (!nature || !data) {
       updateField('natureza_operacao', natureName);
       return;
     }
-    // Use cfop_intra as default (intrastate); user can change if interstate
+    const newCfop = pickCfopForUf(nature, data.dest_endereco_uf);
     setData(prev => prev ? {
       ...prev,
       natureza_operacao: nature.nome,
-      cfop: nature.cfop_intra,
+      cfop: newCfop,
       indicador_presenca: nature.ind_pres ?? 2,
       dest_consumidor_final: nature.consumidor_final ?? true,
+      items: prev.items.map(it => ({ ...it, cfop: newCfop })),
     } : null);
-  }, [operationNatures, data]);
+  }, [operationNatures, data, pickCfopForUf]);
+
+  // Quando a UF do destinatário muda, se houver natureza selecionada, recalcula
+  // o CFOP principal e dos itens — exceto itens onde o usuário já tinha sobrescrito
+  // manualmente para um valor diferente do CFOP esperado anterior.
+  useEffect(() => {
+    if (!data?.natureza_operacao) return;
+    const nature = operationNatures.find(n => n.nome === data.natureza_operacao);
+    if (!nature) return;
+    const newCfop = pickCfopForUf(nature, data.dest_endereco_uf);
+    if (!newCfop || newCfop === data.cfop) return;
+    const prevCfop = data.cfop;
+    setData(prev => prev ? {
+      ...prev,
+      cfop: newCfop,
+      items: prev.items.map(it => (it.cfop === prevCfop ? { ...it, cfop: newCfop } : it)),
+    } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.dest_endereco_uf, emitterUf]);
 
   useEffect(() => {
     if (invoice) {
@@ -1671,23 +1716,53 @@ export function InvoiceEditor({
                                 />
                               </div>
                               
-                              {/* CFOP — somente NF (oculto no Pedido de Venda) */}
-                              {!isPedidoVenda && (
-                                <div className="space-y-1">
-                                  <Label className="text-xs">
-                                    CFOP <span className="text-destructive">*</span>
-                                    {hasCfopError && <span className="text-amber-600 ml-1">(4 dígitos)</span>}
-                                  </Label>
-                                  <Input
-                                    value={item.cfop}
-                                    readOnly={locked}
-                                    onChange={(e) => updateItem(index, 'cfop', e.target.value.replace(/\D/g, ''))}
-                                    className={`h-8 text-sm font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : ''}`}
-                                    maxLength={4}
-                                    placeholder="5102"
-                                  />
-                                </div>
-                              )}
+                              {/* CFOP — somente NF (oculto no Pedido de Venda).
+                                  Vem automático da Natureza + UF; edição manual mostra badge. */}
+                              {!isPedidoVenda && (() => {
+                                const selectedNature = operationNatures.find(n => n.nome === data.natureza_operacao);
+                                const expectedCfop = pickCfopForUf(selectedNature, data.dest_endereco_uf);
+                                const isManualOverride = !!expectedCfop && !!item.cfop && item.cfop !== expectedCfop;
+                                return (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs flex items-center gap-1">
+                                      CFOP <span className="text-destructive">*</span>
+                                      {hasCfopError && <span className="text-amber-600 ml-1">(4 dígitos)</span>}
+                                      {isManualOverride && (
+                                        <Badge variant="outline" className="ml-1 px-1 py-0 text-[9px] border-amber-400 text-amber-700">
+                                          manual
+                                        </Badge>
+                                      )}
+                                    </Label>
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        value={item.cfop}
+                                        readOnly={locked}
+                                        onChange={(e) => updateItem(index, 'cfop', e.target.value.replace(/\D/g, ''))}
+                                        className={`h-8 text-sm font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : isManualOverride ? 'border-amber-400' : ''}`}
+                                        maxLength={4}
+                                        placeholder={expectedCfop || '5102'}
+                                      />
+                                      {isManualOverride && !locked && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 px-2 text-[10px]"
+                                          onClick={() => updateItem(index, 'cfop', expectedCfop)}
+                                          title={`Restaurar para o CFOP da natureza (${expectedCfop})`}
+                                        >
+                                          Restaurar
+                                        </Button>
+                                      )}
+                                    </div>
+                                    {expectedCfop && !isManualOverride && (
+                                      <p className="text-[10px] text-muted-foreground">
+                                        Automático pela natureza {data.dest_endereco_uf && emitterUf ? (data.dest_endereco_uf.toUpperCase() === emitterUf ? '(intra)' : '(inter)') : ''}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                               
                               {/* Origem — somente NF */}
                               {!isPedidoVenda && (

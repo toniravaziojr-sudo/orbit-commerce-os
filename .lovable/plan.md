@@ -61,11 +61,11 @@ Regra única: ao escolher a Natureza, o sistema preenche o CFOP de **todos os it
 
 ## Fases de execução
 
-**Fase 1 — Base (não-quebrante):** vínculo nota↔natureza, seletor de natureza padrão nas configurações, seed/backfill global do catálogo de naturezas. Sistema continua operando como antes.
+**Fase 1 — Base (não-quebrante):** ✅ Concluída — vínculo nota↔natureza, seletor de natureza padrão nas configurações, seed/backfill global do catálogo (16 naturezas) em todos os tenants.
 
-**Fase 2 — Motor:** todas as funções de criação/atualização de rascunho e emissão passam a ler da natureza vinculada. Override manual respeitado.
+**Fase 2 — Motor:** ✅ Concluída — `fiscal-auto-create-drafts`, `fiscal-create-draft` e `fiscal-create-manual` resolvem a natureza (explícita → padrão do tenant → "Venda de Mercadoria" → fallback 5102/6102) e escolhem CFOP intra/inter por UF.
 
-**Fase 3 — UI:** remoção do CFOP do cadastro de produto e das configurações; seletor de natureza no editor de NF; edição manual do CFOP por item com indicação visual.
+**Fase 3 — UI:** ✅ Concluída — CFOP removido do cadastro fiscal de produto e do ProductSelector; campos de CFOP global removidos das Configurações Fiscais e substituídos pelo seletor "Natureza padrão para vendas automáticas"; no editor de NF o CFOP de todos os itens é derivado automaticamente da Natureza + UF, com badge "manual" e botão "Restaurar" quando há override por item.
 
 **Fase 4 — Correção:** reprocessamento da 1-321 e validação SEFAZ.
 

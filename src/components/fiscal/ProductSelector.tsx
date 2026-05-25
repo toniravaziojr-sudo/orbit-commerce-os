@@ -192,11 +192,7 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
                         Sem NCM
                       </Badge>
                     )}
-                    {product.cfop && (
-                      <Badge variant="outline" className="text-xs font-mono bg-background">
-                        CFOP: {product.cfop}
-                      </Badge>
-                    )}
+                    {/* CFOP não é mais exibido aqui — vem da Natureza da NF (intra/inter por UF). */}
                   </div>
                 </CommandItem>
               ))}
