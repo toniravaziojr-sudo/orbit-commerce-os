@@ -277,6 +277,7 @@ Deno.serve(async (req) => {
         auto_create_shipment: auto_create_shipment ?? false,
         auto_update_order_status: auto_update_order_status !== false, // default true
         default_shipping_provider: normalizeOptionalText(default_shipping_provider),
+        default_sales_nature_id: default_sales_nature_id || null,
         is_configured,
       };
 
