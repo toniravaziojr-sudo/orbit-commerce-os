@@ -71,7 +71,9 @@ Regra única: ao escolher a Natureza, o sistema preenche o CFOP de **todos os it
 
 **Fase 5 — Limpeza:** ✅ Concluída em 2026-05-25 — campos legados removidos do banco (`fiscal_products.cfop_override`, `fiscal_settings.cfop_intrastadual`, `fiscal_settings.cfop_interestadual`) e do código (interface FiscalProduct, ProductSelector, FiscalProductsConfig).
 
-**Documentação:** ✅ Concluída — `docs/especificacoes/erp/erp-fiscal.md` recebeu nova seção "Modelo de CFOP — Fonte única: Natureza de Operação" e `docs/especificacoes/transversais/mapa-ui.md` foi atualizado na entrada `/fiscal/products`. Memória anti-regressão criada em `mem://constraints/cfop-source-of-truth-natureza-operacao` e indexada.
+**Fase 6 — Ciclo de rejeição e revalidação:** ✅ Concluída em 2026-05-25 — rejeição da SEFAZ não deixa mais NF em etapa `emitida`; a nota volta para `pendencia` com o motivo salvo, e qualquer salvamento de NF já existente na aba Notas Fiscais revalida automaticamente a etapa para devolver `pronta_emitir` quando estiver consistente.
+
+**Documentação:** ✅ Concluída — `docs/especificacoes/erp/erp-fiscal.md` recebeu o complemento do ciclo rejeição → pendência → revalidação; `docs/tecnico/base-de-conhecimento-tecnico.md` recebeu a lição técnica; memória anti-regressão criada em `mem://constraints/fiscal-stage-rejection-cycle`.
 
 ## Validações realizadas
 

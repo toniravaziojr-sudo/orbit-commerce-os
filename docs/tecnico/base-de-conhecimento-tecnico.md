@@ -195,6 +195,19 @@ useEffect(() => {
 
 **Regra derivada:** Cada dialog deve ter um único propósito claro. Não misturar criação manual com importação de dados existentes no mesmo formulário.
 
+### 2.6 NF rejeitada presa como rascunho sem voltar para pronta para emitir
+
+**Problema:** Uma NF rejeitada pela SEFAZ podia ficar com combinação inconsistente de estados: visualmente em rascunho, porém com etapa operacional de emitida. Depois de editar e salvar, o botão de envio não voltava.
+
+**Causa raiz:** O envio marcava a etapa operacional como emitida cedo demais, inclusive em rejeição. Depois, ao salvar a nota, a revalidação automática só rodava para notas já em pendência ou pronta para emitir — não para notas inconsistentes ainda marcadas como emitidas.
+
+**Solução:**
+1. Rejeição voltou a forçar a etapa operacional para pendência, tanto no envio direto quanto no envio assíncrono e no retorno automático.
+2. O motivo da rejeição passou a ser gravado como pendência visível da nota.
+3. Ao salvar qualquer nota já existente na aba Notas Fiscais, o sistema revalida automaticamente a etapa, inclusive quando ela estava marcada como emitida por erro anterior.
+
+**Regra derivada:** Rejeição nunca pode deixar NF em etapa emitida. O ciclo obrigatório é: rejeição → pendência → edição/salvar → revalidação → pronta para emitir (se ok) ou pendência (se ainda houver erro).
+
 ---
 
 ## 3. Banco de Dados — Migrations & RLS

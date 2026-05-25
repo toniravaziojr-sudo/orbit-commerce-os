@@ -393,6 +393,8 @@ Deno.serve(async (req) => {
         .from('fiscal_invoices')
         .update({
           status: 'rejected',
+          fiscal_stage: 'pendencia',
+          pendencia_motivos: [result.error],
           mensagem_sefaz: result.error,
           focus_ref: ref,
           updated_at: new Date().toISOString(),
@@ -423,9 +425,12 @@ Deno.serve(async (req) => {
 
     const updateData: any = {
       status: internalStatus,
-      // Transmissão iniciada/concluída -> etapa operacional vira "emitida"
-      fiscal_stage: 'emitida',
+      // Rejeição volta para pendência; só documento aceito/protocolado segue como emitida.
+      fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : 'emitida',
       focus_ref: ref,
+      pendencia_motivos: internalStatus === 'rejected'
+        ? [statusData?.mensagem_sefaz || statusData?.status_sefaz || 'Nota rejeitada pela SEFAZ.']
+        : null,
       mensagem_sefaz: statusData?.mensagem_sefaz,
       submitted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

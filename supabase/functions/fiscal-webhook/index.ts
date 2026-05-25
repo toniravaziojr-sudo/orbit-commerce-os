@@ -182,6 +182,10 @@ Deno.serve(async (req) => {
     // Prepare update data
     const updateData: Record<string, any> = {
       status: internalStatus,
+      fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : (internalStatus === 'authorized' ? 'emitida' : undefined),
+      pendencia_motivos: internalStatus === 'rejected'
+        ? [mensagem_sefaz || status_sefaz || 'Nota rejeitada pela SEFAZ.']
+        : null,
       updated_at: now,
     };
 
