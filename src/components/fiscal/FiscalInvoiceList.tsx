@@ -456,7 +456,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     setEditingInvoiceStage((data as any).fiscal_stage || null);
   };
 
-  const handleSaveInvoice = async (data: InvoiceData) => {
+  const handleSaveInvoice = async (data: InvoiceData): Promise<{ silent?: boolean } | void> => {
     // Criação tardia: se ainda não há registro persistido (rascunho em memória),
     // primeiro alocamos a linha via fiscal-create-manual (modo nfe_manual) e
     // só depois aplicamos os dados do formulário com fiscal-update-draft.
@@ -487,6 +487,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     // Se o registro está na aba Notas Fiscais, revalidar automaticamente
     // após salvar para recalcular a etapa operacional. Isso cobre também
     // casos inconsistentes vindos de rejeição anterior marcados como emitida.
+    let prepShownToast = false;
     if (editingInvoiceStage && editingInvoiceStage !== 'pedido_venda') {
       try {
         const { data: prep } = await supabase.functions.invoke('fiscal-prepare-invoice', {
@@ -494,9 +495,11 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
         });
         if (prep?.success) {
           if (prep.fiscal_stage === 'pronta_emitir') {
-            toast.success('Pendências resolvidas. NF está Pronta para Emitir.');
+            toast.success('Rascunho salvo. Pendências resolvidas — NF está Pronta para Emitir.');
+            prepShownToast = true;
           } else if (prep.fiscal_stage === 'pendencia') {
-            toast.warning(`Ainda há ${prep.errors?.length || 0} pendência(s).`);
+            toast.warning(`Rascunho salvo. Ainda há ${prep.errors?.length || 0} pendência(s).`);
+            prepShownToast = true;
           }
         }
       } catch (e) {
@@ -506,7 +509,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     refetch();
     // Marca a linha salva para destaque + scroll automático na listagem.
     if (invoiceId) setHighlightedInvoiceId(invoiceId);
+    // Sinaliza ao editor para suprimir o toast genérico quando já mostramos um específico.
+    return prepShownToast ? { silent: true } : undefined;
   };
+
 
   const handleSubmitInvoice = async (data: InvoiceData) => {
     await handleSaveInvoice(data);
