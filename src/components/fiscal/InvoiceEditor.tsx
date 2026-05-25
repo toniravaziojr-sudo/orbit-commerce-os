@@ -2123,6 +2123,18 @@ export function InvoiceEditor({
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
+          {/* Tab: Pagamento (apenas para tipos que comportam pagamento) */}
+          {!['transferencia', 'remessa'].includes((data.tipo_nota || 'saida')) && (
+          <TabsContent value="pagamento" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Dados de Pagamento</CardTitle>
+                <CardDescription>
+                  Para notas de transferência e remessa, esta aba não aparece — a SEFAZ classifica automaticamente como "Sem Pagamento".
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
                   <Label>Indicador de Pagamento <span className="text-destructive">*</span></Label>
                   <Select
                     value={String(data.pagamento_indicador ?? 0)}
@@ -2170,6 +2182,8 @@ export function InvoiceEditor({
               </CardContent>
             </Card>
           </TabsContent>
+          )}
+
         </Tabs>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
