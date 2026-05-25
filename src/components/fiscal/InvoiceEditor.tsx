@@ -1525,7 +1525,14 @@ export function InvoiceEditor({
                   <Input
                     value={data.dest_ie || ''}
                     readOnly={lockClientFields}
-                    onChange={(e) => updateField('dest_ie', e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      updateField('dest_ie', v);
+                      const ieDigits = (v || '').replace(/\D/g, '');
+                      if (ieDigits.length >= 2 && (data.indicador_ie_dest ?? 9) === 9) {
+                        updateField('indicador_ie_dest', 1);
+                      }
+                    }}
                     placeholder="Isento ou número"
                   />
                 </div>
