@@ -109,6 +109,17 @@ async function processTenanDrafts(
   const fiscalSettings: any = fiscalSettingsRaw || {};
   const serieNfe = isFiscalConfigured ? (fiscalSettings.serie_nfe || 1) : 0; // 0 = placeholder draft
 
+  // CFOP/finalidade/tipo vêm da Natureza de Operação vinculada (Fase 2).
+  // Resolve uma única vez por tenant (default sales nature → fallback "Venda de Mercadoria").
+  const defaultNature: ResolvedFiscalNature | null = await resolveOperationNature(
+    supabase,
+    tenantId,
+    { defaultNatureId: fiscalSettings.default_sales_nature_id || null },
+  );
+  if (!defaultNature) {
+    console.warn(`[fiscal-auto-create-drafts] Tenant ${tenantId} sem natureza padrão de vendas resolvida — usando defaults 5102/6102.`);
+  }
+
   let nextNumeroCursor = 0; // 0 = placeholder; só pré-aloca numeração quando configurado
   if (isFiscalConfigured) {
     nextNumeroCursor = await getNextFiscalNumber({
