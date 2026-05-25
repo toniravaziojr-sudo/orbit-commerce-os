@@ -11,7 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
-import { resolveOperationNature, pickCfopForUf, type ResolvedFiscalNature } from "../_shared/fiscal-nature-resolver.ts";
+import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt, type ResolvedFiscalNature } from "../_shared/fiscal-nature-resolver.ts";
 
 const VERSION = 'v9.2.0';
 // v9.2.0 — CFOP via Natureza de Operação vinculada (Fase 2).
