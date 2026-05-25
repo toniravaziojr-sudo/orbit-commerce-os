@@ -1549,6 +1549,22 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                   selected={statusFilter}
                   onChange={setStatusFilter}
                 />
+                {mode === 'invoices' && (
+                  <Select value={tipoNotaFilter} onValueChange={setTipoNotaFilter}>
+                    <SelectTrigger className="h-9 w-[180px]">
+                      <SelectValue placeholder="Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os tipos</SelectItem>
+                      <SelectItem value="saida">Saída</SelectItem>
+                      <SelectItem value="entrada">Entrada</SelectItem>
+                      <SelectItem value="transferencia">Transferência</SelectItem>
+                      <SelectItem value="remessa">Remessa</SelectItem>
+                      <SelectItem value="devolucao">Devolução</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+
                 <MarketplaceSourceFilter
                   value={marketplaceSource}
                   onChange={setMarketplaceSource}
