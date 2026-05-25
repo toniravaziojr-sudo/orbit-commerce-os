@@ -293,10 +293,6 @@ export function InvoiceActionsDropdown({
               <Printer className="h-4 w-4 mr-2" />
               {isPrinted ? 'Reimprimir DANFE' : 'Imprimir DANFE'}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleDownloadDanfe}>
-              <Download className="h-4 w-4 mr-2" />
-              Baixar DANFE (PDF)
-            </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={handleDownloadXml}
               disabled={isDownloadingXml}
