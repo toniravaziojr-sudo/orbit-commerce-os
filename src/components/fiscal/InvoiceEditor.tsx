@@ -265,7 +265,7 @@ interface InvoiceEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   invoice?: InvoiceData;
-  onSave: (data: InvoiceData) => Promise<void>;
+  onSave: (data: InvoiceData) => Promise<void | { silent?: boolean }>;
   onDelete?: () => Promise<void>;
   isLoading?: boolean;
   /** Error message from SEFAZ rejection or other error */
