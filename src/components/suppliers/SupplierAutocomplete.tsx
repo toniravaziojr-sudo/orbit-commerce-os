@@ -215,27 +215,8 @@ export function SupplierAutocomplete({
         setDuplicateOpen(true);
         return;
       }
-      // Inferência de tipo de contribuinte / isento de IE.
-      // Prioridade: indicador IE da NF (1/2/9). Fallback: presença de IE.
-      const ieDigits = onlyDigits(value.ie ?? null);
-      let contributorType: "contribuinte" | "contribuinte_isento" | "nao_contribuinte";
-      let ieIsento: boolean;
-      if (value.indicadorIe === 1) {
-        contributorType = "contribuinte";
-        ieIsento = false;
-      } else if (value.indicadorIe === 2) {
-        contributorType = "contribuinte_isento";
-        ieIsento = true;
-      } else if (value.indicadorIe === 9) {
-        contributorType = "nao_contribuinte";
-        ieIsento = false;
-      } else if (ieDigits) {
-        contributorType = "contribuinte";
-        ieIsento = false;
-      } else {
-        contributorType = "nao_contribuinte";
-        ieIsento = false;
-      }
+      // Padrão de enriquecimento: IE digitada vence o indicador.
+      const ieResolved = resolveIeAndContributor(value.ie, value.indicadorIe);
       const created = await createSupplier.mutateAsync({
         name: value.name.trim(),
         person_type: personType,
@@ -243,22 +224,22 @@ export function SupplierAutocomplete({
         cpf: personType === "PF" ? docDigits : null,
         legal_name: personType === "PJ" ? value.name.trim() : null,
         trade_name: null,
-        ie: ieIsento ? null : (value.ie ?? null),
-        ie_isento: ieIsento,
+        ie: ieResolved.ie,
+        ie_isento: ieResolved.ie_isento,
         im: null,
-        contributor_type: contributorType,
+        contributor_type: ieResolved.contributor_type,
         is_foreign: false,
-        email: value.email ?? null,
-        phone: value.phone ?? null,
+        email: clean(value.email),
+        phone: clean(value.phone),
         phone_secondary: null,
-        cep: value.cep ?? null,
-        logradouro: value.logradouro ?? null,
-        numero: value.numero ?? null,
-        complemento: value.complemento ?? null,
-        bairro: value.bairro ?? null,
-        cidade: value.cidade ?? null,
-        uf: value.uf ?? null,
-        codigo_ibge: value.codigoIbge ?? null,
+        cep: clean(value.cep),
+        logradouro: clean(value.logradouro),
+        numero: clean(value.numero),
+        complemento: clean(value.complemento),
+        bairro: clean(value.bairro),
+        cidade: clean(value.cidade),
+        uf: clean(value.uf),
+        codigo_ibge: clean(value.codigoIbge),
         pais: "Brasil",
         address: null,
         contact_person: null,
@@ -270,8 +251,8 @@ export function SupplierAutocomplete({
       onChange({ ...value, id: (created as any).id, personType });
       // Aviso amigável quando o cadastro nasce parcial.
       const missing: string[] = [];
-      if (!value.cep && !value.logradouro && !value.cidade) missing.push("endereço");
-      if (!value.ie && !ieIsento) missing.push("inscrição estadual");
+      if (!clean(value.cep) && !clean(value.logradouro) && !clean(value.cidade)) missing.push("endereço");
+      if (!ieResolved.ie && !ieResolved.ie_isento) missing.push("inscrição estadual");
       if (missing.length > 0) {
         toast.warning(
           `Fornecedor salvo, mas faltou ${missing.join(" e ")}. Você pode completar em Fornecedores quando quiser.`
