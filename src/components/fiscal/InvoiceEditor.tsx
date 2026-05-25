@@ -460,16 +460,20 @@ export function InvoiceEditor({
     return () => { cancelled = true; };
   }, [open, invoice?.id, invoiceStage]);
 
-  // Filter natures based on selected tipo_nota
+  // Filter natures based on selected tipo_nota + emitter CRT (regime tributário do emitente).
   const filteredNatures = operationNatures.filter(n => {
+    // Filtro por regime do emitente: oculta as naturezas que não aceitam o CRT atual.
+    // Se a natureza ainda não tem a lista preenchida, considera compatível por segurança.
+    const regimes = n.regimes_compativeis;
+    if (Array.isArray(regimes) && regimes.length > 0 && !regimes.includes(emitterCrt)) {
+      return false;
+    }
     if (!data?.tipo_nota) return true;
     switch (data.tipo_nota) {
       case 'saida': return n.tipo_documento === 1 && n.finalidade === 1;
       case 'entrada': return n.tipo_documento === 0 && n.finalidade === 1;
       case 'devolucao': return n.finalidade === 4;
       case 'remessa': {
-        // Critério oficial Receita Federal: CFOPs de remessa estão na faixa 5900-5999 (intra) / 6900-6999 (inter).
-        // Inclui armazém geral, consignação, demonstração, bonificação, amostra, conserto, comodato etc.
         const cfop = parseInt(n.cfop_intra || '0', 10);
         return n.tipo_documento === 1 && cfop >= 5900 && cfop <= 5999;
       }
@@ -479,10 +483,8 @@ export function InvoiceEditor({
   });
 
   // Auto-fill fields when nature is selected.
-  // Recalcula o CFOP de TODOS os itens com base na Natureza + UF do destinatário
-  // (intra 5xxx se UF emitente = UF destinatário, inter 6xxx caso contrário).
-  // Plano: "Trocar a natureza recalcula tudo." Edição manual posterior por item
-  // é permitida e fica visível como badge "manual" no item.
+  // Recalcula CFOP + CSOSN/CST de TODOS os itens com base na Natureza + UF + CRT do emitente.
+  // Edição manual posterior por item continua permitida (badge "manual").
   const handleNatureChange = useCallback((natureName: string) => {
     const nature = operationNatures.find(n => n.nome === natureName);
     if (!nature || !data) {
@@ -490,15 +492,21 @@ export function InvoiceEditor({
       return;
     }
     const newCfop = pickCfopForUf(nature, data.dest_endereco_uf);
+    const tax = pickTaxForNature(nature);
     setData(prev => prev ? {
       ...prev,
       natureza_operacao: nature.nome,
       cfop: newCfop,
       indicador_presenca: nature.ind_pres ?? 2,
       dest_consumidor_final: nature.consumidor_final ?? true,
-      items: prev.items.map(it => ({ ...it, cfop: newCfop })),
+      items: prev.items.map(it => ({
+        ...it,
+        cfop: newCfop,
+        csosn: tax.csosn ?? it.csosn,
+        cst: tax.cst ?? it.cst,
+      })),
     } : null);
-  }, [operationNatures, data, pickCfopForUf]);
+  }, [operationNatures, data, pickCfopForUf, pickTaxForNature]);
 
   // Quando a UF do destinatário muda, se houver natureza selecionada, recalcula
   // o CFOP principal e dos itens — exceto itens onde o usuário já tinha sobrescrito
