@@ -372,21 +372,43 @@ export function InvoiceEditor({
     csosn_padrao: string | null; ind_pres: number;
     consumidor_final: boolean; faturada: boolean;
   }>>([]);
+  // UF do emitente (origem do CFOP intra/inter). Carregada das Configurações Fiscais.
+  const [emitterUf, setEmitterUf] = useState<string>('');
 
-  // Load operation natures from database
+  // Load operation natures + emitter UF from database
   useEffect(() => {
     if (!tenantId) return;
     const load = async () => {
-      const { data: natures } = await supabase
-        .from('fiscal_operation_natures')
-        .select('id, nome, descricao, cfop_intra, cfop_inter, tipo_documento, finalidade, csosn_padrao, ind_pres, consumidor_final, faturada')
-        .eq('tenant_id', tenantId)
-        .eq('ativo', true)
-        .order('nome');
-      if (natures) setOperationNatures(natures as any);
+      const [naturesRes, settingsRes] = await Promise.all([
+        supabase
+          .from('fiscal_operation_natures')
+          .select('id, nome, descricao, cfop_intra, cfop_inter, tipo_documento, finalidade, csosn_padrao, ind_pres, consumidor_final, faturada')
+          .eq('tenant_id', tenantId)
+          .eq('ativo', true)
+          .order('nome'),
+        supabase
+          .from('fiscal_settings')
+          .select('endereco_uf')
+          .eq('tenant_id', tenantId)
+          .maybeSingle(),
+      ]);
+      if (naturesRes.data) setOperationNatures(naturesRes.data as any);
+      const uf = ((settingsRes.data as any)?.endereco_uf || '').toUpperCase();
+      if (uf) setEmitterUf(uf);
     };
     load();
   }, [tenantId]);
+
+  // Decide CFOP intra (5xxx) ou inter (6xxx) comparando UF emitente x UF destinatário.
+  const pickCfopForUf = useCallback(
+    (nature: { cfop_intra: string; cfop_inter: string } | null | undefined, destUf: string | undefined) => {
+      if (!nature) return '';
+      const dest = (destUf || '').toUpperCase();
+      if (emitterUf && dest && emitterUf !== dest) return nature.cfop_inter || nature.cfop_intra || '';
+      return nature.cfop_intra || nature.cfop_inter || '';
+    },
+    [emitterUf],
+  );
 
   // Resolve customer_id from order_id to enable "Abrir cadastro do cliente"
   useEffect(() => {
