@@ -212,17 +212,20 @@ Deno.serve(async (req) => {
     //   validações de PV; pendências reais aparecem apenas ao salvar/emitir).
     const initialStage = creationMode === 'nfe_manual' ? 'pendencia' : 'pedido_venda';
 
-    // CFOP/finalidade/tipo vêm da Natureza de Operação resolvida (Fase 2)
+    // CFOP/finalidade/tipo vêm da Natureza de Operação resolvida (+ CRT do emitente)
     const nature = await resolveOperationNature(supabase, tenantId, {
       natureId: natureza_operacao_id || null,
       natureNome: natureza_operacao || null,
       defaultNatureId: settings.default_sales_nature_id || null,
     });
+    const emitterCrtManual = Number(settings.crt || 1);
     const cfopHeader = pickCfopForUf(
       nature,
       settings.endereco_uf,
       cepResolvedManual?.uf || destinatario.endereco.uf,
+      emitterCrtManual,
     );
+    const natureTaxManual = pickTaxCodesForCrt(nature, emitterCrtManual);
 
     // Create invoice draft
     const invoiceBaseData: any = {
