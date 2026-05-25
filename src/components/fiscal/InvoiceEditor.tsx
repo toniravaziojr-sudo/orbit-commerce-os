@@ -369,46 +369,64 @@ export function InvoiceEditor({
     id: string; nome: string; descricao: string | null;
     cfop_intra: string; cfop_inter: string;
     tipo_documento: number; finalidade: number;
-    csosn_padrao: string | null; ind_pres: number;
+    csosn_padrao: string | null; cst_icms: string | null; ind_pres: number;
     consumidor_final: boolean; faturada: boolean;
+    regimes_compativeis: number[] | null;
+    crt_overrides: Record<string, { cfop_intra?: string | null; cfop_inter?: string | null; csosn?: string | null; cst_icms?: string | null }> | null;
   }>>([]);
-  // UF do emitente (origem do CFOP intra/inter). Carregada das Configurações Fiscais.
+  // UF + CRT do emitente (origem do CFOP/CSOSN/CST). Carregadas das Configurações Fiscais.
   const [emitterUf, setEmitterUf] = useState<string>('');
+  const [emitterCrt, setEmitterCrt] = useState<number>(1);
 
-  // Load operation natures + emitter UF from database
+  // Load operation natures + emitter UF/CRT from database
   useEffect(() => {
     if (!tenantId) return;
     const load = async () => {
       const [naturesRes, settingsRes] = await Promise.all([
         supabase
           .from('fiscal_operation_natures')
-          .select('id, nome, descricao, cfop_intra, cfop_inter, tipo_documento, finalidade, csosn_padrao, ind_pres, consumidor_final, faturada')
+          .select('id, nome, descricao, cfop_intra, cfop_inter, tipo_documento, finalidade, csosn_padrao, cst_icms, ind_pres, consumidor_final, faturada, regimes_compativeis, crt_overrides')
           .eq('tenant_id', tenantId)
           .eq('ativo', true)
           .order('nome'),
         supabase
           .from('fiscal_settings')
-          .select('endereco_uf')
+          .select('endereco_uf, crt')
           .eq('tenant_id', tenantId)
           .maybeSingle(),
       ]);
       if (naturesRes.data) setOperationNatures(naturesRes.data as any);
       const uf = ((settingsRes.data as any)?.endereco_uf || '').toUpperCase();
+      const crt = Number((settingsRes.data as any)?.crt || 1);
       if (uf) setEmitterUf(uf);
+      setEmitterCrt(crt);
     };
     load();
   }, [tenantId]);
 
-  // Decide CFOP intra (5xxx) ou inter (6xxx) comparando UF emitente x UF destinatário.
+  // Decide CFOP intra (5xxx) ou inter (6xxx) comparando UF emitente x UF destinatário,
+  // aplicando overrides por CRT do emitente quando definidos na natureza.
   const pickCfopForUf = useCallback(
-    (nature: { cfop_intra: string; cfop_inter: string } | null | undefined, destUf: string | undefined) => {
+    (nature: { cfop_intra: string; cfop_inter: string; crt_overrides?: any } | null | undefined, destUf: string | undefined) => {
       if (!nature) return '';
       const dest = (destUf || '').toUpperCase();
-      if (emitterUf && dest && emitterUf !== dest) return nature.cfop_inter || nature.cfop_intra || '';
-      return nature.cfop_intra || nature.cfop_inter || '';
+      const isInter = !!emitterUf && !!dest && emitterUf !== dest;
+      const ov = nature.crt_overrides?.[String(emitterCrt)] || null;
+      if (isInter) return (ov?.cfop_inter ?? nature.cfop_inter) || nature.cfop_intra || '';
+      return (ov?.cfop_intra ?? nature.cfop_intra) || nature.cfop_inter || '';
     },
-    [emitterUf],
+    [emitterUf, emitterCrt],
   );
+
+  // Retorna CSOSN/CST da natureza para o CRT do emitente (MEI/Simples = CSOSN, Presumido/Real = CST).
+  const pickTaxForNature = useCallback((nature: { csosn_padrao?: string | null; cst_icms?: string | null; crt_overrides?: any } | null) => {
+    if (!nature) return { csosn: null as string | null, cst: null as string | null };
+    const ov = nature.crt_overrides?.[String(emitterCrt)] || null;
+    if (emitterCrt === 3) {
+      return { csosn: null, cst: (ov?.cst_icms ?? nature.cst_icms) || null };
+    }
+    return { csosn: (ov?.csosn ?? nature.csosn_padrao) || null, cst: null };
+  }, [emitterCrt]);
 
   // Resolve customer_id from order_id to enable "Abrir cadastro do cliente"
   useEffect(() => {
