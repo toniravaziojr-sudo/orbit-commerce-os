@@ -35,7 +35,7 @@ Módulo de gestão empresarial: fiscal (NF-e via **Focus NFe**), financeiro, e c
 | `src/components/fiscal/settings/EmitenteSettings.tsx` | Aba Emitente — dados da empresa, endereço, regime tributário, certificado A1 |
 | `src/components/fiscal/settings/OperationNaturesContent.tsx` | Aba Natureza Jurídica — gestão das naturezas de operação |
 | `src/components/fiscal/settings/OutrosSettings.tsx` | Aba Outros — inutilização de numeração, automações de emissão/remessa/e-mail, desmembramento de kits |
-| `src/pages/FiscalProductsConfig.tsx` | NCM/CFOP por produto |
+| `src/pages/FiscalProductsConfig.tsx` | NCM, CEST, Origem, GTIN, Unidade Comercial por produto (CFOP **não** vive mais aqui) |
 | `src/components/integrations/FiscalPlatformSettings.tsx` | Config global Focus NFe (token único da plataforma) |
 
 ### Atualização em Tempo Real (v8.22.0)
