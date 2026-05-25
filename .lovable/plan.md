@@ -67,11 +67,11 @@ Regra única: ao escolher a Natureza, o sistema preenche o CFOP de **todos os it
 
 **Fase 3 — UI:** ✅ Concluída — CFOP removido do cadastro fiscal de produto e do ProductSelector; campos de CFOP global removidos das Configurações Fiscais e substituídos pelo seletor "Natureza padrão para vendas automáticas"; no editor de NF o CFOP de todos os itens é derivado automaticamente da Natureza + UF, com badge "manual" e botão "Restaurar" quando há override por item.
 
-**Fase 4 — Correção:** reprocessamento da 1-321 e validação SEFAZ.
+**Fase 4 — Correção da NF 1-321:** dispensada por decisão do usuário (refazendo a nota manualmente).
 
-**Fase 5 — Limpeza:** remoção formal dos campos legados do banco depois de 1 ciclo estável.
+**Fase 5 — Limpeza:** ✅ Concluída em 2026-05-25 — campos legados removidos do banco (`fiscal_products.cfop_override`, `fiscal_settings.cfop_intrastadual`, `fiscal_settings.cfop_interestadual`) e do código (interface FiscalProduct, ProductSelector, FiscalProductsConfig).
 
-## Validações obrigatórias
+**Documentação:** ✅ Concluída — `docs/especificacoes/erp/erp-fiscal.md` recebeu nova seção "Modelo de CFOP — Fonte única: Natureza de Operação" e `docs/especificacoes/transversais/mapa-ui.md` foi atualizado na entrada `/fiscal/products`. Memória anti-regressão criada em `mem://constraints/cfop-source-of-truth-natureza-operacao` e indexada.
 
 - Cada tenant com natureza padrão definida antes da Fase 2.
 - Após Fase 2: nota de teste em cada tipo (Venda intra, Venda inter, Transferência, Devolução, Remessa) e verificação do CFOP correto.
