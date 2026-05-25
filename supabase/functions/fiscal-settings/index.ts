@@ -183,6 +183,7 @@ Deno.serve(async (req) => {
         auto_create_shipment,
         auto_update_order_status,
         default_shipping_provider,
+        default_sales_nature_id,
       } = body;
 
       const normalizedEmail = normalizeOptionalText(email)?.toLowerCase() ?? null;
