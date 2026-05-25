@@ -239,13 +239,13 @@ Deno.serve(async (req) => {
       return 'SEM GTIN';
     };
 
-    // Determine CFOP
-    const cfop = determineCfop(
-      fiscalSettings.endereco_uf,
-      order.shipping_state,
-      fiscalSettings.cfop_intrastadual,
-      fiscalSettings.cfop_interestadual
-    );
+    // CFOP/finalidade/tipo vêm da Natureza de Operação resolvida (Fase 2)
+    const nature = await resolveOperationNature(supabase, tenantId, {
+      natureId: natureza_operacao_id || null,
+      natureNome: natureza_operacao || null,
+      defaultNatureId: fiscalSettings.default_sales_nature_id || null,
+    });
+    const cfop = pickCfopForUf(nature, fiscalSettings.endereco_uf, order.shipping_state);
 
     // Settings de tributação (regime + alíquotas padrão)
     const taxSettings: FiscalSettingsTax = {
