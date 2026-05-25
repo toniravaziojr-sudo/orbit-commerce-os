@@ -1015,8 +1015,19 @@ export function InvoiceEditor({
           </Alert>
         )}
 
+        {(() => {
+          // SEFAZ: Transferência e Remessa não comportam dados de pagamento (tPag=90).
+          const tipoNota = (data.tipo_nota || 'saida') as NonNullable<InvoiceData['tipo_nota']>;
+          const paymentApplies = !['transferencia', 'remessa'].includes(tipoNota);
+          // Se o usuário estava na aba pagamento e mudou o tipo, redireciona para "geral".
+          if (!paymentApplies && activeTab === 'pagamento') {
+            // defer to next tick para evitar setState durante render
+            queueMicrotask(() => setActiveTab('geral'));
+          }
+          return null;
+        })()}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className={`grid w-full ${!['transferencia', 'remessa'].includes((data.tipo_nota || 'saida')) ? 'grid-cols-6' : 'grid-cols-5'}`}>
             <TabsTrigger value="geral" className="gap-1 text-xs">
               <FileText className="h-3 w-3" />
               Geral
@@ -1042,11 +1053,14 @@ export function InvoiceEditor({
               <Truck className="h-3 w-3" />
               Transp.
             </TabsTrigger>
-            <TabsTrigger value="pagamento" className="gap-1 text-xs">
-              <CreditCard className="h-3 w-3" />
-              Pagto.
-            </TabsTrigger>
+            {!['transferencia', 'remessa'].includes((data.tipo_nota || 'saida')) && (
+              <TabsTrigger value="pagamento" className="gap-1 text-xs">
+                <CreditCard className="h-3 w-3" />
+                Pagto.
+              </TabsTrigger>
+            )}
           </TabsList>
+
 
           {/* Tab: Geral */}
           <TabsContent value="geral" className="space-y-4">
