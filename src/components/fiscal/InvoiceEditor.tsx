@@ -460,22 +460,45 @@ export function InvoiceEditor({
     }
   });
 
-  // Auto-fill fields when nature is selected
+  // Auto-fill fields when nature is selected.
+  // Recalcula o CFOP de TODOS os itens com base na Natureza + UF do destinatário
+  // (intra 5xxx se UF emitente = UF destinatário, inter 6xxx caso contrário).
+  // Plano: "Trocar a natureza recalcula tudo." Edição manual posterior por item
+  // é permitida e fica visível como badge "manual" no item.
   const handleNatureChange = useCallback((natureName: string) => {
     const nature = operationNatures.find(n => n.nome === natureName);
     if (!nature || !data) {
       updateField('natureza_operacao', natureName);
       return;
     }
-    // Use cfop_intra as default (intrastate); user can change if interstate
+    const newCfop = pickCfopForUf(nature, data.dest_endereco_uf);
     setData(prev => prev ? {
       ...prev,
       natureza_operacao: nature.nome,
-      cfop: nature.cfop_intra,
+      cfop: newCfop,
       indicador_presenca: nature.ind_pres ?? 2,
       dest_consumidor_final: nature.consumidor_final ?? true,
+      items: prev.items.map(it => ({ ...it, cfop: newCfop })),
     } : null);
-  }, [operationNatures, data]);
+  }, [operationNatures, data, pickCfopForUf]);
+
+  // Quando a UF do destinatário muda, se houver natureza selecionada, recalcula
+  // o CFOP principal e dos itens — exceto itens onde o usuário já tinha sobrescrito
+  // manualmente para um valor diferente do CFOP esperado anterior.
+  useEffect(() => {
+    if (!data?.natureza_operacao) return;
+    const nature = operationNatures.find(n => n.nome === data.natureza_operacao);
+    if (!nature) return;
+    const newCfop = pickCfopForUf(nature, data.dest_endereco_uf);
+    if (!newCfop || newCfop === data.cfop) return;
+    const prevCfop = data.cfop;
+    setData(prev => prev ? {
+      ...prev,
+      cfop: newCfop,
+      items: prev.items.map(it => (it.cfop === prevCfop ? { ...it, cfop: newCfop } : it)),
+    } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.dest_endereco_uf, emitterUf]);
 
   useEffect(() => {
     if (invoice) {
