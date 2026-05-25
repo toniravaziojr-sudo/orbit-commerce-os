@@ -803,7 +803,8 @@ export function InvoiceEditor({
   ) => {
     setIsSaving(true);
     try {
-      await onSave(payload);
+      const saveResult = await onSave(payload);
+      const silent = !!(saveResult && (saveResult as any).silent);
       if (alsoUpdateCustomer && customerId) {
         const { error: custErr } = await supabase
           .from('customers')
@@ -829,7 +830,7 @@ export function InvoiceEditor({
         } else {
           toast.success('Pedido salvo e cadastro do cliente atualizado.');
         }
-      } else if (!afterSave) {
+      } else if (!afterSave && !silent) {
         toast.success(alsoUpdateCustomer ? 'Pedido salvo.' : 'Rascunho salvo com sucesso');
       }
       // Atualiza snapshot para próximas edições
