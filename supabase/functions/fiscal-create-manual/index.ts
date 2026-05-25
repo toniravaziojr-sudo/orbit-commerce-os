@@ -301,7 +301,7 @@ Deno.serve(async (req) => {
       codigo_produto: item.codigo || `ITEM${item.numero_item}`,
       descricao: item.descricao,
       ncm: (item.ncm || '').replace(/\D/g, '').padStart(8, '0'),
-      cfop: (item.cfop || '5102').replace(/\D/g, '') || '5102',
+      cfop: (item.cfop || cfopHeader).replace(/\D/g, '') || cfopHeader,
       unidade: item.unidade || 'UN',
       quantidade: item.quantidade,
       valor_unitario: item.valor_unitario,
