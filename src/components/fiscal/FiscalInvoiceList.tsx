@@ -22,6 +22,8 @@ import { CorrectInvoiceDialog } from '@/components/fiscal/CorrectInvoiceDialog';
 import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
 import { EntryInvoiceDialog } from '@/components/fiscal/EntryInvoiceDialog';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { ExportInvoicesButton } from '@/components/fiscal/ExportInvoicesButton';
 import { InvoiceTimeline } from '@/components/fiscal/InvoiceTimeline';
 import { SendingInvoiceModal, type SendingState } from '@/components/fiscal/SendingInvoiceModal';
@@ -112,6 +114,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [statusFilter, setStatusFilter] = useState<string[]>(
     mode === 'orders' ? ['em_aberto'] : []
   );
+  // Filtro de Tipo de Nota (apenas na aba Notas Fiscais). Padrão = 'saida'.
+  // 'all' = qualquer tipo. Usuário pode trocar para entrada/transferência/etc.
+  const [tipoNotaFilter, setTipoNotaFilter] = useState<string>(
+    mode === 'invoices' ? 'saida' : 'all'
+  );
+
 
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; data: ManualInvoiceInitialData | null; kind: 'pedido' | 'nf' }>({ open: false, data: null, kind: 'pedido' });
@@ -179,12 +187,31 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
     return stage === 'pronta_emitir' || stage === 'pendencia' || stage === 'emitida';
   });
 
+  // Deriva tipo_nota a partir do registro (compat com NFs antigas sem o campo).
+  const deriveTipoNotaFromInvoice = (d: any): 'saida' | 'entrada' | 'remessa' | 'devolucao' | 'transferencia' => {
+    if (d?.tipo_nota) return d.tipo_nota;
+    const nat = String(d?.natureza_operacao || '').toLowerCase();
+    const cfopNum = parseInt(String(d?.cfop || '').replace(/\D/g, ''), 10) || 0;
+    if (d?.tipo_documento === 0) return 'entrada';
+    if (d?.finalidade_emissao === 4 || nat.includes('devolu')) return 'devolucao';
+    if (nat.includes('transfer')) return 'transferencia';
+    if ((cfopNum >= 5900 && cfopNum <= 5999) || (cfopNum >= 6900 && cfopNum <= 6999)) return 'remessa';
+    return 'saida';
+  };
+
   // Concluído set + helper derivado (fonte única em src/lib/fiscal/pedidoStatus.ts)
   const concluidoSet = buildConcluidoSet((invoices as any[]) || []);
   const pedidoStatusOf = (inv: any) => derivePedidoStatus(inv, concluidoSet);
 
+
+  // Apply tipo_nota filter (apenas Notas Fiscais; em Pedidos de Venda é sempre saída).
+  const tipoFilteredInvoices = mode === 'invoices' && tipoNotaFilter !== 'all'
+    ? modeFilteredInvoices?.filter(inv => deriveTipoNotaFromInvoice(inv) === tipoNotaFilter)
+    : modeFilteredInvoices;
+
   // Apply status filter
-  const statusFilteredInvoices = modeFilteredInvoices?.filter(inv => {
+  const statusFilteredInvoices = tipoFilteredInvoices?.filter(inv => {
+
     if (statusFilter.length === 0) return true;
 
     if (mode === 'orders') {
@@ -243,7 +270,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   // Reseta para a página 1 quando qualquer filtro/aba muda
   useEffect(() => {
     setCurrentPage(1);
-  }, [mode, searchTerm, statusFilter, startDate, endDate, marketplaceSource, pageSize]);
+  }, [mode, searchTerm, statusFilter, tipoNotaFilter, startDate, endDate, marketplaceSource, pageSize]);
 
   const pagedInvoices = useMemo(() => {
     if (!filteredInvoices) return [] as typeof filteredInvoices;
@@ -1522,6 +1549,22 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
                   selected={statusFilter}
                   onChange={setStatusFilter}
                 />
+                {mode === 'invoices' && (
+                  <Select value={tipoNotaFilter} onValueChange={setTipoNotaFilter}>
+                    <SelectTrigger className="h-9 w-[180px]">
+                      <SelectValue placeholder="Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os tipos</SelectItem>
+                      <SelectItem value="saida">Saída</SelectItem>
+                      <SelectItem value="entrada">Entrada</SelectItem>
+                      <SelectItem value="transferencia">Transferência</SelectItem>
+                      <SelectItem value="remessa">Remessa</SelectItem>
+                      <SelectItem value="devolucao">Devolução</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+
                 <MarketplaceSourceFilter
                   value={marketplaceSource}
                   onChange={setMarketplaceSource}

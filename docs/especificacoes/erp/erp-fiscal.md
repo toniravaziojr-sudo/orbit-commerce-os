@@ -2173,3 +2173,37 @@ Toda aba do editor de NF-e (Geral, Destinatário, Itens, Valores, Pagamento, Tra
 **Compatibilidade:** o editor é o único ponto de classificação UI (`tipo_nota`). A transmissão para a SEFAZ continua usando os campos canônicos (`tpNF`, `finNFe`, etc.).
 
 **Critério de fechamento (universal):** qualquer ajuste em qualquer aba do editor exige o teste salvar → recarregar → reabrir → conferir que todos os campos voltaram como digitados. Sem esse teste, a entrega fica em "Pendente de validação".
+
+---
+
+## Aba Pagamento — Particularidades por Tipo de Nota (universal)
+
+Atualizado: 2026-05-25.
+
+A aba "Pagamento" do editor de NF-e segue a regra SEFAZ de obrigatoriedade do grupo `<pag>`. A exibição é condicional ao `tipo_nota`:
+
+| Tipo de Nota | Aba Pagamento | Regra SEFAZ |
+|---|---|---|
+| Saída | **Visível** | Obrigatório informar tPag e valor. |
+| Entrada | **Visível** | Pode usar tPag = 90 (Sem Pagamento) quando não houver operação financeira. |
+| Devolução | **Visível** | Idem entrada; depende da operação. |
+| Transferência | **Oculta** | SEFAZ classifica automaticamente como tPag = 90 (Sem Pagamento). Não há operação financeira entre filiais do mesmo CNPJ raiz. |
+| Remessa | **Oculta** | Idem transferência. Remessa para industrialização, conserto, demonstração, etc. não tem pagamento. |
+
+**Regra UI:** quando a aba está oculta, o sistema garante automaticamente que `pagamento_meio = '90'` na transmissão. Se o usuário trocar o tipo de nota enquanto estava na aba Pagamento, ele é redirecionado para a aba Geral.
+
+**Anti-regressão:** ao adicionar novo `tipo_nota`, atualizar a lista de tipos sem pagamento neste documento e na lógica condicional do editor.
+
+---
+
+## Lista de Notas Fiscais — Filtro por Tipo (universal)
+
+Atualizado: 2026-05-25.
+
+A aba "Notas Fiscais" do módulo Fiscal possui filtro dedicado por **Tipo de Nota** (Saída, Entrada, Transferência, Remessa, Devolução, Todos os tipos).
+
+**Padrão ao entrar na aba:** filtro = **Saída**. Esta é a operação mais frequente em e-commerce; demais tipos ficam acessíveis em 1 clique.
+
+**Compatibilidade com registros antigos:** quando `tipo_nota` não está persistido (NFs anteriores ao backfill), o tipo é derivado em tempo real a partir de `natureza_operacao` + `cfop` + `tipo_documento` + `finalidade_emissao`, preservando a classificação histórica.
+
+**Aba Pedidos de Venda:** não tem este filtro — pedido de venda é sempre considerado saída na regra de negócio.
