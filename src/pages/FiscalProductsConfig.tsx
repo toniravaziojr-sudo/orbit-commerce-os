@@ -175,7 +175,7 @@ export default function FiscalProductsConfig() {
           cest: editingProduct.cest?.replace(/\D/g, '') || null,
           origem: parseInt(editingProduct.origem, 10),
           unidade_comercial: editingProduct.unidade_comercial,
-          cfop_override: null,
+          
         },
       });
       toast.success('Dados fiscais salvos com sucesso');
