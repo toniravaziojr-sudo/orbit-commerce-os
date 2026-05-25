@@ -618,7 +618,7 @@ export function EmitenteSettings() {
       <Card id="card-parametros">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Parâmetros Fiscais</CardTitle>
-          <CardDescription>Regime tributário, origem padrão, CFOPs e numeração da NF-e.</CardDescription>
+          <CardDescription>Regime tributário, origem padrão, natureza padrão de venda e numeração da NF-e. O CFOP por item agora vem da Natureza de Operação vinculada à nota (intra/inter por UF).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -648,16 +648,10 @@ export function EmitenteSettings() {
             </div>
           </div>
           <Separator />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="cfop_intrastadual">CFOP Intrastadual</Label>
-              <Input id="cfop_intrastadual" value={formData.cfop_intrastadual || ''} onChange={(e) => handleChange('cfop_intrastadual', e.target.value)} placeholder="5102" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cfop_interestadual">CFOP Interestadual</Label>
-              <Input id="cfop_interestadual" value={formData.cfop_interestadual || ''} onChange={(e) => handleChange('cfop_interestadual', e.target.value)} placeholder="6102" />
-            </div>
-          </div>
+          <DefaultSalesNatureField
+            value={(formData as any).default_sales_nature_id || ''}
+            onChange={(v) => handleChange('default_sales_nature_id' as any, v || null)}
+          />
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="csosn_padrao">CSOSN Padrão</Label>
