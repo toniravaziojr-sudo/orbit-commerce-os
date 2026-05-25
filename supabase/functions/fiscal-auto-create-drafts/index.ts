@@ -228,8 +228,10 @@ async function processTenanDrafts(
         continue;
       }
 
-      // CFOP vem da Natureza de Operação resolvida + UF (Fase 2)
-      const cfop = pickCfopForUf(defaultNature, fiscalSettings.endereco_uf, order.shipping_state);
+      // CFOP vem da Natureza de Operação resolvida + UF + CRT do emitente (Fase 7)
+      const emitterCrt = Number(fiscalSettings.crt || 1);
+      const cfop = pickCfopForUf(defaultNature, fiscalSettings.endereco_uf, order.shipping_state, emitterCrt);
+      const natureTax = pickTaxCodesForCrt(defaultNature, emitterCrt);
 
       let itemsToProcess: Array<{
         id?: string;
