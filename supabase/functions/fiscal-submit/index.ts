@@ -378,11 +378,13 @@ Deno.serve(async (req) => {
     const result = await sendNFe(focusConfig, ref, nfePayload);
 
     if (!result.success) {
-      // Atualizar status para rejected
+      // Falha antes de protocolo/autorização não pode manter a nota como emitida.
       await supabaseClient
         .from('fiscal_invoices')
         .update({
           status: 'rejected',
+          fiscal_stage: 'pendencia',
+          pendencia_motivos: [result.error],
           mensagem_sefaz: result.error,
           updated_at: new Date().toISOString(),
         })
@@ -411,9 +413,12 @@ Deno.serve(async (req) => {
     // Atualizar NF-e com dados da resposta
     const updateData: any = {
       status: internalStatus,
-      // Transmissão iniciada/concluída -> etapa operacional vira "emitida"
-      fiscal_stage: 'emitida',
+      // Só vira emitida quando o provedor já aceitou a transmissão.
+      fiscal_stage: internalStatus === 'rejected' ? 'pendencia' : 'emitida',
       focus_ref: ref,
+      pendencia_motivos: internalStatus === 'rejected'
+        ? [result.data?.mensagem_sefaz || result.data?.status_sefaz || 'Nota rejeitada pela SEFAZ.']
+        : null,
       mensagem_sefaz: result.data?.mensagem_sefaz,
       status_sefaz: result.data?.status_sefaz,
       submitted_at: new Date().toISOString(),
