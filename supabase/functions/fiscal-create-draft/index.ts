@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
     }
 
     const tenantId = profile.current_tenant_id;
-    const { order_id, natureza_operacao, observacoes } = await req.json();
+    const { order_id, natureza_operacao, natureza_operacao_id, observacoes } = await req.json();
 
     if (!order_id) {
       return new Response(
