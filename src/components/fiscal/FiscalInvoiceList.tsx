@@ -112,6 +112,12 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [statusFilter, setStatusFilter] = useState<string[]>(
     mode === 'orders' ? ['em_aberto'] : []
   );
+  // Filtro de Tipo de Nota (apenas na aba Notas Fiscais). Padrão = 'saida'.
+  // 'all' = qualquer tipo. Usuário pode trocar para entrada/transferência/etc.
+  const [tipoNotaFilter, setTipoNotaFilter] = useState<string>(
+    mode === 'invoices' ? 'saida' : 'all'
+  );
+
 
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; data: ManualInvoiceInitialData | null; kind: 'pedido' | 'nf' }>({ open: false, data: null, kind: 'pedido' });
