@@ -9,22 +9,18 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
+import { resolveOperationNature, pickCfopForUf } from "../_shared/fiscal-nature-resolver.ts";
 
-const VERSION = 'v8.7.0';
+const VERSION = 'v8.8.0';
+// v8.8.0 — CFOP via Natureza de Operação vinculada (Fase 2). Aceita natureza_operacao_id
+//          no payload; fallback: nome → natureza padrão do tenant → "Venda de Mercadoria".
+// v8.7.0 — versão anterior.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
-
-// Determine CFOP based on origin and destination UF
-function determineCfop(originUf: string, destUf: string, defaultIntra: string, defaultInter: string): string {
-  if (originUf === destUf) {
-    return defaultIntra || '5102'; // Intraestadual
-  }
-  return defaultInter || '6102'; // Interestadual
-}
 
 /**
  * Busca código IBGE do município
