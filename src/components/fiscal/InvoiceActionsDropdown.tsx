@@ -136,7 +136,7 @@ export function InvoiceActionsDropdown({
     }
   };
 
-  const handleDownloadDanfe = () => downloadViaBackend('danfe');
+  
 
   const handleDownloadXml = async () => {
     setIsDownloadingXml(true);
