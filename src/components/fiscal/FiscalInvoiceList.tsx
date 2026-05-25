@@ -202,8 +202,14 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const pedidoStatusOf = (inv: any) => derivePedidoStatus(inv, concluidoSet);
 
 
+  // Apply tipo_nota filter (apenas Notas Fiscais; em Pedidos de Venda é sempre saída).
+  const tipoFilteredInvoices = mode === 'invoices' && tipoNotaFilter !== 'all'
+    ? modeFilteredInvoices?.filter(inv => deriveTipoNotaFromInvoice(inv) === tipoNotaFilter)
+    : modeFilteredInvoices;
+
   // Apply status filter
-  const statusFilteredInvoices = modeFilteredInvoices?.filter(inv => {
+  const statusFilteredInvoices = tipoFilteredInvoices?.filter(inv => {
+
     if (statusFilter.length === 0) return true;
 
     if (mode === 'orders') {
