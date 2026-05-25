@@ -1015,8 +1015,19 @@ export function InvoiceEditor({
           </Alert>
         )}
 
+        {(() => {
+          // SEFAZ: Transferência e Remessa não comportam dados de pagamento (tPag=90).
+          const tipoNota = (data.tipo_nota || 'saida') as NonNullable<InvoiceData['tipo_nota']>;
+          const paymentApplies = !['transferencia', 'remessa'].includes(tipoNota);
+          // Se o usuário estava na aba pagamento e mudou o tipo, redireciona para "geral".
+          if (!paymentApplies && activeTab === 'pagamento') {
+            // defer to next tick para evitar setState durante render
+            queueMicrotask(() => setActiveTab('geral'));
+          }
+          return null;
+        })()}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className={`grid w-full ${!['transferencia', 'remessa'].includes((data.tipo_nota || 'saida')) ? 'grid-cols-6' : 'grid-cols-5'}`}>
             <TabsTrigger value="geral" className="gap-1 text-xs">
               <FileText className="h-3 w-3" />
               Geral
@@ -1042,11 +1053,14 @@ export function InvoiceEditor({
               <Truck className="h-3 w-3" />
               Transp.
             </TabsTrigger>
-            <TabsTrigger value="pagamento" className="gap-1 text-xs">
-              <CreditCard className="h-3 w-3" />
-              Pagto.
-            </TabsTrigger>
+            {!['transferencia', 'remessa'].includes((data.tipo_nota || 'saida')) && (
+              <TabsTrigger value="pagamento" className="gap-1 text-xs">
+                <CreditCard className="h-3 w-3" />
+                Pagto.
+              </TabsTrigger>
+            )}
           </TabsList>
+
 
           {/* Tab: Geral */}
           <TabsContent value="geral" className="space-y-4">
@@ -1552,9 +1566,10 @@ export function InvoiceEditor({
                     <Badge variant="outline">{data.items.length} item(ns)</Badge>
                     <ProductSelector 
                       onSelect={addProductFromCatalog}
-                      placeholder="Buscar produto"
+                      placeholder="Adicionar produto"
                       className="h-9"
                     />
+
                   </div>
                 </div>
               </CardHeader>
@@ -1850,8 +1865,15 @@ export function InvoiceEditor({
                         </Card>
                       );
                     })}
+                    <div className="flex justify-center pt-2">
+                      <ProductSelector
+                        onSelect={addProductFromCatalog}
+                        placeholder="Adicionar outro produto"
+                      />
+                    </div>
                   </div>
                 )}
+
               </CardContent>
             </Card>
           </TabsContent>
@@ -2101,11 +2123,15 @@ export function InvoiceEditor({
             </Card>
           </TabsContent>
 
-          {/* Tab: Pagamento */}
+          {/* Tab: Pagamento (apenas para tipos que comportam pagamento) */}
+          {!['transferencia', 'remessa'].includes((data.tipo_nota || 'saida')) && (
           <TabsContent value="pagamento" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Dados de Pagamento</CardTitle>
+                <CardDescription>
+                  Para notas de transferência e remessa, esta aba não aparece — a SEFAZ classifica automaticamente como "Sem Pagamento".
+                </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -2156,6 +2182,8 @@ export function InvoiceEditor({
               </CardContent>
             </Card>
           </TabsContent>
+          )}
+
         </Tabs>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
