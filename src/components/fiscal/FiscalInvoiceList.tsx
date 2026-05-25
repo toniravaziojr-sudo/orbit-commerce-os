@@ -114,10 +114,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   const [statusFilter, setStatusFilter] = useState<string[]>(
     mode === 'orders' ? ['em_aberto'] : []
   );
-  // Filtro de Tipo de Nota (apenas na aba Notas Fiscais). Padrão = 'saida'.
-  // 'all' = qualquer tipo. Usuário pode trocar para entrada/transferência/etc.
+  // Filtro de Tipo de Nota (apenas na aba Notas Fiscais). Padrão = 'all' (todos).
+  // 'all' = qualquer tipo. Usuário pode trocar para saída/entrada/transferência/etc.
   const [tipoNotaFilter, setTipoNotaFilter] = useState<string>(
-    mode === 'invoices' ? 'saida' : 'all'
+    mode === 'invoices' ? 'all' : 'all'
   );
 
 
