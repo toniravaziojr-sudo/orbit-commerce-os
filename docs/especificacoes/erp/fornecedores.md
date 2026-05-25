@@ -30,6 +30,21 @@ Quando algum dado essencial não estiver preenchido na NF (endereço ou IE), o c
 
 **Atualização de duplicado:** quando o CNPJ/CPF já existe e o usuário escolhe "Atualizar dados existentes", o mesmo enriquecimento é aplicado, incluindo IBGE e tipo de contribuinte. Política preservada — campo vazio na NF **não** sobrescreve campo preenchido no cadastro existente.
 
+### Retificação 2026-05-25 — Enriquecimento padrão Cliente (IE digitada vence)
+
+A partir de 2026-05-25 o "Salvar na base" e o "Atualizar cadastro" seguem exatamente o mesmo padrão de enriquecimento aplicado a Clientes (memória `profile-enrichment-policy-standard`): a NF aberta no editor é tratada como a **fonte mais recente** sobre o fornecedor.
+
+Regras consolidadas:
+
+- **Campo não-vazio na NF sobrescreve** o cadastro (nome, e-mail, telefone, endereço completo, IBGE).
+- **Campo vazio preserva** o que já está salvo — nunca apaga dado existente.
+- **Documento (CPF/CNPJ) e tipo de pessoa** são imutáveis após criação.
+- **Inscrição Estadual digitada vence o indicador IE.** Se o usuário escreveu uma IE no formulário, o fornecedor é gravado como Contribuinte ICMS com aquela IE — mesmo que o indicador esteja em 2 (isento) ou 9 (não contribuinte). Esta era a causa raiz do incidente K LOGISTICA (2026-05-25), em que a IE digitada na NF era descartada pelo indicador padrão 9.
+- **Auto-flip do indicador IE na UI.** Quando o usuário digita uma IE válida e o indicador estava em 9 (não contribuinte), o seletor é promovido automaticamente para 1 (Contribuinte ICMS). O usuário pode mudar manualmente depois.
+- **Indicador 2 / 9 só apaga IE existente** se o cadastro já estava sem IE. Se já havia IE salva, ela é preservada (regra "campo vazio não apaga").
+
+
+
 ### UI unificada do cartão Fornecedor / Remetente (rev 2026-05-24)
 
 No editor de NF de Entrada (tipos: Compra, Remessa, Transferência, Devolução, Outros), a aba **Dest.** exibe um **único cartão "Fornecedor / Remetente"** que funde o que antes eram três seções separadas (autocomplete, dados básicos e endereço).
