@@ -276,40 +276,46 @@ export function SupplierAutocomplete({
     if (!existingMatch) return;
     try {
       setSaving(true);
-      // Mesma inferência do salvamento — só sobrescreve se a NF trouxer dado novo.
-      const ieDigits = onlyDigits(value.ie ?? null);
+      // Padrão Cliente: NF é fonte mais recente.
+      //  - Campo não-vazio na NF sobrescreve cadastro.
+      //  - Campo vazio preserva o que já está salvo (nunca apaga).
+      //  - IE digitada vence o indicador IE.
+      const ieResolved = resolveIeAndContributor(value.ie, value.indicadorIe);
+      const ieExistenteClean = clean(existingMatch.ie);
       const updates: any = {
         id: existingMatch.id,
-        name: value.name.trim() || existingMatch.name,
-        email: value.email ?? existingMatch.email,
-        phone: value.phone ?? existingMatch.phone,
-        cep: value.cep ?? existingMatch.cep,
-        logradouro: value.logradouro ?? existingMatch.logradouro,
-        numero: value.numero ?? existingMatch.numero,
-        complemento: value.complemento ?? existingMatch.complemento,
-        bairro: value.bairro ?? existingMatch.bairro,
-        cidade: value.cidade ?? existingMatch.cidade,
-        uf: value.uf ?? existingMatch.uf,
-        codigo_ibge: value.codigoIbge ?? existingMatch.codigo_ibge,
+        name: coalesce(value.name, existingMatch.name) || existingMatch.name,
+        email: coalesce(value.email, existingMatch.email),
+        phone: coalesce(value.phone, existingMatch.phone),
+        cep: coalesce(value.cep, existingMatch.cep),
+        logradouro: coalesce(value.logradouro, existingMatch.logradouro),
+        numero: coalesce(value.numero, existingMatch.numero),
+        complemento: coalesce(value.complemento, existingMatch.complemento),
+        bairro: coalesce(value.bairro, existingMatch.bairro),
+        cidade: coalesce(value.cidade, existingMatch.cidade),
+        uf: coalesce(value.uf, existingMatch.uf),
+        codigo_ibge: coalesce(value.codigoIbge, existingMatch.codigo_ibge),
       };
-      // Atualiza IE / contribuinte só se a NF trouxer informação clara.
-      if (value.indicadorIe === 1 && ieDigits) {
-        updates.ie = value.ie;
+      // IE/contribuinte:
+      //  - Se a NF traz IE digitada → sobrescreve (vira contribuinte).
+      //  - Se a NF traz indicador 2 (isento) ou 9 (não contribuinte) E o cadastro
+      //    não tinha IE → aplica. Se o cadastro já tinha IE, preserva (não apaga).
+      //  - Indicador 1 sem IE digitada → só ajusta contributor_type, mantém IE existente.
+      if (ieResolved.ie) {
+        updates.ie = ieResolved.ie;
         updates.ie_isento = false;
         updates.contributor_type = "contribuinte";
-      } else if (value.indicadorIe === 2) {
+      } else if (value.indicadorIe === 2 && !ieExistenteClean) {
         updates.ie = null;
         updates.ie_isento = true;
         updates.contributor_type = "contribuinte_isento";
-      } else if (value.indicadorIe === 9) {
+      } else if (value.indicadorIe === 9 && !ieExistenteClean) {
         updates.ie = null;
         updates.ie_isento = false;
         updates.contributor_type = "nao_contribuinte";
-      } else if (ieDigits && !existingMatch.ie) {
-        // Sem indicador, mas a NF trouxe IE e o cadastro estava sem.
-        updates.ie = value.ie;
-        updates.ie_isento = false;
+      } else if (value.indicadorIe === 1 && ieExistenteClean) {
         updates.contributor_type = "contribuinte";
+        updates.ie_isento = false;
       }
       await updateSupplier.mutateAsync(updates);
       onChange({
