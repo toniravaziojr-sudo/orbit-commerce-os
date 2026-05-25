@@ -60,6 +60,39 @@ function inferPersonType(doc: string): SupplierPersonType {
   return onlyDigits(doc).length > 11 ? "PJ" : "PF";
 }
 
+/** Trim + NULLIF: retorna `null` para vazio/whitespace, senão o valor podado. */
+function clean(v: string | null | undefined): string | null {
+  if (v === null || v === undefined) return null;
+  const t = String(v).trim();
+  return t.length === 0 ? null : t;
+}
+
+/**
+ * Padrão de enriquecimento (espelha enrich_customer_from_order):
+ * IE digitada vence o indicador IE. Se há IE preenchida, o fornecedor é
+ * tratado como Contribuinte ICMS mesmo que o indicador esteja em 2 ou 9.
+ */
+function resolveIeAndContributor(ie: string | null | undefined, indicadorIe: number | null | undefined): {
+  ie: string | null;
+  ie_isento: boolean;
+  contributor_type: "contribuinte" | "contribuinte_isento" | "nao_contribuinte";
+} {
+  const ieClean = clean(ie);
+  if (ieClean) return { ie: ieClean, ie_isento: false, contributor_type: "contribuinte" };
+  if (indicadorIe === 2) return { ie: null, ie_isento: true, contributor_type: "contribuinte_isento" };
+  if (indicadorIe === 1) return { ie: null, ie_isento: false, contributor_type: "contribuinte" };
+  return { ie: null, ie_isento: false, contributor_type: "nao_contribuinte" };
+}
+
+/** COALESCE com NULLIF: valor novo não-vazio sobrescreve; vazio preserva. */
+function coalesce<T>(next: T | null | undefined, prev: T | null | undefined): T | null {
+  if (typeof next === "string") {
+    const c = clean(next);
+    return (c ?? (prev ?? null)) as any;
+  }
+  return (next ?? prev ?? null) as any;
+}
+
 export function SupplierAutocomplete({
   value,
   onChange,
