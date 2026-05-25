@@ -484,9 +484,10 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
 
     if (error) throw error;
 
-    // Se o registro está em pendência ou pronta_emitir (aba Notas Fiscais),
-    // revalidar automaticamente após salvar para atualizar o stage.
-    if (editingInvoiceStage === 'pendencia' || editingInvoiceStage === 'pronta_emitir') {
+    // Se o registro está na aba Notas Fiscais, revalidar automaticamente
+    // após salvar para recalcular a etapa operacional. Isso cobre também
+    // casos inconsistentes vindos de rejeição anterior marcados como emitida.
+    if (editingInvoiceStage && editingInvoiceStage !== 'pedido_venda') {
       try {
         const { data: prep } = await supabase.functions.invoke('fiscal-prepare-invoice', {
           body: { invoice_id: invoiceId },
