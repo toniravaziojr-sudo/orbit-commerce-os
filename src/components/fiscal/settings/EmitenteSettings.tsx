@@ -850,3 +850,57 @@ function CertificateUploadForm(props: {
     </div>
   );
 }
+
+// ============= Default Sales Nature Field =============
+// Lista as Naturezas de Operação ativas do tenant e permite eleger a "padrão para vendas
+// automáticas" (usada quando o pedido vira NF sem natureza explícita).
+function DefaultSalesNatureField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [natures, setNatures] = useState<Array<{ id: string; nome: string; cfop_intra: string; cfop_inter: string }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      const { data: prof } = await supabase.from('profiles').select('current_tenant_id').eq('id', user.id).maybeSingle();
+      const tenantId = (prof as any)?.current_tenant_id;
+      if (!tenantId) { setLoading(false); return; }
+      const { data } = await supabase
+        .from('fiscal_operation_natures')
+        .select('id, nome, cfop_intra, cfop_inter')
+        .eq('tenant_id', tenantId)
+        .eq('ativo', true)
+        .eq('tipo_documento', 1)
+        .order('nome');
+      if (!cancelled) {
+        setNatures((data as any) || []);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <Label>Natureza padrão para vendas automáticas</Label>
+      <Select value={value || '__none__'} onValueChange={(v) => onChange(v === '__none__' ? '' : v)} disabled={loading}>
+        <SelectTrigger>
+          <SelectValue placeholder={loading ? 'Carregando…' : 'Selecione a natureza padrão'} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">— Não definida —</SelectItem>
+          {natures.map(n => (
+            <SelectItem key={n.id} value={n.id}>
+              {n.nome} <span className="text-muted-foreground text-xs ml-1">({n.cfop_intra}/{n.cfop_inter})</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        Usada quando um pedido vira NF automaticamente. O CFOP de cada item é decidido pela natureza + UF do destinatário (intra 5xxx / inter 6xxx). Edição manual por item continua possível na nota.
+      </p>
+    </div>
+  );
+}
