@@ -11,7 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
-import { resolveOperationNature, pickCfopForUf, type ResolvedFiscalNature } from "../_shared/fiscal-nature-resolver.ts";
+import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt, type ResolvedFiscalNature } from "../_shared/fiscal-nature-resolver.ts";
 
 const VERSION = 'v9.2.0';
 // v9.2.0 — CFOP via Natureza de Operação vinculada (Fase 2).
@@ -228,8 +228,10 @@ async function processTenanDrafts(
         continue;
       }
 
-      // CFOP vem da Natureza de Operação resolvida + UF (Fase 2)
-      const cfop = pickCfopForUf(defaultNature, fiscalSettings.endereco_uf, order.shipping_state);
+      // CFOP vem da Natureza de Operação resolvida + UF + CRT do emitente (Fase 7)
+      const emitterCrt = Number(fiscalSettings.crt || 1);
+      const cfop = pickCfopForUf(defaultNature, fiscalSettings.endereco_uf, order.shipping_state, emitterCrt);
+      const natureTax = pickTaxCodesForCrt(defaultNature, emitterCrt);
 
       let itemsToProcess: Array<{
         id?: string;
@@ -302,7 +304,7 @@ async function processTenanDrafts(
         const product: any = productMap.get(item.product_id);
         const gtin = sanitizeGtin(product?.gtin || product?.barcode);
         const cestRaw = fiscalProduct?.cest || product?.cest;
-        const taxes = calculateItemTaxes(Number(item.total_price || 0), taxSettings, fiscalProduct);
+        const taxes = calculateItemTaxes(Number(item.total_price || 0), taxSettings, fiscalProduct, natureTax);
         return {
           numero_item: index + 1,
           order_item_id: item.id || null,

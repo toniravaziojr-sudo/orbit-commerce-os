@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 import { buildFiscalOrderInheritance } from "../_shared/fiscal-order-mapping.ts";
 import { calculateItemTaxes, type FiscalSettingsTax } from "../_shared/fiscal-tax-calculator.ts";
-import { resolveOperationNature, pickCfopForUf } from "../_shared/fiscal-nature-resolver.ts";
+import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt } from "../_shared/fiscal-nature-resolver.ts";
 
 const VERSION = 'v8.8.0';
 // v8.8.0 — CFOP via Natureza de Operação vinculada (Fase 2). Aceita natureza_operacao_id
@@ -245,7 +245,9 @@ Deno.serve(async (req) => {
       natureNome: natureza_operacao || null,
       defaultNatureId: fiscalSettings.default_sales_nature_id || null,
     });
-    const cfop = pickCfopForUf(nature, fiscalSettings.endereco_uf, order.shipping_state);
+    const emitterCrt = Number(fiscalSettings.crt || 1);
+    const cfop = pickCfopForUf(nature, fiscalSettings.endereco_uf, order.shipping_state, emitterCrt);
+    const natureTax = pickTaxCodesForCrt(nature, emitterCrt);
 
     // Settings de tributação (regime + alíquotas padrão)
     const taxSettings: FiscalSettingsTax = {
@@ -264,7 +266,7 @@ Deno.serve(async (req) => {
       const fiscalProduct = fiscalProductMap.get(item.product_id);
       const productCatalog: any = productMap.get(item.product_id) || {};
       const gtin = sanitizeGtin(productCatalog.gtin || productCatalog.barcode);
-      const taxes = calculateItemTaxes(Number(item.total_price || 0), taxSettings, fiscalProduct as any);
+      const taxes = calculateItemTaxes(Number(item.total_price || 0), taxSettings, fiscalProduct as any, natureTax);
       return {
         numero_item: index + 1,
         order_item_id: item.id || null,

@@ -5,7 +5,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 import { resolveAddressByCep } from "../_shared/cep-lookup.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
-import { resolveOperationNature, pickCfopForUf } from "../_shared/fiscal-nature-resolver.ts";
+import { resolveOperationNature, pickCfopForUf, pickTaxCodesForCrt } from "../_shared/fiscal-nature-resolver.ts";
 
 const VERSION = 'v8.8.0';
 
@@ -212,17 +212,20 @@ Deno.serve(async (req) => {
     //   validações de PV; pendências reais aparecem apenas ao salvar/emitir).
     const initialStage = creationMode === 'nfe_manual' ? 'pendencia' : 'pedido_venda';
 
-    // CFOP/finalidade/tipo vêm da Natureza de Operação resolvida (Fase 2)
+    // CFOP/finalidade/tipo vêm da Natureza de Operação resolvida (+ CRT do emitente)
     const nature = await resolveOperationNature(supabase, tenantId, {
       natureId: natureza_operacao_id || null,
       natureNome: natureza_operacao || null,
       defaultNatureId: settings.default_sales_nature_id || null,
     });
+    const emitterCrtManual = Number(settings.crt || 1);
     const cfopHeader = pickCfopForUf(
       nature,
       settings.endereco_uf,
       cepResolvedManual?.uf || destinatario.endereco.uf,
+      emitterCrtManual,
     );
+    const natureTaxManual = pickTaxCodesForCrt(nature, emitterCrtManual);
 
     // Create invoice draft
     const invoiceBaseData: any = {
@@ -309,7 +312,8 @@ Deno.serve(async (req) => {
       valor_desconto: Math.max(0, toNum(item.valor_desconto)),
       valor_frete: Math.max(0, toNum(item.valor_frete)),
       origem: parseInt(item.origem || '0', 10),
-      csosn: item.csosn || '102',
+      csosn: item.csosn || natureTaxManual.csosn || '102',
+      cst: item.cst || natureTaxManual.cst_icms || null,
       gtin: sanitizeGtin(item.gtin),
       gtin_tributavel: sanitizeGtin(item.gtin_tributavel || item.gtin),
       cest: item.cest ? String(item.cest).replace(/\D/g, '').substring(0, 7) || null : null,
