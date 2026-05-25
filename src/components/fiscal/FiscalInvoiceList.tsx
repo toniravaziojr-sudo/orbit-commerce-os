@@ -268,7 +268,7 @@ export function FiscalInvoiceList({ mode }: FiscalInvoiceListProps) {
   // Reseta para a página 1 quando qualquer filtro/aba muda
   useEffect(() => {
     setCurrentPage(1);
-  }, [mode, searchTerm, statusFilter, startDate, endDate, marketplaceSource, pageSize]);
+  }, [mode, searchTerm, statusFilter, tipoNotaFilter, startDate, endDate, marketplaceSource, pageSize]);
 
   const pagedInvoices = useMemo(() => {
     if (!filteredInvoices) return [] as typeof filteredInvoices;
