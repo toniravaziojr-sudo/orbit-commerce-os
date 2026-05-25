@@ -291,6 +291,7 @@ Quando uma NF está em `rejected`, o `InvoiceActionsDropdown` apresenta três op
 
 1. **Reenviar para SEFAZ** (verde, destacado) — chama `handleQuickSubmit` (invoca `fiscal-submit` com o mesmo `invoice_id`, sem abrir modal de edição). Usado quando a rejeição não foi causada pelo conteúdo da nota: indisponibilidade da SEFAZ, divergência de regime tributário corrigida nas Configurações Fiscais, certificado renovado, etc. A própria edge `fiscal-submit` já aceita `status IN ('draft','rejected')`.
    - **Regra de retry (rev 2026-05-20c):** quando a nota está em `rejected`, `fiscal-submit` e `fiscal-emit` geram um `focus_ref` NOVO (`NFE_<id>_R<epoch36>`) e persistem em `fiscal_invoices.focus_ref`. Isso é obrigatório porque a Focus NFe deduplica por `ref` — POST com ref já visto devolve a resposta em cache sem reenviar à SEFAZ. Primeira emissão continua usando o ref base `NFE_<id>` (idempotente). Webhook casa por `focus_ref`, então o pareamento é preservado. Constraint: `mem://constraints/fiscal-retry-ref-must-be-unique`.
+   - **Regra de etapa operacional (rev 2026-05-25):** rejeição nunca pode deixar a nota em **Emitida**. Toda rejeição volta a nota para **Pendência Identificada**, carregando o motivo da rejeição como pendência visível. Depois de editar e salvar, a nota é revalidada automaticamente e volta para **Pronta para Emitir** quando estiver consistente.
 2. **Editar** — abre o editor completo; usar quando o motivo da rejeição exige alterar dados da NF (item, destinatário, fiscal).
 3. **Duplicar como rascunho** — clona a NF para um novo rascunho preservando o original.
 
@@ -445,7 +446,8 @@ Regras importantes:
 4. Em "Emitir Nota Fiscal" → fiscal-submit envia à Focus NFe (POST /v2/nfe?ref=<focus_ref>)
    → status='processing', fiscal_stage='emitida'
 5. fiscal-webhook OU fiscal-check-status (polling) atualizam status final:
-   → 'authorized' | 'rejected' | 'denied'
+   → 'authorized' mantém `emitida`
+   → 'rejected' / 'denied' retornam a nota para `pendencia`, com o motivo salvo para correção
 6. nfe-shipment-link (helper) propaga o vínculo para shipments quando autorizada
 ```
 
