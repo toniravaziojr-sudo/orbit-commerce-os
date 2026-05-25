@@ -8623,6 +8623,7 @@ export type Database = {
           last_reconcile_error: string | null
           modalidade_frete: string | null
           natureza_operacao: string | null
+          natureza_operacao_id: string | null
           nfe_referenciada: string | null
           numero: number
           observacoes: string | null
@@ -8710,6 +8711,7 @@ export type Database = {
           last_reconcile_error?: string | null
           modalidade_frete?: string | null
           natureza_operacao?: string | null
+          natureza_operacao_id?: string | null
           nfe_referenciada?: string | null
           numero: number
           observacoes?: string | null
@@ -8797,6 +8799,7 @@ export type Database = {
           last_reconcile_error?: string | null
           modalidade_frete?: string | null
           natureza_operacao?: string | null
+          natureza_operacao_id?: string | null
           nfe_referenciada?: string | null
           numero?: number
           observacoes?: string | null
@@ -8845,6 +8848,13 @@ export type Database = {
             columns: ["emitido_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_invoices_natureza_operacao_id_fkey"
+            columns: ["natureza_operacao_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_operation_natures"
             referencedColumns: ["id"]
           },
           {
@@ -9059,6 +9069,7 @@ export type Database = {
           crt: number | null
           csosn_padrao: string | null
           cst_padrao: string | null
+          default_sales_nature_id: string | null
           default_shipping_provider: string | null
           desmembrar_estrutura: boolean | null
           email: string | null
@@ -9134,6 +9145,7 @@ export type Database = {
           crt?: number | null
           csosn_padrao?: string | null
           cst_padrao?: string | null
+          default_sales_nature_id?: string | null
           default_shipping_provider?: string | null
           desmembrar_estrutura?: boolean | null
           email?: string | null
@@ -9209,6 +9221,7 @@ export type Database = {
           crt?: number | null
           csosn_padrao?: string | null
           cst_padrao?: string | null
+          default_sales_nature_id?: string | null
           default_shipping_provider?: string | null
           desmembrar_estrutura?: boolean | null
           email?: string | null
@@ -9264,6 +9277,13 @@ export type Database = {
           webhook_validated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fiscal_settings_default_sales_nature_id_fkey"
+            columns: ["default_sales_nature_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_operation_natures"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fiscal_settings_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -25151,6 +25171,10 @@ export type Database = {
           status: string
           stock_quantity: number
         }[]
+      }
+      seed_system_operation_natures: {
+        Args: { p_tenant_id: string }
+        Returns: undefined
       }
       supersede_meta_grant: {
         Args: { p_new_grant_id: string; p_tenant_id: string }
