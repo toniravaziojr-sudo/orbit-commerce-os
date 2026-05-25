@@ -142,14 +142,22 @@ export function ProductSelector({ onSelect, placeholder = "Buscar produto...", c
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[400px] p-0" align="start">
+      <PopoverContent
+        className="w-[400px] p-0"
+        align="start"
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         <Command shouldFilter={false}>
           <CommandInput 
             placeholder="Digite para buscar..." 
             value={searchTerm}
             onValueChange={setSearchTerm}
           />
-          <CommandList>
+          <CommandList
+            onWheel={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+          >
             <CommandEmpty>
               {loading ? 'Carregando...' : 'Nenhum produto encontrado.'}
             </CommandEmpty>
