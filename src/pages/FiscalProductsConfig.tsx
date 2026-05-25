@@ -175,7 +175,7 @@ export default function FiscalProductsConfig() {
           cest: editingProduct.cest?.replace(/\D/g, '') || null,
           origem: parseInt(editingProduct.origem, 10),
           unidade_comercial: editingProduct.unidade_comercial,
-          cfop_override: editingProduct.cfop_override || null,
+          cfop_override: null,
         },
       });
       toast.success('Dados fiscais salvos com sucesso');
@@ -428,25 +428,7 @@ export default function FiscalProductsConfig() {
                   </SelectContent>
                 </Select>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="cfop">CFOP Override</Label>
-                <Select
-                  value={editingProduct?.cfop_override || ''}
-                  onValueChange={(value) => setEditingProduct(prev => prev ? {...prev, cfop_override: value} : null)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Usar padrão do emissor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CFOP_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* CFOP foi removido — agora vem da Natureza de Operação na NF (intra/inter por UF). */}
             </div>
           </div>
           
