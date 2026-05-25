@@ -8975,7 +8975,6 @@ export type Database = {
       fiscal_products: {
         Row: {
           cest: string | null
-          cfop_override: string | null
           cofins_aliquota: number | null
           cofins_cst: string | null
           created_at: string | null
@@ -8994,7 +8993,6 @@ export type Database = {
         }
         Insert: {
           cest?: string | null
-          cfop_override?: string | null
           cofins_aliquota?: number | null
           cofins_cst?: string | null
           created_at?: string | null
@@ -9013,7 +9011,6 @@ export type Database = {
         }
         Update: {
           cest?: string | null
-          cfop_override?: string | null
           cofins_aliquota?: number | null
           cofins_cst?: string | null
           created_at?: string | null
@@ -9059,8 +9056,6 @@ export type Database = {
           certificado_serial: string | null
           certificado_uploaded_at: string | null
           certificado_valido_ate: string | null
-          cfop_interestadual: string | null
-          cfop_intrastadual: string | null
           cnae: string | null
           cnpj: string | null
           cofins_aliquota_padrao: number
@@ -9135,8 +9130,6 @@ export type Database = {
           certificado_serial?: string | null
           certificado_uploaded_at?: string | null
           certificado_valido_ate?: string | null
-          cfop_interestadual?: string | null
-          cfop_intrastadual?: string | null
           cnae?: string | null
           cnpj?: string | null
           cofins_aliquota_padrao?: number
@@ -9211,8 +9204,6 @@ export type Database = {
           certificado_serial?: string | null
           certificado_uploaded_at?: string | null
           certificado_valido_ate?: string | null
-          cfop_interestadual?: string | null
-          cfop_intrastadual?: string | null
           cnae?: string | null
           cnpj?: string | null
           cofins_aliquota_padrao?: number
