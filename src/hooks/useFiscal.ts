@@ -87,7 +87,7 @@ export interface FiscalProduct {
   cest: string | null;
   origem: number;
   unidade_comercial: string;
-  cfop_override: string | null;
+  
   csosn_override: string | null;
   cst_override: string | null;
 }
