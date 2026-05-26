@@ -6841,6 +6841,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // Compat com referências antigas no arquivo (logs).
       const isSimpleState = isLightState;
 
+      // [Reg #17.3 — Frente 1] Em estados curtos (greeting/discovery), o composer base
+      // gpt-5 queima TODOS os 1500 tokens em reasoning interno e devolve content="".
+      // Forçamos gpt-5-mini como primeiro candidato nesses estados, INDEPENDENTE do
+      // composer configurado, porque saudação/descoberta são turnos curtos onde a
+      // perda de "qualidade de raciocínio" é nula e o ganho de resposta visível é total.
+      // Estados de decisão/checkout continuam respeitando o composer forte da policy.
+      let composerForLoop = aiModel;
+      if (isShortOutputState && composerForLoop !== "gpt-5-mini" && composerForLoop !== "gpt-5-nano") {
+        console.log(`[ai-support-chat] [Reg #17.3] short-state composer override: ${composerForLoop} → gpt-5-mini (state=${pipelineState})`);
+        composerForLoop = "gpt-5-mini";
+      }
+
       // [B.2] Reordenação de modelos por estado:
       // - sales mode: começa pelo COMPOSER configurado na policy (`aiModel`),
       //   depois fallbacks gpt-5-mini → gpt-5 → gpt-5.2. Antes (B.1) a ordem
@@ -6850,10 +6862,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // - estados complexos (não sales): mantém ordem de qualidade configurada.
       const salesFallbacks = ["gpt-5-mini", "gpt-5", "gpt-5.2"];
       const baseOrder = salesModeEnabled
-        ? [aiModel, ...salesFallbacks, ...OPENAI_MODELS.filter(m => m !== aiModel && !salesFallbacks.includes(m))]
+        ? [composerForLoop, ...salesFallbacks, ...OPENAI_MODELS.filter(m => m !== composerForLoop && !salesFallbacks.includes(m))]
         : (isSimpleState
           ? [...FAST_MODELS_FOR_SIMPLE_STATES, ...OPENAI_MODELS.filter(m => !FAST_MODELS_FOR_SIMPLE_STATES.includes(m))]
-          : [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)]);
+          : [composerForLoop, ...OPENAI_MODELS.filter(m => m !== composerForLoop)]);
       // Dedup mantendo ordem
       const seen = new Set<string>();
       const orderedCandidates = baseOrder.filter(m => {
@@ -7436,8 +7448,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // (forcedTextRoundApplied/Reason declarados no escopo do handler para o log)
       const stillHasToolCalls = !!aiData.choices?.[0]?.message?.tool_calls?.length;
       const noTextAndNoTool = (!aiContent || !aiContent.trim()) && !stillHasToolCalls;
-      if (salesModeEnabled && (stillHasToolCalls || noTextAndNoTool) && toolsCalledThisTurn.length > 0) {
-        forcedTextRoundReason = stillHasToolCalls ? "loop_exhausted_with_pending_tools" : "empty_text_after_tools";
+      // [Reg #17.3 — Frente 3] Removido o requisito `toolsCalledThisTurn.length > 0`
+      // do caminho `noTextAndNoTool`. Antes, saudação que vinha vazia (gpt-5 queimando
+      // todo o budget em reasoning) NUNCA disparava o round forçado porque nenhuma
+      // tool tinha rodado. Agora o round forçado é a primeira tentativa de salvar
+      // resposta vazia em estados sem tools.
+      if (salesModeEnabled && (stillHasToolCalls || noTextAndNoTool)) {
+        forcedTextRoundReason = stillHasToolCalls
+          ? "loop_exhausted_with_pending_tools"
+          : (toolsCalledThisTurn.length > 0 ? "empty_text_after_tools" : "empty_text_no_tools");
         console.log(
           `[ai-support-chat] [PACOTE 1] forcing final text round (reason=${forcedTextRoundReason} iters=${toolCallIterations})`,
         );
@@ -7555,6 +7574,70 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           `max_tokens=${stateMaxTokens} effort=${stateReasoningEffort} ` +
           `tools_called=${toolsCalledThisTurn.length} forced_round=${forcedTextRoundApplied}`
         );
+
+        // [Reg #17.3 — Frente 2] RETRY EM MODELO ALTERNATIVO antes do handoff.
+        // Quando o composer atual devolveu vazio com finish=length E o reasoning
+        // consumiu >=50% do budget, é sinal claro de starvation. Tentamos UMA vez
+        // com um modelo alternativo (mini → gpt-5 → gpt-5.2), pulando o que já foi
+        // usado e o que já está marcado como indisponível. Limite estrito: 1 retry.
+        const reasoningStarve =
+          finishReason === "length" && compTokens > 0 && reasoningTokens / compTokens >= 0.5;
+        const alreadyRetried = (aiData as any).__retried_alt_model === true;
+        if (reasoningStarve && !alreadyRetried) {
+          const altCandidates = ["gpt-5-mini", "gpt-5", "gpt-5.2"]
+            .filter((m) => m !== usedModel && !UNAVAILABLE_MODELS.has(m));
+          for (const altModel of altCandidates) {
+            try {
+              const isGpt5Alt = altModel.startsWith("gpt-5");
+              const altBody: any = {
+                model: altModel,
+                messages: currentMessages,
+                ...(isGpt5Alt ? { max_completion_tokens: stateMaxTokens } : { max_tokens: stateMaxTokens }),
+                tools: pipelineFilteredTools.length > 0 ? pipelineFilteredTools : undefined,
+                tool_choice: "none",
+                parallel_tool_calls: false,
+              };
+              if (isGpt5Alt && !isReasoningIncompatible(altModel)) {
+                altBody.reasoning = { effort: "minimal" };
+              }
+              if (!isGpt5Alt) altBody.temperature = 0.3;
+              console.log(`[ai-support-chat] [Reg #17.3-F2] empty-retry try=${altModel} (after ${usedModel} starved)`);
+              const altResp = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(altBody),
+              });
+              if (!altResp.ok) {
+                console.warn(`[ai-support-chat] [Reg #17.3-F2] empty-retry ${altModel} http=${altResp.status}`);
+                continue;
+              }
+              const altData = await altResp.json();
+              if (altData.usage) {
+                inputTokens += altData.usage.prompt_tokens || 0;
+                outputTokens += altData.usage.completion_tokens || 0;
+              }
+              const altText = altData.choices?.[0]?.message?.content;
+              if (altText && altText.trim()) {
+                aiContent = altText;
+                usedModel = altModel;
+                modelUsed = altModel;
+                (aiData as any).__retried_alt_model = true;
+                console.log(`[ai-support-chat] [Reg #17.3-F2] empty-retry SUCCESS model=${altModel} chars=${altText.length}`);
+                break;
+              }
+              console.warn(`[ai-support-chat] [Reg #17.3-F2] empty-retry ${altModel} also empty (finish=${altData.choices?.[0]?.finish_reason})`);
+            } catch (altErr) {
+              console.error(`[ai-support-chat] [Reg #17.3-F2] empty-retry ${altModel} threw:`, altErr);
+            }
+          }
+        }
+      }
+
+      if (!aiContent || !aiContent.trim()) {
+
 
         const toolsAlreadyRan = toolsCalledThisTurn.length > 0;
         const FALLBACK_PROMISE_BY_STATE: Record<PipelineState, string> = {
@@ -8473,7 +8556,21 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     let greetingScrubReason = "noop";
     let priceScrubApplied = false;
     let priceScrubReason = "noop";
+    // [Reg #17.3 — Frente 5] Frase fixa de handoff do fallback de resposta vazia
+    // NUNCA pode ser tocada por scrub de saudação/preço. O scrub legado detectava
+    // que ela não começava com "Olá, boa tarde…" e ANEXAVA uma saudação na frente,
+    // gerando a concatenação Frankenstein vista no print do usuário.
+    const HANDOFF_FIXED_PHRASE = "No momento não consigo te ajudar, vou te transferir para um atendente humano.";
+    const isFixedHandoffMessage =
+      shouldHandoff === true ||
+      (typeof aiContent === "string" && aiContent.trim() === HANDOFF_FIXED_PHRASE);
+    if (isFixedHandoffMessage) {
+      console.log(`[ai-support-chat] [Reg #17.3-F5] output gates SKIPPED — fixed handoff phrase preserved`);
+    }
     try {
+      if (isFixedHandoffMessage) {
+        // Pula scrubs preservando a frase fixa.
+      } else {
       // Price scrubber sempre roda — usa TPR se disponível, fallback regex se não.
       const priceGate = scrubUnsolicitedPrice({
         pipelineState,
@@ -8552,6 +8649,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           }
         }
       }
+      } // close else { non-handoff scrubs block (Reg #17.3-F5)
     } catch (e) {
       console.warn("[ai-support-chat] [Reg #2.8] output gates failed:", (e as Error).message);
     }
