@@ -8556,7 +8556,21 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
     let greetingScrubReason = "noop";
     let priceScrubApplied = false;
     let priceScrubReason = "noop";
+    // [Reg #17.3 — Frente 5] Frase fixa de handoff do fallback de resposta vazia
+    // NUNCA pode ser tocada por scrub de saudação/preço. O scrub legado detectava
+    // que ela não começava com "Olá, boa tarde…" e ANEXAVA uma saudação na frente,
+    // gerando a concatenação Frankenstein vista no print do usuário.
+    const HANDOFF_FIXED_PHRASE = "No momento não consigo te ajudar, vou te transferir para um atendente humano.";
+    const isFixedHandoffMessage =
+      shouldHandoff === true ||
+      (typeof aiContent === "string" && aiContent.trim() === HANDOFF_FIXED_PHRASE);
+    if (isFixedHandoffMessage) {
+      console.log(`[ai-support-chat] [Reg #17.3-F5] output gates SKIPPED — fixed handoff phrase preserved`);
+    }
     try {
+      if (isFixedHandoffMessage) {
+        // Pula scrubs preservando a frase fixa.
+      } else {
       // Price scrubber sempre roda — usa TPR se disponível, fallback regex se não.
       const priceGate = scrubUnsolicitedPrice({
         pipelineState,
