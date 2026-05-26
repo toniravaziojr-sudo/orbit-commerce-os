@@ -6841,6 +6841,18 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // Compat com referências antigas no arquivo (logs).
       const isSimpleState = isLightState;
 
+      // [Reg #17.3 — Frente 1] Em estados curtos (greeting/discovery), o composer base
+      // gpt-5 queima TODOS os 1500 tokens em reasoning interno e devolve content="".
+      // Forçamos gpt-5-mini como primeiro candidato nesses estados, INDEPENDENTE do
+      // composer configurado, porque saudação/descoberta são turnos curtos onde a
+      // perda de "qualidade de raciocínio" é nula e o ganho de resposta visível é total.
+      // Estados de decisão/checkout continuam respeitando o composer forte da policy.
+      let composerForLoop = aiModel;
+      if (isShortOutputState && composerForLoop !== "gpt-5-mini" && composerForLoop !== "gpt-5-nano") {
+        console.log(`[ai-support-chat] [Reg #17.3] short-state composer override: ${composerForLoop} → gpt-5-mini (state=${pipelineState})`);
+        composerForLoop = "gpt-5-mini";
+      }
+
       // [B.2] Reordenação de modelos por estado:
       // - sales mode: começa pelo COMPOSER configurado na policy (`aiModel`),
       //   depois fallbacks gpt-5-mini → gpt-5 → gpt-5.2. Antes (B.1) a ordem
@@ -6850,10 +6862,10 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // - estados complexos (não sales): mantém ordem de qualidade configurada.
       const salesFallbacks = ["gpt-5-mini", "gpt-5", "gpt-5.2"];
       const baseOrder = salesModeEnabled
-        ? [aiModel, ...salesFallbacks, ...OPENAI_MODELS.filter(m => m !== aiModel && !salesFallbacks.includes(m))]
+        ? [composerForLoop, ...salesFallbacks, ...OPENAI_MODELS.filter(m => m !== composerForLoop && !salesFallbacks.includes(m))]
         : (isSimpleState
           ? [...FAST_MODELS_FOR_SIMPLE_STATES, ...OPENAI_MODELS.filter(m => !FAST_MODELS_FOR_SIMPLE_STATES.includes(m))]
-          : [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)]);
+          : [composerForLoop, ...OPENAI_MODELS.filter(m => m !== composerForLoop)]);
       // Dedup mantendo ordem
       const seen = new Set<string>();
       const orderedCandidates = baseOrder.filter(m => {
@@ -7436,8 +7448,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // (forcedTextRoundApplied/Reason declarados no escopo do handler para o log)
       const stillHasToolCalls = !!aiData.choices?.[0]?.message?.tool_calls?.length;
       const noTextAndNoTool = (!aiContent || !aiContent.trim()) && !stillHasToolCalls;
-      if (salesModeEnabled && (stillHasToolCalls || noTextAndNoTool) && toolsCalledThisTurn.length > 0) {
-        forcedTextRoundReason = stillHasToolCalls ? "loop_exhausted_with_pending_tools" : "empty_text_after_tools";
+      // [Reg #17.3 — Frente 3] Removido o requisito `toolsCalledThisTurn.length > 0`
+      // do caminho `noTextAndNoTool`. Antes, saudação que vinha vazia (gpt-5 queimando
+      // todo o budget em reasoning) NUNCA disparava o round forçado porque nenhuma
+      // tool tinha rodado. Agora o round forçado é a primeira tentativa de salvar
+      // resposta vazia em estados sem tools.
+      if (salesModeEnabled && (stillHasToolCalls || noTextAndNoTool)) {
+        forcedTextRoundReason = stillHasToolCalls
+          ? "loop_exhausted_with_pending_tools"
+          : (toolsCalledThisTurn.length > 0 ? "empty_text_after_tools" : "empty_text_no_tools");
         console.log(
           `[ai-support-chat] [PACOTE 1] forcing final text round (reason=${forcedTextRoundReason} iters=${toolCallIterations})`,
         );
