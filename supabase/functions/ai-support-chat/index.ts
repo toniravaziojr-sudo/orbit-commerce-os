@@ -7637,8 +7637,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       }
 
       if (!aiContent || !aiContent.trim()) {
-        const finishReason = aiData.choices?.[0]?.finish_reason || "unknown";
-        );
+
 
         const toolsAlreadyRan = toolsCalledThisTurn.length > 0;
         const FALLBACK_PROMISE_BY_STATE: Record<PipelineState, string> = {
