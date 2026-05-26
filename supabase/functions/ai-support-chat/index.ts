@@ -6831,7 +6831,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // Mantemos o budget de tokens menor só nos estados realmente curtos.
       const SHORT_OUTPUT_STATES: PipelineState[] = ["greeting", "discovery"];
       const isShortOutputState = salesModeEnabled && SHORT_OUTPUT_STATES.includes(pipelineState);
-      const stateMaxTokens = isShortOutputState ? 600 : 4096;
+      // [Reg #17.2] Budget de tokens dos estados curtos sobe de 600 → 1500.
+      // Em gpt-5* com reasoning=minimal o modelo consome 400-600 tokens só em
+      // raciocínio interno; com 600 de teto a resposta visível vinha vazia
+      // (finish_reason="length", content=""), caindo na muleta universal de
+      // discovery e gerando a sensação de IA robótica/repetitiva.
+      const stateMaxTokens = isShortOutputState ? 1500 : 4096;
       const stateReasoningEffort: "minimal" | "low" | "medium" = isLightState ? "minimal" : "low";
       // Compat com referências antigas no arquivo (logs).
       const isSimpleState = isLightState;
@@ -7709,8 +7714,17 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           aiContent = humanized || FALLBACK_CONCLUSIVE_BY_STATE[pipelineState] || "Me conta um pouco mais do que você procura.";
           console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=tools_humanized state=${pipelineState}`);
         } else {
-          aiContent = FALLBACK_PROMISE_BY_STATE[pipelineState] || "Já te respondo.";
-          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=state_promise state=${pipelineState}`);
+          // [Reg #17.2] PROIBIDO muleta universal de descoberta. Se o modelo
+          // veio vazio e nenhum sinal (reflexo, ação pendente, mídia, veto
+          // comercial, tools rodadas) se aplica, a IA NÃO inventa pergunta
+          // genérica — transfere imediatamente para humano com mensagem fixa.
+          // Conversa vai para waiting_agent no STEP 8 (shouldHandoff=true)
+          // e a trava de silêncio pós-handoff (linha ~4093) impede a IA de
+          // voltar a falar até alguém da equipe assumir.
+          aiContent = "No momento não consigo te ajudar, vou te transferir para um atendente humano.";
+          shouldHandoff = true;
+          handoffReason = handoffReason || "empty_response_no_signal";
+          console.log(`[ai-support-chat] [FALLBACK-EMPTY-RESPONSE] source=handoff_no_signal state=${pipelineState}`);
         }
         emptyResponseFallbackApplied = true;
         console.warn(

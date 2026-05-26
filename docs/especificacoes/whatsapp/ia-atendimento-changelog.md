@@ -65,7 +65,44 @@ Legenda: ✅ coberto · ⚠️ parcial · ❌ sem defesa / quebrado
 
 ---
 
+## Registro #41 — Muleta universal de discovery eliminada + handoff humano como default em resposta vazia — 26/mai/2026
+
+**Conversa de origem:** chat de teste do tenant Respeite o Homem (sandbox), 26/mai/2026 14:23 BRT.
+
+**Sintomas reportados pelo operador:**
+- IA respondeu "Me conta um pouco do que você precisa que eu já te indico." para duas mensagens diferentes em sequência ("esse produto de vocês funciona mesmo?" e "shampoo pra calvície").
+- Mesma frase exata em turnos consecutivos passou sensação de "robótica e irracional".
+- OpenAI tinha crédito, então a causa não era billing.
+
+**Diagnóstico:**
+1. As duas respostas idênticas não vieram do modelo — vieram da muleta `FALLBACK_PROMISE_BY_STATE['discovery']`, acionada quando o modelo devolve `content=""`.
+2. O modelo voltou vazio porque, em estados curtos (greeting/discovery), o budget era `max_completion_tokens=600`. Em gpt-5* com `reasoning.effort=minimal`, o raciocínio interno consumiu o orçamento inteiro (`finish_reason="length"`, `completion_tokens=600`, `reasoning_tokens` quase igual) e não sobrou espaço para texto visível.
+3. O ramo default da resposta vazia caía na muleta de discovery, sem anti-repetição — duas chamadas seguidas no mesmo estado produziam mensagens idênticas, violando a regra de "sem muleta universal" (memória `empty-response-fallback-must-route-by-intent`).
+4. Pedidos com intenção comercial real ("funciona mesmo?", "shampoo pra X") nunca chegaram a ser processados — o caminho morria na muleta antes de o classificador rotear para resposta comercial.
+
+**Correção aplicada:**
+- **Causa raiz (orçamento):** `stateMaxTokens` para `SHORT_OUTPUT_STATES` (greeting, discovery) subiu de **600 → 1500**, comportando raciocínio interno + resposta visível em gpt-5*.
+- **Default da resposta vazia agora é handoff humano:** quando nenhum dos sinais anteriores se aplica (reflexo, ação pendente, veto comercial, mídia, tools rodadas), a IA não inventa pergunta genérica. Ela responde a frase fixa solicitada pelo operador:
+  > "No momento não consigo te ajudar, vou te transferir para um atendente humano."
+  e força `shouldHandoff=true` com reason `empty_response_no_signal`. A conversa entra em `waiting_agent` e a trava de silêncio pós-handoff (Reg #17.3) impede a IA de voltar a falar até alguém da equipe assumir.
+- `FALLBACK_PROMISE_BY_STATE` deixa de ser ramo ativo do fluxo (continua no código como referência histórica/documental, mas nenhuma execução o atinge mais).
+
+**Validação técnica executada:**
+- Leitura das últimas mensagens do sandbox confirmou: as duas respostas duplicadas têm o texto idêntico de `FALLBACK_PROMISE_BY_STATE['discovery']`, comprovando o diagnóstico.
+- Edge function reimplantada com os dois ajustes.
+- Pendente: operador refazer o mesmo teste ("esse produto funciona mesmo?", "shampoo pra calvície") e confirmar que (a) recebe resposta comercial real do modelo, ou (b) recebe a nova frase de transferência e a conversa aparece em "aguardando atendente".
+
+**Pendência declarada (descopada desta entrega):** retentativa cruzada de modelo quando `finish_reason="length"` + `content=""` (tentar gpt-5-mini → gpt-5 → gpt-5.2 antes de cair no handoff) ficou fora deste registro. O bump de tokens para 1500 deve eliminar o sintoma; se reaparecer com gpt-5.2/Pro consumindo +1500 tokens em reasoning, abrir Reg #42 para implementar a retentativa cruzada.
+
+**Anti-regressão:**
+- Memória `mem://constraints/empty-response-fallback-must-route-by-intent` atualizada para Reg #17.2: PROIBIDO usar `FALLBACK_PROMISE_BY_STATE` como default; default é handoff humano com a frase fixa.
+
+**Status:** Ajuste aplicado — pendente de validação pelo operador.
+
+---
+
 ## Registro #40 — Unificação do provedor de IA: chat de teste passa a usar OpenAI — 24/mai/2026
+
 
 **Contexto:** o operador percebeu que o chat de teste do Comando Central não respondia (balão vazio) por causa de rate limit, enquanto o agente de Atendimento (WhatsApp/Web) seguia funcionando. Investigação mostrou que os dois usavam provedores diferentes: o Atendimento ia direto na OpenAI; o chat de teste ia pelo Lovable AI Gateway com Gemini, que estava devolvendo `RATE_LIMIT`.
 
