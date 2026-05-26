@@ -7575,6 +7575,71 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           `tools_called=${toolsCalledThisTurn.length} forced_round=${forcedTextRoundApplied}`
         );
 
+        // [Reg #17.3 — Frente 2] RETRY EM MODELO ALTERNATIVO antes do handoff.
+        // Quando o composer atual devolveu vazio com finish=length E o reasoning
+        // consumiu >=50% do budget, é sinal claro de starvation. Tentamos UMA vez
+        // com um modelo alternativo (mini → gpt-5 → gpt-5.2), pulando o que já foi
+        // usado e o que já está marcado como indisponível. Limite estrito: 1 retry.
+        const reasoningStarve =
+          finishReason === "length" && compTokens > 0 && reasoningTokens / compTokens >= 0.5;
+        const alreadyRetried = (aiData as any).__retried_alt_model === true;
+        if (reasoningStarve && !alreadyRetried) {
+          const altCandidates = ["gpt-5-mini", "gpt-5", "gpt-5.2"]
+            .filter((m) => m !== usedModel && !UNAVAILABLE_MODELS.has(m));
+          for (const altModel of altCandidates) {
+            try {
+              const isGpt5Alt = altModel.startsWith("gpt-5");
+              const altBody: any = {
+                model: altModel,
+                messages: currentMessages,
+                ...(isGpt5Alt ? { max_completion_tokens: stateMaxTokens } : { max_tokens: stateMaxTokens }),
+                tools: pipelineFilteredTools.length > 0 ? pipelineFilteredTools : undefined,
+                tool_choice: "none",
+                parallel_tool_calls: false,
+              };
+              if (isGpt5Alt && !isReasoningIncompatible(altModel)) {
+                altBody.reasoning = { effort: "minimal" };
+              }
+              if (!isGpt5Alt) altBody.temperature = 0.3;
+              console.log(`[ai-support-chat] [Reg #17.3-F2] empty-retry try=${altModel} (after ${usedModel} starved)`);
+              const altResp = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(altBody),
+              });
+              if (!altResp.ok) {
+                console.warn(`[ai-support-chat] [Reg #17.3-F2] empty-retry ${altModel} http=${altResp.status}`);
+                continue;
+              }
+              const altData = await altResp.json();
+              if (altData.usage) {
+                inputTokens += altData.usage.prompt_tokens || 0;
+                outputTokens += altData.usage.completion_tokens || 0;
+              }
+              const altText = altData.choices?.[0]?.message?.content;
+              if (altText && altText.trim()) {
+                aiContent = altText;
+                usedModel = altModel;
+                modelUsed = altModel;
+                (aiData as any).__retried_alt_model = true;
+                console.log(`[ai-support-chat] [Reg #17.3-F2] empty-retry SUCCESS model=${altModel} chars=${altText.length}`);
+                break;
+              }
+              console.warn(`[ai-support-chat] [Reg #17.3-F2] empty-retry ${altModel} also empty (finish=${altData.choices?.[0]?.finish_reason})`);
+            } catch (altErr) {
+              console.error(`[ai-support-chat] [Reg #17.3-F2] empty-retry ${altModel} threw:`, altErr);
+            }
+          }
+        }
+      }
+
+      if (!aiContent || !aiContent.trim()) {
+        const finishReason = aiData.choices?.[0]?.finish_reason || "unknown";
+        );
+
         const toolsAlreadyRan = toolsCalledThisTurn.length > 0;
         const FALLBACK_PROMISE_BY_STATE: Record<PipelineState, string> = {
           greeting:        "Oi! Tudo bem? Me conta o que você está procurando.",
