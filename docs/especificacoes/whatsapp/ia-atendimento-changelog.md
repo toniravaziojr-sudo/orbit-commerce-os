@@ -2037,3 +2037,26 @@ A variável `firedReflexId` (introduzida na Frente 5 — Reflex-Aware Fallback) 
 📌 **STATUS DA ENTREGA:** Corrigido e validado (smoke test).
 
 📝 **DOCUMENTAÇÃO NECESSÁRIA:** Memória anti-regressão criada e indexada. Sem outros docs impactados.
+
+---
+
+## Registro #42 — 2026-05-26 — Reg #17.3 (Fronts 1, 2, 3, 5): Saudação vazia → handoff Frankenstein
+
+**Sintoma:** Tenant Respeite o Homem caía na frase fixa de handoff ("No momento não consigo te ajudar…") com saudação formal anexada na frente, mesmo após o ajuste do #41 (1500 tokens).
+
+**Causa raiz:** Cinco pontos somados.
+1. Composer default `gpt-5` base queima os 1500 tokens em reasoning interno mesmo em saudação curta.
+2. Loop de fallback de modelos só age em erro HTTP — 200 OK com `content=""` não dispara troca.
+3. Round forçado de texto exigia `toolsCalledThisTurn.length > 0`, então saudação sem tools nunca tentava recuperar.
+4. Greeting scrub detectava que a frase fixa não tinha saudação formal e ANEXAVA "Olá, boa tarde…" na frente → Frankenstein.
+5. (Documentado mas não alterado) Não existe seleção de composer na UI; default é sistêmico para todos os tenants.
+
+**Correções aplicadas em `ai-support-chat`:**
+- **Frente 1 (Reg #17.3):** Em greeting/discovery, override do composer para `gpt-5-mini` independente do default sistêmico. Estados de decisão/checkout continuam no composer forte.
+- **Frente 2 (Reg #17.3-F2):** Após resposta vazia com `finish=length` e `reasoning_tokens >= 50%` do budget, retry único em modelo alternativo (mini → gpt-5 → gpt-5.2), pulando o já usado e os indisponíveis, antes de cair no handoff.
+- **Frente 3 (Reg #17.3):** Removido o requisito de tools terem rodado para acionar o round forçado de texto. Agora saudação vazia tenta recuperar via tool_choice="none".
+- **Frente 5 (Reg #17.3-F5):** Output gates (greeting scrub, price scrub) são pulados quando `shouldHandoff === true` ou quando a frase fixa de handoff já está no conteúdo. Sem mais Frankenstein.
+
+**Validação técnica:** Deploy bem-sucedido (sintaxe validada). Pendente teste real do usuário no chat teste do tenant `respeiteohomem` com saudação curta ("oi", "tudo bem?") — esperado: resposta comercial real do mini, sem cair em handoff e sem saudação duplicada.
+
+📌 **STATUS DA ENTREGA:** Ajuste aplicado. Pendente de validação pelo usuário no chat teste.
