@@ -4166,24 +4166,34 @@ Deno.serve(async (req) => {
     // UNIVERSAL GATE: channel_accounts.is_active
     // Source of truth for "channel enabled". If the row is missing
     // or is_active=false, AI must NOT respond on this channel.
+    // EXCEÇÃO: conversas sandbox (chat de teste interno do lojista)
+    // ignoram este gate — sandbox é isolada (metadata.is_sandbox=true),
+    // só o lojista logado vê, e o objetivo é justamente poder testar a
+    // IA mesmo quando os canais reais estão desligados.
     // ============================================
-    const { data: channelAccount } = await supabase
-      .from("channel_accounts")
-      .select("id, is_active")
-      .eq("tenant_id", tenant_id)
-      .eq("channel_type", channelType)
-      .maybeSingle();
+    const isSandboxConversation = (conversation as any)?.metadata?.is_sandbox === true;
 
-    if (!channelAccount || channelAccount.is_active === false) {
-      console.log(`[GATE] Channel ${channelType} not active for tenant ${tenant_id} (row=${!!channelAccount}, active=${channelAccount?.is_active})`);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Channel ${channelType} is disabled for this tenant`,
-          code: "CHANNEL_DISABLED",
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!isSandboxConversation) {
+      const { data: channelAccount } = await supabase
+        .from("channel_accounts")
+        .select("id, is_active")
+        .eq("tenant_id", tenant_id)
+        .eq("channel_type", channelType)
+        .maybeSingle();
+
+      if (!channelAccount || channelAccount.is_active === false) {
+        console.log(`[GATE] Channel ${channelType} not active for tenant ${tenant_id} (row=${!!channelAccount}, active=${channelAccount?.is_active})`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Channel ${channelType} is disabled for this tenant`,
+            code: "CHANNEL_DISABLED",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      console.log(`[GATE] Sandbox conversation — bypassing channel_accounts gate for tenant ${tenant_id}`);
     }
 
     const { data: channelConfig } = await supabase
