@@ -8649,6 +8649,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
           }
         }
       }
+      } // close else { non-handoff scrubs block (Reg #17.3-F5)
     } catch (e) {
       console.warn("[ai-support-chat] [Reg #2.8] output gates failed:", (e as Error).message);
     }
