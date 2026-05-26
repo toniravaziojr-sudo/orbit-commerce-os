@@ -6831,7 +6831,12 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       // Mantemos o budget de tokens menor só nos estados realmente curtos.
       const SHORT_OUTPUT_STATES: PipelineState[] = ["greeting", "discovery"];
       const isShortOutputState = salesModeEnabled && SHORT_OUTPUT_STATES.includes(pipelineState);
-      const stateMaxTokens = isShortOutputState ? 600 : 4096;
+      // [Reg #17.2] Budget de tokens dos estados curtos sobe de 600 → 1500.
+      // Em gpt-5* com reasoning=minimal o modelo consome 400-600 tokens só em
+      // raciocínio interno; com 600 de teto a resposta visível vinha vazia
+      // (finish_reason="length", content=""), caindo na muleta universal de
+      // discovery e gerando a sensação de IA robótica/repetitiva.
+      const stateMaxTokens = isShortOutputState ? 1500 : 4096;
       const stateReasoningEffort: "minimal" | "low" | "medium" = isLightState ? "minimal" : "low";
       // Compat com referências antigas no arquivo (logs).
       const isSimpleState = isLightState;
