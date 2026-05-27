@@ -185,8 +185,8 @@ Deno.serve(async (req) => {
     if (action === 'test_connection') {
       // Simple SOAP call to check if endpoint responds
       const envelope = buildSoapEnvelope('RecepcaoDocNfe', {
-        XmlNfe: '<test/>',
-        CnpjDestinatario: cnpj,
+        cnpj,
+        xmlNfe: '<test/>',
       });
       const result = await sendSoap(endpointUrl, 'RecepcaoDocNfe', envelope);
       
