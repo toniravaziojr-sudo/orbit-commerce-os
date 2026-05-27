@@ -302,9 +302,8 @@ Deno.serve(async (req) => {
         .single();
 
       const envelope = buildSoapEnvelope('AtualizarCodRastreioNfe', {
-        ChaveNfe: invoice?.chave_acesso || '',
-        CodRastreio: tracking_code,
-        CnpjDestinatario: cnpj,
+        chaveAcesso: invoice?.chave_acesso || '',
+        codRastreio: tracking_code,
       });
 
       const result = await sendSoap(endpointUrl, 'AtualizarCodRastreioNfe', envelope);
