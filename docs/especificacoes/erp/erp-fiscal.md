@@ -2237,3 +2237,15 @@ O Pedido de Venda Fiscal é a **origem oficial** do rascunho logístico. Ao cria
 - Pedidos via gateway e marketplaces seguem rotas próprias e não passam pela fila local.
 
 Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda`.
+
+---
+
+## Status do Pedido de Venda controla presença na fila de Remessas (2026-05-27)
+
+A fila de **Remessas (Logística)** lista exatamente os Pedidos de Venda com status **"Pedido em aberto"** (e que não sejam via gateway de frete).
+
+- Pedido de Venda sai de "em aberto" (chargeback, cancelamento, NF criada, concluído etc.) → some imediatamente da fila de Remessas (apenas rascunhos sem etiqueta).
+- Pedido de Venda volta para "em aberto" → reaparece automaticamente na fila.
+- Remessas com etiqueta já postada nunca são removidas — exigem tratamento manual.
+
+Anti-regressão: ver `mem://constraints/shipment-mirrors-pedido-venda-em-aberto`.
