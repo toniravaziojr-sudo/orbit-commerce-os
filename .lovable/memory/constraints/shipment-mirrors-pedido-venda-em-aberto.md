@@ -10,10 +10,11 @@ type: constraint
 
 1. A fila de Remessas (rascunhos: `shipments.tracking_code IS NULL OR ''`) deve refletir 1:1 os Pedidos de Venda raiz com `pedido_status='em_aberto'`, exceto pedidos com `orders.resolved_shipping_provider_kind='gateway'` (fluxo próprio).
 2. Trigger `trg_sync_shipment_with_pv_status` em `public.fiscal_invoices` (AFTER INSERT OR UPDATE OF `pedido_status`):
-   - `pedido_status → 'em_aberto'`: cria shipment rascunho (`source='auto_pv_sync'`, `carrier='correios'`, `delivery_status='label_created'`) vinculado via `source_pedido_venda_id`. Não duplica se já existe rascunho para o `order_id`; nesse caso só anexa o vínculo.
-   - `pedido_status` sai de `'em_aberto'`: `DELETE` em `shipments` onde `order_id=NEW.order_id AND tracking_code IS NULL/''`.
-3. Função: `public.sync_shipment_with_pv_status()` (SECURITY DEFINER, `search_path=public`).
-4. Aplica-se apenas a PV raiz (`fiscal_stage='pedido_venda' AND source_order_invoice_id IS NULL`).
+   - `pedido_status → 'em_aberto'`: cria shipment rascunho (`source='auto_pv_sync'`, `carrier='correios'`, `delivery_status='label_created'`) vinculado via `source_pedido_venda_id`. Não duplica se já existe rascunho para o `order_id`; nesse caso só anexa o vínculo. Quando `order_id IS NULL` (PV manual/duplicado), o worker da fila cria a remessa lendo dados do próprio PV.
+   - `pedido_status` sai de `'em_aberto'`: `DELETE` em `shipments` onde `(order_id=NEW.order_id OR source_pedido_venda_id=NEW.id) AND tracking_code IS NULL/''` **E** `UPDATE shipping_draft_queue SET status='cancelled', cancel_reason='pv_left_em_aberto:<status>'` para itens `pending/processing` do mesmo PV (impede recriação por retry tardio).
+3. Trava anti-corrida no `scheduler-tick` (PHASE 1.6): antes de inserir a remessa por `source_pedido_venda_id`, revalidar `pv.pedido_status='em_aberto' AND fiscal_stage='pedido_venda' AND source_order_invoice_id IS NULL`. Se não, cancelar item da fila com `cancel_reason='pv_not_em_aberto:<status>'`. Previne remessa órfã quando NF é emitida antes do worker processar.
+4. Função: `public.sync_shipment_with_pv_status()` (SECURITY DEFINER, `search_path=public`).
+5. Aplica-se apenas a PV raiz (`fiscal_stage='pedido_venda' AND source_order_invoice_id IS NULL`).
 
 ## O que NUNCA pode acontecer
 

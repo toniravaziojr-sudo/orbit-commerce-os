@@ -453,14 +453,16 @@ A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status 
 
 **Regra:**
 - Pedido de Venda passa para "em aberto" → remessa em rascunho aparece automaticamente.
-- Pedido de Venda sai de "em aberto" (cancelado, chargeback, NF criada, concluído, etc.) → remessa em rascunho some automaticamente.
+- Pedido de Venda sai de "em aberto" (cancelado, chargeback, NF criada, concluído, etc.) → remessa em rascunho some automaticamente **E itens ainda pendentes na fila de processamento são cancelados** (impede recriação por retry tardio).
 - Pedido de Venda volta para "em aberto" → remessa em rascunho retorna.
 - **Remessas com etiqueta já postada (com código de rastreio) nunca são tocadas.**
 - Pedidos via gateway (Frenet etc.) seguem fluxo próprio, fora da fila local.
 
-**Resultado:** quantidade de Pedidos de Venda em aberto = quantidade de remessas locais em rascunho + remessas via gateway. Sem órfãs, sem faltantes, sem manutenção manual.
+**Trava anti-corrida no processador da fila (2026-05-27):** antes de criar a remessa, o worker revalida o estado do Pedido de Venda. Se o PV já saiu de "em aberto" (NF emitida, cancelado, chargeback) entre o enfileiramento e o processamento, o item da fila é cancelado com motivo `pv_not_em_aberto:<status>` e nenhuma remessa órfã é gerada. Caso encontrado: PV 347 (Lesinete duplicado) — remessa órfã removida em 2026-05-27.
 
-**Acerto de carga (2026-05-27):** removidas 2 remessas órfãs (PVs em chargeback) e reconciliado 1 PV em aberto sem remessa local (era gateway, fluxo correto). Saldo: 252 remessas Correios + 1 gateway = 253 PVs em aberto.
+**Resultado:** quantidade de Pedidos de Venda em aberto = quantidade de remessas locais em rascunho + remessas via gateway. Sem órfãs, sem faltantes, sem manutenção manual, sem janela de corrida.
+
+**Acerto de carga (2026-05-27):** removidas 2 remessas órfãs (PVs em chargeback) + 1 remessa órfã do PV 347 (criada fora da janela do espelho); reconciliado 1 PV em aberto sem remessa local (era gateway, fluxo correto).
 
 Anti-regressão: ver `mem://constraints/shipment-mirrors-pedido-venda-em-aberto`.
 
