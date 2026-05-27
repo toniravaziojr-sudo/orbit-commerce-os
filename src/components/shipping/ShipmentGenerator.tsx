@@ -120,8 +120,8 @@ export function ShipmentGenerator() {
       let query = supabase
         .from('shipments')
         .select<string, any>(`
-          id, order_id, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
-          order:orders!inner(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status, resolved_shipping_provider_kind)
+          id, order_id, carrier, service_name, manually_adjusted, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          order:orders(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
         .eq('delivery_status', 'draft' as any)
