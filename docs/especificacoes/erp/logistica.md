@@ -466,7 +466,12 @@ A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status 
 
 **Status interno da remessa-rascunho:** ao nascer pelo espelho do Pedido de Venda, a remessa é criada com status interno **"rascunho"** (não "etiqueta criada"). Esse é o valor que a aba "Prontos para emitir remessa" filtra. Criar com qualquer outro status torna a remessa invisível na tela, mesmo existindo no banco. Incidente 2026-05-27 (PVs 348 e 349 da Respeite o Homem): gatilho estava marcando como "etiqueta criada" e as remessas não apareciam — corrigido e 2 registros regularizados.
 
+**Peso e dimensões na criação automática (2026-05-27):** o gatilho de espelhamento agora calcula peso (gramas), altura, largura, profundidade e valor declarado a partir dos itens do pedido (ou dos itens do PV, quando manual), usando o cadastro do produto e fallback de 300 g por item quando não houver peso cadastrado. Transportadora e serviço (PAC/SEDEX/etc.) também são propagados do pedido para a remessa. Incidente 2026-05-27 (pedidos 536 e 537 da Respeite o Homem): remessas nasceram sem peso/serviço porque foram criadas antes desse ajuste — backfill aplicado.
+
+**Ações manuais no rascunho (2026-05-27):** na aba "Prontos para emitir remessa" o operador pode **criar novo rascunho**, **editar** (peso, dimensões, transportadora, serviço, destinatário, valor declarado) e **excluir** rascunhos. Qualquer edição ou criação manual marca a remessa como **ajustada manualmente** e, a partir daí, o sistema não recalcula nem apaga esse registro automaticamente — a responsabilidade passa a ser do operador. O espelhamento automático continua valendo apenas para rascunhos que nunca foram tocados manualmente.
+
 Anti-regressão: ver `mem://constraints/shipment-mirrors-pedido-venda-em-aberto`.
+
 
 ---
 
