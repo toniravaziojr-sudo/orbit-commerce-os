@@ -104,6 +104,10 @@ export function ShipmentGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [dispatchDialog, setDispatchDialog] = useState<ShipmentRecord | null>(null);
   const [isDispatching, setIsDispatching] = useState(false);
+  const [draftDialogOpen, setDraftDialogOpen] = useState(false);
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
+  const [deletingShipmentId, setDeletingShipmentId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
