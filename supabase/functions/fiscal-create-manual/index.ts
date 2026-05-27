@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
       valor_outras_despesas: bodyValorOutras,
       modalidade_frete: bodyModalidadeFrete,
       transportadora_nome: bodyTranspNome,
+      transportadora_servico: bodyTranspServico,
       transportadora_cnpj: bodyTranspCnpj,
       peso_bruto: bodyPesoBruto,
       peso_liquido: bodyPesoLiquido,
