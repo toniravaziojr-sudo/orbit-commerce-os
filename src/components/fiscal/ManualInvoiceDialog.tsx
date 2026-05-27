@@ -172,6 +172,7 @@ export function ManualInvoiceDialog({
   const [informacoesFisco, setInformacoesFisco] = useState<string>('');
   // Campos preservados invisivelmente na duplicação (não exibidos nesta etapa)
   const [transportadoraNome, setTransportadoraNome] = useState<string>('');
+  const [transportadoraServico, setTransportadoraServico] = useState<string>('');
   const [transportadoraCnpj, setTransportadoraCnpj] = useState<string>('');
   const [pesoBruto, setPesoBruto] = useState<number | null>(null);
   const [pesoLiquido, setPesoLiquido] = useState<number | null>(null);
