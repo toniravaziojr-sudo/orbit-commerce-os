@@ -261,8 +261,8 @@ Deno.serve(async (req) => {
 
       // Send to WMS
       const envelope = buildSoapEnvelope('RecepcaoDocNfe', {
-        XmlNfe: xmlContent,
-        CnpjDestinatario: cnpj,
+        cnpj,
+        xmlNfe: xmlContent,
       });
 
       const result = await sendSoap(endpointUrl, 'RecepcaoDocNfe', envelope);
