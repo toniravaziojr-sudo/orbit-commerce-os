@@ -1457,3 +1457,20 @@ Mudanças:
 - Confirmadas no banco as 15 colunas críticas (`tipo_nota`, `tipo_documento`, `finalidade_emissao`, `indicador_presenca`, `indicador_ie_dest`, `informacoes_fisco`, `nfe_referenciada`, `hora_saida`, `valor_bc_icms`, `valor_icms`, `valor_pis`, `valor_cofins`, `pagamento_indicador`, `pagamento_meio`, `pagamento_valor`).
 - Conferida a edge function de salvamento mapeia todos esses campos.
 - Pendente de validação pelo usuário no tenant `respeiteohomem`: salvar uma nota como "Transferência", recarregar e confirmar que volta como "Transferência" em todas as abas.
+
+---
+
+## WMS Pratika — Contrato SOAP oficial (DDS Informática)
+
+**Problema:** envio de NF-e ao Pratika retornava erro genérico de servidor, sem detalhamento útil, mesmo com credenciais corretas e conexão TCP/TLS aberta.
+
+**Causa:** a envelopa SOAP estava usando namespace genérico (`http://tempuri.org/`) e nomes de parâmetros camelCase próximos do WSDL, mas não idênticos. O servidor da Pratika rejeita silenciosamente qualquer divergência de namespace ou nome de parâmetro e responde como falha interna, dificultando o diagnóstico.
+
+**Solução:** alinhar a envelopa ao WSDL oficial:
+
+- Namespace: `http://wmspratika.ddsinformatica.com.br/`
+- Parâmetros canônicos: `cnpj`, `xmlNfe`, `chaveAcesso`, `codRastreio` (exatamente assim, sem variações).
+
+**Anti-regressão:** qualquer mudança no contrato SOAP da Pratika exige verificação contra o WSDL atual antes do deploy. Não inferir nomes de parâmetro por dedução. Não trocar namespace por "padrão" sem confirmar. Validar em produção com 1 NF real autorizada e confirmar registro de sucesso no log do tenant.
+
+Memória: `mem://features/external-apps/wms-pratika-integration`.
