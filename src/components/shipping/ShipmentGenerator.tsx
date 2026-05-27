@@ -527,9 +527,14 @@ export function ShipmentGenerator() {
                   <Package className="h-4 w-4" />
                   Prontos para emitir remessa
                 </CardTitle>
-                <span className="text-sm text-muted-foreground">
-                  {readyCount} pedido(s)
-                </span>
+                <div className="flex items-center gap-3">
+                  <Button size="sm" variant="outline" onClick={openCreateDraft} className="gap-1">
+                    <Plus className="h-3.5 w-3.5" /> Criar novo rascunho
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {readyCount} pedido(s)
+                  </span>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
