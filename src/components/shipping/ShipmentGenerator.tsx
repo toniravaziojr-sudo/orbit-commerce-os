@@ -940,6 +940,31 @@ export function ShipmentGenerator() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DraftShipmentDialog
+        open={draftDialogOpen}
+        onOpenChange={setDraftDialogOpen}
+        shipmentId={editingShipmentId}
+        onSaved={invalidateAll}
+      />
+
+      <AlertDialog open={!!deletingShipmentId} onOpenChange={(o) => !o && setDeletingShipmentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir rascunho de remessa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O rascunho será removido. Esta ação não toca no pedido nem na NF-e — apenas remove a remessa.
+              Se o pedido continuar em aberto, o sistema NÃO vai recriar automaticamente este rascunho.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteDraft} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting ? 'Excluindo…' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
