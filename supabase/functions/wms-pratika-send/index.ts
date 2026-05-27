@@ -7,6 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const PRATIKA_NAMESPACE = 'http://wmspratika.ddsinformatica.com.br/';
+
 /**
  * Monta envelope SOAP para operações do WMS Pratika
  */
@@ -18,7 +20,7 @@ function buildSoapEnvelope(operation: string, params: Record<string, string>): s
   return `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
   <soap:Body>
-    <${operation} xmlns="http://tempuri.org/">
+    <${operation} xmlns="${PRATIKA_NAMESPACE}">
 ${paramXml}
     </${operation}>
   </soap:Body>
