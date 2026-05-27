@@ -225,29 +225,35 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
 
     setIsLoading(true);
     try {
-      const entryData: any = {
-        natureza_operacao: nature.nome,
-        tipo_documento: 0, // Entrada
-        finalidade_emissao: selectedEntryType.finalidade_emissao,
-        items: [],
-      };
+      // NF de Entrada SEMPRE nasce em modo 'nfe_manual' (aba Notas Fiscais),
+      // NUNCA como Pedido de Venda. O destinatário precisa vir aninhado
+      // (contrato da edge fiscal-create-manual).
+      const buildEndereco = (src: any) => ({
+        logradouro: src.dest_endereco_logradouro || src.logradouro || '',
+        numero: src.dest_endereco_numero || src.numero || '',
+        complemento: src.dest_endereco_complemento || src.complemento || '',
+        bairro: src.dest_endereco_bairro || src.bairro || '',
+        municipio: src.dest_endereco_municipio || src.cidade || '',
+        uf: src.dest_endereco_uf || src.uf || '',
+        cep: src.dest_endereco_cep || src.cep || '',
+      });
+
+      let destinatario: any;
+      let itens: any[] = [];
+      let nfeReferenciada: string | undefined;
+      let obsFinal = observacoes;
 
       if (selectedEntryType.requiresReferenceNfe && foundInvoice) {
-        // Reference-based entry (devolução)
-        entryData.nfe_referenciada = foundInvoice.chave_acesso;
-        entryData.dest_nome = foundInvoice.dest_nome;
-        entryData.dest_cpf_cnpj = foundInvoice.dest_cpf_cnpj;
-        entryData.dest_inscricao_estadual = foundInvoice.dest_inscricao_estadual;
-        entryData.dest_endereco_logradouro = foundInvoice.dest_endereco_logradouro;
-        entryData.dest_endereco_numero = foundInvoice.dest_endereco_numero;
-        entryData.dest_endereco_complemento = foundInvoice.dest_endereco_complemento;
-        entryData.dest_endereco_bairro = foundInvoice.dest_endereco_bairro;
-        entryData.dest_endereco_municipio = foundInvoice.dest_endereco_municipio;
-        entryData.dest_endereco_uf = foundInvoice.dest_endereco_uf;
-        entryData.dest_endereco_cep = foundInvoice.dest_endereco_cep;
-        entryData.observacoes = observacoes || `Devolução referente à NF-e ${foundInvoice.chave_acesso}`;
+        // Devolução: copia destinatário e itens da NF original.
+        destinatario = {
+          nome: foundInvoice.dest_nome,
+          cpf_cnpj: foundInvoice.dest_cpf_cnpj,
+          inscricao_estadual: foundInvoice.dest_inscricao_estadual,
+          endereco: buildEndereco(foundInvoice),
+        };
+        nfeReferenciada = foundInvoice.chave_acesso;
+        obsFinal = observacoes || `Devolução referente à NF-e ${foundInvoice.chave_acesso}`;
 
-        // If local invoice, fetch items
         if (foundInvoice.isLocal) {
           const { data: items } = await supabase
             .from('fiscal_invoice_items')
@@ -255,7 +261,8 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
             .eq('invoice_id', foundInvoice.id);
 
           if (items) {
-            entryData.items = items.map((item: any) => ({
+            itens = items.map((item: any, idx: number) => ({
+              numero_item: idx + 1,
               codigo: item.codigo_produto,
               descricao: item.descricao,
               ncm: item.ncm,
@@ -269,26 +276,27 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess, initialChave
           }
         }
       } else {
-        // Manual entry (compra, remessa, transferência, etc.)
-        entryData.dest_nome = supplier.name;
-        entryData.dest_cpf_cnpj = supplier.document || null;
-        if (supplier.ie) entryData.dest_inscricao_estadual = supplier.ie;
-        if (supplier.logradouro) entryData.dest_endereco_logradouro = supplier.logradouro;
-        if (supplier.numero) entryData.dest_endereco_numero = supplier.numero;
-        if (supplier.complemento) entryData.dest_endereco_complemento = supplier.complemento;
-        if (supplier.bairro) entryData.dest_endereco_bairro = supplier.bairro;
-        if (supplier.cidade) entryData.dest_endereco_municipio = supplier.cidade;
-        if (supplier.uf) entryData.dest_endereco_uf = supplier.uf;
-        if (supplier.cep) entryData.dest_endereco_cep = supplier.cep;
-        // Note: supplier link (supplier_id) intentionally omitted — fiscal_invoices
-        // does not have this column yet. Selection above just pre-fills dest_* fields.
-        entryData.observacoes = observacoes || `NF-e de Entrada - ${selectedEntryType.label}`;
-        
-        // If user provided a reference key optionally
-        if (chaveAcesso.replace(/\D/g, '').length === 44) {
-          entryData.nfe_referenciada = chaveAcesso.replace(/\D/g, '');
-        }
+        // Compra, remessa, transferência, outros: remetente do contato.
+        destinatario = {
+          nome: supplier.name,
+          cpf_cnpj: supplier.document || '',
+          inscricao_estadual: supplier.ie || undefined,
+          endereco: buildEndereco(supplier),
+        };
+        obsFinal = observacoes || `NF-e de Entrada - ${selectedEntryType.label}`;
+        const chaveDigits = chaveAcesso.replace(/\D/g, '');
+        if (chaveDigits.length === 44) nfeReferenciada = chaveDigits;
       }
+
+      const entryData: any = {
+        mode: 'nfe_manual',
+        natureza_operacao_id: nature.id,
+        natureza_operacao: nature.nome,
+        destinatario,
+        itens,
+        observacoes: obsFinal,
+      };
+      if (nfeReferenciada) entryData.nfe_referenciada = nfeReferenciada;
 
       const { data, error } = await supabase.functions.invoke('fiscal-create-manual', {
         body: entryData,
