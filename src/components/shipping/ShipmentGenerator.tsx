@@ -58,6 +58,8 @@ interface ShipmentRecord {
   created_at: string;
   source: string | null;
   metadata: any;
+  manually_adjusted?: boolean;
+  service_name?: string | null;
   label_url: string | null;
   nfe_key: string | null;
   invoice_id: string | null;
