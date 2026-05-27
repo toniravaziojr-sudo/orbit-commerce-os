@@ -17559,7 +17559,7 @@ export type Database = {
           metadata: Json | null
           next_poll_at: string | null
           nfe_key: string | null
-          order_id: string
+          order_id: string | null
           poll_error_count: number | null
           provider_shipment_id: string | null
           requires_action: boolean
@@ -17588,7 +17588,7 @@ export type Database = {
           metadata?: Json | null
           next_poll_at?: string | null
           nfe_key?: string | null
-          order_id: string
+          order_id?: string | null
           poll_error_count?: number | null
           provider_shipment_id?: string | null
           requires_action?: boolean
@@ -17617,7 +17617,7 @@ export type Database = {
           metadata?: Json | null
           next_poll_at?: string | null
           nfe_key?: string | null
-          order_id?: string
+          order_id?: string | null
           poll_error_count?: number | null
           provider_shipment_id?: string | null
           requires_action?: boolean

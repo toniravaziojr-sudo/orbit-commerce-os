@@ -172,6 +172,7 @@ export function ManualInvoiceDialog({
   const [informacoesFisco, setInformacoesFisco] = useState<string>('');
   // Campos preservados invisivelmente na duplicação (não exibidos nesta etapa)
   const [transportadoraNome, setTransportadoraNome] = useState<string>('');
+  const [transportadoraServico, setTransportadoraServico] = useState<string>('');
   const [transportadoraCnpj, setTransportadoraCnpj] = useState<string>('');
   const [pesoBruto, setPesoBruto] = useState<number | null>(null);
   const [pesoLiquido, setPesoLiquido] = useState<number | null>(null);
@@ -212,6 +213,7 @@ export function ManualInvoiceDialog({
       setModalidadeFrete(initialData.modalidade_frete || '9');
       setInformacoesFisco(initialData.informacoes_fisco || '');
       setTransportadoraNome(initialData.transportadora_nome || '');
+      setTransportadoraServico(initialData.transportadora_servico || '');
       setTransportadoraCnpj(initialData.transportadora_cnpj || '');
       setPesoBruto(initialData.peso_bruto ?? null);
       setPesoLiquido(initialData.peso_liquido ?? null);
@@ -244,6 +246,7 @@ export function ManualInvoiceDialog({
       setModalidadeFrete('9');
       setInformacoesFisco('');
       setTransportadoraNome('');
+      setTransportadoraServico('');
       setTransportadoraCnpj('');
       setPesoBruto(null);
       setPesoLiquido(null);
@@ -560,6 +563,7 @@ export function ManualInvoiceDialog({
           valor_outras_despesas: Number(valorOutras) || 0,
           modalidade_frete: modalidadeFrete || '9',
           transportadora_nome: transportadoraNome || null,
+          transportadora_servico: transportadoraServico || null,
           transportadora_cnpj: transportadoraCnpj || null,
           peso_bruto: pesoBruto,
           peso_liquido: pesoLiquido,

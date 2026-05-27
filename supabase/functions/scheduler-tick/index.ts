@@ -627,7 +627,7 @@ Deno.serve(async (req) => {
         // Fetch pending items (limit 5 per pass)
         const { data: shippingItems, error: shippingQueueError } = await supabaseShipping
           .from('shipping_draft_queue')
-          .select('id, tenant_id, order_id, provider, attempts')
+          .select('id, tenant_id, order_id, source_pedido_venda_id, provider, attempts')
           .eq('status', 'pending')
           .order('created_at', { ascending: true })
           .limit(5);
@@ -645,55 +645,126 @@ Deno.serve(async (req) => {
                 .update({ status: 'processing', attempts: item.attempts + 1 })
                 .eq('id', item.id);
 
-              // Fetch order data
-              const { data: order, error: orderError } = await supabaseShipping
-                .from('orders')
-                .select(`
-                  id, tenant_id, total, shipping_street, shipping_number,
-                  shipping_complement, shipping_neighborhood, shipping_city,
-                  shipping_state, shipping_postal_code, shipping_carrier, shipping_method_name,
-                  shipping_service_code, customer_name, customer_email, customer_phone
-                `)
-                .eq('id', item.order_id)
-                .single();
-
-              if (orderError || !order) {
-                throw new Error(`Order not found: ${orderError?.message || 'null'}`);
-              }
-
-              // Fetch order items with product dimensions
-              const { data: orderItems } = await supabaseShipping
-                .from('order_items')
-                .select('quantity, product_id, products(weight, height, width, depth)')
-                .eq('order_id', item.order_id);
-
-              // Calculate total weight and max dimensions
+              let carrier = item.provider || 'correios';
+              let serviceName: string | null = null;
+              let serviceCode: string | null = null;
               let totalWeightGrams = 0;
-              let maxHeight = 2, maxWidth = 11, maxLength = 16; // Correios minimums
-              
-              if (orderItems) {
-                for (const oi of orderItems) {
-                  const product = (oi as any).products;
-                  if (product) {
-                    totalWeightGrams += (product.weight || 300) * (oi.quantity || 1); // weight already in grams
-                    maxHeight = Math.max(maxHeight, product.height || 2);
-                    maxWidth = Math.max(maxWidth, product.width || 11);
-                    maxLength = Math.max(maxLength, product.depth || 16);
-                  } else {
-                    totalWeightGrams += 300 * (oi.quantity || 1); // fallback 300g
+              let maxHeight = 2, maxWidth = 11, maxLength = 16;
+              let recipientName: string | null = null;
+              let recipientZip: string | null = null;
+              let declaredValueCents = 0;
+              let shippingMethod: string | null = null;
+
+              if (item.order_id) {
+                // ---------- Caminho clássico: PV vinculado a pedido real ----------
+                const { data: order, error: orderError } = await supabaseShipping
+                  .from('orders')
+                  .select(`
+                    id, tenant_id, total, shipping_street, shipping_number,
+                    shipping_complement, shipping_neighborhood, shipping_city,
+                    shipping_state, shipping_postal_code, shipping_carrier, shipping_method_name,
+                    shipping_service_code, shipping_service_name, customer_name, customer_email, customer_phone
+                  `)
+                  .eq('id', item.order_id)
+                  .single();
+
+                if (orderError || !order) {
+                  throw new Error(`Order not found: ${orderError?.message || 'null'}`);
+                }
+
+                const { data: orderItems } = await supabaseShipping
+                  .from('order_items')
+                  .select('quantity, product_id, products(weight, height, width, depth)')
+                  .eq('order_id', item.order_id);
+
+                if (orderItems) {
+                  for (const oi of orderItems) {
+                    const product = (oi as any).products;
+                    if (product) {
+                      totalWeightGrams += (product.weight || 300) * (oi.quantity || 1);
+                      maxHeight = Math.max(maxHeight, product.height || 2);
+                      maxWidth = Math.max(maxWidth, product.width || 11);
+                      maxLength = Math.max(maxLength, product.depth || 16);
+                    } else {
+                      totalWeightGrams += 300 * (oi.quantity || 1);
+                    }
                   }
                 }
+
+                carrier = order.shipping_carrier || item.provider || 'manual';
+                serviceName = (order as any).shipping_service_name || null;
+                serviceCode = order.shipping_service_code || null;
+                recipientName = order.customer_name;
+                recipientZip = order.shipping_postal_code;
+                declaredValueCents = order.total;
+                shippingMethod = order.shipping_method_name;
+              } else if (item.source_pedido_venda_id) {
+                // ---------- PV manual/duplicado: ler do próprio Pedido de Venda ----------
+                const { data: pv, error: pvError } = await supabaseShipping
+                  .from('fiscal_invoices')
+                  .select('id, tenant_id, dest_nome, dest_endereco_cep, valor_total, transportadora_nome, transportadora_servico, peso_bruto')
+                  .eq('id', item.source_pedido_venda_id)
+                  .single();
+                if (pvError || !pv) {
+                  throw new Error(`PV not found: ${pvError?.message || 'null'}`);
+                }
+
+                const { data: pvItems } = await supabaseShipping
+                  .from('fiscal_invoice_items')
+                  .select('quantidade, codigo_produto')
+                  .eq('invoice_id', item.source_pedido_venda_id);
+
+                // Resolver dimensões/peso a partir do cadastro de produtos via codigo_produto
+                const codes = (pvItems || []).map((it: any) => it.codigo_produto).filter(Boolean);
+                let productMap = new Map<string, any>();
+                if (codes.length) {
+                  const { data: products } = await supabaseShipping
+                    .from('products')
+                    .select('sku, weight, height, width, depth')
+                    .eq('tenant_id', pv.tenant_id)
+                    .in('sku', codes);
+                  for (const p of products || []) productMap.set((p as any).sku, p);
+                }
+                if (pvItems && pvItems.length) {
+                  for (const it of pvItems) {
+                    const qty = Number((it as any).quantidade) || 1;
+                    const p = productMap.get((it as any).codigo_produto);
+                    if (p) {
+                      totalWeightGrams += (p.weight || 300) * qty;
+                      maxHeight = Math.max(maxHeight, p.height || 2);
+                      maxWidth = Math.max(maxWidth, p.width || 11);
+                      maxLength = Math.max(maxLength, p.depth || 16);
+                    } else {
+                      totalWeightGrams += 300 * qty;
+                    }
+                  }
+                }
+                // Se PV trouxe peso_bruto explícito (kg), respeita
+                const pesoKg = Number((pv as any).peso_bruto || 0);
+                if (pesoKg > 0) totalWeightGrams = Math.round(pesoKg * 1000);
+
+                carrier = (pv.transportadora_nome || item.provider || 'correios').toLowerCase();
+                serviceName = pv.transportadora_servico || null;
+                serviceCode = null;
+                recipientName = pv.dest_nome;
+                recipientZip = pv.dest_endereco_cep;
+                declaredValueCents = Math.round(Number(pv.valor_total || 0) * 100);
+                shippingMethod = pv.transportadora_servico || null;
+              } else {
+                throw new Error('Queue item has neither order_id nor source_pedido_venda_id');
               }
 
-              // Check if shipment already exists for this order
-              const { data: existingShipment } = await supabaseShipping
-                .from('shipments')
-                .select('id')
-                .eq('order_id', item.order_id)
-                .limit(1);
+              // Dedup: evita criar rascunho duplicado para o mesmo PV ou pedido
+              let dupQuery = supabaseShipping.from('shipments').select('id').limit(1);
+              if (item.source_pedido_venda_id) {
+                dupQuery = dupQuery.eq('source_pedido_venda_id', item.source_pedido_venda_id);
+              } else if (item.order_id) {
+                dupQuery = dupQuery.eq('order_id', item.order_id);
+              }
+              const { data: existingShipment } = await dupQuery;
 
               if (existingShipment && existingShipment.length > 0) {
-                console.log(`[scheduler-tick] shipping queue: shipment already exists for order ${item.order_id}, skipping`);
+                console.log(`[scheduler-tick] shipping queue: shipment already exists, skipping`);
                 await supabaseShipping
                   .from('shipping_draft_queue')
                   .update({ status: 'done', processed_at: new Date().toISOString() })
@@ -701,28 +772,28 @@ Deno.serve(async (req) => {
                 continue;
               }
 
-              // Create draft shipment — propagar carrier + service_name + service_code (3 campos obrigatórios)
               const { error: insertError } = await supabaseShipping
                 .from('shipments')
                 .insert({
                   tenant_id: item.tenant_id,
                   order_id: item.order_id,
-                  carrier: order.shipping_carrier || item.provider || 'manual',
+                  source_pedido_venda_id: item.source_pedido_venda_id,
+                  carrier: carrier || 'correios',
                   tracking_code: '',
                   delivery_status: 'draft' as any,
                   last_status_at: new Date().toISOString(),
-                  service_name: order.shipping_service_name || null,
-                  service_code: order.shipping_service_code || null,
+                  service_name: serviceName,
+                  service_code: serviceCode,
                   source: 'auto_draft',
                   metadata: {
                     weight_grams: totalWeightGrams,
                     height_cm: maxHeight,
                     width_cm: maxWidth,
                     length_cm: maxLength,
-                    shipping_method: order.shipping_method_name,
-                    recipient_name: order.customer_name,
-                    recipient_zip: order.shipping_postal_code,
-                    declared_value_cents: order.total,
+                    shipping_method: shippingMethod,
+                    recipient_name: recipientName,
+                    recipient_zip: recipientZip,
+                    declared_value_cents: declaredValueCents,
                   },
                 });
 
@@ -736,7 +807,7 @@ Deno.serve(async (req) => {
                 .eq('id', item.id);
               
               aggregatedTotals.shipping_drafts_created++;
-              console.log(`[scheduler-tick] shipping queue: draft created for order ${item.order_id} (${item.provider})`);
+              console.log(`[scheduler-tick] shipping queue: draft created (order=${item.order_id}, pv=${item.source_pedido_venda_id}, carrier=${carrier})`);
 
             } catch (itemError) {
               const maxAttempts = 5;
