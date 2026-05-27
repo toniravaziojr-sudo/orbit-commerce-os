@@ -169,20 +169,36 @@ Deno.serve(async (req) => {
         .update({ label_url: result.label_url })
         .eq('id', shipment.id);
 
-      // WMS Pratika — fire-and-forget: notify about label
-      fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-        },
-        body: JSON.stringify({
-          action: 'update_tracking',
-          invoice_id: shipment.order_id,
-          tracking_code: shipment.tracking_code,
-          tenant_id: tenantId,
-        }),
-      }).catch(err => console.error('[shipping-get-label] WMS Pratika error:', err));
+      // WMS Pratika — fire-and-forget: resolver invoice_id real a partir do pedido
+      try {
+        const { data: inv } = await supabase
+          .from('fiscal_invoices')
+          .select('id')
+          .eq('order_id', shipment.order_id)
+          .eq('tenant_id', tenantId)
+          .eq('status', 'authorized')
+          .order('authorized_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (inv?.id) {
+          fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              action: 'update_tracking',
+              invoice_id: inv.id,
+              tracking_code: shipment.tracking_code,
+              tenant_id: tenantId,
+            }),
+          }).catch(err => console.error('[shipping-get-label] WMS Pratika error:', err));
+        }
+      } catch (e) {
+        console.error('[shipping-get-label] Erro ao resolver invoice para Pratika:', e);
+      }
     }
 
     return new Response(

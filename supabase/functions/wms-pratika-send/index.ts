@@ -7,6 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const PRATIKA_NAMESPACE = 'http://wmspratika.ddsinformatica.com.br/';
+
 /**
  * Monta envelope SOAP para operações do WMS Pratika
  */
@@ -18,7 +20,7 @@ function buildSoapEnvelope(operation: string, params: Record<string, string>): s
   return `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
   <soap:Body>
-    <${operation} xmlns="http://tempuri.org/">
+    <${operation} xmlns="${PRATIKA_NAMESPACE}">
 ${paramXml}
     </${operation}>
   </soap:Body>
@@ -38,7 +40,7 @@ function escapeXml(str: string): string {
  * Envia requisição SOAP ao WMS Pratika
  */
 async function sendSoap(url: string, operation: string, soapEnvelope: string): Promise<{ success: boolean; body: string; status: number }> {
-  const soapAction = `http://tempuri.org/${operation}`;
+  const soapAction = `${PRATIKA_NAMESPACE}${operation}`;
 
   console.log(`[wms-pratika] Sending SOAP ${operation} to ${url}`);
 
@@ -134,9 +136,46 @@ Deno.serve(async (req) => {
 
     if (!config || !config.is_enabled) {
       return new Response(
-        JSON.stringify({ success: false, error: 'WMS Pratika não está ativo para este tenant' }),
+        JSON.stringify({ success: false, error: 'WMS Pratika não está ativo para este tenant', skipped: true }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Gate por tipo de operação + force flag
+    const force = body.force === true;
+    if (action === 'send_nfe' && config.auto_send_nfe === false && !force) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Envio automático de NFe desativado', skipped: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (action === 'update_tracking' && config.auto_send_label === false && !force) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Envio automático de etiqueta desativado', skipped: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Idempotência: se já houve sucesso para este invoice+operation, não reenviar
+    if ((action === 'send_nfe' || action === 'update_tracking') && invoice_id && !force) {
+      const operationName = action === 'send_nfe' ? 'nfe' : 'tracking';
+      const { data: existingOk } = await supabase
+        .from('wms_pratika_logs')
+        .select('id, created_at')
+        .eq('tenant_id', tenantId)
+        .eq('reference_id', invoice_id)
+        .eq('operation', operationName)
+        .eq('status', 'success')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingOk) {
+        console.log(`[wms-pratika] Skip (já enviado com sucesso): ${operationName} ${invoice_id}`);
+        return new Response(
+          JSON.stringify({ success: true, already_sent: true, sent_at: existingOk.created_at }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     const endpointUrl = config.endpoint_url;
@@ -146,8 +185,8 @@ Deno.serve(async (req) => {
     if (action === 'test_connection') {
       // Simple SOAP call to check if endpoint responds
       const envelope = buildSoapEnvelope('RecepcaoDocNfe', {
-        XmlNfe: '<test/>',
-        CnpjDestinatario: cnpj,
+        cnpj,
+        xmlNfe: '<test/>',
       });
       const result = await sendSoap(endpointUrl, 'RecepcaoDocNfe', envelope);
       
@@ -222,8 +261,8 @@ Deno.serve(async (req) => {
 
       // Send to WMS
       const envelope = buildSoapEnvelope('RecepcaoDocNfe', {
-        XmlNfe: xmlContent,
-        CnpjDestinatario: cnpj,
+        cnpj,
+        xmlNfe: xmlContent,
       });
 
       const result = await sendSoap(endpointUrl, 'RecepcaoDocNfe', envelope);
@@ -263,9 +302,8 @@ Deno.serve(async (req) => {
         .single();
 
       const envelope = buildSoapEnvelope('AtualizarCodRastreioNfe', {
-        ChaveNfe: invoice?.chave_acesso || '',
-        CodRastreio: tracking_code,
-        CnpjDestinatario: cnpj,
+        chaveAcesso: invoice?.chave_acesso || '',
+        codRastreio: tracking_code,
       });
 
       const result = await sendSoap(endpointUrl, 'AtualizarCodRastreioNfe', envelope);
