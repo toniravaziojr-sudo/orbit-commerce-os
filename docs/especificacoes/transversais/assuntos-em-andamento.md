@@ -132,7 +132,7 @@
    - Doc oficial atualizado com a faixa oficial e a lista completa.
 
 **Pendente:**
-- Validação real ponta a ponta pelo operador: emitir uma NF de remessa (ex.: Armazém Geral) no tenant piloto e confirmar que (a) aparece no editor, (b) é autorizada pela Sefaz, (c) chega ao WMS Pratika automaticamente.
+- Validação real ponta a ponta da etiqueta: emitir uma remessa Correios no tenant piloto, registrar o rastreio e confirmar envio automático ao WMS Pratika. (NF-e de saída já validada com a NF 349 em 27/05/2026.)
 - Avaliar, em outra rodada, se a expansão do catálogo deve virar default para novos tenants ou ficar opt-in via Fiscal → Configurações → Naturezas de Operação.
 
 **Restrições firmes:**
