@@ -1,7 +1,18 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ptBR } from 'date-fns/locale';
-import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send } from 'lucide-react';
+import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Plus, Lock } from 'lucide-react';
+import { DraftShipmentDialog } from './DraftShipmentDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +58,8 @@ interface ShipmentRecord {
   created_at: string;
   source: string | null;
   metadata: any;
+  manually_adjusted?: boolean;
+  service_name?: string | null;
   label_url: string | null;
   nfe_key: string | null;
   invoice_id: string | null;
@@ -91,6 +104,10 @@ export function ShipmentGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [dispatchDialog, setDispatchDialog] = useState<ShipmentRecord | null>(null);
   const [isDispatching, setIsDispatching] = useState(false);
+  const [draftDialogOpen, setDraftDialogOpen] = useState(false);
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
+  const [deletingShipmentId, setDeletingShipmentId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
@@ -107,8 +124,8 @@ export function ShipmentGenerator() {
       let query = supabase
         .from('shipments')
         .select<string, any>(`
-          id, order_id, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
-          order:orders!inner(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status, resolved_shipping_provider_kind)
+          id, order_id, carrier, service_name, manually_adjusted, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          order:orders(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
         .eq('delivery_status', 'draft' as any)
@@ -298,7 +315,34 @@ export function ShipmentGenerator() {
     }
   };
 
-  // Print label
+  // === Ações manuais nos rascunhos ===
+  const openCreateDraft = () => {
+    setEditingShipmentId(null);
+    setDraftDialogOpen(true);
+  };
+
+  const openEditDraft = (id: string) => {
+    setEditingShipmentId(id);
+    setDraftDialogOpen(true);
+  };
+
+  const handleDeleteDraft = async () => {
+    if (!deletingShipmentId) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('shipments').delete().eq('id', deletingShipmentId);
+      if (error) throw error;
+      toast.success('Rascunho excluído');
+      setDeletingShipmentId(null);
+      invalidateAll();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao excluir');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+
   const handlePrintLabel = (shipment: ShipmentRecord) => {
     if (shipment.label_url) {
       window.open(shipment.label_url, '_blank');
@@ -483,9 +527,14 @@ export function ShipmentGenerator() {
                   <Package className="h-4 w-4" />
                   Prontos para emitir remessa
                 </CardTitle>
-                <span className="text-sm text-muted-foreground">
-                  {readyCount} pedido(s)
-                </span>
+                <div className="flex items-center gap-3">
+                  <Button size="sm" variant="outline" onClick={openCreateDraft} className="gap-1">
+                    <Plus className="h-3.5 w-3.5" /> Criar novo rascunho
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {readyCount} pedido(s)
+                  </span>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -518,6 +567,7 @@ export function ShipmentGenerator() {
                           <TableHead>Destino</TableHead>
                           <TableHead>Peso</TableHead>
                           <TableHead>NF-e</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -565,6 +615,21 @@ export function ShipmentGenerator() {
                                     Sem NF-e
                                   </Badge>
                                 )}
+                              </TableCell>
+                              <TableCell onClick={e => e.stopPropagation()} className="text-right">
+                                <div className="flex gap-1 justify-end items-center">
+                                  {shipment.manually_adjusted && (
+                                    <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-label="Ajustada manualmente" />
+                                  )}
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar rascunho"
+                                    onClick={() => openEditDraft(shipment.id)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Excluir rascunho"
+                                    onClick={() => setDeletingShipmentId(shipment.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
@@ -875,6 +940,31 @@ export function ShipmentGenerator() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DraftShipmentDialog
+        open={draftDialogOpen}
+        onOpenChange={setDraftDialogOpen}
+        shipmentId={editingShipmentId}
+        onSaved={invalidateAll}
+      />
+
+      <AlertDialog open={!!deletingShipmentId} onOpenChange={(o) => !o && setDeletingShipmentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir rascunho de remessa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O rascunho será removido. Esta ação não toca no pedido nem na NF-e — apenas remove a remessa.
+              Se o pedido continuar em aberto, o sistema NÃO vai recriar automaticamente este rascunho.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteDraft} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting ? 'Excluindo…' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

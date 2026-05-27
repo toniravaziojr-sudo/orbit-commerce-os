@@ -17556,6 +17556,7 @@ export type Database = {
           last_poll_error: string | null
           last_polled_at: string | null
           last_status_at: string
+          manually_adjusted: boolean
           metadata: Json | null
           next_poll_at: string | null
           nfe_key: string | null
@@ -17585,6 +17586,7 @@ export type Database = {
           last_poll_error?: string | null
           last_polled_at?: string | null
           last_status_at?: string
+          manually_adjusted?: boolean
           metadata?: Json | null
           next_poll_at?: string | null
           nfe_key?: string | null
@@ -17614,6 +17616,7 @@ export type Database = {
           last_poll_error?: string | null
           last_polled_at?: string | null
           last_status_at?: string
+          manually_adjusted?: boolean
           metadata?: Json | null
           next_poll_at?: string | null
           nfe_key?: string | null
