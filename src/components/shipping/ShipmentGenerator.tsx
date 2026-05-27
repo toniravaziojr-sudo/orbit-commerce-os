@@ -315,7 +315,34 @@ export function ShipmentGenerator() {
     }
   };
 
-  // Print label
+  // === Ações manuais nos rascunhos ===
+  const openCreateDraft = () => {
+    setEditingShipmentId(null);
+    setDraftDialogOpen(true);
+  };
+
+  const openEditDraft = (id: string) => {
+    setEditingShipmentId(id);
+    setDraftDialogOpen(true);
+  };
+
+  const handleDeleteDraft = async () => {
+    if (!deletingShipmentId) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('shipments').delete().eq('id', deletingShipmentId);
+      if (error) throw error;
+      toast.success('Rascunho excluído');
+      setDeletingShipmentId(null);
+      invalidateAll();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao excluir');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+
   const handlePrintLabel = (shipment: ShipmentRecord) => {
     if (shipment.label_url) {
       window.open(shipment.label_url, '_blank');
