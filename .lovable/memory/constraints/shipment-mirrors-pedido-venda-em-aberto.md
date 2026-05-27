@@ -16,18 +16,42 @@ type: constraint
 4. Função: `public.sync_shipment_with_pv_status()` (SECURITY DEFINER, `search_path=public`).
 5. Aplica-se apenas a PV raiz (`fiscal_stage='pedido_venda' AND source_order_invoice_id IS NULL`).
 
+## Peso, dimensões e transportadora na criação (2026-05-27)
+
+O gatilho `sync_shipment_with_pv_status` calcula no `INSERT`:
+- `metadata.weight_grams` = `SUM(COALESCE(p.weight,300) * qty)` (mínimo 1g, fallback 300g/item).
+- `metadata.height_cm` = `MAX(COALESCE(p.height,10))`.
+- `metadata.width_cm` = `MAX(COALESCE(p.width,15))`.
+- `metadata.depth_cm` = `SUM(COALESCE(p.depth,20))`.
+- `metadata.declared_value` = `SUM(oi.total_price)` (ou `fii.valor_total` quando PV manual).
+- `carrier`, `service_code`, `service_name` propagados de `orders.shipping_carrier / shipping_service_code / shipping_service_name` (fallback `transportadora_*` do PV quando `order_id IS NULL`).
+
+Origem dos itens: `order_items` quando `order_id IS NOT NULL`; caso contrário `fiscal_invoice_items` do próprio PV.
+
+## Override manual (2026-05-27)
+
+Coluna `shipments.manually_adjusted boolean DEFAULT false`. Quando `true`:
+- Gatilho NÃO deleta a remessa ao PV sair de `em_aberto` (cláusula `AND manually_adjusted = false` nos `DELETE`).
+- Worker da fila e backfills NÃO recalculam peso/dimensões/transportadora.
+- Edição manual (peso, dimensões, transportadora, serviço, destinatário, valor declarado) e criação manual de rascunho via UI marcam `manually_adjusted=true`.
+
+UI: `src/components/shipping/ShipmentGenerator.tsx` (aba "Prontos para emitir remessa") expõe ações **Criar novo**, **Editar** e **Excluir** por linha. Diálogo: `src/components/shipping/DraftShipmentDialog.tsx`.
+
 ## O que NUNCA pode acontecer
 
-- Tocar em remessa com `tracking_code` preenchido. Etiquetas postadas exigem tratamento manual (devolução, cancelamento de envio).
+- Tocar em remessa com `tracking_code` preenchido. Etiquetas postadas exigem tratamento manual.
+- Recalcular automaticamente remessa com `manually_adjusted=true`.
 - Criar remessa local para pedido com `resolved_shipping_provider_kind='gateway'` — gateway tem `gateway_sync_queue` próprio (ver `mem://features/logistics/gateway-vs-local-shipping-routing`).
-- Bypassar o gatilho atualizando `pedido_status` direto sem trigger. `pedido_status` é mantido pelos gatilhos `trg_orders_sync_pv_status` / `mirror_order_status_to_pv` (ver `mem://constraints/pv-pedido-status-mirror-from-order`).
-- Confundir "rascunho de remessa" com `shipping_draft_queue` (fila intermediária). A regra de espelho atua no `shipments` final, não na queue.
+- Bypassar o gatilho atualizando `pedido_status` direto sem trigger.
+- Confundir "rascunho de remessa" com `shipping_draft_queue` (fila intermediária). A regra de espelho atua no `shipments` final.
 
 ## Acerto de carga aplicado em 2026-05-27
 
-- Removidas 2 remessas órfãs (PVs em chargeback_em_andamento / chargeback_perdido).
-- 1 PV em aberto sem remessa local: era gateway (correto, fora da fila local).
-- Saldo final: 253 PVs em aberto = 252 remessas Correios + 1 gateway.
+- Removidas 2 remessas órfãs (PVs em chargeback).
+- 1 PV em aberto sem remessa local: era gateway (correto).
+- Backfill de peso/dimensões + carrier/service para PVs 348, 349, 536, 537 (Respeite o Homem) que nasceram sem esses dados.
+- Saldo final: PVs em aberto = remessas Correios em rascunho + remessas gateway.
+
 
 ## Arquivos
 
