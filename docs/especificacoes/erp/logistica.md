@@ -441,6 +441,8 @@ A criação automática de rascunhos de remessa **passou a nascer do Pedido de V
 - Excluir um Pedido de Venda em rascunho remove junto a remessa-rascunho vinculada. Remessas já despachadas (com etiqueta válida) são preservadas.
 - **Fiscal e Logística nunca alteram o pedido original.** Cancelamento ou exclusão de Pedido de Venda nunca cascateia para o pedido.
 
+**Independência do pedido real (2026-05-27):** o processador da fila lê endereço, peso, dimensões e transportadora diretamente do Pedido de Venda quando não há pedido vinculado (caso de PV manual ou duplicado). Na duplicação, o serviço da transportadora (PAC/SEDEX/etc.) também é preservado. Excluir um PV em aberto remove o rascunho de remessa correspondente, exceto se já houver código de rastreio postado.
+
 Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda`.
 
 ---
