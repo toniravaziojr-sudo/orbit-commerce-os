@@ -213,6 +213,7 @@ export function ManualInvoiceDialog({
       setModalidadeFrete(initialData.modalidade_frete || '9');
       setInformacoesFisco(initialData.informacoes_fisco || '');
       setTransportadoraNome(initialData.transportadora_nome || '');
+      setTransportadoraServico(initialData.transportadora_servico || '');
       setTransportadoraCnpj(initialData.transportadora_cnpj || '');
       setPesoBruto(initialData.peso_bruto ?? null);
       setPesoLiquido(initialData.peso_liquido ?? null);
