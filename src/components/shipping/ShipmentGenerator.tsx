@@ -567,6 +567,7 @@ export function ShipmentGenerator() {
                           <TableHead>Destino</TableHead>
                           <TableHead>Peso</TableHead>
                           <TableHead>NF-e</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
