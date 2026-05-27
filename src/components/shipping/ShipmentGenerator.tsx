@@ -616,6 +616,21 @@ export function ShipmentGenerator() {
                                   </Badge>
                                 )}
                               </TableCell>
+                              <TableCell onClick={e => e.stopPropagation()} className="text-right">
+                                <div className="flex gap-1 justify-end items-center">
+                                  {shipment.manually_adjusted && (
+                                    <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-label="Ajustada manualmente" />
+                                  )}
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar rascunho"
+                                    onClick={() => openEditDraft(shipment.id)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Excluir rascunho"
+                                    onClick={() => setDeletingShipmentId(shipment.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
                             </TableRow>
                           );
                         })}
