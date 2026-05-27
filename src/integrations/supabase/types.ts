@@ -17567,6 +17567,7 @@ export type Database = {
           service_name: string | null
           source: string | null
           source_id: string | null
+          source_pedido_venda_id: string | null
           tenant_id: string
           tracking_code: string | null
           updated_at: string
@@ -17595,6 +17596,7 @@ export type Database = {
           service_name?: string | null
           source?: string | null
           source_id?: string | null
+          source_pedido_venda_id?: string | null
           tenant_id: string
           tracking_code?: string | null
           updated_at?: string
@@ -17623,6 +17625,7 @@ export type Database = {
           service_name?: string | null
           source?: string | null
           source_id?: string | null
+          source_pedido_venda_id?: string | null
           tenant_id?: string
           tracking_code?: string | null
           updated_at?: string
@@ -17640,6 +17643,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_source_pedido_venda_id_fkey"
+            columns: ["source_pedido_venda_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
             referencedColumns: ["id"]
           },
           {
@@ -17793,9 +17803,10 @@ export type Database = {
           created_at: string
           error_message: string | null
           id: string
-          order_id: string
+          order_id: string | null
           processed_at: string | null
           provider: string
+          source_pedido_venda_id: string | null
           status: string
           tenant_id: string
         }
@@ -17806,9 +17817,10 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
-          order_id: string
+          order_id?: string | null
           processed_at?: string | null
           provider?: string
+          source_pedido_venda_id?: string | null
           status?: string
           tenant_id: string
         }
@@ -17819,9 +17831,10 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
-          order_id?: string
+          order_id?: string | null
           processed_at?: string | null
           provider?: string
+          source_pedido_venda_id?: string | null
           status?: string
           tenant_id?: string
         }
@@ -17831,6 +17844,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: true
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipping_draft_queue_source_pedido_venda_id_fkey"
+            columns: ["source_pedido_venda_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
             referencedColumns: ["id"]
           },
           {
