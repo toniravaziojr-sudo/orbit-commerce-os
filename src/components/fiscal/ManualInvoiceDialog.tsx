@@ -562,6 +562,7 @@ export function ManualInvoiceDialog({
           valor_outras_despesas: Number(valorOutras) || 0,
           modalidade_frete: modalidadeFrete || '9',
           transportadora_nome: transportadoraNome || null,
+          transportadora_servico: transportadoraServico || null,
           transportadora_cnpj: transportadoraCnpj || null,
           peso_bruto: pesoBruto,
           peso_liquido: pesoLiquido,
