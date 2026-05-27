@@ -702,11 +702,33 @@ Deno.serve(async (req) => {
                 // ---------- PV manual/duplicado: ler do próprio Pedido de Venda ----------
                 const { data: pv, error: pvError } = await supabaseShipping
                   .from('fiscal_invoices')
-                  .select('id, tenant_id, dest_nome, dest_endereco_cep, valor_total, transportadora_nome, transportadora_servico, peso_bruto')
+                  .select('id, tenant_id, dest_nome, dest_endereco_cep, valor_total, transportadora_nome, transportadora_servico, peso_bruto, pedido_status, fiscal_stage, source_order_invoice_id')
                   .eq('id', item.source_pedido_venda_id)
                   .single();
                 if (pvError || !pv) {
                   throw new Error(`PV not found: ${pvError?.message || 'null'}`);
+                }
+
+                // GUARDA DO ESPELHO: a fila de Remessas só reflete PVs raiz em "em_aberto".
+                // Se o PV mudou de estado entre o enfileiramento e o processamento
+                // (ex.: NF emitida, cancelado, chargeback), NÃO criar remessa órfã.
+                // Cancela o item da fila com motivo claro.
+                if (
+                  pv.fiscal_stage !== 'pedido_venda' ||
+                  pv.source_order_invoice_id !== null ||
+                  pv.pedido_status !== 'em_aberto'
+                ) {
+                  await supabaseShipping
+                    .from('shipping_draft_queue')
+                    .update({
+                      status: 'cancelled',
+                      cancelled_at: new Date().toISOString(),
+                      cancel_reason: `pv_not_em_aberto:${pv.pedido_status || 'unknown'}`,
+                      processed_at: new Date().toISOString(),
+                    })
+                    .eq('id', item.id);
+                  console.log(`[scheduler-tick] shipping queue: PV ${item.source_pedido_venda_id} not em_aberto (status=${pv.pedido_status}) — cancelling queue item`);
+                  continue;
                 }
 
                 const { data: pvItems } = await supabaseShipping
@@ -753,6 +775,7 @@ Deno.serve(async (req) => {
               } else {
                 throw new Error('Queue item has neither order_id nor source_pedido_venda_id');
               }
+
 
               // Dedup: evita criar rascunho duplicado para o mesmo PV ou pedido
               let dupQuery = supabaseShipping.from('shipments').select('id').limit(1);
