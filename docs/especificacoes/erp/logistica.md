@@ -464,6 +464,8 @@ A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status 
 
 **Acerto de carga (2026-05-27):** removidas 2 remessas órfãs (PVs em chargeback) + 1 remessa órfã do PV 347 (criada fora da janela do espelho); reconciliado 1 PV em aberto sem remessa local (era gateway, fluxo correto).
 
+**Status interno da remessa-rascunho:** ao nascer pelo espelho do Pedido de Venda, a remessa é criada com status interno **"rascunho"** (não "etiqueta criada"). Esse é o valor que a aba "Prontos para emitir remessa" filtra. Criar com qualquer outro status torna a remessa invisível na tela, mesmo existindo no banco. Incidente 2026-05-27 (PVs 348 e 349 da Respeite o Homem): gatilho estava marcando como "etiqueta criada" e as remessas não apareciam — corrigido e 2 registros regularizados.
+
 Anti-regressão: ver `mem://constraints/shipment-mirrors-pedido-venda-em-aberto`.
 
 ---
