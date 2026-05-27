@@ -461,3 +461,30 @@ A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status 
 **Acerto de carga (2026-05-27):** removidas 2 remessas órfãs (PVs em chargeback) e reconciliado 1 PV em aberto sem remessa local (era gateway, fluxo correto). Saldo: 252 remessas Correios + 1 gateway = 253 PVs em aberto.
 
 Anti-regressão: ver `mem://constraints/shipment-mirrors-pedido-venda-em-aberto`.
+
+---
+
+## Integração WMS Pratika
+
+A integração com o WMS Pratika (DDS Informática) opera de forma **reativa, não no momento da emissão**.
+
+### Quando o sistema envia para o Pratika
+
+1. **XML da NF-e:** somente quando a Sefaz autoriza a nota. Vale para o caminho síncrono (resposta direta do provedor fiscal) e para o assíncrono (webhook ou checagem de status). NF emitida mas ainda não autorizada nunca chega ao WMS.
+2. **Etiqueta dos Correios:** somente quando o código de rastreio é registrado, manual ou automaticamente. Sem rastreio, não há envio.
+
+### Travas e idempotência
+
+- A configuração do tenant possui dois interruptores independentes: envio automático de NF-e e envio automático de etiqueta. Desligado = nada é enviado.
+- Cada envio é idempotente por referência (NF ou remessa). O sistema consulta o log de operações do tenant antes de disparar e só envia se não houver sucesso anterior para a mesma referência.
+
+### Reconciliação automática
+
+A cada 30 minutos uma rotina de reconciliação varre NFs autorizadas e remessas com rastreio das últimas 24h sem log de sucesso no WMS e reenfileira o envio. A reconciliação é rede de segurança, não fluxo primário — o caminho principal continua sendo o gatilho reativo.
+
+### Validação E2E
+
+- NF-e de saída autorizada → envio ao Pratika confirmado em produção (NF 349, 27/05/2026, autorizada e despachada ao WMS em segundos).
+- Etiqueta dos Correios com rastreio registrado → pendente de validação em produção.
+
+Anti-regressão: ver `mem://features/external-apps/wms-pratika-integration`.
