@@ -303,6 +303,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // WMS Pratika — disparo reativo à autorização (idempotente do lado da função)
+    if (status === 'autorizado') {
+      fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ action: 'send_nfe', invoice_id: invoice.id, tenant_id: invoice.tenant_id }),
+      }).catch(err => console.error('[fiscal-webhook] WMS Pratika error:', err));
+    }
+
     console.log(`[fiscal-webhook] Invoice ${invoice.id} updated to status ${internalStatus}`);
 
     return new Response(
