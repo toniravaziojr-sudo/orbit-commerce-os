@@ -115,6 +115,8 @@ Deno.serve(async (req) => {
       peso_liquido: bodyPesoLiquido,
       quantidade_volumes: bodyQtdVolumes,
       informacoes_fisco: bodyInfoFisco,
+      // Chave da NF-e referenciada (devolução, retorno de remessa etc.)
+      nfe_referenciada: bodyNfeReferenciada,
       // v8.7.0 — distinção explícita entre criação manual de NF (aba Notas Fiscais)
       // e criação de Pedido de Venda (aba Pedidos de Venda).
       // - 'nfe_manual': abre rascunho LIMPO de NF (sem item mockado, sem destinatário
