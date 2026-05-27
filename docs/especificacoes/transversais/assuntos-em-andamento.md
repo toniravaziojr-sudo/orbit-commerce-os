@@ -122,7 +122,7 @@
 
 **Onde estamos (tenant piloto: Respeite o Homem):**
 
-1. **Integração WMS Pratika (apps externos):** conexão SOAP ativa e validada. Envio automático de NF-e e etiqueta dos Correios para o WMS ao emitir nota fiscal **de saída**. Conexão testada com sucesso.
+1. **Integração WMS Pratika (apps externos):** conexão SOAP ativa e validada. Fluxo é **reativo, não na emissão**: o XML da NF-e é enviado ao WMS quando a Sefaz autoriza a nota (síncrono ou assíncrono via webhook/polling), e a etiqueta dos Correios é enviada quando o código de rastreio é registrado. Idempotência por log do tenant + travas `auto_send_nfe`/`auto_send_label` + reconciliação automática a cada 30 min cobrindo últimas 24h. Validação E2E: NF 349 de saída autorizada e despachada ao WMS com sucesso (27/05/2026). Pendente: validação E2E da etiqueta dos Correios em produção. Detalhes: `mem://features/external-apps/wms-pratika-integration`.
 
 2. **Catálogo de Naturezas de Operação — expansão concluída:**
    - Filtro de "Remessa" no editor de NF-e estava restrito a 4 tipos (escondia Demonstração, Consignação, Bonificação, Amostra Grátis).
