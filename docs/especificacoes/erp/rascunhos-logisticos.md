@@ -246,3 +246,17 @@ Lista populada a partir dos `service_name` distintos existentes nas remessas do 
 - [ ] Mapeamento de eventos de rastreio por transportadora (Correios SRO, Loggi, Frenet)
 - [ ] Envio em lote de remessas
 - [ ] Notificações automáticas de rastreio ao cliente
+
+---
+
+## Origem do Rascunho (2026-05-27)
+
+Todo novo rascunho logístico local nasce do Pedido de Venda Fiscal, identificado pelo vínculo direto com o PV de origem. O vínculo antigo com o pedido continua existindo para histórico, mas não é mais o dono do rascunho.
+
+- Despacho local (Correios/manual): rascunho criado automaticamente ao inserir o Pedido de Venda raiz.
+- Pedidos via gateway (Frenet, etc.): saem da fila local — usam fluxo próprio do gateway.
+- Marketplaces: ignorados pela fila local.
+- PV manual ou duplicado (sem pedido de origem) também gera rascunho — provedor padrão "manual".
+- Excluir o PV em rascunho remove a entrada da fila junto (cascata).
+
+Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda`.

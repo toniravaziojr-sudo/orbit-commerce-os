@@ -427,3 +427,18 @@ Detalhe completo do pipeline: `docs/especificacoes/ecommerce/pedidos.md` §4.6.
 - [ ] Notificações de status automáticas
 - [ ] UI de rascunhos logísticos no módulo logístico
 - [ ] UI de etiquetas para impressão em lote
+
+---
+
+## Origem do Rascunho Logístico (2026-05-27)
+
+A criação automática de rascunhos de remessa **passou a nascer do Pedido de Venda Fiscal**, não mais do pedido pago.
+
+- Quando um Pedido de Venda raiz é criado (vindo de um pedido aprovado, manual ou duplicado), o sistema gera automaticamente o rascunho logístico vinculado a ele.
+- Pedidos via gateway (ex.: Frenet) e marketplaces continuam fora da fila local, seguindo seus próprios fluxos.
+- A remessa carrega um vínculo direto com o Pedido de Venda de origem. O vínculo histórico com o pedido permanece apenas para rastreabilidade.
+- **Pedidos de Venda manuais e duplicados agora também geram rascunho de remessa automaticamente** — antes só pedidos reais geravam.
+- Excluir um Pedido de Venda em rascunho remove junto a remessa-rascunho vinculada. Remessas já despachadas (com etiqueta válida) são preservadas.
+- **Fiscal e Logística nunca alteram o pedido original.** Cancelamento ou exclusão de Pedido de Venda nunca cascateia para o pedido.
+
+Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda`.

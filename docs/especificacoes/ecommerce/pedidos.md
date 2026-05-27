@@ -936,3 +936,15 @@ Automação **nunca** cancela NF-e autorizada nem etiqueta despachada. Mudança 
 
 *Fim do documento.*
 
+
+---
+
+## Isolamento Pedido × Pedido de Venda × Remessa (2026-05-27)
+
+Os módulos Fiscal e Logística **nunca alteram o pedido original**.
+
+- O Pedido de Venda Fiscal é espelho vivo do pedido: status, cancelamento e regressões fluem do pedido para o PV, nunca o contrário.
+- A remessa-rascunho nasce do Pedido de Venda. Excluir um PV em rascunho remove a remessa-rascunho vinculada, mas não modifica o pedido.
+- Cancelar um pedido cascateia para o PV via trigger dedicado; o caminho inverso é proibido por trava de banco.
+
+Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda` e `mem://constraints/pv-cancellation-must-mirror-order`.
