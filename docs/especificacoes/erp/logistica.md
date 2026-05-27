@@ -442,3 +442,22 @@ A criação automática de rascunhos de remessa **passou a nascer do Pedido de V
 - **Fiscal e Logística nunca alteram o pedido original.** Cancelamento ou exclusão de Pedido de Venda nunca cascateia para o pedido.
 
 Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda`.
+
+---
+
+## Espelho vivo: Remessa ↔ Pedido de Venda em aberto (2026-05-27)
+
+A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status "Pedido em aberto"**.
+
+**Regra:**
+- Pedido de Venda passa para "em aberto" → remessa em rascunho aparece automaticamente.
+- Pedido de Venda sai de "em aberto" (cancelado, chargeback, NF criada, concluído, etc.) → remessa em rascunho some automaticamente.
+- Pedido de Venda volta para "em aberto" → remessa em rascunho retorna.
+- **Remessas com etiqueta já postada (com código de rastreio) nunca são tocadas.**
+- Pedidos via gateway (Frenet etc.) seguem fluxo próprio, fora da fila local.
+
+**Resultado:** quantidade de Pedidos de Venda em aberto = quantidade de remessas locais em rascunho + remessas via gateway. Sem órfãs, sem faltantes, sem manutenção manual.
+
+**Acerto de carga (2026-05-27):** removidas 2 remessas órfãs (PVs em chargeback) e reconciliado 1 PV em aberto sem remessa local (era gateway, fluxo correto). Saldo: 252 remessas Correios + 1 gateway = 253 PVs em aberto.
+
+Anti-regressão: ver `mem://constraints/shipment-mirrors-pedido-venda-em-aberto`.
