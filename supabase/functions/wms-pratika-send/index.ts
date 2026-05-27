@@ -40,7 +40,7 @@ function escapeXml(str: string): string {
  * Envia requisição SOAP ao WMS Pratika
  */
 async function sendSoap(url: string, operation: string, soapEnvelope: string): Promise<{ success: boolean; body: string; status: number }> {
-  const soapAction = `http://tempuri.org/${operation}`;
+  const soapAction = `${PRATIKA_NAMESPACE}${operation}`;
 
   console.log(`[wms-pratika] Sending SOAP ${operation} to ${url}`);
 
