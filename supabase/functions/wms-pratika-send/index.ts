@@ -134,9 +134,46 @@ Deno.serve(async (req) => {
 
     if (!config || !config.is_enabled) {
       return new Response(
-        JSON.stringify({ success: false, error: 'WMS Pratika não está ativo para este tenant' }),
+        JSON.stringify({ success: false, error: 'WMS Pratika não está ativo para este tenant', skipped: true }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Gate por tipo de operação + force flag
+    const force = body.force === true;
+    if (action === 'send_nfe' && config.auto_send_nfe === false && !force) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Envio automático de NFe desativado', skipped: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (action === 'update_tracking' && config.auto_send_label === false && !force) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Envio automático de etiqueta desativado', skipped: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Idempotência: se já houve sucesso para este invoice+operation, não reenviar
+    if ((action === 'send_nfe' || action === 'update_tracking') && invoice_id && !force) {
+      const operationName = action === 'send_nfe' ? 'nfe' : 'tracking';
+      const { data: existingOk } = await supabase
+        .from('wms_pratika_logs')
+        .select('id, created_at')
+        .eq('tenant_id', tenantId)
+        .eq('reference_id', invoice_id)
+        .eq('operation', operationName)
+        .eq('status', 'success')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingOk) {
+        console.log(`[wms-pratika] Skip (já enviado com sucesso): ${operationName} ${invoice_id}`);
+        return new Response(
+          JSON.stringify({ success: true, already_sent: true, sent_at: existingOk.created_at }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     const endpointUrl = config.endpoint_url;
