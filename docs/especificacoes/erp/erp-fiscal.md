@@ -2224,3 +2224,16 @@ A aba "Notas Fiscais" do módulo Fiscal possui filtro dedicado por **Tipo de Not
 **Compatibilidade com registros antigos:** quando `tipo_nota` não está persistido (NFs anteriores ao backfill), o tipo é derivado em tempo real a partir de `natureza_operacao` + `cfop` + `tipo_documento` + `finalidade_emissao`, preservando a classificação histórica.
 
 **Aba Pedidos de Venda:** não tem este filtro — pedido de venda é sempre considerado saída na regra de negócio.
+
+---
+
+## Pedido de Venda → Remessa (2026-05-27)
+
+O Pedido de Venda Fiscal é a **origem oficial** do rascunho logístico. Ao criar um PV raiz (vindo de pedido aprovado, manual ou duplicado), o sistema enfileira automaticamente o rascunho de remessa correspondente.
+
+- Duplicar um PV → cria um novo rascunho de remessa vinculado ao novo PV.
+- Excluir um PV em rascunho → remove a remessa-rascunho vinculada, **sem tocar no pedido original**.
+- PVs com NF autorizada ou etiqueta válida permanecem imutáveis (regras existentes mantidas).
+- Pedidos via gateway e marketplaces seguem rotas próprias e não passam pela fila local.
+
+Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda`.
