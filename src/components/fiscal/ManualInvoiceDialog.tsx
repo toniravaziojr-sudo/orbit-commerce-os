@@ -246,6 +246,7 @@ export function ManualInvoiceDialog({
       setModalidadeFrete('9');
       setInformacoesFisco('');
       setTransportadoraNome('');
+      setTransportadoraServico('');
       setTransportadoraCnpj('');
       setPesoBruto(null);
       setPesoLiquido(null);
