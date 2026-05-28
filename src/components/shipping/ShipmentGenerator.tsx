@@ -680,18 +680,13 @@ export function ShipmentGenerator() {
                         })}
                       </TableBody>
                     </Table>
+                  </ScrollArea>
                 </>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* TAB 2: Remessas emitidas */}
         <TabsContent value="emitidas" className="mt-4">
