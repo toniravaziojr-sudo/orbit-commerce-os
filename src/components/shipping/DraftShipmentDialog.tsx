@@ -514,8 +514,6 @@ export function DraftShipmentDialog({ open, onOpenChange, shipmentId, onSaved }:
                 )}
               </div>
             </div>
-              </div>
-            </div>
 
             {/* Embalagem */}
             <div className="space-y-2">
