@@ -443,6 +443,10 @@ A criação automática de rascunhos de remessa **passou a nascer do Pedido de V
 
 **Independência do pedido real (2026-05-27):** o processador da fila lê endereço, peso, dimensões e transportadora diretamente do Pedido de Venda quando não há pedido vinculado (caso de PV manual ou duplicado). Na duplicação, o serviço da transportadora (PAC/SEDEX/etc.) também é preservado. Excluir um PV em aberto remove o rascunho de remessa correspondente, exceto se já houver código de rastreio postado.
 
+**PV manual/duplicado nasce "em aberto" (2026-05-28):** todo Pedido de Venda criado manualmente ou por duplicação (sem pedido real vinculado) já nasce com status "Pedido em aberto". Isso aciona o espelho na hora e a remessa-rascunho aparece automaticamente em "Prontos para emitir remessa", com destinatário, endereço, transportadora, serviço, peso e dimensões herdados do PV de origem. Caso real corrigido: PV 353 do Respeite o Homem (duplicado do 352) — entrava sem status e por isso não gerava remessa.
+
+**Exclusão em cascata segura (2026-05-28):** ao excluir um Pedido de Venda, a remessa-rascunho correspondente (sem código de rastreio) é removida automaticamente, e itens pendentes na fila de processamento são cancelados com motivo `pv_deleted`. Remessas com etiqueta já emitida nunca são tocadas — permanecem no histórico mesmo após exclusão do PV de origem.
+
 Anti-regressão: ver `mem://constraints/shipping-draft-mirrors-pedido-venda`.
 
 ---
