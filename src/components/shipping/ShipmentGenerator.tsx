@@ -102,6 +102,7 @@ export function ShipmentGenerator() {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
   const createShipment = useCreateShipment();
+  const dispatchShipment = useDispatchShipment();
   
   const [activeTab, setActiveTab] = useState('prontos');
   const [selectedCarrier, setSelectedCarrier] = useState('all');
