@@ -580,11 +580,26 @@ export function ShipmentGenerator() {
                             />
                           </TableHead>
                           <TableHead>Pedido</TableHead>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Frete</TableHead>
+                          <TableHead>Destino</TableHead>
+                          <TableHead>Peso</TableHead>
+                          <TableHead>NF-e</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {readyOrders!.map(shipment => {
+                          const order = shipment.order as any;
+                          const meta = shipment.metadata as any;
+                          const hasNFe = !!shipment.nfe_key;
+                          return (
                             <TableRow 
                               key={shipment.id}
                               className="cursor-pointer"
                               onClick={() => toggleOrder(shipment.order_id)}
                             >
+
                               <TableCell onClick={e => e.stopPropagation()}>
                                 <Checkbox
                                   checked={selectedOrders.has(shipment.order_id)}
