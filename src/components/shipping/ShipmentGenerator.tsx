@@ -170,14 +170,7 @@ export function ShipmentGenerator() {
     enabled: !!currentTenant?.id,
   });
 
-      // Excluir pedidos cuja transportadora resolvida é um gateway (ex: Frenet) — esses
-      // são sincronizados por integração e não passam pelo fluxo local de remessas.
-      return ((data || []) as ShipmentRecord[]).filter(
-        (s) => (s.order as any)?.resolved_shipping_provider_kind !== 'gateway'
-      );
-    },
-    enabled: !!currentTenant?.id,
-  });
+
 
   // === TAB 2: Remessas emitidas (has tracking, not draft/failed) ===
   const { data: issuedShipments, isLoading: loadingIssued } = useQuery({
