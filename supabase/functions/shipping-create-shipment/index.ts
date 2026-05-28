@@ -16,12 +16,13 @@ const corsHeaders = {
 // ========== TYPES ==========
 
 interface ShipmentRequest {
-  order_id: string;
+interface ShipmentRequest {
+  order_id?: string;
+  shipment_id?: string; // Novo caminho: despachar a partir do rascunho existente
   invoice_id?: string;
   provider_override?: string;
   tenant_id?: string; // Used by internal service_role calls
 }
-
 interface ShipmentResult {
   success: boolean;
   tracking_code?: string;
