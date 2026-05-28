@@ -16,7 +16,6 @@ const corsHeaders = {
 // ========== TYPES ==========
 
 interface ShipmentRequest {
-interface ShipmentRequest {
   order_id?: string;
   shipment_id?: string; // Novo caminho: despachar a partir do rascunho existente
   invoice_id?: string;
