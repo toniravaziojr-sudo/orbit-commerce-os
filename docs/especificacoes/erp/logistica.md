@@ -468,7 +468,19 @@ A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status 
 
 **Peso e dimensões na criação automática (2026-05-27):** o gatilho de espelhamento agora calcula peso (gramas), altura, largura, profundidade e valor declarado a partir dos itens do pedido (ou dos itens do PV, quando manual), usando o cadastro do produto e fallback de 300 g por item quando não houver peso cadastrado. Transportadora e serviço (PAC/SEDEX/etc.) também são propagados do pedido para a remessa. Incidente 2026-05-27 (pedidos 536 e 537 da Respeite o Homem): remessas nasceram sem peso/serviço porque foram criadas antes desse ajuste — backfill aplicado.
 
-**Ações manuais no rascunho (2026-05-27):** na aba "Prontos para emitir remessa" o operador pode **criar novo rascunho**, **editar** (peso, dimensões, transportadora, serviço, destinatário, valor declarado) e **excluir** rascunhos. Qualquer edição ou criação manual marca a remessa como **ajustada manualmente** e, a partir daí, o sistema não recalcula nem apaga esse registro automaticamente — a responsabilidade passa a ser do operador. O espelhamento automático continua valendo apenas para rascunhos que nunca foram tocados manualmente.
+**Ações manuais no rascunho (2026-05-27):** na aba "Prontos para emitir remessa" o operador pode **criar novo rascunho**, **editar** (peso, dimensões, transportadora, serviço, destinatário, endereço completo, telefone, valor declarado) e **excluir** rascunhos. Qualquer edição ou criação manual marca a remessa como **ajustada manualmente** e, a partir daí, o sistema não recalcula nem apaga esse registro automaticamente — a responsabilidade passa a ser do operador. O espelhamento automático continua valendo apenas para rascunhos que nunca foram tocados manualmente.
+
+**Diálogo de rascunho — comportamento (2026-05-28):**
+
+- **Editar** pré-carrega automaticamente os dados reais: vindos do pedido (`orders`) quando há vínculo de pedido, ou do Pedido de Venda Fiscal (`fiscal_invoices`) quando o rascunho nasceu de um PV manual/duplicado. O operador edita só o que precisa ajustar — nenhum campo nasce em branco quando há fonte de verdade disponível.
+- **Criar novo** oferece dois modos: **A partir de um pedido** (busca pelo número do pedido e pré-preenche destinatário, endereço, peso, dimensões e serviço) ou **Avulso** (sem vínculo com pedido, preenchimento 100% manual — útil para envios pontuais).
+- **Campos obrigatórios** (a UI bloqueia salvar com mensagem clara em PT-BR): transportadora, serviço, peso, altura, largura, comprimento, nome do destinatário, CPF ou CNPJ, telefone com DDD, CEP (8 dígitos), rua, número, bairro, cidade e UF. Esses são exatamente os campos que os Correios exigem para autorizar a etiqueta e devolver o código de rastreio.
+- **Busca por CEP**: ao sair do campo CEP, o sistema consulta o ViaCEP e preenche rua, bairro, cidade e UF quando estiverem vazios. Não sobrescreve o que o operador já digitou.
+- **Painel "Remetente (loja)"** aparece em somente leitura e mostra os dados da loja vindos das configurações de transportadora. Se faltar algum dado obrigatório do remetente (nome, CPF/CNPJ, telefone, CEP, endereço completo), um alerta amarelo aparece pedindo para completar em **Configurações → Transportadoras → Correios** antes de emitir.
+- **Override na emissão**: quando a remessa está marcada como ajustada manualmente, a função de emissão dos Correios usa os dados do rascunho (destinatário, endereço, peso, dimensões) em vez de buscar no pedido. Isso garante que o ajuste do operador realmente chega na etiqueta — antes de 2026-05-28, edições no rascunho eram silenciosamente ignoradas na hora de emitir.
+- **CPF/CNPJ do destinatário** passou a ser obrigatório no payload dos Correios (antes era enviado vazio). Contas Correios com validação estrita rejeitavam etiquetas sem documento — corrigido em 2026-05-28.
+
+
 
 Anti-regressão: ver `mem://constraints/shipment-mirrors-pedido-venda-em-aberto`.
 

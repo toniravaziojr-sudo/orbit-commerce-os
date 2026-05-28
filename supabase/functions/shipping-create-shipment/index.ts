@@ -37,6 +37,8 @@ interface OrderData {
   customer_name: string;
   customer_email: string;
   customer_phone: string;
+  customer_cpf?: string | null;
+  customer_cnpj?: string | null;
   shipping_street: string;
   shipping_number: string;
   shipping_complement: string | null;
@@ -59,6 +61,7 @@ interface OrderData {
     length?: number;
   }>;
 }
+
 
 interface ProviderCredentials {
   // Correios
@@ -208,9 +211,10 @@ async function createCorreiosShipment(
       },
       destinatario: {
         nome: order.customer_name,
-        cpfCnpj: '', // CPF opcional
+        cpfCnpj: (order.customer_cpf || order.customer_cnpj || '').replace(/\D/g, ''),
         telefone: order.customer_phone?.replace(/\D/g, '') || '',
         email: order.customer_email || '',
+
         endereco: {
           cep: order.shipping_postal_code.replace(/\D/g, ''),
           logradouro: order.shipping_street,
@@ -547,7 +551,7 @@ Deno.serve(async (req) => {
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select(`
-        id, tenant_id, customer_name, customer_email, customer_phone,
+        id, tenant_id, customer_name, customer_email, customer_phone, customer_cpf, customer_cnpj,
         shipping_street, shipping_number, shipping_complement, shipping_neighborhood,
         shipping_city, shipping_state, shipping_postal_code, shipping_carrier, shipping_method,
         subtotal, shipping_total, total, tracking_code
@@ -597,6 +601,39 @@ Deno.serve(async (req) => {
 
     console.log(`[shipping-create-shipment] NF-e found: ${invoiceData.id} (chave: ${invoiceData.chave_acesso?.substring(0, 10)}...)`);
 
+    // Check manual override from shipment draft (UI edit). When manually_adjusted=true,
+    // metadata.override_* fields take precedence over orders.* for the Correios payload.
+    const { data: draftShipment } = await supabase
+      .from('shipments')
+      .select('metadata, manually_adjusted')
+      .eq('order_id', order_id)
+      .eq('tenant_id', tenantId)
+      .eq('delivery_status', 'draft')
+      .maybeSingle();
+
+    const override = (draftShipment?.manually_adjusted && draftShipment?.metadata)
+      ? (draftShipment.metadata as any)
+      : null;
+
+    if (override) {
+      console.log('[shipping-create-shipment] Manual override active — using shipment.metadata.override_* for recipient/package');
+      // Apply overrides to order in-memory (used by adapters)
+      if (override.override_recipient_name) order.customer_name = override.override_recipient_name;
+      if (override.override_recipient_phone) order.customer_phone = override.override_recipient_phone;
+      if (override.override_recipient_doc) {
+        const d = String(override.override_recipient_doc);
+        if (d.length === 14) (order as any).customer_cnpj = d;
+        else (order as any).customer_cpf = d;
+      }
+      if (override.override_shipping_street) order.shipping_street = override.override_shipping_street;
+      if (override.override_shipping_number) order.shipping_number = override.override_shipping_number;
+      if (override.override_shipping_complement !== undefined) order.shipping_complement = override.override_shipping_complement;
+      if (override.override_shipping_neighborhood) order.shipping_neighborhood = override.override_shipping_neighborhood;
+      if (override.override_shipping_city) order.shipping_city = override.override_shipping_city;
+      if (override.override_shipping_state) order.shipping_state = override.override_shipping_state;
+      if (override.override_shipping_zip) order.shipping_postal_code = override.override_shipping_zip;
+    }
+
     // Get order items with product data for real weights/dimensions
     const { data: orderItems } = await supabase
       .from('order_items')
@@ -622,13 +659,33 @@ Deno.serve(async (req) => {
         const product = item.product_id ? productsMap[item.product_id] : null;
         return {
           ...item,
-          weight: product?.weight || 300, // grams
+          weight: product?.weight || 300,
           height: product?.height || 10,
           width: product?.width || 15,
           length: product?.depth || 20,
         };
       }),
     };
+
+    // When override is active, force package metrics from metadata
+    if (override) {
+      if (override.weight_grams) {
+        // Replace items aggregation by single virtual item with the override weight
+        orderData.items = [{
+          product_name: 'Embalagem (ajuste manual)',
+          quantity: 1,
+          unit_price: 0,
+          weight: Number(override.weight_grams) || 300,
+          height: Number(override.height_cm) || 10,
+          width: Number(override.width_cm) || 15,
+          length: Number(override.depth_cm) || 20,
+        }];
+      }
+      if (override.declared_value) {
+        (orderData as any).total = Number(override.declared_value) || orderData.total;
+      }
+    }
+
 
     // Get fiscal settings for default provider
     const { data: fiscalSettings } = await supabase

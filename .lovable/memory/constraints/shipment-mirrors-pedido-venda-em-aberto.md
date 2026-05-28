@@ -34,8 +34,15 @@ Coluna `shipments.manually_adjusted boolean DEFAULT false`. Quando `true`:
 - Gatilho NÃO deleta a remessa ao PV sair de `em_aberto` (cláusula `AND manually_adjusted = false` nos `DELETE`).
 - Worker da fila e backfills NÃO recalculam peso/dimensões/transportadora.
 - Edição manual (peso, dimensões, transportadora, serviço, destinatário, valor declarado) e criação manual de rascunho via UI marcam `manually_adjusted=true`.
+- Diálogo de edição/criação **pré-carrega** dados reais: do pedido (`orders.*`) quando há `order_id`, ou do PV (`fiscal_invoices.dest_*`) quando há `source_pedido_venda_id`. Operador edita somente o que precisa ajustar.
+- Campos obrigatórios (UI bloqueia salvar): transportadora, serviço, peso > 0, altura/largura/comprimento > 0, nome do destinatário, CPF (11) ou CNPJ (14), telefone com DDD, CEP (8 dígitos), rua, número, bairro, cidade, UF.
+- Overrides ficam em `shipments.metadata.override_*` (recipient_name, recipient_doc, recipient_phone, recipient_email, shipping_street, shipping_number, shipping_complement, shipping_neighborhood, shipping_city, shipping_state, shipping_zip) e peso/dimensões em `metadata.weight_grams/height_cm/width_cm/depth_cm/declared_value`.
+- `shipping-create-shipment` (edge function) lê `shipments.metadata.override_*` quando `manually_adjusted=true` e usa esses valores no payload da Correios em vez de `orders.*`. Sem esse comportamento, o ajuste manual seria ignorado na emissão.
+- `createCorreiosShipment` sempre envia `cpfCnpj` do destinatário (vindo de `orders.customer_cpf/cnpj` ou do override). Antes era enviado vazio, o que rejeitava etiquetas em contas Correios com validação estrita.
 
-UI: `src/components/shipping/ShipmentGenerator.tsx` (aba "Prontos para emitir remessa") expõe ações **Criar novo**, **Editar** e **Excluir** por linha. Diálogo: `src/components/shipping/DraftShipmentDialog.tsx`.
+UI: `src/components/shipping/ShipmentGenerator.tsx` (aba "Prontos para emitir remessa") expõe **Criar novo**, **Editar** e **Excluir** por linha. Diálogo: `src/components/shipping/DraftShipmentDialog.tsx`. Criação tem dois modos: **A partir de um pedido** (busca por número, pré-preenche tudo) ou **Avulso** (sem pedido, preenchimento manual completo). Painel "Remetente (loja)" em somente leitura com alerta amarelo se faltarem dados em `shipping_providers.settings`.
+
+
 
 ## O que NUNCA pode acontecer
 
