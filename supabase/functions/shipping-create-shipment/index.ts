@@ -933,13 +933,14 @@ Deno.serve(async (req) => {
         tracking_code: result.tracking_code,
         delivery_status: 'label_created',
         label_url: result.label_url,
+      const shipmentPatch: Record<string, unknown> = {
+        tracking_code: result.tracking_code,
+        delivery_status: 'label_created',
+        label_url: result.label_url,
         provider_shipment_id: result.provider_shipment_id,
-        invoice_id: invoiceData.id,
-        nfe_key: invoiceData.chave_acesso,
-        carrier: result.carrier || provider,
-        service_name: serviceName,
-        service_code: serviceCode,
-        last_status_at: new Date().toISOString(),
+        invoice_id: invoiceData?.id ?? null,
+        nfe_key: invoiceData?.chave_acesso ?? null,
+
         next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         poll_error_count: 0,
       };
