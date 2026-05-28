@@ -211,8 +211,10 @@ async function createCorreiosShipment(
       },
       destinatario: {
         nome: order.customer_name,
-        cpfCnpj: '', // CPF opcional
+        cpfCnpj: (order.customer_cpf || order.customer_cnpj || '').replace(/\D/g, ''),
         telefone: order.customer_phone?.replace(/\D/g, '') || '',
+        email: order.customer_email || '',
+
         email: order.customer_email || '',
         endereco: {
           cep: order.shipping_postal_code.replace(/\D/g, ''),
