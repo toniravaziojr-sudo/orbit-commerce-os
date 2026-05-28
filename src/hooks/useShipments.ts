@@ -328,6 +328,19 @@ export function useCreateShipment() {
   });
 }
 
+// Hook para despachar um rascunho existente (caminho novo: usa shipment_id)
+export function useDispatchShipment() {
+  return useMutation({
+    mutationFn: async (data: { shipment_id: string }) => {
+      const { data: result, error } = await supabase.functions.invoke('shipping-create-shipment', {
+        body: data,
+      });
+      if (error) throw error;
+      return result as { success: boolean; tracking_code?: string; error?: string; carrier?: string };
+    },
+  });
+}
+
 // Hook para obter etiqueta
 export function usePrintLabel() {
   return useMutation({

@@ -16,12 +16,12 @@ const corsHeaders = {
 // ========== TYPES ==========
 
 interface ShipmentRequest {
-  order_id: string;
+  order_id?: string;
+  shipment_id?: string; // Novo caminho: despachar a partir do rascunho existente
   invoice_id?: string;
   provider_override?: string;
   tenant_id?: string; // Used by internal service_role calls
 }
-
 interface ShipmentResult {
   success: boolean;
   tracking_code?: string;
@@ -536,88 +536,198 @@ Deno.serve(async (req) => {
 
       tenantId = profile.current_tenant_id;
     }
-    const { order_id, provider_override } = body;
+    const { order_id: bodyOrderId, shipment_id: bodyShipmentId, provider_override } = body;
 
-    if (!order_id) {
+    if (!bodyOrderId && !bodyShipmentId) {
       return new Response(
-        JSON.stringify({ success: false, error: 'order_id é obrigatório' }),
+        JSON.stringify({ success: false, error: 'Informe order_id ou shipment_id' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[shipping-create-shipment] Processing order ${order_id} for tenant ${tenantId}`);
+    // ====== Resolve shipment context ======
+    // shipmentRow = rascunho atual (quando entrada é shipment_id ou quando existe um rascunho para o pedido)
+    // resolvedOrderId = pedido vinculado (pode ser null para PV manual/duplicado)
+    // resolvedPvId = Pedido de Venda fiscal vinculado (quando aplicável)
+    let shipmentRow: any = null;
+    let resolvedOrderId: string | null = bodyOrderId || null;
+    let resolvedPvId: string | null = null;
 
-    // Get order with items
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select(`
-        id, tenant_id, customer_name, customer_email, customer_phone, customer_cpf, customer_cnpj,
-        shipping_street, shipping_number, shipping_complement, shipping_neighborhood,
-        shipping_city, shipping_state, shipping_postal_code, shipping_carrier, shipping_method,
-        subtotal, shipping_total, total, tracking_code
-      `)
-      .eq('id', order_id)
-      .eq('tenant_id', tenantId)
-      .single();
+    if (bodyShipmentId) {
+      const { data: s, error: sErr } = await supabase
+        .from('shipments')
+        .select('id, tenant_id, order_id, source_pedido_venda_id, carrier, service_name, service_code, delivery_status, tracking_code, metadata, manually_adjusted')
+        .eq('id', bodyShipmentId)
+        .maybeSingle();
+      if (sErr || !s) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Rascunho de remessa não encontrado' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Para chamada via JWT, validar que o rascunho pertence ao tenant do usuário
+      if (!isServiceRoleCall && s.tenant_id !== tenantId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Rascunho não pertence a este tenant' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Para chamada interna, herdar tenant_id do próprio rascunho se não veio
+      if (isServiceRoleCall) tenantId = s.tenant_id;
 
-    if (orderError || !order) {
-      console.error('[shipping-create-shipment] Order not found:', orderError);
+      if (s.tracking_code) {
+        return new Response(
+          JSON.stringify({ success: true, tracking_code: s.tracking_code, message: 'Rascunho já possui código de rastreio' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      shipmentRow = s;
+      resolvedOrderId = s.order_id || null;
+      resolvedPvId = s.source_pedido_venda_id || null;
+    }
+
+    console.log(`[shipping-create-shipment] tenant=${tenantId} order=${resolvedOrderId} pv=${resolvedPvId} shipment=${shipmentRow?.id || '-'}`);
+
+    // ====== Carrega o pedido (real ou virtual a partir do PV) ======
+    let order: any = null;
+
+    if (resolvedOrderId) {
+      const { data: orderRow, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          id, tenant_id, customer_name, customer_email, customer_phone, customer_cpf, customer_cnpj,
+          shipping_street, shipping_number, shipping_complement, shipping_neighborhood,
+          shipping_city, shipping_state, shipping_postal_code, shipping_carrier, shipping_method,
+          subtotal, shipping_total, total, tracking_code
+        `)
+        .eq('id', resolvedOrderId)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (orderError || !orderRow) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Pedido não encontrado' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (orderRow.tracking_code && !bodyShipmentId) {
+        return new Response(
+          JSON.stringify({ success: true, tracking_code: orderRow.tracking_code, message: 'Pedido já possui código de rastreio' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      order = orderRow;
+    }
+
+    // PV manual/duplicado: hidrata "pedido virtual" a partir do Pedido de Venda
+    let pvRow: any = null;
+    if (resolvedPvId && !order) {
+      const { data: pv, error: pvErr } = await supabase
+        .from('fiscal_invoices')
+        .select('id, tenant_id, dest_nome, dest_email, dest_telefone, dest_cpf, dest_cnpj, dest_endereco_logradouro, dest_endereco_numero, dest_endereco_complemento, dest_endereco_bairro, dest_endereco_municipio, dest_endereco_uf, dest_endereco_cep, transportadora_nome, transportadora_servico, valor_total')
+        .eq('id', resolvedPvId)
+        .maybeSingle();
+      if (pvErr || !pv) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Pedido de Venda vinculado ao rascunho não encontrado' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (pv.tenant_id !== tenantId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Pedido de Venda não pertence a este tenant' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      pvRow = pv;
+      order = {
+        id: pv.id, // identificador virtual
+        tenant_id: tenantId,
+        customer_name: pv.dest_nome || '',
+        customer_email: pv.dest_email || '',
+        customer_phone: pv.dest_telefone || '',
+        customer_cpf: pv.dest_cpf || null,
+        customer_cnpj: pv.dest_cnpj || null,
+        shipping_street: pv.dest_endereco_logradouro || '',
+        shipping_number: pv.dest_endereco_numero || '',
+        shipping_complement: pv.dest_endereco_complemento || '',
+        shipping_neighborhood: pv.dest_endereco_bairro || '',
+        shipping_city: pv.dest_endereco_municipio || '',
+        shipping_state: pv.dest_endereco_uf || '',
+        shipping_postal_code: pv.dest_endereco_cep || '',
+        shipping_carrier: pv.transportadora_nome || null,
+        shipping_method: pv.transportadora_servico || null,
+        subtotal: Number(pv.valor_total) || 0,
+        shipping_total: 0,
+        total: Number(pv.valor_total) || 0,
+        tracking_code: null,
+      };
+    }
+
+    if (!order) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Pedido não encontrado' }),
+        JSON.stringify({ success: false, error: 'Não foi possível resolver o pedido nem o Pedido de Venda do rascunho' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check if already has tracking
-    if (order.tracking_code) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          tracking_code: order.tracking_code,
-          message: 'Pedido já possui código de rastreio' 
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // ====== REGRA: NF-e autorizada obrigatória ======
+    let invoiceData: any = null;
+    if (resolvedOrderId) {
+      const { data: inv } = await supabase
+        .from('fiscal_invoices')
+        .select('id, chave_acesso, status, danfe_url')
+        .eq('order_id', resolvedOrderId)
+        .eq('tenant_id', tenantId)
+        .eq('status', 'authorized')
+        .maybeSingle();
+      invoiceData = inv;
     }
-
-    // REGRA: NF-e obrigatória para emitir remessa
-    const { data: invoiceData } = await supabase
-      .from('fiscal_invoices')
-      .select('id, chave_acesso, status, danfe_url')
-      .eq('order_id', order_id)
-      .eq('tenant_id', tenantId)
-      .eq('status', 'authorized')
-      .maybeSingle();
+    if (!invoiceData && resolvedPvId) {
+      // PV manual/duplicado: a NF é um registro separado vinculado por source_order_invoice_id = pv.id
+      const { data: inv } = await supabase
+        .from('fiscal_invoices')
+        .select('id, chave_acesso, status, danfe_url')
+        .eq('source_order_invoice_id', resolvedPvId)
+        .eq('tenant_id', tenantId)
+        .eq('status', 'authorized')
+        .maybeSingle();
+      invoiceData = inv;
+    }
 
     if (!invoiceData) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'NF-e autorizada não encontrada para este pedido. Emita a NF-e antes de criar a remessa.' 
+        JSON.stringify({
+          success: false,
+          error: resolvedPvId
+            ? 'NF-e autorizada não encontrada para este Pedido de Venda. Emita a NF-e antes de criar a remessa.'
+            : 'NF-e autorizada não encontrada para este pedido. Emita a NF-e antes de criar a remessa.'
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[shipping-create-shipment] NF-e found: ${invoiceData.id} (chave: ${invoiceData.chave_acesso?.substring(0, 10)}...)`);
+    console.log(`[shipping-create-shipment] NF-e found: ${invoiceData.id}`);
 
-    // Check manual override from shipment draft (UI edit). When manually_adjusted=true,
-    // metadata.override_* fields take precedence over orders.* for the Correios payload.
-    const { data: draftShipment } = await supabase
-      .from('shipments')
-      .select('metadata, manually_adjusted')
-      .eq('order_id', order_id)
-      .eq('tenant_id', tenantId)
-      .eq('delivery_status', 'draft')
-      .maybeSingle();
+    // ====== Carrega o rascunho (se já não veio por shipment_id) e aplica override ======
+    if (!shipmentRow && resolvedOrderId) {
+      const { data: draftShipment } = await supabase
+        .from('shipments')
+        .select('id, tenant_id, order_id, source_pedido_venda_id, carrier, service_name, service_code, metadata, manually_adjusted')
+        .eq('order_id', resolvedOrderId)
+        .eq('tenant_id', tenantId)
+        .eq('delivery_status', 'draft')
+        .maybeSingle();
+      if (draftShipment) shipmentRow = draftShipment;
+    }
 
-    const override = (draftShipment?.manually_adjusted && draftShipment?.metadata)
-      ? (draftShipment.metadata as any)
-      : null;
+    const meta = (shipmentRow?.metadata as any) || {};
+    // Para PV órfão (sem order real), o próprio gatilho de espelho popula metadata com weight/dimensions
+    // calculados do PV. Logo: sempre que houver shipmentRow, usamos seu metadata como fonte de peso/dimensões/destinatário.
+    const override = shipmentRow ? meta : null;
 
     if (override) {
-      console.log('[shipping-create-shipment] Manual override active — using shipment.metadata.override_* for recipient/package');
-      // Apply overrides to order in-memory (used by adapters)
+      console.log('[shipping-create-shipment] Using shipment.metadata as source for recipient/package');
       if (override.override_recipient_name) order.customer_name = override.override_recipient_name;
       if (override.override_recipient_phone) order.customer_phone = override.override_recipient_phone;
       if (override.override_recipient_doc) {
@@ -634,14 +744,41 @@ Deno.serve(async (req) => {
       if (override.override_shipping_zip) order.shipping_postal_code = override.override_shipping_zip;
     }
 
-    // Get order items with product data for real weights/dimensions
-    const { data: orderItems } = await supabase
-      .from('order_items')
-      .select('product_name, quantity, unit_price, product_id')
-      .eq('order_id', order_id);
+    // ====== Itens do pedido (para peso/dimensões quando não há override de pacote) ======
+    let orderItems: any[] = [];
+    if (resolvedOrderId) {
+      const { data } = await supabase
+        .from('order_items')
+        .select('product_name, quantity, unit_price, product_id')
+        .eq('order_id', resolvedOrderId);
+      orderItems = data || [];
+    } else if (resolvedPvId) {
+      // PV manual: usar fiscal_invoice_items
+      const { data: pvItems } = await supabase
+        .from('fiscal_invoice_items')
+        .select('descricao, quantidade, valor_unitario, codigo_produto')
+        .eq('fiscal_invoice_id', resolvedPvId);
+      // Resolver product_id por SKU
+      const skus = (pvItems || []).map((i: any) => i.codigo_produto).filter(Boolean);
+      let productsBySku: Record<string, any> = {};
+      if (skus.length > 0) {
+        const { data: prods } = await supabase
+          .from('products')
+          .select('id, sku')
+          .eq('tenant_id', tenantId)
+          .in('sku', skus);
+        productsBySku = Object.fromEntries((prods || []).map((p: any) => [p.sku, p]));
+      }
+      orderItems = (pvItems || []).map((i: any) => ({
+        product_name: i.descricao,
+        quantity: Number(i.quantidade) || 1,
+        unit_price: Number(i.valor_unitario) || 0,
+        product_id: i.codigo_produto ? productsBySku[i.codigo_produto]?.id || null : null,
+      }));
+    }
 
     // Fetch product physical data
-    const productIds = (orderItems || []).map(i => i.product_id).filter(Boolean);
+    const productIds = orderItems.map(i => i.product_id).filter(Boolean);
     let productsMap: Record<string, any> = {};
     if (productIds.length > 0) {
       const { data: products } = await supabase
@@ -655,7 +792,7 @@ Deno.serve(async (req) => {
 
     const orderData: OrderData = {
       ...order,
-      items: (orderItems || []).map(item => {
+      items: orderItems.map(item => {
         const product = item.product_id ? productsMap[item.product_id] : null;
         return {
           ...item,
@@ -667,12 +804,11 @@ Deno.serve(async (req) => {
       }),
     };
 
-    // When override is active, force package metrics from metadata
+    // Quando há override (qualquer rascunho), peso/dimensões agregados do metadata vencem
     if (override) {
       if (override.weight_grams) {
-        // Replace items aggregation by single virtual item with the override weight
         orderData.items = [{
-          product_name: 'Embalagem (ajuste manual)',
+          product_name: 'Embalagem (rascunho)',
           quantity: 1,
           unit_price: 0,
           weight: Number(override.weight_grams) || 300,
@@ -684,6 +820,11 @@ Deno.serve(async (req) => {
       if (override.declared_value) {
         (orderData as any).total = Number(override.declared_value) || orderData.total;
       }
+    }
+
+    // Provider para PV órfão: vem do próprio shipment (carrier) já normalizado pelo gatilho
+    if (!resolvedOrderId && shipmentRow?.carrier && !order.shipping_carrier) {
+      order.shipping_carrier = shipmentRow.carrier;
     }
 
 
@@ -759,95 +900,97 @@ Deno.serve(async (req) => {
     console.log(`[shipping-create-shipment] Result:`, JSON.stringify(result));
 
     if (result.success && result.tracking_code) {
-      // Update order with tracking code — status stays 'processing' until user dispatches
-      const orderUpdate: Record<string, unknown> = {
-        tracking_code: result.tracking_code,
-        shipping_carrier: result.carrier,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Update shipping status if enabled
-      if (fiscalSettings?.auto_update_order_status !== false) {
-        orderUpdate.shipping_status = 'label_created';
+      // Atualiza pedido real (quando existir)
+      if (resolvedOrderId) {
+        const orderUpdate: Record<string, unknown> = {
+          tracking_code: result.tracking_code,
+          shipping_carrier: result.carrier,
+          updated_at: new Date().toISOString(),
+        };
+        if (fiscalSettings?.auto_update_order_status !== false) {
+          orderUpdate.shipping_status = 'label_created';
+        }
+        await supabase.from('orders').update(orderUpdate).eq('id', resolvedOrderId);
+        console.log(`[shipping-create-shipment] Order ${resolvedOrderId} tracking updated: ${result.tracking_code}`);
       }
 
-      await supabase
-        .from('orders')
-        .update(orderUpdate)
-        .eq('id', order_id);
-      
-      console.log(`[shipping-create-shipment] Order ${order_id} tracking updated: ${result.tracking_code} (status stays processing)`);
+      // Pega service_name/service_code do pedido se houver, senão do próprio rascunho
+      let serviceName: string | null = null;
+      let serviceCode: string | null = null;
+      if (resolvedOrderId) {
+        const { data: orderForShip } = await supabase
+          .from('orders')
+          .select('shipping_service_name, shipping_service_code')
+          .eq('id', resolvedOrderId)
+          .single();
+        serviceName = orderForShip?.shipping_service_name || null;
+        serviceCode = orderForShip?.shipping_service_code || null;
+      }
+      serviceName = (result as any).service_name || serviceName || shipmentRow?.service_name || null;
+      serviceCode = (result as any).service_code || serviceCode || shipmentRow?.service_code || null;
 
-      // Buscar dados do pedido para propagar service_name/service_code
-      const { data: orderForShip } = await supabase
-        .from('orders')
-        .select('shipping_service_name, shipping_service_code')
-        .eq('id', order_id)
-        .single();
+      const shipmentPatch: Record<string, unknown> = {
+        tracking_code: result.tracking_code,
+        delivery_status: 'label_created',
+        label_url: result.label_url,
+        provider_shipment_id: result.provider_shipment_id,
+        invoice_id: invoiceData.id,
+        nfe_key: invoiceData.chave_acesso,
+        carrier: result.carrier || provider,
+        service_name: serviceName,
+        service_code: serviceCode,
+        last_status_at: new Date().toISOString(),
+        next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        poll_error_count: 0,
+      };
 
-      // Update existing shipment draft (created by scheduler-tick) or create new
-      await supabase
-        .from('shipments')
-        .upsert({
-          tenant_id: tenantId,
-          order_id: order_id,
-          carrier: result.carrier || provider,
-          tracking_code: result.tracking_code,
-          delivery_status: 'label_created',
-          label_url: result.label_url,
-          provider_shipment_id: result.provider_shipment_id,
-          invoice_id: invoiceData.id,
-          nfe_key: invoiceData.chave_acesso,
-          service_name: (result as any).service_name || orderForShip?.shipping_service_name || null,
-          service_code: (result as any).service_code || orderForShip?.shipping_service_code || null,
-          last_status_at: new Date().toISOString(),
-          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-          poll_error_count: 0,
-        }, {
-          onConflict: 'tenant_id,order_id,tracking_code',
-        });
+      if (shipmentRow?.id) {
+        // Atualiza o rascunho exato (funciona para PV com ou sem pedido)
+        await supabase.from('shipments').update(shipmentPatch).eq('id', shipmentRow.id);
+      } else if (resolvedOrderId) {
+        // Caminho legado: atualiza por order_id ou cria
+        await supabase
+          .from('shipments')
+          .upsert({
+            tenant_id: tenantId,
+            order_id: resolvedOrderId,
+            ...shipmentPatch,
+          }, { onConflict: 'tenant_id,order_id,tracking_code' });
+        await supabase
+          .from('shipments')
+          .update(shipmentPatch)
+          .eq('order_id', resolvedOrderId)
+          .eq('tenant_id', tenantId)
+          .eq('delivery_status', 'draft');
+      }
 
-      // Also update by order_id if draft exists without tracking_code
-      await supabase
-        .from('shipments')
-        .update({
-          tracking_code: result.tracking_code,
-          delivery_status: 'label_created',
-          label_url: result.label_url,
-          provider_shipment_id: result.provider_shipment_id,
-          invoice_id: invoiceData.id,
-          nfe_key: invoiceData.chave_acesso,
-          carrier: result.carrier || provider,
-          service_name: (result as any).service_name || orderForShip?.shipping_service_name || null,
-          service_code: (result as any).service_code || orderForShip?.shipping_service_code || null,
-          last_status_at: new Date().toISOString(),
-          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-        })
-        .eq('order_id', order_id)
-        .eq('tenant_id', tenantId)
-        .eq('delivery_status', 'draft');
+      // Log no histórico do pedido (só quando há pedido real)
+      if (resolvedOrderId) {
+        await supabase
+          .from('order_history')
+          .insert({
+            order_id: resolvedOrderId,
+            action: 'shipment_created',
+            description: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
+          });
+      }
 
-      // Log in order history (uses action/description columns)
-      await supabase
-        .from('order_history')
-        .insert({
-          order_id: order_id,
-          action: 'shipment_created',
-          description: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
-        });
-
-      console.log(`[shipping-create-shipment] Shipment record updated for order ${order_id}`);
+      console.log(`[shipping-create-shipment] Shipment record updated (shipment=${shipmentRow?.id || 'new'})`);
     } else if (!result.success) {
-      // Marcar shipment draft como failed se existir
-      await supabase
-        .from('shipments')
-        .update({
-          delivery_status: 'failed',
-          last_status_at: new Date().toISOString(),
-        })
-        .eq('order_id', order_id)
-        .eq('tenant_id', tenantId)
-        .eq('delivery_status', 'draft');
+      // Marca rascunho como failed
+      if (shipmentRow?.id) {
+        await supabase
+          .from('shipments')
+          .update({ delivery_status: 'failed', last_status_at: new Date().toISOString() })
+          .eq('id', shipmentRow.id);
+      } else if (resolvedOrderId) {
+        await supabase
+          .from('shipments')
+          .update({ delivery_status: 'failed', last_status_at: new Date().toISOString() })
+          .eq('order_id', resolvedOrderId)
+          .eq('tenant_id', tenantId)
+          .eq('delivery_status', 'draft');
+      }
     }
 
     return new Response(
