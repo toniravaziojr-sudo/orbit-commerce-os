@@ -474,6 +474,8 @@ A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status 
 
 **Ações manuais no rascunho (2026-05-27):** na aba "Prontos para emitir remessa" o operador pode **criar novo rascunho**, **editar** (peso, dimensões, transportadora, serviço, destinatário, endereço completo, telefone, valor declarado) e **excluir** rascunhos. Qualquer edição ou criação manual marca a remessa como **ajustada manualmente** e, a partir daí, o sistema não recalcula nem apaga esse registro automaticamente — a responsabilidade passa a ser do operador. O espelhamento automático continua valendo apenas para rascunhos que nunca foram tocados manualmente.
 
+**Posicionamento do botão "Emitir Remessa" (2026-05-28):** o botão de emissão fica no topo da aba "Prontos para emitir remessa", ao lado de "Criar novo rascunho", junto ao contador de pedidos e ao indicador de seleção. Fica desabilitado quando nenhum pedido está selecionado e mostra a quantidade selecionada entre parênteses quando há seleção. Não existe mais barra inferior duplicada — a ação principal acompanha o cabeçalho e fica sempre visível sem precisar rolar a lista.
+
 **Diálogo de rascunho — comportamento (2026-05-28):**
 
 - **Editar** pré-carrega automaticamente os dados reais: vindos do pedido (`orders`) quando há vínculo de pedido, ou do Pedido de Venda Fiscal (`fiscal_invoices`) quando o rascunho nasceu de um PV manual/duplicado. O operador edita só o que precisa ajustar — nenhum campo nasce em branco quando há fonte de verdade disponível.
