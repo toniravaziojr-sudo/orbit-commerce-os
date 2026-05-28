@@ -15,6 +15,8 @@ type: constraint
 3. Trava anti-corrida no `scheduler-tick` (PHASE 1.6): antes de inserir a remessa por `source_pedido_venda_id`, revalidar `pv.pedido_status='em_aberto' AND fiscal_stage='pedido_venda' AND source_order_invoice_id IS NULL`. Se não, cancelar item da fila com `cancel_reason='pv_not_em_aberto:<status>'`. Previne remessa órfã quando NF é emitida antes do worker processar.
 4. Função: `public.sync_shipment_with_pv_status()` (SECURITY DEFINER, `search_path=public`).
 5. Aplica-se apenas a PV raiz (`fiscal_stage='pedido_venda' AND source_order_invoice_id IS NULL`).
+6. **PV manual ou duplicado (sem `order_id`)**: `fiscal-create-manual` grava `pedido_status='em_aberto'` no INSERT quando `creationMode='pedido_venda'` e `order_id` é nulo. Isso aciona o gatilho de espelho e a remessa-rascunho nasce automaticamente, lendo dados de `fiscal_invoices` + `fiscal_invoice_items` + `products`.
+7. **Exclusão de PV**: trigger `trg_cascade_delete_draft_shipment_on_pv_delete` (BEFORE DELETE em `fiscal_invoices`) remove em cascata o shipment vinculado por `source_pedido_venda_id` **apenas quando `tracking_code` é nulo/vazio**. Remessas postadas permanecem (FK continua `ON DELETE SET NULL`). Itens `pending/processing` em `shipping_draft_queue` são cancelados com `cancel_reason='pv_deleted'`.
 
 ## Peso, dimensões e transportadora na criação (2026-05-27)
 

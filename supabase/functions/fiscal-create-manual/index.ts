@@ -231,13 +231,22 @@ Deno.serve(async (req) => {
     const natureTaxManual = pickTaxCodesForCrt(nature, emitterCrtManual);
 
     // Create invoice draft
+    // Create invoice draft
+    // Manual/duplicated PV sem order_id: nasce em 'em_aberto' para acionar o gatilho
+    // de espelho (sync_shipment_with_pv_status) e criar a remessa-rascunho automaticamente.
+    // Ver mem://constraints/shipment-mirrors-pedido-venda-em-aberto e docs/especificacoes/erp/logistica.md
+    const initialPedidoStatus =
+      creationMode === 'pedido_venda' && !order_id ? 'em_aberto' : null;
+
     const invoiceBaseData: any = {
       tenant_id: tenantId,
       order_id: order_id || null,
       serie: serieNfe,
       status: 'draft',
       fiscal_stage: initialStage,
+      pedido_status: initialPedidoStatus,
       tipo_documento: nature?.tipo_documento ?? 1,
+
       finalidade_emissao: nature?.finalidade ?? 1,
       natureza_operacao_id: nature?.id ?? null,
       natureza_operacao: (nature?.nome || natureza_operacao || 'VENDA DE MERCADORIA').toUpperCase(),
