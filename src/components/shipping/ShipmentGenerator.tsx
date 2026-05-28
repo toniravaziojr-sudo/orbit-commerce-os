@@ -580,12 +580,17 @@ export function ShipmentGenerator() {
                             />
                           </TableHead>
                           <TableHead>Pedido</TableHead>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Frete</TableHead>
-                          <TableHead>Destino</TableHead>
-                          <TableHead>Peso</TableHead>
-                          <TableHead>NF-e</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
+                            <TableRow 
+                              key={shipment.id}
+                              className="cursor-pointer"
+                              onClick={() => toggleOrder(shipment.order_id)}
+                            >
+                              <TableCell onClick={e => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={selectedOrders.has(shipment.order_id)}
+                                  onCheckedChange={() => toggleOrder(shipment.order_id)}
+                                />
+                              </TableCell>
                               <TableCell className="font-medium">
                                 {order?.order_number ? `#${order.order_number}` : (shipment.pv?.numero ? `PV ${shipment.pv.numero}` : '—')}
                               </TableCell>
@@ -601,24 +606,6 @@ export function ShipmentGenerator() {
                                 {(order?.shipping_city || shipment.pv?.dest_endereco_municipio || '—')}/{(order?.shipping_state || shipment.pv?.dest_endereco_uf || '—')}
                               </TableCell>
 
-                                  checked={selectedOrders.has(shipment.order_id)}
-                                  onCheckedChange={() => toggleOrder(shipment.order_id)}
-                                />
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                #{order?.order_number}
-                              </TableCell>
-                              <TableCell className="max-w-[120px] truncate">
-                                {order?.customer_name}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-xs">
-                                  {shipment.carrier || 'N/A'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-sm">
-                                {order?.shipping_city}/{order?.shipping_state}
-                              </TableCell>
                               <TableCell className="text-muted-foreground text-sm">
                                 {meta?.weight_grams ? `${meta.weight_grams}g` : '-'}
                               </TableCell>
