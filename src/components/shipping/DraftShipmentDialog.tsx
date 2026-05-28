@@ -110,28 +110,36 @@ export function DraftShipmentDialog({ open, onOpenChange, shipmentId, onSaved }:
 
   const isEdit = !!shipmentId;
 
-  // Load sender from shipping_providers settings (Correios)
+  // Load sender: prioriza shipping_providers.settings (Correios), com fallback para fiscal_settings (dados da empresa/emitente)
   useEffect(() => {
     if (!open || !currentTenant?.id) return;
     (async () => {
-      const { data } = await supabase
-        .from('shipping_providers')
-        .select('settings')
-        .eq('tenant_id', currentTenant.id)
-        .eq('provider', 'correios')
-        .maybeSingle();
-      const s = (data?.settings || {}) as any;
+      const [{ data: sp }, { data: fs }] = await Promise.all([
+        supabase
+          .from('shipping_providers')
+          .select('settings')
+          .eq('tenant_id', currentTenant.id)
+          .eq('provider', 'correios')
+          .maybeSingle(),
+        supabase
+          .from('fiscal_settings')
+          .select('razao_social, nome_fantasia, cnpj, telefone, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_municipio, endereco_uf')
+          .eq('tenant_id', currentTenant.id)
+          .maybeSingle(),
+      ]);
+      const s = (sp?.settings || {}) as any;
+      const f = (fs || {}) as any;
       const senderData: SenderInfo = {
-        name: s.sender_name || '',
-        doc: s.sender_document || '',
-        phone: s.sender_phone || '',
-        street: s.sender_street || '',
-        number: s.sender_number || '',
-        complement: s.sender_complement || '',
-        neighborhood: s.sender_neighborhood || '',
-        city: s.sender_city || '',
-        state: s.sender_state || '',
-        zip: s.sender_postal_code || '',
+        name: s.sender_name || f.nome_fantasia || f.razao_social || '',
+        doc: s.sender_document || f.cnpj || '',
+        phone: s.sender_phone || f.telefone || '',
+        street: s.sender_street || f.endereco_logradouro || '',
+        number: s.sender_number || f.endereco_numero || '',
+        complement: s.sender_complement || f.endereco_complemento || '',
+        neighborhood: s.sender_neighborhood || f.endereco_bairro || '',
+        city: s.sender_city || f.endereco_municipio || '',
+        state: s.sender_state || f.endereco_uf || '',
+        zip: s.sender_postal_code || f.endereco_cep || '',
       };
       setSender(senderData);
       const missing: string[] = [];
@@ -144,7 +152,7 @@ export function DraftShipmentDialog({ open, onOpenChange, shipmentId, onSaved }:
       if (!senderData.neighborhood) missing.push('bairro');
       if (!senderData.city) missing.push('cidade');
       if (!senderData.state) missing.push('UF');
-      setSenderWarning(missing.length > 0 ? `Faltam dados do remetente: ${missing.join(', ')}. Configure em Configurações → Transportadoras → Correios antes de emitir.` : null);
+      setSenderWarning(missing.length > 0 ? `Faltam dados do remetente: ${missing.join(', ')}. Configure em Configurações → Dados Fiscais (ou Transportadoras → Correios) antes de emitir.` : null);
     })();
   }, [open, currentTenant?.id]);
 
@@ -506,10 +514,12 @@ export function DraftShipmentDialog({ open, onOpenChange, shipmentId, onSaved }:
                     <Input value={form.service_name} onChange={(e) => setField('service_name')(e.target.value)} placeholder="PAC, Sedex, Express…" />
                   )}
                 </div>
-                <div>
-                  <Label>Nome do serviço {form.carrier === 'correios' ? '' : '*'}</Label>
-                  <Input value={form.service_name} onChange={(e) => setField('service_name')(e.target.value)} placeholder="PAC, SEDEX…" />
-                </div>
+                {form.carrier !== 'correios' && (
+                  <div>
+                    <Label>Nome do serviço *</Label>
+                    <Input value={form.service_name} onChange={(e) => setField('service_name')(e.target.value)} placeholder="PAC, SEDEX…" />
+                  </div>
+                )}
               </div>
             </div>
 

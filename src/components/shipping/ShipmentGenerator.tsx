@@ -121,6 +121,14 @@ export function ShipmentGenerator() {
     queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
     queryClient.invalidateQueries({ queryKey: ['shipments-issued'] });
     queryClient.invalidateQueries({ queryKey: ['shipments-failed'] });
+  };
+
+  // === TAB 1: Prontos para emitir remessa ===
+  const { data: readyOrders, isLoading: loadingReady } = useQuery({
+    queryKey: ['orders-ready-shipment', currentTenant?.id, selectedCarrier, startDate?.toISOString(), endDate?.toISOString()],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+
       let query = supabase
         .from('shipments')
         .select<string, any>(`
