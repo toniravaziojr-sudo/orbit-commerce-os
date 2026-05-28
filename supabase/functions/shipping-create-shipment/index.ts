@@ -722,7 +722,22 @@ Deno.serve(async (req) => {
     }
 
     const credentials = providerRecord.credentials as ProviderCredentials;
-    const settings = providerRecord.settings as Record<string, unknown>;
+    // Merge: shipping_providers.settings tem prioridade; fiscal_settings é fallback (emitente da NFe)
+    const rawSettings = (providerRecord.settings || {}) as Record<string, unknown>;
+    const fs = (fiscalSettings || {}) as Record<string, any>;
+    const settings: Record<string, unknown> = {
+      ...rawSettings,
+      sender_name: rawSettings.sender_name || fs.nome_fantasia || fs.razao_social || '',
+      sender_document: rawSettings.sender_document || fs.cnpj || '',
+      sender_phone: rawSettings.sender_phone || fs.telefone || '',
+      sender_postal_code: rawSettings.sender_postal_code || fs.endereco_cep || '',
+      sender_street: rawSettings.sender_street || fs.endereco_logradouro || '',
+      sender_number: rawSettings.sender_number || fs.endereco_numero || '',
+      sender_complement: rawSettings.sender_complement || fs.endereco_complemento || '',
+      sender_neighborhood: rawSettings.sender_neighborhood || fs.endereco_bairro || '',
+      sender_city: rawSettings.sender_city || fs.endereco_municipio || '',
+      sender_state: rawSettings.sender_state || fs.endereco_uf || '',
+    };
 
     // Create shipment based on provider
     let result: ShipmentResult;
