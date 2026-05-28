@@ -506,10 +506,14 @@ export function DraftShipmentDialog({ open, onOpenChange, shipmentId, onSaved }:
                     <Input value={form.service_name} onChange={(e) => setField('service_name')(e.target.value)} placeholder="PAC, Sedex, Express…" />
                   )}
                 </div>
-                <div>
-                  <Label>Nome do serviço {form.carrier === 'correios' ? '' : '*'}</Label>
-                  <Input value={form.service_name} onChange={(e) => setField('service_name')(e.target.value)} placeholder="PAC, SEDEX…" />
-                </div>
+                {form.carrier !== 'correios' && (
+                  <div>
+                    <Label>Nome do serviço *</Label>
+                    <Input value={form.service_name} onChange={(e) => setField('service_name')(e.target.value)} placeholder="PAC, SEDEX…" />
+                  </div>
+                )}
+              </div>
+            </div>
               </div>
             </div>
 
