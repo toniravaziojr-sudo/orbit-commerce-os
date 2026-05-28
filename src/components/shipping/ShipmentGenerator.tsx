@@ -586,21 +586,21 @@ export function ShipmentGenerator() {
                           <TableHead>Peso</TableHead>
                           <TableHead>NF-e</TableHead>
                           <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {readyOrders!.map(shipment => {
-                          const order = shipment.order as any;
-                          const meta = shipment.metadata as any;
-                          const hasNFe = !!shipment.nfe_key;
-                          return (
-                            <TableRow 
-                              key={shipment.id}
-                              className="cursor-pointer"
-                              onClick={() => toggleOrder(shipment.order_id)}
-                            >
-                              <TableCell onClick={e => e.stopPropagation()}>
-                                <Checkbox
+                              <TableCell className="font-medium">
+                                {order?.order_number ? `#${order.order_number}` : (shipment.pv?.numero ? `PV ${shipment.pv.numero}` : '—')}
+                              </TableCell>
+                              <TableCell className="max-w-[120px] truncate">
+                                {order?.customer_name || shipment.pv?.dest_nome || '—'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {shipment.carrier || 'N/A'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {(order?.shipping_city || shipment.pv?.dest_endereco_municipio || '—')}/{(order?.shipping_state || shipment.pv?.dest_endereco_uf || '—')}
+                              </TableCell>
+
                                   checked={selectedOrders.has(shipment.order_id)}
                                   onCheckedChange={() => toggleOrder(shipment.order_id)}
                                 />
