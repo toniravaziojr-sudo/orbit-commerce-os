@@ -680,26 +680,12 @@ export function ShipmentGenerator() {
                         })}
                       </TableBody>
                     </Table>
-                  </ScrollArea>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                    <span className="text-sm text-muted-foreground">
-                      {selectedOrders.size} pedido(s) selecionado(s)
-                    </span>
-                    <Button
-                      onClick={handleGenerateShipments}
-                      disabled={selectedOrders.size === 0 || isGenerating}
-                      className="gap-2"
-                    >
-                      {isGenerating ? (
-                        <>Emitindo...</>
-                      ) : (
-                        <>
-                          <Truck className="h-4 w-4" />
-                          Emitir Remessa ({selectedOrders.size})
-                        </>
-                      )}
-                    </Button>
                   </div>
                 </>
               )}
