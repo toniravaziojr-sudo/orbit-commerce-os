@@ -342,7 +342,6 @@ export function ShipmentGenerator() {
     }
     invalidateAll();
   };
-  };
 
   const handleRetryShipment = async (orderId: string) => {
     try {
