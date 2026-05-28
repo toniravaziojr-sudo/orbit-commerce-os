@@ -1,47 +1,46 @@
-## 📋 Checklist de Conformidade
-- Doc de Regras lido (governança documental, espelho PV↔Remessa)
-- Memórias `shipping-draft-mirrors-pedido-venda` e `shipment-mirrors-pedido-venda-em-aberto` consultadas
-- Fluxo afetado: criação manual/duplicada de Pedido de Venda → Rascunho Logístico (Remessas)
-- Fonte de verdade: `fiscal_invoices` (PV raiz) → `shipping_draft_queue` → `shipments`
-- Módulos impactados: Fiscal (criação/duplicação/exclusão de PV) e Logística (fila e remessas)
-- UI: nenhuma mudança visual
+# Plano — "Emitir Remessa" passa a despachar o rascunho
 
-## Como funciona hoje
-Quando um PV nasce de um pedido real da loja, tudo flui: o gatilho enfileira o rascunho e o processador cria a remessa lendo dados do pedido. Mas quando o PV é criado **manualmente ou por duplicação** (sem pedido real), a fila até recebe o item, porém o processador tenta buscar um pedido inexistente, falha e o rascunho nunca vira remessa visível na aba "Prontos para emitir remessa". Na duplicação ainda se perde a informação do serviço (ex.: PAC).
+## 📋 Checklist
+- Docs lidos: `docs/especificacoes/erp/logistica.md`, `docs/especificacoes/erp/rascunhos-logisticos.md`, memórias `shipping-draft-mirrors-pedido-venda` e `shipment-mirrors-pedido-venda-em-aberto`.
+- Fluxo: Logística → aba "Prontos para emitir remessa" → ação "Emitir Remessa".
+- Fonte de verdade do rascunho: a própria linha de remessa (já tem peso, dimensões, transportadora, serviço, destinatário, overrides).
+- Regra do sistema confirmada nos docs: **NF-e autorizada é obrigatória para emitir etiqueta**. Mantida.
+- UI/UX: nenhuma mudança visual (botão no mesmo lugar, mesmo texto). Só o comportamento por trás muda.
 
-Hoje também não há regra que limpe automaticamente um rascunho de remessa quando o PV correspondente é excluído sem ter virado pedido real.
+## Causa raiz (determinística, não probabilística)
 
-## O problema (caso Lesinete)
-- PV 346 (original, com pedido real) → tem remessa rascunho ✅
-- PV 347 (duplicado, sem pedido real) → fila tentou processar, falhou com erro de pedido inexistente, **rascunho de remessa nunca apareceu** ❌
-- Se você excluir um PV duplicado/manual, hoje nada acontece na fila de Remessas ❌
+O botão "Emitir Remessa" hoje chama o motor antigo de criação de remessa **a partir do pedido**. Esse motor:
+1. Exige um pedido vinculado. Vários rascunhos da fila atual são de PV manual/duplicado **sem pedido** — a seleção no checkbox usa o pedido como chave; quando ele é nulo, a seleção quebra e o envio vai com identificador vazio.
+2. Exige NF-e autorizada. Correto pela regra, mas a mensagem hoje é genérica ("X falharam"), sem dizer qual rascunho e por quê.
+3. Reconstrói tudo a partir do pedido, ignorando o rascunho que o operador acabou de ajustar (peso, endereço, serviço). O override só é aplicado quando o rascunho é encontrado por pedido — para órfãos, nunca é.
 
-## O que eu faria
-1. **Independência total do pedido real**: o processador da fila passa a aceitar PV sem pedido vinculado. Ele lê endereço, peso, dimensões e transportadora direto do próprio Pedido de Venda (cabeçalho + itens + cadastro de produtos). Resultado: o rascunho aparece automaticamente em "Prontos para emitir remessa", igual a qualquer outro.
+## O que vou ajustar
 
-2. **Inferência correta da transportadora**: na duplicação, copiar também o serviço (PAC/SEDEX/etc.) do PV de origem, não só o nome da transportadora. No enfileiramento, usar a transportadora do próprio PV quando não houver pedido (em vez de cair em "manual").
-
-3. **Exclusão reflete na fila**: ao excluir um PV em aberto (manual ou duplicado), o rascunho de remessa correspondente é removido automaticamente — desde que ainda não tenha código de rastreio postado. Remessas já despachadas permanecem intocadas.
-
-4. **Regularização do PV 347 (Lesinete)**: criar o rascunho de remessa que ficou faltando, para que você consiga emitir a etiqueta dele normalmente. Os 2 rascunhos órfãos do PV 346 e 347 ficarão corretos lado a lado.
+1. **Entrada do motor de emissão** passa a aceitar o **id do rascunho** (caminho novo) e segue aceitando o id do pedido (compatibilidade com chamadas internas existentes do scheduler e da automação NF→Etiqueta).
+2. Quando entra pelo rascunho: o motor lê tudo do próprio rascunho. Se há pedido, usa pedido para campos faltantes; se não há, lê do Pedido de Venda vinculado e dos itens do PV. Override manual continua tendo precedência.
+3. NF-e segue obrigatória (regra do sistema). Para PV sem pedido, busca-se a NF-e autorizada pelo PV. Quando faltar, mensagem clara em PT-BR identificando o rascunho.
+4. **Mensagens por linha**: substitui o toast genérico "X falharam" por feedback por rascunho — sucesso com código de rastreio, falha com motivo de negócio (faltou NF-e, faltou CEP, faltou peso, recusa da transportadora, etc.).
+5. **Seleção da lista** passa a usar o id do rascunho. Resolve PV sem pedido e o caso de mais de um rascunho por pedido.
 
 ## Resultado final
-- Toda forma de criar Pedido de Venda — automática (pedido real), manual ou duplicação — gera rascunho logístico se o transporte for local (Correios/transportadora própria).
-- Pedidos via gateway (Frenet etc.) continuam com fluxo próprio, sem rascunho local (regra atual preservada).
-- Excluir um PV em aberto remove o rascunho da fila de Remessas, sem nunca tocar em pedido real ou remessa já despachada.
-- Caso Lesinete fica regularizado.
+- Botão "Emitir Remessa" despacha exatamente o que está visível na fila, respeitando overrides e PVs sem pedido.
+- Erros aparecem por linha, com texto de negócio claro.
+- Pedido original e remessas já postadas nunca são tocados.
 
-## Bloco técnico (referência)
-1. `enqueue_shipping_draft_from_pv`: usar `NEW.transportadora_nome` como provider quando `order_id IS NULL`.
-2. `scheduler-tick` PHASE 1.6: fallback para `fiscal_invoices` + `fiscal_invoice_items`+`products` quando `order_id` é nulo; inserir shipment com `source_pedido_venda_id` e `order_id=NULL`.
-3. `sync_shipment_with_pv_status`: ramo paralelo para `order_id IS NULL` usando `source_pedido_venda_id` na limpeza ao sair de `em_aberto`.
-4. Novo trigger `AFTER DELETE` em `fiscal_invoices` para remover shipment rascunho (sem tracking) vinculado ao PV excluído.
-5. `fiscal-create-manual` (duplicação): propagar `transportadora_servico` do PV de origem.
-6. Backfill: criar shipment rascunho para o PV 347 (Lesinete) — uma inserção manual via tool de Insert.
+## Bloco técnico
+- `ShipmentGenerator.tsx`: `selectedOrders` vira `selectedShipments: Set<string>` (id do rascunho). `handleGenerateShipments` itera ids e chama novo hook `useDispatchShipment({ shipment_id })`. Mostra resultados por linha.
+- `useShipments.ts`: adicionar `useDispatchShipment({ shipment_id })`.
+- `supabase/functions/shipping-create-shipment/index.ts`: aceitar `shipment_id` no body. Quando presente, carregar tenant/order/PV via shipment. Hidratar order virtual a partir de `fiscal_invoices + fiscal_invoice_items + products` quando `order_id` é nulo. Override continua valendo. Buscar NF-e por `order_id` quando existir, senão por `source_order_invoice_id = pv.id` (NF gerada a partir do PV) ou diretamente pelo próprio PV se ele já estiver autorizado. Manter caminho `order_id` para chamadas internas legadas.
+- Sem migração de banco.
 
-## 📝 Documentação a atualizar (no fechamento)
-- `docs/especificacoes/erp/logistica.md` — seção "Origem do rascunho logístico": deixar explícito que PV manual/duplicado também gera rascunho.
-- `docs/especificacoes/erp/rascunhos-logisticos.md` — fluxo do processador da fila com fallback para PV sem pedido.
-- Memória `mem://constraints/shipping-draft-mirrors-pedido-venda` — ajustar nota sobre processador.
+## Validação técnica que vou executar
+1. Build do projeto (lint/tsc) sem erro.
+2. Chamar a edge function com `shipment_id` de um rascunho válido do `respeiteohomem` (sem efetuar postagem real — vou usar um rascunho cuja NF-e ainda não está autorizada para confirmar a mensagem clara, e um caso com NF-e autorizada para confirmar o fluxo até a chamada Correios).
+3. Conferir logs.
 
-📌 Status: Aguardando aprovação do plano revisado.
+## 📝 Documentação
+- `docs/especificacoes/erp/logistica.md`: atualizar a seção "Emissão de Remessa" — nova entrada por id do rascunho, mensagens por linha, comportamento para PV sem pedido.
+- Memória `shipment-mirrors-pedido-venda-em-aberto`: nota curta sobre o despacho consumir o rascunho.
+- `mapa-ui.md`: sem mudança visual.
+
+📌 Status: Plano fechado, partindo para implementação.
