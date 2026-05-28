@@ -624,10 +624,11 @@ Deno.serve(async (req) => {
     if (resolvedPvId && !order) {
       const { data: pv, error: pvErr } = await supabase
         .from('fiscal_invoices')
-        .select('id, tenant_id, dest_nome, dest_email, dest_telefone, dest_cpf, dest_cnpj, dest_endereco_logradouro, dest_endereco_numero, dest_endereco_complemento, dest_endereco_bairro, dest_endereco_municipio, dest_endereco_uf, dest_endereco_cep, transportadora_nome, transportadora_servico, valor_total')
+        .select('id, tenant_id, dest_nome, dest_email, dest_telefone, dest_cpf_cnpj, dest_endereco_logradouro, dest_endereco_numero, dest_endereco_complemento, dest_endereco_bairro, dest_endereco_municipio, dest_endereco_uf, dest_endereco_cep, transportadora_nome, transportadora_servico, valor_total')
         .eq('id', resolvedPvId)
         .maybeSingle();
       if (pvErr || !pv) {
+        console.error('[shipping-create-shipment] PV lookup failed', { resolvedPvId, pvErr });
         return new Response(
           JSON.stringify({ success: false, error: 'Pedido de Venda vinculado ao rascunho não encontrado' }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -640,14 +641,16 @@ Deno.serve(async (req) => {
         );
       }
       pvRow = pv;
+      const docDigits = String(pv.dest_cpf_cnpj || '').replace(/\D/g, '');
+      const isCnpj = docDigits.length === 14;
       order = {
         id: pv.id, // identificador virtual
         tenant_id: tenantId,
         customer_name: pv.dest_nome || '',
         customer_email: pv.dest_email || '',
         customer_phone: pv.dest_telefone || '',
-        customer_cpf: pv.dest_cpf || null,
-        customer_cnpj: pv.dest_cnpj || null,
+        customer_cpf: isCnpj ? null : (docDigits || null),
+        customer_cnpj: isCnpj ? docDigits : null,
         shipping_street: pv.dest_endereco_logradouro || '',
         shipping_number: pv.dest_endereco_numero || '',
         shipping_complement: pv.dest_endereco_complemento || '',
@@ -662,6 +665,7 @@ Deno.serve(async (req) => {
         total: Number(pv.valor_total) || 0,
         tracking_code: null,
       };
+
     }
 
     if (!order) {
