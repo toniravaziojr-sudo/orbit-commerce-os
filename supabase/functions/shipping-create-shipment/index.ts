@@ -901,95 +901,97 @@ Deno.serve(async (req) => {
     console.log(`[shipping-create-shipment] Result:`, JSON.stringify(result));
 
     if (result.success && result.tracking_code) {
-      // Update order with tracking code — status stays 'processing' until user dispatches
-      const orderUpdate: Record<string, unknown> = {
-        tracking_code: result.tracking_code,
-        shipping_carrier: result.carrier,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Update shipping status if enabled
-      if (fiscalSettings?.auto_update_order_status !== false) {
-        orderUpdate.shipping_status = 'label_created';
+      // Atualiza pedido real (quando existir)
+      if (resolvedOrderId) {
+        const orderUpdate: Record<string, unknown> = {
+          tracking_code: result.tracking_code,
+          shipping_carrier: result.carrier,
+          updated_at: new Date().toISOString(),
+        };
+        if (fiscalSettings?.auto_update_order_status !== false) {
+          orderUpdate.shipping_status = 'label_created';
+        }
+        await supabase.from('orders').update(orderUpdate).eq('id', resolvedOrderId);
+        console.log(`[shipping-create-shipment] Order ${resolvedOrderId} tracking updated: ${result.tracking_code}`);
       }
 
-      await supabase
-        .from('orders')
-        .update(orderUpdate)
-        .eq('id', order_id);
-      
-      console.log(`[shipping-create-shipment] Order ${order_id} tracking updated: ${result.tracking_code} (status stays processing)`);
+      // Pega service_name/service_code do pedido se houver, senão do próprio rascunho
+      let serviceName: string | null = null;
+      let serviceCode: string | null = null;
+      if (resolvedOrderId) {
+        const { data: orderForShip } = await supabase
+          .from('orders')
+          .select('shipping_service_name, shipping_service_code')
+          .eq('id', resolvedOrderId)
+          .single();
+        serviceName = orderForShip?.shipping_service_name || null;
+        serviceCode = orderForShip?.shipping_service_code || null;
+      }
+      serviceName = (result as any).service_name || serviceName || shipmentRow?.service_name || null;
+      serviceCode = (result as any).service_code || serviceCode || shipmentRow?.service_code || null;
 
-      // Buscar dados do pedido para propagar service_name/service_code
-      const { data: orderForShip } = await supabase
-        .from('orders')
-        .select('shipping_service_name, shipping_service_code')
-        .eq('id', order_id)
-        .single();
+      const shipmentPatch: Record<string, unknown> = {
+        tracking_code: result.tracking_code,
+        delivery_status: 'label_created',
+        label_url: result.label_url,
+        provider_shipment_id: result.provider_shipment_id,
+        invoice_id: invoiceData.id,
+        nfe_key: invoiceData.chave_acesso,
+        carrier: result.carrier || provider,
+        service_name: serviceName,
+        service_code: serviceCode,
+        last_status_at: new Date().toISOString(),
+        next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        poll_error_count: 0,
+      };
 
-      // Update existing shipment draft (created by scheduler-tick) or create new
-      await supabase
-        .from('shipments')
-        .upsert({
-          tenant_id: tenantId,
-          order_id: order_id,
-          carrier: result.carrier || provider,
-          tracking_code: result.tracking_code,
-          delivery_status: 'label_created',
-          label_url: result.label_url,
-          provider_shipment_id: result.provider_shipment_id,
-          invoice_id: invoiceData.id,
-          nfe_key: invoiceData.chave_acesso,
-          service_name: (result as any).service_name || orderForShip?.shipping_service_name || null,
-          service_code: (result as any).service_code || orderForShip?.shipping_service_code || null,
-          last_status_at: new Date().toISOString(),
-          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-          poll_error_count: 0,
-        }, {
-          onConflict: 'tenant_id,order_id,tracking_code',
-        });
+      if (shipmentRow?.id) {
+        // Atualiza o rascunho exato (funciona para PV com ou sem pedido)
+        await supabase.from('shipments').update(shipmentPatch).eq('id', shipmentRow.id);
+      } else if (resolvedOrderId) {
+        // Caminho legado: atualiza por order_id ou cria
+        await supabase
+          .from('shipments')
+          .upsert({
+            tenant_id: tenantId,
+            order_id: resolvedOrderId,
+            ...shipmentPatch,
+          }, { onConflict: 'tenant_id,order_id,tracking_code' });
+        await supabase
+          .from('shipments')
+          .update(shipmentPatch)
+          .eq('order_id', resolvedOrderId)
+          .eq('tenant_id', tenantId)
+          .eq('delivery_status', 'draft');
+      }
 
-      // Also update by order_id if draft exists without tracking_code
-      await supabase
-        .from('shipments')
-        .update({
-          tracking_code: result.tracking_code,
-          delivery_status: 'label_created',
-          label_url: result.label_url,
-          provider_shipment_id: result.provider_shipment_id,
-          invoice_id: invoiceData.id,
-          nfe_key: invoiceData.chave_acesso,
-          carrier: result.carrier || provider,
-          service_name: (result as any).service_name || orderForShip?.shipping_service_name || null,
-          service_code: (result as any).service_code || orderForShip?.shipping_service_code || null,
-          last_status_at: new Date().toISOString(),
-          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-        })
-        .eq('order_id', order_id)
-        .eq('tenant_id', tenantId)
-        .eq('delivery_status', 'draft');
+      // Log no histórico do pedido (só quando há pedido real)
+      if (resolvedOrderId) {
+        await supabase
+          .from('order_history')
+          .insert({
+            order_id: resolvedOrderId,
+            action: 'shipment_created',
+            description: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
+          });
+      }
 
-      // Log in order history (uses action/description columns)
-      await supabase
-        .from('order_history')
-        .insert({
-          order_id: order_id,
-          action: 'shipment_created',
-          description: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
-        });
-
-      console.log(`[shipping-create-shipment] Shipment record updated for order ${order_id}`);
+      console.log(`[shipping-create-shipment] Shipment record updated (shipment=${shipmentRow?.id || 'new'})`);
     } else if (!result.success) {
-      // Marcar shipment draft como failed se existir
-      await supabase
-        .from('shipments')
-        .update({
-          delivery_status: 'failed',
-          last_status_at: new Date().toISOString(),
-        })
-        .eq('order_id', order_id)
-        .eq('tenant_id', tenantId)
-        .eq('delivery_status', 'draft');
+      // Marca rascunho como failed
+      if (shipmentRow?.id) {
+        await supabase
+          .from('shipments')
+          .update({ delivery_status: 'failed', last_status_at: new Date().toISOString() })
+          .eq('id', shipmentRow.id);
+      } else if (resolvedOrderId) {
+        await supabase
+          .from('shipments')
+          .update({ delivery_status: 'failed', last_status_at: new Date().toISOString() })
+          .eq('order_id', resolvedOrderId)
+          .eq('tenant_id', tenantId)
+          .eq('delivery_status', 'draft');
+      }
     }
 
     return new Response(
