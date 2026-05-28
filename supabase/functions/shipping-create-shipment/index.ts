@@ -690,7 +690,7 @@ Deno.serve(async (req) => {
     // Get fiscal settings for default provider
     const { data: fiscalSettings } = await supabase
       .from('fiscal_settings')
-      .select('default_shipping_provider, auto_update_order_status')
+      .select('default_shipping_provider, auto_update_order_status, razao_social, nome_fantasia, cnpj, telefone, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_municipio, endereco_uf')
       .eq('tenant_id', tenantId)
       .single();
 
