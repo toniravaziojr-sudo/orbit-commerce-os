@@ -52,6 +52,7 @@ import { formatDateTimeBR, formatDayMonthTimeBR } from "@/lib/date-format";
 interface ShipmentRecord {
   id: string;
   order_id: string;
+  source_pedido_venda_id?: string | null;
   tracking_code: string;
   carrier: string;
   delivery_status: string;
@@ -75,12 +76,19 @@ interface ShipmentRecord {
     status?: string;
     resolved_shipping_provider_kind?: string | null;
   };
+  pv?: {
+    numero: number | null;
+    dest_nome: string | null;
+    dest_endereco_municipio: string | null;
+    dest_endereco_uf: string | null;
+  } | null;
   invoice?: {
     danfe_url: string | null;
     chave_acesso: string | null;
     numero: number | null;
   } | null;
 }
+
 
 const CARRIERS = [
   { value: 'all', label: 'Todas Transportadoras' },
