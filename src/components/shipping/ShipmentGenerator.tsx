@@ -263,11 +263,10 @@ export function ShipmentGenerator() {
   });
 
   // === ACTIONS ===
-
-  const toggleOrder = (orderId: string) => {
+  const toggleOrder = (shipmentId: string) => {
     const newSelected = new Set(selectedOrders);
-    if (newSelected.has(orderId)) newSelected.delete(orderId);
-    else newSelected.add(orderId);
+    if (newSelected.has(shipmentId)) newSelected.delete(shipmentId);
+    else newSelected.add(shipmentId);
     setSelectedOrders(newSelected);
   };
 
@@ -276,7 +275,7 @@ export function ShipmentGenerator() {
     if (selectedOrders.size === readyOrders.length) {
       setSelectedOrders(new Set());
     } else {
-      setSelectedOrders(new Set(readyOrders.map(s => s.order_id)));
+      setSelectedOrders(new Set(readyOrders.map(s => s.id)));
     }
   };
 
@@ -298,30 +297,51 @@ export function ShipmentGenerator() {
 
   const handleGenerateShipments = async () => {
     if (selectedOrders.size === 0) {
-      toast.error('Selecione pelo menos um pedido');
+      toast.error('Selecione pelo menos um rascunho');
       return;
     }
 
     setIsGenerating(true);
-    let successCount = 0;
-    let errorCount = 0;
+    const successes: string[] = [];
+    const failures: { label: string; reason: string }[] = [];
 
-    for (const orderId of selectedOrders) {
+    const byId = new Map((readyOrders || []).map(s => [s.id, s]));
+
+    for (const shipmentId of selectedOrders) {
+      const ship = byId.get(shipmentId);
+      const label = (ship?.order as any)?.order_number
+        ? `Pedido #${(ship?.order as any).order_number}`
+        : ship?.pv?.numero
+          ? `PV ${ship.pv.numero}`
+          : `Rascunho ${shipmentId.substring(0, 8)}`;
       try {
-        await createShipment.mutateAsync({ order_id: orderId });
-        successCount++;
-      } catch (error) {
-        console.error(`Error creating shipment for order ${orderId}:`, error);
-        errorCount++;
+        const result = await dispatchShipment.mutateAsync({ shipment_id: shipmentId });
+        if (result?.success && result.tracking_code) {
+          successes.push(`${label}: ${result.tracking_code}`);
+        } else {
+          failures.push({ label, reason: result?.error || 'erro desconhecido' });
+        }
+      } catch (error: any) {
+        failures.push({ label, reason: error?.message || 'erro inesperado' });
       }
     }
 
     setIsGenerating(false);
     setSelectedOrders(new Set());
-    
-    if (successCount > 0) toast.success(`${successCount} remessa(s) emitida(s) com sucesso`);
-    if (errorCount > 0) toast.error(`${errorCount} remessa(s) falharam`);
+
+    if (successes.length > 0) {
+      toast.success(`${successes.length} remessa(s) emitida(s)`, {
+        description: successes.slice(0, 5).join('\n'),
+      });
+    }
+    if (failures.length > 0) {
+      toast.error(`${failures.length} remessa(s) não emitida(s)`, {
+        description: failures.slice(0, 5).map(f => `${f.label}: ${f.reason}`).join('\n'),
+        duration: 10000,
+      });
+    }
     invalidateAll();
+  };
   };
 
   const handleRetryShipment = async (orderId: string) => {
