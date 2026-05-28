@@ -641,13 +641,13 @@ export function ShipmentGenerator() {
                             <TableRow 
                               key={shipment.id}
                               className="cursor-pointer"
-                              onClick={() => toggleOrder(shipment.order_id)}
+                              onClick={() => toggleOrder(shipment.id)}
                             >
 
                               <TableCell onClick={e => e.stopPropagation()}>
                                 <Checkbox
-                                  checked={selectedOrders.has(shipment.order_id)}
-                                  onCheckedChange={() => toggleOrder(shipment.order_id)}
+                                  checked={selectedOrders.has(shipment.id)}
+                                  onCheckedChange={() => toggleOrder(shipment.id)}
                                 />
                               </TableCell>
                               <TableCell className="font-medium">
