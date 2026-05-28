@@ -548,21 +548,37 @@ export function ShipmentGenerator() {
         <TabsContent value="prontos" className="mt-4">
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Package className="h-4 w-4" />
                   Prontos para emitir remessa
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    {readyCount} pedido(s){selectedOrders.size > 0 ? ` • ${selectedOrders.size} selecionado(s)` : ''}
+                  </span>
                 </CardTitle>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <Button size="sm" variant="outline" onClick={openCreateDraft} className="gap-1">
                     <Plus className="h-3.5 w-3.5" /> Criar novo rascunho
                   </Button>
-                  <span className="text-sm text-muted-foreground">
-                    {readyCount} pedido(s)
-                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleGenerateShipments}
+                    disabled={selectedOrders.size === 0 || isGenerating}
+                    className="gap-2"
+                  >
+                    {isGenerating ? (
+                      <>Emitindo...</>
+                    ) : (
+                      <>
+                        <Truck className="h-4 w-4" />
+                        Emitir Remessa{selectedOrders.size > 0 ? ` (${selectedOrders.size})` : ''}
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             </CardHeader>
+
             <CardContent>
               {loadingReady ? (
                 <div className="space-y-2">
@@ -665,31 +681,12 @@ export function ShipmentGenerator() {
                       </TableBody>
                     </Table>
                   </ScrollArea>
-
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                    <span className="text-sm text-muted-foreground">
-                      {selectedOrders.size} pedido(s) selecionado(s)
-                    </span>
-                    <Button
-                      onClick={handleGenerateShipments}
-                      disabled={selectedOrders.size === 0 || isGenerating}
-                      className="gap-2"
-                    >
-                      {isGenerating ? (
-                        <>Emitindo...</>
-                      ) : (
-                        <>
-                          <Truck className="h-4 w-4" />
-                          Emitir Remessa ({selectedOrders.size})
-                        </>
-                      )}
-                    </Button>
-                  </div>
                 </>
               )}
             </CardContent>
           </Card>
         </TabsContent>
+
 
         {/* TAB 2: Remessas emitidas */}
         <TabsContent value="emitidas" className="mt-4">
