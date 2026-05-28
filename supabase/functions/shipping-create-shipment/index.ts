@@ -806,14 +806,10 @@ Deno.serve(async (req) => {
     };
 
     // Quando há override (qualquer rascunho), peso/dimensões agregados do metadata vencem
-    if (override && override.weight_grams) {
-
-    // When override is active, force package metrics from metadata
     if (override) {
       if (override.weight_grams) {
-        // Replace items aggregation by single virtual item with the override weight
         orderData.items = [{
-          product_name: 'Embalagem (ajuste manual)',
+          product_name: 'Embalagem (rascunho)',
           quantity: 1,
           unit_price: 0,
           weight: Number(override.weight_grams) || 300,
@@ -825,6 +821,11 @@ Deno.serve(async (req) => {
       if (override.declared_value) {
         (orderData as any).total = Number(override.declared_value) || orderData.total;
       }
+    }
+
+    // Provider para PV órfão: vem do próprio shipment (carrier) já normalizado pelo gatilho
+    if (!resolvedOrderId && shipmentRow?.carrier && !order.shipping_carrier) {
+      order.shipping_carrier = shipmentRow.carrier;
     }
 
 
