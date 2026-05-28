@@ -52,6 +52,7 @@ import { formatDateTimeBR, formatDayMonthTimeBR } from "@/lib/date-format";
 interface ShipmentRecord {
   id: string;
   order_id: string;
+  source_pedido_venda_id?: string | null;
   tracking_code: string;
   carrier: string;
   delivery_status: string;
@@ -75,12 +76,19 @@ interface ShipmentRecord {
     status?: string;
     resolved_shipping_provider_kind?: string | null;
   };
+  pv?: {
+    numero: number | null;
+    dest_nome: string | null;
+    dest_endereco_municipio: string | null;
+    dest_endereco_uf: string | null;
+  } | null;
   invoice?: {
     danfe_url: string | null;
     chave_acesso: string | null;
     numero: number | null;
   } | null;
 }
+
 
 const CARRIERS = [
   { value: 'all', label: 'Todas Transportadoras' },
@@ -113,18 +121,10 @@ export function ShipmentGenerator() {
     queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
     queryClient.invalidateQueries({ queryKey: ['shipments-issued'] });
     queryClient.invalidateQueries({ queryKey: ['shipments-failed'] });
-  };
-
-  // === TAB 1: Prontos para emitir remessa ===
-  const { data: readyOrders, isLoading: loadingReady } = useQuery({
-    queryKey: ['orders-ready-shipment', currentTenant?.id, selectedCarrier, startDate?.toISOString(), endDate?.toISOString()],
-    queryFn: async () => {
-      if (!currentTenant?.id) return [];
-
       let query = supabase
         .from('shipments')
         .select<string, any>(`
-          id, order_id, carrier, service_name, manually_adjusted, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          id, order_id, source_pedido_venda_id, carrier, service_name, manually_adjusted, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
           order:orders(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
@@ -145,14 +145,32 @@ export function ShipmentGenerator() {
 
       const { data, error } = await query;
       if (error) throw error;
-      // Excluir pedidos cuja transportadora resolvida é um gateway (ex: Frenet) — esses
-      // são sincronizados por integração e não passam pelo fluxo local de remessas.
-      return ((data || []) as ShipmentRecord[]).filter(
+      const shipments = ((data || []) as ShipmentRecord[]).filter(
         (s) => (s.order as any)?.resolved_shipping_provider_kind !== 'gateway'
       );
+
+      // Fallback: para remessas sem pedido vinculado, buscar dados do destinatário no PV
+      const pvIds = shipments
+        .filter(s => !s.order && s.source_pedido_venda_id)
+        .map(s => s.source_pedido_venda_id as string);
+      if (pvIds.length > 0) {
+        const { data: pvs } = await supabase
+          .from('fiscal_invoices')
+          .select('id, numero, dest_nome, dest_endereco_municipio, dest_endereco_uf')
+          .in('id', pvIds);
+        const pvMap = Object.fromEntries((pvs || []).map((p: any) => [p.id, p]));
+        shipments.forEach(s => {
+          if (!s.order && s.source_pedido_venda_id && pvMap[s.source_pedido_venda_id]) {
+            s.pv = pvMap[s.source_pedido_venda_id];
+          }
+        });
+      }
+      return shipments;
     },
     enabled: !!currentTenant?.id,
   });
+
+
 
   // === TAB 2: Remessas emitidas (has tracking, not draft/failed) ===
   const { data: issuedShipments, isLoading: loadingIssued } = useQuery({
@@ -581,6 +599,7 @@ export function ShipmentGenerator() {
                               className="cursor-pointer"
                               onClick={() => toggleOrder(shipment.order_id)}
                             >
+
                               <TableCell onClick={e => e.stopPropagation()}>
                                 <Checkbox
                                   checked={selectedOrders.has(shipment.order_id)}
@@ -588,10 +607,10 @@ export function ShipmentGenerator() {
                                 />
                               </TableCell>
                               <TableCell className="font-medium">
-                                #{order?.order_number}
+                                {order?.order_number ? `#${order.order_number}` : (shipment.pv?.numero ? `PV ${shipment.pv.numero}` : '—')}
                               </TableCell>
                               <TableCell className="max-w-[120px] truncate">
-                                {order?.customer_name}
+                                {order?.customer_name || shipment.pv?.dest_nome || '—'}
                               </TableCell>
                               <TableCell>
                                 <Badge variant="outline" className="text-xs">
@@ -599,8 +618,9 @@ export function ShipmentGenerator() {
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-muted-foreground text-sm">
-                                {order?.shipping_city}/{order?.shipping_state}
+                                {(order?.shipping_city || shipment.pv?.dest_endereco_municipio || '—')}/{(order?.shipping_state || shipment.pv?.dest_endereco_uf || '—')}
                               </TableCell>
+
                               <TableCell className="text-muted-foreground text-sm">
                                 {meta?.weight_grams ? `${meta.weight_grams}g` : '-'}
                               </TableCell>
