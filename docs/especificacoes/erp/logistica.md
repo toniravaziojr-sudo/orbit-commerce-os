@@ -476,7 +476,14 @@ A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status 
 
 **Posicionamento do botão "Emitir Remessa" (2026-05-28):** o botão de emissão fica no topo da aba "Prontos para emitir remessa", ao lado de "Criar novo rascunho", junto ao contador de pedidos e ao indicador de seleção. Fica desabilitado quando nenhum rascunho está selecionado e mostra a quantidade selecionada entre parênteses quando há seleção. Não existe mais barra inferior duplicada — a ação principal acompanha o cabeçalho e fica sempre visível sem precisar rolar a lista.
 
-**Despacho do rascunho (2026-05-28):** o botão "Emitir Remessa" passa a operar **sobre o próprio rascunho selecionado**, não sobre o pedido. Isso resolve dois casos que antes falhavam silenciosamente: (1) rascunhos de Pedido de Venda manual/duplicado sem pedido real vinculado — agora o sistema lê destinatário, peso, dimensões, transportadora e serviço diretamente do rascunho e do PV; (2) pedidos com mais de um rascunho, em que só um era contemplado. NF-e autorizada continua obrigatória — para rascunho com pedido, busca pela NF do pedido; para rascunho de PV manual, busca pela NF gerada a partir do PV. Mensagens de erro passam a ser **por linha**, identificando o rascunho e o motivo (sem NF-e, sem CEP, recusa da transportadora, etc.), no lugar do antigo aviso genérico "X falharam".
+**Despacho do rascunho (2026-05-28):** o botão "Emitir Remessa" passa a operar **sobre o próprio rascunho selecionado**, não sobre o pedido. Isso resolve dois casos que antes falhavam silenciosamente: (1) rascunhos de Pedido de Venda manual/duplicado sem pedido real vinculado — agora o sistema lê destinatário, peso, dimensões, transportadora e serviço diretamente do rascunho e do PV; (2) pedidos com mais de um rascunho, em que só um era contemplado. Mensagens de erro passam a ser **por linha**, identificando o rascunho e o motivo (sem CEP, recusa da transportadora, etc.), no lugar do antigo aviso genérico "X falharam".
+
+**NF-e NÃO é obrigatória para emitir remessa manual (2026-05-28):** a emissão manual de remessa pelos Correios é independente do documento fiscal. Os Correios aceitam postagem com **Declaração de Conteúdo** quando não há NF-e, e a decisão sobre qual documento usar (NF-e ou Declaração) é do lojista, no módulo Fiscal. Por isso:
+
+- **Emissão manual** (botão "Emitir Remessa" na fila): segue sempre, com ou sem NF-e. Se houver NF-e autorizada vinculada ao pedido ou ao Pedido de Venda, o sistema anexa automaticamente o número e a chave de acesso à remessa por rastreabilidade. Se não houver, a remessa é criada normalmente, sem vínculo fiscal.
+- **Emissão automática** (gatilho disparado quando a NF-e é autorizada): permanece exatamente como antes — só dispara após a autorização da NF-e, configurado em **Fiscal → Configurações → Outros → Automação**. Esse caminho garante o vínculo fiscal porque a NF é o próprio gatilho.
+- A escolha entre exigir NF-e antes da remessa ou liberar a postagem com Declaração de Conteúdo fica com o lojista, no fluxo fiscal. O módulo de Logística não impõe regra fiscal sobre o despacho manual.
+
 
 **Diálogo de rascunho — comportamento (2026-05-28):**
 

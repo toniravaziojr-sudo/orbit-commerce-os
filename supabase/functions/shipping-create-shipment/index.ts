@@ -675,7 +675,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ====== REGRA: NF-e autorizada obrigatória ======
+    // ====== NF-e: OPCIONAL na emissão manual ======
+    // Regra de negócio: Correios aceitam postar sem NF-e (Declaração de Conteúdo cobre).
+    // Quando a NF existe, anexamos por rastreabilidade; quando não existe, seguimos.
+    // O fluxo AUTOMÁTICO (nfe-shipment-link) só é disparado quando a NF é autorizada,
+    // portanto lá a NF sempre existe — esta lógica não afeta o caminho automático.
     let invoiceData: any = null;
     if (resolvedOrderId) {
       const { data: inv } = await supabase
@@ -688,7 +692,6 @@ Deno.serve(async (req) => {
       invoiceData = inv;
     }
     if (!invoiceData && resolvedPvId) {
-      // PV manual/duplicado: a NF é um registro separado vinculado por source_order_invoice_id = pv.id
       const { data: inv } = await supabase
         .from('fiscal_invoices')
         .select('id, chave_acesso, status, danfe_url')
@@ -699,19 +702,12 @@ Deno.serve(async (req) => {
       invoiceData = inv;
     }
 
-    if (!invoiceData) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: resolvedPvId
-            ? 'NF-e autorizada não encontrada para este Pedido de Venda. Emita a NF-e antes de criar a remessa.'
-            : 'NF-e autorizada não encontrada para este pedido. Emita a NF-e antes de criar a remessa.'
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (invoiceData) {
+      console.log(`[shipping-create-shipment] NF-e found and will be linked: ${invoiceData.id}`);
+    } else {
+      console.log('[shipping-create-shipment] No authorized NF-e found — proceeding without fiscal link (manual dispatch).');
     }
 
-    console.log(`[shipping-create-shipment] NF-e found: ${invoiceData.id}`);
 
     // ====== Carrega o rascunho (se já não veio por shipment_id) e aplica override ======
     if (!shipmentRow && resolvedOrderId) {
@@ -938,8 +934,8 @@ Deno.serve(async (req) => {
         delivery_status: 'label_created',
         label_url: result.label_url,
         provider_shipment_id: result.provider_shipment_id,
-        invoice_id: invoiceData.id,
-        nfe_key: invoiceData.chave_acesso,
+        invoice_id: invoiceData?.id ?? null,
+        nfe_key: invoiceData?.chave_acesso ?? null,
         carrier: result.carrier || provider,
         service_name: serviceName,
         service_code: serviceCode,
@@ -947,6 +943,7 @@ Deno.serve(async (req) => {
         next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         poll_error_count: 0,
       };
+
 
       if (shipmentRow?.id) {
         // Atualiza o rascunho exato (funciona para PV com ou sem pedido)
