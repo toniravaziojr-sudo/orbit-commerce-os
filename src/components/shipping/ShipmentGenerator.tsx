@@ -121,18 +121,10 @@ export function ShipmentGenerator() {
     queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
     queryClient.invalidateQueries({ queryKey: ['shipments-issued'] });
     queryClient.invalidateQueries({ queryKey: ['shipments-failed'] });
-  };
-
-  // === TAB 1: Prontos para emitir remessa ===
-  const { data: readyOrders, isLoading: loadingReady } = useQuery({
-    queryKey: ['orders-ready-shipment', currentTenant?.id, selectedCarrier, startDate?.toISOString(), endDate?.toISOString()],
-    queryFn: async () => {
-      if (!currentTenant?.id) return [];
-
       let query = supabase
         .from('shipments')
         .select<string, any>(`
-          id, order_id, carrier, service_name, manually_adjusted, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          id, order_id, source_pedido_venda_id, carrier, service_name, manually_adjusted, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
           order:orders(id, order_number, customer_name, shipping_carrier, shipping_city, shipping_state, total, created_at, status, resolved_shipping_provider_kind)
         `)
         .eq('tenant_id', currentTenant.id)
@@ -153,6 +145,31 @@ export function ShipmentGenerator() {
 
       const { data, error } = await query;
       if (error) throw error;
+      const shipments = ((data || []) as ShipmentRecord[]).filter(
+        (s) => (s.order as any)?.resolved_shipping_provider_kind !== 'gateway'
+      );
+
+      // Fallback: para remessas sem pedido vinculado, buscar dados do destinatário no PV
+      const pvIds = shipments
+        .filter(s => !s.order && s.source_pedido_venda_id)
+        .map(s => s.source_pedido_venda_id as string);
+      if (pvIds.length > 0) {
+        const { data: pvs } = await supabase
+          .from('fiscal_invoices')
+          .select('id, numero, dest_nome, dest_endereco_municipio, dest_endereco_uf')
+          .in('id', pvIds);
+        const pvMap = Object.fromEntries((pvs || []).map((p: any) => [p.id, p]));
+        shipments.forEach(s => {
+          if (!s.order && s.source_pedido_venda_id && pvMap[s.source_pedido_venda_id]) {
+            s.pv = pvMap[s.source_pedido_venda_id];
+          }
+        });
+      }
+      return shipments;
+    },
+    enabled: !!currentTenant?.id,
+  });
+
       // Excluir pedidos cuja transportadora resolvida é um gateway (ex: Frenet) — esses
       // são sincronizados por integração e não passam pelo fluxo local de remessas.
       return ((data || []) as ShipmentRecord[]).filter(
