@@ -37,6 +37,8 @@ interface OrderData {
   customer_name: string;
   customer_email: string;
   customer_phone: string;
+  customer_cpf?: string | null;
+  customer_cnpj?: string | null;
   shipping_street: string;
   shipping_number: string;
   shipping_complement: string | null;
@@ -59,6 +61,7 @@ interface OrderData {
     length?: number;
   }>;
 }
+
 
 interface ProviderCredentials {
   // Correios
