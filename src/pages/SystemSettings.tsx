@@ -34,7 +34,7 @@ export default function SystemSettings() {
     setActiveTab(value);
     const next = new URLSearchParams(searchParams);
     next.set('tab', value);
-    if (value !== 'fiscal') next.delete('aba');
+    if (value !== 'fiscal' && value !== 'shipping') next.delete('aba');
     setSearchParams(next);
   };
 
