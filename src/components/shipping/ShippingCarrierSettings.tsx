@@ -113,6 +113,7 @@ const CARRIER_DEFINITIONS: CarrierDefinition[] = [
 export function ShippingCarrierSettings() {
   const { providers, isLoading, upsertProvider, getProvider } = useShippingProviders();
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [expandedCarrier, setExpandedCarrier] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, {
     enabled: boolean;
     supportsQuote: boolean;
