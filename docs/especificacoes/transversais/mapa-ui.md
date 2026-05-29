@@ -42,7 +42,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 11 | Marketing Básico | Blog | `/blog` | marketing_basico | — | — | — |
 | 12 | Marketing Básico | Atribuição de venda | `/marketing/atribuicao` | marketing_basico | `attribution` | — | Badge "Upgrade" se bloqueado |
 | 13 | Marketing Básico | Descontos | `/discounts` | marketing_basico | — | — | — |
-| 14 | Marketing Básico | Aumentar Ticket | `/offers` | marketing_basico | — | — | — |
+| 14 | Marketing Básico | Aumentar Ticket | `/offers` | marketing_basico | — | — | Inclui a aba **Conversão de Carrinho** (rev 2026-05-29), migrada do antigo módulo Logística. |
 | 15 | Marketing Avançado | Email Marketing | `/email-marketing` | marketing_avancado | `email_marketing` | — | Badge "Upgrade" se bloqueado |
 | 16 | Marketing Avançado | Quizzes | `/quizzes` | marketing_avancado | `quizzes` | — | Badge "Upgrade" se bloqueado |
 | 17 | Marketing Avançado | Gestor de Tráfego IA | `/ads` | marketing_avancado | — | — | — |
