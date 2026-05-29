@@ -1,18 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
-import { 
-  Truck, 
-  Package, 
-  CheckCircle, 
-  AlertTriangle, 
-  Settings,
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Truck,
+  Package,
+  CheckCircle,
+  AlertTriangle,
   TrendingUp,
   ArrowRight,
   Search,
   RotateCcw,
-  Gift,
-  DollarSign,
 } from 'lucide-react';
 import { ptBR } from 'date-fns/locale';
 import { PageHeader } from '@/components/ui/page-header';
@@ -31,13 +28,10 @@ import {
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { CarrierCardsGrid } from '@/components/shipping/CarrierCardsGrid';
 import { ShipmentGenerator } from '@/components/shipping/ShipmentGenerator';
 import { TrackingTab } from '@/components/shipping/TrackingTab';
 import { SuccessRatePopover } from '@/components/shipping/SuccessRatePopover';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
-import { FreeShippingSubTabs } from '@/components/shipping/FreeShippingSubTabs';
-import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
 import { formatDateBR } from "@/lib/date-format";
 
 import {
