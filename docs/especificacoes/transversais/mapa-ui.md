@@ -42,7 +42,7 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 11 | Marketing Básico | Blog | `/blog` | marketing_basico | — | — | — |
 | 12 | Marketing Básico | Atribuição de venda | `/marketing/atribuicao` | marketing_basico | `attribution` | — | Badge "Upgrade" se bloqueado |
 | 13 | Marketing Básico | Descontos | `/discounts` | marketing_basico | — | — | — |
-| 14 | Marketing Básico | Aumentar Ticket | `/offers` | marketing_basico | — | — | — |
+| 14 | Marketing Básico | Aumentar Ticket | `/offers` | marketing_basico | — | — | Inclui a aba **Conversão de Carrinho** (rev 2026-05-29), migrada do antigo módulo Logística. |
 | 15 | Marketing Avançado | Email Marketing | `/email-marketing` | marketing_avancado | `email_marketing` | — | Badge "Upgrade" se bloqueado |
 | 16 | Marketing Avançado | Quizzes | `/quizzes` | marketing_avancado | `quizzes` | — | Badge "Upgrade" se bloqueado |
 | 17 | Marketing Avançado | Gestor de Tráfego IA | `/ads` | marketing_avancado | — | — | — |
@@ -62,8 +62,8 @@ Este documento é a referência formal e fonte de verdade para toda a estrutura 
 | 30 | Marketplaces | Mercado Livre | `/marketplaces/mercadolivre` | marketplaces | `mercadolivre` | — | Badge "Upgrade" se bloqueado |
 | 31 | Marketplaces | Shopee | `/marketplaces/shopee` | marketplaces | `shopee` | — | Locked "Em breve" (exceto platform admin) |
 | 32 | Marketplaces | TikTok Shop | `/marketplaces/tiktokshop` | marketplaces | `tiktokshop` | — | Badge "Upgrade" se bloqueado |
-| 33 | Sistema | Integrações | `/integrations` | sistema_integracoes | — | — | — |
-| 34 | Sistema | Configurações | `/system/settings` | sistema_integracoes | — | — | — |
+| 33 | Sistema | Integrações | `/integrations` | sistema_integracoes | — | — | Inclui a aba **Meios de Envio** (rev 2026-05-29) com os cards de Frenet, Correios e Loggi (credenciais do lojista). Card Correios exibe apenas o método **Código de Acesso às APIs** (opção legada OAuth2 com Senha removida; sem tag "Recomendado"; sem menções a outros sistemas). |
+| 34 | Sistema | Configurações | `/system/settings` | sistema_integracoes | — | — | Inclui a aba **Meios de Envio** (rev 2026-05-29) com sub-abas **Regras de Frete Grátis** (Método Padrão + Regras) e **Frete Personalizado**. |
 | 35 | Sistema | Usuários e Permissões | `/system/users` | sistema_integracoes | `sistema_usuarios` | ✅ | Visível apenas para owner. Linha de membro tem dropdown com **Editar Permissões** e **Remover** (oculto na própria linha do usuário logado). Edição/remoção de owner permitida quando há mais de um owner. |
 | 36 | Utilitários | Apps Externos | `/apps-externos` | central | — | — | — |
 | 37 | Utilitários | Importar Dados | `/import` | central | `sistema_importacao` | — | Badge "Upgrade" se bloqueado |
@@ -281,7 +281,7 @@ O storefront público do lojista (loja virtual vista pelo consumidor) **não é 
 - `/index` (Dashboard) / `/command-center` (DashboardTab) — Inclui `WhatsAppRealReceptionPendingBanner` (só aparece em `real_reception_pending` há > 24h e com rollout v2 ativo) + `WhatsAppActivationGuide` (compact) + Card "Saúde do WhatsApp".
 - `/command-center?tab=executions` (ExecutionsQueue) — Card **Pedidos** inclui stat `Etiquetas a reverter` (count de `shipments.requires_action = true`); card **Notas Fiscais** inclui stat `NF-e a cancelar (regressão)` (count de `fiscal_invoices.requires_action = true`). Ver `pedidos.md` §4.6.
 - `/apps-externos` — Apps externos
-- `/system/settings` — Configurações do sistema (abas: **Pagamentos**, **Fiscal** — conteúdo embutido com sub-abas Emitente/Natureza/Outros, sem redirecionamento desde rev 2026-04-17c)
+- `/system/settings` — Configurações do sistema (abas: **Pagamentos**, **Fiscal** — conteúdo embutido com sub-abas Emitente/Natureza/Outros, sem redirecionamento desde rev 2026-04-17c; **Meios de Envio** — sub-abas Regras de Frete Grátis e Frete Personalizado, rev 2026-05-29)
 - `/system/users` — Usuários e permissões (owner only, GatedRoute: `sistema_usuarios`)
 - `/settings` — Configurações gerais
 - `/settings/domains` — Domínios
