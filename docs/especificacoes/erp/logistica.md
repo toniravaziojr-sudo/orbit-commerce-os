@@ -158,17 +158,17 @@ O sistema utiliza um motor centralizado que é a única fonte de verdade para el
 
 **Regra crítica:** A barra pode ser ativada/desativada sem afetar a aplicação real do benefício. Quando desativada, as regras continuam funcionando na cotação e no pedido.
 
-### Navegação — Frete Grátis
+### Navegação — Frete Grátis (rev 2026-05-29)
 
-As configurações de frete grátis estão centralizadas em **ERP > Logística > Frete Grátis**, organizadas em sub-tabs:
+As configurações de frete grátis **não estão mais no módulo Logística**. Foram movidas para **Sistema → Configurações → Meios de Envio**, sub-aba **Regras de Frete Grátis** (`/system/settings?tab=shipping&aba=regras-frete-gratis`). A sub-aba contém o card "Método Padrão de Frete Grátis" + a lista de regras (`FreeShippingRulesTab`).
 
-| Sub-tab | Componente | Descrição |
-|---------|-----------|-----------|
-| Método Padrão | `DefaultFreeShippingMethodConfig` | Método fallback global |
-| Regras | `FreeShippingRulesTab` | Regras condicionais por região/valor/categoria |
-| Barra de Conversão | `CartConversionConfigTab` | Controles visuais da barra (sem regras de negócio) |
+A antiga sub-aba "Conversão de Carrinho" foi movida para **Aumentar Ticket → Conversão de Carrinho** (`/offers` → aba `cart_conversion`). É controle visual da barra de conversão e pertence ao motor de aumento de ticket.
 
-**Componente container:** `FreeShippingSubTabs` renderizado em `Shipping.tsx`.
+A aba **Meios de Transporte** (credenciais de Frenet/Correios/Loggi do lojista) foi movida para **Integrações → Meios de Envio** (`/integrations?tab=shipping`).
+
+A aba **Frete Personalizado** foi movida para **Sistema → Configurações → Meios de Envio**, sub-aba **Frete Personalizado** (`/system/settings?tab=shipping&aba=frete-personalizado`).
+
+URLs antigas (`/shipping?tab=meios-transporte|frete-gratis|frete-personalizado`) redirecionam automaticamente.
 
 ---
 
