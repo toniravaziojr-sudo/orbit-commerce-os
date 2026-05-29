@@ -286,6 +286,32 @@ Adicionalmente, a Central de Execuções emite o badge **"Rastreamento desativad
 
 ---
 
+### Fluxo automático de despacho gateway (Frenet) — v2026-05-29
+
+Quando o pedido entra em estado pago e o provedor resolvido é `kind = 'gateway'`, o sistema executa o despacho automaticamente, sem ação do lojista:
+
+1. **Enfileiramento (gatilho `trg_enqueue_fiscal_draft` em `orders`):** o mesmo gatilho que cria o rascunho fiscal insere uma linha em `gateway_sync_queue` com `action = 'sync_order'`, `status = 'pending'`, vinculada ao `provider_id`. Índice único `(order_id, action) WHERE status IN ('pending','processing')` garante idempotência se o pedido oscilar de status.
+2. **Consumo (cron `gateway-sync-order-every-2min`):** a cada 2 minutos chama a edge `gateway-sync-order`, que carrega o adapter da transportadora (hoje só Frenet), monta o payload do pedido (endereço, itens, dimensões, transportadora escolhida) e faz POST na API da Frenet. Em caso de erro, aplica backoff exponencial até 5 tentativas; depois marca `failed`.
+3. **Gate de recursos:** o cron usa `cron_call_edge_if_active(['shipping_gateway'])`. Se nenhum tenant tem transportadora gateway habilitada, o cron pula a execução. O módulo `shipping_gateway` é registrado em `system_resource_usage` e atualizado por trigger em `shipping_providers` (qualquer ativação habilita o módulo imediatamente, sem esperar o refresh diário).
+4. **Anexo da NF-e (`gateway-attach-fiscal-doc`):** quando a NF-e é autorizada, a chave e o XML são anexados ao mesmo pedido Frenet via `external_ref` gravado na fila.
+
+**Pré-requisito único para o lojista:** ativar a Frenet em Integrações → Meios de Envio. Não precisa cotação nem rastreamento ativos — esses controles são independentes (ver seção abaixo).
+
+### Funções independentes por transportadora — v2026-05-29
+
+Cada transportadora tem **três chaves independentes** em `shipping_providers`, e cada uma controla uma função distinta:
+
+| Chave | Controla | Se desligar |
+|-------|----------|-------------|
+| `is_enabled` | Despacho do pedido (Correios via fila local de Remessas; Frenet via fluxo gateway automático descrito acima). | Pedidos com essa transportadora **não são enviados nem listados em Remessas**. |
+| `supports_quote` | Cotação em tempo real para o cliente final no checkout. | Cliente não enxerga essa transportadora nas opções de frete na loja. |
+| `supports_tracking` | Atualização automática de status de rastreio (SRO/gateway). | Pedido segue rastreável manualmente, mas sem updates automáticos. |
+
+**Implicação prática (caso comum):** um lojista com Correios e Frenet `is_enabled = true` e cotação/rastreamento desligados ainda recebe e despacha pedidos normalmente — manuais ou por marketplace — porque despacho não depende de cotação nem de rastreamento. O que ele perde é só a vitrine de cotação no checkout e o auto-update de status.
+
+---
+
+
 ### Status das Integrações
 
 | Transportadora | Cotação | Rastreamento | Etiquetas | Pré-postagem | Status |

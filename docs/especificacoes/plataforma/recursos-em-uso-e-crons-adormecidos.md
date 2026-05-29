@@ -93,6 +93,7 @@ Sincronizações periódicas de painéis de terceiros (anúncios, marketplaces) 
 | `audience-sync-weekly-sat-23h` | semanal | E-mail Marketing |
 | `birthday-daily-trigger` | diário | E-mail Marketing |
 | `media-social-publish-worker` | 30 min | Meta Ads + Catálogo |
+| `gateway-sync-order-every-2min` | 2 min | Envio via Gateway (Frenet) |
 
 ## Critérios de "lojista usando o módulo"
 
@@ -109,6 +110,7 @@ Definidos na função `count_active_tenants_for_module(module_key)`:
 - **E-mail Marketing:** campanha agendada/enviada nos últimos 30 dias OU inscrito criado nos últimos 30 dias.
 - **Fiscal:** certificado configurado e válido.
 - **YouTube:** conexão ativa com `refresh_token`.
+- **Envio via Gateway (Frenet):** alguma `shipping_providers` com `is_enabled = true` e `provider_kind = 'gateway'`. Ativação imediata por trigger `trg_mark_shipping_gateway_active` em `shipping_providers` (não espera refresh diário).
 
 ## Regressão e rollback
 
