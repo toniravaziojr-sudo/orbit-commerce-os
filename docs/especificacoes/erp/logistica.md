@@ -248,7 +248,7 @@ interface CustomShippingRule {
 **Fluxo:** Cada lojista tem seu próprio contrato (Meu Correios Empresas) e configura credenciais diretamente usando o método do Código de Acesso.
 
 **Método de autenticação (ÚNICO):**
-- **Código de Acesso às APIs** — Igual ao método utilizado pelo Bling. Usa um código permanente gerado no portal CWS em vez da senha do portal. Mais estável e não quebra se o lojista trocar a senha.
+- **Código de Acesso às APIs** — Usa um código permanente gerado no portal CWS em vez da senha do portal. Mais estável e não quebra se o lojista trocar a senha. **UI (rev 2026-05-29):** a tela de Integrações → Meios de Envio → Correios exibe apenas esta opção (a opção legada "OAuth2 com Senha" foi removida) e não exibe mais a tag "Recomendado" nem menções a outros sistemas (ex.: Bling). O link para `cws.correios.com.br → Gestão de acesso a API's` é mantido.
 
 **Campos obrigatórios:**
 - `usuario` — CNPJ do contrato (sem pontuação)
