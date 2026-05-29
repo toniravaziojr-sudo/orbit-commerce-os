@@ -423,24 +423,14 @@ export function ShippingCarrierSettings() {
                     );
                   })()}
                   
-                  {/* API Code mode info (like Bling) */}
+                  {/* API Code mode info */}
                   {carrier.id === 'correios' && (data.fields['auth_mode'] || 'api_code') === 'api_code' && (
                     <Alert className="mt-3 border-primary/30 bg-primary/5">
                       <ShieldCheck className="h-4 w-4 text-primary" />
-                      <AlertTitle>Método mais estável (igual ao Bling)</AlertTitle>
+                      <AlertTitle>Método mais estável</AlertTitle>
                       <AlertDescription className="text-sm">
                         O código de acesso é permanente e não depende da sua senha do portal. 
                         Gere-o em <a href="https://cws.correios.com.br/acesso-componentes" target="_blank" rel="noopener" className="underline font-medium">cws.correios.com.br → Gestão de acesso a API's</a>.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {/* OAuth mode warning */}
-                  {carrier.id === 'correios' && data.fields['auth_mode'] === 'oauth' && (
-                    <Alert className="mt-3 border-amber-500/30 bg-amber-500/5">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      <AlertTitle>Menos estável</AlertTitle>
-                      <AlertDescription className="text-sm">
-                        Se você mudar a senha do portal CWS, a integração vai quebrar. Considere usar o "Código de Acesso" que é mais estável.
                       </AlertDescription>
                     </Alert>
                   )}
