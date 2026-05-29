@@ -25,9 +25,6 @@ import { QueryErrorState } from '@/components/ui/query-error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useShipments, type Shipment } from '@/hooks/useShipments';
-import { ShippingCarrierSettings } from '@/components/shipping/ShippingCarrierSettings';
-import { FreeShippingSubTabs } from '@/components/shipping/FreeShippingSubTabs';
-import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const PAGE_SIZE = 20;
@@ -61,11 +58,24 @@ export default function Shipping() {
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
+  // Redirects de compatibilidade — abas migradas para outros módulos
   useEffect(() => {
-    if (tabFromUrl && ['shipments', 'settings', 'frete-gratis', 'frete-personalizado'].includes(tabFromUrl)) {
+    if (tabFromUrl === 'meios-transporte' || tabFromUrl === 'settings') {
+      navigate('/integrations?tab=shipping', { replace: true });
+      return;
+    }
+    if (tabFromUrl === 'frete-gratis') {
+      navigate('/system/settings?tab=shipping&aba=regras-frete-gratis', { replace: true });
+      return;
+    }
+    if (tabFromUrl === 'frete-personalizado') {
+      navigate('/system/settings?tab=shipping&aba=frete-personalizado', { replace: true });
+      return;
+    }
+    if (tabFromUrl && ['shipments'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
-  }, [tabFromUrl]);
+  }, [tabFromUrl, navigate]);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
