@@ -19,10 +19,11 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 ## Rota
 
 | Rota | Componente | Descrição |
+| Rota | Componente | Descrição |
 |------|-----------|-----------|
 | `/system/settings` | `SystemSettings.tsx` | Página com tabs de configurações |
 | `/system/settings?tab=payments` | `PaymentSettingsTab.tsx` | Aba de pagamentos (default) |
-
+| `/system/settings?tab=shipping` | `ShippingSettingsTab.tsx` | Aba "Meios de Envio" (sub-abas: Regras de Frete Grátis, Frete Personalizado) |
 ---
 
 ## Navegação no Sidebar
@@ -111,6 +112,25 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 | **Sistema > Configurações > Pagamentos** | Descontos REAIS, parcelas, valores efetivos — **por gateway** |
 
 > ⚠️ Avisos amarelos no Builder (CheckoutSettingsPanel e PaymentMethodsConfig) informam que as configurações visuais não aplicam descontos reais.
+---
+
+## Aba: Meios de Envio
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente / Tab |
+| **Localização** | `src/components/system-settings/ShippingSettingsTab.tsx` |
+| **Descrição** | Regras de envio do tenant, separadas em duas sub-abas |
+
+### Sub-abas
+
+| Sub-aba | Conteúdo |
+|---------|----------|
+| **Regras de Frete Grátis** | Método padrão de frete grátis + regras (valor mínimo, regiões etc.) — migrado de Logística → Frete Grátis |
+| **Frete Personalizado** | Preços fixos por região/CEP — migrado de Logística → Frete Personalizado |
+
+> Credenciais das transportadoras (Frenet/Correios/Loggi) **não** ficam aqui — vão em **Integrações → Meios de Envio**.
+> Regras de conversão de carrinho (ex: barra de progresso de frete grátis) ficam em **Aumentar Ticket → Conversão de Carrinho**.
 
 ---
 
@@ -118,7 +138,8 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 
 | Item | Status | Descrição |
 |------|--------|-----------|
-| **Novas abas** | 🟡 Planejado | Futuras configurações (ex: Frete, Notificações) podem ser adicionadas como novas tabs |
+| **Notificações** | 🟡 Planejado | Aba futura para preferências de notificação do tenant |
+
 
 ---
 
