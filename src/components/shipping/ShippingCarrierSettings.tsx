@@ -373,10 +373,8 @@ export function ShippingCarrierSettings() {
                         <Label htmlFor={`${carrier.id}-auth-${mode.value}`} className="flex flex-col cursor-pointer flex-1">
                           <span className="font-medium flex items-center gap-2">
                             {mode.label}
-                            {mode.recommended && (
-                              <Badge variant="secondary" className="text-xs">Recomendado</Badge>
-                            )}
                           </span>
+
                           <span className="text-xs text-muted-foreground">{mode.description}</span>
                         </Label>
                       </div>
