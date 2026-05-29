@@ -75,26 +75,16 @@ const CARRIER_DEFINITIONS: CarrierDefinition[] = [
     authModes: [
       { 
         value: 'api_code', 
-        label: 'Código de Acesso (Recomendado)', 
-        description: 'Igual ao Bling: usa o código permanente gerado no portal CWS. Mais estável e não depende da senha.',
+        label: 'Código de Acesso', 
+        description: 'Usa o código permanente gerado no portal CWS. Mais estável e não depende da senha.',
         recommended: true
-      },
-      { 
-        value: 'oauth', 
-        label: 'OAuth2 com Senha', 
-        description: 'Usa a senha do portal CWS. Se mudar a senha, a integração quebra.'
       },
     ],
     fields: [
-      // API Code mode fields (recommended - like Bling)
       { key: 'usuario', label: 'Usuário do Portal Meu Correios', type: 'text', placeholder: '51519325000116', showWhen: { field: 'auth_mode', value: 'api_code' } },
       { key: 'codigo_acesso', label: 'Código de Acesso às APIs', type: 'password', placeholder: 'Código gerado em cws.correios.com.br → Gestão de acesso a APIs', showWhen: { field: 'auth_mode', value: 'api_code' } },
       { key: 'contrato', label: 'Contrato', type: 'text', placeholder: '9912689847', showWhen: { field: 'auth_mode', value: 'api_code' } },
       { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0079102786', showWhen: { field: 'auth_mode', value: 'api_code' } },
-      // OAuth mode fields (legacy)
-      { key: 'usuario', label: 'Usuário (CNPJ)', type: 'text', placeholder: '00000000000000', showWhen: { field: 'auth_mode', value: 'oauth' } },
-      { key: 'senha', label: 'Senha do Portal CWS', type: 'password', placeholder: 'Senha (não do Meu Correios)', showWhen: { field: 'auth_mode', value: 'oauth' } },
-      { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0067599079', showWhen: { field: 'auth_mode', value: 'oauth' } },
     ],
     features: ['Rastreamento Automático', 'Cotação de Frete', 'Etiquetas'],
     docsUrl: 'https://cws.correios.com.br/acesso-componentes',
