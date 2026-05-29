@@ -19,10 +19,11 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 ## Rota
 
 | Rota | Componente | Descrição |
+| Rota | Componente | Descrição |
 |------|-----------|-----------|
 | `/system/settings` | `SystemSettings.tsx` | Página com tabs de configurações |
 | `/system/settings?tab=payments` | `PaymentSettingsTab.tsx` | Aba de pagamentos (default) |
-
+| `/system/settings?tab=shipping` | `ShippingSettingsTab.tsx` | Aba "Meios de Envio" (sub-abas: Regras de Frete Grátis, Frete Personalizado) |
 ---
 
 ## Navegação no Sidebar
