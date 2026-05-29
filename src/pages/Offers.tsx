@@ -203,7 +203,7 @@ export default function Offers() {
       />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as OfferType | 'buy_together' | 'badges' | 'variant_types' | 'cart_conversion')} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="flex w-full flex-wrap h-auto justify-start">
           <TabsTrigger value="cross_sell" className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4" />
             <span className="hidden sm:inline">Cross-sell</span>
