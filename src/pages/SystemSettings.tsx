@@ -12,8 +12,9 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/ui/page-header';
-import { CreditCard, FileText, Building2, Scale, Settings2 } from 'lucide-react';
+import { CreditCard, FileText, Building2, Scale, Settings2, Truck } from 'lucide-react';
 import { PaymentSettingsTab } from '@/components/system-settings/PaymentSettingsTab';
+import { ShippingSettingsTab } from '@/components/system-settings/ShippingSettingsTab';
 import { EmitenteSettings } from '@/components/fiscal/settings/EmitenteSettings';
 import { OperationNaturesContent } from '@/components/fiscal/settings/OperationNaturesContent';
 import { OutrosSettings } from '@/components/fiscal/settings/OutrosSettings';
@@ -57,6 +58,10 @@ export default function SystemSettings() {
             <CreditCard className="h-4 w-4" />
             Pagamentos
           </TabsTrigger>
+          <TabsTrigger value="shipping" className="flex items-center gap-2">
+            <Truck className="h-4 w-4" />
+            Meios de Envio
+          </TabsTrigger>
           <TabsTrigger value="fiscal" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             Fiscal
@@ -65,6 +70,10 @@ export default function SystemSettings() {
 
         <TabsContent value="payments" className="mt-6">
           <PaymentSettingsTab />
+        </TabsContent>
+
+        <TabsContent value="shipping" className="mt-6">
+          <ShippingSettingsTab />
         </TabsContent>
 
         <TabsContent value="fiscal" className="mt-6 space-y-6">
