@@ -281,7 +281,7 @@ O storefront público do lojista (loja virtual vista pelo consumidor) **não é 
 - `/index` (Dashboard) / `/command-center` (DashboardTab) — Inclui `WhatsAppRealReceptionPendingBanner` (só aparece em `real_reception_pending` há > 24h e com rollout v2 ativo) + `WhatsAppActivationGuide` (compact) + Card "Saúde do WhatsApp".
 - `/command-center?tab=executions` (ExecutionsQueue) — Card **Pedidos** inclui stat `Etiquetas a reverter` (count de `shipments.requires_action = true`); card **Notas Fiscais** inclui stat `NF-e a cancelar (regressão)` (count de `fiscal_invoices.requires_action = true`). Ver `pedidos.md` §4.6.
 - `/apps-externos` — Apps externos
-- `/system/settings` — Configurações do sistema (abas: **Pagamentos**, **Fiscal** — conteúdo embutido com sub-abas Emitente/Natureza/Outros, sem redirecionamento desde rev 2026-04-17c)
+- `/system/settings` — Configurações do sistema (abas: **Pagamentos**, **Fiscal** — conteúdo embutido com sub-abas Emitente/Natureza/Outros, sem redirecionamento desde rev 2026-04-17c; **Meios de Envio** — sub-abas Regras de Frete Grátis e Frete Personalizado, rev 2026-05-29)
 - `/system/users` — Usuários e permissões (owner only, GatedRoute: `sistema_usuarios`)
 - `/settings` — Configurações gerais
 - `/settings/domains` — Domínios
