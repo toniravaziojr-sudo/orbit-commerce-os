@@ -2154,15 +2154,38 @@ O builder Focus NFe (`_shared/focus-nfe-adapter.ts`) agora recebe o CRT do emite
 
 Conteúdo adicional do usuário em "Informações Complementares" é preservado após a frase. Aplicado tanto em `fiscal-emit` quanto em `fiscal-submit`.
 
-### 3. Auto-emissão end-to-end
-Quando `fiscal_settings.emissao_automatica = true` E o emissor está configurado, o `fiscal-auto-create-drafts` em modo TRIGGER (disparado pelo pagamento aprovado do pedido) passa a invocar `fiscal-emit` em fire-and-forget para o rascunho recém-criado.
+### 3. Auto-emissão end-to-end (respeitando "Emitir NF-e quando…")
 
-- A chamada interna usa service_role + `tenant_id` no body; `fiscal-emit` aceita esse caminho dispensando o RBAC humano (owner/admin), mantendo isolamento por tenant.
-- Notas com pendências (faltando peso/NCM/endereço) caem em `rejected` ou permanecem `draft` e aparecem na Central de Execuções via cards já existentes "Emitir NF-e" e "Pendências emissão".
-- Cancelamento manual e reenvio (com novo `ref`) continuam funcionando exatamente como antes.
+Atualizado: 2026-05-29.
+
+A auto-emissão é controlada por dois campos em `fiscal_settings`:
+
+- `emissao_automatica` (boolean) — ativa/desativa o disparo automático.
+- `emitir_apos_status` (text) — define o gatilho:
+  - `'ready_to_invoice'` (padrão da UI) — só emite quando o pedido chega ao status "Pronto para emitir NF".
+  - `'paid'` (legado) — emite assim que o pedido vira pago (mantém comportamento anterior).
+
+**Fluxo:**
+
+1. Pedido entra em `paid` → trigger SQL `enqueue_fiscal_draft` enfileira em `fiscal_draft_queue`.
+2. `scheduler-tick` consome a fila e chama `fiscal-auto-create-drafts` em modo TRIGGER.
+3. O rascunho de Pedido de Venda é criado sempre que o emissor está configurado (independe do toggle de auto-emit) — isso garante que o módulo Fiscal sempre tenha o rascunho disponível para ação manual.
+4. **Decisão de emitir** acontece em seguida:
+   - Se `emissao_automatica = true` E `emitir_apos_status` casar com `order.status` atual → invoca `fiscal-emit` em fire-and-forget.
+   - Caso contrário → rascunho permanece em `draft` aguardando ou o status configurado, ou ação manual.
+5. **Transição posterior para `ready_to_invoice`**: o trigger re-enfileira o pedido; o consumidor detecta o rascunho já existente e, se a condição casar agora, dispara `fiscal-emit` no rascunho previamente criado (sem duplicar).
+
+**Regras de segurança:**
+
+- A chamada interna usa `service_role` + `tenant_id` no body; `fiscal-emit` aceita esse caminho dispensando RBAC humano (owner/admin), mantendo isolamento por tenant.
+- Notas com pendências (faltando peso/NCM/endereço) caem em `rejected` ou permanecem `draft` e aparecem na Central de Execuções via cards "Emitir NF-e" e "Pendências emissão".
+- Cancelamento manual e reenvio (com novo `ref`) continuam inalterados.
+- Toggle desligado → nenhuma chamada externa ocorre. Não há cron parado consumindo recursos: o fluxo inteiro é event-driven a partir do gatilho de pedidos.
+- Sem retroatividade: pedidos antigos já pagos antes da ativação do toggle não são reprocessados automaticamente.
 
 ### Limite de massa
 Operações em lote de DANFE/XML mantêm limite de 100 notas por execução. A emissão automática não tem teto (uma por pedido aprovado).
+
 
 ---
 
