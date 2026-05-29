@@ -238,273 +238,229 @@ export function ShippingCarrierSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Transportadoras
-          </CardTitle>
-          <CardDescription>
-            Configure as transportadoras para calcular frete, rastrear e gerar etiquetas
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-primary/10 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <Zap className="h-5 w-5 text-primary mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium">Integração automática</p>
-                <p className="text-muted-foreground">
-                  Configure as credenciais abaixo e o sistema automaticamente calculará fretes
-                  no checkout e carrinho. Você pode ativar múltiplas transportadoras simultaneamente.
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+        <Settings className="h-4 w-4" />
+        <span>Configure as transportadoras para calcular frete, rastrear e gerar etiquetas na sua loja</span>
+      </div>
 
       {CARRIER_DEFINITIONS.map((carrier) => {
         const data = formData[carrier.id] || { enabled: false, supportsQuote: true, supportsTracking: true, fields: {} };
         const configured = isConfigured(carrier.id);
+        const active = configured && data.enabled;
+        const isExpanded = expandedCarrier === carrier.id;
 
         return (
-          <Card key={carrier.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{carrier.logo}</span>
-                  <div>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      {carrier.name}
-                      {configured && data.enabled && (
-                        <Badge variant="default" className="gap-1">
-                          <CheckCircle className="h-3 w-3" />
-                          Ativo
-                        </Badge>
-                      )}
-                      {configured && !data.enabled && (
-                        <Badge variant="secondary">Configurado</Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>{carrier.description}</CardDescription>
+          <Card key={carrier.id} className={active ? 'border-primary/50 bg-primary/5' : ''}>
+            <Collapsible open={isExpanded} onOpenChange={(open) => setExpandedCarrier(open ? carrier.id : null)}>
+              <CardHeader className="py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{carrier.logo}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base">{carrier.name}</CardTitle>
+                        {active ? (
+                          <Badge variant="default" className="gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Ativo
+                          </Badge>
+                        ) : configured ? (
+                          <Badge variant="secondary">Configurado</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            Não conectado
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {carrier.features.join(' • ')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id={`${carrier.id}-enabled`}
+                        checked={data.enabled}
+                        onCheckedChange={() => toggleEnabled(carrier.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <Label htmlFor={`${carrier.id}-enabled`} className="text-sm font-medium">
+                        Ativo
+                      </Label>
+                    </div>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        {configured ? 'Editar' : 'Configurar'}
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4 ml-1" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 ml-1" />
+                        )}
+                      </Button>
+                    </CollapsibleTrigger>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id={`${carrier.id}-enabled`}
-                    checked={data.enabled}
-                    onCheckedChange={() => toggleEnabled(carrier.id)}
-                  />
-                  <Label htmlFor={`${carrier.id}-enabled`} className="text-sm font-medium">
-                    Ativo
-                  </Label>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {carrier.features.map(feature => (
-                  <Badge key={feature} variant="outline">{feature}</Badge>
-                ))}
-              </div>
+              </CardHeader>
 
-              {/* Toggles de funcionalidades */}
-              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                <p className="text-sm font-medium text-muted-foreground">Funcionalidades habilitadas</p>
-                <div className="flex flex-wrap gap-6">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id={`${carrier.id}-quote`}
-                      checked={data.supportsQuote ?? true}
-                      onCheckedChange={() => toggleSupportsQuote(carrier.id)}
-                      disabled={!data.enabled}
-                    />
-                    <Label 
-                      htmlFor={`${carrier.id}-quote`} 
-                      className={`text-sm flex items-center gap-1.5 ${!data.enabled ? 'text-muted-foreground' : ''}`}
-                    >
-                      <Calculator className="h-4 w-4" />
-                      Cotação de Frete
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id={`${carrier.id}-tracking`}
-                      checked={data.supportsTracking ?? true}
-                      onCheckedChange={() => toggleSupportsTracking(carrier.id)}
-                      disabled={!data.enabled}
-                    />
-                    <Label 
-                      htmlFor={`${carrier.id}-tracking`} 
-                      className={`text-sm flex items-center gap-1.5 ${!data.enabled ? 'text-muted-foreground' : ''}`}
-                    >
-                      <Package className="h-4 w-4" />
-                      Rastreamento
-                    </Label>
-                  </div>
-                </div>
-                {!data.enabled && (
-                  <p className="text-xs text-muted-foreground">Ative a transportadora para configurar funcionalidades</p>
-                )}
-              </div>
+              <CollapsibleContent>
+                <CardContent className="pt-0 space-y-4">
+                  <CardDescription>{carrier.description}</CardDescription>
 
-              <Separator />
-
-              {/* Auth mode selector for carriers that support it */}
-              {carrier.hasAuthModes && carrier.authModes && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Key className="h-4 w-4 text-muted-foreground" />
-                    <Label className="text-sm font-medium">Modo de Autenticação</Label>
-                  </div>
-                  <RadioGroup
-                    value={data.fields['auth_mode'] || 'api_code'}
-                    onValueChange={(value) => updateField(carrier.id, 'auth_mode', value)}
-                    className="grid gap-3 md:grid-cols-2"
-                  >
-                    {carrier.authModes.map((mode) => (
-                      <div 
-                        key={mode.value} 
-                        className={`flex items-start space-x-3 p-3 rounded-lg border ${
-                          mode.recommended ? 'border-primary/50 bg-primary/5' : 'border-border'
-                        }`}
-                      >
-                        <RadioGroupItem value={mode.value} id={`${carrier.id}-auth-${mode.value}`} className="mt-1" />
-                        <Label htmlFor={`${carrier.id}-auth-${mode.value}`} className="flex flex-col cursor-pointer flex-1">
-                          <span className="font-medium flex items-center gap-2">
-                            {mode.label}
-                          </span>
-
-                          <span className="text-xs text-muted-foreground">{mode.description}</span>
+                  {/* Toggles de funcionalidades */}
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                    <p className="text-sm font-medium text-muted-foreground">Funcionalidades habilitadas</p>
+                    <div className="flex flex-wrap gap-6">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={`${carrier.id}-quote`}
+                          checked={data.supportsQuote ?? true}
+                          onCheckedChange={() => toggleSupportsQuote(carrier.id)}
+                          disabled={!data.enabled}
+                        />
+                        <Label 
+                          htmlFor={`${carrier.id}-quote`} 
+                          className={`text-sm flex items-center gap-1.5 ${!data.enabled ? 'text-muted-foreground' : ''}`}
+                        >
+                          <Calculator className="h-4 w-4" />
+                          Cotação de Frete
                         </Label>
                       </div>
-                    ))}
-                  </RadioGroup>
-                  
-                  {/* Token status indicator for token mode */}
-                  {carrier.id === 'correios' && (data.fields['auth_mode'] || 'oauth') === 'token' && (() => {
-                    const tokenStatus = getTokenStatus(data.fields['token']);
-                    
-                    if (tokenStatus.status === 'none') return null;
-                    
-                    return (
-                      <Alert variant={tokenStatus.status === 'expired' ? 'destructive' : tokenStatus.status === 'expiring' ? 'default' : 'default'} className="mt-3">
-                        {tokenStatus.status === 'ok' && <ShieldCheck className="h-4 w-4" />}
-                        {tokenStatus.status === 'expiring' && <AlertTriangle className="h-4 w-4" />}
-                        {tokenStatus.status === 'expired' && <ShieldAlert className="h-4 w-4" />}
-                        {tokenStatus.status === 'invalid' && <AlertTriangle className="h-4 w-4" />}
-                        <AlertTitle>
-                          {tokenStatus.status === 'ok' && 'Token válido'}
-                          {tokenStatus.status === 'expiring' && 'Token expirando em breve'}
-                          {tokenStatus.status === 'expired' && 'Token expirado'}
-                          {tokenStatus.status === 'invalid' && 'Token inválido'}
-                        </AlertTitle>
-                        <AlertDescription className="text-sm">
-                          {tokenStatus.status === 'ok' && tokenStatus.expiresAt && (
-                            <>Expira em: {formatDateTimeBR(tokenStatus.expiresAt)} ({Math.round(tokenStatus.hoursRemaining || 0)}h restantes)</>
-                          )}
-                          {tokenStatus.status === 'expiring' && tokenStatus.expiresAt && (
-                            <>
-                              Expira em {Math.round((tokenStatus.hoursRemaining || 0) * 60)} minutos. 
-                              Atualize o token ou mude para OAuth2 (recomendado).
-                            </>
-                          )}
-                          {tokenStatus.status === 'expired' && (
-                            <>
-                              O token expirou em {formatDateTimeBR(tokenStatus.expiresAt)}. 
-                              Atualize-o no <a href="https://cws.correios.com.br" target="_blank" rel="noopener" className="underline">portal CWS</a> ou mude para OAuth2.
-                            </>
-                          )}
-                          {tokenStatus.status === 'invalid' && (
-                            <>O token parece inválido. Verifique se copiou corretamente do portal CWS.</>
-                          )}
-                        </AlertDescription>
-                      </Alert>
-                    );
-                  })()}
-                  
-                  {/* API Code mode info */}
-                  {carrier.id === 'correios' && (data.fields['auth_mode'] || 'api_code') === 'api_code' && (
-                    <Alert className="mt-3 border-primary/30 bg-primary/5">
-                      <ShieldCheck className="h-4 w-4 text-primary" />
-                      <AlertTitle>Método mais estável</AlertTitle>
-                      <AlertDescription className="text-sm">
-                        O código de acesso é permanente e não depende da sua senha do portal. 
-                        Gere-o em <a href="https://cws.correios.com.br/acesso-componentes" target="_blank" rel="noopener" className="underline font-medium">cws.correios.com.br → Gestão de acesso a API's</a>.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              )}
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {carrier.fields
-                  .filter((field) => {
-                    // Filter fields based on showWhen condition
-                    if (!field.showWhen) return true;
-                    // Default to 'api_code' for correios (most stable, like Bling)
-                    const currentValue = data.fields[field.showWhen.field] || (carrier.id === 'correios' ? 'api_code' : 'oauth');
-                    return currentValue === field.showWhen.value;
-                  })
-                  .map((field) => {
-                    const secretKey = `${carrier.id}-${field.key}`;
-                    const isVisible = showSecrets[secretKey] || field.type === 'text';
-                    
-                    return (
-                      <div key={field.key} className="space-y-2">
-                        <Label htmlFor={`${carrier.id}-${field.key}`}>{field.label}</Label>
-                        <div className="relative">
-                          <Input
-                            id={`${carrier.id}-${field.key}`}
-                            type={isVisible ? 'text' : 'password'}
-                            placeholder={field.placeholder}
-                            value={data.fields[field.key] || ''}
-                            onChange={(e) => updateField(carrier.id, field.key, e.target.value)}
-                            className="pr-10"
-                          />
-                          {field.type === 'password' && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                              onClick={() => toggleSecret(carrier.id, field.key)}
-                            >
-                              {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </Button>
-                          )}
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={`${carrier.id}-tracking`}
+                          checked={data.supportsTracking ?? true}
+                          onCheckedChange={() => toggleSupportsTracking(carrier.id)}
+                          disabled={!data.enabled}
+                        />
+                        <Label 
+                          htmlFor={`${carrier.id}-tracking`} 
+                          className={`text-sm flex items-center gap-1.5 ${!data.enabled ? 'text-muted-foreground' : ''}`}
+                        >
+                          <Package className="h-4 w-4" />
+                          Rastreamento
+                        </Label>
                       </div>
-                    );
-                  })}
-              </div>
+                    </div>
+                    {!data.enabled && (
+                      <p className="text-xs text-muted-foreground">Ative a transportadora para configurar funcionalidades</p>
+                    )}
+                  </div>
 
-              <div className="flex items-center justify-between pt-2">
-                {carrier.docsUrl ? (
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={carrier.docsUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Documentação
-                    </a>
-                  </Button>
-                ) : (
-                  <div />
-                )}
-                <Button 
-                  onClick={() => handleSave(carrier.id)}
-                  disabled={upsertProvider.isPending}
-                >
-                  {upsertProvider.isPending ? (
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
+                  <Separator />
+
+                  {/* Auth mode selector for carriers that support it */}
+                  {carrier.hasAuthModes && carrier.authModes && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Key className="h-4 w-4 text-muted-foreground" />
+                        <Label className="text-sm font-medium">Modo de Autenticação</Label>
+                      </div>
+                      <RadioGroup
+                        value={data.fields['auth_mode'] || 'api_code'}
+                        onValueChange={(value) => updateField(carrier.id, 'auth_mode', value)}
+                        className="grid gap-3 md:grid-cols-2"
+                      >
+                        {carrier.authModes.map((mode) => (
+                          <div 
+                            key={mode.value} 
+                            className={`flex items-start space-x-3 p-3 rounded-lg border ${
+                              mode.recommended ? 'border-primary/50 bg-primary/5' : 'border-border'
+                            }`}
+                          >
+                            <RadioGroupItem value={mode.value} id={`${carrier.id}-auth-${mode.value}`} className="mt-1" />
+                            <Label htmlFor={`${carrier.id}-auth-${mode.value}`} className="flex flex-col cursor-pointer flex-1">
+                              <span className="font-medium flex items-center gap-2">
+                                {mode.label}
+                              </span>
+                              <span className="text-xs text-muted-foreground">{mode.description}</span>
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+
+                      {/* API Code mode info */}
+                      {carrier.id === 'correios' && (data.fields['auth_mode'] || 'api_code') === 'api_code' && (
+                        <Alert className="mt-3 border-primary/30 bg-primary/5">
+                          <ShieldCheck className="h-4 w-4 text-primary" />
+                          <AlertTitle>Método mais estável</AlertTitle>
+                          <AlertDescription className="text-sm">
+                            O código de acesso é permanente e não depende da sua senha do portal. 
+                            Gere-o em <a href="https://cws.correios.com.br/acesso-componentes" target="_blank" rel="noopener" className="underline font-medium">cws.correios.com.br → Gestão de acesso a API's</a>.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
                   )}
-                  Salvar
-                </Button>
-              </div>
-            </CardContent>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {carrier.fields
+                      .filter((field) => {
+                        if (!field.showWhen) return true;
+                        const currentValue = data.fields[field.showWhen.field] || (carrier.id === 'correios' ? 'api_code' : 'oauth');
+                        return currentValue === field.showWhen.value;
+                      })
+                      .map((field) => {
+                        const secretKey = `${carrier.id}-${field.key}`;
+                        const isVisible = showSecrets[secretKey] || field.type === 'text';
+                        
+                        return (
+                          <div key={field.key} className="space-y-2">
+                            <Label htmlFor={`${carrier.id}-${field.key}`}>{field.label}</Label>
+                            <div className="relative">
+                              <Input
+                                id={`${carrier.id}-${field.key}`}
+                                type={isVisible ? 'text' : 'password'}
+                                placeholder={field.placeholder}
+                                value={data.fields[field.key] || ''}
+                                onChange={(e) => updateField(carrier.id, field.key, e.target.value)}
+                                className="pr-10"
+                              />
+                              {field.type === 'password' && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                                  onClick={() => toggleSecret(carrier.id, field.key)}
+                                >
+                                  {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    {carrier.docsUrl ? (
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={carrier.docsUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Documentação
+                        </a>
+                      </Button>
+                    ) : (
+                      <div />
+                    )}
+                    <Button 
+                      onClick={() => handleSave(carrier.id)}
+                      disabled={upsertProvider.isPending}
+                    >
+                      {upsertProvider.isPending ? (
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      Salvar
+                    </Button>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
           </Card>
         );
       })}
