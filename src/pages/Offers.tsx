@@ -32,7 +32,9 @@ import {
   ShoppingBag,
   Tag,
   Sparkles,
+  TrendingUp,
 } from 'lucide-react';
+import { CartConversionConfigTab } from '@/components/shipping/CartConversionConfigTab';
 import { ProductMultiSelect } from '@/components/builder/ProductMultiSelect';
 import { BuyTogetherContent } from '@/components/offers/BuyTogetherContent';
 import { BadgesContent } from '@/components/offers/BadgesContent';
@@ -107,7 +109,7 @@ export default function Offers() {
   const { rules, isLoading, createRule, updateRule, deleteRule, toggleRule } = useOfferRules();
   const { products } = useProducts();
   
-  const [activeTab, setActiveTab] = useState<OfferType | 'buy_together' | 'badges' | 'variant_types'>('cross_sell');
+  const [activeTab, setActiveTab] = useState<OfferType | 'buy_together' | 'badges' | 'variant_types' | 'cart_conversion'>('cross_sell');
 
   const openAIDialog = (type: OfferType | 'buy_together') => {
     setAiDialogType(type);
@@ -200,8 +202,8 @@ export default function Offers() {
         description="Configure regras de Cross-sell, Order Bump e Upsell para aumentar o ticket médio"
       />
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as OfferType | 'buy_together' | 'badges' | 'variant_types')} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as OfferType | 'buy_together' | 'badges' | 'variant_types' | 'cart_conversion')} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="cross_sell" className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4" />
             <span className="hidden sm:inline">Cross-sell</span>
@@ -241,7 +243,16 @@ export default function Offers() {
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Variações</span>
           </TabsTrigger>
+          <TabsTrigger value="cart_conversion" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            <span className="hidden sm:inline">Conversão de Carrinho</span>
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="cart_conversion" className="space-y-4">
+          <CartConversionConfigTab />
+        </TabsContent>
+
 
         {/* Buy Together Tab */}
         <TabsContent value="buy_together" className="space-y-4">

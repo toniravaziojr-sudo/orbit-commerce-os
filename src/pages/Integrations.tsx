@@ -7,11 +7,13 @@ import {
   MoreHorizontal,
   Youtube,
   Music2,
+  Truck,
 } from "lucide-react";
 // Google icon inline SVG used in tab
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ShippingCarrierSettings } from "@/components/shipping/ShippingCarrierSettings";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { MetaUnifiedSettings } from "@/components/integrations/MetaUnifiedSettings";
 import { ThreadsConnectCard } from "@/components/integrations/ThreadsConnectCard";
@@ -131,6 +133,10 @@ export default function Integrations() {
             <CreditCard className="h-4 w-4" />
             <span className="hidden sm:inline">Pagamentos</span>
           </TabsTrigger>
+          <TabsTrigger value="shipping" className="gap-2">
+            <Truck className="h-4 w-4" />
+            <span className="hidden sm:inline">Meios de Envio</span>
+          </TabsTrigger>
           <TabsTrigger value="social" className="gap-2">
             <Share2 className="h-4 w-4" />
             <span className="hidden sm:inline">Meta</span>
@@ -170,6 +176,10 @@ export default function Integrations() {
 
         <TabsContent value="payments">
           <PaymentGatewaySettings />
+        </TabsContent>
+
+        <TabsContent value="shipping" className="space-y-6">
+          <ShippingCarrierSettings />
         </TabsContent>
 
         <TabsContent value="social" className="space-y-6">

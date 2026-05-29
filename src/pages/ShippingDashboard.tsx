@@ -1,18 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
-import { 
-  Truck, 
-  Package, 
-  CheckCircle, 
-  AlertTriangle, 
-  Settings,
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Truck,
+  Package,
+  CheckCircle,
+  AlertTriangle,
   TrendingUp,
   ArrowRight,
   Search,
   RotateCcw,
-  Gift,
-  DollarSign,
 } from 'lucide-react';
 import { ptBR } from 'date-fns/locale';
 import { PageHeader } from '@/components/ui/page-header';
@@ -31,13 +28,10 @@ import {
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { CarrierCardsGrid } from '@/components/shipping/CarrierCardsGrid';
 import { ShipmentGenerator } from '@/components/shipping/ShipmentGenerator';
 import { TrackingTab } from '@/components/shipping/TrackingTab';
 import { SuccessRatePopover } from '@/components/shipping/SuccessRatePopover';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
-import { FreeShippingSubTabs } from '@/components/shipping/FreeShippingSubTabs';
-import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
 import { formatDateBR } from "@/lib/date-format";
 
 import {
@@ -108,6 +102,20 @@ export default function ShippingDashboard() {
   const [trackingSubTab, setTrackingSubTab] = useState<SubTab>('in_transit');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+
+  const navigate = useNavigate();
+
+  // Redirects de compatibilidade — abas migradas para outros módulos
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'meios-transporte') {
+      navigate('/integrations?tab=shipping', { replace: true });
+    } else if (tab === 'frete-gratis') {
+      navigate('/system/settings?tab=shipping&aba=regras-frete-gratis', { replace: true });
+    } else if (tab === 'frete-personalizado') {
+      navigate('/system/settings?tab=shipping&aba=frete-personalizado', { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -217,18 +225,6 @@ export default function ShippingDashboard() {
           <TabsTrigger value="rastreios" className="gap-2">
             <Search className="h-4 w-4" />
             Rastreios
-          </TabsTrigger>
-          <TabsTrigger value="meios-transporte" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Meios de Transporte
-          </TabsTrigger>
-          <TabsTrigger value="frete-gratis" className="gap-2">
-            <Gift className="h-4 w-4" />
-            Frete Grátis
-          </TabsTrigger>
-          <TabsTrigger value="frete-personalizado" className="gap-2">
-            <DollarSign className="h-4 w-4" />
-            Frete Personalizado
           </TabsTrigger>
         </TabsList>
 
@@ -452,20 +448,6 @@ export default function ShippingDashboard() {
           <TrackingTab initialSubTab={trackingSubTab} />
         </TabsContent>
 
-        {/* Meios de Transporte Tab */}
-        <TabsContent value="meios-transporte" className="mt-6">
-          <CarrierCardsGrid />
-        </TabsContent>
-
-        {/* Frete Grátis Tab with Sub-tabs */}
-        <TabsContent value="frete-gratis" className="mt-6">
-          <FreeShippingSubTabs />
-        </TabsContent>
-
-        {/* Frete Personalizado Tab */}
-        <TabsContent value="frete-personalizado" className="mt-6">
-          <CustomShippingRulesTab />
-        </TabsContent>
       </Tabs>
     </div>
   );

@@ -25,9 +25,6 @@ import { QueryErrorState } from '@/components/ui/query-error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useShipments, type Shipment } from '@/hooks/useShipments';
-import { ShippingCarrierSettings } from '@/components/shipping/ShippingCarrierSettings';
-import { FreeShippingSubTabs } from '@/components/shipping/FreeShippingSubTabs';
-import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const PAGE_SIZE = 20;
@@ -61,11 +58,24 @@ export default function Shipping() {
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
+  // Redirects de compatibilidade — abas migradas para outros módulos
   useEffect(() => {
-    if (tabFromUrl && ['shipments', 'settings', 'frete-gratis', 'frete-personalizado'].includes(tabFromUrl)) {
+    if (tabFromUrl === 'meios-transporte' || tabFromUrl === 'settings') {
+      navigate('/integrations?tab=shipping', { replace: true });
+      return;
+    }
+    if (tabFromUrl === 'frete-gratis') {
+      navigate('/system/settings?tab=shipping&aba=regras-frete-gratis', { replace: true });
+      return;
+    }
+    if (tabFromUrl === 'frete-personalizado') {
+      navigate('/system/settings?tab=shipping&aba=frete-personalizado', { replace: true });
+      return;
+    }
+    if (tabFromUrl && ['shipments'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
-  }, [tabFromUrl]);
+  }, [tabFromUrl, navigate]);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -130,24 +140,6 @@ export default function Shipping() {
             <TabsTrigger value="shipments" className="gap-2">
               <Package className="h-4 w-4" />
               <span className="hidden sm:inline">Envios</span>
-            </TabsTrigger>
-          </InfoTooltip>
-          <InfoTooltip tooltipKey="shipping.tab.carriers">
-            <TabsTrigger value="settings" className="gap-2">
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Transportadoras</span>
-            </TabsTrigger>
-          </InfoTooltip>
-          <InfoTooltip tooltipKey="shipping.tab.free-shipping">
-            <TabsTrigger value="frete-gratis" className="gap-2">
-              <Gift className="h-4 w-4" />
-              <span className="hidden sm:inline">Frete Grátis</span>
-            </TabsTrigger>
-          </InfoTooltip>
-          <InfoTooltip tooltipKey="shipping.tab.custom-rules">
-            <TabsTrigger value="frete-personalizado" className="gap-2">
-              <DollarSign className="h-4 w-4" />
-              <span className="hidden sm:inline">Frete Personalizado</span>
             </TabsTrigger>
           </InfoTooltip>
         </TabsList>
@@ -294,17 +286,6 @@ export default function Shipping() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings">
-          <ShippingCarrierSettings />
-        </TabsContent>
-
-        <TabsContent value="frete-gratis">
-          <FreeShippingSubTabs />
-        </TabsContent>
-
-        <TabsContent value="frete-personalizado">
-          <CustomShippingRulesTab />
-        </TabsContent>
       </Tabs>
     </div>
   );
