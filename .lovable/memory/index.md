@@ -165,3 +165,4 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 - [Remessa espelha PV em aberto](mem://constraints/shipment-mirrors-pedido-venda-em-aberto) — Fila de Remessas é espelho vivo de PVs com pedido_status='em_aberto' (trigger trg_sync_shipment_with_pv_status). Sai de em_aberto → some; volta → reaparece. Etiqueta postada nunca é tocada. Gateway fica fora.
 
 
+- [Fiscal Auto-Emit Respeita Status Configurado](mem://constraints/fiscal-auto-emit-respeita-status-configurado) — Auto-emissão de NF-e só dispara quando emissao_automatica=true E order.status casa com emitir_apos_status (ready_to_invoice padrão / paid legado). Rascunho continua sendo criado sempre; emissão é segunda etapa. Gatilho re-enfileira em transição → ready_to_invoice para reavaliar rascunhos existentes.
