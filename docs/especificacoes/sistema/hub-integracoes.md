@@ -80,6 +80,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 | **TikTok** | `tiktok` | `TikTokUnifiedSettings` | Hub TikTok — apenas gestão de conexão + Pixel/CAPI (sem painéis operacionais, padrão Meta/Google) |
 | Marketplaces | `marketplaces` | `MarketplacesIntegrationTab` | Mercado Livre, etc |
 | **Domínio/Email** | `domain-email` | `DomainAndEmailSettings` | Domínio da loja + Email |
+| **Meios de Envio** | `shipping` | `ShippingCarrierSettings` | Credenciais das transportadoras (Frenet, Correios, Loggi) — migrada do módulo Logística em 2026-05-29 |
 | Outros | `outros` | Cards ERP | Integrações ERP (em breve) |
 
 > **NOTA:** A aba "Plataforma" foi **REMOVIDA** deste módulo. Use `/platform-integrations`.
