@@ -2,17 +2,18 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   Settings, 
   CheckCircle, 
+  AlertCircle,
   Eye,
   EyeOff,
   Save,
   ExternalLink,
-  Zap,
   RefreshCw,
   Calculator,
   Package,
   Key,
   AlertTriangle,
-  Clock,
+  ChevronDown,
+  ChevronUp,
   ShieldCheck,
   ShieldAlert
 } from 'lucide-react';
@@ -26,7 +27,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useShippingProviders, ShippingProviderInput } from '@/hooks/useShippingProviders';
 
 interface CarrierField {
