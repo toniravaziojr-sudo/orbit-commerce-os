@@ -142,24 +142,6 @@ export default function Shipping() {
               <span className="hidden sm:inline">Envios</span>
             </TabsTrigger>
           </InfoTooltip>
-          <InfoTooltip tooltipKey="shipping.tab.carriers">
-            <TabsTrigger value="settings" className="gap-2">
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Transportadoras</span>
-            </TabsTrigger>
-          </InfoTooltip>
-          <InfoTooltip tooltipKey="shipping.tab.free-shipping">
-            <TabsTrigger value="frete-gratis" className="gap-2">
-              <Gift className="h-4 w-4" />
-              <span className="hidden sm:inline">Frete Grátis</span>
-            </TabsTrigger>
-          </InfoTooltip>
-          <InfoTooltip tooltipKey="shipping.tab.custom-rules">
-            <TabsTrigger value="frete-personalizado" className="gap-2">
-              <DollarSign className="h-4 w-4" />
-              <span className="hidden sm:inline">Frete Personalizado</span>
-            </TabsTrigger>
-          </InfoTooltip>
         </TabsList>
 
         <TabsContent value="shipments" className="space-y-4">
@@ -304,17 +286,6 @@ export default function Shipping() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings">
-          <ShippingCarrierSettings />
-        </TabsContent>
-
-        <TabsContent value="frete-gratis">
-          <FreeShippingSubTabs />
-        </TabsContent>
-
-        <TabsContent value="frete-personalizado">
-          <CustomShippingRulesTab />
-        </TabsContent>
       </Tabs>
     </div>
   );
