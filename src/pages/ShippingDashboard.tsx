@@ -103,6 +103,20 @@ export default function ShippingDashboard() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
 
+  const navigate = useNavigate();
+
+  // Redirects de compatibilidade — abas migradas para outros módulos
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'meios-transporte') {
+      navigate('/integrations?tab=shipping', { replace: true });
+    } else if (tab === 'frete-gratis') {
+      navigate('/system/settings?tab=shipping&aba=regras-frete-gratis', { replace: true });
+    } else if (tab === 'frete-personalizado') {
+      navigate('/system/settings?tab=shipping&aba=frete-personalizado', { replace: true });
+    }
+  }, [searchParams, navigate]);
+
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     setSearchParams({ tab });
@@ -211,18 +225,6 @@ export default function ShippingDashboard() {
           <TabsTrigger value="rastreios" className="gap-2">
             <Search className="h-4 w-4" />
             Rastreios
-          </TabsTrigger>
-          <TabsTrigger value="meios-transporte" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Meios de Transporte
-          </TabsTrigger>
-          <TabsTrigger value="frete-gratis" className="gap-2">
-            <Gift className="h-4 w-4" />
-            Frete Grátis
-          </TabsTrigger>
-          <TabsTrigger value="frete-personalizado" className="gap-2">
-            <DollarSign className="h-4 w-4" />
-            Frete Personalizado
           </TabsTrigger>
         </TabsList>
 
@@ -446,20 +448,6 @@ export default function ShippingDashboard() {
           <TrackingTab initialSubTab={trackingSubTab} />
         </TabsContent>
 
-        {/* Meios de Transporte Tab */}
-        <TabsContent value="meios-transporte" className="mt-6">
-          <CarrierCardsGrid />
-        </TabsContent>
-
-        {/* Frete Grátis Tab with Sub-tabs */}
-        <TabsContent value="frete-gratis" className="mt-6">
-          <FreeShippingSubTabs />
-        </TabsContent>
-
-        {/* Frete Personalizado Tab */}
-        <TabsContent value="frete-personalizado" className="mt-6">
-          <CustomShippingRulesTab />
-        </TabsContent>
       </Tabs>
     </div>
   );
