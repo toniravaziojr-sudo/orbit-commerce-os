@@ -291,7 +291,7 @@ O storefront público do lojista (loja virtual vista pelo consumidor) **não é 
 **Utilitários:**
 - `/import` — Importação de dados (GatedRoute: `sistema_importacao`)
 - `/files` — Meu Drive
-- `/reports` — Relatórios (FeatureGated: `reports`)
+- `/reports` — Relatórios (FeatureGated: `reports`). Abas via `?tab=overview|products|payments|regions|channels|coupons|affiliates|customers|ga4` e sub-toggle de Regiões `?view=states|cities`. Doc: `docs/especificacoes/sistema/relatorios.md`. Deep-link a partir do bloco "Preview de Vendas" no Dashboard.
 
 **Conta:**
 - `/account/data` — Dados da conta
