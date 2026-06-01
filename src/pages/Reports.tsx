@@ -8,20 +8,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatCard } from "@/components/ui/stat-card";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Package, 
-  CreditCard, 
-  MapPin, 
-  Users, 
+import {
+  BarChart3,
+  TrendingUp,
+  Package,
+  CreditCard,
+  MapPin,
+  Users,
   Tag,
   RefreshCw,
   ShoppingCart,
   DollarSign,
   Percent,
   Store,
-  Download
+  Download,
+  Handshake,
+  Building2,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
