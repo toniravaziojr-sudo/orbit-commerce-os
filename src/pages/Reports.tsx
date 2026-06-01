@@ -289,6 +289,10 @@ export default function Reports() {
               <MapPin className="h-4 w-4 mr-1" />
               Regiões
             </TabsTrigger>
+            <TabsTrigger value="affiliates" className="text-xs">
+              <Handshake className="h-4 w-4 mr-1" />
+              Afiliados
+            </TabsTrigger>
             <TabsTrigger value="customers" className="text-xs">
               <Users className="h-4 w-4 mr-1" />
               Clientes
