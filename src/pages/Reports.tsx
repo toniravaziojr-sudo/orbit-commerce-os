@@ -1,4 +1,5 @@
-import { useState, useMemo, lazy, Suspense } from "react";
+import { useState, useMemo, lazy, Suspense, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { QueryErrorState } from "@/components/ui/query-error-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,20 +8,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatCard } from "@/components/ui/stat-card";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Package, 
-  CreditCard, 
-  MapPin, 
-  Users, 
+import {
+  BarChart3,
+  TrendingUp,
+  Package,
+  CreditCard,
+  MapPin,
+  Users,
   Tag,
   RefreshCw,
   ShoppingCart,
   DollarSign,
   Percent,
   Store,
-  Download
+  Download,
+  Handshake,
+  Building2,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -33,6 +36,9 @@ import {
   useSalesByPaymentMethod,
   useSalesByStatus,
   useSalesByRegion,
+  useSalesByState,
+  useSalesByCity,
+  useSalesByAffiliate,
   useCustomerReport,
   useReportSummary,
   ReportFilters,
@@ -55,17 +61,49 @@ import {
 } from "recharts";
 import { GA4ReportsTab } from "@/components/reports/GA4ReportsTab";
 
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const COLORS = [
+  "hsl(var(--primary))",
+  "hsl(var(--accent))",
+  "hsl(var(--secondary))",
+  "hsl(var(--muted-foreground))",
+  "hsl(var(--primary) / 0.6)",
+  "hsl(var(--accent) / 0.6)",
+];
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
 export default function Reports() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab") || "overview";
+  const urlView = searchParams.get("view") || "states";
+  const [activeTab, setActiveTab] = useState(urlTab);
+  const [regionView, setRegionView] = useState<"states" | "cities">(
+    urlView === "cities" ? "cities" : "states",
+  );
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
   const [startDate, setStartDate] = useState<Date | undefined>(() => subDays(new Date(), 29));
   const [endDate, setEndDate] = useState<Date | undefined>(() => new Date());
+
+  // Sync state -> URL
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", activeTab);
+    if (activeTab === "regions") next.set("view", regionView);
+    else next.delete("view");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, regionView]);
+
+  // Sync URL -> state (back/forward navigation)
+  useEffect(() => {
+    if (urlTab !== activeTab) setActiveTab(urlTab);
+    if (urlTab === "regions" && urlView !== regionView) {
+      setRegionView(urlView === "cities" ? "cities" : "states");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlTab, urlView]);
 
   const handleDateChange = (start?: Date, end?: Date) => {
     setStartDate(start);
@@ -92,6 +130,9 @@ export default function Reports() {
   const { data: paymentData, isLoading: paymentLoading } = useSalesByPaymentMethod(filters);
   const { data: statusData, isLoading: statusLoading } = useSalesByStatus(filters);
   const { data: regionData, isLoading: regionLoading } = useSalesByRegion(filters);
+  const { data: stateData, isLoading: stateLoading } = useSalesByState(filters);
+  const { data: cityData, isLoading: cityLoading } = useSalesByCity(filters);
+  const { data: affiliateData, isLoading: affiliateLoading } = useSalesByAffiliate(filters);
   const { data: customerData, isLoading: customerLoading } = useCustomerReport(filters);
 
   const handleRefresh = () => {
@@ -119,13 +160,32 @@ export default function Reports() {
   };
 
   const handleExportRegion = () => {
-    if (!regionData) return;
-    exportToCSV(regionData, [
-      { key: 'state', label: 'Estado' },
-      { key: 'city', label: 'Cidade' },
-      { key: 'orders_count', label: 'Pedidos' },
-      { key: 'total_revenue', label: 'Receita', format: (v) => formatCurrencyForExport(v) },
-    ], `relatorio-regioes-${format(new Date(), 'yyyy-MM-dd')}`);
+    const rows = regionView === "cities" ? (cityData || []) : (stateData || []);
+    const cols = regionView === "cities"
+      ? [
+          { key: 'state', label: 'Estado' },
+          { key: 'city', label: 'Cidade' },
+          { key: 'orders_count', label: 'Pedidos' },
+          { key: 'total_revenue', label: 'Receita', format: (v: number) => formatCurrencyForExport(v) },
+        ]
+      : [
+          { key: 'state', label: 'Estado' },
+          { key: 'orders_count', label: 'Pedidos' },
+          { key: 'total_revenue', label: 'Receita', format: (v: number) => formatCurrencyForExport(v) },
+          { key: 'percentage', label: '% Receita', format: (v: number) => `${v.toFixed(1)}%` },
+        ];
+    exportToCSV(rows as any, cols as any, `relatorio-${regionView === "cities" ? "cidades" : "estados"}-${format(new Date(), 'yyyy-MM-dd')}`);
+  };
+
+  const handleExportAffiliates = () => {
+    if (!affiliateData) return;
+    exportToCSV(affiliateData, [
+      { key: 'affiliate_name', label: 'Afiliado' },
+      { key: 'affiliate_email', label: 'Email' },
+      { key: 'conversions', label: 'Conversões' },
+      { key: 'total_revenue', label: 'Receita Atribuída', format: (v) => formatCurrencyForExport(v) },
+      { key: 'total_commission', label: 'Comissão', format: (v) => formatCurrencyForExport(v) },
+    ], `relatorio-afiliados-${format(new Date(), 'yyyy-MM-dd')}`);
   };
 
   return (
@@ -228,6 +288,10 @@ export default function Reports() {
             <TabsTrigger value="regions" className="text-xs">
               <MapPin className="h-4 w-4 mr-1" />
               Regiões
+            </TabsTrigger>
+            <TabsTrigger value="affiliates" className="text-xs">
+              <Handshake className="h-4 w-4 mr-1" />
+              Afiliados
             </TabsTrigger>
             <TabsTrigger value="customers" className="text-xs">
               <Users className="h-4 w-4 mr-1" />
@@ -614,53 +678,146 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
-        {/* Regions Tab */}
+        {/* Regions Tab — Estados / Cidades */}
         <TabsContent value="regions" className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
               <div>
                 <CardTitle>Vendas por Região</CardTitle>
                 <CardDescription>Distribuição geográfica das vendas</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={handleExportRegion}>
-                <Download className="h-4 w-4 mr-2" />
-                Exportar
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-md border p-0.5">
+                  <Button
+                    variant={regionView === "states" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setRegionView("states")}
+                    className="h-7"
+                  >
+                    <MapPin className="h-3.5 w-3.5 mr-1" /> Estados
+                  </Button>
+                  <Button
+                    variant={regionView === "cities" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setRegionView("cities")}
+                    className="h-7"
+                  >
+                    <Building2 className="h-3.5 w-3.5 mr-1" /> Cidades
+                  </Button>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleExportRegion}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              {regionLoading ? (
-                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                  Carregando...
-                </div>
-              ) : regionData && regionData.length > 0 ? (
+              {regionView === "states" ? (
+                stateLoading ? (
+                  <div className="h-[200px] flex items-center justify-center text-muted-foreground">Carregando...</div>
+                ) : stateData && stateData.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="text-right">Pedidos</TableHead>
+                        <TableHead className="text-right">Receita</TableHead>
+                        <TableHead className="text-right">% Receita</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stateData.map((s) => (
+                        <TableRow key={s.state}>
+                          <TableCell className="font-medium">{s.state}</TableCell>
+                          <TableCell className="text-right">{s.orders_count}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(s.total_revenue)}</TableCell>
+                          <TableCell className="text-right">{s.percentage.toFixed(1)}%</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="h-[200px] flex items-center justify-center text-muted-foreground">Sem dados de estados</div>
+                )
+              ) : cityLoading ? (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">Carregando...</div>
+              ) : cityData && cityData.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Estado</TableHead>
                       <TableHead>Cidade</TableHead>
+                      <TableHead>Estado</TableHead>
                       <TableHead className="text-right">Pedidos</TableHead>
                       <TableHead className="text-right">Receita</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {regionData.slice(0, 20).map((region, index) => (
-                      <TableRow key={`${region.state}-${region.city}-${index}`}>
-                        <TableCell className="font-medium">{region.state}</TableCell>
-                        <TableCell>{region.city}</TableCell>
-                        <TableCell className="text-right">{region.orders_count}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(region.total_revenue)}</TableCell>
+                    {cityData.slice(0, 50).map((c, i) => (
+                      <TableRow key={`${c.state}-${c.city}-${i}`}>
+                        <TableCell className="font-medium">{c.city}</TableCell>
+                        <TableCell>{c.state}</TableCell>
+                        <TableCell className="text-right">{c.orders_count}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(c.total_revenue)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               ) : (
-                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                  Sem dados de regiões
-                </div>
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">Sem dados de cidades</div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Affiliates Tab */}
+        <TabsContent value="affiliates" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Vendas por Afiliado</CardTitle>
+                <CardDescription>Conversões atribuídas e comissões no período</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleExportAffiliates}>
+                <Download className="h-4 w-4 mr-2" />
+                Exportar
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {affiliateLoading ? (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">Carregando...</div>
+              ) : affiliateData && affiliateData.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Afiliado</TableHead>
+                      <TableHead className="text-right">Conversões</TableHead>
+                      <TableHead className="text-right">Receita Atribuída</TableHead>
+                      <TableHead className="text-right">Comissão</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {affiliateData.map((a) => (
+                      <TableRow key={a.affiliate_id}>
+                        <TableCell>
+                          <div className="font-medium">{a.affiliate_name}</div>
+                          {a.affiliate_email && (
+                            <div className="text-xs text-muted-foreground">{a.affiliate_email}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">{a.conversions}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(a.total_revenue)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(a.total_commission)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">Sem conversões de afiliado no período</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
 
         {/* Customers Tab */}
         <TabsContent value="customers" className="space-y-4">
