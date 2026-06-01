@@ -5,7 +5,27 @@ incluindo as notas de qualidade antes e depois, para permitir comparação e evi
 
 ---
 
-## Registro #1 — Ajuste de 27/mar/2026
+## Registro #N — Onda 7 (v8.35.0) — 01/jun/2026
+
+**O que foi feito:** Snippet inline `_sfCapi` do edge `storefront-html` passa a ler o cofre completo `_sf_identity` (não só email/telefone do cofre antigo). Eventos de topo de funil disparados pelo edge (PageView, ViewCategory, ViewContent, AddToCart, InitiateCheckout) agora herdam `first_name_hashed`, `last_name_hashed`, `city_hashed`, `state_hashed`, `zip_hashed`, `country_hashed`, `date_of_birth_hashed`, `gender_hashed`, `customer_id` (como `external_id` array `[visitor_id, customer_id]`) e `lead_id` (em `custom_data`). Zero PII em plaintext — só hashes pré-calculados pelo `visitorIdentity.ts`.
+
+**Causa raiz fechada:** desde v8.28.0 o tracker React mesclava o cofre, mas o snippet inline do edge HTML (que dispara os eventos antes do React carregar em loja SSR) continuava ignorando — gap silencioso de ~4 ondas.
+
+**Cobertura esperada (24-48h):**
+| Evento (edge) | EMQ antes | EMQ esperado |
+|---|---|---|
+| PageView | 6.8 | 7.5–8.5 |
+| ViewCategory | 5.9 | 7.0–8.0 |
+| ViewContent | 5.8 | 7.5–8.5 |
+| AddToCart | 6.7 | 7.5–8.5 |
+| InitiateCheckout | 6.6 | 7.5–8.5 |
+
+Aplica-se apenas a visitantes com cofre populado (passaram em Lead/AddShipping/AddPayment/Purchase nos últimos 30d). Visitante 100% anônimo permanece no teto natural (limite intrínseco da Meta).
+
+**Garantias:** `purchaseEventTiming`, dedup persistente 30d, `event_id` determinístico, `getEffectiveFbp` read-only, isolamento entre tenants — tudo preservado. Prerenders marcados `stale` após deploy.
+
+---
+
 
 **O que foi feito:** Priorização de IPv4 (dotted-quad) nos headers `x-forwarded-for` para resolver erro de "IP mismatch" entre Pixel e CAPI. Implementação do polling de `fbp` (waitForFbp 1.5s). Transporte híbrido fetch+keepalive / sendBeacon.
 
