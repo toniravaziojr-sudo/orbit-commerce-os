@@ -495,10 +495,75 @@ Registrado em 2026-05-12 após investigação completa. Futuras IAs **não devem
 
 ---
 
+## Auditoria 2026-06-01 — Onda 7: Cofre completo no snippet inline do edge HTML (v8.35.0)
+
+Auditoria do tenant **Respeite o Homem** confirmou que, pós-v8.34.0, **8 de 10 eventos** atingiram score ≥9 (Lead/AddShippingInfo/AddPaymentInfo 9.3; Purchase 8.9; PageView 6.8). **Único gap residual:** ViewContent/AddToCart/InitiateCheckout/ViewCategory disparados pelo edge HTML tinham `first_name_hashed`/`city_hashed`/`zip_hashed` em **0%**, mesmo para visitantes recorrentes que já tinham o cofre `_sf_identity` cheio. Painel da Meta refletia EMQ 5.8–6.7 nesses eventos quando deveria estar 7.5–8.5 para a parcela de tráfego identificado.
+
+### Causa raiz
+
+O snippet inline `_sfCapi` no `storefront-html` lia apenas o cofre antigo (`_sf_am_em`, `_sf_am_ph` — email/telefone). **Ignorava** o cofre novo `_sf_identity` (v8.28+), que é exatamente onde moram os hashes de nome/cidade/UF/CEP/país/data nascimento/customer_id. Eventos do edge HTML são disparados **antes** do tracker React carregar (loja SSR), portanto não herdavam a mesclagem que o React já fazia corretamente desde v8.28.0.
+
+### Correção aplicada (v8.35.0)
+
+Adicionado helper `_sfGetIdentity()` ao snippet inline do `storefront-html` que espelha exatamente a leitura feita por `marketingTracker.ts → sendServerEvent` (linhas 391–400):
+
+1. Lê `localStorage._sf_identity`.
+2. Valida `expires_at` (TTL 30d); remove se expirado.
+3. Devolve **apenas hashes já calculados**: `email_hashed`, `phone_hashed`, `first_name_hashed`, `last_name_hashed`, `city_hashed`, `state_hashed`, `zip_hashed`, `country_hashed`, `date_of_birth_hashed`, `gender_hashed`.
+4. Devolve `customer_id` e `lead_id` quando presentes (para `external_id` array e `custom_data.lead_id`).
+
+Em `_sfCapi`, antes do `fetch`:
+- Hashes do cofre são mesclados ao `user_data` (regra: explícito do caller vence; cofre só completa o que falta).
+- `external_id` vira array `[visitor_id, customer_id]` quando `customer_id` está presente e diverge de `visitor_id`.
+- `lead_id` é injetado em `custom_data` quando ausente — fechamento de funil de Lead Ads também para eventos de topo.
+
+**Arquivos alterados:** `supabase/functions/storefront-html/index.ts`.
+
+### Garantias preservadas (anti-regressão)
+
+- **Zero PII em plaintext** sai do navegador — só os campos `*_hashed` que já estão pré-calculados pelo `visitorIdentity.ts` (SHA-256 acontece antes da gravação no cofre).
+- **`purchaseEventTiming`** inalterado.
+- **Dedup persistente 30d do Purchase** (`purchaseDedup.ts`) inalterado.
+- **`event_id` determinístico** Pixel ↔ CAPI inalterado.
+- **`getEffectiveFbp()` permanece read-only** — não criamos `_fbp` em ponto novo.
+- **Visitante 100% anônimo** (cofre vazio): comportamento idêntico ao anterior — limite intrínseco da Meta, documentado e proibido tentar burlar.
+- **`_fbc` 30–55%, IPv6, `view_item_list`**: continuam intocados conforme proibições explícitas.
+- **CORS e envelope `200 { success: false }`** preservados.
+- **Sem mistura de dados entre tenants** — cofre é por navegador; cada navegador só carrega 1 loja por vez.
+- **Prerenders marcados `stale`** após deploy para reemitir HTML novo (regra fixa do pipeline).
+
+### Cobertura esperada pós-v8.35.0
+
+Para a parcela de tráfego com cofre populado (Lead/AddShipping/AddPayment/Purchase ocorridos nos últimos 30 dias):
+
+| Evento | EMQ esperado |
+|---|---|
+| ViewCategory (edge) | 5.9 → **7.0–8.0** |
+| ViewContent (edge) | 5.8 → **7.5–8.5** |
+| AddToCart (edge) | 6.7 → **7.5–8.5** |
+| InitiateCheckout (edge) | 6.6 → **7.5–8.5** |
+| PageView (edge) | 6.8 → **7.5–8.5** |
+
+Para tráfego 100% anônimo (sessão sem nenhum evento de identificação prévia): mantém o teto natural — sem mudança esperada.
+
+### Validação técnica
+
+- ✅ Deploy `storefront-html` concluído (2026-06-01).
+- ✅ `storefront_prerendered_pages` marcados `stale` para reemissão do HTML novo.
+- ⏳ Cobertura real de hashes de nome/cidade/CEP nos eventos do edge depende de tráfego pós-deploy. **Validação consolidada agendada para 2026-06-03** (após 48h de tráfego acumulado).
+- ⏳ Janela de 7 dias para a Meta refletir EMQ no Events Manager.
+
+### Anti-regressão a documentar
+
+Qualquer novo ponto de disparo CAPI fora do tracker React (snippets inline novos, edge functions que emitem eventos diretamente, novas rotas SSR) **DEVE** ler `_sf_identity` via padrão equivalente a `_sfGetIdentity()` antes de despachar. **Proibido** repetir o erro de v8.28→v8.34 onde o React mesclava o cofre e o edge ignorava.
+
+---
+
 ## Versionamento
 
 | Versão | Data | Resumo |
 |---|---|---|
+| **v8.35.0** | **2026-06-01** | **Onda 7 — Cofre completo no snippet inline do edge HTML.** `_sfCapi` em `storefront-html` passa a ler `_sf_identity` completo (nome/cidade/UF/CEP/país/dob/gender hashes + customer_id + lead_id). Eventos do edge (PageView/ViewCategory/ViewContent/AddToCart/InitiateCheckout) herdam PII hashada de visitantes recorrentes — fecha o último gap real de EMQ no topo de funil. `external_id` vira array `[visitor_id, customer_id]` quando ambos presentes; `lead_id` injetado em `custom_data`. Zero PII em plaintext. Prerenders marcados `stale`. Visitante anônimo inalterado. |
 | **v8.34.0** | **2026-05-16** | **Paridade total Pixel ↔ CAPI no Purchase + limpeza de campo não-padrão.** (1) **Pixel** passa a enviar `predicted_ltv = round(value*1.8, 2)` quando `value > 0` e finito — antes só o CAPI enviava, criando assimetria de EMQ entre canais. (2) **Removido `order_status: 'completed'`** dos dois canais (Pixel e CAPI): o campo **não consta da lista oficial de `custom_data` da Meta para Purchase** (validado contra Meta Pixel Reference e Conversions API — Standard Parameters em 16/mai/2026); estava sendo enviado fixo como `completed` mesmo em pedidos pendentes (dado incorreto, ignorado pela Meta). Controle de "contar ou não pedido não pago" continua **exclusivamente** via `purchaseEventTiming` (soberania do tenant — inalterado). (3) **`marketing_events_log.order_id`** passa a ser preenchido com o UUID do pedido em todo Purchase server-side, habilitando reconciliação por pedido (antes: 0/62 nos últimos 7 dias). Zero impacto em fiscal, vendas, pagamentos ou logística. Dedup persistente 30d por `event_id` mantido. Sem alteração no momento de disparo do Purchase. |
 | **v8.33.0** | **2026-05-12** | **Seed client-side de `_fbp` para rotas SPA-only:** `ensureFbp()` em `visitorIdentity.ts` espelha `_sfEnsureFbp` do edge — sintetiza `fb.1.<ms>.<rand>`, persiste cookie 90d e expõe `window.__sfFbp` quando ambos estão ausentes. Chamado uma vez em `MarketingTracker.initialize()`. Resolve gap de Purchase `_fbp` de 76% → ≥99% para usuários que entram direto em `/thank-you` após redirect de gateway. `getEffectiveFbp()` permanece read-only. |
 | **v8.31.0** | **2026-05-05** | **Cobertura CAPI máxima: `marketing-capi-track` aceita custom_data passthrough completo (allowlist removida); Pixel browser inclui `delivery_category=home_delivery` em ViewContent/AddToCart/InitiateCheckout/Purchase; Purchase server-side adiciona `order_status=completed`; ViewContent envia `contents[]` com `item_price` (paridade com AddToCart).** |
