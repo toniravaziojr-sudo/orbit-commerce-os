@@ -55,6 +55,29 @@ export interface SalesByRegionData {
   total_revenue: number;
 }
 
+export interface SalesByStateData {
+  state: string;
+  orders_count: number;
+  total_revenue: number;
+  percentage: number;
+}
+
+export interface SalesByCityData {
+  state: string;
+  city: string;
+  orders_count: number;
+  total_revenue: number;
+}
+
+export interface SalesByAffiliateData {
+  affiliate_id: string;
+  affiliate_name: string;
+  affiliate_email: string | null;
+  conversions: number;
+  total_revenue: number;
+  total_commission: number;
+}
+
 export interface CustomerReportData {
   new_customers: number;
   returning_customers: number;
