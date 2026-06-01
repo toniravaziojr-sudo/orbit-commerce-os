@@ -1,7 +1,7 @@
 // Frenet adapter — gateway integration for shipment sync + invoice attachment
 // Docs: https://api.frenet.com.br/swagger/ui/index
 
-const FRENET_BASE = "https://sp.api.frenet.com.br";
+const FRENET_BASE = "https://api.frenet.com.br";
 
 interface FrenetCredentials {
   token: string;
