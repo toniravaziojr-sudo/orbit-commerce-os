@@ -61,13 +61,16 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 5. **CommunicationsWidget** — Atendimentos, erros de notificação, emails não lidos
 6. **AdsAlertsWidget** — Alertas do gestor de tráfego (saldo, ações pendentes, insights)
 7. **FiscalAlertsWidget** — Alertas fiscais (NF-e em pedidos cancelados)
-8. **Grid 3 colunas:**
+8. **Preview de Vendas** — Bloco com 4 cards Top 5 (Produtos, Estados, Cidades, Formas de Pagamento), cada um com botão "Ver mais" que abre a aba correspondente em `/reports`. Detalhes em `docs/especificacoes/sistema/relatorios.md`.
+9. **Grid 3 colunas:**
    - **Pedidos Recentes** (2 cols) — Lista dos últimos 4 pedidos com status
    - **Coluna lateral** (1 col):
      - IntegrationAlerts (WhatsApp/Email)
      - StorefrontHealthCard (violações de URL, uptime)
      - Card "Atenção Agora" (itens demo estáticos)
-9. **Ações Rápidas** — Grid de botões: Novo Produto, Novo Pedido, Novo Cliente, Processar Pedidos
+10. **Ações Rápidas** — Grid de botões: Novo Produto, Novo Pedido, Novo Cliente, Processar Pedidos
+
+> **Removido na v2.1 (2026-06-01):** o card antigo de "Saúde do WhatsApp" não aparece mais no Dashboard. A saúde da conexão WhatsApp vive exclusivamente em **Integrações › WhatsApp**. Não re-adicionar.
 
 ### 1.1 Layout de Métricas (v8.8.0 — 4 Categorias)
 
