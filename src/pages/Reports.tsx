@@ -160,13 +160,32 @@ export default function Reports() {
   };
 
   const handleExportRegion = () => {
-    if (!regionData) return;
-    exportToCSV(regionData, [
-      { key: 'state', label: 'Estado' },
-      { key: 'city', label: 'Cidade' },
-      { key: 'orders_count', label: 'Pedidos' },
-      { key: 'total_revenue', label: 'Receita', format: (v) => formatCurrencyForExport(v) },
-    ], `relatorio-regioes-${format(new Date(), 'yyyy-MM-dd')}`);
+    const rows = regionView === "cities" ? (cityData || []) : (stateData || []);
+    const cols = regionView === "cities"
+      ? [
+          { key: 'state', label: 'Estado' },
+          { key: 'city', label: 'Cidade' },
+          { key: 'orders_count', label: 'Pedidos' },
+          { key: 'total_revenue', label: 'Receita', format: (v: number) => formatCurrencyForExport(v) },
+        ]
+      : [
+          { key: 'state', label: 'Estado' },
+          { key: 'orders_count', label: 'Pedidos' },
+          { key: 'total_revenue', label: 'Receita', format: (v: number) => formatCurrencyForExport(v) },
+          { key: 'percentage', label: '% Receita', format: (v: number) => `${v.toFixed(1)}%` },
+        ];
+    exportToCSV(rows as any, cols as any, `relatorio-${regionView === "cities" ? "cidades" : "estados"}-${format(new Date(), 'yyyy-MM-dd')}`);
+  };
+
+  const handleExportAffiliates = () => {
+    if (!affiliateData) return;
+    exportToCSV(affiliateData, [
+      { key: 'affiliate_name', label: 'Afiliado' },
+      { key: 'affiliate_email', label: 'Email' },
+      { key: 'conversions', label: 'Conversões' },
+      { key: 'total_revenue', label: 'Receita Atribuída', format: (v) => formatCurrencyForExport(v) },
+      { key: 'total_commission', label: 'Comissão', format: (v) => formatCurrencyForExport(v) },
+    ], `relatorio-afiliados-${format(new Date(), 'yyyy-MM-dd')}`);
   };
 
   return (
