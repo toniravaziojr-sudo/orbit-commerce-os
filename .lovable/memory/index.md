@@ -17,6 +17,7 @@ Regras de sistema, arquitetura, fluxos e especificações ficam exclusivamente n
 7. **Memória limitada a governança + 2 últimos assuntos** — Rotação obrigatória; nunca guardar regra de sistema que não esteja nos docs.
 
 ## Memories
+- [Meta Tracking Edge Snippet Vault Parity](mem://constraints/meta-tracking-edge-snippet-vault-parity) — v8.35.0 Onda 7: snippet inline `_sfCapi` do storefront-html DEVE mesclar `_sf_identity` completo (nome/cidade/UF/CEP/dob/customer_id hashed). Toda nova edge/snippet emissora de CAPI tem o mesmo dever.
 - [Turn Orchestrator logical_turn_id](mem://constraints/turn-orchestrator-logical-turn-id) — Reg #2.13: bot carrega metadata.logical_turn_id; freshness pré-tool e pré-envio; status open/claimed/processed/send_failed/dead; complete_turn somente após envio aceito.
 - [Turn Orchestrator Early-Return Contract](mem://constraints/turn-orchestrator-early-return-contract) — Reg #2.13 Fase C: helper finalizeOrchestratedTurn (send/no_send/abort) obrigatório em todo early-return; classificação ambíguo usa turno consolidado; idempotência por last_ambiguous_logical_turn_id; support_tickets sem coluna channel.
 - [Sandbox Real Meta Leak](mem://constraints/sandbox-real-meta-leak) — Reg #2.13 Fase C: guard rail no meta-whatsapp-send + dry_send default; allowlist obrigatória; lista oficial dos 5 wamids vazados em 02–03/05/2026.
