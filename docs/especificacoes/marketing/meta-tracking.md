@@ -1,9 +1,9 @@
 # Meta Tracking — Pixel + Conversions API (CAPI)
 
 > **Status:** 🟢 Ativo
-> **Versão:** 8.34.0
+> **Versão:** 8.35.0
 > **Camada:** Layer 3 — Especificações / Marketing
-> **Última atualização:** 2026-05-16
+> **Última atualização:** 2026-06-01
 > **Doc relacionado:** `docs/meta-tracking-changelog.md` (histórico de notas e cobertura)
 
 ---
