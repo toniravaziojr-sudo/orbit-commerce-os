@@ -26,6 +26,7 @@ Aplica-se apenas a visitantes com cofre populado (passaram em Lead/AddShipping/A
 
 ---
 
+## Registro #1 — Ajuste de 27/mar/2026
 
 **O que foi feito:** Priorização de IPv4 (dotted-quad) nos headers `x-forwarded-for` para resolver erro de "IP mismatch" entre Pixel e CAPI. Implementação do polling de `fbp` (waitForFbp 1.5s). Transporte híbrido fetch+keepalive / sendBeacon.
 
