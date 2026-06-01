@@ -297,6 +297,34 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     window._sfGetFbc=function(){var m=document.cookie.match(/(?:^|;\\s*)_fbc=([^;]+)/);if(m)return decodeURIComponent(m[1]);try{return localStorage.getItem('_fbc')||undefined}catch(e){return undefined}};
     window._sfGetVid=function(){return window._sfVid||undefined};
     window._sfGetAM=function(){var r={};try{var em=localStorage.getItem('_sf_am_em');var ph=localStorage.getItem('_sf_am_ph');if(em)r.email=em;if(ph)r.phone=ph;}catch(e){}return r;};
+    // v8.35.0 — Onda 7: read full persistent identity vault (_sf_identity) so
+    // edge-emitted CAPI events (PageView, ViewContent, AddToCart, InitiateCheckout,
+    // ViewCategory) inherit name/city/state/zip/country/dob/gender hashes and
+    // customer_id from prior funnel events. Mirrors marketingTracker.ts merge.
+    // All values are SHA-256 pre-hashed by visitorIdentity.ts; backend never re-hashes.
+    window._sfGetIdentity=function(){
+      var out={};
+      try{
+        var raw=localStorage.getItem('_sf_identity');
+        if(!raw)return out;
+        var v=JSON.parse(raw);
+        if(!v||typeof v!=='object')return out;
+        if(typeof v.expires_at==='number'&&v.expires_at<Date.now()){try{localStorage.removeItem('_sf_identity');}catch(e){}return out;}
+        if(v.em_hash)out.email_hashed=v.em_hash;
+        if(v.ph_hash)out.phone_hashed=v.ph_hash;
+        if(v.fn_hash)out.first_name_hashed=v.fn_hash;
+        if(v.ln_hash)out.last_name_hashed=v.ln_hash;
+        if(v.ct_hash)out.city_hashed=v.ct_hash;
+        if(v.st_hash)out.state_hashed=v.st_hash;
+        if(v.zp_hash)out.zip_hashed=v.zp_hash;
+        if(v.country_hash)out.country_hashed=v.country_hash;
+        if(v.db_hash)out.date_of_birth_hashed=v.db_hash;
+        if(v.ge_hash)out.gender_hashed=v.ge_hash;
+        if(v.customer_id)out._customer_id=v.customer_id;
+        if(v.lead_id)out._lead_id=v.lead_id;
+      }catch(e){}
+      return out;
+    };
     // v8.32.0: ensure a stable _fbp value exists per visitor BEFORE any CAPI
     // dispatch. Reads existing cookie first; if missing, synthesizes a Meta-spec
     // value (fb.1.<ms>.<rand>), persists it to a 90d cookie AND exposes it as
@@ -317,18 +345,38 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     window._sfEnsureFbp();
     // v8.26.0: _sfCapi with waitForFbp polling (250ms x 12 = 3s max) and IP capture
     // v8.32.0: now relies on _sfEnsureFbp so fbp is ALWAYS present in user_data
+    // v8.35.0: merges _sf_identity vault hashes (name/city/zip/etc) for recurring visitors
     window._sfClientIp=null;
     window._sfCapi=function(n,eid,cd,ud){
       var _doSend=function(fbpVal){
         var am=window._sfGetAM();
-        var base={fbp:fbpVal||window.__sfFbp||undefined,fbc:window._sfGetFbc(),external_id:window._sfGetVid()};
+        var idv=window._sfGetIdentity();
+        var vid=window._sfGetVid();
+        // external_id as array [visitor_id, customer_id] when both exist
+        var extId=vid;
+        if(idv._customer_id&&idv._customer_id!==vid){extId=[vid,idv._customer_id];}
+        var base={fbp:fbpVal||window.__sfFbp||undefined,fbc:window._sfGetFbc(),external_id:extId};
         if(am.email)base.email=am.email;
         if(am.phone)base.phone=am.phone;
+        // Merge vault hashes — explicit user_data from caller (ud) wins via Object.assign below
+        if(idv.email_hashed&&!base.email)base.email_hashed=idv.email_hashed;
+        if(idv.phone_hashed&&!base.phone)base.phone_hashed=idv.phone_hashed;
+        if(idv.first_name_hashed)base.first_name_hashed=idv.first_name_hashed;
+        if(idv.last_name_hashed)base.last_name_hashed=idv.last_name_hashed;
+        if(idv.city_hashed)base.city_hashed=idv.city_hashed;
+        if(idv.state_hashed)base.state_hashed=idv.state_hashed;
+        if(idv.zip_hashed)base.zip_hashed=idv.zip_hashed;
+        if(idv.country_hashed)base.country_hashed=idv.country_hashed;
+        if(idv.date_of_birth_hashed)base.date_of_birth_hashed=idv.date_of_birth_hashed;
+        if(idv.gender_hashed)base.gender_hashed=idv.gender_hashed;
         if(window._sfClientIp)base.client_ip_from_browser=window._sfClientIp;
+        // Merge lead_id into custom_data if available and not already set
+        var cdMerged=Object.assign({},cd||{});
+        if(idv._lead_id&&cdMerged.lead_id===undefined)cdMerged.lead_id=idv._lead_id;
         fetch('${ctxUrl}/functions/v1/marketing-capi-track',{
           method:'POST',headers:{'Content-Type':'application/json','apikey':'${ctxKey}'},
           body:JSON.stringify({tenant_id:'${ctxTenantId}',event_name:n,event_id:eid,event_source_url:location.href,
-            custom_data:cd||{},user_data:Object.assign(base,ud||{})}),
+            custom_data:cdMerged,user_data:Object.assign(base,ud||{})}),
           keepalive:true
         }).then(function(r){if(r.ok)return r.json();}).then(function(d){
           if(d&&d.detected_ip&&!window._sfClientIp)window._sfClientIp=d.detected_ip;
