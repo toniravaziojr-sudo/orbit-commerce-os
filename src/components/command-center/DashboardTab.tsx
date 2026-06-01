@@ -1,16 +1,15 @@
 // =============================================
-// DASHBOARD TAB — Analytical overview (metrics, banners)
+// DASHBOARD TAB — Visão analítica + Preview de Vendas
 // =============================================
-
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { subDays } from "date-fns";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { DashboardMetricsGrid } from "@/components/dashboard/DashboardMetricsGrid";
 import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
 import { PaymentMethodBanner } from "@/components/billing/PaymentMethodBanner";
-import { WhatsAppRealReceptionPendingBanner } from "@/components/dashboard/WhatsAppRealReceptionPendingBanner";
 import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
 import { getComparisonLabel } from "@/lib/date-presets";
-import { WhatsAppHealthCard } from "@/components/command-center/WhatsAppHealthCard";
+import { SalesPreviewBlock } from "./SalesPreviewBlock";
 
 export function DashboardTab() {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -25,10 +24,15 @@ export function DashboardTab() {
 
   const trendLabel = getComparisonLabel(startDate, endDate);
 
+  // Filters para o Preview de Vendas (default últimos 30 dias quando não há seleção)
+  const previewFilters = useMemo(() => ({
+    startDate: startDate || subDays(new Date(), 29),
+    endDate: endDate || new Date(),
+  }), [startDate, endDate]);
+
   return (
     <div className="space-y-8 animate-fade-in">
       <PaymentMethodBanner />
-      <WhatsAppRealReceptionPendingBanner />
 
       <div className="flex justify-end">
         <DateRangeFilter
@@ -47,7 +51,7 @@ export function DashboardTab() {
         trendLabel={trendLabel}
       />
 
-      <WhatsAppHealthCard />
+      <SalesPreviewBlock filters={previewFilters} />
     </div>
   );
 }
