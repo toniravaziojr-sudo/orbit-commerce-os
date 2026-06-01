@@ -61,17 +61,49 @@ import {
 } from "recharts";
 import { GA4ReportsTab } from "@/components/reports/GA4ReportsTab";
 
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const COLORS = [
+  "hsl(var(--primary))",
+  "hsl(var(--accent))",
+  "hsl(var(--secondary))",
+  "hsl(var(--muted-foreground))",
+  "hsl(var(--primary) / 0.6)",
+  "hsl(var(--accent) / 0.6)",
+];
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
 export default function Reports() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab") || "overview";
+  const urlView = searchParams.get("view") || "states";
+  const [activeTab, setActiveTab] = useState(urlTab);
+  const [regionView, setRegionView] = useState<"states" | "cities">(
+    urlView === "cities" ? "cities" : "states",
+  );
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
   const [startDate, setStartDate] = useState<Date | undefined>(() => subDays(new Date(), 29));
   const [endDate, setEndDate] = useState<Date | undefined>(() => new Date());
+
+  // Sync state -> URL
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", activeTab);
+    if (activeTab === "regions") next.set("view", regionView);
+    else next.delete("view");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, regionView]);
+
+  // Sync URL -> state (back/forward navigation)
+  useEffect(() => {
+    if (urlTab !== activeTab) setActiveTab(urlTab);
+    if (urlTab === "regions" && urlView !== regionView) {
+      setRegionView(urlView === "cities" ? "cities" : "states");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlTab, urlView]);
 
   const handleDateChange = (start?: Date, end?: Date) => {
     setStartDate(start);
