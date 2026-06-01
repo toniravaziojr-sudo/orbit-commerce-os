@@ -130,6 +130,9 @@ export default function Reports() {
   const { data: paymentData, isLoading: paymentLoading } = useSalesByPaymentMethod(filters);
   const { data: statusData, isLoading: statusLoading } = useSalesByStatus(filters);
   const { data: regionData, isLoading: regionLoading } = useSalesByRegion(filters);
+  const { data: stateData, isLoading: stateLoading } = useSalesByState(filters);
+  const { data: cityData, isLoading: cityLoading } = useSalesByCity(filters);
+  const { data: affiliateData, isLoading: affiliateLoading } = useSalesByAffiliate(filters);
   const { data: customerData, isLoading: customerLoading } = useCustomerReport(filters);
 
   const handleRefresh = () => {
