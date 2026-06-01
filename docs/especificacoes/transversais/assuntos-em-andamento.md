@@ -139,3 +139,36 @@
 - Não mexer em natureza de operação por iniciativa própria — usuário edita pela tela de Configurações.
 - Não criar UI nova para "forçar reenvio ao WMS" sem autorização — fluxo é automático no momento da emissão.
 - Mudanças no filtro do editor de NF-e ou na lista oficial de CFOPs precisam atualizar o doc fiscal na mesma entrega.
+
+---
+
+### 6. Frenet como Gateway de Despacho Automático — Bloqueio por Credencial de Parceiro
+
+**Docs oficiais:**
+- `docs/especificacoes/logistica/` (gateway de envio)
+- Memória: `mem://features/logistics/gateway-vs-local-shipping-routing`
+
+**Onde estamos:**
+- Decisão de negócio (operador): seguir o **caminho 1** — solicitar credencial de parceiro à Frenet e manter o fluxo automático de envio de pedidos pagos ao painel da Frenet (gateway de despacho), e não apenas cotação/rastreio.
+- Diagnóstico técnico concluído: o consumidor da fila lia colunas de endereço que não existem mais e o host da API estava errado. Os dois pontos foram corrigidos no código.
+- Bloqueio real: o endpoint de inserção de pedido no painel da Frenet exige hoje um **token de parceiro whitelabel (`x-partner-token`)** que o sistema ainda não possui. Sem esse token, nenhum pedido pago entra automaticamente no painel da Frenet — o tenant Amazgan é o caso atual em aberto (2 pedidos pagos sem despacho automático).
+
+**Onda 1 — pendente de execução autorizada:**
+- Pausar o consumidor da fila Frenet para parar o loop de retentativa.
+- Marcar os 2 pedidos pagos do Amazgan como "aguardando integração de parceiro" (sem perder rastro, sem reprocessar em loop).
+- Documentar no doc oficial de Logística — Gateway de Envio que o fluxo automático Frenet depende de credencial de parceiro e está em espera.
+- Registrar constraint anti-regressão.
+
+**Onda 2 — quando o token chegar:**
+- Cadastrar `FRENET_PARTNER_TOKEN` como secret.
+- Adaptar o conector ao endpoint oficial que a Frenet fornecer junto com a credencial.
+- Reabrir a fila, reenfileirar os pedidos parados e validar ponta a ponta com um pedido do Amazgan aparecendo no painel da Frenet com referência externa.
+
+**Pendente do operador:**
+- Solicitar à Frenet a credencial de parceiro (whitelabel) e o endpoint oficial de inserção de pedidos.
+- Autorizar a execução da Onda 1 (parar o loop e marcar os pedidos como aguardando integração).
+
+**Restrições firmes:**
+- Não reabrir o consumidor da fila Frenet sem o token de parceiro válido configurado.
+- Não tratar pedidos do Amazgan manualmente sem registro — todo pedido parado fica visível na fila como "aguardando integração de parceiro".
+- Cotação e rastreamento Frenet continuam funcionando normalmente — o bloqueio é só do despacho automático (inserção de pedido no painel).
