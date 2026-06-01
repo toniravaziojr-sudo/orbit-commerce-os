@@ -107,7 +107,7 @@ export function useSalesReport(filters: ReportFilters) {
         .eq('tenant_id', tenantId)
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
-        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+        .in('status', ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered']);
 
       if (error) throw error;
 
@@ -174,7 +174,7 @@ export function useSalesByCoupon(filters: ReportFilters) {
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .not('discount_code', 'is', null)
-        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+        .in('status', ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered']);
 
       if (error) throw error;
 
@@ -220,7 +220,7 @@ export function useSalesByChannel(filters: ReportFilters) {
         .eq('tenant_id', tenantId)
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
-        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+        .in('status', ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered']);
 
       if (error) throw error;
 
@@ -268,7 +268,7 @@ export function useSalesByProduct(filters: ReportFilters, limit = 20) {
         .eq('tenant_id', tenantId)
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
-        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+        .in('status', ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered']);
 
       if (ordersError) throw ordersError;
 
@@ -326,7 +326,7 @@ export function useSalesByPaymentMethod(filters: ReportFilters) {
         .eq('tenant_id', tenantId)
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
-        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+        .in('status', ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered']);
 
       if (error) throw error;
 
@@ -419,7 +419,7 @@ export function useSalesByRegion(filters: ReportFilters) {
         .eq('tenant_id', tenantId)
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
-        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+        .in('status', ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered']);
 
       if (error) throw error;
 
@@ -481,7 +481,7 @@ export function useCustomerReport(filters: ReportFilters) {
         .eq('tenant_id', tenantId)
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
-        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+        .in('status', ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered']);
 
       if (ordersError) throw ordersError;
 
@@ -530,7 +530,7 @@ export function useReportSummary(filters: ReportFilters) {
 
       if (error) throw error;
 
-      const paidStatuses = ['paid', 'processing', 'shipped', 'delivered'];
+      const paidStatuses = ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered'];
       const paidOrders = orders?.filter(o => paidStatuses.includes(o.status)) || [];
       
       const totalRevenue = paidOrders.reduce((sum, o) => sum + (o.total || 0), 0);
@@ -587,7 +587,7 @@ export function useSalesByState(filters: ReportFilters) {
         .eq('tenant_id', tenantId)
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
-        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+        .in('status', ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered']);
 
       if (error) throw error;
 
@@ -632,7 +632,7 @@ export function useSalesByCity(filters: ReportFilters) {
         .eq('tenant_id', tenantId)
         .gte('created_at', toSaoPauloStartIso(filters.startDate))
         .lte('created_at', toSaoPauloEndIso(filters.endDate))
-        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+        .in('status', ['paid', 'processing', 'ready_to_invoice', 'invoiced', 'shipped', 'delivered']);
 
       if (error) throw error;
 
