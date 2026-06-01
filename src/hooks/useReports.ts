@@ -571,6 +571,149 @@ export function useReportSummary(filters: ReportFilters) {
   });
 }
 
+// Sales by State (UF only)
+export function useSalesByState(filters: ReportFilters) {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ['reports', 'state', tenantId, filters.startDate, filters.endDate],
+    queryFn: async (): Promise<SalesByStateData[]> => {
+      if (!tenantId) return [];
+
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select('shipping_state, total')
+        .eq('tenant_id', tenantId)
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate))
+        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+
+      if (error) throw error;
+
+      const grouped: Record<string, { orders: number; revenue: number }> = {};
+      let totalRevenue = 0;
+
+      orders?.forEach(order => {
+        const state = (order.shipping_state || 'Não informado').toUpperCase();
+        if (!grouped[state]) grouped[state] = { orders: 0, revenue: 0 };
+        grouped[state].orders++;
+        grouped[state].revenue += order.total || 0;
+        totalRevenue += order.total || 0;
+      });
+
+      return Object.entries(grouped)
+        .map(([state, data]) => ({
+          state,
+          orders_count: data.orders,
+          total_revenue: data.revenue,
+          percentage: totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0,
+        }))
+        .sort((a, b) => b.total_revenue - a.total_revenue);
+    },
+    enabled: !!tenantId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// Sales by City
+export function useSalesByCity(filters: ReportFilters) {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ['reports', 'city', tenantId, filters.startDate, filters.endDate],
+    queryFn: async (): Promise<SalesByCityData[]> => {
+      if (!tenantId) return [];
+
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select('shipping_state, shipping_city, total')
+        .eq('tenant_id', tenantId)
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate))
+        .in('status', ['paid', 'processing', 'shipped', 'delivered']);
+
+      if (error) throw error;
+
+      const grouped: Record<string, { orders: number; revenue: number; city: string; state: string }> = {};
+      orders?.forEach(order => {
+        const state = (order.shipping_state || '—').toUpperCase();
+        const city = order.shipping_city || 'Não informado';
+        const key = `${state}|${city}`;
+        if (!grouped[key]) grouped[key] = { orders: 0, revenue: 0, city, state };
+        grouped[key].orders++;
+        grouped[key].revenue += order.total || 0;
+      });
+
+      return Object.values(grouped)
+        .map(d => ({
+          state: d.state,
+          city: d.city,
+          orders_count: d.orders,
+          total_revenue: d.revenue,
+        }))
+        .sort((a, b) => b.total_revenue - a.total_revenue);
+    },
+    enabled: !!tenantId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// Sales by Affiliate
+export function useSalesByAffiliate(filters: ReportFilters) {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
+
+  return useQuery({
+    queryKey: ['reports', 'affiliate', tenantId, filters.startDate, filters.endDate],
+    queryFn: async (): Promise<SalesByAffiliateData[]> => {
+      if (!tenantId) return [];
+
+      const { data: conversions, error } = await supabase
+        .from('affiliate_conversions')
+        .select('affiliate_id, order_total_cents, commission_cents, affiliates(name, email)')
+        .eq('tenant_id', tenantId)
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate));
+
+      if (error) throw error;
+
+      const grouped: Record<string, { name: string; email: string | null; conv: number; revenue: number; commission: number }> = {};
+      conversions?.forEach((c: any) => {
+        const id = c.affiliate_id;
+        if (!id) return;
+        if (!grouped[id]) {
+          grouped[id] = {
+            name: c.affiliates?.name || 'Afiliado',
+            email: c.affiliates?.email || null,
+            conv: 0,
+            revenue: 0,
+            commission: 0,
+          };
+        }
+        grouped[id].conv++;
+        grouped[id].revenue += (c.order_total_cents || 0) / 100;
+        grouped[id].commission += (c.commission_cents || 0) / 100;
+      });
+
+      return Object.entries(grouped)
+        .map(([id, d]) => ({
+          affiliate_id: id,
+          affiliate_name: d.name,
+          affiliate_email: d.email,
+          conversions: d.conv,
+          total_revenue: d.revenue,
+          total_commission: d.commission,
+        }))
+        .sort((a, b) => b.total_revenue - a.total_revenue);
+    },
+    enabled: !!tenantId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+
 // Helper functions
 function getChannelLabel(channel: string): string {
   const labels: Record<string, string> = {
