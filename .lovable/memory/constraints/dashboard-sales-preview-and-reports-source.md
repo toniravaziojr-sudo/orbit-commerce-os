@@ -5,7 +5,7 @@ type: constraint
 ---
 - Saúde do WhatsApp foi removida da Central de Comando › Dashboard. Continua disponível em Integrações › WhatsApp. Não re-adicionar.
 - Dashboard tem bloco "Preview de Vendas" com 4 cards Top 5 e link "Ver mais" para `/reports?tab=products|payments` e `/reports?tab=regions&view=states|cities`.
-- Fonte única de "venda realizada": pedidos com status em `('paid','processing','shipped','delivered')` no período em BRT. Mesma regra usada no dashboard e nos relatórios.
+- Fonte única de "venda realizada": pedidos com status em `('paid','processing','ready_to_invoice','shipped','delivered')` no período em BRT. `ready_to_invoice` é pós-pagamento e DEVE contar como venda — omiti-lo esconde 100% das vendas em lojas que avançam o pedido direto para emissão fiscal após o pagamento. Mesma regra no dashboard e nos relatórios.
 - A página `/reports` lê `?tab=` e `?view=` (Regiões: states|cities) para navegação direta a partir do dashboard.
 - Aba Afiliados em `/reports?tab=affiliates` lê `affiliate_conversions` (centavos → reais) com join em `affiliates(name,email)`.
 - Paleta dos gráficos usa tokens HSL do design system (`hsl(var(--primary))`, `--accent`, etc.) — proibido hex hardcoded.
