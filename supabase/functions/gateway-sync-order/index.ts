@@ -60,16 +60,44 @@ Deno.serve(async (req) => {
       const adapter = getAdapter(provider.provider);
       if (!adapter) throw new Error(`no_adapter_for_${provider.provider}`);
 
-      // Load order with items + address
-      const { data: order } = await sb
+      // Load order with items + canonical address columns
+      const { data: orderRow, error: orderErr } = await sb
         .from("orders")
         .select(
-          "id, order_number, customer_name, customer_email, customer_phone, customer_cpf, customer_cnpj, shipping_address, shipping_carrier, shipping_method, shipping_cost, total, items:order_items(sku, name, quantity, unit_price, weight_grams, height_cm, width_cm, length_cm)"
+          "id, order_number, customer_name, customer_email, customer_phone, customer_cpf, customer_cnpj, shipping_street, shipping_number, shipping_complement, shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_carrier, shipping_method_name, shipping_service_code, shipping_total, total, items:order_items(sku, product_name, quantity, unit_price, weight)"
         )
         .eq("id", job.order_id)
         .maybeSingle();
 
-      if (!order) throw new Error("order_not_found");
+      if (orderErr) throw new Error(`order_load_failed: ${orderErr.message}`);
+      if (!orderRow) throw new Error("order_not_found");
+
+      // Normalize items: adapter expects name + weight_grams; dimensions fall back to defaults.
+      const normalizedItems = (orderRow.items || []).map((it: any) => ({
+        sku: it.sku,
+        name: it.product_name,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        weight_grams: it.weight ?? 0,
+      }));
+
+      // Adapter expects a normalized shape (shipping_address object, shipping_method, shipping_cost).
+      const order = {
+        ...orderRow,
+        items: normalizedItems,
+        shipping_address: {
+          street: orderRow.shipping_street,
+          number: orderRow.shipping_number,
+          complement: orderRow.shipping_complement,
+          neighborhood: orderRow.shipping_neighborhood,
+          city: orderRow.shipping_city,
+          state: orderRow.shipping_state,
+          zip_code: orderRow.shipping_postal_code,
+          country: orderRow.shipping_country || "BR",
+        },
+        shipping_method: orderRow.shipping_service_code || orderRow.shipping_method_name || "",
+        shipping_cost: orderRow.shipping_total ?? 0,
+      };
 
       const result = await adapter.syncOrder(
         { token: provider.credentials?.token || provider.credentials?.api_token || "" },
