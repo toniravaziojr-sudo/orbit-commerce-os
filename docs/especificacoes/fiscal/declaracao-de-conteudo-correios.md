@@ -62,6 +62,17 @@ Cada emissão grava em `shipping_content_declarations`:
 2. **Declaração de Conteúdo dos Correios** existente para o pedido.
 3. Se não houver, emite uma automaticamente com `source='gateway'` antes de anexar à transportadora (usa o peso somado dos itens do pedido).
 
+## Integração com Módulo de Remessas (Correios local) — 2026-06-02
+A emissão de remessa pelos Correios via fila local (`shipping-create-shipment`) consulta automaticamente, antes do envio, se já existe Declaração de Conteúdo emitida (`status = 'issued'`) vinculada ao pedido (`order_id`) ou ao Pedido de Venda (`fiscal_invoice_id`). Comportamento:
+
+- **Com NF-e autorizada:** anexa a NF no envio (campos estruturados do CWS) e ignora a Declaração.
+- **Sem NF, com Declaração emitida:** anexa o número da Declaração na observação do envio (`observacao: "Declaracao de Conteudo no DC-..."`), satisfazendo a exigência PPN-347 dos Correios.
+- **Sem nenhum dos dois:** a emissão é **bloqueada** com mensagem clara em PT-BR pedindo para o operador emitir NF-e ou Declaração no módulo Fiscal antes de despachar. **Não há geração silenciosa.**
+
+Isso preserva o motor único: a Declaração continua sendo emitida apenas pelo módulo Fiscal, com motivo + checkbox de responsabilidade. O Módulo de Remessas apenas **lê e anexa** uma Declaração já emitida.
+
+
+
 ## Separação técnica obrigatória
 | | Declaração de Conteúdo (Correios) | DC-e (Sefaz) |
 |---|---|---|
