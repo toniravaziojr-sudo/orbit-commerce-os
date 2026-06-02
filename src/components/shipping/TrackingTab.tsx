@@ -109,8 +109,8 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
       let query = supabase
         .from('shipments')
         .select(`
-          id, order_id, carrier, tracking_code, delivery_status, created_at, delivered_at,
-          order:orders!inner(order_number, customer_name, customer_email)
+          id, order_id, source_pedido_venda_id, carrier, tracking_code, delivery_status, created_at, delivered_at,
+          order:orders(order_number, customer_name, customer_email)
         `)
         .eq('tenant_id', currentTenant.id)
         .order('created_at', { ascending: false });
@@ -136,7 +136,31 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as ShipmentWithOrder[];
+
+      // Fallback: para remessas sem pedido real (PV manual/duplicado),
+      // hidrata os dados de exibição a partir do Pedido de Venda.
+      const shipments = (data || []) as any[];
+      const pvIds = shipments
+        .filter(s => !s.order && s.source_pedido_venda_id)
+        .map(s => s.source_pedido_venda_id as string);
+      if (pvIds.length > 0) {
+        const { data: pvs } = await supabase
+          .from('fiscal_invoices')
+          .select('id, numero, dest_nome, dest_email')
+          .in('id', pvIds);
+        const pvMap: Record<string, any> = Object.fromEntries((pvs || []).map((p: any) => [p.id, p]));
+        for (const s of shipments) {
+          if (!s.order && s.source_pedido_venda_id && pvMap[s.source_pedido_venda_id]) {
+            const pv = pvMap[s.source_pedido_venda_id];
+            s.order = {
+              order_number: `PV ${pv.numero}`,
+              customer_name: pv.dest_nome || '—',
+              customer_email: pv.dest_email || '',
+            };
+          }
+        }
+      }
+      return shipments as ShipmentWithOrder[];
     },
     enabled: !!currentTenant?.id,
   });
