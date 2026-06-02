@@ -13,8 +13,10 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 const CORREIOS_AUTH_URL = "https://api.correios.com.br/token/v1/autentica/cartaopostagem";
-const CORREIOS_LABEL_URL = (cod: string) =>
-  `https://api.correios.com.br/prepostagem/v1/prepostagens/${cod}/etiqueta?tipoRotulo=P`;
+// IMPORTANT: este endpoint exige o **idPrePostagem** (ex.: PRV...), NÃO o código
+// de rastreio/objeto (ex.: AP...). Usar o tracking code aqui retorna 404.
+const CORREIOS_LABEL_URL = (idPrePostagem: string) =>
+  `https://api.correios.com.br/prepostagem/v1/prepostagens/${idPrePostagem}/etiqueta?tipoRotulo=P`;
 
 export const SHIPPING_LABELS_BUCKET = "shipping-labels";
 
