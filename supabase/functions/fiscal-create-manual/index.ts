@@ -147,6 +147,53 @@ Deno.serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      // ===== PRÉ-FLIGHT UNIFICADO =====
+      // Bloqueia o salvamento de PV (manual ou duplicado) quando faltam dados
+      // estruturais que vão quebrar DC/Remessa na ponta. Mensagem PT-BR única,
+      // listando o que falta. Não checa peso do produto aqui (rola dentro do
+      // dialog quando o item é adicionado via ProductSelector); itens devem
+      // sempre vir com product_id. O peso é revalidado nos motores de DC e
+      // Remessa via cascata do cadastro.
+      // Doc: docs/especificacoes/fiscal/preflight-fiscal-logistico.md
+      const preflight = runPreflight({
+        scopes: ['nf'], // NF é o escopo mais estrito; cobre DC/Remessa por consequência
+        destinatario: {
+          nome: bodyDestinatario.nome,
+          cpf_cnpj: bodyDestinatario.cpf_cnpj,
+          telefone: bodyDestinatario.telefone,
+          email: bodyDestinatario.email,
+          endereco: {
+            cep: bodyDestinatario.endereco?.cep,
+            logradouro: bodyDestinatario.endereco?.logradouro,
+            numero: bodyDestinatario.endereco?.numero,
+            bairro: bodyDestinatario.endereco?.bairro,
+            municipio: bodyDestinatario.endereco?.municipio,
+            uf: bodyDestinatario.endereco?.uf,
+            municipio_codigo: bodyDestinatario.endereco?.municipio_codigo,
+          },
+        },
+        itens: itens.map((it: any) => ({
+          descricao: it.descricao,
+          codigo_produto: it.codigo,
+          product_id: it.product_id,
+          quantidade: Number(it.quantidade) || 0,
+          valor_unitario: Number(it.valor_unitario) || 0,
+          ncm: it.ncm,
+        })),
+      });
+      if (!preflight.ok) {
+        console.warn('[fiscal-create-manual] Pré-flight bloqueou salvamento do PV:', preflight.blockingIssues);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: preflight.message,
+            code: 'PREFLIGHT_BLOCKED',
+            issues: preflight.blockingIssues,
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
 
