@@ -53,11 +53,20 @@ mais botão intermediário "Despachar".
 Fluxo no momento da emissão (Correios):
 
 1. Pré-postagem é criada nos Correios e devolve o código de rastreio.
-2. O PDF da etiqueta é baixado imediatamente (`/prepostagens/{cod}/etiqueta`) e
-   armazenado no bucket privado `shipping-labels` em
-   `<tenantId>/<shipmentId>.pdf`. O campo `shipments.label_url` guarda apenas o
-   **path interno** — nunca URL externa. A leitura sempre cria signed URL fresca
-   (1h) na hora do clique, evitando link expirado.
+2. O PDF da etiqueta é baixado imediatamente usando o **fluxo assíncrono oficial
+   dos Correios em 2 passos** e armazenado no bucket privado `shipping-labels`
+   em `<tenantId>/<shipmentId>.pdf`:
+   - **Passo 1:** `POST /prepostagem/v1/prepostagens/rotulo/assincrono/pdf` com
+     `{ codigosObjeto: [trackingCode], tipoRotulo: "P", formatoRotulo: "ET",
+        imprimeRemetente: "S", layoutImpressao: "PADRAO" }` → devolve `{ idRecibo }`.
+   - **Passo 2:** `GET /prepostagem/v1/prepostagens/rotulo/download/assincrono/{idRecibo}`
+     com `Accept: application/json` → devolve JSON com o PDF em base64
+     (`dados`/`arquivo`/`rotulo`). Sistema faz polling com backoff (até 6 tentativas)
+     até o Correios terminar de gerar.
+   - **Endpoint legado proibido:** `/prepostagens/{id}/etiqueta` **não existe** na
+     API atual dos Correios (retorna 404 "No static resource"). Não voltar a usá-lo.
+   O campo `shipments.label_url` guarda apenas o **path interno** do bucket — nunca
+   URL externa. A leitura sempre cria signed URL fresca (1h) na hora do clique.
 3. `shipments.delivery_status = 'posted'`.
 4. Pedido real (quando existe): `orders.status = 'dispatched'`,
    `orders.shipped_at = now()`, `orders.tracking_code = ...`,
@@ -75,18 +84,36 @@ detecta o primeiro evento real dos Correios (`PO/POI/Postado` →
 `delivery_status='posted'`), atualiza `orders.status='shipped'` e emite
 `shipment.status_changed`. Estados terminais nunca são rebaixados.
 
-### Reimpressão de etiqueta e DC
+### Impressão de etiqueta, NF-e e Declaração de Conteúdo
 
-Etiqueta e Declaração de Conteúdo são **sempre reimprimíveis**. A UI expõe os
-botões sem `disabled`:
+A UI da aba **Remessas emitidas** segue a regra: **só fica habilitado o botão
+do documento que o pedido realmente possui**. Isso elimina a UX confusa do
+botão único "DANFE" que misturava NF-e e DC.
 
-- **Imprimir etiqueta**: chama `shipping-get-label`, que devolve signed URL do
-  PDF armazenado no bucket.
-- **Reimprimir etiqueta**: chama `shipping-get-label` com `force_refresh=true`,
-  refazendo a chamada nos Correios e substituindo o PDF no bucket.
-- **Imprimir DANFE / DC**: se houver NF-e autorizada, abre o `danfe_url` do
-  provedor fiscal; se houver Declaração de Conteúdo emitida, renderiza o PDF
-  via `reprintExistingDeclaration` a partir do snapshot — nunca reemitindo.
+**Ações por linha (cada remessa):**
+
+- **Etiqueta (Printer)** — botão único. Sempre habilitado. Chama
+  `shipping-get-label` com `force_refresh=true`, que busca o PDF armazenado ou
+  refaz o fluxo assíncrono nos Correios e atualiza o bucket. Não há mais botão
+  duplicado de "Reimprimir".
+- **DANFE / NF-e (FileText)** — habilitado **somente** se a remessa tem NF-e
+  autorizada vinculada (`shipments.invoice_id != null`). Abre o `danfe_url` do
+  provedor fiscal. Desabilitado e com tooltip explicativo caso contrário.
+- **Declaração de Conteúdo (ScrollText)** — habilitado **somente** se existe
+  uma Declaração de Conteúdo `status='issued'` vinculada ao PV ou ao pedido.
+  Renderiza o PDF via `reprintExistingDeclaration` a partir do snapshot — nunca
+  reemitindo. Desabilitado com tooltip caso contrário.
+
+**Ações em lote (header, com remessas selecionadas):**
+
+- **Etiquetas (N)** — N = total de remessas selecionadas (toda remessa emitida
+  tem etiqueta).
+- **NFs (N)** — N = quantas das selecionadas têm NF-e vinculada. Desabilitado
+  quando N=0.
+- **DCs (N)** — N = quantas das selecionadas têm Declaração de Conteúdo.
+  Desabilitado quando N=0.
+- **Tudo (N)** — N = soma dos 3 anteriores. Imprime, por remessa, apenas o que
+  ela efetivamente possui.
 
 Memória anti-regressão:
 `mem://constraints/shipping-emit-equals-dispatched-tracking-equals-shipped`.
