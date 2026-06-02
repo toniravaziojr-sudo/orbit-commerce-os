@@ -945,14 +945,14 @@ Deno.serve(async (req) => {
     switch (provider.toLowerCase()) {
       case 'correios': {
         // Bloqueio: Correios exige NF-e autorizada OU Declaração de Conteúdo emitida.
+        // IMPORTANTE: não retornar direto aqui — precisamos cair no branch de falha abaixo
+        // para que o rascunho seja marcado como 'failed' e apareça na aba "Pendentes".
         if (!invoiceData && !contentDeclaration) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: 'Este pedido não tem Nota Fiscal autorizada nem Declaração de Conteúdo. Emita uma das duas em Fiscal antes de despachar pelos Correios.',
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          result = {
+            success: false,
+            error: 'Este pedido não tem Nota Fiscal autorizada nem Declaração de Conteúdo. Emita uma das duas em Fiscal antes de despachar pelos Correios.',
+          };
+          break;
         }
         const fiscalDoc = invoiceData
           ? {
