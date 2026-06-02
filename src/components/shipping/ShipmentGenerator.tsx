@@ -948,24 +948,26 @@ export function ShipmentGenerator() {
                             <div className="flex gap-1 justify-end">
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
-                                title="Imprimir etiqueta"
-                                onClick={() => handlePrintLabel(shipment)}
+                                title="Imprimir etiqueta (busca etiqueta armazenada ou nos Correios)"
+                                onClick={() => handlePrintLabel(shipment, true)}
                               >
                                 <Printer className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
-                                title="Reimprimir etiqueta (busca fresca nos Correios)"
-                                onClick={() => handlePrintLabel(shipment, true)}
+                                title={shipment.invoice_id ? 'Imprimir DANFE (NF-e)' : 'Esta remessa não possui NF-e vinculada'}
+                                disabled={!shipment.invoice_id}
+                                onClick={() => handlePrintNFe(shipment)}
                               >
-                                <RefreshCw className="h-3.5 w-3.5" />
+                                <FileText className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-7 w-7"
-                                title="Imprimir DANFE / Declaração de Conteúdo"
-                                onClick={() => handlePrintDanfe(shipment)}
+                                title={shipment.declaration?.id ? 'Imprimir Declaração de Conteúdo' : 'Esta remessa não possui Declaração de Conteúdo'}
+                                disabled={!shipment.declaration?.id}
+                                onClick={() => handlePrintDC(shipment)}
                               >
-                                <FileText className="h-3.5 w-3.5" />
+                                <ScrollText className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </TableCell>
