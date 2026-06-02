@@ -943,9 +943,29 @@ Deno.serve(async (req) => {
     let result: ShipmentResult;
 
     switch (provider.toLowerCase()) {
-      case 'correios':
-        result = await createCorreiosShipment(orderData, credentials, settings);
+      case 'correios': {
+        // Bloqueio: Correios exige NF-e autorizada OU Declaração de Conteúdo emitida.
+        if (!invoiceData && !contentDeclaration) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Este pedido não tem Nota Fiscal autorizada nem Declaração de Conteúdo. Emita uma das duas em Fiscal antes de despachar pelos Correios.',
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const fiscalDoc = invoiceData
+          ? {
+              kind: 'nfe' as const,
+              nfe_numero: invoiceData.numero ?? null,
+              nfe_serie: invoiceData.serie ?? null,
+              nfe_chave: invoiceData.chave_acesso ?? null,
+              nfe_valor: invoiceData.valor_total ?? null,
+            }
+          : { kind: 'dc' as const, dc_number: contentDeclaration!.dc_number };
+        result = await createCorreiosShipment(orderData, credentials, settings, fiscalDoc);
         break;
+      }
       case 'loggi':
         result = await createLoggiShipment(orderData, credentials, settings);
         break;
@@ -955,6 +975,7 @@ Deno.serve(async (req) => {
       default:
         result = { success: false, error: `Transportadora ${provider} não suportada` };
     }
+
 
     console.log(`[shipping-create-shipment] Result:`, JSON.stringify(result));
 
