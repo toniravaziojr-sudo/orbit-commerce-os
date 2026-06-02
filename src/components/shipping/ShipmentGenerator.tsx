@@ -1047,76 +1047,9 @@ export function ShipmentGenerator() {
         </TabsContent>
       </Tabs>
 
-      {/* Dispatch Confirmation Dialog */}
-      <Dialog open={!!dispatchDialog} onOpenChange={(open) => !open && setDispatchDialog(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5" />
-              Confirmar Despacho
-            </DialogTitle>
-          </DialogHeader>
-          
-          {dispatchDialog && (
-            <div className="space-y-4">
-              <div className="rounded-lg border p-3 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Pedido</span>
-                  <span className="font-medium">#{dispatchDialog.order?.order_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Cliente</span>
-                  <span className="text-sm">{dispatchDialog.order?.customer_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Rastreio</span>
-                  <span className="text-sm font-mono">{dispatchDialog.tracking_code || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Transportadora</span>
-                  <span className="text-sm">{dispatchDialog.carrier}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Imprimir documentos:</p>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" size="sm" className="gap-1 flex-1"
-                    onClick={() => handlePrintLabel(dispatchDialog)}
-                    disabled={!dispatchDialog.label_url}
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    Etiqueta
-                  </Button>
-                  <Button 
-                    variant="outline" size="sm" className="gap-1 flex-1"
-                    onClick={() => handlePrintDanfe(dispatchDialog)}
-                    disabled={!dispatchDialog.invoice_id}
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    DANFE
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDispatchDialog(null)}>
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleConfirmDispatch} 
-              disabled={isDispatching}
-              className="gap-2"
-            >
-              <Send className="h-4 w-4" />
-              {isDispatching ? 'Despachando...' : 'Confirmar Despacho'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Dispatch dialog removido — emissão da remessa = despacho.
+          A transição para "Enviado" só acontece quando os Correios reportam o
+          primeiro evento real de movimentação (PO/Postado), via tracking-poll. */}
 
       <DraftShipmentDialog
         open={draftDialogOpen}
