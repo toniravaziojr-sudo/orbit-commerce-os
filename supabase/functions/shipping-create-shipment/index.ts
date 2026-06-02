@@ -211,26 +211,27 @@ async function createCorreiosShipment(
     const formatoObjeto = '2';
 
     // Create pre-shipment (pré-postagem)
+    // Nomes oficiais CWS v1 (ref: correios_api 1.0.3): pesoInformado,
+    // codigoFormatoObjetoInformado, alturaInformada, larguraInformada,
+    // comprimentoInformado, cienteObjetoNaoProibido, modalidadePagamento,
+    // itensDeclaracaoConteudo[]. Os nomes antigos (pesoObjeto, codigoFormatoObjeto,
+    // alturaEmCentimetro, etc.) eram ignorados pela API e geravam PPN-348/null.
     const prepostagemPayload: Record<string, unknown> = {
       idCorreios: credentials.cartao_postagem,
+      numeroCartaoPostagem: credentials.cartao_postagem,
       codigoServico: serviceCode,
-      peso: pesoGramas, // compat legado observado no projeto
-      pesoObjeto: String(pesoGramas),
-      codigoFormatoObjeto: formatoObjeto, // 1=envelope, 2=caixa, 3=cilindro
-      codigoObjetoFormato: formatoObjeto,
-      alturaEmCentimetro: 10,
-      larguraEmCentimetro: 15,
-      comprimentoEmCentimetro: 20,
-      diametroemCentimetro: 0,
-      altura: '10',
-      largura: '15',
-      comprimento: '20',
-      diametro: '0',
+      modalidadePagamento: '2', // 2 = à faturar (contrato)
+      pesoInformado: String(pesoGramas),
+      codigoFormatoObjetoInformado: formatoObjeto, // 1=envelope, 2=caixa, 3=cilindro
+      alturaInformada: '10',
+      larguraInformada: '15',
+      comprimentoInformado: '20',
+      diametroInformado: '0',
       valorDeclarado: order.total,
       avisoRecebimento: false,
       maoPropria: false,
       objetosPostados: false,
-      cienteObjetoNaoProibido: 1, // PPN-330: declaração obrigatória de que não há itens proibidos
+      cienteObjetoNaoProibido: '1', // PPN-330: declaração obrigatória de que não há itens proibidos
       remetente: {
         nome: settings?.sender_name || 'Loja',
         cpfCnpj: String(settings?.sender_document || '').replace(/\D/g, ''),
