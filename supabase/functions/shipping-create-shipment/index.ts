@@ -181,11 +181,14 @@ async function createCorreiosShipment(
   }
 
   try {
-    // Calculate total weight from order items (in grams)
+    // Calculate aggregates from order items (already merged with override above).
     const totalWeight = order.items.reduce((sum, item) => {
-      const itemWeight = (item.weight || 0.3) * item.quantity;
+      const itemWeight = (Number(item.weight) || 300) * (Number(item.quantity) || 1);
       return sum + itemWeight;
     }, 0);
+    const aggHeight = order.items.reduce((m, it) => Math.max(m, Number(it.height) || 0), 0) || 10;
+    const aggWidth = order.items.reduce((m, it) => Math.max(m, Number(it.width) || 0), 0) || 15;
+    const aggLength = order.items.reduce((s, it) => s + (Number(it.length) || 0), 0) || 20;
 
     // Get service code - default SEDEX or PAC based on shipping_method
     const shippingMethod = (order.shipping_method || '').toLowerCase();
@@ -211,26 +214,27 @@ async function createCorreiosShipment(
     const formatoObjeto = '2';
 
     // Create pre-shipment (pré-postagem)
+    // Nomes oficiais CWS v1 (ref: correios_api gem 1.0.3): pesoInformado,
+    // codigoFormatoObjetoInformado, alturaInformada, larguraInformada,
+    // comprimentoInformado, cienteObjetoNaoProibido, modalidadePagamento,
+    // itensDeclaracaoConteudo[]. Os nomes antigos (pesoObjeto/codigoFormatoObjeto/
+    // alturaEmCentimetro etc.) eram ignorados e geravam PPN-348/null.
     const prepostagemPayload: Record<string, unknown> = {
       idCorreios: credentials.cartao_postagem,
+      numeroCartaoPostagem: credentials.cartao_postagem,
       codigoServico: serviceCode,
-      peso: pesoGramas, // compat legado observado no projeto
-      pesoObjeto: String(pesoGramas),
-      codigoFormatoObjeto: formatoObjeto, // 1=envelope, 2=caixa, 3=cilindro
-      codigoObjetoFormato: formatoObjeto,
-      alturaEmCentimetro: 10,
-      larguraEmCentimetro: 15,
-      comprimentoEmCentimetro: 20,
-      diametroemCentimetro: 0,
-      altura: '10',
-      largura: '15',
-      comprimento: '20',
-      diametro: '0',
+      modalidadePagamento: '2', // 2 = à faturar (contrato)
+      pesoInformado: String(pesoGramas),
+      codigoFormatoObjetoInformado: formatoObjeto, // 1=envelope, 2=caixa, 3=cilindro
+      alturaInformada: String(Math.max(2, Math.round(aggHeight))),
+      larguraInformada: String(Math.max(11, Math.round(aggWidth))),
+      comprimentoInformado: String(Math.max(16, Math.round(aggLength))),
+      diametroInformado: '0',
       valorDeclarado: order.total,
       avisoRecebimento: false,
       maoPropria: false,
       objetosPostados: false,
-      cienteObjetoNaoProibido: 1, // PPN-330: declaração obrigatória de que não há itens proibidos
+      cienteObjetoNaoProibido: '1', // PPN-330: declaração obrigatória de que não há itens proibidos
       remetente: {
         nome: settings?.sender_name || 'Loja',
         cpfCnpj: String(settings?.sender_document || '').replace(/\D/g, ''),
@@ -278,11 +282,20 @@ async function createCorreiosShipment(
     }
     if (observacao) {
       prepostagemPayload.observacao = observacao;
-      prepostagemPayload.itensDeclaracaoConteudo = order.items.map((item) => ({
-        conteudo: item.product_name,
-        quantidade: String(Number(item.quantity) || 1),
-        valor: Number(item.unit_price || 0).toFixed(2),
-      }));
+      // Itens da Declaração de Conteúdo: enviar conteudo + descricao + quantidade + valor + peso
+      // (alguns schemas exigem descricao; "peso" é defensivo para PPN-348).
+      prepostagemPayload.itensDeclaracaoConteudo = order.items.map((item) => {
+        const desc = item.product_name || 'Item';
+        const qtd = Number(item.quantity) || 1;
+        const pesoItemG = Math.max(1, Math.round((Number(item.weight) || 100) * qtd));
+        return {
+          conteudo: desc,
+          descricao: desc,
+          quantidade: String(qtd),
+          valor: Number(item.unit_price || 0).toFixed(2),
+          peso: String(pesoItemG),
+        };
+      });
     }
 
     console.log('[Correios] Pre-shipment payload:', JSON.stringify(prepostagemPayload).substring(0, 800));
