@@ -31,6 +31,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ShipmentGenerator } from '@/components/shipping/ShipmentGenerator';
 import { TrackingTab } from '@/components/shipping/TrackingTab';
 import { SuccessRatePopover } from '@/components/shipping/SuccessRatePopover';
+import { RemessasManager } from '@/components/shipping/RemessasManager';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { formatDateBR } from "@/lib/date-format";
 
@@ -217,6 +218,10 @@ export default function ShippingDashboard() {
           <TabsTrigger value="dashboard" className="gap-2">
             <TrendingUp className="h-4 w-4" />
             Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="objetos" className="gap-2">
+            <Package className="h-4 w-4" />
+            Objetos de postagem
           </TabsTrigger>
           <TabsTrigger value="remessas" className="gap-2">
             <Truck className="h-4 w-4" />
@@ -438,9 +443,14 @@ export default function ShippingDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Remessas Tab */}
-        <TabsContent value="remessas" className="mt-6">
+        {/* Objetos de postagem (operação por unidade) */}
+        <TabsContent value="objetos" className="mt-6">
           <ShipmentGenerator />
+        </TabsContent>
+
+        {/* Remessas (agrupadores) */}
+        <TabsContent value="remessas" className="mt-6">
+          <RemessasManager />
         </TabsContent>
 
         {/* Rastreios Tab */}

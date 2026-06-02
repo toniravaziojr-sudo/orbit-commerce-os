@@ -64,6 +64,8 @@ interface ShipmentRecord {
   label_url: string | null;
   nfe_key: string | null;
   invoice_id: string | null;
+  remessa_id?: string | null;
+  remessa?: { numero: string | null } | null;
   order?: {
     id?: string;
     order_number: string;
@@ -129,7 +131,7 @@ export function ShipmentGenerator() {
     queryClient.invalidateQueries({ queryKey: ['shipments-failed'] });
   };
 
-  // === TAB 1: Prontos para emitir remessa ===
+  // === TAB 1: Prontos para emitir ===
   const { data: readyOrders, isLoading: loadingReady } = useQuery({
     queryKey: ['orders-ready-shipment', currentTenant?.id, selectedCarrier, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
@@ -186,7 +188,7 @@ export function ShipmentGenerator() {
 
 
 
-  // === TAB 2: Remessas emitidas (has tracking, not draft/failed) ===
+  // === TAB 2: Objetos emitidos (has tracking, not draft/failed) ===
   const { data: issuedShipments, isLoading: loadingIssued } = useQuery({
     queryKey: ['shipments-issued', currentTenant?.id, selectedCarrier, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
@@ -195,8 +197,9 @@ export function ShipmentGenerator() {
       let query = supabase
         .from('shipments')
         .select<string, any>(`
-          id, order_id, source_pedido_venda_id, tracking_code, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
-          order:orders(order_number, customer_name, status)
+          id, order_id, source_pedido_venda_id, tracking_code, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id, remessa_id,
+          order:orders(order_number, customer_name, status),
+          remessa:shipping_remessas(numero)
         `)
         .eq('tenant_id', currentTenant.id)
         .not('delivery_status', 'in', '("draft","failed")')
@@ -377,29 +380,102 @@ export function ShipmentGenerator() {
       toast.error('Selecione pelo menos um rascunho');
       return;
     }
+    if (!currentTenant?.id) {
+      toast.error('Tenant não identificado');
+      return;
+    }
 
     setIsGenerating(true);
     const successes: string[] = [];
     const failures: { label: string; reason: string }[] = [];
 
     const byId = new Map((readyOrders || []).map(s => [s.id, s]));
+    const selectedList = Array.from(selectedOrders)
+      .map(id => byId.get(id))
+      .filter((s): s is ShipmentRecord => !!s);
 
-    for (const shipmentId of selectedOrders) {
-      const ship = byId.get(shipmentId);
-      const label = (ship?.order as any)?.order_number
-        ? `Pedido #${(ship?.order as any).order_number}`
-        : ship?.pv?.numero
-          ? `PV ${ship.pv.numero}`
-          : `Rascunho ${shipmentId.substring(0, 8)}`;
+    // Agrupa por transportadora: cada grupo vira UMA remessa.
+    // Objetos sem transportadora definida ficam em grupo próprio ("sem-transportadora").
+    const groups = new Map<string, ShipmentRecord[]>();
+    for (const s of selectedList) {
+      const key = (s.carrier || 'sem-transportadora').toLowerCase().trim();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(s);
+    }
+
+    for (const [carrierKey, groupShips] of groups.entries()) {
+      // 1) Aloca número e cria o agrupador (remessa de N — inclui N=1).
+      let remessaId: string | null = null;
+      let remessaNumero: string | null = null;
       try {
-        const result = await dispatchShipment.mutateAsync({ shipment_id: shipmentId });
-        if (result?.success && result.tracking_code) {
-          successes.push(`${label}: ${result.tracking_code}`);
-        } else {
-          failures.push({ label, reason: result?.error || 'erro desconhecido' });
+        const { data: numeroData, error: numeroErr } = await supabase.rpc('allocate_remessa_numero', {
+          p_tenant_id: currentTenant.id,
+        });
+        if (numeroErr) throw numeroErr;
+        remessaNumero = String(numeroData);
+
+        const { data: remessaRow, error: remessaErr } = await supabase
+          .from('shipping_remessas')
+          .insert({
+            tenant_id: currentTenant.id,
+            numero: remessaNumero,
+            carrier: carrierKey === 'sem-transportadora' ? '' : carrierKey,
+            status: 'rascunho',
+            descricao: `Lote de ${groupShips.length} objeto(s)`,
+          })
+          .select('id')
+          .single();
+        if (remessaErr) throw remessaErr;
+        remessaId = remessaRow.id;
+
+        // 2) Vincula objetos ao agrupador ANTES de despachar.
+        const ids = groupShips.map(s => s.id);
+        const { error: linkErr } = await supabase
+          .from('shipments')
+          .update({ remessa_id: remessaId })
+          .in('id', ids)
+          .eq('tenant_id', currentTenant.id);
+        if (linkErr) throw linkErr;
+      } catch (e: any) {
+        // Falha ao criar agrupador — segue despachando sem vínculo para não bloquear operação.
+        console.error('Falha ao criar Remessa agrupadora:', e);
+        toast.warning('Não foi possível criar o agrupador da remessa — objetos serão emitidos individualmente.');
+        remessaId = null;
+        remessaNumero = null;
+      }
+
+      // 3) Despacha cada objeto (fluxo atual, intacto).
+      for (const ship of groupShips) {
+        const label = (ship.order as any)?.order_number
+          ? `Pedido #${(ship.order as any).order_number}`
+          : ship.pv?.numero
+            ? `PV ${ship.pv.numero}`
+            : `Rascunho ${ship.id.substring(0, 8)}`;
+        try {
+          const result = await dispatchShipment.mutateAsync({ shipment_id: ship.id });
+          if (result?.success && result.tracking_code) {
+            successes.push(`${label}: ${result.tracking_code}`);
+          } else {
+            failures.push({ label, reason: result?.error || 'erro desconhecido' });
+          }
+        } catch (error: any) {
+          failures.push({ label, reason: error?.message || 'erro inesperado' });
         }
-      } catch (error: any) {
-        failures.push({ label, reason: error?.message || 'erro inesperado' });
+      }
+
+      // 4) Atualiza status do agrupador (parcial/emitida) — contadores caem
+      // automaticamente via trigger shipments_sync_remessa_counters.
+      if (remessaId) {
+        const allOk = failures.length === 0;
+        const partial = !allOk && successes.length > 0;
+        await supabase
+          .from('shipping_remessas')
+          .update({
+            status: allOk ? 'emitida' : (partial ? 'parcial' : 'rascunho'),
+            emitted_at: allOk || partial ? new Date().toISOString() : null,
+          })
+          .eq('id', remessaId)
+          .eq('tenant_id', currentTenant.id);
       }
     }
 
@@ -407,17 +483,18 @@ export function ShipmentGenerator() {
     setSelectedOrders(new Set());
 
     if (successes.length > 0) {
-      toast.success(`${successes.length} remessa(s) emitida(s)`, {
+      toast.success(`${successes.length} objeto(s) emitido(s)`, {
         description: successes.slice(0, 5).join('\n'),
       });
     }
     if (failures.length > 0) {
-      toast.error(`${failures.length} remessa(s) não emitida(s)`, {
+      toast.error(`${failures.length} objeto(s) não emitido(s)`, {
         description: failures.slice(0, 5).map(f => `${f.label}: ${f.reason}`).join('\n'),
         duration: 10000,
       });
     }
     invalidateAll();
+    queryClient.invalidateQueries({ queryKey: ['shipping-remessas'] });
   };
 
   const handleRetryShipment = async (shipmentId: string) => {
@@ -654,7 +731,7 @@ export function ShipmentGenerator() {
           </TabsTrigger>
           <TabsTrigger value="emitidas" className="gap-2">
             <CheckCircle className="h-4 w-4" />
-            Remessas emitidas
+            Objetos emitidos
             {issuedCount > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
                 {issuedCount}
@@ -679,7 +756,7 @@ export function ShipmentGenerator() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  Prontos para emitir remessa
+                  Prontos para emitir
                   <span className="text-sm font-normal text-muted-foreground ml-2">
                     {readyCount} pedido(s){selectedOrders.size > 0 ? ` • ${selectedOrders.size} selecionado(s)` : ''}
                   </span>
@@ -693,13 +770,18 @@ export function ShipmentGenerator() {
                     onClick={handleGenerateShipments}
                     disabled={selectedOrders.size === 0 || isGenerating}
                     className="gap-2"
+                    title={selectedOrders.size > 1
+                      ? `Cria 1 remessa agrupando ${selectedOrders.size} objetos`
+                      : 'Cria 1 remessa contendo este objeto'}
                   >
                     {isGenerating ? (
                       <>Emitindo...</>
                     ) : (
                       <>
                         <Truck className="h-4 w-4" />
-                        Emitir Remessa{selectedOrders.size > 0 ? ` (${selectedOrders.size})` : ''}
+                        {selectedOrders.size > 1
+                          ? `Gerar remessa (${selectedOrders.size})`
+                          : `Emitir objeto${selectedOrders.size === 1 ? '' : 's'}${selectedOrders.size > 0 ? ` (${selectedOrders.size})` : ''}`}
                       </>
                     )}
                   </Button>
@@ -816,14 +898,14 @@ export function ShipmentGenerator() {
         </TabsContent>
 
 
-        {/* TAB 2: Remessas emitidas */}
+        {/* TAB 2: Objetos emitidos */}
         <TabsContent value="emitidas" className="mt-4">
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <CheckCircle className="h-4 w-4" />
-                  Remessas emitidas
+                  Objetos emitidos
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   {selectedIssued.size > 0 && (() => {
@@ -906,6 +988,7 @@ export function ShipmentGenerator() {
                         </TableHead>
                         <TableHead>Pedido</TableHead>
                         <TableHead>Cliente</TableHead>
+                        <TableHead>Remessa</TableHead>
                         <TableHead>Rastreio</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Transportadora</TableHead>
@@ -931,6 +1014,11 @@ export function ShipmentGenerator() {
                           </TableCell>
                           <TableCell className="max-w-[100px] truncate">
                             {shipment.order?.customer_name || shipment.pv?.dest_nome || '—'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {shipment.remessa?.numero
+                              ? <span className="text-muted-foreground">{shipment.remessa.numero}</span>
+                              : <span className="opacity-50">—</span>}
                           </TableCell>
                           <TableCell>
                             <span className="text-xs font-mono">{shipment.tracking_code || '-'}</span>
