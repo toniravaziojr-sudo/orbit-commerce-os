@@ -168,6 +168,7 @@ Deno.serve(async (req) => {
         tenantId,
         shipmentId: shipment.id,
         trackingCode: shipment.tracking_code,
+        prepostId: shipment.provider_shipment_id,
         credentials: credentials as any,
       });
       if (dl.success && dl.storage_path) {

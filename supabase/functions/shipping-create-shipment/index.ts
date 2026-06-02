@@ -1154,6 +1154,7 @@ Deno.serve(async (req) => {
             tenantId,
             shipmentId: shipmentRow?.id || '',
             trackingCode: result.tracking_code,
+            prepostId: result.provider_shipment_id,
             credentials: credentials as any,
           });
           // O shipmentId pode ainda não existir (insert mais abaixo); então fazemos
@@ -1207,6 +1208,7 @@ Deno.serve(async (req) => {
               tenantId,
               shipmentId: finalShipmentId,
               trackingCode: result.tracking_code,
+              prepostId: result.provider_shipment_id,
               credentials: credentials as any,
             });
             if (downloadRes.success && downloadRes.storage_path) {
