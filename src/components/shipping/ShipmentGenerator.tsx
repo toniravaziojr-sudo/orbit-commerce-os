@@ -902,31 +902,27 @@ export function ShipmentGenerator() {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1 justify-end">
-                              <Button 
-                                variant="ghost" size="icon" className="h-7 w-7" 
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7"
                                 title="Imprimir etiqueta"
                                 onClick={() => handlePrintLabel(shipment)}
-                                disabled={!shipment.label_url}
                               >
                                 <Printer className="h-3.5 w-3.5" />
                               </Button>
-                              <Button 
-                                variant="ghost" size="icon" className="h-7 w-7" 
-                                title="Imprimir DANFE"
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7"
+                                title="Reimprimir etiqueta (busca fresca nos Correios)"
+                                onClick={() => handlePrintLabel(shipment, true)}
+                              >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7"
+                                title="Imprimir DANFE / Declaração de Conteúdo"
                                 onClick={() => handlePrintDanfe(shipment)}
-                                disabled={!shipment.invoice_id}
                               >
                                 <FileText className="h-3.5 w-3.5" />
                               </Button>
-                              {shipment.order?.status !== 'dispatched' && shipment.order?.status !== 'shipped' && (
-                                <Button 
-                                  variant="outline" size="sm" className="h-7 gap-1 text-xs"
-                                  onClick={() => handleDispatchClick(shipment)}
-                                >
-                                  <Send className="h-3 w-3" />
-                                  Despachar
-                                </Button>
-                              )}
                             </div>
                           </TableCell>
                         </TableRow>
