@@ -4,13 +4,44 @@
 
 > **Camada:** Layer 3 — Especificações / Erp  
 > **Migrado de:** `docs/regras/logistica.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-06-02
 
 
 ## Visão Geral
 
 Módulo de gestão de envios, transportadoras, regras de frete grátis e frete personalizado.
 O cálculo de frete é centralizado na Edge Function `shipping-quote`, que consulta todos os providers ativos em paralelo e retorna opções unificadas com deduplicação inteligente.
+
+---
+
+## Vínculo canônico da remessa
+
+**Regra inegociável:** toda lógica de remessa (rascunho, busca de NF/DC, atualização pós-etiqueta, unicidade) gira em torno do **Pedido de Venda** (`source_pedido_venda_id`). O pedido real (`order_id`) é apenas referência histórica/fallback.
+
+Fluxo canônico:
+
+```
+Pedido real (loja ou manual)  ─►  cria Pedido de Venda (módulo Fiscal)
+Pedido de Venda (qualquer origem) ─►  cria Rascunho de Remessa
+Rascunho de Remessa  ─►  Declaração de Conteúdo ou NF-e  ─►  Etiqueta dos Correios
+```
+
+A "regra de pedido real" só serve para **criar o PV automaticamente** quando um pagamento aprova. A partir do PV, **nada mais depende de pedido real existir** — PV manual ou duplicado segue o mesmo caminho.
+
+Garantias no banco:
+
+- Restrição de unicidade primária: `(source_pedido_venda_id, tracking_code)`.
+- Restrição legada: `(order_id, tracking_code)` apenas para registros antigos sem PV.
+- FK `shipments.order_id` e `shipping_draft_queue.order_id` são `ON DELETE SET NULL` — apagar pedido real **nunca apaga remessa**.
+- FK `shipments.source_pedido_venda_id` é `ON DELETE SET NULL` (preserva etiqueta postada) e `shipping_draft_queue.source_pedido_venda_id` é `ON DELETE CASCADE` (rascunho some com o PV).
+
+Garantias no código:
+
+- `shipping-create-shipment` busca NF, DC e rascunho **prioritariamente por PV**, e só recorre a `order_id` quando o PV não está disponível.
+- UI de Pendentes, Emitidas e Rastreamento usa join opcional com `orders`; quando o pedido real não existe, exibe `PV {numero}` e dados do destinatário do PV.
+- O confirm de "Despacho" no admin atualiza o pedido real apenas quando ele existe; a remessa é marcada como postada independentemente.
+
+Memória anti-regressão: `mem://constraints/shipping-canonical-link-is-pv-not-order`.
 
 ---
 
