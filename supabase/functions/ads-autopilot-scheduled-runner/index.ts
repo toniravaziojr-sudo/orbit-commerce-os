@@ -2,16 +2,27 @@
 // ads-autopilot-scheduled-runner
 // Roda a cada 5 min. Processa ações status='scheduled' com policy_engine_version='v1'.
 // Reaplica a política antes de executar. Ignora ações legadas.
+// Fase B.1: gate operacional por conta (is_ai_enabled + kill_switch) e TTL.
 // =============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { decide, POLICY_ENGINE_VERSION, type ActionInput } from "../_shared/ads-policy.ts";
+import {
+  decide,
+  POLICY_ENGINE_VERSION,
+  isApprovalStillValid,
+  type ActionInput,
+} from "../_shared/ads-policy.ts";
 
-const VERSION = "v1.0.0";
+const VERSION = "v1.1.0"; // Fase B.1
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+function extractAdAccountId(action: any): string | null {
+  const d = action?.action_data || {};
+  return d.ad_account_id || d.account_id || d.adAccountId || null;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -24,7 +35,15 @@ Deno.serve(async (req) => {
   );
 
   const now = new Date();
-  const summary = { picked: 0, executed: 0, rescheduled: 0, rejected: 0, expired: 0, errors: 0 };
+  const summary = {
+    picked: 0,
+    executed: 0,
+    rescheduled: 0,
+    rejected: 0,
+    expired: 0,
+    blocked_module: 0,
+    errors: 0,
+  };
 
   // 1) Buscar candidatos (engine v1 obrigatório)
   const { data: rows, error: fetchErr } = await supabase
@@ -45,7 +64,7 @@ Deno.serve(async (req) => {
   summary.picked = rows?.length || 0;
 
   for (const r of (rows || [])) {
-    // 2) Lock otimista: marca como 'processing_runner' antes de tocar API
+    // 2) Lock otimista
     const { data: locked, error: lockErr } = await supabase
       .from("ads_autopilot_actions")
       .update({ status: "processing_runner" })
@@ -53,13 +72,57 @@ Deno.serve(async (req) => {
       .eq("status", "scheduled")
       .select("id")
       .maybeSingle();
-    if (lockErr || !locked) {
-      // outra instância pegou
-      continue;
-    }
+    if (lockErr || !locked) continue;
 
     try {
-      // 3) Reaplicar policy
+      // 3) Gate operacional Fase B.1 — TTL primeiro
+      const ttlValid = isApprovalStillValid({
+        approved_at: r.approved_at,
+        approval_expires_at: r.approval_expires_at,
+        now,
+      });
+      if (!ttlValid) {
+        summary.expired++;
+        await supabase.from("ads_autopilot_actions").update({
+          status: "expired_approval",
+          policy_check_result: {
+            ...(r.policy_check_result || {}),
+            runner_gate: { reason: "approval_ttl_passed", at: now.toISOString() },
+          },
+        }).eq("id", r.id);
+        continue;
+      }
+
+      // 4) Gate operacional — conta/IA/kill switch
+      const adAccountId = extractAdAccountId(r);
+      if (adAccountId) {
+        const { data: acct } = await supabase
+          .from("ads_autopilot_account_configs")
+          .select("is_ai_enabled, kill_switch")
+          .eq("tenant_id", r.tenant_id)
+          .eq("channel", r.channel)
+          .eq("ad_account_id", adAccountId)
+          .maybeSingle();
+
+        let blockReason: string | null = null;
+        if (!acct) blockReason = "account_config_missing";
+        else if (acct.is_ai_enabled === false) blockReason = "ai_disabled";
+        else if (acct.kill_switch === true) blockReason = "kill_switch_active";
+
+        if (blockReason) {
+          summary.blocked_module++;
+          await supabase.from("ads_autopilot_actions").update({
+            status: "rejected_policy_module_disabled",
+            policy_check_result: {
+              ...(r.policy_check_result || {}),
+              runner_gate: { reason: blockReason, ad_account_id: adAccountId, at: now.toISOString() },
+            },
+          }).eq("id", r.id);
+          continue;
+        }
+      }
+
+      // 5) Reaplicar policy
       const action: ActionInput = {
         id: r.id,
         tenant_id: r.tenant_id,
@@ -72,7 +135,6 @@ Deno.serve(async (req) => {
         created_at: r.created_at,
       };
 
-      // Snapshot enxuto p/ orçamento
       let snapshot: any = null;
       const entity = r.action_data?.entity_id || r.action_data?.campaign_id ||
                      r.action_data?.meta_campaign_id || null;
@@ -89,7 +151,6 @@ Deno.serve(async (req) => {
       const decision = decide({ action, campaignSnapshot: snapshot, now });
 
       if (decision.kind === "execute_now") {
-        // 4) Invoca executor — passando flag from_runner para aceitar status atual
         const { data: execRes, error: execErr } = await supabase.functions.invoke(
           "ads-autopilot-execute-approved",
           { body: { tenant_id: r.tenant_id, action_id: r.id, from_runner: true } }
@@ -117,7 +178,6 @@ Deno.serve(async (req) => {
           policy_check_result: { ...(r.policy_check_result || {}), runner_decision: decision, at: now.toISOString() },
         }).eq("id", r.id);
       } else {
-        // rejeições
         summary.rejected++;
         const statusMap: Record<string, string> = {
           reject_policy_limit_exceeded: "rejected_policy_limit_exceeded",
@@ -134,7 +194,7 @@ Deno.serve(async (req) => {
       summary.errors++;
       console.error(`[ads-autopilot-scheduled-runner][${VERSION}] action ${r.id} error:`, e.message);
       await supabase.from("ads_autopilot_actions").update({
-        status: "scheduled", // libera para próxima tentativa
+        status: "scheduled",
         error_message: e.message,
       }).eq("id", r.id);
     }

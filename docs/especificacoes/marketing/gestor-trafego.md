@@ -1157,13 +1157,64 @@ Motivo: violação dispara captura no executor/runner que marca `rejected_duplic
 Continuam valendo todos os anteriores. Adicionados na Fase B:
 `scheduled`, `auto_executed`, `rejected_policy_limit_exceeded`, `rejected_policy_learning`, `rejected_policy_new_campaign`, `rejected_policy_outside_sales_window`, `rejected_policy_missing_context`, `rejected_duplicate`, `expired_approval`, `processing_runner` (lock interno do runner).
 
+Adicionado na Fase B.1: `rejected_policy_module_disabled` — usado pelo runner quando a ação não pode mais ser executada operacionalmente (ver "Gate operacional" abaixo).
+
 ### Proteção de ações legadas
 - O runner agendado e os índices únicos de idempotência **filtram por `policy_engine_version='v1'`**.
-- As 3 ações `status='scheduled'` legadas (criadas em fev/2026, sem `policy_engine_version`) **continuam intactas** e jamais são tocadas pela Fase B.
+- As 3 ações `status='scheduled'` legadas (criadas em fev/2026, sem `policy_engine_version`) **continuam intactas** e jamais são tocadas pela Fase B ou Fase B.1.
 - Nenhuma ação histórica é reprocessada, reclassificada ou alterada por esta entrega.
 
-### Diferença entre Fase B (estrutural) e Fase C (autonomia)
-| | Fase B (entregue agora) | Fase C (não entregue) |
+---
+
+## 🛡️ Execution Policy Engine — Fase B.1 (hardening)
+
+Endurece a Fase B sem ativar autonomia automática e sem alterar UI/UX, prompts ou critérios do Guardian/Strategist/Analyze.
+
+### 1. Gate operacional do runner agendado
+Antes de reaplicar a `policy` ou disparar o executor, o runner valida na ordem:
+
+1. `policy_engine_version='v1'` (já filtrado na query).
+2. Aprovação ainda válida (`approval_expires_at > now`). Se expirou → `status='expired_approval'`, sem chamada externa.
+3. Quando há `ad_account_id` identificável na ação, busca `ads_autopilot_account_configs` por `(tenant_id, channel, ad_account_id)`:
+   - Sem registro → `policy_check_result.runner_gate.reason='account_config_missing'`.
+   - `is_ai_enabled=false` → `reason='ai_disabled'`.
+   - `kill_switch=true` → `reason='kill_switch_active'`.
+   - Em qualquer caso de bloqueio: `status='rejected_policy_module_disabled'`, **nenhuma** chamada externa.
+
+Quando a ação não traz `ad_account_id`, o gate por conta é pulado (default seguro: prossegue para a policy normal). Tenants sem o módulo "ai_traffic_manager" em uso não chegam a ter ações `scheduled` (não há fluxo que as crie), por isso o gate por conta cobre o caso operacional real.
+
+### 2. Expiração de aprovações legadas no executor
+O `ads-autopilot-execute-approved` ainda aceita ações `approved` antigas sem `approved_at` (compat. com fluxo pré-Fase B), mas com guarda:
+
+- Se `created_at` ≤ 24h → stamp retroativo de `approved_at` + `approval_expires_at`.
+- Se `created_at` > 24h → marca `status='expired_approval'` com `policy_check_result.reason='legacy_approval_too_old'` e **não chama API externa**.
+
+Isso evita que aprovação parada há dias seja tratada como recém-aprovada.
+
+### 3. Idempotência — decisão mantida
+A observação da validação da Fase B (índice diário por `entity_id` literal não cobre payloads que usam só `meta_campaign_id`/`campaign_id`) foi avaliada:
+
+- A proteção real contra duplicidade é o índice único parcial sobre `idempotency_key` (formato `tenant:channel:action_type:entity_fallback:dia_brt`), que **já normaliza** o fallback de entidade.
+- O índice diário por `entity_id` literal continua útil como dedup secundária para payloads que populam `entity_id` explicitamente.
+- **Decisão:** manter como está. Remover o índice diário seria perda de proteção; refinar exigiria reescrever a expressão indexada, sem ganho operacional.
+
+### 4. Testes automatizados
+Suíte Deno criada (sem chamadas externas):
+
+- `supabase/functions/_shared/ads-policy.test.ts` (30 testes): `PLATFORM_LIMITS`, `getNextSafeWindow`/`isInsideSafeWindow` (bordas 00:01/04:00 BRT), `canChangeBudget` por canal e intervalo, `isApprovalStillValid`, `buildIdempotencyKey` (todos os fallbacks), `decide` em todos os branches.
+- `supabase/functions/ads-autopilot-execute-approved/policy-gate.test.ts` (6 testes de contrato): prova que **só** `decide.kind === 'execute_now'` permite chamada externa; qualquer outra decisão retorna 0 chamadas.
+
+Rodar: `deno test supabase/functions/_shared/ads-policy.test.ts supabase/functions/ads-autopilot-execute-approved/policy-gate.test.ts`.
+
+### 5. O que NÃO mudou na Fase B.1
+- Nenhuma autonomia automática foi ativada.
+- Nenhum `autonomy_mode` foi criado; `human_approval_mode` permanece intacto.
+- Nenhuma UI alterada; nenhum prompt alterado; nenhum critério de Guardian/Strategist/Analyze alterado.
+- Nenhum tenant ativado; `is_ai_enabled` não foi tocado.
+- Histograma horário, regra mensal, Modo Piloto/Sandbox e `pause_3d_critical`/`pause_7d_normal` continuam fora do escopo (Fase C).
+
+### Diferença entre Fase B/B.1 (estrutural) e Fase C (autonomia)
+| | Fase B + B.1 (entregues) | Fase C (não entregue) |
 |---|---|---|
 | Autonomia | Desligada. Toda execução continua exigindo aprovação humana. | Ações `automatic` executam sem aprovação. |
 | `classifyAction` | Retorna `needs_approval` por default. | Distingue `automatic`, `needs_approval`, `emergency`, `blocked`. |
@@ -1171,4 +1222,6 @@ Continuam valendo todos os anteriores. Adicionados na Fase B:
 | Pause/Reactivate | Checks mínimos: canal + entidade + plataforma conhecida. | Considera Primary Sales Window e regra mensal. |
 | Modo Piloto/Sandbox | Não implementado. | Implementação futura. |
 | Histograma horário | Não implementado. | Implementação futura. |
+| Gate operacional runner | Conta + IA + kill switch (Fase B.1). | Feature flag por tenant. |
+
 
