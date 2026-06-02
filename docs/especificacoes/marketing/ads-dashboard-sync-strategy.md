@@ -82,10 +82,23 @@ Permite ao sistema (e ao admin) saber exatamente o que está coberto por tenant/
 
 ## 7. Cron Jobs
 
-| Nome | Cadência | Mode | Janela |
+| Nome (`cron.job.jobname`) | Cadência real | Mode | Janela |
 |------|----------|------|--------|
-| `sync-ads-dashboard-daily-15min` | `*/15 * * * *` | daily | last_7d |
+| `sync-ads-dashboard-daily-15min` | `0 0,6,9,12,15,18,21 * * *` | daily | last_7d |
 | `sync-ads-dashboard-weekly-reconcile` | `0 6 * * 0` | weekly | last_90d |
+
+> **Nota — divergência de nomenclatura:** o job `sync-ads-dashboard-daily-15min` foi inicialmente especificado como `*/15 * * * *`, mas a cadência ativa em produção é `0 0,6,9,12,15,18,21 * * *` (7 execuções diárias em horários fixos). O nome do job foi mantido para não causar duplicidade no agendador; a tabela acima reflete o schedule real consultado em `cron.job`.
+
+### Renovação de tokens OAuth relacionados
+
+| Job | Cadência | Função | Gate |
+|-----|----------|--------|------|
+| `meta-token-refresh-daily` | `0 3 * * *` | `meta-token-refresh` | `meta_ads`, `catalogo_meta`, `whatsapp_meta` |
+| `meta-token-health-check-daily` | `0 4 * * *` | `meta-token-health-check` | mesmo gate Meta |
+| `tiktok-token-refresh-cron` | `0 */6 * * *` | `tiktok-token-refresh-cron` | `tiktok_shop` |
+| `google-token-refresh-cron-10min` | `*/10 * * * *` | `google-token-refresh-cron` | `google_ads`, `youtube_publishing` |
+
+> **Google token refresh:** tokens de acesso Google expiram em ~1h. A função renova qualquer conexão cujo token expira nos próximos 10 minutos, por isso a cadência é de 10 em 10 minutos. O gate cobre Google Ads e YouTube Publishing — se outros módulos Google passarem a ser rastreados em `system_resource_usage` (Gmail, Calendar, Merchant, Search Console, GTM), adicionar ao array do gate para não pular tenants que usem Google apenas para esses fins.
 
 ## 8. Operação Manual
 
