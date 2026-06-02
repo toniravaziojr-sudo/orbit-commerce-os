@@ -71,17 +71,25 @@ export async function downloadAndStoreCorreiosLabel(
     tenantId: string;
     shipmentId: string;
     trackingCode: string;
+    prepostId?: string | null;
     credentials: CorreiosCredentials;
   },
 ): Promise<DownloadAndStoreResult> {
-  const { tenantId, shipmentId, trackingCode, credentials } = params;
+  const { tenantId, shipmentId, trackingCode, prepostId, credentials } = params;
+
+  // Correios exige o idPrePostagem (ex.: PRV...) para baixar o PDF.
+  // Fallback para tracking code só por compatibilidade com registros muito antigos.
+  const labelKey = prepostId || trackingCode;
+  if (!labelKey) {
+    return { success: false, error: "ID da prepostagem ausente para baixar a etiqueta." };
+  }
 
   const token = await getCorreiosAccessToken(credentials);
   if (!token) {
     return { success: false, error: "Falha na autenticação Correios para baixar a etiqueta" };
   }
 
-  const labelResp = await fetch(CORREIOS_LABEL_URL(trackingCode), {
+  const labelResp = await fetch(CORREIOS_LABEL_URL(labelKey), {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
