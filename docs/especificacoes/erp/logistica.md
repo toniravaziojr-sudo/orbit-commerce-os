@@ -518,6 +518,7 @@ A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status 
 - Telefones (remetente e destinatário) enviados na estrutura separada esperada pelo CWS: **DDD** + **telefone fixo** ou **DDD** + **celular**, ambos só com dígitos. Cadastros com máscara `(11) 91955-5920` são quebrados automaticamente em DDD `11` + celular `919555920` antes do envio.
 - Documento (CPF/CNPJ) do remetente também sanitizado para apenas dígitos.
 - O peso do objeto também é enviado no campo textual compatível com o schema do CWS, além do valor numérico interno já calculado no rascunho, para evitar rejeição por payload incompatível.
+- Quando a remessa segue com **Declaração de Conteúdo** em vez de NF-e, o envio também leva a lista estruturada dos itens declarados no payload, além da observação com o número da declaração, para cumprir a validação mais estrita do endpoint de pré-postagem.
 
 **Leitura de erro dos Correios (revisão 2026-06-02):** a resposta de erro do CWS hoje vem como lista de strings em `msgs`. O sistema lê esse formato e cai para o formato legado (`{texto: ...}[]`) quando necessário. As mensagens são concatenadas com ` • ` e exibidas na tela em PT-BR — o problema antigo de aparecer "PV 371: , , , , ," foi resolvido.
 
