@@ -240,7 +240,7 @@ function getExpectedEventTypes(ruleType: string): string[] {
     case 'payment': 
       return ['payment_status_changed', 'payment.status_changed', 'order.paid', 'order.payment_updated'];
     case 'shipping': 
-      return ['shipping_status_changed', 'shipment.status_changed', 'shipment_status_changed'];
+      return ['shipping_status_changed', 'shipment.status_changed', 'shipment_status_changed', 'shipment.dispatched'];
     case 'abandoned_checkout': 
       return ['checkout.abandoned', 'checkout_abandoned'];
     case 'post_sale': 
