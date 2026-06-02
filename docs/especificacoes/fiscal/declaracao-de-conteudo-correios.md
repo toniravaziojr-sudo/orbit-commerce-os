@@ -6,6 +6,12 @@
 ## Princípio
 Existe **um único motor** para Declaração de Conteúdo dos Correios em todo o Comando Central:
 
+> 🔒 **Validação de campos obrigatórios:** este motor delega a checagem de
+> destinatário, itens e dados da loja ao **Pré-Flight Fiscal/Logístico**
+> (`docs/especificacoes/fiscal/preflight-fiscal-logistico.md`). É proibido
+> reimplementar essas regras aqui. O motor de DC ainda valida especificamente
+> peso total (`weight_required`) e responsabilidade declarada do operador.
+
 - Aba **Pedidos de Venda** (Fiscal) — emissão manual.
 - **Gateway logístico** (ex: Frenet) — emissão automática quando o pedido vai despachar sem NF-e.
 - **Módulo de Remessas** — futura emissão integrada ao fluxo de despacho.
