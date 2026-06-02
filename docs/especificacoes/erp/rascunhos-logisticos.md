@@ -8,6 +8,14 @@
 
 ---
 
+> 🔒 **Validação de campos obrigatórios:** antes de qualquer chamada à
+> transportadora (Correios), o `shipping-create-shipment` roda o
+> **Pré-Flight Fiscal/Logístico**
+> (`docs/especificacoes/fiscal/preflight-fiscal-logistico.md`) nos
+> escopos `shipment` + `emitente`. Se faltar dado obrigatório, a remessa
+> vai para a aba **Pendentes** com mensagem PT-BR — nunca chega aos
+> Correios para evitar erro técnico cru do provedor.
+
 ## Visão Geral
 
 O sistema cria **rascunhos logísticos** automaticamente no mesmo momento em que cria os rascunhos fiscais — quando o pagamento de um pedido é aprovado. Isso garante que, ao emitir a NF-e, as remessas já estejam prontas para envio imediato à transportadora.
