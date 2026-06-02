@@ -155,63 +155,109 @@ export type Database = {
       }
       ads_autopilot_actions: {
         Row: {
+          action_class: string | null
           action_data: Json | null
+          action_day: string | null
           action_hash: string | null
           action_type: string
+          approval_expires_at: string | null
+          approved_at: string | null
+          approved_by_user_id: string | null
+          auto_executed: boolean
+          campaign_class_at_proposal: string | null
           channel: string
           confidence: string | null
           created_at: string
           error_message: string | null
           executed_at: string | null
+          executed_simulated: boolean
           expected_impact: string | null
           id: string
+          idempotency_key: string | null
           metric_trigger: string | null
+          parent_action_id: string | null
+          policy_check_result: Json | null
+          policy_engine_version: string | null
           reasoning: string | null
           rejection_reason: string | null
           rollback_data: Json | null
+          scheduled_for: string | null
           session_id: string
           status: string
           tenant_id: string
         }
         Insert: {
+          action_class?: string | null
           action_data?: Json | null
+          action_day?: string | null
           action_hash?: string | null
           action_type: string
+          approval_expires_at?: string | null
+          approved_at?: string | null
+          approved_by_user_id?: string | null
+          auto_executed?: boolean
+          campaign_class_at_proposal?: string | null
           channel: string
           confidence?: string | null
           created_at?: string
           error_message?: string | null
           executed_at?: string | null
+          executed_simulated?: boolean
           expected_impact?: string | null
           id?: string
+          idempotency_key?: string | null
           metric_trigger?: string | null
+          parent_action_id?: string | null
+          policy_check_result?: Json | null
+          policy_engine_version?: string | null
           reasoning?: string | null
           rejection_reason?: string | null
           rollback_data?: Json | null
+          scheduled_for?: string | null
           session_id: string
           status?: string
           tenant_id: string
         }
         Update: {
+          action_class?: string | null
           action_data?: Json | null
+          action_day?: string | null
           action_hash?: string | null
           action_type?: string
+          approval_expires_at?: string | null
+          approved_at?: string | null
+          approved_by_user_id?: string | null
+          auto_executed?: boolean
+          campaign_class_at_proposal?: string | null
           channel?: string
           confidence?: string | null
           created_at?: string
           error_message?: string | null
           executed_at?: string | null
+          executed_simulated?: boolean
           expected_impact?: string | null
           id?: string
+          idempotency_key?: string | null
           metric_trigger?: string | null
+          parent_action_id?: string | null
+          policy_check_result?: Json | null
+          policy_engine_version?: string | null
           reasoning?: string | null
           rejection_reason?: string | null
           rollback_data?: Json | null
+          scheduled_for?: string | null
           session_id?: string
           status?: string
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_actions_parent_action_id_fkey"
+            columns: ["parent_action_id"]
+            isOneToOne: false
+            referencedRelation: "ads_autopilot_actions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ads_autopilot_actions_session_id_fkey"
             columns: ["session_id"]

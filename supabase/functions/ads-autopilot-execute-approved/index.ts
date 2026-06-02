@@ -1,8 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
+import {
+  decide,
+  POLICY_ENGINE_VERSION,
+  buildIdempotencyKey,
+  getApprovalTtlHours,
+  type ActionInput,
+} from "../_shared/ads-policy.ts";
 
 // ===== VERSION =====
-const VERSION = "v3.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
+const VERSION = "v4.0.0"; // Fase B: Execution Policy Engine gate (sem mudar lógica de execução)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,7 +52,9 @@ Deno.serve(async (req) => {
   console.log(`[ads-autopilot-execute-approved][${VERSION}] Request received`);
 
   try {
-    const { tenant_id, action_id } = await req.json();
+    const body = await req.json();
+    const { tenant_id, action_id } = body;
+    const fromRunner: boolean = !!body.from_runner;
 
     if (!tenant_id || !action_id) {
       return new Response(
@@ -59,13 +68,17 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch the pending action (accept both pending_approval and approved statuses)
+    // Aceita 'scheduled' apenas quando vindo do runner (re-execução agendada).
+    const allowedStatuses = fromRunner
+      ? ["pending_approval", "approved", "scheduled", "processing_runner"]
+      : ["pending_approval", "approved"];
+
     const { data: action, error: fetchErr } = await supabase
       .from("ads_autopilot_actions")
       .select("*")
       .eq("id", action_id)
       .eq("tenant_id", tenant_id)
-      .in("status", ["pending_approval", "approved"])
+      .in("status", allowedStatuses)
       .maybeSingle();
 
     if (fetchErr || !action) {
@@ -77,8 +90,113 @@ Deno.serve(async (req) => {
 
     console.log(`[ads-autopilot-execute-approved][${VERSION}] Executing action ${action_id} type=${action.action_type}`);
 
+    // ====== POLICY GATE (Fase B) ======================================
+    // Stamp aprovação retroativa se vier do fluxo legado (approved sem approved_at)
+    if ((action.status === "approved" || action.status === "scheduled") && !action.approved_at) {
+      const ttl = getApprovalTtlHours(action.action_type);
+      const approvedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + ttl * 3600 * 1000).toISOString();
+      await supabase.from("ads_autopilot_actions").update({
+        approved_at: approvedAt,
+        approval_expires_at: expiresAt,
+      }).eq("id", action_id);
+      action.approved_at = approvedAt;
+      action.approval_expires_at = expiresAt;
+    }
+
+    // Carregar snapshot mínimo para ações de orçamento
+    let campaignSnapshot: any = null;
+    const entityIdGuess = action.action_data?.entity_id || action.action_data?.campaign_id ||
+                          action.action_data?.meta_campaign_id || null;
+    if (entityIdGuess && action.channel === "meta") {
+      const { data: snap } = await supabase
+        .from("meta_ad_campaigns")
+        .select("daily_budget_cents, created_at, status")
+        .eq("tenant_id", tenant_id)
+        .or(`id.eq.${entityIdGuess},meta_campaign_id.eq.${entityIdGuess}`)
+        .maybeSingle();
+      campaignSnapshot = snap;
+    }
+
+    const actionForPolicy: ActionInput = {
+      id: action.id,
+      tenant_id: action.tenant_id,
+      channel: action.channel,
+      action_type: action.action_type,
+      action_data: action.action_data,
+      status: action.status,
+      approved_at: action.approved_at,
+      approval_expires_at: action.approval_expires_at,
+      created_at: action.created_at,
+    };
+
+    const decision = decide({ action: actionForPolicy, campaignSnapshot, now: new Date() });
+    const policyResult = {
+      engine_version: POLICY_ENGINE_VERSION,
+      decision_kind: decision.kind,
+      reason: decision.reason,
+      meta: (decision as any).meta || null,
+      decided_at: new Date().toISOString(),
+      from_runner: fromRunner,
+    };
+    const idempotencyKey = buildIdempotencyKey(actionForPolicy);
+
+    if (decision.kind !== "execute_now") {
+      // Nenhuma chamada externa. Atualiza status conforme decisão.
+      const statusMap: Record<string, string> = {
+        schedule: "scheduled",
+        reject_policy_limit_exceeded: "rejected_policy_limit_exceeded",
+        reject_policy_missing_context: "rejected_policy_missing_context",
+        reject_duplicate: "rejected_duplicate",
+        expired_approval: "expired_approval",
+      };
+      const newStatus = statusMap[decision.kind] || "rejected";
+      const upd: any = {
+        status: newStatus,
+        policy_check_result: policyResult,
+        policy_engine_version: POLICY_ENGINE_VERSION,
+        idempotency_key: idempotencyKey,
+      };
+      if (decision.kind === "schedule") {
+        upd.scheduled_for = (decision as any).scheduled_for;
+      }
+      const { error: updErr } = await supabase.from("ads_autopilot_actions").update(upd).eq("id", action_id);
+      if (updErr && /duplicate key|unique/i.test(updErr.message)) {
+        await supabase.from("ads_autopilot_actions").update({
+          status: "rejected_duplicate",
+          policy_check_result: { ...policyResult, duplicate_error: updErr.message },
+          policy_engine_version: POLICY_ENGINE_VERSION,
+        }).eq("id", action_id);
+        return new Response(JSON.stringify({ success: false, policy: { ...policyResult, decision_kind: "reject_duplicate" } }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ success: false, policy: policyResult }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Decisão = execute_now → marca policy passada e segue caminho de execução existente.
+    {
+      const updExec: any = {
+        policy_check_result: policyResult,
+        policy_engine_version: POLICY_ENGINE_VERSION,
+        idempotency_key: idempotencyKey,
+      };
+      const { error: stampErr } = await supabase.from("ads_autopilot_actions").update(updExec).eq("id", action_id);
+      if (stampErr && /duplicate key|unique/i.test(stampErr.message)) {
+        await supabase.from("ads_autopilot_actions").update({
+          status: "rejected_duplicate",
+          policy_check_result: { ...policyResult, duplicate_error: stampErr.message },
+          policy_engine_version: POLICY_ENGINE_VERSION,
+        }).eq("id", action_id);
+        return new Response(JSON.stringify({ success: false, policy: { ...policyResult, decision_kind: "reject_duplicate" } }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+    // ====== /POLICY GATE ===============================================
+
     const data = action.action_data || {};
     const preview = data.preview || {};
+
 
     // ====== BUDGET REVALIDATION (create_campaign only) ======
     if (action.action_type === "create_campaign" && action.channel === "meta") {
