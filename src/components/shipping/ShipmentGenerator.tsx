@@ -453,7 +453,10 @@ export function ShipmentGenerator() {
         return;
       }
       if (data?.success && data.label_base64) {
-        const blob = base64ToBlob(data.label_base64, 'application/pdf');
+        const bin = atob(data.label_base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
         return;
