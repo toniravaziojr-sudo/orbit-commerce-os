@@ -181,11 +181,14 @@ async function createCorreiosShipment(
   }
 
   try {
-    // Calculate total weight from order items (in grams)
+    // Calculate aggregates from order items (already merged with override above).
     const totalWeight = order.items.reduce((sum, item) => {
-      const itemWeight = (item.weight || 0.3) * item.quantity;
+      const itemWeight = (Number(item.weight) || 300) * (Number(item.quantity) || 1);
       return sum + itemWeight;
     }, 0);
+    const aggHeight = order.items.reduce((m, it) => Math.max(m, Number(it.height) || 0), 0) || 10;
+    const aggWidth = order.items.reduce((m, it) => Math.max(m, Number(it.width) || 0), 0) || 15;
+    const aggLength = order.items.reduce((s, it) => s + (Number(it.length) || 0), 0) || 20;
 
     // Get service code - default SEDEX or PAC based on shipping_method
     const shippingMethod = (order.shipping_method || '').toLowerCase();
@@ -211,11 +214,11 @@ async function createCorreiosShipment(
     const formatoObjeto = '2';
 
     // Create pre-shipment (pré-postagem)
-    // Nomes oficiais CWS v1 (ref: correios_api 1.0.3): pesoInformado,
+    // Nomes oficiais CWS v1 (ref: correios_api gem 1.0.3): pesoInformado,
     // codigoFormatoObjetoInformado, alturaInformada, larguraInformada,
     // comprimentoInformado, cienteObjetoNaoProibido, modalidadePagamento,
-    // itensDeclaracaoConteudo[]. Os nomes antigos (pesoObjeto, codigoFormatoObjeto,
-    // alturaEmCentimetro, etc.) eram ignorados pela API e geravam PPN-348/null.
+    // itensDeclaracaoConteudo[]. Os nomes antigos (pesoObjeto/codigoFormatoObjeto/
+    // alturaEmCentimetro etc.) eram ignorados e geravam PPN-348/null.
     const prepostagemPayload: Record<string, unknown> = {
       idCorreios: credentials.cartao_postagem,
       numeroCartaoPostagem: credentials.cartao_postagem,
@@ -223,9 +226,9 @@ async function createCorreiosShipment(
       modalidadePagamento: '2', // 2 = à faturar (contrato)
       pesoInformado: String(pesoGramas),
       codigoFormatoObjetoInformado: formatoObjeto, // 1=envelope, 2=caixa, 3=cilindro
-      alturaInformada: '10',
-      larguraInformada: '15',
-      comprimentoInformado: '20',
+      alturaInformada: String(Math.max(2, Math.round(aggHeight))),
+      larguraInformada: String(Math.max(11, Math.round(aggWidth))),
+      comprimentoInformado: String(Math.max(16, Math.round(aggLength))),
       diametroInformado: '0',
       valorDeclarado: order.total,
       avisoRecebimento: false,
