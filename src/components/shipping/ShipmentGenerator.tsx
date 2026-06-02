@@ -258,28 +258,35 @@ export function ShipmentGenerator() {
 
       // Carrega Declarações de Conteúdo já emitidas para cada remessa
       // (vínculo canônico via PV; fallback para order_id)
-      const dcPvIds = shipments.map(s => s.source_pedido_venda_id).filter(Boolean) as string[];
-      const dcOrderIds = shipments.map(s => s.order_id).filter(Boolean) as string[];
-      if (dcPvIds.length > 0 || dcOrderIds.length > 0) {
-        const { data: decls } = await supabase
+      const dcPvIds = Array.from(new Set(shipments.map(s => s.source_pedido_venda_id).filter(Boolean) as string[]));
+      const dcOrderIds = Array.from(new Set(shipments.map(s => s.order_id).filter(Boolean) as string[]));
+      const declsAll: any[] = [];
+      if (dcPvIds.length > 0) {
+        const { data: byPv } = await supabase
           .from('shipping_content_declarations')
           .select('id, pdf_url, dc_number, fiscal_invoice_id, order_id, status')
           .eq('status', 'issued')
-          .or([
-            dcPvIds.length ? `fiscal_invoice_id.in.(${dcPvIds.join(',')})` : '',
-            dcOrderIds.length ? `order_id.in.(${dcOrderIds.join(',')})` : '',
-          ].filter(Boolean).join(','));
-        if (decls && decls.length > 0) {
-          shipments.forEach(s => {
-            const match = decls.find((d: any) =>
-              (s.source_pedido_venda_id && d.fiscal_invoice_id === s.source_pedido_venda_id) ||
-              (s.order_id && d.order_id === s.order_id)
-            );
-            if (match) {
-              s.declaration = { id: (match as any).id, pdf_url: (match as any).pdf_url, dc_number: (match as any).dc_number };
-            }
-          });
-        }
+          .in('fiscal_invoice_id', dcPvIds);
+        if (byPv) declsAll.push(...byPv);
+      }
+      if (dcOrderIds.length > 0) {
+        const { data: byOrder } = await supabase
+          .from('shipping_content_declarations')
+          .select('id, pdf_url, dc_number, fiscal_invoice_id, order_id, status')
+          .eq('status', 'issued')
+          .in('order_id', dcOrderIds);
+        if (byOrder) declsAll.push(...byOrder);
+      }
+      if (declsAll.length > 0) {
+        shipments.forEach(s => {
+          const match = declsAll.find((d: any) =>
+            (s.source_pedido_venda_id && d.fiscal_invoice_id === s.source_pedido_venda_id) ||
+            (s.order_id && d.order_id === s.order_id)
+          );
+          if (match) {
+            s.declaration = { id: match.id, pdf_url: match.pdf_url, dc_number: match.dc_number };
+          }
+        });
       }
 
       return shipments;
