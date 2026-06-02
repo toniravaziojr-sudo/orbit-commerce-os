@@ -945,14 +945,14 @@ Deno.serve(async (req) => {
     switch (provider.toLowerCase()) {
       case 'correios': {
         // Bloqueio: Correios exige NF-e autorizada OU Declaração de Conteúdo emitida.
+        // IMPORTANTE: não retornar direto aqui — precisamos cair no branch de falha abaixo
+        // para que o rascunho seja marcado como 'failed' e apareça na aba "Pendentes".
         if (!invoiceData && !contentDeclaration) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: 'Este pedido não tem Nota Fiscal autorizada nem Declaração de Conteúdo. Emita uma das duas em Fiscal antes de despachar pelos Correios.',
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          result = {
+            success: false,
+            error: 'Este pedido não tem Nota Fiscal autorizada nem Declaração de Conteúdo. Emita uma das duas em Fiscal antes de despachar pelos Correios.',
+          };
+          break;
         }
         const fiscalDoc = invoiceData
           ? {
@@ -1058,16 +1058,31 @@ Deno.serve(async (req) => {
 
       console.log(`[shipping-create-shipment] Shipment record updated (shipment=${shipmentRow?.id || 'new'})`);
     } else if (!result.success) {
-      // Marca rascunho como failed
+      // Marca rascunho como failed e grava o motivo do erro no metadata
+      // para que apareça legível na aba "Pendentes".
+      const errorMessage = result.error || 'Falha desconhecida ao emitir remessa';
+      const failedMetadata = {
+        ...((shipmentRow?.metadata as any) || {}),
+        error_message: errorMessage,
+        last_error_at: new Date().toISOString(),
+      };
       if (shipmentRow?.id) {
         await supabase
           .from('shipments')
-          .update({ delivery_status: 'failed', last_status_at: new Date().toISOString() })
+          .update({
+            delivery_status: 'failed',
+            last_status_at: new Date().toISOString(),
+            metadata: failedMetadata,
+          })
           .eq('id', shipmentRow.id);
       } else if (resolvedOrderId) {
         await supabase
           .from('shipments')
-          .update({ delivery_status: 'failed', last_status_at: new Date().toISOString() })
+          .update({
+            delivery_status: 'failed',
+            last_status_at: new Date().toISOString(),
+            metadata: failedMetadata,
+          })
           .eq('order_id', resolvedOrderId)
           .eq('tenant_id', tenantId)
           .eq('delivery_status', 'draft');

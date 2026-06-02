@@ -174,7 +174,7 @@ A tela de Logística > Remessas é dividida em 3 abas:
 |-----|----------|-------------------|
 | **Prontos para emitir** | Shipments com `delivery_status = 'draft'` | Selecionar + "Emitir Remessa" (em lote) |
 | **Remessas emitidas** | Shipments com status excluindo `draft` e `failed` | Imprimir Etiqueta, Imprimir DANFE, Despachar, Impressão em lote |
-| **Remessas pendentes** | Shipments com `delivery_status = 'failed'` | Reenviar |
+| **Remessas pendentes** | Shipments com `delivery_status = 'failed'` — **com ou sem pedido vinculado** (PV manual/duplicado também aparece). Cabeçalho mostra `#pedido` quando existe; caso contrário `PV <numero>`. | Reenviar, Editar (abre o editor de rascunho), Excluir |
 
 ### Ação "Despachar"
 
