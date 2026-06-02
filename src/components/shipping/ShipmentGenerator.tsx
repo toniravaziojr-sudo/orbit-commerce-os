@@ -1015,6 +1015,11 @@ export function ShipmentGenerator() {
                           <TableCell className="max-w-[100px] truncate">
                             {shipment.order?.customer_name || shipment.pv?.dest_nome || '—'}
                           </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {shipment.remessa?.numero
+                              ? <span className="text-muted-foreground">{shipment.remessa.numero}</span>
+                              : <span className="opacity-50">—</span>}
+                          </TableCell>
                           <TableCell>
                             <span className="text-xs font-mono">{shipment.tracking_code || '-'}</span>
                           </TableCell>
