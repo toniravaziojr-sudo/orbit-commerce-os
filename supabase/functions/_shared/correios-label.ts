@@ -125,34 +125,59 @@ export async function downloadAndStoreCorreiosLabel(
   }
 
   // ===== Passo 2: poll do download (com pequena espera; geralmente 1ª tentativa funciona) =====
-  let labelResp: Response | null = null;
+  // O download retorna JSON com o PDF em base64 (campo `dados` / `arquivo`).
+  let labelJson: any = null;
+  let lastError = "";
   for (let attempt = 0; attempt < 6; attempt++) {
     await new Promise((r) => setTimeout(r, attempt === 0 ? 800 : 1200));
     const r = await fetch(CORREIOS_ROTULO_DOWNLOAD_URL(idRecibo), {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
-        Accept: "application/pdf",
+        Accept: "application/json",
       },
     });
     if (r.ok) {
-      labelResp = r;
+      labelJson = await r.json().catch(() => null);
       break;
     }
+    const txt = await r.text().catch(() => "");
+    lastError = `HTTP ${r.status} ${txt.slice(0, 160)}`;
+    // 404/425 = ainda processando → tentar de novo
     if (r.status !== 404 && r.status !== 425) {
-      const txt = await r.text().catch(() => "");
-      return {
-        success: false,
-        error: `Correios não devolveu o PDF (HTTP ${r.status}). ${txt.slice(0, 180)}`,
-      };
+      return { success: false, error: `Correios não devolveu o PDF (${lastError})` };
     }
   }
 
-  if (!labelResp) {
-    return { success: false, error: "Tempo esgotado aguardando o PDF do rótulo nos Correios." };
+  if (!labelJson) {
+    return { success: false, error: `Tempo esgotado aguardando o PDF nos Correios. ${lastError}` };
   }
 
-  const bytes = new Uint8Array(await labelResp.arrayBuffer());
+  // Extrai base64 do payload (Correios costuma usar `dados` ou `arquivo`).
+  const b64: string | undefined =
+    labelJson?.dados ||
+    labelJson?.arquivo ||
+    labelJson?.rotulo ||
+    labelJson?.pdf ||
+    (Array.isArray(labelJson?.itens) ? labelJson.itens[0]?.dados : undefined);
+
+  if (!b64 || typeof b64 !== "string") {
+    return {
+      success: false,
+      error: `Resposta Correios sem PDF em base64: ${JSON.stringify(labelJson).slice(0, 200)}`,
+    };
+  }
+
+  // Decode base64 → bytes
+  let bytes: Uint8Array;
+  try {
+    const bin = atob(b64.replace(/^data:application\/pdf;base64,/, ""));
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } catch (e: any) {
+    return { success: false, error: `Base64 inválido na resposta Correios: ${e?.message || e}` };
+  }
+
   const path = `${tenantId}/${shipmentId}.pdf`;
 
   const { error: upErr } = await supabase
