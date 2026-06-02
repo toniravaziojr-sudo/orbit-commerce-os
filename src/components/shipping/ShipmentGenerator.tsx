@@ -486,8 +486,8 @@ export function ShipmentGenerator() {
     try {
       const declRow = await fetchDeclarationFor(shipment);
       if (declRow) {
-        const { issueAndDownloadCorreiosContentDeclaration } = await import('@/lib/declaracaoConteudo');
-        await issueAndDownloadCorreiosContentDeclaration(declRow);
+        const { reprintExistingDeclaration } = await import('@/lib/declaracaoConteudo');
+        reprintExistingDeclaration(declRow as any);
         return;
       }
     } catch (e: any) {
