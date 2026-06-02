@@ -17609,6 +17609,7 @@ export type Database = {
           order_id: string | null
           poll_error_count: number | null
           provider_shipment_id: string | null
+          remessa_id: string | null
           requires_action: boolean
           service_code: string | null
           service_name: string | null
@@ -17639,6 +17640,7 @@ export type Database = {
           order_id?: string | null
           poll_error_count?: number | null
           provider_shipment_id?: string | null
+          remessa_id?: string | null
           requires_action?: boolean
           service_code?: string | null
           service_name?: string | null
@@ -17669,6 +17671,7 @@ export type Database = {
           order_id?: string | null
           poll_error_count?: number | null
           provider_shipment_id?: string | null
+          remessa_id?: string | null
           requires_action?: boolean
           service_code?: string | null
           service_name?: string | null
@@ -17692,6 +17695,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_remessa_id_fkey"
+            columns: ["remessa_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_remessas"
             referencedColumns: ["id"]
           },
           {
@@ -18078,6 +18088,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shipping_remessas: {
+        Row: {
+          cancelled_at: string | null
+          carrier: string
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          dispatched_at: string | null
+          emitted_at: string | null
+          finalized_at: string | null
+          id: string
+          metadata: Json
+          numero: string
+          protocolo_plp: string | null
+          status: string
+          tenant_id: string
+          total_emitidos: number
+          total_falhas: number
+          total_objetos: number
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          carrier: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          dispatched_at?: string | null
+          emitted_at?: string | null
+          finalized_at?: string | null
+          id?: string
+          metadata?: Json
+          numero: string
+          protocolo_plp?: string | null
+          status?: string
+          tenant_id: string
+          total_emitidos?: number
+          total_falhas?: number
+          total_objetos?: number
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          carrier?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          dispatched_at?: string | null
+          emitted_at?: string | null
+          finalized_at?: string | null
+          id?: string
+          metadata?: Json
+          numero?: string
+          protocolo_plp?: string | null
+          status?: string
+          tenant_id?: string
+          total_emitidos?: number
+          total_falhas?: number
+          total_objetos?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       social_connections: {
         Row: {
@@ -24292,6 +24365,10 @@ export type Database = {
         }[]
       }
       ai_daily_snapshot_reconciliation: { Args: never; Returns: Json }
+      allocate_remessa_numero: {
+        Args: { p_tenant_id: string }
+        Returns: string
+      }
       append_delivery_attempt: {
         Args: { _attempt: Json; _message_id: string }
         Returns: Json
@@ -25054,6 +25131,10 @@ export type Database = {
       }
       recalc_customer_metrics: {
         Args: { p_customer_email: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      recalc_remessa_counters: {
+        Args: { p_remessa_id: string }
         Returns: undefined
       }
       reclaim_stale_snapshot_leases: {
