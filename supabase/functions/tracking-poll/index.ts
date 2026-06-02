@@ -1075,20 +1075,32 @@ async function processShipment(
     .update(shipmentUpdate)
     .eq('id', id);
 
-  // Update order shipping_status
+  // Update order shipping_status + main status (1º evento real Correios = enviado)
   const shippingStatus = deliveryToShippingStatus[lastEventStatus] || 'pending';
   const orderUpdate: Record<string, unknown> = {
     shipping_status: shippingStatus,
   };
-  
-  if (lastEventStatus === 'delivered') {
+
+  // Quando a transportadora reporta o primeiro evento real (posted/in_transit),
+  // o pedido deixa de ser apenas "despachado" e passa a "enviado/em trânsito".
+  // Não regredimos status terminais (delivered, completed, cancelled, returned, etc.)
+  if (lastEventStatus === 'posted' || lastEventStatus === 'in_transit') {
+    orderUpdate.status = 'shipped';
+  } else if (lastEventStatus === 'out_for_delivery') {
+    orderUpdate.status = 'shipped';
+  } else if (lastEventStatus === 'delivered') {
+    orderUpdate.status = 'delivered';
     orderUpdate.delivered_at = lastEventAt;
   }
 
-  await supabase
-    .from('orders')
-    .update(orderUpdate)
-    .eq('id', order_id);
+  if (order_id) {
+    await supabase
+      .from('orders')
+      .update(orderUpdate)
+      .eq('id', order_id)
+      // Não rebaixa pedidos já em estados terminais
+      .not('status', 'in', '("completed","cancelled","cancelled_by_user","returning","returned","chargeback_lost")');
+  }
 
   // If status changed, emit canonical event for notifications
   if (statusChanged) {
