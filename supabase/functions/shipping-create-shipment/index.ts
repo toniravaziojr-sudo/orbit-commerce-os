@@ -1111,7 +1111,10 @@ Deno.serve(async (req) => {
     console.log(`[shipping-create-shipment] Result:`, JSON.stringify(result));
 
     if (result.success && result.tracking_code) {
-      // Atualiza pedido real (quando existir)
+      // ===== Pedido real (quando existir): marca como DESPACHADO já na emissão =====
+      // Decisão de negócio: emissão da remessa = despacho (sem botão intermediário).
+      // O status "shipped/enviado" só será setado quando o polling detectar o
+      // primeiro evento real dos Correios (PO/Postado). Ver tracking-poll.
       if (resolvedOrderId) {
         const orderUpdate: Record<string, unknown> = {
           tracking_code: result.tracking_code,
@@ -1120,9 +1123,11 @@ Deno.serve(async (req) => {
         };
         if (fiscalSettings?.auto_update_order_status !== false) {
           orderUpdate.shipping_status = 'label_created';
+          orderUpdate.status = 'dispatched';
+          orderUpdate.shipped_at = new Date().toISOString();
         }
         await supabase.from('orders').update(orderUpdate).eq('id', resolvedOrderId);
-        console.log(`[shipping-create-shipment] Order ${resolvedOrderId} tracking updated: ${result.tracking_code}`);
+        console.log(`[shipping-create-shipment] Order ${resolvedOrderId} marcado como dispatched: ${result.tracking_code}`);
       }
 
       // Pega service_name/service_code do pedido se houver, senão do próprio rascunho
@@ -1140,10 +1145,35 @@ Deno.serve(async (req) => {
       serviceName = (result as any).service_name || serviceName || shipmentRow?.service_name || null;
       serviceCode = (result as any).service_code || serviceCode || shipmentRow?.service_code || null;
 
+      // ===== Baixar etiqueta dos Correios e armazenar no bucket privado =====
+      // Sem isso, a 2ª chamada `/etiqueta` nunca acontecia e `label_url` ficava NULL.
+      let labelStoragePath: string | null = null;
+      if (provider.toLowerCase() === 'correios') {
+        try {
+          const downloadRes = await downloadAndStoreCorreiosLabel(supabase, {
+            tenantId,
+            shipmentId: shipmentRow?.id || '',
+            trackingCode: result.tracking_code,
+            credentials: credentials as any,
+          });
+          // O shipmentId pode ainda não existir (insert mais abaixo); então fazemos
+          // dois passos: 1) tentativa com id existente; 2) fallback após o insert.
+          if (downloadRes.success && downloadRes.storage_path) {
+            labelStoragePath = downloadRes.storage_path;
+          } else {
+            console.warn('[shipping-create-shipment] Não foi possível baixar etiqueta agora:', downloadRes.error);
+          }
+        } catch (e: any) {
+          console.error('[shipping-create-shipment] Erro ao baixar etiqueta Correios:', e?.message || e);
+        }
+      }
+
       const shipmentPatch: Record<string, unknown> = {
         tracking_code: result.tracking_code,
-        delivery_status: 'label_created',
-        label_url: result.label_url,
+        // Emissão já marca como DESPACHADO (não mais label_created)
+        delivery_status: 'posted',
+        // Mantém label_url só se conseguimos baixar PDF interno; senão deixa para reimpressão
+        label_url: labelStoragePath || result.label_url || null,
         provider_shipment_id: result.provider_shipment_id,
         invoice_id: invoiceData?.id ?? null,
         nfe_key: invoiceData?.chave_acesso ?? null,
@@ -1156,17 +1186,38 @@ Deno.serve(async (req) => {
       };
 
 
+      let finalShipmentId = shipmentRow?.id || null;
       if (shipmentRow?.id) {
         // Atualiza o rascunho exato (vínculo canônico via PV)
         await supabase.from('shipments').update(shipmentPatch).eq('id', shipmentRow.id);
       } else {
         // Sem rascunho — cria novo registro já amarrado ao PV (canônico) ou ao pedido real (legado)
-        await supabase.from('shipments').insert({
+        const { data: inserted } = await supabase.from('shipments').insert({
           tenant_id: tenantId,
           order_id: resolvedOrderId,
           source_pedido_venda_id: resolvedPvId,
           ...shipmentPatch,
-        });
+        }).select('id').single();
+        finalShipmentId = inserted?.id || null;
+
+        // Se a etiqueta não foi baixada antes (sem shipmentId), tenta agora
+        if (!labelStoragePath && finalShipmentId && provider.toLowerCase() === 'correios') {
+          try {
+            const downloadRes = await downloadAndStoreCorreiosLabel(supabase, {
+              tenantId,
+              shipmentId: finalShipmentId,
+              trackingCode: result.tracking_code,
+              credentials: credentials as any,
+            });
+            if (downloadRes.success && downloadRes.storage_path) {
+              await supabase.from('shipments')
+                .update({ label_url: downloadRes.storage_path })
+                .eq('id', finalShipmentId);
+            }
+          } catch (e: any) {
+            console.error('[shipping-create-shipment] Etiqueta pós-insert falhou:', e?.message || e);
+          }
+        }
       }
 
       // Log no histórico do pedido (só quando há pedido real)
@@ -1175,12 +1226,55 @@ Deno.serve(async (req) => {
           .from('order_history')
           .insert({
             order_id: resolvedOrderId,
-            action: 'shipment_created',
-            description: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
+            action: 'dispatched',
+            description: `Remessa emitida e despachada via ${result.carrier}. Rastreio: ${result.tracking_code}`,
           });
       }
 
-      console.log(`[shipping-create-shipment] Shipment record updated (shipment=${shipmentRow?.id || 'new'})`);
+      // ===== Evento canônico: remessa despachada =====
+      // Consumido por process-events → notification_rules (trigger_condition=dispatched)
+      if (finalShipmentId) {
+        const idempKey = `shipment_dispatched_${finalShipmentId}`;
+        await supabase.from('events_inbox').insert({
+          tenant_id: tenantId,
+          provider: 'internal',
+          event_type: 'shipment.dispatched',
+          idempotency_key: idempKey,
+          occurred_at: new Date().toISOString(),
+          payload_normalized: {
+            shipment_id: finalShipmentId,
+            order_id: resolvedOrderId,
+            pedido_venda_id: resolvedPvId,
+            tracking_code: result.tracking_code,
+            carrier: result.carrier || provider,
+          },
+          status: 'new',
+        }).then(({ error: evErr }) => {
+          if (evErr && !String(evErr.message || '').includes('duplicate')) {
+            console.error('[shipping-create-shipment] events_inbox shipment.dispatched error:', evErr);
+          }
+        });
+      }
+
+      // ===== WMS Pratika: fire-and-forget, respeita travas do tenant =====
+      // Antes só era chamado no caminho manual de rastreio. Agora também no automático.
+      if (invoiceData?.id) {
+        fetch(`${supabaseUrl}/functions/v1/wms-pratika-send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            action: 'update_tracking',
+            invoice_id: invoiceData.id,
+            tracking_code: result.tracking_code,
+            tenant_id: tenantId,
+          }),
+        }).catch(err => console.error('[shipping-create-shipment] WMS Pratika error:', err));
+      }
+
+      console.log(`[shipping-create-shipment] Shipment despachado (shipment=${finalShipmentId})`);
     } else if (!result.success) {
       // Marca rascunho como failed e grava o motivo do erro no metadata
       // para que apareça legível na aba "Pendentes".
