@@ -172,3 +172,51 @@
 - Não reabrir o consumidor da fila Frenet sem o token de parceiro válido configurado.
 - Não tratar pedidos do Amazgan manualmente sem registro — todo pedido parado fica visível na fila como "aguardando integração de parceiro".
 - Cotação e rastreamento Frenet continuam funcionando normalmente — o bloqueio é só do despacho automático (inserção de pedido no painel).
+
+---
+
+### 7. Tráfego Pago com IA — Política de Execução Segura do Autopilot (Execution Policy Engine)
+
+**Docs oficiais:**
+- `docs/especificacoes/marketing/gestor-trafego.md` (seções da Fase B e Fase B.1)
+- Memória correlata: `mem://features/marketing/ai-traffic-manager`
+
+**Objetivo da frente:**
+Tornar o Autopilot de tráfego pago seguro o suficiente para evoluir gradualmente para autonomia por categoria, sem risco de pausa/ajuste indevido em conta real de cliente. Hoje toda ação ainda exige aprovação humana — o motor funciona como **portão de segurança determinístico**, não como autonomia.
+
+**Onde paramos (estado atual):**
+
+- **Fase A — Planejamento da política (PLANNER):** ✅ concluída. Regras de negócio aprovadas: limites por plataforma (Meta 20%/72h, Google 20%/7d, TikTok 15%/48h), janela segura 00:01–04:00 BRT, TTL de aprovação 24h, categorias de ação (pausa, reativação, ajuste de orçamento), rejeições por contexto ausente / limite excedido / módulo desligado / aprovação expirada.
+- **Fase B — Fundação técnica (EXECUÇÃO):** ✅ concluída e validada.
+  - Novas colunas de auditoria e agendamento na tabela de ações do Autopilot (agendamento, aprovação, expiração, resultado da política, versão do motor, idempotência).
+  - Motor determinístico compartilhado (`_shared/ads-policy.ts`) com decisões: `execute_now`, `schedule`, `reject_*`. Sem LLM, sem chamada externa.
+  - Executor de ações aprovadas passou a revalidar a política **antes** de qualquer chamada à API da plataforma de anúncios. Ação bloqueada nunca chega à Meta/Google/TikTok.
+  - Runner agendado (cron 5 min) processa só ações marcadas como `v1`, ignora legado.
+  - Hook de aprovação grava `approved_at` + `approval_expires_at` (24h), **nunca grava `executed_at` falso**.
+- **Fase B.1 — Hardening (EXECUÇÃO):** ✅ concluída.
+  - Runner valida `is_ai_enabled=true` e `kill_switch=false` antes de processar.
+  - Aprovações legadas sem `approved_at` e com mais de 24h viram `expired_approval` em vez de carimbo retroativo.
+  - Suíte de testes unitários do motor de política (30 testes cobrindo limites, janela segura BRT, decisões).
+  - Teste de contrato do executor garantindo que só `execute_now` chama API externa.
+  - Doc oficial de gestor de tráfego atualizado com Fase B e B.1.
+
+**Validação técnica registrada:**
+- Schema, índices, helper, executor, runner e hook validados via consulta real ao banco e leitura de código. Lacuna declarada: cenários de ponta a ponta (A–F) não foram disparados em conta real para evitar risco.
+
+**Próxima fase recomendada (Fase C — não iniciar sem GO explícito):**
+- Autonomia por categoria (definir quais ações podem virar `auto_approved` por padrão e em quais condições).
+- Observabilidade: painel de decisões da política (executadas, agendadas, rejeitadas, expiradas) por tenant e por plataforma.
+- Hardening adicional sugerido na validação: estender índice diário para cobrir payloads que só trazem `meta_campaign_id`/`campaign_id`; reforçar carimbo de aprovação retroativa; testes de integração em sandbox.
+
+**Pendências do operador:**
+- Definir quais categorias de ação podem virar autônomas na Fase C (e em quais limites mais restritos que os atuais).
+- Autorizar testes ponta a ponta em conta real (ou em sandbox de cada plataforma).
+- Autorizar piloto da Fase C em um único tenant antes de qualquer expansão.
+
+**Restrições firmes:**
+- Autonomia automática segue **desligada**. `classifyAction` retorna sempre `needs_approval`.
+- Nenhum tenant foi ativado em modo autônomo.
+- Nenhuma UI foi alterada nesta frente — só motor, executor, runner, hook e testes.
+- Ações legadas (sem `policy_engine_version='v1'`) **não** são processadas pelo runner novo.
+- Toda evolução para Fase C exige PLANNER antes de EXECUÇÃO, e GO explícito do operador.
+- Mudança de limite de plataforma, janela segura ou TTL de aprovação exige aprovação explícita — não alterar por iniciativa própria.
