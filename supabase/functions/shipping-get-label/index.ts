@@ -19,6 +19,7 @@ interface LabelRequest {
   order_id?: string;
   tracking_code?: string;
   format?: 'pdf' | 'zpl' | 'a4' | 'a6'; // Default: pdf
+  force_refresh?: boolean; // "Reimprimir" — busca fresca nos Correios mesmo se já tiver no bucket
 }
 
 interface LabelResult {
