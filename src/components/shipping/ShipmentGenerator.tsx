@@ -767,13 +767,18 @@ export function ShipmentGenerator() {
                     onClick={handleGenerateShipments}
                     disabled={selectedOrders.size === 0 || isGenerating}
                     className="gap-2"
+                    title={selectedOrders.size > 1
+                      ? `Cria 1 remessa agrupando ${selectedOrders.size} objetos`
+                      : 'Cria 1 remessa contendo este objeto'}
                   >
                     {isGenerating ? (
                       <>Emitindo...</>
                     ) : (
                       <>
                         <Truck className="h-4 w-4" />
-                        Emitir Remessa{selectedOrders.size > 0 ? ` (${selectedOrders.size})` : ''}
+                        {selectedOrders.size > 1
+                          ? `Gerar remessa (${selectedOrders.size})`
+                          : `Emitir objeto${selectedOrders.size === 1 ? '' : 's'}${selectedOrders.size > 0 ? ` (${selectedOrders.size})` : ''}`}
                       </>
                     )}
                   </Button>
