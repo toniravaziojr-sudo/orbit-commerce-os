@@ -711,16 +711,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ====== NF-e: OPCIONAL na emissão manual ======
-    // Regra de negócio: Correios aceitam postar sem NF-e (Declaração de Conteúdo cobre).
-    // Quando a NF existe, anexamos por rastreabilidade; quando não existe, seguimos.
-    // O fluxo AUTOMÁTICO (nfe-shipment-link) só é disparado quando a NF é autorizada,
-    // portanto lá a NF sempre existe — esta lógica não afeta o caminho automático.
+    // ====== Vínculo fiscal obrigatório para Correios local ======
+    // Regra de negócio: Correios exigem NF-e OU Declaração de Conteúdo.
+    // - Se houver NF-e autorizada → anexamos número/série/chave.
+    // - Senão, se houver Declaração de Conteúdo emitida → anexamos número na observação.
+    // - Senão, bloqueamos a emissão da remessa com mensagem clara em PT-BR.
+    // O fluxo automático (Frenet/gateway) tem caminho próprio e não cai aqui.
     let invoiceData: any = null;
     if (resolvedOrderId) {
       const { data: inv } = await supabase
         .from('fiscal_invoices')
-        .select('id, chave_acesso, status, danfe_url')
+        .select('id, chave_acesso, numero, serie, valor_total, status, danfe_url')
         .eq('order_id', resolvedOrderId)
         .eq('tenant_id', tenantId)
         .eq('status', 'authorized')
@@ -730,7 +731,7 @@ Deno.serve(async (req) => {
     if (!invoiceData && resolvedPvId) {
       const { data: inv } = await supabase
         .from('fiscal_invoices')
-        .select('id, chave_acesso, status, danfe_url')
+        .select('id, chave_acesso, numero, serie, valor_total, status, danfe_url')
         .eq('source_order_invoice_id', resolvedPvId)
         .eq('tenant_id', tenantId)
         .eq('status', 'authorized')
@@ -738,11 +739,33 @@ Deno.serve(async (req) => {
       invoiceData = inv;
     }
 
+    // Declaração de Conteúdo dos Correios (alternativa à NF-e)
+    let contentDeclaration: { id: string; dc_number: string } | null = null;
+    if (!invoiceData) {
+      let dcQuery = supabase
+        .from('shipping_content_declarations')
+        .select('id, dc_number, order_id, fiscal_invoice_id')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'issued')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (resolvedOrderId) {
+        dcQuery = dcQuery.eq('order_id', resolvedOrderId);
+      } else if (resolvedPvId) {
+        dcQuery = dcQuery.eq('fiscal_invoice_id', resolvedPvId);
+      }
+      const { data: dcRow } = await dcQuery.maybeSingle();
+      if (dcRow) contentDeclaration = { id: dcRow.id, dc_number: dcRow.dc_number };
+    }
+
     if (invoiceData) {
       console.log(`[shipping-create-shipment] NF-e found and will be linked: ${invoiceData.id}`);
+    } else if (contentDeclaration) {
+      console.log(`[shipping-create-shipment] Declaração de Conteúdo found and will be linked: ${contentDeclaration.dc_number}`);
     } else {
-      console.log('[shipping-create-shipment] No authorized NF-e found — proceeding without fiscal link (manual dispatch).');
+      console.log('[shipping-create-shipment] No fiscal doc found — will block if provider requires it.');
     }
+
 
 
     // ====== Carrega o rascunho (se já não veio por shipment_id) e aplica override ======
