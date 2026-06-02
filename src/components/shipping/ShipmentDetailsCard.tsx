@@ -46,7 +46,8 @@ interface ShipmentEvent {
 interface ShipmentDetailsCardProps {
   shipment: {
     id: string;
-    order_id: string;
+    order_id: string | null;
+    source_pedido_venda_id?: string | null;
     tracking_code: string;
     carrier: string | null;
     delivery_status: DeliveryStatus;
@@ -61,7 +62,11 @@ interface ShipmentDetailsCardProps {
       order_number: string;
       customer_name: string;
       customer_email: string;
-    };
+    } | null;
+    pv?: {
+      numero: number | string;
+      dest_nome?: string | null;
+    } | null;
   };
   events: ShipmentEvent[];
   eventsLoading?: boolean;
@@ -193,15 +198,19 @@ export function ShipmentDetailsCard({ shipment, events, eventsLoading }: Shipmen
           <p className="text-xs text-muted-foreground">Transportadora</p>
           <p className="font-medium">{shipment.carrier || '—'}</p>
         </div>
-        {shipment.order && (
+        {(shipment.order || shipment.pv) && (
           <>
             <div>
-              <p className="text-xs text-muted-foreground">Pedido</p>
-              <p className="font-medium">{shipment.order.order_number}</p>
+              <p className="text-xs text-muted-foreground">{shipment.order ? 'Pedido' : 'Pedido de Venda'}</p>
+              <p className="font-medium">
+                {shipment.order?.order_number || (shipment.pv ? `PV ${shipment.pv.numero}` : '—')}
+              </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Cliente</p>
-              <p className="font-medium truncate">{shipment.order.customer_name}</p>
+              <p className="font-medium truncate">
+                {shipment.order?.customer_name || shipment.pv?.dest_nome || '—'}
+              </p>
             </div>
           </>
         )}

@@ -312,9 +312,9 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
                           onClick={() => setSelectedShipment(shipment)}
                         >
                           <TableCell className="font-medium">
-                            #{shipment.order.order_number}
+                            #{shipment.order?.order_number || '—'}
                           </TableCell>
-                          <TableCell>{shipment.order.customer_name}</TableCell>
+                          <TableCell>{shipment.order?.customer_name || '—'}</TableCell>
                           <TableCell className="font-mono text-sm">
                             {shipment.tracking_code}
                           </TableCell>
@@ -346,7 +346,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              Rastreamento - #{selectedShipment?.order.order_number}
+              Rastreamento - #{selectedShipment?.order?.order_number || '—'}
             </DialogTitle>
           </DialogHeader>
 
@@ -356,7 +356,7 @@ export function TrackingTab({ initialSubTab = 'in_transit' }: TrackingTabProps) 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Cliente</p>
-                  <p className="font-medium">{selectedShipment.order.customer_name}</p>
+                  <p className="font-medium">{selectedShipment.order?.customer_name || '—'}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Transportadora</p>
