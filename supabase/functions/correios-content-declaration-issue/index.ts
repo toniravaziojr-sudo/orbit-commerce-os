@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
     };
   });
 
-  if (items.length === 0) return jsonResp({ success: false, error: "no_items" });
+  if (items.length === 0) return jsonResp({ success: false, error: "Nenhum item informado para a Declaração de Conteúdo.", code: "no_items" });
 
   // Peso: override do cliente tem prioridade. Caso contrário usa o calculado dos itens.
   const finalWeightGrams =
