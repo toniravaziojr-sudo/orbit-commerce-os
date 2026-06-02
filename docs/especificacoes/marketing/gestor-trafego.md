@@ -59,7 +59,7 @@ Pipeline autônomo de gestão de tráfego pago cross-channel (Meta, Google, TikT
 
 | Função | Papel | Trigger |
 |--------|-------|---------|
-| `ads-autopilot-guardian` | Motor diário de proteção | Cron 4x/dia |
+| `ads-autopilot-guardian` | Motor diário de proteção | Cron 4 jobs (00:01, 12:00, 13:00, 16:00 BRT) — gate `ai_traffic_manager` |
 | `ads-autopilot-strategist` | Motor semanal/mensal de planejamento | Cron sáb/dom + start |
 | `ads-autopilot-execute-approved` | Execução de ações aprovadas | Manual/Auto |
 | `ads-autopilot-creative` | Geração de criativos para campanhas | Sob demanda |
@@ -565,6 +565,17 @@ Edge function: `ads-autopilot-guardian`
 **Escopo**: Apenas campanhas **já existentes**. O Guardião **NUNCA** cria campanhas, criativos ou públicos.
 
 **Ações permitidas**: `pause_campaign`, `activate_campaign` (reativação), `adjust_budget` (agendado), `report_insight`
+
+**Agendamento real (cron):** quatro jobs independentes, um por ciclo BRT, todos com gate por feature `ai_traffic_manager` via `cron_call_edge_if_active`:
+
+| Job (`cron.job.jobname`) | Schedule (UTC) | Janela BRT | Payload |
+|---|---|---|---|
+| `ads-autopilot-guardian-0001-brt` | `1 3 * * *` | 00:01 | `{"cycle":"00h"}` |
+| `ads-autopilot-guardian-1200-brt` | `0 15 * * *` | 12:00 | `{"cycle":"12h"}` |
+| `ads-autopilot-guardian-1300-brt` | `0 16 * * *` | 13:00 | `{"cycle":"13h"}` |
+| `ads-autopilot-guardian-1600-brt` | `0 19 * * *` | 16:00 | `{"cycle":"16h"}` |
+
+O parâmetro `cycle` é passado explicitamente para evitar dependência da função `detectCycle()` interna em casos de drift de horário do worker.
 
 #### Motor 2 — Estrategista (Start / Semanal / Mensal)
 
