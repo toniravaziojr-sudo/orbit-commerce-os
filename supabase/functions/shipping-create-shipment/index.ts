@@ -282,11 +282,20 @@ async function createCorreiosShipment(
     }
     if (observacao) {
       prepostagemPayload.observacao = observacao;
-      prepostagemPayload.itensDeclaracaoConteudo = order.items.map((item) => ({
-        conteudo: item.product_name,
-        quantidade: String(Number(item.quantity) || 1),
-        valor: Number(item.unit_price || 0).toFixed(2),
-      }));
+      // Itens da Declaração de Conteúdo: enviar conteudo + descricao + quantidade + valor + peso
+      // (alguns schemas exigem descricao; "peso" é defensivo para PPN-348).
+      prepostagemPayload.itensDeclaracaoConteudo = order.items.map((item) => {
+        const desc = item.product_name || 'Item';
+        const qtd = Number(item.quantity) || 1;
+        const pesoItemG = Math.max(1, Math.round((Number(item.weight) || 100) * qtd));
+        return {
+          conteudo: desc,
+          descricao: desc,
+          quantidade: String(qtd),
+          valor: Number(item.unit_price || 0).toFixed(2),
+          peso: String(pesoItemG),
+        };
+      });
     }
 
     console.log('[Correios] Pre-shipment payload:', JSON.stringify(prepostagemPayload).substring(0, 800));
