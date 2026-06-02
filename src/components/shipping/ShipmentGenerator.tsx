@@ -826,22 +826,55 @@ export function ShipmentGenerator() {
                   Remessas emitidas
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  {selectedIssued.size > 0 && (
-                    <div className="flex gap-1">
-                      <Button variant="outline" size="sm" onClick={() => handleBatchPrint('labels')} className="gap-1">
-                        <Printer className="h-3 w-3" />
-                        Etiquetas ({selectedIssued.size})
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleBatchPrint('danfes')} className="gap-1">
-                        <FileText className="h-3 w-3" />
-                        DANFEs ({selectedIssued.size})
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleBatchPrint('both')} className="gap-1">
-                        <Printer className="h-3 w-3" />
-                        Tudo ({selectedIssued.size})
-                      </Button>
-                    </div>
-                  )}
+                  {selectedIssued.size > 0 && (() => {
+                    const selected = (issuedShipments || []).filter(s => selectedIssued.has(s.id));
+                    const labelCount = selected.length; // toda remessa emitida tem etiqueta
+                    const nfCount = selected.filter(s => !!s.invoice_id).length;
+                    const dcCount = selected.filter(s => !!s.declaration?.id).length;
+                    const totalDocs = labelCount + nfCount + dcCount;
+                    return (
+                      <div className="flex gap-1">
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => handleBatchPrint('labels')}
+                          disabled={labelCount === 0}
+                          className="gap-1"
+                        >
+                          <Printer className="h-3 w-3" />
+                          Etiquetas ({labelCount})
+                        </Button>
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => handleBatchPrint('nfes')}
+                          disabled={nfCount === 0}
+                          className="gap-1"
+                          title={nfCount === 0 ? 'Nenhuma remessa selecionada possui NF-e' : 'Imprimir DANFEs disponíveis'}
+                        >
+                          <FileText className="h-3 w-3" />
+                          NFs ({nfCount})
+                        </Button>
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => handleBatchPrint('dcs')}
+                          disabled={dcCount === 0}
+                          className="gap-1"
+                          title={dcCount === 0 ? 'Nenhuma remessa selecionada possui Declaração de Conteúdo' : 'Imprimir Declarações de Conteúdo'}
+                        >
+                          <ScrollText className="h-3 w-3" />
+                          DCs ({dcCount})
+                        </Button>
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => handleBatchPrint('all')}
+                          disabled={totalDocs === 0}
+                          className="gap-1"
+                        >
+                          <Files className="h-3 w-3" />
+                          Tudo ({totalDocs})
+                        </Button>
+                      </div>
+                    );
+                  })()}
                   <span className="text-sm text-muted-foreground">
                     {issuedCount} remessa(s)
                   </span>
