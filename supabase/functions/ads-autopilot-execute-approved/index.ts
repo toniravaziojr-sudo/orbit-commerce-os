@@ -90,18 +90,42 @@ Deno.serve(async (req) => {
 
     console.log(`[ads-autopilot-execute-approved][${VERSION}] Executing action ${action_id} type=${action.action_type}`);
 
-    // ====== POLICY GATE (Fase B) ======================================
-    // Stamp aprovação retroativa se vier do fluxo legado (approved sem approved_at)
+    // ====== POLICY GATE (Fase B / B.1) ================================
+    // Stamp aprovação retroativa para fluxo legado APENAS se ação for recente (<24h).
+    // Aprovação parada há >24h é tratada como expirada (sem chamada externa).
     if ((action.status === "approved" || action.status === "scheduled") && !action.approved_at) {
-      const ttl = getApprovalTtlHours(action.action_type);
-      const approvedAt = new Date().toISOString();
-      const expiresAt = new Date(Date.now() + ttl * 3600 * 1000).toISOString();
-      await supabase.from("ads_autopilot_actions").update({
-        approved_at: approvedAt,
-        approval_expires_at: expiresAt,
-      }).eq("id", action_id);
-      action.approved_at = approvedAt;
-      action.approval_expires_at = expiresAt;
+      const referenceTs = action.updated_at || action.created_at;
+      const ageMs = referenceTs ? (Date.now() - new Date(referenceTs).getTime()) : Number.POSITIVE_INFINITY;
+      const LEGACY_STAMP_MAX_AGE_MS = 24 * 3600 * 1000;
+      if (ageMs <= LEGACY_STAMP_MAX_AGE_MS) {
+        const ttl = getApprovalTtlHours(action.action_type);
+        const approvedAt = new Date().toISOString();
+        const expiresAt = new Date(Date.now() + ttl * 3600 * 1000).toISOString();
+        await supabase.from("ads_autopilot_actions").update({
+          approved_at: approvedAt,
+          approval_expires_at: expiresAt,
+        }).eq("id", action_id);
+        action.approved_at = approvedAt;
+        action.approval_expires_at = expiresAt;
+      } else {
+        // Aprovação legada antiga — expirar sem chamada externa
+        await supabase.from("ads_autopilot_actions").update({
+          status: "expired_approval",
+          policy_check_result: {
+            engine_version: POLICY_ENGINE_VERSION,
+            decision_kind: "expired_approval",
+            reason: "legacy_approval_too_old",
+            meta: { age_ms: ageMs, reference_ts: referenceTs },
+            decided_at: new Date().toISOString(),
+            from_runner: fromRunner,
+          },
+          policy_engine_version: POLICY_ENGINE_VERSION,
+        }).eq("id", action_id);
+        return new Response(JSON.stringify({
+          success: false,
+          policy: { decision_kind: "expired_approval", reason: "legacy_approval_too_old" },
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
 
     // Carregar snapshot mínimo para ações de orçamento
