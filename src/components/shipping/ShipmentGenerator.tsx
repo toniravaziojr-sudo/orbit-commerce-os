@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ptBR } from 'date-fns/locale';
-import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Plus, Lock } from 'lucide-react';
+import { Package, Truck, Printer, ExternalLink, AlertTriangle, CheckCircle, Clock, FileText, Send, Pencil, Trash2, Plus, Lock, Loader2 } from 'lucide-react';
 import { DraftShipmentDialog } from './DraftShipmentDialog';
 import {
   AlertDialog,
@@ -117,6 +117,7 @@ export function ShipmentGenerator() {
   const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
   const [deletingShipmentId, setDeletingShipmentId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [retryingShipmentId, setRetryingShipmentId] = useState<string | null>(null);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['orders-ready-shipment'] });
@@ -366,6 +367,7 @@ export function ShipmentGenerator() {
   };
 
   const handleRetryShipment = async (shipmentId: string) => {
+    setRetryingShipmentId(shipmentId);
     try {
       // Volta o rascunho para 'draft' e reemite via o próprio shipment_id.
       // Funciona para rascunhos com ou sem pedido vinculado (PV manual).
@@ -385,6 +387,8 @@ export function ShipmentGenerator() {
       invalidateAll();
     } catch (error: any) {
       toast.error(error?.message || 'Falha ao reenviar remessa');
+    } finally {
+      setRetryingShipmentId(null);
     }
   };
 
@@ -927,10 +931,20 @@ export function ShipmentGenerator() {
                             <div className="flex items-center gap-1">
                               <Button
                                 variant="outline" size="sm" className="gap-1"
+                                disabled={retryingShipmentId === shipment.id}
                                 onClick={() => handleRetryShipment(shipment.id)}
                               >
-                                <Truck className="h-3 w-3" />
-                                Reenviar
+                                {retryingShipmentId === shipment.id ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Reenviando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Truck className="h-3 w-3" />
+                                    Reenviar
+                                  </>
+                                )}
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-8 w-8"
