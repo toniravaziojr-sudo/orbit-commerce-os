@@ -111,8 +111,7 @@ export function ShipmentGenerator() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [dispatchDialog, setDispatchDialog] = useState<ShipmentRecord | null>(null);
-  const [isDispatching, setIsDispatching] = useState(false);
+  // (Diálogo de despacho removido — emissão = despacho)
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
   const [deletingShipmentId, setDeletingShipmentId] = useState<string | null>(null);
