@@ -50,13 +50,14 @@ type DeliveryStatus =
 
 interface ShipmentWithOrder {
   id: string;
-  order_id: string;
+  order_id: string | null;
+  source_pedido_venda_id?: string | null;
   carrier: string | null;
   tracking_code: string;
   delivery_status: DeliveryStatus;
   created_at: string;
   delivered_at: string | null;
-  order: {
+  order?: {
     order_number: string;
     customer_name: string;
     customer_email: string;
