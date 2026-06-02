@@ -377,29 +377,102 @@ export function ShipmentGenerator() {
       toast.error('Selecione pelo menos um rascunho');
       return;
     }
+    if (!currentTenant?.id) {
+      toast.error('Tenant não identificado');
+      return;
+    }
 
     setIsGenerating(true);
     const successes: string[] = [];
     const failures: { label: string; reason: string }[] = [];
 
     const byId = new Map((readyOrders || []).map(s => [s.id, s]));
+    const selectedList = Array.from(selectedOrders)
+      .map(id => byId.get(id))
+      .filter((s): s is ShipmentRecord => !!s);
 
-    for (const shipmentId of selectedOrders) {
-      const ship = byId.get(shipmentId);
-      const label = (ship?.order as any)?.order_number
-        ? `Pedido #${(ship?.order as any).order_number}`
-        : ship?.pv?.numero
-          ? `PV ${ship.pv.numero}`
-          : `Rascunho ${shipmentId.substring(0, 8)}`;
+    // Agrupa por transportadora: cada grupo vira UMA remessa.
+    // Objetos sem transportadora definida ficam em grupo próprio ("sem-transportadora").
+    const groups = new Map<string, ShipmentRecord[]>();
+    for (const s of selectedList) {
+      const key = (s.carrier || 'sem-transportadora').toLowerCase().trim();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(s);
+    }
+
+    for (const [carrierKey, groupShips] of groups.entries()) {
+      // 1) Aloca número e cria o agrupador (remessa de N — inclui N=1).
+      let remessaId: string | null = null;
+      let remessaNumero: string | null = null;
       try {
-        const result = await dispatchShipment.mutateAsync({ shipment_id: shipmentId });
-        if (result?.success && result.tracking_code) {
-          successes.push(`${label}: ${result.tracking_code}`);
-        } else {
-          failures.push({ label, reason: result?.error || 'erro desconhecido' });
+        const { data: numeroData, error: numeroErr } = await supabase.rpc('allocate_remessa_numero', {
+          p_tenant_id: currentTenant.id,
+        });
+        if (numeroErr) throw numeroErr;
+        remessaNumero = String(numeroData);
+
+        const { data: remessaRow, error: remessaErr } = await supabase
+          .from('shipping_remessas')
+          .insert({
+            tenant_id: currentTenant.id,
+            numero: remessaNumero,
+            carrier: carrierKey === 'sem-transportadora' ? '' : carrierKey,
+            status: 'rascunho',
+            descricao: `Lote de ${groupShips.length} objeto(s)`,
+          })
+          .select('id')
+          .single();
+        if (remessaErr) throw remessaErr;
+        remessaId = remessaRow.id;
+
+        // 2) Vincula objetos ao agrupador ANTES de despachar.
+        const ids = groupShips.map(s => s.id);
+        const { error: linkErr } = await supabase
+          .from('shipments')
+          .update({ remessa_id: remessaId })
+          .in('id', ids)
+          .eq('tenant_id', currentTenant.id);
+        if (linkErr) throw linkErr;
+      } catch (e: any) {
+        // Falha ao criar agrupador — segue despachando sem vínculo para não bloquear operação.
+        console.error('Falha ao criar Remessa agrupadora:', e);
+        toast.warning('Não foi possível criar o agrupador da remessa — objetos serão emitidos individualmente.');
+        remessaId = null;
+        remessaNumero = null;
+      }
+
+      // 3) Despacha cada objeto (fluxo atual, intacto).
+      for (const ship of groupShips) {
+        const label = (ship.order as any)?.order_number
+          ? `Pedido #${(ship.order as any).order_number}`
+          : ship.pv?.numero
+            ? `PV ${ship.pv.numero}`
+            : `Rascunho ${ship.id.substring(0, 8)}`;
+        try {
+          const result = await dispatchShipment.mutateAsync({ shipment_id: ship.id });
+          if (result?.success && result.tracking_code) {
+            successes.push(`${label}: ${result.tracking_code}`);
+          } else {
+            failures.push({ label, reason: result?.error || 'erro desconhecido' });
+          }
+        } catch (error: any) {
+          failures.push({ label, reason: error?.message || 'erro inesperado' });
         }
-      } catch (error: any) {
-        failures.push({ label, reason: error?.message || 'erro inesperado' });
+      }
+
+      // 4) Atualiza status do agrupador (parcial/emitida) — contadores caem
+      // automaticamente via trigger shipments_sync_remessa_counters.
+      if (remessaId) {
+        const allOk = failures.length === 0;
+        const partial = !allOk && successes.length > 0;
+        await supabase
+          .from('shipping_remessas')
+          .update({
+            status: allOk ? 'emitida' : (partial ? 'parcial' : 'rascunho'),
+            emitted_at: allOk || partial ? new Date().toISOString() : null,
+          })
+          .eq('id', remessaId)
+          .eq('tenant_id', currentTenant.id);
       }
     }
 
@@ -407,17 +480,18 @@ export function ShipmentGenerator() {
     setSelectedOrders(new Set());
 
     if (successes.length > 0) {
-      toast.success(`${successes.length} remessa(s) emitida(s)`, {
+      toast.success(`${successes.length} objeto(s) emitido(s)`, {
         description: successes.slice(0, 5).join('\n'),
       });
     }
     if (failures.length > 0) {
-      toast.error(`${failures.length} remessa(s) não emitida(s)`, {
+      toast.error(`${failures.length} objeto(s) não emitido(s)`, {
         description: failures.slice(0, 5).map(f => `${f.label}: ${f.reason}`).join('\n'),
         duration: 10000,
       });
     }
     invalidateAll();
+    queryClient.invalidateQueries({ queryKey: ['shipping-remessas'] });
   };
 
   const handleRetryShipment = async (shipmentId: string) => {
