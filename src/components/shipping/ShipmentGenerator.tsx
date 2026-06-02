@@ -129,7 +129,7 @@ export function ShipmentGenerator() {
     queryClient.invalidateQueries({ queryKey: ['shipments-failed'] });
   };
 
-  // === TAB 1: Prontos para emitir remessa ===
+  // === TAB 1: Prontos para emitir ===
   const { data: readyOrders, isLoading: loadingReady } = useQuery({
     queryKey: ['orders-ready-shipment', currentTenant?.id, selectedCarrier, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
@@ -186,7 +186,7 @@ export function ShipmentGenerator() {
 
 
 
-  // === TAB 2: Remessas emitidas (has tracking, not draft/failed) ===
+  // === TAB 2: Objetos emitidos (has tracking, not draft/failed) ===
   const { data: issuedShipments, isLoading: loadingIssued } = useQuery({
     queryKey: ['shipments-issued', currentTenant?.id, selectedCarrier, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
@@ -728,7 +728,7 @@ export function ShipmentGenerator() {
           </TabsTrigger>
           <TabsTrigger value="emitidas" className="gap-2">
             <CheckCircle className="h-4 w-4" />
-            Remessas emitidas
+            Objetos emitidos
             {issuedCount > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
                 {issuedCount}
@@ -753,7 +753,7 @@ export function ShipmentGenerator() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  Prontos para emitir remessa
+                  Prontos para emitir
                   <span className="text-sm font-normal text-muted-foreground ml-2">
                     {readyCount} pedido(s){selectedOrders.size > 0 ? ` • ${selectedOrders.size} selecionado(s)` : ''}
                   </span>
@@ -895,14 +895,14 @@ export function ShipmentGenerator() {
         </TabsContent>
 
 
-        {/* TAB 2: Remessas emitidas */}
+        {/* TAB 2: Objetos emitidos */}
         <TabsContent value="emitidas" className="mt-4">
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <CheckCircle className="h-4 w-4" />
-                  Remessas emitidas
+                  Objetos emitidos
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   {selectedIssued.size > 0 && (() => {
