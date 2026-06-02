@@ -89,7 +89,7 @@ const ADDITIONAL_NOTICES = [
 ];
 
 // ----------------- Render de uma declaração no jsPDF (mesmo doc) -----------------
-function renderOneDeclaration(doc: jsPDF, rec: DeclarationRecord, isFirstPage: boolean) {
+export function renderOneDeclaration(doc: jsPDF, rec: DeclarationRecord, isFirstPage: boolean) {
   const s = rec.sender_snapshot || {};
   const r = rec.recipient_snapshot || {};
   const items = rec.items_snapshot || [];
