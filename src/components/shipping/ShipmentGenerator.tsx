@@ -190,9 +190,9 @@ export function ShipmentGenerator() {
 
       let query = supabase
         .from('shipments')
-        .select(`
-          id, order_id, tracking_code, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
-          order:orders!inner(order_number, customer_name, status)
+        .select<string, any>(`
+          id, order_id, source_pedido_venda_id, tracking_code, carrier, delivery_status, created_at, source, metadata, label_url, nfe_key, invoice_id,
+          order:orders(order_number, customer_name, status)
         `)
         .eq('tenant_id', currentTenant.id)
         .not('delivery_status', 'in', '("draft","failed")')
@@ -214,9 +214,9 @@ export function ShipmentGenerator() {
       // Fetch DANFE URLs for invoices
       const { data, error } = await query;
       if (error) throw error;
-      
+
       const shipments = (data || []) as ShipmentRecord[];
-      
+
       // Fetch invoice data for shipments that have invoice_id
       const invoiceIds = shipments.map(s => s.invoice_id).filter(Boolean);
       if (invoiceIds.length > 0) {
@@ -224,7 +224,7 @@ export function ShipmentGenerator() {
           .from('fiscal_invoices')
           .select('id, danfe_url, chave_acesso, numero')
           .in('id', invoiceIds as string[]);
-        
+
         if (invoices) {
           const invoiceMap = Object.fromEntries(invoices.map(i => [i.id, i]));
           shipments.forEach(s => {
@@ -234,7 +234,24 @@ export function ShipmentGenerator() {
           });
         }
       }
-      
+
+      // Fallback PV: remessas sem pedido vinculado (fluxo PV manual/duplicado)
+      const pvIds = shipments
+        .filter(s => !s.order && s.source_pedido_venda_id)
+        .map(s => s.source_pedido_venda_id as string);
+      if (pvIds.length > 0) {
+        const { data: pvs } = await supabase
+          .from('fiscal_invoices')
+          .select('id, numero, dest_nome')
+          .in('id', pvIds);
+        const pvMap = Object.fromEntries((pvs || []).map((p: any) => [p.id, p]));
+        shipments.forEach(s => {
+          if (!s.order && s.source_pedido_venda_id && pvMap[s.source_pedido_venda_id]) {
+            s.pv = pvMap[s.source_pedido_venda_id];
+          }
+        });
+      }
+
       return shipments;
     },
     enabled: !!currentTenant?.id,
