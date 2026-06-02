@@ -504,23 +504,6 @@ export function ShipmentGenerator() {
     }
   };
 
-  // Print DANFE / Declaração de Conteúdo
-  const handlePrintDanfe = async (shipment: ShipmentRecord) => {
-    if (shipment.invoice?.danfe_url) {
-      window.open(shipment.invoice.danfe_url, '_blank');
-      return;
-    }
-    // Fallback: fetch from DB
-    if (shipment.invoice_id) {
-      const { data } = await supabase
-        .from('fiscal_invoices')
-        .select('danfe_url')
-        .eq('id', shipment.invoice_id)
-        .single();
-      if (data?.danfe_url) {
-        window.open(data.danfe_url, '_blank');
-        return;
-      }
   // Imprime apenas DANFE (NF-e). Não cai em DC.
   const handlePrintNFe = async (shipment: ShipmentRecord): Promise<boolean> => {
     if (shipment.invoice?.danfe_url) {
