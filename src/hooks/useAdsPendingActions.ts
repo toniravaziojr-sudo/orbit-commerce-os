@@ -56,9 +56,21 @@ export function useAdsPendingActions(channelFilter?: string) {
 
   const approveAction = useMutation({
     mutationFn: async (actionId: string) => {
+      // Fase B: registrar aprovação humana com auditoria; NUNCA gravar executed_at aqui.
+      // executed_at só é preenchido quando a execução real (chamada externa) acontecer.
+      const { data: userRes } = await supabase.auth.getUser();
+      const nowIso = new Date().toISOString();
+      // TTL conservador default = 24h (Fase B). Refinamento por categoria fica para Fase C.
+      const expiresIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
       const { error } = await supabase
         .from("ads_autopilot_actions" as any)
-        .update({ status: "approved", executed_at: new Date().toISOString() } as any)
+        .update({
+          status: "approved",
+          approved_at: nowIso,
+          approved_by_user_id: userRes.user?.id ?? null,
+          approval_expires_at: expiresIso,
+        } as any)
         .eq("id", actionId);
       if (error) throw error;
 
