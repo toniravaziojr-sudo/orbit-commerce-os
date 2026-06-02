@@ -365,21 +365,26 @@ export function ShipmentGenerator() {
     invalidateAll();
   };
 
-  const handleRetryShipment = async (orderId: string) => {
+  const handleRetryShipment = async (shipmentId: string) => {
     try {
-      // Reset shipment to draft before retrying
+      // Volta o rascunho para 'draft' e reemite via o próprio shipment_id.
+      // Funciona para rascunhos com ou sem pedido vinculado (PV manual).
       await supabase
         .from('shipments')
         .update({ delivery_status: 'draft' as any })
-        .eq('order_id', orderId)
+        .eq('id', shipmentId)
         .eq('tenant_id', currentTenant?.id!)
         .eq('delivery_status', 'failed' as any);
-      
-      await createShipment.mutateAsync({ order_id: orderId });
-      toast.success('Remessa reenviada com sucesso');
+
+      const result = await dispatchShipment.mutateAsync({ shipment_id: shipmentId });
+      if (result?.success && result.tracking_code) {
+        toast.success(`Remessa reenviada. Código: ${result.tracking_code}`);
+      } else {
+        toast.error(result?.error || 'Falha ao reenviar remessa');
+      }
       invalidateAll();
-    } catch (error) {
-      toast.error('Falha ao reenviar remessa');
+    } catch (error: any) {
+      toast.error(error?.message || 'Falha ao reenviar remessa');
     }
   };
 
