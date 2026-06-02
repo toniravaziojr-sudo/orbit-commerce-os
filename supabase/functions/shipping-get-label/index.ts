@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
     }
 
     // ===== 2) URL externa legada (raro) =====
-    if (labelPath && /^https?:\/\//i.test(labelPath)) {
+    if (!force_refresh && labelPath && /^https?:\/\//i.test(labelPath)) {
       return new Response(
         JSON.stringify({ success: true, label_url: labelPath, format: 'pdf' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
