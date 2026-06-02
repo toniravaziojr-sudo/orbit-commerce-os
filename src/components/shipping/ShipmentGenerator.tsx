@@ -508,51 +508,9 @@ export function ShipmentGenerator() {
     return data;
   };
 
-  // Dispatch action: open dialog with print options + confirm
-  const handleDispatchClick = (shipment: ShipmentRecord) => {
-    setDispatchDialog(shipment);
-  };
-
-  const handleConfirmDispatch = async () => {
-    if (!dispatchDialog || !currentTenant?.id) return;
-    setIsDispatching(true);
-
-    try {
-      // Pedido real (quando existir) — PVs manuais/duplicados não têm pedido real
-      if (dispatchDialog.order_id) {
-        await supabase
-          .from('orders')
-          .update({
-            status: 'dispatched' as any,
-            shipped_at: new Date().toISOString(),
-          })
-          .eq('id', dispatchDialog.order_id);
-
-        await supabase
-          .from('order_history')
-          .insert({
-            order_id: dispatchDialog.order_id,
-            action: 'dispatched',
-            description: `Despacho confirmado. Etiqueta: ${dispatchDialog.tracking_code || 'N/A'}`,
-          });
-      }
-
-      // Marca a remessa como postada — independe da existência de pedido real
-      await supabase
-        .from('shipments')
-        .update({ delivery_status: 'posted' as any, last_status_at: new Date().toISOString() })
-        .eq('id', dispatchDialog.id)
-        .eq('tenant_id', currentTenant.id);
-
-      toast.success(dispatchDialog.order_id ? 'Pedido marcado como despachado' : 'Remessa marcada como despachada');
-      setDispatchDialog(null);
-      invalidateAll();
-    } catch (error) {
-      toast.error('Erro ao confirmar despacho');
-    } finally {
-      setIsDispatching(false);
-    }
-  };
+  // (Handlers de despacho removidos — a emissão da remessa já faz o despacho
+  // de forma atômica no backend, e a transição para "enviado" é responsabilidade
+  // do polling dos Correios ao detectar o primeiro evento real de postagem.)
 
   // Batch print
   const handleBatchPrint = async (type: 'labels' | 'danfes' | 'both') => {
