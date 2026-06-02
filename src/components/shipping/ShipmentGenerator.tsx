@@ -988,6 +988,7 @@ export function ShipmentGenerator() {
                         </TableHead>
                         <TableHead>Pedido</TableHead>
                         <TableHead>Cliente</TableHead>
+                        <TableHead>Remessa</TableHead>
                         <TableHead>Rastreio</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Transportadora</TableHead>
