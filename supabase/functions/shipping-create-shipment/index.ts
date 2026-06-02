@@ -89,7 +89,15 @@ interface ProviderCredentials {
 async function createCorreiosShipment(
   order: OrderData,
   credentials: ProviderCredentials,
-  settings: Record<string, unknown>
+  settings: Record<string, unknown>,
+  fiscalDoc?: {
+    kind: 'nfe' | 'dc';
+    nfe_numero?: string | null;
+    nfe_serie?: string | null;
+    nfe_chave?: string | null;
+    nfe_valor?: number | null;
+    dc_number?: string | null;
+  } | null,
 ): Promise<ShipmentResult> {
   console.log('[Correios] Creating pre-shipment for order:', order.id);
   
@@ -98,61 +106,53 @@ async function createCorreiosShipment(
     (credentials.codigo_acesso ? 'api_code' : 
      credentials.token ? 'token' : 'oauth');
   let token: string;
-
-  try {
-    if (authMode === 'token') {
-      token = credentials.token!;
-      if (!token) {
+  if (authMode === 'token') {
+      if (!credentials.token) {
         return { success: false, error: 'Token Correios não configurado' };
       }
-    } else if (authMode === 'api_code') {
-      // API Code mode (like Bling) - use codigo_acesso as password
-      const usuario = credentials.usuario;
-      const codigoAcesso = credentials.codigo_acesso;
-      const cartaoPostagem = credentials.cartao_postagem;
-
-      if (!usuario || !codigoAcesso || !cartaoPostagem) {
+      token = credentials.token;
+  } else if (authMode === 'api_code') {
+      // API Code mode - usa código de acesso permanente (como Bling)
+      if (!credentials.usuario || !credentials.codigo_acesso || !credentials.cartao_postagem) {
         return { success: false, error: 'Credenciais Correios incompletas (usuário, código de acesso, cartão postagem)' };
       }
-
-      const authString = btoa(`${usuario}:${codigoAcesso}`);
+      
+      const basicAuth = btoa(`${credentials.usuario}:${credentials.codigo_acesso}`);
+      
       const authResponse = await fetch('https://api.correios.com.br/token/v1/autentica/cartaopostagem', {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${authString}`,
+          'Authorization': `Basic ${basicAuth}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ numero: cartaoPostagem }),
+        body: JSON.stringify({ numero: credentials.cartao_postagem }),
       });
-
+      
       if (!authResponse.ok) {
         const errorText = await authResponse.text();
         console.error('[Correios] API Code auth failed:', authResponse.status, errorText);
         return { success: false, error: 'Falha na autenticação Correios (verifique o código de acesso)' };
       }
-
+      
       const authData = await authResponse.json();
       token = authData.token;
-    } else {
-      // OAuth2 authentication (legacy - uses portal password)
-      const usuario = credentials.usuario;
-      const senha = credentials.senha;
-      const cartaoPostagem = credentials.cartao_postagem;
-
-      if (!usuario || !senha || !cartaoPostagem) {
+  } else {
+      // OAuth mode (legacy) - usa senha do portal
+      if (!credentials.usuario || !credentials.senha || !credentials.cartao_postagem) {
         return { success: false, error: 'Credenciais Correios incompletas (usuário, senha, cartão postagem)' };
       }
 
-      const authString = btoa(`${usuario}:${senha}`);
+      const basicAuth = btoa(`${credentials.usuario}:${credentials.senha}`);
+      
       const authResponse = await fetch('https://api.correios.com.br/token/v1/autentica/cartaopostagem', {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${authString}`,
+          'Authorization': `Basic ${basicAuth}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ numero: cartaoPostagem }),
+        body: JSON.stringify({ numero: credentials.cartao_postagem }),
       });
 
       if (!authResponse.ok) {
@@ -163,9 +163,10 @@ async function createCorreiosShipment(
 
       const authData = await authResponse.json();
       token = authData.token;
-    }
+  }
 
-    // Calculate totals
+  try {
+    // Calculate total weight from order items (in grams)
     const totalWeight = order.items.reduce((sum, item) => {
       const itemWeight = (item.weight || 0.3) * item.quantity;
       return sum + itemWeight;
@@ -181,11 +182,23 @@ async function createCorreiosShipment(
       serviceCode = settings.default_service_code as string;
     }
 
+    // ===== Sanitização: telefones só dígitos, máximo 12 (DDD + 9 dígitos) =====
+    const sanitizePhone = (raw: unknown): string => String(raw || '').replace(/\D/g, '').slice(0, 12);
+    const senderPhone = sanitizePhone(settings?.sender_phone);
+    const recipientPhone = sanitizePhone(order.customer_phone);
+
+    // ===== Observação fiscal (Declaração de Conteúdo quando não há NF-e) =====
+    let observacao: string | undefined;
+    if (fiscalDoc?.kind === 'dc' && fiscalDoc.dc_number) {
+      observacao = `Declaracao de Conteudo no ${fiscalDoc.dc_number}`;
+    }
+
     // Create pre-shipment (pré-postagem)
-    const prepostagemPayload = {
+    const prepostagemPayload: Record<string, unknown> = {
       idCorreios: credentials.cartao_postagem,
       codigoServico: serviceCode,
       peso: Math.max(100, Math.round(totalWeight)), // already in grams, min 100g
+      codigoFormatoObjeto: 2, // 1=envelope, 2=caixa, 3=cilindro
       alturaEmCentimetro: 10,
       larguraEmCentimetro: 15,
       comprimentoEmCentimetro: 20,
@@ -194,10 +207,11 @@ async function createCorreiosShipment(
       avisoRecebimento: false,
       maoPropria: false,
       objetosPostados: false,
+      cienteObjetoNaoProibido: 1, // PPN-330: declaração obrigatória de que não há itens proibidos
       remetente: {
         nome: settings?.sender_name || 'Loja',
-        cpfCnpj: settings?.sender_document || '',
-        telefone: settings?.sender_phone || '',
+        cpfCnpj: String(settings?.sender_document || '').replace(/\D/g, ''),
+        telefone: senderPhone,
         email: settings?.sender_email || '',
         endereco: {
           cep: (settings?.sender_postal_code as string)?.replace(/\D/g, '') || '',
@@ -212,9 +226,8 @@ async function createCorreiosShipment(
       destinatario: {
         nome: order.customer_name,
         cpfCnpj: (order.customer_cpf || order.customer_cnpj || '').replace(/\D/g, ''),
-        telefone: order.customer_phone?.replace(/\D/g, '') || '',
+        telefone: recipientPhone,
         email: order.customer_email || '',
-
         endereco: {
           cep: order.shipping_postal_code.replace(/\D/g, ''),
           logradouro: order.shipping_street,
@@ -227,7 +240,18 @@ async function createCorreiosShipment(
       },
     };
 
-    console.log('[Correios] Pre-shipment payload:', JSON.stringify(prepostagemPayload).substring(0, 500));
+    // Vínculo fiscal (NF-e: campos estruturados; DC: observação)
+    if (fiscalDoc?.kind === 'nfe') {
+      if (fiscalDoc.nfe_chave) prepostagemPayload.chaveAcessoNotaFiscal = fiscalDoc.nfe_chave;
+      if (fiscalDoc.nfe_numero) prepostagemPayload.numeroNotaFiscal = String(fiscalDoc.nfe_numero);
+      if (fiscalDoc.nfe_serie) prepostagemPayload.serieNotaFiscal = String(fiscalDoc.nfe_serie);
+      if (fiscalDoc.nfe_valor) prepostagemPayload.valorNotaFiscal = fiscalDoc.nfe_valor;
+    }
+    if (observacao) {
+      prepostagemPayload.observacao = observacao;
+    }
+
+    console.log('[Correios] Pre-shipment payload:', JSON.stringify(prepostagemPayload).substring(0, 800));
 
     const response = await fetch('https://api.correios.com.br/prepostagem/v1/prepostagens', {
       method: 'POST',
@@ -240,15 +264,26 @@ async function createCorreiosShipment(
     });
 
     const responseText = await response.text();
-    console.log('[Correios] Response:', response.status, responseText.substring(0, 500));
+    console.log('[Correios] Response:', response.status, responseText.substring(0, 800));
 
     if (!response.ok) {
-      // Try to parse error
+      // Parser robusto: CWS atual devolve msgs como string[]; legado devolve {texto}[]
       try {
         const errorData = JSON.parse(responseText);
-        const errorMsg = errorData.msgs?.map((m: any) => m.texto).join(', ') || 
-                         errorData.message || 
-                         `Erro ${response.status}`;
+        const rawMsgs: unknown = errorData.msgs ?? errorData.errors ?? [];
+        const messages: string[] = Array.isArray(rawMsgs)
+          ? rawMsgs
+              .map((m: any) => {
+                if (typeof m === 'string') return m;
+                if (m && typeof m === 'object') return m.texto || m.mensagem || m.message || '';
+                return '';
+              })
+              .map((s: string) => String(s).trim())
+              .filter((s: string) => s.length > 0)
+          : [];
+        const errorMsg = messages.length > 0
+          ? messages.join(' • ')
+          : (errorData.message || errorData.error || `Erro ${response.status}`);
         return { success: false, error: errorMsg };
       } catch {
         return { success: false, error: `Erro Correios: ${response.status}` };
@@ -270,6 +305,7 @@ async function createCorreiosShipment(
     return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
+
 
 // ========== LOGGI ADAPTER ==========
 // API Docs: https://docs.api.loggi.com/reference/nossa-documenta%C3%A7%C3%A3o
@@ -675,16 +711,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ====== NF-e: OPCIONAL na emissão manual ======
-    // Regra de negócio: Correios aceitam postar sem NF-e (Declaração de Conteúdo cobre).
-    // Quando a NF existe, anexamos por rastreabilidade; quando não existe, seguimos.
-    // O fluxo AUTOMÁTICO (nfe-shipment-link) só é disparado quando a NF é autorizada,
-    // portanto lá a NF sempre existe — esta lógica não afeta o caminho automático.
+    // ====== Vínculo fiscal obrigatório para Correios local ======
+    // Regra de negócio: Correios exigem NF-e OU Declaração de Conteúdo.
+    // - Se houver NF-e autorizada → anexamos número/série/chave.
+    // - Senão, se houver Declaração de Conteúdo emitida → anexamos número na observação.
+    // - Senão, bloqueamos a emissão da remessa com mensagem clara em PT-BR.
+    // O fluxo automático (Frenet/gateway) tem caminho próprio e não cai aqui.
     let invoiceData: any = null;
     if (resolvedOrderId) {
       const { data: inv } = await supabase
         .from('fiscal_invoices')
-        .select('id, chave_acesso, status, danfe_url')
+        .select('id, chave_acesso, numero, serie, valor_total, status, danfe_url')
         .eq('order_id', resolvedOrderId)
         .eq('tenant_id', tenantId)
         .eq('status', 'authorized')
@@ -694,7 +731,7 @@ Deno.serve(async (req) => {
     if (!invoiceData && resolvedPvId) {
       const { data: inv } = await supabase
         .from('fiscal_invoices')
-        .select('id, chave_acesso, status, danfe_url')
+        .select('id, chave_acesso, numero, serie, valor_total, status, danfe_url')
         .eq('source_order_invoice_id', resolvedPvId)
         .eq('tenant_id', tenantId)
         .eq('status', 'authorized')
@@ -702,11 +739,33 @@ Deno.serve(async (req) => {
       invoiceData = inv;
     }
 
+    // Declaração de Conteúdo dos Correios (alternativa à NF-e)
+    let contentDeclaration: { id: string; dc_number: string } | null = null;
+    if (!invoiceData) {
+      let dcQuery = supabase
+        .from('shipping_content_declarations')
+        .select('id, dc_number, order_id, fiscal_invoice_id')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'issued')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (resolvedOrderId) {
+        dcQuery = dcQuery.eq('order_id', resolvedOrderId);
+      } else if (resolvedPvId) {
+        dcQuery = dcQuery.eq('fiscal_invoice_id', resolvedPvId);
+      }
+      const { data: dcRow } = await dcQuery.maybeSingle();
+      if (dcRow) contentDeclaration = { id: dcRow.id, dc_number: dcRow.dc_number };
+    }
+
     if (invoiceData) {
       console.log(`[shipping-create-shipment] NF-e found and will be linked: ${invoiceData.id}`);
+    } else if (contentDeclaration) {
+      console.log(`[shipping-create-shipment] Declaração de Conteúdo found and will be linked: ${contentDeclaration.dc_number}`);
     } else {
-      console.log('[shipping-create-shipment] No authorized NF-e found — proceeding without fiscal link (manual dispatch).');
+      console.log('[shipping-create-shipment] No fiscal doc found — will block if provider requires it.');
     }
+
 
 
     // ====== Carrega o rascunho (se já não veio por shipment_id) e aplica override ======
@@ -884,9 +943,29 @@ Deno.serve(async (req) => {
     let result: ShipmentResult;
 
     switch (provider.toLowerCase()) {
-      case 'correios':
-        result = await createCorreiosShipment(orderData, credentials, settings);
+      case 'correios': {
+        // Bloqueio: Correios exige NF-e autorizada OU Declaração de Conteúdo emitida.
+        if (!invoiceData && !contentDeclaration) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Este pedido não tem Nota Fiscal autorizada nem Declaração de Conteúdo. Emita uma das duas em Fiscal antes de despachar pelos Correios.',
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const fiscalDoc = invoiceData
+          ? {
+              kind: 'nfe' as const,
+              nfe_numero: invoiceData.numero ?? null,
+              nfe_serie: invoiceData.serie ?? null,
+              nfe_chave: invoiceData.chave_acesso ?? null,
+              nfe_valor: invoiceData.valor_total ?? null,
+            }
+          : { kind: 'dc' as const, dc_number: contentDeclaration!.dc_number };
+        result = await createCorreiosShipment(orderData, credentials, settings, fiscalDoc);
         break;
+      }
       case 'loggi':
         result = await createLoggiShipment(orderData, credentials, settings);
         break;
@@ -896,6 +975,7 @@ Deno.serve(async (req) => {
       default:
         result = { success: false, error: `Transportadora ${provider} não suportada` };
     }
+
 
     console.log(`[shipping-create-shipment] Result:`, JSON.stringify(result));
 

@@ -504,11 +504,23 @@ A fila de **Remessas** é espelho automático dos **Pedidos de Venda com status 
 
 **Despacho do rascunho (2026-05-28):** o botão "Emitir Remessa" passa a operar **sobre o próprio rascunho selecionado**, não sobre o pedido. Isso resolve dois casos que antes falhavam silenciosamente: (1) rascunhos de Pedido de Venda manual/duplicado sem pedido real vinculado — agora o sistema lê destinatário, peso, dimensões, transportadora e serviço diretamente do rascunho e do PV; (2) pedidos com mais de um rascunho, em que só um era contemplado. Mensagens de erro passam a ser **por linha**, identificando o rascunho e o motivo (sem CEP, recusa da transportadora, etc.), no lugar do antigo aviso genérico "X falharam".
 
-**NF-e NÃO é obrigatória para emitir remessa manual (2026-05-28):** a emissão manual de remessa pelos Correios é independente do documento fiscal. Os Correios aceitam postagem com **Declaração de Conteúdo** quando não há NF-e, e a decisão sobre qual documento usar (NF-e ou Declaração) é do lojista, no módulo Fiscal. Por isso:
+**Vínculo fiscal obrigatório para Correios (revisado 2026-06-02):** a emissão de remessa pelos Correios exige **NF-e autorizada** OU **Declaração de Conteúdo emitida** vinculada ao pedido (ou ao Pedido de Venda, quando for PV manual/duplicado). Sem nenhum dos dois, a emissão é **bloqueada** com a mensagem em PT-BR: *"Este pedido não tem Nota Fiscal autorizada nem Declaração de Conteúdo. Emita uma das duas em Fiscal antes de despachar pelos Correios."*
 
-- **Emissão manual** (botão "Emitir Remessa" na fila): segue sempre, com ou sem NF-e. Se houver NF-e autorizada vinculada ao pedido ou ao Pedido de Venda, o sistema anexa automaticamente o número e a chave de acesso à remessa por rastreabilidade. Se não houver, a remessa é criada normalmente, sem vínculo fiscal.
-- **Emissão automática** (gatilho disparado quando a NF-e é autorizada): permanece exatamente como antes — só dispara após a autorização da NF-e, configurado em **Fiscal → Configurações → Outros → Automação**. Esse caminho garante o vínculo fiscal porque a NF é o próprio gatilho.
-- A escolha entre exigir NF-e antes da remessa ou liberar a postagem com Declaração de Conteúdo fica com o lojista, no fluxo fiscal. O módulo de Logística não impõe regra fiscal sobre o despacho manual.
+- **Com NF-e autorizada:** o sistema anexa automaticamente número, série, chave de acesso e valor da NF no envio (campos `numeroNotaFiscal`, `serieNotaFiscal`, `chaveAcessoNotaFiscal`, `valorNotaFiscal` do CWS).
+- **Com Declaração de Conteúdo emitida:** o sistema anexa automaticamente o número da Declaração na observação do envio (`observacao: "Declaracao de Conteudo no DC-XXXXX"`). Isso satisfaz a exigência **PPN-347** dos Correios. Não há geração silenciosa de Declaração — ela continua sendo emitida pelo operador no módulo Fiscal, conforme o motor único documentado em `docs/especificacoes/fiscal/declaracao-de-conteudo-correios.md`.
+- **Emissão automática** (gatilho disparado quando a NF-e é autorizada): permanece como antes — só dispara após a autorização da NF, então o vínculo fiscal já está garantido.
+- **Pedidos via gateway** (Frenet, Loggi via Frenet) seguem o caminho próprio (`gateway-attach-fiscal-doc`), que pode gerar Declaração automaticamente para o gateway. O bloqueio descrito aqui vale apenas para o despacho local Correios.
+
+**Campos obrigatórios no payload da pré-postagem (revisão 2026-06-02):** além do peso, dimensões, remetente e destinatário, o payload passou a incluir obrigatoriamente:
+
+- `codigoFormatoObjeto: 2` (caixa, padrão; envelope = 1, cilindro = 3).
+- `cienteObjetoNaoProibido: 1` — declaração obrigatória de ausência de itens proibidos (resolve **PPN-330**).
+- Telefones (remetente e destinatário) sanitizados para conter **apenas dígitos, no máximo 12 caracteres** (DDD + 9 dígitos). Cadastros com máscara `(11) 91955-5920` são limpos automaticamente antes do envio.
+- Documento (CPF/CNPJ) do remetente também sanitizado para apenas dígitos.
+
+**Leitura de erro dos Correios (revisão 2026-06-02):** a resposta de erro do CWS hoje vem como lista de strings em `msgs`. O sistema lê esse formato e cai para o formato legado (`{texto: ...}[]`) quando necessário. As mensagens são concatenadas com ` • ` e exibidas na tela em PT-BR — o problema antigo de aparecer "PV 371: , , , , ," foi resolvido.
+
+
 
 
 **Diálogo de rascunho — comportamento (2026-05-28):**
