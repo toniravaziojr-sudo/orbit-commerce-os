@@ -1057,3 +1057,118 @@ Apenas registros com `date_start === date_stop` (dados diários) são mantidos. 
 | **Mapeamento funding_source_details.type** | `1` → `CREDIT_CARD`, `2` → `DEBIT_CARD`, `20` → `PREPAID_BALANCE`, outros → `UNKNOWN` |
 | **Cartão de crédito** | Quando `funding_source_type` = `CREDIT_CARD` (ou sem saldo numérico), a UI exibe **"Cartão de crédito"** em vez de valor monetário. Contas com cartão são excluídas do cálculo de "Saldo Total" |
 
+
+---
+
+## 🛡️ Execution Policy Engine — Fase B (fundação estrutural)
+
+### Propósito
+A Fase B instala a **fundação técnica de segurança** entre a aprovação humana de uma ação do Ads Autopilot e a chamada real à API da plataforma (Meta/Google/TikTok). **Não ativa autonomia automática**. Não altera prompts, critérios do Guardian/Strategist/Analyze, nem a UI da fila. Toda decisão executável passa a ser auditável, reversível e idempotente.
+
+A autonomia plena por categoria de ação fica para a **Fase C** (não implementada).
+
+### Componentes
+- **Helper compartilhado:** `supabase/functions/_shared/ads-policy.ts` — determinístico, sem LLM, sem chamada externa. Exporta `decide`, `canChangeBudget`, `canPause`, `canReactivate`, `isApprovalStillValid`, `getNextSafeWindow`, `classifyAction`, `classifyCampaign`, `buildIdempotencyKey`, `validateProposal`, `suggestStructuralExpansion`, `POLICY_ENGINE_VERSION='v1'` e `PLATFORM_LIMITS`.
+- **Executor refatorado:** `ads-autopilot-execute-approved` (v4.0.0) — aplica o policy gate antes de qualquer chamada externa.
+- **Runner agendado:** `ads-autopilot-scheduled-runner` — cron 5 min, processa apenas ações `policy_engine_version='v1'`.
+
+### Limites centralizados por plataforma
+| Canal  | Variação máx. por ajuste | Intervalo mínimo |
+|--------|--------------------------|------------------|
+| Meta   | ±20%                     | 72h              |
+| Google | ±20%                     | 168h (7 dias)    |
+| TikTok | ±15%                     | 48h              |
+
+### Janela segura de execução (BRT)
+Ações estruturais (criação de campanha/adset/ad/lookalike/criativo) só executam dentro de **00:01 → 04:00 BRT** (UTC-3). Fora dessa janela viram `status='scheduled'` com `scheduled_for` apontando para o próximo 00:01 BRT.
+
+### TTLs conservadores de aprovação
+| Tipo | TTL |
+|------|-----|
+| Visível ao cliente (criativos, novas campanhas) | 48h |
+| Estratégica (orçamento, pausa, reativação)      | 24h |
+| Fallback                                        | 24h |
+
+Na Fase B o hook de aprovação aplica **default conservador de 24h** para todos os casos; refinamento por categoria entra na Fase C.
+
+### Execução pós-aprovação
+1. Hook `useAdsPendingActions.approveAction` grava `status='approved'`, `approved_at`, `approved_by_user_id`, `approval_expires_at`. **Nunca grava `executed_at` na aprovação.**
+2. Hook invoca `ads-autopilot-execute-approved`.
+3. Executor carrega a ação, faz stamp retroativo de aprovação se necessário, carrega snapshot mínimo da campanha alvo, monta `ActionInput` e chama `decide(...)`:
+   - `execute_now` → grava `policy_check_result` + `policy_engine_version='v1'` + `idempotency_key` e segue para o caminho de execução existente, que ao final marca `status='executed'`, `executed_at=now()`.
+   - `schedule(scheduled_for)` → marca `status='scheduled'`, `scheduled_for`. **Sem chamada externa.**
+   - `reject_policy_limit_exceeded` → `status='rejected_policy_limit_exceeded'`. **Sem chamada externa.**
+   - `reject_policy_missing_context` → `status='rejected_policy_missing_context'`. **Sem chamada externa.**
+   - `expired_approval` → `status='expired_approval'`. **Sem chamada externa.**
+   - `reject_duplicate` → `status='rejected_duplicate'` (detectado por violação do unique parcial).
+
+### Regra de ouro do helper
+Se faltar contexto obrigatório para decidir com segurança uma ação executável, o helper **nunca retorna `execute_now`**. Sempre retorna decisão conservadora (`reject_policy_missing_context`, `schedule`, etc.).
+
+Checks mínimos obrigatórios para execução:
+- canal/plataforma identificada (Meta/Google/TikTok);
+- `action_type` identificado;
+- entidade alvo quando a ação exige (`pause_*`, `reactivate_*`, `activate_*`, `adjust_budget`, etc.);
+- limite da plataforma conhecido;
+- janela segura calculável;
+- aprovação válida quando aplicável.
+
+Ações sem `entity_id` **não pulam** o gate automaticamente:
+- `strategic_plan` é tratado como planejamento (path `non_executable_or_no_external_effect`).
+- `generate_creative`, `create_campaign`, `create_ad`, `create_adset`, `create_lookalike_audience`, `adjust_budget`, `pause_*`, `reactivate_*` continuam sendo classificadas pelo `action_type` e podem ser rejeitadas por falta de contexto.
+
+### Ações agendadas (scheduled runner)
+- Cron: `ads-autopilot-scheduled-runner-5m`, a cada 5 minutos.
+- Gate de módulo: `cron_call_edge_if_active(ARRAY['ai_traffic_manager'], ...)`.
+- Critério: `status='scheduled' AND scheduled_for <= now() AND policy_engine_version='v1'`.
+- Lock otimista: marca `status='processing_runner'` antes de tocar; instâncias concorrentes não pegam a mesma ação.
+- Reaplica `decide(...)` antes de executar. Resultado:
+  - `execute_now` → invoca `ads-autopilot-execute-approved` com `from_runner: true`.
+  - `schedule` → adia novamente.
+  - rejeições → marca status correspondente.
+  - `expired_approval` → marca expirada.
+
+### Idempotência
+Estratégia escolhida (dupla proteção, **apenas para engine v1**):
+1. **Coluna gerada** `action_day date GENERATED ALWAYS AS ((created_at AT TIME ZONE 'America/Sao_Paulo')::date) STORED` — imutável e indexável, evita o problema de `date_trunc` sobre `timestamptz`.
+2. **Unique parcial diário:** `(tenant_id, channel, action_type, action_day, action_data->>'entity_id')` filtrado por `policy_engine_version='v1' AND status IN ('approved','scheduled','executed','auto_executed')`.
+3. **Unique parcial por `idempotency_key`** (formato: `tenant:channel:action_type:entity:dia_brt`) também filtrado por `policy_engine_version='v1'`.
+
+Motivo: violação dispara captura no executor/runner que marca `rejected_duplicate` sem chamada externa.
+
+### Campos de auditoria (novos em `ads_autopilot_actions`)
+| Campo | Propósito |
+|-------|-----------|
+| `scheduled_for` | Quando o runner deve executar a ação agendada. |
+| `approved_at` | Quando o humano aprovou. |
+| `approved_by_user_id` | Quem aprovou. |
+| `approval_expires_at` | Validade da aprovação (TTL). |
+| `action_class` | Classificação (Fase B = `needs_approval` por default). |
+| `campaign_class_at_proposal` | Classe da campanha no momento da proposta (Fase C). |
+| `policy_check_result` | Resultado completo de `decide(...)` em JSON. |
+| `policy_engine_version` | `'v1'` quando processada pela nova engine. |
+| `parent_action_id` | Para expansões estruturais futuras. |
+| `executed_simulated` | Marca execução em modo simulado (Modo Piloto — Fase futura). |
+| `auto_executed` | Reservado para Fase C (autonomia). |
+| `idempotency_key` | Chave estável construída pelo helper. |
+| `action_day` | Dia operacional BRT (coluna gerada). |
+
+### Status suportados (texto livre, sem CHECK)
+Continuam valendo todos os anteriores. Adicionados na Fase B:
+`scheduled`, `auto_executed`, `rejected_policy_limit_exceeded`, `rejected_policy_learning`, `rejected_policy_new_campaign`, `rejected_policy_outside_sales_window`, `rejected_policy_missing_context`, `rejected_duplicate`, `expired_approval`, `processing_runner` (lock interno do runner).
+
+### Proteção de ações legadas
+- O runner agendado e os índices únicos de idempotência **filtram por `policy_engine_version='v1'`**.
+- As 3 ações `status='scheduled'` legadas (criadas em fev/2026, sem `policy_engine_version`) **continuam intactas** e jamais são tocadas pela Fase B.
+- Nenhuma ação histórica é reprocessada, reclassificada ou alterada por esta entrega.
+
+### Diferença entre Fase B (estrutural) e Fase C (autonomia)
+| | Fase B (entregue agora) | Fase C (não entregue) |
+|---|---|---|
+| Autonomia | Desligada. Toda execução continua exigindo aprovação humana. | Ações `automatic` executam sem aprovação. |
+| `classifyAction` | Retorna `needs_approval` por default. | Distingue `automatic`, `needs_approval`, `emergency`, `blocked`. |
+| `classifyCampaign` | `new` ou `mature` por idade simples; sem histograma. | Inclui `learning`, `low_spend`, `mature_with_hourly_history`. |
+| Pause/Reactivate | Checks mínimos: canal + entidade + plataforma conhecida. | Considera Primary Sales Window e regra mensal. |
+| Modo Piloto/Sandbox | Não implementado. | Implementação futura. |
+| Histograma horário | Não implementado. | Implementação futura. |
+
