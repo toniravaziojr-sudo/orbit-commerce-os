@@ -220,3 +220,44 @@ Tornar o Autopilot de tráfego pago seguro o suficiente para evoluir gradualment
 - Ações legadas (sem `policy_engine_version='v1'`) **não** são processadas pelo runner novo.
 - Toda evolução para Fase C exige PLANNER antes de EXECUÇÃO, e GO explícito do operador.
 - Mudança de limite de plataforma, janela segura ou TTL de aprovação exige aprovação explícita — não alterar por iniciativa própria.
+
+---
+
+### 8. Logística — Separação Objeto de Postagem vs Remessa Agrupadora (modelo Bling)
+
+**Docs oficiais:**
+- `docs/especificacoes/erp/logistica.md`
+- `docs/especificacoes/transversais/mapa-ui.md` (abas do módulo de Remessas)
+- Memória: `mem://constraints/shipping-objeto-vs-remessa-agrupadora`
+
+**Objetivo da frente:**
+Separar conceitualmente **Objeto de Postagem** (unidade vinculada ao pedido) de **Remessa Agrupadora** (lote que embrulha vários objetos para impressão de PLP, etiquetas, NFs e DCs em lote), no padrão Bling. Manter intacto: regra "emissão = despachado", integrações Correios/Pratika/Frenet e fluxo gateway (Frenet sai da fila de Remessas).
+
+**Onde paramos (estado atual):**
+
+- **Fase 1 — Fundação de dados:** ✅ aplicada e validada tecnicamente.
+  - Tabela `shipping_remessas` criada com RLS por tenant.
+  - Coluna `remessa_id` (nullable) em `shipments`.
+  - Função `allocate_remessa_numero` gerando `Remessa_DDMMAAAA.HHMMSS`.
+  - Triggers de contadores (`total_objetos`, `total_emitidos`, `total_falhas`) mantendo integridade automática.
+  - Constraint anti-regressão registrada.
+- **Fase 2 — UI de Objetos + nova aba Remessas:** ✅ aplicada, **pendente de validação real pelo operador**.
+  - Abas reorganizadas: **Dashboard | Objetos de postagem | Remessas | Rastreios**.
+  - Sub-abas internas renomeadas para "Objetos emitidos"; botões para "Gerar remessa".
+  - Coluna **Remessa** exibindo `Remessa_DDMMAAAA.HHMMSS` nos objetos emitidos.
+  - Componente `RemessasManager` com lista de lotes, status e painel lateral de drill-down por objeto.
+  - Emissão agrupa por transportadora, aloca número de remessa e vincula `shipments.remessa_id` antes do despacho. Objetos sem remessa continuam funcionando (compatibilidade).
+
+**Próximos passos previstos (não iniciar sem GO explícito):**
+
+- **Validação real ponta a ponta pelo operador** no tenant piloto: gerar uma remessa com múltiplos objetos, conferir agrupamento, contadores e exibição na aba Remessas.
+- **Fase 3 — Impressão em lote pela aba Remessas:** Protocolo PLP (PDF local), etiquetas, NFs e DCs consolidados por remessa.
+- **Fase 4 — Refinamento:** tratamento de falhas parciais (reemitir 1 etiqueta dentro de um lote de N sem reabrir o lote inteiro), regras de cancelamento/reabertura de remessa.
+
+**Restrições firmes:**
+- Não alterar a regra "emissão = despachado".
+- Não tocar no fluxo de gateway Frenet — pedidos gateway saem da fila de Remessas e seguem por `dce-emit` + `gateway-attach-fiscal-doc`.
+- Pratika e Correios continuam recebendo objetos individuais; a remessa só "embrulha" para impressão e gestão visual.
+- Não introduzir filtro padrão escondendo remessas de 1 objeto — a aba Remessas mostra todos os lotes.
+- Padronização de loadings de botão fica fora desta frente (tema separado, parado até pedido explícito).
+
