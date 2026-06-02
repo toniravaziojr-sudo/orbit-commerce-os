@@ -1,8 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
+import {
+  decide,
+  POLICY_ENGINE_VERSION,
+  buildIdempotencyKey,
+  getApprovalTtlHours,
+  type ActionInput,
+} from "../_shared/ads-policy.ts";
 
 // ===== VERSION =====
-const VERSION = "v3.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
+const VERSION = "v4.0.0"; // Fase B: Execution Policy Engine gate (sem mudar lógica de execução)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
